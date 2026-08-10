@@ -77,7 +77,7 @@ the complete presentation atom/profile set, validates canonical family/effect
 metadata, and rejects unknown manifest fields, numeric enum tokens, invalid
 binding kinds, invalid presentation atoms, and invalid profiles.
 RendererCore strictly round-trips all
-55 and validates valid, missing, noninteractive,
+59 and validates valid, missing, noninteractive,
 selectionless, textless, and invalid-expected-text targets before the Avalonia shell proves
 native action activation through exactly one `Button.ClickEvent`, with missing,
 non-action, unrealized, hidden, and disabled targets rejected before callbacks,
@@ -100,7 +100,8 @@ dispatcher-yielding window-open waiting,
 native window-closed visual-tree detachment, dispatcher-yielding window-closed
 waiting on a detached surface, persistent open-window timeout without invoking
 native close,
-native selected/unselected observation,
+native idempotent and reversible selected/unselected mutation with no action
+activation or focus movement, native selected/unselected observation,
 dispatcher-yielding selection wait, stable immediate-child cardinality without
 realizing virtualized children, external-patch child-count waiting with a
 persistent mismatch timeout, actual displayed-text,
@@ -116,7 +117,10 @@ action-unavailable-reason, dispatcher-yielding action-unavailable-reason wait an
 form-field-label, form-field-input-kind, form-field-required-state,
 form-field-max-length, form-field-placeholder,
 dispatcher-yielding form-field-placeholder waiting with external placeholder
-transition and persistent mismatch timeout, accessibility-name, and declared accessibility-description
+transition and persistent mismatch timeout, scoped schema-bound native form-value
+mutation, exact form-value assertion, dispatcher-yielding external form-value
+waiting, persistent mismatch timeout, scope disposal, and no implicit focus,
+activation, or submission, accessibility-name, and declared accessibility-description
 observation through its stable visual
 index. Scrolling a noninteractive node must preserve the currently
 focused control, hiding the renderer surface must make visibility assertion
@@ -130,7 +134,7 @@ Control-fixture and presentation-probe lifecycles are isolated. `--verify-contro
 mounts, patches, audits, and exits without requiring presentation-only fixture
 fields or starting wait tasks; only `--verify-focus-retention` initializes the
 full presentation probe state. This keeps the four NativeAOT control fixtures
-independent from the candidate 55-atom automation fixture.
+independent from the candidate 56-atom automation fixture.
 
 ```bash
 cargo run --quiet -p leselang-ui \
@@ -432,8 +436,9 @@ Avalonia controls. The probe also verifies
 native hidden-state assertion and visible-target mismatch rejection,
 native unfocused-state assertion and dispatcher-yielding unfocused wait with
 external focus-loss transition and persistent focused timeout,
-native selected/unselected assertions plus dispatcher-yielding selection wait
-and mismatch timeout without mutating focus or selection, plus native
+native selected/unselected mutation with idempotency, reversibility, zero-action,
+and focus-retention guards, plus assertions and dispatcher-yielding selection
+wait and mismatch timeout without implicit mutation, plus native
 accessible-name wait, external automation-name transition, and persistent
 accessible-name mismatch timeout, plus native accessible-description wait,
 external HelpText transition, and persistent accessible-description mismatch
@@ -754,7 +759,7 @@ cargo run --quiet --bin gewyvern_validate -- leserpent-aot
 
 It detects the supported host RID, performs the locked restore and no-restore
 publish, validates the native executable signature and bounded package, runs
-all four control fixtures plus the 55-atom focus/activation presentation
+all four control fixtures plus the 56-atom focus/activation presentation
 fixture, and retains machine-readable evidence under
 `target/validation/leserpent-aot/`. The lower-level commands below remain useful
 for packaging diagnostics.

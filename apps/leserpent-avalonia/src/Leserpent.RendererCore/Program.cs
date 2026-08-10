@@ -36,6 +36,7 @@ public sealed class SemanticRenderer
         UiPresentationAtom.WaitWindowOpen,
         UiPresentationAtom.AssertWindowClosed,
         UiPresentationAtom.WaitWindowClosed,
+        UiPresentationAtom.SetSelection,
         UiPresentationAtom.AssertSelection,
         UiPresentationAtom.WaitSelection,
         UiPresentationAtom.AssertChildCount,
@@ -63,6 +64,9 @@ public sealed class SemanticRenderer
         UiPresentationAtom.WaitFormFieldMaxLength,
         UiPresentationAtom.AssertFormFieldPlaceholder,
         UiPresentationAtom.WaitFormFieldPlaceholder,
+        UiPresentationAtom.SetFormValue,
+        UiPresentationAtom.AssertFormValue,
+        UiPresentationAtom.WaitFormValue,
         UiPresentationAtom.AssertAccessibleName,
         UiPresentationAtom.WaitAccessibleName,
         UiPresentationAtom.AssertAccessibleDescription,
@@ -86,6 +90,7 @@ public sealed class SemanticRenderer
     public const int WaitFormFieldRequiredTimeoutMs = 2000;
     public const int WaitFormFieldMaxLengthTimeoutMs = 2000;
     public const int WaitFormFieldPlaceholderTimeoutMs = 2000;
+    public const int WaitFormValueTimeoutMs = 2000;
     public const int WaitNodeKindTimeoutMs = 2000;
     public const int WaitVisibleTimeoutMs = 2000;
     public const int WaitWindowClosedTimeoutMs = 2000;
@@ -227,7 +232,8 @@ public sealed class SemanticRenderer
                 or UiPresentationAtom.WaitWindowOpen
                 or UiPresentationAtom.AssertWindowClosed
                 or UiPresentationAtom.WaitWindowClosed => UiPresentationAtomFamily.Window,
-            UiPresentationAtom.AssertSelection
+            UiPresentationAtom.SetSelection
+                or UiPresentationAtom.AssertSelection
                 or UiPresentationAtom.WaitSelection => UiPresentationAtomFamily.Selection,
             UiPresentationAtom.AssertChildCount
                 or UiPresentationAtom.WaitChildCount => UiPresentationAtomFamily.Structure,
@@ -256,6 +262,9 @@ public sealed class SemanticRenderer
                 or UiPresentationAtom.AssertFormFieldPlaceholder
                 or UiPresentationAtom.WaitFormFieldPlaceholder =>
                     UiPresentationAtomFamily.FormMetadata,
+            UiPresentationAtom.SetFormValue
+                or UiPresentationAtom.AssertFormValue
+                or UiPresentationAtom.WaitFormValue => UiPresentationAtomFamily.FormValue,
             UiPresentationAtom.AssertAccessibleName
                 or UiPresentationAtom.WaitAccessibleName
                 or UiPresentationAtom.AssertAccessibleDescription
@@ -271,7 +280,9 @@ public sealed class SemanticRenderer
                 or UiPresentationAtom.NavigateFocus
                 or UiPresentationAtom.ScrollIntoView
                 or UiPresentationAtom.OpenWindow
-                or UiPresentationAtom.CloseWindow => UiPresentationAtomEffect.Mutation,
+                or UiPresentationAtom.CloseWindow
+                or UiPresentationAtom.SetSelection
+                or UiPresentationAtom.SetFormValue => UiPresentationAtomEffect.Mutation,
             UiPresentationAtom.AssertVisible
                 or UiPresentationAtom.AssertHidden
                 or UiPresentationAtom.AssertRealized
@@ -295,6 +306,7 @@ public sealed class SemanticRenderer
                 or UiPresentationAtom.AssertFormFieldRequired
                 or UiPresentationAtom.AssertFormFieldMaxLength
                 or UiPresentationAtom.AssertFormFieldPlaceholder
+                or UiPresentationAtom.AssertFormValue
                 or UiPresentationAtom.AssertAccessibleName
                 or UiPresentationAtom.AssertAccessibleDescription => UiPresentationAtomEffect.Assertion,
             UiPresentationAtom.WaitHidden
@@ -319,6 +331,7 @@ public sealed class SemanticRenderer
                 or UiPresentationAtom.WaitFormFieldRequired
                 or UiPresentationAtom.WaitFormFieldMaxLength
                 or UiPresentationAtom.WaitFormFieldPlaceholder
+                or UiPresentationAtom.WaitFormValue
                 or UiPresentationAtom.WaitAccessibleName
                 or UiPresentationAtom.WaitAccessibleDescription => UiPresentationAtomEffect.Wait,
             _ => throw new InvalidDataException("unknown presentation atom"),
@@ -480,12 +493,34 @@ public sealed class SemanticRenderer
                 return UiPresentationValidation.InvalidExpectedText;
             }
         }
+        else if (operation.Kind is UiPresentationOperationKind.AssertFormValue
+            or UiPresentationOperationKind.WaitFormValue)
+        {
+            if (!IsFormValueText(operation.Expected))
+            {
+                return UiPresentationValidation.InvalidExpectedText;
+            }
+        }
         else if (operation.Expected is not null)
         {
             return UiPresentationValidation.InvalidExpectedText;
         }
+        if (operation.Kind == UiPresentationOperationKind.SetFormValue)
+        {
+            if (!IsFormValueText(operation.Value))
+            {
+                return UiPresentationValidation.InvalidFormValue;
+            }
+        }
+        else if (operation.Value is not null)
+        {
+            return UiPresentationValidation.InvalidFormValue;
+        }
         if (operation.Kind is UiPresentationOperationKind.AssertFormField
-            or UiPresentationOperationKind.WaitFormField)
+            or UiPresentationOperationKind.WaitFormField
+            or UiPresentationOperationKind.SetFormValue
+            or UiPresentationOperationKind.AssertFormValue
+            or UiPresentationOperationKind.WaitFormValue)
         {
             if (!IsFormFieldKey(operation.Field))
             {
@@ -582,7 +617,8 @@ public sealed class SemanticRenderer
         {
             return UiPresentationValidation.InvalidNavigationDirection;
         }
-        if (operation.Kind is UiPresentationOperationKind.AssertSelection
+        if (operation.Kind is UiPresentationOperationKind.SetSelection
+            or UiPresentationOperationKind.AssertSelection
             or UiPresentationOperationKind.WaitSelection)
         {
             if (operation.State is null)
@@ -629,7 +665,8 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.WaitFormFieldInputKind
             or UiPresentationOperationKind.WaitFormFieldRequired
             or UiPresentationOperationKind.WaitFormFieldMaxLength
-            or UiPresentationOperationKind.WaitFormFieldPlaceholder)
+            or UiPresentationOperationKind.WaitFormFieldPlaceholder
+            or UiPresentationOperationKind.WaitFormValue)
         {
             var requiredTimeout = operation.Kind switch
             {
@@ -666,6 +703,7 @@ public sealed class SemanticRenderer
                     WaitFormFieldMaxLengthTimeoutMs,
                 UiPresentationOperationKind.WaitFormFieldPlaceholder =>
                     WaitFormFieldPlaceholderTimeoutMs,
+                UiPresentationOperationKind.WaitFormValue => WaitFormValueTimeoutMs,
                 _ => throw new InvalidOperationException("unknown wait operation"),
             };
             if (operation.TimeoutMs != requiredTimeout)
@@ -681,6 +719,27 @@ public sealed class SemanticRenderer
         if (node is null)
         {
             return UiPresentationValidation.UnknownTarget;
+        }
+        if (operation.Kind is UiPresentationOperationKind.SetFormValue
+            or UiPresentationOperationKind.AssertFormValue
+            or UiPresentationOperationKind.WaitFormValue)
+        {
+            if (node.Action?.Form is not { } form)
+            {
+                return UiPresentationValidation.FormlessTarget;
+            }
+            var field = form.Fields.FirstOrDefault(candidate =>
+                StringComparer.Ordinal.Equals(candidate.Key, operation.Field));
+            if (field is null)
+            {
+                return UiPresentationValidation.UnknownFormField;
+            }
+            if (operation.Kind == UiPresentationOperationKind.SetFormValue
+                && !ValidFormValue(operation.Value!, field))
+            {
+                return UiPresentationValidation.InvalidFormValue;
+            }
+            return UiPresentationValidation.Valid;
         }
         return operation.Kind switch
         {
@@ -731,7 +790,8 @@ public sealed class SemanticRenderer
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.WaitWindowClosed =>
                 UiPresentationValidation.Valid,
-            UiPresentationOperationKind.AssertSelection
+            UiPresentationOperationKind.SetSelection
+            or UiPresentationOperationKind.AssertSelection
             or UiPresentationOperationKind.WaitSelection
                 when node.Selection is not null =>
                 UiPresentationValidation.Valid,
@@ -808,7 +868,8 @@ public sealed class SemanticRenderer
             UiPresentationOperationKind.AssertAccessibleDescription
             or UiPresentationOperationKind.WaitAccessibleDescription =>
                 UiPresentationValidation.DescriptionlessTarget,
-            UiPresentationOperationKind.AssertSelection
+            UiPresentationOperationKind.SetSelection
+            or UiPresentationOperationKind.AssertSelection
             or UiPresentationOperationKind.WaitSelection =>
                 UiPresentationValidation.SelectionlessTarget,
             UiPresentationOperationKind.AssertText
@@ -821,6 +882,11 @@ public sealed class SemanticRenderer
     private static bool IsExpectedText(string? value) =>
         value is not null
         && Encoding.UTF8.GetByteCount(value) <= 1024
+        && !value.Any(char.IsControl);
+
+    private static bool IsFormValueText(string? value) =>
+        value is not null
+        && Encoding.UTF8.GetByteCount(value) <= MaxFormValueBytes
         && !value.Any(char.IsControl);
 
     private static bool IsFormFieldKey(string? value) =>
@@ -993,8 +1059,8 @@ public sealed class SemanticRenderer
     private static bool ValidFormValue(string value, UiFormField field)
     {
         if ((field.Required && value.Length == 0)
-            || value.Length > field.MaxLength
-            || value.Length > 256)
+            || Encoding.UTF8.GetByteCount(value) > field.MaxLength
+            || Encoding.UTF8.GetByteCount(value) > MaxFormValueBytes)
         {
             return false;
         }
@@ -1134,6 +1200,7 @@ public sealed class RendererFixture
     public UiPresentationOperation? UnfocusedAssertOperation { get; set; }
     public UiPresentationOperation? EnabledAssertOperation { get; set; }
     public UiPresentationOperation? DisabledAssertOperation { get; set; }
+    public UiPresentationOperation? SelectionSetOperation { get; set; }
     public UiPresentationOperation? SelectionAssertOperation { get; set; }
     public UiPresentationOperation? SelectionWaitOperation { get; set; }
     public UiPresentationOperation? ChildCountAssertOperation { get; set; }
@@ -1161,6 +1228,9 @@ public sealed class RendererFixture
     public UiPresentationOperation? FormFieldRequiredWaitOperation { get; set; }
     public UiPresentationOperation? FormFieldMaxLengthWaitOperation { get; set; }
     public UiPresentationOperation? FormFieldPlaceholderWaitOperation { get; set; }
+    public UiPresentationOperation? FormValueSetOperation { get; set; }
+    public UiPresentationOperation? FormValueAssertOperation { get; set; }
+    public UiPresentationOperation? FormValueWaitOperation { get; set; }
     public UiPresentationOperation? AccessibleNameAssertOperation { get; set; }
     public UiPresentationOperation? AccessibleNameWaitOperation { get; set; }
     public UiPresentationOperation? AccessibleDescriptionAssertOperation { get; set; }
@@ -1280,6 +1350,7 @@ public sealed class UiPresentationOperation
     public int? Count { get; set; }
     public string? Expected { get; set; }
     public string? Field { get; set; }
+    public string? Value { get; set; }
     public UiFormInputKind? InputKind { get; set; }
     public bool? Required { get; set; }
     public int? MaxLength { get; set; }
@@ -1374,6 +1445,7 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("assert_unfocused")] AssertUnfocused,
     [JsonStringEnumMemberName("assert_enabled")] AssertEnabled,
     [JsonStringEnumMemberName("assert_disabled")] AssertDisabled,
+    [JsonStringEnumMemberName("set_selection")] SetSelection,
     [JsonStringEnumMemberName("assert_selection")] AssertSelection,
     [JsonStringEnumMemberName("wait_selection")] WaitSelection,
     [JsonStringEnumMemberName("assert_child_count")] AssertChildCount,
@@ -1401,6 +1473,9 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("wait_form_field_required")] WaitFormFieldRequired,
     [JsonStringEnumMemberName("wait_form_field_max_length")] WaitFormFieldMaxLength,
     [JsonStringEnumMemberName("wait_form_field_placeholder")] WaitFormFieldPlaceholder,
+    [JsonStringEnumMemberName("set_form_value")] SetFormValue,
+    [JsonStringEnumMemberName("assert_form_value")] AssertFormValue,
+    [JsonStringEnumMemberName("wait_form_value")] WaitFormValue,
     [JsonStringEnumMemberName("assert_accessible_name")] AssertAccessibleName,
     [JsonStringEnumMemberName("wait_accessible_name")] WaitAccessibleName,
     [JsonStringEnumMemberName("assert_accessible_description")] AssertAccessibleDescription,
@@ -1439,6 +1514,7 @@ public enum UiPresentationValidation
     InvalidExpectedInputKind,
     InvalidExpectedRequired,
     InvalidExpectedMaxLength,
+    InvalidFormValue,
     InvalidNavigationDirection,
     InvalidSelectionState,
     InvalidExpectedChildCount,
@@ -1479,6 +1555,7 @@ public enum UiPresentationAtom
     [JsonStringEnumMemberName("wait_window_open")] WaitWindowOpen,
     [JsonStringEnumMemberName("assert_window_closed")] AssertWindowClosed,
     [JsonStringEnumMemberName("wait_window_closed")] WaitWindowClosed,
+    [JsonStringEnumMemberName("set_selection")] SetSelection,
     [JsonStringEnumMemberName("assert_selection")] AssertSelection,
     [JsonStringEnumMemberName("wait_selection")] WaitSelection,
     [JsonStringEnumMemberName("assert_child_count")] AssertChildCount,
@@ -1506,6 +1583,9 @@ public enum UiPresentationAtom
     [JsonStringEnumMemberName("wait_form_field_max_length")] WaitFormFieldMaxLength,
     [JsonStringEnumMemberName("assert_form_field_placeholder")] AssertFormFieldPlaceholder,
     [JsonStringEnumMemberName("wait_form_field_placeholder")] WaitFormFieldPlaceholder,
+    [JsonStringEnumMemberName("set_form_value")] SetFormValue,
+    [JsonStringEnumMemberName("assert_form_value")] AssertFormValue,
+    [JsonStringEnumMemberName("wait_form_value")] WaitFormValue,
     [JsonStringEnumMemberName("assert_accessible_name")] AssertAccessibleName,
     [JsonStringEnumMemberName("wait_accessible_name")] WaitAccessibleName,
     [JsonStringEnumMemberName("assert_accessible_description")] AssertAccessibleDescription,
@@ -1528,6 +1608,7 @@ public enum UiPresentationAtomFamily
     [JsonStringEnumMemberName("node_metadata")] NodeMetadata,
     [JsonStringEnumMemberName("action_metadata")] ActionMetadata,
     [JsonStringEnumMemberName("form_metadata")] FormMetadata,
+    [JsonStringEnumMemberName("form_value")] FormValue,
     [JsonStringEnumMemberName("accessibility")] Accessibility,
 }
 
@@ -1629,6 +1710,7 @@ public sealed class UiPresentationAtomJsonConverter : JsonConverter<UiPresentati
             "wait_window_open" => UiPresentationAtom.WaitWindowOpen,
             "assert_window_closed" => UiPresentationAtom.AssertWindowClosed,
             "wait_window_closed" => UiPresentationAtom.WaitWindowClosed,
+            "set_selection" => UiPresentationAtom.SetSelection,
             "assert_selection" => UiPresentationAtom.AssertSelection,
             "wait_selection" => UiPresentationAtom.WaitSelection,
             "assert_child_count" => UiPresentationAtom.AssertChildCount,
@@ -1656,6 +1738,9 @@ public sealed class UiPresentationAtomJsonConverter : JsonConverter<UiPresentati
             "wait_form_field_max_length" => UiPresentationAtom.WaitFormFieldMaxLength,
             "assert_form_field_placeholder" => UiPresentationAtom.AssertFormFieldPlaceholder,
             "wait_form_field_placeholder" => UiPresentationAtom.WaitFormFieldPlaceholder,
+            "set_form_value" => UiPresentationAtom.SetFormValue,
+            "assert_form_value" => UiPresentationAtom.AssertFormValue,
+            "wait_form_value" => UiPresentationAtom.WaitFormValue,
             "assert_accessible_name" => UiPresentationAtom.AssertAccessibleName,
             "wait_accessible_name" => UiPresentationAtom.WaitAccessibleName,
             "assert_accessible_description" => UiPresentationAtom.AssertAccessibleDescription,
@@ -1695,6 +1780,7 @@ public sealed class UiPresentationAtomJsonConverter : JsonConverter<UiPresentati
             UiPresentationAtom.WaitWindowOpen => "wait_window_open",
             UiPresentationAtom.AssertWindowClosed => "assert_window_closed",
             UiPresentationAtom.WaitWindowClosed => "wait_window_closed",
+            UiPresentationAtom.SetSelection => "set_selection",
             UiPresentationAtom.AssertSelection => "assert_selection",
             UiPresentationAtom.WaitSelection => "wait_selection",
             UiPresentationAtom.AssertChildCount => "assert_child_count",
@@ -1722,6 +1808,9 @@ public sealed class UiPresentationAtomJsonConverter : JsonConverter<UiPresentati
             UiPresentationAtom.WaitFormFieldMaxLength => "wait_form_field_max_length",
             UiPresentationAtom.AssertFormFieldPlaceholder => "assert_form_field_placeholder",
             UiPresentationAtom.WaitFormFieldPlaceholder => "wait_form_field_placeholder",
+            UiPresentationAtom.SetFormValue => "set_form_value",
+            UiPresentationAtom.AssertFormValue => "assert_form_value",
+            UiPresentationAtom.WaitFormValue => "wait_form_value",
             UiPresentationAtom.AssertAccessibleName => "assert_accessible_name",
             UiPresentationAtom.WaitAccessibleName => "wait_accessible_name",
             UiPresentationAtom.AssertAccessibleDescription => "assert_accessible_description",
@@ -1757,6 +1846,7 @@ public sealed class UiPresentationAtomFamilyJsonConverter : JsonConverter<UiPres
             "node_metadata" => UiPresentationAtomFamily.NodeMetadata,
             "action_metadata" => UiPresentationAtomFamily.ActionMetadata,
             "form_metadata" => UiPresentationAtomFamily.FormMetadata,
+            "form_value" => UiPresentationAtomFamily.FormValue,
             "accessibility" => UiPresentationAtomFamily.Accessibility,
             _ => throw new JsonException("unknown presentation atom family"),
         };
@@ -1782,6 +1872,7 @@ public sealed class UiPresentationAtomFamilyJsonConverter : JsonConverter<UiPres
             UiPresentationAtomFamily.NodeMetadata => "node_metadata",
             UiPresentationAtomFamily.ActionMetadata => "action_metadata",
             UiPresentationAtomFamily.FormMetadata => "form_metadata",
+            UiPresentationAtomFamily.FormValue => "form_value",
             UiPresentationAtomFamily.Accessibility => "accessibility",
             _ => throw new JsonException("unknown presentation atom family"),
         });

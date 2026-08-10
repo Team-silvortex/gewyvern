@@ -3875,7 +3875,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.89.0");
+    assert_eq!(avalonia.contract.version, "1.91.0");
     assert!(
         avalonia
             .contract
@@ -3884,6 +3884,25 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .any(|surface| surface == "avalonia-generation-horizon-classification")
     );
     for surface in [
+        "native-selection-state-mutation",
+        "idempotent-selection-mutation",
+        "reversible-selection-mutation",
+        "selection-mutation-no-action-activation",
+        "selection-mutation-focus-preservation",
+        "production-parameter-form-scope-binding",
+        "native-form-value-mutation",
+        "scoped-native-form-field-registration",
+        "duplicate-form-field-registration-rejection",
+        "form-value-mutation-idempotency",
+        "form-value-mutation-no-action-activation",
+        "form-value-mutation-focus-preservation",
+        "native-form-value-assertion",
+        "form-value-mismatch-presentation-rejection",
+        "unregistered-form-field-presentation-rejection",
+        "form-field-scope-disposal",
+        "dispatcher-yielding-form-value-wait",
+        "external-form-value-transition-wait",
+        "persistent-form-value-mismatch-timeout",
         "optional-team-silvortex-account",
         "oidc-native-code-pkce",
         "system-browser-loopback-callback",
@@ -5788,7 +5807,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(ui.maturity, Maturity::Mature);
     assert_eq!(ui.completion, 100);
     assert_eq!(ui.contract.stability, ContractStability::Stable);
-    assert_eq!(ui.contract.version, "1.50.0");
+    assert_eq!(ui.contract.version, "1.52.0");
     for surface in [
         "ui-event-hir-effect-lowering",
         "hir-effect-ui-event-reverse-mapping",
@@ -5855,6 +5874,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "fixed-form-field-max-length-wait-timeout",
         "ui-wait-form-field-placeholder-presentation-roundtrip",
         "fixed-form-field-placeholder-wait-timeout",
+        "ui-set-form-value-presentation-roundtrip",
+        "ui-assert-form-value-presentation-roundtrip",
+        "ui-wait-form-value-presentation-roundtrip",
+        "fixed-form-value-wait-timeout",
+        "form-value-presentation-atom-profile",
+        "form-value-schema-bound-mutation",
         "ui-assert-accessible-name-presentation-roundtrip",
         "ui-wait-accessible-name-presentation-roundtrip",
         "fixed-accessible-name-wait-timeout",
@@ -5888,6 +5913,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "explicit-focus-navigation-direction",
         "focus-navigation-first-last-roundtrip",
         "semantic-selection-state",
+        "ui-set-selection-presentation-roundtrip",
+        "selection-lifecycle-mutation-profile",
         "ui-assert-selection-presentation-roundtrip",
         "ui-wait-selection-presentation-roundtrip",
         "fixed-selection-wait-timeout",
@@ -5937,7 +5964,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-hir/typed-effects")
         .expect("Leserpent language HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.61.0");
+    assert_eq!(hir.contract.version, "0.63.0");
     for surface in [
         "debugger-cancel-effect",
         "ui-activate-effect",
@@ -5987,6 +6014,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "fixed-form-field-max-length-wait-policy",
         "ui-wait-form-field-placeholder-effect",
         "fixed-form-field-placeholder-wait-policy",
+        "ui-set-form-value-effect",
+        "ui-assert-form-value-effect",
+        "ui-wait-form-value-effect",
+        "fixed-form-value-wait-policy",
+        "shared-ui-form-value-validation",
         "ui-assert-accessible-name-effect",
         "ui-wait-accessible-name-effect",
         "fixed-accessible-name-wait-policy",
@@ -6010,6 +6042,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-assert-window-closed-effect",
         "ui-wait-window-closed-effect",
         "fixed-window-closed-wait-policy",
+        "ui-set-selection-effect",
         "ui-assert-selection-effect",
         "ui-wait-selection-effect",
         "typed-ui-selection-state",
@@ -6047,7 +6080,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.46.0");
+    assert_eq!(vm.contract.version, "1.48.0");
     for surface in [
         "typed-debugger-cancel-result",
         "restart-safe-debugger-cancel-dispatch",
@@ -6058,6 +6091,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "typed-ui-focus-navigation-result",
         "focus-navigation-start-direction-result-binding",
         "focus-navigation-first-last-result-binding",
+        "typed-ui-set-selection-result",
+        "selection-mutation-request-result-binding",
         "typed-ui-selection-result",
         "selection-state-request-result-binding",
         "fixed-ui-selection-wait-deadline",
@@ -6119,6 +6154,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "typed-ui-wait-form-field-placeholder-result",
         "form-field-placeholder-wait-request-result-binding",
         "fixed-ui-form-field-placeholder-wait-deadline",
+        "typed-ui-set-form-value-result",
+        "form-value-mutation-request-result-binding",
+        "typed-ui-assert-form-value-result",
+        "typed-ui-wait-form-value-result",
+        "form-value-observation-request-result-binding",
+        "fixed-ui-form-value-wait-deadline",
         "typed-ui-assert-accessible-name-result",
         "typed-ui-wait-accessible-name-result",
         "accessible-name-wait-request-result-binding",

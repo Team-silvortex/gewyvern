@@ -17,10 +17,15 @@ pub fn is_canonical_https_origin(value: &str) -> bool {
         return false;
     };
     uri.scheme_str() == Some("https")
-        && uri.authority().is_some_and(is_canonical_authority)
+        && uri.authority().is_some_and(|authority| {
+            is_canonical_authority(authority)
+                && value
+                    .strip_prefix("https://")
+                    .and_then(|remainder| remainder.strip_suffix('/'))
+                    == Some(authority.as_str())
+        })
         && uri.path() == "/"
         && uri.query().is_none()
-        && uri.to_string() == value
 }
 
 fn is_canonical_authority(authority: &http::uri::Authority) -> bool {

@@ -31,7 +31,7 @@ plus the frontend-local `ui.activate`, `ui.focus`, `ui.navigate_focus`, `ui.scro
 `ui.assert_disabled`, `ui.wait_enabled`, `ui.wait_disabled`,
 `ui.open_window`, `ui.close_window`, `ui.assert_window_open`,
 `ui.wait_window_open`, `ui.assert_window_closed`, `ui.wait_window_closed`,
-`ui.assert_selection`, `ui.wait_selection`, `ui.assert_child_count`,
+`ui.set_selection`, `ui.assert_selection`, `ui.wait_selection`, `ui.assert_child_count`,
 `ui.wait_child_count`, `ui.assert_text`, `ui.wait_text`,
 `ui.assert_automation_id`, and
 `ui.assert_node_kind`, `ui.wait_node_kind`, `ui.assert_action_kind`,
@@ -457,6 +457,24 @@ window visual tree. Detached renderer surfaces satisfy the predicate; a
 persistently open target times out and remains open. Waiting never calls a
 native close API and never activates, focuses, scrolls, selects, or submits
 anything.
+
+Native selection can be changed through one renderer-neutral mutation:
+
+```leselang
+fn main() = ui.set_selection(
+  node_id: "runtime-runtime-b",
+  state: "selected",
+)
+```
+
+`ui.set_selection` requires `ui.presentation`, a semantic node that declares
+selection metadata, and exactly `selected` or `unselected`. The VM binds both
+arguments to the suspended request and typed result, so a renderer cannot
+acknowledge a different target or state. Adapters mutate native selection
+directly; repeated requests are idempotent, selecting and unselecting are
+reversible, and the operation must not focus, activate, scroll, or submit the
+target. Use `ui.assert_selection` or `ui.wait_selection` for independent
+postcondition checks.
 
 Native selection state can be asserted without activating or focusing a control:
 
@@ -943,6 +961,38 @@ or absence until it matches exactly; form-less targets, unknown fields,
 unrealized targets, invalid keys, invalid placeholder text, forged timeouts, or
 persistent mismatches fail. The wait never focuses, types, activates, opens,
 edits, or submits the form.
+
+Native deployment form values use three separate scoped operations:
+
+```leselang
+fn main() = ui.set_form_value(
+  node_id: "runtime-runtime-a-deploy",
+  field: "pipeline_kind",
+  value: "http/request"
+)
+
+fn main() = ui.assert_form_value(
+  node_id: "runtime-runtime-a-deploy",
+  field: "pipeline_kind",
+  expected: "http/request"
+)
+
+fn main() = ui.wait_form_value(
+  node_id: "runtime-runtime-a-deploy",
+  field: "pipeline_kind",
+  expected: "http/request"
+)
+```
+
+All three require `ui.presentation`, a semantic `runtime_deploy` form action,
+and a declared bounded field key. Values and expectations are control-free and
+at most 256 UTF-8 bytes. `ui.set_form_value` additionally enforces the field's
+required bit, maximum length, and `path_token` or `trimmed_text` input kind;
+assert/wait may observe temporarily invalid text exactly as the user sees it.
+The VM binds node, field, value/expected, and the fixed 2000 ms wait deadline
+across re-entry. A renderer must target the currently open native field through
+a scoped registration, reject unopened or disposed scopes, and never focus,
+activate, or submit as a side effect. Repeating the same set is idempotent.
 
 Native accessibility metadata can be asserted independently of display text:
 

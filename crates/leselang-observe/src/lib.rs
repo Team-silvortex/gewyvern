@@ -395,6 +395,9 @@ pub fn waiting_debugger_projection(
             None,
             "UI wait child count",
         ),
+        Effect::UiSetSelection { .. } => {
+            (DebuggerEffectKind::UiSetSelection, None, "UI set selection")
+        }
         Effect::UiAssertSelection { .. } => (
             DebuggerEffectKind::UiAssertSelection,
             None,
@@ -461,6 +464,21 @@ pub fn waiting_debugger_projection(
             DebuggerEffectKind::UiWaitActionUnavailableReason,
             None,
             "UI wait action unavailable reason",
+        ),
+        Effect::UiSetFormValue { .. } => (
+            DebuggerEffectKind::UiSetFormValue,
+            None,
+            "UI set form value",
+        ),
+        Effect::UiAssertFormValue { .. } => (
+            DebuggerEffectKind::UiAssertFormValue,
+            None,
+            "UI assert form value",
+        ),
+        Effect::UiWaitFormValue { .. } => (
+            DebuggerEffectKind::UiWaitFormValue,
+            None,
+            "UI wait form value",
         ),
         Effect::UiAssertFormField { .. } => (
             DebuggerEffectKind::UiAssertFormField,

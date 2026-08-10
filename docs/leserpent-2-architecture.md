@@ -686,6 +686,12 @@ round-trip generation to `leselang-ui` and `leselang-hir`, and returns either
 source or a bounded typed failure. Avalonia disables export on failure rather
 than recreating Leselang syntax in C#.
 
+Form automation follows the same replaceable-adapter rule. The shared Rust
+contract names a semantic action node and field; each renderer registers its
+currently open native field controls for that scope. Leselang set/assert/wait
+therefore addresses the same control as manual GUI interaction without exposing
+Avalonia objects through the IR, and closing the form invalidates the scope.
+
 Crates may initially be introduced behind one workspace package, but these
 ownership boundaries must exist before frontend migration begins.
 
@@ -1888,6 +1894,7 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.wait_window_open(node_id: ...)`, plus
 `ui.assert_window_closed(node_id: ...)`, plus
 `ui.wait_window_closed(node_id: ...)`, plus
+`ui.set_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.assert_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.wait_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.assert_child_count(node_id: ..., count: "0".."4096")`, plus
@@ -1961,10 +1968,11 @@ inverse native-window membership predicate after resolving the stable node to a
 realized native control. Window-closed wait polls that same inverse predicate
 until the fixed deadline; detached renderer surfaces satisfy it, while a
 persistently open target times out without invoking native close or mutating
-focus. Selection
-assertion reads native selected state, and selection wait polls that same
-predicate until the fixed deadline without selecting, focusing, or activating
-the target. Child-count assertion reads immediate-child cardinality from the
+focus. Selection mutation writes native selected/unselected state idempotently,
+supports the inverse mutation, and neither activates an action nor moves
+keyboard focus. Selection assertion reads native selected state, and selection
+wait polls that same predicate until the fixed deadline without implicitly
+selecting, focusing, or activating the target. Child-count assertion reads immediate-child cardinality from the
 stable semantic/visual index, including unrealized virtualized nodes, and
 child-count wait polls that same structure across external patches without
 materializing children or mutating the document. Text

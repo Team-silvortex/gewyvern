@@ -101,6 +101,7 @@ pub fn lower_effect(
             | Effect::UiAssertDisabled { .. }
             | Effect::UiAssertChildCount { .. }
             | Effect::UiWaitChildCount { .. }
+            | Effect::UiSetSelection { .. }
             | Effect::UiAssertSelection { .. }
             | Effect::UiWaitSelection { .. }
             | Effect::UiAssertText { .. }
@@ -116,6 +117,9 @@ pub fn lower_effect(
             | Effect::UiWaitActionAvailable { .. }
             | Effect::UiAssertActionUnavailableReason { .. }
             | Effect::UiWaitActionUnavailableReason { .. }
+            | Effect::UiSetFormValue { .. }
+            | Effect::UiAssertFormValue { .. }
+            | Effect::UiWaitFormValue { .. }
             | Effect::UiAssertFormField { .. }
             | Effect::UiAssertFormFieldInputKind { .. }
             | Effect::UiAssertFormFieldRequired { .. }
@@ -169,6 +173,7 @@ pub fn lower_effect(
         | Effect::UiAssertDisabled { .. }
         | Effect::UiAssertChildCount { .. }
         | Effect::UiWaitChildCount { .. }
+        | Effect::UiSetSelection { .. }
         | Effect::UiAssertSelection { .. }
         | Effect::UiWaitSelection { .. }
         | Effect::UiAssertText { .. }
@@ -184,6 +189,9 @@ pub fn lower_effect(
         | Effect::UiWaitActionAvailable { .. }
         | Effect::UiAssertActionUnavailableReason { .. }
         | Effect::UiWaitActionUnavailableReason { .. }
+        | Effect::UiSetFormValue { .. }
+        | Effect::UiAssertFormValue { .. }
+        | Effect::UiWaitFormValue { .. }
         | Effect::UiAssertFormField { .. }
         | Effect::UiAssertFormFieldInputKind { .. }
         | Effect::UiAssertFormFieldRequired { .. }
@@ -248,6 +256,7 @@ pub fn lower_effect(
         | Effect::UiAssertDisabled { .. }
         | Effect::UiAssertChildCount { .. }
         | Effect::UiWaitChildCount { .. }
+        | Effect::UiSetSelection { .. }
         | Effect::UiAssertSelection { .. }
         | Effect::UiWaitSelection { .. }
         | Effect::UiAssertText { .. }
@@ -263,6 +272,9 @@ pub fn lower_effect(
         | Effect::UiWaitActionAvailable { .. }
         | Effect::UiAssertActionUnavailableReason { .. }
         | Effect::UiWaitActionUnavailableReason { .. }
+        | Effect::UiSetFormValue { .. }
+        | Effect::UiAssertFormValue { .. }
+        | Effect::UiWaitFormValue { .. }
         | Effect::UiAssertFormField { .. }
         | Effect::UiAssertFormFieldInputKind { .. }
         | Effect::UiAssertFormFieldRequired { .. }

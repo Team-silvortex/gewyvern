@@ -9,10 +9,10 @@ use leselang_hir::{
     UI_WAIT_CHILD_COUNT_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
     UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS, UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
     UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS, UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
-    UI_WAIT_FORM_FIELD_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS,
-    UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS, UI_WAIT_UNFOCUSED_TIMEOUT_MS,
-    UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
-    UiFocusNavigationDirection, UiSelectionState,
+    UI_WAIT_FORM_FIELD_TIMEOUT_MS, UI_WAIT_FORM_VALUE_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS,
+    UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS,
+    UI_WAIT_UNFOCUSED_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS,
+    UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection, UiSelectionState,
 };
 use leselang_ui::{
     NodeId, UiActionKind, UiAdapterBindingKind, UiAdapterManifest, UiDocument, UiFormInputKind,
@@ -57,6 +57,7 @@ struct Fixture<'a> {
     unfocused_assert_operation: &'a UiPresentationOperation,
     enabled_assert_operation: &'a UiPresentationOperation,
     disabled_assert_operation: &'a UiPresentationOperation,
+    selection_set_operation: &'a UiPresentationOperation,
     selection_assert_operation: &'a UiPresentationOperation,
     selection_wait_operation: &'a UiPresentationOperation,
     child_count_assert_operation: &'a UiPresentationOperation,
@@ -84,6 +85,9 @@ struct Fixture<'a> {
     form_field_required_wait_operation: &'a UiPresentationOperation,
     form_field_max_length_wait_operation: &'a UiPresentationOperation,
     form_field_placeholder_wait_operation: &'a UiPresentationOperation,
+    form_value_set_operation: &'a UiPresentationOperation,
+    form_value_assert_operation: &'a UiPresentationOperation,
+    form_value_wait_operation: &'a UiPresentationOperation,
     accessible_name_assert_operation: &'a UiPresentationOperation,
     accessible_name_wait_operation: &'a UiPresentationOperation,
     accessible_description_assert_operation: &'a UiPresentationOperation,
@@ -193,6 +197,10 @@ fn main() {
     };
     let disabled_assert_operation = UiPresentationOperation::AssertDisabled {
         node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+    };
+    let selection_set_operation = UiPresentationOperation::SetSelection {
+        node_id: NodeId::new("runtime-runtime-b").unwrap(),
+        state: UiSelectionState::Selected,
     };
     let selection_assert_operation = UiPresentationOperation::AssertSelection {
         node_id: NodeId::new("runtime-runtime-a").unwrap(),
@@ -328,6 +336,22 @@ fn main() {
         expected: Some("http/request".into()),
         timeout_ms: UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
     };
+    let form_value_set_operation = UiPresentationOperation::SetFormValue {
+        node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
+        field: "pipeline_kind".into(),
+        value: "http/request".into(),
+    };
+    let form_value_assert_operation = UiPresentationOperation::AssertFormValue {
+        node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
+        field: "pipeline_kind".into(),
+        expected: "http/request".into(),
+    };
+    let form_value_wait_operation = UiPresentationOperation::WaitFormValue {
+        node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
+        field: "pipeline_kind".into(),
+        expected: "http/request".into(),
+        timeout_ms: UI_WAIT_FORM_VALUE_TIMEOUT_MS,
+    };
     let accessible_name_assert_operation = UiPresentationOperation::AssertAccessibleName {
         node_id: NodeId::new("fleet-title").unwrap(),
         expected: "Runtime fleet".into(),
@@ -386,6 +410,7 @@ fn main() {
     validate_presentation_operation(&next, &unfocused_assert_operation).unwrap();
     validate_presentation_operation(&next, &enabled_assert_operation).unwrap();
     validate_presentation_operation(&next, &disabled_assert_operation).unwrap();
+    validate_presentation_operation(&next, &selection_set_operation).unwrap();
     validate_presentation_operation(&next, &selection_assert_operation).unwrap();
     validate_presentation_operation(&next, &selection_wait_operation).unwrap();
     validate_presentation_operation(&previous, &child_count_assert_operation).unwrap();
@@ -411,6 +436,9 @@ fn main() {
     validate_presentation_operation(&next, &form_field_required_wait_operation).unwrap();
     validate_presentation_operation(&next, &form_field_max_length_wait_operation).unwrap();
     validate_presentation_operation(&next, &form_field_placeholder_wait_operation).unwrap();
+    validate_presentation_operation(&next, &form_value_set_operation).unwrap();
+    validate_presentation_operation(&next, &form_value_assert_operation).unwrap();
+    validate_presentation_operation(&next, &form_value_wait_operation).unwrap();
     validate_presentation_operation(&next, &accessible_name_assert_operation).unwrap();
     validate_presentation_operation(&next, &accessible_name_wait_operation).unwrap();
     validate_presentation_operation(&next, &accessible_description_assert_operation).unwrap();
@@ -446,6 +474,7 @@ fn main() {
         unfocused_assert_operation: &unfocused_assert_operation,
         enabled_assert_operation: &enabled_assert_operation,
         disabled_assert_operation: &disabled_assert_operation,
+        selection_set_operation: &selection_set_operation,
         selection_assert_operation: &selection_assert_operation,
         selection_wait_operation: &selection_wait_operation,
         child_count_assert_operation: &child_count_assert_operation,
@@ -473,6 +502,9 @@ fn main() {
         form_field_required_wait_operation: &form_field_required_wait_operation,
         form_field_max_length_wait_operation: &form_field_max_length_wait_operation,
         form_field_placeholder_wait_operation: &form_field_placeholder_wait_operation,
+        form_value_set_operation: &form_value_set_operation,
+        form_value_assert_operation: &form_value_assert_operation,
+        form_value_wait_operation: &form_value_wait_operation,
         accessible_name_assert_operation: &accessible_name_assert_operation,
         accessible_name_wait_operation: &accessible_name_wait_operation,
         accessible_description_assert_operation: &accessible_description_assert_operation,

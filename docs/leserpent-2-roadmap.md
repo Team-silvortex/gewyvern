@@ -216,7 +216,7 @@ duplicate IDs, oversized or over-depth trees, unlabelled actions, stale events,
 and actions rebound to another runtime. No endpoint, renderer, persistence,
 transport, HTML, script, or adapter type enters the IR. A separate
 `UiAdapterManifest` now records explicit developer-owned or generated framework
-bindings against the document, event, patch, and complete fifty-five-atom
+bindings against the document, event, patch, and complete fifty-nine-atom
 presentation protocol plus canonical atom family/effect profiles, so future GUI
 hosts have a protobuf-style compatibility checkpoint without automatic framework
 admission. The Rust-generated
@@ -287,6 +287,7 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.wait_window_open(node_id: ...)`, plus
 `ui.assert_window_closed(node_id: ...)`, plus
 `ui.wait_window_closed(node_id: ...)`, plus
+`ui.set_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.assert_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.wait_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.assert_child_count(node_id: ..., count: "0".."4096")`, plus
@@ -314,12 +315,15 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.wait_form_field_required(node_id: ..., field: ..., state: "required"|"optional")`, plus
 `ui.wait_form_field_max_length(node_id: ..., field: ..., max_length: "...")`, plus
 `ui.wait_form_field_placeholder(node_id: ..., field: ..., expected: ...)`, plus
+`ui.set_form_value(node_id: ..., field: ..., value: ...)`, plus
+`ui.assert_form_value(node_id: ..., field: ..., expected: ...)`, plus
+`ui.wait_form_value(node_id: ..., field: ..., expected: ...)`, plus
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, plus
 `ui.wait_accessible_name(node_id: ..., expected: ...)`, plus
 `ui.assert_accessible_description(node_id: ..., expected: ...)`, plus
 `ui.wait_accessible_description(node_id: ..., expected: ...)`: HIR and the VM keep each
 operation in a distinct typed `ui.presentation` envelope, command lowering
-rejects all fifty-five, and `leselang-ui` round-trips them against the current semantic
+rejects all fifty-nine, and `leselang-ui` round-trips them against the current semantic
 tree. Avalonia routes activation through exactly one native button click after
 rejecting missing, non-action, unrealized, hidden, or disabled targets without
 invoking domain callbacks. It applies native focus or bring-into-view, proves scrolling
@@ -344,9 +348,10 @@ action state, proves the target is attached to the same native window visual
 tree without activating it, waits for that same native window membership with a
 fixed dispatcher-yielding deadline, proves detached window-closed state without
 closing anything, times out a persistently open window-closed wait without
-mutating it, and compares
-native selected state, waits for native selection mismatch timeout without
-changing selection, compares actual native text, waits for external native text
+mutating it, writes native selected/unselected state idempotently and reversibly
+without action activation or focus movement, compares native selected state,
+waits for native selection mismatch timeout without implicit selection changes,
+compares actual native text, waits for external native text
 transitions with a fixed dispatcher-yielding deadline, and compares automation ID, semantic node kind,
 waits for external semantic node-kind convergence, compares semantic action
 kind, waits for external semantic action-kind convergence, and compares explicit

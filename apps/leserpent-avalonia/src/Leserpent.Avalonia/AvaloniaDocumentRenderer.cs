@@ -82,6 +82,7 @@ internal enum PresentationAutomationFailureCode
     InvalidExpectedInputKind,
     InvalidExpectedRequired,
     InvalidExpectedMaxLength,
+    InvalidFormValue,
     InvalidNavigationDirection,
     InvalidSelectionState,
     InvalidExpectedChildCount,
@@ -111,6 +112,8 @@ internal enum PresentationAutomationFailureCode
     TargetFormFieldRequiredMismatch,
     TargetFormFieldMaxLengthMismatch,
     TargetFormFieldPlaceholderMismatch,
+    TargetFormFieldUnrealized,
+    TargetFormValueMismatch,
     TargetAccessibleNameMismatch,
     TargetAccessibleDescriptionMismatch,
     TargetSelectionMismatch,
@@ -129,7 +132,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
 {
     private readonly Dictionary<string, RenderedNode> nodes = new(StringComparer.Ordinal);
     private readonly Dictionary<ActionKind, ActionAvailability> actionAvailability = [];
+    private readonly Dictionary<string, RegisteredFormFields> registeredFormFields =
+        new(StringComparer.Ordinal);
     private SemanticRenderer semanticRenderer = new();
+    private ulong nextFormRegistrationGeneration;
     private string? pendingFocusNodeId;
     private Window? ownedPresentationWindow;
 
@@ -191,6 +197,57 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         return true;
     }
 
+    public IDisposable RegisterFormFields(
+        string nodeId,
+        IReadOnlyDictionary<string, TextBox> fields)
+    {
+        if (registeredFormFields.ContainsKey(nodeId))
+        {
+            throw new InvalidDataException(
+                $"form controls for '{nodeId}' are already registered");
+        }
+        if (!nodes.TryGetValue(nodeId, out var node)
+            || node.FormFieldLabels is not { } labels
+            || node.FormFieldMaxLengths is not { } maxLengths
+            || node.FormFieldPlaceholders is not { } placeholders
+            || fields.Count != labels.Count)
+        {
+            throw new InvalidDataException(
+                $"form controls for '{nodeId}' do not match a semantic form");
+        }
+        var controls = new HashSet<TextBox>(ReferenceEqualityComparer.Instance);
+        foreach (var field in labels.Keys)
+        {
+            if (!fields.TryGetValue(field, out var input)
+                || input is null
+                || !controls.Add(input)
+                || !maxLengths.TryGetValue(field, out var maxLength)
+                || input.MaxLength != maxLength
+                || !placeholders.TryGetValue(field, out var placeholder)
+                || !StringComparer.Ordinal.Equals(input.PlaceholderText, placeholder))
+            {
+                throw new InvalidDataException(
+                    $"form control '{nodeId}:{field}' diverges from its semantic field");
+            }
+        }
+        if (fields.Keys.Any(field => !labels.ContainsKey(field)))
+        {
+            throw new InvalidDataException(
+                $"form controls for '{nodeId}' contain an unknown field");
+        }
+
+        var generation = checked(++nextFormRegistrationGeneration);
+        registeredFormFields.Add(
+            nodeId,
+            new RegisteredFormFields(
+                generation,
+                fields.ToDictionary(
+                    entry => entry.Key,
+                    entry => entry.Value,
+                    StringComparer.Ordinal)));
+        return new FormFieldRegistration(this, nodeId, generation);
+    }
+
     public PresentationAutomationResult ApplyPresentation(
         UiPresentationOperation operation)
     {
@@ -228,6 +285,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                         PresentationAutomationFailureCode.InvalidExpectedRequired,
                     UiPresentationValidation.InvalidExpectedMaxLength =>
                         PresentationAutomationFailureCode.InvalidExpectedMaxLength,
+                    UiPresentationValidation.InvalidFormValue =>
+                        PresentationAutomationFailureCode.InvalidFormValue,
                     UiPresentationValidation.InvalidNavigationDirection =>
                         PresentationAutomationFailureCode.InvalidNavigationDirection,
                     UiPresentationValidation.InvalidSelectionState =>
@@ -239,6 +298,12 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     _ => throw new InvalidDataException(
                         "unknown presentation validation result"),
                 });
+        }
+        if (operation.Kind is UiPresentationOperationKind.SetFormValue
+            or UiPresentationOperationKind.AssertFormValue
+            or UiPresentationOperationKind.WaitFormValue)
+        {
+            return ApplyFormValuePresentation(operation);
         }
         if (!nodes.TryGetValue(operation.NodeId, out var node)
             || !node.TryGetRealizedControl(out var control))
@@ -431,6 +496,25 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 open
                     ? PresentationAutomationFailureCode.TargetWindowStillOpen
                     : PresentationAutomationFailureCode.None);
+        }
+        if (operation.Kind == UiPresentationOperationKind.SetSelection)
+        {
+            var item = NativeSelectionItem(control!);
+            if (item is null)
+            {
+                return new PresentationAutomationResult(
+                    false,
+                    operation.NodeId,
+                    PresentationAutomationFailureCode.TargetNotSelectable);
+            }
+            item.IsSelected = operation.State == UiSelectionState.Selected;
+            var applied = NativeSelectionState(control!) == operation.State;
+            return new PresentationAutomationResult(
+                applied,
+                operation.NodeId,
+                applied
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetSelectionMismatch);
         }
         if (operation.Kind is UiPresentationOperationKind.AssertSelection
             or UiPresentationOperationKind.WaitSelection)
@@ -727,6 +811,71 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             PresentationAutomationFailureCode.None);
     }
 
+    private PresentationAutomationResult ApplyFormValuePresentation(
+        UiPresentationOperation operation)
+    {
+        if (operation.Field is not { } field
+            || !TryGetRegisteredFormField(operation.NodeId, field, out var input))
+        {
+            return new PresentationAutomationResult(
+                false,
+                operation.NodeId,
+                PresentationAutomationFailureCode.TargetFormFieldUnrealized);
+        }
+
+        if (operation.Kind == UiPresentationOperationKind.SetFormValue)
+        {
+            input!.Text = operation.Value;
+            var applied = StringComparer.Ordinal.Equals(
+                input.Text ?? string.Empty,
+                operation.Value);
+            return new PresentationAutomationResult(
+                applied,
+                operation.NodeId,
+                applied
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetFormValueMismatch);
+        }
+
+        var matched = StringComparer.Ordinal.Equals(
+            input!.Text ?? string.Empty,
+            operation.Expected);
+        return new PresentationAutomationResult(
+            matched,
+            operation.NodeId,
+            matched
+                ? PresentationAutomationFailureCode.None
+                : PresentationAutomationFailureCode.TargetFormValueMismatch);
+    }
+
+    private bool TryGetRegisteredFormField(
+        string nodeId,
+        string field,
+        out TextBox? input)
+    {
+        input = null;
+        if (!registeredFormFields.TryGetValue(nodeId, out var registration)
+            || !registration.Fields.TryGetValue(field, out input)
+            || !nodes.TryGetValue(nodeId, out var node)
+            || node.FormFieldMaxLengths is not { } maxLengths
+            || !maxLengths.TryGetValue(field, out var maxLength)
+            || input.MaxLength != maxLength)
+        {
+            input = null;
+            return false;
+        }
+        return true;
+    }
+
+    private void UnregisterFormFields(string nodeId, ulong generation)
+    {
+        if (registeredFormFields.TryGetValue(nodeId, out var registration)
+            && registration.Generation == generation)
+        {
+            registeredFormFields.Remove(nodeId);
+        }
+    }
+
     private PresentationAutomationResult OpenPresentationWindow(
         string nodeId,
         Control control)
@@ -945,7 +1094,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             and not UiPresentationOperationKind.WaitFormFieldInputKind
             and not UiPresentationOperationKind.WaitFormFieldRequired
             and not UiPresentationOperationKind.WaitFormFieldMaxLength
-            and not UiPresentationOperationKind.WaitFormFieldPlaceholder)
+            and not UiPresentationOperationKind.WaitFormFieldPlaceholder
+            and not UiPresentationOperationKind.WaitFormValue)
         {
             return await Dispatcher.UIThread.InvokeAsync(
                 () => ApplyPresentation(operation));
@@ -1051,6 +1201,11 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 || operation.Kind == UiPresentationOperationKind.WaitFormFieldPlaceholder
                     && result.FailureCode
                         == PresentationAutomationFailureCode.TargetFormFieldPlaceholderMismatch;
+            retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitFormValue
+                    && result.FailureCode
+                        is PresentationAutomationFailureCode.TargetFormFieldUnrealized
+                            or PresentationAutomationFailureCode.TargetFormValueMismatch;
             if (result.Applied || !retryable)
             {
                 return result;
@@ -1106,6 +1261,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     SemanticRenderer.WaitFormFieldMaxLengthTimeoutMs,
                 UiPresentationOperationKind.WaitFormFieldPlaceholder =>
                     SemanticRenderer.WaitFormFieldPlaceholderTimeoutMs,
+                UiPresentationOperationKind.WaitFormValue =>
+                    SemanticRenderer.WaitFormValueTimeoutMs,
                 _ => throw new InvalidOperationException(
                     "unknown asynchronous presentation wait"),
             };
@@ -1158,17 +1315,17 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         _ => null,
     };
 
-    private static UiSelectionState? NativeSelectionState(Control control)
-    {
-        var item = control is ListBoxItem direct
+    private static ListBoxItem? NativeSelectionItem(Control control) =>
+        control is ListBoxItem direct
             ? direct
             : control.GetVisualAncestors().OfType<ListBoxItem>().FirstOrDefault();
-        if (item is null)
-        {
-            return null;
-        }
-        return item.IsSelected ? UiSelectionState.Selected : UiSelectionState.Unselected;
-    }
+
+    private static UiSelectionState? NativeSelectionState(Control control) =>
+        NativeSelectionItem(control) is { } item
+            ? item.IsSelected
+                ? UiSelectionState.Selected
+                : UiSelectionState.Unselected
+            : null;
 
     public UiEvent CreateFormSubmission(
         string nodeId,
@@ -1803,6 +1960,24 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         node.Id,
         node.SelectionState,
         () => node.Control);
+
+    private sealed record RegisteredFormFields(
+        ulong Generation,
+        IReadOnlyDictionary<string, TextBox> Fields);
+
+    private sealed class FormFieldRegistration(
+        AvaloniaDocumentRenderer owner,
+        string nodeId,
+        ulong generation) : IDisposable
+    {
+        private AvaloniaDocumentRenderer? owner = owner;
+
+        public void Dispose()
+        {
+            Interlocked.Exchange(ref owner, null)?
+                .UnregisterFormFields(nodeId, generation);
+        }
+    }
 
     private sealed class RenderedNode(
         string id,

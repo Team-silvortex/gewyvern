@@ -390,6 +390,15 @@ var decodedDisabledAssertOperation = JsonSerializer.Deserialize(
     disabledAssertPayload,
     RendererJsonContext.Default.UiPresentationOperation)
     ?? throw new InvalidDataException("disabled assert operation round trip failed");
+var selectionSetOperation = fixture.SelectionSetOperation
+    ?? throw new InvalidDataException("presentation fixture contains no selection set operation");
+var selectionSetPayload = JsonSerializer.SerializeToUtf8Bytes(
+    selectionSetOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedSelectionSetOperation = JsonSerializer.Deserialize(
+    selectionSetPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("selection set operation round trip failed");
 var selectionAssertOperation = fixture.SelectionAssertOperation
     ?? throw new InvalidDataException("presentation fixture contains no selection assert operation");
 var selectionAssertPayload = JsonSerializer.SerializeToUtf8Bytes(
@@ -702,6 +711,28 @@ var decodedFormFieldPlaceholderWait = decodedFormFieldPlaceholderWaitOperation.F
 var decodedFormFieldPlaceholderWaitExpected = decodedFormFieldPlaceholderWaitOperation.Expected
     ?? throw new InvalidDataException(
         "form field placeholder wait operation contains no expected placeholder");
+var formValueSetOperation = fixture.FormValueSetOperation
+    ?? throw new InvalidDataException(
+        "presentation fixture contains no form value set operation");
+var decodedFormValueSetOperation = RoundTripOperation(
+    formValueSetOperation,
+    "form value set operation");
+var decodedFormValueSetField = decodedFormValueSetOperation.Field
+    ?? throw new InvalidDataException("form value set operation contains no field");
+var decodedFormValue = decodedFormValueSetOperation.Value
+    ?? throw new InvalidDataException("form value set operation contains no value");
+var formValueAssertOperation = fixture.FormValueAssertOperation
+    ?? throw new InvalidDataException(
+        "presentation fixture contains no form value assert operation");
+var decodedFormValueAssertOperation = RoundTripOperation(
+    formValueAssertOperation,
+    "form value assert operation");
+var formValueWaitOperation = fixture.FormValueWaitOperation
+    ?? throw new InvalidDataException(
+        "presentation fixture contains no form value wait operation");
+var decodedFormValueWaitOperation = RoundTripOperation(
+    formValueWaitOperation,
+    "form value wait operation");
 var accessibleNameAssertOperation = fixture.AccessibleNameAssertOperation
     ?? throw new InvalidDataException(
         "presentation fixture contains no accessible name assert operation");
@@ -782,6 +813,7 @@ if (renderer.ValidatePresentationOperation(decodedActivateOperation)
     || renderer.ValidatePresentationOperation(decodedUnfocusedAssertOperation) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedEnabledAssertOperation) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedDisabledAssertOperation) != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedSelectionSetOperation) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedSelectionAssertOperation) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedSelectionWaitOperation) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedChildCountAssertOperation)
@@ -848,6 +880,12 @@ if (renderer.ValidatePresentationOperation(decodedActivateOperation)
         Field = decodedFormFieldPlaceholder,
     }) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedFormFieldPlaceholderWaitOperation)
+        != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedFormValueSetOperation)
+        != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedFormValueAssertOperation)
+        != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedFormValueWaitOperation)
         != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(new UiPresentationOperation
     {
@@ -1140,6 +1178,11 @@ if (renderer.ValidatePresentationOperation(decodedActivateOperation)
     }) != UiPresentationValidation.UnfocusableTarget
     || renderer.ValidatePresentationOperation(new UiPresentationOperation
     {
+        Kind = UiPresentationOperationKind.SetSelection,
+        NodeId = decodedSelectionSetOperation.NodeId,
+    }) != UiPresentationValidation.InvalidSelectionState
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
         Kind = UiPresentationOperationKind.AssertSelection,
         NodeId = "missing-presentation-target",
         State = UiSelectionState.Selected,
@@ -1155,6 +1198,12 @@ if (renderer.ValidatePresentationOperation(decodedActivateOperation)
         NodeId = decodedEnabledAssertOperation.NodeId,
         State = UiSelectionState.Selected,
     }) != UiPresentationValidation.InvalidSelectionState
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.SetSelection,
+        NodeId = "fleet-title",
+        State = UiSelectionState.Selected,
+    }) != UiPresentationValidation.SelectionlessTarget
     || renderer.ValidatePresentationOperation(new UiPresentationOperation
     {
         Kind = UiPresentationOperationKind.AssertSelection,
@@ -1952,8 +2001,79 @@ if (renderer.ValidatePresentationOperation(decodedActivateOperation)
     throw new InvalidDataException("presentation operation validation diverged");
 }
 
+if (!StringComparer.Ordinal.Equals(
+        decodedFormValueAssertOperation.Field,
+        decodedFormValueSetField)
+    || !StringComparer.Ordinal.Equals(
+        decodedFormValueAssertOperation.Expected,
+        decodedFormValue)
+    || !StringComparer.Ordinal.Equals(
+        decodedFormValueWaitOperation.Expected,
+        decodedFormValue)
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.SetFormValue,
+        NodeId = decodedFormValueSetOperation.NodeId,
+        Field = decodedFormValueSetField,
+        Value = string.Empty,
+    }) != UiPresentationValidation.InvalidFormValue
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.SetFormValue,
+        NodeId = decodedFormValueSetOperation.NodeId,
+        Field = decodedFormValueSetField,
+        Value = "bad token",
+    }) != UiPresentationValidation.InvalidFormValue
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.SetFormValue,
+        NodeId = decodedFormValueSetOperation.NodeId,
+        Field = "missing",
+        Value = decodedFormValue,
+    }) != UiPresentationValidation.UnknownFormField
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.SetFormValue,
+        NodeId = renderer.Document.Root.Id,
+        Field = decodedFormValueSetField,
+        Value = decodedFormValue,
+    }) != UiPresentationValidation.FormlessTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.SetFormValue,
+        NodeId = decodedFormValueSetOperation.NodeId,
+        Field = decodedFormValueSetField,
+        Value = "bad\nvalue",
+    }) != UiPresentationValidation.InvalidFormValue
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertFormValue,
+        NodeId = decodedFormValueAssertOperation.NodeId,
+        Field = decodedFormValueSetField,
+        Expected = string.Empty,
+    }) != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertFormValue,
+        NodeId = decodedFormValueAssertOperation.NodeId,
+        Field = decodedFormValueSetField,
+        Expected = decodedFormValue,
+        Value = decodedFormValue,
+    }) != UiPresentationValidation.InvalidFormValue
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormValue,
+        NodeId = decodedFormValueWaitOperation.NodeId,
+        Field = decodedFormValueSetField,
+        Expected = decodedFormValue,
+        TimeoutMs = SemanticRenderer.WaitFormValueTimeoutMs + 1,
+    }) != UiPresentationValidation.InvalidTimeout)
+{
+    throw new InvalidDataException("form value presentation validation diverged");
+}
+
 Console.WriteLine(
-    $"renderer conformance valid: revision={renderer.Document.Revision}, adapter_manifest=true, generated_adapter_manifest=true, adapter_manifest_strict_codec=true, adapter_manifest_enum_codec=true, adapter_manifest_profile=true, adapter_manifest_profile_enum_codec=true, presentation_activate=true, presentation_activate_non_action_rejected=true, presentation_focus=true, presentation_navigate_focus=true, presentation_navigate_focus_first_last=true, presentation_scroll_into_view=true, presentation_assert_visible=true, presentation_assert_hidden=true, presentation_wait_hidden=true, presentation_assert_realized=true, presentation_wait_realized=true, presentation_wait_visible=true, presentation_wait_enabled=true, presentation_wait_disabled=true, presentation_open_window=true, presentation_close_window=true, presentation_assert_window_open=true, presentation_wait_window_open=true, presentation_assert_window_closed=true, presentation_wait_window_closed=true, presentation_wait_focused=true, presentation_assert_focused=true, presentation_wait_unfocused=true, presentation_assert_unfocused=true, presentation_assert_enabled=true, presentation_assert_disabled=true, presentation_assert_selection=true, presentation_wait_selection=true, presentation_assert_child_count=true, presentation_wait_child_count=true, presentation_assert_text=true, presentation_wait_text=true, presentation_assert_automation_id=true, presentation_assert_node_kind=true, presentation_wait_node_kind=true, presentation_assert_action_kind=true, presentation_wait_action_kind=true, presentation_assert_action_label=true, presentation_wait_action_label=true, presentation_assert_action_available=true, presentation_wait_action_available=true, presentation_assert_action_unavailable_reason=true, presentation_wait_action_unavailable_reason=true, presentation_assert_form_field=true, presentation_assert_form_field_input_kind=true, presentation_assert_form_field_required=true, presentation_assert_form_field_max_length=true, presentation_assert_form_field_placeholder=true, presentation_wait_form_field=true, presentation_wait_form_field_input_kind=true, presentation_wait_form_field_required=true, presentation_wait_form_field_max_length=true, presentation_wait_form_field_placeholder=true, presentation_assert_accessible_name=true, presentation_wait_accessible_name=true, presentation_assert_accessible_description=true, presentation_wait_accessible_description=true, strict_codec=true");
+    $"renderer conformance valid: revision={renderer.Document.Revision}, adapter_manifest=true, generated_adapter_manifest=true, adapter_manifest_strict_codec=true, adapter_manifest_enum_codec=true, adapter_manifest_profile=true, adapter_manifest_profile_enum_codec=true, presentation_activate=true, presentation_activate_non_action_rejected=true, presentation_focus=true, presentation_navigate_focus=true, presentation_navigate_focus_first_last=true, presentation_scroll_into_view=true, presentation_assert_visible=true, presentation_assert_hidden=true, presentation_wait_hidden=true, presentation_assert_realized=true, presentation_wait_realized=true, presentation_wait_visible=true, presentation_wait_enabled=true, presentation_wait_disabled=true, presentation_open_window=true, presentation_close_window=true, presentation_assert_window_open=true, presentation_wait_window_open=true, presentation_assert_window_closed=true, presentation_wait_window_closed=true, presentation_wait_focused=true, presentation_assert_focused=true, presentation_wait_unfocused=true, presentation_assert_unfocused=true, presentation_assert_enabled=true, presentation_assert_disabled=true, presentation_set_selection=true, presentation_assert_selection=true, presentation_wait_selection=true, presentation_assert_child_count=true, presentation_wait_child_count=true, presentation_assert_text=true, presentation_wait_text=true, presentation_assert_automation_id=true, presentation_assert_node_kind=true, presentation_wait_node_kind=true, presentation_assert_action_kind=true, presentation_wait_action_kind=true, presentation_assert_action_label=true, presentation_wait_action_label=true, presentation_assert_action_available=true, presentation_wait_action_available=true, presentation_assert_action_unavailable_reason=true, presentation_wait_action_unavailable_reason=true, presentation_assert_form_field=true, presentation_assert_form_field_input_kind=true, presentation_assert_form_field_required=true, presentation_assert_form_field_max_length=true, presentation_assert_form_field_placeholder=true, presentation_wait_form_field=true, presentation_wait_form_field_input_kind=true, presentation_wait_form_field_required=true, presentation_wait_form_field_max_length=true, presentation_wait_form_field_placeholder=true, presentation_set_form_value=true, presentation_assert_form_value=true, presentation_wait_form_value=true, presentation_assert_accessible_name=true, presentation_wait_accessible_name=true, presentation_assert_accessible_description=true, presentation_wait_accessible_description=true, strict_codec=true");
 return 0;
 
 static UiAdapterManifest RoundTripManifest(

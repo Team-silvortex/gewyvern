@@ -11,12 +11,13 @@ use leselang_hir::{
     UI_WAIT_CHILD_COUNT_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
     UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS, UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
     UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS, UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
-    UI_WAIT_FORM_FIELD_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS,
-    UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS, UI_WAIT_UNFOCUSED_TIMEOUT_MS,
-    UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
-    UiFocusNavigationDirection, UiFormInputKind, UiFormRequirementState, UiSelectionState,
-    UiSemanticActionKind, UiSemanticNodeKind, authorize, validate_ui_expected_text,
-    validate_ui_form_field_key, validate_ui_node_id,
+    UI_WAIT_FORM_FIELD_TIMEOUT_MS, UI_WAIT_FORM_VALUE_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS,
+    UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS,
+    UI_WAIT_UNFOCUSED_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS,
+    UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection, UiFormInputKind,
+    UiFormRequirementState, UiSelectionState, UiSemanticActionKind, UiSemanticNodeKind, authorize,
+    validate_ui_expected_text, validate_ui_form_field_key, validate_ui_form_value,
+    validate_ui_node_id,
 };
 use leserpent_domain::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
@@ -207,6 +208,10 @@ pub enum PresentationOperation {
         count: usize,
         timeout_ms: u64,
     },
+    SetSelection {
+        node_id: String,
+        state: UiSelectionState,
+    },
     AssertSelection {
         node_id: String,
         state: UiSelectionState,
@@ -270,6 +275,22 @@ pub enum PresentationOperation {
     WaitActionUnavailableReason {
         node_id: String,
         expected: Option<String>,
+        timeout_ms: u64,
+    },
+    SetFormValue {
+        node_id: String,
+        field: String,
+        value: String,
+    },
+    AssertFormValue {
+        node_id: String,
+        field: String,
+        expected: String,
+    },
+    WaitFormValue {
+        node_id: String,
+        field: String,
+        expected: String,
         timeout_ms: u64,
     },
     AssertFormField {
@@ -453,6 +474,10 @@ pub enum PresentationResult {
         count: usize,
         timeout_ms: u64,
     },
+    SetSelection {
+        node_id: String,
+        state: UiSelectionState,
+    },
     AssertSelection {
         node_id: String,
         state: UiSelectionState,
@@ -516,6 +541,22 @@ pub enum PresentationResult {
     WaitActionUnavailableReason {
         node_id: String,
         expected: Option<String>,
+        timeout_ms: u64,
+    },
+    SetFormValue {
+        node_id: String,
+        field: String,
+        value: String,
+    },
+    AssertFormValue {
+        node_id: String,
+        field: String,
+        expected: String,
+    },
+    WaitFormValue {
+        node_id: String,
+        field: String,
+        expected: String,
         timeout_ms: u64,
     },
     AssertFormField {
@@ -920,6 +961,10 @@ pub enum Value {
         node_id: String,
         count: usize,
     },
+    UiSetSelection {
+        node_id: String,
+        state: UiSelectionState,
+    },
     UiAssertSelection {
         node_id: String,
         state: UiSelectionState,
@@ -977,6 +1022,21 @@ pub enum Value {
     UiWaitActionUnavailableReason {
         node_id: String,
         expected: Option<String>,
+    },
+    UiSetFormValue {
+        node_id: String,
+        field: String,
+        value: String,
+    },
+    UiAssertFormValue {
+        node_id: String,
+        field: String,
+        expected: String,
+    },
+    UiWaitFormValue {
+        node_id: String,
+        field: String,
+        expected: String,
     },
     UiAssertFormField {
         node_id: String,
@@ -1627,6 +1687,18 @@ impl Vm {
                     },
                 }),
             ),
+            Effect::UiSetSelection { node_id, state } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::SetSelection {
+                        node_id: node_id.clone(),
+                        state: *state,
+                    },
+                }),
+            ),
             Effect::UiAssertSelection { node_id, state } => (
                 CAPABILITY_UI_PRESENTATION.to_string(),
                 EffectOperation::Presentation(PresentationEnvelope {
@@ -1821,6 +1893,58 @@ impl Vm {
                         node_id: node_id.clone(),
                         expected: expected.clone(),
                         timeout_ms: UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS,
+                    },
+                }),
+            ),
+            Effect::UiSetFormValue {
+                node_id,
+                field,
+                value,
+            } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::SetFormValue {
+                        node_id: node_id.clone(),
+                        field: field.clone(),
+                        value: value.clone(),
+                    },
+                }),
+            ),
+            Effect::UiAssertFormValue {
+                node_id,
+                field,
+                expected,
+            } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertFormValue {
+                        node_id: node_id.clone(),
+                        field: field.clone(),
+                        expected: expected.clone(),
+                    },
+                }),
+            ),
+            Effect::UiWaitFormValue {
+                node_id,
+                field,
+                expected,
+            } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitFormValue {
+                        node_id: node_id.clone(),
+                        field: field.clone(),
+                        expected: expected.clone(),
+                        timeout_ms: UI_WAIT_FORM_VALUE_TIMEOUT_MS,
                     },
                 }),
             ),
@@ -2618,6 +2742,7 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiWaitDisabled { .. } => Type::UiWaitDisabled,
         Effect::UiAssertChildCount { .. } => Type::UiAssertChildCount,
         Effect::UiWaitChildCount { .. } => Type::UiWaitChildCount,
+        Effect::UiSetSelection { .. } => Type::UiSetSelection,
         Effect::UiAssertSelection { .. } => Type::UiAssertSelection,
         Effect::UiWaitSelection { .. } => Type::UiWaitSelection,
         Effect::UiAssertText { .. } => Type::UiAssertText,
@@ -2633,6 +2758,9 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiWaitActionAvailable { .. } => Type::UiWaitActionAvailable,
         Effect::UiAssertActionUnavailableReason { .. } => Type::UiAssertActionUnavailableReason,
         Effect::UiWaitActionUnavailableReason { .. } => Type::UiWaitActionUnavailableReason,
+        Effect::UiSetFormValue { .. } => Type::UiSetFormValue,
+        Effect::UiAssertFormValue { .. } => Type::UiAssertFormValue,
+        Effect::UiWaitFormValue { .. } => Type::UiWaitFormValue,
         Effect::UiAssertFormField { .. } => Type::UiAssertFormField,
         Effect::UiAssertFormFieldInputKind { .. } => Type::UiAssertFormFieldInputKind,
         Effect::UiAssertFormFieldRequired { .. } => Type::UiAssertFormFieldRequired,
@@ -3312,6 +3440,27 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
             )
         }
         (
+            Effect::UiSetSelection { node_id, state },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::SetSelection {
+                    node_id: operation_node_id,
+                    state: operation_state,
+                } if operation_node_id == node_id
+                    && operation_state == state
+                    && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (
             Effect::UiAssertSelection { node_id, state },
             EffectOperation::Presentation(presentation),
         ) => {
@@ -3653,6 +3802,95 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                     && operation_expected
                         .as_deref()
                         .is_none_or(validate_ui_expected_text)
+            )
+        }
+        (
+            Effect::UiSetFormValue {
+                node_id,
+                field,
+                value,
+            },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::SetFormValue {
+                    node_id: operation_node_id,
+                    field: operation_field,
+                    value: operation_value,
+                } if operation_node_id == node_id
+                    && operation_field == field
+                    && operation_value == value
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_form_field_key(operation_field)
+                    && validate_ui_form_value(operation_value)
+            )
+        }
+        (
+            Effect::UiAssertFormValue {
+                node_id,
+                field,
+                expected,
+            },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertFormValue {
+                    node_id: operation_node_id,
+                    field: operation_field,
+                    expected: operation_expected,
+                } if operation_node_id == node_id
+                    && operation_field == field
+                    && operation_expected == expected
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_form_field_key(operation_field)
+                    && validate_ui_form_value(operation_expected)
+            )
+        }
+        (
+            Effect::UiWaitFormValue {
+                node_id,
+                field,
+                expected,
+            },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitFormValue {
+                    node_id: operation_node_id,
+                    field: operation_field,
+                    expected: operation_expected,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && operation_field == field
+                    && operation_expected == expected
+                    && *timeout_ms == UI_WAIT_FORM_VALUE_TIMEOUT_MS
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_form_field_key(operation_field)
+                    && validate_ui_form_value(operation_expected)
             )
         }
         (
@@ -4362,6 +4600,7 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         {
             Ok(1)
         }
+        Value::UiSetSelection { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertSelection { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiWaitSelection { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertText { node_id, expected }
@@ -4404,6 +4643,31 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         Value::UiWaitActionUnavailableReason { node_id, expected }
             if validate_ui_node_id(node_id)
                 && expected.as_deref().is_none_or(validate_ui_expected_text) =>
+        {
+            Ok(1)
+        }
+        Value::UiSetFormValue {
+            node_id,
+            field,
+            value,
+        } if validate_ui_node_id(node_id)
+            && validate_ui_form_field_key(field)
+            && validate_ui_form_value(value) =>
+        {
+            Ok(1)
+        }
+        Value::UiAssertFormValue {
+            node_id,
+            field,
+            expected,
+        }
+        | Value::UiWaitFormValue {
+            node_id,
+            field,
+            expected,
+        } if validate_ui_node_id(node_id)
+            && validate_ui_form_field_key(field)
+            && validate_ui_form_value(expected) =>
         {
             Ok(1)
         }
@@ -5439,6 +5703,34 @@ fn step_from_effect_result(
             })
         }
         (
+            Effect::UiSetSelection { node_id, state },
+            Type::UiSetSelection,
+            operation,
+            EffectResult::Presentation(PresentationResult::SetSelection {
+                node_id: result_node_id,
+                state: result_state,
+            }),
+        ) if result_node_id == *node_id
+            && result_state == *state
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::SetSelection {
+                            node_id: operation_node_id,
+                            state: operation_state,
+                        },
+                        ..
+                    }) if operation_node_id == node_id && operation_state == state
+                )
+            }) =>
+        {
+            Step::Done(Value::UiSetSelection {
+                node_id: result_node_id,
+                state: result_state,
+            })
+        }
+        (
             Effect::UiAssertSelection { node_id, state },
             Type::UiAssertSelection,
             operation,
@@ -5897,6 +6189,124 @@ fn step_from_effect_result(
         {
             Step::Done(Value::UiWaitActionUnavailableReason {
                 node_id: result_node_id,
+                expected: result_expected,
+            })
+        }
+        (
+            Effect::UiSetFormValue {
+                node_id,
+                field,
+                value,
+            },
+            Type::UiSetFormValue,
+            operation,
+            EffectResult::Presentation(PresentationResult::SetFormValue {
+                node_id: result_node_id,
+                field: result_field,
+                value: result_value,
+            }),
+        ) if result_node_id == *node_id
+            && result_field == *field
+            && result_value == *value
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::SetFormValue {
+                            node_id: operation_node_id,
+                            field: operation_field,
+                            value: operation_value,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_field == field
+                        && operation_value == value
+                )
+            }) =>
+        {
+            Step::Done(Value::UiSetFormValue {
+                node_id: result_node_id,
+                field: result_field,
+                value: result_value,
+            })
+        }
+        (
+            Effect::UiAssertFormValue {
+                node_id,
+                field,
+                expected,
+            },
+            Type::UiAssertFormValue,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertFormValue {
+                node_id: result_node_id,
+                field: result_field,
+                expected: result_expected,
+            }),
+        ) if result_node_id == *node_id
+            && result_field == *field
+            && result_expected == *expected
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertFormValue {
+                            node_id: operation_node_id,
+                            field: operation_field,
+                            expected: operation_expected,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_field == field
+                        && operation_expected == expected
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertFormValue {
+                node_id: result_node_id,
+                field: result_field,
+                expected: result_expected,
+            })
+        }
+        (
+            Effect::UiWaitFormValue {
+                node_id,
+                field,
+                expected,
+            },
+            Type::UiWaitFormValue,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitFormValue {
+                node_id: result_node_id,
+                field: result_field,
+                expected: result_expected,
+                timeout_ms: result_timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && result_field == *field
+            && result_expected == *expected
+            && result_timeout_ms == UI_WAIT_FORM_VALUE_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitFormValue {
+                            node_id: operation_node_id,
+                            field: operation_field,
+                            expected: operation_expected,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_field == field
+                        && operation_expected == expected
+                        && *operation_timeout_ms == UI_WAIT_FORM_VALUE_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitFormValue {
+                node_id: result_node_id,
+                field: result_field,
                 expected: result_expected,
             })
         }
@@ -8131,7 +8541,218 @@ mod tests {
     }
 
     #[test]
-    fn ui_selection_binds_node_state_timeout_and_reentry_result() {
+    fn ui_selection_mutation_binds_node_state_and_reentry_result() {
+        let program = lower(&parse(
+            "fn main() = ui.set_selection(node_id: \"runtime-a:card\", state: \"unselected\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI selection mutation");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI selection mutation must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::SetSelection {
+                node_id,
+                state: UiSelectionState::Unselected,
+            } if node_id == "runtime-a:card"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::SetSelection {
+                    node_id: "runtime-a:card".into(),
+                    state: UiSelectionState::Unselected,
+                }),
+            ),
+            Step::Done(Value::UiSetSelection {
+                node_id: "runtime-a:card".into(),
+                state: UiSelectionState::Unselected,
+            })
+        );
+
+        let mut vm = Vm::default();
+        let Step::Effect(mut torn) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI selection mutation");
+        };
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI selection mutation must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::SetSelection {
+            node_id: "runtime-a:card".into(),
+            state: UiSelectionState::Selected,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_form_value_effects_bind_node_field_value_timeout_and_reentry() {
+        let set_program = lower(&parse(
+            "fn main() = ui.set_form_value(node_id: \"runtime-a:deploy\", field: \"pipeline_kind\", value: \"capture\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &set_program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI form value mutation");
+        };
+        assert!(matches!(
+            &request.operation,
+            EffectOperation::Presentation(PresentationEnvelope {
+                operation: PresentationOperation::SetFormValue {
+                    node_id,
+                    field,
+                    value,
+                },
+                ..
+            }) if node_id == "runtime-a:deploy"
+                && field == "pipeline_kind"
+                && value == "capture"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::SetFormValue {
+                    node_id: "runtime-a:deploy".into(),
+                    field: "pipeline_kind".into(),
+                    value: "capture".into(),
+                }),
+            ),
+            Step::Done(Value::UiSetFormValue {
+                node_id: "runtime-a:deploy".into(),
+                field: "pipeline_kind".into(),
+                value: "capture".into(),
+            })
+        );
+
+        let assert_program = lower(&parse(
+            "fn main() = ui.assert_form_value(node_id: \"runtime-a:deploy\", field: \"target\", expected: \"\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &assert_program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI form value assertion");
+        };
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertFormValue {
+                    node_id: "runtime-a:deploy".into(),
+                    field: "target".into(),
+                    expected: String::new(),
+                }),
+            ),
+            Step::Done(Value::UiAssertFormValue {
+                node_id: "runtime-a:deploy".into(),
+                field: "target".into(),
+                expected: String::new(),
+            })
+        );
+
+        let wait_program = lower(&parse(
+            "fn main() = ui.wait_form_value(node_id: \"runtime-a:deploy\", field: \"pipeline_kind\", expected: \"capture\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &wait_program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI form value wait");
+        };
+        assert!(matches!(
+            &request.operation,
+            EffectOperation::Presentation(PresentationEnvelope {
+                operation: PresentationOperation::WaitFormValue {
+                    node_id,
+                    field,
+                    expected,
+                    timeout_ms: UI_WAIT_FORM_VALUE_TIMEOUT_MS,
+                },
+                ..
+            }) if node_id == "runtime-a:deploy"
+                && field == "pipeline_kind"
+                && expected == "capture"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitFormValue {
+                    node_id: "runtime-a:deploy".into(),
+                    field: "pipeline_kind".into(),
+                    expected: "capture".into(),
+                    timeout_ms: UI_WAIT_FORM_VALUE_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitFormValue {
+                node_id: "runtime-a:deploy".into(),
+                field: "pipeline_kind".into(),
+                expected: "capture".into(),
+            })
+        );
+
+        let mut vm = Vm::default();
+        let Step::Effect(mut torn) = vm.start(
+            &set_program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI form value mutation");
+        };
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI form value mutation must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::SetFormValue {
+            node_id: "runtime-a:deploy".into(),
+            field: "target".into(),
+            value: "capture".into(),
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_selection_wait_binds_node_state_timeout_and_reentry_result() {
         let program = lower(&parse(
             "fn main() = ui.wait_selection(node_id: \"runtime-a:card\", state: \"selected\")",
         ))

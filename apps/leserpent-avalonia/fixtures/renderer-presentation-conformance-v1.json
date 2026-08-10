@@ -867,6 +867,11 @@
     "kind": "assert_disabled",
     "node_id": "runtime-runtime-a-refresh"
   },
+  "selection_set_operation": {
+    "kind": "set_selection",
+    "node_id": "runtime-runtime-b",
+    "state": "selected"
+  },
   "selection_assert_operation": {
     "kind": "assert_selection",
     "node_id": "runtime-runtime-a",
@@ -1023,6 +1028,25 @@
     "expected": "http/request",
     "timeout_ms": 2000
   },
+  "form_value_set_operation": {
+    "kind": "set_form_value",
+    "node_id": "runtime-runtime-a-deploy",
+    "field": "pipeline_kind",
+    "value": "http/request"
+  },
+  "form_value_assert_operation": {
+    "kind": "assert_form_value",
+    "node_id": "runtime-runtime-a-deploy",
+    "field": "pipeline_kind",
+    "expected": "http/request"
+  },
+  "form_value_wait_operation": {
+    "kind": "wait_form_value",
+    "node_id": "runtime-runtime-a-deploy",
+    "field": "pipeline_kind",
+    "expected": "http/request",
+    "timeout_ms": 2000
+  },
   "accessible_name_assert_operation": {
     "kind": "assert_accessible_name",
     "node_id": "fleet-title",
@@ -1081,6 +1105,7 @@
       "wait_window_open",
       "assert_window_closed",
       "wait_window_closed",
+      "set_selection",
       "assert_selection",
       "wait_selection",
       "assert_text",
@@ -1096,6 +1121,9 @@
       "wait_action_available",
       "assert_action_unavailable_reason",
       "wait_action_unavailable_reason",
+      "set_form_value",
+      "assert_form_value",
+      "wait_form_value",
       "assert_form_field",
       "wait_form_field",
       "assert_form_field_input_kind",
@@ -1243,6 +1271,11 @@
         "effect": "wait"
       },
       {
+        "atom": "set_selection",
+        "family": "selection",
+        "effect": "mutation"
+      },
+      {
         "atom": "assert_selection",
         "family": "selection",
         "effect": "assertion"
@@ -1315,6 +1348,21 @@
       {
         "atom": "wait_action_unavailable_reason",
         "family": "action_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "set_form_value",
+        "family": "form_value",
+        "effect": "mutation"
+      },
+      {
+        "atom": "assert_form_value",
+        "family": "form_value",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_form_value",
+        "family": "form_value",
         "effect": "wait"
       },
       {
@@ -1425,6 +1473,7 @@
       "wait_window_open",
       "assert_window_closed",
       "wait_window_closed",
+      "set_selection",
       "assert_selection",
       "wait_selection",
       "assert_text",
@@ -1440,6 +1489,9 @@
       "wait_action_available",
       "assert_action_unavailable_reason",
       "wait_action_unavailable_reason",
+      "set_form_value",
+      "assert_form_value",
+      "wait_form_value",
       "assert_form_field",
       "wait_form_field",
       "assert_form_field_input_kind",
@@ -1587,6 +1639,11 @@
         "effect": "wait"
       },
       {
+        "atom": "set_selection",
+        "family": "selection",
+        "effect": "mutation"
+      },
+      {
         "atom": "assert_selection",
         "family": "selection",
         "effect": "assertion"
@@ -1659,6 +1716,21 @@
       {
         "atom": "wait_action_unavailable_reason",
         "family": "action_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "set_form_value",
+        "family": "form_value",
+        "effect": "mutation"
+      },
+      {
+        "atom": "assert_form_value",
+        "family": "form_value",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_form_value",
+        "family": "form_value",
         "effect": "wait"
       },
       {

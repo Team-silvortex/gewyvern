@@ -96,12 +96,12 @@ impl Options {
         if let Some(daemon) = self.daemon.as_deref() {
             require_file(daemon, "configured daemon", None)?;
         }
-        if let Some(issuer) = self.silvortex_issuer.as_deref() {
-            if !is_canonical_https_origin(issuer) {
-                return Err(
-                    "--silvortex-issuer must be a canonical HTTPS origin ending in /".to_string(),
-                );
-            }
+        if let Some(issuer) = self.silvortex_issuer.as_deref()
+            && !is_canonical_https_origin(issuer)
+        {
+            return Err(
+                "--silvortex-issuer must be a canonical HTTPS origin ending in /".to_string(),
+            );
         }
         let segments = self.version.split('.').collect::<Vec<_>>();
         if !(1..=3).contains(&segments.len())

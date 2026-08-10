@@ -30,6 +30,7 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     let window = avalonia_source("Leserpent.Avalonia/MainWindow.cs");
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
     let conformance = avalonia_source("Leserpent.RendererConformance/Program.cs");
+    let remote = remote_main_window_source();
 
     assert!(core.contains("public sealed class UiPresentationOperation"));
     assert!(core.contains("UiPresentationOperationKind.Focus"));
@@ -60,6 +61,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("UiFocusNavigationDirection"));
     assert!(core.contains("[JsonStringEnumMemberName(\"first\")] First"));
     assert!(core.contains("[JsonStringEnumMemberName(\"last\")] Last"));
+    assert!(core.contains("UiPresentationOperationKind.SetSelection"));
+    assert!(core.contains("UiPresentationAtom.SetSelection"));
     assert!(core.contains("UiPresentationOperationKind.AssertSelection"));
     assert!(core.contains("UiPresentationOperationKind.WaitSelection"));
     assert!(core.contains("UiSelectionState"));
@@ -113,6 +116,14 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("WaitFormFieldMaxLengthTimeoutMs = 2000"));
     assert!(core.contains("UiPresentationOperationKind.WaitFormFieldPlaceholder"));
     assert!(core.contains("WaitFormFieldPlaceholderTimeoutMs = 2000"));
+    assert!(core.contains("UiPresentationOperationKind.SetFormValue"));
+    assert!(core.contains("UiPresentationOperationKind.AssertFormValue"));
+    assert!(core.contains("UiPresentationOperationKind.WaitFormValue"));
+    assert!(core.contains("UiPresentationAtom.SetFormValue"));
+    assert!(core.contains("UiPresentationAtomFamily.FormValue"));
+    assert!(core.contains("public string? Value { get; set; }"));
+    assert!(core.contains("WaitFormValueTimeoutMs = 2000"));
+    assert!(core.contains("UiPresentationValidation.InvalidFormValue"));
     assert!(core.contains("UiPresentationOperationKind.AssertAccessibleName"));
     assert!(core.contains("UiPresentationOperationKind.AssertAccessibleDescription"));
     assert!(core.contains("UiPresentationValidation.UnknownTarget"));
@@ -170,6 +181,12 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(renderer.contains("UiPresentationOperationKind.WaitFormFieldMaxLength"));
     assert!(renderer.contains("IReadOnlyDictionary<string, string>? FormFieldLabels"));
     assert!(renderer.contains("IReadOnlyDictionary<string, int>? FormFieldMaxLengths"));
+    assert!(renderer.contains("public IDisposable RegisterFormFields"));
+    assert!(renderer.contains("PresentationAutomationFailureCode.TargetFormFieldUnrealized"));
+    assert!(renderer.contains("PresentationAutomationFailureCode.TargetFormValueMismatch"));
+    assert!(renderer.contains("input!.Text = operation.Value"));
+    assert!(renderer.contains("UiPresentationOperationKind.WaitFormValue"));
+    assert!(renderer.contains("SemanticRenderer.WaitFormValueTimeoutMs"));
     assert!(renderer.contains("PresentationAutomationFailureCode.InvalidExpectedKind"));
     assert!(renderer.contains("PresentationAutomationFailureCode.InvalidExpectedActionKind"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetAccessibleNameMismatch"));
@@ -177,6 +194,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
         renderer.contains("PresentationAutomationFailureCode.TargetAccessibleDescriptionMismatch")
     );
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetSelectionMismatch"));
+    assert!(renderer.contains("operation.Kind == UiPresentationOperationKind.SetSelection"));
+    assert!(renderer.contains("item.IsSelected = operation.State == UiSelectionState.Selected"));
     assert!(renderer.contains("NativeSelectionState"));
     assert!(renderer.contains("ListBoxItem"));
     assert!(renderer.contains("list.SelectedItem = item"));
@@ -325,6 +344,11 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("wait_unfocused="));
     assert!(app.contains("wait_unfocused_timeout="));
     assert!(app.contains("wait_unfocused_external_deactivation="));
+    assert!(app.contains("Avalonia selection mutation valid:"));
+    assert!(app.contains("set_selection_idempotent="));
+    assert!(app.contains("set_selection_reversible="));
+    assert!(app.contains("set_selection_no_activation="));
+    assert!(app.contains("set_selection_focus_preserved="));
     assert!(app.contains("assert_selection="));
     assert!(app.contains("wait_selection="));
     assert!(app.contains("wait_selection_timeout="));
@@ -354,6 +378,17 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("wait_form_field_max_length_timeout="));
     assert!(app.contains("wait_form_field_placeholder="));
     assert!(app.contains("wait_form_field_placeholder_timeout="));
+    assert!(app.contains("set_form_value="));
+    assert!(app.contains("set_form_value_idempotent="));
+    assert!(app.contains("set_form_value_no_activation="));
+    assert!(app.contains("set_form_value_focus_preserved="));
+    assert!(app.contains("assert_form_value="));
+    assert!(app.contains("form_value_mismatch_rejected="));
+    assert!(app.contains("wait_form_value="));
+    assert!(app.contains("wait_form_value_external_transition="));
+    assert!(app.contains("wait_form_value_timeout="));
+    assert!(app.contains("form_value_unregistered_rejected="));
+    assert!(app.contains("form_value_scope_disposed="));
     assert!(app.contains("assert_automation_id=true"));
     assert!(app.contains("automation_id_mismatch_rejected=true"));
     assert!(app.contains("assert_node_kind=true"));
@@ -408,6 +443,7 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(conformance.contains("presentation_wait_focused=true"));
     assert!(conformance.contains("presentation_assert_unfocused=true"));
     assert!(conformance.contains("presentation_wait_unfocused=true"));
+    assert!(conformance.contains("presentation_set_selection=true"));
     assert!(conformance.contains("presentation_assert_selection=true"));
     assert!(conformance.contains("presentation_wait_selection=true"));
     assert!(conformance.contains("presentation_assert_child_count=true"));
@@ -424,6 +460,9 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(conformance.contains("presentation_wait_form_field_required=true"));
     assert!(conformance.contains("presentation_wait_form_field_max_length=true"));
     assert!(conformance.contains("presentation_wait_form_field_placeholder=true"));
+    assert!(conformance.contains("presentation_set_form_value=true"));
+    assert!(conformance.contains("presentation_assert_form_value=true"));
+    assert!(conformance.contains("presentation_wait_form_value=true"));
     assert!(conformance.contains("presentation_assert_action_kind=true"));
     assert!(conformance.contains("presentation_wait_action_kind=true"));
     assert!(conformance.contains("presentation_assert_action_label=true"));
@@ -437,6 +476,12 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(conformance.contains("presentation_assert_form_field_required=true"));
     assert!(conformance.contains("presentation_assert_form_field_max_length=true"));
     assert!(conformance.contains("presentation_assert_form_field_placeholder=true"));
+    assert!(window.contains("ProbeFormValueAutomationAsync"));
+    assert!(window.contains("duplicateRegistrationRejected"));
+    assert!(window.contains("FormValueProbeDidNotActivate"));
+    assert!(window.contains("FormValueProbePreservedFocus"));
+    assert!(remote.contains("using var formRegistration = renderer.RegisterFormFields"));
+    assert!(remote.contains("formWindow.FormFields"));
 }
 
 #[test]
@@ -995,7 +1040,7 @@ fn silvortex_account_proof_is_native_private_and_existing_credential_safe() {
     let account = avalonia_source("Leserpent.Avalonia/SilvortexAccountSession.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
 
-    assert!(proof.contains("ContractVersion = \"1.89.0\""));
+    assert!(proof.contains("ContractVersion = \"1.91.0\""));
     assert!(!proof.contains("--prove-silvortex-account"));
     assert!(proof.contains("RuntimeFeature.IsDynamicCodeSupported"));
     assert!(proof.contains("packaged-info-plist"));

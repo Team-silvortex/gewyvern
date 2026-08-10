@@ -32,8 +32,9 @@ generator tooling. The manifest carries schema version `2`, a stable
 `developer_owned_adapter` or `generated_framework_binding`, the target
 `ui_schema_version`, and booleans proving support for document, event, and patch
 schemas. It must also list the complete `required_ui_presentation_atoms()` set:
-all fifty-five current presentation atoms, including activation, focus, window
-lifecycle, wait, assertion, selection, action metadata, form metadata, and accessibility operations. Schema
+all fifty-nine current presentation atoms, including activation, focus, window
+lifecycle, wait, assertion, selection mutation, action metadata, form metadata,
+scoped form-value control, and accessibility operations. Schema
 version `2` also carries `presentation_atom_profiles`: one canonical profile per
 atom, classifying the GUI family and effect model as mutation, assertion, or
 wait so generated adapters can build a 1:1 mapping table without guessing.
@@ -156,7 +157,7 @@ only its stable node ID; confirmation and execution stay in Rust.
 - maximum parameterized form value: `256` bytes
 - adapter manifest schema version: `2`
 - maximum adapter framework label: `128` bytes
-- required adapter presentation atoms: `55`
+- required adapter presentation atoms: `59`
 - node IDs: unique, stable, ASCII identifiers up to 128 bytes
 
 Validation rejects duplicate or invalid IDs, control characters, invalid
@@ -195,7 +196,7 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by fifty-five presentation atoms.
+Semantic action equivalence is joined by fifty-nine presentation atoms.
 `UiPresentationOperation::Activate` maps one-to-one to
 `ui.activate(node_id: ...)`, requires an available semantic action, and has the
 canonical `interaction` family plus `mutation` effect profile. It is
@@ -267,6 +268,10 @@ carries the protocol-fixed 2000 ms deadline.
 `UiPresentationOperation::WaitWindowClosed` maps one-to-one to
 `ui.wait_window_closed(node_id: ...)`, accepts any existing semantic node, and
 carries the protocol-fixed 2000 ms deadline.
+`UiPresentationOperation::SetSelection` maps one-to-one to
+`ui.set_selection(node_id: ..., state: ...)`, requires a semantic node with
+selection metadata, admits only `selected` or `unselected`, and has the
+canonical `selection` family plus `mutation` effect profile.
 `UiPresentationOperation::AssertSelection` maps one-to-one to
 `ui.assert_selection(node_id: ..., state: ...)`, requires a semantic node with
 selection metadata, and admits only `selected` or `unselected`.
@@ -378,6 +383,21 @@ deadline while waiting for the stable semantic maximum length to match.
 requires the same semantic deployment form action and bounded field key, accepts
 bounded text or `none`, and carries the protocol-fixed 2000 ms deadline while
 waiting for the stable semantic placeholder fallback or absence.
+`UiPresentationOperation::SetFormValue` maps one-to-one to
+`ui.set_form_value(node_id: ..., field: ..., value: ...)`, requires a declared
+field on a semantic deployment form, and writes the currently registered native
+input without focusing, activating, or submitting it. The value is at most 256
+UTF-8 bytes and must also satisfy the field's required, maximum-length, and
+input-kind schema.
+`UiPresentationOperation::AssertFormValue` maps one-to-one to
+`ui.assert_form_value(node_id: ..., field: ..., expected: ...)` and compares the
+currently registered native input exactly. Observation accepts bounded
+control-free text, including temporarily schema-invalid user input.
+`UiPresentationOperation::WaitFormValue` maps one-to-one to
+`ui.wait_form_value(node_id: ..., field: ..., expected: ...)` and polls that same
+native input through the dispatcher until the fixed 2000 ms deadline. A form
+field is addressable only while its owning form scope is registered; unopened,
+closed, unknown, duplicate, or stale scopes fail closed.
 `UiPresentationOperation::AssertAccessibleName` maps one-to-one to
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, accepts every existing
 semantic node, and uses the same expected-value bound.
@@ -392,11 +412,12 @@ semantic node with an explicitly declared accessibility description.
 `ui.wait_accessible_description(node_id: ..., expected: ...)`, requires the same
 explicit accessibility description metadata, uses the same expected-value bound,
 and carries the protocol-fixed 2000 ms deadline. None can
-become a `UiEvent` or `CommandPlan`; all fifty-five travel in
+become a `UiEvent` or `CommandPlan`; all fifty-nine travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all fifty-five operations through its stable visual index.
+Avalonia resolves all fifty-nine operations through its stable visual index
+and scoped native form registry.
 Activation requires a realized, visible, enabled native `Button` and raises its
 native `ClickEvent` exactly once; it never invokes the domain callback directly.
 Focus uses native `Control.Focus()`. Focus navigation requires the declared start to
@@ -456,11 +477,14 @@ it, but missing or unrealized nodes still fail separately. Window-closed wait
 polls that same inverse predicate through the dispatcher-yielding adapter until
 its fixed deadline, and a persistently open window times out without invoking a
 native close API or mutating focus.
-Selection assertion reads the native selected state of the realized selectable
+Selection mutation writes the native selected state of the realized selectable
+control and verifies the postcondition. It is idempotent, reversible, does not
+raise an action event, and preserves keyboard focus. Selection assertion reads
+the native selected state of the realized selectable
 control, while selection wait polls that same predicate through the cancellable
 adapter until the protocol-fixed deadline. Mismatched, selectionless, or native
 nonselectable targets fail with typed presentation errors and never focus,
-activate, scroll, or select the target. Text
+activate, or scroll the target. Text
 assertion reads native `TextBlock.Text` or string
 `Button.Content` and uses exact ordinal comparison rather than semantic-IR
 fallback text. Text wait polls that same native displayed-text predicate through
@@ -534,7 +558,8 @@ backward focus navigation, stable destination reporting, failure focus
 preservation, and
 zero action activation, native window-open assertion, dispatcher-yielding
 window-open wait,
-native selected/unselected assertion, dispatcher-yielding
+native idempotent and reversible selected/unselected mutation with focus and
+activation guards, native selected/unselected assertion, dispatcher-yielding
 selection wait, persistent selection mismatch timeout,
 text-mismatched, external text transition, persistent text mismatch timeout,
 automation-id-mismatched, node-kind-mismatched,
@@ -546,6 +571,10 @@ form-field-input-kind-mismatched, form-field-required-mismatched,
 form-field-max-length-mismatched,
 form-field-placeholder-mismatched, external form-field-placeholder transition,
 persistent form-field-placeholder mismatch timeout,
+native schema-bound form-value mutation, idempotent repeated mutation,
+unregistered and disposed form-scope rejection, exact form-value assertion,
+external form-value transition, persistent form-value mismatch timeout, and
+zero form-value-triggered activation or focus movement,
 accessible-name-mismatched, external accessible-name transition,
 persistent accessible-name mismatch timeout,
 accessible-description-mismatched, external accessible-description transition,

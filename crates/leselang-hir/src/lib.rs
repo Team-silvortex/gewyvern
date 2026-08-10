@@ -30,6 +30,7 @@ pub const UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_FORM_VALUE_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_FOCUSED_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_UNFOCUSED_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_REALIZED_TIMEOUT_MS: u64 = 2_000;
@@ -225,6 +226,10 @@ pub enum Effect {
         node_id: String,
         count: usize,
     },
+    UiSetSelection {
+        node_id: String,
+        state: UiSelectionState,
+    },
     UiAssertSelection {
         node_id: String,
         state: UiSelectionState,
@@ -282,6 +287,21 @@ pub enum Effect {
     UiWaitActionUnavailableReason {
         node_id: String,
         expected: Option<String>,
+    },
+    UiSetFormValue {
+        node_id: String,
+        field: String,
+        value: String,
+    },
+    UiAssertFormValue {
+        node_id: String,
+        field: String,
+        expected: String,
+    },
+    UiWaitFormValue {
+        node_id: String,
+        field: String,
+        expected: String,
     },
     UiAssertFormField {
         node_id: String,
@@ -391,6 +411,7 @@ pub enum Type {
     UiAssertDisabled,
     UiAssertChildCount,
     UiWaitChildCount,
+    UiSetSelection,
     UiAssertSelection,
     UiWaitSelection,
     UiAssertText,
@@ -406,6 +427,9 @@ pub enum Type {
     UiWaitActionAvailable,
     UiAssertActionUnavailableReason,
     UiWaitActionUnavailableReason,
+    UiSetFormValue,
+    UiAssertFormValue,
+    UiWaitFormValue,
     UiAssertFormField,
     UiWaitFormField,
     UiAssertFormFieldInputKind,
@@ -521,6 +545,7 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.assert_disabled"
         | "ui.assert_child_count"
         | "ui.wait_child_count"
+        | "ui.set_selection"
         | "ui.assert_selection"
         | "ui.wait_selection"
         | "ui.assert_text"
@@ -536,6 +561,9 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.wait_action_available"
         | "ui.assert_action_unavailable_reason"
         | "ui.wait_action_unavailable_reason"
+        | "ui.set_form_value"
+        | "ui.assert_form_value"
+        | "ui.wait_form_value"
         | "ui.assert_form_field"
         | "ui.wait_form_field"
         | "ui.assert_form_field_input_kind"
@@ -577,6 +605,7 @@ fn lower_atomic_effect(
     let mut semantic_action_kind = None;
     let mut action_unavailable_reason_expected = None;
     let mut form_field_key = None;
+    let mut form_value = None;
     let mut form_input_kind = None;
     let mut form_requirement_state = None;
     let mut form_max_length = None;
@@ -961,6 +990,26 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.set_selection", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1307".to_string(),
+                    message:
+                        "ui.set_selection node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.set_selection", "state") => match value.as_deref() {
+                Some("selected") => selection_state = Some(UiSelectionState::Selected),
+                Some("unselected") => selection_state = Some(UiSelectionState::Unselected),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1308".to_string(),
+                    message: "ui.set_selection state must be \"selected\" or \"unselected\""
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.assert_selection", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -1220,6 +1269,90 @@ fn lower_atomic_effect(
                     message:
                         "ui.wait_action_unavailable_reason expected must be bounded display text or none"
                             .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.set_form_value", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1311".to_string(),
+                    message:
+                        "ui.set_form_value node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.set_form_value", "field") => match value {
+                Some(value) if validate_ui_form_field_key(&value) => form_field_key = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1312".to_string(),
+                    message: "ui.set_form_value field must be a valid UI form field key"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.set_form_value", "value") => match value {
+                Some(value) if validate_ui_form_value(&value) => form_value = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1313".to_string(),
+                    message: "ui.set_form_value value must be bounded control-free text"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_form_value", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1314".to_string(),
+                    message:
+                        "ui.assert_form_value node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_form_value", "field") => match value {
+                Some(value) if validate_ui_form_field_key(&value) => form_field_key = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1315".to_string(),
+                    message: "ui.assert_form_value field must be a valid UI form field key"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_form_value", "expected") => match value {
+                Some(value) if validate_ui_form_value(&value) => form_value = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1316".to_string(),
+                    message: "ui.assert_form_value expected must be bounded control-free text"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_form_value", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1317".to_string(),
+                    message:
+                        "ui.wait_form_value node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_form_value", "field") => match value {
+                Some(value) if validate_ui_form_field_key(&value) => form_field_key = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1318".to_string(),
+                    message: "ui.wait_form_value field must be a valid UI form field key"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_form_value", "expected") => match value {
+                Some(value) if validate_ui_form_value(&value) => form_value = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1319".to_string(),
+                    message: "ui.wait_form_value expected must be bounded control-free text"
+                        .to_string(),
                     span: Some(argument.span),
                 }),
             },
@@ -1873,6 +2006,20 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.set_selection" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1309".to_string(),
+            message: "ui.set_selection requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.set_selection" && selection_state.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1310".to_string(),
+            message: "ui.set_selection requires state".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.assert_selection" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1150".to_string(),
@@ -2063,6 +2210,69 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1222".to_string(),
             message: "ui.wait_action_unavailable_reason requires expected".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.set_form_value" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1320".to_string(),
+            message: "ui.set_form_value requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.set_form_value" && form_field_key.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1321".to_string(),
+            message: "ui.set_form_value requires field".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.set_form_value" && form_value.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1322".to_string(),
+            message: "ui.set_form_value requires value".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_form_value" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1323".to_string(),
+            message: "ui.assert_form_value requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_form_value" && form_field_key.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1324".to_string(),
+            message: "ui.assert_form_value requires field".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_form_value" && form_value.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1325".to_string(),
+            message: "ui.assert_form_value requires expected".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_form_value" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1326".to_string(),
+            message: "ui.wait_form_value requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_form_value" && form_field_key.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1327".to_string(),
+            message: "ui.wait_form_value requires field".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_form_value" && form_value.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1328".to_string(),
+            message: "ui.wait_form_value requires expected".to_string(),
             span: Some(span),
         });
     }
@@ -2655,6 +2865,14 @@ fn lower_atomic_effect(
             Type::UiWaitChildCount,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.set_selection" => (
+            Effect::UiSetSelection {
+                node_id: node_id.expect("validated UI node identifier"),
+                state: selection_state.expect("validated UI selection state"),
+            },
+            Type::UiSetSelection,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_selection" => (
             Effect::UiAssertSelection {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -2773,6 +2991,33 @@ fn lower_atomic_effect(
                     .expect("validated UI action unavailable reason"),
             },
             Type::UiWaitActionUnavailableReason,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.set_form_value" => (
+            Effect::UiSetFormValue {
+                node_id: node_id.expect("validated UI node identifier"),
+                field: form_field_key.expect("validated UI form field key"),
+                value: form_value.expect("validated UI form value"),
+            },
+            Type::UiSetFormValue,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.assert_form_value" => (
+            Effect::UiAssertFormValue {
+                node_id: node_id.expect("validated UI node identifier"),
+                field: form_field_key.expect("validated UI form field key"),
+                expected: form_value.expect("validated UI expected form value"),
+            },
+            Type::UiAssertFormValue,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.wait_form_value" => (
+            Effect::UiWaitFormValue {
+                node_id: node_id.expect("validated UI node identifier"),
+                field: form_field_key.expect("validated UI form field key"),
+                expected: form_value.expect("validated UI expected form value"),
+            },
+            Type::UiWaitFormValue,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_form_field" => (
@@ -3061,6 +3306,14 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             quote(&count.to_string()),
             indent(depth),
         ),
+        Effect::UiSetSelection { node_id, state } => format!(
+            "ui.set_selection(\n{}node_id: {},\n{}state: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(selection_state_source(*state)),
+            indent(depth),
+        ),
         Effect::UiAssertSelection { node_id, state } => format!(
             "ui.assert_selection(\n{}node_id: {},\n{}state: {},\n{})",
             indent(depth + 1),
@@ -3181,6 +3434,48 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             quote(node_id),
             indent(depth + 1),
             optional_string(expected.as_deref()),
+            indent(depth),
+        ),
+        Effect::UiSetFormValue {
+            node_id,
+            field,
+            value,
+        } => format!(
+            "ui.set_form_value(\n{}node_id: {},\n{}field: {},\n{}value: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(field),
+            indent(depth + 1),
+            quote(value),
+            indent(depth),
+        ),
+        Effect::UiAssertFormValue {
+            node_id,
+            field,
+            expected,
+        } => format!(
+            "ui.assert_form_value(\n{}node_id: {},\n{}field: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(field),
+            indent(depth + 1),
+            quote(expected),
+            indent(depth),
+        ),
+        Effect::UiWaitFormValue {
+            node_id,
+            field,
+            expected,
+        } => format!(
+            "ui.wait_form_value(\n{}node_id: {},\n{}field: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(field),
+            indent(depth + 1),
+            quote(expected),
             indent(depth),
         ),
         Effect::UiAssertFormField {
@@ -3502,6 +3797,10 @@ pub fn validate_ui_form_field_key(field: &str) -> bool {
         && field
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+}
+
+pub fn validate_ui_form_value(value: &str) -> bool {
+    value.len() <= MAX_UI_FORM_FIELD_MAX_LENGTH && !value.chars().any(char::is_control)
 }
 
 pub fn validate_ui_expected_text(expected: &str) -> bool {
@@ -4709,6 +5008,113 @@ mod tests {
                 "source should fail: {source}"
             );
         }
+    }
+
+    #[test]
+    fn ui_set_selection_is_a_typed_canonical_presentation_mutation() {
+        let program = lower(&parse(
+            "fn main() = ui.set_selection(node_id: \"runtime-a:card\", state: \"selected\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiSetSelection);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiSetSelection {
+                ref node_id,
+                state: UiSelectionState::Selected,
+            } if node_id == "runtime-a:card"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.set_selection(\n  node_id: \"runtime-a:card\",\n  state: \"selected\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.set_selection()",
+            "fn main() = ui.set_selection(node_id: \"runtime-a:card\")",
+            "fn main() = ui.set_selection(state: \"selected\")",
+            "fn main() = ui.set_selection(node_id: none, state: \"selected\")",
+            "fn main() = ui.set_selection(node_id: \"bad/node\", state: \"selected\")",
+            "fn main() = ui.set_selection(node_id: \"runtime-a:card\", state: none)",
+            "fn main() = ui.set_selection(node_id: \"runtime-a:card\", state: \"maybe\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_form_value_effects_are_bounded_typed_and_canonical() {
+        let set_program = lower(&parse(
+            "fn main() = ui.set_form_value(node_id: \"runtime-a:deploy\", field: \"pipeline_kind\", value: \"capture\")",
+        ))
+        .unwrap();
+        assert_eq!(set_program.function.result_type, Type::UiSetFormValue);
+        assert_eq!(
+            set_program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            set_program.function.effect,
+            Effect::UiSetFormValue {
+                ref node_id,
+                ref field,
+                ref value,
+            } if node_id == "runtime-a:deploy" && field == "pipeline_kind" && value == "capture"
+        ));
+        assert_eq!(
+            canonical_source(&set_program.function.effect).unwrap(),
+            "fn main() = ui.set_form_value(\n  node_id: \"runtime-a:deploy\",\n  field: \"pipeline_kind\",\n  value: \"capture\",\n)\n"
+        );
+
+        let assert_program = lower(&parse(
+            "fn main() = ui.assert_form_value(node_id: \"runtime-a:deploy\", field: \"target\", expected: \"\")",
+        ))
+        .unwrap();
+        assert_eq!(assert_program.function.result_type, Type::UiAssertFormValue);
+        assert!(matches!(
+            assert_program.function.effect,
+            Effect::UiAssertFormValue { ref expected, .. } if expected.is_empty()
+        ));
+
+        let wait_program = lower(&parse(
+            "fn main() = ui.wait_form_value(node_id: \"runtime-a:deploy\", field: \"pipeline_kind\", expected: \"capture\")",
+        ))
+        .unwrap();
+        assert_eq!(wait_program.function.result_type, Type::UiWaitFormValue);
+        assert_eq!(
+            canonical_source(&wait_program.function.effect).unwrap(),
+            "fn main() = ui.wait_form_value(\n  node_id: \"runtime-a:deploy\",\n  field: \"pipeline_kind\",\n  expected: \"capture\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.set_form_value()",
+            "fn main() = ui.set_form_value(node_id: \"runtime-a:deploy\", field: \"pipeline_kind\")",
+            "fn main() = ui.set_form_value(node_id: \"runtime-a:deploy\", value: \"capture\")",
+            "fn main() = ui.set_form_value(field: \"pipeline_kind\", value: \"capture\")",
+            "fn main() = ui.assert_form_value(node_id: \"runtime-a:deploy\", field: \"pipeline_kind\")",
+            "fn main() = ui.wait_form_value(node_id: \"runtime-a:deploy\", expected: \"capture\")",
+            "fn main() = ui.set_form_value(node_id: \"bad/node\", field: \"pipeline_kind\", value: \"capture\")",
+            "fn main() = ui.set_form_value(node_id: \"runtime-a:deploy\", field: \"bad/key\", value: \"capture\")",
+            "fn main() = ui.set_form_value(node_id: \"runtime-a:deploy\", field: \"pipeline_kind\", value: none)",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+
+        let oversized = format!(
+            "fn main() = ui.set_form_value(node_id: \"runtime-a:deploy\", field: \"pipeline_kind\", value: \"{}\")",
+            "x".repeat(MAX_UI_FORM_FIELD_MAX_LENGTH + 1)
+        );
+        assert!(lower(&parse(&oversized)).is_err());
     }
 
     #[test]

@@ -20,12 +20,16 @@ internal sealed class MainWindow : Window
     private readonly UiPatch childCountPatch = null!;
     private readonly UiPresentationOperation childCountAssertOperation = null!;
     private readonly UiPresentationOperation childCountWaitOperation = null!;
+    private readonly UiPresentationOperation formValueSetOperation = null!;
+    private readonly UiPresentationOperation formValueAssertOperation = null!;
+    private readonly UiPresentationOperation formValueWaitOperation = null!;
     private readonly Task<PresentationAutomationResult> initialWindowOpenWait = null!;
     private readonly PresentationAutomationResult initialWindowClosedAssert = null!;
     private readonly Task<PresentationAutomationResult> initialWindowClosedWait = null!;
     private readonly string initialEnabledWaitNodeId = string.Empty;
     private readonly string initialFocusedWaitNodeId = string.Empty;
     private readonly string initialFocusedWaitTimeoutNodeId = string.Empty;
+    private readonly string initialSelectionSetNodeId = string.Empty;
     private readonly string initialSelectionAssertNodeId = string.Empty;
     private readonly string initialSelectionWaitNodeId = string.Empty;
     private readonly string initialWindowOpenAssertNodeId = string.Empty;
@@ -105,6 +109,20 @@ internal sealed class MainWindow : Window
     public bool InitialFormFieldMaxLengthWaitTimedOut { get; private set; }
     public bool InitialFormFieldPlaceholderWaitCompleted { get; private set; }
     public bool InitialFormFieldPlaceholderWaitTimedOut { get; private set; }
+    public bool FormValueMutationCompleted { get; private set; }
+    public bool FormValueMutationIdempotent { get; private set; }
+    public bool FormValueAssertCompleted { get; private set; }
+    public bool FormValueMismatchRejected { get; private set; }
+    public bool InitialFormValueWaitCompleted { get; private set; }
+    public bool InitialFormValueWaitTimedOut { get; private set; }
+    public bool FormValueUnregisteredRejected { get; private set; }
+    public bool FormValueScopeDisposed { get; private set; }
+    public bool FormValueProbeDidNotActivate { get; private set; }
+    public bool FormValueProbePreservedFocus { get; private set; }
+    public bool SelectionMutationCompleted { get; private set; }
+    public bool SelectionMutationIdempotent { get; private set; }
+    public bool SelectionMutationReversible { get; private set; }
+    public bool SelectionMutationDidNotActivate { get; private set; }
     public bool SelectionAssertCompleted { get; private set; }
     public bool SelectionMismatchRejected { get; private set; }
     public bool SelectionlessTargetRejected { get; private set; }
@@ -285,6 +303,9 @@ internal sealed class MainWindow : Window
                 initialFocusedWaitNodeId)
             ?? throw new InvalidDataException(
                 "focused wait timeout probe requires another action target");
+        initialSelectionSetNodeId = fixture.SelectionSetOperation?.NodeId
+            ?? throw new InvalidDataException(
+                "selection mutation probe requires a selectable target");
         initialSelectionAssertNodeId = fixture.SelectionAssertOperation?.NodeId
             ?? throw new InvalidDataException(
                 "selection assertion probe requires a selectable target");
@@ -362,6 +383,15 @@ internal sealed class MainWindow : Window
         childCountWaitOperation = fixture.ChildCountWaitOperation
             ?? throw new InvalidDataException(
                 "child-count wait probe requires a semantic target");
+        formValueSetOperation = fixture.FormValueSetOperation
+            ?? throw new InvalidDataException(
+                "form-value mutation probe requires a semantic target");
+        formValueAssertOperation = fixture.FormValueAssertOperation
+            ?? throw new InvalidDataException(
+                "form-value assertion probe requires a semantic target");
+        formValueWaitOperation = fixture.FormValueWaitOperation
+            ?? throw new InvalidDataException(
+                "form-value wait probe requires a semantic target");
         ConfigureWindowContent();
     }
 
@@ -419,6 +449,7 @@ internal sealed class MainWindow : Window
                 + $"timed_out={InitialChildCountWaitTimedOut}, "
                 + $"virtualization_preserved={ChildCountObservationPreservedVirtualization}");
         }
+        await ProbeFormValueAutomationAsync();
         var windowOpen = renderer.ApplyPresentation(new UiPresentationOperation
         {
             Kind = UiPresentationOperationKind.AssertWindowOpen,
@@ -1601,6 +1632,106 @@ internal sealed class MainWindow : Window
         }
     }
 
+    private async Task ProbeFormValueAutomationAsync()
+    {
+        var node = FindNode(renderer.Document.Root, formValueSetOperation.NodeId)
+            ?? throw new InvalidDataException("form-value probe target was not found");
+        var form = node.Action?.Form
+            ?? throw new InvalidDataException("form-value probe target has no semantic form");
+        var field = formValueSetOperation.Field
+            ?? throw new InvalidDataException("form-value mutation contains no field");
+        var value = formValueSetOperation.Value
+            ?? throw new InvalidDataException("form-value mutation contains no value");
+        var inputs = form.Fields.ToDictionary(
+            candidate => candidate.Key,
+            candidate => new TextBox
+            {
+                MaxLength = candidate.MaxLength,
+                PlaceholderText = candidate.Placeholder?.Fallback,
+            },
+            StringComparer.Ordinal);
+        var input = inputs[field];
+        var focusBefore = renderer.FocusedNodeId;
+        var actionCountBefore = invokedActionCount;
+        var unregistered = renderer.ApplyPresentation(formValueAssertOperation);
+        FormValueUnregisteredRejected = !unregistered.Applied
+            && unregistered.FailureCode
+                == PresentationAutomationFailureCode.TargetFormFieldUnrealized;
+
+        var duplicateRegistrationRejected = false;
+        using (renderer.RegisterFormFields(formValueSetOperation.NodeId, inputs))
+        {
+            try
+            {
+                using var duplicate = renderer.RegisterFormFields(
+                    formValueSetOperation.NodeId,
+                    inputs);
+            }
+            catch (InvalidDataException)
+            {
+                duplicateRegistrationRejected = true;
+            }
+
+            var mutation = renderer.ApplyPresentation(formValueSetOperation);
+            var repeatedMutation = renderer.ApplyPresentation(formValueSetOperation);
+            var assertion = renderer.ApplyPresentation(formValueAssertOperation);
+            var mismatch = renderer.ApplyPresentation(new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertFormValue,
+                NodeId = formValueAssertOperation.NodeId,
+                Field = field,
+                Expected = $"{value}-mismatch",
+            });
+            FormValueMutationCompleted = mutation.Applied
+                && mutation.FailureCode == PresentationAutomationFailureCode.None
+                && StringComparer.Ordinal.Equals(input.Text, value);
+            FormValueMutationIdempotent = repeatedMutation.Applied
+                && repeatedMutation.FailureCode == PresentationAutomationFailureCode.None
+                && StringComparer.Ordinal.Equals(input.Text, value);
+            FormValueAssertCompleted = assertion.Applied
+                && assertion.FailureCode == PresentationAutomationFailureCode.None;
+            FormValueMismatchRejected = !mismatch.Applied
+                && mismatch.FailureCode
+                    == PresentationAutomationFailureCode.TargetFormValueMismatch;
+
+            input.Text = "external/change";
+            var wait = renderer.ApplyPresentationAsync(formValueWaitOperation);
+            DispatcherTimer.RunOnce(
+                () => input.Text = value,
+                TimeSpan.FromMilliseconds(50));
+            var waitResult = await wait;
+            InitialFormValueWaitCompleted = waitResult.Applied
+                && waitResult.FailureCode == PresentationAutomationFailureCode.None;
+
+            input.Text = "external/change";
+            var timeout = await renderer.ApplyPresentationAsync(formValueWaitOperation);
+            InitialFormValueWaitTimedOut = !timeout.Applied
+                && timeout.FailureCode == PresentationAutomationFailureCode.WaitTimedOut;
+        }
+
+        var disposed = renderer.ApplyPresentation(formValueAssertOperation);
+        FormValueScopeDisposed = !disposed.Applied
+            && disposed.FailureCode
+                == PresentationAutomationFailureCode.TargetFormFieldUnrealized;
+        FormValueProbeDidNotActivate = invokedActionCount == actionCountBefore;
+        FormValueProbePreservedFocus = renderer.FocusedNodeId == focusBefore;
+        if (!FormValueUnregisteredRejected
+            || !duplicateRegistrationRejected
+            || !FormValueMutationCompleted
+            || !FormValueMutationIdempotent
+            || !FormValueAssertCompleted
+            || !FormValueMismatchRejected
+            || !InitialFormValueWaitCompleted
+            || !InitialFormValueWaitTimedOut
+            || !FormValueScopeDisposed
+            || !FormValueProbeDidNotActivate
+            || !FormValueProbePreservedFocus)
+        {
+            throw new InvalidDataException(
+                "Leselang form-value automation diverged from scoped native TextBox state");
+        }
+    }
+
     public void ProbeActionAvailability()
     {
         ActionKind[] mutationKinds =
@@ -2299,6 +2430,63 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang selection assertion accepted mismatched native selection or changed focus");
         }
+        var actionCountBeforeSelectionMutation = invokedActionCount;
+        var selectionMutation = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.SetSelection,
+            NodeId = initialSelectionSetNodeId,
+            State = UiSelectionState.Selected,
+        });
+        var selectionMutationAssert = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertSelection,
+            NodeId = initialSelectionSetNodeId,
+            State = UiSelectionState.Selected,
+        });
+        SelectionMutationCompleted = selectionMutation.Applied
+            && selectionMutation.FailureCode == PresentationAutomationFailureCode.None
+            && selectionMutationAssert.Applied
+            && renderer.FocusedNodeId == nodeId;
+        var repeatedSelectionMutation = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.SetSelection,
+            NodeId = initialSelectionSetNodeId,
+            State = UiSelectionState.Selected,
+        });
+        SelectionMutationIdempotent = repeatedSelectionMutation.Applied
+            && repeatedSelectionMutation.FailureCode == PresentationAutomationFailureCode.None
+            && renderer.FocusedNodeId == nodeId;
+        var clearSelectionMutation = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.SetSelection,
+            NodeId = initialSelectionSetNodeId,
+            State = UiSelectionState.Unselected,
+        });
+        var clearSelectionAssert = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertSelection,
+            NodeId = initialSelectionSetNodeId,
+            State = UiSelectionState.Unselected,
+        });
+        var restoreSelectionMutation = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.SetSelection,
+            NodeId = initialSelectionAssertNodeId,
+            State = UiSelectionState.Selected,
+        });
+        SelectionMutationReversible = clearSelectionMutation.Applied
+            && clearSelectionAssert.Applied
+            && restoreSelectionMutation.Applied
+            && renderer.FocusedNodeId == nodeId;
+        SelectionMutationDidNotActivate = invokedActionCount == actionCountBeforeSelectionMutation;
+        if (!SelectionMutationCompleted
+            || !SelectionMutationIdempotent
+            || !SelectionMutationReversible
+            || !SelectionMutationDidNotActivate)
+        {
+            throw new InvalidDataException(
+                "Leselang selection mutation was not idempotent, reversible, focus-stable, and activation-free");
+        }
         var missing = renderer.ApplyPresentation(new UiPresentationOperation
         {
             Kind = UiPresentationOperationKind.Focus,
@@ -2328,8 +2516,17 @@ internal sealed class MainWindow : Window
             NodeId = nonActionNodeId,
             State = UiSelectionState.Selected,
         });
+        var selectionlessMutation = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.SetSelection,
+            NodeId = nonActionNodeId,
+            State = UiSelectionState.Selected,
+        });
         SelectionlessTargetRejected = !selectionlessTarget.Applied
             && selectionlessTarget.FailureCode
+                == PresentationAutomationFailureCode.SelectionlessTarget
+            && !selectionlessMutation.Applied
+            && selectionlessMutation.FailureCode
                 == PresentationAutomationFailureCode.SelectionlessTarget
             && renderer.FocusedNodeId == nodeId;
         if (!SelectionlessTargetRejected)
@@ -2459,7 +2656,11 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang realization assertion lost its pre-layout rejection evidence or changed focus");
         }
-        SelectionProbePreservedFocus = SelectionAssertCompleted
+        SelectionProbePreservedFocus = SelectionMutationCompleted
+            && SelectionMutationIdempotent
+            && SelectionMutationReversible
+            && SelectionMutationDidNotActivate
+            && SelectionAssertCompleted
             && SelectionMismatchRejected
             && SelectionlessTargetRejected
             && renderer.FocusedNodeId == nodeId;

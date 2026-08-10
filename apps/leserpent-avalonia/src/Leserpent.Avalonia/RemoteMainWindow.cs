@@ -891,25 +891,28 @@ internal sealed class RemoteMainWindow : Window
         }
         mutationInFlight = true;
         UpdateMutationAvailability();
-        var intent = await new ParameterizedActionFormWindow(
-                form,
-                $"{SafeDisplay(runtime.Name)}\nID: {runtime.Id}\nExpected revision: {runtime.Revision}",
-                "This submits an authenticated, revision-checked deployment and is not retried automatically.",
-                (values, cancellationToken) =>
+        var formWindow = new ParameterizedActionFormWindow(
+            form,
+            $"{SafeDisplay(runtime.Name)}\nID: {runtime.Id}\nExpected revision: {runtime.Revision}",
+            "This submits an authenticated, revision-checked deployment and is not retried automatically.",
+            (values, cancellationToken) =>
+            {
+                if (!values.TryGetValue("pipeline_kind", out var pipelineKind))
                 {
-                    if (!values.TryGetValue("pipeline_kind", out var pipelineKind))
-                    {
-                        throw new ArgumentException(
-                            "deployment form is missing pipeline_kind");
-                    }
-                    values.TryGetValue("target", out var target);
-                    return leselangClient.ExportDeployAsync(
-                        runtime.Id,
-                        pipelineKind,
-                        target,
-                        cancellationToken);
-                })
-            .ShowDialog<ParameterizedFormIntent?>(this);
+                    throw new ArgumentException(
+                        "deployment form is missing pipeline_kind");
+                }
+                values.TryGetValue("target", out var target);
+                return leselangClient.ExportDeployAsync(
+                    runtime.Id,
+                    pipelineKind,
+                    target,
+                    cancellationToken);
+            });
+        using var formRegistration = renderer.RegisterFormFields(
+            nodeId,
+            formWindow.FormFields);
+        var intent = await formWindow.ShowDialog<ParameterizedFormIntent?>(this);
         if (intent is null || lifetime.IsCancellationRequested)
         {
             mutationInFlight = false;
@@ -1423,6 +1426,8 @@ internal sealed record ParameterizedFormIntent(IReadOnlyDictionary<string, strin
 
 internal sealed class ParameterizedActionFormWindow : Window
 {
+    public IReadOnlyDictionary<string, TextBox> FormFields { get; }
+
     public ParameterizedActionFormWindow(
         UiForm form,
         string context,
@@ -1463,6 +1468,10 @@ internal sealed class ParameterizedActionFormWindow : Window
                 throw new InvalidDataException("parameterized form contains duplicate fields");
             }
         }
+        FormFields = inputs.ToDictionary(
+            entry => entry.Key,
+            entry => entry.Value.Input,
+            StringComparer.Ordinal);
         var validation = new TextBlock
         {
             Foreground = LeserpentTheme.Destructive,
