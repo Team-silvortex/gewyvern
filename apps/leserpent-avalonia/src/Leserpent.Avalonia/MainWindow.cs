@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -20,6 +21,8 @@ internal sealed class MainWindow : Window
     private readonly UiPatch childCountPatch = null!;
     private readonly UiPresentationOperation childCountAssertOperation = null!;
     private readonly UiPresentationOperation childCountWaitOperation = null!;
+    private readonly UiPresentationOperation formSubmitOperation = null!;
+    private readonly UiPresentationOperation formCancelOperation = null!;
     private readonly UiPresentationOperation formValueSetOperation = null!;
     private readonly UiPresentationOperation formValueAssertOperation = null!;
     private readonly UiPresentationOperation formValueWaitOperation = null!;
@@ -119,6 +122,14 @@ internal sealed class MainWindow : Window
     public bool FormValueScopeDisposed { get; private set; }
     public bool FormValueProbeDidNotActivate { get; private set; }
     public bool FormValueProbePreservedFocus { get; private set; }
+    public bool FormSubmitCompleted { get; private set; }
+    public bool FormSubmitExactlyOnce { get; private set; }
+    public bool FormSubmitDisabledRejected { get; private set; }
+    public bool FormSubmitClosedReplayRejected { get; private set; }
+    public bool FormCancelCompleted { get; private set; }
+    public bool FormCancelExactlyOnce { get; private set; }
+    public bool FormCancelClosedReplayRejected { get; private set; }
+    public bool FormLifecycleUnregisteredRejected { get; private set; }
     public bool SelectionMutationCompleted { get; private set; }
     public bool SelectionMutationIdempotent { get; private set; }
     public bool SelectionMutationReversible { get; private set; }
@@ -383,6 +394,12 @@ internal sealed class MainWindow : Window
         childCountWaitOperation = fixture.ChildCountWaitOperation
             ?? throw new InvalidDataException(
                 "child-count wait probe requires a semantic target");
+        formSubmitOperation = fixture.FormSubmitOperation
+            ?? throw new InvalidDataException(
+                "form submission probe requires a semantic target");
+        formCancelOperation = fixture.FormCancelOperation
+            ?? throw new InvalidDataException(
+                "form cancellation probe requires a semantic target");
         formValueSetOperation = fixture.FormValueSetOperation
             ?? throw new InvalidDataException(
                 "form-value mutation probe requires a semantic target");
@@ -1144,6 +1161,7 @@ internal sealed class MainWindow : Window
                 Kind = UiPresentationOperationKind.AssertFocused,
                 NodeId = initialFocusedWaitTimeoutNodeId,
             });
+        var focusedNodeAfterTimeout = renderer.FocusedNodeId;
         InitialFocusedWaitTimedOut = !focusedTimeoutResult.Applied
             && focusedTimeoutResult.FailureCode
                 == PresentationAutomationFailureCode.WaitTimedOut
@@ -1153,16 +1171,17 @@ internal sealed class MainWindow : Window
             && !timeoutTargetFocused.Applied
             && timeoutTargetFocused.FailureCode
                 == PresentationAutomationFailureCode.TargetNotFocused
-            && renderer.FocusedNodeId == initialFocusedWaitNodeId;
+            && (focusedNodeAfterTimeout is null
+                || focusedNodeAfterTimeout == initialFocusedWaitNodeId);
         if (!InitialFocusedWaitTimedOut)
         {
             throw new InvalidDataException(
-                "Leselang focused wait changed focus or did not reject a persistently unfocused realized target: "
+                "Leselang focused wait focused another target or did not reject a persistently unfocused realized target: "
                 + $"result_applied={focusedTimeoutResult.Applied}, "
                 + $"result_failure={focusedTimeoutResult.FailureCode}, "
                 + $"timeout_target_realized={timeoutTargetRealized.Applied}, "
                 + $"timeout_target_focus_failure={timeoutTargetFocused.FailureCode}, "
-                + $"focused_node={renderer.FocusedNodeId ?? "<none>"}, "
+                + $"focused_node={focusedNodeAfterTimeout ?? "<none>"}, "
                 + $"expected_focus={initialFocusedWaitNodeId}, "
                 + $"timeout_target={initialFocusedWaitTimeoutNodeId}");
         }
@@ -1642,80 +1661,172 @@ internal sealed class MainWindow : Window
             ?? throw new InvalidDataException("form-value mutation contains no field");
         var value = formValueSetOperation.Value
             ?? throw new InvalidDataException("form-value mutation contains no value");
-        var inputs = form.Fields.ToDictionary(
-            candidate => candidate.Key,
-            candidate => new TextBox
-            {
-                MaxLength = candidate.MaxLength,
-                PlaceholderText = candidate.Placeholder?.Fallback,
-            },
-            StringComparer.Ordinal);
-        var input = inputs[field];
-        var focusBefore = renderer.FocusedNodeId;
         var actionCountBefore = invokedActionCount;
         var unregistered = renderer.ApplyPresentation(formValueAssertOperation);
         FormValueUnregisteredRejected = !unregistered.Applied
             && unregistered.FailureCode
                 == PresentationAutomationFailureCode.TargetFormFieldUnrealized;
+        var unregisteredSubmit = renderer.ApplyPresentation(formSubmitOperation);
+        var unregisteredCancel = renderer.ApplyPresentation(formCancelOperation);
+        FormLifecycleUnregisteredRejected = !unregisteredSubmit.Applied
+            && unregisteredSubmit.FailureCode
+                == PresentationAutomationFailureCode.TargetFormUnrealized
+            && !unregisteredCancel.Applied
+            && unregisteredCancel.FailureCode
+                == PresentationAutomationFailureCode.TargetFormUnrealized;
 
+        var (formWindow, inputs, submit, cancel) = FormProbeControls(form);
+        var input = inputs[field];
+        var submitClicks = 0;
+        submit.Click += (_, _) =>
+        {
+            submitClicks++;
+            formWindow.Close();
+        };
         var duplicateRegistrationRejected = false;
-        using (renderer.RegisterFormFields(formValueSetOperation.NodeId, inputs))
+        using (renderer.RegisterFormFields(
+            formValueSetOperation.NodeId,
+            inputs,
+            formWindow,
+            submit,
+            cancel))
         {
             try
             {
                 using var duplicate = renderer.RegisterFormFields(
                     formValueSetOperation.NodeId,
-                    inputs);
+                    inputs,
+                    formWindow,
+                    submit,
+                    cancel);
             }
             catch (InvalidDataException)
             {
                 duplicateRegistrationRejected = true;
             }
 
-            var mutation = renderer.ApplyPresentation(formValueSetOperation);
-            var repeatedMutation = renderer.ApplyPresentation(formValueSetOperation);
-            var assertion = renderer.ApplyPresentation(formValueAssertOperation);
-            var mismatch = renderer.ApplyPresentation(new UiPresentationOperation
+            try
             {
-                Kind = UiPresentationOperationKind.AssertFormValue,
-                NodeId = formValueAssertOperation.NodeId,
-                Field = field,
-                Expected = $"{value}-mismatch",
-            });
-            FormValueMutationCompleted = mutation.Applied
-                && mutation.FailureCode == PresentationAutomationFailureCode.None
-                && StringComparer.Ordinal.Equals(input.Text, value);
-            FormValueMutationIdempotent = repeatedMutation.Applied
-                && repeatedMutation.FailureCode == PresentationAutomationFailureCode.None
-                && StringComparer.Ordinal.Equals(input.Text, value);
-            FormValueAssertCompleted = assertion.Applied
-                && assertion.FailureCode == PresentationAutomationFailureCode.None;
-            FormValueMismatchRejected = !mismatch.Applied
-                && mismatch.FailureCode
-                    == PresentationAutomationFailureCode.TargetFormValueMismatch;
+                formWindow.Show(this);
+                await Dispatcher.UIThread.InvokeAsync(
+                    () => { },
+                    DispatcherPriority.Render);
+                var nativeFocusEstablished = await EstablishNativeFocusAsync(
+                    formWindow,
+                    input);
 
-            input.Text = "external/change";
-            var wait = renderer.ApplyPresentationAsync(formValueWaitOperation);
-            DispatcherTimer.RunOnce(
-                () => input.Text = value,
-                TimeSpan.FromMilliseconds(50));
-            var waitResult = await wait;
-            InitialFormValueWaitCompleted = waitResult.Applied
-                && waitResult.FailureCode == PresentationAutomationFailureCode.None;
+                var mutation = renderer.ApplyPresentation(formValueSetOperation);
+                var repeatedMutation = renderer.ApplyPresentation(formValueSetOperation);
+                var assertion = renderer.ApplyPresentation(formValueAssertOperation);
+                var mismatch = renderer.ApplyPresentation(new UiPresentationOperation
+                {
+                    Kind = UiPresentationOperationKind.AssertFormValue,
+                    NodeId = formValueAssertOperation.NodeId,
+                    Field = field,
+                    Expected = $"{value}-mismatch",
+                });
+                FormValueMutationCompleted = mutation.Applied
+                    && mutation.FailureCode == PresentationAutomationFailureCode.None
+                    && StringComparer.Ordinal.Equals(input.Text, value);
+                FormValueMutationIdempotent = repeatedMutation.Applied
+                    && repeatedMutation.FailureCode == PresentationAutomationFailureCode.None
+                    && StringComparer.Ordinal.Equals(input.Text, value);
+                FormValueAssertCompleted = assertion.Applied
+                    && assertion.FailureCode == PresentationAutomationFailureCode.None;
+                FormValueMismatchRejected = !mismatch.Applied
+                    && mismatch.FailureCode
+                        == PresentationAutomationFailureCode.TargetFormValueMismatch;
+                FormValueProbePreservedFocus = nativeFocusEstablished && input.IsFocused;
 
-            input.Text = "external/change";
-            var timeout = await renderer.ApplyPresentationAsync(formValueWaitOperation);
-            InitialFormValueWaitTimedOut = !timeout.Applied
-                && timeout.FailureCode == PresentationAutomationFailureCode.WaitTimedOut;
+                input.Text = "external/change";
+                var wait = renderer.ApplyPresentationAsync(formValueWaitOperation);
+                DispatcherTimer.RunOnce(
+                    () => input.Text = value,
+                    TimeSpan.FromMilliseconds(50));
+                var waitResult = await wait;
+                InitialFormValueWaitCompleted = waitResult.Applied
+                    && waitResult.FailureCode == PresentationAutomationFailureCode.None;
+
+                input.Text = "external/change";
+                var timeout = await renderer.ApplyPresentationAsync(formValueWaitOperation);
+                InitialFormValueWaitTimedOut = !timeout.Applied
+                    && timeout.FailureCode == PresentationAutomationFailureCode.WaitTimedOut;
+
+                submit.IsEnabled = false;
+                var disabledSubmit = renderer.ApplyPresentation(formSubmitOperation);
+                FormSubmitDisabledRejected = !disabledSubmit.Applied
+                    && disabledSubmit.FailureCode
+                        == PresentationAutomationFailureCode.TargetFormActionUnavailable;
+                renderer.ApplyPresentation(formValueSetOperation);
+                submit.IsEnabled = true;
+                var submitted = renderer.ApplyPresentation(formSubmitOperation);
+                var replay = renderer.ApplyPresentation(formSubmitOperation);
+                FormSubmitCompleted = submitted.Applied
+                    && submitted.FailureCode == PresentationAutomationFailureCode.None
+                    && !formWindow.IsVisible;
+                FormSubmitExactlyOnce = submitClicks == 1;
+                FormSubmitClosedReplayRejected = !replay.Applied
+                    && replay.FailureCode
+                        == PresentationAutomationFailureCode.TargetFormUnrealized
+                    && submitClicks == 1;
+            }
+            finally
+            {
+                if (formWindow.IsVisible)
+                {
+                    formWindow.Close();
+                }
+            }
         }
 
         var disposed = renderer.ApplyPresentation(formValueAssertOperation);
         FormValueScopeDisposed = !disposed.Applied
             && disposed.FailureCode
                 == PresentationAutomationFailureCode.TargetFormFieldUnrealized;
+
+        var (cancelWindow, cancelInputs, cancelSubmit, cancelButton) = FormProbeControls(form);
+        var cancelClicks = 0;
+        cancelButton.Click += (_, _) =>
+        {
+            cancelClicks++;
+            cancelWindow.Close();
+        };
+        using (renderer.RegisterFormFields(
+            formCancelOperation.NodeId,
+            cancelInputs,
+            cancelWindow,
+            cancelSubmit,
+            cancelButton))
+        {
+            try
+            {
+                cancelWindow.Show(this);
+                await Dispatcher.UIThread.InvokeAsync(
+                    () => { },
+                    DispatcherPriority.Render);
+                var cancelled = renderer.ApplyPresentation(formCancelOperation);
+                var replay = renderer.ApplyPresentation(formCancelOperation);
+                FormCancelCompleted = cancelled.Applied
+                    && cancelled.FailureCode == PresentationAutomationFailureCode.None
+                    && !cancelWindow.IsVisible;
+                FormCancelExactlyOnce = cancelClicks == 1;
+                FormCancelClosedReplayRejected = !replay.Applied
+                    && replay.FailureCode
+                        == PresentationAutomationFailureCode.TargetFormUnrealized
+                    && cancelClicks == 1;
+            }
+            finally
+            {
+                if (cancelWindow.IsVisible)
+                {
+                    cancelWindow.Close();
+                }
+            }
+        }
+
         FormValueProbeDidNotActivate = invokedActionCount == actionCountBefore;
-        FormValueProbePreservedFocus = renderer.FocusedNodeId == focusBefore;
         if (!FormValueUnregisteredRejected
+            || !FormLifecycleUnregisteredRejected
             || !duplicateRegistrationRejected
             || !FormValueMutationCompleted
             || !FormValueMutationIdempotent
@@ -1725,10 +1836,104 @@ internal sealed class MainWindow : Window
             || !InitialFormValueWaitTimedOut
             || !FormValueScopeDisposed
             || !FormValueProbeDidNotActivate
-            || !FormValueProbePreservedFocus)
+            || !FormValueProbePreservedFocus
+            || !FormSubmitCompleted
+            || !FormSubmitExactlyOnce
+            || !FormSubmitDisabledRejected
+            || !FormSubmitClosedReplayRejected
+            || !FormCancelCompleted
+            || !FormCancelExactlyOnce
+            || !FormCancelClosedReplayRejected)
         {
             throw new InvalidDataException(
-                "Leselang form-value automation diverged from scoped native TextBox state");
+                "Leselang form automation diverged from scoped native controls: "
+                + $"value_unregistered={FormValueUnregisteredRejected}, "
+                + $"lifecycle_unregistered={FormLifecycleUnregisteredRejected}, "
+                + $"duplicate_registration={duplicateRegistrationRejected}, "
+                + $"value_mutation={FormValueMutationCompleted}, "
+                + $"value_idempotent={FormValueMutationIdempotent}, "
+                + $"value_assert={FormValueAssertCompleted}, "
+                + $"value_mismatch={FormValueMismatchRejected}, "
+                + $"value_wait={InitialFormValueWaitCompleted}, "
+                + $"value_timeout={InitialFormValueWaitTimedOut}, "
+                + $"value_scope_disposed={FormValueScopeDisposed}, "
+                + $"no_semantic_activation={FormValueProbeDidNotActivate}, "
+                + $"focus_preserved={FormValueProbePreservedFocus}, "
+                + $"submit={FormSubmitCompleted}, "
+                + $"submit_once={FormSubmitExactlyOnce}, "
+                + $"submit_disabled={FormSubmitDisabledRejected}, "
+                + $"submit_replay={FormSubmitClosedReplayRejected}, "
+                + $"cancel={FormCancelCompleted}, "
+                + $"cancel_once={FormCancelExactlyOnce}, "
+                + $"cancel_replay={FormCancelClosedReplayRejected}");
+        }
+
+        static (Window Window, Dictionary<string, TextBox> Inputs, Button Submit, Button Cancel)
+            FormProbeControls(UiForm semanticForm)
+        {
+            var inputs = semanticForm.Fields.ToDictionary(
+                candidate => candidate.Key,
+                candidate => new TextBox
+                {
+                    MaxLength = candidate.MaxLength,
+                    PlaceholderText = candidate.Placeholder?.Fallback,
+                },
+                StringComparer.Ordinal);
+            var submit = new Button
+            {
+                Content = semanticForm.SubmitLabel.Fallback,
+                IsEnabled = true,
+                Padding = new Thickness(16, 8),
+            };
+            var cancel = new Button
+            {
+                Content = "Cancel",
+                Padding = new Thickness(16, 8),
+            };
+            AutomationProperties.SetAutomationId(submit, "parameter-form-submit");
+            AutomationProperties.SetAutomationId(cancel, "parameter-form-cancel");
+            var content = new StackPanel
+            {
+                Spacing = 8,
+                Margin = new Thickness(20),
+            };
+            foreach (var input in inputs.Values)
+            {
+                content.Children.Add(input);
+            }
+            content.Children.Add(submit);
+            content.Children.Add(cancel);
+            var window = new Window
+            {
+                Title = "Leselang native form probe",
+                Width = 420,
+                SizeToContent = SizeToContent.Height,
+                CanResize = false,
+                Content = content,
+            };
+            return (window, inputs, submit, cancel);
+        }
+
+        static async Task<bool> EstablishNativeFocusAsync(Window window, Control target)
+        {
+            const int maxAttempts = 20;
+            for (var attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                window.Activate();
+                await Dispatcher.UIThread.InvokeAsync(
+                    () => { },
+                    DispatcherPriority.Input);
+                _ = target.Focus();
+                await Dispatcher.UIThread.InvokeAsync(
+                    () => { },
+                    DispatcherPriority.Input);
+                if (target.IsFocused)
+                {
+                    return true;
+                }
+                await Task.Delay(TimeSpan.FromMilliseconds(25));
+            }
+            return false;
         }
     }
 

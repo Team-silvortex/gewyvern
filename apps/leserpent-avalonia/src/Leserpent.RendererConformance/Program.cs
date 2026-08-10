@@ -711,6 +711,18 @@ var decodedFormFieldPlaceholderWait = decodedFormFieldPlaceholderWaitOperation.F
 var decodedFormFieldPlaceholderWaitExpected = decodedFormFieldPlaceholderWaitOperation.Expected
     ?? throw new InvalidDataException(
         "form field placeholder wait operation contains no expected placeholder");
+var formSubmitOperation = fixture.FormSubmitOperation
+    ?? throw new InvalidDataException(
+        "presentation fixture contains no form submit operation");
+var decodedFormSubmitOperation = RoundTripOperation(
+    formSubmitOperation,
+    "form submit operation");
+var formCancelOperation = fixture.FormCancelOperation
+    ?? throw new InvalidDataException(
+        "presentation fixture contains no form cancel operation");
+var decodedFormCancelOperation = RoundTripOperation(
+    formCancelOperation,
+    "form cancel operation");
 var formValueSetOperation = fixture.FormValueSetOperation
     ?? throw new InvalidDataException(
         "presentation fixture contains no form value set operation");
@@ -881,12 +893,33 @@ if (renderer.ValidatePresentationOperation(decodedActivateOperation)
     }) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedFormFieldPlaceholderWaitOperation)
         != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedFormSubmitOperation)
+        != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedFormCancelOperation)
+        != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedFormValueSetOperation)
         != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedFormValueAssertOperation)
         != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedFormValueWaitOperation)
         != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.SubmitForm,
+        NodeId = renderer.Document.Root.Id,
+    }) != UiPresentationValidation.FormlessTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.SubmitForm,
+        NodeId = decodedFormSubmitOperation.NodeId,
+        Value = "unexpected",
+    }) != UiPresentationValidation.InvalidFormValue
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.CancelForm,
+        NodeId = decodedFormCancelOperation.NodeId,
+        Expected = "unexpected",
+    }) != UiPresentationValidation.InvalidExpectedText
     || renderer.ValidatePresentationOperation(new UiPresentationOperation
     {
         Kind = UiPresentationOperationKind.WaitFormFieldPlaceholder,
@@ -2073,7 +2106,7 @@ if (!StringComparer.Ordinal.Equals(
 }
 
 Console.WriteLine(
-    $"renderer conformance valid: revision={renderer.Document.Revision}, adapter_manifest=true, generated_adapter_manifest=true, adapter_manifest_strict_codec=true, adapter_manifest_enum_codec=true, adapter_manifest_profile=true, adapter_manifest_profile_enum_codec=true, presentation_activate=true, presentation_activate_non_action_rejected=true, presentation_focus=true, presentation_navigate_focus=true, presentation_navigate_focus_first_last=true, presentation_scroll_into_view=true, presentation_assert_visible=true, presentation_assert_hidden=true, presentation_wait_hidden=true, presentation_assert_realized=true, presentation_wait_realized=true, presentation_wait_visible=true, presentation_wait_enabled=true, presentation_wait_disabled=true, presentation_open_window=true, presentation_close_window=true, presentation_assert_window_open=true, presentation_wait_window_open=true, presentation_assert_window_closed=true, presentation_wait_window_closed=true, presentation_wait_focused=true, presentation_assert_focused=true, presentation_wait_unfocused=true, presentation_assert_unfocused=true, presentation_assert_enabled=true, presentation_assert_disabled=true, presentation_set_selection=true, presentation_assert_selection=true, presentation_wait_selection=true, presentation_assert_child_count=true, presentation_wait_child_count=true, presentation_assert_text=true, presentation_wait_text=true, presentation_assert_automation_id=true, presentation_assert_node_kind=true, presentation_wait_node_kind=true, presentation_assert_action_kind=true, presentation_wait_action_kind=true, presentation_assert_action_label=true, presentation_wait_action_label=true, presentation_assert_action_available=true, presentation_wait_action_available=true, presentation_assert_action_unavailable_reason=true, presentation_wait_action_unavailable_reason=true, presentation_assert_form_field=true, presentation_assert_form_field_input_kind=true, presentation_assert_form_field_required=true, presentation_assert_form_field_max_length=true, presentation_assert_form_field_placeholder=true, presentation_wait_form_field=true, presentation_wait_form_field_input_kind=true, presentation_wait_form_field_required=true, presentation_wait_form_field_max_length=true, presentation_wait_form_field_placeholder=true, presentation_set_form_value=true, presentation_assert_form_value=true, presentation_wait_form_value=true, presentation_assert_accessible_name=true, presentation_wait_accessible_name=true, presentation_assert_accessible_description=true, presentation_wait_accessible_description=true, strict_codec=true");
+    $"renderer conformance valid: revision={renderer.Document.Revision}, adapter_manifest=true, generated_adapter_manifest=true, adapter_manifest_strict_codec=true, adapter_manifest_enum_codec=true, adapter_manifest_profile=true, adapter_manifest_profile_enum_codec=true, presentation_activate=true, presentation_activate_non_action_rejected=true, presentation_focus=true, presentation_navigate_focus=true, presentation_navigate_focus_first_last=true, presentation_scroll_into_view=true, presentation_assert_visible=true, presentation_assert_hidden=true, presentation_wait_hidden=true, presentation_assert_realized=true, presentation_wait_realized=true, presentation_wait_visible=true, presentation_wait_enabled=true, presentation_wait_disabled=true, presentation_open_window=true, presentation_close_window=true, presentation_assert_window_open=true, presentation_wait_window_open=true, presentation_assert_window_closed=true, presentation_wait_window_closed=true, presentation_wait_focused=true, presentation_assert_focused=true, presentation_wait_unfocused=true, presentation_assert_unfocused=true, presentation_assert_enabled=true, presentation_assert_disabled=true, presentation_set_selection=true, presentation_assert_selection=true, presentation_wait_selection=true, presentation_assert_child_count=true, presentation_wait_child_count=true, presentation_assert_text=true, presentation_wait_text=true, presentation_assert_automation_id=true, presentation_assert_node_kind=true, presentation_wait_node_kind=true, presentation_assert_action_kind=true, presentation_wait_action_kind=true, presentation_assert_action_label=true, presentation_wait_action_label=true, presentation_assert_action_available=true, presentation_wait_action_available=true, presentation_assert_action_unavailable_reason=true, presentation_wait_action_unavailable_reason=true, presentation_assert_form_field=true, presentation_assert_form_field_input_kind=true, presentation_assert_form_field_required=true, presentation_assert_form_field_max_length=true, presentation_assert_form_field_placeholder=true, presentation_wait_form_field=true, presentation_wait_form_field_input_kind=true, presentation_wait_form_field_required=true, presentation_wait_form_field_max_length=true, presentation_wait_form_field_placeholder=true, presentation_submit_form=true, presentation_cancel_form=true, presentation_set_form_value=true, presentation_assert_form_value=true, presentation_wait_form_value=true, presentation_assert_accessible_name=true, presentation_wait_accessible_name=true, presentation_assert_accessible_description=true, presentation_wait_accessible_description=true, strict_codec=true");
 return 0;
 
 static UiAdapterManifest RoundTripManifest(

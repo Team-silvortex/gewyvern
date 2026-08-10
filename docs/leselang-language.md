@@ -994,6 +994,26 @@ across re-entry. A renderer must target the currently open native field through
 a scoped registration, reject unopened or disposed scopes, and never focus,
 activate, or submit as a side effect. Repeating the same set is idempotent.
 
+An open native deployment form can be submitted or cancelled through two
+distinct lifecycle mutations:
+
+```leselang
+fn main() = ui.submit_form(node_id: "runtime-runtime-a-deploy")
+
+fn main() = ui.cancel_form(node_id: "runtime-runtime-a-deploy")
+```
+
+Both operations require `ui.presentation` and a semantic `runtime_deploy`
+action with a parameterized form. The renderer must resolve the action's
+currently registered native form window and raise exactly one click on its real
+Submit or Cancel button. `ui.submit_form` therefore follows the same field
+validation, revision fence, confirmation, and deployment path as a manual
+submission; `ui.cancel_form` follows the same native cancellation path and
+returns no form values. Neither operation may lower directly into a domain
+command or invoke a semantic action callback. Unopened, unrealized, disabled,
+disposed, mismatched, or already-closed form scopes fail closed, so replay after
+the native window closes cannot submit or cancel twice.
+
 Native accessibility metadata can be asserted independently of display text:
 
 ```leselang

@@ -911,7 +911,10 @@ internal sealed class RemoteMainWindow : Window
             });
         using var formRegistration = renderer.RegisterFormFields(
             nodeId,
-            formWindow.FormFields);
+            formWindow.FormFields,
+            formWindow,
+            formWindow.SubmitButton,
+            formWindow.CancelButton);
         var intent = await formWindow.ShowDialog<ParameterizedFormIntent?>(this);
         if (intent is null || lifetime.IsCancellationRequested)
         {
@@ -1427,6 +1430,8 @@ internal sealed record ParameterizedFormIntent(IReadOnlyDictionary<string, strin
 internal sealed class ParameterizedActionFormWindow : Window
 {
     public IReadOnlyDictionary<string, TextBox> FormFields { get; }
+    public Button SubmitButton { get; }
+    public Button CancelButton { get; }
 
     public ParameterizedActionFormWindow(
         UiForm form,
@@ -1478,12 +1483,12 @@ internal sealed class ParameterizedActionFormWindow : Window
             FontSize = 13,
             TextWrapping = TextWrapping.Wrap,
         };
-        var cancel = new Button
+        CancelButton = new Button
         {
             Content = "Cancel",
             Padding = new Thickness(18, 9),
         };
-        var submit = new Button
+        SubmitButton = new Button
         {
             Content = form.SubmitLabel.Fallback,
             Background = LeserpentTheme.Accent,
@@ -1492,6 +1497,8 @@ internal sealed class ParameterizedActionFormWindow : Window
             Padding = new Thickness(18, 9),
             IsEnabled = false,
         };
+        var cancel = CancelButton;
+        var submit = SubmitButton;
         AutomationProperties.SetAutomationId(cancel, "parameter-form-cancel");
         AutomationProperties.SetName(cancel, "Cancel form submission");
         AutomationProperties.SetAutomationId(submit, "parameter-form-submit");

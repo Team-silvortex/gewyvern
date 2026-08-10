@@ -3875,7 +3875,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.91.0");
+    assert_eq!(avalonia.contract.version, "1.92.0");
     assert!(
         avalonia
             .contract
@@ -3890,6 +3890,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "selection-mutation-no-action-activation",
         "selection-mutation-focus-preservation",
         "production-parameter-form-scope-binding",
+        "scoped-native-form-window-registration",
+        "native-form-submit-mutation",
+        "native-form-cancel-mutation",
+        "disabled-form-submit-rejection",
+        "form-lifecycle-single-click",
+        "closed-form-replay-rejection",
+        "form-lifecycle-no-semantic-action-activation",
         "native-form-value-mutation",
         "scoped-native-form-field-registration",
         "duplicate-form-field-registration-rejection",
@@ -5807,7 +5814,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(ui.maturity, Maturity::Mature);
     assert_eq!(ui.completion, 100);
     assert_eq!(ui.contract.stability, ContractStability::Stable);
-    assert_eq!(ui.contract.version, "1.52.0");
+    assert_eq!(ui.contract.version, "1.53.0");
     for surface in [
         "ui-event-hir-effect-lowering",
         "hir-effect-ui-event-reverse-mapping",
@@ -5854,6 +5861,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-wait-action-unavailable-reason-presentation-roundtrip",
         "fixed-action-unavailable-reason-wait-timeout",
         "action-unavailable-reason-target-validation",
+        "ui-submit-form-presentation-roundtrip",
+        "ui-cancel-form-presentation-roundtrip",
+        "form-lifecycle-presentation-atom-profile",
+        "parameterized-action-form-lifecycle-validation",
+        "frontend-local-form-lifecycle",
         "ui-assert-form-field-presentation-roundtrip",
         "form-field-target-validation",
         "ui-assert-form-field-input-kind-presentation-roundtrip",
@@ -5964,7 +5976,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-hir/typed-effects")
         .expect("Leserpent language HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.63.0");
+    assert_eq!(hir.contract.version, "0.64.0");
     for surface in [
         "debugger-cancel-effect",
         "ui-activate-effect",
@@ -5999,6 +6011,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-assert-action-unavailable-reason-effect",
         "ui-wait-action-unavailable-reason-effect",
         "fixed-action-unavailable-reason-wait-policy",
+        "ui-submit-form-effect",
+        "ui-cancel-form-effect",
+        "distinct-form-lifecycle-mutations",
         "ui-assert-form-field-effect",
         "ui-assert-form-field-input-kind-effect",
         "ui-assert-form-field-required-effect",
@@ -6080,7 +6095,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.48.0");
+    assert_eq!(vm.contract.version, "1.49.0");
     for surface in [
         "typed-debugger-cancel-result",
         "restart-safe-debugger-cancel-dispatch",
@@ -6133,6 +6148,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "typed-ui-wait-action-unavailable-reason-result",
         "action-unavailable-reason-wait-request-result-binding",
         "fixed-ui-action-unavailable-reason-wait-deadline",
+        "typed-ui-submit-form-result",
+        "form-submit-request-result-binding",
+        "typed-ui-cancel-form-result",
+        "form-cancel-request-result-binding",
+        "distinct-form-lifecycle-mutation-kind",
         "typed-ui-assert-form-field-result",
         "form-field-request-result-binding",
         "typed-ui-assert-form-field-input-kind-result",

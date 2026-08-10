@@ -465,6 +465,8 @@ pub fn waiting_debugger_projection(
             None,
             "UI wait action unavailable reason",
         ),
+        Effect::UiSubmitForm { .. } => (DebuggerEffectKind::UiSubmitForm, None, "UI submit form"),
+        Effect::UiCancelForm { .. } => (DebuggerEffectKind::UiCancelForm, None, "UI cancel form"),
         Effect::UiSetFormValue { .. } => (
             DebuggerEffectKind::UiSetFormValue,
             None,

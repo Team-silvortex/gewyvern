@@ -355,6 +355,8 @@ pub enum DebuggerEffectKind {
     UiWaitActionAvailable,
     UiAssertActionUnavailableReason,
     UiWaitActionUnavailableReason,
+    UiSubmitForm,
+    UiCancelForm,
     UiSetFormValue,
     UiAssertFormValue,
     UiWaitFormValue,
@@ -656,6 +658,12 @@ pub enum UiPresentationOperation {
         expected: Option<String>,
         timeout_ms: u64,
     },
+    SubmitForm {
+        node_id: NodeId,
+    },
+    CancelForm {
+        node_id: NodeId,
+    },
     SetFormValue {
         node_id: NodeId,
         field: String,
@@ -792,6 +800,8 @@ pub enum UiPresentationAtom {
     WaitActionAvailable,
     AssertActionUnavailableReason,
     WaitActionUnavailableReason,
+    SubmitForm,
+    CancelForm,
     SetFormValue,
     AssertFormValue,
     WaitFormValue,
@@ -826,6 +836,7 @@ pub enum UiPresentationAtomFamily {
     Text,
     NodeMetadata,
     ActionMetadata,
+    FormLifecycle,
     FormValue,
     FormMetadata,
     Accessibility,
@@ -847,7 +858,7 @@ pub struct UiPresentationAtomProfile {
     pub effect: UiPresentationAtomEffect,
 }
 
-pub const REQUIRED_UI_PRESENTATION_ATOMS: [UiPresentationAtom; 59] = [
+pub const REQUIRED_UI_PRESENTATION_ATOMS: [UiPresentationAtom; 61] = [
     UiPresentationAtom::Activate,
     UiPresentationAtom::Focus,
     UiPresentationAtom::NavigateFocus,
@@ -890,6 +901,8 @@ pub const REQUIRED_UI_PRESENTATION_ATOMS: [UiPresentationAtom; 59] = [
     UiPresentationAtom::WaitActionAvailable,
     UiPresentationAtom::AssertActionUnavailableReason,
     UiPresentationAtom::WaitActionUnavailableReason,
+    UiPresentationAtom::SubmitForm,
+    UiPresentationAtom::CancelForm,
     UiPresentationAtom::SetFormValue,
     UiPresentationAtom::AssertFormValue,
     UiPresentationAtom::WaitFormValue,
@@ -969,6 +982,8 @@ pub fn presentation_atom_for_operation(operation: &UiPresentationOperation) -> U
         UiPresentationOperation::WaitActionUnavailableReason { .. } => {
             UiPresentationAtom::WaitActionUnavailableReason
         }
+        UiPresentationOperation::SubmitForm { .. } => UiPresentationAtom::SubmitForm,
+        UiPresentationOperation::CancelForm { .. } => UiPresentationAtom::CancelForm,
         UiPresentationOperation::SetFormValue { .. } => UiPresentationAtom::SetFormValue,
         UiPresentationOperation::AssertFormValue { .. } => UiPresentationAtom::AssertFormValue,
         UiPresentationOperation::WaitFormValue { .. } => UiPresentationAtom::WaitFormValue,
@@ -1078,6 +1093,9 @@ pub fn presentation_atom_family(atom: UiPresentationAtom) -> UiPresentationAtomF
         | UiPresentationAtom::WaitActionUnavailableReason => {
             UiPresentationAtomFamily::ActionMetadata
         }
+        UiPresentationAtom::SubmitForm | UiPresentationAtom::CancelForm => {
+            UiPresentationAtomFamily::FormLifecycle
+        }
         UiPresentationAtom::SetFormValue
         | UiPresentationAtom::AssertFormValue
         | UiPresentationAtom::WaitFormValue => UiPresentationAtomFamily::FormValue,
@@ -1107,6 +1125,8 @@ pub fn presentation_atom_effect(atom: UiPresentationAtom) -> UiPresentationAtomE
         | UiPresentationAtom::OpenWindow
         | UiPresentationAtom::CloseWindow
         | UiPresentationAtom::SetSelection
+        | UiPresentationAtom::SubmitForm
+        | UiPresentationAtom::CancelForm
         | UiPresentationAtom::SetFormValue => UiPresentationAtomEffect::Mutation,
         UiPresentationAtom::AssertVisible
         | UiPresentationAtom::AssertHidden
@@ -1953,6 +1973,8 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             | DebuggerEffectKind::UiWaitActionAvailable
             | DebuggerEffectKind::UiAssertActionUnavailableReason
             | DebuggerEffectKind::UiWaitActionUnavailableReason
+            | DebuggerEffectKind::UiSubmitForm
+            | DebuggerEffectKind::UiCancelForm
             | DebuggerEffectKind::UiSetFormValue
             | DebuggerEffectKind::UiAssertFormValue
             | DebuggerEffectKind::UiWaitFormValue
@@ -2115,6 +2137,8 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::UiWaitActionUnavailableReason => {
                 "UI wait action unavailable reason"
             }
+            DebuggerEffectKind::UiSubmitForm => "UI submit form",
+            DebuggerEffectKind::UiCancelForm => "UI cancel form",
             DebuggerEffectKind::UiSetFormValue => "UI set form value",
             DebuggerEffectKind::UiAssertFormValue => "UI assert form value",
             DebuggerEffectKind::UiWaitFormValue => "UI wait form value",
@@ -2572,6 +2596,12 @@ pub fn presentation_operation_for_effect(
                 timeout_ms: UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS,
             }
         }
+        Effect::UiSubmitForm { node_id } => UiPresentationOperation::SubmitForm {
+            node_id: NodeId::new(node_id.clone())?,
+        },
+        Effect::UiCancelForm { node_id } => UiPresentationOperation::CancelForm {
+            node_id: NodeId::new(node_id.clone())?,
+        },
         Effect::UiSetFormValue {
             node_id,
             field,
@@ -2910,6 +2940,12 @@ pub fn effect_for_presentation_operation(
             node_id: node_id.as_str().to_string(),
             expected: expected.clone(),
         },
+        UiPresentationOperation::SubmitForm { node_id } => Effect::UiSubmitForm {
+            node_id: node_id.as_str().to_string(),
+        },
+        UiPresentationOperation::CancelForm { node_id } => Effect::UiCancelForm {
+            node_id: node_id.as_str().to_string(),
+        },
         UiPresentationOperation::SetFormValue {
             node_id,
             field,
@@ -3108,6 +3144,8 @@ pub fn validate_presentation_operation(
         | UiPresentationOperation::WaitActionAvailable { node_id, .. }
         | UiPresentationOperation::AssertActionUnavailableReason { node_id, .. }
         | UiPresentationOperation::WaitActionUnavailableReason { node_id, .. }
+        | UiPresentationOperation::SubmitForm { node_id }
+        | UiPresentationOperation::CancelForm { node_id }
         | UiPresentationOperation::SetFormValue { node_id, .. }
         | UiPresentationOperation::AssertFormValue { node_id, .. }
         | UiPresentationOperation::WaitFormValue { node_id, .. }
@@ -3387,6 +3425,15 @@ pub fn validate_presentation_operation(
         ))
     {
         return Err(UiError::TextlessPresentationTarget {
+            node_id: node_id.as_str().to_string(),
+        });
+    }
+    if matches!(
+        operation,
+        UiPresentationOperation::SubmitForm { .. } | UiPresentationOperation::CancelForm { .. }
+    ) && !matches!(&node.action, Some(UiAction::RuntimeDeploy { .. }))
+    {
+        return Err(UiError::FormlessPresentationTarget {
             node_id: node_id.as_str().to_string(),
         });
     }
@@ -6594,6 +6641,79 @@ mod tests {
     }
 
     #[test]
+    fn form_lifecycle_mutations_round_trip_only_for_parameterized_actions() {
+        let (mut inspect, history) = workspace(false);
+        let QueryResult::RuntimeInspect { runtime, .. } = &mut inspect else {
+            unreachable!()
+        };
+        runtime.capabilities.authenticated_deployment = true;
+        let document = runtime_workspace_document(&inspect, &history).unwrap();
+        let node_id = NodeId::new("workspace-runtime-a-deploy").unwrap();
+
+        for (operation, expected_effect, expected_source) in [
+            (
+                UiPresentationOperation::SubmitForm {
+                    node_id: node_id.clone(),
+                },
+                Effect::UiSubmitForm {
+                    node_id: node_id.as_str().into(),
+                },
+                "fn main() = ui.submit_form(node_id: \"workspace-runtime-a-deploy\")\n",
+            ),
+            (
+                UiPresentationOperation::CancelForm {
+                    node_id: node_id.clone(),
+                },
+                Effect::UiCancelForm {
+                    node_id: node_id.as_str().into(),
+                },
+                "fn main() = ui.cancel_form(node_id: \"workspace-runtime-a-deploy\")\n",
+            ),
+        ] {
+            validate_presentation_operation(&document, &operation).unwrap();
+            let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+            assert_eq!(effect, expected_effect);
+            assert_eq!(
+                presentation_operation_for_effect(&document, &effect).unwrap(),
+                operation
+            );
+            assert_eq!(
+                export_presentation_leselang(&document, &operation).unwrap(),
+                expected_source
+            );
+            assert_eq!(
+                event_for_effect(&document, &effect),
+                Err(UiError::EffectHasNoEvent)
+            );
+        }
+
+        assert_eq!(
+            presentation_atom_profile(UiPresentationAtom::SubmitForm),
+            UiPresentationAtomProfile {
+                atom: UiPresentationAtom::SubmitForm,
+                family: UiPresentationAtomFamily::FormLifecycle,
+                effect: UiPresentationAtomEffect::Mutation,
+            }
+        );
+        for invalid_target in [
+            document.root.id.clone(),
+            NodeId::new("workspace-runtime-a-refresh").unwrap(),
+        ] {
+            assert_eq!(
+                validate_presentation_operation(
+                    &document,
+                    &UiPresentationOperation::SubmitForm {
+                        node_id: invalid_target.clone(),
+                    },
+                ),
+                Err(UiError::FormlessPresentationTarget {
+                    node_id: invalid_target.as_str().into(),
+                })
+            );
+        }
+    }
+
+    #[test]
     fn form_value_mutation_assertion_and_wait_round_trip_against_field_schema() {
         let (mut inspect, history) = workspace(false);
         let QueryResult::RuntimeInspect { runtime, .. } = &mut inspect else {
@@ -8460,8 +8580,8 @@ mod tests {
         .unwrap();
         assert_eq!(manifest.schema_version, UI_ADAPTER_MANIFEST_SCHEMA_VERSION);
         assert_eq!(manifest.ui_schema_version, UI_SCHEMA_VERSION);
-        assert_eq!(manifest.presentation_atoms.len(), 59);
-        assert_eq!(manifest.presentation_atom_profiles.len(), 59);
+        assert_eq!(manifest.presentation_atoms.len(), 61);
+        assert_eq!(manifest.presentation_atom_profiles.len(), 61);
         assert_eq!(
             presentation_atom_profile(UiPresentationAtom::Activate),
             UiPresentationAtomProfile {

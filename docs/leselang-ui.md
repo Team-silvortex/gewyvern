@@ -32,9 +32,9 @@ generator tooling. The manifest carries schema version `2`, a stable
 `developer_owned_adapter` or `generated_framework_binding`, the target
 `ui_schema_version`, and booleans proving support for document, event, and patch
 schemas. It must also list the complete `required_ui_presentation_atoms()` set:
-all fifty-nine current presentation atoms, including activation, focus, window
+all sixty-one current presentation atoms, including activation, focus, window
 lifecycle, wait, assertion, selection mutation, action metadata, form metadata,
-scoped form-value control, and accessibility operations. Schema
+scoped form-value and form-lifecycle control, and accessibility operations. Schema
 version `2` also carries `presentation_atom_profiles`: one canonical profile per
 atom, classifying the GUI family and effect model as mutation, assertion, or
 wait so generated adapters can build a 1:1 mapping table without guessing.
@@ -157,7 +157,7 @@ only its stable node ID; confirmation and execution stay in Rust.
 - maximum parameterized form value: `256` bytes
 - adapter manifest schema version: `2`
 - maximum adapter framework label: `128` bytes
-- required adapter presentation atoms: `59`
+- required adapter presentation atoms: `61`
 - node IDs: unique, stable, ASCII identifiers up to 128 bytes
 
 Validation rejects duplicate or invalid IDs, control characters, invalid
@@ -196,7 +196,7 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by fifty-nine presentation atoms.
+Semantic action equivalence is joined by sixty-one presentation atoms.
 `UiPresentationOperation::Activate` maps one-to-one to
 `ui.activate(node_id: ...)`, requires an available semantic action, and has the
 canonical `interaction` family plus `mutation` effect profile. It is
@@ -398,6 +398,17 @@ control-free text, including temporarily schema-invalid user input.
 native input through the dispatcher until the fixed 2000 ms deadline. A form
 field is addressable only while its owning form scope is registered; unopened,
 closed, unknown, duplicate, or stale scopes fail closed.
+`UiPresentationOperation::SubmitForm` and
+`UiPresentationOperation::CancelForm` map one-to-one to
+`ui.submit_form(node_id: ...)` and `ui.cancel_form(node_id: ...)`. Both belong to
+the `form_lifecycle` mutation family and accept only a semantic parameterized
+form action. An adapter must bind that action to one currently visible native
+form window and its real Submit and Cancel controls, then route exactly one
+native click through the selected control. Disabled, unrealized, mismatched,
+disposed, or already-closed scopes fail without a click. These mutations never
+become a semantic `UiEvent` or `CommandPlan`, so native field validation,
+confirmation, revision fencing, cancellation, and deployment remain owned by
+the same UI handlers used by a person.
 `UiPresentationOperation::AssertAccessibleName` maps one-to-one to
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, accepts every existing
 semantic node, and uses the same expected-value bound.
@@ -412,11 +423,11 @@ semantic node with an explicitly declared accessibility description.
 `ui.wait_accessible_description(node_id: ..., expected: ...)`, requires the same
 explicit accessibility description metadata, uses the same expected-value bound,
 and carries the protocol-fixed 2000 ms deadline. None can
-become a `UiEvent` or `CommandPlan`; all fifty-nine travel in
+become a `UiEvent` or `CommandPlan`; all sixty-one travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all fifty-nine operations through its stable visual index
+Avalonia resolves all sixty-one operations through its stable visual index
 and scoped native form registry.
 Activation requires a realized, visible, enabled native `Button` and raises its
 native `ClickEvent` exactly once; it never invokes the domain callback directly.

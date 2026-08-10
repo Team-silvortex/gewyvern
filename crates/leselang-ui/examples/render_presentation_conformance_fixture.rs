@@ -85,6 +85,8 @@ struct Fixture<'a> {
     form_field_required_wait_operation: &'a UiPresentationOperation,
     form_field_max_length_wait_operation: &'a UiPresentationOperation,
     form_field_placeholder_wait_operation: &'a UiPresentationOperation,
+    form_submit_operation: &'a UiPresentationOperation,
+    form_cancel_operation: &'a UiPresentationOperation,
     form_value_set_operation: &'a UiPresentationOperation,
     form_value_assert_operation: &'a UiPresentationOperation,
     form_value_wait_operation: &'a UiPresentationOperation,
@@ -336,6 +338,12 @@ fn main() {
         expected: Some("http/request".into()),
         timeout_ms: UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
     };
+    let form_submit_operation = UiPresentationOperation::SubmitForm {
+        node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
+    };
+    let form_cancel_operation = UiPresentationOperation::CancelForm {
+        node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
+    };
     let form_value_set_operation = UiPresentationOperation::SetFormValue {
         node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
         field: "pipeline_kind".into(),
@@ -436,6 +444,8 @@ fn main() {
     validate_presentation_operation(&next, &form_field_required_wait_operation).unwrap();
     validate_presentation_operation(&next, &form_field_max_length_wait_operation).unwrap();
     validate_presentation_operation(&next, &form_field_placeholder_wait_operation).unwrap();
+    validate_presentation_operation(&next, &form_submit_operation).unwrap();
+    validate_presentation_operation(&next, &form_cancel_operation).unwrap();
     validate_presentation_operation(&next, &form_value_set_operation).unwrap();
     validate_presentation_operation(&next, &form_value_assert_operation).unwrap();
     validate_presentation_operation(&next, &form_value_wait_operation).unwrap();
@@ -502,6 +512,8 @@ fn main() {
         form_field_required_wait_operation: &form_field_required_wait_operation,
         form_field_max_length_wait_operation: &form_field_max_length_wait_operation,
         form_field_placeholder_wait_operation: &form_field_placeholder_wait_operation,
+        form_submit_operation: &form_submit_operation,
+        form_cancel_operation: &form_cancel_operation,
         form_value_set_operation: &form_value_set_operation,
         form_value_assert_operation: &form_value_assert_operation,
         form_value_wait_operation: &form_value_wait_operation,

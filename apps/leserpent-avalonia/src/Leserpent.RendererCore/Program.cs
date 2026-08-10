@@ -54,6 +54,8 @@ public sealed class SemanticRenderer
         UiPresentationAtom.WaitActionAvailable,
         UiPresentationAtom.AssertActionUnavailableReason,
         UiPresentationAtom.WaitActionUnavailableReason,
+        UiPresentationAtom.SubmitForm,
+        UiPresentationAtom.CancelForm,
         UiPresentationAtom.AssertFormField,
         UiPresentationAtom.WaitFormField,
         UiPresentationAtom.AssertFormFieldInputKind,
@@ -251,6 +253,8 @@ public sealed class SemanticRenderer
                 or UiPresentationAtom.AssertActionUnavailableReason
                 or UiPresentationAtom.WaitActionUnavailableReason =>
                     UiPresentationAtomFamily.ActionMetadata,
+            UiPresentationAtom.SubmitForm
+                or UiPresentationAtom.CancelForm => UiPresentationAtomFamily.FormLifecycle,
             UiPresentationAtom.AssertFormField
                 or UiPresentationAtom.WaitFormField
                 or UiPresentationAtom.AssertFormFieldInputKind
@@ -282,6 +286,8 @@ public sealed class SemanticRenderer
                 or UiPresentationAtom.OpenWindow
                 or UiPresentationAtom.CloseWindow
                 or UiPresentationAtom.SetSelection
+                or UiPresentationAtom.SubmitForm
+                or UiPresentationAtom.CancelForm
                 or UiPresentationAtom.SetFormValue => UiPresentationAtomEffect.Mutation,
             UiPresentationAtom.AssertVisible
                 or UiPresentationAtom.AssertHidden
@@ -740,6 +746,13 @@ public sealed class SemanticRenderer
                 return UiPresentationValidation.InvalidFormValue;
             }
             return UiPresentationValidation.Valid;
+        }
+        if (operation.Kind is UiPresentationOperationKind.SubmitForm
+            or UiPresentationOperationKind.CancelForm)
+        {
+            return node.Action?.Form is not null
+                ? UiPresentationValidation.Valid
+                : UiPresentationValidation.FormlessTarget;
         }
         return operation.Kind switch
         {
@@ -1228,6 +1241,8 @@ public sealed class RendererFixture
     public UiPresentationOperation? FormFieldRequiredWaitOperation { get; set; }
     public UiPresentationOperation? FormFieldMaxLengthWaitOperation { get; set; }
     public UiPresentationOperation? FormFieldPlaceholderWaitOperation { get; set; }
+    public UiPresentationOperation? FormSubmitOperation { get; set; }
+    public UiPresentationOperation? FormCancelOperation { get; set; }
     public UiPresentationOperation? FormValueSetOperation { get; set; }
     public UiPresentationOperation? FormValueAssertOperation { get; set; }
     public UiPresentationOperation? FormValueWaitOperation { get; set; }
@@ -1463,6 +1478,8 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("wait_action_available")] WaitActionAvailable,
     [JsonStringEnumMemberName("assert_action_unavailable_reason")] AssertActionUnavailableReason,
     [JsonStringEnumMemberName("wait_action_unavailable_reason")] WaitActionUnavailableReason,
+    [JsonStringEnumMemberName("submit_form")] SubmitForm,
+    [JsonStringEnumMemberName("cancel_form")] CancelForm,
     [JsonStringEnumMemberName("assert_form_field")] AssertFormField,
     [JsonStringEnumMemberName("assert_form_field_input_kind")] AssertFormFieldInputKind,
     [JsonStringEnumMemberName("assert_form_field_required")] AssertFormFieldRequired,
@@ -1573,6 +1590,8 @@ public enum UiPresentationAtom
     [JsonStringEnumMemberName("wait_action_available")] WaitActionAvailable,
     [JsonStringEnumMemberName("assert_action_unavailable_reason")] AssertActionUnavailableReason,
     [JsonStringEnumMemberName("wait_action_unavailable_reason")] WaitActionUnavailableReason,
+    [JsonStringEnumMemberName("submit_form")] SubmitForm,
+    [JsonStringEnumMemberName("cancel_form")] CancelForm,
     [JsonStringEnumMemberName("assert_form_field")] AssertFormField,
     [JsonStringEnumMemberName("wait_form_field")] WaitFormField,
     [JsonStringEnumMemberName("assert_form_field_input_kind")] AssertFormFieldInputKind,
@@ -1607,6 +1626,7 @@ public enum UiPresentationAtomFamily
     [JsonStringEnumMemberName("text")] Text,
     [JsonStringEnumMemberName("node_metadata")] NodeMetadata,
     [JsonStringEnumMemberName("action_metadata")] ActionMetadata,
+    [JsonStringEnumMemberName("form_lifecycle")] FormLifecycle,
     [JsonStringEnumMemberName("form_metadata")] FormMetadata,
     [JsonStringEnumMemberName("form_value")] FormValue,
     [JsonStringEnumMemberName("accessibility")] Accessibility,
@@ -1728,6 +1748,8 @@ public sealed class UiPresentationAtomJsonConverter : JsonConverter<UiPresentati
             "wait_action_available" => UiPresentationAtom.WaitActionAvailable,
             "assert_action_unavailable_reason" => UiPresentationAtom.AssertActionUnavailableReason,
             "wait_action_unavailable_reason" => UiPresentationAtom.WaitActionUnavailableReason,
+            "submit_form" => UiPresentationAtom.SubmitForm,
+            "cancel_form" => UiPresentationAtom.CancelForm,
             "assert_form_field" => UiPresentationAtom.AssertFormField,
             "wait_form_field" => UiPresentationAtom.WaitFormField,
             "assert_form_field_input_kind" => UiPresentationAtom.AssertFormFieldInputKind,
@@ -1798,6 +1820,8 @@ public sealed class UiPresentationAtomJsonConverter : JsonConverter<UiPresentati
             UiPresentationAtom.WaitActionAvailable => "wait_action_available",
             UiPresentationAtom.AssertActionUnavailableReason => "assert_action_unavailable_reason",
             UiPresentationAtom.WaitActionUnavailableReason => "wait_action_unavailable_reason",
+            UiPresentationAtom.SubmitForm => "submit_form",
+            UiPresentationAtom.CancelForm => "cancel_form",
             UiPresentationAtom.AssertFormField => "assert_form_field",
             UiPresentationAtom.WaitFormField => "wait_form_field",
             UiPresentationAtom.AssertFormFieldInputKind => "assert_form_field_input_kind",
@@ -1845,6 +1869,7 @@ public sealed class UiPresentationAtomFamilyJsonConverter : JsonConverter<UiPres
             "text" => UiPresentationAtomFamily.Text,
             "node_metadata" => UiPresentationAtomFamily.NodeMetadata,
             "action_metadata" => UiPresentationAtomFamily.ActionMetadata,
+            "form_lifecycle" => UiPresentationAtomFamily.FormLifecycle,
             "form_metadata" => UiPresentationAtomFamily.FormMetadata,
             "form_value" => UiPresentationAtomFamily.FormValue,
             "accessibility" => UiPresentationAtomFamily.Accessibility,
@@ -1871,6 +1896,7 @@ public sealed class UiPresentationAtomFamilyJsonConverter : JsonConverter<UiPres
             UiPresentationAtomFamily.Text => "text",
             UiPresentationAtomFamily.NodeMetadata => "node_metadata",
             UiPresentationAtomFamily.ActionMetadata => "action_metadata",
+            UiPresentationAtomFamily.FormLifecycle => "form_lifecycle",
             UiPresentationAtomFamily.FormMetadata => "form_metadata",
             UiPresentationAtomFamily.FormValue => "form_value",
             UiPresentationAtomFamily.Accessibility => "accessibility",

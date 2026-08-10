@@ -277,6 +277,12 @@ pub enum PresentationOperation {
         expected: Option<String>,
         timeout_ms: u64,
     },
+    SubmitForm {
+        node_id: String,
+    },
+    CancelForm {
+        node_id: String,
+    },
     SetFormValue {
         node_id: String,
         field: String,
@@ -542,6 +548,12 @@ pub enum PresentationResult {
         node_id: String,
         expected: Option<String>,
         timeout_ms: u64,
+    },
+    SubmitForm {
+        node_id: String,
+    },
+    CancelForm {
+        node_id: String,
     },
     SetFormValue {
         node_id: String,
@@ -1022,6 +1034,12 @@ pub enum Value {
     UiWaitActionUnavailableReason {
         node_id: String,
         expected: Option<String>,
+    },
+    UiSubmitForm {
+        node_id: String,
+    },
+    UiCancelForm {
+        node_id: String,
     },
     UiSetFormValue {
         node_id: String,
@@ -1896,6 +1914,28 @@ impl Vm {
                     },
                 }),
             ),
+            Effect::UiSubmitForm { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::SubmitForm {
+                        node_id: node_id.clone(),
+                    },
+                }),
+            ),
+            Effect::UiCancelForm { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::CancelForm {
+                        node_id: node_id.clone(),
+                    },
+                }),
+            ),
             Effect::UiSetFormValue {
                 node_id,
                 field,
@@ -2758,6 +2798,8 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiWaitActionAvailable { .. } => Type::UiWaitActionAvailable,
         Effect::UiAssertActionUnavailableReason { .. } => Type::UiAssertActionUnavailableReason,
         Effect::UiWaitActionUnavailableReason { .. } => Type::UiWaitActionUnavailableReason,
+        Effect::UiSubmitForm { .. } => Type::UiSubmitForm,
+        Effect::UiCancelForm { .. } => Type::UiCancelForm,
         Effect::UiSetFormValue { .. } => Type::UiSetFormValue,
         Effect::UiAssertFormValue { .. } => Type::UiAssertFormValue,
         Effect::UiWaitFormValue { .. } => Type::UiWaitFormValue,
@@ -3804,6 +3846,36 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                         .is_none_or(validate_ui_expected_text)
             )
         }
+        (Effect::UiSubmitForm { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::SubmitForm {
+                    node_id: operation_node_id,
+                } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (Effect::UiCancelForm { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::CancelForm {
+                    node_id: operation_node_id,
+                } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
+            )
+        }
         (
             Effect::UiSetFormValue {
                 node_id,
@@ -4643,6 +4715,11 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         Value::UiWaitActionUnavailableReason { node_id, expected }
             if validate_ui_node_id(node_id)
                 && expected.as_deref().is_none_or(validate_ui_expected_text) =>
+        {
+            Ok(1)
+        }
+        Value::UiSubmitForm { node_id } | Value::UiCancelForm { node_id }
+            if validate_ui_node_id(node_id) =>
         {
             Ok(1)
         }
@@ -6190,6 +6267,54 @@ fn step_from_effect_result(
             Step::Done(Value::UiWaitActionUnavailableReason {
                 node_id: result_node_id,
                 expected: result_expected,
+            })
+        }
+        (
+            Effect::UiSubmitForm { node_id },
+            Type::UiSubmitForm,
+            operation,
+            EffectResult::Presentation(PresentationResult::SubmitForm {
+                node_id: result_node_id,
+            }),
+        ) if result_node_id == *node_id
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::SubmitForm {
+                            node_id: operation_node_id,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                )
+            }) =>
+        {
+            Step::Done(Value::UiSubmitForm {
+                node_id: result_node_id,
+            })
+        }
+        (
+            Effect::UiCancelForm { node_id },
+            Type::UiCancelForm,
+            operation,
+            EffectResult::Presentation(PresentationResult::CancelForm {
+                node_id: result_node_id,
+            }),
+        ) if result_node_id == *node_id
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::CancelForm {
+                            node_id: operation_node_id,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                )
+            }) =>
+        {
+            Step::Done(Value::UiCancelForm {
+                node_id: result_node_id,
             })
         }
         (
@@ -8601,6 +8726,81 @@ mod tests {
             state: UiSelectionState::Selected,
         };
         assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_form_lifecycle_mutations_bind_kind_node_and_reentry_result() {
+        let submit_program = lower(&parse(
+            "fn main() = ui.submit_form(node_id: \"runtime-a:deploy\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(submit_request) = vm.start(
+            &submit_program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI form submission mutation");
+        };
+        assert!(matches!(
+            &submit_request.operation,
+            EffectOperation::Presentation(PresentationEnvelope {
+                operation: PresentationOperation::SubmitForm { node_id },
+                ..
+            }) if node_id == "runtime-a:deploy"
+        ));
+        validate_effect_request(&submit_request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &submit_request.continuation,
+                EffectResult::Presentation(PresentationResult::SubmitForm {
+                    node_id: "runtime-a:deploy".into(),
+                }),
+            ),
+            Step::Done(Value::UiSubmitForm {
+                node_id: "runtime-a:deploy".into(),
+            })
+        );
+
+        let mut torn = submit_request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI form submission must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::CancelForm {
+            node_id: "runtime-a:deploy".into(),
+        };
+        assert!(validate_effect_request(&torn).is_err());
+
+        let cancel_program = lower(&parse(
+            "fn main() = ui.cancel_form(node_id: \"runtime-b:deploy\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(cancel_request) = vm.start(
+            &cancel_program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI form cancellation mutation");
+        };
+        validate_effect_request(&cancel_request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &cancel_request.continuation,
+                EffectResult::Presentation(PresentationResult::CancelForm {
+                    node_id: "runtime-b:deploy".into(),
+                }),
+            ),
+            Step::Done(Value::UiCancelForm {
+                node_id: "runtime-b:deploy".into(),
+            })
+        );
     }
 
     #[test]

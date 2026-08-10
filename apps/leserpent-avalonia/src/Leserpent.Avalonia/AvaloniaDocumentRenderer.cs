@@ -114,6 +114,8 @@ internal enum PresentationAutomationFailureCode
     TargetFormFieldPlaceholderMismatch,
     TargetFormFieldUnrealized,
     TargetFormValueMismatch,
+    TargetFormUnrealized,
+    TargetFormActionUnavailable,
     TargetAccessibleNameMismatch,
     TargetAccessibleDescriptionMismatch,
     TargetSelectionMismatch,
@@ -199,7 +201,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
 
     public IDisposable RegisterFormFields(
         string nodeId,
-        IReadOnlyDictionary<string, TextBox> fields)
+        IReadOnlyDictionary<string, TextBox> fields,
+        Window formWindow,
+        Button submitButton,
+        Button cancelButton)
     {
         if (registeredFormFields.ContainsKey(nodeId))
         {
@@ -235,6 +240,13 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             throw new InvalidDataException(
                 $"form controls for '{nodeId}' contain an unknown field");
         }
+        if (ReferenceEquals(submitButton, cancelButton)
+            || AutomationProperties.GetAutomationId(submitButton) != "parameter-form-submit"
+            || AutomationProperties.GetAutomationId(cancelButton) != "parameter-form-cancel")
+        {
+            throw new InvalidDataException(
+                $"form action controls for '{nodeId}' do not match the native form contract");
+        }
 
         var generation = checked(++nextFormRegistrationGeneration);
         registeredFormFields.Add(
@@ -244,7 +256,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 fields.ToDictionary(
                     entry => entry.Key,
                     entry => entry.Value,
-                    StringComparer.Ordinal)));
+                    StringComparer.Ordinal),
+                formWindow,
+                submitButton,
+                cancelButton));
         return new FormFieldRegistration(this, nodeId, generation);
     }
 
@@ -304,6 +319,11 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             or UiPresentationOperationKind.WaitFormValue)
         {
             return ApplyFormValuePresentation(operation);
+        }
+        if (operation.Kind is UiPresentationOperationKind.SubmitForm
+            or UiPresentationOperationKind.CancelForm)
+        {
+            return ApplyFormLifecyclePresentation(operation);
         }
         if (!nodes.TryGetValue(operation.NodeId, out var node)
             || !node.TryGetRealizedControl(out var control))
@@ -848,6 +868,52 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 : PresentationAutomationFailureCode.TargetFormValueMismatch);
     }
 
+    private PresentationAutomationResult ApplyFormLifecyclePresentation(
+        UiPresentationOperation operation)
+    {
+        if (!registeredFormFields.TryGetValue(operation.NodeId, out var registration)
+            || !IsRegisteredFormRealized(registration))
+        {
+            return new PresentationAutomationResult(
+                false,
+                operation.NodeId,
+                PresentationAutomationFailureCode.TargetFormUnrealized);
+        }
+
+        var button = operation.Kind == UiPresentationOperationKind.SubmitForm
+            ? registration.SubmitButton
+            : registration.CancelButton;
+        if (!button.IsEffectivelyVisible
+            || !button.IsEffectivelyEnabled
+            || button.Bounds.Width <= 0
+            || button.Bounds.Height <= 0)
+        {
+            return new PresentationAutomationResult(
+                false,
+                operation.NodeId,
+                PresentationAutomationFailureCode.TargetFormActionUnavailable);
+        }
+
+        var observedClicks = 0;
+        void ObserveClick(object? _, RoutedEventArgs __) => observedClicks++;
+        button.Click += ObserveClick;
+        try
+        {
+            button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        }
+        finally
+        {
+            button.Click -= ObserveClick;
+        }
+        var applied = observedClicks == 1;
+        return new PresentationAutomationResult(
+            applied,
+            operation.NodeId,
+            applied
+                ? PresentationAutomationFailureCode.None
+                : PresentationAutomationFailureCode.TargetFormActionUnavailable);
+    }
+
     private bool TryGetRegisteredFormField(
         string nodeId,
         string field,
@@ -855,6 +921,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
     {
         input = null;
         if (!registeredFormFields.TryGetValue(nodeId, out var registration)
+            || !IsRegisteredFormRealized(registration)
             || !registration.Fields.TryGetValue(field, out input)
             || !nodes.TryGetValue(nodeId, out var node)
             || node.FormFieldMaxLengths is not { } maxLengths
@@ -866,6 +933,16 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         }
         return true;
     }
+
+    private static bool IsRegisteredFormRealized(RegisteredFormFields registration) =>
+        registration.FormWindow.IsVisible
+        && ReferenceEquals(WindowFor(registration.SubmitButton), registration.FormWindow)
+        && ReferenceEquals(WindowFor(registration.CancelButton), registration.FormWindow)
+        && registration.Fields.Values.All(input =>
+            input.IsEffectivelyVisible
+            && input.Bounds.Width > 0
+            && input.Bounds.Height > 0
+            && ReferenceEquals(WindowFor(input), registration.FormWindow));
 
     private void UnregisterFormFields(string nodeId, ulong generation)
     {
@@ -1963,7 +2040,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
 
     private sealed record RegisteredFormFields(
         ulong Generation,
-        IReadOnlyDictionary<string, TextBox> Fields);
+        IReadOnlyDictionary<string, TextBox> Fields,
+        Window FormWindow,
+        Button SubmitButton,
+        Button CancelButton);
 
     private sealed class FormFieldRegistration(
         AvaloniaDocumentRenderer owner,

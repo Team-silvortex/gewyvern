@@ -1028,6 +1028,14 @@
     "expected": "http/request",
     "timeout_ms": 2000
   },
+  "form_submit_operation": {
+    "kind": "submit_form",
+    "node_id": "runtime-runtime-a-deploy"
+  },
+  "form_cancel_operation": {
+    "kind": "cancel_form",
+    "node_id": "runtime-runtime-a-deploy"
+  },
   "form_value_set_operation": {
     "kind": "set_form_value",
     "node_id": "runtime-runtime-a-deploy",
@@ -1121,6 +1129,8 @@
       "wait_action_available",
       "assert_action_unavailable_reason",
       "wait_action_unavailable_reason",
+      "submit_form",
+      "cancel_form",
       "set_form_value",
       "assert_form_value",
       "wait_form_value",
@@ -1349,6 +1359,16 @@
         "atom": "wait_action_unavailable_reason",
         "family": "action_metadata",
         "effect": "wait"
+      },
+      {
+        "atom": "submit_form",
+        "family": "form_lifecycle",
+        "effect": "mutation"
+      },
+      {
+        "atom": "cancel_form",
+        "family": "form_lifecycle",
+        "effect": "mutation"
       },
       {
         "atom": "set_form_value",
@@ -1489,6 +1509,8 @@
       "wait_action_available",
       "assert_action_unavailable_reason",
       "wait_action_unavailable_reason",
+      "submit_form",
+      "cancel_form",
       "set_form_value",
       "assert_form_value",
       "wait_form_value",
@@ -1717,6 +1739,16 @@
         "atom": "wait_action_unavailable_reason",
         "family": "action_metadata",
         "effect": "wait"
+      },
+      {
+        "atom": "submit_form",
+        "family": "form_lifecycle",
+        "effect": "mutation"
+      },
+      {
+        "atom": "cancel_form",
+        "family": "form_lifecycle",
+        "effect": "mutation"
       },
       {
         "atom": "set_form_value",

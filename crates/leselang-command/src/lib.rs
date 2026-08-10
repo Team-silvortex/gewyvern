@@ -117,6 +117,8 @@ pub fn lower_effect(
             | Effect::UiWaitActionAvailable { .. }
             | Effect::UiAssertActionUnavailableReason { .. }
             | Effect::UiWaitActionUnavailableReason { .. }
+            | Effect::UiSubmitForm { .. }
+            | Effect::UiCancelForm { .. }
             | Effect::UiSetFormValue { .. }
             | Effect::UiAssertFormValue { .. }
             | Effect::UiWaitFormValue { .. }
@@ -189,6 +191,8 @@ pub fn lower_effect(
         | Effect::UiWaitActionAvailable { .. }
         | Effect::UiAssertActionUnavailableReason { .. }
         | Effect::UiWaitActionUnavailableReason { .. }
+        | Effect::UiSubmitForm { .. }
+        | Effect::UiCancelForm { .. }
         | Effect::UiSetFormValue { .. }
         | Effect::UiAssertFormValue { .. }
         | Effect::UiWaitFormValue { .. }
@@ -272,6 +276,8 @@ pub fn lower_effect(
         | Effect::UiWaitActionAvailable { .. }
         | Effect::UiAssertActionUnavailableReason { .. }
         | Effect::UiWaitActionUnavailableReason { .. }
+        | Effect::UiSubmitForm { .. }
+        | Effect::UiCancelForm { .. }
         | Effect::UiSetFormValue { .. }
         | Effect::UiAssertFormValue { .. }
         | Effect::UiWaitFormValue { .. }

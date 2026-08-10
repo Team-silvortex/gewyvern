@@ -1922,6 +1922,11 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.wait_form_field_required(node_id: ..., field: ..., state: "required"|"optional")`, plus
 `ui.wait_form_field_max_length(node_id: ..., field: ..., max_length: "...")`, plus
 `ui.wait_form_field_placeholder(node_id: ..., field: ..., expected: ...)`, plus
+`ui.set_form_value(node_id: ..., field: ..., value: ...)`, plus
+`ui.assert_form_value(node_id: ..., field: ..., expected: ...)`, plus
+`ui.wait_form_value(node_id: ..., field: ..., expected: ...)`, plus
+`ui.submit_form(node_id: ...)`, plus
+`ui.cancel_form(node_id: ...)`, plus
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, plus
 `ui.wait_accessible_name(node_id: ..., expected: ...)`, plus
 `ui.assert_accessible_description(node_id: ..., expected: ...)`, plus
@@ -1998,6 +2003,16 @@ deadline without focusing, clicking, enabling, or rewriting the action.
 Form-field assertions compare the realized semantic deployment form's field
 label, placeholder, input kind, required-state, and maximum-length metadata without
 focusing, typing, submitting, truncating, or editing the form.
+Form-value operations bind a declared semantic field to its currently realized
+native input through a scoped registration; mutation and observation reject
+unopened, disposed, duplicate, stale, or schema-invalid scopes without implicit
+focus, activation, or submission. Form lifecycle operations bind that same
+semantic action to one visible native form window and its distinct real Submit
+and Cancel buttons. They raise exactly one native click on the selected enabled
+control and never invoke a domain callback or lower directly to a command, so
+the UI's existing validation, confirmation, revision fence, deployment, and
+cancellation handlers stay authoritative. Window mismatch, unrealized or
+disabled controls, disposal, and closed-scope replay fail closed.
 Scrolling accepts noninteractive nodes and preserves keyboard focus.
 Accessible-name assertion separately reads the native platform automation name
 for any realized semantic node.

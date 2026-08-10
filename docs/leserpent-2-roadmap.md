@@ -216,7 +216,7 @@ duplicate IDs, oversized or over-depth trees, unlabelled actions, stale events,
 and actions rebound to another runtime. No endpoint, renderer, persistence,
 transport, HTML, script, or adapter type enters the IR. A separate
 `UiAdapterManifest` now records explicit developer-owned or generated framework
-bindings against the document, event, patch, and complete fifty-nine-atom
+bindings against the document, event, patch, and complete sixty-one-atom
 presentation protocol plus canonical atom family/effect profiles, so future GUI
 hosts have a protobuf-style compatibility checkpoint without automatic framework
 admission. The Rust-generated
@@ -305,6 +305,8 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.wait_action_available(node_id: ...)`, plus
 `ui.assert_action_unavailable_reason(node_id: ..., expected: ...)`, plus
 `ui.wait_action_unavailable_reason(node_id: ..., expected: ...)`, plus
+`ui.submit_form(node_id: ...)`, plus
+`ui.cancel_form(node_id: ...)`, plus
 `ui.assert_form_field(node_id: ..., field: ..., expected: ...)`, plus
 `ui.assert_form_field_input_kind(node_id: ..., field: ..., kind: ...)`, plus
 `ui.assert_form_field_required(node_id: ..., field: ..., state: "required"|"optional")`, plus
@@ -323,7 +325,7 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.assert_accessible_description(node_id: ..., expected: ...)`, plus
 `ui.wait_accessible_description(node_id: ..., expected: ...)`: HIR and the VM keep each
 operation in a distinct typed `ui.presentation` envelope, command lowering
-rejects all fifty-nine, and `leselang-ui` round-trips them against the current semantic
+rejects all sixty-one, and `leselang-ui` round-trips them against the current semantic
 tree. Avalonia routes activation through exactly one native button click after
 rejecting missing, non-action, unrealized, hidden, or disabled targets without
 invoking domain callbacks. It applies native focus or bring-into-view, proves scrolling
@@ -360,6 +362,13 @@ placeholder, maximum length, accessibility name, and declared accessibility help
 mutating the target, waits for external semantic action label changes without
 clicking or enabling the action, and waits for external native accessibility-name
 and HelpText transitions with the same fixed dispatcher-yielding deadline.
+Parameterized form lifecycle is closed by distinct submit and cancel mutations.
+Avalonia binds the semantic action to the currently open native form window and
+its actual Submit and Cancel buttons, raises exactly one native click, and lets
+the existing handlers own validation, confirmation, revision fencing,
+deployment, and cancellation. Disabled, unrealized, disposed, or already-closed
+forms reject the operation, and the presentation path cannot lower directly
+into a domain command or semantic action callback.
 Disabled, still-enabled disabled-assertion,
 still-visible hidden-assertion,
 selection-mismatched, selectionless,

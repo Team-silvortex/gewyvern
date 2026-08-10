@@ -119,8 +119,13 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("UiPresentationOperationKind.SetFormValue"));
     assert!(core.contains("UiPresentationOperationKind.AssertFormValue"));
     assert!(core.contains("UiPresentationOperationKind.WaitFormValue"));
+    assert!(core.contains("UiPresentationOperationKind.SubmitForm"));
+    assert!(core.contains("UiPresentationOperationKind.CancelForm"));
     assert!(core.contains("UiPresentationAtom.SetFormValue"));
+    assert!(core.contains("UiPresentationAtom.SubmitForm"));
+    assert!(core.contains("UiPresentationAtom.CancelForm"));
     assert!(core.contains("UiPresentationAtomFamily.FormValue"));
+    assert!(core.contains("UiPresentationAtomFamily.FormLifecycle"));
     assert!(core.contains("public string? Value { get; set; }"));
     assert!(core.contains("WaitFormValueTimeoutMs = 2000"));
     assert!(core.contains("UiPresentationValidation.InvalidFormValue"));
@@ -183,10 +188,17 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(renderer.contains("IReadOnlyDictionary<string, int>? FormFieldMaxLengths"));
     assert!(renderer.contains("public IDisposable RegisterFormFields"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetFormFieldUnrealized"));
+    assert!(renderer.contains("PresentationAutomationFailureCode.TargetFormUnrealized"));
+    assert!(renderer.contains("PresentationAutomationFailureCode.TargetFormActionUnavailable"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetFormValueMismatch"));
     assert!(renderer.contains("input!.Text = operation.Value"));
     assert!(renderer.contains("UiPresentationOperationKind.WaitFormValue"));
     assert!(renderer.contains("SemanticRenderer.WaitFormValueTimeoutMs"));
+    assert!(renderer.contains("ApplyFormLifecyclePresentation"));
+    assert!(renderer.contains("registration.SubmitButton"));
+    assert!(renderer.contains("registration.CancelButton"));
+    assert!(renderer.contains("var observedClicks = 0"));
+    assert!(renderer.contains("observedClicks == 1"));
     assert!(renderer.contains("PresentationAutomationFailureCode.InvalidExpectedKind"));
     assert!(renderer.contains("PresentationAutomationFailureCode.InvalidExpectedActionKind"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetAccessibleNameMismatch"));
@@ -463,6 +475,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(conformance.contains("presentation_set_form_value=true"));
     assert!(conformance.contains("presentation_assert_form_value=true"));
     assert!(conformance.contains("presentation_wait_form_value=true"));
+    assert!(conformance.contains("presentation_submit_form=true"));
+    assert!(conformance.contains("presentation_cancel_form=true"));
     assert!(conformance.contains("presentation_assert_action_kind=true"));
     assert!(conformance.contains("presentation_wait_action_kind=true"));
     assert!(conformance.contains("presentation_assert_action_label=true"));
@@ -480,8 +494,17 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(window.contains("duplicateRegistrationRejected"));
     assert!(window.contains("FormValueProbeDidNotActivate"));
     assert!(window.contains("FormValueProbePreservedFocus"));
+    assert!(window.contains("FormSubmitExactlyOnce"));
+    assert!(window.contains("FormSubmitDisabledRejected"));
+    assert!(window.contains("FormSubmitClosedReplayRejected"));
+    assert!(window.contains("FormCancelExactlyOnce"));
+    assert!(window.contains("FormCancelClosedReplayRejected"));
+    assert!(app.contains("Avalonia form lifecycle valid:"));
+    assert!(app.contains("form_lifecycle_unregistered_rejected="));
     assert!(remote.contains("using var formRegistration = renderer.RegisterFormFields"));
     assert!(remote.contains("formWindow.FormFields"));
+    assert!(remote.contains("formWindow.SubmitButton"));
+    assert!(remote.contains("formWindow.CancelButton"));
 }
 
 #[test]
@@ -1040,7 +1063,7 @@ fn silvortex_account_proof_is_native_private_and_existing_credential_safe() {
     let account = avalonia_source("Leserpent.Avalonia/SilvortexAccountSession.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
 
-    assert!(proof.contains("ContractVersion = \"1.91.0\""));
+    assert!(proof.contains("ContractVersion = \"1.92.0\""));
     assert!(!proof.contains("--prove-silvortex-account"));
     assert!(proof.contains("RuntimeFeature.IsDynamicCodeSupported"));
     assert!(proof.contains("packaged-info-plist"));

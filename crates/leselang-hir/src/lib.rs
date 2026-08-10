@@ -288,6 +288,12 @@ pub enum Effect {
         node_id: String,
         expected: Option<String>,
     },
+    UiSubmitForm {
+        node_id: String,
+    },
+    UiCancelForm {
+        node_id: String,
+    },
     UiSetFormValue {
         node_id: String,
         field: String,
@@ -427,6 +433,8 @@ pub enum Type {
     UiWaitActionAvailable,
     UiAssertActionUnavailableReason,
     UiWaitActionUnavailableReason,
+    UiSubmitForm,
+    UiCancelForm,
     UiSetFormValue,
     UiAssertFormValue,
     UiWaitFormValue,
@@ -561,6 +569,8 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.wait_action_available"
         | "ui.assert_action_unavailable_reason"
         | "ui.wait_action_unavailable_reason"
+        | "ui.submit_form"
+        | "ui.cancel_form"
         | "ui.set_form_value"
         | "ui.assert_form_value"
         | "ui.wait_form_value"
@@ -1269,6 +1279,24 @@ fn lower_atomic_effect(
                     message:
                         "ui.wait_action_unavailable_reason expected must be bounded display text or none"
                             .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.submit_form", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1329".to_string(),
+                    message: "ui.submit_form node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.cancel_form", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1331".to_string(),
+                    message: "ui.cancel_form node_id must be a valid UI node identifier string"
+                        .to_string(),
                     span: Some(argument.span),
                 }),
             },
@@ -2213,6 +2241,20 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.submit_form" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1330".to_string(),
+            message: "ui.submit_form requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.cancel_form" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1332".to_string(),
+            message: "ui.cancel_form requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.set_form_value" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1320".to_string(),
@@ -2993,6 +3035,20 @@ fn lower_atomic_effect(
             Type::UiWaitActionUnavailableReason,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.submit_form" => (
+            Effect::UiSubmitForm {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiSubmitForm,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.cancel_form" => (
+            Effect::UiCancelForm {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiCancelForm,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.set_form_value" => (
             Effect::UiSetFormValue {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -3436,6 +3492,12 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             optional_string(expected.as_deref()),
             indent(depth),
         ),
+        Effect::UiSubmitForm { node_id } => {
+            atomic_identifier_source("ui.submit_form", "node_id", node_id, depth)
+        }
+        Effect::UiCancelForm { node_id } => {
+            atomic_identifier_source("ui.cancel_form", "node_id", node_id, depth)
+        }
         Effect::UiSetFormValue {
             node_id,
             field,
@@ -5041,6 +5103,53 @@ mod tests {
             "fn main() = ui.set_selection(node_id: \"bad/node\", state: \"selected\")",
             "fn main() = ui.set_selection(node_id: \"runtime-a:card\", state: none)",
             "fn main() = ui.set_selection(node_id: \"runtime-a:card\", state: \"maybe\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_form_lifecycle_mutations_are_typed_canonical_and_distinct() {
+        for (source, expected_type, expected_effect, expected_canonical) in [
+            (
+                "fn main() = ui.submit_form(node_id: \"runtime-a:deploy\")",
+                Type::UiSubmitForm,
+                Effect::UiSubmitForm {
+                    node_id: "runtime-a:deploy".into(),
+                },
+                "fn main() = ui.submit_form(node_id: \"runtime-a:deploy\")\n",
+            ),
+            (
+                "fn main() = ui.cancel_form(node_id: \"runtime-a:deploy\")",
+                Type::UiCancelForm,
+                Effect::UiCancelForm {
+                    node_id: "runtime-a:deploy".into(),
+                },
+                "fn main() = ui.cancel_form(node_id: \"runtime-a:deploy\")\n",
+            ),
+        ] {
+            let program = lower(&parse(source)).unwrap();
+            assert_eq!(program.function.result_type, expected_type);
+            assert_eq!(program.function.effect, expected_effect);
+            assert_eq!(
+                program.function.required_capabilities,
+                [CAPABILITY_UI_PRESENTATION]
+            );
+            assert_eq!(
+                canonical_source(&program.function.effect).unwrap(),
+                expected_canonical
+            );
+        }
+
+        for source in [
+            "fn main() = ui.submit_form()",
+            "fn main() = ui.cancel_form()",
+            "fn main() = ui.submit_form(node_id: none)",
+            "fn main() = ui.cancel_form(node_id: \"bad/node\")",
+            "fn main() = ui.submit_form(node_id: \"runtime-a:deploy\", field: \"target\")",
         ] {
             assert!(
                 lower(&parse(source)).is_err(),
