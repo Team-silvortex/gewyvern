@@ -6,13 +6,14 @@ use leselang_hir::{
     UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS, UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
     UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS, UI_WAIT_ACTION_KIND_TIMEOUT_MS,
     UI_WAIT_ACTION_LABEL_TIMEOUT_MS, UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS,
-    UI_WAIT_CHILD_COUNT_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
-    UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS, UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
-    UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS, UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
-    UI_WAIT_FORM_FIELD_TIMEOUT_MS, UI_WAIT_FORM_VALUE_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS,
-    UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS,
-    UI_WAIT_UNFOCUSED_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS,
-    UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection, UiSelectionState,
+    UI_WAIT_AUTOMATION_ID_TIMEOUT_MS, UI_WAIT_CHILD_COUNT_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS,
+    UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS,
+    UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS, UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+    UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_TIMEOUT_MS,
+    UI_WAIT_FORM_VALUE_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS,
+    UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS, UI_WAIT_UNFOCUSED_TIMEOUT_MS,
+    UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
+    UiFocusNavigationDirection, UiSelectionState,
 };
 use leselang_ui::{
     NodeId, UiActionKind, UiAdapterBindingKind, UiAdapterManifest, UiDocument, UiFormInputKind,
@@ -65,6 +66,7 @@ struct Fixture<'a> {
     text_assert_operation: &'a UiPresentationOperation,
     text_wait_operation: &'a UiPresentationOperation,
     automation_id_assert_operation: &'a UiPresentationOperation,
+    automation_id_wait_operation: &'a UiPresentationOperation,
     node_kind_assert_operation: &'a UiPresentationOperation,
     node_kind_wait_operation: &'a UiPresentationOperation,
     action_kind_assert_operation: &'a UiPresentationOperation,
@@ -234,6 +236,11 @@ fn main() {
     let automation_id_assert_operation = UiPresentationOperation::AssertAutomationId {
         node_id: NodeId::new("fleet-title").unwrap(),
         expected: "fleet-title".into(),
+    };
+    let automation_id_wait_operation = UiPresentationOperation::WaitAutomationId {
+        node_id: NodeId::new("fleet-title").unwrap(),
+        expected: "fleet-title".into(),
+        timeout_ms: UI_WAIT_AUTOMATION_ID_TIMEOUT_MS,
     };
     let node_kind_assert_operation = UiPresentationOperation::AssertNodeKind {
         node_id: NodeId::new("fleet-title").unwrap(),
@@ -426,6 +433,7 @@ fn main() {
     validate_presentation_operation(&next, &text_assert_operation).unwrap();
     validate_presentation_operation(&next, &text_wait_operation).unwrap();
     validate_presentation_operation(&next, &automation_id_assert_operation).unwrap();
+    validate_presentation_operation(&next, &automation_id_wait_operation).unwrap();
     validate_presentation_operation(&next, &node_kind_assert_operation).unwrap();
     validate_presentation_operation(&next, &action_kind_assert_operation).unwrap();
     validate_presentation_operation(&next, &action_label_assert_operation).unwrap();
@@ -492,6 +500,7 @@ fn main() {
         text_assert_operation: &text_assert_operation,
         text_wait_operation: &text_wait_operation,
         automation_id_assert_operation: &automation_id_assert_operation,
+        automation_id_wait_operation: &automation_id_wait_operation,
         node_kind_assert_operation: &node_kind_assert_operation,
         node_kind_wait_operation: &node_kind_wait_operation,
         action_kind_assert_operation: &action_kind_assert_operation,

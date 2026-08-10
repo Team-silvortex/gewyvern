@@ -216,7 +216,7 @@ duplicate IDs, oversized or over-depth trees, unlabelled actions, stale events,
 and actions rebound to another runtime. No endpoint, renderer, persistence,
 transport, HTML, script, or adapter type enters the IR. A separate
 `UiAdapterManifest` now records explicit developer-owned or generated framework
-bindings against the document, event, patch, and complete sixty-one-atom
+bindings against the document, event, patch, and complete sixty-two-atom
 presentation protocol plus canonical atom family/effect profiles, so future GUI
 hosts have a protobuf-style compatibility checkpoint without automatic framework
 admission. The Rust-generated
@@ -295,6 +295,7 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.assert_text(node_id: ..., expected: ...)`, plus
 `ui.wait_text(node_id: ..., expected: ...)`, plus
 `ui.assert_automation_id(node_id: ..., expected: ...)`, plus
+`ui.wait_automation_id(node_id: ..., expected: ...)`, plus
 `ui.assert_node_kind(node_id: ..., kind: ...)`, plus
 `ui.wait_node_kind(node_id: ..., kind: ...)`, plus
 `ui.assert_action_kind(node_id: ..., kind: ...)`, plus
@@ -325,7 +326,7 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.assert_accessible_description(node_id: ..., expected: ...)`, plus
 `ui.wait_accessible_description(node_id: ..., expected: ...)`: HIR and the VM keep each
 operation in a distinct typed `ui.presentation` envelope, command lowering
-rejects all sixty-one, and `leselang-ui` round-trips them against the current semantic
+rejects all sixty-two, and `leselang-ui` round-trips them against the current semantic
 tree. Avalonia routes activation through exactly one native button click after
 rejecting missing, non-action, unrealized, hidden, or disabled targets without
 invoking domain callbacks. It applies native focus or bring-into-view, proves scrolling
@@ -354,7 +355,9 @@ mutating it, writes native selected/unselected state idempotently and reversibly
 without action activation or focus movement, compares native selected state,
 waits for native selection mismatch timeout without implicit selection changes,
 compares actual native text, waits for external native text
-transitions with a fixed dispatcher-yielding deadline, and compares automation ID, semantic node kind,
+transitions with a fixed dispatcher-yielding deadline, compares automation ID,
+waits for external native automation-ID transitions with the same bounded policy,
+and compares semantic node kind,
 waits for external semantic node-kind convergence, compares semantic action
 kind, waits for external semantic action-kind convergence, and compares explicit
 semantic action label, semantic action availability, semantic form field label, input kind, and required state,
@@ -384,9 +387,10 @@ presentation results. The full native window lifecycle now closes and reopens a
 fresh Avalonia `Window`, proves duplicate open/close idempotency, requires
 visible native state for open assertions, rejects a native close that remains
 visible, and rematerializes controls from the same validated `UiDocument` and
-stable node IDs instead of reparenting stale toolkit objects. Additional
-state-assertion closure remains the next slice rather than being approximated
-with coordinate-level scripting or OCR.
+stable node IDs instead of reparenting stale toolkit objects. The current
+assertion/wait symmetry gap is closed; future presentation additions must be
+driven by a concrete frozen-scope automation gap rather than inferred from
+coordinate-level scripting or OCR.
 
 The first concrete cross-language renderer core now exists under
 `apps/leserpent-avalonia`. Rust emits a bounded versioned JSON fixture and the

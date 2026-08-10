@@ -8,16 +8,16 @@ use leselang_hir::{
     UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS, UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
     UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS, UI_WAIT_ACTION_KIND_TIMEOUT_MS,
     UI_WAIT_ACTION_LABEL_TIMEOUT_MS, UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS,
-    UI_WAIT_CHILD_COUNT_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
-    UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS, UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
-    UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS, UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
-    UI_WAIT_FORM_FIELD_TIMEOUT_MS, UI_WAIT_FORM_VALUE_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS,
-    UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS,
-    UI_WAIT_UNFOCUSED_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS,
-    UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection, UiFormInputKind,
-    UiFormRequirementState, UiSelectionState, UiSemanticActionKind, UiSemanticNodeKind, authorize,
-    validate_ui_expected_text, validate_ui_form_field_key, validate_ui_form_value,
-    validate_ui_node_id,
+    UI_WAIT_AUTOMATION_ID_TIMEOUT_MS, UI_WAIT_CHILD_COUNT_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS,
+    UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS,
+    UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS, UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+    UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_TIMEOUT_MS,
+    UI_WAIT_FORM_VALUE_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS,
+    UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS, UI_WAIT_UNFOCUSED_TIMEOUT_MS,
+    UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
+    UiFocusNavigationDirection, UiFormInputKind, UiFormRequirementState, UiSelectionState,
+    UiSemanticActionKind, UiSemanticNodeKind, authorize, validate_ui_expected_text,
+    validate_ui_form_field_key, validate_ui_form_value, validate_ui_node_id,
 };
 use leserpent_domain::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
@@ -233,6 +233,11 @@ pub enum PresentationOperation {
     AssertAutomationId {
         node_id: String,
         expected: String,
+    },
+    WaitAutomationId {
+        node_id: String,
+        expected: String,
+        timeout_ms: u64,
     },
     AssertNodeKind {
         node_id: String,
@@ -505,6 +510,11 @@ pub enum PresentationResult {
     AssertAutomationId {
         node_id: String,
         expected: String,
+    },
+    WaitAutomationId {
+        node_id: String,
+        expected: String,
+        timeout_ms: u64,
     },
     AssertNodeKind {
         node_id: String,
@@ -994,6 +1004,10 @@ pub enum Value {
         expected: String,
     },
     UiAssertAutomationId {
+        node_id: String,
+        expected: String,
+    },
+    UiWaitAutomationId {
         node_id: String,
         expected: String,
     },
@@ -1776,6 +1790,19 @@ impl Vm {
                     operation: PresentationOperation::AssertAutomationId {
                         node_id: node_id.clone(),
                         expected: expected.clone(),
+                    },
+                }),
+            ),
+            Effect::UiWaitAutomationId { node_id, expected } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitAutomationId {
+                        node_id: node_id.clone(),
+                        expected: expected.clone(),
+                        timeout_ms: UI_WAIT_AUTOMATION_ID_TIMEOUT_MS,
                     },
                 }),
             ),
@@ -2788,6 +2815,7 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiAssertText { .. } => Type::UiAssertText,
         Effect::UiWaitText { .. } => Type::UiWaitText,
         Effect::UiAssertAutomationId { .. } => Type::UiAssertAutomationId,
+        Effect::UiWaitAutomationId { .. } => Type::UiWaitAutomationId,
         Effect::UiAssertNodeKind { .. } => Type::UiAssertNodeKind,
         Effect::UiWaitNodeKind { .. } => Type::UiWaitNodeKind,
         Effect::UiAssertActionKind { .. } => Type::UiAssertActionKind,
@@ -3609,6 +3637,30 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                     && operation_expected == expected
                     && validate_ui_node_id(operation_node_id)
                     && validate_ui_node_id(operation_expected)
+            )
+        }
+        (
+            Effect::UiWaitAutomationId { node_id, expected },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitAutomationId {
+                    node_id: operation_node_id,
+                    expected: operation_expected,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && operation_expected == expected
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_node_id(operation_expected)
+                    && *timeout_ms == UI_WAIT_AUTOMATION_ID_TIMEOUT_MS
             )
         }
         (
@@ -4686,6 +4738,11 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
             Ok(1)
         }
         Value::UiAssertAutomationId { node_id, expected }
+            if validate_ui_node_id(node_id) && validate_ui_node_id(expected) =>
+        {
+            Ok(1)
+        }
+        Value::UiWaitAutomationId { node_id, expected }
             if validate_ui_node_id(node_id) && validate_ui_node_id(expected) =>
         {
             Ok(1)
@@ -5953,6 +6010,39 @@ fn step_from_effect_result(
             }) =>
         {
             Step::Done(Value::UiAssertAutomationId {
+                node_id: result_node_id,
+                expected: result_expected,
+            })
+        }
+        (
+            Effect::UiWaitAutomationId { node_id, expected },
+            Type::UiWaitAutomationId,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitAutomationId {
+                node_id: result_node_id,
+                expected: result_expected,
+                timeout_ms: result_timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && result_expected == *expected
+            && result_timeout_ms == UI_WAIT_AUTOMATION_ID_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitAutomationId {
+                            node_id: operation_node_id,
+                            expected: operation_expected,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_expected == expected
+                        && *operation_timeout_ms == UI_WAIT_AUTOMATION_ID_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitAutomationId {
                 node_id: result_node_id,
                 expected: result_expected,
             })
@@ -9232,6 +9322,75 @@ mod tests {
             node_id: "fleet-title".into(),
             expected: "forged-id".into(),
         };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_wait_automation_id_binds_expected_id_timeout_and_reentry() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI automation id wait");
+        };
+        assert!(matches!(
+            &request.operation,
+            EffectOperation::Presentation(PresentationEnvelope {
+                operation: PresentationOperation::WaitAutomationId {
+                    node_id,
+                    expected,
+                    timeout_ms: UI_WAIT_AUTOMATION_ID_TIMEOUT_MS,
+                },
+                ..
+            }) if node_id == "fleet-title" && expected == "fleet-title"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitAutomationId {
+                    node_id: "fleet-title".into(),
+                    expected: "fleet-title".into(),
+                    timeout_ms: UI_WAIT_AUTOMATION_ID_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitAutomationId {
+                node_id: "fleet-title".into(),
+                expected: "fleet-title".into(),
+            })
+        );
+
+        let mut torn = request;
+        {
+            let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+                panic!("UI automation id wait must use a presentation envelope");
+            };
+            presentation.operation = PresentationOperation::WaitAutomationId {
+                node_id: "fleet-title".into(),
+                expected: "forged-id".into(),
+                timeout_ms: UI_WAIT_AUTOMATION_ID_TIMEOUT_MS,
+            };
+        }
+        assert!(validate_effect_request(&torn).is_err());
+        {
+            let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+                panic!("UI automation id wait must use a presentation envelope");
+            };
+            presentation.operation = PresentationOperation::WaitAutomationId {
+                node_id: "fleet-title".into(),
+                expected: "fleet-title".into(),
+                timeout_ms: UI_WAIT_AUTOMATION_ID_TIMEOUT_MS + 1,
+            };
+        }
         assert!(validate_effect_request(&torn).is_err());
     }
 

@@ -21,6 +21,7 @@ pub const UI_WAIT_ACTION_KIND_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACTION_LABEL_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ENABLED_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_CHILD_COUNT_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_AUTOMATION_ID_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_NODE_KIND_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS: u64 = 2_000;
@@ -250,6 +251,10 @@ pub enum Effect {
         node_id: String,
         expected: String,
     },
+    UiWaitAutomationId {
+        node_id: String,
+        expected: String,
+    },
     UiAssertNodeKind {
         node_id: String,
         expected_kind: UiSemanticNodeKind,
@@ -423,6 +428,7 @@ pub enum Type {
     UiAssertText,
     UiWaitText,
     UiAssertAutomationId,
+    UiWaitAutomationId,
     UiAssertNodeKind,
     UiWaitNodeKind,
     UiAssertActionKind,
@@ -559,6 +565,7 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.assert_text"
         | "ui.wait_text"
         | "ui.assert_automation_id"
+        | "ui.wait_automation_id"
         | "ui.assert_node_kind"
         | "ui.wait_node_kind"
         | "ui.assert_action_kind"
@@ -1110,6 +1117,26 @@ fn lower_atomic_effect(
                     code: "LSH1157".to_string(),
                     message:
                         "ui.assert_automation_id expected must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_automation_id", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1333".to_string(),
+                    message:
+                        "ui.wait_automation_id node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_automation_id", "expected") => match value {
+                Some(value) if validate_ui_node_id(&value) => expected_text = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1334".to_string(),
+                    message:
+                        "ui.wait_automation_id expected must be a valid UI node identifier string"
                             .to_string(),
                     span: Some(argument.span),
                 }),
@@ -2118,6 +2145,20 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.wait_automation_id" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1335".to_string(),
+            message: "ui.wait_automation_id requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_automation_id" && expected_text.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1336".to_string(),
+            message: "ui.wait_automation_id requires expected".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.assert_node_kind" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1162".to_string(),
@@ -2955,6 +2996,14 @@ fn lower_atomic_effect(
             Type::UiAssertAutomationId,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.wait_automation_id" => (
+            Effect::UiWaitAutomationId {
+                node_id: node_id.expect("validated UI node identifier"),
+                expected: expected_text.expect("validated UI expected automation identifier"),
+            },
+            Type::UiWaitAutomationId,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_node_kind" => (
             Effect::UiAssertNodeKind {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -3404,6 +3453,14 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
         ),
         Effect::UiAssertAutomationId { node_id, expected } => format!(
             "ui.assert_automation_id(\n{}node_id: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(expected),
+            indent(depth),
+        ),
+        Effect::UiWaitAutomationId { node_id, expected } => format!(
+            "ui.wait_automation_id(\n{}node_id: {},\n{}expected: {},\n{})",
             indent(depth + 1),
             quote(node_id),
             indent(depth + 1),
@@ -5430,6 +5487,44 @@ mod tests {
     }
 
     #[test]
+    fn ui_wait_automation_id_is_typed_canonical_and_identifier_bounded() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiWaitAutomationId);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiWaitAutomationId {
+                ref node_id,
+                ref expected,
+            } if node_id == "fleet-title" && expected == "fleet-title"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.wait_automation_id(\n  node_id: \"fleet-title\",\n  expected: \"fleet-title\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_automation_id()",
+            "fn main() = ui.wait_automation_id(node_id: \"fleet-title\")",
+            "fn main() = ui.wait_automation_id(expected: \"fleet-title\")",
+            "fn main() = ui.wait_automation_id(node_id: \"bad/node\", expected: \"fleet-title\")",
+            "fn main() = ui.wait_automation_id(node_id: \"fleet-title\", expected: none)",
+            "fn main() = ui.wait_automation_id(node_id: \"fleet-title\", expected: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
     fn ui_assert_node_kind_is_capability_gated_and_enum_typed() {
         let program = lower(&parse(
             "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
@@ -6571,6 +6666,7 @@ mod tests {
             "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.wait_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
+            "fn main() = ui.wait_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
             "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
             "fn main() = ui.wait_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
             "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",

@@ -5,8 +5,8 @@ use leselang_hir::{
     Effect, HirBranch, MAX_UI_CHILD_COUNT, Type, UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS,
     UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS, UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS,
     UI_WAIT_ACTION_KIND_TIMEOUT_MS, UI_WAIT_ACTION_LABEL_TIMEOUT_MS,
-    UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS, UI_WAIT_CHILD_COUNT_TIMEOUT_MS,
-    UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
+    UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS, UI_WAIT_AUTOMATION_ID_TIMEOUT_MS,
+    UI_WAIT_CHILD_COUNT_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
     UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS, UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
     UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS, UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
     UI_WAIT_FORM_FIELD_TIMEOUT_MS, UI_WAIT_FORM_VALUE_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS,
@@ -345,6 +345,7 @@ pub enum DebuggerEffectKind {
     UiAssertText,
     UiWaitText,
     UiAssertAutomationId,
+    UiWaitAutomationId,
     UiAssertNodeKind,
     UiWaitNodeKind,
     UiAssertActionKind,
@@ -615,6 +616,11 @@ pub enum UiPresentationOperation {
         node_id: NodeId,
         expected: String,
     },
+    WaitAutomationId {
+        node_id: NodeId,
+        expected: String,
+        timeout_ms: u64,
+    },
     AssertNodeKind {
         node_id: NodeId,
         expected_kind: UiNodeKind,
@@ -790,6 +796,7 @@ pub enum UiPresentationAtom {
     AssertText,
     WaitText,
     AssertAutomationId,
+    WaitAutomationId,
     AssertNodeKind,
     WaitNodeKind,
     AssertActionKind,
@@ -858,7 +865,7 @@ pub struct UiPresentationAtomProfile {
     pub effect: UiPresentationAtomEffect,
 }
 
-pub const REQUIRED_UI_PRESENTATION_ATOMS: [UiPresentationAtom; 61] = [
+pub const REQUIRED_UI_PRESENTATION_ATOMS: [UiPresentationAtom; 62] = [
     UiPresentationAtom::Activate,
     UiPresentationAtom::Focus,
     UiPresentationAtom::NavigateFocus,
@@ -891,6 +898,7 @@ pub const REQUIRED_UI_PRESENTATION_ATOMS: [UiPresentationAtom; 61] = [
     UiPresentationAtom::AssertText,
     UiPresentationAtom::WaitText,
     UiPresentationAtom::AssertAutomationId,
+    UiPresentationAtom::WaitAutomationId,
     UiPresentationAtom::AssertNodeKind,
     UiPresentationAtom::WaitNodeKind,
     UiPresentationAtom::AssertActionKind,
@@ -964,6 +972,7 @@ pub fn presentation_atom_for_operation(operation: &UiPresentationOperation) -> U
         UiPresentationOperation::AssertAutomationId { .. } => {
             UiPresentationAtom::AssertAutomationId
         }
+        UiPresentationOperation::WaitAutomationId { .. } => UiPresentationAtom::WaitAutomationId,
         UiPresentationOperation::AssertNodeKind { .. } => UiPresentationAtom::AssertNodeKind,
         UiPresentationOperation::WaitNodeKind { .. } => UiPresentationAtom::WaitNodeKind,
         UiPresentationOperation::AssertActionKind { .. } => UiPresentationAtom::AssertActionKind,
@@ -1081,6 +1090,7 @@ pub fn presentation_atom_family(atom: UiPresentationAtom) -> UiPresentationAtomF
             UiPresentationAtomFamily::Text
         }
         UiPresentationAtom::AssertAutomationId
+        | UiPresentationAtom::WaitAutomationId
         | UiPresentationAtom::AssertNodeKind
         | UiPresentationAtom::WaitNodeKind => UiPresentationAtomFamily::NodeMetadata,
         UiPresentationAtom::AssertActionKind
@@ -1166,6 +1176,7 @@ pub fn presentation_atom_effect(atom: UiPresentationAtom) -> UiPresentationAtomE
         | UiPresentationAtom::WaitWindowClosed
         | UiPresentationAtom::WaitSelection
         | UiPresentationAtom::WaitText
+        | UiPresentationAtom::WaitAutomationId
         | UiPresentationAtom::WaitNodeKind
         | UiPresentationAtom::WaitActionKind
         | UiPresentationAtom::WaitActionLabel
@@ -1963,6 +1974,7 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             | DebuggerEffectKind::UiAssertText
             | DebuggerEffectKind::UiWaitText
             | DebuggerEffectKind::UiAssertAutomationId
+            | DebuggerEffectKind::UiWaitAutomationId
             | DebuggerEffectKind::UiAssertNodeKind
             | DebuggerEffectKind::UiWaitNodeKind
             | DebuggerEffectKind::UiAssertActionKind
@@ -2123,6 +2135,7 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::UiAssertText => "UI assert text",
             DebuggerEffectKind::UiWaitText => "UI wait text",
             DebuggerEffectKind::UiAssertAutomationId => "UI assert automation id",
+            DebuggerEffectKind::UiWaitAutomationId => "UI wait automation id",
             DebuggerEffectKind::UiAssertNodeKind => "UI assert node kind",
             DebuggerEffectKind::UiWaitNodeKind => "UI wait node kind",
             DebuggerEffectKind::UiAssertActionKind => "UI assert action kind",
@@ -2531,6 +2544,13 @@ pub fn presentation_operation_for_effect(
                 expected: expected.clone(),
             }
         }
+        Effect::UiWaitAutomationId { node_id, expected } => {
+            UiPresentationOperation::WaitAutomationId {
+                node_id: NodeId::new(node_id.clone())?,
+                expected: expected.clone(),
+                timeout_ms: UI_WAIT_AUTOMATION_ID_TIMEOUT_MS,
+            }
+        }
         Effect::UiAssertNodeKind {
             node_id,
             expected_kind,
@@ -2876,6 +2896,12 @@ pub fn effect_for_presentation_operation(
                 expected: expected.clone(),
             }
         }
+        UiPresentationOperation::WaitAutomationId {
+            node_id, expected, ..
+        } => Effect::UiWaitAutomationId {
+            node_id: node_id.as_str().to_string(),
+            expected: expected.clone(),
+        },
         UiPresentationOperation::AssertNodeKind {
             node_id,
             expected_kind,
@@ -3134,6 +3160,7 @@ pub fn validate_presentation_operation(
         | UiPresentationOperation::AssertText { node_id, .. }
         | UiPresentationOperation::WaitText { node_id, .. }
         | UiPresentationOperation::AssertAutomationId { node_id, .. }
+        | UiPresentationOperation::WaitAutomationId { node_id, .. }
         | UiPresentationOperation::AssertNodeKind { node_id, .. }
         | UiPresentationOperation::WaitNodeKind { node_id, .. }
         | UiPresentationOperation::AssertActionKind { node_id, .. }
@@ -3238,7 +3265,8 @@ pub fn validate_presentation_operation(
     {
         return Err(UiError::InvalidPresentationText);
     }
-    if let UiPresentationOperation::AssertAutomationId { expected, .. } = operation
+    if let UiPresentationOperation::AssertAutomationId { expected, .. }
+    | UiPresentationOperation::WaitAutomationId { expected, .. } = operation
         && !validate_ui_node_id(expected)
     {
         return Err(UiError::InvalidPresentationText);
@@ -3325,6 +3353,11 @@ pub fn validate_presentation_operation(
     }
     if let UiPresentationOperation::WaitText { timeout_ms, .. } = operation
         && *timeout_ms != UI_WAIT_TEXT_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
+    if let UiPresentationOperation::WaitAutomationId { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_AUTOMATION_ID_TIMEOUT_MS
     {
         return Err(UiError::InvalidPresentationTimeout);
     }
@@ -6120,6 +6153,66 @@ mod tests {
     }
 
     #[test]
+    fn automation_id_wait_round_trips_with_fixed_deadline() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::WaitAutomationId {
+            node_id: NodeId::new("fleet-title").unwrap(),
+            expected: "fleet-title".into(),
+            timeout_ms: UI_WAIT_AUTOMATION_ID_TIMEOUT_MS,
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiWaitAutomationId {
+                node_id: "fleet-title".into(),
+                expected: "fleet-title".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            canonical_source(&effect).unwrap()
+        );
+        assert_eq!(
+            presentation_atom_profile(UiPresentationAtom::WaitAutomationId),
+            UiPresentationAtomProfile {
+                atom: UiPresentationAtom::WaitAutomationId,
+                family: UiPresentationAtomFamily::NodeMetadata,
+                effect: UiPresentationAtomEffect::Wait,
+            }
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitAutomationId {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                    expected: "fleet-title".into(),
+                    timeout_ms: UI_WAIT_AUTOMATION_ID_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitAutomationId {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                    expected: "bad/node".into(),
+                    timeout_ms: UI_WAIT_AUTOMATION_ID_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
+    }
+
+    #[test]
     fn node_kind_assertion_round_trips_for_every_semantic_node() {
         let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
         let operation = UiPresentationOperation::AssertNodeKind {
@@ -8580,8 +8673,8 @@ mod tests {
         .unwrap();
         assert_eq!(manifest.schema_version, UI_ADAPTER_MANIFEST_SCHEMA_VERSION);
         assert_eq!(manifest.ui_schema_version, UI_SCHEMA_VERSION);
-        assert_eq!(manifest.presentation_atoms.len(), 61);
-        assert_eq!(manifest.presentation_atom_profiles.len(), 61);
+        assert_eq!(manifest.presentation_atoms.len(), 62);
+        assert_eq!(manifest.presentation_atom_profiles.len(), 62);
         assert_eq!(
             presentation_atom_profile(UiPresentationAtom::Activate),
             UiPresentationAtomProfile {

@@ -44,6 +44,7 @@ public sealed class SemanticRenderer
         UiPresentationAtom.AssertText,
         UiPresentationAtom.WaitText,
         UiPresentationAtom.AssertAutomationId,
+        UiPresentationAtom.WaitAutomationId,
         UiPresentationAtom.AssertNodeKind,
         UiPresentationAtom.WaitNodeKind,
         UiPresentationAtom.AssertActionKind,
@@ -93,6 +94,7 @@ public sealed class SemanticRenderer
     public const int WaitFormFieldMaxLengthTimeoutMs = 2000;
     public const int WaitFormFieldPlaceholderTimeoutMs = 2000;
     public const int WaitFormValueTimeoutMs = 2000;
+    public const int WaitAutomationIdTimeoutMs = 2000;
     public const int WaitNodeKindTimeoutMs = 2000;
     public const int WaitVisibleTimeoutMs = 2000;
     public const int WaitWindowClosedTimeoutMs = 2000;
@@ -242,6 +244,7 @@ public sealed class SemanticRenderer
             UiPresentationAtom.AssertText
                 or UiPresentationAtom.WaitText => UiPresentationAtomFamily.Text,
             UiPresentationAtom.AssertAutomationId
+                or UiPresentationAtom.WaitAutomationId
                 or UiPresentationAtom.AssertNodeKind
                 or UiPresentationAtom.WaitNodeKind => UiPresentationAtomFamily.NodeMetadata,
             UiPresentationAtom.AssertActionKind
@@ -327,6 +330,7 @@ public sealed class SemanticRenderer
                 or UiPresentationAtom.WaitSelection
                 or UiPresentationAtom.WaitChildCount
                 or UiPresentationAtom.WaitText
+                or UiPresentationAtom.WaitAutomationId
                 or UiPresentationAtom.WaitNodeKind
                 or UiPresentationAtom.WaitActionKind
                 or UiPresentationAtom.WaitActionLabel
@@ -429,7 +433,8 @@ public sealed class SemanticRenderer
                 return UiPresentationValidation.InvalidExpectedText;
             }
         }
-        else if (operation.Kind == UiPresentationOperationKind.AssertAutomationId)
+        else if (operation.Kind is UiPresentationOperationKind.AssertAutomationId
+            or UiPresentationOperationKind.WaitAutomationId)
         {
             if (operation.Expected is not { } expected
                 || !IsIdentifier(expected))
@@ -657,6 +662,7 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.WaitActionKind
             or UiPresentationOperationKind.WaitActionLabel
             or UiPresentationOperationKind.WaitActionUnavailableReason
+            or UiPresentationOperationKind.WaitAutomationId
             or UiPresentationOperationKind.WaitNodeKind
             or UiPresentationOperationKind.WaitWindowOpen
             or UiPresentationOperationKind.WaitWindowClosed
@@ -689,6 +695,7 @@ public sealed class SemanticRenderer
                     WaitActionLabelTimeoutMs,
                 UiPresentationOperationKind.WaitActionUnavailableReason =>
                     WaitActionUnavailableReasonTimeoutMs,
+                UiPresentationOperationKind.WaitAutomationId => WaitAutomationIdTimeoutMs,
                 UiPresentationOperationKind.WaitNodeKind => WaitNodeKindTimeoutMs,
                 UiPresentationOperationKind.WaitWindowOpen => WaitWindowOpenTimeoutMs,
                 UiPresentationOperationKind.WaitWindowClosed => WaitWindowClosedTimeoutMs,
@@ -824,7 +831,8 @@ public sealed class SemanticRenderer
             UiPresentationOperationKind.AssertAccessibleName
             or UiPresentationOperationKind.WaitAccessibleName =>
                 UiPresentationValidation.Valid,
-            UiPresentationOperationKind.AssertAutomationId =>
+            UiPresentationOperationKind.AssertAutomationId
+            or UiPresentationOperationKind.WaitAutomationId =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertNodeKind
             or UiPresentationOperationKind.WaitNodeKind =>
@@ -1221,6 +1229,7 @@ public sealed class RendererFixture
     public UiPresentationOperation? TextAssertOperation { get; set; }
     public UiPresentationOperation? TextWaitOperation { get; set; }
     public UiPresentationOperation? AutomationIdAssertOperation { get; set; }
+    public UiPresentationOperation? AutomationIdWaitOperation { get; set; }
     public UiPresentationOperation? NodeKindAssertOperation { get; set; }
     public UiPresentationOperation? NodeKindWaitOperation { get; set; }
     public UiPresentationOperation? ActionKindAssertOperation { get; set; }
@@ -1468,6 +1477,7 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("assert_text")] AssertText,
     [JsonStringEnumMemberName("wait_text")] WaitText,
     [JsonStringEnumMemberName("assert_automation_id")] AssertAutomationId,
+    [JsonStringEnumMemberName("wait_automation_id")] WaitAutomationId,
     [JsonStringEnumMemberName("assert_node_kind")] AssertNodeKind,
     [JsonStringEnumMemberName("wait_node_kind")] WaitNodeKind,
     [JsonStringEnumMemberName("assert_action_kind")] AssertActionKind,
@@ -1580,6 +1590,7 @@ public enum UiPresentationAtom
     [JsonStringEnumMemberName("assert_text")] AssertText,
     [JsonStringEnumMemberName("wait_text")] WaitText,
     [JsonStringEnumMemberName("assert_automation_id")] AssertAutomationId,
+    [JsonStringEnumMemberName("wait_automation_id")] WaitAutomationId,
     [JsonStringEnumMemberName("assert_node_kind")] AssertNodeKind,
     [JsonStringEnumMemberName("wait_node_kind")] WaitNodeKind,
     [JsonStringEnumMemberName("assert_action_kind")] AssertActionKind,
@@ -1738,6 +1749,7 @@ public sealed class UiPresentationAtomJsonConverter : JsonConverter<UiPresentati
             "assert_text" => UiPresentationAtom.AssertText,
             "wait_text" => UiPresentationAtom.WaitText,
             "assert_automation_id" => UiPresentationAtom.AssertAutomationId,
+            "wait_automation_id" => UiPresentationAtom.WaitAutomationId,
             "assert_node_kind" => UiPresentationAtom.AssertNodeKind,
             "wait_node_kind" => UiPresentationAtom.WaitNodeKind,
             "assert_action_kind" => UiPresentationAtom.AssertActionKind,
@@ -1810,6 +1822,7 @@ public sealed class UiPresentationAtomJsonConverter : JsonConverter<UiPresentati
             UiPresentationAtom.AssertText => "assert_text",
             UiPresentationAtom.WaitText => "wait_text",
             UiPresentationAtom.AssertAutomationId => "assert_automation_id",
+            UiPresentationAtom.WaitAutomationId => "wait_automation_id",
             UiPresentationAtom.AssertNodeKind => "assert_node_kind",
             UiPresentationAtom.WaitNodeKind => "wait_node_kind",
             UiPresentationAtom.AssertActionKind => "assert_action_kind",

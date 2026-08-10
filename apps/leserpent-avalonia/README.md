@@ -46,6 +46,7 @@ The separate candidate fixture carries Rust-generated
 `WaitSelection`, `AssertChildCount`, `WaitChildCount`, `AssertText`,
 `WaitText`,
 `AssertAutomationId`,
+`WaitAutomationId`,
 `AssertNodeKind`,
 `WaitNodeKind`,
 `AssertActionKind`,
@@ -77,7 +78,7 @@ the complete presentation atom/profile set, validates canonical family/effect
 metadata, and rejects unknown manifest fields, numeric enum tokens, invalid
 binding kinds, invalid presentation atoms, and invalid profiles.
 RendererCore strictly round-trips all
-61 and validates valid, missing, noninteractive,
+62 and validates valid, missing, noninteractive,
 selectionless, textless, and invalid-expected-text targets before the Avalonia shell proves
 native action activation through exactly one `Button.ClickEvent`, with missing,
 non-action, unrealized, hidden, and disabled targets rejected before callbacks,
@@ -107,7 +108,9 @@ realizing virtualized children, external-patch child-count waiting with a
 persistent mismatch timeout, actual displayed-text,
 dispatcher-yielding text wait with external text transition and persistent
 text mismatch timeout, and
-automation-id, node-kind, dispatcher-yielding node-kind wait with persistent
+automation-id, dispatcher-yielding automation-id wait with an external native
+property transition, persistent mismatch timeout, no focus transfer, and no
+action activation, node-kind, dispatcher-yielding node-kind wait with persistent
 mismatch timeout, action-kind, dispatcher-yielding action-kind wait with
 persistent mismatch timeout, explicit action-label,
 dispatcher-yielding action-label wait and persistent label mismatch timeout,
@@ -137,7 +140,7 @@ Control-fixture and presentation-probe lifecycles are isolated. `--verify-contro
 mounts, patches, audits, and exits without requiring presentation-only fixture
 fields or starting wait tasks; only `--verify-focus-retention` initializes the
 full presentation probe state. This keeps the four NativeAOT control fixtures
-independent from the candidate 61-atom automation fixture.
+independent from the candidate 62-atom automation fixture.
 
 ```bash
 cargo run --quiet -p leselang-ui \
@@ -762,7 +765,7 @@ cargo run --quiet --bin gewyvern_validate -- leserpent-aot
 
 It detects the supported host RID, performs the locked restore and no-restore
 publish, validates the native executable signature and bounded package, runs
-all four control fixtures plus the 61-atom presentation automation
+all four control fixtures plus the 62-atom presentation automation
 fixture, and retains machine-readable evidence under
 `target/validation/leserpent-aot/`. The lower-level commands below remain useful
 for packaging diagnostics.

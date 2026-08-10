@@ -26,6 +26,7 @@ internal sealed class MainWindow : Window
     private readonly UiPresentationOperation formValueSetOperation = null!;
     private readonly UiPresentationOperation formValueAssertOperation = null!;
     private readonly UiPresentationOperation formValueWaitOperation = null!;
+    private readonly UiPresentationOperation automationIdWaitOperation = null!;
     private readonly Task<PresentationAutomationResult> initialWindowOpenWait = null!;
     private readonly PresentationAutomationResult initialWindowClosedAssert = null!;
     private readonly Task<PresentationAutomationResult> initialWindowClosedWait = null!;
@@ -98,6 +99,10 @@ internal sealed class MainWindow : Window
     public bool ChildCountObservationPreservedVirtualization { get; private set; }
     public bool InitialTextWaitCompleted { get; private set; }
     public bool InitialTextWaitTimedOut { get; private set; }
+    public bool AutomationIdWaitCompleted { get; private set; }
+    public bool AutomationIdWaitTimedOut { get; private set; }
+    public bool AutomationIdWaitDidNotTransferFocus { get; private set; }
+    public bool AutomationIdWaitDidNotActivate { get; private set; }
     public bool InitialAccessibleNameWaitCompleted { get; private set; }
     public bool InitialAccessibleNameWaitTimedOut { get; private set; }
     public bool InitialAccessibleDescriptionWaitCompleted { get; private set; }
@@ -409,6 +414,9 @@ internal sealed class MainWindow : Window
         formValueWaitOperation = fixture.FormValueWaitOperation
             ?? throw new InvalidDataException(
                 "form-value wait probe requires a semantic target");
+        automationIdWaitOperation = fixture.AutomationIdWaitOperation
+            ?? throw new InvalidDataException(
+                "automation-id wait probe requires a semantic target");
         ConfigureWindowContent();
     }
 
@@ -1011,6 +1019,7 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang focused wait did not observe an external focus transition");
         }
+        await ProbeAutomationIdWaitAsync();
         var unfocusedAssertBaseline = renderer.ApplyPresentation(
             new UiPresentationOperation
             {
@@ -1648,6 +1657,90 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang hidden wait did not reject a persistently visible target");
+        }
+    }
+
+    private async Task ProbeAutomationIdWaitAsync()
+    {
+        const string pendingAutomationId = "fleet-title-pending";
+        var expectedAutomationId = automationIdWaitOperation.Expected
+            ?? throw new InvalidDataException(
+                "automation-id wait probe contains no expected identifier");
+        if (StringComparer.Ordinal.Equals(expectedAutomationId, pendingAutomationId)
+            || !renderer.SetAutomationIdForVerification(
+                automationIdWaitOperation.NodeId,
+                pendingAutomationId))
+        {
+            throw new InvalidDataException(
+                "automation-id wait probe could not establish its native mismatch");
+        }
+
+        var focusedNodeBefore = renderer.FocusedNodeId;
+        var actionCountBefore = invokedActionCount;
+        var transitionApplied = false;
+        var wait = renderer.ApplyPresentationAsync(automationIdWaitOperation);
+        DispatcherTimer.RunOnce(
+            () => transitionApplied = renderer.SetAutomationIdForVerification(
+                automationIdWaitOperation.NodeId,
+                expectedAutomationId),
+            TimeSpan.FromMilliseconds(50));
+        var waitResult = await wait;
+        var focusedNodeAfterTransition = renderer.FocusedNodeId;
+        AutomationIdWaitCompleted = transitionApplied
+            && waitResult.Applied
+            && waitResult.FailureCode == PresentationAutomationFailureCode.None;
+
+        if (!renderer.SetAutomationIdForVerification(
+                automationIdWaitOperation.NodeId,
+                pendingAutomationId))
+        {
+            throw new InvalidDataException(
+                "automation-id wait timeout probe could not restore its native mismatch");
+        }
+        PresentationAutomationResult timeoutResult;
+        try
+        {
+            timeoutResult = await renderer.ApplyPresentationAsync(automationIdWaitOperation);
+        }
+        finally
+        {
+            if (!renderer.SetAutomationIdForVerification(
+                    automationIdWaitOperation.NodeId,
+                    expectedAutomationId))
+            {
+                throw new InvalidDataException(
+                    "automation-id wait probe could not restore the native identifier");
+            }
+        }
+        var restored = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertAutomationId,
+            NodeId = automationIdWaitOperation.NodeId,
+            Expected = expectedAutomationId,
+        });
+        var focusedNodeAfterTimeout = renderer.FocusedNodeId;
+        AutomationIdWaitTimedOut = !timeoutResult.Applied
+            && timeoutResult.FailureCode == PresentationAutomationFailureCode.WaitTimedOut
+            && restored.Applied
+            && restored.FailureCode == PresentationAutomationFailureCode.None;
+        AutomationIdWaitDidNotTransferFocus =
+            (focusedNodeAfterTransition is null
+                || focusedNodeAfterTransition == focusedNodeBefore)
+            && (focusedNodeAfterTimeout is null
+                || focusedNodeAfterTimeout == focusedNodeBefore);
+        AutomationIdWaitDidNotActivate = invokedActionCount == actionCountBefore;
+
+        if (!AutomationIdWaitCompleted
+            || !AutomationIdWaitTimedOut
+            || !AutomationIdWaitDidNotTransferFocus
+            || !AutomationIdWaitDidNotActivate)
+        {
+            throw new InvalidDataException(
+                "Leselang automation-id wait diverged from native observation semantics: "
+                + $"completed={AutomationIdWaitCompleted}, "
+                + $"timed_out={AutomationIdWaitTimedOut}, "
+                + $"focus_not_transferred={AutomationIdWaitDidNotTransferFocus}, "
+                + $"no_activation={AutomationIdWaitDidNotActivate}");
         }
     }
 

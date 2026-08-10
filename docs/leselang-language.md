@@ -33,7 +33,7 @@ plus the frontend-local `ui.activate`, `ui.focus`, `ui.navigate_focus`, `ui.scro
 `ui.wait_window_open`, `ui.assert_window_closed`, `ui.wait_window_closed`,
 `ui.set_selection`, `ui.assert_selection`, `ui.wait_selection`, `ui.assert_child_count`,
 `ui.wait_child_count`, `ui.assert_text`, `ui.wait_text`,
-`ui.assert_automation_id`, and
+`ui.assert_automation_id`, `ui.wait_automation_id`, and
 `ui.assert_node_kind`, `ui.wait_node_kind`, `ui.assert_action_kind`,
 `ui.wait_action_kind`,
 `ui.assert_action_label`, `ui.wait_action_label`,
@@ -582,6 +582,22 @@ binds the expected automation ID to the request and result, while the renderer
 reads the realized platform automation ID and requires an exact ordinal match.
 Missing, unrealized, invalid-expected, or mismatched targets fail. The
 assertion never focuses, activates, scrolls, or changes automation metadata.
+
+Automation identity can also be awaited across an external native transition:
+
+```leselang
+fn main() = ui.wait_automation_id(
+  node_id: "fleet-title",
+  expected: "fleet-title"
+)
+```
+
+`ui.wait_automation_id` uses the same capability, target, and identifier
+validation as the assertion. Its typed presentation envelope carries a
+protocol-fixed 2000 ms deadline and binds both identifiers across VM re-entry.
+The adapter polls the realized platform automation property until it matches
+exactly; a persistent mismatch times out. Waiting never realizes, focuses,
+scrolls, activates, or rewrites the target.
 
 Native semantic node kind can be asserted before model-driven automation:
 

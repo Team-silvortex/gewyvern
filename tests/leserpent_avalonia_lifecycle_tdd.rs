@@ -85,6 +85,9 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("UiPresentationOperationKind.WaitAccessibleDescription"));
     assert!(core.contains("WaitAccessibleDescriptionTimeoutMs = 2000"));
     assert!(core.contains("UiPresentationOperationKind.AssertAutomationId"));
+    assert!(core.contains("UiPresentationOperationKind.WaitAutomationId"));
+    assert!(core.contains("UiPresentationAtom.WaitAutomationId"));
+    assert!(core.contains("WaitAutomationIdTimeoutMs = 2000"));
     assert!(core.contains("UiPresentationOperationKind.AssertNodeKind"));
     assert!(core.contains("UiPresentationOperationKind.WaitNodeKind"));
     assert!(core.contains("WaitNodeKindTimeoutMs = 2000"));
@@ -162,6 +165,9 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(renderer.contains("private PresentationAutomationResult ClosePresentationWindow"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetTextMismatch"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetAutomationIdMismatch"));
+    assert!(renderer.contains("UiPresentationOperationKind.WaitAutomationId"));
+    assert!(renderer.contains("SemanticRenderer.WaitAutomationIdTimeoutMs"));
+    assert!(renderer.contains("SetAutomationIdForVerification"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetNodeKindMismatch"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetActionKindMismatch"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetActionLabelMismatch"));
@@ -247,6 +253,11 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(window.contains("var enabledWait = renderer.ApplyPresentationAsync"));
     assert!(window.contains("InitialTextWaitCompleted"));
     assert!(window.contains("InitialTextWaitTimedOut"));
+    assert!(window.contains("ProbeAutomationIdWaitAsync"));
+    assert!(window.contains("AutomationIdWaitCompleted"));
+    assert!(window.contains("AutomationIdWaitTimedOut"));
+    assert!(window.contains("AutomationIdWaitDidNotTransferFocus"));
+    assert!(window.contains("AutomationIdWaitDidNotActivate"));
     assert!(window.contains("ChildCountAssertCompleted"));
     assert!(window.contains("InitialChildCountWaitCompleted"));
     assert!(window.contains("InitialChildCountWaitTimedOut"));
@@ -402,6 +413,11 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("form_value_unregistered_rejected="));
     assert!(app.contains("form_value_scope_disposed="));
     assert!(app.contains("assert_automation_id=true"));
+    assert!(app.contains("wait_automation_id="));
+    assert!(app.contains("wait_automation_id_external_transition="));
+    assert!(app.contains("wait_automation_id_timeout="));
+    assert!(app.contains("wait_automation_id_no_focus_transfer="));
+    assert!(app.contains("wait_automation_id_no_activation="));
     assert!(app.contains("automation_id_mismatch_rejected=true"));
     assert!(app.contains("assert_node_kind=true"));
     assert!(app.contains("wait_node_kind="));
@@ -462,6 +478,7 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(conformance.contains("presentation_wait_child_count=true"));
     assert!(conformance.contains("presentation_assert_disabled=true"));
     assert!(conformance.contains("presentation_assert_automation_id=true"));
+    assert!(conformance.contains("presentation_wait_automation_id=true"));
     assert!(conformance.contains("presentation_assert_node_kind=true"));
     assert!(conformance.contains("presentation_wait_node_kind=true"));
     assert!(conformance.contains("presentation_wait_text=true"));
@@ -1063,7 +1080,7 @@ fn silvortex_account_proof_is_native_private_and_existing_credential_safe() {
     let account = avalonia_source("Leserpent.Avalonia/SilvortexAccountSession.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
 
-    assert!(proof.contains("ContractVersion = \"1.92.0\""));
+    assert!(proof.contains("ContractVersion = \"1.93.0\""));
     assert!(!proof.contains("--prove-silvortex-account"));
     assert!(proof.contains("RuntimeFeature.IsDynamicCodeSupported"));
     assert!(proof.contains("packaged-info-plist"));

@@ -107,6 +107,7 @@ pub fn lower_effect(
             | Effect::UiAssertText { .. }
             | Effect::UiWaitText { .. }
             | Effect::UiAssertAutomationId { .. }
+            | Effect::UiWaitAutomationId { .. }
             | Effect::UiAssertNodeKind { .. }
             | Effect::UiWaitNodeKind { .. }
             | Effect::UiAssertActionKind { .. }
@@ -181,6 +182,7 @@ pub fn lower_effect(
         | Effect::UiAssertText { .. }
         | Effect::UiWaitText { .. }
         | Effect::UiAssertAutomationId { .. }
+        | Effect::UiWaitAutomationId { .. }
         | Effect::UiAssertNodeKind { .. }
         | Effect::UiWaitNodeKind { .. }
         | Effect::UiAssertActionKind { .. }
@@ -266,6 +268,7 @@ pub fn lower_effect(
         | Effect::UiAssertText { .. }
         | Effect::UiWaitText { .. }
         | Effect::UiAssertAutomationId { .. }
+        | Effect::UiWaitAutomationId { .. }
         | Effect::UiAssertNodeKind { .. }
         | Effect::UiWaitNodeKind { .. }
         | Effect::UiAssertActionKind { .. }

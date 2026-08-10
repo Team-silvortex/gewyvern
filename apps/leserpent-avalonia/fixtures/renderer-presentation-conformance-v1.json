@@ -910,6 +910,12 @@
     "node_id": "fleet-title",
     "expected": "fleet-title"
   },
+  "automation_id_wait_operation": {
+    "kind": "wait_automation_id",
+    "node_id": "fleet-title",
+    "expected": "fleet-title",
+    "timeout_ms": 2000
+  },
   "node_kind_assert_operation": {
     "kind": "assert_node_kind",
     "node_id": "fleet-title",
@@ -1119,6 +1125,7 @@
       "assert_text",
       "wait_text",
       "assert_automation_id",
+      "wait_automation_id",
       "assert_node_kind",
       "wait_node_kind",
       "assert_action_kind",
@@ -1309,6 +1316,11 @@
         "atom": "assert_automation_id",
         "family": "node_metadata",
         "effect": "assertion"
+      },
+      {
+        "atom": "wait_automation_id",
+        "family": "node_metadata",
+        "effect": "wait"
       },
       {
         "atom": "assert_node_kind",
@@ -1499,6 +1511,7 @@
       "assert_text",
       "wait_text",
       "assert_automation_id",
+      "wait_automation_id",
       "assert_node_kind",
       "wait_node_kind",
       "assert_action_kind",
@@ -1689,6 +1702,11 @@
         "atom": "assert_automation_id",
         "family": "node_metadata",
         "effect": "assertion"
+      },
+      {
+        "atom": "wait_automation_id",
+        "family": "node_metadata",
+        "effect": "wait"
       },
       {
         "atom": "assert_node_kind",

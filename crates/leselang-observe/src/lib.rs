@@ -415,6 +415,11 @@ pub fn waiting_debugger_projection(
             None,
             "UI assert automation id",
         ),
+        Effect::UiWaitAutomationId { .. } => (
+            DebuggerEffectKind::UiWaitAutomationId,
+            None,
+            "UI wait automation id",
+        ),
         Effect::UiAssertNodeKind { .. } => (
             DebuggerEffectKind::UiAssertNodeKind,
             None,

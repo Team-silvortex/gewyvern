@@ -32,7 +32,7 @@ generator tooling. The manifest carries schema version `2`, a stable
 `developer_owned_adapter` or `generated_framework_binding`, the target
 `ui_schema_version`, and booleans proving support for document, event, and patch
 schemas. It must also list the complete `required_ui_presentation_atoms()` set:
-all sixty-one current presentation atoms, including activation, focus, window
+all sixty-two current presentation atoms, including activation, focus, window
 lifecycle, wait, assertion, selection mutation, action metadata, form metadata,
 scoped form-value and form-lifecycle control, and accessibility operations. Schema
 version `2` also carries `presentation_atom_profiles`: one canonical profile per
@@ -157,7 +157,7 @@ only its stable node ID; confirmation and execution stay in Rust.
 - maximum parameterized form value: `256` bytes
 - adapter manifest schema version: `2`
 - maximum adapter framework label: `128` bytes
-- required adapter presentation atoms: `61`
+- required adapter presentation atoms: `62`
 - node IDs: unique, stable, ASCII identifiers up to 128 bytes
 
 Validation rejects duplicate or invalid IDs, control characters, invalid
@@ -196,7 +196,7 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by sixty-one presentation atoms.
+Semantic action equivalence is joined by sixty-two presentation atoms.
 `UiPresentationOperation::Activate` maps one-to-one to
 `ui.activate(node_id: ...)`, requires an available semantic action, and has the
 canonical `interaction` family plus `mutation` effect profile. It is
@@ -293,7 +293,10 @@ semantic node, and carries the protocol-fixed 2000 ms deadline.
 `UiPresentationOperation::AssertAutomationId` maps one-to-one to
 `ui.assert_automation_id(node_id: ..., expected: ...)`, accepts every existing
 semantic node, and carries an expected value that must itself be a valid UI
-node identifier. `UiPresentationOperation::AssertNodeKind` maps one-to-one to
+node identifier. `UiPresentationOperation::WaitAutomationId` maps one-to-one to
+`ui.wait_automation_id(node_id: ..., expected: ...)`, validates the same target
+and expected identifier, and carries the protocol-fixed 2000 ms deadline.
+`UiPresentationOperation::AssertNodeKind` maps one-to-one to
 `ui.assert_node_kind(node_id: ..., kind: ...)`, accepts every existing semantic
 node, and carries a stable semantic renderer kind.
 `UiPresentationOperation::WaitNodeKind` maps one-to-one to
@@ -423,11 +426,11 @@ semantic node with an explicitly declared accessibility description.
 `ui.wait_accessible_description(node_id: ..., expected: ...)`, requires the same
 explicit accessibility description metadata, uses the same expected-value bound,
 and carries the protocol-fixed 2000 ms deadline. None can
-become a `UiEvent` or `CommandPlan`; all sixty-one travel in
+become a `UiEvent` or `CommandPlan`; all sixty-two travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all sixty-one operations through its stable visual index
+Avalonia resolves all sixty-two operations through its stable visual index
 and scoped native form registry.
 Activation requires a realized, visible, enabled native `Button` and raises its
 native `ClickEvent` exactly once; it never invokes the domain callback directly.
@@ -502,7 +505,10 @@ fallback text. Text wait polls that same native displayed-text predicate through
 the cancellable dispatcher-yielding adapter until the protocol-fixed deadline,
 observing semantic patch driven text transitions without focusing, scrolling, or
 rewriting text. Automation ID assertion reads native platform automation identity
-and requires it to match the expected stable node identifier exactly.
+and requires it to match the expected stable node identifier exactly. Automation
+ID wait polls that same native property through the cancellable dispatcher until
+the fixed deadline, observing external metadata transitions without realization,
+focus transfer, scrolling, activation, or metadata mutation.
 Node-kind assertion compares the stable semantic renderer kind and uses no
 guessing, coordinates, or OCR. Node-kind wait polls that same semantic predicate
 through the dispatcher-yielding adapter until its fixed deadline without
