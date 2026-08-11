@@ -3,12 +3,16 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::time::Duration;
 
 use serde_json::json;
 
 use crate::native_binary::is_mach_o_arm64;
 
-use super::command::{ValidationError, ValidationReport, default_out_dir, repo_root};
+use super::command::{
+    DOTNET_PROOF_TIMEOUT, PROOF_FIXTURE_TIMEOUT, TOOL_PROBE_TIMEOUT, ValidationError,
+    ValidationReport, default_out_dir, repo_root, run_command_output_with_timeout,
+};
 use super::leserpent_accessibility::require_accessibility_proof;
 
 const FIXTURES: &[&str] = &[
@@ -43,6 +47,8 @@ pub fn run_leserpent_aot_validation(
 ) -> Result<ValidationReport, ValidationError> {
     let target = HostTarget::current()?;
     let out_dir = out_dir.unwrap_or_else(|| default_out_dir("leserpent-aot"));
+    fs::create_dir_all(&out_dir)?;
+    clear_previous_evidence(&out_dir)?;
     let artifact_dir = out_dir.join("artifact");
     let dotnet_artifacts = out_dir.join("dotnet-artifacts");
     if artifact_dir.exists() {
@@ -66,6 +72,7 @@ pub fn run_leserpent_aot_validation(
         Command::new("dotnet").arg("--version"),
         &out_dir.join("dotnet-version.log"),
         "failed to query dotnet SDK",
+        TOOL_PROBE_TIMEOUT,
     )?;
     run_logged(
         Command::new("dotnet")
@@ -81,6 +88,7 @@ pub fn run_leserpent_aot_validation(
             .arg(&dotnet_artifacts),
         &out_dir.join("restore.log"),
         "locked NativeAOT restore failed",
+        DOTNET_PROOF_TIMEOUT,
     )?;
     run_logged(
         Command::new("dotnet")
@@ -95,6 +103,7 @@ pub fn run_leserpent_aot_validation(
             .arg(&artifact_dir),
         &out_dir.join("publish.log"),
         "NativeAOT publish failed",
+        DOTNET_PROOF_TIMEOUT,
     )?;
 
     let executable = artifact_dir.join(target.executable_name);
@@ -110,10 +119,12 @@ pub fn run_leserpent_aot_validation(
     let fixtures_dir = root.join("apps/leserpent-avalonia/fixtures");
     for fixture in FIXTURES {
         let fixture_path = fixtures_dir.join(fixture);
+        let log_path = out_dir.join(format!("fixture-{fixture}.log"));
         let output = run_fixture(
             target,
             &executable,
             &fixture_path,
+            &log_path,
             "--verify-controls",
             "control fixture",
         )?;
@@ -132,13 +143,14 @@ pub fn run_leserpent_aot_validation(
                 "debugger fixture did not prove cancel-control lifecycle 1 -> 0",
             ));
         }
-        write_output(&out_dir.join(format!("fixture-{fixture}.log")), &output)?;
     }
     let presentation_fixture_path = fixtures_dir.join(PRESENTATION_FIXTURE);
+    let presentation_log_path = out_dir.join(format!("fixture-{PRESENTATION_FIXTURE}.log"));
     let presentation_output = run_fixture(
         target,
         &executable,
         &presentation_fixture_path,
+        &presentation_log_path,
         "--verify-focus-retention",
         "presentation fixture",
     )?;
@@ -150,11 +162,6 @@ pub fn run_leserpent_aot_validation(
             )));
         }
     }
-    write_output(
-        &out_dir.join(format!("fixture-{PRESENTATION_FIXTURE}.log")),
-        &presentation_output,
-    )?;
-
     let dotnet_version = first_stdout_line(&dotnet_version);
     fs::write(
         out_dir.join("environment.txt"),
@@ -175,6 +182,11 @@ pub fn run_leserpent_aot_validation(
         "debug_symbols": {
             "files": artifact_inventory.debug_symbol_files,
             "total_bytes": artifact_inventory.debug_symbol_bytes,
+        },
+        "subprocess_limits": {
+            "tool_probe_seconds": TOOL_PROBE_TIMEOUT.as_secs(),
+            "dotnet_seconds": DOTNET_PROOF_TIMEOUT.as_secs(),
+            "fixture_seconds": PROOF_FIXTURE_TIMEOUT.as_secs(),
         },
         "fixtures": FIXTURES,
         "presentation_fixture": PRESENTATION_FIXTURE,
@@ -222,6 +234,9 @@ pub fn run_leserpent_aot_validation(
             "debugger_cancel_lifecycle".to_string(),
             "complete_evidence_index".to_string(),
             "isolated_dotnet_artifacts".to_string(),
+            "bounded_dotnet_and_fixture_subprocesses".to_string(),
+            "stale_evidence_invalidation".to_string(),
+            "failed_fixture_log_retention".to_string(),
         ],
     })
 }
@@ -274,6 +289,7 @@ fn run_fixture(
     target: HostTarget,
     executable: &Path,
     fixture: &Path,
+    log_path: &Path,
     mode: &str,
     label: &str,
 ) -> Result<Output, ValidationError> {
@@ -285,17 +301,18 @@ fn run_fixture(
     } else {
         Command::new(executable)
     };
-    let output = command.arg(mode).arg(fixture).output().map_err(|err| {
-        let dependency = if target.needs_xvfb {
-            "; install xvfb and xauth on the Linux host"
-        } else {
-            ""
-        };
-        ValidationError::new(format!(
-            "failed to execute {label} `{}`: {err}{dependency}",
-            fixture.display()
-        ))
-    })?;
+    command.arg(mode).arg(fixture);
+    let dependency = if target.needs_xvfb {
+        "; xvfb-run requires xvfb and xauth on the Linux host"
+    } else {
+        ""
+    };
+    let output = run_command_output_with_timeout(
+        &mut command,
+        PROOF_FIXTURE_TIMEOUT,
+        &format!("{label} `{}`{dependency}", fixture.display()),
+    )?;
+    write_output(log_path, &output)?;
     if !output.status.success() {
         return Err(command_failure(
             &format!("{label} `{}` failed", fixture.display()),
@@ -305,14 +322,47 @@ fn run_fixture(
     Ok(output)
 }
 
+fn clear_previous_evidence(out_dir: &Path) -> Result<(), ValidationError> {
+    for name in [
+        "environment.txt",
+        "dotnet-version.log",
+        "restore.log",
+        "publish.log",
+        "artifact-manifest.json",
+        "evidence-index.json",
+    ]
+    .into_iter()
+    .chain(FIXTURES.iter().copied())
+    .map(|name| {
+        if FIXTURES.contains(&name) {
+            format!("fixture-{name}.log")
+        } else {
+            name.to_string()
+        }
+    })
+    .chain(std::iter::once(format!(
+        "fixture-{PRESENTATION_FIXTURE}.log"
+    ))) {
+        match fs::remove_file(out_dir.join(&name)) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(ValidationError::new(format!(
+                    "failed to remove stale NativeAOT evidence `{name}`: {error}"
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn run_logged(
     command: &mut Command,
     log_path: &Path,
     context: &str,
+    timeout: Duration,
 ) -> Result<Output, ValidationError> {
-    let output = command
-        .output()
-        .map_err(|err| ValidationError::new(format!("{context}: {err}")))?;
+    let output = run_command_output_with_timeout(command, timeout, context)?;
     write_output(log_path, &output)?;
     if !output.status.success() {
         return Err(command_failure(context, &output));

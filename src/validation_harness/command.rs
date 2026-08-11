@@ -16,6 +16,11 @@ static VALIDATION_JSON_MODE: AtomicBool = AtomicBool::new(false);
 
 const CARGO_COMMAND_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const COMMAND_POLL_INTERVAL: Duration = Duration::from_millis(25);
+const COMMAND_CAPTURE_LIMIT_BYTES: usize = 32 * 1024 * 1024;
+
+pub(super) const DOTNET_PROOF_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+pub(super) const PROOF_FIXTURE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+pub(super) const TOOL_PROBE_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug)]
 pub struct ValidationError {
@@ -91,9 +96,30 @@ pub fn run_command_output_with_timeout(
     timeout: Duration,
     description: &str,
 ) -> Result<Output, ValidationError> {
+    run_command_output_with_limits(
+        command,
+        timeout,
+        COMMAND_CAPTURE_LIMIT_BYTES,
+        COMMAND_CAPTURE_LIMIT_BYTES,
+        description,
+    )
+}
+
+fn run_command_output_with_limits(
+    command: &mut Command,
+    timeout: Duration,
+    max_stdout_bytes: usize,
+    max_stderr_bytes: usize,
+    description: &str,
+) -> Result<Output, ValidationError> {
     if timeout.is_zero() {
         return Err(ValidationError::new(format!(
             "{description} requires a non-zero timeout"
+        )));
+    }
+    if max_stdout_bytes == 0 || max_stderr_bytes == 0 {
+        return Err(ValidationError::new(format!(
+            "{description} requires non-zero output limits"
         )));
     }
 
@@ -113,20 +139,22 @@ pub fn run_command_output_with_timeout(
             "failed to capture {description} stderr"
         )));
     };
-    let stdout_reader = match spawn_command_stream_reader(stdout, description, "stdout") {
-        Ok(reader) => reader,
-        Err(error) => {
-            terminate_child(&mut child);
-            return Err(error);
-        }
-    };
-    let stderr_reader = match spawn_command_stream_reader(stderr, description, "stderr") {
-        Ok(reader) => reader,
-        Err(error) => {
-            terminate_child(&mut child);
-            return Err(error);
-        }
-    };
+    let stdout_reader =
+        match spawn_command_stream_reader(stdout, max_stdout_bytes, description, "stdout") {
+            Ok(reader) => reader,
+            Err(error) => {
+                terminate_child(&mut child);
+                return Err(error);
+            }
+        };
+    let stderr_reader =
+        match spawn_command_stream_reader(stderr, max_stderr_bytes, description, "stderr") {
+            Ok(reader) => reader,
+            Err(error) => {
+                terminate_child(&mut child);
+                return Err(error);
+            }
+        };
     let started = Instant::now();
 
     let status = loop {
@@ -164,14 +192,35 @@ pub fn run_command_output_with_timeout(
     })
 }
 
-fn read_command_stream(mut stream: impl Read) -> std::io::Result<Vec<u8>> {
+fn read_command_stream(mut stream: impl Read, max_bytes: usize) -> std::io::Result<Vec<u8>> {
     let mut bytes = Vec::new();
-    stream.read_to_end(&mut bytes)?;
-    Ok(bytes)
+    let mut buffer = [0_u8; 8192];
+    let mut overflowed = false;
+    loop {
+        let read = stream.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        if !overflowed {
+            let remaining = max_bytes.saturating_sub(bytes.len());
+            let retained = remaining.min(read);
+            bytes.extend_from_slice(&buffer[..retained]);
+            overflowed = retained < read;
+        }
+    }
+    if overflowed {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("captured output exceeded {max_bytes} bytes"),
+        ))
+    } else {
+        Ok(bytes)
+    }
 }
 
 fn spawn_command_stream_reader(
     stream: impl Read + Send + 'static,
+    max_bytes: usize,
     description: &str,
     stream_name: &str,
 ) -> Result<Receiver<std::io::Result<Vec<u8>>>, ValidationError> {
@@ -179,7 +228,7 @@ fn spawn_command_stream_reader(
     thread::Builder::new()
         .name(format!("validation-{stream_name}-reader"))
         .spawn(move || {
-            let _ = sender.send(read_command_stream(stream));
+            let _ = sender.send(read_command_stream(stream, max_bytes));
         })
         .map_err(|error| {
             ValidationError::new(format!(
@@ -359,11 +408,17 @@ mod tests {
 
     const TIMEOUT_PROBE_ENV: &str = "GEWYVERN_VALIDATION_TIMEOUT_PROBE";
     const PIPE_HOLDER_PROBE_ENV: &str = "GEWYVERN_VALIDATION_PIPE_HOLDER_PROBE";
+    const OUTPUT_PROBE_ENV: &str = "GEWYVERN_VALIDATION_OUTPUT_PROBE";
 
     #[test]
     fn bounded_command_child_probe() {
         if let Ok(delay_ms) = env::var(TIMEOUT_PROBE_ENV) {
             thread::sleep(Duration::from_millis(delay_ms.parse().unwrap()));
+        } else if let Ok(output_bytes) = env::var(OUTPUT_PROBE_ENV) {
+            use std::io::Write as _;
+
+            let bytes = vec![b'x'; output_bytes.parse().unwrap()];
+            std::io::stdout().write_all(&bytes).unwrap();
         } else if env::var_os(PIPE_HOLDER_PROBE_ENV).is_some() {
             let mut pipe_holder = Command::new(env::current_exe().unwrap())
                 .arg("bounded_command_child_probe")
@@ -428,5 +483,26 @@ mod tests {
 
         assert!(error.to_string().contains("while draining stdout"));
         assert!(started.elapsed() < Duration::from_secs(2));
+    }
+
+    #[test]
+    fn bounded_command_rejects_oversized_captured_output() {
+        let mut command = Command::new(env::current_exe().unwrap());
+        command
+            .arg("bounded_command_child_probe")
+            .arg("--nocapture")
+            .env(OUTPUT_PROBE_ENV, "4096");
+
+        let error = run_command_output_with_limits(
+            &mut command,
+            Duration::from_secs(5),
+            1024,
+            1024,
+            "validation output limit probe",
+        )
+        .unwrap_err();
+
+        assert!(error.to_string().contains("stdout"));
+        assert!(error.to_string().contains("exceeded 1024 bytes"));
     }
 }

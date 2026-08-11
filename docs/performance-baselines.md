@@ -35,9 +35,13 @@ per-binary ceiling.
 The human-readable command reports five numbered phases before starting each
 workload; `--json` mode suppresses those progress lines so stdout remains a
 machine contract. Shared Cargo subprocesses are bounded at 30 minutes and the
-small .NET workspace-log phase is bounded at 5 minutes. A blocked compiler,
-build server, or host integration therefore fails with the named phase and
-timeout instead of leaving a release job waiting indefinitely.
+small .NET workspace-log phase is bounded at 5 minutes. The AOT,
+accessibility, parity/recovery, and locked .NET proof subprocesses now use the
+same bounded runner: tool probes stop after 30 seconds, GUI fixtures after 5
+minutes, and builds or suites after 30 minutes. Captured stdout and stderr are
+each capped at 32 MiB. A blocked compiler, runaway output stream, build server,
+or host integration therefore fails with the named phase and limit instead of
+leaving a release job waiting indefinitely or exhausting operator memory.
 
 Current `2026-07-18` references:
 

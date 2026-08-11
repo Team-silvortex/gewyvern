@@ -164,6 +164,8 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
 #[test]
 fn leserpent_native_aot_proof_is_native_and_fail_closed() {
     let harness = read_repo_file("src/validation_harness/leserpent_aot.rs");
+    let main_window =
+        read_repo_file("apps/leserpent-avalonia/src/Leserpent.Avalonia/MainWindow.cs");
     let binary = read_repo_file("src/bin/gewyvern_validate.rs");
     let project =
         read_repo_file("apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj");
@@ -177,6 +179,14 @@ fn leserpent_native_aot_proof_is_native_and_fail_closed() {
     assert!(harness.contains("--artifacts-path"));
     assert!(harness.contains("dotnet-artifacts"));
     assert!(harness.contains("isolated_dotnet_artifacts"));
+    assert!(harness.contains("DOTNET_PROOF_TIMEOUT"));
+    assert!(harness.contains("PROOF_FIXTURE_TIMEOUT"));
+    assert!(harness.contains("run_command_output_with_timeout"));
+    assert!(harness.contains("bounded_dotnet_and_fixture_subprocesses"));
+    assert!(harness.contains("clear_previous_evidence"));
+    assert!(harness.contains("stale_evidence_invalidation"));
+    assert!(harness.contains("failed_fixture_log_retention"));
+    assert!(!harness.contains(".output()"));
     assert!(harness.contains("-p:PublishAot=true"));
     assert!(harness.contains("--no-restore"));
     assert!(harness.contains("NativeMagic::Elf"));
@@ -203,6 +213,8 @@ fn leserpent_native_aot_proof_is_native_and_fail_closed() {
     assert!(harness.contains("window_semantic_tree_rematerialized=true"));
     assert!(harness.contains("initial_debugger_cancel_buttons=1"));
     assert!(harness.contains("remaining_debugger_cancel_buttons=0"));
+    assert!(main_window.contains("RestoreSurfaceVisibilityAfterHiddenWaitAsync"));
+    assert!(main_window.contains("DispatcherPriority.Render"));
     assert!(harness.contains("require_accessibility_proof"));
     assert!(harness.contains("artifact-manifest.json"));
     assert!(harness.contains("evidence-index.json"));
@@ -230,6 +242,14 @@ fn leserpent_accessibility_proof_audits_real_controls_and_contrast() {
     assert!(harness.contains("--artifacts-path"));
     assert!(harness.contains("dotnet-artifacts"));
     assert!(harness.contains("isolated_dotnet_artifacts"));
+    assert!(harness.contains("DOTNET_PROOF_TIMEOUT"));
+    assert!(harness.contains("PROOF_FIXTURE_TIMEOUT"));
+    assert!(harness.contains("run_command_output_with_timeout"));
+    assert!(harness.contains("bounded_dotnet_and_fixture_subprocesses"));
+    assert!(harness.contains("clear_previous_evidence"));
+    assert!(harness.contains("stale_evidence_invalidation"));
+    assert!(harness.contains("failed_fixture_log_retention"));
+    assert!(!harness.contains(".output()"));
     assert!(!harness.contains("PublishProfile=NativeAot"));
     assert!(!harness.contains("PublishAot=true"));
     assert!(harness.contains("accessibility-summary.json"));
@@ -314,6 +334,8 @@ fn leserpent_benchmark_proof_has_bounded_native_workloads() {
     assert!(harness.contains("DOTNET_BENCHMARK_TIMEOUT"));
     assert!(harness.contains("bounded_dotnet_benchmark_subprocess"));
     assert!(command_harness.contains("run_command_output_with_timeout"));
+    assert!(command_harness.contains("COMMAND_CAPTURE_LIMIT_BYTES"));
+    assert!(command_harness.contains("captured output exceeded"));
     assert!(command_harness.contains("child.try_wait()"));
     assert!(command_harness.contains("child.kill()"));
     assert!(harness.contains("benchmark-summary.json"));
@@ -359,6 +381,13 @@ fn leserpent_parity_recovery_proof_is_non_vacuous_and_retained() {
     assert!(dotnet_proof.contains("run_locked_dotnet_test"));
     assert!(dotnet_proof.contains("--filter"));
     assert!(dotnet_proof.contains("summaries.len() != 1"));
+    assert!(harness.contains("DOTNET_PROOF_TIMEOUT"));
+    assert!(harness.contains("TOOL_PROBE_TIMEOUT"));
+    assert!(harness.contains("run_command_output_with_timeout"));
+    assert!(dotnet_proof.contains("DOTNET_PROOF_TIMEOUT"));
+    assert!(dotnet_proof.contains("run_command_output_with_timeout"));
+    assert!(!harness.contains(".output()"));
+    assert!(!dotnet_proof.contains(".output()"));
     assert!(harness.contains("clear_previous_proof_evidence"));
     assert!(harness.contains("proof_host_metadata"));
     assert!(harness.contains("captured_unix_seconds"));

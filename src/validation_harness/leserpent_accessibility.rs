@@ -5,7 +5,10 @@ use std::process::{Command, Output};
 
 use serde_json::{Value, json};
 
-use super::command::{ValidationError, ValidationReport, default_out_dir, repo_root};
+use super::command::{
+    DOTNET_PROOF_TIMEOUT, PROOF_FIXTURE_TIMEOUT, ValidationError, ValidationReport,
+    default_out_dir, repo_root, run_command_output_with_timeout,
+};
 
 const FIXTURES: &[&str] = &[
     "renderer-conformance-v1.json",
@@ -30,6 +33,7 @@ pub fn run_leserpent_accessibility_validation(
     };
     let out_dir = out_dir.unwrap_or_else(|| default_out_dir("leserpent-accessibility"));
     fs::create_dir_all(&out_dir)?;
+    clear_previous_evidence(&out_dir)?;
     let dotnet_artifacts = out_dir.join("dotnet-artifacts");
     if dotnet_artifacts.exists() {
         fs::remove_dir_all(&dotnet_artifacts)?;
@@ -78,21 +82,20 @@ pub fn run_leserpent_accessibility_validation(
         } else {
             Command::new("dotnet")
         };
-        let output = command
+        command
             .arg(&assembly)
             .arg("--verify-controls")
-            .arg(&fixture_path)
-            .output()
-            .map_err(|err| {
-                let dependency = if needs_xvfb {
-                    "; install xvfb and xauth on the Linux host"
-                } else {
-                    ""
-                };
-                ValidationError::new(format!(
-                    "failed to run accessibility fixture `{fixture}`: {err}{dependency}"
-                ))
-            })?;
+            .arg(&fixture_path);
+        let dependency = if needs_xvfb {
+            "; xvfb-run requires xvfb and xauth on the Linux host"
+        } else {
+            ""
+        };
+        let output = run_command_output_with_timeout(
+            &mut command,
+            PROOF_FIXTURE_TIMEOUT,
+            &format!("accessibility fixture `{fixture}`{dependency}"),
+        )?;
         let log_path = out_dir.join(format!("fixture-{fixture}.log"));
         write_output(&log_path, &output)?;
         if !output.status.success() {
@@ -113,6 +116,10 @@ pub fn run_leserpent_accessibility_validation(
             "os": env::consts::OS,
             "arch": env::consts::ARCH,
             "minimum_required_contrast": 4.5,
+            "subprocess_limits": {
+                "dotnet_seconds": DOTNET_PROOF_TIMEOUT.as_secs(),
+                "fixture_seconds": PROOF_FIXTURE_TIMEOUT.as_secs(),
+            },
             "fixtures": summaries,
         }))?,
     )?;
@@ -147,6 +154,9 @@ pub fn run_leserpent_accessibility_validation(
             "wcag_aa_text_contrast".to_string(),
             "four_real_control_fixtures".to_string(),
             "isolated_dotnet_artifacts".to_string(),
+            "bounded_dotnet_and_fixture_subprocesses".to_string(),
+            "stale_evidence_invalidation".to_string(),
+            "failed_fixture_log_retention".to_string(),
         ],
     })
 }
@@ -229,14 +239,38 @@ fn metric_text<'a>(output: &'a str, name: &str) -> Result<&'a str, ValidationErr
         .ok_or_else(|| ValidationError::new(format!("missing accessibility metric `{name}`")))
 }
 
+fn clear_previous_evidence(out_dir: &Path) -> Result<(), ValidationError> {
+    for name in [
+        "restore.log".to_string(),
+        "build.log".to_string(),
+        "accessibility-summary.json".to_string(),
+        "evidence-index.json".to_string(),
+    ]
+    .into_iter()
+    .chain(
+        FIXTURES
+            .iter()
+            .map(|fixture| format!("fixture-{fixture}.log")),
+    ) {
+        match fs::remove_file(out_dir.join(&name)) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(ValidationError::new(format!(
+                    "failed to remove stale accessibility evidence `{name}`: {error}"
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn run_logged(
     command: &mut Command,
     log_path: &Path,
     context: &str,
 ) -> Result<(), ValidationError> {
-    let output = command
-        .output()
-        .map_err(|err| ValidationError::new(format!("{context}: {err}")))?;
+    let output = run_command_output_with_timeout(command, DOTNET_PROOF_TIMEOUT, context)?;
     write_output(log_path, &output)?;
     if !output.status.success() {
         return Err(command_failure(context, &output));

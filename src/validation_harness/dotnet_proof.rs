@@ -2,7 +2,9 @@ use std::fs;
 use std::path::Path;
 use std::process::{Command, Output};
 
-use super::command::{ValidationError, repo_root};
+use super::command::{
+    DOTNET_PROOF_TIMEOUT, ValidationError, repo_root, run_command_output_with_timeout,
+};
 
 const CRASH_HARNESS_ASSEMBLY_ENV: &str = "LESERPENT_TEST_CRASH_HARNESS_ASSEMBLY";
 
@@ -45,9 +47,11 @@ pub(crate) fn run_locked_dotnet_test(
         command.args(["--filter", filter]);
     }
 
-    let output = command
-        .output()
-        .map_err(|error| ValidationError::new(format!("failed to run dotnet tests: {error}")))?;
+    let output = run_command_output_with_timeout(
+        &mut command,
+        DOTNET_PROOF_TIMEOUT,
+        &format!("locked dotnet tests for {project}"),
+    )?;
     write_output(log_path, &output)?;
     let result = if output.status.success() {
         dotnet_passed_test_count(&output.stdout, &output.stderr)

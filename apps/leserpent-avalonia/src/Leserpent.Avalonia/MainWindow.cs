@@ -1614,14 +1614,7 @@ internal sealed class MainWindow : Window
         var hiddenWaitResult = await hiddenWait;
         InitialHiddenWaitCompleted = hiddenWaitResult.Applied
             && hiddenWaitResult.FailureCode == PresentationAutomationFailureCode.None;
-        await Dispatcher.UIThread.InvokeAsync(
-            () =>
-            {
-                renderer.Surface.IsVisible = true;
-                renderer.Surface.InvalidateMeasure();
-                renderer.Surface.InvalidateArrange();
-            },
-            DispatcherPriority.Render);
+        await RestoreSurfaceVisibilityAfterHiddenWaitAsync();
         if (!InitialHiddenWaitCompleted)
         {
             throw new InvalidDataException(
@@ -1658,6 +1651,20 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang hidden wait did not reject a persistently visible target");
         }
+    }
+
+    private async Task RestoreSurfaceVisibilityAfterHiddenWaitAsync()
+    {
+        await Dispatcher.UIThread.InvokeAsync(
+            () =>
+            {
+                renderer.Surface.IsVisible = true;
+                renderer.Surface.InvalidateMeasure();
+                renderer.Surface.InvalidateArrange();
+            });
+        await Dispatcher.UIThread.InvokeAsync(
+            () => { },
+            DispatcherPriority.Render);
     }
 
     private async Task ProbeAutomationIdWaitAsync()

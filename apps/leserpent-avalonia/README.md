@@ -87,7 +87,9 @@ reporting for next and previous, stable visual-index boundary navigation for
 first and last, all with no action activation,
 bring-into-view, viewport-aware visibility,
 native hidden-state assertion, dispatcher-yielding hidden wait with external
-hidden transition and persistent visible timeout,
+hidden transition and persistent visible timeout; the verification path
+restores the surface on the normal UI queue and then crosses a dedicated Render
+yield so visibility polling cannot starve relayout,
 native realization,
 fixed-deadline dispatcher-yielding realization wait, fixed-deadline
 viewport-aware visibility wait without implicit scrolling, plus side-effect-free
@@ -465,7 +467,10 @@ contrast floor of 4.5. Evidence is retained under
 the destructive button uses `#C44D2D` with white text instead of the previous
 3.841-contrast color. This managed Release shelf restores the development lock
 graph; `leserpent-aot` independently runs the same four control fixtures
-against the native executable restored from the AOT lock graph.
+against the native executable restored from the AOT lock graph. Both named
+shelves remove their known summary, index, and fixture evidence before a run;
+fixture output is written before exit-status validation so a failed run cannot
+inherit a stale success index and still retains the failing transcript.
 
 The smoke fixture mounts revision 3, then applies remove, update, move, and
 insert operations directly to the mounted control tree. Each runtime card

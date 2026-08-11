@@ -5,7 +5,8 @@ use std::process::{Command, Output};
 use serde_json::json;
 
 use super::command::{
-    ValidationError, ValidationReport, default_out_dir, repo_root, run_cargo_status,
+    DOTNET_PROOF_TIMEOUT, TOOL_PROBE_TIMEOUT, ValidationError, ValidationReport, default_out_dir,
+    repo_root, run_cargo_status, run_command_output_with_timeout,
 };
 use super::dotnet_proof::run_locked_dotnet_test;
 
@@ -384,6 +385,10 @@ pub fn run_leserpent_parity_recovery_validation(
             "suite_count": suites.len(),
             "observed_tests": total_tests,
             "invariant_count": checks.len(),
+            "subprocess_limits": {
+                "tool_probe_seconds": TOOL_PROBE_TIMEOUT.as_secs(),
+                "suite_seconds": DOTNET_PROOF_TIMEOUT.as_secs(),
+            },
             "scope": [
                 "current-command-origin-parity",
                 "authorization-confirmation-idempotency",
@@ -473,10 +478,13 @@ fn command_version(command: &str, args: &[&str]) -> Result<String, ValidationErr
     const MAX_OUTPUT_BYTES: usize = 1024;
     const MAX_LINE_BYTES: usize = 256;
 
-    let output = Command::new(command)
-        .args(args)
-        .output()
-        .map_err(|error| ValidationError::new(format!("failed to run {command}: {error}")))?;
+    let mut probe = Command::new(command);
+    probe.args(args);
+    let output = run_command_output_with_timeout(
+        &mut probe,
+        TOOL_PROBE_TIMEOUT,
+        &format!("{command} version probe"),
+    )?;
     if !output.status.success() {
         return Err(ValidationError::new(format!(
             "{command} version probe failed with status {}",
@@ -561,9 +569,11 @@ fn execute_suite(
             if !app_args.is_empty() {
                 command.arg("--").args(*app_args);
             }
-            let output = command
-                .output()
-                .map_err(|error| ValidationError::new(format!("failed to run dotnet: {error}")))?;
+            let output = run_command_output_with_timeout(
+                &mut command,
+                DOTNET_PROOF_TIMEOUT,
+                &format!("dotnet conformance '{}'", suite.id),
+            )?;
             write_output(log_path, &output)?;
             if !output.status.success() {
                 return Err(ValidationError::new(format!(
