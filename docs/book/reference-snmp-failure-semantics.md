@@ -60,7 +60,7 @@ real result entries.
   use when the observed report clearly expresses authorization failure
 
 For `report`, keep it as an explicit observed result surface first. It should
-not be collapsed into a timeout diagnosis. In the current `1.12.x` line, the
+not be collapsed into a timeout diagnosis. In the current `1.14.x` line, the
 expected diagnosis posture is:
 
 - `primary_failure_mode = semantic_error`

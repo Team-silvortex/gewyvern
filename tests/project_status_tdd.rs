@@ -4155,6 +4155,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(transport.maturity, Maturity::Mature);
     assert_eq!(transport.completion, 100);
     assert_eq!(transport.contract.stability, ContractStability::Stable);
+    assert_eq!(transport.contract.version, "1.14.0");
     for surface in [
         "optional-unregistration-replay-horizon-health",
         "legacy-horizon-free-health-decode",
@@ -4240,7 +4241,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(runtime.maturity, Maturity::Mature);
     assert_eq!(runtime.completion, 100);
     assert_eq!(runtime.contract.stability, ContractStability::Stable);
-    assert_eq!(runtime.contract.version, "1.12.2");
+    assert_eq!(runtime.contract.version, "1.14.0");
     for surface in [
         "durable-sidecar-endpoint",
         "atomic-sidecar-registration-update",
@@ -5574,7 +5575,18 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/release-assurance/continuous-proof")
         .expect("continuous proof contract must remain tracked");
     assert_eq!(continuous_proof.completion, 97);
-    assert_eq!(continuous_proof.contract.version, "0.64.0");
+    assert_eq!(continuous_proof.contract.version, "0.65.0");
+    assert!(
+        continuous_proof
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "bounded-validation-subprocess-proof")
+    );
+    assert!(continuous_proof.evidence.iter().any(|evidence| {
+        evidence.path == "src/validation_harness/command.rs"
+            && evidence.state == EvidenceState::Present
+    }));
     assert!(continuous_proof.evidence.iter().any(|evidence| {
         evidence.path == "src/validation_harness/release_gate.rs"
             && evidence.state == EvidenceState::Present

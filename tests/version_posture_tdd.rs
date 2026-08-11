@@ -80,7 +80,7 @@ fn etragon_inherits_the_workspace_version() {
     let workspace_version = section_version(&root_manifest, "workspace.package");
     let package_version = section_version(&root_manifest, "package");
 
-    assert_eq!(workspace_version, "1.12.2");
+    assert_eq!(workspace_version, "1.14.0");
     assert!(root_manifest.contains("[workspace.package]"));
     assert_eq!(workspace_version, package_version);
     assert!(etragon_manifest.contains("version.workspace = true"));
@@ -227,8 +227,8 @@ fn release_checklist_uses_version_template_for_package_artifacts() {
     assert!(checklist.contains("target/packages/rpm/gewyvern-<version>-1.<rpm-arch>.rpm"));
     assert!(checklist.contains("root `gewyvern` package metadata"));
     assert!(checklist.contains("is never itself a package"));
-    assert!(!checklist.contains("gewyvern_1.12.x-1_"));
-    assert!(!checklist.contains("gewyvern-1.12.x-1."));
+    assert!(!checklist.contains("gewyvern_1.14.x-1_"));
+    assert!(!checklist.contains("gewyvern-1.14.x-1."));
     assert!(!checklist.contains("target/packages/gewyvern_0.20.0-1_<arch>.deb"));
     assert!(!checklist.contains("target/packages/rpm/gewyvern-0.20.0-1.<arch>.rpm"));
 }

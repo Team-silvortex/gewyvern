@@ -186,7 +186,7 @@ Important boundary:
 
 ## Step 8: What “Good Enough To Start Using” Means
 
-The current `v1.12.x` line keeps compatibility promises around its documented
+The current `v1.14.x` line keeps compatibility promises around its documented
 stable surfaces while leaving explicitly evolving extensions room to mature.
 
 That means:

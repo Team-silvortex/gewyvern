@@ -32,6 +32,13 @@ accessibility, or AOT without sharing project intermediates. It also builds the 
 `leserpent` and `leserpentd` release binaries and applies a 32 MiB
 per-binary ceiling.
 
+The human-readable command reports five numbered phases before starting each
+workload; `--json` mode suppresses those progress lines so stdout remains a
+machine contract. Shared Cargo subprocesses are bounded at 30 minutes and the
+small .NET workspace-log phase is bounded at 5 minutes. A blocked compiler,
+build server, or host integration therefore fails with the named phase and
+timeout instead of leaving a release job waiting indefinitely.
+
 Current `2026-07-18` references:
 
 | Host | Cold open p95 | List p50 | 10k enqueue | UI document p50 | UI patch p50 | UI codec p50 | CLI / daemon |
@@ -42,6 +49,14 @@ Current `2026-07-18` references:
 Evidence lives under `target/validation/leserpent-benchmark/` and the
 physical Linux copy under
 `target/validation/leserpent-benchmark-linux-x64/`.
+
+A `2026-08-11` macOS arm64 run after the bounded-subprocess hardening passed
+the complete shelf: SQLite cold-open p95 was `20.190 ms`, runtime-list p50 was
+`0.095 ms`, and 10,000 effects took `382.030 ms` (`26.2k/s`). The language
+pipeline p50 was `0.255 ms`; UI document/patch/codec p50 values were
+`1.184 / 2.510 / 3.323 ms`. Incremental workspace-log projection took
+`0.212 ms`, `15.6%` of the full path, with a `9.5%` allocation ratio. The CLI
+and daemon binaries were `3,792,000 / 9,312,784` bytes.
 
 The `2026-07-18` macOS arm64 hybrid-log reference measured the 256-entry full
 compose at `2.099 ms` p50 and `321,424` allocated bytes per iteration. The
@@ -77,7 +92,7 @@ Measurement notes:
 
 ## Release-Candidate Interpretation
 
-For the active `1.12.x` line, the intended acceptance rule is:
+For the active `1.14.x` line, the intended acceptance rule is:
 
 - compare against the `median`
 - judge regressions on the same developer-class machine, not across unrelated

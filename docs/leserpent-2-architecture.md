@@ -5,7 +5,7 @@ This document is the authoritative target architecture for the
 current 1.x implementation. Delivery order and exit gates live in the
 [Leserpent 2.0 roadmap](leserpent-2-roadmap.md).
 
-The current implementation checkpoint is the shared `v1.12.2` release. This
+The current implementation checkpoint is the shared `v1.14.0` release. This
 document remains the `2.0.0` target contract rather than a claim that every
 target capability is already complete.
 
@@ -2396,6 +2396,12 @@ searching a working tree. Insert, remove, or move topology still uses the
 general convergence-checked algorithm. The fixed benchmark requires the
 two-operation workload to remain within four times document-generation p50, so
 the former quadratic path cannot hide beneath the absolute disaster budget.
+Proof execution is bounded as well as its workloads. The shared native command
+runner drains stdout and stderr concurrently, polls child completion, and
+terminates an over-deadline process. Cargo proof stages keep a thirty-minute
+cold-build ceiling; the benchmark's focused .NET projection stage has a
+five-minute ceiling. Human mode announces each benchmark phase before launch,
+while machine mode preserves a JSON-only stdout contract.
 
 Accessibility is a cross-boundary proof, not a renderer assumption. Rust rejects
 unlabelled actions in the neutral IR; Avalonia then audits realized Automation

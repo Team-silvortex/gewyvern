@@ -7,7 +7,7 @@ defines the invariant destination; this page defines ordered delivery gates.
 The roadmap is capability-gated, not date-gated. A later gate may be prototyped
 early, but it cannot become authoritative before its prerequisites are green.
 
-Current implementation checkpoint: shared release `v1.12.2`. The
+Current implementation checkpoint: shared release `v1.14.0`. The
 [project status tensor](project-status-system.md) remains authoritative for
 per-feature maturity, evidence, dependencies, and next gates.
 
@@ -2188,6 +2188,12 @@ source-tree `obj` contention and removes both intermediate graphs afterward.
 The Rust-to-.NET vertical's nested `dotnet run` processes also share a
 test-local artifacts root that is removed automatically, closing the inner
 process boundary that the outer parity harness cannot configure directly.
+The benchmark driver now reports each of its five human-facing phases before
+execution and routes Cargo and .NET children through bounded process waits.
+The small .NET projection phase has a five-minute ceiling, while shared Cargo
+proof commands retain a thirty-minute cold-build allowance. Host integration
+failures therefore terminate with an explicit phase/timeout rather than
+silently wedging the release shelf; JSON stdout remains progress-free.
 
 The current command-origin and recovery shelf now has the native entrypoint
 `gewyvern_validate leserpent-parity-recovery`. Thirteen non-vacuous suites

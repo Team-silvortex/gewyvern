@@ -287,6 +287,7 @@ fn leserpent_transport_proof_covers_contract_parity_and_real_ipc() {
 #[test]
 fn leserpent_benchmark_proof_has_bounded_native_workloads() {
     let harness = read_repo_file("src/validation_harness/leserpent_benchmark.rs");
+    let command_harness = read_repo_file("src/validation_harness/command.rs");
     let runtime = read_repo_file("crates/leserpent-runtime/examples/runtime_benchmark.rs");
     let language = read_repo_file("crates/leselang-vm/examples/language_benchmark.rs");
     let ui = read_repo_file("crates/leselang-ui/examples/ui_benchmark.rs");
@@ -310,6 +311,11 @@ fn leserpent_benchmark_proof_has_bounded_native_workloads() {
     assert!(harness.contains("--artifacts-path"));
     assert!(harness.contains("dotnet-artifacts"));
     assert!(harness.contains("isolated_dotnet_artifacts"));
+    assert!(harness.contains("DOTNET_BENCHMARK_TIMEOUT"));
+    assert!(harness.contains("bounded_dotnet_benchmark_subprocess"));
+    assert!(command_harness.contains("run_command_output_with_timeout"));
+    assert!(command_harness.contains("child.try_wait()"));
+    assert!(command_harness.contains("child.kill()"));
     assert!(harness.contains("benchmark-summary.json"));
     assert!(harness.contains("evidence-index.json"));
     assert!(harness.contains("same_host_class_comparison_policy"));

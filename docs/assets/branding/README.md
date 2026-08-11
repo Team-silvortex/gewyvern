@@ -1,6 +1,6 @@
 # Branding Assets
 
-This directory keeps the current `gewyvern` brand assets for the `v1.12.x`
+This directory keeps the current `gewyvern` brand assets for the `v1.14.x`
 line.
 
 ## Current Files

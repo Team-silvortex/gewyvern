@@ -2,12 +2,13 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use std::time::Duration;
 
 use serde_json::{Value, json};
 
 use super::command::{
     ValidationError, ValidationReport, default_out_dir, repo_root, run_cargo_json,
-    run_cargo_status, value_at,
+    run_cargo_status, run_command_output_with_timeout, validation_log, value_at,
 };
 
 const COLD_OPEN_P95_BUDGET_MS: f64 = 250.0;
@@ -28,6 +29,7 @@ const RELEASE_BINARY_MAX_BYTES: u64 = 32 * 1024 * 1024;
 const REMOTE_INCREMENTAL_P50_BUDGET_MS: f64 = 10.0;
 const REMOTE_INCREMENTAL_RATIO_MAX: f64 = 0.60;
 const REMOTE_INCREMENTAL_ALLOCATION_RATIO_MAX: f64 = 0.60;
+const DOTNET_BENCHMARK_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 pub fn run_leserpent_benchmark_validation(
     out_dir: Option<PathBuf>,
@@ -39,6 +41,7 @@ pub fn run_leserpent_benchmark_validation(
         fs::remove_dir_all(&dotnet_artifacts)?;
     }
 
+    validation_log("leserpent benchmark [1/5]: runtime persistence and effect throughput");
     let runtime = run_cargo_json(
         &[
             "run".into(),
@@ -54,6 +57,7 @@ pub fn run_leserpent_benchmark_validation(
     )?;
     validate_runtime_benchmark(&runtime)?;
 
+    validation_log("leserpent benchmark [2/5]: Leselang parse, lower, and VM pipeline");
     let language = run_cargo_json(
         &[
             "run".into(),
@@ -69,6 +73,7 @@ pub fn run_leserpent_benchmark_validation(
     )?;
     validate_language_benchmark(&language)?;
 
+    validation_log("leserpent benchmark [3/5]: renderer-neutral UI document, patch, and codec");
     let ui = run_cargo_json(
         &[
             "run".into(),
@@ -84,6 +89,7 @@ pub fn run_leserpent_benchmark_validation(
     )?;
     validate_ui_benchmark(&ui)?;
 
+    validation_log("leserpent benchmark [4/5]: .NET incremental workspace-log projection");
     let remote_client = run_dotnet_json(
         "apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Leserpent.RemoteConformance.csproj",
         &["--benchmark-workspace-logs"],
@@ -93,6 +99,7 @@ pub fn run_leserpent_benchmark_validation(
     validate_remote_client_benchmark(&remote_client)?;
     fs::remove_dir_all(&dotnet_artifacts)?;
 
+    validation_log("leserpent benchmark [5/5]: release CLI and daemon binary size");
     run_cargo_status(
         &[
             "build".into(),
@@ -148,6 +155,7 @@ pub fn run_leserpent_benchmark_validation(
             "remote_incremental_ratio_max": REMOTE_INCREMENTAL_RATIO_MAX,
             "remote_incremental_allocation_ratio_max":
                 REMOTE_INCREMENTAL_ALLOCATION_RATIO_MAX,
+            "dotnet_benchmark_timeout_seconds": DOTNET_BENCHMARK_TIMEOUT.as_secs(),
         },
         "runtime": runtime,
         "language": language,
@@ -197,6 +205,7 @@ pub fn run_leserpent_benchmark_validation(
             "release_binary_size_budget".into(),
             "same_host_class_comparison_policy".into(),
             "isolated_dotnet_artifacts".into(),
+            "bounded_dotnet_benchmark_subprocess".into(),
         ],
     })
 }
@@ -327,7 +336,8 @@ fn run_dotnet_json(
     output_path: &std::path::Path,
     dotnet_artifacts: &std::path::Path,
 ) -> Result<Value, ValidationError> {
-    let output = Command::new("dotnet")
+    let mut command = Command::new("dotnet");
+    command
         .current_dir(repo_root())
         .args([
             "run",
@@ -341,11 +351,12 @@ fn run_dotnet_json(
         .arg("--artifacts-path")
         .arg(dotnet_artifacts)
         .arg("--")
-        .args(app_args)
-        .output()
-        .map_err(|error| {
-            ValidationError::new(format!("failed to run remote-client benchmark: {error}"))
-        })?;
+        .args(app_args);
+    let output = run_command_output_with_timeout(
+        &mut command,
+        DOTNET_BENCHMARK_TIMEOUT,
+        "remote-client benchmark",
+    )?;
     fs::write(output_path, &output.stdout)?;
     if !output.status.success() {
         fs::write(output_path.with_extension("stderr.txt"), &output.stderr)?;

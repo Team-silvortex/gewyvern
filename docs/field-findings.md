@@ -1,6 +1,6 @@
 # Field Findings
 
-This note records the highest-signal findings inherited by the active `1.12.x` line
+This note records the highest-signal findings inherited by the active `1.14.x` line
 while preserving a shorter historical tail from the earlier `0.15.x`
 field-validation phase.
 
@@ -403,7 +403,7 @@ That is useful and intentional, but it is not the same thing as saying:
 
 ## Strict Remote Evidence Consumption
 
-The `1.12.x` validation CLI now consumes synchronized Linux-host evidence with
+The `1.14.x` validation CLI now consumes synchronized Linux-host evidence with
 the same fail-closed posture used by the producer. Key-value evidence has a
 shared bounded unique-key codec, phase timings require complete finite schemas,
 and local history JSON and recent-history text have explicit file and record
@@ -434,7 +434,7 @@ it described the attempted run.
 
 ## Practical Read Of The Current Line
 
-The current `1.12.x` line inherits strength in these areas:
+The current `1.14.x` line inherits strength in these areas:
 
 - protocol/package shelf is stable
 - current tree-native artifacts are the ones being exercised
