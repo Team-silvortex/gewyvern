@@ -282,6 +282,7 @@ function bootstrapDashboard() {
   nodes.runtimeWindowOpenAll?.addEventListener("click", openAllRuntimeWindows);
   nodes.runtimeWindowCloseAll?.addEventListener("click", closeAllRuntimeWindows);
   nodes.runtimeWindowGrid?.addEventListener("click", handleRuntimeWindowGridClick);
+  nodes.runtimeWindowGrid?.addEventListener("keydown", handleRuntimeWindowGridKeydown);
 
   nodes.languageSelect.addEventListener("change", () => {
     state.languagePreference = nodes.languageSelect.value;

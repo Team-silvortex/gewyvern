@@ -345,20 +345,15 @@ function hydrateStateFromLocation() {
   state.activeRuntimeSideTab = state.activeRuntimeMainTab === "panel" ? "panel" : "detail";
   state.activeRuntimeDetailTab = normalizeRuntimeDetailTab(params.get("runtimeDetail"));
   state.runtimePanelView = params.get("runtimeView") || "root";
+  state.selectedRuntimeId = params.get("runtimeId") || null;
   if (state.activeRuntimeMainTab === "panel" && state.selectedRuntimeId) {
-    if (!state.runtimeWindowIds.includes(state.selectedRuntimeId)) {
-      state.runtimeWindowIds.push(state.selectedRuntimeId);
-    }
-    state.activeRuntimeWindowId = state.selectedRuntimeId;
-    state.runtimeWindowViews[state.selectedRuntimeId] = state.runtimePanelView;
-    persistRuntimeWindows();
+    applyRuntimeWindowDeepLink(state.selectedRuntimeId, state.runtimePanelView);
   }
   state.filter.environment = params.get("environment") || "";
   state.filter.cluster = params.get("cluster") || "";
   state.filter.role = params.get("role") || "";
   state.runtimeSearch = params.get("search") || "";
   state.runtimeSort = params.get("sort") || "name";
-  state.selectedRuntimeId = params.get("runtimeId") || null;
 }
 
 function syncLocation() {

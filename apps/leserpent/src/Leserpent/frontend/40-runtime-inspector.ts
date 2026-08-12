@@ -120,12 +120,71 @@ function runtimeDetailSignature(runtime, attention) {
   ].join("::");
 }
 
+const MAX_RUNTIME_WINDOWS = 8;
+const MAX_RUNTIME_WINDOW_STATE_BYTES = 64 * 1024;
+const runtimePanelViews = new Set([
+  "root",
+  "health",
+  "meta",
+  "summary",
+  "analysis",
+  "training",
+  "dataset",
+  "export",
+  "report-json",
+  "report-html",
+  "targets",
+  "sidecar-root",
+  "sidecar-health",
+  "sidecar-status",
+  "sidecar-memory",
+  "sidecar-enrichment",
+  "sidecar-opinion",
+]);
+
+function normalizeRuntimeWindowId(value) {
+  return typeof value === "string" && value.length > 0 && value.length <= 256 ? value : null;
+}
+
+function normalizeRuntimeWindowView(value) {
+  return typeof value === "string" && runtimePanelViews.has(value) ? value : "root";
+}
+
+function sanitizeRuntimeWindowIds(values, limit = MAX_RUNTIME_WINDOWS) {
+  const ids = [];
+  const seen = new Set();
+  for (const value of Array.isArray(values) ? values : []) {
+    const id = normalizeRuntimeWindowId(value);
+    if (!id || seen.has(id)) continue;
+    ids.push(id);
+    seen.add(id);
+    if (ids.length >= limit) break;
+  }
+  return ids;
+}
+
+function sanitizeRuntimeWindowViews(ids, values) {
+  const views = Object.create(null);
+  const source = values && typeof values === "object" && !Array.isArray(values) ? values : {};
+  for (const id of ids) {
+    views[id] = normalizeRuntimeWindowView(source[id]);
+  }
+  return views;
+}
+
+function runtimeWindowStateWithinLimit(value) {
+  return typeof value === "string"
+    && value.length <= MAX_RUNTIME_WINDOW_STATE_BYTES
+    && new TextEncoder().encode(value).byteLength <= MAX_RUNTIME_WINDOW_STATE_BYTES;
+}
+
 function persistRuntimeWindows() {
   try {
+    const ids = sanitizeRuntimeWindowIds(state.runtimeWindowIds);
     window.localStorage.setItem(storageKeys.runtimeWindows, JSON.stringify({
-      ids: state.runtimeWindowIds,
-      activeId: state.activeRuntimeWindowId,
-      views: state.runtimeWindowViews,
+      ids,
+      activeId: ids.includes(state.activeRuntimeWindowId) ? state.activeRuntimeWindowId : ids[0] || null,
+      views: sanitizeRuntimeWindowViews(ids, state.runtimeWindowViews),
     }));
   } catch {
     // Window persistence is a convenience; the workspace still works without storage.
@@ -134,47 +193,87 @@ function persistRuntimeWindows() {
 
 function restoreRuntimeWindows() {
   try {
-    const value = JSON.parse(window.localStorage.getItem(storageKeys.runtimeWindows) || "null");
-    state.runtimeWindowIds = Array.isArray(value?.ids)
-      ? value.ids.filter((id) => typeof id === "string" && id)
-      : [];
-    state.activeRuntimeWindowId = typeof value?.activeId === "string" ? value.activeId : null;
-    state.runtimeWindowViews = value?.views && typeof value.views === "object" ? value.views : {};
+    const stored = window.localStorage.getItem(storageKeys.runtimeWindows);
+    const value = runtimeWindowStateWithinLimit(stored)
+      ? JSON.parse(stored)
+      : null;
+    state.runtimeWindowIds = sanitizeRuntimeWindowIds(value?.ids);
+    state.activeRuntimeWindowId = state.runtimeWindowIds.includes(value?.activeId)
+      ? value.activeId
+      : state.runtimeWindowIds[0] || null;
+    state.runtimeWindowViews = sanitizeRuntimeWindowViews(state.runtimeWindowIds, value?.views);
   } catch {
     state.runtimeWindowIds = [];
     state.activeRuntimeWindowId = null;
-    state.runtimeWindowViews = {};
+    state.runtimeWindowViews = Object.create(null);
   }
+}
+
+function applyRuntimeWindowDeepLink(runtimeId, view) {
+  const id = normalizeRuntimeWindowId(runtimeId);
+  if (!id) return;
+  const restoredIds = sanitizeRuntimeWindowIds(state.runtimeWindowIds);
+  state.runtimeWindowIds = [id, ...restoredIds.filter((candidate) => candidate !== id)];
+  state.activeRuntimeWindowId = id;
+  state.runtimeWindowViews = sanitizeRuntimeWindowViews(state.runtimeWindowIds, state.runtimeWindowViews);
+  state.runtimeWindowViews[id] = normalizeRuntimeWindowView(view);
+  state.runtimeWindowIntentPending = true;
 }
 
 function reconcileRuntimeWindows() {
   const available = new Set(state.latestRuntimes.map((runtime) => runtime.runtimeId));
-  state.runtimeWindowIds = state.runtimeWindowIds.filter((id) => available.has(id));
+  const previousIds = state.runtimeWindowIds.join("\u0000");
+  const previousActiveId = state.activeRuntimeWindowId;
+  const intentPending = state.runtimeWindowIntentPending;
+  state.runtimeWindowIds = sanitizeRuntimeWindowIds(
+    sanitizeRuntimeWindowIds(state.runtimeWindowIds, MAX_RUNTIME_WINDOWS + 1)
+      .filter((id) => available.has(id)),
+  );
   if (!state.runtimeWindowIds.includes(state.activeRuntimeWindowId)) {
     state.activeRuntimeWindowId = state.runtimeWindowIds[0] || null;
   }
-  for (const id of Object.keys(state.runtimeWindowViews)) {
-    if (!available.has(id)) delete state.runtimeWindowViews[id];
+  const sanitizedViews = sanitizeRuntimeWindowViews(state.runtimeWindowIds, state.runtimeWindowViews);
+  const viewsChanged = JSON.stringify(sanitizedViews) !== JSON.stringify(state.runtimeWindowViews);
+  state.runtimeWindowViews = sanitizedViews;
+  if (previousIds !== state.runtimeWindowIds.join("\u0000")
+      || previousActiveId !== state.activeRuntimeWindowId
+      || viewsChanged
+      || intentPending) {
+    state.runtimeWindowIntentPending = false;
+    persistRuntimeWindows();
   }
 }
 
 function openRuntimeWindow(runtimeId) {
-  if (!runtimeId) return;
+  runtimeId = normalizeRuntimeWindowId(runtimeId);
+  if (!runtimeId) return false;
   if (!state.runtimeWindowIds.includes(runtimeId)) {
+    if (state.runtimeWindowIds.length >= MAX_RUNTIME_WINDOWS) {
+      nodes.statusLine.textContent = t("runtimePanel.windows.limitReached", { limit: MAX_RUNTIME_WINDOWS });
+      return false;
+    }
     state.runtimeWindowIds.push(runtimeId);
   }
   state.activeRuntimeWindowId = runtimeId;
   state.selectedRuntimeId = runtimeId;
-  state.runtimePanelView = state.runtimeWindowViews[runtimeId] || state.runtimePanelView || "root";
+  state.runtimePanelView = normalizeRuntimeWindowView(
+    state.runtimeWindowViews[runtimeId] || state.runtimePanelView,
+  );
   state.runtimeWindowViews[runtimeId] = state.runtimePanelView;
   state.renderSignatures.runtimePanel = "";
   persistRuntimeWindows();
   renderRuntimeSliceFromCache();
   syncLocation();
+  return true;
 }
 
 function openAllRuntimeWindows() {
-  for (const runtime of state.latestRuntimes) {
+  const selected = state.latestRuntimes.find((runtime) => runtime.runtimeId === state.selectedRuntimeId);
+  const candidates = selected
+    ? [selected, ...state.latestRuntimes.filter((runtime) => runtime.runtimeId !== selected.runtimeId)]
+    : state.latestRuntimes;
+  for (const runtime of candidates) {
+    if (state.runtimeWindowIds.length >= MAX_RUNTIME_WINDOWS) break;
     if (!state.runtimeWindowIds.includes(runtime.runtimeId)) {
       state.runtimeWindowIds.push(runtime.runtimeId);
     }
@@ -185,13 +284,24 @@ function openAllRuntimeWindows() {
   state.renderSignatures.runtimePanel = "";
   persistRuntimeWindows();
   renderRuntimeSliceFromCache();
+  const count = state.runtimeWindowIds.length;
+  nodes.statusLine.textContent = count < state.latestRuntimes.length
+    ? t("runtimePanel.windows.openAllLimited", {
+      count,
+      total: state.latestRuntimes.length,
+      limit: MAX_RUNTIME_WINDOWS,
+    })
+    : t("runtimePanel.windows.openAllComplete", { count });
 }
 
 function closeRuntimeWindow(runtimeId) {
+  const closedIndex = state.runtimeWindowIds.indexOf(runtimeId);
   state.runtimeWindowIds = state.runtimeWindowIds.filter((id) => id !== runtimeId);
   delete state.runtimeWindowViews[runtimeId];
   if (state.activeRuntimeWindowId === runtimeId) {
-    state.activeRuntimeWindowId = state.runtimeWindowIds[0] || null;
+    state.activeRuntimeWindowId = state.runtimeWindowIds[
+      Math.min(Math.max(closedIndex, 0), state.runtimeWindowIds.length - 1)
+    ] || null;
   }
   if (state.activeRuntimeWindowId) {
     state.selectedRuntimeId = state.activeRuntimeWindowId;
@@ -206,7 +316,7 @@ function closeRuntimeWindow(runtimeId) {
 function closeAllRuntimeWindows() {
   state.runtimeWindowIds = [];
   state.activeRuntimeWindowId = null;
-  state.runtimeWindowViews = {};
+  state.runtimeWindowViews = Object.create(null);
   state.renderSignatures.runtimePanel = "";
   persistRuntimeWindows();
   renderRuntimeSliceFromCache();
@@ -216,7 +326,7 @@ function activateRuntimeWindow(runtimeId) {
   if (!state.runtimeWindowIds.includes(runtimeId)) return;
   state.activeRuntimeWindowId = runtimeId;
   state.selectedRuntimeId = runtimeId;
-  state.runtimePanelView = state.runtimeWindowViews[runtimeId] || "root";
+  state.runtimePanelView = normalizeRuntimeWindowView(state.runtimeWindowViews[runtimeId]);
   state.renderSignatures.runtimePanel = "";
   persistRuntimeWindows();
   renderRuntimeSliceFromCache();
@@ -237,6 +347,47 @@ function handleRuntimeWindowGridClick(event) {
   } else {
     activateRuntimeWindow(runtimeId);
   }
+}
+
+function handleRuntimeWindowGridKeydown(event) {
+  const identity = event.target.closest(".runtime-child-window-identity[data-runtime-id]");
+  if (!(identity instanceof HTMLButtonElement)) return;
+  const ids = state.runtimeWindowIds;
+  const index = ids.indexOf(identity.dataset.runtimeId);
+  if (index < 0) return;
+
+  const direction = document.documentElement.dir === "rtl" ? -1 : 1;
+  let nextIndex = null;
+  if (event.key === "ArrowRight") nextIndex = index + direction;
+  if (event.key === "ArrowLeft") nextIndex = index - direction;
+  if (event.key === "ArrowDown") nextIndex = index + 1;
+  if (event.key === "ArrowUp") nextIndex = index - 1;
+  if (event.key === "Home") nextIndex = 0;
+  if (event.key === "End") nextIndex = ids.length - 1;
+  if (nextIndex === null || !ids.length) return;
+
+  event.preventDefault();
+  const nextId = ids[(nextIndex + ids.length) % ids.length];
+  activateRuntimeWindow(nextId);
+  window.requestAnimationFrame(() => {
+    nodes.runtimeWindowGrid
+      .querySelector(`.runtime-child-window-identity[data-runtime-id="${CSS.escape(nextId)}"]`)
+      ?.focus();
+  });
+}
+
+function runtimeWindowSuspendedMarkup(runtime, view) {
+  return `
+    <div class="runtime-window-suspended">
+      <div class="runtime-window-suspended-mark" aria-hidden="true">II</div>
+      <div class="runtime-window-suspended-copy">
+        <strong>${escapeHtml(t("runtimePanel.windows.pausedTitle"))}</strong>
+        <p>${escapeHtml(t("runtimePanel.windows.pausedBody"))}</p>
+      </div>
+      <button type="button" data-runtime-window-action="activate" data-runtime-id="${escapeHtml(runtime.runtimeId)}">
+        ${escapeHtml(t("runtimePanel.windows.pausedAction"))} · ${escapeHtml(t(`runtimePanel.views.${view}`))}
+      </button>
+    </div>`;
 }
 
 function runtimePanelSignature(runtime) {
@@ -287,11 +438,13 @@ function renderRuntimeWindowGrid() {
     const trust = runtimePanelTrustState(runtime, view);
     const url = runtimePanelUrl(runtime, view) || "";
     const blank = shouldRenderRuntimePanelBlank(runtime, trust, view);
+    const isActive = runtimeId === state.activeRuntimeWindowId;
     let card = nodes.runtimeWindowGrid.querySelector(`[data-runtime-window-id="${CSS.escape(runtimeId)}"]`);
     if (!card) {
       card = document.createElement("article");
       card.className = "runtime-child-window";
       card.dataset.runtimeWindowId = runtimeId;
+      card.setAttribute("role", "listitem");
       card.innerHTML = `
         <header class="runtime-child-window-head">
           <button type="button" class="runtime-child-window-identity" data-runtime-window-action="activate" data-runtime-id="${escapeHtml(runtimeId)}">
@@ -308,25 +461,43 @@ function renderRuntimeWindowGrid() {
           <iframe loading="lazy" referrerpolicy="no-referrer" sandbox data-runtime-window-frame></iframe>
         </div>`;
     }
-    card.classList.toggle("is-active", runtimeId === state.activeRuntimeWindowId);
+    card.classList.toggle("is-active", isActive);
+    card.classList.toggle("is-suspended", !isActive);
+    card.setAttribute("aria-label", t("runtimePanel.windows.windowLabel", {
+      name: runtime.name,
+      view: t(`runtimePanel.views.${view}`),
+    }));
     card.querySelector("[data-runtime-window-name]").textContent = runtime.name;
     card.querySelector("[data-runtime-window-view]").textContent = t(`runtimePanel.views.${view}`);
+    const identity = card.querySelector(".runtime-child-window-identity");
+    identity.tabIndex = isActive ? 0 : -1;
+    identity.setAttribute("aria-pressed", String(isActive));
+    identity.setAttribute("aria-label", `${t("runtimePanel.windows.activate")}: ${runtime.name}`);
     const status = card.querySelector("[data-runtime-window-status]");
     status.className = `runtime-state ${trust.tone}`;
     status.textContent = trust.label;
-    card.querySelector('[data-runtime-window-action="external"]').textContent = t("runtimePanel.windows.external");
-    card.querySelector('[data-runtime-window-action="close"]').textContent = t("runtimePanel.windows.close");
+    const external = card.querySelector('[data-runtime-window-action="external"]');
+    external.textContent = t("runtimePanel.windows.external");
+    external.disabled = !url;
+    external.setAttribute("aria-label", `${t("runtimePanel.windows.external")}: ${runtime.name}`);
+    const close = card.querySelector('[data-runtime-window-action="close"]');
+    close.textContent = t("runtimePanel.windows.close");
+    close.setAttribute("aria-label", `${t("runtimePanel.windows.close")}: ${runtime.name}`);
     card.querySelector("[data-runtime-window-target]").textContent = url || runtime.endpoint;
     const blankNode = card.querySelector("[data-runtime-window-blank]");
     const frame = card.querySelector("[data-runtime-window-frame]");
-    if (blank) {
+    if (!isActive) {
+      blankNode.innerHTML = runtimeWindowSuspendedMarkup(runtime, view);
+      blankNode.classList.remove("hidden");
+      frame.classList.add("hidden");
+      frame.src = "about:blank";
+      delete frame.dataset.src;
+    } else if (blank) {
       blankNode.innerHTML = runtimePanelBlankMarkup(runtime, trust, url, view);
       blankNode.classList.remove("hidden");
       frame.classList.add("hidden");
-      if (frame.dataset.src) {
-        frame.src = "about:blank";
-        delete frame.dataset.src;
-      }
+      frame.src = "about:blank";
+      delete frame.dataset.src;
     } else {
       blankNode.classList.add("hidden");
       frame.classList.remove("hidden");
@@ -340,10 +511,17 @@ function renderRuntimeWindowGrid() {
   }
 
   const count = state.runtimeWindowIds.length;
-  nodes.runtimeWindowCount.textContent = count === 1
-    ? t("runtimePanel.windows.one")
-    : t("runtimePanel.windows.count", { count });
+  nodes.runtimeWindowCount.textContent = t("runtimePanel.windows.capacity", {
+    count,
+    limit: MAX_RUNTIME_WINDOWS,
+  });
+  nodes.runtimeWindowPolicy.textContent = t("runtimePanel.windows.policy");
   nodes.runtimeWindowToolbar.classList.remove("hidden");
+  const selectedIsOpen = state.runtimeWindowIds.includes(state.selectedRuntimeId);
+  nodes.runtimeWindowOpenSelected.disabled = !state.selectedRuntimeId
+    || (!selectedIsOpen && count >= MAX_RUNTIME_WINDOWS);
+  nodes.runtimeWindowOpenAll.disabled = state.latestRuntimes.length === 0
+    || count >= Math.min(state.latestRuntimes.length, MAX_RUNTIME_WINDOWS);
   nodes.runtimeWindowCloseAll.disabled = count === 0;
   nodes.runtimeWindowGrid.classList.toggle("hidden", count === 0);
 }

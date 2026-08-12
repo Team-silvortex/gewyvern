@@ -24,6 +24,7 @@ interface DashboardState {
   runtimeWindowIds: string[];
   activeRuntimeWindowId: string | null;
   runtimeWindowViews: Record<string, string>;
+  runtimeWindowIntentPending: boolean;
   runtimeSearch: string;
   runtimeSort: string;
   selectedRuntimeId: string | null;

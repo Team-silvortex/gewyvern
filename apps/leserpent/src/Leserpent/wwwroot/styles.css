@@ -3379,6 +3379,21 @@ td strong {
   scrollbar-width: thin;
 }
 
+.runtime-window-toolbar-status {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  min-width: 0;
+}
+
+.runtime-window-policy {
+  max-width: 300px;
+  color: var(--muted);
+  font-size: 0.67rem;
+  line-height: 1.25;
+  text-align: right;
+}
+
 .runtime-window-toolbar button {
   flex: 0 0 auto;
   padding: 6px 10px;
@@ -3413,6 +3428,11 @@ td strong {
   border-color: var(--accent-strong);
   box-shadow: 0 16px 34px rgba(31, 95, 168, 0.18), 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
   transform: translateY(-1px);
+}
+
+.runtime-child-window.is-suspended {
+  border-color: color-mix(in srgb, var(--line-strong) 72%, var(--panel) 28%);
+  box-shadow: 0 8px 20px rgba(20, 44, 83, 0.07);
 }
 
 .runtime-child-window-head {
@@ -3485,6 +3505,63 @@ td strong {
 .runtime-child-window-body > .runtime-panel-blank {
   height: 100%;
   align-content: start;
+}
+
+.runtime-child-window.is-suspended .runtime-child-window-body {
+  min-height: 180px;
+  height: 180px;
+}
+
+.runtime-child-window.is-suspended .runtime-panel-blank {
+  align-content: center;
+}
+
+.runtime-window-suspended {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 100%;
+  padding: 14px;
+  border: 1px dashed color-mix(in srgb, var(--line-strong) 72%, var(--accent) 28%);
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--panel) 88%, var(--accent-soft) 12%), color-mix(in srgb, var(--panel-2) 92%, var(--bg-deep) 8%));
+}
+
+.runtime-window-suspended-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--line) 62%);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--panel) 28%);
+  color: var(--accent-strong);
+  font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.runtime-window-suspended-copy {
+  min-width: 0;
+}
+
+.runtime-window-suspended-copy strong {
+  color: var(--ink);
+  font-size: 0.85rem;
+}
+
+.runtime-window-suspended-copy p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.runtime-window-suspended > button {
+  white-space: nowrap;
 }
 
 .runtime-frame-url {
@@ -3749,6 +3826,34 @@ td strong {
     max-width: none;
   }
 
+  .runtime-window-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .runtime-window-toolbar-status {
+    justify-items: start;
+  }
+
+  .runtime-window-policy {
+    max-width: none;
+    text-align: left;
+  }
+
+  .runtime-window-grid,
+  .runtime-window-grid:has(.runtime-child-window:nth-child(2)) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .runtime-window-suspended {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .runtime-window-suspended > button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
   #runtime-panel-frame {
     min-height: 560px;
   }
@@ -3861,6 +3966,15 @@ td strong {
     flex-direction: column;
   }
 
+  .runtime-window-toolbar-status {
+    justify-items: start;
+  }
+
+  .runtime-window-policy {
+    max-width: none;
+    text-align: left;
+  }
+
   .runtime-window-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3882,6 +3996,20 @@ td strong {
   .runtime-child-window-body {
     height: min(58vh, 460px);
     min-height: 280px;
+  }
+
+  .runtime-child-window.is-suspended .runtime-child-window-body {
+    min-height: 210px;
+    height: auto;
+  }
+
+  .runtime-window-suspended {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .runtime-window-suspended > button {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .runtime-panel-actions,

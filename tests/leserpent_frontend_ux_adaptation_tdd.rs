@@ -289,6 +289,112 @@ fn runtime_detail_is_operator_first_localized_and_actionable() {
 }
 
 #[test]
+fn runtime_window_workspace_is_bounded_lazy_keyboard_operable_and_deep_link_safe() {
+    let html = source("apps/leserpent/src/Leserpent/wwwroot/index.html");
+    let styles = source("apps/leserpent/src/Leserpent/wwwroot/styles.css");
+    let inspector = source("apps/leserpent/src/Leserpent/frontend/40-runtime-inspector.ts");
+    let bootstrap = source("apps/leserpent/src/Leserpent/frontend/15-preferences-bootstrap.ts");
+    let transport = source("apps/leserpent/src/Leserpent/frontend/20-security-transport.ts");
+    let simplified_chinese = source("apps/leserpent/src/Leserpent/frontend/11-i18n-zh-cn.ts");
+    let guide = source("apps/leserpent/docs/runtime-window-workspace.md");
+
+    for contract in [
+        "id=\"runtime-window-toolbar\" class=\"runtime-window-toolbar hidden\" role=\"toolbar\"",
+        "id=\"runtime-window-policy\"",
+        "id=\"runtime-window-count\" class=\"chip\" aria-live=\"polite\"",
+        "id=\"runtime-window-grid\" class=\"runtime-window-grid hidden\" role=\"list\"",
+        "data-i18n-aria-label=\"runtimePanel.windows.workspaceLabel\"",
+    ] {
+        assert!(
+            html.contains(contract),
+            "missing runtime workspace semantic {contract}"
+        );
+    }
+
+    for contract in [
+        "const MAX_RUNTIME_WINDOWS = 8;",
+        "const MAX_RUNTIME_WINDOW_STATE_BYTES = 64 * 1024;",
+        "function sanitizeRuntimeWindowIds",
+        "function sanitizeRuntimeWindowViews",
+        "function runtimeWindowStateWithinLimit",
+        "new TextEncoder().encode(value).byteLength <= MAX_RUNTIME_WINDOW_STATE_BYTES",
+        "Object.create(null)",
+        "function applyRuntimeWindowDeepLink",
+        "state.runtimeWindowIntentPending = true;",
+        "|| intentPending",
+        "function runtimeWindowSuspendedMarkup",
+        "if (!isActive)",
+        "frame.src = \"about:blank\";",
+        "function handleRuntimeWindowGridKeydown",
+        "event.key === \"ArrowDown\"",
+        "event.key === \"Home\"",
+        "Math.min(Math.max(closedIndex, 0)",
+        "nodes.runtimeWindowOpenAll.disabled",
+    ] {
+        assert!(
+            inspector.contains(contract),
+            "missing bounded runtime workspace behavior {contract}"
+        );
+    }
+
+    let runtime_id_hydration = transport
+        .find("state.selectedRuntimeId = params.get(\"runtimeId\") || null;")
+        .expect("runtime ID must be hydrated");
+    let deep_link_application = transport
+        .find("applyRuntimeWindowDeepLink(state.selectedRuntimeId, state.runtimePanelView);")
+        .expect("runtime deep link must be applied");
+    assert!(runtime_id_hydration < deep_link_application);
+    assert!(!transport.contains("state.runtimeWindowIds.push(state.selectedRuntimeId)"));
+    assert!(bootstrap.contains(
+        "nodes.runtimeWindowGrid?.addEventListener(\"keydown\", handleRuntimeWindowGridKeydown)"
+    ));
+    assert!(
+        source("apps/leserpent/src/Leserpent/frontend/app.ts")
+            .contains("runtimeWindowViews: Object.create(null)")
+    );
+
+    for contract in [
+        ".runtime-window-toolbar-status",
+        ".runtime-child-window.is-suspended",
+        ".runtime-window-suspended",
+        ".runtime-window-grid:has(.runtime-child-window:nth-child(2))",
+        "grid-template-columns: minmax(0, 1fr);",
+    ] {
+        assert!(
+            styles.contains(contract),
+            "missing runtime workspace CSS contract {contract}"
+        );
+    }
+
+    for key in [
+        "capacity:",
+        "policy:",
+        "pausedTitle:",
+        "pausedBody:",
+        "limitReached:",
+        "openAllLimited:",
+        "workspaceLabel:",
+    ] {
+        assert!(
+            simplified_chinese.contains(key),
+            "missing localized runtime workspace key {key}"
+        );
+    }
+
+    for contract in [
+        "工作区硬上限为 8 个窗口",
+        "只有活动窗口加载远端 iframe",
+        "roving keyboard navigation",
+        "无原型对象重建 view map",
+    ] {
+        assert!(
+            guide.contains(contract),
+            "missing runtime workspace guide contract {contract}"
+        );
+    }
+}
+
+#[test]
 fn mobile_adaptation_is_protocolized_in_the_status_tensor() {
     let catalog: serde_json::Value = serde_json::from_slice(
         &std::fs::read(repository_root().join("project/status/catalog.json")).unwrap(),
@@ -301,7 +407,7 @@ fn mobile_adaptation_is_protocolized_in_the_status_tensor() {
         .find(|cell| cell["id"] == "leserpent-1x/web-console/browser-operations")
         .expect("web console status cell must exist");
 
-    assert_eq!(cell["contract"]["version"], "1.4.7");
+    assert_eq!(cell["contract"]["version"], "1.4.8");
     for surface in [
         "width-first-mobile-layout",
         "mobile-filter-disclosure",
@@ -336,6 +442,11 @@ fn mobile_adaptation_is_protocolized_in_the_status_tensor() {
         "attention-targeted-navigation",
         "validated-runtime-detail-route",
         "mobile-runtime-diagnostic-workbench",
+        "bounded-runtime-window-workspace",
+        "single-live-runtime-iframe",
+        "sanitized-runtime-window-persistence",
+        "deep-link-window-intent-priority",
+        "runtime-window-keyboard-navigation",
     ] {
         assert!(
             cell["contract"]["surfaces"]
