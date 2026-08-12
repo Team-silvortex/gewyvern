@@ -47,7 +47,7 @@ fn collect_csharp_mutation_routes(root: &std::path::Path) -> BTreeSet<String> {
                 });
                 let method = &remaining[..method_end];
                 remaining = &remaining[method_end + 1..];
-                if matches!(method, "OpenApi" | "FallbackToFile") {
+                if matches!(method, "OpenApi" | "StaticAssets" | "FallbackToFile") {
                     continue;
                 }
                 let route_start = remaining.find("\"/v1/").unwrap_or_else(|| {

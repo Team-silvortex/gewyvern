@@ -1145,6 +1145,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "leserpent-frontend-package"
+version = "1.14.0"
+dependencies = [
+ "ring",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "leserpent-protocol"
 version = "1.14.0"
 dependencies = [

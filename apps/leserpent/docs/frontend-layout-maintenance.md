@@ -221,9 +221,17 @@ is probably too large.
 Before landing layout-sensitive changes:
 
 1. Run `npm run check:frontend`
-2. Run `npm run build:frontend`
-3. Start the local server and verify real pages
-4. Capture a few small-window screenshots when the change is risky
+2. Run `npm run package:frontend`; unchanged inputs return from the content-hash fast path
+3. Run `npm run verify:frontend-package` to prove the checked manifest still matches every asset
+4. Start the local server and verify real pages
+5. Capture a few small-window screenshots when the change is risky
+
+Release builds invoke the same package coordinator before .NET discovers static
+web assets. The coordinator itself is a Rust native crate, so the unchanged
+Release path does not start Node. A stale TypeScript output or language-pack
+catalog is rebuilt from the locked dependency graph instead of being silently
+copied into a release. The package manifest is bounded, rejects symlinks, and
+records SHA-256 plus byte size for every published frontend asset.
 
 Useful audit routes are usually of the form:
 

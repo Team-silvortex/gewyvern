@@ -13,6 +13,7 @@
     <RuntimeFrameworkVersion Condition="'$(PublishAot)' == 'true'">$(NativeAotToolchainVersion)</RuntimeFrameworkVersion>
     <TargetLatestRuntimePatch Condition="'$(PublishAot)' == 'true'">false</TargetLatestRuntimePatch>
     <RepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../../..'))</RepositoryRoot>
+    <LeserpentFrontendRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../..'))</LeserpentFrontendRoot>
     <RustCompatibilityBridgePath>$(RepositoryRoot)/target/release/leserpent-compat-bridge</RustCompatibilityBridgePath>
     <LeserpentDaemonPath>$(RepositoryRoot)/target/release/leserpentd</LeserpentDaemonPath>
   </PropertyGroup>
@@ -46,6 +47,13 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
+  <Target Name="PackageLeserpentFrontend"
+          BeforeTargets="PrepareForBuild"
+          Condition="'$(DesignTimeBuild)' != 'true' And '$(Configuration)' == 'Release' And '$(SkipLeserpentFrontendPackage)' != 'true'">
+    <Exec Command="cargo run --quiet --locked -p leserpent-frontend-package -- --package-root &quot;$(LeserpentFrontendRoot)&quot;"
+          WorkingDirectory="$(RepositoryRoot)" />
+  </Target>
 
   <Target Name="BuildRustCompatibilityBridge"
           BeforeTargets="Publish"

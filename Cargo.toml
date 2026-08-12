@@ -11,6 +11,7 @@ members = [
     "crates/leserpent-domain",
     "crates/leserpent-adapters",
     "crates/leserpent-cli",
+    "crates/leserpent-frontend-package",
     "crates/leserpent-protocol",
     "crates/leserpent-runtime",
     "crates/leserpentd",

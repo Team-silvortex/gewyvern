@@ -25,6 +25,15 @@ output contains both native executables, the SQLite native library, dashboard
 assets, and a `deploy` directory. Linux bundles must be built on Linux so the
 bridge architecture matches the selected RID.
 
+Release builds run the native `leserpent-frontend-package` Rust coordinator
+before static-web-asset discovery. Its content-addressed fast path does not
+start Node. Only a stale source tree invokes the locked TypeScript toolchain;
+that rebuild also verifies every official language pack and atomically refreshes
+`frontend-package-manifest.json`. The published dashboard assets are exposed
+through .NET `MapStaticAssets`, so JavaScript,
+CSS, HTML, SVG, and JSON use build-time Brotli/Gzip negotiation and content
+ETags instead of spending runtime CPU on first-request compression.
+
 Validate the complete bundle without changing the host installation:
 
 ```bash

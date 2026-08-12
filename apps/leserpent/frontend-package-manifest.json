@@ -1,0 +1,156 @@
+{
+  "schema": "leserpent.frontend-package/v1",
+  "inputsSha256": "ed65b0dc00377b63eec2b2ad12046a01e4bf951bf6f35c0f0aff2b8ef89f8fd5",
+  "assetsSha256": "e732cb7d8ca96d03cf90bb430fbfc47e280f076781919790c9693c1f8cdf6dac",
+  "inputFileCount": 28,
+  "assetFileCount": 29,
+  "inputBytes": 362575,
+  "assetBytes": 617483,
+  "assets": [
+    {
+      "path": "src/Leserpent/wwwroot/app.js",
+      "bytes": 354082,
+      "sha256": "7d1e78391e9efb7cf82684555bc288845a7725f6eb45b2deec5fdb34da28e2ab"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/branding/gewyvern-mark.svg",
+      "bytes": 1270,
+      "sha256": "4165e56929f840d19bd4c15a2925f5b02272d84ddbbaf332ada35816ff0fece9"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/branding/leserpent-icon.png",
+      "bytes": 96343,
+      "sha256": "433c1de6a4674a326e5b76966901d9088337f7bf3b12f4ef70b6ad5060998634"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/index.html",
+      "bytes": 33984,
+      "sha256": "6179f9f0e8708d01733d351620e3a293135756c0368598a73ca2c0bc00f4418e"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/ar.json",
+      "bytes": 1233,
+      "sha256": "7b01f664f9dcdf1241b1de211f18652a400c9c18db7876c6b96adbee70b5ba57"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/bn.json",
+      "bytes": 1417,
+      "sha256": "08ae822eade840da9b6d56cce2222ccc5204faae793cd1a9f5e1f7e9ff25f879"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/catalog.json",
+      "bytes": 6798,
+      "sha256": "fd7c1763119c93ad4432fdcf66b78bac6a51d5554c139f5178d47ecfb27012d6"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/cs.json",
+      "bytes": 1106,
+      "sha256": "7165b809f0233fbdd29f52a16aa34bc6184c89ae6589afb3923bbb0e918bd08c"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/da.json",
+      "bytes": 1068,
+      "sha256": "f4845d8fab5086823694dae2a5cf831c52907f7be25bbec953a2f6f8e5cc0245"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/el.json",
+      "bytes": 1313,
+      "sha256": "0ea3868c4b80219926df54bc8bb944e4a75e51c1dce2c50ef7409ac398c8d2f7"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/fa.json",
+      "bytes": 1220,
+      "sha256": "5f6c384676b2c558453169d0afb3938559f6bdeff0fd87e7bf7555f5c3b04e4c"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/fi.json",
+      "bytes": 1118,
+      "sha256": "16ce7d9e6b89813f3da643e0032ec044b75bbaadef9668b6888209eae94734ea"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/he.json",
+      "bytes": 1175,
+      "sha256": "d08179aaf2fae6dd5a26980ba968365eda9d5cf404f557cb0916d3247a87f37e"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/hi.json",
+      "bytes": 1393,
+      "sha256": "17d2aad9b7368ba9fca7b0578f914ada1b244c8fd564447b15d847d770642d7a"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/id.json",
+      "bytes": 1081,
+      "sha256": "8cd2f5242a13b14d32eae4044f591bafede5f5777314ad73c66715e9f20e55f5"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/it.json",
+      "bytes": 1103,
+      "sha256": "5faa9b1393e3a00dda28897c69710f92ac21f6b0fd1e7e11fb739f87ee7051d5"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/ms.json",
+      "bytes": 1089,
+      "sha256": "d361fef1d50622fd9cf1b0e8c97a3902c5e65a13a6b9d1bf1d906308ff82e136"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/nl.json",
+      "bytes": 1128,
+      "sha256": "7437e144bf3c087b92d71e4d398b93a06babe31e7bfc35a39161cbee2cbd9267"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/no.json",
+      "bytes": 1083,
+      "sha256": "0a40f6fff787c32828cc605d1c522a603c5b52dd9f51def60df7dcd442cc80b2"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/pl.json",
+      "bytes": 1131,
+      "sha256": "fa9ab56278de265d5d923da8d12bc08524437eb5a41fcdf2940ba6125d43b92e"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/pt-BR.json",
+      "bytes": 1130,
+      "sha256": "eed6c81714c09f2fc2c7a0b67504947be598ef93bc791b93a9e9378fe69873a2"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/ru.json",
+      "bytes": 1299,
+      "sha256": "a8f8bd4928be21f4417845f38b6306c114e03619e6e3163ac30480ffde9a7c27"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/sv.json",
+      "bytes": 1099,
+      "sha256": "e420aa7eb7e88cd7c334723f308d9f0bdd3c1deec8ac60fe80b6756489ea7bfd"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/th.json",
+      "bytes": 1413,
+      "sha256": "9e48e52fa0aba1c393f25529d5efd03514d06a81c28eadddcaad053648617355"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/tr.json",
+      "bytes": 1127,
+      "sha256": "2373b5e0c164b768949cb2775a936212ffd02671f28c6f04de1d0446d037a8c3"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/uk.json",
+      "bytes": 1294,
+      "sha256": "679b253cb4f4577159b1856fad063d36c9990ebd3b65b3283c1dbd9aa316b797"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/language-packs/vi.json",
+      "bytes": 1182,
+      "sha256": "3ec1c13826028fb88e2bf637b3d2e02aaf27e58444358842a2b39705db530899"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/protocol-reading.css",
+      "bytes": 2217,
+      "sha256": "fa35b1e21577448d99514ab1c0e310ceb3bb22f2081c7459f87436eb6b59a261"
+    },
+    {
+      "path": "src/Leserpent/wwwroot/styles.css",
+      "bytes": 96587,
+      "sha256": "5ab62757fc9477b6cd0bcb0b4666f991ed0206e5446d825522b627129daac65c"
+    }
+  ]
+}

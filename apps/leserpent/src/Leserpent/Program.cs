@@ -126,32 +126,9 @@ public partial class Program
             BrowserSecurityHeaders.Apply(context.Response);
             await next();
         });
-        app.Use(async (context, next) =>
-        {
-            if (context.Request.Path == "/")
-            {
-                context.Response.Headers.CacheControl = "no-cache";
-            }
-            await next();
-        });
         app.UseDefaultFiles();
-        app.UseStaticFiles(new StaticFileOptions
-        {
-            OnPrepareResponse = context =>
-            {
-                var isHtml = string.Equals(
-                    Path.GetExtension(context.File.Name),
-                    ".html",
-                    StringComparison.OrdinalIgnoreCase)
-                    || context.Context.Request.Path == "/"
-                    || context.Context.Response.ContentType?.StartsWith(
-                        "text/html",
-                        StringComparison.OrdinalIgnoreCase) == true;
-                context.Context.Response.Headers.CacheControl = isHtml
-                    ? "no-cache"
-                    : "public, max-age=300, must-revalidate";
-            },
-        });
+        app.UseRouting();
+        app.MapStaticAssets();
         app.UseHttpsRedirection();
         app.Use(async (context, next) =>
         {

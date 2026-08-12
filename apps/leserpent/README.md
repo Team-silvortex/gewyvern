@@ -89,7 +89,10 @@ command/query contract 的可替换入口：
 
 * 源码入口：`src/Leserpent/frontend/app.ts`
 * 生成产物：`src/Leserpent/wwwroot/app.js`
-* 构建命令：`npm run build:frontend`
+* 增量打包命令：`npm run package:frontend`
+* 强制重建命令：`npm run package:frontend:force`
+* 清单校验命令：`npm run verify:frontend-package`
+* 原生入口：`cargo run --locked -p leserpent-frontend-package -- --verify`
 * 类型检查命令：`npm run check:frontend`
 * .NET 构建命令：`dotnet build src/Leserpent/Leserpent.csproj`
 
@@ -98,6 +101,8 @@ command/query contract 的可替换入口：
 * 运行时仍然只消费静态 `wwwroot` 资源
 * 不引入 bundler
 * 不改变 ASP.NET Core 的部署模型
+* Release 构建由 Rust 原生协调器在静态资源扫描前按内容哈希校验并按需重建，热路径不启动 Node，避免发布陈旧 `app.js`
+* 发布后的静态资源通过 `MapStaticAssets` 使用预生成 Brotli/Gzip、ETag 和内容指纹
 * 后续可以逐步把现有脚本从宽松 JS 收紧成更完整的 TS
 
 ### Frontend layout maintenance

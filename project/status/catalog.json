@@ -1216,23 +1216,26 @@
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-web-console",
-        "version": "1.4.0",
+        "version": "1.4.2",
         "stability": "stable",
-        "surfaces": ["dashboard", "runtime-workspace", "language-packs", "operator-guardrails", "server-authoritative-cleanup-plan", "stale-confirmation-fence", "server-authoritative-registration-plan", "secret-free-registration-preview", "server-orchestrated-recovery-command", "server-issued-command-kind", "leserpent-brand-icon", "windows-web-access-path"]
+        "surfaces": ["dashboard", "runtime-workspace", "language-packs", "operator-guardrails", "server-authoritative-cleanup-plan", "stale-confirmation-fence", "server-authoritative-registration-plan", "secret-free-registration-preview", "server-orchestrated-recovery-command", "server-issued-command-kind", "leserpent-brand-icon", "windows-web-access-path", "content-addressed-frontend-package", "incremental-locked-typescript-build", "publish-time-stale-asset-prevention", "bounded-frontend-package-inventory", "native-frontend-package-coordinator", "node-free-unchanged-release-path", "cross-platform-atomic-manifest-replacement", "precompressed-static-asset-endpoints", "content-etag-static-delivery"]
       },
       "depends_on": ["leserpent-1x/control-plane/orchestration-persistence"],
       "blockers": [],
       "consumers": ["browser-operators", "windows-operators"],
       "evidence": [
         { "kind": "source", "path": "apps/leserpent/src/Leserpent/frontend", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-frontend-package/src/main.rs", "state": "present" },
+        { "kind": "release", "path": "apps/leserpent/frontend-package-manifest.json", "state": "present" },
         { "kind": "source", "path": "assets/branding/leserpent-icon.png", "state": "present" },
+        { "kind": "test", "path": "tests/leserpent_frontend_packaging_tdd.rs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/BrowserSecurityContractTests.cs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeCleanupPolicyTests.cs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeRegistrationPolicyTests.cs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeRecoveryContractTests.cs", "state": "present" },
         { "kind": "documentation", "path": "apps/leserpent/docs/frontend-layout-maintenance.md", "state": "present" }
       ],
-      "next_gate": "Preserve the renderer-only browser boundary and Windows Web compatibility while new commands enter through typed control-plane contracts."
+      "next_gate": "Preserve the renderer-only browser boundary, native content-addressed package freshness, and Windows Web compatibility while new commands enter through typed control-plane contracts."
     },
     {
       "id": "leserpent-2/domain-model/command-query-kernel",

@@ -4,6 +4,9 @@
   "description": "TypeScript build pipeline for leserpent wwwroot assets",
   "scripts": {
     "build:frontend": "npm run build:language-packs && tsc -p tsconfig.json",
+    "package:frontend": "cargo run --quiet --locked -p leserpent-frontend-package -- --package-root .",
+    "package:frontend:force": "cargo run --quiet --locked -p leserpent-frontend-package -- --force --package-root .",
+    "verify:frontend-package": "cargo run --quiet --locked -p leserpent-frontend-package -- --verify --package-root .",
     "build:language-packs": "node scripts/build-language-packs.mjs",
     "verify:language-packs": "node scripts/check-language-pack-coverage.mjs",
     "check:frontend": "tsc -p tsconfig.json --noEmit"
