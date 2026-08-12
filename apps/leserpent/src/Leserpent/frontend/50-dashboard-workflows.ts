@@ -23,6 +23,7 @@ function syncFilterActionState() {
   nodes.clearFiltersButton.disabled = !draft.some(Boolean)
     && !applied.some(Boolean)
     && !state.runtimeSearch;
+  syncMobileFilterDisclosure();
 }
 
 function applyFleetFilters() {
@@ -30,6 +31,9 @@ function applyFleetFilters() {
   state.filter.cluster = nodes.clusterInput.value.trim();
   state.filter.role = nodes.roleInput.value.trim();
   syncFilterActionState();
+  if (window.innerWidth <= 920) {
+    setMobileFiltersOpen(false, true);
+  }
   void loadDashboard();
 }
 

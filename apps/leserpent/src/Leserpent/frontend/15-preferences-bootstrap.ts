@@ -17,6 +17,16 @@ function t(key, params = {}) {
   return value.replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? `{${name}}`));
 }
 
+function protocolKeyToTranslationSegment(value) {
+  return String(value || "").replace(/[_-]([a-z0-9])/gi, (_, character) => character.toUpperCase());
+}
+
+function attentionReasonLabel(reason) {
+  const key = `attention.${protocolKeyToTranslationSegment(reason)}`;
+  const translated = t(key);
+  return translated === key ? String(reason || "") : translated;
+}
+
 function getStoredLanguagePreference() {
   try {
     return window.localStorage.getItem(storageKeys.languagePreference);
@@ -108,6 +118,63 @@ function activateRuntimeDetailTab(tab) {
   syncLocation();
 }
 
+function bindRovingTabs(buttons, dataKey, activate) {
+  buttons.forEach((button, index) => {
+    button.addEventListener("keydown", (event) => {
+      let nextIndex = null;
+      const direction = document.documentElement.dir === "rtl" ? -1 : 1;
+      if (event.key === "ArrowRight") nextIndex = index + direction;
+      if (event.key === "ArrowLeft") nextIndex = index - direction;
+      if (event.key === "Home") nextIndex = 0;
+      if (event.key === "End") nextIndex = buttons.length - 1;
+      if (nextIndex === null) {
+        return;
+      }
+      event.preventDefault();
+      const target = buttons[(nextIndex + buttons.length) % buttons.length];
+      activate(target.dataset[dataKey]);
+      target.focus();
+    });
+  });
+}
+
+function runtimeTableRows() {
+  return Array.from(nodes.runtimeTableBody.querySelectorAll("tr[data-runtime-id]"))
+    .filter((row) => row instanceof HTMLTableRowElement);
+}
+
+function selectRuntimeTableRow(row, restoreFocus = false) {
+  if (!(row instanceof HTMLTableRowElement) || !row.dataset.runtimeId) {
+    return;
+  }
+  state.selectedRuntimeId = row.dataset.runtimeId;
+  renderRuntimeSliceFromCache();
+  syncLocation();
+  if (restoreFocus) {
+    window.requestAnimationFrame(() => {
+      const selected = nodes.runtimeTableBody.querySelector(
+        `tr[data-runtime-id="${CSS.escape(state.selectedRuntimeId)}"]`,
+      );
+      if (selected instanceof HTMLTableRowElement) selected.focus();
+    });
+  }
+}
+
+function closeOpenRuntimeRowMenu(restoreFocus = false, except = null) {
+  let focusTarget = null;
+  let closed = false;
+  for (const menu of nodes.runtimeTableBody.querySelectorAll(".runtime-row-menu[open]")) {
+    if (!(menu instanceof HTMLDetailsElement) || menu === except) continue;
+    if (!focusTarget) focusTarget = menu.querySelector("summary");
+    menu.open = false;
+    closed = true;
+  }
+  if (restoreFocus && focusTarget instanceof HTMLElement) {
+    window.requestAnimationFrame(() => focusTarget.focus());
+  }
+  return closed;
+}
+
 async function handleRuntimeTableAction(button) {
   const runtimeId = button.dataset.runtimeId;
   if (!runtimeId) {
@@ -149,6 +216,9 @@ async function handleRuntimeTableAction(button) {
 function bootstrapDashboard() {
   restoreLanguagePacks();
   restoreRuntimeWindows();
+  nodes.mobileFilterToggle?.addEventListener("click", () => {
+    setMobileFiltersOpen(!state.mobileFiltersOpen);
+  });
   nodes.tabButtons.forEach((button) => {
     button.addEventListener("click", () => activateTab(button.dataset.tab));
   });
@@ -164,6 +234,9 @@ function bootstrapDashboard() {
   nodes.runtimeDetailSubtabButtons.forEach((button) => {
     button.addEventListener("click", () => activateRuntimeDetailTab(button.dataset.runtimeDetailTab));
   });
+  bindRovingTabs(nodes.overviewSubtabButtons, "overviewTab", activateOverviewSubtab);
+  bindRovingTabs(nodes.runtimeMainTabButtons, "runtimeMainTab", activateRuntimeMainTab);
+  bindRovingTabs(nodes.runtimeDetailSubtabButtons, "runtimeDetailTab", activateRuntimeDetailTab);
 
   nodes.runtimePanelTabs.forEach((button) => {
     button.addEventListener("click", () => {
@@ -255,6 +328,9 @@ function bootstrapDashboard() {
     state.runtimeSearch = "";
     state.selectedRuntimeId = null;
     syncFilterActionState();
+    if (window.innerWidth <= 920) {
+      setMobileFiltersOpen(false, true);
+    }
     void loadDashboard();
   });
 
@@ -280,11 +356,14 @@ function bootstrapDashboard() {
     const actionButton = target.closest("button[data-action][data-runtime-id]");
     if (actionButton instanceof HTMLButtonElement) {
       event.stopPropagation();
+      closeOpenRuntimeRowMenu();
       await handleRuntimeTableAction(actionButton);
       return;
     }
 
-    if (target.closest(".runtime-row-menu")) {
+    const rowMenu = target.closest(".runtime-row-menu");
+    if (rowMenu instanceof HTMLDetailsElement) {
+      if (target.closest("summary")) closeOpenRuntimeRowMenu(false, rowMenu);
       event.stopPropagation();
       return;
     }
@@ -294,9 +373,31 @@ function bootstrapDashboard() {
       return;
     }
 
-    state.selectedRuntimeId = row.dataset.runtimeId;
-    renderRuntimeSliceFromCache();
-    syncLocation();
+    selectRuntimeTableRow(row);
+  });
+
+  nodes.runtimeTableBody.addEventListener("keydown", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const row = target.closest("tr[data-runtime-id]");
+    if (!(row instanceof HTMLTableRowElement) || target !== row) return;
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      selectRuntimeTableRow(row, true);
+      return;
+    }
+
+    const rows = runtimeTableRows();
+    const index = rows.indexOf(row);
+    let nextIndex = null;
+    if (event.key === "ArrowDown") nextIndex = Math.min(index + 1, rows.length - 1);
+    if (event.key === "ArrowUp") nextIndex = Math.max(index - 1, 0);
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = rows.length - 1;
+    if (nextIndex === null || nextIndex === index || !rows[nextIndex]) return;
+    event.preventDefault();
+    selectRuntimeTableRow(rows[nextIndex], true);
   });
 
   nodes.runtimeDetailAttention.addEventListener("click", async (event) => {
@@ -430,8 +531,17 @@ function bootstrapDashboard() {
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      if (closeOpenRuntimeRowMenu(true)) event.preventDefault();
+      if (state.mobileFiltersOpen) setMobileFiltersOpen(false, true);
       if (nodes.securityDetails?.open) closeSecurityDetails();
       if (nodes.languagePackDetails?.open) nodes.languagePackDetails.open = false;
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (target instanceof Element && !target.closest(".runtime-row-menu")) {
+      closeOpenRuntimeRowMenu();
     }
   });
 
@@ -465,6 +575,15 @@ function bootstrapDashboard() {
       applyLayoutMode();
     });
   });
+
+  if (nodes.runtimeListCard && typeof ResizeObserver === "function") {
+    state.runtimeListLayoutObserver?.disconnect();
+    state.runtimeListLayoutObserver = new ResizeObserver((entries) => {
+      const entry = entries.find((candidate) => candidate.target === nodes.runtimeListCard);
+      if (entry) syncRuntimeListLayout(entry.contentRect.width);
+    });
+    state.runtimeListLayoutObserver.observe(nodes.runtimeListCard);
+  }
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {

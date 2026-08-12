@@ -4668,7 +4668,22 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.49.0");
+    assert_eq!(compatibility_control.contract.version, "1.49.1");
+    assert!(
+        compatibility_control
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "pending-writer-cold-start-empty-read")
+    );
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path == "apps/leserpent/src/Leserpent/ControlPlane/SqliteOrchestraRunStore.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path == "apps/leserpent/tests/Leserpent.SecurityTests/SqliteOrchestraRunStoreTests.cs"
+            && item.state == EvidenceState::Present
+    }));
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/DaemonAuthorityWriterSession.cs"
             && item.state == EvidenceState::Present
@@ -5104,7 +5119,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.49.0");
+    assert_eq!(compatibility_control.contract.version, "1.49.1");
     assert!(
         compatibility_control
             .next_gate

@@ -432,7 +432,7 @@ function renderRuntimeDetail(runtime, attention) {
     <div><span class="runtime-state ${attention.severity === "critical" ? "bad" : "warn"}">${escapeHtml(t(`attention.${attention.severity}`))}</span></div>
     <div class="hint-line">${escapeHtml(t("runtimeDetail.needsAttention"))}: ${escapeHtml(attention.needsAttention)}</div>
     <div class="reason-list">
-      ${(attention.reasons || []).map((reason) => `<span class="reason-pill">${escapeHtml(t(`attention.${reason}`) || reason)}</span>`).join("")}
+      ${(attention.reasons || []).map((reason) => `<span class="reason-pill">${escapeHtml(attentionReasonLabel(reason))}</span>`).join("")}
     </div>
     <div class="hint-line"><strong>${escapeHtml(t("attention.suggestedActions"))}</strong></div>
     <div class="inline-actions">

@@ -243,6 +243,9 @@ function applyTheme() {
 }
 
 function resolveLayoutMode(width = window.innerWidth, height = window.innerHeight) {
+  if (width <= 600) {
+    return "mobile";
+  }
   if (width <= 980 && height <= 700) {
     return "emergency";
   }
@@ -255,9 +258,37 @@ function resolveLayoutMode(width = window.innerWidth, height = window.innerHeigh
   return "default";
 }
 
+function syncMobileFilterDisclosure() {
+  document.documentElement.dataset.mobileFiltersOpen = String(state.mobileFiltersOpen);
+  nodes.mobileFilterToggle?.setAttribute("aria-expanded", String(state.mobileFiltersOpen));
+  const activeCount = [state.filter.environment, state.filter.cluster, state.filter.role]
+    .filter(Boolean)
+    .length;
+  if (nodes.mobileFilterCount) {
+    nodes.mobileFilterCount.textContent = String(activeCount);
+    nodes.mobileFilterCount.classList.toggle("hidden", activeCount === 0);
+  }
+}
+
+function setMobileFiltersOpen(open, restoreFocus = false) {
+  state.mobileFiltersOpen = Boolean(open);
+  syncMobileFilterDisclosure();
+  if (!state.mobileFiltersOpen && restoreFocus) {
+    window.requestAnimationFrame(() => nodes.mobileFilterToggle?.focus());
+  }
+}
+
+function syncRuntimeListLayout(width = nodes.runtimeListCard?.getBoundingClientRect().width || 0) {
+  if (!(width > 0)) return;
+  state.runtimeListLayout = width <= 920 ? "cards" : "table";
+  document.documentElement.dataset.runtimeListLayout = state.runtimeListLayout;
+}
+
 function applyLayoutMode() {
   state.layoutMode = resolveLayoutMode();
   document.documentElement.dataset.layoutMode = state.layoutMode;
+  syncMobileFilterDisclosure();
+  syncRuntimeListLayout();
 }
 
 function buildQuery() {
@@ -411,39 +442,75 @@ function applyTranslations() {
   }
 }
 
+function syncTabSet(buttons, panels, activeValue, buttonKey, panelKey, prefix) {
+  for (const button of buttons) {
+    const value = button.dataset[buttonKey];
+    const isActive = value === activeValue;
+    const panel = panels.find((candidate) => candidate.dataset[panelKey] === value);
+    const buttonId = `${prefix}-tab-${value}`;
+    const panelId = `${prefix}-panel-${value}`;
+    button.id = buttonId;
+    button.setAttribute("role", "tab");
+    button.setAttribute("aria-selected", String(isActive));
+    button.setAttribute("aria-controls", panelId);
+    button.tabIndex = isActive ? 0 : -1;
+    button.classList.toggle("active", isActive);
+    if (panel) {
+      panel.id = panelId;
+      panel.setAttribute("role", "tabpanel");
+      panel.setAttribute("aria-labelledby", buttonId);
+      panel.classList.toggle("active", isActive);
+      panel.hidden = !isActive;
+    }
+  }
+}
+
 function applyTabShell() {
   for (const button of nodes.tabButtons) {
-    button.classList.toggle("active", button.dataset.tab === state.activeTab);
+    const isActive = button.dataset.tab === state.activeTab;
+    button.classList.toggle("active", isActive);
+    if (isActive) {
+      button.setAttribute("aria-current", "page");
+    } else {
+      button.removeAttribute("aria-current");
+    }
   }
   for (const panel of nodes.tabPanels) {
-    panel.classList.toggle("active", panel.dataset.tabPanel === state.activeTab);
-  }
-  for (const button of nodes.runtimeMainTabButtons) {
-    button.classList.toggle("active", button.dataset.runtimeMainTab === state.activeRuntimeMainTab);
-  }
-  for (const panel of nodes.runtimeMainPanels) {
-    const isActive = panel.dataset.runtimeMainPanel === state.activeRuntimeMainTab;
+    const isActive = panel.dataset.tabPanel === state.activeTab;
     panel.classList.toggle("active", isActive);
     panel.hidden = !isActive;
   }
-  for (const button of nodes.overviewSubtabButtons) {
-    button.classList.toggle("active", button.dataset.overviewTab === state.activeOverviewTab);
-  }
-  for (const panel of nodes.overviewSubpanels) {
-    panel.classList.toggle("active", panel.dataset.overviewPanel === state.activeOverviewTab);
-  }
+  syncTabSet(
+    nodes.runtimeMainTabButtons,
+    nodes.runtimeMainPanels,
+    state.activeRuntimeMainTab,
+    "runtimeMainTab",
+    "runtimeMainPanel",
+    "runtime-main",
+  );
+  syncTabSet(
+    nodes.overviewSubtabButtons,
+    nodes.overviewSubpanels,
+    state.activeOverviewTab,
+    "overviewTab",
+    "overviewPanel",
+    "overview",
+  );
   if (nodes.runtimeWorkspace) {
     nodes.runtimeWorkspace.classList.toggle("register-focus", state.activeRuntimeMainTab === "register");
     nodes.runtimeWorkspace.classList.toggle("panel-focus", state.activeRuntimeMainTab === "panel");
     nodes.runtimeWorkspace.classList.toggle("detail-focus", state.activeRuntimeMainTab === "detail");
     nodes.runtimeWorkspace.dataset.mainTab = state.activeRuntimeMainTab;
   }
-  for (const button of nodes.runtimeDetailSubtabButtons) {
-    button.classList.toggle("active", button.dataset.runtimeDetailTab === state.activeRuntimeDetailTab);
-  }
-  for (const panel of nodes.runtimeDetailSections) {
-    panel.classList.toggle("active", panel.dataset.runtimeDetailPanel === state.activeRuntimeDetailTab);
-  }
+  syncTabSet(
+    nodes.runtimeDetailSubtabButtons,
+    nodes.runtimeDetailSections,
+    state.activeRuntimeDetailTab,
+    "runtimeDetailTab",
+    "runtimeDetailPanel",
+    "runtime-detail",
+  );
+  window.requestAnimationFrame(() => syncRuntimeListLayout());
 }
 
 async function testAdminToken() {

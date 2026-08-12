@@ -108,6 +108,7 @@ translations.en = {
         refreshCapabilities: "Refresh Capabilities",
     },
     filters: {
+        title: "Fleet Filters",
         environment: "Environment",
         environmentPlaceholder: "prod",
         cluster: "Cluster",
@@ -426,8 +427,8 @@ translations.en = {
         warning: "warning",
         statusFetchFailed: "status_fetch_failed",
         sidecarStatusFetchFailed: "sidecar_status_fetch_failed",
-        noLatestSnapshot: "no_latest_snapshot",
-        noAnalysisJson: "no_analysis_json",
+        noLatestSnapshot: "no current snapshot",
+        noAnalysisJson: "no analysis JSON",
         actions: {
             refreshAll: "Refresh all",
             refreshStatus: "Refresh status",
@@ -616,6 +617,7 @@ translations["zh-CN"] = {
         refreshCapabilities: "刷新能力",
     },
     filters: {
+        title: "Fleet 筛选",
         environment: "环境",
         environmentPlaceholder: "prod",
         cluster: "集群",
@@ -934,8 +936,8 @@ translations["zh-CN"] = {
         warning: "警告",
         statusFetchFailed: "状态抓取失败",
         sidecarStatusFetchFailed: "sidecar 状态抓取失败",
-        noLatestSnapshot: "没有 latest snapshot",
-        noAnalysisJson: "没有 analysis json",
+        noLatestSnapshot: "缺少最新快照",
+        noAnalysisJson: "缺少分析 JSON",
         actions: {
             refreshAll: "全部刷新",
             refreshStatus: "刷新状态",
@@ -1092,6 +1094,7 @@ translations["zh-TW"] = mergeTranslations(translations.en, {
         refreshCapabilities: "刷新能力",
     },
     filters: {
+        title: "Fleet 篩選",
         environment: "環境",
         environmentPlaceholder: "prod",
         cluster: "叢集",
@@ -1347,8 +1350,8 @@ translations["zh-TW"] = mergeTranslations(translations.en, {
         warning: "警告",
         statusFetchFailed: "狀態抓取失敗",
         sidecarStatusFetchFailed: "sidecar 狀態抓取失敗",
-        noLatestSnapshot: "沒有 latest snapshot",
-        noAnalysisJson: "沒有 analysis json",
+        noLatestSnapshot: "缺少最新快照",
+        noAnalysisJson: "缺少分析 JSON",
     },
     sessions: {
         title: "工作階段",
@@ -1467,6 +1470,7 @@ translations.de = mergeTranslations(translations.en, {
         refreshCapabilities: "Fähigkeiten aktualisieren",
     },
     filters: {
+        title: "Flottenfilter",
         environment: "Umgebung",
         environmentPlaceholder: "prod",
         cluster: "Cluster",
@@ -1679,8 +1683,8 @@ translations.de = mergeTranslations(translations.en, {
         warning: "Warnung",
         statusFetchFailed: "status_fetch_failed",
         sidecarStatusFetchFailed: "sidecar_status_fetch_failed",
-        noLatestSnapshot: "no_latest_snapshot",
-        noAnalysisJson: "no_analysis_json",
+        noLatestSnapshot: "kein aktueller Snapshot",
+        noAnalysisJson: "kein Analyse-JSON",
     },
     sessions: { title: "Sitzungen", none: "Noch keine Sitzungen.", runtime: "Runtime" },
     metrics: {
@@ -1795,6 +1799,7 @@ translations.fr = mergeTranslations(translations.en, {
         refreshCapabilities: "Rafraîchir les capacités",
     },
     filters: {
+        title: "Filtres de flotte",
         environment: "Environnement",
         environmentPlaceholder: "prod",
         cluster: "Cluster",
@@ -2007,8 +2012,8 @@ translations.fr = mergeTranslations(translations.en, {
         warning: "avertissement",
         statusFetchFailed: "status_fetch_failed",
         sidecarStatusFetchFailed: "sidecar_status_fetch_failed",
-        noLatestSnapshot: "no_latest_snapshot",
-        noAnalysisJson: "no_analysis_json",
+        noLatestSnapshot: "aucun instantané récent",
+        noAnalysisJson: "aucun JSON d’analyse",
     },
     sessions: { title: "Sessions", none: "Pas encore de sessions.", runtime: "runtime" },
     metrics: {
@@ -2078,6 +2083,14 @@ function t(key, params = {}) {
         value = key;
     }
     return value.replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? `{${name}}`));
+}
+function protocolKeyToTranslationSegment(value) {
+    return String(value || "").replace(/[_-]([a-z0-9])/gi, (_, character) => character.toUpperCase());
+}
+function attentionReasonLabel(reason) {
+    const key = `attention.${protocolKeyToTranslationSegment(reason)}`;
+    const translated = t(key);
+    return translated === key ? String(reason || "") : translated;
 }
 function getStoredLanguagePreference() {
     try {
@@ -2166,6 +2179,64 @@ function activateRuntimeDetailTab(tab) {
     applyTabShell();
     syncLocation();
 }
+function bindRovingTabs(buttons, dataKey, activate) {
+    buttons.forEach((button, index) => {
+        button.addEventListener("keydown", (event) => {
+            let nextIndex = null;
+            const direction = document.documentElement.dir === "rtl" ? -1 : 1;
+            if (event.key === "ArrowRight")
+                nextIndex = index + direction;
+            if (event.key === "ArrowLeft")
+                nextIndex = index - direction;
+            if (event.key === "Home")
+                nextIndex = 0;
+            if (event.key === "End")
+                nextIndex = buttons.length - 1;
+            if (nextIndex === null) {
+                return;
+            }
+            event.preventDefault();
+            const target = buttons[(nextIndex + buttons.length) % buttons.length];
+            activate(target.dataset[dataKey]);
+            target.focus();
+        });
+    });
+}
+function runtimeTableRows() {
+    return Array.from(nodes.runtimeTableBody.querySelectorAll("tr[data-runtime-id]"))
+        .filter((row) => row instanceof HTMLTableRowElement);
+}
+function selectRuntimeTableRow(row, restoreFocus = false) {
+    if (!(row instanceof HTMLTableRowElement) || !row.dataset.runtimeId) {
+        return;
+    }
+    state.selectedRuntimeId = row.dataset.runtimeId;
+    renderRuntimeSliceFromCache();
+    syncLocation();
+    if (restoreFocus) {
+        window.requestAnimationFrame(() => {
+            const selected = nodes.runtimeTableBody.querySelector(`tr[data-runtime-id="${CSS.escape(state.selectedRuntimeId)}"]`);
+            if (selected instanceof HTMLTableRowElement)
+                selected.focus();
+        });
+    }
+}
+function closeOpenRuntimeRowMenu(restoreFocus = false, except = null) {
+    let focusTarget = null;
+    let closed = false;
+    for (const menu of nodes.runtimeTableBody.querySelectorAll(".runtime-row-menu[open]")) {
+        if (!(menu instanceof HTMLDetailsElement) || menu === except)
+            continue;
+        if (!focusTarget)
+            focusTarget = menu.querySelector("summary");
+        menu.open = false;
+        closed = true;
+    }
+    if (restoreFocus && focusTarget instanceof HTMLElement) {
+        window.requestAnimationFrame(() => focusTarget.focus());
+    }
+    return closed;
+}
 async function handleRuntimeTableAction(button) {
     const runtimeId = button.dataset.runtimeId;
     if (!runtimeId) {
@@ -2202,6 +2273,9 @@ async function handleRuntimeTableAction(button) {
 function bootstrapDashboard() {
     restoreLanguagePacks();
     restoreRuntimeWindows();
+    nodes.mobileFilterToggle?.addEventListener("click", () => {
+        setMobileFiltersOpen(!state.mobileFiltersOpen);
+    });
     nodes.tabButtons.forEach((button) => {
         button.addEventListener("click", () => activateTab(button.dataset.tab));
     });
@@ -2214,6 +2288,9 @@ function bootstrapDashboard() {
     nodes.runtimeDetailSubtabButtons.forEach((button) => {
         button.addEventListener("click", () => activateRuntimeDetailTab(button.dataset.runtimeDetailTab));
     });
+    bindRovingTabs(nodes.overviewSubtabButtons, "overviewTab", activateOverviewSubtab);
+    bindRovingTabs(nodes.runtimeMainTabButtons, "runtimeMainTab", activateRuntimeMainTab);
+    bindRovingTabs(nodes.runtimeDetailSubtabButtons, "runtimeDetailTab", activateRuntimeDetailTab);
     nodes.runtimePanelTabs.forEach((button) => {
         button.addEventListener("click", () => {
             state.runtimePanelView = button.dataset.runtimePanelView;
@@ -2297,6 +2374,9 @@ function bootstrapDashboard() {
         state.runtimeSearch = "";
         state.selectedRuntimeId = null;
         syncFilterActionState();
+        if (window.innerWidth <= 920) {
+            setMobileFiltersOpen(false, true);
+        }
         void loadDashboard();
     });
     nodes.runtimeSearch.addEventListener("input", () => {
@@ -2318,10 +2398,14 @@ function bootstrapDashboard() {
         const actionButton = target.closest("button[data-action][data-runtime-id]");
         if (actionButton instanceof HTMLButtonElement) {
             event.stopPropagation();
+            closeOpenRuntimeRowMenu();
             await handleRuntimeTableAction(actionButton);
             return;
         }
-        if (target.closest(".runtime-row-menu")) {
+        const rowMenu = target.closest(".runtime-row-menu");
+        if (rowMenu instanceof HTMLDetailsElement) {
+            if (target.closest("summary"))
+                closeOpenRuntimeRowMenu(false, rowMenu);
             event.stopPropagation();
             return;
         }
@@ -2329,9 +2413,35 @@ function bootstrapDashboard() {
         if (!(row instanceof HTMLTableRowElement)) {
             return;
         }
-        state.selectedRuntimeId = row.dataset.runtimeId;
-        renderRuntimeSliceFromCache();
-        syncLocation();
+        selectRuntimeTableRow(row);
+    });
+    nodes.runtimeTableBody.addEventListener("keydown", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement))
+            return;
+        const row = target.closest("tr[data-runtime-id]");
+        if (!(row instanceof HTMLTableRowElement) || target !== row)
+            return;
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            selectRuntimeTableRow(row, true);
+            return;
+        }
+        const rows = runtimeTableRows();
+        const index = rows.indexOf(row);
+        let nextIndex = null;
+        if (event.key === "ArrowDown")
+            nextIndex = Math.min(index + 1, rows.length - 1);
+        if (event.key === "ArrowUp")
+            nextIndex = Math.max(index - 1, 0);
+        if (event.key === "Home")
+            nextIndex = 0;
+        if (event.key === "End")
+            nextIndex = rows.length - 1;
+        if (nextIndex === null || nextIndex === index || !rows[nextIndex])
+            return;
+        event.preventDefault();
+        selectRuntimeTableRow(rows[nextIndex], true);
     });
     nodes.runtimeDetailAttention.addEventListener("click", async (event) => {
         const target = event.target;
@@ -2453,10 +2563,20 @@ function bootstrapDashboard() {
     });
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
+            if (closeOpenRuntimeRowMenu(true))
+                event.preventDefault();
+            if (state.mobileFiltersOpen)
+                setMobileFiltersOpen(false, true);
             if (nodes.securityDetails?.open)
                 closeSecurityDetails();
             if (nodes.languagePackDetails?.open)
                 nodes.languagePackDetails.open = false;
+        }
+    });
+    document.addEventListener("click", (event) => {
+        const target = event.target;
+        if (target instanceof Element && !target.closest(".runtime-row-menu")) {
+            closeOpenRuntimeRowMenu();
         }
     });
     nodes.securityDetails?.addEventListener("toggle", () => {
@@ -2486,6 +2606,15 @@ function bootstrapDashboard() {
             applyLayoutMode();
         });
     });
+    if (nodes.runtimeListCard && typeof ResizeObserver === "function") {
+        state.runtimeListLayoutObserver?.disconnect();
+        state.runtimeListLayoutObserver = new ResizeObserver((entries) => {
+            const entry = entries.find((candidate) => candidate.target === nodes.runtimeListCard);
+            if (entry)
+                syncRuntimeListLayout(entry.contentRect.width);
+        });
+        state.runtimeListLayoutObserver.observe(nodes.runtimeListCard);
+    }
     document.addEventListener("visibilitychange", () => {
         if (document.hidden) {
             clearOrchestraPollTimers();
@@ -2565,6 +2694,7 @@ translations.ko = mergeTranslations(translations.en, {
         refreshCapabilities: "기능 새로고침",
     },
     filters: {
+        title: "Fleet 필터",
         environment: "환경",
         environmentPlaceholder: "prod",
         cluster: "클러스터",
@@ -2777,8 +2907,8 @@ translations.ko = mergeTranslations(translations.en, {
         warning: "경고",
         statusFetchFailed: "status_fetch_failed",
         sidecarStatusFetchFailed: "sidecar_status_fetch_failed",
-        noLatestSnapshot: "no_latest_snapshot",
-        noAnalysisJson: "no_analysis_json",
+        noLatestSnapshot: "최신 스냅샷 없음",
+        noAnalysisJson: "분석 JSON 없음",
     },
     sessions: { title: "세션", none: "아직 세션이 없습니다.", runtime: "runtime" },
     metrics: {
@@ -2893,6 +3023,7 @@ translations.ja = mergeTranslations(translations.en, {
         refreshCapabilities: "能力を更新",
     },
     filters: {
+        title: "Fleet フィルター",
         environment: "環境",
         environmentPlaceholder: "prod",
         cluster: "クラスター",
@@ -3148,8 +3279,8 @@ translations.ja = mergeTranslations(translations.en, {
         warning: "警告",
         statusFetchFailed: "状態取得失敗",
         sidecarStatusFetchFailed: "sidecar 状態取得失敗",
-        noLatestSnapshot: "latest snapshot なし",
-        noAnalysisJson: "analysis json なし",
+        noLatestSnapshot: "最新スナップショットなし",
+        noAnalysisJson: "分析 JSON なし",
     },
     sessions: {
         title: "セッション",
@@ -3268,6 +3399,7 @@ translations.es = mergeTranslations(translations.en, {
         refreshCapabilities: "Actualizar capacidades",
     },
     filters: {
+        title: "Filtros de flota",
         environment: "Entorno",
         environmentPlaceholder: "prod",
         cluster: "Clúster",
@@ -3523,8 +3655,8 @@ translations.es = mergeTranslations(translations.en, {
         warning: "advertencia",
         statusFetchFailed: "status_fetch_failed",
         sidecarStatusFetchFailed: "sidecar_status_fetch_failed",
-        noLatestSnapshot: "no_latest_snapshot",
-        noAnalysisJson: "no_analysis_json",
+        noLatestSnapshot: "sin instantánea reciente",
+        noAnalysisJson: "sin JSON de análisis",
     },
     sessions: {
         title: "Sesiones",
@@ -4157,6 +4289,9 @@ function applyTheme() {
     }
 }
 function resolveLayoutMode(width = window.innerWidth, height = window.innerHeight) {
+    if (width <= 600) {
+        return "mobile";
+    }
     if (width <= 980 && height <= 700) {
         return "emergency";
     }
@@ -4168,9 +4303,35 @@ function resolveLayoutMode(width = window.innerWidth, height = window.innerHeigh
     }
     return "default";
 }
+function syncMobileFilterDisclosure() {
+    document.documentElement.dataset.mobileFiltersOpen = String(state.mobileFiltersOpen);
+    nodes.mobileFilterToggle?.setAttribute("aria-expanded", String(state.mobileFiltersOpen));
+    const activeCount = [state.filter.environment, state.filter.cluster, state.filter.role]
+        .filter(Boolean)
+        .length;
+    if (nodes.mobileFilterCount) {
+        nodes.mobileFilterCount.textContent = String(activeCount);
+        nodes.mobileFilterCount.classList.toggle("hidden", activeCount === 0);
+    }
+}
+function setMobileFiltersOpen(open, restoreFocus = false) {
+    state.mobileFiltersOpen = Boolean(open);
+    syncMobileFilterDisclosure();
+    if (!state.mobileFiltersOpen && restoreFocus) {
+        window.requestAnimationFrame(() => nodes.mobileFilterToggle?.focus());
+    }
+}
+function syncRuntimeListLayout(width = nodes.runtimeListCard?.getBoundingClientRect().width || 0) {
+    if (!(width > 0))
+        return;
+    state.runtimeListLayout = width <= 920 ? "cards" : "table";
+    document.documentElement.dataset.runtimeListLayout = state.runtimeListLayout;
+}
 function applyLayoutMode() {
     state.layoutMode = resolveLayoutMode();
     document.documentElement.dataset.layoutMode = state.layoutMode;
+    syncMobileFilterDisclosure();
+    syncRuntimeListLayout();
 }
 function buildQuery() {
     const params = new URLSearchParams();
@@ -4327,39 +4488,54 @@ function applyTranslations() {
         renderLanguagePackCenter();
     }
 }
+function syncTabSet(buttons, panels, activeValue, buttonKey, panelKey, prefix) {
+    for (const button of buttons) {
+        const value = button.dataset[buttonKey];
+        const isActive = value === activeValue;
+        const panel = panels.find((candidate) => candidate.dataset[panelKey] === value);
+        const buttonId = `${prefix}-tab-${value}`;
+        const panelId = `${prefix}-panel-${value}`;
+        button.id = buttonId;
+        button.setAttribute("role", "tab");
+        button.setAttribute("aria-selected", String(isActive));
+        button.setAttribute("aria-controls", panelId);
+        button.tabIndex = isActive ? 0 : -1;
+        button.classList.toggle("active", isActive);
+        if (panel) {
+            panel.id = panelId;
+            panel.setAttribute("role", "tabpanel");
+            panel.setAttribute("aria-labelledby", buttonId);
+            panel.classList.toggle("active", isActive);
+            panel.hidden = !isActive;
+        }
+    }
+}
 function applyTabShell() {
     for (const button of nodes.tabButtons) {
-        button.classList.toggle("active", button.dataset.tab === state.activeTab);
+        const isActive = button.dataset.tab === state.activeTab;
+        button.classList.toggle("active", isActive);
+        if (isActive) {
+            button.setAttribute("aria-current", "page");
+        }
+        else {
+            button.removeAttribute("aria-current");
+        }
     }
     for (const panel of nodes.tabPanels) {
-        panel.classList.toggle("active", panel.dataset.tabPanel === state.activeTab);
-    }
-    for (const button of nodes.runtimeMainTabButtons) {
-        button.classList.toggle("active", button.dataset.runtimeMainTab === state.activeRuntimeMainTab);
-    }
-    for (const panel of nodes.runtimeMainPanels) {
-        const isActive = panel.dataset.runtimeMainPanel === state.activeRuntimeMainTab;
+        const isActive = panel.dataset.tabPanel === state.activeTab;
         panel.classList.toggle("active", isActive);
         panel.hidden = !isActive;
     }
-    for (const button of nodes.overviewSubtabButtons) {
-        button.classList.toggle("active", button.dataset.overviewTab === state.activeOverviewTab);
-    }
-    for (const panel of nodes.overviewSubpanels) {
-        panel.classList.toggle("active", panel.dataset.overviewPanel === state.activeOverviewTab);
-    }
+    syncTabSet(nodes.runtimeMainTabButtons, nodes.runtimeMainPanels, state.activeRuntimeMainTab, "runtimeMainTab", "runtimeMainPanel", "runtime-main");
+    syncTabSet(nodes.overviewSubtabButtons, nodes.overviewSubpanels, state.activeOverviewTab, "overviewTab", "overviewPanel", "overview");
     if (nodes.runtimeWorkspace) {
         nodes.runtimeWorkspace.classList.toggle("register-focus", state.activeRuntimeMainTab === "register");
         nodes.runtimeWorkspace.classList.toggle("panel-focus", state.activeRuntimeMainTab === "panel");
         nodes.runtimeWorkspace.classList.toggle("detail-focus", state.activeRuntimeMainTab === "detail");
         nodes.runtimeWorkspace.dataset.mainTab = state.activeRuntimeMainTab;
     }
-    for (const button of nodes.runtimeDetailSubtabButtons) {
-        button.classList.toggle("active", button.dataset.runtimeDetailTab === state.activeRuntimeDetailTab);
-    }
-    for (const panel of nodes.runtimeDetailSections) {
-        panel.classList.toggle("active", panel.dataset.runtimeDetailPanel === state.activeRuntimeDetailTab);
-    }
+    syncTabSet(nodes.runtimeDetailSubtabButtons, nodes.runtimeDetailSections, state.activeRuntimeDetailTab, "runtimeDetailTab", "runtimeDetailPanel", "runtime-detail");
+    window.requestAnimationFrame(() => syncRuntimeListLayout());
 }
 async function testAdminToken() {
     const token = state.adminToken?.trim();
@@ -5289,7 +5465,7 @@ function renderRuntimeDetail(runtime, attention) {
     <div><span class="runtime-state ${attention.severity === "critical" ? "bad" : "warn"}">${escapeHtml(t(`attention.${attention.severity}`))}</span></div>
     <div class="hint-line">${escapeHtml(t("runtimeDetail.needsAttention"))}: ${escapeHtml(attention.needsAttention)}</div>
     <div class="reason-list">
-      ${(attention.reasons || []).map((reason) => `<span class="reason-pill">${escapeHtml(t(`attention.${reason}`) || reason)}</span>`).join("")}
+      ${(attention.reasons || []).map((reason) => `<span class="reason-pill">${escapeHtml(attentionReasonLabel(reason))}</span>`).join("")}
     </div>
     <div class="hint-line"><strong>${escapeHtml(t("attention.suggestedActions"))}</strong></div>
     <div class="inline-actions">
@@ -5602,7 +5778,7 @@ function renderAttentionReasons(summary) {
         return;
     }
     nodes.attentionReasons.innerHTML = entries.map(([reason, count]) => `
-    <div class="reason-line"><strong>${escapeHtml(t(`attention.${reason}`))}</strong> · ${escapeHtml(count)} ${escapeHtml(t("metrics.runtimes"))}</div>
+    <div class="reason-line"><strong>${escapeHtml(attentionReasonLabel(reason))}</strong> · ${escapeHtml(count)} ${escapeHtml(t("metrics.runtimes"))}</div>
   `).join("");
 }
 function renderPersistence(capabilities) {
@@ -5690,7 +5866,7 @@ function renderAttentionList(payload) {
         ${escapeHtml(item.tags.environment || t("runtimes.states.noEnv"))} · ${escapeHtml(item.tags.cluster || t("runtimes.states.noCluster"))} · ${escapeHtml(item.tags.role || t("runtimes.states.noRole"))}
       </div>
       <div class="reason-list">
-        ${(item.reasons || []).map((reason) => `<span class="reason-pill">${escapeHtml(t(`attention.${reason}`) || reason)}</span>`).join("")}
+        ${(item.reasons || []).map((reason) => `<span class="reason-pill">${escapeHtml(attentionReasonLabel(reason))}</span>`).join("")}
       </div>
       ${(item.suggestedActions || []).length ? `
         <div class="hint-line"><strong>${escapeHtml(t("attention.suggestedActions"))}</strong>: ${(item.suggestedActions || []).map((action) => `${escapeHtml(recoveryActionLabel(action.action))} (#${escapeHtml(action.priority)})${action.coolingDown ? ` · ${escapeHtml(t("attention.coolingDown"))}` : ""}`).join(" · ")}</div>
@@ -6081,17 +6257,17 @@ function runtimeTableSignature(items, attentionMap) {
     ].join("##");
 }
 function updateRuntimeTableSelection(selectedRuntimeId) {
-    const previous = nodes.runtimeTableBody.querySelector("tr.selected");
-    if (previous instanceof HTMLTableRowElement && previous.dataset.runtimeId !== selectedRuntimeId) {
-        previous.classList.remove("selected");
+    for (const row of nodes.runtimeTableBody.querySelectorAll("tr[data-runtime-id]")) {
+        if (!(row instanceof HTMLTableRowElement))
+            continue;
+        const isSelected = row.dataset.runtimeId === selectedRuntimeId;
+        row.classList.toggle("selected", isSelected);
+        row.setAttribute("aria-selected", String(isSelected));
+        row.tabIndex = isSelected ? 0 : -1;
     }
-    if (!selectedRuntimeId) {
-        return;
-    }
-    const next = nodes.runtimeTableBody.querySelector(`tr[data-runtime-id="${CSS.escape(selectedRuntimeId)}"]`);
-    if (next instanceof HTMLTableRowElement) {
-        next.classList.add("selected");
-    }
+}
+function runtimeActionLabel(actionKey, runtimeName) {
+    return `${t(actionKey)}: ${runtimeName}`;
 }
 function renderRuntimes(payload, attentionMap) {
     const allItems = payload.runtimes || [];
@@ -6127,7 +6303,7 @@ function renderRuntimes(payload, attentionMap) {
             const emptySignature = `empty::${state.language}::${state.runtimeSearch.trim().toLowerCase()}::${state.runtimeSort}`;
             if (state.renderSignatures.runtimeTable !== emptySignature) {
                 state.renderSignatures.runtimeTable = emptySignature;
-                nodes.runtimeTableBody.innerHTML = `<tr><td colspan="7">${escapeHtml(t("runtimes.noMatch"))}</td></tr>`;
+                nodes.runtimeTableBody.innerHTML = `<tr class="runtime-empty-row"><td colspan="7">${escapeHtml(t("runtimes.noMatch"))}</td></tr>`;
             }
         }
         if (state.activeRuntimeMainTab === "detail") {
@@ -6146,6 +6322,7 @@ function renderRuntimes(payload, attentionMap) {
         if (state.renderSignatures.runtimeTable !== tableSignature) {
             state.renderSignatures.runtimeTable = tableSignature;
             nodes.runtimeTableBody.innerHTML = items.map((runtime) => {
+                const isSelected = runtime.runtimeId === state.selectedRuntimeId;
                 const badge = statusBadge(runtime.status);
                 const attention = attentionMap.get(runtime.runtimeId);
                 const capabilityKeys = (runtime.capabilities || [])
@@ -6164,24 +6341,27 @@ function renderRuntimes(payload, attentionMap) {
                     runtime.status.hasExternalDiagnosticOpinion ? "merged-opinion" : null,
                 ].filter(Boolean);
                 return `
-        <tr class="${runtime.runtimeId === state.selectedRuntimeId ? "selected" : ""}" data-runtime-id="${escapeHtml(runtime.runtimeId)}">
-          <td>
+        <tr class="${isSelected ? "selected" : ""}"
+            data-runtime-id="${escapeHtml(runtime.runtimeId)}"
+            aria-selected="${String(isSelected)}"
+            tabindex="${isSelected ? 0 : -1}">
+          <td data-runtime-cell="identity" data-label="${escapeHtml(t("runtimes.columns.name"))}">
             <strong>${escapeHtml(runtime.name)}</strong>
             <div class="item-meta">${escapeHtml(runtime.endpoint)}</div>
           </td>
-          <td>
+          <td data-runtime-cell="tags" data-label="${escapeHtml(t("runtimes.columns.tags"))}">
             <div class="runtime-tags">
               <span class="tag-pill">${escapeHtml(runtime.tags.environment || t("runtimes.states.noEnv"))}</span>
               <span class="tag-pill">${escapeHtml(runtime.tags.cluster || t("runtimes.states.noCluster"))}</span>
               <span class="tag-pill">${escapeHtml(runtime.tags.role || t("runtimes.states.noRole"))}</span>
             </div>
           </td>
-          <td>
+          <td data-runtime-cell="status" data-label="${escapeHtml(t("runtimes.columns.status"))}">
             <span class="runtime-state ${escapeHtml(badge.tone)}">${escapeHtml(badge.text)}</span>
             <div class="item-meta">${escapeHtml(t("runtimeDetail.source"))}: ${escapeHtml(runtime.status.statusSource)}</div>
             ${runtime.status.resilienceStatus ? `<div class="item-meta">${escapeHtml(t("runtimeDetail.resilienceStatus"))}: ${escapeHtml(runtime.status.resilienceStatus)}</div>` : ""}
           </td>
-          <td>
+          <td data-runtime-cell="capabilities" data-label="${escapeHtml(t("runtimes.columns.capabilitySurface"))}">
             <div class="runtime-surface">
               <div class="runtime-surface-compact item-meta">${escapeHtml(compactCapabilitySummary)}</div>
               <div class="runtime-surface-pills">
@@ -6189,37 +6369,37 @@ function renderRuntimes(payload, attentionMap) {
               </div>
             </div>
           </td>
-          <td>
+          <td data-runtime-cell="sidecar" data-label="${escapeHtml(t("runtimes.columns.sidecar"))}">
             <div class="runtime-sidecar">
               ${sidecarBits.length ? sidecarBits.map((bit) => `<span class="tag-pill">${escapeHtml(bit)}</span>`).join("") : `<span class="item-meta">${escapeHtml(t("runtimes.states.none"))}</span>`}
             </div>
           </td>
-          <td>
+          <td data-runtime-cell="attention" data-label="${escapeHtml(t("runtimes.columns.attention"))}">
             <div class="runtime-attention">
               ${attention
                     ? `<span class="runtime-state ${attention.severity === "critical" ? "bad" : "warn"}">${escapeHtml(t(`attention.${attention.severity}`))}</span>
-                   ${(attention.reasons || []).map((reason) => `<span class="tag-pill">${escapeHtml(t(`attention.${reason}`) || reason)}</span>`).join("")}`
+                   ${(attention.reasons || []).map((reason) => `<span class="tag-pill">${escapeHtml(attentionReasonLabel(reason))}</span>`).join("")}`
                     : `<span class="runtime-state good">${escapeHtml(t("runtimes.states.clear"))}</span>`}
             </div>
           </td>
-          <td>
+          <td data-runtime-cell="actions" data-label="${escapeHtml(t("runtimes.columns.actions"))}">
             <div class="inline-actions">
-              <button type="button" data-action="open-panel" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.openPanel"))}</button>
-              <button type="button" data-action="show-attention" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.attention"))}</button>
-              <button type="button" data-action="refresh-status" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.status"))}</button>
-              ${runtime.sidecarEndpoint ? `<button type="button" data-action="refresh-sidecar" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimeDetail.refreshSidecar"))}</button>` : ""}
-              <button type="button" data-action="refresh-all" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.all"))}</button>
-              <button type="button" data-action="delete-runtime" data-runtime-id="${escapeHtml(runtime.runtimeId)}" data-runtime-name="${escapeHtml(runtime.name)}">${escapeHtml(t("runtimes.actions.delete"))}</button>
+              <button type="button" data-action="open-panel" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.openPanel", runtime.name))}">${escapeHtml(t("runtimes.actions.openPanel"))}</button>
+              <button type="button" data-action="show-attention" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.attention", runtime.name))}">${escapeHtml(t("runtimes.actions.attention"))}</button>
+              <button type="button" data-action="refresh-status" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.status", runtime.name))}">${escapeHtml(t("runtimes.actions.status"))}</button>
+              ${runtime.sidecarEndpoint ? `<button type="button" data-action="refresh-sidecar" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimeDetail.refreshSidecar", runtime.name))}">${escapeHtml(t("runtimeDetail.refreshSidecar"))}</button>` : ""}
+              <button type="button" data-action="refresh-all" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.all", runtime.name))}">${escapeHtml(t("runtimes.actions.all"))}</button>
+              <button type="button" data-action="delete-runtime" data-runtime-id="${escapeHtml(runtime.runtimeId)}" data-runtime-name="${escapeHtml(runtime.name)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.delete", runtime.name))}">${escapeHtml(t("runtimes.actions.delete"))}</button>
             </div>
             <details class="runtime-row-menu">
-              <summary class="quiet">${escapeHtml(t("runtimes.actions.menu"))}</summary>
+              <summary class="quiet" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.menu", runtime.name))}">${escapeHtml(t("runtimes.actions.menu"))}</summary>
               <div class="runtime-row-menu-panel">
-                <button type="button" data-action="open-panel" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.openPanel"))}</button>
-                <button type="button" data-action="show-attention" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.attention"))}</button>
-                <button type="button" data-action="refresh-status" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.status"))}</button>
-                ${runtime.sidecarEndpoint ? `<button type="button" data-action="refresh-sidecar" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimeDetail.refreshSidecar"))}</button>` : ""}
-                <button type="button" data-action="refresh-all" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.all"))}</button>
-                <button type="button" data-action="delete-runtime" data-runtime-id="${escapeHtml(runtime.runtimeId)}" data-runtime-name="${escapeHtml(runtime.name)}">${escapeHtml(t("runtimes.actions.delete"))}</button>
+                <button type="button" data-action="open-panel" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.openPanel", runtime.name))}">${escapeHtml(t("runtimes.actions.openPanel"))}</button>
+                <button type="button" data-action="show-attention" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.attention", runtime.name))}">${escapeHtml(t("runtimes.actions.attention"))}</button>
+                <button type="button" data-action="refresh-status" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.status", runtime.name))}">${escapeHtml(t("runtimes.actions.status"))}</button>
+                ${runtime.sidecarEndpoint ? `<button type="button" data-action="refresh-sidecar" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimeDetail.refreshSidecar", runtime.name))}">${escapeHtml(t("runtimeDetail.refreshSidecar"))}</button>` : ""}
+                <button type="button" data-action="refresh-all" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.all", runtime.name))}">${escapeHtml(t("runtimes.actions.all"))}</button>
+                <button type="button" data-action="delete-runtime" data-runtime-id="${escapeHtml(runtime.runtimeId)}" data-runtime-name="${escapeHtml(runtime.name)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.delete", runtime.name))}">${escapeHtml(t("runtimes.actions.delete"))}</button>
               </div>
             </details>
           </td>
@@ -6246,8 +6426,7 @@ function orchestraReasonLabel(reason) {
     if (!reason) {
         return "clear";
     }
-    const translated = t(`attention.${reason}`);
-    return translated === `attention.${reason}` ? reason : translated;
+    return attentionReasonLabel(reason);
 }
 function orchestraTagLabel(tags) {
     const parts = [tags?.environment, tags?.cluster, tags?.role].filter(Boolean);
@@ -6736,12 +6915,16 @@ function syncFilterActionState() {
     nodes.clearFiltersButton.disabled = !draft.some(Boolean)
         && !applied.some(Boolean)
         && !state.runtimeSearch;
+    syncMobileFilterDisclosure();
 }
 function applyFleetFilters() {
     state.filter.environment = nodes.environmentInput.value.trim();
     state.filter.cluster = nodes.clusterInput.value.trim();
     state.filter.role = nodes.roleInput.value.trim();
     syncFilterActionState();
+    if (window.innerWidth <= 920) {
+        setMobileFiltersOpen(false, true);
+    }
     void loadDashboard();
 }
 function clearRegisterForm() {
@@ -7395,6 +7578,9 @@ const state = {
     themePreference: "auto",
     theme: "light",
     layoutMode: "default",
+    runtimeListLayout: "cards",
+    runtimeListLayoutObserver: null,
+    mobileFiltersOpen: false,
     activeTab: "overview",
     activeOverviewTab: "summary",
     activeRuntimeMainTab: "select",
@@ -7495,6 +7681,7 @@ const nodes = {
     runtimeWorkspace: document.getElementById("runtime-workspace"),
     runtimeMainTabButtons: Array.from(document.querySelectorAll(".runtime-main-tab-button")),
     runtimeMainPanels: Array.from(document.querySelectorAll(".runtime-main-panel")),
+    runtimeListCard: document.querySelector(".runtime-list-card"),
     runtimeSearch: document.getElementById("runtime-search"),
     runtimeSort: document.getElementById("runtime-sort"),
     runtimeCleanupMenu: document.getElementById("runtime-cleanup-menu"),
@@ -7544,6 +7731,8 @@ const nodes = {
     runtimeWindowCount: document.getElementById("runtime-window-count"),
     runtimeWindowGrid: document.getElementById("runtime-window-grid"),
     statusLine: document.getElementById("status-line"),
+    mobileFilterToggle: document.getElementById("mobile-filter-toggle"),
+    mobileFilterCount: document.getElementById("mobile-filter-count"),
     environmentInput: document.getElementById("filter-environment"),
     clusterInput: document.getElementById("filter-cluster"),
     roleInput: document.getElementById("filter-role"),

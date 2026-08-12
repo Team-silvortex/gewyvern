@@ -5,8 +5,7 @@ function orchestraReasonLabel(reason) {
   if (!reason) {
     return "clear";
   }
-  const translated = t(`attention.${reason}`);
-  return translated === `attention.${reason}` ? reason : translated;
+  return attentionReasonLabel(reason);
 }
 
 function orchestraTagLabel(tags) {

@@ -61,6 +61,7 @@ translations.ko = mergeTranslations(translations.en, {
       refreshCapabilities: "기능 새로고침",
     },
     filters: {
+      title: "Fleet 필터",
       environment: "환경",
       environmentPlaceholder: "prod",
       cluster: "클러스터",
@@ -273,8 +274,8 @@ translations.ko = mergeTranslations(translations.en, {
       warning: "경고",
       statusFetchFailed: "status_fetch_failed",
       sidecarStatusFetchFailed: "sidecar_status_fetch_failed",
-      noLatestSnapshot: "no_latest_snapshot",
-      noAnalysisJson: "no_analysis_json",
+      noLatestSnapshot: "최신 스냅샷 없음",
+      noAnalysisJson: "분석 JSON 없음",
     },
     sessions: { title: "세션", none: "아직 세션이 없습니다.", runtime: "runtime" },
     metrics: {

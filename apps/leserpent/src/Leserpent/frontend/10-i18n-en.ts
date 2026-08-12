@@ -93,6 +93,7 @@ translations.en = {
       refreshCapabilities: "Refresh Capabilities",
     },
     filters: {
+      title: "Fleet Filters",
       environment: "Environment",
       environmentPlaceholder: "prod",
       cluster: "Cluster",
@@ -411,8 +412,8 @@ translations.en = {
       warning: "warning",
       statusFetchFailed: "status_fetch_failed",
       sidecarStatusFetchFailed: "sidecar_status_fetch_failed",
-      noLatestSnapshot: "no_latest_snapshot",
-      noAnalysisJson: "no_analysis_json",
+      noLatestSnapshot: "no current snapshot",
+      noAnalysisJson: "no analysis JSON",
       actions: {
         refreshAll: "Refresh all",
         refreshStatus: "Refresh status",

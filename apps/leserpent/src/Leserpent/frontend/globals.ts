@@ -12,6 +12,9 @@ interface DashboardState {
   themePreference: string;
   theme: string;
   layoutMode: string;
+  runtimeListLayout: string;
+  runtimeListLayoutObserver: ResizeObserver | null;
+  mobileFiltersOpen: boolean;
   activeTab: string;
   activeOverviewTab: string;
   activeRuntimeMainTab: string;

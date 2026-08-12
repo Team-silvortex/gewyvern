@@ -44,19 +44,17 @@ function runtimeTableSignature(items, attentionMap) {
 }
 
 function updateRuntimeTableSelection(selectedRuntimeId) {
-  const previous = nodes.runtimeTableBody.querySelector("tr.selected");
-  if (previous instanceof HTMLTableRowElement && previous.dataset.runtimeId !== selectedRuntimeId) {
-    previous.classList.remove("selected");
+  for (const row of nodes.runtimeTableBody.querySelectorAll("tr[data-runtime-id]")) {
+    if (!(row instanceof HTMLTableRowElement)) continue;
+    const isSelected = row.dataset.runtimeId === selectedRuntimeId;
+    row.classList.toggle("selected", isSelected);
+    row.setAttribute("aria-selected", String(isSelected));
+    row.tabIndex = isSelected ? 0 : -1;
   }
+}
 
-  if (!selectedRuntimeId) {
-    return;
-  }
-
-  const next = nodes.runtimeTableBody.querySelector(`tr[data-runtime-id="${CSS.escape(selectedRuntimeId)}"]`);
-  if (next instanceof HTMLTableRowElement) {
-    next.classList.add("selected");
-  }
+function runtimeActionLabel(actionKey, runtimeName) {
+  return `${t(actionKey)}: ${runtimeName}`;
 }
 
 function renderRuntimes(payload, attentionMap) {
@@ -95,7 +93,7 @@ function renderRuntimes(payload, attentionMap) {
       const emptySignature = `empty::${state.language}::${state.runtimeSearch.trim().toLowerCase()}::${state.runtimeSort}`;
       if (state.renderSignatures.runtimeTable !== emptySignature) {
         state.renderSignatures.runtimeTable = emptySignature;
-        nodes.runtimeTableBody.innerHTML = `<tr><td colspan="7">${escapeHtml(t("runtimes.noMatch"))}</td></tr>`;
+        nodes.runtimeTableBody.innerHTML = `<tr class="runtime-empty-row"><td colspan="7">${escapeHtml(t("runtimes.noMatch"))}</td></tr>`;
       }
     }
     if (state.activeRuntimeMainTab === "detail") {
@@ -115,6 +113,7 @@ function renderRuntimes(payload, attentionMap) {
     if (state.renderSignatures.runtimeTable !== tableSignature) {
       state.renderSignatures.runtimeTable = tableSignature;
       nodes.runtimeTableBody.innerHTML = items.map((runtime) => {
+      const isSelected = runtime.runtimeId === state.selectedRuntimeId;
       const badge = statusBadge(runtime.status);
       const attention = attentionMap.get(runtime.runtimeId);
       const capabilityKeys = (runtime.capabilities || [])
@@ -134,24 +133,27 @@ function renderRuntimes(payload, attentionMap) {
       ].filter(Boolean);
 
       return `
-        <tr class="${runtime.runtimeId === state.selectedRuntimeId ? "selected" : ""}" data-runtime-id="${escapeHtml(runtime.runtimeId)}">
-          <td>
+        <tr class="${isSelected ? "selected" : ""}"
+            data-runtime-id="${escapeHtml(runtime.runtimeId)}"
+            aria-selected="${String(isSelected)}"
+            tabindex="${isSelected ? 0 : -1}">
+          <td data-runtime-cell="identity" data-label="${escapeHtml(t("runtimes.columns.name"))}">
             <strong>${escapeHtml(runtime.name)}</strong>
             <div class="item-meta">${escapeHtml(runtime.endpoint)}</div>
           </td>
-          <td>
+          <td data-runtime-cell="tags" data-label="${escapeHtml(t("runtimes.columns.tags"))}">
             <div class="runtime-tags">
               <span class="tag-pill">${escapeHtml(runtime.tags.environment || t("runtimes.states.noEnv"))}</span>
               <span class="tag-pill">${escapeHtml(runtime.tags.cluster || t("runtimes.states.noCluster"))}</span>
               <span class="tag-pill">${escapeHtml(runtime.tags.role || t("runtimes.states.noRole"))}</span>
             </div>
           </td>
-          <td>
+          <td data-runtime-cell="status" data-label="${escapeHtml(t("runtimes.columns.status"))}">
             <span class="runtime-state ${escapeHtml(badge.tone)}">${escapeHtml(badge.text)}</span>
             <div class="item-meta">${escapeHtml(t("runtimeDetail.source"))}: ${escapeHtml(runtime.status.statusSource)}</div>
             ${runtime.status.resilienceStatus ? `<div class="item-meta">${escapeHtml(t("runtimeDetail.resilienceStatus"))}: ${escapeHtml(runtime.status.resilienceStatus)}</div>` : ""}
           </td>
-          <td>
+          <td data-runtime-cell="capabilities" data-label="${escapeHtml(t("runtimes.columns.capabilitySurface"))}">
             <div class="runtime-surface">
               <div class="runtime-surface-compact item-meta">${escapeHtml(compactCapabilitySummary)}</div>
               <div class="runtime-surface-pills">
@@ -159,37 +161,37 @@ function renderRuntimes(payload, attentionMap) {
               </div>
             </div>
           </td>
-          <td>
+          <td data-runtime-cell="sidecar" data-label="${escapeHtml(t("runtimes.columns.sidecar"))}">
             <div class="runtime-sidecar">
               ${sidecarBits.length ? sidecarBits.map((bit) => `<span class="tag-pill">${escapeHtml(bit)}</span>`).join("") : `<span class="item-meta">${escapeHtml(t("runtimes.states.none"))}</span>`}
             </div>
           </td>
-          <td>
+          <td data-runtime-cell="attention" data-label="${escapeHtml(t("runtimes.columns.attention"))}">
             <div class="runtime-attention">
               ${attention
                 ? `<span class="runtime-state ${attention.severity === "critical" ? "bad" : "warn"}">${escapeHtml(t(`attention.${attention.severity}`))}</span>
-                   ${(attention.reasons || []).map((reason) => `<span class="tag-pill">${escapeHtml(t(`attention.${reason}`) || reason)}</span>`).join("")}`
+                   ${(attention.reasons || []).map((reason) => `<span class="tag-pill">${escapeHtml(attentionReasonLabel(reason))}</span>`).join("")}`
                 : `<span class="runtime-state good">${escapeHtml(t("runtimes.states.clear"))}</span>`}
             </div>
           </td>
-          <td>
+          <td data-runtime-cell="actions" data-label="${escapeHtml(t("runtimes.columns.actions"))}">
             <div class="inline-actions">
-              <button type="button" data-action="open-panel" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.openPanel"))}</button>
-              <button type="button" data-action="show-attention" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.attention"))}</button>
-              <button type="button" data-action="refresh-status" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.status"))}</button>
-              ${runtime.sidecarEndpoint ? `<button type="button" data-action="refresh-sidecar" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimeDetail.refreshSidecar"))}</button>` : ""}
-              <button type="button" data-action="refresh-all" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.all"))}</button>
-              <button type="button" data-action="delete-runtime" data-runtime-id="${escapeHtml(runtime.runtimeId)}" data-runtime-name="${escapeHtml(runtime.name)}">${escapeHtml(t("runtimes.actions.delete"))}</button>
+              <button type="button" data-action="open-panel" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.openPanel", runtime.name))}">${escapeHtml(t("runtimes.actions.openPanel"))}</button>
+              <button type="button" data-action="show-attention" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.attention", runtime.name))}">${escapeHtml(t("runtimes.actions.attention"))}</button>
+              <button type="button" data-action="refresh-status" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.status", runtime.name))}">${escapeHtml(t("runtimes.actions.status"))}</button>
+              ${runtime.sidecarEndpoint ? `<button type="button" data-action="refresh-sidecar" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimeDetail.refreshSidecar", runtime.name))}">${escapeHtml(t("runtimeDetail.refreshSidecar"))}</button>` : ""}
+              <button type="button" data-action="refresh-all" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.all", runtime.name))}">${escapeHtml(t("runtimes.actions.all"))}</button>
+              <button type="button" data-action="delete-runtime" data-runtime-id="${escapeHtml(runtime.runtimeId)}" data-runtime-name="${escapeHtml(runtime.name)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.delete", runtime.name))}">${escapeHtml(t("runtimes.actions.delete"))}</button>
             </div>
             <details class="runtime-row-menu">
-              <summary class="quiet">${escapeHtml(t("runtimes.actions.menu"))}</summary>
+              <summary class="quiet" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.menu", runtime.name))}">${escapeHtml(t("runtimes.actions.menu"))}</summary>
               <div class="runtime-row-menu-panel">
-                <button type="button" data-action="open-panel" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.openPanel"))}</button>
-                <button type="button" data-action="show-attention" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.attention"))}</button>
-                <button type="button" data-action="refresh-status" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.status"))}</button>
-                ${runtime.sidecarEndpoint ? `<button type="button" data-action="refresh-sidecar" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimeDetail.refreshSidecar"))}</button>` : ""}
-                <button type="button" data-action="refresh-all" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.all"))}</button>
-                <button type="button" data-action="delete-runtime" data-runtime-id="${escapeHtml(runtime.runtimeId)}" data-runtime-name="${escapeHtml(runtime.name)}">${escapeHtml(t("runtimes.actions.delete"))}</button>
+                <button type="button" data-action="open-panel" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.openPanel", runtime.name))}">${escapeHtml(t("runtimes.actions.openPanel"))}</button>
+                <button type="button" data-action="show-attention" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.attention", runtime.name))}">${escapeHtml(t("runtimes.actions.attention"))}</button>
+                <button type="button" data-action="refresh-status" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.status", runtime.name))}">${escapeHtml(t("runtimes.actions.status"))}</button>
+                ${runtime.sidecarEndpoint ? `<button type="button" data-action="refresh-sidecar" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimeDetail.refreshSidecar", runtime.name))}">${escapeHtml(t("runtimeDetail.refreshSidecar"))}</button>` : ""}
+                <button type="button" data-action="refresh-all" data-runtime-id="${escapeHtml(runtime.runtimeId)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.all", runtime.name))}">${escapeHtml(t("runtimes.actions.all"))}</button>
+                <button type="button" data-action="delete-runtime" data-runtime-id="${escapeHtml(runtime.runtimeId)}" data-runtime-name="${escapeHtml(runtime.name)}" aria-label="${escapeHtml(runtimeActionLabel("runtimes.actions.delete", runtime.name))}">${escapeHtml(t("runtimes.actions.delete"))}</button>
               </div>
             </details>
           </td>

@@ -61,6 +61,7 @@ translations["zh-TW"] = mergeTranslations(translations.en, {
       refreshCapabilities: "刷新能力",
     },
     filters: {
+      title: "Fleet 篩選",
       environment: "環境",
       environmentPlaceholder: "prod",
       cluster: "叢集",
@@ -316,8 +317,8 @@ translations["zh-TW"] = mergeTranslations(translations.en, {
       warning: "警告",
       statusFetchFailed: "狀態抓取失敗",
       sidecarStatusFetchFailed: "sidecar 狀態抓取失敗",
-      noLatestSnapshot: "沒有 latest snapshot",
-      noAnalysisJson: "沒有 analysis json",
+      noLatestSnapshot: "缺少最新快照",
+      noAnalysisJson: "缺少分析 JSON",
     },
     sessions: {
       title: "工作階段",

@@ -227,11 +227,44 @@ Before landing layout-sensitive changes:
 5. Capture a few small-window screenshots when the change is risky
 
 Release builds invoke the same package coordinator before .NET discovers static
-web assets. The coordinator itself is a Rust native crate, so the unchanged
-Release path does not start Node. A stale TypeScript output or language-pack
-catalog is rebuilt from the locked dependency graph instead of being silently
-copied into a release. The package manifest is bounded, rejects symlinks, and
-records SHA-256 plus byte size for every published frontend asset.
+web assets. MSBuild tracks the coordinator's Rust source and locked dependency
+graph as explicit inputs, incrementally builds its native executable, and then
+invokes that executable directly. The unchanged Release path therefore starts
+neither Cargo nor Node while still hashing every package input and asset. A
+stale TypeScript output or language-pack catalog is rebuilt from the locked
+dependency graph instead of being silently copied into a release. The package
+manifest is bounded, rejects symlinks, and records SHA-256 plus byte size for
+every published frontend asset.
+
+## Adaptive Shell Contract
+
+The control shell uses width-first adaptation rather than treating a tall,
+narrow viewport as a compact desktop:
+
+- At `920px` and below, fleet filters move behind an explicit disclosure so
+  operational content remains visible without deleting filter capability.
+- From `601px` through `820px`, the repeated Workspace brand is removed and all
+  five primary destinations share one equal-width navigation row.
+- At `600px` and below, the shell enters the `mobile` layout mode, compacts the
+  brand, keeps refresh and security controls visible, and moves the five primary
+  destinations into a safe-area-aware fixed bottom bar.
+- Compact and safe-compact desktop modes keep vertical document scrolling as a
+  low-height fallback, so a short window cannot clip the workspace below the
+  browser viewport.
+- Mobile controls retain a minimum `44px` target; coarse pointers receive the
+  same minimum regardless of viewport width.
+- Runtime tables observe their own panel instead of the browser viewport. At
+  `920px` of available panel width and below they retain the table DOM while rows
+  become labeled cards; never restore horizontal scrolling as the primary narrow
+  layout. Keep the ResizeObserver path working when tabs reveal or resize.
+- Runtime rows expose one roving tab stop, Up/Down plus Home/End navigation,
+  Enter/Space selection, contextual action labels, and at most one open action
+  menu. Escape closes that menu and restores focus to its summary.
+- Tab groups expose roving keyboard focus, `aria-selected`, linked tab panels,
+  and Home/End plus direction-aware arrow navigation.
+
+Keep overlays above the mobile navigation and preserve bottom content padding;
+a usable panel that is hidden behind fixed chrome is still a layout failure.
 
 Useful audit routes are usually of the form:
 

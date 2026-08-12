@@ -105,11 +105,20 @@ fn frontend_packaging_is_incremental_bounded_and_publish_integrated() {
     assert!(package.contains("\"verify:frontend-package\""));
     assert!(package.contains("cargo run --quiet --locked -p leserpent-frontend-package"));
     assert!(!package.contains("node scripts/package-frontend"));
+    assert!(project.contains("Name=\"BuildLeserpentFrontendPackager\""));
+    assert!(project.contains("Inputs=\"@(LeserpentFrontendPackagerInput)\""));
+    assert!(project.contains("Outputs=\"$(LeserpentFrontendPackagerExecutable)\""));
+    assert!(project.contains(
+        "<Touch Files=\"$(LeserpentFrontendPackagerExecutable)\" AlwaysCreate=\"true\" />"
+    ));
     assert!(project.contains("Name=\"PackageLeserpentFrontend\""));
     assert!(project.contains("BeforeTargets=\"PrepareForBuild\""));
+    assert!(project.contains("DependsOnTargets=\"BuildLeserpentFrontendPackager\""));
     assert!(project.contains("'$(Configuration)' == 'Release'"));
     assert!(project.contains("-p leserpent-frontend-package"));
+    assert!(project.contains("&quot;$(LeserpentFrontendPackagerExecutable)&quot;"));
     assert!(project.contains("WorkingDirectory=\"$(RepositoryRoot)\""));
+    assert!(!project.contains("cargo run"));
 
     assert!(program.contains("app.MapStaticAssets();"));
     assert!(program.contains("app.UseDefaultFiles();"));
@@ -131,12 +140,13 @@ fn frontend_package_contract_is_tracked_by_the_status_tensor() {
         .find(|cell| cell["id"] == "leserpent-1x/web-console/browser-operations")
         .expect("web console status cell must exist");
 
-    assert_eq!(cell["contract"]["version"], "1.4.2");
+    assert_eq!(cell["contract"]["version"], "1.4.5");
     for surface in [
         "content-addressed-frontend-package",
         "incremental-locked-typescript-build",
         "publish-time-stale-asset-prevention",
         "native-frontend-package-coordinator",
+        "incremental-native-packager-build",
         "node-free-unchanged-release-path",
         "precompressed-static-asset-endpoints",
     ] {
@@ -151,6 +161,7 @@ fn frontend_package_contract_is_tracked_by_the_status_tensor() {
     }
     for evidence in [
         "crates/leserpent-frontend-package/src/main.rs",
+        "apps/leserpent/src/Leserpent/Leserpent.csproj",
         "apps/leserpent/frontend-package-manifest.json",
         "tests/leserpent_frontend_packaging_tdd.rs",
     ] {

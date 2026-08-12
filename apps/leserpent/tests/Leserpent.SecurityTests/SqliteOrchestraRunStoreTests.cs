@@ -13,6 +13,67 @@ namespace Leserpent.SecurityTests;
 public sealed class SqliteOrchestraRunStoreTests
 {
     [Fact]
+    public void FreshReadOnlyStoreWaitsForWriterInitializationWithoutFalseFailure()
+    {
+        var databasePath = TemporaryPath("db");
+        var writable = false;
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["LESERPENT_DATABASE_PATH"] = databasePath,
+            })
+            .Build();
+        var store = new SqliteOrchestraRunStore(
+            configuration,
+            new TestHostEnvironment
+            {
+                ContentRootPath = Path.GetDirectoryName(databasePath)!,
+            },
+            NullLogger<SqliteOrchestraRunStore>.Instance,
+            () => writable);
+
+        Assert.Empty(store.LoadAll());
+        Assert.Empty(store.LoadEvents("runtime-pending", "run-pending"));
+        var horizon = Assert.IsType<OrchestraDeleteReplayHorizon>(
+            store.GetDeleteReplayHorizon());
+        Assert.Equal(0UL, horizon.Retained);
+        Assert.Equal(1UL, horizon.NextGeneration);
+        Assert.Null(store.LastError);
+        Assert.False(File.Exists(databasePath));
+
+        writable = true;
+        Assert.Empty(store.LoadAll());
+        Assert.True(File.Exists(databasePath));
+        Assert.Null(store.LastError);
+        DeleteDatabase(databasePath);
+    }
+
+    [Fact]
+    public void ReadOnlyStoreStillReportsAnExistingCorruptDatabase()
+    {
+        var databasePath = TemporaryPath("db");
+        File.WriteAllText(databasePath, "not a sqlite database");
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["LESERPENT_DATABASE_PATH"] = databasePath,
+            })
+            .Build();
+        var store = new SqliteOrchestraRunStore(
+            configuration,
+            new TestHostEnvironment
+            {
+                ContentRootPath = Path.GetDirectoryName(databasePath)!,
+            },
+            NullLogger<SqliteOrchestraRunStore>.Instance,
+            writable: false);
+
+        Assert.Empty(store.LoadAll());
+        Assert.Equal("orchestra_store_operation_failed", store.LastError);
+        DeleteDatabase(databasePath);
+    }
+
+    [Fact]
     public void SqliteStoreActivatesAndRevokesWritesWithTheWriterFence()
     {
         var databasePath = TemporaryPath("db");

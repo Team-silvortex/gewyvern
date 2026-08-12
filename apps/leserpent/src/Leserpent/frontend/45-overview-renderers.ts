@@ -62,7 +62,7 @@ function renderAttentionReasons(summary) {
   }
 
   nodes.attentionReasons.innerHTML = entries.map(([reason, count]) => `
-    <div class="reason-line"><strong>${escapeHtml(t(`attention.${reason}`))}</strong> · ${escapeHtml(count)} ${escapeHtml(t("metrics.runtimes"))}</div>
+    <div class="reason-line"><strong>${escapeHtml(attentionReasonLabel(reason))}</strong> · ${escapeHtml(count)} ${escapeHtml(t("metrics.runtimes"))}</div>
   `).join("");
 }
 
@@ -157,7 +157,7 @@ function renderAttentionList(payload) {
         ${escapeHtml(item.tags.environment || t("runtimes.states.noEnv"))} · ${escapeHtml(item.tags.cluster || t("runtimes.states.noCluster"))} · ${escapeHtml(item.tags.role || t("runtimes.states.noRole"))}
       </div>
       <div class="reason-list">
-        ${(item.reasons || []).map((reason) => `<span class="reason-pill">${escapeHtml(t(`attention.${reason}`) || reason)}</span>`).join("")}
+        ${(item.reasons || []).map((reason) => `<span class="reason-pill">${escapeHtml(attentionReasonLabel(reason))}</span>`).join("")}
       </div>
       ${(item.suggestedActions || []).length ? `
         <div class="hint-line"><strong>${escapeHtml(t("attention.suggestedActions"))}</strong>: ${(item.suggestedActions || []).map((action) => `${escapeHtml(recoveryActionLabel(action.action))} (#${escapeHtml(action.priority)})${action.coolingDown ? ` · ${escapeHtml(t("attention.coolingDown"))}` : ""}`).join(" · ")}</div>

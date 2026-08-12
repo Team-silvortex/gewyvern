@@ -93,6 +93,7 @@ translations["zh-CN"] = {
       refreshCapabilities: "刷新能力",
     },
     filters: {
+      title: "Fleet 筛选",
       environment: "环境",
       environmentPlaceholder: "prod",
       cluster: "集群",
@@ -411,8 +412,8 @@ translations["zh-CN"] = {
       warning: "警告",
       statusFetchFailed: "状态抓取失败",
       sidecarStatusFetchFailed: "sidecar 状态抓取失败",
-      noLatestSnapshot: "没有 latest snapshot",
-      noAnalysisJson: "没有 analysis json",
+      noLatestSnapshot: "缺少最新快照",
+      noAnalysisJson: "缺少分析 JSON",
       actions: {
         refreshAll: "全部刷新",
         refreshStatus: "刷新状态",

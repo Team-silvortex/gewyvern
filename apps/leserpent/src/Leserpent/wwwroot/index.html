@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-mobile-filters-open="false">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -107,7 +107,17 @@
           </div>
         </div>
       </div>
-      <div class="app-toolbar">
+      <div class="mobile-filter-disclosure">
+        <button id="mobile-filter-toggle"
+                type="button"
+                aria-controls="app-toolbar"
+                aria-expanded="false">
+          <span data-i18n="filters.title">Fleet Filters</span>
+          <span id="mobile-filter-count" class="mobile-filter-count hidden">0</span>
+          <span class="mobile-filter-chevron" aria-hidden="true">⌄</span>
+        </button>
+      </div>
+      <div id="app-toolbar" class="app-toolbar" role="region" aria-labelledby="mobile-filter-toggle">
         <div class="compact-filter-row">
           <label class="compact-field">
             <span data-i18n="filters.environment">Environment</span>
@@ -254,8 +264,8 @@
         <div id="runtime-workspace" class="runtime-workspace">
           <section class="card runtime-main-panel runtime-list-card active" data-runtime-main-panel="select">
             <div class="card-head">
-              <h2 data-i18n="runtimes.title">Runtimes</h2>
-              <span id="runtime-count" class="chip">0 runtimes</span>
+              <h2 id="runtime-list-heading" data-i18n="runtimes.title">Runtimes</h2>
+              <span id="runtime-count" class="chip" role="status" aria-live="polite" aria-atomic="true">0 runtimes</span>
             </div>
             <div class="runtime-toolbar">
               <label class="search-box">
@@ -289,7 +299,7 @@
               </details>
             </div>
             <div class="table-wrap runtime-table-wrap">
-              <table>
+              <table aria-labelledby="runtime-list-heading" aria-describedby="runtime-count">
                 <thead>
                   <tr>
                     <th data-i18n="runtimes.columns.name">Name</th>
@@ -380,7 +390,7 @@
               </div>
               <div id="runtime-detail-empty" class="form-result" data-i18n="runtimeDetail.empty">Select a runtime from the table to inspect its capability, status, and attention state.</div>
               <div id="runtime-detail-panel" class="hidden">
-                <div class="runtime-detail-subtabs">
+                <div class="runtime-detail-subtabs" role="tablist" aria-label="runtime detail sections">
                   <button class="runtime-detail-subtab-button active" data-runtime-detail-tab="identity" type="button">Identity</button>
                   <button class="runtime-detail-subtab-button" data-runtime-detail-tab="status" type="button">Status</button>
                   <button class="runtime-detail-subtab-button" data-runtime-detail-tab="capabilities" type="button">Capabilities</button>

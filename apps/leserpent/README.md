@@ -93,6 +93,7 @@ command/query contract 的可替换入口：
 * 强制重建命令：`npm run package:frontend:force`
 * 清单校验命令：`npm run verify:frontend-package`
 * 原生入口：`cargo run --locked -p leserpent-frontend-package -- --verify`
+* Release 热路径：MSBuild 仅按 Rust Inputs/Outputs 增量编译协调器，随后直接执行 native binary
 * 类型检查命令：`npm run check:frontend`
 * .NET 构建命令：`dotnet build src/Leserpent/Leserpent.csproj`
 
@@ -101,8 +102,10 @@ command/query contract 的可替换入口：
 * 运行时仍然只消费静态 `wwwroot` 资源
 * 不引入 bundler
 * 不改变 ASP.NET Core 的部署模型
-* Release 构建由 Rust 原生协调器在静态资源扫描前按内容哈希校验并按需重建，热路径不启动 Node，避免发布陈旧 `app.js`
+* Release 构建由 Rust 原生协调器在静态资源扫描前按内容哈希校验并按需重建；工具未变化时不启动 Cargo，资产未变化时不启动 Node，避免发布陈旧 `app.js`
 * 发布后的静态资源通过 `MapStaticAssets` 使用预生成 Brotli/Gzip、ETag 和内容指纹
+* `≤920px` 使用可展开 Fleet 筛选，`≤600px` 使用安全区底部导航与 `44px` 触控目标，并保留键盘 roving-tab 语义
+* runtime 列表按面板自身宽度适配；可用宽度 `≤920px` 时保留表格语义但重排为字段卡片，行选择与上下文菜单同时支持键盘和触控
 * 后续可以逐步把现有脚本从宽松 JS 收紧成更完整的 TS
 
 ### Frontend layout maintenance

@@ -61,6 +61,7 @@ translations.fr = mergeTranslations(translations.en, {
       refreshCapabilities: "Rafraîchir les capacités",
     },
     filters: {
+      title: "Filtres de flotte",
       environment: "Environnement",
       environmentPlaceholder: "prod",
       cluster: "Cluster",
@@ -273,8 +274,8 @@ translations.fr = mergeTranslations(translations.en, {
       warning: "avertissement",
       statusFetchFailed: "status_fetch_failed",
       sidecarStatusFetchFailed: "sidecar_status_fetch_failed",
-      noLatestSnapshot: "no_latest_snapshot",
-      noAnalysisJson: "no_analysis_json",
+      noLatestSnapshot: "aucun instantané récent",
+      noAnalysisJson: "aucun JSON d’analyse",
     },
     sessions: { title: "Sessions", none: "Pas encore de sessions.", runtime: "runtime" },
     metrics: {

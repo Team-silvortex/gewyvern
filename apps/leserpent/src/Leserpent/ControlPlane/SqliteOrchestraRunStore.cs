@@ -12,6 +12,7 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
     private readonly object initializationSync = new();
     private readonly ILogger<SqliteOrchestraRunStore> logger;
     private bool initialized;
+    private volatile bool pendingWriterInitialization;
 
     public SqliteOrchestraRunStore(
         IConfiguration configuration,
@@ -39,6 +40,10 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
         {
             EnsureInitialized();
         }
+        else
+        {
+            pendingWriterInitialization = DatabasePathIsMissing(Location);
+        }
     }
 
     public string Provider => "sqlite";
@@ -51,6 +56,11 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
     {
         try
         {
+            if (IsPendingWriterInitialization())
+            {
+                LastError = null;
+                return Array.Empty<OrchestraRunSummary>();
+            }
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
             command.CommandText = """
@@ -83,6 +93,11 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
     {
         try
         {
+            if (IsPendingWriterInitialization())
+            {
+                LastError = null;
+                return Array.Empty<OrchestraRunEvent>();
+            }
             using var connection = OpenConnection();
             var events = ReadEvents(
                 connection,
@@ -406,6 +421,19 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
     {
         try
         {
+            if (IsPendingWriterInitialization())
+            {
+                LastError = null;
+                return new OrchestraDeleteReplayHorizon(
+                    MaxDeleteReceipts,
+                    0,
+                    null,
+                    null,
+                    1,
+                    0,
+                    null,
+                    null);
+            }
             using var connection = OpenConnection();
             var horizon = ReadDeleteReplayHorizon(
                 connection,
@@ -822,6 +850,42 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
             using var connection = OpenConnection(writable: true);
             Initialize(connection);
             initialized = true;
+            pendingWriterInitialization = false;
+        }
+    }
+
+    private bool IsPendingWriterInitialization()
+    {
+        if (!pendingWriterInitialization)
+        {
+            return false;
+        }
+        if (canWrite() || !DatabasePathIsMissing(Location))
+        {
+            pendingWriterInitialization = false;
+            return false;
+        }
+        return true;
+    }
+
+    private static bool DatabasePathIsMissing(string path)
+    {
+        try
+        {
+            _ = File.GetAttributes(path);
+            return false;
+        }
+        catch (FileNotFoundException)
+        {
+            return true;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 

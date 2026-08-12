@@ -61,6 +61,7 @@ translations.ja = mergeTranslations(translations.en, {
       refreshCapabilities: "能力を更新",
     },
     filters: {
+      title: "Fleet フィルター",
       environment: "環境",
       environmentPlaceholder: "prod",
       cluster: "クラスター",
@@ -316,8 +317,8 @@ translations.ja = mergeTranslations(translations.en, {
       warning: "警告",
       statusFetchFailed: "状態取得失敗",
       sidecarStatusFetchFailed: "sidecar 状態取得失敗",
-      noLatestSnapshot: "latest snapshot なし",
-      noAnalysisJson: "analysis json なし",
+      noLatestSnapshot: "最新スナップショットなし",
+      noAnalysisJson: "分析 JSON なし",
     },
     sessions: {
       title: "セッション",
