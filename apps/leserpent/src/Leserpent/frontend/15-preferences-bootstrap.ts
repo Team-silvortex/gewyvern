@@ -480,18 +480,63 @@ function bootstrapDashboard() {
   nodes.runtimeDetailCopyLink.addEventListener("click", copySelectedRuntimeLink);
   nodes.registerName.addEventListener("input", () => {
     state.registerNameTouched = nodes.registerName.value.trim().length > 0;
+    nodes.registerName.setAttribute("aria-invalid", "false");
     scheduleRegistrationPlanPreview();
   });
   nodes.registerEndpoint.addEventListener("input", maybePrefillRuntimeNameFromEndpoint);
   nodes.registerSidecarEndpoint.addEventListener("input", scheduleRegistrationPlanPreview);
   nodes.registerSidecarAdminToken.addEventListener("input", scheduleRenderRegisterPreview);
-  nodes.registerToken.addEventListener("input", scheduleRenderRegisterPreview);
+  nodes.registerToken.addEventListener("input", () => {
+    nodes.registerToken.setAttribute("aria-invalid", "false");
+    scheduleRenderRegisterPreview();
+  });
+  nodes.registerTokenToggle.addEventListener("click", () => {
+    setRegistrationSecretVisibility(
+      nodes.registerToken,
+      nodes.registerTokenToggle,
+      nodes.registerTokenToggleLabel,
+      nodes.registerToken.type === "password",
+    );
+    nodes.registerToken.focus();
+  });
+  nodes.registerSidecarAdminTokenToggle.addEventListener("click", () => {
+    setRegistrationSecretVisibility(
+      nodes.registerSidecarAdminToken,
+      nodes.registerSidecarAdminTokenToggle,
+      nodes.registerSidecarAdminTokenToggleLabel,
+      nodes.registerSidecarAdminToken.type === "password",
+    );
+    nodes.registerSidecarAdminToken.focus();
+  });
+  nodes.registerSidecarDetails.addEventListener("toggle", () => {
+    if (!nodes.registerSidecarDetails.open) {
+      setRegistrationSecretVisibility(
+        nodes.registerSidecarAdminToken,
+        nodes.registerSidecarAdminTokenToggle,
+        nodes.registerSidecarAdminTokenToggleLabel,
+        false,
+      );
+    }
+  });
   nodes.registerRuntimeEnvironment.addEventListener("input", scheduleRenderRegisterPreview);
   nodes.registerRuntimeCluster.addEventListener("input", scheduleRenderRegisterPreview);
   nodes.registerRuntimeRole.addEventListener("input", scheduleRenderRegisterPreview);
   nodes.registerFetchCapabilities.addEventListener("change", scheduleRenderRegisterPreview);
   nodes.registerForm.addEventListener("submit", submitRegisterForm);
+  nodes.registerForm.addEventListener("invalid", (event) => {
+    const field = event.target;
+    field.setAttribute("aria-invalid", "true");
+    if (nodes.registerSidecarDetails.contains(field)) {
+      nodes.registerSidecarDetails.open = true;
+    }
+    setRegisterResult(t("register.fixHighlighted"), "bad");
+  }, true);
   nodes.registerFormClear.addEventListener("click", clearRegisterForm);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      maskRegistrationSecrets();
+    }
+  });
   if (nodes.adminTokenInput) {
     nodes.adminTokenInput.value = state.adminToken;
     nodes.adminTokenInput.addEventListener("input", (event) => syncAdminTokenFromInput(event.currentTarget.value));

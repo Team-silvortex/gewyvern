@@ -27,6 +27,141 @@ function currentRegistrationPlan() {
   return plan?.draftKey === registrationPlanDraftKey() ? plan : null;
 }
 
+function registrationReadiness(endpointValid, sidecarEndpointValid) {
+  const name = nodes.registerName.value.trim();
+  const endpoint = nodes.registerEndpoint.value.trim();
+  const sidecarEndpoint = nodes.registerSidecarEndpoint.value.trim();
+  const pairingToken = nodes.registerToken.value.trim();
+  const plan = currentRegistrationPlan();
+
+  if (!name) {
+    return {
+      plan,
+      ready: false,
+      field: nodes.registerName,
+      tone: "pending",
+      message: t("register.completeField", { field: t("register.name") }),
+    };
+  }
+  if (!endpoint) {
+    return {
+      plan,
+      ready: false,
+      field: nodes.registerEndpoint,
+      tone: "pending",
+      message: t("register.completeField", { field: t("register.endpoint") }),
+    };
+  }
+  if (!endpointValid) {
+    return { plan, ready: false, field: nodes.registerEndpoint, tone: "bad", message: t("register.blockedEndpoint") };
+  }
+  if (!pairingToken) {
+    return {
+      plan,
+      ready: false,
+      field: nodes.registerToken,
+      tone: "pending",
+      message: t("register.completeField", { field: t("register.pairingToken") }),
+    };
+  }
+  if (sidecarEndpoint && !sidecarEndpointValid) {
+    return { plan, ready: false, field: nodes.registerSidecarEndpoint, tone: "bad", message: t("register.blockedSidecarEndpoint") };
+  }
+  if (state.registrationPlanError) {
+    return {
+      plan,
+      ready: false,
+      field: nodes.registerEndpoint,
+      tone: "bad",
+      message: t("register.planUnavailable", { message: state.registrationPlanError }),
+    };
+  }
+  if (!plan) {
+    return { plan, ready: false, field: null, tone: "pending", message: t("register.checkingPlan") };
+  }
+  if (!plan.allowed) {
+    return {
+      plan,
+      ready: false,
+      field: nodes.registerEndpoint,
+      tone: "bad",
+      message: registrationPlanConflictMessage(plan),
+    };
+  }
+  return { plan, ready: true, field: null, tone: "good", message: t("register.ready") };
+}
+
+function setRegisterResult(message, tone = "neutral", focus = false) {
+  nodes.registerResult.textContent = message;
+  nodes.registerResult.dataset.tone = tone;
+  if (focus) {
+    window.requestAnimationFrame(() => nodes.registerResult.focus({ preventScroll: false }));
+  }
+}
+
+function revealRegistrationField(field) {
+  if (!field) return;
+  if (nodes.registerSidecarDetails?.contains(field)) {
+    nodes.registerSidecarDetails.open = true;
+  }
+  field.setAttribute("aria-invalid", "true");
+  window.requestAnimationFrame(() => {
+    field.focus({ preventScroll: true });
+    field.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+}
+
+function showRegistrationIssue(issue) {
+  state.activeTab = "runtimes";
+  state.activeRuntimeMainTab = "register";
+  applyTabShell();
+  setRegisterResult(issue.message, "bad");
+  revealRegistrationField(issue.field);
+}
+
+function setRegistrationSecretVisibility(input, toggle, label, visible) {
+  if (!input || !toggle || !label) return;
+  input.type = visible ? "text" : "password";
+  toggle.setAttribute("aria-pressed", String(visible));
+  label.textContent = t(visible ? "register.hideToken" : "register.showToken");
+}
+
+function syncRegistrationSecretToggles() {
+  setRegistrationSecretVisibility(
+    nodes.registerToken,
+    nodes.registerTokenToggle,
+    nodes.registerTokenToggleLabel,
+    nodes.registerToken.type === "text",
+  );
+  setRegistrationSecretVisibility(
+    nodes.registerSidecarAdminToken,
+    nodes.registerSidecarAdminTokenToggle,
+    nodes.registerSidecarAdminTokenToggleLabel,
+    nodes.registerSidecarAdminToken.type === "text",
+  );
+}
+
+function maskRegistrationSecrets() {
+  setRegistrationSecretVisibility(
+    nodes.registerToken,
+    nodes.registerTokenToggle,
+    nodes.registerTokenToggleLabel,
+    false,
+  );
+  setRegistrationSecretVisibility(
+    nodes.registerSidecarAdminToken,
+    nodes.registerSidecarAdminTokenToggle,
+    nodes.registerSidecarAdminTokenToggleLabel,
+    false,
+  );
+}
+
+function clearRegistrationSecrets() {
+  nodes.registerToken.value = "";
+  nodes.registerSidecarAdminToken.value = "";
+  maskRegistrationSecrets();
+}
+
 async function loadRegistrationPlan() {
   const draft = registrationPlanDraft();
   const draftKey = registrationPlanDraftKey(draft);
@@ -135,21 +270,20 @@ function registerPreviewSignature() {
 }
 
 function syncRegisterSubmitState(endpointValid, sidecarEndpointValid) {
-  const name = nodes.registerName.value.trim();
   const endpoint = nodes.registerEndpoint.value.trim();
-  const pairingToken = nodes.registerToken.value.trim();
-  const plan = currentRegistrationPlan();
   const busy = state.uiActions.has("register-runtime");
-  const valid = !!name && endpointValid && sidecarEndpointValid && !!pairingToken && plan?.allowed === true;
+  const readiness = registrationReadiness(endpointValid, sidecarEndpointValid);
 
   nodes.registerEndpoint.setAttribute("aria-invalid", endpoint && !endpointValid ? "true" : "false");
   nodes.registerSidecarEndpoint.setAttribute(
     "aria-invalid",
     nodes.registerSidecarEndpoint.value.trim() && !sidecarEndpointValid ? "true" : "false",
   );
-  nodes.registerSubmit.disabled = busy || !valid;
-  nodes.registerForm.dataset.ready = valid ? "true" : "false";
-  return { plan, valid };
+  nodes.registerGuidance.textContent = readiness.message;
+  nodes.registerGuidance.dataset.tone = busy ? "pending" : readiness.tone;
+  nodes.registerSubmit.disabled = busy || !readiness.ready;
+  nodes.registerForm.dataset.ready = readiness.ready ? "true" : "false";
+  return { ...readiness, valid: readiness.ready };
 }
 
 function scheduleRenderRegisterPreview() {

@@ -11,8 +11,17 @@ public sealed class OperatorGuardrailContractTests
 
         Assert.Contains("id=\"register-endpoint\" type=\"url\"", index, StringComparison.Ordinal);
         Assert.Contains("id=\"register-token\" type=\"password\"", index, StringComparison.Ordinal);
-        Assert.Contains("id=\"register-submit\" type=\"submit\"", index, StringComparison.Ordinal);
-        Assert.Contains("data-i18n=\"register.submit\" disabled", index, StringComparison.Ordinal);
+
+        var submitStart = index.IndexOf("<button id=\"register-submit\"", StringComparison.Ordinal);
+        Assert.True(submitStart >= 0);
+        var submitEnd = index.IndexOf('>', submitStart);
+        Assert.True(submitEnd > submitStart);
+
+        var submitTag = index[submitStart..submitEnd];
+        Assert.Contains("type=\"submit\"", submitTag, StringComparison.Ordinal);
+        Assert.Contains("data-i18n=\"register.submit\"", submitTag, StringComparison.Ordinal);
+        Assert.Contains("aria-describedby=\"register-guidance\"", submitTag, StringComparison.Ordinal);
+        Assert.Contains(" disabled", submitTag, StringComparison.Ordinal);
     }
 
     [Fact]

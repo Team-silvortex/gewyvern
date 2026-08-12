@@ -321,51 +321,107 @@
               <h2 data-i18n="register.title">Register Runtime</h2>
               <span class="chip" data-i18n="register.intake">very-light intake</span>
             </div>
-            <form id="register-form" class="register-grid runtime-register-grid">
-              <label>
-                <span data-i18n="register.name">Name</span>
-                <input id="register-name" type="text" placeholder="gw-prod-edge-01" data-i18n-placeholder="register.namePlaceholder" maxlength="120" autocomplete="off" required />
-              </label>
-              <label>
-                <span data-i18n="register.endpoint">Endpoint</span>
-                <input id="register-endpoint" type="url" placeholder="http://127.0.0.1:9910" data-i18n-placeholder="register.endpointPlaceholder" maxlength="2048" inputmode="url" autocapitalize="off" spellcheck="false" required />
-              </label>
-              <label>
-                <span data-i18n="register.sidecarEndpoint">Sidecar Endpoint</span>
-                <input id="register-sidecar-endpoint" type="url" placeholder="http://127.0.0.1:4321" data-i18n-placeholder="register.sidecarEndpointPlaceholder" maxlength="2048" inputmode="url" autocapitalize="off" spellcheck="false" />
-              </label>
-              <label>
-                <span data-i18n="register.sidecarAdminToken">Sidecar Admin Token</span>
-                <input id="register-sidecar-admin-token" type="password" placeholder="optional for protected etragon sidecars" data-i18n-placeholder="register.sidecarAdminTokenPlaceholder" maxlength="512" autocomplete="off" />
-              </label>
-              <label>
-                <span data-i18n="register.pairingToken">Pairing Token</span>
-                <input id="register-token" type="password" placeholder="token-123" data-i18n-placeholder="register.tokenPlaceholder" maxlength="512" autocomplete="off" required />
-              </label>
-              <label>
-                <span data-i18n="filters.environment">Environment</span>
-                <input id="register-runtime-environment" type="text" placeholder="prod" data-i18n-placeholder="filters.environmentPlaceholder" maxlength="120" autocomplete="off" />
-              </label>
-              <label>
-                <span data-i18n="filters.cluster">Cluster</span>
-                <input id="register-runtime-cluster" type="text" placeholder="alpha" data-i18n-placeholder="filters.clusterPlaceholder" maxlength="120" autocomplete="off" />
-              </label>
-              <label>
-                <span data-i18n="filters.role">Role</span>
-                <input id="register-runtime-role" type="text" placeholder="edge" data-i18n-placeholder="filters.rolePlaceholder" maxlength="120" autocomplete="off" />
-              </label>
-              <label class="checkbox-row register-checkbox-row">
-                <input id="register-fetch-capabilities" type="checkbox" checked />
-                <span data-i18n="register.fetchCapabilities">Fetch capability and latest-meta from gewyvern</span>
-              </label>
+            <form id="register-form" class="register-grid runtime-register-grid" aria-describedby="register-guidance register-result">
+              <fieldset class="register-section register-section-target">
+                <legend>
+                  <span class="register-step-index" aria-hidden="true">01</span>
+                  <span data-i18n="register.targetSection">Runtime target</span>
+                </legend>
+                <p class="register-section-copy" data-i18n="register.targetSectionCopy">Identify the gewyvern service that this control plane will manage.</p>
+                <div class="register-section-fields">
+                  <label for="register-name">
+                    <span data-i18n="register.name">Name</span>
+                    <input id="register-name" type="text" placeholder="gw-prod-edge-01" data-i18n-placeholder="register.namePlaceholder" maxlength="120" autocomplete="off" enterkeyhint="next" required />
+                  </label>
+                  <label for="register-endpoint">
+                    <span data-i18n="register.endpoint">Endpoint</span>
+                    <input id="register-endpoint" type="url" placeholder="http://127.0.0.1:9910" data-i18n-placeholder="register.endpointPlaceholder" maxlength="2048" inputmode="url" autocapitalize="off" spellcheck="false" enterkeyhint="next" required />
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset class="register-section register-section-access">
+                <legend>
+                  <span class="register-step-index" aria-hidden="true">02</span>
+                  <span data-i18n="register.accessSection">Control access</span>
+                </legend>
+                <p class="register-section-copy" data-i18n="register.accessSectionCopy">Pair through a short-lived secret; it is never included in the preview.</p>
+                <div class="register-section-fields">
+                  <div class="register-field">
+                    <label id="register-token-label" for="register-token">
+                      <span data-i18n="register.pairingToken">Pairing Token</span>
+                    </label>
+                    <div class="register-secret-input">
+                      <input id="register-token" type="password" placeholder="token-123" data-i18n-placeholder="register.tokenPlaceholder" maxlength="512" autocomplete="off" enterkeyhint="done" required />
+                      <button id="register-token-toggle" class="register-secret-toggle" type="button" aria-controls="register-token" aria-labelledby="register-token-toggle-label register-token-label" aria-pressed="false">
+                        <span id="register-token-toggle-label" data-i18n="register.showToken">Show</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <details id="register-sidecar-details" class="register-optional">
+                    <summary>
+                      <span data-i18n="register.sidecarSection">Optional sidecar</span>
+                      <small data-i18n="register.sidecarSectionCopy">Add this only when the runtime exposes a companion service.</small>
+                    </summary>
+                    <div class="register-optional-fields">
+                      <label for="register-sidecar-endpoint">
+                        <span data-i18n="register.sidecarEndpoint">Sidecar Endpoint</span>
+                        <input id="register-sidecar-endpoint" type="url" placeholder="http://127.0.0.1:4321" data-i18n-placeholder="register.sidecarEndpointPlaceholder" maxlength="2048" inputmode="url" autocapitalize="off" spellcheck="false" />
+                      </label>
+                      <div class="register-field">
+                        <label id="register-sidecar-admin-token-label" for="register-sidecar-admin-token">
+                          <span data-i18n="register.sidecarAdminToken">Sidecar Admin Token</span>
+                        </label>
+                        <div class="register-secret-input">
+                          <input id="register-sidecar-admin-token" type="password" placeholder="optional for protected etragon sidecars" data-i18n-placeholder="register.sidecarAdminTokenPlaceholder" maxlength="512" autocomplete="off" />
+                          <button id="register-sidecar-admin-token-toggle" class="register-secret-toggle" type="button" aria-controls="register-sidecar-admin-token" aria-labelledby="register-sidecar-admin-token-toggle-label register-sidecar-admin-token-label" aria-pressed="false">
+                            <span id="register-sidecar-admin-token-toggle-label" data-i18n="register.showToken">Show</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </details>
+                </div>
+              </fieldset>
+
+              <fieldset class="register-section register-section-placement">
+                <legend>
+                  <span class="register-step-index" aria-hidden="true">03</span>
+                  <span data-i18n="register.placementSection">Placement and discovery</span>
+                </legend>
+                <p class="register-section-copy" data-i18n="register.placementSectionCopy">Optional tags keep this runtime discoverable without changing its identity.</p>
+                <div class="register-section-fields register-placement-fields">
+                  <label for="register-runtime-environment">
+                    <span data-i18n="filters.environment">Environment</span>
+                    <input id="register-runtime-environment" type="text" placeholder="prod" data-i18n-placeholder="filters.environmentPlaceholder" maxlength="120" autocomplete="off" />
+                  </label>
+                  <label for="register-runtime-cluster">
+                    <span data-i18n="filters.cluster">Cluster</span>
+                    <input id="register-runtime-cluster" type="text" placeholder="alpha" data-i18n-placeholder="filters.clusterPlaceholder" maxlength="120" autocomplete="off" />
+                  </label>
+                  <label for="register-runtime-role">
+                    <span data-i18n="filters.role">Role</span>
+                    <input id="register-runtime-role" type="text" placeholder="edge" data-i18n-placeholder="filters.rolePlaceholder" maxlength="120" autocomplete="off" />
+                  </label>
+                  <label class="checkbox-row register-checkbox-row" for="register-fetch-capabilities">
+                    <input id="register-fetch-capabilities" type="checkbox" checked />
+                    <span data-i18n="register.fetchCapabilities">Fetch capability and latest-meta from gewyvern</span>
+                  </label>
+                </div>
+              </fieldset>
+
               <div class="register-actions runtime-register-actions">
-                <button id="register-submit" type="submit" class="primary" data-i18n="register.submit" disabled>Register Runtime</button>
-                <button id="register-form-clear" type="button" class="quiet" data-i18n="register.clear">Clear Form</button>
+                <div id="register-guidance" class="register-guidance" role="status" aria-live="polite" aria-atomic="true">Complete the required fields to continue.</div>
+                <div class="register-action-buttons">
+                  <button id="register-submit" type="submit" class="primary" data-i18n="register.submit" aria-describedby="register-guidance" disabled>Register Runtime</button>
+                  <button id="register-form-clear" type="button" class="quiet" data-i18n="register.clear">Clear Form</button>
+                </div>
               </div>
             </form>
             <div class="runtime-register-footer">
               <div id="register-preview" class="register-preview"></div>
-              <div id="register-result" class="form-result">No runtime submitted yet.</div>
+              <div id="register-result" class="form-result" role="status" aria-live="polite" aria-atomic="true" tabindex="-1">No runtime submitted yet.</div>
             </div>
           </section>
 

@@ -323,6 +323,21 @@ translations.en = {
     register: {
         title: "Register Runtime",
         intake: "very-light intake",
+        targetSection: "Runtime target",
+        targetSectionCopy: "Identify the gewyvern service that this control plane will manage.",
+        accessSection: "Control access",
+        accessSectionCopy: "Pair through a short-lived secret; it is never included in the preview.",
+        sidecarSection: "Optional sidecar",
+        sidecarSectionCopy: "Add this only when the runtime exposes a companion service.",
+        placementSection: "Placement and discovery",
+        placementSectionCopy: "Optional tags keep this runtime discoverable without changing its identity.",
+        showToken: "Show",
+        hideToken: "Hide",
+        completeField: "Complete {field} to continue.",
+        checkingPlan: "Checking the registration plan with the control plane...",
+        planUnavailable: "The registration plan could not be verified: {message}",
+        ready: "Registration plan verified. This runtime is ready to register.",
+        fixHighlighted: "Review the highlighted field before registering this runtime.",
         name: "Name",
         namePlaceholder: "gw-prod-edge-01",
         endpoint: "Endpoint",
@@ -832,6 +847,21 @@ translations["zh-CN"] = {
     register: {
         title: "注册 Runtime",
         intake: "轻量 intake",
+        targetSection: "Runtime 目标",
+        targetSectionCopy: "指定由当前控制面管理的 gewyvern 服务。",
+        accessSection: "控制访问",
+        accessSectionCopy: "使用短期令牌完成配对；令牌绝不会出现在预览中。",
+        sidecarSection: "可选 Sidecar",
+        sidecarSectionCopy: "仅在 runtime 暴露配套服务时添加。",
+        placementSection: "归属与发现",
+        placementSectionCopy: "可选标签用于发现 runtime，不会改变它的身份。",
+        showToken: "显示",
+        hideToken: "隐藏",
+        completeField: "请填写{field}后继续。",
+        checkingPlan: "正在通过控制面校验注册计划...",
+        planUnavailable: "无法校验注册计划：{message}",
+        ready: "注册计划已通过校验，可以注册该 runtime。",
+        fixHighlighted: "注册前请检查高亮字段。",
         name: "名称",
         namePlaceholder: "gw-prod-edge-01",
         endpoint: "Endpoint",
@@ -1266,6 +1296,21 @@ translations["zh-TW"] = mergeTranslations(translations.en, {
     register: {
         title: "註冊 Runtime",
         intake: "輕量 intake",
+        targetSection: "Runtime 目標",
+        targetSectionCopy: "指定由目前控制面管理的 gewyvern 服務。",
+        accessSection: "控制存取",
+        accessSectionCopy: "使用短期令牌完成配對；令牌絕不會出現在預覽中。",
+        sidecarSection: "選用 Sidecar",
+        sidecarSectionCopy: "僅在 runtime 提供配套服務時加入。",
+        placementSection: "歸屬與探索",
+        placementSectionCopy: "選用標籤便於探索 runtime，不會改變其身分。",
+        showToken: "顯示",
+        hideToken: "隱藏",
+        completeField: "請填寫{field}後繼續。",
+        checkingPlan: "正在透過控制面驗證註冊計畫...",
+        planUnavailable: "無法驗證註冊計畫：{message}",
+        ready: "註冊計畫已通過驗證，可以註冊此 runtime。",
+        fixHighlighted: "註冊前請檢查醒目提示的欄位。",
         name: "名稱",
         namePlaceholder: "gw-prod-edge-01",
         endpoint: "Endpoint",
@@ -1599,6 +1644,21 @@ translations.de = mergeTranslations(translations.en, {
     register: {
         title: "Runtime registrieren",
         intake: "sehr leichter Intake",
+        targetSection: "Runtime-Ziel",
+        targetSectionCopy: "Bestimme den gewyvern-Dienst, den diese Control Plane verwaltet.",
+        accessSection: "Steuerungszugriff",
+        accessSectionCopy: "Kopplung mit einem kurzlebigen Token; es erscheint nie in der Vorschau.",
+        sidecarSection: "Optionaler Sidecar",
+        sidecarSectionCopy: "Nur hinzufügen, wenn die Runtime einen Begleitdienst bereitstellt.",
+        placementSection: "Zuordnung und Erkennung",
+        placementSectionCopy: "Optionale Tags erleichtern die Erkennung, ohne die Identität zu ändern.",
+        showToken: "Anzeigen",
+        hideToken: "Ausblenden",
+        completeField: "Fülle {field} aus, um fortzufahren.",
+        checkingPlan: "Registrierungsplan wird mit der Control Plane geprüft...",
+        planUnavailable: "Der Registrierungsplan konnte nicht geprüft werden: {message}",
+        ready: "Registrierungsplan bestätigt. Die Runtime kann registriert werden.",
+        fixHighlighted: "Prüfe vor der Registrierung das hervorgehobene Feld.",
         name: "Name",
         namePlaceholder: "gw-prod-edge-01",
         endpoint: "Endpunkt",
@@ -1928,6 +1988,21 @@ translations.fr = mergeTranslations(translations.en, {
     register: {
         title: "Enregistrer un runtime",
         intake: "intake léger",
+        targetSection: "Runtime cible",
+        targetSectionCopy: "Identifiez le service gewyvern que ce control plane va gérer.",
+        accessSection: "Accès de contrôle",
+        accessSectionCopy: "Appairez avec un jeton de courte durée, jamais affiché dans l'aperçu.",
+        sidecarSection: "Sidecar facultatif",
+        sidecarSectionCopy: "Ajoutez-le uniquement si le runtime expose un service compagnon.",
+        placementSection: "Placement et découverte",
+        placementSectionCopy: "Les tags facultatifs facilitent la découverte sans changer l'identité.",
+        showToken: "Afficher",
+        hideToken: "Masquer",
+        completeField: "Renseignez {field} pour continuer.",
+        checkingPlan: "Vérification du plan d'enregistrement avec le control plane...",
+        planUnavailable: "Impossible de vérifier le plan d'enregistrement : {message}",
+        ready: "Plan d'enregistrement vérifié. Le runtime peut être enregistré.",
+        fixHighlighted: "Vérifiez le champ mis en évidence avant l'enregistrement.",
         name: "Nom",
         namePlaceholder: "gw-prod-edge-01",
         endpoint: "Endpoint",
@@ -2514,18 +2589,48 @@ function bootstrapDashboard() {
     nodes.runtimeDetailCopyLink.addEventListener("click", copySelectedRuntimeLink);
     nodes.registerName.addEventListener("input", () => {
         state.registerNameTouched = nodes.registerName.value.trim().length > 0;
+        nodes.registerName.setAttribute("aria-invalid", "false");
         scheduleRegistrationPlanPreview();
     });
     nodes.registerEndpoint.addEventListener("input", maybePrefillRuntimeNameFromEndpoint);
     nodes.registerSidecarEndpoint.addEventListener("input", scheduleRegistrationPlanPreview);
     nodes.registerSidecarAdminToken.addEventListener("input", scheduleRenderRegisterPreview);
-    nodes.registerToken.addEventListener("input", scheduleRenderRegisterPreview);
+    nodes.registerToken.addEventListener("input", () => {
+        nodes.registerToken.setAttribute("aria-invalid", "false");
+        scheduleRenderRegisterPreview();
+    });
+    nodes.registerTokenToggle.addEventListener("click", () => {
+        setRegistrationSecretVisibility(nodes.registerToken, nodes.registerTokenToggle, nodes.registerTokenToggleLabel, nodes.registerToken.type === "password");
+        nodes.registerToken.focus();
+    });
+    nodes.registerSidecarAdminTokenToggle.addEventListener("click", () => {
+        setRegistrationSecretVisibility(nodes.registerSidecarAdminToken, nodes.registerSidecarAdminTokenToggle, nodes.registerSidecarAdminTokenToggleLabel, nodes.registerSidecarAdminToken.type === "password");
+        nodes.registerSidecarAdminToken.focus();
+    });
+    nodes.registerSidecarDetails.addEventListener("toggle", () => {
+        if (!nodes.registerSidecarDetails.open) {
+            setRegistrationSecretVisibility(nodes.registerSidecarAdminToken, nodes.registerSidecarAdminTokenToggle, nodes.registerSidecarAdminTokenToggleLabel, false);
+        }
+    });
     nodes.registerRuntimeEnvironment.addEventListener("input", scheduleRenderRegisterPreview);
     nodes.registerRuntimeCluster.addEventListener("input", scheduleRenderRegisterPreview);
     nodes.registerRuntimeRole.addEventListener("input", scheduleRenderRegisterPreview);
     nodes.registerFetchCapabilities.addEventListener("change", scheduleRenderRegisterPreview);
     nodes.registerForm.addEventListener("submit", submitRegisterForm);
+    nodes.registerForm.addEventListener("invalid", (event) => {
+        const field = event.target;
+        field.setAttribute("aria-invalid", "true");
+        if (nodes.registerSidecarDetails.contains(field)) {
+            nodes.registerSidecarDetails.open = true;
+        }
+        setRegisterResult(t("register.fixHighlighted"), "bad");
+    }, true);
     nodes.registerFormClear.addEventListener("click", clearRegisterForm);
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+            maskRegistrationSecrets();
+        }
+    });
     if (nodes.adminTokenInput) {
         nodes.adminTokenInput.value = state.adminToken;
         nodes.adminTokenInput.addEventListener("input", (event) => syncAdminTokenFromInput(event.currentTarget.value));
@@ -2823,6 +2928,21 @@ translations.ko = mergeTranslations(translations.en, {
     register: {
         title: "런타임 등록",
         intake: "가벼운 intake",
+        targetSection: "런타임 대상",
+        targetSectionCopy: "이 컨트롤 플레인이 관리할 gewyvern 서비스를 지정합니다.",
+        accessSection: "제어 접근",
+        accessSectionCopy: "단기 토큰으로 페어링하며 토큰은 미리보기에 표시되지 않습니다.",
+        sidecarSection: "선택적 사이드카",
+        sidecarSectionCopy: "런타임이 보조 서비스를 제공할 때만 추가합니다.",
+        placementSection: "배치 및 검색",
+        placementSectionCopy: "선택적 태그는 ID를 바꾸지 않고 런타임 검색을 돕습니다.",
+        showToken: "표시",
+        hideToken: "숨기기",
+        completeField: "계속하려면 {field}을(를) 입력하세요.",
+        checkingPlan: "컨트롤 플레인에서 등록 계획을 확인하는 중...",
+        planUnavailable: "등록 계획을 확인할 수 없습니다: {message}",
+        ready: "등록 계획이 확인되었습니다. 이 런타임을 등록할 수 있습니다.",
+        fixHighlighted: "등록하기 전에 강조된 필드를 확인하세요.",
         name: "이름",
         namePlaceholder: "gw-prod-edge-01",
         endpoint: "엔드포인트",
@@ -3195,6 +3315,21 @@ translations.ja = mergeTranslations(translations.en, {
     register: {
         title: "Runtime を登録",
         intake: "軽量 intake",
+        targetSection: "Runtime の接続先",
+        targetSectionCopy: "このコントロールプレーンが管理する gewyvern サービスを指定します。",
+        accessSection: "制御アクセス",
+        accessSectionCopy: "短期トークンでペアリングします。トークンはプレビューに表示されません。",
+        sidecarSection: "任意の Sidecar",
+        sidecarSectionCopy: "runtime が関連サービスを公開している場合のみ追加します。",
+        placementSection: "配置と検出",
+        placementSectionCopy: "任意のタグで、ID を変えずに runtime を見つけやすくします。",
+        showToken: "表示",
+        hideToken: "隠す",
+        completeField: "続行するには {field} を入力してください。",
+        checkingPlan: "コントロールプレーンで登録プランを確認しています...",
+        planUnavailable: "登録プランを確認できませんでした: {message}",
+        ready: "登録プランを確認しました。この runtime を登録できます。",
+        fixHighlighted: "登録前に強調表示された項目を確認してください。",
         name: "名前",
         namePlaceholder: "gw-prod-edge-01",
         endpoint: "Endpoint",
@@ -3571,6 +3706,21 @@ translations.es = mergeTranslations(translations.en, {
     register: {
         title: "Registrar runtime",
         intake: "intake ligero",
+        targetSection: "Runtime de destino",
+        targetSectionCopy: "Identifica el servicio gewyvern que gestionará este control plane.",
+        accessSection: "Acceso de control",
+        accessSectionCopy: "Empareja con un token temporal; nunca aparece en la vista previa.",
+        sidecarSection: "Sidecar opcional",
+        sidecarSectionCopy: "Añádelo solo cuando el runtime exponga un servicio complementario.",
+        placementSection: "Ubicación y descubrimiento",
+        placementSectionCopy: "Las etiquetas opcionales facilitan encontrarlo sin cambiar su identidad.",
+        showToken: "Mostrar",
+        hideToken: "Ocultar",
+        completeField: "Completa {field} para continuar.",
+        checkingPlan: "Comprobando el plan de registro con el control plane...",
+        planUnavailable: "No se pudo verificar el plan de registro: {message}",
+        ready: "Plan de registro verificado. El runtime está listo para registrarse.",
+        fixHighlighted: "Revisa el campo resaltado antes de registrar el runtime.",
         name: "Nombre",
         namePlaceholder: "gw-prod-edge-01",
         endpoint: "Endpoint",
@@ -4455,6 +4605,8 @@ function applyTranslations() {
     for (const node of document.querySelectorAll("[data-i18n-placeholder]")) {
         node.placeholder = t(node.dataset.i18nPlaceholder);
     }
+    syncRegistrationSecretToggles();
+    renderRegisterPreview();
     const options = Array.from(nodes.languageSelect.options);
     const optionLabels = {
         auto: "language.auto",
@@ -4511,6 +4663,9 @@ function syncTabSet(buttons, panels, activeValue, buttonKey, panelKey, prefix) {
     }
 }
 function applyTabShell() {
+    if (state.activeTab !== "runtimes" || state.activeRuntimeMainTab !== "register") {
+        maskRegistrationSecrets();
+    }
     for (const button of nodes.tabButtons) {
         const isActive = button.dataset.tab === state.activeTab;
         button.classList.toggle("active", isActive);
@@ -6014,6 +6169,114 @@ function currentRegistrationPlan() {
     const plan = state.registrationPlan;
     return plan?.draftKey === registrationPlanDraftKey() ? plan : null;
 }
+function registrationReadiness(endpointValid, sidecarEndpointValid) {
+    const name = nodes.registerName.value.trim();
+    const endpoint = nodes.registerEndpoint.value.trim();
+    const sidecarEndpoint = nodes.registerSidecarEndpoint.value.trim();
+    const pairingToken = nodes.registerToken.value.trim();
+    const plan = currentRegistrationPlan();
+    if (!name) {
+        return {
+            plan,
+            ready: false,
+            field: nodes.registerName,
+            tone: "pending",
+            message: t("register.completeField", { field: t("register.name") }),
+        };
+    }
+    if (!endpoint) {
+        return {
+            plan,
+            ready: false,
+            field: nodes.registerEndpoint,
+            tone: "pending",
+            message: t("register.completeField", { field: t("register.endpoint") }),
+        };
+    }
+    if (!endpointValid) {
+        return { plan, ready: false, field: nodes.registerEndpoint, tone: "bad", message: t("register.blockedEndpoint") };
+    }
+    if (!pairingToken) {
+        return {
+            plan,
+            ready: false,
+            field: nodes.registerToken,
+            tone: "pending",
+            message: t("register.completeField", { field: t("register.pairingToken") }),
+        };
+    }
+    if (sidecarEndpoint && !sidecarEndpointValid) {
+        return { plan, ready: false, field: nodes.registerSidecarEndpoint, tone: "bad", message: t("register.blockedSidecarEndpoint") };
+    }
+    if (state.registrationPlanError) {
+        return {
+            plan,
+            ready: false,
+            field: nodes.registerEndpoint,
+            tone: "bad",
+            message: t("register.planUnavailable", { message: state.registrationPlanError }),
+        };
+    }
+    if (!plan) {
+        return { plan, ready: false, field: null, tone: "pending", message: t("register.checkingPlan") };
+    }
+    if (!plan.allowed) {
+        return {
+            plan,
+            ready: false,
+            field: nodes.registerEndpoint,
+            tone: "bad",
+            message: registrationPlanConflictMessage(plan),
+        };
+    }
+    return { plan, ready: true, field: null, tone: "good", message: t("register.ready") };
+}
+function setRegisterResult(message, tone = "neutral", focus = false) {
+    nodes.registerResult.textContent = message;
+    nodes.registerResult.dataset.tone = tone;
+    if (focus) {
+        window.requestAnimationFrame(() => nodes.registerResult.focus({ preventScroll: false }));
+    }
+}
+function revealRegistrationField(field) {
+    if (!field)
+        return;
+    if (nodes.registerSidecarDetails?.contains(field)) {
+        nodes.registerSidecarDetails.open = true;
+    }
+    field.setAttribute("aria-invalid", "true");
+    window.requestAnimationFrame(() => {
+        field.focus({ preventScroll: true });
+        field.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+}
+function showRegistrationIssue(issue) {
+    state.activeTab = "runtimes";
+    state.activeRuntimeMainTab = "register";
+    applyTabShell();
+    setRegisterResult(issue.message, "bad");
+    revealRegistrationField(issue.field);
+}
+function setRegistrationSecretVisibility(input, toggle, label, visible) {
+    if (!input || !toggle || !label)
+        return;
+    input.type = visible ? "text" : "password";
+    toggle.setAttribute("aria-pressed", String(visible));
+    label.textContent = t(visible ? "register.hideToken" : "register.showToken");
+}
+function syncRegistrationSecretToggles() {
+    setRegistrationSecretVisibility(nodes.registerToken, nodes.registerTokenToggle, nodes.registerTokenToggleLabel, nodes.registerToken.type === "text");
+    setRegistrationSecretVisibility(nodes.registerSidecarAdminToken, nodes.registerSidecarAdminTokenToggle, nodes.registerSidecarAdminTokenToggleLabel, nodes.registerSidecarAdminToken.type === "text");
+}
+function maskRegistrationSecrets() {
+    setRegistrationSecretVisibility(nodes.registerToken, nodes.registerTokenToggle, nodes.registerTokenToggleLabel, false);
+    setRegistrationSecretVisibility(nodes.registerSidecarAdminToken, nodes.registerSidecarAdminTokenToggle, nodes.registerSidecarAdminTokenToggleLabel, false);
+}
+function clearRegistrationSecrets() {
+    nodes.registerToken.value = "";
+    nodes.registerSidecarAdminToken.value = "";
+    maskRegistrationSecrets();
+}
 async function loadRegistrationPlan() {
     const draft = registrationPlanDraft();
     const draftKey = registrationPlanDraftKey(draft);
@@ -6119,17 +6382,16 @@ function registerPreviewSignature() {
     ].join("::");
 }
 function syncRegisterSubmitState(endpointValid, sidecarEndpointValid) {
-    const name = nodes.registerName.value.trim();
     const endpoint = nodes.registerEndpoint.value.trim();
-    const pairingToken = nodes.registerToken.value.trim();
-    const plan = currentRegistrationPlan();
     const busy = state.uiActions.has("register-runtime");
-    const valid = !!name && endpointValid && sidecarEndpointValid && !!pairingToken && plan?.allowed === true;
+    const readiness = registrationReadiness(endpointValid, sidecarEndpointValid);
     nodes.registerEndpoint.setAttribute("aria-invalid", endpoint && !endpointValid ? "true" : "false");
     nodes.registerSidecarEndpoint.setAttribute("aria-invalid", nodes.registerSidecarEndpoint.value.trim() && !sidecarEndpointValid ? "true" : "false");
-    nodes.registerSubmit.disabled = busy || !valid;
-    nodes.registerForm.dataset.ready = valid ? "true" : "false";
-    return { plan, valid };
+    nodes.registerGuidance.textContent = readiness.message;
+    nodes.registerGuidance.dataset.tone = busy ? "pending" : readiness.tone;
+    nodes.registerSubmit.disabled = busy || !readiness.ready;
+    nodes.registerForm.dataset.ready = readiness.ready ? "true" : "false";
+    return { ...readiness, valid: readiness.ready };
 }
 function scheduleRenderRegisterPreview() {
     if (state.pendingRegisterPreview) {
@@ -6939,15 +7201,27 @@ function clearRegisterForm() {
         return;
     }
     state.registerNameTouched = false;
+    state.registrationPlanAbortController?.abort();
+    state.registrationPlan = null;
+    state.registrationPlanError = "";
     nodes.registerName.value = "";
     nodes.registerEndpoint.value = "";
     nodes.registerSidecarEndpoint.value = "";
-    nodes.registerSidecarAdminToken.value = "";
-    nodes.registerToken.value = "";
+    clearRegistrationSecrets();
+    nodes.registerSidecarDetails.open = false;
+    for (const field of [
+        nodes.registerName,
+        nodes.registerEndpoint,
+        nodes.registerSidecarEndpoint,
+        nodes.registerSidecarAdminToken,
+        nodes.registerToken,
+    ]) {
+        field.setAttribute("aria-invalid", "false");
+    }
     syncRegisterFormTagsFromFilter();
     nodes.registerFetchCapabilities.checked = true;
     renderRegisterPreview();
-    nodes.registerResult.textContent = t("register.untouched");
+    setRegisterResult(t("register.untouched"));
 }
 function syncRegisterFormTagsFromFilter() {
     nodes.registerRuntimeEnvironment.value = state.filter.environment;
@@ -7498,30 +7772,12 @@ async function submitRegisterForm(event) {
     const sidecarEndpoint = nodes.registerSidecarEndpoint.value.trim();
     if (state.uiActions.has("register-runtime"))
         return;
-    if (!isLikelyHttpEndpoint(endpoint)) {
-        nodes.registerResult.textContent = t("register.blockedEndpoint");
-        state.activeTab = "runtimes";
-        state.activeRuntimeMainTab = "register";
-        applyTabShell();
+    const readiness = registrationReadiness(isLikelyHttpEndpoint(endpoint), sidecarEndpoint ? isLikelyHttpEndpoint(sidecarEndpoint) : true);
+    if (!readiness.ready) {
+        showRegistrationIssue(readiness);
         return;
     }
-    if (sidecarEndpoint && !isLikelyHttpEndpoint(sidecarEndpoint)) {
-        nodes.registerResult.textContent = t("register.blockedSidecarEndpoint");
-        state.activeTab = "runtimes";
-        state.activeRuntimeMainTab = "register";
-        applyTabShell();
-        return;
-    }
-    const registrationPlan = currentRegistrationPlan();
-    if (!registrationPlan?.allowed) {
-        nodes.registerResult.textContent = registrationPlanConflictMessage(registrationPlan)
-            || state.registrationPlanError
-            || t("register.blockedEndpoint");
-        state.activeTab = "runtimes";
-        state.activeRuntimeMainTab = "register";
-        applyTabShell();
-        return;
-    }
+    const registrationPlan = readiness.plan;
     const body = {
         name,
         endpoint,
@@ -7538,26 +7794,29 @@ async function submitRegisterForm(event) {
         registrationPlanToken: registrationPlan.planToken,
     };
     await runUiActionOnce("register-runtime", nodes.registerSubmit, t("register.registeringShort"), async () => {
-        nodes.registerResult.textContent = t("register.registering");
+        setRegisterResult(t("register.registering"), "pending");
         try {
             const result = await postJsonBody("/v1/runtimes/register", body);
             state.registrationPlan = null;
             state.registerNameTouched = false;
+            clearRegistrationSecrets();
+            renderRegisterPreview();
             state.activeTab = "runtimes";
             state.activeRuntimeMainTab = "detail";
             state.selectedRuntimeId = result.runtimeId;
-            nodes.registerResult.textContent = t("register.registered", {
+            setRegisterResult(t("register.registered", {
                 name: result.name,
                 runtimeId: result.runtimeId,
                 slice: currentSliceLabel(),
                 status: runtimeStatusHint(result.status),
-            });
+            }), "good");
+            applyTabShell();
             await loadDashboard();
             nodes.runtimeDetailPanel.scrollIntoView({ behavior: "smooth", block: "start" });
         }
         catch (error) {
             console.error(error);
-            nodes.registerResult.textContent = t("register.failed", { message: error.message });
+            setRegisterResult(t("register.failed", { message: error.message }), "bad", true);
             state.activeTab = "runtimes";
             state.activeRuntimeMainTab = "register";
             applyTabShell();
@@ -7744,15 +8003,21 @@ const nodes = {
     registerForm: document.getElementById("register-form"),
     registerName: document.getElementById("register-name"),
     registerEndpoint: document.getElementById("register-endpoint"),
+    registerSidecarDetails: document.getElementById("register-sidecar-details"),
     registerSidecarEndpoint: document.getElementById("register-sidecar-endpoint"),
     registerSidecarAdminToken: document.getElementById("register-sidecar-admin-token"),
+    registerSidecarAdminTokenToggle: document.getElementById("register-sidecar-admin-token-toggle"),
+    registerSidecarAdminTokenToggleLabel: document.getElementById("register-sidecar-admin-token-toggle-label"),
     registerToken: document.getElementById("register-token"),
+    registerTokenToggle: document.getElementById("register-token-toggle"),
+    registerTokenToggleLabel: document.getElementById("register-token-toggle-label"),
     registerRuntimeEnvironment: document.getElementById("register-runtime-environment"),
     registerRuntimeCluster: document.getElementById("register-runtime-cluster"),
     registerRuntimeRole: document.getElementById("register-runtime-role"),
     registerFetchCapabilities: document.getElementById("register-fetch-capabilities"),
     registerSubmit: document.getElementById("register-submit"),
     registerFormClear: document.getElementById("register-form-clear"),
+    registerGuidance: document.getElementById("register-guidance"),
     registerPreview: document.getElementById("register-preview"),
     registerResult: document.getElementById("register-result"),
     languageSelect: document.getElementById("language-select"),

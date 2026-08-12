@@ -1493,8 +1493,8 @@ select:focus {
 }
 
 .runtime-workspace.register-focus .runtime-register-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .runtime-workspace.panel-focus .card-head .chip,
@@ -1539,13 +1539,146 @@ select:focus {
 }
 
 .runtime-register-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+.register-section {
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 11px 12px 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--accent-soft) 28%, transparent), transparent 42%),
+    linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+}
+
+.register-section legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 0 4px;
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.register-step-index {
+  display: inline-flex;
+  min-width: 26px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 36%, var(--line));
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+}
+
+.register-section-copy {
+  margin: 1px 0 10px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.register-section-fields,
+.register-optional-fields {
+  display: grid;
+  gap: 9px 10px;
+  min-width: 0;
+}
+
+.register-section-target .register-section-fields {
+  grid-template-columns: minmax(150px, 0.72fr) minmax(0, 1.28fr);
+}
+
+.register-section-placement {
+  grid-column: 1 / -1;
+}
+
+.register-placement-fields {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px 12px;
   align-items: end;
 }
 
+.register-field,
+.register-section label {
+  min-width: 0;
+}
+
+.register-secret-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+}
+
+.runtime-register-panel .register-secret-input input {
+  min-width: 0;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.register-secret-toggle {
+  min-width: 72px;
+  padding-inline: 10px;
+  border-inline-start: 0;
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  background: var(--panel-2);
+  color: var(--accent-strong);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.register-secret-toggle[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.register-optional {
+  min-width: 0;
+  border: 1px dashed var(--line-strong);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--panel-2) 88%, transparent);
+}
+
+.register-optional > summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 9px;
+  align-items: center;
+  padding: 9px 10px;
+  cursor: pointer;
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.register-optional > summary::marker {
+  color: var(--accent);
+}
+
+.register-optional > summary small {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.register-optional-fields {
+  padding: 2px 10px 10px;
+}
+
 .runtime-register-grid .register-checkbox-row {
-  grid-column: span 2;
+  grid-column: 1 / -1;
   margin: 0;
   padding: 10px 12px;
   min-height: 46px;
@@ -1560,11 +1693,39 @@ select:focus {
 }
 
 .runtime-register-grid .runtime-register-actions {
-  grid-column: span 1;
-  justify-content: flex-end;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
   align-items: center;
   min-height: 46px;
   margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel) 94%, var(--accent-soft));
+}
+
+.register-action-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.register-guidance {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.register-guidance[data-tone="good"] {
+  color: #277a55;
+}
+
+.register-guidance[data-tone="bad"] {
+  color: var(--danger);
 }
 
 .runtime-register-panel .card-head {
@@ -1689,6 +1850,22 @@ button[aria-busy="true"] {
   font-size: 0.78rem;
   line-height: 1.25;
   overflow-wrap: anywhere;
+}
+
+.runtime-register-footer .form-result[data-tone="good"] {
+  border-color: color-mix(in srgb, #277a55 42%, var(--line));
+  color: #277a55;
+}
+
+.runtime-register-footer .form-result[data-tone="bad"] {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--line));
+  background: color-mix(in srgb, var(--danger-soft) 54%, var(--panel));
+  color: var(--danger);
+}
+
+.runtime-register-footer .form-result:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 62%, transparent);
+  outline-offset: 2px;
 }
 
 .runtime-workspace.register-focus .runtime-toolbar {
@@ -3233,6 +3410,10 @@ td strong {
     grid-template-columns: 1fr;
   }
 
+  .runtime-workspace.register-focus .runtime-register-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .runtime-register-grid .register-checkbox-row,
   .runtime-register-grid .runtime-register-actions {
     grid-column: 1 / -1;
@@ -4390,6 +4571,43 @@ details:not([open]) > :not(summary) {
     gap: 8px;
   }
 
+  :root[data-layout-mode="mobile"] .register-section-target .register-section-fields,
+  :root[data-layout-mode="mobile"] .register-placement-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :root[data-layout-mode="mobile"] .register-section {
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  :root[data-layout-mode="mobile"] .register-section-copy {
+    margin-bottom: 9px;
+  }
+
+  :root[data-layout-mode="mobile"] .runtime-register-grid .runtime-register-actions {
+    position: sticky;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    z-index: 20;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+    padding: 9px;
+    border-color: var(--line-strong);
+    background: color-mix(in srgb, var(--panel) 90%, transparent);
+    box-shadow: 0 14px 32px rgba(20, 44, 83, 0.2);
+    backdrop-filter: blur(14px);
+  }
+
+  :root[data-layout-mode="mobile"] .register-action-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  :root[data-layout-mode="mobile"] .register-action-buttons button {
+    width: 100%;
+  }
+
   :root[data-layout-mode="mobile"] .app-chrome-main,
   :root[data-layout-mode="mobile"] .app-ops {
     grid-template-columns: minmax(0, 1fr);
@@ -4707,10 +4925,29 @@ details:not([open]) > :not(summary) {
 
 :root[data-theme="dark"] .overview-stat,
 :root[data-theme="dark"] .register-preview,
+:root[data-theme="dark"] .register-section,
+:root[data-theme="dark"] .register-optional,
+:root[data-theme="dark"] .runtime-register-grid .runtime-register-actions,
 :root[data-theme="dark"] .runtime-register-grid .register-checkbox-row,
 :root[data-theme="dark"] .runtime-register-footer .form-result {
   border-color: var(--line);
   background: linear-gradient(180deg, #18263b 0%, #121e30 100%);
+}
+
+:root[data-theme="dark"] .register-secret-toggle {
+  border-color: var(--line-strong);
+  background: #172740;
+  color: #dce9ff;
+}
+
+:root[data-theme="dark"] .register-secret-toggle[aria-pressed="true"] {
+  background: rgba(117, 170, 255, 0.22);
+  color: #f1f6ff;
+}
+
+:root[data-theme="dark"] .register-guidance[data-tone="good"],
+:root[data-theme="dark"] .runtime-register-footer .form-result[data-tone="good"] {
+  color: #9be0bd;
 }
 
 :root[data-theme="dark"] .metric,

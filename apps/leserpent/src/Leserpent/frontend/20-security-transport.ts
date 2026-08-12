@@ -408,6 +408,8 @@ function applyTranslations() {
   for (const node of document.querySelectorAll("[data-i18n-placeholder]")) {
     node.placeholder = t(node.dataset.i18nPlaceholder);
   }
+  syncRegistrationSecretToggles();
+  renderRegisterPreview();
 
   const options = Array.from(nodes.languageSelect.options);
   const optionLabels = {
@@ -466,6 +468,9 @@ function syncTabSet(buttons, panels, activeValue, buttonKey, panelKey, prefix) {
 }
 
 function applyTabShell() {
+  if (state.activeTab !== "runtimes" || state.activeRuntimeMainTab !== "register") {
+    maskRegistrationSecrets();
+  }
   for (const button of nodes.tabButtons) {
     const isActive = button.dataset.tab === state.activeTab;
     button.classList.toggle("active", isActive);

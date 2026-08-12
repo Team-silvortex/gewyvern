@@ -50,15 +50,27 @@ function clearRegisterForm() {
   }
 
   state.registerNameTouched = false;
+  state.registrationPlanAbortController?.abort();
+  state.registrationPlan = null;
+  state.registrationPlanError = "";
   nodes.registerName.value = "";
   nodes.registerEndpoint.value = "";
   nodes.registerSidecarEndpoint.value = "";
-  nodes.registerSidecarAdminToken.value = "";
-  nodes.registerToken.value = "";
+  clearRegistrationSecrets();
+  nodes.registerSidecarDetails.open = false;
+  for (const field of [
+    nodes.registerName,
+    nodes.registerEndpoint,
+    nodes.registerSidecarEndpoint,
+    nodes.registerSidecarAdminToken,
+    nodes.registerToken,
+  ]) {
+    field.setAttribute("aria-invalid", "false");
+  }
   syncRegisterFormTagsFromFilter();
   nodes.registerFetchCapabilities.checked = true;
   renderRegisterPreview();
-  nodes.registerResult.textContent = t("register.untouched");
+  setRegisterResult(t("register.untouched"));
 }
 
 function syncRegisterFormTagsFromFilter() {
@@ -637,32 +649,15 @@ async function submitRegisterForm(event) {
   const endpoint = nodes.registerEndpoint.value.trim();
   const sidecarEndpoint = nodes.registerSidecarEndpoint.value.trim();
   if (state.uiActions.has("register-runtime")) return;
-  if (!isLikelyHttpEndpoint(endpoint)) {
-    nodes.registerResult.textContent = t("register.blockedEndpoint");
-    state.activeTab = "runtimes";
-    state.activeRuntimeMainTab = "register";
-    applyTabShell();
+  const readiness = registrationReadiness(
+    isLikelyHttpEndpoint(endpoint),
+    sidecarEndpoint ? isLikelyHttpEndpoint(sidecarEndpoint) : true,
+  );
+  if (!readiness.ready) {
+    showRegistrationIssue(readiness);
     return;
   }
-
-  if (sidecarEndpoint && !isLikelyHttpEndpoint(sidecarEndpoint)) {
-    nodes.registerResult.textContent = t("register.blockedSidecarEndpoint");
-    state.activeTab = "runtimes";
-    state.activeRuntimeMainTab = "register";
-    applyTabShell();
-    return;
-  }
-
-  const registrationPlan = currentRegistrationPlan();
-  if (!registrationPlan?.allowed) {
-    nodes.registerResult.textContent = registrationPlanConflictMessage(registrationPlan)
-      || state.registrationPlanError
-      || t("register.blockedEndpoint");
-    state.activeTab = "runtimes";
-    state.activeRuntimeMainTab = "register";
-    applyTabShell();
-    return;
-  }
+  const registrationPlan = readiness.plan;
 
   const body = {
     name,
@@ -681,25 +676,28 @@ async function submitRegisterForm(event) {
   };
 
   await runUiActionOnce("register-runtime", nodes.registerSubmit, t("register.registeringShort"), async () => {
-    nodes.registerResult.textContent = t("register.registering");
+    setRegisterResult(t("register.registering"), "pending");
     try {
       const result = await postJsonBody("/v1/runtimes/register", body);
       state.registrationPlan = null;
       state.registerNameTouched = false;
+      clearRegistrationSecrets();
+      renderRegisterPreview();
       state.activeTab = "runtimes";
       state.activeRuntimeMainTab = "detail";
       state.selectedRuntimeId = result.runtimeId;
-      nodes.registerResult.textContent = t("register.registered", {
+      setRegisterResult(t("register.registered", {
         name: result.name,
         runtimeId: result.runtimeId,
         slice: currentSliceLabel(),
         status: runtimeStatusHint(result.status),
-      });
+      }), "good");
+      applyTabShell();
       await loadDashboard();
       nodes.runtimeDetailPanel.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) {
       console.error(error);
-      nodes.registerResult.textContent = t("register.failed", { message: error.message });
+      setRegisterResult(t("register.failed", { message: error.message }), "bad", true);
       state.activeTab = "runtimes";
       state.activeRuntimeMainTab = "register";
       applyTabShell();

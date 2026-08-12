@@ -129,6 +129,86 @@ fn runtime_list_is_mobile_card_safe_and_keyboard_operable() {
 }
 
 #[test]
+fn runtime_registration_is_progressive_secret_safe_and_error_recoverable() {
+    let html = source("apps/leserpent/src/Leserpent/wwwroot/index.html");
+    let styles = source("apps/leserpent/src/Leserpent/wwwroot/styles.css");
+    let preview = source("apps/leserpent/src/Leserpent/frontend/46-register-preview.ts");
+    let workflows = source("apps/leserpent/src/Leserpent/frontend/50-dashboard-workflows.ts");
+    let bootstrap = source("apps/leserpent/src/Leserpent/frontend/15-preferences-bootstrap.ts");
+    let transport = source("apps/leserpent/src/Leserpent/frontend/20-security-transport.ts");
+    let simplified_chinese = source("apps/leserpent/src/Leserpent/frontend/11-i18n-zh-cn.ts");
+
+    for contract in [
+        "<fieldset class=\"register-section register-section-target\">",
+        "<fieldset class=\"register-section register-section-access\">",
+        "<fieldset class=\"register-section register-section-placement\">",
+        "id=\"register-sidecar-details\"",
+        "id=\"register-guidance\"",
+        "aria-live=\"polite\"",
+        "aria-controls=\"register-token\"",
+        "aria-pressed=\"false\"",
+        "aria-describedby=\"register-guidance register-result\"",
+    ] {
+        assert!(
+            html.contains(contract),
+            "missing registration UX contract {contract}"
+        );
+    }
+
+    for contract in [
+        "function registrationReadiness",
+        "function revealRegistrationField",
+        "function setRegistrationSecretVisibility",
+        "function maskRegistrationSecrets",
+        "function clearRegistrationSecrets",
+        "field.scrollIntoView",
+        "nodes.registerGuidance.dataset.tone",
+    ] {
+        assert!(
+            preview.contains(contract),
+            "missing registration behavior {contract}"
+        );
+    }
+
+    assert!(workflows.contains("clearRegistrationSecrets();\n      renderRegisterPreview();"));
+    assert!(workflows.contains("}), \"good\");\n      applyTabShell();"));
+    assert!(workflows.contains("showRegistrationIssue(readiness);"));
+    assert!(bootstrap.contains("document.addEventListener(\"visibilitychange\""));
+    assert!(bootstrap.contains("nodes.registerForm.addEventListener(\"invalid\""));
+    assert!(transport.contains("state.activeRuntimeMainTab !== \"register\""));
+    assert!(transport.contains("syncRegistrationSecretToggles();\n  renderRegisterPreview();"));
+
+    for contract in [
+        ".register-section-target .register-section-fields",
+        ".register-secret-toggle[aria-pressed=\"true\"]",
+        ".register-guidance[data-tone=\"bad\"]",
+        "position: sticky",
+        "bottom: calc(76px + env(safe-area-inset-bottom))",
+        ".register-action-buttons",
+    ] {
+        assert!(
+            styles.contains(contract),
+            "missing registration CSS contract {contract}"
+        );
+    }
+
+    for key in [
+        "targetSection:",
+        "accessSection:",
+        "sidecarSection:",
+        "placementSection:",
+        "checkingPlan:",
+        "ready:",
+        "fixHighlighted:",
+    ] {
+        assert!(
+            simplified_chinese.contains(key),
+            "missing localized registration guidance {key}"
+        );
+    }
+}
+
+#[test]
 fn mobile_adaptation_is_protocolized_in_the_status_tensor() {
     let catalog: serde_json::Value = serde_json::from_slice(
         &std::fs::read(repository_root().join("project/status/catalog.json")).unwrap(),
@@ -141,7 +221,7 @@ fn mobile_adaptation_is_protocolized_in_the_status_tensor() {
         .find(|cell| cell["id"] == "leserpent-1x/web-console/browser-operations")
         .expect("web console status cell must exist");
 
-    assert_eq!(cell["contract"]["version"], "1.4.5");
+    assert_eq!(cell["contract"]["version"], "1.4.6");
     for surface in [
         "width-first-mobile-layout",
         "mobile-filter-disclosure",
@@ -157,6 +237,16 @@ fn mobile_adaptation_is_protocolized_in_the_status_tensor() {
         "single-open-runtime-action-menu",
         "polite-runtime-list-status",
         "protocol-reason-i18n-normalization",
+        "semantic-registration-sections",
+        "optional-sidecar-disclosure",
+        "live-registration-readiness",
+        "field-focused-registration-recovery",
+        "operator-controlled-secret-visibility",
+        "secret-remask-and-dom-clear",
+        "mobile-sticky-registration-actions",
+        "localized-registration-guidance",
+        "registration-success-detail-handoff",
+        "live-registration-language-switch",
     ] {
         assert!(
             cell["contract"]["surfaces"]
