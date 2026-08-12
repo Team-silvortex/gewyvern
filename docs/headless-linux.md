@@ -109,6 +109,10 @@ Native loaders and BPF objects are compiled only from the build-time
 `CARGO_MANIFEST_DIR`; the privileged path never discovers C or BPF source from
 the caller's current directory. A relocated binary without its pinned source
 tree fails closed rather than compiling ambient files.
+Every `clang`, `cc`, loader, and `tc` subprocess has a 30-second native deadline
+and independently caps stdout and stderr at 1 MiB. Timeout kills and reaps the
+child; oversized output fails the smoke without allowing its transcript to grow
+without bound.
 The TC smoke is deliberately non-destructive: it refuses to run when the target
 interface already has a `clsact` qdisc, never deletes a qdisc it failed to
 create, and cleans up only the qdisc created by that smoke run. Use a dedicated

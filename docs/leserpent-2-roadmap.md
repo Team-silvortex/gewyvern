@@ -623,11 +623,14 @@ still reports only `installed`.
 
 A native service-manager activation primitive verifies `current` plus the
 retained and published descriptor before using absolute launchctl/systemctl
-executables with shell-free, secret-free argument arrays. The SSH production
-path now calls `bootstrap-activate-v1`: after activation, an eight-second bounded
-probe connects through loopback while validating the requested TLS server name,
-generated CA, private session token, wire-v1 health payload, and daemon-owned
-authority. Only that complete path returns `ready`; `bootstrap-install-v1`
+executables with shell-free, secret-free argument arrays. Activation, rollback,
+and retirement share one 30-second service-manager batch budget; a timed-out
+manager child is killed and reaped before the installer returns failure. The SSH
+production path now calls `bootstrap-activate-v1`: after activation, an
+eight-second bounded probe connects through loopback while validating the
+requested TLS server name, generated CA, private session token, wire-v1 health
+payload, and daemon-owned authority. Only that complete path returns `ready`;
+`bootstrap-install-v1`
 continues to stop at `installed` for safe preparation and process testing.
 
 Controller trust retention now has an independent native boundary. The SSH
@@ -732,6 +735,8 @@ current generation. It returns only `Installed`. Its `gewyvern-activate-v1`
 entrypoint atomically publishes and activates a launchd/systemd descriptor, and
 the descriptor starts `gewyvern-service-v1` without secret arguments. The managed
 service exposes rustls HTTPS and requires its private API token even on loopback.
+A symmetric 30-second service-manager batch deadline bounds activation,
+restoration, and retirement, including child termination and reaping on timeout.
 A bounded endpoint-name TLS/token health proof is required before `Ready`; failure
 restores and restarts the prior generation. The host-key-pinned native SSH
 transport now shares bootstrap's Rust connection, exclusive SFTP staging, bounded

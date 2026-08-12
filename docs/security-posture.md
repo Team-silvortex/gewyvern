@@ -139,6 +139,8 @@ current preparation line:
   caps, and cache limits
 - external-engine capability probing is bounded by the same timeout and output
   caps as full external analysis
+- Linux eBPF smoke compilation, loaders, and `tc` calls use a shared native
+  timeout/reaping guard with independent stdout and stderr caps
 - protocol/profile discovery avoids symlink recursion and repeated-directory
   loops and now carries directory, manifest-count, and manifest-size budgets
 

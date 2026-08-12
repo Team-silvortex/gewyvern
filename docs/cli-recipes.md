@@ -263,6 +263,7 @@ Current high-value `failure_code` values:
 - `remote_host_wrong_arch`
 - `remote_admin_credentials_incomplete`
 - `linux_ebpf_privilege_required`
+- `host_permission_denied`
 - `missing_sshpass`
 - `missing_system_command`
 

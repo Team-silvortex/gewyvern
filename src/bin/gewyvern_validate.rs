@@ -1510,6 +1510,16 @@ impl FailureClass {
     }
 }
 
+fn is_linux_ebpf_privilege_failure(message: &str) -> bool {
+    message.contains("linux eBPF smoke requires Linux kernel support and BPF attach privileges")
+        || message.contains("linux eBPF smoke requires a Linux environment")
+}
+
+fn is_host_permission_failure(message: &str) -> bool {
+    message.contains("Operation not permitted")
+        || message.contains("Permission denied (os error 13)")
+}
+
 fn classify_failure(message: &str) -> Option<(FailureClass, &'static str)> {
     if message.contains("requires a path")
         || message.contains("requires a value")
@@ -1558,12 +1568,11 @@ fn classify_failure(message: &str) -> Option<(FailureClass, &'static str)> {
     ) {
         return Some((FailureClass::Remote, "remote_admin_credentials_incomplete"));
     }
-    if message.contains("Operation not permitted")
-        || message
-            .contains("linux eBPF smoke requires Linux kernel support and BPF attach privileges")
-        || message.contains("linux eBPF smoke requires a Linux environment")
-    {
+    if is_linux_ebpf_privilege_failure(message) {
         return Some((FailureClass::Privilege, "linux_ebpf_privilege_required"));
+    }
+    if is_host_permission_failure(message) {
+        return Some((FailureClass::Privilege, "host_permission_denied"));
     }
     if message.contains("required command not found: sshpass") {
         return Some((FailureClass::Dependency, "missing_sshpass"));
@@ -1696,13 +1705,13 @@ fn failure_guidance_lines(message: &str) -> Vec<&'static str> {
         );
     }
 
-    if message.contains("Operation not permitted")
-        || message
-            .contains("linux eBPF smoke requires Linux kernel support and BPF attach privileges")
-        || message.contains("linux eBPF smoke requires a Linux environment")
-    {
+    if is_linux_ebpf_privilege_failure(message) {
         guidance.push(
             "next-step: rerun on Linux with sudo or equivalent BPF privileges, for example `sudo cargo run --quiet --bin gewyvern_validate -- linux-attach-smoke`",
+        );
+    } else if is_host_permission_failure(message) {
+        guidance.push(
+            "next-step: inspect the denied path or local IPC operation, choose writable runtime and output directories or grant only the required host permission, then rerun the same validation command",
         );
     }
 
@@ -3107,6 +3116,18 @@ mod tests {
             classify_failure("linux eBPF smoke requires a Linux environment"),
             Some((FailureClass::Privilege, "linux_ebpf_privilege_required"))
         );
+        assert_eq!(
+            classify_failure(
+                "failed to create runtime root '/Users/example/Library/Caches/gewyvern': Operation not permitted (os error 1)",
+            ),
+            Some((FailureClass::Privilege, "host_permission_denied"))
+        );
+        assert_eq!(
+            classify_failure(
+                "attach failed: Operation not permitted\nlinux eBPF smoke requires Linux kernel support and BPF attach privileges",
+            ),
+            Some((FailureClass::Privilege, "linux_ebpf_privilege_required"))
+        );
     }
 
     #[test]
@@ -3137,6 +3158,22 @@ mod tests {
             ),
             vec![
                 "next-step: rerun against a Linux x86_64 host, or disable the remote-host stage while narrowing local packaged validation first",
+            ]
+        );
+        assert_eq!(
+            failure_guidance_lines(
+                "failed to create runtime root '/tmp/gewyvern': Operation not permitted (os error 1)",
+            ),
+            vec![
+                "next-step: inspect the denied path or local IPC operation, choose writable runtime and output directories or grant only the required host permission, then rerun the same validation command",
+            ]
+        );
+        assert_eq!(
+            failure_guidance_lines(
+                "attach failed: Operation not permitted\nlinux eBPF smoke requires Linux kernel support and BPF attach privileges",
+            ),
+            vec![
+                "next-step: rerun on Linux with sudo or equivalent BPF privileges, for example `sudo cargo run --quiet --bin gewyvern_validate -- linux-attach-smoke`",
             ]
         );
     }

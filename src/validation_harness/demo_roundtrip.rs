@@ -11,7 +11,8 @@ use std::time::{Duration, Instant};
 use serde_json::Value;
 
 use super::command::{
-    ValidationError, ValidationReport, assert_eq_str, default_out_dir, repo_root, run_cargo_status,
+    PROOF_FIXTURE_TIMEOUT, VALIDATION_HELPER_TIMEOUT, ValidationError, ValidationReport,
+    assert_eq_str, default_out_dir, repo_root, run_cargo_status, run_command_output_with_timeout,
     value_at,
 };
 use super::http_probe::bounded_http_get;
@@ -66,6 +67,7 @@ pub fn run_socket_roundtrip_demo(
         checks: vec![
             format!("{socket_kind}_socket_session_completed"),
             "socket_output_contains_template_and_facts".to_string(),
+            "bounded_socket_sender_subprocess".to_string(),
         ],
     })
 }
@@ -213,6 +215,8 @@ pub fn run_external_engine_roundtrip_demo(
         checks: vec![
             "gewyvern_analysis_published".to_string(),
             "external_engine_analyze_url_completed".to_string(),
+            "bounded_socket_sender_subprocess".to_string(),
+            "bounded_external_engine_subprocess".to_string(),
         ],
     })
 }
@@ -348,23 +352,27 @@ fn run_external_engine(
     let custom_cmd = engine_cmd
         .map(str::to_string)
         .or_else(|| env::var("EXTERNAL_ENGINE_CMD").ok());
-    let output = if let Some(custom_cmd) = custom_cmd {
+    let mut command = if let Some(custom_cmd) = custom_cmd {
         let custom_cmd = validate_external_engine_command(&custom_cmd)?;
-        Command::new(custom_cmd)
-            .current_dir(&engine_root)
-            .arg(&url)
-            .output()
+        let mut command = Command::new(custom_cmd);
+        command.current_dir(&engine_root).arg(&url);
+        command
     } else {
-        Command::new(env::var("CARGO").unwrap_or_else(|_| "cargo".to_string()))
+        let mut command = Command::new(env::var("CARGO").unwrap_or_else(|_| "cargo".to_string()));
+        command
             .current_dir(&engine_root)
             .arg("run")
             .arg("--quiet")
             .arg("--")
             .arg("analyze-url")
-            .arg(&url)
-            .output()
-    }
-    .map_err(|err| ValidationError::new(format!("failed to run external engine: {err}")))?;
+            .arg(&url);
+        command
+    };
+    let output = run_command_output_with_timeout(
+        &mut command,
+        PROOF_FIXTURE_TIMEOUT,
+        "external engine roundtrip",
+    )?;
 
     fs::write(engine_out, &output.stdout)?;
     fs::write(out_dir.join("external-engine.stderr.log"), &output.stderr)?;
@@ -443,7 +451,12 @@ fn run_socket_sender(
     } else {
         command.arg("--socket").arg(socket_target);
     }
-    let output = command.arg("--template").arg(template).output()?;
+    command.arg("--template").arg(template);
+    let output = run_command_output_with_timeout(
+        &mut command,
+        VALIDATION_HELPER_TIMEOUT,
+        "socket roundtrip sender",
+    )?;
     if output.status.success() {
         return Ok(());
     }

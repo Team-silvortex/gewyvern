@@ -7,8 +7,8 @@ use std::{env, fs};
 use serde_json::Value;
 
 use super::command::{
-    ValidationError, ValidationReport, default_out_dir, repo_root, run_cargo_json,
-    run_cargo_status, value_at,
+    VALIDATION_HELPER_TIMEOUT, ValidationError, ValidationReport, default_out_dir, repo_root,
+    run_cargo_json, run_cargo_status, run_command_output_with_timeout, value_at,
 };
 
 pub fn run_field_smoke_validation(
@@ -36,6 +36,7 @@ pub fn run_field_smoke_validation(
     if include_socket {
         check_socket_roundtrip(&out_dir)?;
         checks.push("socket_roundtrip".to_string());
+        checks.push("bounded_socket_sender_subprocess".to_string());
     }
 
     if include_scan_all {
@@ -151,13 +152,18 @@ fn default_field_socket_path() -> String {
 
 fn run_socket_client(socket_path: &str) -> Result<(), ValidationError> {
     wait_for_socket(socket_path)?;
-    let output = Command::new(repo_root().join("target/debug/gewyvern_socket_send"))
+    let mut command = Command::new(repo_root().join("target/debug/gewyvern_socket_send"));
+    command
         .current_dir(repo_root())
         .arg("--socket")
         .arg(socket_path)
         .arg("--template")
-        .arg("udp")
-        .output()?;
+        .arg("udp");
+    let output = run_command_output_with_timeout(
+        &mut command,
+        VALIDATION_HELPER_TIMEOUT,
+        "field smoke socket sender",
+    )?;
     if output.status.success() {
         return Ok(());
     }

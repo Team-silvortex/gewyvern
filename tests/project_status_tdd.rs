@@ -3824,7 +3824,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "gewyvern-core/linux-ebpf/linux-attach")
         .expect("Gewyvern Linux attach cell must exist");
     assert_eq!(linux_attach.completion, 98);
-    assert_eq!(linux_attach.contract.version, "1.5.0");
+    assert_eq!(linux_attach.contract.version, "1.5.1");
     assert_eq!(linux_attach.blockers.len(), 1);
     for surface in [
         "dedicated-project-ssh-alias",
@@ -3836,6 +3836,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "dotnet10-rid-neutral-locked-aot-restore",
         "dynamic-writer-fence-sqlite-activation",
         "physical-linux-helper-version-upgrade-proof",
+        "shared-native-bounded-process-guard",
+        "bounded-local-smoke-subprocesses",
+        "bounded-smoke-command-output-capture",
     ] {
         assert!(
             linux_attach
@@ -3848,6 +3851,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(linux_attach.evidence.iter().any(|item| {
         item.path == "docs/fixtures/linux_attach_pinned_source_root.json"
             && item.state == EvidenceState::Present
+    }));
+    assert!(linux_attach.evidence.iter().any(|item| {
+        item.path == "src/bounded_process.rs" && item.state == EvidenceState::Present
     }));
 
     let gewylang = catalog
@@ -5353,7 +5359,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(bootstrap.maturity, Maturity::Mature);
     assert_eq!(bootstrap.completion, 100);
     assert_eq!(bootstrap.contract.stability, ContractStability::Stable);
-    assert_eq!(bootstrap.contract.version, "1.0.0");
+    assert_eq!(bootstrap.contract.version, "1.0.1");
+    for surface in [
+        "bounded-native-service-manager-batch",
+        "timed-out-service-manager-child-reaping",
+    ] {
+        assert!(
+            bootstrap
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing reverse-bootstrap surface {surface}"
+        );
+    }
     assert!(
         bootstrap
             .contract
@@ -5575,7 +5594,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/release-assurance/continuous-proof")
         .expect("continuous proof contract must remain tracked");
     assert_eq!(continuous_proof.completion, 97);
-    assert_eq!(continuous_proof.contract.version, "0.66.0");
+    assert_eq!(continuous_proof.contract.version, "0.67.0");
     assert!(
         continuous_proof
             .contract
@@ -5593,6 +5612,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     for surface in [
         "stale-aot-accessibility-proof-invalidation",
         "failed-aot-fixture-log-retention",
+        "bounded-local-validation-helper-subprocesses",
+        "contextual-host-permission-failure-guidance",
     ] {
         assert!(
             continuous_proof
@@ -5623,7 +5644,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(provisioning.maturity, Maturity::Mature);
     assert_eq!(provisioning.completion, 100);
     assert_eq!(provisioning.contract.stability, ContractStability::Stable);
-    assert_eq!(provisioning.contract.version, "1.0.0");
+    assert_eq!(provisioning.contract.version, "1.0.1");
+    for surface in [
+        "bounded-native-service-manager-batch",
+        "timed-out-service-manager-child-reaping",
+    ] {
+        assert!(
+            provisioning
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing Gewyvern provisioning surface {surface}"
+        );
+    }
     assert!(
         provisioning.contract.surfaces.iter().any(|surface| {
             surface == "planned-installing-service-ready-runtime-registered-state"

@@ -1,12 +1,13 @@
 use std::fs::{self, File};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command, Output, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use super::command::{
-    ValidationError, ValidationReport, default_out_dir, repo_root, run_cargo_status,
+    VALIDATION_HELPER_TIMEOUT, ValidationError, ValidationReport, default_out_dir, repo_root,
+    run_cargo_status, run_command_output_with_timeout,
 };
 use super::http_probe::{bounded_http_get, bounded_tcp_connect};
 
@@ -40,6 +41,8 @@ fn run_lifecycle_cases(
     checks.push("runtime_log_records_start_failure_and_recovery".to_string());
     checks.push("explicit_stop_clears_pid_and_api_socket_reachability".to_string());
     checks.push("temporary_run_directory_removed_after_validation".to_string());
+    checks.push("bounded_socket_sender_subprocess".to_string());
+    checks.push("shutdown_rejection_requires_real_sender_exit".to_string());
 
     write_summary(out_dir, &checks)?;
 
@@ -217,11 +220,7 @@ fn send_invalid_session(socket_addr: &str) -> Result<(), ValidationError> {
 }
 
 fn run_socket_send(args: &[&str]) -> Result<(), ValidationError> {
-    let output = Command::new(repo_root().join("target/debug/gewyvern_socket_send"))
-        .current_dir(repo_root())
-        .args(args)
-        .output()
-        .map_err(|err| ValidationError::new(format!("failed to run socket sender: {err}")))?;
+    let output = run_socket_send_output(args)?;
     if output.status.success() {
         return Ok(());
     }
@@ -229,6 +228,16 @@ fn run_socket_send(args: &[&str]) -> Result<(), ValidationError> {
         "socket sender failed: {}",
         String::from_utf8_lossy(&output.stderr)
     )))
+}
+
+fn run_socket_send_output(args: &[&str]) -> Result<Output, ValidationError> {
+    let mut command = Command::new(repo_root().join("target/debug/gewyvern_socket_send"));
+    command.current_dir(repo_root()).args(args);
+    run_command_output_with_timeout(
+        &mut command,
+        VALIDATION_HELPER_TIMEOUT,
+        "runtime lifecycle socket sender",
+    )
 }
 
 fn choose_tcp_addr() -> Result<String, ValidationError> {
@@ -267,11 +276,13 @@ fn expect_http_unreachable(addr: &str) -> Result<(), ValidationError> {
 }
 
 fn expect_socket_send_fails(socket_addr: &str) -> Result<(), ValidationError> {
-    match send_template(socket_addr) {
-        Ok(()) => Err(ValidationError::new(format!(
+    let output = run_socket_send_output(&["--tcp-socket", socket_addr, "--template", "tcp"])?;
+    if output.status.success() {
+        Err(ValidationError::new(format!(
             "expected socket {socket_addr} to reject sessions after shutdown"
-        ))),
-        Err(_) => Ok(()),
+        )))
+    } else {
+        Ok(())
     }
 }
 

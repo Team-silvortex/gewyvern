@@ -4,8 +4,9 @@ use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::process::{Child, Command, ExitStatus, Stdio};
+use std::thread;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use leserpent_protocol::bootstrap_installer::{
     BOOTSTRAP_INSTALLER_SCHEMA_VERSION, BootstrapInstallerRequest, BootstrapInstallerResponse,
@@ -32,6 +33,8 @@ const TLS_CERTIFICATE_NAME: &str = "server.crt";
 const TLS_PRIVATE_KEY_NAME: &str = "server.key";
 const RETIREMENT_MARKER_SCHEMA_VERSION: u32 = 1;
 const MAX_RETAINED_RETIREMENT_MARKERS: usize = 4096;
+const SERVICE_MANAGER_COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
+const SERVICE_MANAGER_POLL_INTERVAL: Duration = Duration::from_millis(25);
 #[cfg(target_os = "macos")]
 const SERVICE_DESCRIPTOR_NAME: &str = "service.plist";
 #[cfg(target_os = "linux")]
@@ -649,19 +652,61 @@ fn rollback_published_service(
 fn execute_service_commands(
     commands: Vec<ServiceManagerCommand>,
 ) -> Result<(), BootstrapInstallError> {
+    execute_service_commands_with_timeout(commands, SERVICE_MANAGER_COMMAND_TIMEOUT)
+}
+
+fn execute_service_commands_with_timeout(
+    commands: Vec<ServiceManagerCommand>,
+    timeout: Duration,
+) -> Result<(), BootstrapInstallError> {
+    let deadline = Instant::now()
+        .checked_add(timeout)
+        .ok_or(BootstrapInstallError::ServiceActivation)?;
     for command in commands {
-        let status = Command::new(&command.program)
+        if Instant::now() >= deadline {
+            return Err(BootstrapInstallError::ServiceActivation);
+        }
+        let mut child = Command::new(&command.program)
             .args(&command.arguments)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
-            .status()
+            .spawn()
             .map_err(|_| BootstrapInstallError::ServiceActivation)?;
+        let status = wait_for_service_manager_child(&mut child, deadline)?;
         if !status.success() && !command.tolerate_failure {
             return Err(BootstrapInstallError::ServiceActivation);
         }
     }
     Ok(())
+}
+
+fn wait_for_service_manager_child(
+    child: &mut Child,
+    deadline: Instant,
+) -> Result<ExitStatus, BootstrapInstallError> {
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return Ok(status),
+            Ok(None) => {}
+            Err(_) => {
+                terminate_service_manager_child(child);
+                return Err(BootstrapInstallError::ServiceActivation);
+            }
+        }
+
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            terminate_service_manager_child(child);
+            return Err(BootstrapInstallError::ServiceActivation);
+        }
+        thread::sleep(SERVICE_MANAGER_POLL_INTERVAL.min(remaining));
+    }
+}
+
+fn terminate_service_manager_child(child: &mut Child) {
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 fn verify_published_service(
@@ -2100,6 +2145,29 @@ mod tests {
         assert!(rendered.contains("/bin/launchctl bootstrap gui/"));
         #[cfg(target_os = "linux")]
         assert!(rendered.contains("systemctl --user daemon-reload"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn service_manager_batch_timeout_terminates_a_hung_child() {
+        let sleep = ["/bin/sleep", "/usr/bin/sleep"]
+            .into_iter()
+            .find(|candidate| Path::new(candidate).is_file())
+            .expect("sleep is required for the service-manager timeout proof");
+        let started = Instant::now();
+
+        assert_eq!(
+            execute_service_commands_with_timeout(
+                vec![ServiceManagerCommand {
+                    program: PathBuf::from(sleep),
+                    arguments: vec!["5".into()],
+                    tolerate_failure: false,
+                }],
+                Duration::from_millis(50),
+            ),
+            Err(BootstrapInstallError::ServiceActivation)
+        );
+        assert!(started.elapsed() < Duration::from_secs(2));
     }
 
     #[test]

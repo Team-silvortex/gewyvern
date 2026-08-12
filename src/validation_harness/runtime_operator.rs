@@ -8,8 +8,8 @@ use std::time::{Duration, Instant};
 use serde_json::Value;
 
 use super::command::{
-    ValidationError, ValidationReport, assert_eq_str, default_out_dir, repo_root, run_cargo_status,
-    value_at,
+    VALIDATION_HELPER_TIMEOUT, ValidationError, ValidationReport, assert_eq_str, default_out_dir,
+    repo_root, run_cargo_status, run_command_output_with_timeout, value_at,
 };
 use super::http_probe::bounded_http_get;
 
@@ -44,6 +44,7 @@ fn run_operator_cases(
     validate_udp_operator_path(out_dir, run_dir)?;
     checks.push("udp_datagram_latest_snapshot_remains_readable".to_string());
     checks.push("training_dataset_sample_ids_roundtrip".to_string());
+    checks.push("bounded_socket_sender_subprocess".to_string());
 
     write_summary(out_dir, json_out, &checks)?;
 
@@ -275,11 +276,13 @@ fn send_invalid_session(socket_addr: &str) -> Result<(), ValidationError> {
 }
 
 fn run_socket_send(args: &[&str]) -> Result<(), ValidationError> {
-    let output = Command::new(repo_root().join("target/debug/gewyvern_socket_send"))
-        .current_dir(repo_root())
-        .args(args)
-        .output()
-        .map_err(|err| ValidationError::new(format!("failed to run socket sender: {err}")))?;
+    let mut command = Command::new(repo_root().join("target/debug/gewyvern_socket_send"));
+    command.current_dir(repo_root()).args(args);
+    let output = run_command_output_with_timeout(
+        &mut command,
+        VALIDATION_HELPER_TIMEOUT,
+        "runtime operator socket sender",
+    )?;
     if output.status.success() {
         return Ok(());
     }

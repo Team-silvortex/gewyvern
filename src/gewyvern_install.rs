@@ -5,7 +5,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::path::{Component, Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -49,6 +49,8 @@ const SERVICE_DESCRIPTOR_NAME: &str = "service.conf";
 const HEALTH_DEADLINE: Duration = Duration::from_secs(8);
 const HEALTH_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(750);
 const HEALTH_RETRY_INTERVAL: Duration = Duration::from_millis(100);
+const SERVICE_MANAGER_COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
+const SERVICE_MANAGER_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GewyvernInstallError {
@@ -701,19 +703,61 @@ fn verify_published_service(
 fn execute_service_commands(
     commands: Vec<ServiceManagerCommand>,
 ) -> Result<(), GewyvernInstallError> {
+    execute_service_commands_with_timeout(commands, SERVICE_MANAGER_COMMAND_TIMEOUT)
+}
+
+fn execute_service_commands_with_timeout(
+    commands: Vec<ServiceManagerCommand>,
+    timeout: Duration,
+) -> Result<(), GewyvernInstallError> {
+    let deadline = Instant::now()
+        .checked_add(timeout)
+        .ok_or(GewyvernInstallError::ServiceActivation)?;
     for command in commands {
-        let status = Command::new(&command.program)
+        if Instant::now() >= deadline {
+            return Err(GewyvernInstallError::ServiceActivation);
+        }
+        let mut child = Command::new(&command.program)
             .args(&command.arguments)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
-            .status()
+            .spawn()
             .map_err(|_| GewyvernInstallError::ServiceActivation)?;
+        let status = wait_for_service_manager_child(&mut child, deadline)?;
         if !status.success() && !command.tolerate_failure {
             return Err(GewyvernInstallError::ServiceActivation);
         }
     }
     Ok(())
+}
+
+fn wait_for_service_manager_child(
+    child: &mut Child,
+    deadline: Instant,
+) -> Result<ExitStatus, GewyvernInstallError> {
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return Ok(status),
+            Ok(None) => {}
+            Err(_) => {
+                terminate_service_manager_child(child);
+                return Err(GewyvernInstallError::ServiceActivation);
+            }
+        }
+
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            terminate_service_manager_child(child);
+            return Err(GewyvernInstallError::ServiceActivation);
+        }
+        thread::sleep(SERVICE_MANAGER_POLL_INTERVAL.min(remaining));
+    }
+}
+
+fn terminate_service_manager_child(child: &mut Child) {
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 #[cfg(target_os = "macos")]
@@ -2109,6 +2153,29 @@ mod tests {
             fs::read_to_string(layout.runtime_root(&request).join(CURRENT_NAME)).unwrap(),
             format!("{}\n", response.generation)
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn service_manager_batch_timeout_terminates_a_hung_child() {
+        let sleep = ["/bin/sleep", "/usr/bin/sleep"]
+            .into_iter()
+            .find(|candidate| Path::new(candidate).is_file())
+            .expect("sleep is required for the service-manager timeout proof");
+        let started = Instant::now();
+
+        assert_eq!(
+            execute_service_commands_with_timeout(
+                vec![ServiceManagerCommand {
+                    program: PathBuf::from(sleep),
+                    arguments: vec!["5".into()],
+                    tolerate_failure: false,
+                }],
+                Duration::from_millis(50),
+            ),
+            Err(GewyvernInstallError::ServiceActivation)
+        );
+        assert!(started.elapsed() < Duration::from_secs(2));
     }
 
     #[test]

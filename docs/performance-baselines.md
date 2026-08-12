@@ -38,10 +38,12 @@ machine contract. Shared Cargo subprocesses are bounded at 30 minutes and the
 small .NET workspace-log phase is bounded at 5 minutes. The AOT,
 accessibility, parity/recovery, and locked .NET proof subprocesses now use the
 same bounded runner: tool probes stop after 30 seconds, GUI fixtures after 5
-minutes, and builds or suites after 30 minutes. Captured stdout and stderr are
-each capped at 32 MiB. A blocked compiler, runaway output stream, build server,
-or host integration therefore fails with the named phase and limit instead of
-leaving a release job waiting indefinitely or exhausting operator memory.
+minutes, and builds or suites after 30 minutes. Native field, demo, lifecycle,
+and operator socket helpers stop after 30 seconds; the external-analysis demo
+stops after 5 minutes. Captured stdout and stderr are each capped at 32 MiB. A
+blocked compiler, runaway output stream, build server, or host integration
+therefore fails with the named phase and limit instead of leaving a release job
+waiting indefinitely or exhausting operator memory.
 
 Current `2026-07-18` references:
 

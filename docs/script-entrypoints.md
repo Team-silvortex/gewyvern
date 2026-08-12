@@ -76,6 +76,7 @@ Current JSON failure codes:
 | `remote_host_wrong_arch` | the chosen remote host is not `x86_64` / `amd64` | rerun against a supported Linux architecture |
 | `remote_admin_credentials_incomplete` | only one of the remote admin credential env vars was set | set both `GEWY_REMOTE_EBPF_ADMIN_USER` and `GEWY_REMOTE_EBPF_ADMIN_PASSWORD`, or unset both |
 | `linux_ebpf_privilege_required` | Linux eBPF attach smoke lacked a Linux/BPF-privileged environment | rerun on Linux with `sudo` or equivalent privileges |
+| `host_permission_denied` | a non-eBPF local path or IPC operation was denied by the host | choose writable runtime/output paths or grant only the named host permission; do not assume eBPF or sudo |
 | `missing_sshpass` | the optional admin-assisted remote eBPF path was requested without `sshpass` installed | install `sshpass`, or disable the admin-assisted path |
 | `missing_system_command` | a required system command such as `ssh`, `rsync`, or `docker` is missing | install the missing command and rerun |
 | `missing_native_aot_dependency` | `dotnet` or the Linux Xvfb control-smoke dependency is missing | install the named host dependency and rerun `leserpent-aot` |

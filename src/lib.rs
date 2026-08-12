@@ -1,3 +1,5 @@
+mod bounded_process;
+
 pub mod certificate_inventory;
 pub mod certificate_policy;
 pub mod certificate_state;

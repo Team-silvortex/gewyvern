@@ -3,9 +3,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use crate::bounded_process::{OutputLimits, run_command_output as run_bounded_command_output};
 
 static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+const LINUX_SMOKE_COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
+const LINUX_SMOKE_COMMAND_OUTPUT_LIMIT_BYTES: usize = 1024 * 1024;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum LinuxEbpfSmokeError {
@@ -324,10 +328,32 @@ fn run_command_output(
     command: &mut Command,
     transcript: &mut String,
 ) -> Result<Output, LinuxEbpfSmokeError> {
-    let output = command.output().map_err(|error| {
+    run_command_output_with_limits(
+        command,
+        transcript,
+        LINUX_SMOKE_COMMAND_TIMEOUT,
+        LINUX_SMOKE_COMMAND_OUTPUT_LIMIT_BYTES,
+    )
+}
+
+fn run_command_output_with_limits(
+    command: &mut Command,
+    transcript: &mut String,
+    timeout: Duration,
+    output_limit_bytes: usize,
+) -> Result<Output, LinuxEbpfSmokeError> {
+    let rendered = render_command(command);
+    let description = format!("linux eBPF smoke command `{rendered}`");
+    let output = run_bounded_command_output(
+        command,
+        timeout,
+        OutputLimits::new(output_limit_bytes, output_limit_bytes),
+        &description,
+    )
+    .map_err(|error| {
         transcript.push_str("$ ");
-        transcript.push_str(&render_command(command));
-        transcript.push_str("\nspawn error: ");
+        transcript.push_str(&rendered);
+        transcript.push_str("\nexecution error: ");
         transcript.push_str(&error.to_string());
         transcript.push_str("\n\n");
         io_err(error)
@@ -434,14 +460,27 @@ fn io_err(err: std::io::Error) -> LinuxEbpfSmokeError {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+    use std::io::Write as _;
     use std::path::Path;
-    use std::process::{ExitStatus, Output};
+    use std::process::{Command, ExitStatus, Output};
+    use std::time::{Duration, Instant};
 
     use super::{
         LinuxEbpfSmokeError, finalize_run_result, render_command, repo_root,
-        run_tc_attach_commands_with, temp_work_dir, validate_netdev_name, validate_symbol_name,
-        validate_tracepoint_name,
+        run_command_output_with_limits, run_tc_attach_commands_with, temp_work_dir,
+        validate_netdev_name, validate_symbol_name, validate_tracepoint_name,
     };
+
+    const OUTPUT_PROBE_ENV: &str = "GEWYVERN_LINUX_SMOKE_OUTPUT_PROBE";
+
+    #[test]
+    fn smoke_command_output_probe() {
+        if let Ok(output_bytes) = env::var(OUTPUT_PROBE_ENV) {
+            let bytes = vec![b'x'; output_bytes.parse().unwrap()];
+            std::io::stdout().write_all(&bytes).unwrap();
+        }
+    }
 
     #[test]
     fn smoke_sources_are_pinned_to_the_build_workspace() {
@@ -475,6 +514,53 @@ mod tests {
     fn netdev_validation_rejects_whitespace() {
         let err = validate_netdev_name("eth0 prod").unwrap_err();
         assert!(matches!(err, LinuxEbpfSmokeError::InvalidTarget(_)));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn smoke_command_timeout_terminates_a_hung_child() {
+        let sleep = ["/bin/sleep", "/usr/bin/sleep"]
+            .into_iter()
+            .find(|candidate| Path::new(candidate).is_file())
+            .expect("sleep is required for the eBPF smoke timeout proof");
+        let mut command = Command::new(sleep);
+        command.arg("5");
+        let mut transcript = String::new();
+        let started = Instant::now();
+
+        let error = run_command_output_with_limits(
+            &mut command,
+            &mut transcript,
+            Duration::from_millis(50),
+            1024,
+        )
+        .unwrap_err();
+
+        assert!(error.to_string().contains("timed out after 0.050s"));
+        assert!(transcript.contains("execution error"));
+        assert!(started.elapsed() < Duration::from_secs(2));
+    }
+
+    #[test]
+    fn smoke_command_output_capture_is_bounded() {
+        let mut command = Command::new(env::current_exe().unwrap());
+        command
+            .arg("smoke_command_output_probe")
+            .arg("--nocapture")
+            .env(OUTPUT_PROBE_ENV, "4096");
+        let mut transcript = String::new();
+
+        let error = run_command_output_with_limits(
+            &mut command,
+            &mut transcript,
+            Duration::from_secs(5),
+            1024,
+        )
+        .unwrap_err();
+
+        assert!(error.to_string().contains("stdout"));
+        assert!(error.to_string().contains("exceeded 1024 bytes"));
+        assert!(transcript.contains("execution error"));
     }
 
     #[cfg(unix)]

@@ -308,6 +308,7 @@ fn leserpent_transport_proof_covers_contract_parity_and_real_ipc() {
 fn leserpent_benchmark_proof_has_bounded_native_workloads() {
     let harness = read_repo_file("src/validation_harness/leserpent_benchmark.rs");
     let command_harness = read_repo_file("src/validation_harness/command.rs");
+    let bounded_process = read_repo_file("src/bounded_process.rs");
     let runtime = read_repo_file("crates/leserpent-runtime/examples/runtime_benchmark.rs");
     let language = read_repo_file("crates/leselang-vm/examples/language_benchmark.rs");
     let ui = read_repo_file("crates/leselang-ui/examples/ui_benchmark.rs");
@@ -335,9 +336,10 @@ fn leserpent_benchmark_proof_has_bounded_native_workloads() {
     assert!(harness.contains("bounded_dotnet_benchmark_subprocess"));
     assert!(command_harness.contains("run_command_output_with_timeout"));
     assert!(command_harness.contains("COMMAND_CAPTURE_LIMIT_BYTES"));
-    assert!(command_harness.contains("captured output exceeded"));
-    assert!(command_harness.contains("child.try_wait()"));
-    assert!(command_harness.contains("child.kill()"));
+    assert!(command_harness.contains("run_bounded_command_output"));
+    assert!(bounded_process.contains("captured output exceeded"));
+    assert!(bounded_process.contains("child.try_wait()"));
+    assert!(bounded_process.contains("child.kill()"));
     assert!(harness.contains("benchmark-summary.json"));
     assert!(harness.contains("evidence-index.json"));
     assert!(harness.contains("same_host_class_comparison_policy"));
@@ -533,6 +535,7 @@ fn leserpent_schema_freeze_inventory_is_bounded_non_vacuous_and_candidate_only()
 #[test]
 fn linux_ebpf_smokes_are_native_with_legacy_wrappers() {
     let smoke = read_repo_file("src/linux_ebpf_smoke.rs");
+    let bounded_process = read_repo_file("src/bounded_process.rs");
     let harness = read_repo_file("src/validation_harness/linux_ebpf.rs");
     let binary = read_repo_file("src/bin/gewyvern_validate.rs");
     let attach_script = read_repo_file("scripts/linux/linux_attach_smoke.sh");
@@ -550,6 +553,12 @@ fn linux_ebpf_smokes_are_native_with_legacy_wrappers() {
     assert!(smoke.contains("Command::new(\"clang\")"));
     assert!(smoke.contains("Command::new(\"cc\")"));
     assert!(smoke.contains("Command::new(\"tc\")"));
+    assert!(smoke.contains("LINUX_SMOKE_COMMAND_TIMEOUT"));
+    assert!(smoke.contains("LINUX_SMOKE_COMMAND_OUTPUT_LIMIT_BYTES"));
+    assert!(smoke.contains("run_bounded_command_output"));
+    assert!(!smoke.contains(".output()"));
+    assert!(bounded_process.contains("recv_timeout"));
+    assert!(bounded_process.contains("terminate_child"));
     assert!(smoke.contains("env!(\"CARGO_MANIFEST_DIR\")"));
     assert!(!smoke.contains("std::env::current_dir()"));
     assert_eq!(
@@ -704,6 +713,10 @@ fn field_smoke_validation_has_native_assertions_and_legacy_wrapper() {
     assert!(field_smoke.contains("explain"));
     assert!(field_smoke.contains("gewyvern-field-validation-{}.sock"));
     assert!(field_smoke.contains("--scan-all"));
+    assert!(field_smoke.contains("VALIDATION_HELPER_TIMEOUT"));
+    assert!(field_smoke.contains("run_command_output_with_timeout"));
+    assert!(field_smoke.contains("bounded_socket_sender_subprocess"));
+    assert!(!field_smoke.contains(".output()"));
     assert!(script.contains("gewyvern_validate"));
     assert!(script.contains("field-smoke"));
 }
@@ -722,6 +735,11 @@ fn demo_roundtrips_are_native_with_legacy_wrappers() {
     assert!(demo.contains("analyze-url"));
     assert!(demo.contains("sample_ids_verified"));
     assert!(demo.contains("gewyvern_socket_send"));
+    assert!(demo.contains("PROOF_FIXTURE_TIMEOUT"));
+    assert!(demo.contains("VALIDATION_HELPER_TIMEOUT"));
+    assert!(demo.contains("run_command_output_with_timeout"));
+    assert!(demo.contains("bounded_external_engine_subprocess"));
+    assert!(!demo.contains(".output()"));
     assert!(socket_script.contains("socket-roundtrip"));
     assert!(training_script.contains("training-roundtrip"));
     assert!(external_script.contains("external-engine-roundtrip"));
@@ -773,6 +791,11 @@ fn runtime_lifecycle_validation_manages_processes_natively() {
     assert!(lifecycle.contains("send_invalid_session"));
     assert!(lifecycle.contains("expect_http_unreachable"));
     assert!(lifecycle.contains("expect_socket_send_fails"));
+    assert!(lifecycle.contains("run_socket_send_output"));
+    assert!(lifecycle.contains("VALIDATION_HELPER_TIMEOUT"));
+    assert!(lifecycle.contains("run_command_output_with_timeout"));
+    assert!(lifecycle.contains("shutdown_rejection_requires_real_sender_exit"));
+    assert!(!lifecycle.contains(".output()"));
     assert!(lifecycle.contains("socket_service_recovered"));
     assert!(script.contains("gewyvern_validate"));
     assert!(script.contains("runtime-lifecycle"));
@@ -789,6 +812,10 @@ fn runtime_operator_validation_moves_live_operator_checks_into_rust() {
     assert!(operator.contains("/v1/latest/training-dataset.json"));
     assert!(operator.contains("send_invalid_session"));
     assert!(operator.contains("requires_operator_confirmation"));
+    assert!(operator.contains("VALIDATION_HELPER_TIMEOUT"));
+    assert!(operator.contains("run_command_output_with_timeout"));
+    assert!(operator.contains("bounded_socket_sender_subprocess"));
+    assert!(!operator.contains(".output()"));
     assert!(script.contains("gewyvern_validate"));
     assert!(script.contains("runtime-operator"));
     assert!(!script.contains("curl -fsS"));
@@ -1237,6 +1264,9 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(binary.contains("remote_host_wrong_arch"));
     assert!(binary.contains("remote_admin_credentials_incomplete"));
     assert!(binary.contains("linux_ebpf_privilege_required"));
+    assert!(binary.contains("host_permission_denied"));
+    assert!(binary.contains("is_linux_ebpf_privilege_failure"));
+    assert!(binary.contains("is_host_permission_failure"));
     assert!(binary.contains("missing_sshpass"));
     assert!(binary.contains("missing_system_command"));
     assert!(binary.contains("missing_package_artifact"));
