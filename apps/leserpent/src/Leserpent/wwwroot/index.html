@@ -426,51 +426,52 @@
           </section>
 
           <section class="card runtime-main-panel" data-runtime-main-panel="detail">
-              <div class="card-head">
-                <h2 data-i18n="runtimeDetail.title">Runtime Detail</h2>
-                <span id="runtime-detail-chip" class="chip">nothing selected</span>
+            <div class="card-head">
+              <h2 data-i18n="runtimeDetail.title">Runtime Detail</h2>
+              <span id="runtime-detail-chip" class="chip">nothing selected</span>
+            </div>
+            <div id="runtime-detail-actions" class="detail-actions hidden">
+              <div class="detail-actions-primary">
+                <button id="runtime-detail-refresh-all" class="primary" type="button" data-i18n="runtimeDetail.refreshAll">Refresh This Runtime</button>
+                <button id="runtime-detail-refresh-status" type="button" data-i18n="runtimeDetail.refreshStatus">Refresh Status</button>
               </div>
-              <div id="runtime-detail-actions" class="detail-actions hidden">
-                <div class="detail-actions-primary">
-                  <button id="runtime-detail-refresh-all" class="primary" type="button" data-i18n="runtimeDetail.refreshAll">Refresh This Runtime</button>
-                  <button id="runtime-detail-refresh-status" type="button" data-i18n="runtimeDetail.refreshStatus">Refresh Status</button>
+              <details class="detail-actions-overflow">
+                <summary data-i18n="runtimes.actions.menu">More</summary>
+                <div class="detail-actions-overflow-menu">
+                  <button id="runtime-detail-refresh-capabilities" type="button" data-i18n="runtimeDetail.refreshCapabilities">Refresh Capabilities</button>
+                  <button id="runtime-detail-refresh-sidecar" type="button" data-i18n="runtimeDetail.refreshSidecar">Refresh Sidecar</button>
+                  <button id="runtime-detail-copy-link" type="button" data-i18n="runtimeDetail.copyLink">Copy Runtime Link</button>
                 </div>
-                <details class="detail-actions-overflow">
-                  <summary data-i18n="runtimes.actions.menu">More</summary>
-                  <div class="detail-actions-overflow-menu">
-                    <button id="runtime-detail-refresh-capabilities" type="button" data-i18n="runtimeDetail.refreshCapabilities">Refresh Capabilities</button>
-                    <button id="runtime-detail-refresh-sidecar" type="button" data-i18n="runtimeDetail.refreshSidecar">Refresh Sidecar</button>
-                    <button id="runtime-detail-copy-link" type="button" data-i18n="runtimeDetail.copyLink">Copy Runtime Link</button>
-                  </div>
-                </details>
+              </details>
+            </div>
+            <div id="runtime-detail-empty" class="form-result" data-i18n="runtimeDetail.empty">Select a runtime from the table to inspect its capability, status, and attention state.</div>
+            <div id="runtime-detail-panel" class="hidden">
+              <div id="runtime-detail-summary" class="runtime-detail-summary hidden" role="region" aria-labelledby="runtime-detail-summary-heading" aria-live="polite" aria-atomic="true"></div>
+              <div class="runtime-detail-subtabs" role="tablist" aria-label="runtime detail sections" data-i18n-aria-label="runtimeDetail.sectionsLabel">
+                <button class="runtime-detail-subtab-button active" data-runtime-detail-tab="identity" type="button" data-i18n="runtimeDetail.identity">Identity</button>
+                <button class="runtime-detail-subtab-button" data-runtime-detail-tab="status" type="button" data-i18n="runtimeDetail.status">Status</button>
+                <button class="runtime-detail-subtab-button" data-runtime-detail-tab="capabilities" type="button" data-i18n="runtimeDetail.capabilities">Capabilities</button>
+                <button class="runtime-detail-subtab-button" data-runtime-detail-tab="attention" type="button" data-i18n="runtimeDetail.attention">Attention</button>
               </div>
-              <div id="runtime-detail-empty" class="form-result" data-i18n="runtimeDetail.empty">Select a runtime from the table to inspect its capability, status, and attention state.</div>
-              <div id="runtime-detail-panel" class="hidden">
-                <div class="runtime-detail-subtabs" role="tablist" aria-label="runtime detail sections">
-                  <button class="runtime-detail-subtab-button active" data-runtime-detail-tab="identity" type="button">Identity</button>
-                  <button class="runtime-detail-subtab-button" data-runtime-detail-tab="status" type="button">Status</button>
-                  <button class="runtime-detail-subtab-button" data-runtime-detail-tab="capabilities" type="button">Capabilities</button>
-                  <button class="runtime-detail-subtab-button" data-runtime-detail-tab="attention" type="button">Attention</button>
-                </div>
-                <div class="detail-grid runtime-detail-subpanels">
-                  <div class="group-card runtime-detail-section active" data-runtime-detail-panel="identity">
+              <div class="detail-grid runtime-detail-subpanels">
+                <div class="group-card runtime-detail-section active" data-runtime-detail-panel="identity">
                   <div class="group-title" data-i18n="runtimeDetail.identity">Identity</div>
                   <div id="runtime-detail-identity" class="stack"></div>
-                  </div>
-                  <div class="group-card runtime-detail-section" data-runtime-detail-panel="status">
+                </div>
+                <div class="group-card runtime-detail-section" data-runtime-detail-panel="status">
                   <div class="group-title" data-i18n="runtimeDetail.status">Status</div>
                   <div id="runtime-detail-status" class="stack"></div>
-                  </div>
-                  <div class="group-card runtime-detail-section" data-runtime-detail-panel="capabilities">
+                </div>
+                <div class="group-card runtime-detail-section" data-runtime-detail-panel="capabilities">
                   <div class="group-title" data-i18n="runtimeDetail.capabilities">Capabilities</div>
-                  <div id="runtime-detail-capabilities" class="group-list"></div>
-                  </div>
-                  <div class="group-card runtime-detail-section" data-runtime-detail-panel="attention">
+                  <div id="runtime-detail-capabilities" class="stack"></div>
+                </div>
+                <div class="group-card runtime-detail-section" data-runtime-detail-panel="attention">
                   <div class="group-title" data-i18n="runtimeDetail.attention">Attention</div>
                   <div id="runtime-detail-attention" class="stack"></div>
-                  </div>
                 </div>
               </div>
+            </div>
           </section>
 
           <section class="card runtime-main-panel runtime-child-panel" data-runtime-main-panel="panel">

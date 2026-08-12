@@ -140,7 +140,7 @@ fn frontend_package_contract_is_tracked_by_the_status_tensor() {
         .find(|cell| cell["id"] == "leserpent-1x/web-console/browser-operations")
         .expect("web console status cell must exist");
 
-    assert_eq!(cell["contract"]["version"], "1.4.6");
+    assert_eq!(cell["contract"]["version"], "1.4.7");
     for surface in [
         "content-addressed-frontend-package",
         "incremental-locked-typescript-build",

@@ -343,7 +343,7 @@ function hydrateStateFromLocation() {
     state.activeRuntimeMainTab ||
     "select";
   state.activeRuntimeSideTab = state.activeRuntimeMainTab === "panel" ? "panel" : "detail";
-  state.activeRuntimeDetailTab = params.get("runtimeDetail") || "identity";
+  state.activeRuntimeDetailTab = normalizeRuntimeDetailTab(params.get("runtimeDetail"));
   state.runtimePanelView = params.get("runtimeView") || "root";
   if (state.activeRuntimeMainTab === "panel" && state.selectedRuntimeId) {
     if (!state.runtimeWindowIds.includes(state.selectedRuntimeId)) {
@@ -407,6 +407,10 @@ function applyTranslations() {
 
   for (const node of document.querySelectorAll("[data-i18n-placeholder]")) {
     node.placeholder = t(node.dataset.i18nPlaceholder);
+  }
+
+  for (const node of document.querySelectorAll("[data-i18n-aria-label]")) {
+    node.setAttribute("aria-label", t(node.dataset.i18nAriaLabel));
   }
   syncRegistrationSecretToggles();
   renderRegisterPreview();

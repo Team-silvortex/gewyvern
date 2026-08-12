@@ -229,6 +229,35 @@ translations.en = {
         clear: "clear",
         noAttention: "No attention reasons for this runtime.",
         needsAttention: "needs attention",
+        sectionsLabel: "Runtime detail sections",
+        liveSummary: "Live runtime posture",
+        operational: "The latest control-plane snapshot is available and no action is currently required.",
+        requiresReview: "This runtime needs operator review.",
+        refreshRecommended: "The latest runtime refresh failed. Refresh before relying on this snapshot.",
+        reviewAttention: "Review attention",
+        inspectStatus: "Inspect status",
+        lastObserved: "Last observed",
+        notObserved: "Not observed",
+        runtimeId: "Runtime ID",
+        supportedCapabilities: "Supported capabilities",
+        fullySupportedCount: "{count} fully supported",
+        availableEvidence: "Available evidence",
+        availableCount: "{count} available",
+        attentionReasonCount: "{count} active reasons",
+        statusOverview: "Runtime status",
+        evidenceAvailability: "Evidence availability",
+        available: "Available",
+        missing: "Missing",
+        sidecarOverview: "Sidecar status",
+        capabilitySource: "Capability source",
+        lastCapabilityRefresh: "Last capability refresh",
+        support: {
+            fullySupported: "Fully supported",
+            partiallySupported: "Partially supported",
+            notSupported: "Not supported",
+            unsupported: "Unsupported",
+            unknown: "Unknown",
+        },
         none: "none",
         na: "n/a",
     },
@@ -753,6 +782,35 @@ translations["zh-CN"] = {
         clear: "正常",
         noAttention: "该 runtime 当前没有 attention reason。",
         needsAttention: "是否需要关注",
+        sectionsLabel: "节点详情分区",
+        liveSummary: "实时节点态势",
+        operational: "控制平面已有最新快照，当前无需操作。",
+        requiresReview: "该节点需要操作者检查。",
+        refreshRecommended: "最近一次节点刷新失败，请先刷新再依赖这份快照。",
+        reviewAttention: "检查关注项",
+        inspectStatus: "查看状态",
+        lastObserved: "最近观测",
+        notObserved: "尚未观测",
+        runtimeId: "Runtime ID",
+        supportedCapabilities: "已支持能力",
+        fullySupportedCount: "{count} 项完全支持",
+        availableEvidence: "可用证据",
+        availableCount: "{count} 项可用",
+        attentionReasonCount: "{count} 个活跃原因",
+        statusOverview: "节点状态",
+        evidenceAvailability: "证据可用性",
+        available: "可用",
+        missing: "缺失",
+        sidecarOverview: "Sidecar 状态",
+        capabilitySource: "能力来源",
+        lastCapabilityRefresh: "最近能力刷新",
+        support: {
+            fullySupported: "完全支持",
+            partiallySupported: "部分支持",
+            notSupported: "不支持",
+            unsupported: "不支持",
+            unknown: "未知",
+        },
         none: "无",
         na: "暂无",
     },
@@ -1224,6 +1282,35 @@ translations["zh-TW"] = mergeTranslations(translations.en, {
         clear: "正常",
         noAttention: "這條 runtime 目前沒有 attention reason。",
         needsAttention: "是否需要關注",
+        sectionsLabel: "節點詳情分區",
+        liveSummary: "即時節點態勢",
+        operational: "控制平面已有最新快照，目前不需要操作。",
+        requiresReview: "此節點需要操作者檢查。",
+        refreshRecommended: "最近一次節點重新整理失敗，請先重新整理再依賴這份快照。",
+        reviewAttention: "檢查關注項",
+        inspectStatus: "查看狀態",
+        lastObserved: "最近觀測",
+        notObserved: "尚未觀測",
+        runtimeId: "Runtime ID",
+        supportedCapabilities: "已支援能力",
+        fullySupportedCount: "{count} 項完全支援",
+        availableEvidence: "可用證據",
+        availableCount: "{count} 項可用",
+        attentionReasonCount: "{count} 個活躍原因",
+        statusOverview: "節點狀態",
+        evidenceAvailability: "證據可用性",
+        available: "可用",
+        missing: "缺失",
+        sidecarOverview: "Sidecar 狀態",
+        capabilitySource: "能力來源",
+        lastCapabilityRefresh: "最近能力重新整理",
+        support: {
+            fullySupported: "完全支援",
+            partiallySupported: "部分支援",
+            notSupported: "不支援",
+            unsupported: "不支援",
+            unknown: "未知",
+        },
         none: "無",
         na: "暫無",
     },
@@ -1587,6 +1674,35 @@ translations.de = mergeTranslations(translations.en, {
         clear: "ok",
         noAttention: "Für diese Runtime gibt es aktuell keine Attention-Reasons.",
         needsAttention: "braucht Aufmerksamkeit",
+        sectionsLabel: "Bereiche der Runtime-Details",
+        liveSummary: "Aktueller Runtime-Zustand",
+        operational: "Der neueste Control-Plane-Snapshot ist verfügbar; derzeit ist keine Aktion erforderlich.",
+        requiresReview: "Diese Runtime muss geprüft werden.",
+        refreshRecommended: "Die letzte Aktualisierung ist fehlgeschlagen. Vor Verwendung dieses Snapshots erneut aktualisieren.",
+        reviewAttention: "Hinweise prüfen",
+        inspectStatus: "Status ansehen",
+        lastObserved: "Zuletzt beobachtet",
+        notObserved: "Nicht beobachtet",
+        runtimeId: "Runtime-ID",
+        supportedCapabilities: "Unterstützte Fähigkeiten",
+        fullySupportedCount: "{count} vollständig unterstützt",
+        availableEvidence: "Verfügbare Evidenz",
+        availableCount: "{count} verfügbar",
+        attentionReasonCount: "{count} aktive Gründe",
+        statusOverview: "Runtime-Status",
+        evidenceAvailability: "Evidenzverfügbarkeit",
+        available: "Verfügbar",
+        missing: "Fehlt",
+        sidecarOverview: "Sidecar-Status",
+        capabilitySource: "Fähigkeitsquelle",
+        lastCapabilityRefresh: "Letzte Fähigkeitsaktualisierung",
+        support: {
+            fullySupported: "Vollständig unterstützt",
+            partiallySupported: "Teilweise unterstützt",
+            notSupported: "Nicht unterstützt",
+            unsupported: "Nicht unterstützt",
+            unknown: "Unbekannt",
+        },
         none: "keine",
         na: "k. A.",
     },
@@ -1931,6 +2047,35 @@ translations.fr = mergeTranslations(translations.en, {
         clear: "ok",
         noAttention: "Ce runtime n'a actuellement aucune attention reason.",
         needsAttention: "requiert une attention",
+        sectionsLabel: "Sections de détail du runtime",
+        liveSummary: "État actuel du runtime",
+        operational: "Le dernier instantané du plan de contrôle est disponible et aucune action n'est requise.",
+        requiresReview: "Ce runtime nécessite une vérification.",
+        refreshRecommended: "La dernière actualisation a échoué. Actualisez avant de vous fier à cet instantané.",
+        reviewAttention: "Examiner les alertes",
+        inspectStatus: "Voir le statut",
+        lastObserved: "Dernière observation",
+        notObserved: "Non observé",
+        runtimeId: "ID du runtime",
+        supportedCapabilities: "Capacités prises en charge",
+        fullySupportedCount: "{count} entièrement prises en charge",
+        availableEvidence: "Preuves disponibles",
+        availableCount: "{count} disponibles",
+        attentionReasonCount: "{count} raisons actives",
+        statusOverview: "Statut du runtime",
+        evidenceAvailability: "Disponibilité des preuves",
+        available: "Disponible",
+        missing: "Manquant",
+        sidecarOverview: "Statut du sidecar",
+        capabilitySource: "Source des capacités",
+        lastCapabilityRefresh: "Dernière actualisation des capacités",
+        support: {
+            fullySupported: "Entièrement pris en charge",
+            partiallySupported: "Partiellement pris en charge",
+            notSupported: "Non pris en charge",
+            unsupported: "Non pris en charge",
+            unknown: "Inconnu",
+        },
         none: "aucun",
         na: "n/a",
     },
@@ -2249,8 +2394,11 @@ function activateRuntimeMainTab(tab) {
     }
     syncLocation();
 }
+function normalizeRuntimeDetailTab(tab) {
+    return ["identity", "status", "capabilities", "attention"].includes(tab) ? tab : "identity";
+}
 function activateRuntimeDetailTab(tab) {
-    state.activeRuntimeDetailTab = tab;
+    state.activeRuntimeDetailTab = normalizeRuntimeDetailTab(tab);
     applyTabShell();
     syncLocation();
 }
@@ -2320,6 +2468,7 @@ async function handleRuntimeTableAction(button) {
     if (button.dataset.action === "show-attention") {
         state.activeTab = "runtimes";
         state.activeRuntimeMainTab = "detail";
+        state.activeRuntimeDetailTab = "attention";
         state.selectedRuntimeId = runtimeId;
         applyTabShell();
         renderRuntimeSliceFromCache();
@@ -2528,6 +2677,18 @@ function bootstrapDashboard() {
             return;
         }
         await refreshSelectedRuntime(button.dataset.recoveryAction, button);
+    });
+    nodes.runtimeDetailSummary.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof Element))
+            return;
+        const button = target.closest("button[data-runtime-detail-target]");
+        if (!(button instanceof HTMLButtonElement))
+            return;
+        activateRuntimeDetailTab(button.dataset.runtimeDetailTarget);
+        const activeTab = nodes.runtimeDetailSubtabButtons.find((candidate) => candidate.dataset.runtimeDetailTab === state.activeRuntimeDetailTab);
+        if (activeTab instanceof HTMLButtonElement)
+            activeTab.focus();
     });
     nodes.runtimeDeleteFailed?.addEventListener("click", deleteFailedRuntimes);
     nodes.runtimeDeleteUnobserved?.addEventListener("click", deleteUnobservedRuntimes);
@@ -2871,6 +3032,35 @@ translations.ko = mergeTranslations(translations.en, {
         clear: "정상",
         noAttention: "이 런타임에는 현재 attention reason 이 없습니다.",
         needsAttention: "주의 필요",
+        sectionsLabel: "런타임 상세 섹션",
+        liveSummary: "실시간 런타임 상태",
+        operational: "최신 제어 평면 스냅샷을 사용할 수 있으며 현재 필요한 작업이 없습니다.",
+        requiresReview: "이 런타임은 운영자 확인이 필요합니다.",
+        refreshRecommended: "최근 런타임 새로 고침에 실패했습니다. 이 스냅샷을 사용하기 전에 다시 시도하세요.",
+        reviewAttention: "주의 항목 확인",
+        inspectStatus: "상태 보기",
+        lastObserved: "최근 관측",
+        notObserved: "관측되지 않음",
+        runtimeId: "런타임 ID",
+        supportedCapabilities: "지원되는 기능",
+        fullySupportedCount: "{count}개 완전 지원",
+        availableEvidence: "사용 가능한 증거",
+        availableCount: "{count}개 사용 가능",
+        attentionReasonCount: "활성 원인 {count}개",
+        statusOverview: "런타임 상태",
+        evidenceAvailability: "증거 가용성",
+        available: "사용 가능",
+        missing: "누락",
+        sidecarOverview: "Sidecar 상태",
+        capabilitySource: "기능 출처",
+        lastCapabilityRefresh: "최근 기능 새로 고침",
+        support: {
+            fullySupported: "완전 지원",
+            partiallySupported: "부분 지원",
+            notSupported: "지원하지 않음",
+            unsupported: "지원하지 않음",
+            unknown: "알 수 없음",
+        },
         none: "없음",
         na: "해당 없음",
     },
@@ -3243,6 +3433,35 @@ translations.ja = mergeTranslations(translations.en, {
         clear: "正常",
         noAttention: "この runtime には現在 attention reason がありません。",
         needsAttention: "要注意かどうか",
+        sectionsLabel: "ランタイム詳細セクション",
+        liveSummary: "現在のランタイム状態",
+        operational: "最新のコントロールプレーンスナップショットが利用でき、現在必要な操作はありません。",
+        requiresReview: "このランタイムはオペレーターの確認が必要です。",
+        refreshRecommended: "直近の更新に失敗しました。このスナップショットを利用する前に再更新してください。",
+        reviewAttention: "注意項目を確認",
+        inspectStatus: "状態を確認",
+        lastObserved: "最終観測",
+        notObserved: "未観測",
+        runtimeId: "ランタイム ID",
+        supportedCapabilities: "対応機能",
+        fullySupportedCount: "{count} 件を完全対応",
+        availableEvidence: "利用可能な証拠",
+        availableCount: "{count} 件利用可能",
+        attentionReasonCount: "アクティブな理由 {count} 件",
+        statusOverview: "ランタイム状態",
+        evidenceAvailability: "証拠の可用性",
+        available: "利用可能",
+        missing: "不足",
+        sidecarOverview: "Sidecar 状態",
+        capabilitySource: "機能の取得元",
+        lastCapabilityRefresh: "最終機能更新",
+        support: {
+            fullySupported: "完全対応",
+            partiallySupported: "一部対応",
+            notSupported: "未対応",
+            unsupported: "未対応",
+            unknown: "不明",
+        },
         none: "なし",
         na: "n/a",
     },
@@ -3634,6 +3853,35 @@ translations.es = mergeTranslations(translations.en, {
         clear: "ok",
         noAttention: "Este runtime no tiene attention reasons en este momento.",
         needsAttention: "necesita atención",
+        sectionsLabel: "Secciones de detalle del runtime",
+        liveSummary: "Estado actual del runtime",
+        operational: "La instantánea más reciente del plano de control está disponible y no requiere acciones.",
+        requiresReview: "Este runtime requiere revisión del operador.",
+        refreshRecommended: "La última actualización falló. Actualiza antes de confiar en esta instantánea.",
+        reviewAttention: "Revisar alertas",
+        inspectStatus: "Ver estado",
+        lastObserved: "Última observación",
+        notObserved: "No observado",
+        runtimeId: "ID del runtime",
+        supportedCapabilities: "Capacidades compatibles",
+        fullySupportedCount: "{count} totalmente compatibles",
+        availableEvidence: "Evidencia disponible",
+        availableCount: "{count} disponibles",
+        attentionReasonCount: "{count} motivos activos",
+        statusOverview: "Estado del runtime",
+        evidenceAvailability: "Disponibilidad de evidencia",
+        available: "Disponible",
+        missing: "Falta",
+        sidecarOverview: "Estado del sidecar",
+        capabilitySource: "Origen de capacidades",
+        lastCapabilityRefresh: "Última actualización de capacidades",
+        support: {
+            fullySupported: "Totalmente compatible",
+            partiallySupported: "Parcialmente compatible",
+            notSupported: "No compatible",
+            unsupported: "No compatible",
+            unknown: "Desconocido",
+        },
         none: "ninguno",
         na: "n/a",
     },
@@ -4547,7 +4795,7 @@ function hydrateStateFromLocation() {
             state.activeRuntimeMainTab ||
             "select";
     state.activeRuntimeSideTab = state.activeRuntimeMainTab === "panel" ? "panel" : "detail";
-    state.activeRuntimeDetailTab = params.get("runtimeDetail") || "identity";
+    state.activeRuntimeDetailTab = normalizeRuntimeDetailTab(params.get("runtimeDetail"));
     state.runtimePanelView = params.get("runtimeView") || "root";
     if (state.activeRuntimeMainTab === "panel" && state.selectedRuntimeId) {
         if (!state.runtimeWindowIds.includes(state.selectedRuntimeId)) {
@@ -4604,6 +4852,9 @@ function applyTranslations() {
     }
     for (const node of document.querySelectorAll("[data-i18n-placeholder]")) {
         node.placeholder = t(node.dataset.i18nPlaceholder);
+    }
+    for (const node of document.querySelectorAll("[data-i18n-aria-label]")) {
+        node.setAttribute("aria-label", t(node.dataset.i18nAriaLabel));
     }
     syncRegistrationSecretToggles();
     renderRegisterPreview();
@@ -5242,9 +5493,6 @@ function recoveryOutcomeLabel(outcome) {
                         : outcome;
 }
 function recoveryHintLabel(action, hint) {
-    if (hint) {
-        return hint;
-    }
     if (action === "refresh_status") {
         return t("attention.hints.refreshStatus");
     }
@@ -5254,14 +5502,14 @@ function recoveryHintLabel(action, hint) {
     if (action === "refresh_sidecar") {
         return t("attention.hints.refreshSidecar");
     }
-    return "";
+    return hint || "";
 }
 function runtimeDetailSignature(runtime, attention) {
     if (!runtime) {
         return `empty:${state.language}`;
     }
     const capabilityKeys = (runtime.capabilities || [])
-        .map((item) => `${item.key}:${item.support}`)
+        .map((item) => `${item.key}:${item.support}:${item.description || ""}`)
         .sort()
         .join("|");
     const attentionReasons = (attention?.reasons || []).join("|");
@@ -5279,10 +5527,15 @@ function runtimeDetailSignature(runtime, attention) {
         runtime.sidecarEndpoint || "",
         runtime.registeredAt,
         runtime.updatedAt,
+        runtime.capabilitySource || "",
+        runtime.capabilityFetchedAt || "",
+        runtime.capabilityFetchError || "",
         runtime.tags.environment || "",
         runtime.tags.cluster || "",
         runtime.tags.role || "",
         runtime.status.statusSource,
+        runtime.status.statusFetchedAt || "",
+        runtime.status.statusFetchError || "",
         runtime.status.resilienceStatus || "",
         runtime.status.resilienceSummary || "",
         runtime.status.socketServiceStatus || "",
@@ -5299,6 +5552,9 @@ function runtimeDetailSignature(runtime, attention) {
         runtime.status.hasReportHtml,
         runtime.hasSidecarAdminToken,
         runtime.sidecarStatus?.statusSource || "",
+        runtime.sidecarStatus?.statusFetchedAt || "",
+        runtime.sidecarStatus?.statusFetchError || "",
+        runtime.sidecarStatus?.daemonStatus || "",
         runtime.sidecarStatus?.learningActive ?? "",
         runtime.sidecarStatus?.learnedRoutes ?? "",
         runtime.sidecarStatus?.memory?.versionsSupported ?? "",
@@ -5542,11 +5798,376 @@ function finalizeRuntimeWindowWorkspace() {
     nodes.runtimePanelFrame.src = "about:blank";
     renderRuntimeWindowGrid();
 }
-function renderRuntimeDetail(runtime, attention) {
-    const signature = runtimeDetailSignature(runtime, attention);
-    if (state.renderSignatures.runtimeDetail === signature) {
+function runtimeDetailTimestamp(value) {
+    if (!value)
+        return t("runtimeDetail.notObserved");
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime()))
+        return String(value);
+    try {
+        return new Intl.DateTimeFormat(state.language, {
+            dateStyle: "medium",
+            timeStyle: "short",
+        }).format(parsed);
+    }
+    catch {
+        return parsed.toLocaleString();
+    }
+}
+function runtimeDetailTimeMarkup(value) {
+    if (!value)
+        return escapeHtml(t("runtimeDetail.notObserved"));
+    return `<time datetime="${escapeHtml(value)}">${escapeHtml(runtimeDetailTimestamp(value))}</time>`;
+}
+function runtimeEvidenceItems(status) {
+    return [
+        { label: t("runtimeDetail.summaryJson"), available: !!status.hasSummaryJson },
+        { label: t("runtimeDetail.analysisJson"), available: !!status.hasAnalysisJson },
+        { label: t("runtimeDetail.trainingExampleJson"), available: !!status.hasTrainingExampleJson },
+        { label: t("runtimeDetail.trainingDatasetManifest"), available: !!status.hasTrainingDatasetManifest },
+        { label: t("runtimeDetail.exportJson"), available: !!status.hasExportJson },
+        { label: t("runtimeDetail.reportJson"), available: !!status.hasReportJson },
+        { label: t("runtimeDetail.reportHtml"), available: !!status.hasReportHtml },
+    ];
+}
+function capabilitySupportLabel(support) {
+    const normalized = protocolKeyToTranslationSegment(support || "unknown");
+    const key = `runtimeDetail.support.${normalized}`;
+    const translated = t(key);
+    return translated === key ? String(support || "unknown").replaceAll("_", " ") : translated;
+}
+function capabilitySupportTone(support) {
+    if (support === "fully_supported")
+        return "good";
+    if (support === "unsupported" || support === "not_supported")
+        return "bad";
+    return "warn";
+}
+function attentionSeverityLabel(attention) {
+    const severity = attention?.severity || "warning";
+    const key = `attention.${severity}`;
+    const translated = t(key);
+    return translated === key ? severity : translated;
+}
+function runtimeNeedsAttention(attention) {
+    if (!attention)
+        return false;
+    if (typeof attention.needsAttention === "boolean")
+        return attention.needsAttention;
+    return (attention.reasons || []).length > 0;
+}
+function runtimeDetailPosture(runtime, attention) {
+    if (runtimeNeedsAttention(attention)) {
+        return {
+            tone: attention.severity === "critical" ? "bad" : "warn",
+            label: attentionSeverityLabel(attention),
+            message: attention.reasons?.length
+                ? attentionReasonLabel(attention.reasons[0])
+                : t("runtimeDetail.requiresReview"),
+            target: "attention",
+            action: t("runtimeDetail.reviewAttention"),
+        };
+    }
+    const badge = statusBadge(runtime.status);
+    return {
+        tone: badge.tone,
+        label: badge.text,
+        message: badge.tone === "bad"
+            ? t("runtimeDetail.refreshRecommended")
+            : badge.tone === "warn"
+                ? t("statuses.unobserved")
+                : t("runtimeDetail.operational"),
+        target: "status",
+        action: t("runtimeDetail.inspectStatus"),
+    };
+}
+function renderRuntimeDetailSummary(runtime, attention) {
+    const posture = runtimeDetailPosture(runtime, attention);
+    const evidence = runtimeEvidenceItems(runtime.status);
+    const availableEvidence = evidence.filter((item) => item.available).length;
+    const capabilities = runtime.capabilities || [];
+    const supportedCapabilities = capabilities.filter((item) => item.support === "fully_supported").length;
+    const reasonCount = runtimeNeedsAttention(attention) ? (attention.reasons || []).length : 0;
+    const observedAt = runtime.status.statusFetchedAt;
+    nodes.runtimeDetailSummary.classList.remove("hidden");
+    nodes.runtimeDetailSummary.innerHTML = `
+    <div class="runtime-detail-posture" data-tone="${escapeHtml(posture.tone)}">
+      <div class="runtime-detail-posture-copy">
+        <div class="runtime-detail-kicker">${escapeHtml(t("runtimeDetail.liveSummary"))}</div>
+        <div class="runtime-detail-posture-title">
+          <span class="runtime-state ${escapeHtml(posture.tone)}">${escapeHtml(posture.label)}</span>
+          <h3 id="runtime-detail-summary-heading">${escapeHtml(runtime.name)}</h3>
+        </div>
+        <p>${escapeHtml(posture.message)}</p>
+      </div>
+      <button type="button" class="quiet" data-runtime-detail-target="${escapeHtml(posture.target)}">${escapeHtml(posture.action)}</button>
+    </div>
+    <div class="runtime-detail-facts">
+      <div class="runtime-detail-fact">
+        <span>${escapeHtml(t("runtimeDetail.lastObserved"))}</span>
+        <strong>${runtimeDetailTimeMarkup(observedAt)}</strong>
+        <small>${escapeHtml(t("runtimeDetail.source"))}: ${escapeHtml(runtime.status.statusSource)}</small>
+      </div>
+      <div class="runtime-detail-fact">
+        <span>${escapeHtml(t("runtimeDetail.attention"))}</span>
+        <strong>${escapeHtml(reasonCount ? attentionSeverityLabel(attention) : t("runtimeDetail.clear"))}</strong>
+        <small>${escapeHtml(t("runtimeDetail.attentionReasonCount", { count: reasonCount }))}</small>
+      </div>
+      <div class="runtime-detail-fact">
+        <span>${escapeHtml(t("runtimeDetail.supportedCapabilities"))}</span>
+        <strong>${escapeHtml(`${supportedCapabilities} / ${capabilities.length}`)}</strong>
+        <small>${escapeHtml(t("runtimeDetail.fullySupportedCount", { count: supportedCapabilities }))}</small>
+      </div>
+      <div class="runtime-detail-fact">
+        <span>${escapeHtml(t("runtimeDetail.availableEvidence"))}</span>
+        <strong>${escapeHtml(`${availableEvidence} / ${evidence.length}`)}</strong>
+        <small>${escapeHtml(t("runtimeDetail.availableCount", { count: availableEvidence }))}</small>
+      </div>
+    </div>
+  `;
+}
+function renderRuntimeIdentity(runtime) {
+    nodes.runtimeDetailIdentity.innerHTML = `
+    <dl class="runtime-detail-definition-grid">
+      <div>
+        <dt>${escapeHtml(t("register.name"))}</dt>
+        <dd><strong>${escapeHtml(runtime.name)}</strong></dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.runtimeId"))}</dt>
+        <dd><code>${escapeHtml(runtime.runtimeId)}</code></dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("register.endpoint"))}</dt>
+        <dd><code>${escapeHtml(runtime.endpoint)}</code></dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("register.sidecarEndpoint"))}</dt>
+        <dd><code>${escapeHtml(runtime.sidecarEndpoint || t("register.sidecarUnpaired"))}</code></dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.registered"))}</dt>
+        <dd>${runtimeDetailTimeMarkup(runtime.registeredAt)}</dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.updated"))}</dt>
+        <dd>${runtimeDetailTimeMarkup(runtime.updatedAt)}</dd>
+      </div>
+    </dl>
+    <div class="runtime-detail-tags" aria-label="${escapeHtml(t("runtimes.columns.tags"))}">
+      <span class="tag-pill">${escapeHtml(runtime.tags.environment || t("runtimes.states.noEnv"))}</span>
+      <span class="tag-pill">${escapeHtml(runtime.tags.cluster || t("runtimes.states.noCluster"))}</span>
+      <span class="tag-pill">${escapeHtml(runtime.tags.role || t("runtimes.states.noRole"))}</span>
+    </div>
+  `;
+}
+function renderRuntimeStatus(runtime) {
+    const badge = statusBadge(runtime.status);
+    const sidecarBadge = sidecarStatusBadge(runtime.sidecarStatus);
+    const evidence = runtimeEvidenceItems(runtime.status);
+    const availableEvidence = evidence.filter((item) => item.available).length;
+    const statusSummary = runtime.status.resilienceSummary || runtimeStatusHint(runtime.status);
+    nodes.runtimeDetailStatus.innerHTML = `
+    <div class="runtime-detail-section-lead">
+      <span class="runtime-state ${escapeHtml(badge.tone)}">${escapeHtml(badge.text)}</span>
+      <div>
+        <strong>${escapeHtml(t("runtimeDetail.statusOverview"))}</strong>
+        <p>${escapeHtml(statusSummary)}</p>
+      </div>
+    </div>
+    <dl class="runtime-detail-definition-grid runtime-detail-status-grid">
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.source"))}</dt>
+        <dd>${escapeHtml(runtime.status.statusSource)}</dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.lastObserved"))}</dt>
+        <dd>${runtimeDetailTimeMarkup(runtime.status.statusFetchedAt)}</dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.snapshotKind"))}</dt>
+        <dd>${escapeHtml(runtime.status.snapshotKind || t("runtimeDetail.none"))}</dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.targetCount"))}</dt>
+        <dd>${escapeHtml(runtime.status.targetCount ?? t("runtimeDetail.na"))}</dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.resilienceStatus"))}</dt>
+        <dd>${escapeHtml(runtime.status.resilienceStatus || t("runtimeDetail.none"))}</dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.socketServiceStatus"))}</dt>
+        <dd>${escapeHtml(runtime.status.socketServiceStatus || t("runtimeDetail.none"))}</dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.idleTimeouts"))}</dt>
+        <dd>${escapeHtml(runtime.status.socketTotalIdleTimeouts != null ? `${runtime.status.socketConsecutiveIdleTimeouts ?? 0} / ${runtime.status.socketTotalIdleTimeouts}` : t("runtimeDetail.na"))}</dd>
+      </div>
+    </dl>
+    <div class="runtime-detail-section-heading">
+      <strong>${escapeHtml(t("runtimeDetail.evidenceAvailability"))}</strong>
+      <span>${escapeHtml(`${availableEvidence} / ${evidence.length}`)}</span>
+    </div>
+    <div class="runtime-evidence-grid">
+      ${evidence.map((item) => `
+        <div class="runtime-evidence-item ${item.available ? "available" : "missing"}">
+          <span class="runtime-evidence-dot" aria-hidden="true"></span>
+          <span>${escapeHtml(item.label)}</span>
+          <strong>${escapeHtml(item.available ? t("runtimeDetail.available") : t("runtimeDetail.missing"))}</strong>
+        </div>
+      `).join("")}
+    </div>
+    <div class="runtime-sidecar-overview">
+      <div class="runtime-detail-section-heading">
+        <strong>${escapeHtml(t("runtimeDetail.sidecarOverview"))}</strong>
+        <span class="runtime-state ${escapeHtml(sidecarBadge.tone)}">${escapeHtml(sidecarBadge.text)}</span>
+      </div>
+      <dl class="runtime-detail-definition-grid">
+        <div>
+          <dt>${escapeHtml(t("register.sidecarEndpoint"))}</dt>
+          <dd><code>${escapeHtml(runtime.sidecarEndpoint || t("register.sidecarUnpaired"))}</code></dd>
+        </div>
+        <div>
+          <dt>${escapeHtml(t("runtimeDetail.sidecarAccess"))}</dt>
+          <dd>${escapeHtml(runtime.sidecarEndpoint ? (runtime.hasSidecarAdminToken ? t("runtimeDetail.sidecarProtected") : t("runtimeDetail.sidecarOpen")) : t("runtimeDetail.none"))}</dd>
+        </div>
+        ${runtime.sidecarStatus ? `
+          <div>
+            <dt>${escapeHtml(t("runtimeDetail.sidecarSource"))}</dt>
+            <dd>${escapeHtml(runtime.sidecarStatus.statusSource)}</dd>
+          </div>
+          <div>
+            <dt>${escapeHtml(t("runtimeDetail.lastObserved"))}</dt>
+            <dd>${runtimeDetailTimeMarkup(runtime.sidecarStatus.statusFetchedAt)}</dd>
+          </div>
+          <div>
+            <dt>${escapeHtml(t("runtimeDetail.sidecarLearning"))}</dt>
+            <dd>${escapeHtml(runtime.sidecarStatus.learningActive ? t("security.enabled") : t("security.disabled"))} · ${escapeHtml(runtime.sidecarStatus.learnedRoutes)}</dd>
+          </div>
+          <div>
+            <dt>${escapeHtml(t("runtimeDetail.sidecarMemory"))}</dt>
+            <dd>${escapeHtml(runtime.sidecarStatus.memory?.versionsSupported ? `${runtime.sidecarStatus.memory.slotCount} / ${runtime.sidecarStatus.memory.historyCount}` : t("runtimeDetail.none"))}</dd>
+          </div>
+          <div>
+            <dt>${escapeHtml(t("runtimeDetail.sidecarMemoryLatest"))}</dt>
+            <dd>${escapeHtml(latestSidecarMemoryText(runtime.sidecarStatus))}</dd>
+          </div>
+        ` : ""}
+      </dl>
+    </div>
+  `;
+}
+function renderRuntimeCapabilities(runtime) {
+    const capabilities = [...(runtime.capabilities || [])]
+        .sort((left, right) => left.key.localeCompare(right.key));
+    const supported = capabilities.filter((item) => item.support === "fully_supported").length;
+    nodes.runtimeDetailCapabilities.innerHTML = `
+    <div class="runtime-detail-section-lead">
+      <span class="runtime-state ${supported === capabilities.length && capabilities.length ? "good" : "warn"}">${escapeHtml(`${supported} / ${capabilities.length}`)}</span>
+      <div>
+        <strong>${escapeHtml(t("runtimeDetail.supportedCapabilities"))}</strong>
+        <p>${escapeHtml(t("runtimeDetail.fullySupportedCount", { count: supported }))}</p>
+      </div>
+    </div>
+    <dl class="runtime-detail-definition-grid runtime-capability-provenance">
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.capabilitySource"))}</dt>
+        <dd>${escapeHtml(runtime.capabilitySource || t("runtimeDetail.none"))}</dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.lastCapabilityRefresh"))}</dt>
+        <dd>${runtimeDetailTimeMarkup(runtime.capabilityFetchedAt)}</dd>
+      </div>
+    </dl>
+    ${capabilities.length ? `
+      <div class="runtime-capability-grid">
+        ${capabilities.map((item) => `
+          <article class="runtime-capability-card" data-tone="${escapeHtml(capabilitySupportTone(item.support))}">
+            <div class="runtime-capability-head">
+              <strong>${escapeHtml(item.key)}</strong>
+              <span class="runtime-state ${escapeHtml(capabilitySupportTone(item.support))}">${escapeHtml(capabilitySupportLabel(item.support))}</span>
+            </div>
+            ${item.description ? `<p>${escapeHtml(item.description)}</p>` : ""}
+          </article>
+        `).join("")}
+      </div>
+    ` : `<div class="runtime-detail-empty-state">${escapeHtml(t("runtimeDetail.noCapabilities"))}</div>`}
+  `;
+}
+function renderRuntimeAttention(attention) {
+    if (!runtimeNeedsAttention(attention)) {
+        nodes.runtimeDetailAttention.innerHTML = `
+      <div class="runtime-detail-clear-state">
+        <span class="runtime-state good">${escapeHtml(t("runtimeDetail.clear"))}</span>
+        <strong>${escapeHtml(t("runtimeDetail.noAttention"))}</strong>
+      </div>
+    `;
         return;
     }
+    const actions = [...(attention.suggestedActions || [])]
+        .sort((left, right) => (left.priority ?? Number.MAX_SAFE_INTEGER) - (right.priority ?? Number.MAX_SAFE_INTEGER));
+    const history = attention.recentRecoveryActivities || [];
+    const tone = attention.severity === "critical" ? "bad" : "warn";
+    nodes.runtimeDetailAttention.innerHTML = `
+    <div class="runtime-detail-section-lead attention">
+      <span class="runtime-state ${tone}">${escapeHtml(attentionSeverityLabel(attention))}</span>
+      <div>
+        <strong>${escapeHtml(t("runtimeDetail.requiresReview"))}</strong>
+        <p>${escapeHtml(t("runtimeDetail.attentionReasonCount", { count: (attention.reasons || []).length }))}</p>
+      </div>
+    </div>
+    <div class="reason-list">
+      ${(attention.reasons || []).map((reason) => `<span class="reason-pill attention">${escapeHtml(attentionReasonLabel(reason))}</span>`).join("")}
+    </div>
+    <div class="runtime-detail-section-heading">
+      <strong>${escapeHtml(t("attention.suggestedActions"))}</strong>
+      <span>${escapeHtml(actions.length)}</span>
+    </div>
+    ${actions.length ? `
+      <div class="runtime-recovery-grid">
+        ${actions.map((action) => {
+        const kind = action.commandKind;
+        return `
+            <article class="runtime-recovery-action ${action.coolingDown ? "cooling-down" : ""}">
+              <div class="runtime-recovery-action-head">
+                <strong>${escapeHtml(recoveryActionLabel(action.action))}</strong>
+                <span class="tag-pill">#${escapeHtml(action.priority)}</span>
+              </div>
+              <p>${escapeHtml(recoveryHintLabel(action.action, action.hint))}</p>
+              ${action.coolingDown ? `<div class="hint-line">${escapeHtml(t("attention.cooldownRemaining", { seconds: action.cooldownSecondsRemaining }))}</div>` : ""}
+              ${kind
+            ? `<button type="button" data-recovery-action="${escapeHtml(kind)}" ${action.coolingDown ? "disabled" : ""}>${escapeHtml(recoveryActionLabel(action.action))}</button>`
+            : `<span class="item-meta">${escapeHtml(recoveryActionLabel(action.action))}</span>`}
+            </article>
+          `;
+    }).join("")}
+      </div>
+    ` : `<div class="runtime-detail-empty-state">${escapeHtml(t("attention.noReasons"))}</div>`}
+    <div class="runtime-detail-section-heading">
+      <strong>${escapeHtml(t("attention.recentRecovery"))}</strong>
+      <span>${escapeHtml(history.length)}</span>
+    </div>
+    ${history.length ? `
+      <div class="runtime-recovery-history">
+        ${history.map((item) => `
+          <article>
+            <div>
+              <strong>${escapeHtml(recoveryActionLabel(item.action))}</strong>
+              <span class="runtime-state ${item.outcome === "ok" ? "good" : "warn"}">${escapeHtml(recoveryOutcomeLabel(item.outcome))}</span>
+            </div>
+            <time datetime="${escapeHtml(item.recordedAt)}">${escapeHtml(runtimeDetailTimestamp(item.recordedAt))}</time>
+            ${item.summary ? `<p>${escapeHtml(item.summary)}</p>` : ""}
+          </article>
+        `).join("")}
+      </div>
+    ` : `<div class="runtime-detail-empty-state">${escapeHtml(t("attention.noRecoveryHistory"))}</div>`}
+  `;
+}
+function renderRuntimeDetail(runtime, attention) {
+    const signature = runtimeDetailSignature(runtime, attention);
+    if (state.renderSignatures.runtimeDetail === signature)
+        return;
     state.renderSignatures.runtimeDetail = signature;
     if (!runtime) {
         nodes.runtimeDetailChip.textContent = t("runtimeDetail.nothingSelected");
@@ -5554,101 +6175,38 @@ function renderRuntimeDetail(runtime, attention) {
         nodes.runtimeDetailRefreshSidecar.disabled = true;
         nodes.runtimeDetailEmpty.classList.remove("hidden");
         nodes.runtimeDetailPanel.classList.add("hidden");
+        nodes.runtimeDetailSummary.classList.add("hidden");
+        nodes.runtimeDetailSummary.innerHTML = "";
         nodes.runtimeDetailIdentity.innerHTML = "";
         nodes.runtimeDetailStatus.innerHTML = "";
         nodes.runtimeDetailCapabilities.innerHTML = "";
         nodes.runtimeDetailAttention.innerHTML = "";
+        for (const button of nodes.runtimeDetailSubtabButtons) {
+            button.classList.remove("has-attention", "has-status-warning");
+            button.removeAttribute("data-tone");
+        }
         return;
     }
     const badge = statusBadge(runtime.status);
-    const sidecarBadge = sidecarStatusBadge(runtime.sidecarStatus);
+    const attentionButton = nodes.runtimeDetailSubtabButtons.find((button) => button.dataset.runtimeDetailTab === "attention");
+    const statusButton = nodes.runtimeDetailSubtabButtons.find((button) => button.dataset.runtimeDetailTab === "status");
+    const needsAttention = runtimeNeedsAttention(attention);
+    attentionButton?.classList.toggle("has-attention", needsAttention);
+    if (attentionButton)
+        attentionButton.dataset.tone = needsAttention ? attention.severity : "clear";
+    statusButton?.classList.toggle("has-status-warning", badge.tone !== "good");
+    if (statusButton)
+        statusButton.dataset.tone = badge.tone;
     nodes.runtimeDetailChip.textContent = runtime.name;
     nodes.runtimeDetailActions.classList.remove("hidden");
     nodes.runtimeDetailRefreshSidecar.disabled = !runtime.sidecarEndpoint;
     nodes.runtimeDetailEmpty.classList.add("hidden");
     nodes.runtimeDetailPanel.classList.remove("hidden");
-    nodes.runtimeDetailIdentity.innerHTML = `
-    <div><strong>${escapeHtml(runtime.name)}</strong></div>
-    <div class="item-meta">${escapeHtml(runtime.endpoint)}</div>
-    ${runtime.sidecarEndpoint ? `<div class="item-meta">${escapeHtml(t("register.sidecarEndpoint"))}: ${escapeHtml(runtime.sidecarEndpoint)}</div>` : ""}
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.registered"))}: ${escapeHtml(runtime.registeredAt)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.updated"))}: ${escapeHtml(runtime.updatedAt)}</div>
-    <div class="group-list">
-      <span class="tag-pill">${escapeHtml(runtime.tags.environment || t("runtimes.states.noEnv"))}</span>
-      <span class="tag-pill">${escapeHtml(runtime.tags.cluster || t("runtimes.states.noCluster"))}</span>
-      <span class="tag-pill">${escapeHtml(runtime.tags.role || t("runtimes.states.noRole"))}</span>
-    </div>
-  `;
-    nodes.runtimeDetailStatus.innerHTML = `
-    <div><span class="runtime-state ${escapeHtml(badge.tone)}">${escapeHtml(badge.text)}</span></div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.source"))}: ${escapeHtml(runtime.status.statusSource)}</div>
-    ${runtime.status.resilienceStatus ? `<div class="hint-line">${escapeHtml(t("runtimeDetail.resilienceStatus"))}: ${escapeHtml(runtime.status.resilienceStatus)}</div>` : ""}
-    ${runtime.status.resilienceSummary ? `<div class="hint-line">${escapeHtml(t("runtimeDetail.resilienceSummary"))}: ${escapeHtml(runtime.status.resilienceSummary)}</div>` : ""}
-    ${runtime.status.socketServiceStatus ? `<div class="hint-line">${escapeHtml(t("runtimeDetail.socketServiceStatus"))}: ${escapeHtml(runtime.status.socketServiceStatus)}</div>` : ""}
-    ${runtime.status.socketTotalIdleTimeouts != null ? `<div class="hint-line">${escapeHtml(t("runtimeDetail.idleTimeouts"))}: ${escapeHtml(`${runtime.status.socketConsecutiveIdleTimeouts ?? 0} / ${runtime.status.socketTotalIdleTimeouts ?? 0}`)}</div>` : ""}
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.snapshotKind"))}: ${escapeHtml(runtime.status.snapshotKind || t("runtimeDetail.none"))}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.targetCount"))}: ${escapeHtml(runtime.status.targetCount ?? t("runtimeDetail.na"))}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.summaryJson"))}: ${escapeHtml(runtime.status.hasSummaryJson)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.analysisJson"))}: ${escapeHtml(runtime.status.hasAnalysisJson)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.trainingExampleJson"))}: ${escapeHtml(runtime.status.hasTrainingExampleJson)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.trainingDatasetManifest"))}: ${escapeHtml(runtime.status.hasTrainingDatasetManifest)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.exportJson"))}: ${escapeHtml(runtime.status.hasExportJson)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.reportJson"))}: ${escapeHtml(runtime.status.hasReportJson)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.reportHtml"))}: ${escapeHtml(runtime.status.hasReportHtml)}</div>
-    <div class="hint-line">${escapeHtml(t("register.sidecarEndpoint"))}: <strong>${escapeHtml(runtime.sidecarEndpoint || t("register.sidecarUnpaired"))}</strong></div>
-    ${runtime.sidecarEndpoint ? `<div class="hint-line">${escapeHtml(t("runtimeDetail.sidecarAccess"))}: <strong>${escapeHtml(runtime.hasSidecarAdminToken ? t("runtimeDetail.sidecarProtected") : t("runtimeDetail.sidecarOpen"))}</strong></div>` : ""}
-    <div class="hint-line">${escapeHtml(t("runtimes.columns.sidecar"))}: <span class="runtime-state ${escapeHtml(sidecarBadge.tone)}">${escapeHtml(sidecarBadge.text)}</span></div>
-    ${runtime.sidecarStatus ? `<div class="hint-line">${escapeHtml(t("runtimeDetail.sidecarSource"))}: ${escapeHtml(runtime.sidecarStatus.statusSource)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.sidecarLearning"))}: ${escapeHtml(runtime.sidecarStatus.learningActive)} · ${escapeHtml(runtime.sidecarStatus.learnedRoutes)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.sidecarMemory"))}: ${escapeHtml(runtime.sidecarStatus.memory?.versionsSupported ? `${runtime.sidecarStatus.memory.slotCount} slots · ${runtime.sidecarStatus.memory.historyCount} history` : t("runtimeDetail.none"))}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.sidecarMemoryLatest"))}: ${escapeHtml(latestSidecarMemoryText(runtime.sidecarStatus))}</div>` : ""}
-  `;
-    const capabilityKeys = (runtime.capabilities || [])
-        .map((item) => [item.key, item.support])
-        .sort((a, b) => a[0].localeCompare(b[0]));
-    nodes.runtimeDetailCapabilities.innerHTML = capabilityKeys.length
-        ? capabilityKeys.map(([key, support]) => `<span class="tag-pill">${escapeHtml(key)} · ${escapeHtml(support)}</span>`).join("")
-        : `<span class="item-meta">${escapeHtml(t("runtimeDetail.noCapabilities"))}</span>`;
-    if (!attention) {
-        nodes.runtimeDetailAttention.innerHTML = `
-      <div><span class="runtime-state good">${escapeHtml(t("runtimeDetail.clear"))}</span></div>
-      <div class="hint-line">${escapeHtml(t("runtimeDetail.noAttention"))}</div>
-    `;
-        return;
-    }
-    nodes.runtimeDetailAttention.innerHTML = `
-    <div><span class="runtime-state ${attention.severity === "critical" ? "bad" : "warn"}">${escapeHtml(t(`attention.${attention.severity}`))}</span></div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.needsAttention"))}: ${escapeHtml(attention.needsAttention)}</div>
-    <div class="reason-list">
-      ${(attention.reasons || []).map((reason) => `<span class="reason-pill">${escapeHtml(attentionReasonLabel(reason))}</span>`).join("")}
-    </div>
-    <div class="hint-line"><strong>${escapeHtml(t("attention.suggestedActions"))}</strong></div>
-    <div class="inline-actions">
-      ${(attention.suggestedActions || []).length
-        ? attention.suggestedActions.map((action) => {
-            const kind = action.commandKind;
-            return kind
-                ? `<button type="button" data-recovery-action="${escapeHtml(kind)}" ${action.coolingDown ? "disabled" : ""}>${escapeHtml(recoveryActionLabel(action.action))} · #${escapeHtml(action.priority)}${action.coolingDown ? ` · ${escapeHtml(t("attention.cooldownRemaining", { seconds: action.cooldownSecondsRemaining }))}` : ""}</button>`
-                : `<span class="tag-pill">${escapeHtml(recoveryActionLabel(action.action))}</span>`;
-        }).join("")
-        : `<span class="item-meta">${escapeHtml(t("attention.noReasons"))}</span>`}
-    </div>
-    ${(attention.suggestedActions || []).length ? `
-      <div class="stack">
-        ${(attention.suggestedActions || []).map((action) => `
-          <div class="hint-line">${escapeHtml(t("attention.actionHint"))}: ${escapeHtml(recoveryHintLabel(action.action, action.hint))}${action.coolingDown ? ` · ${escapeHtml(t("attention.cooldownRemaining", { seconds: action.cooldownSecondsRemaining }))}` : ""}</div>
-        `).join("")}
-      </div>
-    ` : ""}
-    <div class="hint-line"><strong>${escapeHtml(t("attention.recentRecovery"))}</strong></div>
-    <div class="stack">
-      ${(attention.recentRecoveryActivities || []).length
-        ? attention.recentRecoveryActivities.map((item) => `
-          <div class="hint-line">${escapeHtml(recoveryActionLabel(item.action))} · <strong>${escapeHtml(recoveryOutcomeLabel(item.outcome))}</strong> · ${escapeHtml(item.recordedAt)}${item.summary ? ` · ${escapeHtml(item.summary)}` : ""}</div>
-        `).join("")
-        : `<div class="hint-line">${escapeHtml(t("attention.noRecoveryHistory"))}</div>`}
-    </div>
-  `;
+    renderRuntimeDetailSummary(runtime, attention);
+    renderRuntimeIdentity(runtime);
+    renderRuntimeStatus(runtime);
+    renderRuntimeCapabilities(runtime);
+    renderRuntimeAttention(attention);
 }
 function renderRuntimePanel(runtime) {
     reconcileRuntimeWindows();
@@ -7957,6 +8515,7 @@ const nodes = {
     runtimeDetailActions: document.getElementById("runtime-detail-actions"),
     runtimeDetailEmpty: document.getElementById("runtime-detail-empty"),
     runtimeDetailPanel: document.getElementById("runtime-detail-panel"),
+    runtimeDetailSummary: document.getElementById("runtime-detail-summary"),
     runtimeDetailIdentity: document.getElementById("runtime-detail-identity"),
     runtimeDetailStatus: document.getElementById("runtime-detail-status"),
     runtimeDetailCapabilities: document.getElementById("runtime-detail-capabilities"),

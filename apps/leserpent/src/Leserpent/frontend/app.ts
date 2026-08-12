@@ -136,6 +136,7 @@ const nodes = {
   runtimeDetailActions: document.getElementById("runtime-detail-actions"),
   runtimeDetailEmpty: document.getElementById("runtime-detail-empty"),
   runtimeDetailPanel: document.getElementById("runtime-detail-panel"),
+  runtimeDetailSummary: document.getElementById("runtime-detail-summary"),
   runtimeDetailIdentity: document.getElementById("runtime-detail-identity"),
   runtimeDetailStatus: document.getElementById("runtime-detail-status"),
   runtimeDetailCapabilities: document.getElementById("runtime-detail-capabilities"),

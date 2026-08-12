@@ -209,6 +209,86 @@ fn runtime_registration_is_progressive_secret_safe_and_error_recoverable() {
 }
 
 #[test]
+fn runtime_detail_is_operator_first_localized_and_actionable() {
+    let html = source("apps/leserpent/src/Leserpent/wwwroot/index.html");
+    let styles = source("apps/leserpent/src/Leserpent/wwwroot/styles.css");
+    let inspector = source("apps/leserpent/src/Leserpent/frontend/40-runtime-inspector.ts");
+    let bootstrap = source("apps/leserpent/src/Leserpent/frontend/15-preferences-bootstrap.ts");
+    let transport = source("apps/leserpent/src/Leserpent/frontend/20-security-transport.ts");
+    let simplified_chinese = source("apps/leserpent/src/Leserpent/frontend/11-i18n-zh-cn.ts");
+
+    for contract in [
+        "id=\"runtime-detail-summary\"",
+        "role=\"region\"",
+        "aria-labelledby=\"runtime-detail-summary-heading\"",
+        "data-i18n-aria-label=\"runtimeDetail.sectionsLabel\"",
+        "data-runtime-detail-tab=\"identity\" type=\"button\" data-i18n=\"runtimeDetail.identity\"",
+        "data-runtime-detail-tab=\"attention\" type=\"button\" data-i18n=\"runtimeDetail.attention\"",
+    ] {
+        assert!(
+            html.contains(contract),
+            "missing runtime detail semantic contract {contract}"
+        );
+    }
+
+    for contract in [
+        "function runtimeDetailTimestamp",
+        "new Intl.DateTimeFormat(state.language",
+        "function runtimeEvidenceItems",
+        "function capabilitySupportLabel",
+        "function runtimeDetailPosture",
+        "function runtimeNeedsAttention",
+        "function renderRuntimeDetailSummary",
+        "function renderRuntimeCapabilities",
+        "function renderRuntimeAttention",
+        "return t(\"attention.hints.refreshStatus\")",
+        "runtime.status.statusFetchedAt;",
+        "data-recovery-action=\"${escapeHtml(kind)}\"",
+    ] {
+        assert!(
+            inspector.contains(contract),
+            "missing operator-first runtime detail behavior {contract}"
+        );
+    }
+
+    assert!(bootstrap.contains("function normalizeRuntimeDetailTab"));
+    assert!(bootstrap.contains("state.activeRuntimeDetailTab = \"attention\";"));
+    assert!(bootstrap.contains("button[data-runtime-detail-target]"));
+    assert!(transport.contains("normalizeRuntimeDetailTab(params.get(\"runtimeDetail\"))"));
+    assert!(transport.contains("[data-i18n-aria-label]"));
+
+    for contract in [
+        ".runtime-detail-posture",
+        ".runtime-detail-facts",
+        ".runtime-detail-definition-grid",
+        ".runtime-evidence-grid",
+        ".runtime-capability-grid",
+        ".runtime-recovery-grid",
+        ".runtime-detail-subtab-button.has-attention",
+        "@media (max-width: 600px)",
+    ] {
+        assert!(
+            styles.contains(contract),
+            "missing runtime detail CSS contract {contract}"
+        );
+    }
+
+    for key in [
+        "sectionsLabel:",
+        "liveSummary:",
+        "reviewAttention:",
+        "evidenceAvailability:",
+        "capabilitySource:",
+        "fullySupported:",
+    ] {
+        assert!(
+            simplified_chinese.contains(key),
+            "missing localized runtime detail key {key}"
+        );
+    }
+}
+
+#[test]
 fn mobile_adaptation_is_protocolized_in_the_status_tensor() {
     let catalog: serde_json::Value = serde_json::from_slice(
         &std::fs::read(repository_root().join("project/status/catalog.json")).unwrap(),
@@ -221,7 +301,7 @@ fn mobile_adaptation_is_protocolized_in_the_status_tensor() {
         .find(|cell| cell["id"] == "leserpent-1x/web-console/browser-operations")
         .expect("web console status cell must exist");
 
-    assert_eq!(cell["contract"]["version"], "1.4.6");
+    assert_eq!(cell["contract"]["version"], "1.4.7");
     for surface in [
         "width-first-mobile-layout",
         "mobile-filter-disclosure",
@@ -247,6 +327,15 @@ fn mobile_adaptation_is_protocolized_in_the_status_tensor() {
         "localized-registration-guidance",
         "registration-success-detail-handoff",
         "live-registration-language-switch",
+        "operator-first-runtime-detail",
+        "persistent-runtime-posture-summary",
+        "localized-runtime-detail-tabs",
+        "structured-evidence-availability",
+        "capability-support-cards",
+        "server-command-recovery-cards",
+        "attention-targeted-navigation",
+        "validated-runtime-detail-route",
+        "mobile-runtime-diagnostic-workbench",
     ] {
         assert!(
             cell["contract"]["surfaces"]

@@ -112,8 +112,12 @@ function activateRuntimeMainTab(tab) {
   syncLocation();
 }
 
+function normalizeRuntimeDetailTab(tab) {
+  return ["identity", "status", "capabilities", "attention"].includes(tab) ? tab : "identity";
+}
+
 function activateRuntimeDetailTab(tab) {
-  state.activeRuntimeDetailTab = tab;
+  state.activeRuntimeDetailTab = normalizeRuntimeDetailTab(tab);
   applyTabShell();
   syncLocation();
 }
@@ -184,6 +188,7 @@ async function handleRuntimeTableAction(button) {
   if (button.dataset.action === "show-attention") {
     state.activeTab = "runtimes";
     state.activeRuntimeMainTab = "detail";
+    state.activeRuntimeDetailTab = "attention";
     state.selectedRuntimeId = runtimeId;
     applyTabShell();
     renderRuntimeSliceFromCache();
@@ -412,6 +417,17 @@ function bootstrapDashboard() {
     }
 
     await refreshSelectedRuntime(button.dataset.recoveryAction, button);
+  });
+  nodes.runtimeDetailSummary.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const button = target.closest("button[data-runtime-detail-target]");
+    if (!(button instanceof HTMLButtonElement)) return;
+    activateRuntimeDetailTab(button.dataset.runtimeDetailTarget);
+    const activeTab = nodes.runtimeDetailSubtabButtons.find(
+      (candidate) => candidate.dataset.runtimeDetailTab === state.activeRuntimeDetailTab,
+    );
+    if (activeTab instanceof HTMLButtonElement) activeTab.focus();
   });
   nodes.runtimeDeleteFailed?.addEventListener("click", deleteFailedRuntimes);
   nodes.runtimeDeleteUnobserved?.addEventListener("click", deleteUnobservedRuntimes);

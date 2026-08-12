@@ -38,10 +38,6 @@ function recoveryOutcomeLabel(outcome) {
 }
 
 function recoveryHintLabel(action, hint) {
-  if (hint) {
-    return hint;
-  }
-
   if (action === "refresh_status") {
     return t("attention.hints.refreshStatus");
   }
@@ -54,7 +50,7 @@ function recoveryHintLabel(action, hint) {
     return t("attention.hints.refreshSidecar");
   }
 
-  return "";
+  return hint || "";
 }
 
 function runtimeDetailSignature(runtime, attention) {
@@ -63,7 +59,7 @@ function runtimeDetailSignature(runtime, attention) {
   }
 
   const capabilityKeys = (runtime.capabilities || [])
-    .map((item) => `${item.key}:${item.support}`)
+    .map((item) => `${item.key}:${item.support}:${item.description || ""}`)
     .sort()
     .join("|");
   const attentionReasons = (attention?.reasons || []).join("|");
@@ -82,10 +78,15 @@ function runtimeDetailSignature(runtime, attention) {
     runtime.sidecarEndpoint || "",
     runtime.registeredAt,
     runtime.updatedAt,
+    runtime.capabilitySource || "",
+    runtime.capabilityFetchedAt || "",
+    runtime.capabilityFetchError || "",
     runtime.tags.environment || "",
     runtime.tags.cluster || "",
     runtime.tags.role || "",
     runtime.status.statusSource,
+    runtime.status.statusFetchedAt || "",
+    runtime.status.statusFetchError || "",
     runtime.status.resilienceStatus || "",
     runtime.status.resilienceSummary || "",
     runtime.status.socketServiceStatus || "",
@@ -102,6 +103,9 @@ function runtimeDetailSignature(runtime, attention) {
     runtime.status.hasReportHtml,
     runtime.hasSidecarAdminToken,
     runtime.sidecarStatus?.statusSource || "",
+    runtime.sidecarStatus?.statusFetchedAt || "",
+    runtime.sidecarStatus?.statusFetchError || "",
+    runtime.sidecarStatus?.daemonStatus || "",
     runtime.sidecarStatus?.learningActive ?? "",
     runtime.sidecarStatus?.learnedRoutes ?? "",
     runtime.sidecarStatus?.memory?.versionsSupported ?? "",
@@ -350,11 +354,386 @@ function finalizeRuntimeWindowWorkspace() {
   renderRuntimeWindowGrid();
 }
 
-function renderRuntimeDetail(runtime, attention) {
-  const signature = runtimeDetailSignature(runtime, attention);
-  if (state.renderSignatures.runtimeDetail === signature) {
+function runtimeDetailTimestamp(value) {
+  if (!value) return t("runtimeDetail.notObserved");
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  try {
+    return new Intl.DateTimeFormat(state.language, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(parsed);
+  } catch {
+    return parsed.toLocaleString();
+  }
+}
+
+function runtimeDetailTimeMarkup(value) {
+  if (!value) return escapeHtml(t("runtimeDetail.notObserved"));
+  return `<time datetime="${escapeHtml(value)}">${escapeHtml(runtimeDetailTimestamp(value))}</time>`;
+}
+
+function runtimeEvidenceItems(status) {
+  return [
+    { label: t("runtimeDetail.summaryJson"), available: !!status.hasSummaryJson },
+    { label: t("runtimeDetail.analysisJson"), available: !!status.hasAnalysisJson },
+    { label: t("runtimeDetail.trainingExampleJson"), available: !!status.hasTrainingExampleJson },
+    { label: t("runtimeDetail.trainingDatasetManifest"), available: !!status.hasTrainingDatasetManifest },
+    { label: t("runtimeDetail.exportJson"), available: !!status.hasExportJson },
+    { label: t("runtimeDetail.reportJson"), available: !!status.hasReportJson },
+    { label: t("runtimeDetail.reportHtml"), available: !!status.hasReportHtml },
+  ];
+}
+
+function capabilitySupportLabel(support) {
+  const normalized = protocolKeyToTranslationSegment(support || "unknown");
+  const key = `runtimeDetail.support.${normalized}`;
+  const translated = t(key);
+  return translated === key ? String(support || "unknown").replaceAll("_", " ") : translated;
+}
+
+function capabilitySupportTone(support) {
+  if (support === "fully_supported") return "good";
+  if (support === "unsupported" || support === "not_supported") return "bad";
+  return "warn";
+}
+
+function attentionSeverityLabel(attention) {
+  const severity = attention?.severity || "warning";
+  const key = `attention.${severity}`;
+  const translated = t(key);
+  return translated === key ? severity : translated;
+}
+
+function runtimeNeedsAttention(attention) {
+  if (!attention) return false;
+  if (typeof attention.needsAttention === "boolean") return attention.needsAttention;
+  return (attention.reasons || []).length > 0;
+}
+
+function runtimeDetailPosture(runtime, attention) {
+  if (runtimeNeedsAttention(attention)) {
+    return {
+      tone: attention.severity === "critical" ? "bad" : "warn",
+      label: attentionSeverityLabel(attention),
+      message: attention.reasons?.length
+        ? attentionReasonLabel(attention.reasons[0])
+        : t("runtimeDetail.requiresReview"),
+      target: "attention",
+      action: t("runtimeDetail.reviewAttention"),
+    };
+  }
+
+  const badge = statusBadge(runtime.status);
+  return {
+    tone: badge.tone,
+    label: badge.text,
+    message: badge.tone === "bad"
+      ? t("runtimeDetail.refreshRecommended")
+      : badge.tone === "warn"
+        ? t("statuses.unobserved")
+        : t("runtimeDetail.operational"),
+    target: "status",
+    action: t("runtimeDetail.inspectStatus"),
+  };
+}
+
+function renderRuntimeDetailSummary(runtime, attention) {
+  const posture = runtimeDetailPosture(runtime, attention);
+  const evidence = runtimeEvidenceItems(runtime.status);
+  const availableEvidence = evidence.filter((item) => item.available).length;
+  const capabilities = runtime.capabilities || [];
+  const supportedCapabilities = capabilities.filter((item) => item.support === "fully_supported").length;
+  const reasonCount = runtimeNeedsAttention(attention) ? (attention.reasons || []).length : 0;
+  const observedAt = runtime.status.statusFetchedAt;
+
+  nodes.runtimeDetailSummary.classList.remove("hidden");
+  nodes.runtimeDetailSummary.innerHTML = `
+    <div class="runtime-detail-posture" data-tone="${escapeHtml(posture.tone)}">
+      <div class="runtime-detail-posture-copy">
+        <div class="runtime-detail-kicker">${escapeHtml(t("runtimeDetail.liveSummary"))}</div>
+        <div class="runtime-detail-posture-title">
+          <span class="runtime-state ${escapeHtml(posture.tone)}">${escapeHtml(posture.label)}</span>
+          <h3 id="runtime-detail-summary-heading">${escapeHtml(runtime.name)}</h3>
+        </div>
+        <p>${escapeHtml(posture.message)}</p>
+      </div>
+      <button type="button" class="quiet" data-runtime-detail-target="${escapeHtml(posture.target)}">${escapeHtml(posture.action)}</button>
+    </div>
+    <div class="runtime-detail-facts">
+      <div class="runtime-detail-fact">
+        <span>${escapeHtml(t("runtimeDetail.lastObserved"))}</span>
+        <strong>${runtimeDetailTimeMarkup(observedAt)}</strong>
+        <small>${escapeHtml(t("runtimeDetail.source"))}: ${escapeHtml(runtime.status.statusSource)}</small>
+      </div>
+      <div class="runtime-detail-fact">
+        <span>${escapeHtml(t("runtimeDetail.attention"))}</span>
+        <strong>${escapeHtml(reasonCount ? attentionSeverityLabel(attention) : t("runtimeDetail.clear"))}</strong>
+        <small>${escapeHtml(t("runtimeDetail.attentionReasonCount", { count: reasonCount }))}</small>
+      </div>
+      <div class="runtime-detail-fact">
+        <span>${escapeHtml(t("runtimeDetail.supportedCapabilities"))}</span>
+        <strong>${escapeHtml(`${supportedCapabilities} / ${capabilities.length}`)}</strong>
+        <small>${escapeHtml(t("runtimeDetail.fullySupportedCount", { count: supportedCapabilities }))}</small>
+      </div>
+      <div class="runtime-detail-fact">
+        <span>${escapeHtml(t("runtimeDetail.availableEvidence"))}</span>
+        <strong>${escapeHtml(`${availableEvidence} / ${evidence.length}`)}</strong>
+        <small>${escapeHtml(t("runtimeDetail.availableCount", { count: availableEvidence }))}</small>
+      </div>
+    </div>
+  `;
+}
+
+function renderRuntimeIdentity(runtime) {
+  nodes.runtimeDetailIdentity.innerHTML = `
+    <dl class="runtime-detail-definition-grid">
+      <div>
+        <dt>${escapeHtml(t("register.name"))}</dt>
+        <dd><strong>${escapeHtml(runtime.name)}</strong></dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.runtimeId"))}</dt>
+        <dd><code>${escapeHtml(runtime.runtimeId)}</code></dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("register.endpoint"))}</dt>
+        <dd><code>${escapeHtml(runtime.endpoint)}</code></dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("register.sidecarEndpoint"))}</dt>
+        <dd><code>${escapeHtml(runtime.sidecarEndpoint || t("register.sidecarUnpaired"))}</code></dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.registered"))}</dt>
+        <dd>${runtimeDetailTimeMarkup(runtime.registeredAt)}</dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.updated"))}</dt>
+        <dd>${runtimeDetailTimeMarkup(runtime.updatedAt)}</dd>
+      </div>
+    </dl>
+    <div class="runtime-detail-tags" aria-label="${escapeHtml(t("runtimes.columns.tags"))}">
+      <span class="tag-pill">${escapeHtml(runtime.tags.environment || t("runtimes.states.noEnv"))}</span>
+      <span class="tag-pill">${escapeHtml(runtime.tags.cluster || t("runtimes.states.noCluster"))}</span>
+      <span class="tag-pill">${escapeHtml(runtime.tags.role || t("runtimes.states.noRole"))}</span>
+    </div>
+  `;
+}
+
+function renderRuntimeStatus(runtime) {
+  const badge = statusBadge(runtime.status);
+  const sidecarBadge = sidecarStatusBadge(runtime.sidecarStatus);
+  const evidence = runtimeEvidenceItems(runtime.status);
+  const availableEvidence = evidence.filter((item) => item.available).length;
+  const statusSummary = runtime.status.resilienceSummary || runtimeStatusHint(runtime.status);
+
+  nodes.runtimeDetailStatus.innerHTML = `
+    <div class="runtime-detail-section-lead">
+      <span class="runtime-state ${escapeHtml(badge.tone)}">${escapeHtml(badge.text)}</span>
+      <div>
+        <strong>${escapeHtml(t("runtimeDetail.statusOverview"))}</strong>
+        <p>${escapeHtml(statusSummary)}</p>
+      </div>
+    </div>
+    <dl class="runtime-detail-definition-grid runtime-detail-status-grid">
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.source"))}</dt>
+        <dd>${escapeHtml(runtime.status.statusSource)}</dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.lastObserved"))}</dt>
+        <dd>${runtimeDetailTimeMarkup(runtime.status.statusFetchedAt)}</dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.snapshotKind"))}</dt>
+        <dd>${escapeHtml(runtime.status.snapshotKind || t("runtimeDetail.none"))}</dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.targetCount"))}</dt>
+        <dd>${escapeHtml(runtime.status.targetCount ?? t("runtimeDetail.na"))}</dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.resilienceStatus"))}</dt>
+        <dd>${escapeHtml(runtime.status.resilienceStatus || t("runtimeDetail.none"))}</dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.socketServiceStatus"))}</dt>
+        <dd>${escapeHtml(runtime.status.socketServiceStatus || t("runtimeDetail.none"))}</dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.idleTimeouts"))}</dt>
+        <dd>${escapeHtml(runtime.status.socketTotalIdleTimeouts != null ? `${runtime.status.socketConsecutiveIdleTimeouts ?? 0} / ${runtime.status.socketTotalIdleTimeouts}` : t("runtimeDetail.na"))}</dd>
+      </div>
+    </dl>
+    <div class="runtime-detail-section-heading">
+      <strong>${escapeHtml(t("runtimeDetail.evidenceAvailability"))}</strong>
+      <span>${escapeHtml(`${availableEvidence} / ${evidence.length}`)}</span>
+    </div>
+    <div class="runtime-evidence-grid">
+      ${evidence.map((item) => `
+        <div class="runtime-evidence-item ${item.available ? "available" : "missing"}">
+          <span class="runtime-evidence-dot" aria-hidden="true"></span>
+          <span>${escapeHtml(item.label)}</span>
+          <strong>${escapeHtml(item.available ? t("runtimeDetail.available") : t("runtimeDetail.missing"))}</strong>
+        </div>
+      `).join("")}
+    </div>
+    <div class="runtime-sidecar-overview">
+      <div class="runtime-detail-section-heading">
+        <strong>${escapeHtml(t("runtimeDetail.sidecarOverview"))}</strong>
+        <span class="runtime-state ${escapeHtml(sidecarBadge.tone)}">${escapeHtml(sidecarBadge.text)}</span>
+      </div>
+      <dl class="runtime-detail-definition-grid">
+        <div>
+          <dt>${escapeHtml(t("register.sidecarEndpoint"))}</dt>
+          <dd><code>${escapeHtml(runtime.sidecarEndpoint || t("register.sidecarUnpaired"))}</code></dd>
+        </div>
+        <div>
+          <dt>${escapeHtml(t("runtimeDetail.sidecarAccess"))}</dt>
+          <dd>${escapeHtml(runtime.sidecarEndpoint ? (runtime.hasSidecarAdminToken ? t("runtimeDetail.sidecarProtected") : t("runtimeDetail.sidecarOpen")) : t("runtimeDetail.none"))}</dd>
+        </div>
+        ${runtime.sidecarStatus ? `
+          <div>
+            <dt>${escapeHtml(t("runtimeDetail.sidecarSource"))}</dt>
+            <dd>${escapeHtml(runtime.sidecarStatus.statusSource)}</dd>
+          </div>
+          <div>
+            <dt>${escapeHtml(t("runtimeDetail.lastObserved"))}</dt>
+            <dd>${runtimeDetailTimeMarkup(runtime.sidecarStatus.statusFetchedAt)}</dd>
+          </div>
+          <div>
+            <dt>${escapeHtml(t("runtimeDetail.sidecarLearning"))}</dt>
+            <dd>${escapeHtml(runtime.sidecarStatus.learningActive ? t("security.enabled") : t("security.disabled"))} · ${escapeHtml(runtime.sidecarStatus.learnedRoutes)}</dd>
+          </div>
+          <div>
+            <dt>${escapeHtml(t("runtimeDetail.sidecarMemory"))}</dt>
+            <dd>${escapeHtml(runtime.sidecarStatus.memory?.versionsSupported ? `${runtime.sidecarStatus.memory.slotCount} / ${runtime.sidecarStatus.memory.historyCount}` : t("runtimeDetail.none"))}</dd>
+          </div>
+          <div>
+            <dt>${escapeHtml(t("runtimeDetail.sidecarMemoryLatest"))}</dt>
+            <dd>${escapeHtml(latestSidecarMemoryText(runtime.sidecarStatus))}</dd>
+          </div>
+        ` : ""}
+      </dl>
+    </div>
+  `;
+}
+
+function renderRuntimeCapabilities(runtime) {
+  const capabilities = [...(runtime.capabilities || [])]
+    .sort((left, right) => left.key.localeCompare(right.key));
+  const supported = capabilities.filter((item) => item.support === "fully_supported").length;
+
+  nodes.runtimeDetailCapabilities.innerHTML = `
+    <div class="runtime-detail-section-lead">
+      <span class="runtime-state ${supported === capabilities.length && capabilities.length ? "good" : "warn"}">${escapeHtml(`${supported} / ${capabilities.length}`)}</span>
+      <div>
+        <strong>${escapeHtml(t("runtimeDetail.supportedCapabilities"))}</strong>
+        <p>${escapeHtml(t("runtimeDetail.fullySupportedCount", { count: supported }))}</p>
+      </div>
+    </div>
+    <dl class="runtime-detail-definition-grid runtime-capability-provenance">
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.capabilitySource"))}</dt>
+        <dd>${escapeHtml(runtime.capabilitySource || t("runtimeDetail.none"))}</dd>
+      </div>
+      <div>
+        <dt>${escapeHtml(t("runtimeDetail.lastCapabilityRefresh"))}</dt>
+        <dd>${runtimeDetailTimeMarkup(runtime.capabilityFetchedAt)}</dd>
+      </div>
+    </dl>
+    ${capabilities.length ? `
+      <div class="runtime-capability-grid">
+        ${capabilities.map((item) => `
+          <article class="runtime-capability-card" data-tone="${escapeHtml(capabilitySupportTone(item.support))}">
+            <div class="runtime-capability-head">
+              <strong>${escapeHtml(item.key)}</strong>
+              <span class="runtime-state ${escapeHtml(capabilitySupportTone(item.support))}">${escapeHtml(capabilitySupportLabel(item.support))}</span>
+            </div>
+            ${item.description ? `<p>${escapeHtml(item.description)}</p>` : ""}
+          </article>
+        `).join("")}
+      </div>
+    ` : `<div class="runtime-detail-empty-state">${escapeHtml(t("runtimeDetail.noCapabilities"))}</div>`}
+  `;
+}
+
+function renderRuntimeAttention(attention) {
+  if (!runtimeNeedsAttention(attention)) {
+    nodes.runtimeDetailAttention.innerHTML = `
+      <div class="runtime-detail-clear-state">
+        <span class="runtime-state good">${escapeHtml(t("runtimeDetail.clear"))}</span>
+        <strong>${escapeHtml(t("runtimeDetail.noAttention"))}</strong>
+      </div>
+    `;
     return;
   }
+
+  const actions = [...(attention.suggestedActions || [])]
+    .sort((left, right) => (left.priority ?? Number.MAX_SAFE_INTEGER) - (right.priority ?? Number.MAX_SAFE_INTEGER));
+  const history = attention.recentRecoveryActivities || [];
+  const tone = attention.severity === "critical" ? "bad" : "warn";
+
+  nodes.runtimeDetailAttention.innerHTML = `
+    <div class="runtime-detail-section-lead attention">
+      <span class="runtime-state ${tone}">${escapeHtml(attentionSeverityLabel(attention))}</span>
+      <div>
+        <strong>${escapeHtml(t("runtimeDetail.requiresReview"))}</strong>
+        <p>${escapeHtml(t("runtimeDetail.attentionReasonCount", { count: (attention.reasons || []).length }))}</p>
+      </div>
+    </div>
+    <div class="reason-list">
+      ${(attention.reasons || []).map((reason) => `<span class="reason-pill attention">${escapeHtml(attentionReasonLabel(reason))}</span>`).join("")}
+    </div>
+    <div class="runtime-detail-section-heading">
+      <strong>${escapeHtml(t("attention.suggestedActions"))}</strong>
+      <span>${escapeHtml(actions.length)}</span>
+    </div>
+    ${actions.length ? `
+      <div class="runtime-recovery-grid">
+        ${actions.map((action) => {
+          const kind = action.commandKind;
+          return `
+            <article class="runtime-recovery-action ${action.coolingDown ? "cooling-down" : ""}">
+              <div class="runtime-recovery-action-head">
+                <strong>${escapeHtml(recoveryActionLabel(action.action))}</strong>
+                <span class="tag-pill">#${escapeHtml(action.priority)}</span>
+              </div>
+              <p>${escapeHtml(recoveryHintLabel(action.action, action.hint))}</p>
+              ${action.coolingDown ? `<div class="hint-line">${escapeHtml(t("attention.cooldownRemaining", { seconds: action.cooldownSecondsRemaining }))}</div>` : ""}
+              ${kind
+                ? `<button type="button" data-recovery-action="${escapeHtml(kind)}" ${action.coolingDown ? "disabled" : ""}>${escapeHtml(recoveryActionLabel(action.action))}</button>`
+                : `<span class="item-meta">${escapeHtml(recoveryActionLabel(action.action))}</span>`}
+            </article>
+          `;
+        }).join("")}
+      </div>
+    ` : `<div class="runtime-detail-empty-state">${escapeHtml(t("attention.noReasons"))}</div>`}
+    <div class="runtime-detail-section-heading">
+      <strong>${escapeHtml(t("attention.recentRecovery"))}</strong>
+      <span>${escapeHtml(history.length)}</span>
+    </div>
+    ${history.length ? `
+      <div class="runtime-recovery-history">
+        ${history.map((item) => `
+          <article>
+            <div>
+              <strong>${escapeHtml(recoveryActionLabel(item.action))}</strong>
+              <span class="runtime-state ${item.outcome === "ok" ? "good" : "warn"}">${escapeHtml(recoveryOutcomeLabel(item.outcome))}</span>
+            </div>
+            <time datetime="${escapeHtml(item.recordedAt)}">${escapeHtml(runtimeDetailTimestamp(item.recordedAt))}</time>
+            ${item.summary ? `<p>${escapeHtml(item.summary)}</p>` : ""}
+          </article>
+        `).join("")}
+      </div>
+    ` : `<div class="runtime-detail-empty-state">${escapeHtml(t("attention.noRecoveryHistory"))}</div>`}
+  `;
+}
+
+function renderRuntimeDetail(runtime, attention) {
+  const signature = runtimeDetailSignature(runtime, attention);
+  if (state.renderSignatures.runtimeDetail === signature) return;
   state.renderSignatures.runtimeDetail = signature;
 
   if (!runtime) {
@@ -363,104 +742,43 @@ function renderRuntimeDetail(runtime, attention) {
     nodes.runtimeDetailRefreshSidecar.disabled = true;
     nodes.runtimeDetailEmpty.classList.remove("hidden");
     nodes.runtimeDetailPanel.classList.add("hidden");
+    nodes.runtimeDetailSummary.classList.add("hidden");
+    nodes.runtimeDetailSummary.innerHTML = "";
     nodes.runtimeDetailIdentity.innerHTML = "";
     nodes.runtimeDetailStatus.innerHTML = "";
     nodes.runtimeDetailCapabilities.innerHTML = "";
     nodes.runtimeDetailAttention.innerHTML = "";
+    for (const button of nodes.runtimeDetailSubtabButtons) {
+      button.classList.remove("has-attention", "has-status-warning");
+      button.removeAttribute("data-tone");
+    }
     return;
   }
 
   const badge = statusBadge(runtime.status);
-  const sidecarBadge = sidecarStatusBadge(runtime.sidecarStatus);
+  const attentionButton = nodes.runtimeDetailSubtabButtons.find(
+    (button) => button.dataset.runtimeDetailTab === "attention",
+  );
+  const statusButton = nodes.runtimeDetailSubtabButtons.find(
+    (button) => button.dataset.runtimeDetailTab === "status",
+  );
+  const needsAttention = runtimeNeedsAttention(attention);
+  attentionButton?.classList.toggle("has-attention", needsAttention);
+  if (attentionButton) attentionButton.dataset.tone = needsAttention ? attention.severity : "clear";
+  statusButton?.classList.toggle("has-status-warning", badge.tone !== "good");
+  if (statusButton) statusButton.dataset.tone = badge.tone;
+
   nodes.runtimeDetailChip.textContent = runtime.name;
   nodes.runtimeDetailActions.classList.remove("hidden");
   nodes.runtimeDetailRefreshSidecar.disabled = !runtime.sidecarEndpoint;
   nodes.runtimeDetailEmpty.classList.add("hidden");
   nodes.runtimeDetailPanel.classList.remove("hidden");
-  nodes.runtimeDetailIdentity.innerHTML = `
-    <div><strong>${escapeHtml(runtime.name)}</strong></div>
-    <div class="item-meta">${escapeHtml(runtime.endpoint)}</div>
-    ${runtime.sidecarEndpoint ? `<div class="item-meta">${escapeHtml(t("register.sidecarEndpoint"))}: ${escapeHtml(runtime.sidecarEndpoint)}</div>` : ""}
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.registered"))}: ${escapeHtml(runtime.registeredAt)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.updated"))}: ${escapeHtml(runtime.updatedAt)}</div>
-    <div class="group-list">
-      <span class="tag-pill">${escapeHtml(runtime.tags.environment || t("runtimes.states.noEnv"))}</span>
-      <span class="tag-pill">${escapeHtml(runtime.tags.cluster || t("runtimes.states.noCluster"))}</span>
-      <span class="tag-pill">${escapeHtml(runtime.tags.role || t("runtimes.states.noRole"))}</span>
-    </div>
-  `;
-  nodes.runtimeDetailStatus.innerHTML = `
-    <div><span class="runtime-state ${escapeHtml(badge.tone)}">${escapeHtml(badge.text)}</span></div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.source"))}: ${escapeHtml(runtime.status.statusSource)}</div>
-    ${runtime.status.resilienceStatus ? `<div class="hint-line">${escapeHtml(t("runtimeDetail.resilienceStatus"))}: ${escapeHtml(runtime.status.resilienceStatus)}</div>` : ""}
-    ${runtime.status.resilienceSummary ? `<div class="hint-line">${escapeHtml(t("runtimeDetail.resilienceSummary"))}: ${escapeHtml(runtime.status.resilienceSummary)}</div>` : ""}
-    ${runtime.status.socketServiceStatus ? `<div class="hint-line">${escapeHtml(t("runtimeDetail.socketServiceStatus"))}: ${escapeHtml(runtime.status.socketServiceStatus)}</div>` : ""}
-    ${runtime.status.socketTotalIdleTimeouts != null ? `<div class="hint-line">${escapeHtml(t("runtimeDetail.idleTimeouts"))}: ${escapeHtml(`${runtime.status.socketConsecutiveIdleTimeouts ?? 0} / ${runtime.status.socketTotalIdleTimeouts ?? 0}`)}</div>` : ""}
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.snapshotKind"))}: ${escapeHtml(runtime.status.snapshotKind || t("runtimeDetail.none"))}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.targetCount"))}: ${escapeHtml(runtime.status.targetCount ?? t("runtimeDetail.na"))}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.summaryJson"))}: ${escapeHtml(runtime.status.hasSummaryJson)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.analysisJson"))}: ${escapeHtml(runtime.status.hasAnalysisJson)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.trainingExampleJson"))}: ${escapeHtml(runtime.status.hasTrainingExampleJson)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.trainingDatasetManifest"))}: ${escapeHtml(runtime.status.hasTrainingDatasetManifest)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.exportJson"))}: ${escapeHtml(runtime.status.hasExportJson)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.reportJson"))}: ${escapeHtml(runtime.status.hasReportJson)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.reportHtml"))}: ${escapeHtml(runtime.status.hasReportHtml)}</div>
-    <div class="hint-line">${escapeHtml(t("register.sidecarEndpoint"))}: <strong>${escapeHtml(runtime.sidecarEndpoint || t("register.sidecarUnpaired"))}</strong></div>
-    ${runtime.sidecarEndpoint ? `<div class="hint-line">${escapeHtml(t("runtimeDetail.sidecarAccess"))}: <strong>${escapeHtml(runtime.hasSidecarAdminToken ? t("runtimeDetail.sidecarProtected") : t("runtimeDetail.sidecarOpen"))}</strong></div>` : ""}
-    <div class="hint-line">${escapeHtml(t("runtimes.columns.sidecar"))}: <span class="runtime-state ${escapeHtml(sidecarBadge.tone)}">${escapeHtml(sidecarBadge.text)}</span></div>
-    ${runtime.sidecarStatus ? `<div class="hint-line">${escapeHtml(t("runtimeDetail.sidecarSource"))}: ${escapeHtml(runtime.sidecarStatus.statusSource)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.sidecarLearning"))}: ${escapeHtml(runtime.sidecarStatus.learningActive)} · ${escapeHtml(runtime.sidecarStatus.learnedRoutes)}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.sidecarMemory"))}: ${escapeHtml(runtime.sidecarStatus.memory?.versionsSupported ? `${runtime.sidecarStatus.memory.slotCount} slots · ${runtime.sidecarStatus.memory.historyCount} history` : t("runtimeDetail.none"))}</div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.sidecarMemoryLatest"))}: ${escapeHtml(latestSidecarMemoryText(runtime.sidecarStatus))}</div>` : ""}
-  `;
-  const capabilityKeys = (runtime.capabilities || [])
-    .map((item) => [item.key, item.support])
-    .sort((a, b) => a[0].localeCompare(b[0]));
-  nodes.runtimeDetailCapabilities.innerHTML = capabilityKeys.length
-    ? capabilityKeys.map(([key, support]) => `<span class="tag-pill">${escapeHtml(key)} · ${escapeHtml(support)}</span>`).join("")
-    : `<span class="item-meta">${escapeHtml(t("runtimeDetail.noCapabilities"))}</span>`;
 
-  if (!attention) {
-    nodes.runtimeDetailAttention.innerHTML = `
-      <div><span class="runtime-state good">${escapeHtml(t("runtimeDetail.clear"))}</span></div>
-      <div class="hint-line">${escapeHtml(t("runtimeDetail.noAttention"))}</div>
-    `;
-    return;
-  }
-
-  nodes.runtimeDetailAttention.innerHTML = `
-    <div><span class="runtime-state ${attention.severity === "critical" ? "bad" : "warn"}">${escapeHtml(t(`attention.${attention.severity}`))}</span></div>
-    <div class="hint-line">${escapeHtml(t("runtimeDetail.needsAttention"))}: ${escapeHtml(attention.needsAttention)}</div>
-    <div class="reason-list">
-      ${(attention.reasons || []).map((reason) => `<span class="reason-pill">${escapeHtml(attentionReasonLabel(reason))}</span>`).join("")}
-    </div>
-    <div class="hint-line"><strong>${escapeHtml(t("attention.suggestedActions"))}</strong></div>
-    <div class="inline-actions">
-      ${(attention.suggestedActions || []).length
-        ? attention.suggestedActions.map((action) => {
-          const kind = action.commandKind;
-          return kind
-            ? `<button type="button" data-recovery-action="${escapeHtml(kind)}" ${action.coolingDown ? "disabled" : ""}>${escapeHtml(recoveryActionLabel(action.action))} · #${escapeHtml(action.priority)}${action.coolingDown ? ` · ${escapeHtml(t("attention.cooldownRemaining", { seconds: action.cooldownSecondsRemaining }))}` : ""}</button>`
-            : `<span class="tag-pill">${escapeHtml(recoveryActionLabel(action.action))}</span>`;
-        }).join("")
-        : `<span class="item-meta">${escapeHtml(t("attention.noReasons"))}</span>`}
-    </div>
-    ${(attention.suggestedActions || []).length ? `
-      <div class="stack">
-        ${(attention.suggestedActions || []).map((action) => `
-          <div class="hint-line">${escapeHtml(t("attention.actionHint"))}: ${escapeHtml(recoveryHintLabel(action.action, action.hint))}${action.coolingDown ? ` · ${escapeHtml(t("attention.cooldownRemaining", { seconds: action.cooldownSecondsRemaining }))}` : ""}</div>
-        `).join("")}
-      </div>
-    ` : ""}
-    <div class="hint-line"><strong>${escapeHtml(t("attention.recentRecovery"))}</strong></div>
-    <div class="stack">
-      ${(attention.recentRecoveryActivities || []).length
-        ? attention.recentRecoveryActivities.map((item) => `
-          <div class="hint-line">${escapeHtml(recoveryActionLabel(item.action))} · <strong>${escapeHtml(recoveryOutcomeLabel(item.outcome))}</strong> · ${escapeHtml(item.recordedAt)}${item.summary ? ` · ${escapeHtml(item.summary)}` : ""}</div>
-        `).join("")
-        : `<div class="hint-line">${escapeHtml(t("attention.noRecoveryHistory"))}</div>`}
-    </div>
-  `;
+  renderRuntimeDetailSummary(runtime, attention);
+  renderRuntimeIdentity(runtime);
+  renderRuntimeStatus(runtime);
+  renderRuntimeCapabilities(runtime);
+  renderRuntimeAttention(attention);
 }
 
 function renderRuntimePanel(runtime) {
