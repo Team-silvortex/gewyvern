@@ -32,6 +32,7 @@ const MAX_SSH_CONTROL_PATH_BYTES: usize = 100;
 const SSH_CONTROL_TEMP_SUFFIX_RESERVE: usize = 20;
 const REMOTE_EBPF_HELPER: &str = "/usr/libexec/gewyvern-ebpf-helper";
 const REMOTE_EBPF_EVIDENCE_ROOT: &str = "/var/lib/gewyvern-ebpf-validation";
+const REMOTE_WORKSPACE_SYNC_KEY_MAX_LEN: usize = 256;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RemoteLinuxHostOptions {
@@ -57,6 +58,9 @@ pub fn run_remote_linux_host_validation(
     options: RemoteLinuxHostOptions,
 ) -> Result<ValidationReport, ValidationError> {
     validate_remote_host(&options.host)?;
+    if let Some(remote_dir) = options.remote_dir.as_ref() {
+        validate_remote_dir(remote_dir)?;
+    }
     require_cmd("ssh")?;
     require_cmd("rsync")?;
     let admin_auth = remote_ebpf_admin_auth()?;
@@ -1004,6 +1008,27 @@ fn remote_workspace_path(remote_dir: &str) -> String {
     }
 }
 
+fn validate_remote_dir(remote_dir: &str) -> Result<(), ValidationError> {
+    if remote_dir.trim().is_empty() {
+        return Err(ValidationError::new("remote directory must not be empty"));
+    }
+    if remote_dir.len() > 256 {
+        return Err(ValidationError::new("remote directory is too long"));
+    }
+    if remote_dir
+        .chars()
+        .any(|character| !matches!(character, '/' | '-' | '_' | '.' | '@' | '~' | 'A'..='Z' | 'a'..='z' | '0'..='9'))
+    {
+        return Err(ValidationError::new(
+            "remote directory contains unsupported characters",
+        ));
+    }
+    if remote_dir.contains('\0') || remote_dir.contains('\n') || remote_dir.contains('\r') {
+        return Err(ValidationError::new("remote directory must not contain control characters"));
+    }
+    Ok(())
+}
+
 fn remote_cargo_target_dir(home_dir: &str) -> String {
     format!("{home_dir}/.cache/gewyvern/remote-target")
 }
@@ -1201,7 +1226,8 @@ fn sync_workspace(
     remote_path: &str,
     workspace_sync_key: &str,
 ) -> Result<(), ValidationError> {
-    if remote_workspace_sync_key_matches(auth, host, remote_path, workspace_sync_key)? {
+    let workspace_sync_key = validate_remote_workspace_sync_key(workspace_sync_key)?;
+    if remote_workspace_sync_key_matches(auth, host, remote_path, &workspace_sync_key)? {
         validation_log("[remote-host] workspace sync cache hit; skipping rsync");
         return Ok(());
     }
@@ -1244,7 +1270,7 @@ fn sync_workspace(
         .status()
         .map_err(|err| ValidationError::new(format!("failed to launch rsync: {err}")))?;
     if status.success() {
-        write_remote_workspace_sync_key(auth, host, remote_path, workspace_sync_key)
+        write_remote_workspace_sync_key(auth, host, remote_path, &workspace_sync_key)
     } else {
         Err(ValidationError::new(format!(
             "rsync failed with status {status}"
@@ -1259,8 +1285,9 @@ fn remote_workspace_sync_key_matches(
     workspace_sync_key: &str,
 ) -> Result<bool, ValidationError> {
     validate_remote_rsync_path(remote_path)?;
+    let workspace_sync_key = validate_remote_workspace_sync_key(workspace_sync_key)?;
     let remote_path = shell_single_quote(remote_path);
-    let workspace_sync_key = shell_single_quote(workspace_sync_key);
+    let workspace_sync_key = shell_single_quote(&workspace_sync_key);
     let status = start_ssh_command(
         auth,
         host,
@@ -1287,8 +1314,9 @@ fn write_remote_workspace_sync_key(
     workspace_sync_key: &str,
 ) -> Result<(), ValidationError> {
     validate_remote_rsync_path(remote_path)?;
+    let workspace_sync_key = validate_remote_workspace_sync_key(workspace_sync_key)?;
     let remote_path = shell_single_quote(remote_path);
-    let workspace_sync_key = shell_single_quote(workspace_sync_key);
+    let workspace_sync_key = shell_single_quote(&workspace_sync_key);
     run_ssh_command(
         auth,
         host,
@@ -1300,7 +1328,7 @@ fn write_remote_workspace_sync_key(
 fn compute_local_workspace_sync_key() -> Result<String, ValidationError> {
     let root = repo_root();
     if let Some(git_key) = compute_git_workspace_sync_key(&root)? {
-        return Ok(git_key);
+        return validate_remote_workspace_sync_key(&git_key);
     }
 
     let mut child = Command::new("python3")
@@ -1376,13 +1404,7 @@ print(hash_obj.hexdigest())
             output.status
         )));
     }
-    let key = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if key.is_empty() {
-        return Err(ValidationError::new(
-            "workspace sync key computation returned an empty key",
-        ));
-    }
-    Ok(key)
+    validate_remote_workspace_sync_key(&String::from_utf8_lossy(&output.stdout).trim())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1639,14 +1661,18 @@ fn compute_git_workspace_sync_key(root: &Path) -> Result<Option<String>, Validat
         .map(ToOwned::to_owned)
         .collect::<Vec<_>>();
     if relevant_changes.is_empty() {
-        Ok(Some(format!("git:{head}")))
+        Ok(Some(validate_remote_workspace_sync_key(&format!("git:{head}"))?))
     } else {
         if let Some(cache_key) =
             try_reuse_dirty_workspace_sync_key_cache(root, &head, &relevant_changes)?
         {
-            return Ok(Some(cache_key));
+            return Ok(Some(validate_remote_workspace_sync_key(&cache_key)?));
         }
-        let key = compute_dirty_git_workspace_sync_key(root, &head, &relevant_changes)?;
+        let key = validate_remote_workspace_sync_key(&compute_dirty_git_workspace_sync_key(
+            root,
+            &head,
+            &relevant_changes,
+        )?)?;
         let files = collect_local_workspace_sync_cache_files(root, &relevant_changes)?;
         write_local_workspace_sync_cache(&LocalWorkspaceSyncCache {
             head,
@@ -1737,13 +1763,7 @@ print("git-dirty:" + hash_obj.hexdigest())
             output.status
         )));
     }
-    let key = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if key.is_empty() {
-        return Err(ValidationError::new(
-            "dirty git workspace sync key computation returned an empty key",
-        ));
-    }
-    Ok(key)
+    validate_remote_workspace_sync_key(&String::from_utf8_lossy(&output.stdout).trim())
 }
 
 fn parse_git_status_path(line: &str) -> Option<&str> {
@@ -1782,6 +1802,8 @@ fn materialize_remote_workspace(
     remote_source_cache: &str,
     remote_path: &str,
 ) -> Result<(), ValidationError> {
+    validate_remote_rsync_path(remote_source_cache)?;
+    validate_remote_rsync_path(remote_path)?;
     let remote_source_cache = shell_single_quote(remote_source_cache);
     let remote_path = shell_single_quote(remote_path);
     run_ssh_command(
@@ -2320,10 +2342,15 @@ fn remote_ebpf_admin_auth() -> Result<Option<RemoteAdminAuth>, ValidationError> 
 }
 
 fn validate_remote_host(host: &str) -> Result<(), ValidationError> {
-    let host = host.trim();
-    if host.is_empty()
-        || host.starts_with('-')
-        || host.chars().any(|character| {
+    let trimmed = host.trim();
+    if trimmed != host {
+        return Err(ValidationError::new(
+            "remote host must not include leading or trailing whitespace",
+        ));
+    }
+    if trimmed.is_empty()
+        || trimmed.starts_with('-')
+        || trimmed.chars().any(|character| {
             !(character.is_ascii_alphanumeric()
                 || matches!(character, '.' | '-' | '_' | ':' | '@' | '[' | ']' | '%'))
         })
@@ -2333,6 +2360,36 @@ fn validate_remote_host(host: &str) -> Result<(), ValidationError> {
         ));
     }
     Ok(())
+}
+
+fn validate_remote_workspace_sync_key(
+    workspace_sync_key: &str,
+) -> Result<String, ValidationError> {
+    let trimmed = workspace_sync_key.trim();
+    if trimmed.is_empty() {
+        return Err(ValidationError::new(
+            "remote workspace sync key must not be empty",
+        ));
+    }
+    if trimmed != workspace_sync_key {
+        return Err(ValidationError::new(
+            "remote workspace sync key must not include surrounding whitespace",
+        ));
+    }
+    if trimmed.len() > REMOTE_WORKSPACE_SYNC_KEY_MAX_LEN {
+        return Err(ValidationError::new(
+            "remote workspace sync key is too long",
+        ));
+    }
+    if trimmed
+        .chars()
+        .any(|character| !(character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | ':')))
+    {
+        return Err(ValidationError::new(
+            "remote workspace sync key contains unsafe characters",
+        ));
+    }
+    Ok(trimmed.to_string())
 }
 
 fn validate_remote_admin_user(user: &str) -> Result<String, ValidationError> {
@@ -2353,6 +2410,12 @@ fn validate_remote_admin_user(user: &str) -> Result<String, ValidationError> {
 }
 
 fn validate_remote_command(command: &str) -> Result<(), ValidationError> {
+    let trimmed = command.trim();
+    if trimmed != command {
+        return Err(ValidationError::new(
+            "remote ssh command must not include surrounding whitespace",
+        ));
+    }
     if command.is_empty() {
         return Err(ValidationError::new("remote ssh command must not be empty"));
     }
@@ -2813,7 +2876,7 @@ fn parse_remote_preflight(output: &str) -> Result<RemotePreflight, ValidationErr
     let default_route_device = values
         .remove("default_route_device")
         .filter(|value| !value.is_empty())
-        .map(validate_remote_route_device)
+        .map(|value| validate_remote_route_device(&value))
         .transpose()?;
 
     Ok(RemotePreflight {
@@ -3794,6 +3857,7 @@ mod tests {
         ssh_password_mode_args, summarize_remote_ebpf_history,
         validate_leserpent_control_plane_aot_evidence, validate_remote_admin_user,
         validate_release_line, validate_remote_command, validate_remote_host,
+        validate_remote_dir, validate_remote_route_device, validate_remote_workspace_sync_key,
         validate_ssh_control_path_template,
     };
     use std::fs;
@@ -4024,6 +4088,8 @@ mod tests {
         assert!(validate_remote_host("[fd00::12]").is_ok());
         assert!(validate_remote_host("-oProxyCommand=sh").is_err());
         assert!(validate_remote_host("host; touch /tmp/pwned").is_err());
+        assert!(validate_remote_host(" builder@192.0.2.10").is_err());
+        assert!(validate_remote_host("builder@192.0.2.10 ").is_err());
     }
 
     #[test]
@@ -4034,8 +4100,31 @@ mod tests {
     }
 
     #[test]
+    fn remote_dir_rejects_unsafe_values() {
+        assert!(validate_remote_dir("~/.gewyvern-remote-runs").is_ok());
+        assert!(validate_remote_dir("/home/user/gewyvern").is_ok());
+        assert!(validate_remote_dir("gewyvern_remote/2026-01").is_ok());
+        assert!(validate_remote_dir("").is_err());
+        assert!(validate_remote_dir("   ").is_err());
+        assert!(validate_remote_dir("name;rm -rf /").is_err());
+        assert!(validate_remote_dir(&"a".repeat(300)).is_err());
+    }
+
+    #[test]
+    fn remote_workspace_sync_key_rejects_unsafe_values() {
+        assert!(validate_remote_workspace_sync_key("git:abc123").is_ok());
+        assert!(validate_remote_workspace_sync_key(&format!("git-dirty:{}", "a".repeat(64))).is_ok());
+        assert!(validate_remote_workspace_sync_key("").is_err());
+        assert!(validate_remote_workspace_sync_key("  git:abc").is_err());
+        assert!(validate_remote_workspace_sync_key("git:abc;rm -rf /").is_err());
+        assert!(validate_remote_workspace_sync_key(&"x".repeat(300)).is_err());
+    }
+
+    #[test]
     fn remote_command_rejects_embedded_controls() {
         assert!(validate_remote_command("bash -s").is_ok());
+        assert!(validate_remote_command(" bash -s").is_err());
+        assert!(validate_remote_command("bash -s ").is_err());
         assert!(validate_remote_command("-s").is_err());
         assert!(validate_remote_command(&"x".repeat(8_000)).is_ok());
         assert!(validate_remote_command(&"x".repeat(8_200)).is_err());

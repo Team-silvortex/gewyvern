@@ -11,6 +11,8 @@ const CURRENT_RUNTIME_CONFIG_SCHEMA_VERSION: usize = 1;
 const EXTERNAL_FAILURE_CIRCUIT_THRESHOLD_ENV: &str = "GEWY_EXTERNAL_FAILURE_CIRCUIT_THRESHOLD";
 const EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_ENV: &str =
     "GEWY_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS";
+const PROTOCOL_REGISTRY_ROOT_ENV: &str = "GEWY_PROTOCOL_REGISTRY_ROOT";
+const SHARE_ROOT_ENV: &str = "GEWY_SHARE_ROOT";
 const CERTIFICATE_ROOT_ENV: &str = "GEWY_CERTIFICATE_ROOT";
 const TRUST_ROOT_ENV: &str = "GEWY_TRUST_ROOT";
 const AUTHORITY_ROOT_ENV: &str = "GEWY_AUTHORITY_ROOT";
@@ -19,6 +21,7 @@ const CERTIFICATE_STATE_ROOT_ENV: &str = "GEWY_CERTIFICATE_STATE_ROOT";
 const REQUIRE_EXPLICIT_REMOTE_TRUST_ENV: &str = "GEWY_REQUIRE_EXPLICIT_REMOTE_TRUST";
 const SOCKET_FAILURE_BACKOFF_BASE_ENV: &str = "GEWY_SOCKET_FAILURE_BACKOFF_BASE_MS";
 const SOCKET_FAILURE_BACKOFF_CAP_ENV: &str = "GEWY_SOCKET_FAILURE_BACKOFF_CAP_MS";
+const RUNTIME_CONFIG_PATH_MAX_LEN: usize = 4096;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct RuntimeConfigFile {
@@ -79,7 +82,7 @@ pub(crate) fn load_runtime_config() -> Result<RuntimeConfigFile, String> {
     Ok(config)
 }
 
-pub(crate) fn apply_runtime_path_overrides(config: &RuntimeConfigFile) {
+pub(crate) fn apply_runtime_path_overrides(config: &RuntimeConfigFile) -> Result<(), String> {
     if let Some(retention) = config.history_retention
         && std::env::var_os("GEWY_HISTORY_RETENTION").is_none()
     {
@@ -90,25 +93,21 @@ pub(crate) fn apply_runtime_path_overrides(config: &RuntimeConfigFile) {
     if let Some(root) = config.protocol_registry_root.as_deref()
         && std::env::var_os("GEWY_PROTOCOL_REGISTRY_ROOT").is_none()
     {
-        unsafe {
-            std::env::set_var("GEWY_PROTOCOL_REGISTRY_ROOT", root);
-        }
+        apply_env_string_override(PROTOCOL_REGISTRY_ROOT_ENV, Some(root))?;
     }
     if let Some(root) = config.share_root.as_deref()
         && std::env::var_os("GEWY_SHARE_ROOT").is_none()
     {
-        unsafe {
-            std::env::set_var("GEWY_SHARE_ROOT", root);
-        }
+        apply_env_string_override(SHARE_ROOT_ENV, Some(root))?;
     }
-    apply_env_string_override(CERTIFICATE_ROOT_ENV, config.certificate_root.as_deref());
-    apply_env_string_override(TRUST_ROOT_ENV, config.trust_root.as_deref());
-    apply_env_string_override(AUTHORITY_ROOT_ENV, config.authority_root.as_deref());
-    apply_env_string_override(IDENTITY_ROOT_ENV, config.identity_root.as_deref());
+    apply_env_string_override(CERTIFICATE_ROOT_ENV, config.certificate_root.as_deref())?;
+    apply_env_string_override(TRUST_ROOT_ENV, config.trust_root.as_deref())?;
+    apply_env_string_override(AUTHORITY_ROOT_ENV, config.authority_root.as_deref())?;
+    apply_env_string_override(IDENTITY_ROOT_ENV, config.identity_root.as_deref())?;
     apply_env_string_override(
         CERTIFICATE_STATE_ROOT_ENV,
         config.certificate_state_root.as_deref(),
-    );
+    )?;
     if let Some(value) = config.require_explicit_remote_trust
         && std::env::var_os(REQUIRE_EXPLICIT_REMOTE_TRUST_ENV).is_none()
     {
@@ -135,16 +134,19 @@ pub(crate) fn apply_runtime_path_overrides(config: &RuntimeConfigFile) {
         SOCKET_FAILURE_BACKOFF_CAP_ENV,
         config.socket_failure_backoff_cap_ms,
     );
+    Ok(())
 }
 
-fn apply_env_string_override(key: &str, value: Option<&str>) {
+fn apply_env_string_override(key: &str, value: Option<&str>) -> Result<(), String> {
     if let Some(value) = value
         && std::env::var_os(key).is_none()
     {
+        validate_runtime_config_path_value(key, value)?;
         unsafe {
             std::env::set_var(key, value);
         }
     }
+    Ok(())
 }
 
 fn apply_env_usize_override(key: &str, value: Option<usize>) {
@@ -157,8 +159,25 @@ fn apply_env_usize_override(key: &str, value: Option<usize>) {
     }
 }
 
+fn validate_runtime_config_path_value(name: &str, value: &str) -> Result<(), String> {
+    if value.trim() != value {
+        return Err(format!("{name} must not contain leading or trailing whitespace"));
+    }
+    if value.is_empty() {
+        return Err(format!("{name} must not be empty"));
+    }
+    if value.len() > RUNTIME_CONFIG_PATH_MAX_LEN {
+        return Err(format!("{name} path is too long"));
+    }
+    if value.chars().any(|character| character.is_ascii_control()) {
+        return Err(format!("{name} contains invalid control characters"));
+    }
+    Ok(())
+}
+
 fn select_runtime_config_path() -> Option<PathBuf> {
-    if let Some(path) = std::env::var_os("GEWY_CONFIG_FILE").map(PathBuf::from) {
+    if let Some(path) = std::env::var_os("GEWY_CONFIG_FILE").and_then(validate_config_file_path)
+    {
         return Some(path);
     }
     let layout = runtime_layout();
@@ -176,6 +195,12 @@ fn select_runtime_config_path() -> Option<PathBuf> {
         return Some(legacy_named);
     }
     None
+}
+
+fn validate_config_file_path(value: std::ffi::OsString) -> Option<PathBuf> {
+    let path = value.to_str()?;
+    validate_runtime_config_path_value("GEWY_CONFIG_FILE", path).ok()?;
+    Some(PathBuf::from(path))
 }
 
 fn is_legacy_path(path: &Path) -> bool {

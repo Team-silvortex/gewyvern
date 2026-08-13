@@ -1,5 +1,5 @@
 use super::{Cli, IngestMode};
-use crate::runtime_config::{apply_runtime_path_overrides, load_runtime_config};
+use crate::runtime_config::{apply_runtime_path_overrides, load_runtime_config, RuntimeConfigFile};
 use crate::runtime_logging::LogLevel;
 use crate::{SocketTarget, cli::CliDefaults};
 use std::fs;
@@ -191,7 +191,7 @@ socket_failure_backoff_cap_ms = 2500
     assert_eq!(config.socket_failure_backoff_base_ms, Some(150));
     assert_eq!(config.socket_failure_backoff_cap_ms, Some(2500));
 
-    apply_runtime_path_overrides(&config);
+    apply_runtime_path_overrides(&config).unwrap();
     assert_eq!(
         std::env::var("GEWY_PROTOCOL_REGISTRY_ROOT").ok().as_deref(),
         Some("/srv/gewyvern/protocols")
@@ -335,6 +335,116 @@ fn runtime_config_explicit_file_overrides_standard_path() {
 }
 
 #[test]
+fn runtime_config_falls_back_when_config_file_env_is_unsafe() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("config-file-unsafe");
+    let config_root = root.join("config");
+    fs::create_dir_all(&config_root).unwrap();
+    let explicit_path = config_root.join("bad-config.toml");
+    let fallback_path = config_root.join("gewyvern.toml");
+    fs::write(
+        &fallback_path,
+        "schema_version = 1\n[runtime]\nserve = true\nmax_sessions = 17\n",
+    )
+    .unwrap();
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let unsafe_config_file = format!("{}\n", explicit_path.to_string_lossy());
+    let _config_file = EnvGuard::set("GEWY_CONFIG_FILE", unsafe_config_file);
+
+    let config = load_runtime_config().unwrap();
+    assert_eq!(config.defaults.serve, Some(true));
+    assert_eq!(config.defaults.max_sessions, Some(17));
+    assert_eq!(config.source_path.as_deref(), Some(fallback_path.as_path()));
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn runtime_config_falls_back_when_config_file_env_is_whitespace() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("config-file-whitespace");
+    let config_root = root.join("config");
+    fs::create_dir_all(&config_root).unwrap();
+    let fallback_path = config_root.join("gewyvern.toml");
+    fs::write(
+        &fallback_path,
+        "schema_version = 1\n[runtime]\nserve = true\nmax_sessions = 21\n",
+    )
+    .unwrap();
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _config_file = EnvGuard::set("GEWY_CONFIG_FILE", "   ");
+
+    let config = load_runtime_config().unwrap();
+    assert_eq!(config.defaults.serve, Some(true));
+    assert_eq!(config.defaults.max_sessions, Some(21));
+    assert_eq!(config.source_path.as_deref(), Some(fallback_path.as_path()));
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn runtime_config_falls_back_when_config_file_env_is_empty() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("config-file-empty");
+    let config_root = root.join("config");
+    fs::create_dir_all(&config_root).unwrap();
+    let fallback_path = config_root.join("gewyvern.toml");
+    fs::write(
+        &fallback_path,
+        "schema_version = 1\n[runtime]\nserve = true\nmax_sessions = 19\n",
+    )
+    .unwrap();
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _config_file = EnvGuard::set("GEWY_CONFIG_FILE", "");
+
+    let config = load_runtime_config().unwrap();
+    assert_eq!(config.defaults.serve, Some(true));
+    assert_eq!(config.defaults.max_sessions, Some(19));
+    assert_eq!(config.source_path.as_deref(), Some(fallback_path.as_path()));
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn runtime_config_falls_back_when_config_file_env_is_empty_and_api_admin_env_is_invalid() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("config-file-empty-invalid-api-admin");
+    let config_root = root.join("config");
+    fs::create_dir_all(&config_root).unwrap();
+    let fallback_path = config_root.join("gewyvern.toml");
+    fs::write(
+        &fallback_path,
+        "schema_version = 1\n[runtime]\nserve = true\nmax_sessions = 23\napi_admin_token = \"runtime-api-token-abcdefghijklmnopqrstuvwxyz\"\n",
+    )
+    .unwrap();
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _config_file = EnvGuard::set("GEWY_CONFIG_FILE", "");
+    let _api_admin_token = EnvGuard::set("GEWY_API_ADMIN_TOKEN", "short");
+
+    let config = load_runtime_config().unwrap();
+    assert_eq!(config.source_path.as_deref(), Some(fallback_path.as_path()));
+    assert_eq!(
+        config.defaults.api_admin_token.as_deref(),
+        Some("runtime-api-token-abcdefghijklmnopqrstuvwxyz")
+    );
+
+    assert_eq!(
+        crate::cli::resolve_api_admin_token(
+            config.defaults.api_admin_token.clone(),
+            std::env::var("GEWY_API_ADMIN_TOKEN").ok(),
+        )
+        .as_deref(),
+        Some("runtime-api-token-abcdefghijklmnopqrstuvwxyz")
+    );
+    assert_eq!(
+        crate::cli::resolve_api_admin_token(None, Some("short".into())),
+        None
+    );
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
 fn runtime_config_rejects_unknown_section() {
     let _lock = env_lock().lock().unwrap();
     let root = temp_dir("unknown-section");
@@ -352,6 +462,36 @@ fn runtime_config_rejects_unknown_section() {
     assert!(err.contains("unsupported runtime config section 'unknown'"));
 
     fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn runtime_config_rejects_unsafe_path_override_values() {
+    let mut config = RuntimeConfigFile::default();
+    config.certificate_root = Some("/srv/gewyvern/certs\n".to_string());
+
+    let _lock = env_lock().lock().unwrap();
+    let _certificate_root = EnvGuard::remove("GEWY_CERTIFICATE_ROOT");
+
+    let err = apply_runtime_path_overrides(&config).unwrap_err();
+    assert!(err.contains("GEWY_CERTIFICATE_ROOT"));
+    assert!(
+        err.contains("invalid control characters")
+            || err.contains("leading or trailing whitespace")
+    );
+}
+
+#[test]
+fn runtime_config_rejects_unsafe_protocol_and_share_root_path_overrides() {
+    let mut config = RuntimeConfigFile::default();
+    config.protocol_registry_root = Some("/tmp/proto\nroot".to_string());
+    config.share_root = Some(" /tmp/share".to_string());
+
+    let _lock = env_lock().lock().unwrap();
+    let _protocol_registry_root = EnvGuard::remove("GEWY_PROTOCOL_REGISTRY_ROOT");
+    let _share_root = EnvGuard::remove("GEWY_SHARE_ROOT");
+
+    let err = apply_runtime_path_overrides(&config).unwrap_err();
+    assert!(err.contains("GEWY_PROTOCOL_REGISTRY_ROOT") || err.contains("GEWY_SHARE_ROOT"));
 }
 
 #[test]

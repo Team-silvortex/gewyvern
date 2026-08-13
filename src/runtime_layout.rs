@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 const APP_DIR: &str = "gewyvern";
 const LEGACY_APP_DIR: &str = ".gewyvern";
+const RUNTIME_LAYOUT_PATH_MAX_LEN: usize = 4096;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RuntimeLayout {
@@ -90,8 +91,7 @@ pub fn protocol_registry_roots(
 
 fn env_path(key: &str) -> Option<PathBuf> {
     env::var_os(key)
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
+        .and_then(validate_runtime_layout_path)
 }
 
 fn home_dir() -> Option<PathBuf> {
@@ -110,6 +110,20 @@ fn home_dir() -> Option<PathBuf> {
             joined.push(path);
             Some(joined)
         })
+}
+
+fn validate_runtime_layout_path(value: std::ffi::OsString) -> Option<PathBuf> {
+    let value = value.to_str()?;
+    if value.trim() != value {
+        return None;
+    }
+    if value.is_empty() || value.len() > RUNTIME_LAYOUT_PATH_MAX_LEN {
+        return None;
+    }
+    if value.chars().any(|character| character.is_ascii_control()) {
+        return None;
+    }
+    Some(PathBuf::from(value))
 }
 
 #[cfg(target_os = "macos")]

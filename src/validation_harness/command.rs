@@ -392,10 +392,14 @@ mod tests {
     #[test]
     fn cargo_command_from_env_requires_path_or_default() {
         const TEST_VAR: &str = "GEWY_CARGO_VALIDATION_TEST";
-        std::env::remove_var(TEST_VAR);
+        unsafe {
+            std::env::remove_var(TEST_VAR);
+        }
         assert_eq!(cargo_command_from_env(TEST_VAR).unwrap(), "cargo");
 
-        std::env::set_var(TEST_VAR, "my-cargo");
+        unsafe {
+            std::env::set_var(TEST_VAR, "my-cargo");
+        }
         assert!(
             cargo_command_from_env(TEST_VAR).is_err(),
             "bare command names should be rejected"
@@ -403,8 +407,12 @@ mod tests {
 
         let current = std::env::current_exe().unwrap();
         let current = current.to_string_lossy().to_string();
-        std::env::set_var(TEST_VAR, &current);
+        unsafe {
+            std::env::set_var(TEST_VAR, &current);
+        }
         assert_eq!(cargo_command_from_env(TEST_VAR).unwrap(), current);
-        std::env::remove_var(TEST_VAR);
+        unsafe {
+            std::env::remove_var(TEST_VAR);
+        }
     }
 }

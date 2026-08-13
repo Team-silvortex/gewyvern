@@ -383,7 +383,7 @@ pub fn run_pathological_container_validation(
         &cfg.out_dir.join("meta-after-pathology.json"),
     )?;
 
-    let pathology_runtime_log_path = pathology_runtime_log_path();
+    let pathology_runtime_log_path = pathology_runtime_log_path()?;
     fs::write(
         cfg.out_dir.join("runtime.log"),
         read_container_file(&cfg.gw_name, pathology_runtime_log_path.as_str())
@@ -930,25 +930,40 @@ impl ThreeModuleStackConfig {
             repo_root: repo.clone(),
             image_tag: validate_docker_cli_token("IMAGE_TAG", env_string("IMAGE_TAG", "gewyvern-stack-dev"))?,
             skip_docker_build: env_bool("SKIP_DOCKER_BUILD", false),
-            docker_base_image: env_string("DOCKER_BASE_IMAGE", "ubuntu:24.04"),
-            docker_apt_mirror: env_string("DOCKER_APT_MIRROR", ""),
-            docker_rustup_init_url: env_string("DOCKER_RUSTUP_INIT_URL", "https://sh.rustup.rs"),
-            docker_rustup_init_fallback_url: env_string(
+            docker_base_image: validate_docker_cli_arg_value(
+                "DOCKER_BASE_IMAGE",
+                env_string("DOCKER_BASE_IMAGE", "ubuntu:24.04"),
+            )?,
+            docker_apt_mirror: validate_optional_docker_cli_arg_value(
+                "DOCKER_APT_MIRROR",
+                env_string("DOCKER_APT_MIRROR", ""),
+            )?,
+            docker_rustup_init_url: validate_docker_cli_arg_value(
+                "DOCKER_RUSTUP_INIT_URL",
+                env_string("DOCKER_RUSTUP_INIT_URL", "https://sh.rustup.rs"),
+            )?,
+            docker_rustup_init_fallback_url: validate_docker_cli_arg_value(
                 "DOCKER_RUSTUP_INIT_FALLBACK_URL",
-                "https://sh.rustup.rs",
-            ),
-            docker_rustup_dist_server: env_string(
+                env_string(
+                    "DOCKER_RUSTUP_INIT_FALLBACK_URL",
+                    "https://sh.rustup.rs",
+                ),
+            )?,
+            docker_rustup_dist_server: validate_docker_cli_arg_value(
                 "DOCKER_RUSTUP_DIST_SERVER",
-                "https://static.rust-lang.org",
-            ),
-            docker_rustup_update_root: env_string(
+                env_string("DOCKER_RUSTUP_DIST_SERVER", "https://static.rust-lang.org"),
+            )?,
+            docker_rustup_update_root: validate_docker_cli_arg_value(
                 "DOCKER_RUSTUP_UPDATE_ROOT",
-                "https://static.rust-lang.org/rustup",
-            ),
-            docker_rustup_install_timeout_seconds: env_string(
+                env_string(
+                    "DOCKER_RUSTUP_UPDATE_ROOT",
+                    "https://static.rust-lang.org/rustup",
+                ),
+            )?,
+            docker_rustup_install_timeout_seconds: validate_docker_cli_arg_value(
                 "DOCKER_RUSTUP_INSTALL_TIMEOUT_SECONDS",
-                "600",
-            ),
+                env_string("DOCKER_RUSTUP_INSTALL_TIMEOUT_SECONDS", "600"),
+            )?,
             network_name: validate_docker_cli_token(
                 "NETWORK_NAME",
                 env_string("NETWORK_NAME", &format!("gewyvern-stack-net-{unique}")),
@@ -1058,25 +1073,40 @@ impl PathologyConfig {
             repo_root: repo.clone(),
             image_tag: validate_docker_cli_token("IMAGE_TAG", env_string("IMAGE_TAG", "gewyvern-stack-dev"))?,
             skip_docker_build: env_bool("SKIP_DOCKER_BUILD", false),
-            docker_base_image: env_string("DOCKER_BASE_IMAGE", "ubuntu:24.04"),
-            docker_apt_mirror: env_string("DOCKER_APT_MIRROR", ""),
-            docker_rustup_init_url: env_string("DOCKER_RUSTUP_INIT_URL", "https://sh.rustup.rs"),
-            docker_rustup_init_fallback_url: env_string(
+            docker_base_image: validate_docker_cli_arg_value(
+                "DOCKER_BASE_IMAGE",
+                env_string("DOCKER_BASE_IMAGE", "ubuntu:24.04"),
+            )?,
+            docker_apt_mirror: validate_optional_docker_cli_arg_value(
+                "DOCKER_APT_MIRROR",
+                env_string("DOCKER_APT_MIRROR", ""),
+            )?,
+            docker_rustup_init_url: validate_docker_cli_arg_value(
+                "DOCKER_RUSTUP_INIT_URL",
+                env_string("DOCKER_RUSTUP_INIT_URL", "https://sh.rustup.rs"),
+            )?,
+            docker_rustup_init_fallback_url: validate_docker_cli_arg_value(
                 "DOCKER_RUSTUP_INIT_FALLBACK_URL",
-                "https://sh.rustup.rs",
-            ),
-            docker_rustup_dist_server: env_string(
+                env_string(
+                    "DOCKER_RUSTUP_INIT_FALLBACK_URL",
+                    "https://sh.rustup.rs",
+                ),
+            )?,
+            docker_rustup_dist_server: validate_docker_cli_arg_value(
                 "DOCKER_RUSTUP_DIST_SERVER",
-                "https://static.rust-lang.org",
-            ),
-            docker_rustup_update_root: env_string(
+                env_string("DOCKER_RUSTUP_DIST_SERVER", "https://static.rust-lang.org"),
+            )?,
+            docker_rustup_update_root: validate_docker_cli_arg_value(
                 "DOCKER_RUSTUP_UPDATE_ROOT",
-                "https://static.rust-lang.org/rustup",
-            ),
-            docker_rustup_install_timeout_seconds: env_string(
+                env_string(
+                    "DOCKER_RUSTUP_UPDATE_ROOT",
+                    "https://static.rust-lang.org/rustup",
+                ),
+            )?,
+            docker_rustup_install_timeout_seconds: validate_docker_cli_arg_value(
                 "DOCKER_RUSTUP_INSTALL_TIMEOUT_SECONDS",
-                "600",
-            ),
+                env_string("DOCKER_RUSTUP_INSTALL_TIMEOUT_SECONDS", "600"),
+            )?,
             network_name: validate_docker_cli_token(
                 "NETWORK_NAME",
                 env_string("NETWORK_NAME", &format!("gewyvern-pathology-net-{unique}")),
@@ -1145,8 +1175,8 @@ impl FtpDeniedValidationConfig {
                 })?,
                 Err(_) => find_free_loopback_port()?,
             },
-            username: env_string("FTP_DENIED_USER", "demo"),
-            password: env_string("FTP_DENIED_PASS", "demo"),
+            username: validate_docker_cli_arg_value("FTP_DENIED_USER", env_string("FTP_DENIED_USER", "demo"))?,
+            password: validate_docker_cli_arg_value("FTP_DENIED_PASS", env_string("FTP_DENIED_PASS", "demo"))?,
             out_dir: out_dir.unwrap_or_else(|| default_out_dir("ftp-denied-container")),
         })
     }
@@ -1175,9 +1205,18 @@ impl LdapBindDeniedValidationConfig {
                 })?,
                 Err(_) => find_free_loopback_port()?,
             },
-            admin_dn: env_string("LDAP_BIND_DENIED_ADMIN_DN", "cn=admin,dc=example,dc=org"),
-            admin_password: env_string("LDAP_BIND_DENIED_ADMIN_PASSWORD", "admin"),
-            search_base: env_string("LDAP_BIND_DENIED_BASE", "dc=example,dc=org"),
+            admin_dn: validate_docker_cli_arg_value(
+                "LDAP_BIND_DENIED_ADMIN_DN",
+                env_string("LDAP_BIND_DENIED_ADMIN_DN", "cn=admin,dc=example,dc=org"),
+            )?,
+            admin_password: validate_docker_cli_arg_value(
+                "LDAP_BIND_DENIED_ADMIN_PASSWORD",
+                env_string("LDAP_BIND_DENIED_ADMIN_PASSWORD", "admin"),
+            )?,
+            search_base: validate_docker_cli_arg_value(
+                "LDAP_BIND_DENIED_BASE",
+                env_string("LDAP_BIND_DENIED_BASE", "dc=example,dc=org"),
+            )?,
             out_dir: out_dir.unwrap_or_else(|| default_out_dir("ldap-bind-denied-container")),
         })
     }
@@ -1425,8 +1464,8 @@ fn start_etragon_container(
     target_cache_dir: &Path,
 ) -> Result<(), ValidationError> {
     let gw_a_name = shell_single_quote(&cfg.gw_a_name);
-    let etragon_online_state_path = shell_single_quote(&etragon_online_state_path());
-    let etragon_daemon_state_path = shell_single_quote(&etragon_daemon_state_path());
+    let etragon_online_state_path = shell_single_quote(&etragon_online_state_path()?);
+    let etragon_daemon_state_path = shell_single_quote(&etragon_daemon_state_path()?);
 
     let _ = Command::new("docker")
         .args(["rm", "-f", &cfg.et_a_name])
@@ -1470,32 +1509,29 @@ fn start_etragon_container(
     run_command(&mut command, "failed to start etragon container")
 }
 
-fn pathology_runtime_log_path() -> String {
-    env::var("GEWY_PATHOLOGY_RUNTIME_LOG")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| "/tmp/pathology-runtime.log".to_string())
+fn pathology_runtime_log_path() -> Result<String, ValidationError> {
+    env_optional_docker_cli_arg_value("GEWY_PATHOLOGY_RUNTIME_LOG", "/tmp/pathology-runtime.log")
 }
 
-fn etragon_online_state_path() -> String {
-    env::var("GEWY_ETRAGON_ONLINE_STATE_PATH")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| "/tmp/etragon-online-state.json".to_string())
+fn etragon_online_state_path() -> Result<String, ValidationError> {
+    env_docker_cli_arg_value(
+        "GEWY_ETRAGON_ONLINE_STATE_PATH",
+        "/tmp/etragon-online-state.json",
+    )
 }
 
-fn etragon_daemon_state_path() -> String {
-    env::var("GEWY_ETRAGON_DAEMON_STATE_PATH")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| "/tmp/etragon-daemon-state.json".to_string())
+fn etragon_daemon_state_path() -> Result<String, ValidationError> {
+    env_docker_cli_arg_value(
+        "GEWY_ETRAGON_DAEMON_STATE_PATH",
+        "/tmp/etragon-daemon-state.json",
+    )
 }
 
 fn start_pathology_runtime(
     cfg: &PathologyConfig,
     target_cache_dir: &Path,
 ) -> Result<(), ValidationError> {
-    let pathology_runtime_log_path = shell_single_quote(&pathology_runtime_log_path());
+    let pathology_runtime_log_path = shell_single_quote(&pathology_runtime_log_path()?);
 
     let _ = Command::new("docker")
         .args(["rm", "-f", &cfg.gw_name])
@@ -1667,9 +1703,9 @@ fn inject_socket_bad_json(container_name: &str, count: usize) -> Result<(), Vali
             .arg(container_name)
             .arg("bash")
             .arg("-lc")
-            .arg(format!(
-                "set -euo pipefail\nfor _ in $(seq 1 \"$GEWY_MALFORMED_SOCKET_COUNT\"); do exec 3<>/dev/tcp/127.0.0.1/9000; printf '{\"bad\":\"json\"\\n' >&3 || true; exec 3>&-; exec 3<&-; done"
-            ))
+            .arg(
+                "set -euo pipefail\nfor _ in $(seq 1 \"$GEWY_MALFORMED_SOCKET_COUNT\"); do exec 3<>/dev/tcp/127.0.0.1/9000; printf '{\"bad\":\"json\"\\n' >&3 || true; exec 3>&-; exec 3<&-; done",
+            )
             .env("GEWY_MALFORMED_SOCKET_COUNT", &count),
         "failed to inject malformed socket payloads",
     )
@@ -2165,7 +2201,7 @@ fn detect_default_route_device() -> Result<String, ValidationError> {
         .ok_or_else(|| {
             ValidationError::new("failed to detect default route device: missing field".to_string())
         })?;
-    Ok(device)
+    Ok(device.to_string())
 }
 
 fn read_container_file(container_name: &str, path: &str) -> Result<String, ValidationError> {
@@ -2270,6 +2306,50 @@ fn validate_docker_cli_token(name: &str, value: String) -> Result<String, Valida
         )));
     }
     Ok(value)
+}
+
+fn validate_docker_cli_arg_value(name: &str, value: String) -> Result<String, ValidationError> {
+    if value.trim() != value {
+        return Err(ValidationError::new(format!(
+            "{name} must not contain leading or trailing whitespace"
+        )));
+    }
+    if value.is_empty() {
+        return Err(ValidationError::new(format!("{name} must not be empty")));
+    }
+    if value.len() > 4096 {
+        return Err(ValidationError::new(format!(
+            "{name} is too long for a docker CLI argument value"
+        )));
+    }
+    if value.chars().any(|c| c.is_ascii_control() || c.is_ascii_whitespace()) {
+        return Err(ValidationError::new(format!(
+            "{name} must not contain control or whitespace characters"
+        )));
+    }
+    Ok(value)
+}
+
+fn validate_optional_docker_cli_arg_value(
+    name: &str,
+    value: String,
+) -> Result<String, ValidationError> {
+    if value.is_empty() {
+        return Ok(value);
+    }
+    validate_docker_cli_arg_value(name, value)
+}
+
+fn env_docker_cli_arg_value(name: &str, default: &str) -> Result<String, ValidationError> {
+    validate_docker_cli_arg_value(name, env::var(name).unwrap_or_else(|_| default.to_string()))
+}
+
+fn env_optional_docker_cli_arg_value(
+    name: &str,
+    default: &str,
+) -> Result<String, ValidationError> {
+    let value = env::var(name).unwrap_or_else(|_| default.to_string());
+    validate_optional_docker_cli_arg_value(name, value)
 }
 
 fn env_admin_token(name: &str, default: &str) -> Result<String, ValidationError> {

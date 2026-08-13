@@ -615,8 +615,13 @@ fn package_from_manifest(
 }
 
 fn validate_container_image(name: &str, value: &str) -> Result<String, ValidationError> {
-    let value = value.trim();
-    if value.is_empty() {
+    let trimmed = value.trim();
+    if trimmed != value {
+        return Err(ValidationError::new(format!(
+            "{name} must not have surrounding whitespace"
+        )));
+    }
+    if trimmed.is_empty() {
         return Err(ValidationError::new(format!(
             "{name} must not be empty"
         )));

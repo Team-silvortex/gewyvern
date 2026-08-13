@@ -633,7 +633,7 @@ fn cli_accepts_remote_api_socket_with_explicit_flag() {
         "--api-socket".to_string(),
         "0.0.0.0:9100".to_string(),
         "--api-admin-token".to_string(),
-        "secret-token".to_string(),
+        "this_is_a_valid_admin_token_32_ch".to_string(),
         "--allow-remote-api".to_string(),
     ])
     .unwrap();
@@ -659,6 +659,8 @@ fn cli_rejects_remote_api_socket_without_admin_token() {
 #[test]
 fn cli_rejects_invalid_api_admin_token() {
     let err = Cli::from_args([
+        "--tcp-socket".to_string(),
+        "127.0.0.1:9000".to_string(),
         "--api-admin-token".to_string(),
         "short".to_string(),
         "--serve".to_string(),
@@ -667,14 +669,35 @@ fn cli_rejects_invalid_api_admin_token() {
     ])
     .unwrap_err();
     assert!(
-        err.contains("invalid api_admin_token")
-            || err.contains("32-256")
-            || err.contains("--api-admin-token")
+        err.contains("--api-admin-token is invalid; use 32-256 non-whitespace characters")
+            || err.contains("--api-admin-token is invalid")
+    );
+}
+
+#[test]
+fn cli_rejects_api_admin_token_with_control_characters() {
+    let err = Cli::from_args([
+        "--tcp-socket".to_string(),
+        "127.0.0.1:9000".to_string(),
+        "--api-admin-token".to_string(),
+        "valid_admin_token_with_control_\u{0007}_characters__xxyyzz".to_string(),
+        "--serve".to_string(),
+        "--api-socket".to_string(),
+        "127.0.0.1:9100".to_string(),
+    ])
+    .unwrap_err();
+    assert!(
+        err.contains("--api-admin-token is invalid; use 32-256 non-whitespace characters")
+            || err.contains("--api-admin-token is invalid")
     );
 }
 
 #[test]
 fn api_admin_token_resolution_accepts_environment_and_prefers_configuration() {
+    assert_eq!(
+        crate::cli::resolve_api_admin_token(None, Some("bad\u{0007}token".into())),
+        None
+    );
     assert_eq!(
         crate::cli::resolve_api_admin_token(
             None,

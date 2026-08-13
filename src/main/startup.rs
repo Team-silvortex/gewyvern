@@ -18,7 +18,10 @@ pub(crate) fn bootstrap_cli(args: Vec<String>) -> Cli {
         eprintln!("{message}");
         std::process::exit(2);
     });
-    apply_runtime_path_overrides(&runtime_config);
+    apply_runtime_path_overrides(&runtime_config).unwrap_or_else(|message| {
+        eprintln!("{message}");
+        std::process::exit(2);
+    });
     if let Some(exit_code) = try_run_certificate_state_command(&args) {
         std::process::exit(exit_code);
     }

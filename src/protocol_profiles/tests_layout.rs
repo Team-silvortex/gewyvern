@@ -75,3 +75,79 @@ fn explicit_protocol_registry_root_stays_highest_priority() {
     assert_eq!(roots[0], PathBuf::from("/tmp/custom-registry"));
     assert_eq!(roots[1], PathBuf::from("/tmp/gewy-data/protocols"));
 }
+
+#[test]
+fn protocol_registry_root_rejects_invalid_env_path() {
+    let _lock = super::tests_env::lock();
+    let _registry = EnvGuard::set("GEWY_PROTOCOL_REGISTRY_ROOT", "/tmp/custom-registry\n");
+    let _data = EnvGuard::set("GEWY_DATA_HOME", "/tmp/gewy-data");
+    let _home = EnvGuard::set("HOME", "/tmp/gewy-home");
+
+    let roots = protocol_registry_roots(
+        Path::new("/repo/protocols"),
+        Path::new("/usr/share/gewyvern"),
+    );
+
+    assert_ne!(roots[0], PathBuf::from("/tmp/custom-registry\n"));
+    assert_eq!(roots[0], PathBuf::from("/tmp/gewy-data/protocols"));
+}
+
+#[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+#[test]
+fn runtime_layout_defaults_when_xdg_home_env_is_unsafe() {
+    let _lock = super::tests_env::lock();
+    let _bad_config = EnvGuard::set("XDG_CONFIG_HOME", "/tmp/config\nbad");
+    let _bad_data = EnvGuard::set("XDG_DATA_HOME", " /tmp/data");
+    let _bad_state = EnvGuard::set("XDG_STATE_HOME", "/tmp/state\n");
+    let _bad_cache = EnvGuard::set("XDG_CACHE_HOME", "");
+    let _home = EnvGuard::set("HOME", "/tmp/gewy-home");
+
+    let layout = runtime_layout();
+
+    assert_eq!(layout.config_root, PathBuf::from("/tmp/gewy-home/.config/gewyvern"));
+    assert_eq!(layout.data_root, PathBuf::from("/tmp/gewy-home/.local/share/gewyvern"));
+    assert_eq!(layout.state_root, PathBuf::from("/tmp/gewy-home/.local/state/gewyvern"));
+    assert_eq!(layout.cache_root, PathBuf::from("/tmp/gewy-home/.cache/gewyvern"));
+}
+
+#[cfg(target_os = "windows")]
+#[test]
+fn runtime_layout_defaults_when_windows_env_is_unsafe() {
+    let _lock = super::tests_env::lock();
+    let _bad_config = EnvGuard::set("APPDATA", "C:\\Windows\\System32\n");
+    let _bad_local = EnvGuard::set("LOCALAPPDATA", " /tmp/localapp");
+
+    let layout = runtime_layout();
+
+    assert_eq!(layout.config_root, PathBuf::from(".\\gewyvern\\config"));
+    assert_eq!(layout.data_root, PathBuf::from(".\\gewyvern\\data"));
+    assert_eq!(layout.state_root, PathBuf::from(".\\gewyvern\\state"));
+    assert_eq!(layout.cache_root, PathBuf::from(".\\gewyvern\\cache"));
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn runtime_layout_defaults_when_macos_env_is_unsafe() {
+    let _lock = super::tests_env::lock();
+    let _home = EnvGuard::set("HOME", "/tmp/gewy-home");
+    let _bad_data = EnvGuard::set("GEWY_DATA_HOME", "/tmp/data\n");
+    let _bad_state = EnvGuard::set("GEWY_STATE_HOME", "");
+    let _bad_cache = EnvGuard::set("GEWY_CACHE_HOME", "/tmp/cache\n");
+    let _bad_config = EnvGuard::set("GEWY_CONFIG_HOME", " /tmp/config");
+
+    let layout = runtime_layout();
+
+    assert_eq!(
+        layout.config_root,
+        PathBuf::from("/tmp/gewy-home/Library/Application Support/gewyvern/config")
+    );
+    assert_eq!(
+        layout.data_root,
+        PathBuf::from("/tmp/gewy-home/Library/Application Support/gewyvern/data")
+    );
+    assert_eq!(
+        layout.state_root,
+        PathBuf::from("/tmp/gewy-home/Library/Application Support/gewyvern/state")
+    );
+    assert_eq!(layout.cache_root, PathBuf::from("/tmp/gewy-home/Library/Caches/gewyvern"));
+}

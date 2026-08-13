@@ -415,7 +415,7 @@ fn validate_external_engine_command(command: &str) -> Result<String, ValidationE
         ch.is_whitespace() || matches!(ch, ';' | '&' | '|' | '`' | '$' | '<' | '>' | '(' | ')')
     }) {
         return Err(ValidationError::new(
-            "--engine-cmd/EXTERNAL_ENGINE_CMD now accepts only one executable path; the analysis URL is passed as argv[1]",
+            "external engine command must be a single executable path; --engine-cmd/EXTERNAL_ENGINE_CMD only accepts one executable path and the analysis URL is passed as argv[1]",
         ));
     }
     let metadata = fs::metadata(trimmed)
