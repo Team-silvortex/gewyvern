@@ -138,6 +138,8 @@ pub fn write_rotation_record(
     updated_unix_ms: Option<i128>,
     note: Option<&str>,
 ) -> Result<(), String> {
+    let relative_path = validate_record_relative_path(relative_path)?;
+    let note = sanitize_record_note(note)?;
     let layout = runtime_layout();
     fs::create_dir_all(&layout.certificate_state_root).map_err(|err| {
         format!(
@@ -149,24 +151,25 @@ pub fn write_rotation_record(
     upsert_rotation_record(
         &mut state.rotation_records,
         CertificateRotationRecord {
-            relative_path: relative_path.trim().to_string(),
+            relative_path,
             status,
             due_unix_ms,
             last_rotated_unix_ms,
             updated_unix_ms,
-            note: note.map(|value| value.trim().to_string()),
+            note,
         },
     );
     write_rotation_records_file(&state.rotation_records_path, &state.rotation_records)
 }
 
 pub fn remove_rotation_record(relative_path: &str) -> Result<bool, String> {
+    let relative_path = validate_record_relative_path(relative_path)?;
     let layout = runtime_layout();
     let mut state = runtime_certificate_state_from_layout(layout);
     let before = state.rotation_records.len();
     state
         .rotation_records
-        .retain(|record| record.relative_path != relative_path.trim());
+        .retain(|record| record.relative_path != relative_path);
     let changed = state.rotation_records.len() != before;
     if changed {
         write_rotation_records_file(&state.rotation_records_path, &state.rotation_records)?;
@@ -182,6 +185,8 @@ pub fn write_revocation_record(
     updated_unix_ms: Option<i128>,
     note: Option<&str>,
 ) -> Result<(), String> {
+    let relative_path = validate_record_relative_path(relative_path)?;
+    let note = sanitize_record_note(note)?;
     let layout = runtime_layout();
     fs::create_dir_all(&layout.certificate_state_root).map_err(|err| {
         format!(
@@ -193,24 +198,25 @@ pub fn write_revocation_record(
     upsert_revocation_record(
         &mut state.revocation_records,
         CertificateRevocationRecord {
-            relative_path: relative_path.trim().to_string(),
+            relative_path,
             scope,
             status,
             effective_unix_ms,
             updated_unix_ms,
-            note: note.map(|value| value.trim().to_string()),
+            note,
         },
     );
     write_revocation_records_file(&state.revocation_records_path, &state.revocation_records)
 }
 
 pub fn remove_revocation_record(relative_path: &str) -> Result<bool, String> {
+    let relative_path = validate_record_relative_path(relative_path)?;
     let layout = runtime_layout();
     let mut state = runtime_certificate_state_from_layout(layout);
     let before = state.revocation_records.len();
     state
         .revocation_records
-        .retain(|record| record.relative_path != relative_path.trim());
+        .retain(|record| record.relative_path != relative_path);
     let changed = state.revocation_records.len() != before;
     if changed {
         write_revocation_records_file(&state.revocation_records_path, &state.revocation_records)?;
@@ -247,9 +253,13 @@ fn read_rotation_records(path: &Path) -> Vec<CertificateRotationRecord> {
         if fields.len() < 5 {
             continue;
         }
+        let status = match parse_rotation_status(fields[1]) {
+            Some(status) => status,
+            None => continue,
+        };
         records.push(CertificateRotationRecord {
             relative_path: fields[0].trim().to_string(),
-            status: parse_rotation_status(fields[1]),
+            status,
             due_unix_ms: parse_optional_i128(fields[2]),
             last_rotated_unix_ms: parse_optional_i128(fields[3]),
             updated_unix_ms: parse_optional_i128(fields[4]),
@@ -274,10 +284,18 @@ fn read_revocation_records(path: &Path) -> Vec<CertificateRevocationRecord> {
         if fields.len() < 5 {
             continue;
         }
+        let scope = match parse_material_scope(fields[1]) {
+            Some(scope) => scope,
+            None => continue,
+        };
+        let status = match parse_revocation_status(fields[2]) {
+            Some(status) => status,
+            None => continue,
+        };
         records.push(CertificateRevocationRecord {
             relative_path: fields[0].trim().to_string(),
-            scope: parse_material_scope(fields[1]),
-            status: parse_revocation_status(fields[2]),
+            scope,
+            status,
             effective_unix_ms: parse_optional_i128(fields[3]),
             updated_unix_ms: parse_optional_i128(fields[4]),
             note: fields.get(5).map(|value| value.trim().to_string()),
@@ -287,30 +305,67 @@ fn read_revocation_records(path: &Path) -> Vec<CertificateRevocationRecord> {
     records
 }
 
-fn parse_rotation_status(value: &str) -> CertificateRotationStatus {
+fn parse_rotation_status(value: &str) -> Option<CertificateRotationStatus> {
     match value.trim() {
-        "due" => CertificateRotationStatus::Due,
-        "overdue" => CertificateRotationStatus::Overdue,
-        "error" => CertificateRotationStatus::Error,
-        _ => CertificateRotationStatus::Active,
+        "active" => Some(CertificateRotationStatus::Active),
+        "due" => Some(CertificateRotationStatus::Due),
+        "overdue" => Some(CertificateRotationStatus::Overdue),
+        "error" => Some(CertificateRotationStatus::Error),
+        _ => None,
     }
 }
 
-fn parse_revocation_status(value: &str) -> CertificateRevocationStatus {
+fn parse_revocation_status(value: &str) -> Option<CertificateRevocationStatus> {
     match value.trim() {
-        "distrusted" => CertificateRevocationStatus::Distrusted,
-        "cleared" => CertificateRevocationStatus::Cleared,
-        _ => CertificateRevocationStatus::Revoked,
+        "revoked" => Some(CertificateRevocationStatus::Revoked),
+        "distrusted" => Some(CertificateRevocationStatus::Distrusted),
+        "cleared" => Some(CertificateRevocationStatus::Cleared),
+        _ => None,
     }
 }
 
-fn parse_material_scope(value: &str) -> CertificateMaterialScope {
+fn parse_material_scope(value: &str) -> Option<CertificateMaterialScope> {
     match value.trim() {
-        "trust" => CertificateMaterialScope::Trust,
-        "authority" => CertificateMaterialScope::Authority,
-        "identity" => CertificateMaterialScope::Identity,
-        _ => CertificateMaterialScope::Other,
+        "trust" => Some(CertificateMaterialScope::Trust),
+        "authority" => Some(CertificateMaterialScope::Authority),
+        "identity" => Some(CertificateMaterialScope::Identity),
+        "other" => Some(CertificateMaterialScope::Other),
+        _ => None,
     }
+}
+
+fn validate_record_relative_path(value: &str) -> Result<String, String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err("relative path must not be empty".into());
+    }
+    if trimmed.starts_with('/') {
+        return Err("relative path must be relative".into());
+    }
+    if trimmed.contains('\\') {
+        return Err("relative path must not contain backslash".into());
+    }
+    if trimmed.chars().any(|ch| ch.is_control()) {
+        return Err("relative path must not contain control characters".into());
+    }
+    for segment in trimmed.split('/') {
+        if segment.is_empty() || segment == "." || segment == ".." {
+            return Err("relative path contains invalid segment".into());
+        }
+    }
+    Ok(trimmed.to_string())
+}
+
+fn sanitize_record_note(note: Option<&str>) -> Result<Option<String>, String> {
+    note.map(|value| {
+        let trimmed = value.trim();
+        if trimmed.chars().any(|ch| ch.is_control()) {
+            Err("note contains control characters".into())
+        } else {
+            Ok(trimmed.to_string())
+        }
+    })
+    .transpose()
 }
 
 fn parse_optional_i128(value: &str) -> Option<i128> {

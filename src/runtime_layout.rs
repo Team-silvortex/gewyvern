@@ -96,20 +96,29 @@ fn env_path(key: &str) -> Option<PathBuf> {
 
 fn home_dir() -> Option<PathBuf> {
     env::var_os("HOME")
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
+        .and_then(validate_runtime_home_var)
         .or_else(|| {
             env::var_os("USERPROFILE")
-                .filter(|value| !value.is_empty())
-                .map(PathBuf::from)
+                .and_then(validate_runtime_home_var)
         })
         .or_else(|| {
             let drive = env::var_os("HOMEDRIVE")?;
             let path = env::var_os("HOMEPATH")?;
+            let drive = validate_runtime_home_var(drive)?;
+            let path = validate_runtime_home_var(path)?;
             let mut joined = PathBuf::from(drive);
             joined.push(path);
             Some(joined)
         })
+}
+
+fn validate_runtime_home_var(value: std::ffi::OsString) -> Option<PathBuf> {
+    let value = value.to_str()?;
+    if value.trim() != value || value.is_empty() || value.len() > RUNTIME_LAYOUT_PATH_MAX_LEN || value.chars().any(|character| character.is_control())
+    {
+        return None;
+    }
+    Some(PathBuf::from(value))
 }
 
 fn validate_runtime_layout_path(value: std::ffi::OsString) -> Option<PathBuf> {

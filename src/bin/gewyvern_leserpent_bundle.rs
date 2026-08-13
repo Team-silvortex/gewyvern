@@ -239,7 +239,7 @@ fn resolve_daemon_payload(
     let candidates = if let Some(configured_daemon) = configured {
         vec![configured_daemon.to_path_buf()]
     } else {
-        discover_daemon_payload_candidates(publish_directory)
+        discover_daemon_payload_candidates(publish_directory)?
     };
 
     for candidate in candidates {
@@ -257,7 +257,7 @@ fn resolve_daemon_payload(
     ))
 }
 
-fn discover_daemon_payload_candidates(publish_directory: &Path) -> Vec<PathBuf> {
+fn discover_daemon_payload_candidates(publish_directory: &Path) -> Result<Vec<PathBuf>, String> {
     let mut candidates = vec![publish_directory.join(DAEMON_EXECUTABLE)];
 
     let manifest_root = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -273,7 +273,7 @@ fn discover_daemon_payload_candidates(publish_directory: &Path) -> Vec<PathBuf> 
     if let Ok(explicit) = std::env::var("LESERPENT_DAEMON_TARGET")
         && !explicit.trim().is_empty()
     {
-        triples.push(explicit);
+        triples.push(validate_leserpent_daemon_target(explicit.trim())?);
     }
 
     let host_triple = match std::env::consts::ARCH {
@@ -306,7 +306,28 @@ fn discover_daemon_payload_candidates(publish_directory: &Path) -> Vec<PathBuf> 
         }
     }
 
-    candidates
+    Ok(candidates)
+}
+
+fn validate_leserpent_daemon_target(target: &str) -> Result<String, String> {
+    if target.is_empty() || target.len() > 64 {
+        return Err("--daemon target identifier is invalid".to_string());
+    }
+    if target.chars().any(char::is_control) || target.contains('/') || target.contains('\\') {
+        return Err(
+            "LESERPENT_DAEMON_TARGET must not include control or filesystem path characters".to_string(),
+        );
+    }
+    if !target
+        .chars()
+        .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.'))
+        || target.starts_with('-')
+    {
+        return Err(
+            "LESERPENT_DAEMON_TARGET must contain only ASCII letters, digits, '-' '_' '.'".to_string(),
+        );
+    }
+    Ok(target.to_string())
 }
 
 fn require_directory(path: &Path, label: &str) -> Result<(), String> {
@@ -706,5 +727,16 @@ mod tests {
                 .contains("refusing to replace")
         );
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn validates_leserpent_daemon_target_identifier() {
+        assert!(validate_leserpent_daemon_target("aarch64-apple-darwin").is_ok());
+        assert!(validate_leserpent_daemon_target("x86_64-apple-darwin").is_ok());
+        assert!(validate_leserpent_daemon_target("bad/target").is_err());
+        assert!(validate_leserpent_daemon_target("../escape").is_err());
+        assert!(validate_leserpent_daemon_target("-invalid").is_err());
+        assert!(validate_leserpent_daemon_target("abc$def").is_err());
+        assert!(validate_leserpent_daemon_target("x".repeat(65).as_str()).is_err());
     }
 }

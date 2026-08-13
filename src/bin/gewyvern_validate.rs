@@ -74,6 +74,7 @@ const TOP_LEVEL_COMMANDS: &[&str] = &[
     "training-roundtrip",
 ];
 const JSON_SCHEMA_VERSION: u32 = 1;
+const CLI_SOCKET_TARGET_MAX_LEN: usize = 4096;
 
 fn listed_commands() -> Vec<&'static str> {
     let mut commands = TOP_LEVEL_COMMANDS
@@ -913,12 +914,18 @@ fn parse_options(args: Vec<String>) -> Result<Options, ValidationError> {
                 let value = iter
                     .next()
                     .ok_or_else(|| ValidationError::new("--socket-target requires a value"))?;
+                validate_cli_socket_target("socket-target", &value)?;
                 socket_target = Some(value);
             }
             "--socket-kind" => {
                 let value = iter
                     .next()
                     .ok_or_else(|| ValidationError::new("--socket-kind requires a value"))?;
+                if !matches!(value.as_str(), "unix" | "tcp") {
+                    return Err(ValidationError::new(
+                        "--socket-kind must be `unix` or `tcp`",
+                    ));
+                }
                 socket_kind = Some(value);
             }
             "--template" => {
@@ -945,6 +952,12 @@ fn parse_options(args: Vec<String>) -> Result<Options, ValidationError> {
                 )));
             }
         }
+    }
+
+    if matches!(socket_kind.as_deref(), Some("tcp")) && socket_target.is_none() {
+        return Err(ValidationError::new(
+            "--socket-target is required when --socket-kind is tcp",
+        ));
     }
 
     Ok(Options {
@@ -982,6 +995,28 @@ fn require_string_option(value: Option<String>, name: &str) -> Result<String, Va
 
 fn require_u16_option(value: Option<u16>, name: &str) -> Result<u16, ValidationError> {
     value.ok_or_else(|| ValidationError::new(format!("{name} is required")))
+}
+
+fn validate_cli_socket_target(name: &str, value: &str) -> Result<(), ValidationError> {
+    if value.trim() != value {
+        return Err(ValidationError::new(format!(
+            "{name} must not contain leading or trailing whitespace"
+        )));
+    }
+    if value.is_empty() {
+        return Err(ValidationError::new(format!("{name} must not be empty")));
+    }
+    if value.len() > CLI_SOCKET_TARGET_MAX_LEN {
+        return Err(ValidationError::new(format!(
+            "{name} is too long for a command-line socket target"
+        )));
+    }
+    if value.bytes().any(|byte| byte.is_ascii_control()) {
+        return Err(ValidationError::new(format!(
+            "{name} must not contain control characters"
+        )));
+    }
+    Ok(())
 }
 
 fn parse_release_check_mode(
@@ -3175,6 +3210,48 @@ mod tests {
             vec![
                 "next-step: rerun on Linux with sudo or equivalent BPF privileges, for example `sudo cargo run --quiet --bin gewyvern_validate -- linux-attach-smoke`",
             ]
+        );
+    }
+
+    #[test]
+    fn parse_options_rejects_invalid_socket_kind() {
+        let err = match parse_options(vec!["--socket-kind".into(), "udp".into()]) {
+            Ok(_) => panic!("invalid socket kind should be rejected"),
+            Err(err) => err,
+        };
+        assert_eq!(
+            err.to_string(),
+            "--socket-kind must be `unix` or `tcp`"
+        );
+    }
+
+    #[test]
+    fn parse_options_rejects_malformed_socket_target() {
+        let err = match parse_options(vec!["--socket-target".into(), " \t/tmp/test.sock ".into()]) {
+            Ok(_) => panic!("socket target with surrounding whitespace should be rejected"),
+            Err(err) => err,
+        };
+        assert_eq!(
+            err.to_string(),
+            "socket-target must not contain leading or trailing whitespace"
+        );
+
+        let err = match parse_options(vec!["--socket-target".into(), "tcp\n127.0.0.1:8080".into()]) {
+            Ok(_) => panic!("socket target with control character should be rejected"),
+            Err(err) => err,
+        };
+        assert_eq!(err.to_string(), "socket-target must not contain control characters");
+    }
+
+    #[test]
+    fn parse_options_rejects_tcp_without_socket_target() {
+        let err = match parse_options(vec!["--socket-kind".into(), "tcp".into()]) {
+            Ok(_) => panic!("tcp socket kind without target should be rejected"),
+            Err(err) => err,
+        };
+        assert_eq!(
+            err.to_string(),
+            "--socket-target is required when --socket-kind is tcp"
         );
     }
 }

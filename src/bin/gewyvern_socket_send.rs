@@ -11,6 +11,7 @@ use std::net::TcpStream;
 use std::time::{Duration, SystemTime};
 
 const SOCKET_IO_TIMEOUT: Duration = Duration::from_secs(3);
+const SOCKET_TARGET_MAX_LEN: usize = 4096;
 
 fn main() {
     let cli = Cli::from_args(env::args().skip(1)).unwrap_or_else(|message| {
@@ -110,9 +111,12 @@ impl Cli {
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--socket" | "--unix-socket" => {
-                    let target = SocketTarget::Unix(args.next().ok_or_else(|| {
+                    let target = SocketTarget::Unix(validate_socket_path(
+                        "unix socket path",
+                        args.next().ok_or_else(|| {
                         "missing value for --socket, expected a unix socket path".to_string()
-                    })?);
+                        })?,
+                    )?);
                     select_once(
                         &mut socket_target,
                         target,
@@ -120,9 +124,12 @@ impl Cli {
                     )?;
                 }
                 "--tcp-socket" => {
-                    let target = SocketTarget::Tcp(args.next().ok_or_else(|| {
+                    let target = SocketTarget::Tcp(validate_socket_path(
+                        "tcp socket target",
+                        args.next().ok_or_else(|| {
                         "missing value for --tcp-socket, expected host:port".to_string()
-                    })?);
+                        })?,
+                    )?);
                     select_once(
                         &mut socket_target,
                         target,
@@ -185,6 +192,22 @@ fn validate_raw_line(line: String) -> Result<String, String> {
         ));
     }
     Ok(line)
+}
+
+fn validate_socket_path(name: &str, value: String) -> Result<String, String> {
+    if value.trim() != value {
+        return Err(format!("{name} must not contain leading or trailing whitespace"));
+    }
+    if value.is_empty() {
+        return Err(format!("{name} must not be empty"));
+    }
+    if value.len() > SOCKET_TARGET_MAX_LEN {
+        return Err(format!("{name} is too long for a socket target"));
+    }
+    if value.bytes().any(|byte| byte.is_ascii_control()) {
+        return Err(format!("{name} must not contain control characters"));
+    }
+    Ok(value)
 }
 
 fn write_payload<W: Write>(stream: &mut W, payload_mode: &PayloadMode) {
@@ -328,6 +351,19 @@ mod tests {
     use std::net::TcpListener;
 
     use super::{Cli, MAX_FACT_LINE_BYTES, PayloadMode, SocketTarget, TemplateMode, connect_tcp};
+
+    #[test]
+    fn parse_cli_rejects_bad_unix_socket_path() {
+        assert!(
+            super::Cli::from_args(["--socket".into(), "/tmp/line\nbreak.sock".into()]).is_err()
+        );
+        assert!(
+            super::Cli::from_args(["--socket".into(), " /tmp/gewyvern.sock".into()]).is_err()
+        );
+        assert!(
+            super::Cli::from_args(["--socket".into(), "/tmp/gewyvern.sock ".into()]).is_err()
+        );
+    }
 
     #[test]
     fn parse_cli_accepts_raw_line_payload() {

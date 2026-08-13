@@ -1,16 +1,16 @@
 {
   "schema": "leserpent.frontend-package/v1",
-  "inputsSha256": "24e6c1b0a19bb4a817aae7927a477a4323946d205fb25cb85828d7c6ce750676",
-  "assetsSha256": "c4624f7ba06a0cb83fba2d619acbaebca1e5e9360e315fb2c5daff18f29de097",
+  "inputsSha256": "92b658877ccc16ea99c809b90e2746aa64c52413bbef4b5eaee9c12a78d56601",
+  "assetsSha256": "5ee1e90510e73dc8b20bbb08f88e0db0529170567b158084e25d050388c3ba2e",
   "inputFileCount": 28,
   "assetFileCount": 29,
-  "inputBytes": 424730,
-  "assetBytes": 717653,
+  "inputBytes": 425221,
+  "assetBytes": 718178,
   "assets": [
     {
       "path": "src/Leserpent/wwwroot/app.js",
-      "bytes": 419184,
-      "sha256": "5915216bafe030d0cd3c2af533759d7f889e14ef18f104dfda3809eec49f9b2b"
+      "bytes": 419709,
+      "sha256": "0b050459127cbca18521c1134776d6bb29e7ee82e534074e2dd58700d49eaaba"
     },
     {
       "path": "src/Leserpent/wwwroot/branding/gewyvern-mark.svg",

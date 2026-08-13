@@ -3881,7 +3881,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.93.0");
+    assert_eq!(avalonia.contract.version, "1.94.0");
     assert!(
         avalonia
             .contract
@@ -3889,6 +3889,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .iter()
             .any(|surface| surface == "avalonia-generation-horizon-classification")
     );
+    for surface in [
+        "native-hub-topology-filter",
+        "hub-filter-keyboard-navigation",
+        "hub-filter-focus-recovery",
+    ] {
+        assert!(
+            avalonia
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing Avalonia renderer surface {surface}"
+        );
+    }
     for surface in [
         "native-selection-state-mutation",
         "idempotent-selection-mutation",
@@ -5534,8 +5548,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/remote-console/remote-mobile-console")
         .expect("remote/mobile console contract must remain tracked");
     assert_eq!(remote_console.completion, 98);
-    assert_eq!(remote_console.contract.version, "0.55.0");
+    assert_eq!(remote_console.contract.version, "0.56.0");
     for surface in [
+        "renderer-neutral-runtime-search",
+        "cross-authority-topology-search",
+        "mobile-reusable-runtime-search",
         "strict-orchestra-delete-replay-health-codec",
         "visible-orchestra-delete-replay-pressure",
         "complete-runtime-projection-wire-coverage",
@@ -5609,7 +5626,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/release-assurance/continuous-proof")
         .expect("continuous proof contract must remain tracked");
     assert_eq!(continuous_proof.completion, 97);
-    assert_eq!(continuous_proof.contract.version, "0.67.0");
+    assert_eq!(continuous_proof.contract.version, "0.68.0");
     assert!(
         continuous_proof
             .contract
@@ -5624,6 +5641,19 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .iter()
             .any(|surface| surface == "bounded-proof-output-capture")
     );
+    for surface in [
+        "hub-topology-filter-proof",
+        "renderer-neutral-runtime-search-proof",
+    ] {
+        assert!(
+            continuous_proof
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing continuous proof surface {surface}"
+        );
+    }
     for surface in [
         "stale-aot-accessibility-proof-invalidation",
         "failed-aot-fixture-log-retention",

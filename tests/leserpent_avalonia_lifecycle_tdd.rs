@@ -532,6 +532,8 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     let fleet_projection = repo_source(
         "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteDocumentProjection.cs",
     );
+    let runtime_search =
+        repo_source("apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteRuntimeSearch.cs");
     let workspace_projection = repo_source(
         "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteWorkspaceDocumentProjection.cs",
     );
@@ -542,6 +544,8 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     );
     let remote_window =
         repo_source("apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteMainWindow.cs");
+    let remote_conformance =
+        repo_source("apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Program.cs");
     let mobile_project =
         repo_source("apps/leserpent-mobile/src/Leserpent.MobileCore/Leserpent.MobileCore.csproj");
     let mobile_conformance =
@@ -550,7 +554,13 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     assert!(remote_project.contains("Leserpent.RendererCore.csproj"));
     assert!(fleet_projection.contains("public static class RemoteDocumentProjection"));
     assert!(fleet_projection.contains("public sealed record RemoteDocumentView"));
+    assert!(fleet_projection.contains("RemoteRuntimeSearch.Matches"));
     assert!(!fleet_projection.contains("Avalonia"));
+    assert!(runtime_search.contains("public static class RemoteRuntimeSearch"));
+    assert!(runtime_search.contains("public const int MaxFilterLength = 128"));
+    assert!(runtime_search.contains("public static RemoteTopologySearchResult FilterTopology"));
+    assert!(runtime_search.contains("VisibleAuthorityIds"));
+    assert!(!runtime_search.contains("Avalonia"));
     assert!(workspace_projection.contains("public static class RemoteWorkspaceDocumentProjection"));
     assert!(!workspace_projection.contains("Avalonia"));
     assert!(mutation_fences.contains("public static class RemoteMutationFences"));
@@ -577,6 +587,8 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     );
     assert!(!remote_window.contains("SatisfiesMutationFence"));
     assert!(!remote_window.contains("SatisfiesObservationFence"));
+    assert!(remote_conformance.contains("RemoteRuntimeSearch.VerifyContract()"));
+    assert!(remote_conformance.contains("runtime_search=true"));
     assert!(mobile_project.contains("Leserpent.RemoteClient.csproj"));
     assert!(mobile_conformance.contains("RemoteWorkspaceLogFilter.VerifyContract()"));
     assert!(mobile_conformance.contains("RemoteWorkspaceDiagnosticExport.VerifyContract()"));
@@ -585,6 +597,8 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     assert!(mobile_conformance.contains("RemoteWorkspaceSeverityAlert.VerifyContract()"));
     assert!(mobile_conformance.contains("RemoteWorkspaceSnapshotChanges.VerifyContract()"));
     assert!(mobile_conformance.contains("RemoteDocumentProjection.VerifyFilterContract()"));
+    assert!(mobile_conformance.contains("RemoteRuntimeSearch.VerifyContract()"));
+    assert!(mobile_conformance.contains("runtime_search=true"));
     assert!(
         mobile_conformance.contains("RemoteWorkspaceDocumentProjection.VerifyEndpointIsolation()")
     );
@@ -600,6 +614,39 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     assert!(mobile_conformance.contains("action_availability=true"));
     assert!(mobile_conformance.contains("RemoteAuthorityHealthPresentation.VerifyContract()"));
     assert!(mobile_conformance.contains("authority_health=true"));
+}
+
+#[test]
+fn hub_topology_filter_is_bounded_keyboard_accessible_and_renderer_neutral() {
+    let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
+    let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+    let search = avalonia_source("Leserpent.RemoteClient/RemoteRuntimeSearch.cs");
+
+    for automation_id in [
+        "hub-topology-filter",
+        "hub-topology-filter-clear",
+        "hub-topology-filter-summary",
+    ] {
+        assert!(
+            hub.contains(automation_id),
+            "missing Hub control {automation_id}"
+        );
+    }
+    assert!(hub.contains("RemoteRuntimeSearch.FilterTopology"));
+    assert!(hub.contains("KeyModifiers.Control | KeyModifiers.Meta"));
+    assert!(hub.contains("eventArgs.Key == Key.F5"));
+    assert!(hub.contains("VisibleAuthorityIds.Contains"));
+    assert!(hub.contains("ProbeTopologyFilter"));
+    assert!(!hub.contains("runtime.Name.Contains("));
+    assert!(search.contains("public const int MaxFilterLength = 128"));
+    assert!(search.contains("AuthorityValues(authority)"));
+    assert!(search.contains("RuntimeValues(runtime)"));
+    assert!(search.contains("unique non-empty identities"));
+    assert!(!search.contains("Avalonia"));
+    assert!(app.contains("topology_filter=true"));
+    assert!(app.contains("cross_authority_runtime_filter=true"));
+    assert!(app.contains("empty_filter_state=true"));
+    assert!(app.contains("filter_focus_recovery=true"));
 }
 
 #[test]
@@ -1080,7 +1127,7 @@ fn silvortex_account_proof_is_native_private_and_existing_credential_safe() {
     let account = avalonia_source("Leserpent.Avalonia/SilvortexAccountSession.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
 
-    assert!(proof.contains("ContractVersion = \"1.93.0\""));
+    assert!(proof.contains("ContractVersion = \"1.94.0\""));
     assert!(!proof.contains("--prove-silvortex-account"));
     assert!(proof.contains("RuntimeFeature.IsDynamicCodeSupported"));
     assert!(proof.contains("packaged-info-plist"));

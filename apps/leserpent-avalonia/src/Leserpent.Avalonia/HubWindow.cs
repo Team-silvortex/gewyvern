@@ -18,9 +18,47 @@ internal sealed class HubWindow : Window
     {
         Interval = TimeSpan.FromSeconds(30),
     };
+    private readonly DispatcherTimer topologyFilterTimer = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(160),
+    };
     private readonly int daemonCardCount;
     private readonly int expectedAuditedControlCount;
     private readonly SilvortexAccountControl accountControl;
+    private readonly StackPanel topologyRoot = new() { Spacing = 10 };
+    private readonly TextBox topologyFilterBox = new()
+    {
+        MaxLength = RemoteRuntimeSearch.MaxFilterLength,
+        PlaceholderText = "Find a daemon or runtime",
+    };
+    private readonly Button clearTopologyFilterButton = new()
+    {
+        Content = "Clear",
+        IsVisible = false,
+        Padding = new Thickness(12, 7),
+    };
+    private readonly TextBlock topologyFilterSummary = new()
+    {
+        Foreground = LeserpentTheme.Muted,
+        FontSize = 12,
+        FontWeight = FontWeight.SemiBold,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly Border topologyFilterEmpty = new()
+    {
+        Background = LeserpentTheme.Panel,
+        BorderBrush = LeserpentTheme.PanelBorder,
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(10),
+        IsVisible = false,
+        Padding = new Thickness(18, 15),
+        Child = new TextBlock
+        {
+            Text = "No daemon authorities or runtimes match this filter.",
+            Foreground = LeserpentTheme.Muted,
+            TextWrapping = TextWrapping.Wrap,
+        },
+    };
     private readonly TextBlock statusText = new()
     {
         FontSize = 13,
@@ -50,7 +88,7 @@ internal sealed class HubWindow : Window
         SilvortexAccountSession accountSession)
     {
         daemonCardCount = connections.Count + (localSupported ? 1 : 0);
-        expectedAuditedControlCount = 8 + connections.Count * 3 + (localSupported ? 2 : 0);
+        expectedAuditedControlCount = 11 + connections.Count * 3 + (localSupported ? 2 : 0);
         Title = "Leserpent / Hub";
         Width = 900;
         Height = 680;
@@ -154,6 +192,7 @@ internal sealed class HubWindow : Window
         };
         accountControl = new SilvortexAccountControl(accountSession);
         auditedControls.AddRange(accountControl.AuditedControls);
+        ConfigureTopologyFilter();
         var headingIdentity = new StackPanel
         {
             Spacing = 5,
@@ -194,8 +233,7 @@ internal sealed class HubWindow : Window
         Grid.SetRow(headingActions, 1);
         heading.Children.Add(headingActions);
 
-        var topology = new StackPanel { Spacing = 10 };
-        topology.Children.Add(CreateClientRoot(connections.Count, localSupported));
+        topologyRoot.Children.Add(CreateClientRoot(connections.Count, localSupported));
 
         var branch = new Border
         {
@@ -205,11 +243,12 @@ internal sealed class HubWindow : Window
             HorizontalAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(27, 0, 0, 0),
         };
-        topology.Children.Add(branch);
+        topologyRoot.Children.Add(branch);
+        topologyRoot.Children.Add(topologyFilterEmpty);
 
         if (localSupported)
         {
-            topology.Children.Add(CreateDaemonCard(
+            topologyRoot.Children.Add(CreateDaemonCard(
                 "local-orchestra",
                 "Local Orchestra",
                 "Managed on this device",
@@ -224,7 +263,7 @@ internal sealed class HubWindow : Window
         foreach (var connection in connections)
         {
             var captured = connection;
-            topology.Children.Add(CreateDaemonCard(
+            topologyRoot.Children.Add(CreateDaemonCard(
                 connection.DaemonId,
                 connection.DisplayName,
                 connection.Profile.Endpoint,
@@ -240,7 +279,7 @@ internal sealed class HubWindow : Window
 
         if (!localSupported && connections.Count == 0)
         {
-            topology.Children.Add(new Border
+            topologyRoot.Children.Add(new Border
             {
                 Background = LeserpentTheme.Panel,
                 BorderBrush = LeserpentTheme.PanelBorder,
@@ -267,35 +306,46 @@ internal sealed class HubWindow : Window
         AutomationProperties.SetName(statusText, "Hub topology status");
         auditedControls.Add(statusText);
 
+        var topologyFilter = new Grid
+        {
+            ColumnDefinitions = ColumnDefinitions.Parse("*,Auto,Auto"),
+            ColumnSpacing = 10,
+            Children =
+            {
+                topologyFilterBox,
+                clearTopologyFilterButton,
+                topologyFilterSummary,
+            },
+        };
+        Grid.SetColumn(clearTopologyFilterButton, 1);
+        Grid.SetColumn(topologyFilterSummary, 2);
+
         Content = new Grid
         {
-            RowDefinitions = RowDefinitions.Parse("Auto,*,Auto"),
+            RowDefinitions = RowDefinitions.Parse("Auto,Auto,*,Auto"),
             RowSpacing = 18,
             Margin = new Thickness(34, 28),
             Children =
             {
                 heading,
+                topologyFilter,
                 new ScrollViewer
                 {
-                    Content = topology,
+                    Content = topologyRoot,
                     VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
                     HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
                 },
                 statusText,
             },
         };
-        Grid.SetRow(((Grid)Content).Children[1], 1);
-        Grid.SetRow(statusText, 2);
+        Grid.SetRow(topologyFilter, 1);
+        Grid.SetRow(((Grid)Content).Children[2], 2);
+        Grid.SetRow(statusText, 3);
+        ApplyTopologyFilter();
 
-        KeyDown += (_, eventArgs) =>
-        {
-            if (eventArgs.Key == Key.Escape)
-            {
-                eventArgs.Handled = true;
-                Close();
-            }
-        };
+        KeyDown += OnHubKeyDown;
         topologyRefreshTimer.Tick += (_, _) => _ = RefreshAllTopologiesAsync();
+        topologyFilterTimer.Tick += (_, _) => ApplyTopologyFilter();
         Opened += (_, _) =>
         {
             topologyRefreshTimer.Start();
@@ -304,9 +354,151 @@ internal sealed class HubWindow : Window
         Closed += (_, _) =>
         {
             topologyRefreshTimer.Stop();
+            topologyFilterTimer.Stop();
             lifetime.Cancel();
             accountControl.Dispose();
         };
+    }
+
+    private void ConfigureTopologyFilter()
+    {
+        AutomationProperties.SetAutomationId(topologyFilterBox, "hub-topology-filter");
+        AutomationProperties.SetName(topologyFilterBox, "Filter daemon and runtime topology");
+        AutomationProperties.SetHelpText(
+            topologyFilterBox,
+            "Filters the in-memory authority and runtime topology without contacting a daemon. Shortcut: Control or Command plus F.");
+        AutomationProperties.SetAutomationId(
+            clearTopologyFilterButton,
+            "hub-topology-filter-clear");
+        AutomationProperties.SetName(clearTopologyFilterButton, "Clear topology filter");
+        AutomationProperties.SetAutomationId(topologyFilterSummary, "hub-topology-filter-summary");
+        AutomationProperties.SetName(topologyFilterSummary, "Topology filter result count");
+        AutomationProperties.SetLiveSetting(
+            topologyFilterSummary,
+            AutomationLiveSetting.Polite);
+        auditedControls.Add(topologyFilterBox);
+        auditedControls.Add(clearTopologyFilterButton);
+        auditedControls.Add(topologyFilterSummary);
+        topologyFilterBox.TextChanged += OnTopologyFilterChanged;
+        topologyFilterBox.KeyDown += OnTopologyFilterKeyDown;
+        clearTopologyFilterButton.Click += (_, _) => ClearTopologyFilter();
+    }
+
+    private void OnHubKeyDown(object? sender, KeyEventArgs eventArgs)
+    {
+        _ = sender;
+        var findModifier = eventArgs.KeyModifiers
+            & (KeyModifiers.Control | KeyModifiers.Meta);
+        if (eventArgs.Key == Key.F && findModifier != KeyModifiers.None)
+        {
+            eventArgs.Handled = true;
+            topologyFilterBox.Focus();
+            topologyFilterBox.SelectAll();
+        }
+        else if (eventArgs.Key == Key.F5)
+        {
+            eventArgs.Handled = true;
+            _ = RefreshAllTopologiesAsync();
+        }
+        else if (eventArgs.Key == Key.Escape)
+        {
+            eventArgs.Handled = true;
+            if (RemoteRuntimeSearch.Normalize(topologyFilterBox.Text).Length > 0)
+            {
+                ClearTopologyFilter();
+            }
+            else
+            {
+                Close();
+            }
+        }
+    }
+
+    private void OnTopologyFilterChanged(object? sender, TextChangedEventArgs eventArgs)
+    {
+        _ = sender;
+        _ = eventArgs;
+        var raw = topologyFilterBox.Text ?? string.Empty;
+        var sanitized = RemoteRuntimeSearch.SanitizeInput(raw);
+        if (!string.Equals(raw, sanitized, StringComparison.Ordinal))
+        {
+            topologyFilterBox.Text = sanitized;
+            topologyFilterBox.CaretIndex = sanitized.Length;
+            return;
+        }
+        clearTopologyFilterButton.IsVisible = RemoteRuntimeSearch.Normalize(sanitized).Length > 0;
+        topologyFilterTimer.Stop();
+        topologyFilterTimer.Start();
+    }
+
+    private void OnTopologyFilterKeyDown(object? sender, KeyEventArgs eventArgs)
+    {
+        _ = sender;
+        if (eventArgs.Key == Key.Escape
+            && RemoteRuntimeSearch.Normalize(topologyFilterBox.Text).Length > 0)
+        {
+            eventArgs.Handled = true;
+            ClearTopologyFilter();
+        }
+    }
+
+    private void ClearTopologyFilter()
+    {
+        topologyFilterTimer.Stop();
+        topologyFilterBox.Text = string.Empty;
+        clearTopologyFilterButton.IsVisible = false;
+        ApplyTopologyFilter();
+        topologyFilterBox.Focus();
+    }
+
+    private void ApplyTopologyFilter()
+    {
+        topologyFilterTimer.Stop();
+        var result = RemoteRuntimeSearch.FilterTopology(
+            topologyCards.Select(card => new RemoteTopologySearchItem(
+                card.DaemonId,
+                card.Name,
+                card.Kind,
+                card.Detail,
+                card.State.State.Snapshot?.Runtimes
+                    ?? Array.Empty<RemoteRuntimeProjection>())),
+            topologyFilterBox.Text);
+        var filterActive = result.Filter.Length > 0;
+        foreach (var card in topologyCards)
+        {
+            card.Root.IsVisible = !filterActive
+                || result.VisibleAuthorityIds.Contains(card.DaemonId);
+            if (card.State.State.Snapshot is not null)
+            {
+                RenderTopology(
+                    card,
+                    card.State.State,
+                    result.RuntimesByAuthority[card.DaemonId]);
+                if (card.State.State.Phase == RemoteTopologyPhase.Retained)
+                {
+                    card.RuntimeList.Children.Insert(0, RuntimeMessage(
+                        $"Refresh failed {card.State.State.ConsecutiveFailures} time(s). Retaining the last known topology; workspace launch still requires a live daemon snapshot."));
+                }
+            }
+            else if (card.State.State.Phase == RemoteTopologyPhase.Unavailable)
+            {
+                RenderTopologyFailure(card, card.State.State);
+            }
+        }
+
+        topologyFilterEmpty.IsVisible = filterActive
+            && result.TotalAuthorityCount > 0
+            && result.VisibleAuthorityCount == 0;
+        topologyFilterSummary.Text = filterActive
+            ? $"{result.VisibleAuthorityCount} of {result.TotalAuthorityCount} daemons / {result.VisibleRuntimeCount} of {result.TotalRuntimeCount} runtimes"
+            : result.TotalRuntimeCount == 0
+                ? $"{result.TotalAuthorityCount} daemon authorit{(result.TotalAuthorityCount == 1 ? "y" : "ies")} / topology loading"
+                : $"{result.TotalAuthorityCount} daemons / {result.TotalRuntimeCount} runtimes";
+        AutomationProperties.SetName(
+            topologyFilterSummary,
+            filterActive
+                ? $"Showing {result.VisibleAuthorityCount} of {result.TotalAuthorityCount} daemon authorities and {result.VisibleRuntimeCount} of {result.TotalRuntimeCount} runtimes"
+                : $"Showing all {result.TotalAuthorityCount} daemon authorities and {result.TotalRuntimeCount} runtimes");
     }
 
     public void VerifyTopologyContract()
@@ -338,6 +530,41 @@ internal sealed class HubWindow : Window
         card.RuntimeList.Children.OfType<Button>().Count(button =>
             !string.IsNullOrWhiteSpace(AutomationProperties.GetAutomationId(button))
             && !string.IsNullOrWhiteSpace(AutomationProperties.GetName(button))));
+    public int VisibleDaemonCardCount => topologyCards.Count(card => card.Root.IsVisible);
+
+    public void ProbeTopologyFilter()
+    {
+        topologyFilterBox.Text = "alpha.example";
+        ApplyTopologyFilter();
+        if (VisibleDaemonCardCount != 1 || RenderedRuntimeCount != 2)
+        {
+            throw new InvalidDataException(
+                "Hub authority filter did not retain the matching daemon topology");
+        }
+        topologyFilterBox.Text = "runtime-b";
+        ApplyTopologyFilter();
+        if (VisibleDaemonCardCount != daemonCardCount
+            || RenderedRuntimeCount != daemonCardCount)
+        {
+            throw new InvalidDataException(
+                $"Hub runtime filter did not project matching children across authorities: visible_daemons={VisibleDaemonCardCount}, rendered_runtimes={RenderedRuntimeCount}, expected={daemonCardCount}");
+        }
+        topologyFilterBox.Text = "does-not-exist";
+        ApplyTopologyFilter();
+        if (VisibleDaemonCardCount != 0 || !topologyFilterEmpty.IsVisible)
+        {
+            throw new InvalidDataException("Hub topology filter omitted its empty state");
+        }
+        ClearTopologyFilter();
+        if (VisibleDaemonCardCount != daemonCardCount
+            || RenderedRuntimeCount != daemonCardCount * 2
+            || topologyFilterEmpty.IsVisible
+            || !topologyFilterBox.IsFocused)
+        {
+            throw new InvalidDataException(
+                "Hub topology filter did not restore the complete keyboard workflow");
+        }
+    }
 
     public void ProbeFirstRuntimeAction()
     {
@@ -479,21 +706,7 @@ internal sealed class HubWindow : Window
                 },
             },
         };
-        var topologyCard = new DaemonTopologyCard(
-            daemonId,
-            name,
-            openRuntime,
-            loadTopology,
-            topologySummary,
-            authoritySummary,
-            runtimeList,
-            refreshButton);
-        topologyCard.ReportWorkspaceResult = (runtime, error) =>
-            ReportWorkspaceOpen(name, runtime, error);
-        topologyCards.Add(topologyCard);
-        refreshButton.Click += (_, _) => _ = RefreshTopologyAsync(topologyCard);
-
-        return new Border
+        var root = new Border
         {
             Background = LeserpentTheme.Panel,
             BorderBrush = LeserpentTheme.PanelBorder,
@@ -530,6 +743,23 @@ internal sealed class HubWindow : Window
                 },
             },
         };
+        var topologyCard = new DaemonTopologyCard(
+            daemonId,
+            name,
+            kind,
+            detail,
+            openRuntime,
+            loadTopology,
+            topologySummary,
+            authoritySummary,
+            runtimeList,
+            refreshButton,
+            root);
+        topologyCard.ReportWorkspaceResult = (runtime, error) =>
+            ReportWorkspaceOpen(name, runtime, error);
+        topologyCards.Add(topologyCard);
+        refreshButton.Click += (_, _) => _ = RefreshTopologyAsync(topologyCard);
+        return root;
     }
 
     private async Task RefreshAllTopologiesAsync()
@@ -561,7 +791,8 @@ internal sealed class HubWindow : Window
             var snapshot = await card.Load(lifetime.Token);
             if (!lifetime.IsCancellationRequested)
             {
-                RenderTopology(card, card.State.Accept(snapshot));
+                card.State.Accept(snapshot);
+                ApplyTopologyFilter();
             }
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
@@ -572,7 +803,8 @@ internal sealed class HubWindow : Window
         {
             if (!lifetime.IsCancellationRequested)
             {
-                RenderTopologyFailure(card, card.State.Reject());
+                card.State.Reject();
+                ApplyTopologyFilter();
             }
         }
         finally
@@ -591,14 +823,17 @@ internal sealed class HubWindow : Window
 
     private static void RenderTopology(
         DaemonTopologyCard card,
-        RemoteTopologyState state)
+        RemoteTopologyState state,
+        IReadOnlyList<RemoteRuntimeProjection> runtimes)
     {
         var snapshot = state.Snapshot
             ?? throw new InvalidDataException("renderable topology state has no snapshot");
         card.RuntimeList.Children.Clear();
         card.RenderedRuntimeCount = 0;
         var source = state.Phase.ToString().ToUpperInvariant();
-        card.Summary.Text = $"RUNTIMES / {source} / REV {snapshot.Revision} / {snapshot.Runtimes.Count}";
+        card.Summary.Text = runtimes.Count == snapshot.Runtimes.Count
+            ? $"RUNTIMES / {source} / REV {snapshot.Revision} / {snapshot.Runtimes.Count}"
+            : $"RUNTIMES / {source} / REV {snapshot.Revision} / {runtimes.Count} OF {snapshot.Runtimes.Count}";
         card.Summary.Foreground = state.Phase is RemoteTopologyPhase.Cached
             or RemoteTopologyPhase.Retained
             ? LeserpentTheme.Muted
@@ -607,18 +842,18 @@ internal sealed class HubWindow : Window
             card.Summary,
             $"Daemon {Safe(card.Name)} has {snapshot.Runtimes.Count} runtimes at revision {snapshot.Revision}, {source.ToLowerInvariant()}");
         RenderAuthority(card, state);
-        if (snapshot.Runtimes.Count == 0)
+        if (runtimes.Count == 0)
         {
             card.RuntimeList.Children.Add(RuntimeMessage(
                 "No gewyvern runtimes are registered under this daemon."));
             return;
         }
-        foreach (var runtime in snapshot.Runtimes.Take(MaxVisibleRuntimesPerDaemon))
+        foreach (var runtime in runtimes.Take(MaxVisibleRuntimesPerDaemon))
         {
             card.RuntimeList.Children.Add(RuntimeRow(card, runtime, snapshot.Revision));
             card.RenderedRuntimeCount++;
         }
-        var hidden = snapshot.Runtimes.Count - MaxVisibleRuntimesPerDaemon;
+        var hidden = runtimes.Count - MaxVisibleRuntimesPerDaemon;
         if (hidden > 0)
         {
             card.RuntimeList.Children.Add(RuntimeMessage(
@@ -665,13 +900,6 @@ internal sealed class HubWindow : Window
         DaemonTopologyCard card,
         RemoteTopologyState state)
     {
-        if (state.Snapshot is not null)
-        {
-            RenderTopology(card, state);
-            card.RuntimeList.Children.Insert(0, RuntimeMessage(
-                $"Refresh failed {state.ConsecutiveFailures} time(s). Retaining the last known topology; workspace launch still requires a live daemon snapshot."));
-            return;
-        }
         card.RuntimeList.Children.Clear();
         card.RenderedRuntimeCount = 0;
         card.RuntimeList.Children.Add(RuntimeMessage(
@@ -888,21 +1116,27 @@ internal sealed class HubWindow : Window
     private sealed class DaemonTopologyCard(
         string daemonId,
         string name,
+        string kind,
+        string detail,
         Func<RemoteRuntimeProjection, ulong, string?> openRuntime,
         Func<CancellationToken, Task<RemoteTopologySnapshot>> load,
         TextBlock summary,
         TextBlock authoritySummary,
         StackPanel runtimeList,
-        Button refreshButton)
+        Button refreshButton,
+        Border root)
     {
         public string DaemonId { get; } = daemonId;
         public string Name { get; } = name;
+        public string Kind { get; } = kind;
+        public string Detail { get; } = detail;
         public Func<RemoteRuntimeProjection, ulong, string?> OpenRuntime { get; } = openRuntime;
         public Func<CancellationToken, Task<RemoteTopologySnapshot>> Load { get; } = load;
         public TextBlock Summary { get; } = summary;
         public TextBlock AuthoritySummary { get; } = authoritySummary;
         public StackPanel RuntimeList { get; } = runtimeList;
         public Button RefreshButton { get; } = refreshButton;
+        public Border Root { get; } = root;
         public RemoteTopologyStateMachine State { get; } = new();
         public bool Refreshing { get; set; }
         public int RenderedRuntimeCount { get; set; }

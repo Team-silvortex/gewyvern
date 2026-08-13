@@ -329,6 +329,9 @@ fn runtime_window_workspace_is_bounded_lazy_keyboard_operable_and_deep_link_safe
         "event.key === \"ArrowDown\"",
         "event.key === \"Home\"",
         "Math.min(Math.max(closedIndex, 0)",
+        "function focusRuntimeWindowAfterClose",
+        "focusRuntimeWindowAfterClose(state.activeRuntimeWindowId);",
+        "nodes.runtimeWindowOpenSelected?.focus();",
         "nodes.runtimeWindowOpenAll.disabled",
     ] {
         assert!(
@@ -407,7 +410,7 @@ fn mobile_adaptation_is_protocolized_in_the_status_tensor() {
         .find(|cell| cell["id"] == "leserpent-1x/web-console/browser-operations")
         .expect("web console status cell must exist");
 
-    assert_eq!(cell["contract"]["version"], "1.4.8");
+    assert_eq!(cell["contract"]["version"], "1.4.9");
     for surface in [
         "width-first-mobile-layout",
         "mobile-filter-disclosure",
@@ -447,6 +450,7 @@ fn mobile_adaptation_is_protocolized_in_the_status_tensor() {
         "sanitized-runtime-window-persistence",
         "deep-link-window-intent-priority",
         "runtime-window-keyboard-navigation",
+        "runtime-window-close-focus-recovery",
     ] {
         assert!(
             cell["contract"]["surfaces"]

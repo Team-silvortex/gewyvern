@@ -322,6 +322,12 @@ fn run_external_analysis(
     snapshot_json: &str,
 ) -> Result<Vec<AnalysisAugmentation>, String> {
     validate_external_analysis_binary(&config.engine_bin)?;
+    if let Some(worker) = config.python_worker.as_deref() {
+        validate_external_analysis_path_argument(worker)?;
+    }
+    if let Some(python_bin) = config.python_bin.as_deref() {
+        validate_external_analysis_path_argument(python_bin)?;
+    }
     let mut command = Command::new(&config.engine_bin);
     if let Some(worker) = config.python_worker.as_deref() {
         command.arg("analyze-python-json").arg("-");
@@ -489,27 +495,56 @@ fn run_external_command(
 }
 
 fn validate_external_analysis_binary(path: &str) -> Result<(), String> {
+    validate_external_analysis_path_argument(path)?;
+    #[cfg(unix)]
+    {
+        let metadata = fs::symlink_metadata(Path::new(path))
+            .map_err(|error| format!("failed to access external analysis engine '{path}': {error}"))?;
+        if metadata.file_type().is_symlink() {
+            return Err("external analysis engine path must not be a symlink".into());
+        }
+        if !metadata.is_file() {
+            return Err("external analysis engine path must be a file".into());
+        }
+        if metadata.permissions().mode() & 0o111 == 0 {
+            return Err("external analysis engine path is not executable".into());
+        }
+    }
+    Ok(())
+}
+
+fn validate_external_analysis_path_argument(path: &str) -> Result<(), String> {
     if path.as_bytes().contains(&b'\0') {
         return Err("external analysis engine path contains invalid character".into());
     }
+    if path.chars().any(|character| character.is_ascii_control()) {
+        return Err("external analysis path contains control characters".into());
+    }
     if !looks_like_path(path) {
         return Err(
-            "external analysis engine path must reference a filesystem path, not a PATH executable name"
+            "external analysis path must reference a filesystem path, not a PATH executable name"
                 .into(),
         );
     }
-    let metadata = fs::symlink_metadata(Path::new(path))
-        .map_err(|error| format!("failed to access external analysis engine '{path}': {error}"))?;
-    if metadata.file_type().is_symlink() {
-        return Err("external analysis engine path must not be a symlink".into());
+
+    if path.trim() != path {
+        return Err("external analysis path must not contain leading or trailing whitespace".into());
     }
-    if !metadata.is_file() {
-        return Err("external analysis engine path must be a file".into());
+    if path.is_empty() {
+        return Err("external analysis path must not be empty".into());
     }
     #[cfg(unix)]
     {
+        let metadata = fs::symlink_metadata(Path::new(path))
+            .map_err(|error| format!("failed to access external analysis engine '{path}': {error}"))?;
+        if metadata.file_type().is_symlink() {
+            return Err("external analysis path must not be a symlink".into());
+        }
+        if !metadata.is_file() {
+            return Err("external analysis path must be a file".into());
+        }
         if metadata.permissions().mode() & 0o111 == 0 {
-            return Err("external analysis engine path is not executable".into());
+            return Err("external analysis path is not executable".into());
         }
     }
     Ok(())

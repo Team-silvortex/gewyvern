@@ -95,13 +95,42 @@ pub(crate) fn socket_target_is_local(target: &SocketTarget) -> bool {
 }
 
 pub(crate) fn tcp_bind_addr_is_local(addr: &str) -> bool {
-    addr.to_socket_addrs()
-        .map(|resolved| resolved.into_iter().all(|addr| addr.ip().is_loopback()))
-        .unwrap_or_else(|_| addr.starts_with("localhost:"))
+    if let Ok(resolved) = addr.to_socket_addrs() {
+        resolved.into_iter().all(|addr| addr.ip().is_loopback())
+    } else {
+        let addr = addr.trim();
+        let Some((host, port)) = addr.rsplit_once(':') else {
+            return false;
+        };
+        if port.parse::<u16>().is_err() {
+            return false;
+        }
+        let host = host.trim();
+        let host = host
+            .strip_prefix('[')
+            .and_then(|host| host.strip_suffix(']'))
+            .unwrap_or(host);
+        matches!(host, "localhost" | "127.0.0.1" | "::1")
+    }
 }
 
 pub(crate) fn api_socket_addr_is_local(addr: &str) -> bool {
     tcp_bind_addr_is_local(addr)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tcp_bind_addr_is_local_rejects_malformed_local_like_addresses() {
+        assert!(tcp_bind_addr_is_local("127.0.0.1:9100"));
+        assert!(tcp_bind_addr_is_local("[::1]:9100"));
+        assert!(!tcp_bind_addr_is_local("localhost:bad"));
+        assert!(!tcp_bind_addr_is_local("localhost"));
+        assert!(!tcp_bind_addr_is_local("localhost.extra:9100"));
+        assert!(!tcp_bind_addr_is_local("bad-localhost:9100"));
+    }
 }
 
 pub(crate) fn filter_export_by_pid(export: &ExportBundle, pid: u32) -> ExportBundle {

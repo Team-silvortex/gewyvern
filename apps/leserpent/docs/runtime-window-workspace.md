@@ -31,7 +31,7 @@ Leserpent 的 `Child Panel` 是面向多个 gewyvern runtime 的窗口工作台�
 
 只有活动窗口会加载远端 iframe。非活动窗口保留 runtime 名称、视图、目标与可信状态，但会卸载远端页面并显示暂停壳；再次激活时才恢复该窗口的 URL。这让“窗口上下文”和“远端连接生命周期”彼此独立。
 
-窗口标题按钮支持 roving keyboard navigation：方向键在窗口间移动，`Home` 和 `End` 跳到首尾。关闭活动窗口时优先激活其右侧相邻窗口；关闭末尾窗口时回到前一个窗口。
+窗口标题按钮支持 roving keyboard navigation：方向键在窗口间移动，`Home` 和 `End` 跳到首尾。关闭活动窗口时优先激活并聚焦其右侧相邻窗口；关闭末尾窗口时回到前一个窗口。关闭最后一个窗口后，焦点回到 `Open Selected`，因此键盘操作链不会掉回页面根节点。
 
 ## Persistence And Deep Links
 
@@ -107,7 +107,7 @@ dotnet build src/Leserpent/Leserpent.csproj
 - 刷新页面后窗口集合和各自视图恢复。
 - 带 `runtimeId` 和 `runtimeView` 的 deep-link 覆盖本地 active window。
 - 污染、重复、超长或未知 view 的本地恢复数据会被安全归一化。
-- 关闭 active window 后安全切换到剩余窗口。
+- 关闭 active window 后安全切换并聚焦剩余窗口；关闭最后一个窗口后聚焦 `Open Selected`。
 - 方向键、`Home` 和 `End` 可以切换窗口且焦点保持在活动标题。
 - 删除 runtime 后不留下失效窗口。
 - 桌面双列没有控件碰撞，移动单列没有横向溢出。

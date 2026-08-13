@@ -565,10 +565,7 @@ internal sealed class RemoteMainWindow : Window
         _ = sender;
         _ = eventArgs;
         var raw = runtimeFilterBox.Text ?? string.Empty;
-        var sanitized = new string(raw
-            .Where(character => !char.IsControl(character))
-            .Take(RemoteDocumentProjection.MaxFilterLength)
-            .ToArray());
+        var sanitized = RemoteRuntimeSearch.SanitizeInput(raw);
         if (!string.Equals(raw, sanitized, StringComparison.Ordinal))
         {
             runtimeFilterBox.Text = sanitized;

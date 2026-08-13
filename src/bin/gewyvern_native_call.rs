@@ -26,7 +26,11 @@ fn run() -> Result<(), ValidationError> {
 
     match command.as_str() {
         "socket-roundtrip" => {
-            let socket_target = args.first().cloned().unwrap_or_else(default_socket_path);
+            let socket_target = if let Some(value) = args.first() {
+                value.clone()
+            } else {
+                default_socket_path()?
+            };
             let template = args.get(1).cloned().unwrap_or_else(|| "udp".into());
             let output_path = args
                 .get(2)
@@ -129,8 +133,10 @@ fn run() -> Result<(), ValidationError> {
     }
 }
 
-fn default_socket_path() -> String {
-    env::var("GEWY_DEMO_SOCKET_PATH")
+const DEMO_SOCKET_PATH_MAX_LEN: usize = 4096;
+
+fn default_socket_path() -> Result<String, ValidationError> {
+    let path = env::var("GEWY_DEMO_SOCKET_PATH")
         .ok()
         .filter(|path| !path.trim().is_empty())
         .unwrap_or_else(|| {
@@ -138,7 +144,28 @@ fn default_socket_path() -> String {
                 .join(format!("gewyvern-demo-{}.sock", std::process::id()))
                 .to_string_lossy()
                 .into_owned()
-        })
+        });
+    validate_demo_socket_path("GEWY_DEMO_SOCKET_PATH", path)
+}
+
+fn validate_demo_socket_path(name: &str, value: String) -> Result<String, ValidationError> {
+    if value.trim() != value {
+        return Err(ValidationError::new(format!(
+            "{name} must not contain leading or trailing whitespace"
+        )));
+    }
+    if value.is_empty() {
+        return Err(ValidationError::new(format!("{name} must not be empty")));
+    }
+    if value.len() > DEMO_SOCKET_PATH_MAX_LEN {
+        return Err(ValidationError::new(format!("{name} is too long for a filesystem path")));
+    }
+    if value.bytes().any(|byte| byte.is_ascii_control()) {
+        return Err(ValidationError::new(format!(
+            "{name} must not contain control characters"
+        )));
+    }
+    Ok(value)
 }
 
 fn default_socket_output_path() -> PathBuf {

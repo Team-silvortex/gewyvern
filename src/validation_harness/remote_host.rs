@@ -1105,7 +1105,7 @@ fn validate_ssh_control_path_template(path: &str) -> Result<(), ValidationError>
     Ok(())
 }
 
-fn ssh_batch_mode_args() -> Vec<OsString> {
+fn ssh_batch_mode_args(control_path: &str) -> Vec<OsString> {
     vec![
         OsString::from("-o"),
         OsString::from("BatchMode=yes"),
@@ -1114,11 +1114,11 @@ fn ssh_batch_mode_args() -> Vec<OsString> {
         OsString::from("-o"),
         OsString::from("ControlPersist=60"),
         OsString::from("-o"),
-        OsString::from(format!("ControlPath={}", ssh_control_path_template())),
+        OsString::from(format!("ControlPath={}", control_path)),
     ]
 }
 
-fn ssh_password_mode_args() -> Vec<OsString> {
+fn ssh_password_mode_args(control_path: &str) -> Vec<OsString> {
     vec![
         OsString::from("-o"),
         OsString::from("StrictHostKeyChecking=accept-new"),
@@ -1131,7 +1131,7 @@ fn ssh_password_mode_args() -> Vec<OsString> {
         OsString::from("-o"),
         OsString::from("ControlPersist=60"),
         OsString::from("-o"),
-        OsString::from(format!("ControlPath={}", ssh_control_path_template())),
+        OsString::from(format!("ControlPath={}", control_path)),
     ]
 }
 
@@ -2165,6 +2165,8 @@ fn start_ssh_command(
     if let Some(command) = remote_command.as_ref() {
         validate_remote_command(command)?;
     }
+    let control_path = ssh_control_path_template();
+    validate_ssh_control_path_template(&control_path)?;
     match auth {
         Some(auth) => {
             let mut command = Command::new("sshpass");
@@ -2172,7 +2174,7 @@ fn start_ssh_command(
                 .env("SSHPASS", &auth.password)
                 .arg("-e")
                 .arg("ssh")
-                .args(ssh_password_mode_args())
+                .args(ssh_password_mode_args(&control_path))
                 .arg(ssh_auth_target(host, &auth.user));
             if let Some(remote_command) = remote_command {
                 command.arg(remote_command);
@@ -2181,7 +2183,7 @@ fn start_ssh_command(
         }
         None => {
             let mut command = Command::new("ssh");
-            command.args(ssh_batch_mode_args()).arg(host);
+            command.args(ssh_batch_mode_args(&control_path)).arg(host);
             if let Some(remote_command) = remote_command {
                 command.arg(remote_command);
             }
@@ -2330,6 +2332,7 @@ fn remote_ebpf_admin_auth() -> Result<Option<RemoteAdminAuth>, ValidationError> 
         (Some(user), Some(password)) => {
             require_cmd("sshpass")?;
             let user = validate_remote_admin_user(&user)?;
+            let password = validate_remote_admin_password(&password)?;
             Ok(Some(RemoteAdminAuth { user, password }))
         }
         (Some(_), None) => Err(ValidationError::new(
@@ -2407,6 +2410,20 @@ fn validate_remote_admin_user(user: &str) -> Result<String, ValidationError> {
         ));
     }
     Ok(trimmed.to_string())
+}
+
+fn validate_remote_admin_password(password: &str) -> Result<String, ValidationError> {
+    if password.is_empty() {
+        return Err(ValidationError::new(
+            "remote admin password must be a non-empty value",
+        ));
+    }
+    if password.chars().any(char::is_control) {
+        return Err(ValidationError::new(
+            "remote admin password must not contain control characters",
+        ));
+    }
+    Ok(password.to_string())
 }
 
 fn validate_remote_command(command: &str) -> Result<(), ValidationError> {
@@ -3856,7 +3873,8 @@ mod tests {
         resolve_remote_workspace_path, rsync_remote_target, ssh_auth_target,
         ssh_password_mode_args, summarize_remote_ebpf_history,
         validate_leserpent_control_plane_aot_evidence, validate_remote_admin_user,
-        validate_release_line, validate_remote_command, validate_remote_host,
+        validate_remote_admin_password, validate_release_line, validate_remote_command,
+        validate_remote_host,
         validate_remote_dir, validate_remote_route_device, validate_remote_workspace_sync_key,
         validate_ssh_control_path_template,
     };
@@ -4074,7 +4092,7 @@ mod tests {
 
     #[test]
     fn password_ssh_keeps_host_verification_enabled() {
-        let args = ssh_password_mode_args();
+        let args = ssh_password_mode_args(&default_ssh_control_path_template());
         assert!(
             args.iter()
                 .any(|arg| arg == "StrictHostKeyChecking=accept-new")
@@ -4097,6 +4115,14 @@ mod tests {
         assert!(validate_remote_admin_user("builder").is_ok());
         assert!(validate_remote_admin_user("  builder ").is_err());
         assert!(validate_remote_admin_user("builder;id").is_err());
+    }
+
+    #[test]
+    fn remote_admin_password_rejects_control_characters() {
+        assert!(validate_remote_admin_password("s3cur3-p4ss!").is_ok());
+        assert!(validate_remote_admin_password("line1\nline2").is_err());
+        assert!(validate_remote_admin_password("\twith-tab").is_err());
+        assert!(validate_remote_admin_password("").is_err());
     }
 
     #[test]

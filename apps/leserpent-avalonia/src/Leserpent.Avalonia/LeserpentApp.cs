@@ -402,25 +402,33 @@ internal sealed class LeserpentApp : Application
         {
             DispatcherTimer.RunOnce(() =>
             {
-                window.VerifyTopologyContract();
-                RemoteWorkspaceLaunchPolicy.VerifyContract();
-                if (window.RenderedRuntimeCount != 6
-                    || window.RenderedRuntimeActionCount != 6
-                    || window.LiveTopologyCount != 3
-                    || window.VerifiedAuthorityCount != 3)
+                try
                 {
-                    throw new InvalidDataException(
-                        "Hub topology did not render live actionable daemon-owned runtime children");
+                    window.VerifyTopologyContract();
+                    RemoteWorkspaceLaunchPolicy.VerifyContract();
+                    if (window.RenderedRuntimeCount != 6
+                        || window.RenderedRuntimeActionCount != 6
+                        || window.LiveTopologyCount != 3
+                        || window.VerifiedAuthorityCount != 3)
+                    {
+                        throw new InvalidDataException(
+                            "Hub topology did not render live actionable daemon-owned runtime children");
+                    }
+                    window.ProbeTopologyFilter();
+                    window.ProbeFirstRuntimeAction();
+                    if (runtimeOpenCount != 1)
+                    {
+                        throw new InvalidDataException(
+                            "Hub runtime action did not preserve its daemon route");
+                    }
+                    Console.WriteLine(
+                        "Hub topology valid: client_root=true, local_daemon=true, remote_daemons=2, live_topologies=3, authority_proofs=3, queue_health=true, runtime_children=6, runtime_actions=6, topology_filter=true, authority_filter=true, cross_authority_runtime_filter=true, empty_filter_state=true, filter_focus_recovery=true, daemon_route=true, authoritative_workspace_gate=true, retained_topology_state=true, revision_regression_fence=true, bounded_auto_refresh=true, bounded_preview=true, independent_actions=true, legacy_remote_button=false, automation=true");
+                    window.Close();
                 }
-                window.ProbeFirstRuntimeAction();
-                if (runtimeOpenCount != 1)
+                catch (Exception error)
                 {
-                    throw new InvalidDataException(
-                        "Hub runtime action did not preserve its daemon route");
+                    ReportVerificationFailure(desktop, "Hub topology controls", error);
                 }
-                Console.WriteLine(
-                    "Hub topology valid: client_root=true, local_daemon=true, remote_daemons=2, live_topologies=3, authority_proofs=3, queue_health=true, runtime_children=6, runtime_actions=6, daemon_route=true, authoritative_workspace_gate=true, retained_topology_state=true, revision_regression_fence=true, bounded_auto_refresh=true, bounded_preview=true, independent_actions=true, legacy_remote_button=false, automation=true");
-                window.Close();
             }, TimeSpan.FromMilliseconds(150));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);

@@ -80,6 +80,64 @@ fn upsert_and_remove_rotation_record_round_trips() {
 }
 
 #[test]
+fn validate_record_relative_path_rejects_unsafe_inputs() {
+    assert!(validate_record_relative_path("identity/../runtime.pem").is_err());
+    assert!(validate_record_relative_path("/absolute/path.pem").is_err());
+    assert!(validate_record_relative_path("trust/./bad.pem").is_err());
+    assert!(validate_record_relative_path("trust/anchors\\root.pem").is_err());
+    assert!(validate_record_relative_path("identity/runtime\n.pem").is_err());
+    assert!(validate_record_relative_path("identity/runtime.pem").is_ok());
+}
+
+#[test]
+fn sanitize_record_note_rejects_control_characters() {
+    assert_eq!(
+        sanitize_record_note(Some("  rotate now ")).unwrap(),
+        Some("rotate now".into())
+    );
+    assert!(sanitize_record_note(Some("rotate\nnow")).is_err());
+}
+
+#[test]
+fn read_rotation_records_skips_unknown_status_entries() {
+    let root = temp_root("invalid-rotation-status");
+    fs::create_dir_all(&root).unwrap();
+    let path = root.join(ROTATION_RECORDS_FILE);
+    fs::write(
+        &path,
+        "identity/runtime.pem\tinvalid\t10\t20\t30\tnote\n\
+         identity/valid.pem\toverdue\t10\t20\t30\tnote\n",
+    )
+    .unwrap();
+
+    let records = read_rotation_records(&path);
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].relative_path, "identity/valid.pem");
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn read_revocation_records_skips_unknown_status_and_scope_entries() {
+    let root = temp_root("invalid-revocation-status");
+    fs::create_dir_all(&root).unwrap();
+    let path = root.join(REVOCATION_RECORDS_FILE);
+    fs::write(
+        &path,
+        "trust/anchors/root-ca.pem\ttrust\trevoked\t10\t20\tnote\n\
+         trust/anchors/invalid.pem\tinvalid\trevoked\t10\t20\tnote\n",
+    )
+    .unwrap();
+
+    let records = read_revocation_records(&path);
+    assert_eq!(records.len(), 1);
+    assert_eq!(
+        records[0].relative_path,
+        "trust/anchors/root-ca.pem"
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn generated_rotation_records_mark_active_due_and_overdue() {
     let inventory = CertificateInventory {
         root: PathBuf::from("/tmp/certificates"),

@@ -231,6 +231,7 @@ pub fn install_gewyvern_artifact(
     request
         .validate()
         .map_err(|_| GewyvernInstallError::InvalidRequest)?;
+    validate_runtime_id_for_path(request.runtime_id.as_str())?;
     validate_root(&layout.root)?;
     let artifact = read_artifact(source)?;
     let artifact_sha256 = hex(digest(&SHA256, &artifact).as_ref());
@@ -349,6 +350,7 @@ fn retire_gewyvern_with(
     request
         .validate()
         .map_err(|_| GewyvernInstallError::InvalidRequest)?;
+    validate_runtime_id_for_path(request.runtime_id.as_str())?;
     if layout.profile != request.install_profile {
         return Err(GewyvernInstallError::InvalidRequest);
     }
@@ -409,6 +411,23 @@ fn retire_gewyvern_with(
     let encoded = serde_json::to_vec(&retired).map_err(|_| GewyvernInstallError::Storage)?;
     restore_private_file(&marker_path, Some(&encoded))?;
     Ok(retirement_response(request, replayed))
+}
+
+fn validate_runtime_id_for_path(runtime_id: &str) -> Result<(), GewyvernInstallError> {
+    if runtime_id.chars().any(char::is_control) {
+        return Err(GewyvernInstallError::InvalidRequest);
+    }
+    let path = Path::new(runtime_id);
+    if path.is_absolute() {
+        return Err(GewyvernInstallError::InvalidRequest);
+    }
+    if path
+        .components()
+        .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+    {
+        return Err(GewyvernInstallError::InvalidRequest);
+    }
+    Ok(())
 }
 
 fn verify_retirement_authority(
@@ -2033,6 +2052,44 @@ mod tests {
         );
     }
 
+    #[test]
+    fn install_rejects_path_component_runtime_ids() {
+        let (_temp, source, mut request, layout) = fixture();
+        request.runtime_id = RuntimeId::new(".").unwrap();
+        assert_eq!(
+            install_gewyvern_artifact(&source, &request, &layout),
+            Err(GewyvernInstallError::InvalidRequest)
+        );
+        request.runtime_id = RuntimeId::new("..").unwrap();
+        assert_eq!(
+            install_gewyvern_artifact(&source, &request, &layout),
+            Err(GewyvernInstallError::InvalidRequest)
+        );
+        assert_eq!(
+            validate_runtime_id_for_path("/absolute/path"),
+            Err(GewyvernInstallError::InvalidRequest)
+        );
+        assert_eq!(
+            validate_runtime_id_for_path("runtime\nid"),
+            Err(GewyvernInstallError::InvalidRequest)
+        );
+    }
+
+    #[test]
+    fn retirement_rejects_path_component_runtime_ids() {
+        let (_temp, mut request, layout) = retirement_fixture();
+        request.runtime_id = RuntimeId::new(".").unwrap();
+        assert_eq!(
+            retire_gewyvern_with(&request, &layout, || Ok(())),
+            Err(GewyvernInstallError::InvalidRequest)
+        );
+        request.runtime_id = RuntimeId::new("..").unwrap();
+        assert_eq!(
+            retire_gewyvern_with(&request, &layout, || Ok(())),
+            Err(GewyvernInstallError::InvalidRequest)
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn retirement_rejects_relaxed_authority_files_before_stopping_service() {
@@ -2356,6 +2413,68 @@ mod tests {
         symlink(&redirected, &linked_root).unwrap();
         assert_eq!(
             install_gewyvern_artifact(&source, &request, &GewyvernInstallLayout::test(linked_root)),
+            Err(GewyvernInstallError::InvalidLayout)
+        );
+    }
+
+    #[test]
+    fn validate_root_rejects_relative_and_root_path_inputs() {
+        assert_eq!(
+            validate_root(Path::new("relative/root")),
+            Err(GewyvernInstallError::InvalidLayout)
+        );
+        assert_eq!(
+            validate_root(Path::new(".")),
+            Err(GewyvernInstallError::InvalidLayout)
+        );
+        assert_eq!(
+            validate_root(Path::new("/")),
+            Err(GewyvernInstallError::InvalidLayout)
+        );
+        assert_eq!(
+            validate_root(Path::new("/tmp/../escape")),
+            Err(GewyvernInstallError::InvalidLayout)
+        );
+        assert_eq!(
+            validate_root(Path::new("/tmp/./dot")),
+            Err(GewyvernInstallError::InvalidLayout)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn validate_root_rejects_symlink_components() {
+        let temp = fs::canonicalize(env::temp_dir()).unwrap();
+        let redirected = temp.join(format!("gewyvern-install-link-target-{}", std::process::id()));
+        fs::create_dir(&redirected).unwrap();
+        let linked_root = temp.join(format!(
+            "gewyvern-install-link-root-{}",
+            std::process::id()
+        ));
+        symlink(&redirected, &linked_root).unwrap();
+
+        assert_eq!(
+            validate_root(&linked_root),
+            Err(GewyvernInstallError::InvalidLayout)
+        );
+        let _ = fs::remove_dir_all(redirected);
+        let _ = fs::remove_file(&linked_root);
+        let _ = fs::remove_dir_all(&linked_root);
+    }
+
+    #[test]
+    fn path_text_rejects_control_characters() {
+        assert_eq!(
+            path_text(&Path::new("relative\nroot")),
+            Err(GewyvernInstallError::InvalidLayout)
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn systemd_quote_rejects_control_characters() {
+        assert_eq!(
+            systemd_quote("root/unsafe\npath"),
             Err(GewyvernInstallError::InvalidLayout)
         );
     }

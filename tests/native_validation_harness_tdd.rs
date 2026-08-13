@@ -626,7 +626,7 @@ fn remote_host_validation_records_phase_timings() {
     assert!(
         remote_host.contains(".args([\"status\", \"--porcelain=v1\", \"--untracked-files=all\"])")
     );
-    assert!(remote_host.contains("Ok(Some(format!(\"git:{head}\")))"));
+    assert!(remote_host.contains("format!(\"git:{head}\")"));
     assert!(remote_host.contains("git-dirty:"));
     assert!(remote_host.contains("ssh_control_path_template"));
     assert!(remote_host.contains("default_ssh_control_path_template"));

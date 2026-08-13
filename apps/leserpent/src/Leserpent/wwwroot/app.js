@@ -5869,6 +5869,18 @@ function openAllRuntimeWindows() {
         })
         : t("runtimePanel.windows.openAllComplete", { count });
 }
+function focusRuntimeWindowAfterClose(runtimeId) {
+    window.requestAnimationFrame(() => {
+        if (runtimeId) {
+            const identity = nodes.runtimeWindowGrid.querySelector(`.runtime-child-window-identity[data-runtime-id="${CSS.escape(runtimeId)}"]`);
+            if (identity instanceof HTMLButtonElement) {
+                identity.focus();
+                return;
+            }
+        }
+        nodes.runtimeWindowOpenSelected?.focus();
+    });
+}
 function closeRuntimeWindow(runtimeId) {
     const closedIndex = state.runtimeWindowIds.indexOf(runtimeId);
     state.runtimeWindowIds = state.runtimeWindowIds.filter((id) => id !== runtimeId);
@@ -5884,6 +5896,7 @@ function closeRuntimeWindow(runtimeId) {
     persistRuntimeWindows();
     renderRuntimeSliceFromCache();
     syncLocation();
+    focusRuntimeWindowAfterClose(state.activeRuntimeWindowId);
 }
 function closeAllRuntimeWindows() {
     state.runtimeWindowIds = [];

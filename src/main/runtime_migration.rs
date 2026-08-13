@@ -139,6 +139,16 @@ fn migrate_legacy_certificate_tree(
 }
 
 fn copy_missing_tree(source: &Path, target: &Path) -> Result<usize, String> {
+    let metadata = fs::symlink_metadata(source).map_err(|err| {
+        format!(
+            "failed to inspect legacy runtime tree '{}': {err}",
+            source.display()
+        )
+    })?;
+    if metadata.file_type().is_symlink() {
+        return Ok(0);
+    }
+
     let metadata = fs::metadata(source).map_err(|err| {
         format!(
             "failed to inspect legacy runtime tree '{}': {err}",

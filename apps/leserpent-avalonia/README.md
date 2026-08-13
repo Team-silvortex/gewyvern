@@ -206,9 +206,17 @@ Each live refresh composes a strict authority `health` proof with `runtime_list`
 in parallel. A card cannot become live unless the daemon is ready, owns the
 protocol-v1 authority, and reports internally consistent queue counters. Queue
 pressure is visible on the card; cached snapshots never invent missing health.
-Verify the
-strict wire projection with `--verify-remote-topology` and the real Hub control
-tree with `--verify-hub-topology`.
+The Hub search field filters daemon identity and the runtime name, ID, tags, or
+status across every loaded authority. Matching a daemon retains its complete
+bounded preview; matching a runtime retains that child beneath its owning
+daemon. The renderer-neutral `RemoteRuntimeSearch` policy bounds input to 128
+characters and is shared with desktop, mobile conformance, and the connected
+fleet projection. Filtering is local-only: it does not query a daemon, mutate a
+snapshot, or weaken the authoritative revision fence. `Ctrl+F` or `Cmd+F`
+focuses search, Escape clears an active filter before it can close the Hub, and
+F5 refreshes every non-busy daemon card. Verify the strict wire projection with
+`--verify-remote-topology`, the shared policy with `--verify-remote-filter`, and
+the real Hub control tree with `--verify-hub-topology`.
 
 ### Team Silvortex account
 
@@ -706,7 +714,7 @@ without requiring a UI or network service.
 Workspace filtering, diagnostic encoding, refresh/backoff planning, snapshot
 comparison, and severity retention are public, renderer-independent policies in
 `Leserpent.RemoteClient`; Avalonia owns only their native controls. MobileCore
-references the same library and MobileConformance executes all six policy
+references the same library and MobileConformance executes the same policy
 contracts, so mobile presentation does not need to copy desktop behavior.
 Fleet and runtime-workspace `UiDocument` projection now live beside those
 policies in `Leserpent.RemoteClient` and depend only on `RendererCore`.

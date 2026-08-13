@@ -382,21 +382,19 @@ fn apply_logging_section(
     config: &mut RuntimeConfigFile,
 ) -> Result<(), String> {
     for (key, value) in logging {
-        match key.as_str() {
-            "level" => {
-                config.defaults.log_level = Some(
-                    LogLevel::from_str(&parse_string(value))
-                        .map_err(|err| format!("invalid logging.level in config: {err}"))?,
+    match key.as_str() {
+        "level" => {
+            config.defaults.log_level = Some(
+                LogLevel::from_str(&parse_string(value))
+                    .map_err(|err| format!("invalid logging.level in config: {err}"))?,
                 )
             }
             "stderr" => config.defaults.log_to_stderr = Some(parse_bool(value, "logging.stderr")?),
-            "file" => {
-                let path = parse_string(value);
-                if path.is_empty() {
-                    return Err("logging.file must not be empty".to_string());
-                }
-                config.defaults.log_file = Some(path);
-            }
+        "file" => {
+            let path = parse_string(value);
+            validate_runtime_config_path_value("logging.file", &path)?;
+            config.defaults.log_file = Some(path);
+        }
             "max_bytes" => {
                 config.defaults.log_max_bytes =
                     Some(parse_positive_usize(value, "logging.max_bytes")?)
@@ -498,6 +496,9 @@ fn parse_external_engine_path(value: &str, field: &str) -> Result<String, String
     let value = parse_string(value);
     if value.trim().is_empty() || value.starts_with("--") {
         return Err(format!("{field} must be a non-empty path"));
+    }
+    if value.chars().any(char::is_control) {
+        return Err(format!("{field} must not contain control characters"));
     }
     if !value.contains('/') && !value.contains('\\') {
         return Err(format!("{field} must be a filesystem path (for example ./engine or /usr/bin/engine)"));

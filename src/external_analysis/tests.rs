@@ -95,3 +95,10 @@ fn validate_external_analysis_binary_rejects_path_search_names() {
     let err = validate_external_analysis_binary("python3").expect_err("bare executable name should be rejected");
     assert!(err.contains("filesystem path"));
 }
+
+#[test]
+fn validate_external_analysis_path_argument_rejects_control_characters() {
+    let err = validate_external_analysis_path_argument("python\nbin")
+        .expect_err("path arguments must reject control characters");
+    assert!(err.contains("control"));
+}

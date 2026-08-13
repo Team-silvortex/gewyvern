@@ -539,6 +539,40 @@ fn cli_rejects_remote_tcp_socket_without_explicit_flag() {
 }
 
 #[test]
+fn cli_rejects_malformed_unix_socket_targets() {
+    assert!(Cli::from_args(["--unix-socket".to_string(), " /tmp/gewyvern.sock".to_string()]).is_err());
+    assert!(Cli::from_args(["--unix-socket".to_string(), "/tmp/gewyvern.sock ".to_string()]).is_err());
+    assert!(Cli::from_args([
+        "--unix-socket".to_string(),
+        "bad\u{0007}socket.sock".to_string(),
+    ])
+    .is_err());
+}
+
+#[test]
+fn cli_rejects_malformed_tcp_socket_targets() {
+    assert!(Cli::from_args(["--tcp-socket".to_string(), " 127.0.0.1:9000".to_string()]).is_err());
+    assert!(Cli::from_args(["--tcp-socket".to_string(), "127.0.0.1:9000 ".to_string()]).is_err());
+    assert!(Cli::from_args([
+        "--tcp-socket".to_string(),
+        "127.0.0.1:\n9000".to_string(),
+    ])
+    .is_err());
+}
+
+#[test]
+fn cli_rejects_malformed_api_socket_targets() {
+    assert!(Cli::from_args(["--serve".to_string(), "--api-socket".to_string(), " 127.0.0.1:9100".to_string()]).is_err());
+    assert!(Cli::from_args(["--serve".to_string(), "--api-socket".to_string(), "127.0.0.1:9100 ".to_string()]).is_err());
+    assert!(Cli::from_args([
+        "--serve".to_string(),
+        "--api-socket".to_string(),
+        "127.0.0.1:\n9100".to_string(),
+    ])
+    .is_err());
+}
+
+#[test]
 fn cli_accepts_remote_tcp_socket_with_explicit_flag() {
     let cli = Cli::from_args([
         "--tcp-socket".to_string(),

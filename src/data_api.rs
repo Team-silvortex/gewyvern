@@ -450,6 +450,46 @@ mod tests {
     use super::*;
 
     #[test]
+    fn normalize_api_admin_token_rejects_too_short_and_too_long_values() {
+        assert_eq!(
+            normalize_api_admin_token("a".repeat(31).as_str()),
+            None,
+            "short tokens should be rejected"
+        );
+        assert_eq!(
+            normalize_api_admin_token("b".repeat(257).as_str()),
+            None,
+            "long tokens should be rejected"
+        );
+    }
+
+    #[test]
+    fn normalize_api_admin_token_rejects_whitespace_and_control_characters() {
+        assert_eq!(
+            normalize_api_admin_token("  runtime-api-token-abcdefghijklmnopqrstuvwxyz \u{0007} "),
+            None,
+            "control characters should be rejected"
+        );
+        assert_eq!(
+            normalize_api_admin_token("   "),
+            None,
+            "whitespace-only tokens should be rejected"
+        );
+    }
+
+    #[test]
+    fn normalize_api_admin_token_accepts_trimmed_valid_tokens() {
+        assert_eq!(
+            normalize_api_admin_token("  runtime-api-token-abcdefghijklmnopqrstuvwxyz  ").as_deref(),
+            Some("runtime-api-token-abcdefghijklmnopqrstuvwxyz")
+        );
+        assert_eq!(
+            normalize_api_admin_token("runtime-api-token-abcdefghijklmnopqrstuvwxyz").as_deref(),
+            Some("runtime-api-token-abcdefghijklmnopqrstuvwxyz")
+        );
+    }
+
+    #[test]
     fn scan_rollup_profile_prefers_attention_first_spine() {
         let targets = vec![
             ApiRenderedTarget {

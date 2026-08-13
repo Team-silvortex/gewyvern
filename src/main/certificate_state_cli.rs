@@ -414,6 +414,60 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    #[test]
+    fn set_rotation_rejects_relative_path_traversal() {
+        let _guard = env_test_lock().lock().unwrap();
+        let root = temp_root("rotation-invalid-path");
+        let state_root = root.join("state").join("certificates");
+        fs::create_dir_all(&state_root).unwrap();
+
+        let _env = TestEnvGuard::set(&[(
+            "GEWY_CERTIFICATE_STATE_ROOT",
+            state_root.to_string_lossy().as_ref(),
+        )]);
+
+        let result = run_certificate_state_command(&[
+            "set-rotation".into(),
+            "--path".into(),
+            "identity/../runtime.pem".into(),
+            "--status".into(),
+            "due".into(),
+        ]);
+
+        let error = result.expect_err("command should fail");
+        assert!(error.contains("relative path contains invalid segment"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn set_revocation_rejects_note_control_characters() {
+        let _guard = env_test_lock().lock().unwrap();
+        let root = temp_root("revocation-invalid-note");
+        let state_root = root.join("state").join("certificates");
+        fs::create_dir_all(&state_root).unwrap();
+
+        let _env = TestEnvGuard::set(&[(
+            "GEWY_CERTIFICATE_STATE_ROOT",
+            state_root.to_string_lossy().as_ref(),
+        )]);
+
+        let result = run_certificate_state_command(&[
+            "set-revocation".into(),
+            "--path".into(),
+            "trust/anchors/root-ca.pem".into(),
+            "--scope".into(),
+            "trust".into(),
+            "--status".into(),
+            "distrusted".into(),
+            "--note".into(),
+            "line1\nline2".into(),
+        ]);
+
+        let error = result.expect_err("command should fail");
+        assert!(error.contains("note contains control characters"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
     fn env_test_lock() -> &'static Mutex<()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
         LOCK.get_or_init(|| Mutex::new(()))

@@ -9,7 +9,7 @@ internal static class Program
         {
             RemoteDocumentProjection.VerifyFilterContract();
             Console.WriteLine(
-                "remote filter valid: name=true, id=true, tag=true, status=true, bounded=true, empty_state=true");
+                "remote filter valid: renderer_neutral=true, topology=true, authority=true, name=true, id=true, tag=true, status=true, bounded=true, empty_state=true");
             return 0;
         }
         if (args is ["--verify-remote-topology"])

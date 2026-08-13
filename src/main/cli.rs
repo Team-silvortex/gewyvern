@@ -11,6 +11,8 @@ use gewyvern::template::{TemplateBinding, handshake_debug_template, udp_debug_te
 mod trusted_path;
 use self::trusted_path::next_trusted_path_value;
 
+const CLI_SOCKET_TARGET_MAX_LEN: usize = 4096;
+
 #[derive(Debug)]
 pub(crate) struct Cli {
     pub(crate) demo_mode: DemoMode,
@@ -255,7 +257,10 @@ impl Cli {
         let mut debugger_console = false;
         let mut debug_session = false;
         let mut serve = defaults.serve.unwrap_or(false);
-        let mut api_socket = defaults.api_socket;
+        let mut api_socket = defaults
+            .api_socket
+            .map(|value| validate_cli_socket_target("api socket", value))
+            .transpose()?;
         let mut allow_remote_api = defaults.allow_remote_api.unwrap_or(false);
         let mut api_admin_token = resolve_api_admin_token(
             defaults.api_admin_token,
@@ -266,7 +271,10 @@ impl Cli {
         let mut report_format = None;
         let mut summary_only = false;
         let mut out_path = None;
-        let mut socket_target = defaults.socket_target;
+        let mut socket_target = defaults
+            .socket_target
+            .map(validate_default_socket_target)
+            .transpose()?;
         let mut external_engine_bin = defaults.external_engine_bin;
         let mut external_engine_worker = defaults.external_engine_worker;
         let mut external_engine_python_bin = defaults.external_engine_python_bin;
@@ -302,10 +310,10 @@ impl Cli {
                     );
                 }
                 "--api-socket" => {
-                    api_socket = Some(
-                        args.next()
-                            .ok_or_else(|| locale.msgf("missing_api_socket", "", None))?,
-                    );
+                    let value = args
+                        .next()
+                        .ok_or_else(|| locale.msgf("missing_api_socket", "", None))?;
+                    api_socket = Some(validate_cli_socket_target("api socket", value)?);
                 }
                 "--findings" => findings = true,
                 "--http-transactions" => http_transactions = true,
@@ -393,16 +401,20 @@ impl Cli {
                 }
                 "--diagnostics" => diagnostics = true,
                 "--unix-socket" => {
+                    let value = args
+                        .next()
+                        .ok_or_else(|| locale.msgf("missing_unix_socket", "", None))?;
+                    let value = validate_cli_socket_target("unix socket path", value)?;
                     socket_target =
-                        Some(SocketTarget::Unix(args.next().ok_or_else(|| {
-                            locale.msgf("missing_unix_socket", "", None)
-                        })?));
+                        Some(SocketTarget::Unix(value));
                 }
                 "--tcp-socket" => {
+                    let value = args
+                        .next()
+                        .ok_or_else(|| locale.msgf("missing_tcp_socket", "", None))?;
+                    let value = validate_cli_socket_target("tcp socket target", value)?;
                     socket_target =
-                        Some(SocketTarget::Tcp(args.next().ok_or_else(|| {
-                            locale.msgf("missing_tcp_socket", "", None)
-                        })?));
+                        Some(SocketTarget::Tcp(value));
                 }
                 "--out" => {
                     out_path = Some(
@@ -554,4 +566,35 @@ pub(crate) fn resolve_api_admin_token(
             normalize_api_admin_token(&token)
         }
     })
+}
+
+fn validate_cli_socket_target(name: &str, value: String) -> Result<String, String> {
+    if value.trim() != value {
+        return Err(format!(
+            "{name} must not contain leading or trailing whitespace"
+        ));
+    }
+    if value.is_empty() {
+        return Err(format!("{name} must not be empty"));
+    }
+    if value.len() > CLI_SOCKET_TARGET_MAX_LEN {
+        return Err(format!("{name} is too long for a socket target"));
+    }
+    if value.bytes().any(|byte| byte.is_ascii_control()) {
+        return Err(format!("{name} must not contain control characters"));
+    }
+    Ok(value)
+}
+
+fn validate_default_socket_target(target: SocketTarget) -> Result<SocketTarget, String> {
+    match target {
+        SocketTarget::Unix(path) => Ok(SocketTarget::Unix(validate_cli_socket_target(
+            "unix socket path",
+            path,
+        )?)),
+        SocketTarget::Tcp(addr) => Ok(SocketTarget::Tcp(validate_cli_socket_target(
+            "tcp socket target",
+            addr,
+        )?)),
+    }
 }

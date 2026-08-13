@@ -16,6 +16,8 @@ use super::{
     write_stack_resilience_summary,
 };
 
+const STACK_SUITE_PATH_MAX_LEN: usize = 4096;
+
 pub fn run_three_module_stack_smoke() -> Result<ValidationReport, ValidationError> {
     let cfg = ThreeModuleStackConfig::from_env()?;
     require_cmd("docker")?;
@@ -1001,7 +1003,7 @@ impl ThreeModuleStackConfig {
                         .map(|home| format!("{home}/.cargo"))
                         .unwrap_or_else(|_| format!("{}/.cargo", work_dir.display()))
                 }),
-            ),
+            )?,
             cargo_net_offline: env_bool("CARGO_NET_OFFLINE", false),
             resilience_summary_path: env_path(
                 "RESILIENCE_SUMMARY_PATH",
@@ -1009,7 +1011,7 @@ impl ThreeModuleStackConfig {
                     .join("resilience-summary.txt")
                     .display()
                     .to_string(),
-            ),
+            )?,
         })
     }
 }
@@ -1134,7 +1136,7 @@ impl PathologyConfig {
                         .map(|home| format!("{home}/.cargo"))
                         .unwrap_or_else(|_| String::from(".cargo"))
                 }),
-            ),
+            )?,
             cargo_net_offline: env_bool("CARGO_NET_OFFLINE", false),
         })
     }
@@ -2317,6 +2319,11 @@ fn validate_docker_cli_arg_value(name: &str, value: String) -> Result<String, Va
     if value.is_empty() {
         return Err(ValidationError::new(format!("{name} must not be empty")));
     }
+    if value.starts_with('-') {
+        return Err(ValidationError::new(format!(
+            "{name} must not start with '-'"
+        )));
+    }
     if value.len() > 4096 {
         return Err(ValidationError::new(format!(
             "{name} is too long for a docker CLI argument value"
@@ -2381,6 +2388,74 @@ fn env_u16(name: &str, default: u16) -> Result<u16, ValidationError> {
     }
 }
 
-fn env_path(name: &str, default: &str) -> PathBuf {
-    PathBuf::from(env::var(name).unwrap_or_else(|_| default.to_string()))
+fn env_path(name: &str, default: &str) -> Result<PathBuf, ValidationError> {
+    let value = env::var(name).unwrap_or_else(|_| default.to_string());
+    validate_env_path(name, value)
+}
+
+fn validate_env_path(name: &str, value: String) -> Result<PathBuf, ValidationError> {
+    if value.trim() != value {
+        return Err(ValidationError::new(format!(
+            "{name} must not contain leading or trailing whitespace"
+        )));
+    }
+    if value.is_empty() {
+        return Err(ValidationError::new(format!("{name} must not be empty")));
+    }
+    if value.len() > STACK_SUITE_PATH_MAX_LEN {
+        return Err(ValidationError::new(format!(
+            "{name} is too long for a filesystem path"
+        )));
+    }
+    if value.bytes().any(|byte| byte.is_ascii_control()) {
+        return Err(ValidationError::new(format!(
+            "{name} must not contain control characters"
+        )));
+    }
+    Ok(PathBuf::from(value))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{validate_docker_cli_arg_value, validate_env_path};
+    use std::path::PathBuf;
+
+    #[test]
+    fn validates_env_path_with_valid_value() {
+        let path = validate_env_path("CARGO_CACHE_DIR", "/tmp/cache".to_string())
+            .expect("valid path should be accepted");
+        assert_eq!(path, PathBuf::from("/tmp/cache"));
+    }
+
+    #[test]
+    fn rejects_env_path_with_empty_value() {
+        assert!(validate_env_path("CARGO_CACHE_DIR", "".to_string()).is_err());
+    }
+
+    #[test]
+    fn rejects_docker_cli_arg_value_that_starts_with_dash() {
+        assert!(validate_docker_cli_arg_value("DOCKER_BASE_IMAGE", "-invalid".to_string()).is_err());
+    }
+
+    #[test]
+    fn rejects_docker_cli_arg_value_with_control_chars() {
+        assert!(validate_docker_cli_arg_value("DOCKER_BASE_IMAGE", "image\nname".to_string()).is_err());
+    }
+
+    #[test]
+    fn rejects_env_path_with_control_chars() {
+        assert!(validate_env_path("CARGO_CACHE_DIR", "path\nwith\nnewlines".to_string()).is_err());
+    }
+
+    #[test]
+    fn rejects_env_path_with_leading_or_trailing_whitespace() {
+        assert!(validate_env_path("CARGO_CACHE_DIR", " /tmp/cache".to_string()).is_err());
+        assert!(validate_env_path("CARGO_CACHE_DIR", "/tmp/cache ".to_string()).is_err());
+    }
+
+    #[test]
+    fn rejects_env_path_that_is_too_long() {
+        let long = "a".repeat(4097);
+        assert!(validate_env_path("CARGO_CACHE_DIR", long).is_err());
+    }
 }

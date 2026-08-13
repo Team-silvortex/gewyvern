@@ -1,13 +1,14 @@
 public static class RemoteDocumentProjection
 {
-    public const int MaxFilterLength = 128;
+    public const int MaxFilterLength = RemoteRuntimeSearch.MaxFilterLength;
 
     public static RemoteDocumentView Project(RemoteFeedState state, string? filter = null)
     {
-        var normalizedFilter = NormalizeFilter(filter);
+        var normalizedFilter = RemoteRuntimeSearch.Normalize(filter);
         var runtimes = normalizedFilter.Length == 0
             ? state.Runtimes
-            : state.Runtimes.Where(runtime => Matches(runtime, normalizedFilter)).ToArray();
+            : state.Runtimes.Where(runtime => RemoteRuntimeSearch.Matches(runtime, normalizedFilter))
+                .ToArray();
         var filterNodes = normalizedFilter.Length == 0
             ? Array.Empty<UiNode>()
             :
@@ -49,28 +50,9 @@ public static class RemoteDocumentProjection
         return new RemoteDocumentView(document, runtimes.Count, state.Runtimes.Count);
     }
 
-    private static string NormalizeFilter(string? filter) => new string((filter ?? string.Empty)
-        .Where(character => !char.IsControl(character))
-        .Take(MaxFilterLength)
-        .ToArray()).Trim();
-
-    private static bool Matches(RemoteRuntimeProjection runtime, string filter) => new[]
-    {
-        runtime.Id,
-        runtime.Name,
-        runtime.RefreshStatus.ToString(),
-        runtime.Tags.Environment,
-        runtime.Tags.Cluster,
-        runtime.Tags.Role,
-        runtime.Status.StatusSource,
-        runtime.Status.StatusFetchError,
-        runtime.Status.ResilienceStatus,
-        runtime.Capabilities?.Service,
-        runtime.Capabilities?.Version,
-    }.Any(value => value?.Contains(filter, StringComparison.OrdinalIgnoreCase) == true);
-
     public static void VerifyFilterContract()
     {
+        RemoteRuntimeSearch.VerifyContract();
         var state = new RemoteFeedState(
             RemoteFeedPhase.Live,
             9,

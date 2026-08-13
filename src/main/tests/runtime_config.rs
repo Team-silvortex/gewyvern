@@ -1,6 +1,7 @@
 use super::{Cli, IngestMode};
 use crate::runtime_config::{apply_runtime_path_overrides, load_runtime_config, RuntimeConfigFile};
 use crate::runtime_logging::LogLevel;
+use gewyvern::runtime_layout::runtime_layout;
 use crate::{SocketTarget, cli::CliDefaults};
 use std::fs;
 use std::path::PathBuf;
@@ -335,6 +336,84 @@ fn runtime_config_explicit_file_overrides_standard_path() {
 }
 
 #[test]
+fn runtime_config_missing_explicit_file_does_not_fallback_to_standard_path() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("config-file-missing");
+    let config_root = root.join("config");
+    fs::create_dir_all(&config_root).unwrap();
+    let explicit_path = config_root.join("missing-gewyvern.toml");
+    let fallback_path = config_root.join("gewyvern.toml");
+    fs::write(
+        &fallback_path,
+        "schema_version = 1\n[runtime]\nserve = true\nsocket = \"tcp:127.0.0.1:9001\"\n",
+    )
+    .unwrap();
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _config_file = EnvGuard::set("GEWY_CONFIG_FILE", explicit_path.to_string_lossy());
+
+    let err = load_runtime_config().unwrap_err();
+    let explicit_path_text = explicit_path.to_string_lossy();
+    assert!(err.contains("failed to read runtime config"));
+    assert!(err.contains(&explicit_path_text as &str));
+    assert!(!err.contains("127.0.0.1:9001"));
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn runtime_config_invalid_config_home_is_ignored_for_standard_lookup() {
+    let _lock = env_lock().lock().unwrap();
+    let home = temp_dir("invalid-config-home");
+    let _home = EnvGuard::set("HOME", home.to_string_lossy());
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", " /tmp/invalid-config-home ");
+    let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
+
+    let layout = runtime_layout();
+    let standard_path = layout.config_root.join("gewyvern.toml");
+    fs::create_dir_all(&layout.config_root).unwrap();
+    fs::write(
+        &standard_path,
+        "schema_version = 1\n[runtime]\nserve = true\nsocket = \"unix:/tmp/default.sock\"\n",
+    )
+    .unwrap();
+
+    let config = load_runtime_config().unwrap();
+    assert_eq!(config.defaults.serve, Some(true));
+    assert_eq!(config.source_path.as_deref(), Some(standard_path.as_path()));
+
+    let _ = fs::remove_file(&standard_path);
+    let _ = fs::remove_dir_all(&layout.config_root);
+    let _ = fs::remove_dir_all(&home);
+}
+
+#[test]
+fn runtime_config_missing_standard_root_falls_back_to_legacy_path() {
+    let _lock = env_lock().lock().unwrap();
+    let home = temp_dir("config-home-missing");
+    let legacy_root = home.join(".gewyvern");
+    fs::create_dir_all(&legacy_root).unwrap();
+    fs::write(
+        legacy_root.join("config.toml"),
+        "schema_version = 1\n[runtime]\nserve = true\nsocket = \"unix:/tmp/default.sock\"\n",
+    )
+    .unwrap();
+    let missing_config_home = home.join("missing-config-root");
+    let _home = EnvGuard::set("HOME", home.to_string_lossy());
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", missing_config_home.to_string_lossy());
+    let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
+
+    let config = load_runtime_config().unwrap();
+    assert!(config.used_legacy_path);
+    assert_eq!(
+        config.source_path.as_deref(),
+        Some(legacy_root.join("config.toml").as_path())
+    );
+    assert_eq!(config.defaults.serve, Some(true));
+
+    fs::remove_dir_all(&home).unwrap();
+}
+
+#[test]
 fn runtime_config_falls_back_when_config_file_env_is_unsafe() {
     let _lock = env_lock().lock().unwrap();
     let root = temp_dir("config-file-unsafe");
@@ -495,6 +574,26 @@ fn runtime_config_rejects_unsafe_protocol_and_share_root_path_overrides() {
 }
 
 #[test]
+fn runtime_config_rejects_control_char_in_logging_file_path() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("logging-file-invalid-path");
+    let config_root = root.join("config");
+    fs::create_dir_all(&config_root).unwrap();
+    fs::write(
+        config_root.join("gewyvern.toml"),
+        "[logging]\nfile = \"/tmp/gewyvern\u{0007}.log\"\n",
+    )
+    .unwrap();
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
+
+    let err = load_runtime_config().unwrap_err();
+    let _ = fs::remove_dir_all(&root);
+    assert!(err.contains("logging.file"));
+    assert!(err.contains("invalid control characters"));
+}
+
+#[test]
 fn runtime_config_rejects_external_engine_path_without_separator() {
     let _lock = env_lock().lock().unwrap();
     let root = temp_dir("external-engine-path");
@@ -604,4 +703,337 @@ fn cli_arguments_override_runtime_config_defaults() {
     assert_eq!(cli.log_file.as_deref(), Some("/tmp/cli.log"));
     assert_eq!(cli.log_max_bytes, 8192);
     assert_eq!(cli.log_max_files, 5);
+}
+
+#[test]
+fn cli_rejects_malformed_default_unix_socket_targets() {
+    let defaults = CliDefaults {
+        socket_target: Some(SocketTarget::Unix(" /tmp/default.sock".into())),
+        ..CliDefaults::default()
+    };
+
+    assert!(
+        Cli::from_args_with_defaults(std::iter::empty::<String>(), defaults).is_err(),
+        "leading whitespace in default unix socket path should be rejected"
+    );
+}
+
+#[test]
+fn cli_rejects_malformed_default_tcp_socket_targets() {
+    let defaults = CliDefaults {
+        socket_target: Some(SocketTarget::Tcp("127.0.0.1:\n9000".into())),
+        ..CliDefaults::default()
+    };
+
+    assert!(
+        Cli::from_args_with_defaults(std::iter::empty::<String>(), defaults).is_err(),
+        "control characters in default tcp socket target should be rejected"
+    );
+}
+
+#[test]
+fn cli_rejects_malformed_default_api_socket() {
+    let defaults = CliDefaults {
+        api_socket: Some(" 127.0.0.1:9100".into()),
+        ..CliDefaults::default()
+    };
+
+    assert!(
+        Cli::from_args_with_defaults(std::iter::empty::<String>(), defaults).is_err(),
+        "leading whitespace in default api socket should be rejected"
+    );
+
+    let defaults = CliDefaults {
+        api_socket: Some("127.0.0.1:\u{0007}9100".into()),
+        ..CliDefaults::default()
+    };
+
+    assert!(
+        Cli::from_args_with_defaults(std::iter::empty::<String>(), defaults).is_err(),
+        "control characters in default api socket should be rejected"
+    );
+}
+
+#[test]
+fn cli_rejects_malformed_default_api_admin_token_for_remote_api() {
+    let defaults = CliDefaults {
+        serve: Some(true),
+        api_socket: Some("0.0.0.0:9100".into()),
+        allow_remote_api: Some(true),
+        api_admin_token: Some("short".into()),
+        ..CliDefaults::default()
+    };
+
+    assert!(Cli::from_args_with_defaults(std::iter::empty::<String>(), defaults).is_err());
+}
+
+#[test]
+fn cli_rejects_control_character_api_admin_token_for_default_remote_api() {
+    let defaults = CliDefaults {
+        serve: Some(true),
+        api_socket: Some("0.0.0.0:9100".into()),
+        allow_remote_api: Some(true),
+        api_admin_token: Some("valid_admin_token_with_control_\u{0007}_characters_xxyyzz".into()),
+        ..CliDefaults::default()
+    };
+
+    assert!(Cli::from_args_with_defaults(std::iter::empty::<String>(), defaults).is_err());
+}
+
+#[test]
+fn cli_rejects_default_remote_api_socket_without_allow_remote_flag() {
+    let defaults = CliDefaults {
+        serve: Some(true),
+        api_socket: Some("0.0.0.0:9100".into()),
+        allow_remote_api: Some(false),
+        api_admin_token: Some("runtime-api-token-abcdefghijklmnopqrstuvwxyz".into()),
+        ..CliDefaults::default()
+    };
+
+    assert!(Cli::from_args_with_defaults(std::iter::empty::<String>(), defaults).is_err());
+}
+
+#[test]
+fn cli_rejects_whitespace_only_default_api_admin_token_for_remote_api() {
+    let defaults = CliDefaults {
+        serve: Some(true),
+        api_socket: Some("0.0.0.0:9100".into()),
+        allow_remote_api: Some(true),
+        api_admin_token: Some("   ".into()),
+        ..CliDefaults::default()
+    };
+
+    assert!(Cli::from_args_with_defaults(std::iter::empty::<String>(), defaults).is_err());
+}
+
+#[test]
+fn runtime_config_loaded_defaults_rejects_malformed_default_api_socket() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("runtime-config-invalid-default-api-socket");
+    let config_root = root.join("config");
+    fs::create_dir_all(&config_root).unwrap();
+    fs::write(
+        config_root.join("gewyvern.toml"),
+        "schema_version = 1\n[runtime]\nserve = true\nsocket = \"unix:/tmp/default.sock\"\napi_socket = \" 0.0.0.0:9100\"\nallow_remote_api = true\napi_admin_token = \"runtime-api-token-abcdefghijklmnopqrstuvwxyz\"\n",
+    )
+    .unwrap();
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
+
+    let config = load_runtime_config().unwrap();
+    assert_eq!(
+        config.defaults.api_socket.as_deref(),
+        Some(" 0.0.0.0:9100")
+    );
+    assert_eq!(config.defaults.allow_remote_api, Some(true));
+    assert_eq!(
+        config.defaults.api_admin_token.as_deref(),
+        Some("runtime-api-token-abcdefghijklmnopqrstuvwxyz")
+    );
+
+    assert!(
+        Cli::from_args_with_defaults(std::iter::empty::<String>(), config.defaults).is_err(),
+        "leading whitespace in runtime api socket should be rejected"
+    );
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn runtime_config_loaded_defaults_accepts_remote_api_with_explicit_flag() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("runtime-config-allow-remote-flag");
+    let config_root = root.join("config");
+    fs::create_dir_all(&config_root).unwrap();
+    fs::write(
+        config_root.join("gewyvern.toml"),
+        "schema_version = 1\n[runtime]\nserve = true\nsocket = \"unix:/tmp/default.sock\"\napi_socket = \"0.0.0.0:9100\"\nallow_remote_api = false\napi_admin_token = \"runtime-api-token-abcdefghijklmnopqrstuvwxyz\"\n",
+    )
+    .unwrap();
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
+
+    let config = load_runtime_config().unwrap();
+    let cli = Cli::from_args_with_defaults(
+        ["--allow-remote-api".to_string()],
+        config.defaults,
+    )
+    .unwrap();
+
+    assert!(cli.serve);
+    assert!(cli.allow_remote_api);
+    assert_eq!(cli.api_socket.as_deref(), Some("0.0.0.0:9100"));
+    assert_eq!(
+        cli.api_admin_token.as_deref(),
+        Some("runtime-api-token-abcdefghijklmnopqrstuvwxyz")
+    );
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn runtime_config_loaded_defaults_uses_api_admin_token_precedence_over_environment() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("runtime-config-token-precedence");
+    let config_root = root.join("config");
+    fs::create_dir_all(&config_root).unwrap();
+    fs::write(
+        config_root.join("gewyvern.toml"),
+        "schema_version = 1\n[runtime]\nserve = true\nsocket = \"unix:/tmp/default.sock\"\napi_socket = \"0.0.0.0:9100\"\nallow_remote_api = true\napi_admin_token = \"short\"\n",
+    )
+    .unwrap();
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
+    let _api_admin_token =
+        EnvGuard::set("GEWY_API_ADMIN_TOKEN", "runtime-api-token-abcdefghijklmnopqrstuvwxyz");
+
+    let config = load_runtime_config().unwrap();
+    assert_eq!(config.defaults.api_admin_token.as_deref(), Some("short"));
+    let configured_token = config.defaults.api_admin_token.as_deref().unwrap_or("");
+    let resolved_token =
+        crate::cli::resolve_api_admin_token(Some(configured_token.to_string()), std::env::var("GEWY_API_ADMIN_TOKEN").ok());
+    assert_eq!(resolved_token, None);
+
+    assert!(Cli::from_args_with_defaults(std::iter::empty::<String>(), config.defaults).is_err());
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn runtime_config_loaded_defaults_accepts_env_api_admin_token_when_missing_from_config() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("runtime-config-env-token");
+    let config_root = root.join("config");
+    fs::create_dir_all(&config_root).unwrap();
+    fs::write(
+        config_root.join("gewyvern.toml"),
+        "schema_version = 1\n[runtime]\nserve = true\nsocket = \"unix:/tmp/default.sock\"\napi_socket = \"0.0.0.0:9100\"\nallow_remote_api = true\n",
+    )
+    .unwrap();
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
+    let _api_admin_token =
+        EnvGuard::set("GEWY_API_ADMIN_TOKEN", "runtime-api-token-abcdefghijklmnopqrstuvwxyz");
+
+    let config = load_runtime_config().unwrap();
+    let cli = Cli::from_args_with_defaults(std::iter::empty::<String>(), config.defaults).unwrap();
+
+    assert!(cli.serve);
+    assert!(cli.allow_remote_api);
+    assert_eq!(cli.api_socket.as_deref(), Some("0.0.0.0:9100"));
+    assert_eq!(
+        cli.api_admin_token.as_deref(),
+        Some("runtime-api-token-abcdefghijklmnopqrstuvwxyz")
+    );
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn runtime_path_overrides_respects_preexisting_path_environment_variables() {
+    let _lock = env_lock().lock().unwrap();
+    let _protocol_registry_root = EnvGuard::set(
+        "GEWY_PROTOCOL_REGISTRY_ROOT",
+        "/tmp/preexisting-protocols-root",
+    );
+    let mut config = RuntimeConfigFile::default();
+    config.protocol_registry_root = Some("/tmp/config-protocols-root".into());
+
+    assert!(apply_runtime_path_overrides(&config).is_ok());
+    assert_eq!(
+        std::env::var("GEWY_PROTOCOL_REGISTRY_ROOT").ok().as_deref(),
+        Some("/tmp/preexisting-protocols-root")
+    );
+}
+
+#[test]
+fn runtime_path_overrides_respects_preexisting_certificate_root_env() {
+    let _lock = env_lock().lock().unwrap();
+    let _certificate_root = EnvGuard::set("GEWY_CERTIFICATE_ROOT", "/tmp/preexisting-certs");
+    let _trust_root = EnvGuard::set("GEWY_TRUST_ROOT", "/tmp/preexisting-trust");
+    let mut config = RuntimeConfigFile::default();
+    config.certificate_root = Some("/tmp/config-certs".into());
+    config.trust_root = Some("/tmp/config-trust".into());
+
+    assert!(apply_runtime_path_overrides(&config).is_ok());
+    assert_eq!(
+        std::env::var("GEWY_CERTIFICATE_ROOT").ok().as_deref(),
+        Some("/tmp/preexisting-certs")
+    );
+    assert_eq!(
+        std::env::var("GEWY_TRUST_ROOT").ok().as_deref(),
+        Some("/tmp/preexisting-trust")
+    );
+}
+
+#[test]
+fn runtime_path_overrides_rejects_invalid_protocol_registry_root() {
+    let _lock = env_lock().lock().unwrap();
+    let _protocol_registry_root = EnvGuard::remove("GEWY_PROTOCOL_REGISTRY_ROOT");
+    let mut config = RuntimeConfigFile::default();
+    config.protocol_registry_root = Some(" /tmp/config-protocols-root ".into());
+
+    assert!(apply_runtime_path_overrides(&config).is_err());
+}
+
+#[test]
+fn runtime_path_overrides_respects_existing_history_retention_env() {
+    let _lock = env_lock().lock().unwrap();
+    let mut config = RuntimeConfigFile::default();
+    config.history_retention = Some(17);
+    let _history_retention = EnvGuard::set("GEWY_HISTORY_RETENTION", "23");
+
+    assert!(apply_runtime_path_overrides(&config).is_ok());
+    assert_eq!(
+        std::env::var("GEWY_HISTORY_RETENTION").ok().as_deref(),
+        Some("23")
+    );
+}
+
+#[test]
+fn runtime_path_overrides_respects_existing_require_explicit_remote_trust_env() {
+    let _lock = env_lock().lock().unwrap();
+    let mut config = RuntimeConfigFile::default();
+    config.require_explicit_remote_trust = Some(false);
+    let _require_remote = EnvGuard::set("GEWY_REQUIRE_EXPLICIT_REMOTE_TRUST", "true");
+
+    assert!(apply_runtime_path_overrides(&config).is_ok());
+    assert_eq!(
+        std::env::var("GEWY_REQUIRE_EXPLICIT_REMOTE_TRUST").ok().as_deref(),
+        Some("true")
+    );
+}
+
+#[test]
+fn runtime_path_overrides_applies_require_explicit_remote_trust_when_missing_env() {
+    let _lock = env_lock().lock().unwrap();
+    let mut config = RuntimeConfigFile::default();
+    config.require_explicit_remote_trust = Some(false);
+    let _require_remote = EnvGuard::remove("GEWY_REQUIRE_EXPLICIT_REMOTE_TRUST");
+
+    assert!(apply_runtime_path_overrides(&config).is_ok());
+    assert_eq!(
+        std::env::var("GEWY_REQUIRE_EXPLICIT_REMOTE_TRUST").ok().as_deref(),
+        Some("false")
+    );
+}
+
+#[test]
+fn runtime_config_rejects_invalid_require_explicit_remote_trust() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("runtime-config-invalid-remote-trust");
+    let config_root = root.join("config");
+    fs::create_dir_all(&config_root).unwrap();
+    fs::write(
+        config_root.join("gewyvern.toml"),
+        "schema_version = 1\n[certificates]\nrequire_explicit_remote_trust = \"maybe\"\n",
+    )
+    .unwrap();
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
+
+    let err = load_runtime_config().unwrap_err();
+    assert!(err.contains("must be true or false"));
+
+    fs::remove_dir_all(&root).unwrap();
 }

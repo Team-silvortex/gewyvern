@@ -2029,6 +2029,12 @@ The desktop runtime workspace now saves the same endpoint-free diagnostic snapsh
 through the native platform picker. The UTF-8 payload is prevalidated under 512
 KiB, suggested filenames discard path/control syntax, overwrite requires platform
 confirmation, and failed destinations never expose their path in UI status.
+The desktop Hub now applies the renderer-neutral runtime search policy across
+all loaded daemon authorities. Authority matches retain a complete bounded
+preview, runtime matches retain only matching children under their owning
+authority, and mobile conformance consumes the same 128-character policy.
+Filtering remains local-only and cannot release the topology revision fence;
+the native control probe covers keyboard focus, empty state, and clear recovery.
 The workspace query group also exports canonical structured Leselang as one
 `all(inspect, history, logs)` batch. The production Avalonia preview now sends a
 strict bounded intent through authenticated `POST /v1/leselang-export`;

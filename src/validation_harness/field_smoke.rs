@@ -3,8 +3,12 @@ use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 use std::{env, fs};
+#[cfg(unix)]
+use std::os::unix::fs::FileTypeExt;
 
 use serde_json::Value;
+
+const FIELD_SOCKET_PATH_MAX_LEN: usize = 4096;
 
 use super::command::{
     VALIDATION_HELPER_TIMEOUT, ValidationError, ValidationReport, default_out_dir, repo_root,
@@ -97,11 +101,11 @@ fn check_gewyc_explain(out_dir: &Path) -> Result<(), ValidationError> {
 
 fn check_socket_roundtrip(out_dir: &Path) -> Result<(), ValidationError> {
     build_socket_binaries(out_dir)?;
-    let socket_path = default_field_socket_path();
+    let socket_path = default_field_socket_path()?;
     let output_path = out_dir.join("socket.json");
     let stdout = fs::File::create(out_dir.join("socket-server.stdout.log"))?;
     let stderr = fs::File::create(out_dir.join("socket-server.stderr.log"))?;
-    let _ = fs::remove_file(&socket_path);
+    remove_stale_unix_socket(&socket_path)?;
 
     let mut child = Command::new(repo_root().join("target/debug/gewyvern"))
         .current_dir(repo_root())
@@ -131,12 +135,95 @@ fn check_socket_roundtrip(out_dir: &Path) -> Result<(), ValidationError> {
     if result.is_err() {
         kill_child(&mut child);
     }
-    let _ = fs::remove_file(&socket_path);
+    let _ = remove_stale_unix_socket(&socket_path);
     result
 }
 
-fn default_field_socket_path() -> String {
-    env::var("GEWY_FIELD_SOCKET_PATH")
+#[cfg(unix)]
+fn is_socket_metadata(metadata: &fs::Metadata) -> bool {
+    metadata.file_type().is_socket()
+}
+
+#[cfg(not(unix))]
+fn is_socket_metadata(_metadata: &fs::Metadata) -> bool {
+    false
+}
+
+fn remove_stale_unix_socket(socket_path: &str) -> Result<(), ValidationError> {
+    let path = Path::new(socket_path);
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+
+    if !is_socket_metadata(&metadata) {
+        return Err(ValidationError::new(format!(
+            "refusing to remove non-socket path '{}'",
+            path.display()
+        )));
+    }
+    fs::remove_file(path)?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{remove_stale_unix_socket, validate_field_socket_path};
+    use std::io::Write;
+
+    #[test]
+    fn remove_stale_unix_socket_ignores_missing_file() {
+        let path = std::env::temp_dir().join(format!(
+            "gewyvern-smoke-socket-missing-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+        assert!(remove_stale_unix_socket(path.to_str().unwrap()).is_ok());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn remove_stale_unix_socket_rejects_regular_file() {
+        let path = std::env::temp_dir().join(format!(
+            "gewyvern-smoke-socket-regular-{}",
+            std::process::id()
+        ));
+        let mut file = std::fs::File::create(&path).unwrap();
+        writeln!(file, "marker").unwrap();
+        let result = remove_stale_unix_socket(path.to_str().unwrap());
+        let _ = std::fs::remove_file(&path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn validates_field_socket_path_with_valid_value() {
+        let value = validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", "/tmp/gewyvern-field.sock".to_string())
+            .expect("valid socket path should be accepted");
+        assert_eq!(value, "/tmp/gewyvern-field.sock".to_string());
+    }
+
+    #[test]
+    fn rejects_field_socket_path_with_control_chars() {
+        let result = validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", "/tmp/line\nbreak.sock".to_string());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rejects_field_socket_path_with_leading_or_trailing_whitespace() {
+        assert!(validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", " /tmp/field.sock".to_string()).is_err());
+        assert!(validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", "/tmp/field.sock ".to_string()).is_err());
+    }
+
+    #[test]
+    fn rejects_field_socket_path_that_is_too_long() {
+        let long = "a".repeat(4097);
+        assert!(validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", long).is_err());
+    }
+}
+
+fn default_field_socket_path() -> Result<String, ValidationError> {
+    let value = env::var("GEWY_FIELD_SOCKET_PATH")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| {
@@ -147,7 +234,26 @@ fn default_field_socket_path() -> String {
                 ))
                 .to_string_lossy()
                 .into_owned()
-        })
+        });
+    validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", value)
+}
+
+fn validate_field_socket_path(name: &str, value: String) -> Result<String, ValidationError> {
+    if value.trim() != value {
+        return Err(ValidationError::new(format!(
+            "{name} must not contain leading or trailing whitespace"
+        )));
+    }
+    if value.is_empty() {
+        return Err(ValidationError::new(format!("{name} must not be empty")));
+    }
+    if value.len() > FIELD_SOCKET_PATH_MAX_LEN {
+        return Err(ValidationError::new(format!("{name} is too long for a filesystem path")));
+    }
+    if value.bytes().any(|byte| byte.is_ascii_control()) {
+        return Err(ValidationError::new(format!("{name} must not contain control characters")));
+    }
+    Ok(value)
 }
 
 fn run_socket_client(socket_path: &str) -> Result<(), ValidationError> {
