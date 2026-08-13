@@ -17,7 +17,7 @@ use super::{
     API_CLIENT_READ_TIMEOUT, API_CLIENT_WRITE_TIMEOUT, API_MAX_CONCURRENT_CLIENTS, ApiAccessPolicy,
     ApiSnapshot, ApiState, EVENT_API_CLIENT_ACCEPT_FAILED, EVENT_API_CLIENT_OVERLOAD_REJECTED,
     EVENT_API_LISTENER_BIND_FAILED, api_client_is_loopback, handle_api_client, log_error_event,
-    log_warn_event,
+    log_warn_event, normalize_api_admin_token,
 };
 
 pub struct ApiService {
@@ -72,24 +72,42 @@ pub fn start_api_service(addr: &str, allow_remote_bind: bool) -> ApiService {
     })
 }
 
+pub fn start_api_service_with_admin_token(
+    addr: &str,
+    allow_remote_bind: bool,
+    admin_token: Option<&str>,
+) -> ApiService {
+    let access_policy = ApiAccessPolicy {
+        allow_remote_bind,
+        admin_token: admin_token.and_then(normalize_api_admin_token),
+        require_token: false,
+    };
+    start_api_service_with(addr, access_policy, ApiTransport::Plain).unwrap_or_else(|message| {
+        log_error_event(
+            "api",
+            EVENT_API_LISTENER_BIND_FAILED,
+            &[("socket", addr.to_string()), ("error", message.clone())],
+            "refused unsafe api listener bind",
+        );
+        eprintln!("{message}");
+        std::process::exit(1);
+    })
+}
+
 pub fn start_tls_api_service(
     addr: &str,
     certificate_path: impl AsRef<Path>,
     private_key_path: impl AsRef<Path>,
     admin_token: &str,
 ) -> Result<ApiService, String> {
-    if !(32..=256).contains(&admin_token.len())
-        || admin_token.chars().any(char::is_whitespace)
-        || admin_token.chars().any(char::is_control)
-    {
-        return Err("Gewyvern HTTPS admin token is invalid".into());
-    }
+    let admin_token = normalize_api_admin_token(admin_token)
+        .ok_or_else(|| "Gewyvern HTTPS admin token is invalid".to_string())?;
     let tls = load_tls_server_config(certificate_path.as_ref(), private_key_path.as_ref())?;
     start_api_service_with(
         addr,
         ApiAccessPolicy {
             allow_remote_bind: true,
-            admin_token: Some(admin_token.to_string()),
+            admin_token: Some(admin_token),
             require_token: true,
         },
         ApiTransport::Tls(Arc::new(tls)),

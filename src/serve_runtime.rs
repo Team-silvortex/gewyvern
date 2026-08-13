@@ -3,7 +3,8 @@ use gewyvern::protocol_profiles::protocol_target_name_for_template_id;
 use std::net::TcpListener;
 
 use crate::data_api::{
-    ApiRenderedTarget, ApiService, ApiState, persist_api_snapshot, start_api_service,
+    ApiRenderedTarget, ApiService, ApiState, persist_api_snapshot,
+    start_api_service_with_admin_token,
     update_api_snapshot_for_scan, update_api_snapshot_for_single,
 };
 use crate::diagnosis_runtime::{
@@ -44,7 +45,7 @@ pub(super) fn serve_socket_sessions(cli: &Cli, socket_target: &SocketTarget) {
             &[("socket", addr.to_string())],
             "starting api service",
         );
-        start_api_service(addr, cli.allow_remote_api)
+        start_api_service_with_admin_token(addr, cli.allow_remote_api, cli.api_admin_token.as_deref())
     });
     match socket_target {
         SocketTarget::Unix(path) => serve_unix_socket_sessions(cli, path, api_service),

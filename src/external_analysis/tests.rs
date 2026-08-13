@@ -89,3 +89,9 @@ fn query_external_capabilities_rejects_oversized_stdout() {
     let _ = fs::remove_file(&script_path);
     assert!(profile.is_none());
 }
+
+#[test]
+fn validate_external_analysis_binary_rejects_path_search_names() {
+    let err = validate_external_analysis_binary("python3").expect_err("bare executable name should be rejected");
+    assert!(err.contains("filesystem path"));
+}

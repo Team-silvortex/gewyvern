@@ -1,9 +1,13 @@
 use std::collections::{HashMap, VecDeque, hash_map::DefaultHasher};
 use std::hash::{Hash, Hasher};
 use std::io::{Read, Write};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
+use std::fs;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -317,6 +321,7 @@ fn run_external_analysis(
     capabilities: Option<&ExternalCapabilityProfile>,
     snapshot_json: &str,
 ) -> Result<Vec<AnalysisAugmentation>, String> {
+    validate_external_analysis_binary(&config.engine_bin)?;
     let mut command = Command::new(&config.engine_bin);
     if let Some(worker) = config.python_worker.as_deref() {
         command.arg("analyze-python-json").arg("-");
@@ -380,6 +385,18 @@ fn capability_profile_for_config(
 fn query_external_capabilities(
     config: &ExternalAnalysisConfig,
 ) -> Option<ExternalCapabilityProfile> {
+    if let Err(error) = validate_external_analysis_binary(&config.engine_bin) {
+        log_warn_event(
+            "external_analysis",
+            EVENT_EXTERNAL_ANALYSIS_FAILED,
+            &[
+                ("engine", config.engine_bin.to_string()),
+                ("error", error.to_string()),
+            ],
+            "external analysis capabilities query skipped due invalid engine path",
+        );
+        return None;
+    }
     let mut command = Command::new(&config.engine_bin);
     command.arg("protocol-capabilities");
     let output = run_external_command(
@@ -469,6 +486,37 @@ fn run_external_command(
         stdout,
         stderr,
     })
+}
+
+fn validate_external_analysis_binary(path: &str) -> Result<(), String> {
+    if path.as_bytes().contains(&b'\0') {
+        return Err("external analysis engine path contains invalid character".into());
+    }
+    if !looks_like_path(path) {
+        return Err(
+            "external analysis engine path must reference a filesystem path, not a PATH executable name"
+                .into(),
+        );
+    }
+    let metadata = fs::symlink_metadata(Path::new(path))
+        .map_err(|error| format!("failed to access external analysis engine '{path}': {error}"))?;
+    if metadata.file_type().is_symlink() {
+        return Err("external analysis engine path must not be a symlink".into());
+    }
+    if !metadata.is_file() {
+        return Err("external analysis engine path must be a file".into());
+    }
+    #[cfg(unix)]
+    {
+        if metadata.permissions().mode() & 0o111 == 0 {
+            return Err("external analysis engine path is not executable".into());
+        }
+    }
+    Ok(())
+}
+
+fn looks_like_path(value: &str) -> bool {
+    value.contains('/') || value.contains('\\')
 }
 
 fn snapshot_cache_key(snapshot_json: &str) -> SnapshotCacheKey {

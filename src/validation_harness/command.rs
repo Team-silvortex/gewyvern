@@ -121,7 +121,7 @@ fn run_command_output_with_limits(
 }
 
 pub fn run_cargo_json(args: &[String], output_path: &Path) -> Result<Value, ValidationError> {
-    let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
+    let cargo = cargo_command_from_env("CARGO")?;
     let mut command = Command::new(cargo);
     command.current_dir(repo_root()).args(args);
     let output =
@@ -150,7 +150,7 @@ pub fn run_cargo_json(args: &[String], output_path: &Path) -> Result<Value, Vali
 }
 
 pub fn run_cargo_status(args: &[String], output_path: &Path) -> Result<(), ValidationError> {
-    let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
+    let cargo = cargo_command_from_env("CARGO")?;
     let mut command = Command::new(cargo);
     command.current_dir(repo_root()).args(args);
     let output =
@@ -176,6 +176,44 @@ pub fn run_cargo_status(args: &[String], output_path: &Path) -> Result<(), Valid
     }
 
     Ok(())
+}
+
+pub fn cargo_command_from_env(var_name: &str) -> Result<String, ValidationError> {
+    let command = env::var(var_name).unwrap_or_else(|_| "cargo".to_string());
+    let trimmed = command.trim();
+    if trimmed.is_empty() {
+        return Err(ValidationError::new(format!(
+            "{var_name} must not be empty"
+        )));
+    }
+    if trimmed != command {
+        return Err(ValidationError::new(format!(
+            "{var_name} must not have surrounding whitespace"
+        )));
+    }
+    if trimmed.chars().any(|ch| {
+        ch.is_whitespace()
+            || matches!(ch, ';' | '&' | '|' | '`' | '$' | '<' | '>' | '(' | ')' | '{' | '}')
+    }) {
+        return Err(ValidationError::new(format!(
+            "{var_name} must be a single executable path without shell metacharacters"
+        )));
+    }
+    if trimmed != "cargo" && !trimmed.contains('/') && !trimmed.contains('\\') {
+        return Err(ValidationError::new(format!(
+            "{var_name} must be an executable path; got `{trimmed}`"
+        )));
+    }
+    if trimmed != "cargo" {
+        let metadata = fs::metadata(trimmed)
+            .map_err(|error| ValidationError::new(format!("{var_name} command path missing: {error}")))?;
+        if !metadata.is_file() {
+            return Err(ValidationError::new(format!(
+                "{var_name} must point to a regular file"
+            )));
+        }
+    }
+    Ok(trimmed.to_string())
 }
 
 pub fn value_at<'a>(value: &'a Value, path: &[&str]) -> Result<&'a Value, ValidationError> {
@@ -349,5 +387,24 @@ mod tests {
 
         assert!(error.to_string().contains("stdout"));
         assert!(error.to_string().contains("exceeded 1024 bytes"));
+    }
+
+    #[test]
+    fn cargo_command_from_env_requires_path_or_default() {
+        const TEST_VAR: &str = "GEWY_CARGO_VALIDATION_TEST";
+        std::env::remove_var(TEST_VAR);
+        assert_eq!(cargo_command_from_env(TEST_VAR).unwrap(), "cargo");
+
+        std::env::set_var(TEST_VAR, "my-cargo");
+        assert!(
+            cargo_command_from_env(TEST_VAR).is_err(),
+            "bare command names should be rejected"
+        );
+
+        let current = std::env::current_exe().unwrap();
+        let current = current.to_string_lossy().to_string();
+        std::env::set_var(TEST_VAR, &current);
+        assert_eq!(cargo_command_from_env(TEST_VAR).unwrap(), current);
+        std::env::remove_var(TEST_VAR);
     }
 }

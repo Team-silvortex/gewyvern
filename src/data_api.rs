@@ -31,7 +31,9 @@ mod training_manifest;
 
 use self::deployment::ApiDeploymentStore;
 use self::routing::handle_api_client;
-pub use self::service::{ApiService, start_api_service, start_tls_api_service};
+pub use self::service::{
+    ApiService, start_api_service, start_api_service_with_admin_token, start_tls_api_service,
+};
 pub(crate) use self::training_manifest::training_sample_id;
 
 pub type ApiState = Arc<Mutex<Arc<ApiSnapshot>>>;
@@ -43,6 +45,8 @@ const API_MAX_CONCURRENT_CLIENTS: usize = 128;
 const API_MAX_RESPONSE_BODY_BYTES: usize = 512 * 1024;
 const API_VERSION: &str = env!("CARGO_PKG_VERSION");
 const API_ADMIN_TOKEN_ENV: &str = "GEWY_API_ADMIN_TOKEN";
+const API_ADMIN_TOKEN_MIN_LENGTH: usize = 32;
+const API_ADMIN_TOKEN_MAX_LENGTH: usize = 256;
 const API_ADMIN_TOKEN_HEADER: &str = "X-Gewyvern-Admin-Token";
 const API_ENDPOINTS_JSON: &str = "[\"/health\",\"/v1/capabilities\",\"/v1/runtime/resilience.json\",\"/v1/runtime/certificates.json\",\"/v1/runtime/certificate-policy.json\",\"/v1/runtime/certificate-state.json\",\"/v1/protocols\",\"/v1/protocols/<protocol>\",\"/v1/protocols/<protocol>/entries/<entry>/surface.json\",\"/v1/protocol-clusters\",\"/v1/protocol-clusters/<cluster>\",\"/v1/latest/meta\",\"/v1/latest/runtime-capability-digest.json\",\"/v1/latest/runtime-cluster-overview.json\",\"/v1/latest/runtime-cluster-attention.json\",\"/v1/latest/runtime-cluster-attention-reasons.json\",\"/v1/latest/runtime-cluster-attention-summary.json\",\"/v1/latest/debugger-console.json\",\"/v1/latest/debug-session.json\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/analysis.json\",\"/v1/latest/training-example.json\",\"/v1/latest/training-dataset.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/analysis.json\",\"/v1/latest/targets/<name>/anomaly-flow.json\",\"/v1/latest/targets/<name>/training-example.json\",\"/v1/latest/targets/<name>/training-dataset.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\",\"/v1/latest/targets/<name>/protocol-surface.json\",\"/v1/latest/targets/<name>/protocol-reading.json\",\"/v1/latest/targets/<name>/debug-session.json\"]";
 
@@ -59,11 +63,21 @@ impl ApiAccessPolicy {
             allow_remote_bind,
             admin_token: std::env::var(API_ADMIN_TOKEN_ENV)
                 .ok()
-                .map(|value| value.trim().to_string())
-                .filter(|value| !value.is_empty()),
+                .and_then(|value| normalize_api_admin_token(&value)),
             require_token: false,
         }
     }
+}
+
+pub(crate) fn normalize_api_admin_token(raw: &str) -> Option<String> {
+    let value = raw.trim();
+    if !(API_ADMIN_TOKEN_MIN_LENGTH..=API_ADMIN_TOKEN_MAX_LENGTH).contains(&value.len()) {
+        return None;
+    }
+    if value.chars().any(char::is_whitespace) || value.chars().any(char::is_control) {
+        return None;
+    }
+    Some(value.to_string())
 }
 
 pub(crate) fn api_client_is_loopback(address: IpAddr) -> bool {

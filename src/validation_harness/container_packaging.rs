@@ -35,7 +35,7 @@ pub fn run_package_install_smoke(
         DEFAULT_DEB_SMOKE_IMAGE,
         "GEWY_RPM_SMOKE_IMAGE",
         DEFAULT_RPM_SMOKE_IMAGE,
-    );
+    )?;
     run_packaged_validation(
         "package-install-smoke",
         "package install smoke",
@@ -149,7 +149,7 @@ pub fn run_container_runtime_validation(
         DEFAULT_DEB_RUNTIME_IMAGE,
         "GEWY_RPM_RUNTIME_IMAGE",
         DEFAULT_RPM_RUNTIME_IMAGE,
-    );
+    )?;
     run_packaged_validation(
         "container-runtime-validation",
         "container runtime validation",
@@ -171,7 +171,7 @@ pub fn run_container_protocol_validation(
         DEFAULT_DEB_PROTOCOL_IMAGE,
         "GEWY_RPM_PROTOCOL_IMAGE",
         DEFAULT_RPM_PROTOCOL_IMAGE,
-    );
+    )?;
     run_packaged_validation(
         "container-protocol-validation",
         "container protocol validation",
@@ -193,7 +193,7 @@ pub fn run_container_operator_path_validation(
         DEFAULT_DEB_OPERATOR_IMAGE,
         "GEWY_RPM_OPERATOR_IMAGE",
         DEFAULT_RPM_OPERATOR_IMAGE,
-    );
+    )?;
     run_packaged_validation(
         "container-operator-path-validation",
         "container operator path validation",
@@ -307,12 +307,18 @@ impl ContainerValidationConfig {
         deb_default: &str,
         rpm_env: &str,
         rpm_default: &str,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, ValidationError> {
+        Ok(Self {
             validation_name,
-            deb_image: env::var(deb_env).unwrap_or_else(|_| deb_default.to_string()),
-            rpm_image: env::var(rpm_env).unwrap_or_else(|_| rpm_default.to_string()),
-        }
+            deb_image: validate_container_image(
+                deb_env,
+                &env::var(deb_env).unwrap_or_else(|_| deb_default.to_string()),
+            )?,
+            rpm_image: validate_container_image(
+                rpm_env,
+                &env::var(rpm_env).unwrap_or_else(|_| rpm_default.to_string()),
+            )?,
+        })
     }
 }
 
@@ -369,13 +375,14 @@ fn run_deb_validation(
         .file_name()
         .and_then(|name| name.to_str())
         .ok_or_else(|| ValidationError::new("invalid deb package filename"))?;
+    let package_file = shell_single_quote(&format!("/packages/{package_name}"));
 
     let script = format!(
         "set -euo pipefail\n\
 if [ -n \"${{GEWY_DEB_APT_MIRROR:-}}\" ]; then\n\
   sed -i \"s|http://archive.ubuntu.com/ubuntu|${{GEWY_DEB_APT_MIRROR}}|g; s|http://security.ubuntu.com/ubuntu|${{GEWY_DEB_APT_MIRROR}}|g\" /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true\n\
 fi\n\
-GEWY_PACKAGE_FILE=\"/packages/{package_name}\"\n\
+GEWY_PACKAGE_FILE={package_file}\n\
 if ! dpkg -i \"${{GEWY_PACKAGE_FILE}}\" >/tmp/gewyvern-dpkg-install.log 2>&1; then\n\
   apt-get update >/dev/null\n\
   apt-get install -y \"${{GEWY_PACKAGE_FILE}}\" >/dev/null\n\
@@ -409,9 +416,10 @@ fn run_rpm_validation(
         .file_name()
         .and_then(|name| name.to_str())
         .ok_or_else(|| ValidationError::new("invalid rpm package filename"))?;
+    let package_file = shell_single_quote(&format!("/packages/{package_name}"));
 
     let install_line = format!(
-        "rpm -Uvh /packages/{package_name} >/dev/null || dnf install -y /packages/{package_name} >/dev/null"
+        "rpm -Uvh {package_file} >/dev/null || dnf install -y {package_file} >/dev/null"
     );
 
     let script = format!(
@@ -419,7 +427,7 @@ fn run_rpm_validation(
 if [ -n \"${{GEWY_RPM_DNF_MIRROR:-}}\" ]; then\n\
   sed -i \"s|^metalink=|#metalink=|g; s|^mirrorlist=|#mirrorlist=|g; s|^#baseurl=http://download.example/pub/fedora/linux|baseurl=${{GEWY_RPM_DNF_MIRROR}}|g; s|^#baseurl=https://download.example/pub/fedora/linux|baseurl=${{GEWY_RPM_DNF_MIRROR}}|g\" /etc/yum.repos.d/*.repo 2>/dev/null || true\n\
 fi\n\
-GEWY_PACKAGE_FILE=\"/packages/{package_name}\"\n\
+GEWY_PACKAGE_FILE={package_file}\n\
 {install_line}\n\
 {body}\n"
     );
@@ -448,6 +456,7 @@ fn run_docker_script(
 ) -> Result<(), ValidationError> {
     let timeout_seconds =
         env::var("GEWY_CONTAINER_VALIDATION_TIMEOUT_SECONDS").unwrap_or_else(|_| "900".to_string());
+    let timeout_seconds = validate_positive_u16_timeout(&timeout_seconds)?;
     let container_name = format!(
         "gewyvern-{validation_name}-{mode_label}-{}-{}",
         std::process::id(),
@@ -605,6 +614,58 @@ fn package_from_manifest(
     Ok(path)
 }
 
+fn validate_container_image(name: &str, value: &str) -> Result<String, ValidationError> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Err(ValidationError::new(format!(
+            "{name} must not be empty"
+        )));
+    }
+    if value.chars().any(|ch| ch.is_ascii_control()) {
+        return Err(ValidationError::new(format!(
+            "{name} must not contain control characters"
+        )));
+    }
+    if value.chars().any(char::is_whitespace) {
+        return Err(ValidationError::new(format!(
+            "{name} must not contain whitespace"
+        )));
+    }
+    if value.starts_with('-') {
+        return Err(ValidationError::new(format!(
+            "{name} must not start with option prefix: {value}"
+        )));
+    }
+    Ok(value.to_string())
+}
+
+fn validate_positive_u16_timeout(value: &str) -> Result<String, ValidationError> {
+    if value.is_empty() {
+        return Err(ValidationError::new(
+            "GEWY_CONTAINER_VALIDATION_TIMEOUT_SECONDS must not be empty".to_string(),
+        ));
+    }
+    if !value.chars().all(|ch| ch.is_ascii_digit()) {
+        return Err(ValidationError::new(
+            "GEWY_CONTAINER_VALIDATION_TIMEOUT_SECONDS must be a positive integer".to_string(),
+        ));
+    }
+    let parsed = value
+        .parse::<u16>()
+        .map_err(|_| ValidationError::new("GEWY_CONTAINER_VALIDATION_TIMEOUT_SECONDS must fit u16".to_string()))?;
+    if parsed == 0 {
+        return Err(ValidationError::new(
+            "GEWY_CONTAINER_VALIDATION_TIMEOUT_SECONDS must be greater than zero".to_string(),
+        ));
+    }
+    Ok(parsed.to_string())
+}
+
+fn shell_single_quote(value: &str) -> String {
+    let escaped = value.replace('\'', "'\"'\"'");
+    format!("'{escaped}'")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -715,6 +776,21 @@ mod tests {
                 .unwrap();
         assert_eq!(index["files"].as_array().unwrap().len(), 3);
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn container_validation_rejects_unsafe_image_values() {
+        assert!(validate_container_image("GEWY_IMAGE", "").is_err());
+        assert!(validate_container_image("GEWY_IMAGE", "linux \n").is_err());
+        assert!(validate_container_image("GEWY_IMAGE", "  ubuntu:24.04").is_err());
+        assert!(validate_container_image("GEWY_IMAGE", "ubuntu:24.04").is_ok());
+    }
+
+    #[test]
+    fn container_validation_timeout_requires_positive_numeric_value() {
+        assert!(validate_positive_u16_timeout("0").is_err());
+        assert!(validate_positive_u16_timeout("abc").is_err());
+        assert!(validate_positive_u16_timeout("30").is_ok());
     }
 }
 

@@ -227,10 +227,6 @@ socket_failure_backoff_cap_ms = 2500
         Some("true")
     );
     assert_eq!(
-        std::env::var("GEWY_API_ADMIN_TOKEN").ok().as_deref(),
-        Some("runtime-api-token")
-    );
-    assert_eq!(
         std::env::var("GEWY_HISTORY_RETENTION").ok().as_deref(),
         Some("12")
     );
@@ -354,6 +350,69 @@ fn runtime_config_rejects_unknown_section() {
 
     let err = load_runtime_config().unwrap_err();
     assert!(err.contains("unsupported runtime config section 'unknown'"));
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn runtime_config_rejects_external_engine_path_without_separator() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("external-engine-path");
+    let config_root = root.join("config");
+    fs::create_dir_all(&config_root).unwrap();
+    fs::write(
+        config_root.join("gewyvern.toml"),
+        "[external_engine]\nbin = \"python3\"\n",
+    )
+    .unwrap();
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
+
+    let err = load_runtime_config().unwrap_err();
+    assert!(err.contains("external_engine.bin"));
+    assert!(err.contains("filesystem path"));
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn runtime_config_rejects_external_engine_worker_path_without_separator() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("external-engine-worker-path");
+    let config_root = root.join("config");
+    fs::create_dir_all(&config_root).unwrap();
+    fs::write(
+        config_root.join("gewyvern.toml"),
+        "[external_engine]\nbin = \"/opt/engine/bin/engine\"\nworker = \"worker.py\"\n",
+    )
+    .unwrap();
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
+
+    let err = load_runtime_config().unwrap_err();
+    assert!(err.contains("external_engine.worker"));
+    assert!(err.contains("filesystem path"));
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn runtime_config_rejects_external_engine_python_bin_without_separator() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("external-engine-python-path");
+    let config_root = root.join("config");
+    fs::create_dir_all(&config_root).unwrap();
+    fs::write(
+        config_root.join("gewyvern.toml"),
+        "[external_engine]\nbin = \"/opt/engine/bin/engine\"\npython_bin = \"python3\"\n",
+    )
+    .unwrap();
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
+
+    let err = load_runtime_config().unwrap_err();
+    assert!(err.contains("external_engine.python_bin"));
+    assert!(err.contains("filesystem path"));
 
     fs::remove_dir_all(&root).unwrap();
 }

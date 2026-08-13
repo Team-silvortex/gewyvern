@@ -1,5 +1,6 @@
 use crate::cli_validation::{CliValidationInput, validate_cli_options};
 use crate::external_analysis::ExternalAnalysisConfig;
+use crate::data_api::normalize_api_admin_token;
 use crate::runtime_events::EVENT_DSL_COMPILE_FAILED;
 use crate::runtime_logging::{LogLevel, LoggingConfig, log_error_event};
 use crate::{UiLocale, usage};
@@ -545,9 +546,12 @@ pub(crate) fn resolve_api_admin_token(
     configured: Option<String>,
     environment: Option<String>,
 ) -> Option<String> {
-    configured.or_else(|| {
-        environment
-            .map(|token| token.trim().to_string())
-            .filter(|token| !token.is_empty())
+    configured.or_else(|| environment.map(|token| token.to_string())).and_then(|token| {
+        let token = token.trim().to_string();
+        if token.is_empty() {
+            None
+        } else {
+            normalize_api_admin_token(&token)
+        }
     })
 }

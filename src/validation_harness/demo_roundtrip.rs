@@ -12,7 +12,8 @@ use serde_json::Value;
 
 use super::command::{
     PROOF_FIXTURE_TIMEOUT, VALIDATION_HELPER_TIMEOUT, ValidationError, ValidationReport,
-    assert_eq_str, default_out_dir, repo_root, run_cargo_status, run_command_output_with_timeout,
+    assert_eq_str, cargo_command_from_env, default_out_dir, repo_root, run_cargo_status,
+    run_command_output_with_timeout,
     value_at,
 };
 use super::http_probe::bounded_http_get;
@@ -358,7 +359,7 @@ fn run_external_engine(
         command.current_dir(&engine_root).arg(&url);
         command
     } else {
-        let mut command = Command::new(env::var("CARGO").unwrap_or_else(|_| "cargo".to_string()));
+        let mut command = Command::new(cargo_command_from_env("CARGO")?);
         command
             .current_dir(&engine_root)
             .arg("run")
@@ -393,7 +394,7 @@ fn run_external_engine(
     Ok(())
 }
 
-fn validate_external_engine_command(command: &str) -> Result<&str, ValidationError> {
+fn validate_external_engine_command(command: &str) -> Result<String, ValidationError> {
     let trimmed = command.trim();
     if trimmed.is_empty() {
         return Err(ValidationError::new(
@@ -405,6 +406,11 @@ fn validate_external_engine_command(command: &str) -> Result<&str, ValidationErr
             "external engine command must be a single executable path without surrounding spaces",
         ));
     }
+    if trimmed != "cargo" && !trimmed.contains('/') && !trimmed.contains('\\') {
+        return Err(ValidationError::new(
+            "external engine command must be a filesystem path, not a PATH-only command name",
+        ));
+    }
     if command.chars().any(|ch| {
         ch.is_whitespace() || matches!(ch, ';' | '&' | '|' | '`' | '$' | '<' | '>' | '(' | ')')
     }) {
@@ -412,7 +418,38 @@ fn validate_external_engine_command(command: &str) -> Result<&str, ValidationErr
             "--engine-cmd/EXTERNAL_ENGINE_CMD now accepts only one executable path; the analysis URL is passed as argv[1]",
         ));
     }
-    Ok(command)
+    let metadata = fs::metadata(trimmed)
+        .map_err(|error| ValidationError::new(format!("external engine command must exist: {error}")))?;
+    if !metadata.is_file() {
+        return Err(ValidationError::new(
+            "external engine command must be a regular file path",
+        ));
+    }
+    Ok(trimmed.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_external_engine_command;
+
+    #[test]
+    fn reject_external_engine_command_without_path() {
+        assert!(validate_external_engine_command("engine").is_err());
+    }
+
+    #[test]
+    fn reject_external_engine_command_with_shell_chars() {
+        let err = validate_external_engine_command("/usr/bin/engine;rm -rf /").unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("single executable path"));
+    }
+
+    #[test]
+    fn accept_external_engine_command_with_path() {
+        let current = std::env::current_exe().unwrap();
+        assert!(validate_external_engine_command(current.to_str().unwrap()).is_ok());
+    }
 }
 
 fn resolve_engine_root(engine_root: Option<PathBuf>) -> Result<PathBuf, ValidationError> {

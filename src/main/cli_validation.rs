@@ -1,4 +1,5 @@
 use crate::cli::DemoMode;
+use crate::data_api::normalize_api_admin_token;
 use crate::{
     IngestMode, ReportFormat, SocketTarget, UiLocale, api_socket_addr_is_local,
     socket_target_is_local,
@@ -166,6 +167,12 @@ pub(crate) fn validate_cli_options(input: CliValidationInput<'_>) -> Result<(), 
             .api_socket
             .is_some_and(|addr| !input.allow_remote_api && !api_socket_addr_is_local(addr)),
         input.locale.msg("remote_api_requires_flag")
+    );
+    reject!(
+        input
+            .api_admin_token
+            .is_some_and(|token| normalize_api_admin_token(token).is_none()),
+        "--api-admin-token is invalid; use 32-256 non-whitespace characters"
     );
     reject!(
         input

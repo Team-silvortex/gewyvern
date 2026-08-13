@@ -657,18 +657,39 @@ fn cli_rejects_remote_api_socket_without_admin_token() {
 }
 
 #[test]
+fn cli_rejects_invalid_api_admin_token() {
+    let err = Cli::from_args([
+        "--api-admin-token".to_string(),
+        "short".to_string(),
+        "--serve".to_string(),
+        "--api-socket".to_string(),
+        "127.0.0.1:9100".to_string(),
+    ])
+    .unwrap_err();
+    assert!(
+        err.contains("invalid api_admin_token")
+            || err.contains("32-256")
+            || err.contains("--api-admin-token")
+    );
+}
+
+#[test]
 fn api_admin_token_resolution_accepts_environment_and_prefers_configuration() {
     assert_eq!(
-        crate::cli::resolve_api_admin_token(None, Some("  environment-token  ".into())).as_deref(),
-        Some("environment-token")
+        crate::cli::resolve_api_admin_token(
+            None,
+            Some("  runtime-api-token-abcdefghijklmnopqrstuvwxyz  ".into()),
+        )
+        .as_deref(),
+        Some("runtime-api-token-abcdefghijklmnopqrstuvwxyz")
     );
     assert_eq!(
         crate::cli::resolve_api_admin_token(
-            Some("configured-token".into()),
-            Some("environment-token".into()),
+            Some("configured-admin-token-0123456789".into()),
+            Some("runtime-api-token-abcdefghijklmnopqrstuvwxyz".into()),
         )
         .as_deref(),
-        Some("configured-token")
+        Some("configured-admin-token-0123456789")
     );
     assert_eq!(
         crate::cli::resolve_api_admin_token(None, Some("   ".into())),

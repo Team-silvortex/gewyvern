@@ -928,7 +928,7 @@ impl ThreeModuleStackConfig {
             etragon_root: repo.join("apps/etragon"),
             leserpent_root: repo.join("apps/leserpent"),
             repo_root: repo.clone(),
-            image_tag: env_string("IMAGE_TAG", "gewyvern-stack-dev"),
+            image_tag: validate_docker_cli_token("IMAGE_TAG", env_string("IMAGE_TAG", "gewyvern-stack-dev"))?,
             skip_docker_build: env_bool("SKIP_DOCKER_BUILD", false),
             docker_base_image: env_string("DOCKER_BASE_IMAGE", "ubuntu:24.04"),
             docker_apt_mirror: env_string("DOCKER_APT_MIRROR", ""),
@@ -949,10 +949,22 @@ impl ThreeModuleStackConfig {
                 "DOCKER_RUSTUP_INSTALL_TIMEOUT_SECONDS",
                 "600",
             ),
-            network_name: env_string("NETWORK_NAME", &format!("gewyvern-stack-net-{unique}")),
-            gw_a_name: env_string("GW_A_NAME", &format!("gewyvern-stack-a-{unique}")),
-            gw_b_name: env_string("GW_B_NAME", &format!("gewyvern-stack-b-{unique}")),
-            et_a_name: env_string("ET_A_NAME", &format!("etragon-stack-a-{unique}")),
+            network_name: validate_docker_cli_token(
+                "NETWORK_NAME",
+                env_string("NETWORK_NAME", &format!("gewyvern-stack-net-{unique}")),
+            )?,
+            gw_a_name: validate_docker_cli_token(
+                "GW_A_NAME",
+                env_string("GW_A_NAME", &format!("gewyvern-stack-a-{unique}")),
+            )?,
+            gw_b_name: validate_docker_cli_token(
+                "GW_B_NAME",
+                env_string("GW_B_NAME", &format!("gewyvern-stack-b-{unique}")),
+            )?,
+            et_a_name: validate_docker_cli_token(
+                "ET_A_NAME",
+                env_string("ET_A_NAME", &format!("etragon-stack-a-{unique}")),
+            )?,
             lesp_port: env_u16("LESP_PORT", 5118)?,
             gw_a_socket_port: env_u16("GW_A_SOCKET_PORT", 19001)?,
             gw_a_api_port: env_u16("GW_A_API_PORT", 19101)?,
@@ -1044,7 +1056,7 @@ impl PathologyConfig {
         let unique = std::process::id();
         Ok(Self {
             repo_root: repo.clone(),
-            image_tag: env_string("IMAGE_TAG", "gewyvern-stack-dev"),
+            image_tag: validate_docker_cli_token("IMAGE_TAG", env_string("IMAGE_TAG", "gewyvern-stack-dev"))?,
             skip_docker_build: env_bool("SKIP_DOCKER_BUILD", false),
             docker_base_image: env_string("DOCKER_BASE_IMAGE", "ubuntu:24.04"),
             docker_apt_mirror: env_string("DOCKER_APT_MIRROR", ""),
@@ -1065,9 +1077,18 @@ impl PathologyConfig {
                 "DOCKER_RUSTUP_INSTALL_TIMEOUT_SECONDS",
                 "600",
             ),
-            network_name: env_string("NETWORK_NAME", &format!("gewyvern-pathology-net-{unique}")),
-            gw_name: env_string("GW_NAME", &format!("gewyvern-pathology-runtime-{unique}")),
-            patho_prefix: env_string("PATHO_PREFIX", &format!("gewyvern-pathology-{unique}")),
+            network_name: validate_docker_cli_token(
+                "NETWORK_NAME",
+                env_string("NETWORK_NAME", &format!("gewyvern-pathology-net-{unique}")),
+            )?,
+            gw_name: validate_docker_cli_token(
+                "GW_NAME",
+                env_string("GW_NAME", &format!("gewyvern-pathology-runtime-{unique}")),
+            )?,
+            patho_prefix: validate_docker_cli_token(
+                "PATHO_PREFIX",
+                env_string("PATHO_PREFIX", &format!("gewyvern-pathology-{unique}")),
+            )?,
             socket_port: env_u16("SOCKET_PORT", 19201)?,
             api_port: env_u16("API_PORT", 19301)?,
             api_admin_token: env_admin_token(
@@ -1093,8 +1114,11 @@ impl JuiceShopValidationConfig {
     fn from_env(out_dir: Option<PathBuf>) -> Result<Self, ValidationError> {
         let unique = std::process::id();
         Ok(Self {
-            image: env_string("JUICE_SHOP_IMAGE", "bkimminich/juice-shop:latest"),
-            container_name: env_string("JUICE_SHOP_NAME", &format!("gewyvern-juice-shop-{unique}")),
+            image: validate_docker_cli_token("JUICE_SHOP_IMAGE", env_string("JUICE_SHOP_IMAGE", "bkimminich/juice-shop:latest"))?,
+            container_name: validate_docker_cli_token(
+                "JUICE_SHOP_NAME",
+                env_string("JUICE_SHOP_NAME", &format!("gewyvern-juice-shop-{unique}")),
+            )?,
             host_port: match env::var("JUICE_SHOP_PORT") {
                 Ok(value) => value.parse::<u16>().map_err(|err| {
                     ValidationError::new(format!("invalid JUICE_SHOP_PORT value `{value}`: {err}"))
@@ -1110,8 +1134,11 @@ impl FtpDeniedValidationConfig {
     fn from_env(out_dir: Option<PathBuf>) -> Result<Self, ValidationError> {
         let unique = std::process::id();
         Ok(Self {
-            image: env_string("FTP_DENIED_IMAGE", "fauria/vsftpd:latest"),
-            container_name: env_string("FTP_DENIED_NAME", &format!("gewyvern-ftp-denied-{unique}")),
+            image: validate_docker_cli_token("FTP_DENIED_IMAGE", env_string("FTP_DENIED_IMAGE", "fauria/vsftpd:latest"))?,
+            container_name: validate_docker_cli_token(
+                "FTP_DENIED_NAME",
+                env_string("FTP_DENIED_NAME", &format!("gewyvern-ftp-denied-{unique}")),
+            )?,
             host_port: match env::var("FTP_DENIED_PORT") {
                 Ok(value) => value.parse::<u16>().map_err(|err| {
                     ValidationError::new(format!("invalid FTP_DENIED_PORT value `{value}`: {err}"))
@@ -1129,11 +1156,17 @@ impl LdapBindDeniedValidationConfig {
     fn from_env(out_dir: Option<PathBuf>) -> Result<Self, ValidationError> {
         let unique = std::process::id();
         Ok(Self {
-            image: env_string("LDAP_BIND_DENIED_IMAGE", "osixia/openldap:1.5.0"),
-            container_name: env_string(
+            image: validate_docker_cli_token(
+                "LDAP_BIND_DENIED_IMAGE",
+                env_string("LDAP_BIND_DENIED_IMAGE", "osixia/openldap:1.5.0"),
+            )?,
+            container_name: validate_docker_cli_token(
                 "LDAP_BIND_DENIED_NAME",
-                &format!("gewyvern-ldap-bind-denied-{unique}"),
-            ),
+                env_string(
+                    "LDAP_BIND_DENIED_NAME",
+                    &format!("gewyvern-ldap-bind-denied-{unique}"),
+                ),
+            )?,
             host_port: match env::var("LDAP_BIND_DENIED_PORT") {
                 Ok(value) => value.parse::<u16>().map_err(|err| {
                     ValidationError::new(format!(
@@ -1391,6 +1424,10 @@ fn start_etragon_container(
     cfg: &ThreeModuleStackConfig,
     target_cache_dir: &Path,
 ) -> Result<(), ValidationError> {
+    let gw_a_name = shell_single_quote(&cfg.gw_a_name);
+    let etragon_online_state_path = shell_single_quote(&etragon_online_state_path());
+    let etragon_daemon_state_path = shell_single_quote(&etragon_daemon_state_path());
+
     let _ = Command::new("docker")
         .args(["rm", "-f", &cfg.et_a_name])
         .output();
@@ -1426,9 +1463,9 @@ fn start_etragon_container(
                  --python-worker /workspace/dev/gewyvern/apps/etragon/scripts/python_baseline_worker.py \
                  --python-state {} \
                  --daemon-state {}",
-                cfg.gw_a_name,
-                etragon_online_state_path(),
-                etragon_daemon_state_path()
+                gw_a_name,
+                etragon_online_state_path,
+                etragon_daemon_state_path
             ));
     run_command(&mut command, "failed to start etragon container")
 }
@@ -1458,7 +1495,8 @@ fn start_pathology_runtime(
     cfg: &PathologyConfig,
     target_cache_dir: &Path,
 ) -> Result<(), ValidationError> {
-    let pathology_runtime_log_path = pathology_runtime_log_path();
+    let pathology_runtime_log_path = shell_single_quote(&pathology_runtime_log_path());
+
     let _ = Command::new("docker")
         .args(["rm", "-f", &cfg.gw_name])
         .output();
@@ -1622,6 +1660,7 @@ fn ingest_template(container_name: &str, template: &str) -> Result<(), Validatio
 }
 
 fn inject_socket_bad_json(container_name: &str, count: usize) -> Result<(), ValidationError> {
+    let count = count.to_string();
     run_command(
         Command::new("docker")
             .arg("exec")
@@ -1629,8 +1668,9 @@ fn inject_socket_bad_json(container_name: &str, count: usize) -> Result<(), Vali
             .arg("bash")
             .arg("-lc")
             .arg(format!(
-                "set -euo pipefail\nfor _ in $(seq 1 {count}); do exec 3<>/dev/tcp/127.0.0.1/9000; printf '{{\"bad\":\"json\"\\n' >&3 || true; exec 3>&-; exec 3<&-; done"
-            )),
+                "set -euo pipefail\nfor _ in $(seq 1 \"$GEWY_MALFORMED_SOCKET_COUNT\"); do exec 3<>/dev/tcp/127.0.0.1/9000; printf '{\"bad\":\"json\"\\n' >&3 || true; exec 3>&-; exec 3<&-; done"
+            ))
+            .env("GEWY_MALFORMED_SOCKET_COUNT", &count),
         "failed to inject malformed socket payloads",
     )
 }
@@ -2097,9 +2137,10 @@ fn docker_logs(container_name: &str) -> Result<String, ValidationError> {
 }
 
 fn detect_default_route_device() -> Result<String, ValidationError> {
-    let output = Command::new("sh")
-        .arg("-lc")
-        .arg("ip route show default | awk 'NR==1 {print $5}'")
+    let output = Command::new("ip")
+        .arg("route")
+        .arg("show")
+        .arg("default")
         .output()
         .map_err(|err| {
             ValidationError::new(format!("failed to detect default route device: {err}"))
@@ -2116,6 +2157,14 @@ fn detect_default_route_device() -> Result<String, ValidationError> {
             "failed to detect default route device: empty result",
         ));
     }
+    let device = device
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .map(str::trim)
+        .and_then(|line| line.split_whitespace().nth(4))
+        .ok_or_else(|| {
+            ValidationError::new("failed to detect default route device: missing field".to_string())
+        })?;
     Ok(device)
 }
 
@@ -2149,6 +2198,11 @@ fn run_command(command: &mut Command, context: &str) -> Result<(), ValidationErr
         status,
         String::from_utf8_lossy(&stderr).trim()
     )))
+}
+
+fn shell_single_quote(value: &str) -> String {
+    let escaped = value.replace('\'', "'\"'\"'");
+    format!("'{escaped}'")
 }
 
 fn dotnet_home_bin() -> Option<PathBuf> {
@@ -2189,6 +2243,33 @@ fn find_free_loopback_port() -> Result<u16, ValidationError> {
 
 fn env_string(name: &str, default: &str) -> String {
     env::var(name).unwrap_or_else(|_| default.to_string())
+}
+
+fn validate_docker_cli_token(name: &str, value: String) -> Result<String, ValidationError> {
+    if value.trim() != value {
+        return Err(ValidationError::new(format!(
+            "{name} must not contain leading or trailing whitespace"
+        )));
+    }
+    if value.is_empty() {
+        return Err(ValidationError::new(format!("{name} must not be empty")));
+    }
+    if value.starts_with('-') {
+        return Err(ValidationError::new(format!(
+            "{name} must not start with '-'"
+        )));
+    }
+    if value.len() > 4096 {
+        return Err(ValidationError::new(format!(
+            "{name} is too long for a docker CLI argument"
+        )));
+    }
+    if value.chars().any(|c| c.is_ascii_control() || c.is_ascii_whitespace()) {
+        return Err(ValidationError::new(format!(
+            "{name} must not contain control or whitespace characters"
+        )));
+    }
+    Ok(value)
 }
 
 fn env_admin_token(name: &str, default: &str) -> Result<String, ValidationError> {

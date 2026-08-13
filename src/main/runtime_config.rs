@@ -19,7 +19,6 @@ const CERTIFICATE_STATE_ROOT_ENV: &str = "GEWY_CERTIFICATE_STATE_ROOT";
 const REQUIRE_EXPLICIT_REMOTE_TRUST_ENV: &str = "GEWY_REQUIRE_EXPLICIT_REMOTE_TRUST";
 const SOCKET_FAILURE_BACKOFF_BASE_ENV: &str = "GEWY_SOCKET_FAILURE_BACKOFF_BASE_MS";
 const SOCKET_FAILURE_BACKOFF_CAP_ENV: &str = "GEWY_SOCKET_FAILURE_BACKOFF_CAP_MS";
-const API_ADMIN_TOKEN_ENV: &str = "GEWY_API_ADMIN_TOKEN";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct RuntimeConfigFile {
@@ -135,10 +134,6 @@ pub(crate) fn apply_runtime_path_overrides(config: &RuntimeConfigFile) {
     apply_env_usize_override(
         SOCKET_FAILURE_BACKOFF_CAP_ENV,
         config.socket_failure_backoff_cap_ms,
-    );
-    apply_env_string_override(
-        API_ADMIN_TOKEN_ENV,
-        config.defaults.api_admin_token.as_deref(),
     );
 }
 
@@ -322,9 +317,17 @@ fn apply_external_engine_section(
 ) -> Result<(), String> {
     for (key, value) in external {
         match key.as_str() {
-            "bin" => config.defaults.external_engine_bin = Some(parse_string(value)),
-            "worker" => config.defaults.external_engine_worker = Some(parse_string(value)),
-            "python_bin" => config.defaults.external_engine_python_bin = Some(parse_string(value)),
+            "bin" => config
+                .defaults
+                .external_engine_bin = Some(parse_external_engine_path(value, "external_engine.bin")?),
+            "worker" => {
+                config.defaults.external_engine_worker =
+                    Some(parse_external_engine_path(value, "external_engine.worker")?)
+            }
+            "python_bin" => {
+                config.defaults.external_engine_python_bin =
+                    Some(parse_external_engine_path(value, "external_engine.python_bin")?)
+            }
             other => {
                 return Err(format!(
                     "unsupported runtime config key 'external_engine.{other}'"
@@ -464,6 +467,17 @@ fn parse_string(value: &str) -> String {
     } else {
         trimmed.to_string()
     }
+}
+
+fn parse_external_engine_path(value: &str, field: &str) -> Result<String, String> {
+    let value = parse_string(value);
+    if value.trim().is_empty() || value.starts_with("--") {
+        return Err(format!("{field} must be a non-empty path"));
+    }
+    if !value.contains('/') && !value.contains('\\') {
+        return Err(format!("{field} must be a filesystem path (for example ./engine or /usr/bin/engine)"));
+    }
+    Ok(value)
 }
 
 fn parse_bool(value: &str, context: &str) -> Result<bool, String> {
