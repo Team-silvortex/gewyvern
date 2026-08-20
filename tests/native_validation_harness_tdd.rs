@@ -627,15 +627,16 @@ fn remote_host_validation_records_phase_timings() {
     assert!(remote_host.contains("struct PhaseTiming"));
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_preflight\""));
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"workspace_sync\""));
-    assert!(remote_host.contains("compute_local_workspace_sync_key()"));
+    assert!(remote_host.contains("compute_local_workspace_sync_key(options.target_kind)"));
     assert!(remote_host.contains("compute_git_workspace_sync_key"));
     assert!(remote_host.contains("compute_dirty_git_workspace_sync_key"));
     assert!(remote_host.contains("try_reuse_dirty_workspace_sync_key_cache"));
-    assert!(remote_host.contains("local-workspace-sync-key-cache.txt"));
+    assert!(remote_host.contains("remote-workspace-sync-cache"));
+    assert!(remote_host.contains("format!(\"{}.txt\", target_kind.as_str())"));
     assert!(
         remote_host.contains(".args([\"status\", \"--porcelain=v1\", \"--untracked-files=all\"])")
     );
-    assert!(remote_host.contains("format!(\"git:{head}\")"));
+    assert!(remote_host.contains("\"git:{head}\""));
     assert!(remote_host.contains("git-dirty:"));
     assert!(remote_host.contains("ssh_control_path_template"));
     assert!(remote_host.contains("default_ssh_control_path_template"));
@@ -1073,8 +1074,39 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     let evidence_codec = read_repo_file("src/validation_harness/evidence_codec.rs");
     let binary = read_repo_file("src/bin/gewyvern_validate.rs");
     let docs = read_repo_file("docs/script-entrypoints.md");
+    let release_gate = read_repo_file("src/validation_harness/release_gate.rs");
+    let native_aot_restore = remote
+        .split_once("dotnet restore apps/leserpent/src/Leserpent/Leserpent.csproj")
+        .expect("remote NativeAOT restore command")
+        .1
+        .split_once("dotnet publish apps/leserpent/src/Leserpent/Leserpent.csproj")
+        .expect("remote NativeAOT publish command")
+        .0;
+    let native_aot_publish = remote
+        .split_once("dotnet publish apps/leserpent/src/Leserpent/Leserpent.csproj")
+        .expect("remote NativeAOT publish command")
+        .1
+        .split_once("for required in Leserpent")
+        .expect("remote NativeAOT artifact checks")
+        .0;
 
     assert!(remote.contains("RemoteLinuxHostOptions"));
+    assert!(remote.contains("RemoteLinuxTargetKind"));
+    assert!(remote.contains("remote-linux-vm-validation"));
+    assert!(remote.contains("validate_remote_target_kind"));
+    assert!(remote.contains("systemd-detect-virt --vm"));
+    assert!(remote.contains("systemd-detect-virt --container"));
+    assert!(remote.contains("container-$CONTAINER_VIRTUALIZATION"));
+    assert!(remote.contains("remote container targets are unsupported"));
+    assert!(remote.contains("\"target_kind\": options.target_kind.as_str()"));
+    assert!(remote.contains("\"release_eligible\": release_eligible"));
+    assert!(remote.contains("release_eligible && breadth_ready"));
+    assert!(remote.contains("let mut remote_workspace_touched = false"));
+    assert!(remote.contains("if remote_workspace_touched"));
+    assert!(
+        remote.find("validate_remote_target_kind(options.target_kind, &preflight)")
+            < remote.find("fs::write(out_dir.join(\"remote-preflight.txt\"), preflight.render())")
+    );
     assert!(remote.contains("run_remote_linux_host_validation"));
     assert!(remote.contains("rsync"));
     assert!(remote.contains("ssh"));
@@ -1119,6 +1151,13 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("'\"outcome\":\"degraded\"'"));
     assert!(remote.contains("-p:PublishProfile=native-aot"));
     assert!(remote.contains("--locked-mode"));
+    assert!(native_aot_restore.contains("-p:RuntimeIdentifier=linux-x64"));
+    assert!(native_aot_restore.contains("-p:PublishAot=true"));
+    assert!(!native_aot_restore.contains("-r linux-x64"));
+    assert!(native_aot_publish.contains("-p:PublishAot=true"));
+    assert!(native_aot_publish.contains("-p:RuntimeIdentifier=linux-x64"));
+    assert!(native_aot_publish.contains("--no-restore"));
+    assert!(!native_aot_publish.contains("-r linux-x64"));
     assert!(remote.contains("Leserpent leserpent-compat-bridge leserpentd libe_sqlite3.so"));
     assert!(remote.contains("/v1/runtimes/registration-plan"));
     assert!(remote.contains("registrationPlanToken"));
@@ -1248,6 +1287,12 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(binary.contains("leserpent_control_plane_aot_evidence_validated"));
     assert!(binary.contains("--keep-remote-dir"));
     assert!(binary.contains("--skip-build"));
+    assert!(binary.contains("--target-kind"));
+    assert!(binary.contains("remote_target_kind_mismatch"));
+    assert!(binary.contains("remote_virtualization_unknown"));
+    assert!(binary.contains("remote_container_unsupported"));
+    assert!(binary.contains("compatibility_only"));
+    assert!(release_gate.contains("target_kind: RemoteLinuxTargetKind::Physical"));
     assert!(binary.contains("Collect remote Linux/x86_64 preflight evidence"));
     assert!(binary.contains("print_remote_linux_host_validation_summary"));
     assert!(binary.contains("slowest-phases:"));
@@ -1293,6 +1338,9 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(binary.contains("Operation not permitted"));
     assert!(binary.contains("next-step:"));
     assert!(docs.contains("remote-linux-host-validation"));
+    assert!(docs.contains("--target-kind vm --host gewyvern-jammy"));
+    assert!(docs.contains("target/validation/remote-linux-vm-validation"));
+    assert!(docs.contains("release_eligible=false"));
     assert!(docs.contains("remote-preflight.txt"));
     assert!(docs.contains("remote-artifacts.txt"));
     assert!(docs.contains("remote-ebpf.txt"));

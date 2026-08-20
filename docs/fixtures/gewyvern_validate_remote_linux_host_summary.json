@@ -52,7 +52,8 @@
     "sudo_available": true,
     "ebpf_helper_available": true,
     "ebpf_helper_state": "ready",
-    "ebpf_helper_version": "1.5.0"
+    "ebpf_helper_version": "1.5.0",
+    "virtualization": "none"
   },
   "recent_ebpf_lines": [
     "2026-07-12T09:00:00Z ok all_smokes_passed_admin_ssh 4.000",
@@ -76,9 +77,11 @@
     "valid_entries": 2
   },
   "remote_ebpf_matrix": {
+    "breadth_ready": false,
     "minimum_hosts": 2,
     "minimum_kernels": 2,
     "ready": false,
+    "release_eligible": true,
     "successful_arch_counts": {
       "x86_64": 2
     },
@@ -127,6 +130,7 @@
   "slowest_phases": "remote_package_build=12.800s, remote_ebpf_validator_build=3.200s, remote_runtime_smoke=2.400s",
   "source_cache": "/home/demo/.cache/gewyvern/remote-source",
   "target_cache": "/home/demo/.cache/gewyvern/remote-target",
+  "target_kind": "physical",
   "total_seconds": 22.8,
   "validation_posture": "full"
 }

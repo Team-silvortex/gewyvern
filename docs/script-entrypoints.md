@@ -169,6 +169,26 @@ Run:
 cargo run --quiet --bin gewyvern_validate -- remote-linux-host-validation
 ```
 
+This command defaults to `--target-kind physical`. Preflight probes both
+`systemd-detect-virt --vm` and `--container`; it fails closed when
+virtualization cannot be identified, rejects containers, and rejects any kind
+that disagrees with the request. A VM therefore cannot silently enter the
+physical-host evidence shelf.
+
+For compatibility testing on a VM, run:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- remote-linux-host-validation \
+  --target-kind vm --host gewyvern-jammy
+```
+
+VM evidence is written under `target/validation/remote-linux-vm-validation`.
+Its matrix reports `release_eligible=false`; a clean in-budget run reports
+`compatibility_only`, while integrity or timing warnings can still lower it to
+`watch`. It can never report release-ready, regardless of VM or kernel breadth.
+The combined release gate always requests a physical target and never consumes
+this VM shelf.
+
 This syncs the current workspace to a remote Linux host over SSH, builds
 `x86_64` packages there, then runs host-mode package and runtime smoke checks.
 With remote builds enabled, it also publishes the Leserpent control-plane
@@ -270,6 +290,7 @@ two physical host fingerprints and two kernel releases.
 Defaults:
 
 - host from `GEWY_REMOTE_HOST` or the dedicated `gewyvern-lab` SSH alias
+- target kind `physical`
 - remote workspace under `~/.gewyvern-remote-runs/`
 
 The native validator multiplexes SSH through a nonce-bearing short control
@@ -278,15 +299,18 @@ rejects overlong or unbounded control-path tokens, and shell-quotes the path
 when handing it to rsync. `GEWY_SSH_CONTROL_PATH_TEMPLATE` may override the
 template only with an absolute path using bounded `%C` or `%%` tokens.
 
-The Linux control-plane NativeAOT proof keeps locked restore RID-neutral so the
-shared `osx-arm64` and `linux-x64` graph remains valid under .NET 10, then
-selects `linux-x64` only during publish. Its SQLite proof binds writability to
-the live control-plane writer fence: schema initialization occurs after lease
-acquisition, and later lease loss returns new operations to read-only mode.
+The Linux control-plane NativeAOT proof supplies the same `PublishAot` and
+`RuntimeIdentifier=linux-x64` MSBuild properties to locked restore and publish.
+It deliberately avoids a publish-only `-r` shortcut, so a cold restore cannot
+produce a different runtime graph from the later `--no-restore` publish. Its
+SQLite proof binds writability to the live control-plane writer fence: schema
+initialization occurs after lease acquisition, and later lease loss returns new
+operations to read-only mode.
 
 Useful flags:
 
 - `--host <ssh-host>`
+- `--target-kind <physical|vm>`
 - `--remote-dir <path>`
 - `--skip-build`
 - `--keep-remote-dir`
@@ -308,6 +332,12 @@ Evidence written locally:
 - `target/validation/remote-linux-host-validation/remote-ebpf-latest.json`
 - `target/validation/remote-linux-host-validation/remote-ebpf-recent.txt`
 - `target/validation/remote-linux-host-validation/remote-ebpf-status-summary.json`
+
+With `--target-kind vm`, the same bounded inventory is written under
+`target/validation/remote-linux-vm-validation/` instead. The two complete run
+locks, histories, latest records, and matrix summaries never share a path.
+The local workspace-key optimization is not evidence and is isolated separately
+under `target/validation/remote-workspace-sync-cache/{physical,vm}.txt`.
 
 The phase-timing file records the observed wall-clock time for each major
 remote validation step so we can tell whether regressions come from sync,
@@ -341,6 +371,9 @@ frequently `skipped`, or drifting in total runtime.
 `matrix` object counts successful distinct hosts, kernels, and architectures;
 `matrix.ready` requires at least two hosts and two kernel releases, so repeated
 success on one machine cannot masquerade as broad physical-host coverage.
+The summary also records `target_kind`, `matrix.breadth_ready`, and
+`matrix.release_eligible`. VM breadth can exercise portability, but
+`matrix.ready` is always false for VM evidence.
 An `ok` attach run still reports `validation_posture=full`, but the release
 signal is `coverage_incomplete` and `requires_followup=true` while this matrix
 is below threshold. `release_gate_signal=ready` is reserved for a successful

@@ -11,6 +11,13 @@ fn read_repo_file(relative: &str) -> String {
 #[test]
 fn package_layout_writes_compat_manifest() {
     let build_script = read_repo_file("scripts/packaging/build_packages.sh");
+    let manifest_reader = build_script
+        .split_once("read_manifest_value() {")
+        .expect("manifest reader function")
+        .1
+        .split_once("\n}")
+        .expect("manifest reader function end")
+        .0;
 
     assert!(build_script.contains("RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v1.15.0}\""));
     assert!(build_script.contains("LAYOUT_VERSION=\"${GEWY_LAYOUT_VERSION:-1}\""));
@@ -47,6 +54,9 @@ fn package_layout_writes_compat_manifest() {
     assert!(build_script.contains("reusing cached package artifacts..."));
     assert!(build_script.contains("chmod 0644 \"${CACHE_KEY_FILE}\" \"${MANIFEST_FILE}\""));
     assert!(build_script.contains("write_cache_key"));
+    assert!(manifest_reader.contains(
+        "[[ -f \"${MANIFEST_FILE}\" && ! -L \"${MANIFEST_FILE}\" ]] || return 1"
+    ));
     assert!(build_script.contains("record_manifest \"deb\" \"${deb_path#\"${OUT_DIR}/\"}\""));
     assert!(build_script.contains("record_manifest \"rpm\" \"${rpm_path#\"${OUT_DIR}/\"}\""));
     assert!(build_script.contains("GEWY_PACKAGE_LOCK_TIMEOUT_SECONDS:-120"));

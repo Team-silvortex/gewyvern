@@ -15,7 +15,8 @@ use serde_json::json;
 
 use super::command::{ValidationError, ValidationReport, default_out_dir, repo_root};
 use super::{
-    DEFAULT_REMOTE_LINUX_HOST, RemoteLinuxHostOptions, read_bounded_json_file,
+    DEFAULT_REMOTE_LINUX_HOST, RemoteLinuxHostOptions, RemoteLinuxTargetKind,
+    read_bounded_json_file,
     read_bounded_nonempty_lines, read_bounded_phase_timings, read_bounded_unique_key_value_file,
     run_container_runtime_validation, run_container_validation_summary,
     run_debugger_cross_validation, run_leserpent_parity_recovery_validation,
@@ -297,6 +298,7 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
         ));
         let remote_report = run_remote_linux_host_validation(RemoteLinuxHostOptions {
             host: options.remote_host,
+            target_kind: RemoteLinuxTargetKind::Physical,
             remote_dir: options.remote_dir,
             build_packages: options.remote_build_packages,
             keep_remote_dir: options.keep_remote_dir,

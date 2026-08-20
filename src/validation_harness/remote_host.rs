@@ -34,9 +34,70 @@ const REMOTE_EBPF_HELPER: &str = "/usr/libexec/gewyvern-ebpf-helper";
 const REMOTE_EBPF_EVIDENCE_ROOT: &str = "/var/lib/gewyvern-ebpf-validation";
 const REMOTE_WORKSPACE_SYNC_KEY_MAX_LEN: usize = 256;
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum RemoteLinuxTargetKind {
+    #[default]
+    Physical,
+    Vm,
+}
+
+impl RemoteLinuxTargetKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Physical => "physical",
+            Self::Vm => "vm",
+        }
+    }
+
+    pub fn parse(value: &str) -> Result<Self, ValidationError> {
+        match value {
+            "physical" => Ok(Self::Physical),
+            "vm" => Ok(Self::Vm),
+            _ => Err(ValidationError::new(format!(
+                "remote Linux target kind must be `physical` or `vm`, got `{value}`"
+            ))),
+        }
+    }
+
+    pub fn detect(virtualization: &str) -> Result<Self, ValidationError> {
+        if !valid_virtualization(virtualization) {
+            return Err(ValidationError::new(
+                "remote preflight virtualization value is invalid",
+            ));
+        }
+        if let Some(container) = virtualization.strip_prefix("container-") {
+            return Err(ValidationError::new(format!(
+                "remote container targets are unsupported by physical-host and VM validation ({container})"
+            )));
+        }
+        match virtualization {
+            "none" => Ok(Self::Physical),
+            "unknown" => Err(ValidationError::new(
+                "remote target virtualization could not be determined; install systemd-detect-virt before collecting release evidence",
+            )),
+            _ => Ok(Self::Vm),
+        }
+    }
+
+    const fn evidence_dir_name(self) -> &'static str {
+        match self {
+            Self::Physical => "remote-linux-host-validation",
+            Self::Vm => "remote-linux-vm-validation",
+        }
+    }
+
+    const fn report_label(self) -> &'static str {
+        match self {
+            Self::Physical => "remote linux physical-host validation",
+            Self::Vm => "remote linux VM validation",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RemoteLinuxHostOptions {
     pub host: String,
+    pub target_kind: RemoteLinuxTargetKind,
     pub remote_dir: Option<String>,
     pub build_packages: bool,
     pub keep_remote_dir: bool,
@@ -47,6 +108,7 @@ impl Default for RemoteLinuxHostOptions {
         Self {
             host: env::var("GEWY_REMOTE_HOST")
                 .unwrap_or_else(|_| DEFAULT_REMOTE_LINUX_HOST.to_string()),
+            target_kind: RemoteLinuxTargetKind::Physical,
             remote_dir: None,
             build_packages: true,
             keep_remote_dir: false,
@@ -66,7 +128,7 @@ pub fn run_remote_linux_host_validation(
     let admin_auth = remote_ebpf_admin_auth()?;
     ensure_ssh_control_master(&options.host, admin_auth.as_ref())?;
 
-    let out_dir = default_out_dir("remote-linux-host-validation");
+    let out_dir = default_out_dir(options.target_kind.evidence_dir_name());
     fs::create_dir_all(&out_dir)?;
     let _run_lock = acquire_remote_validation_run_lock(&out_dir)?;
     let mut phase_timings = Vec::new();
@@ -82,6 +144,10 @@ pub fn run_remote_linux_host_validation(
 
     validation_log(format!("[remote-host] host: {}", options.host));
     validation_log(format!(
+        "[remote-host] target kind: {}",
+        options.target_kind.as_str()
+    ));
+    validation_log(format!(
         "[remote-host] requested remote workspace: {}",
         remote_path
     ));
@@ -94,12 +160,14 @@ pub fn run_remote_linux_host_validation(
         options.keep_remote_dir
     ));
 
+    let mut remote_workspace_touched = false;
     let result: Result<ValidationReport, ValidationError> = (|| {
         validation_log("[remote-host] ----------------------------------------");
         validation_log("[remote-host] collecting remote preflight");
         let preflight = measure_phase(&mut phase_timings, "remote_preflight", || {
             collect_remote_preflight(admin_auth.as_ref(), &options.host, options.build_packages)
         })?;
+        validate_remote_target_kind(options.target_kind, &preflight)?;
         fs::write(out_dir.join("remote-preflight.txt"), preflight.render())?;
         let resolved_remote_path =
             resolve_remote_workspace_path(&remote_path, &preflight.home_dir)?;
@@ -139,7 +207,7 @@ pub fn run_remote_linux_host_validation(
         validation_log("[remote-host] ----------------------------------------");
         validation_log("[remote-host] syncing current workspace into remote source cache");
         measure_phase(&mut phase_timings, "workspace_sync", || {
-            let workspace_sync_key = compute_local_workspace_sync_key()?;
+            let workspace_sync_key = compute_local_workspace_sync_key(options.target_kind)?;
             sync_workspace(
                 admin_auth.as_ref(),
                 &options.host,
@@ -150,6 +218,7 @@ pub fn run_remote_linux_host_validation(
 
         validation_log("[remote-host] ----------------------------------------");
         validation_log("[remote-host] materializing remote workspace from source cache");
+        remote_workspace_touched = true;
         measure_phase(&mut phase_timings, "remote_workspace_materialize", || {
             materialize_remote_workspace(
                 admin_auth.as_ref(),
@@ -349,8 +418,9 @@ pub fn run_remote_linux_host_validation(
         checks.push("remote_phase_timings".to_string());
 
         let summary = format!(
-            "host={}\nremote_dir={}\nbuild_packages={}\nkeep_remote_dir={}\nchecks={}\n",
+            "host={}\ntarget_kind={}\nremote_dir={}\nbuild_packages={}\nkeep_remote_dir={}\nchecks={}\n",
             options.host,
+            options.target_kind.as_str(),
             resolved_remote_path,
             options.build_packages,
             options.keep_remote_dir,
@@ -378,6 +448,7 @@ pub fn run_remote_linux_host_validation(
                 out_dir.join("remote-phase-timings.txt"),
                 render_phase_timings(&phase_timings),
             )?;
+            remote_workspace_touched = false;
         }
         write_remote_ebpf_history(
             &out_dir,
@@ -389,7 +460,7 @@ pub fn run_remote_linux_host_validation(
         )?;
 
         Ok(ValidationReport {
-            name: format!("remote linux host validation ({})", options.host),
+            name: format!("{} ({})", options.target_kind.report_label(), options.host),
             out_dir,
             checks,
         })
@@ -404,10 +475,14 @@ pub fn run_remote_linux_host_validation(
     }
 
     result.map_err(|err: ValidationError| {
-        ValidationError::new(format!(
-            "{err}\nremote workspace retained at {}:{}",
-            options.host, remote_path
-        ))
+        if remote_workspace_touched {
+            ValidationError::new(format!(
+                "{err}\nremote workspace retained at {}:{}",
+                options.host, remote_path
+            ))
+        } else {
+            err
+        }
     })
 }
 
@@ -495,12 +570,14 @@ fn write_remote_ebpf_history(
         "schema_version": 1,
         "observed_at_unix": observed_at_unix,
         "host": options.host,
+        "target_kind": options.target_kind.as_str(),
         "build_packages": options.build_packages,
         "keep_remote_dir": options.keep_remote_dir,
         "preflight": {
             "os": preflight.os,
             "arch": preflight.arch,
             "kernel": preflight.kernel,
+            "virtualization": preflight.virtualization,
             "host_fingerprint": preflight.host_fingerprint,
             "rustc_version": preflight.rustc_version,
             "cargo_version": preflight.cargo_version,
@@ -523,7 +600,7 @@ fn write_remote_ebpf_history(
         "phase_timings": phase_timings_json,
     });
 
-    let (mut lines, rejected) = read_remote_ebpf_history(&history_path)?;
+    let (mut lines, rejected) = read_remote_ebpf_history(&history_path, options.target_kind)?;
     lines.push(serde_json::to_string(&entry)?);
     if lines.len() > HISTORY_RETENTION {
         lines.drain(0..(lines.len() - HISTORY_RETENTION));
@@ -538,6 +615,7 @@ fn write_remote_ebpf_history(
             &lines,
             rejected_entries,
             rejected.len(),
+            options.target_kind,
         ))?,
     )?;
     Ok(())
@@ -655,7 +733,10 @@ fn remove_stale_remote_evidence_lock(
     Ok(())
 }
 
-fn read_remote_ebpf_history(path: &Path) -> Result<(Vec<String>, Vec<String>), ValidationError> {
+fn read_remote_ebpf_history(
+    path: &Path,
+    expected_target_kind: RemoteLinuxTargetKind,
+) -> Result<(Vec<String>, Vec<String>), ValidationError> {
     const MAX_HISTORY_BYTES: u64 = 1_048_576;
 
     let bytes = match fs::read(path) {
@@ -683,14 +764,19 @@ fn read_remote_ebpf_history(path: &Path) -> Result<(Vec<String>, Vec<String>), V
     let mut rejected = Vec::new();
     for line in body.lines().map(str::trim).filter(|line| !line.is_empty()) {
         match serde_json::from_str::<serde_json::Value>(line) {
-            Ok(value) if valid_remote_ebpf_history_entry(&value) => accepted.push(line.to_string()),
+            Ok(value) if valid_remote_ebpf_history_entry(&value, expected_target_kind) => {
+                accepted.push(line.to_string())
+            }
             _ => rejected.push(line.to_string()),
         }
     }
     Ok((accepted, rejected))
 }
 
-fn valid_remote_ebpf_history_entry(value: &serde_json::Value) -> bool {
+fn valid_remote_ebpf_history_entry(
+    value: &serde_json::Value,
+    expected_target_kind: RemoteLinuxTargetKind,
+) -> bool {
     let nonempty_string = |value: Option<&serde_json::Value>| {
         value
             .and_then(serde_json::Value::as_str)
@@ -698,6 +784,7 @@ fn valid_remote_ebpf_history_entry(value: &serde_json::Value) -> bool {
     };
     let preflight = value.get("preflight");
     let ebpf = value.get("ebpf");
+    let target_kind = history_entry_target_kind(value);
     let fingerprint_valid = preflight
         .and_then(|value| value.get("host_fingerprint"))
         .is_none_or(|value| value.is_null() || value.as_str().is_some_and(valid_host_fingerprint));
@@ -718,6 +805,7 @@ fn valid_remote_ebpf_history_entry(value: &serde_json::Value) -> bool {
             .get("observed_at_unix")
             .and_then(serde_json::Value::as_u64)
             .is_some()
+        && target_kind == Some(expected_target_kind)
         && nonempty_string(value.get("host"))
         && nonempty_string(preflight.and_then(|value| value.get("os")))
         && nonempty_string(preflight.and_then(|value| value.get("arch")))
@@ -726,6 +814,13 @@ fn valid_remote_ebpf_history_entry(value: &serde_json::Value) -> bool {
         && status_valid
         && nonempty_string(ebpf.and_then(|value| value.get("reason")))
         && total_seconds_valid
+}
+
+fn history_entry_target_kind(value: &serde_json::Value) -> Option<RemoteLinuxTargetKind> {
+    match value.get("target_kind") {
+        Some(value) => RemoteLinuxTargetKind::parse(value.as_str()?).ok(),
+        None => Some(RemoteLinuxTargetKind::Physical),
+    }
 }
 
 fn append_rejected_history(
@@ -841,6 +936,9 @@ fn render_remote_ebpf_recent(lines: &[String]) -> String {
             .get("host")
             .and_then(|value| value.as_str())
             .unwrap_or("unknown");
+        let target_kind = history_entry_target_kind(&value)
+            .map(RemoteLinuxTargetKind::as_str)
+            .unwrap_or("unknown");
         let status = value
             .get("ebpf")
             .and_then(|value| value.get("status"))
@@ -867,7 +965,7 @@ fn render_remote_ebpf_recent(lines: &[String]) -> String {
             .unwrap_or("-");
 
         rendered.push(format!(
-            "{observed_at_unix} host={host} status={status} reason={reason} total={total_seconds:.3}s kernel={kernel} route={route_device}"
+            "{observed_at_unix} host={host} target={target_kind} status={status} reason={reason} total={total_seconds:.3}s kernel={kernel} route={route_device}"
         ));
     }
 
@@ -882,6 +980,7 @@ fn summarize_remote_ebpf_history(
     lines: &[String],
     rejected_entries: usize,
     rejected_entries_this_run: usize,
+    target_kind: RemoteLinuxTargetKind,
 ) -> serde_json::Value {
     const MINIMUM_MATRIX_HOSTS: usize = 2;
     const MINIMUM_MATRIX_KERNELS: usize = 2;
@@ -945,9 +1044,13 @@ fn summarize_remote_ebpf_history(
     let unique_hosts = successful_host_counts.len();
     let unique_kernels = successful_kernel_counts.len();
     let unique_architectures = successful_arch_counts.len();
+    let breadth_ready =
+        unique_hosts >= MINIMUM_MATRIX_HOSTS && unique_kernels >= MINIMUM_MATRIX_KERNELS;
+    let release_eligible = target_kind == RemoteLinuxTargetKind::Physical;
 
     json!({
         "schema_version": 1,
+        "target_kind": target_kind.as_str(),
         "entries": lines.len(),
         "integrity": {
             "status": if rejected_entries == 0 { "clean" } else { "repaired" },
@@ -958,8 +1061,9 @@ fn summarize_remote_ebpf_history(
         "status_counts": status_counts,
         "reason_counts": reason_counts,
         "matrix": {
-            "ready": unique_hosts >= MINIMUM_MATRIX_HOSTS
-                && unique_kernels >= MINIMUM_MATRIX_KERNELS,
+            "ready": release_eligible && breadth_ready,
+            "breadth_ready": breadth_ready,
+            "release_eligible": release_eligible,
             "minimum_hosts": MINIMUM_MATRIX_HOSTS,
             "minimum_kernels": MINIMUM_MATRIX_KERNELS,
             "unique_hosts": unique_hosts,
@@ -1325,9 +1429,11 @@ fn write_remote_workspace_sync_key(
     )
 }
 
-fn compute_local_workspace_sync_key() -> Result<String, ValidationError> {
+fn compute_local_workspace_sync_key(
+    target_kind: RemoteLinuxTargetKind,
+) -> Result<String, ValidationError> {
     let root = repo_root();
-    if let Some(git_key) = compute_git_workspace_sync_key(&root)? {
+    if let Some(git_key) = compute_git_workspace_sync_key(&root, target_kind)? {
         return validate_remote_workspace_sync_key(&git_key);
     }
 
@@ -1422,12 +1528,12 @@ struct LocalWorkspaceSyncCacheFile {
     modified_unix_nanos: u128,
 }
 
-fn local_workspace_sync_cache_path() -> PathBuf {
+fn local_workspace_sync_cache_path(target_kind: RemoteLinuxTargetKind) -> PathBuf {
     repo_root()
         .join("target")
         .join("validation")
-        .join("remote-linux-host-validation")
-        .join("local-workspace-sync-key-cache.txt")
+        .join("remote-workspace-sync-cache")
+        .join(format!("{}.txt", target_kind.as_str()))
 }
 
 fn file_metadata_fingerprint(
@@ -1489,8 +1595,10 @@ fn collect_local_workspace_sync_cache_files(
     Ok(files)
 }
 
-fn read_local_workspace_sync_cache() -> Result<Option<LocalWorkspaceSyncCache>, ValidationError> {
-    let path = local_workspace_sync_cache_path();
+fn read_local_workspace_sync_cache(
+    target_kind: RemoteLinuxTargetKind,
+) -> Result<Option<LocalWorkspaceSyncCache>, ValidationError> {
+    let path = local_workspace_sync_cache_path(target_kind);
     let content = match fs::read_to_string(&path) {
         Ok(content) => content,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -1571,9 +1679,10 @@ fn read_local_workspace_sync_cache() -> Result<Option<LocalWorkspaceSyncCache>, 
 }
 
 fn write_local_workspace_sync_cache(
+    target_kind: RemoteLinuxTargetKind,
     cache: &LocalWorkspaceSyncCache,
 ) -> Result<(), ValidationError> {
-    let path = local_workspace_sync_cache_path();
+    let path = local_workspace_sync_cache_path(target_kind);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -1610,10 +1719,11 @@ fn write_local_workspace_sync_cache(
 
 fn try_reuse_dirty_workspace_sync_key_cache(
     root: &Path,
+    target_kind: RemoteLinuxTargetKind,
     head: &str,
     relevant_changes: &[String],
 ) -> Result<Option<String>, ValidationError> {
-    let Some(cache) = read_local_workspace_sync_cache()? else {
+    let Some(cache) = read_local_workspace_sync_cache(target_kind)? else {
         return Ok(None);
     };
     if cache.head != head || cache.changes != relevant_changes {
@@ -1626,7 +1736,10 @@ fn try_reuse_dirty_workspace_sync_key_cache(
     Ok(Some(cache.key))
 }
 
-fn compute_git_workspace_sync_key(root: &Path) -> Result<Option<String>, ValidationError> {
+fn compute_git_workspace_sync_key(
+    root: &Path,
+    target_kind: RemoteLinuxTargetKind,
+) -> Result<Option<String>, ValidationError> {
     let head = Command::new("git")
         .args(["-C"])
         .arg(root)
@@ -1661,10 +1774,12 @@ fn compute_git_workspace_sync_key(root: &Path) -> Result<Option<String>, Validat
         .map(ToOwned::to_owned)
         .collect::<Vec<_>>();
     if relevant_changes.is_empty() {
-        Ok(Some(validate_remote_workspace_sync_key(&format!("git:{head}"))?))
+        Ok(Some(validate_remote_workspace_sync_key(&format!(
+            "git:{head}"
+        ))?))
     } else {
         if let Some(cache_key) =
-            try_reuse_dirty_workspace_sync_key_cache(root, &head, &relevant_changes)?
+            try_reuse_dirty_workspace_sync_key_cache(root, target_kind, &head, &relevant_changes)?
         {
             return Ok(Some(validate_remote_workspace_sync_key(&cache_key)?));
         }
@@ -1674,12 +1789,15 @@ fn compute_git_workspace_sync_key(root: &Path) -> Result<Option<String>, Validat
             &relevant_changes,
         )?)?;
         let files = collect_local_workspace_sync_cache_files(root, &relevant_changes)?;
-        write_local_workspace_sync_cache(&LocalWorkspaceSyncCache {
-            head,
-            key: key.clone(),
-            changes: relevant_changes,
-            files,
-        })?;
+        write_local_workspace_sync_cache(
+            target_kind,
+            &LocalWorkspaceSyncCache {
+                head,
+                key: key.clone(),
+                changes: relevant_changes,
+                files,
+            },
+        )?;
         Ok(Some(key))
     }
 }
@@ -2590,6 +2708,7 @@ struct RemotePreflight {
     os: String,
     arch: String,
     kernel: String,
+    virtualization: String,
     host_fingerprint: Option<String>,
     home_dir: String,
     required_commands: Vec<String>,
@@ -2608,10 +2727,11 @@ struct RemotePreflight {
 impl RemotePreflight {
     fn render(&self) -> String {
         format!(
-            "os={}\narch={}\nkernel={}\nhost_fingerprint={}\nhome_dir={}\ncommands={}\nrustc_version={}\ncargo_version={}\ndpkg_deb_version={}\nrpm_version={}\nrpmbuild_version={}\nsudo_available={}\nebpf_helper_available={}\nebpf_helper_state={}\nebpf_helper_version={}\ndefault_route_device={}\n",
+            "os={}\narch={}\nkernel={}\nvirtualization={}\nhost_fingerprint={}\nhome_dir={}\ncommands={}\nrustc_version={}\ncargo_version={}\ndpkg_deb_version={}\nrpm_version={}\nrpmbuild_version={}\nsudo_available={}\nebpf_helper_available={}\nebpf_helper_state={}\nebpf_helper_version={}\ndefault_route_device={}\n",
             self.os,
             self.arch,
             self.kernel,
+            self.virtualization,
             self.host_fingerprint.as_deref().unwrap_or(""),
             self.home_dir,
             self.required_commands.join(","),
@@ -2697,6 +2817,26 @@ fn collect_remote_preflight(
 printf 'os=%s\n' "$(uname -s)"
 printf 'arch=%s\n' "$(uname -m)"
 printf 'kernel=%s\n' "$(uname -r)"
+if command -v systemd-detect-virt >/dev/null 2>&1; then
+  VM_VIRTUALIZATION=$(systemd-detect-virt --vm 2>/dev/null || true)
+  CONTAINER_VIRTUALIZATION=$(systemd-detect-virt --container 2>/dev/null || true)
+  VM_VIRTUALIZATION=${{VM_VIRTUALIZATION%%$'\n'*}}
+  CONTAINER_VIRTUALIZATION=${{CONTAINER_VIRTUALIZATION%%$'\n'*}}
+  [ -n "$VM_VIRTUALIZATION" ] || VM_VIRTUALIZATION=unknown
+  [ -n "$CONTAINER_VIRTUALIZATION" ] || CONTAINER_VIRTUALIZATION=unknown
+  if [ "$CONTAINER_VIRTUALIZATION" != none ] && [ "$CONTAINER_VIRTUALIZATION" != unknown ]; then
+    VIRTUALIZATION=container-$CONTAINER_VIRTUALIZATION
+  elif [ "$VM_VIRTUALIZATION" != none ] && [ "$VM_VIRTUALIZATION" != unknown ]; then
+    VIRTUALIZATION=$VM_VIRTUALIZATION
+  elif [ "$VM_VIRTUALIZATION" = none ] && [ "$CONTAINER_VIRTUALIZATION" = none ]; then
+    VIRTUALIZATION=none
+  else
+    VIRTUALIZATION=unknown
+  fi
+else
+  VIRTUALIZATION=unknown
+fi
+printf 'virtualization=%s\n' "$VIRTUALIZATION"
 if [ -r /etc/machine-id ] && command -v sha256sum >/dev/null 2>&1; then
   MACHINE_HASH=$(sha256sum /etc/machine-id)
   MACHINE_HASH=${{MACHINE_HASH%% *}}
@@ -2810,6 +2950,7 @@ fn parse_remote_preflight(output: &str) -> Result<RemotePreflight, ValidationErr
             "os",
             "arch",
             "kernel",
+            "virtualization",
             "host_fingerprint",
             "home_dir",
             "commands",
@@ -2895,11 +3036,18 @@ fn parse_remote_preflight(output: &str) -> Result<RemotePreflight, ValidationErr
         .filter(|value| !value.is_empty())
         .map(|value| validate_remote_route_device(&value))
         .transpose()?;
+    let virtualization = required_remote_value(&mut values, "virtualization", "remote preflight")?;
+    if !valid_virtualization(&virtualization) {
+        return Err(ValidationError::new(
+            "remote preflight virtualization value is invalid",
+        ));
+    }
 
     Ok(RemotePreflight {
         os: required_remote_value(&mut values, "os", "remote preflight")?,
         arch: required_remote_value(&mut values, "arch", "remote preflight")?,
         kernel: required_remote_value(&mut values, "kernel", "remote preflight")?,
+        virtualization,
         host_fingerprint,
         home_dir: required_remote_value(&mut values, "home_dir", "remote preflight")?,
         required_commands: commands,
@@ -2995,6 +3143,29 @@ fn valid_host_fingerprint(value: &str) -> bool {
     value.strip_prefix("sha256:").is_some_and(|digest| {
         digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit())
     })
+}
+
+fn valid_virtualization(value: &str) -> bool {
+    value.len() <= 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
+fn validate_remote_target_kind(
+    requested: RemoteLinuxTargetKind,
+    preflight: &RemotePreflight,
+) -> Result<(), ValidationError> {
+    let detected = RemoteLinuxTargetKind::detect(&preflight.virtualization)?;
+    if detected != requested {
+        return Err(ValidationError::new(format!(
+            "remote target kind mismatch: requested `{}`, detected `{}` ({})",
+            requested.as_str(),
+            detected.as_str(),
+            preflight.virtualization
+        )));
+    }
+    Ok(())
 }
 
 fn collect_remote_ebpf_evidence(
@@ -3478,11 +3649,13 @@ mkdir -p "$PUBLISH"
 dotnet restore apps/leserpent/src/Leserpent/Leserpent.csproj \
   -p:PublishProfile=native-aot \
   -p:PublishAot=true \
+  -p:RuntimeIdentifier=linux-x64 \
   --locked-mode \
   --artifacts-path "$DOTNET_ARTIFACTS" >"$EVIDENCE/restore.log" 2>&1
 dotnet publish apps/leserpent/src/Leserpent/Leserpent.csproj \
   -p:PublishProfile=native-aot \
-  -r linux-x64 \
+  -p:PublishAot=true \
+  -p:RuntimeIdentifier=linux-x64 \
   --no-restore \
   --artifacts-path "$DOTNET_ARTIFACTS" \
   -o "$PUBLISH" >"$EVIDENCE/publish.log" 2>&1
@@ -3865,18 +4038,19 @@ mod tests {
     use super::{
         MAX_SSH_CONTROL_PATH_BYTES, REMOTE_LESERPENT_CONTROL_PLANE_AOT_SCRIPT,
         REMOTE_PACKAGE_MANIFEST_HELPER, RemoteAdminAuth, SSH_CONTROL_TEMP_SUFFIX_RESERVE,
+        RemoteLinuxTargetKind,
         acquire_remote_ebpf_history_lock, acquire_remote_validation_run_lock,
         atomic_write_evidence, default_remote_dir, default_ssh_control_path_template,
-        is_relevant_workspace_path, parse_remote_artifact_manifest, parse_remote_ebpf_evidence,
-        parse_remote_phase_timings, parse_remote_preflight, read_remote_ebpf_history,
-        remote_package_smoke_script, remote_runtime_smoke_script, resolve_remote_execution_path,
-        resolve_remote_workspace_path, rsync_remote_target, ssh_auth_target,
-        ssh_password_mode_args, summarize_remote_ebpf_history,
+        is_relevant_workspace_path, local_workspace_sync_cache_path,
+        parse_remote_artifact_manifest, parse_remote_ebpf_evidence, parse_remote_phase_timings,
+        parse_remote_preflight, read_remote_ebpf_history, remote_package_smoke_script,
+        remote_runtime_smoke_script, resolve_remote_execution_path, resolve_remote_workspace_path,
+        rsync_remote_target, ssh_auth_target, ssh_password_mode_args, summarize_remote_ebpf_history,
         validate_leserpent_control_plane_aot_evidence, validate_remote_admin_user,
         validate_remote_admin_password, validate_release_line, validate_remote_command,
         validate_remote_host,
-        validate_remote_dir, validate_remote_route_device, validate_remote_workspace_sync_key,
-        validate_ssh_control_path_template,
+        validate_remote_dir, validate_remote_route_device, validate_remote_target_kind,
+        validate_remote_workspace_sync_key, validate_ssh_control_path_template,
     };
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -3896,6 +4070,23 @@ mod tests {
         assert!(
             path.len() - 2 + 40 + SSH_CONTROL_TEMP_SUFFIX_RESERVE <= MAX_SSH_CONTROL_PATH_BYTES
         );
+    }
+
+    #[test]
+    fn workspace_sync_caches_are_isolated_from_evidence_shelves() {
+        let physical = local_workspace_sync_cache_path(RemoteLinuxTargetKind::Physical);
+        let vm = local_workspace_sync_cache_path(RemoteLinuxTargetKind::Vm);
+
+        assert_ne!(physical, vm);
+        assert!(
+            physical.ends_with("target/validation/remote-workspace-sync-cache/physical.txt")
+        );
+        assert!(vm.ends_with("target/validation/remote-workspace-sync-cache/vm.txt"));
+        for path in [&physical, &vm] {
+            let rendered = path.to_string_lossy();
+            assert!(!rendered.contains("remote-linux-host-validation"));
+            assert!(!rendered.contains("remote-linux-vm-validation"));
+        }
     }
 
     #[test]
@@ -3972,12 +4163,14 @@ mod tests {
             serde_json::json!({"host":"failed","preflight":{"host_fingerprint":format!("sha256:{}", "c".repeat(64)),"kernel":"7.1.0","arch":"riscv64"},"ebpf":{"status":"failed","reason":"attach_failed"}}).to_string(),
         ];
 
-        let summary = summarize_remote_ebpf_history(&lines, 3, 1);
+        let summary = summarize_remote_ebpf_history(&lines, 3, 1, RemoteLinuxTargetKind::Physical);
         let matrix = &summary["matrix"];
         assert_eq!(summary["integrity"]["status"], "repaired");
         assert_eq!(summary["integrity"]["rejected_entries"], 3);
         assert_eq!(summary["integrity"]["rejected_entries_this_run"], 1);
         assert_eq!(matrix["ready"], true);
+        assert_eq!(matrix["breadth_ready"], true);
+        assert_eq!(matrix["release_eligible"], true);
         assert_eq!(matrix["unique_hosts"], 2);
         assert_eq!(matrix["unique_kernels"], 2);
         assert_eq!(matrix["unique_architectures"], 2);
@@ -4015,20 +4208,44 @@ mod tests {
             "total_seconds": 1.0,
         })
         .to_string();
+        let mut vm_value: serde_json::Value = serde_json::from_str(&valid).unwrap();
+        vm_value["target_kind"] = serde_json::json!("vm");
+        let vm_valid = serde_json::to_string(&vm_value).unwrap();
         fs::write(
             &history_path,
-            format!("{valid}\nnot-json\n{{\"schema_version\":99}}\n"),
+            format!("{valid}\n{vm_valid}\nnot-json\n{{\"schema_version\":99}}\n"),
         )
         .unwrap();
 
-        let (accepted, rejected) = read_remote_ebpf_history(&history_path).unwrap();
+        let (accepted, rejected) =
+            read_remote_ebpf_history(&history_path, RemoteLinuxTargetKind::Physical).unwrap();
         assert_eq!(accepted, vec![valid]);
-        assert_eq!(rejected.len(), 2);
+        assert_eq!(rejected.len(), 3);
+        let (accepted, rejected) =
+            read_remote_ebpf_history(&history_path, RemoteLinuxTargetKind::Vm).unwrap();
+        assert_eq!(accepted, vec![vm_valid]);
+        assert_eq!(rejected.len(), 3);
 
         atomic_write_evidence(&history_path, "replacement\n").unwrap();
         assert_eq!(fs::read_to_string(&history_path).unwrap(), "replacement\n");
         assert_eq!(fs::read_dir(&root).unwrap().count(), 1);
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn vm_history_is_isolated_and_never_release_eligible() {
+        let fingerprint_a = format!("sha256:{}", "a".repeat(64));
+        let fingerprint_b = format!("sha256:{}", "b".repeat(64));
+        let lines = vec![
+            serde_json::json!({"target_kind":"vm","host":"vm-a","preflight":{"host_fingerprint":fingerprint_a,"kernel":"6.8.0","arch":"x86_64"},"ebpf":{"status":"ok","reason":"passed"}}).to_string(),
+            serde_json::json!({"target_kind":"vm","host":"vm-b","preflight":{"host_fingerprint":fingerprint_b,"kernel":"6.9.0","arch":"x86_64"},"ebpf":{"status":"ok","reason":"passed"}}).to_string(),
+        ];
+
+        let summary = summarize_remote_ebpf_history(&lines, 0, 0, RemoteLinuxTargetKind::Vm);
+        assert_eq!(summary["target_kind"], "vm");
+        assert_eq!(summary["matrix"]["breadth_ready"], true);
+        assert_eq!(summary["matrix"]["release_eligible"], false);
+        assert_eq!(summary["matrix"]["ready"], false);
     }
 
     #[test]
@@ -4177,13 +4394,30 @@ mod tests {
     #[test]
     fn parse_remote_preflight_accepts_linux_x86_64_manifest() {
         let preflight = parse_remote_preflight(
-            "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/gewyvern-lab\nsudo_available=true\nebpf_helper_available=true\nebpf_helper_state=ready\nebpf_helper_version=1.4.6\ndefault_route_device=eth0\ncommands=bash curl cargo rustc python3 rpmbuild\nrustc_version=rustc 1.95.0\ncargo_version=cargo 1.95.0\ndpkg_deb_version=Debian dpkg-deb 1.22.6\nrpm_version=RPM version 4.19.1\nrpmbuild_version=RPM version 4.19.1\n",
+            "os=Linux\narch=x86_64\nkernel=6.8.0\nvirtualization=none\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/gewyvern-lab\nsudo_available=true\nebpf_helper_available=true\nebpf_helper_state=ready\nebpf_helper_version=1.4.6\ndefault_route_device=eth0\ncommands=bash curl cargo rustc python3 rpmbuild\nrustc_version=rustc 1.95.0\ncargo_version=cargo 1.95.0\ndpkg_deb_version=Debian dpkg-deb 1.22.6\nrpm_version=RPM version 4.19.1\nrpmbuild_version=RPM version 4.19.1\n",
         )
         .unwrap();
 
         assert_eq!(preflight.os, "Linux");
         assert_eq!(preflight.arch, "x86_64");
         assert_eq!(preflight.kernel, "6.8.0");
+        assert_eq!(preflight.virtualization, "none");
+        validate_remote_target_kind(RemoteLinuxTargetKind::Physical, &preflight).unwrap();
+        assert!(validate_remote_target_kind(RemoteLinuxTargetKind::Vm, &preflight).is_err());
+        let mut vm_preflight = preflight.clone();
+        vm_preflight.virtualization = "kvm".to_string();
+        validate_remote_target_kind(RemoteLinuxTargetKind::Vm, &vm_preflight).unwrap();
+        assert!(
+            validate_remote_target_kind(RemoteLinuxTargetKind::Physical, &vm_preflight).is_err()
+        );
+        vm_preflight.virtualization = "container-docker".to_string();
+        let container_error =
+            validate_remote_target_kind(RemoteLinuxTargetKind::Vm, &vm_preflight).unwrap_err();
+        assert!(
+            container_error
+                .to_string()
+                .contains("remote container targets are unsupported")
+        );
         assert_eq!(
             preflight.host_fingerprint.as_deref(),
             Some("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
@@ -4206,7 +4440,7 @@ mod tests {
     #[test]
     fn parse_remote_preflight_rejects_unbounded_tool_versions() {
         let manifest = format!(
-            "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint=\nhome_dir=/home/test\ncommands=bash cargo rustc\nrustc_version={}\nsudo_available=false\nebpf_helper_available=false\nebpf_helper_state=missing\nebpf_helper_version=\ndefault_route_device=\n",
+            "os=Linux\narch=x86_64\nkernel=6.8.0\nvirtualization=none\nhost_fingerprint=\nhome_dir=/home/test\ncommands=bash cargo rustc\nrustc_version={}\nsudo_available=false\nebpf_helper_available=false\nebpf_helper_state=missing\nebpf_helper_version=\ndefault_route_device=\n",
             "x".repeat(257)
         );
         let error = parse_remote_preflight(&manifest).unwrap_err();
@@ -4215,7 +4449,7 @@ mod tests {
 
     #[test]
     fn parse_remote_preflight_rejects_ambiguous_or_unknown_entries() {
-        let base = "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint=\nhome_dir=/home/test\ncommands=bash\nsudo_available=false\nebpf_helper_available=false\nebpf_helper_state=missing\nebpf_helper_version=\ndefault_route_device=\n";
+        let base = "os=Linux\narch=x86_64\nkernel=6.8.0\nvirtualization=none\nhost_fingerprint=\nhome_dir=/home/test\ncommands=bash\nsudo_available=false\nebpf_helper_available=false\nebpf_helper_state=missing\nebpf_helper_version=\ndefault_route_device=\n";
         for suffix in ["os=Linux\n", "unknown=value\n", "malformed\n"] {
             let error = parse_remote_preflight(&format!("{base}{suffix}")).unwrap_err();
             assert!(!error.to_string().is_empty(), "{suffix}");
@@ -4247,7 +4481,7 @@ mod tests {
             "sha256:gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
         ] {
             let manifest = format!(
-                "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint={fingerprint}\nhome_dir=/home/test\nsudo_available=true\nebpf_helper_available=true\nebpf_helper_state=ready\nebpf_helper_version=1.4.6\ndefault_route_device=eth0\ncommands=bash curl cargo rustc python3 rpmbuild\n"
+                "os=Linux\narch=x86_64\nkernel=6.8.0\nvirtualization=none\nhost_fingerprint={fingerprint}\nhome_dir=/home/test\nsudo_available=true\nebpf_helper_available=true\nebpf_helper_state=ready\nebpf_helper_version=1.4.6\ndefault_route_device=eth0\ncommands=bash curl cargo rustc python3 rpmbuild\n"
             );
 
             let error = parse_remote_preflight(&manifest).unwrap_err();
@@ -4345,7 +4579,7 @@ mod tests {
     }
 
     #[test]
-    fn control_plane_aot_restore_keeps_the_shared_lock_graph_rid_neutral() {
+    fn control_plane_aot_restore_and_publish_use_the_same_runtime_graph() {
         let (restore, publish) = REMOTE_LESERPENT_CONTROL_PLANE_AOT_SCRIPT
             .split_once("dotnet publish")
             .unwrap();
@@ -4353,7 +4587,11 @@ mod tests {
         assert!(restore.contains("dotnet restore"));
         assert!(restore.contains("--locked-mode"));
         assert!(!restore.contains("-r linux-x64"));
-        assert!(publish.contains("-r linux-x64"));
+        assert!(restore.contains("-p:PublishAot=true"));
+        assert!(restore.contains("-p:RuntimeIdentifier=linux-x64"));
+        assert!(!publish.contains("-r linux-x64"));
+        assert!(publish.contains("-p:PublishAot=true"));
+        assert!(publish.contains("-p:RuntimeIdentifier=linux-x64"));
         assert!(publish.contains("--no-restore"));
         assert!(publish.contains("'\"outcome\":\"degraded\"'"));
     }

@@ -345,6 +345,7 @@ package_cache_artifact_valid() {
 
 read_manifest_value() {
   local key="$1"
+  [[ -f "${MANIFEST_FILE}" && ! -L "${MANIFEST_FILE}" ]] || return 1
   awk -F= -v wanted="${key}" '
     index($0, "=") == 0 || $1 == "" || substr($0, length($1) + 2) == "" || ($1 != "deb" && $1 != "rpm") {
       malformed = 1

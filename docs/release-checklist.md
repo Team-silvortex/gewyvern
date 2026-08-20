@@ -230,6 +230,12 @@ run:
 cargo run --quiet --bin gewyvern_validate -- remote-linux-host-validation
 ```
 
+This release-facing entrypoint defaults to `--target-kind physical`, rejects
+VMs and containers, and fails closed when virtualization is unknown. Use
+`--target-kind vm` only for the separate compatibility shelf; VM evidence can
+report `compatibility_only` or `watch`, but can never satisfy this physical-host
+gate.
+
 Or fold it into the main release gate:
 
 ```bash

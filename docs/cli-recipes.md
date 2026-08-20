@@ -142,6 +142,15 @@ Remote Linux host evidence as one structured object:
 cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation
 ```
 
+Remote Linux VM compatibility evidence, isolated from the physical release
+matrix:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
+  --target-kind vm --host gewyvern-jammy \
+  | jq '{target_kind: .extra.target_kind, virtualization: .extra.preflight.virtualization, signal: .extra.release_gate_signal}'
+```
+
 Practical Linux target-lab evidence as one structured object:
 
 ```bash
@@ -216,6 +225,10 @@ cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation
   | jq '.extra.remote_ebpf_matrix'
 
 cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
+  --target-kind vm --host gewyvern-jammy \
+  | jq '.extra.remote_ebpf_matrix | {breadth_ready, release_eligible, ready}'
+
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
   | jq '.extra.remote_ebpf_history_integrity'
 ```
 
@@ -226,6 +239,7 @@ tail -n 5 target/validation/remote-linux-host-validation/remote-ebpf-history.jso
 jq '.ebpf.status, .ebpf.reason, .total_seconds' target/validation/remote-linux-host-validation/remote-ebpf-latest.json
 cat target/validation/remote-linux-host-validation/remote-ebpf-recent.txt
 jq '.integrity, .status_counts, .reason_counts, .matrix' target/validation/remote-linux-host-validation/remote-ebpf-status-summary.json
+jq '.target_kind, .matrix' target/validation/remote-linux-vm-validation/remote-ebpf-status-summary.json
 ```
 
 Failure-mode example:

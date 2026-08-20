@@ -11,7 +11,7 @@ mod gewyvern_validate_stack;
 
 use gewyvern::validation_harness::{
     DEFAULT_REMOTE_LINUX_HOST, ReleaseCheckMode, ReleaseGateOptions, RemoteLinuxHostOptions,
-    ValidationError, read_bounded_json_file, read_bounded_nonempty_lines,
+    RemoteLinuxTargetKind, ValidationError, read_bounded_json_file, read_bounded_nonempty_lines,
     read_bounded_phase_timings, read_bounded_unique_key_value_file,
     run_container_operator_path_validation, run_container_protocol_validation,
     run_container_runtime_validation, run_container_validation_summary,
@@ -775,6 +775,7 @@ struct Options {
 
 struct RemoteLinuxHostCliOptions {
     host: String,
+    target_kind: RemoteLinuxTargetKind,
     remote_dir: Option<String>,
     build_packages: bool,
     keep_remote_dir: bool,
@@ -1092,6 +1093,7 @@ fn parse_remote_linux_host_options(
     let mut options = RemoteLinuxHostCliOptions {
         host: env::var("GEWY_REMOTE_HOST")
             .unwrap_or_else(|_| DEFAULT_REMOTE_LINUX_HOST.to_string()),
+        target_kind: RemoteLinuxTargetKind::Physical,
         remote_dir: None,
         build_packages: true,
         keep_remote_dir: false,
@@ -1111,6 +1113,13 @@ fn parse_remote_linux_host_options(
                         .ok_or_else(|| ValidationError::new("--remote-dir requires a value"))?,
                 );
             }
+            "--target-kind" => {
+                options.target_kind = RemoteLinuxTargetKind::parse(
+                    &iter
+                        .next()
+                        .ok_or_else(|| ValidationError::new("--target-kind requires a value"))?,
+                )?;
+            }
             "--skip-build" => options.build_packages = false,
             "--keep-remote-dir" => options.keep_remote_dir = true,
             other if other.starts_with('-') => {
@@ -1124,6 +1133,7 @@ fn parse_remote_linux_host_options(
 
     Ok(RemoteLinuxHostOptions {
         host: options.host,
+        target_kind: options.target_kind,
         remote_dir: options.remote_dir,
         build_packages: options.build_packages,
         keep_remote_dir: options.keep_remote_dir,
@@ -1258,7 +1268,7 @@ fn print_help() {
     println!("  linux-tc-smoke --dev <netdev> [--out-dir <path>]");
     println!("  package-install-smoke [--deb|--rpm]");
     println!(
-        "  remote-linux-host-validation [--host <ssh-host>] [--remote-dir <path>] [--skip-build] [--keep-remote-dir]"
+        "  remote-linux-host-validation [--host <ssh-host>] [--target-kind <physical|vm>] [--remote-dir <path>] [--skip-build] [--keep-remote-dir]"
     );
     println!("  registry [--out-dir <path>] [--limit <n>]");
     println!("  resilience-log-evidence --log-source <path> [--out-dir <path>]");
@@ -1563,6 +1573,7 @@ fn classify_failure(message: &str) -> Option<(FailureClass, &'static str)> {
         || message.contains("invalid --limit value")
         || message.contains("invalid --port value")
         || message.contains("invalid --count value")
+        || message.contains("remote Linux target kind must be `physical` or `vm`")
         || message.contains("unknown validation option `")
         || message.contains("unknown release-gate option `")
         || message.contains("unknown remote-linux-host-validation option `")
@@ -1586,6 +1597,18 @@ fn classify_failure(message: &str) -> Option<(FailureClass, &'static str)> {
         || message.contains("did not exit in time")
     {
         return Some((FailureClass::Timeout, "validation_timeout"));
+    }
+    if message.contains("remote target kind mismatch:")
+        || message.contains("remote run and preflight target kinds disagree")
+        || message.contains("remote run and history target kinds disagree")
+    {
+        return Some((FailureClass::Remote, "remote_target_kind_mismatch"));
+    }
+    if message.contains("remote target virtualization could not be determined") {
+        return Some((FailureClass::Remote, "remote_virtualization_unknown"));
+    }
+    if message.contains("remote container targets are unsupported") {
+        return Some((FailureClass::Remote, "remote_container_unsupported"));
     }
     if message.contains("remote workspace retained at ") {
         return Some((FailureClass::Remote, "remote_workspace_retained"));
@@ -1680,6 +1703,7 @@ fn failure_guidance_lines(message: &str) -> Vec<&'static str> {
         || message.contains("invalid --limit value")
         || message.contains("invalid --port value")
         || message.contains("invalid --count value")
+        || message.contains("remote Linux target kind must be `physical` or `vm`")
         || message.contains("unknown validation option `")
         || message.contains("unknown release-gate option `")
         || message.contains("unknown remote-linux-host-validation option `")
@@ -1702,6 +1726,25 @@ fn failure_guidance_lines(message: &str) -> Vec<&'static str> {
     if message.contains("remote workspace retained at ") {
         guidance.push(
             "next-step: SSH into the remote host, inspect the retained workspace, or rerun with `--keep-remote-dir` if you want the directory preserved on purpose",
+        );
+    }
+
+    if message.contains("remote target kind mismatch:")
+        || message.contains("remote run and preflight target kinds disagree")
+        || message.contains("remote run and history target kinds disagree")
+    {
+        guidance.push(
+            "next-step: rerun with `--target-kind vm` for virtual compatibility evidence, or select a verified bare-metal target for the default physical release shelf",
+        );
+    }
+    if message.contains("remote target virtualization could not be determined") {
+        guidance.push(
+            "next-step: install `systemd-detect-virt` on the remote target and rerun so physical release evidence cannot be inferred from an unknown environment",
+        );
+    }
+    if message.contains("remote container targets are unsupported") {
+        guidance.push(
+            "next-step: select a bare-metal host for release evidence or a full VM with `--target-kind vm`; use the dedicated container validation commands for containers",
         );
     }
 
@@ -1930,7 +1973,7 @@ fn print_linux_tc_smoke_help() {
 
 fn print_remote_linux_host_validation_help() {
     println!(
-        "Usage: gewyvern_validate remote-linux-host-validation [--host <ssh-host>] [--remote-dir <path>] [--skip-build] [--keep-remote-dir]"
+        "Usage: gewyvern_validate remote-linux-host-validation [--host <ssh-host>] [--target-kind <physical|vm>] [--remote-dir <path>] [--skip-build] [--keep-remote-dir]"
     );
     println!();
     println!(
@@ -1940,17 +1983,31 @@ fn print_remote_linux_host_validation_help() {
         "Defaults: host from GEWY_REMOTE_HOST or `gewyvern-lab`, remote dir under `~/.gewyvern-remote-runs/`."
     );
     println!(
+        "Target kind defaults to `physical`; use `--target-kind vm` for an isolated compatibility shelf that can never satisfy the physical release matrix."
+    );
+    println!("Container targets are rejected by this command.");
+    println!(
         "The command prints a compact post-run summary including resolved remote dir, cache-backed phases, eBPF status, and the slowest observed timings."
     );
 }
 
 fn print_remote_linux_host_validation_summary(summary: &serde_json::Value) {
+    if let Some(target_kind) = summary.get("target_kind").and_then(|value| value.as_str()) {
+        println!("target-kind: {target_kind}");
+    }
     if let Some(kernel) = summary
         .get("preflight")
         .and_then(|value| value.get("kernel"))
         .and_then(|value| value.as_str())
     {
         println!("kernel: {kernel}");
+    }
+    if let Some(virtualization) = summary
+        .get("preflight")
+        .and_then(|value| value.get("virtualization"))
+        .and_then(|value| value.as_str())
+    {
+        println!("virtualization: {virtualization}");
     }
     if let Some(default_route_device) = summary
         .get("ebpf")
@@ -2068,6 +2125,7 @@ fn remote_linux_host_summary_value(
         "remote run evidence",
         &[
             "host",
+            "target_kind",
             "remote_dir",
             "build_packages",
             "keep_remote_dir",
@@ -2081,6 +2139,7 @@ fn remote_linux_host_summary_value(
             "os",
             "arch",
             "kernel",
+            "virtualization",
             "host_fingerprint",
             "home_dir",
             "commands",
@@ -2192,7 +2251,26 @@ fn remote_linux_host_summary_value(
         ],
     )?;
     let mut summary = serde_json::Map::new();
+    let target_kind = run
+        .get("target_kind")
+        .map(|value| RemoteLinuxTargetKind::parse(value))
+        .transpose()?
+        .unwrap_or(RemoteLinuxTargetKind::Physical);
+    match preflight.get("virtualization") {
+        Some(value) if RemoteLinuxTargetKind::detect(value)? != target_kind => {
+            return Err(ValidationError::new(
+                "remote run and preflight target kinds disagree",
+            ));
+        }
+        None if target_kind == RemoteLinuxTargetKind::Vm => {
+            return Err(ValidationError::new(
+                "remote VM preflight must declare virtualization",
+            ));
+        }
+        _ => {}
+    }
 
+    summary.insert("target_kind".to_string(), json!(target_kind.as_str()));
     if let Some(remote_dir) = run.get("remote_dir") {
         summary.insert("remote_dir".to_string(), json!(remote_dir));
     }
@@ -2245,6 +2323,7 @@ fn remote_linux_host_summary_value(
                 "os": preflight.get("os"),
                 "arch": preflight.get("arch"),
                 "kernel": preflight.get("kernel"),
+                "virtualization": preflight.get("virtualization"),
                 "host_fingerprint": preflight.get("host_fingerprint"),
                 "home_dir": preflight.get("home_dir"),
                 "commands": preflight
@@ -2288,6 +2367,22 @@ fn remote_linux_host_summary_value(
         "remote eBPF status summary",
     )?;
     {
+        match history_summary
+            .get("target_kind")
+            .and_then(serde_json::Value::as_str)
+        {
+            Some(value) if RemoteLinuxTargetKind::parse(value)? != target_kind => {
+                return Err(ValidationError::new(
+                    "remote run and history target kinds disagree",
+                ));
+            }
+            None if target_kind == RemoteLinuxTargetKind::Vm => {
+                return Err(ValidationError::new(
+                    "remote VM history must declare target_kind",
+                ));
+            }
+            _ => {}
+        }
         if let Some(entries) = history_summary
             .get("entries")
             .and_then(|value| value.as_u64())
@@ -2722,6 +2817,7 @@ fn summarize_remote_validation_posture(
         .and_then(|value| value.get("ready"))
         .and_then(|value| value.as_bool())
         == Some(false);
+    let is_vm_target = summary.get("target_kind").and_then(|value| value.as_str()) == Some("vm");
     match ebpf.get("status").map(String::as_str) {
         Some("ok") if has_history_integrity_warning => (
             "full",
@@ -2732,6 +2828,11 @@ fn summarize_remote_validation_posture(
             "full",
             "watch",
             "inspect the warned remote phases before treating this Linux host result as the current release reference",
+        ),
+        Some("ok") if is_vm_target => (
+            "full",
+            "compatibility_only",
+            "retain this VM run as compatibility evidence; it does not contribute to the physical-host release matrix",
         ),
         Some("ok") if has_matrix_coverage_gap => (
             "full",
@@ -2932,12 +3033,12 @@ mod tests {
 
         fs::write(
             temp.path.join("remote-run.txt"),
-            "remote_dir=/tmp/gewyvern-remote\nbuild_packages=true\nkeep_remote_dir=false\nchecks=remote_preflight,remote_artifacts_present,remote_ebpf_smoke,remote_ebpf_evidence_synced\n",
+            "target_kind=physical\nremote_dir=/tmp/gewyvern-remote\nbuild_packages=true\nkeep_remote_dir=false\nchecks=remote_preflight,remote_artifacts_present,remote_ebpf_smoke,remote_ebpf_evidence_synced\n",
         )
         .unwrap();
         fs::write(
             temp.path.join("remote-preflight.txt"),
-            "os=linux\narch=x86_64\nkernel=6.8.0-test\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/demo\ncommands=cargo,docker,sshpass\nrustc_version=rustc 1.95.0\ncargo_version=cargo 1.95.0\ndpkg_deb_version=dpkg-deb 1.22.6\nrpm_version=RPM version 4.18.2\nrpmbuild_version=RPM version 4.18.2\nsudo_available=true\nebpf_helper_available=true\nebpf_helper_state=ready\nebpf_helper_version=1.5.0\ndefault_route_device=eth0\n",
+            "os=linux\narch=x86_64\nkernel=6.8.0-test\nvirtualization=none\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/demo\ncommands=cargo,docker,sshpass\nrustc_version=rustc 1.95.0\ncargo_version=cargo 1.95.0\ndpkg_deb_version=dpkg-deb 1.22.6\nrpm_version=RPM version 4.18.2\nrpmbuild_version=RPM version 4.18.2\nsudo_available=true\nebpf_helper_available=true\nebpf_helper_state=ready\nebpf_helper_version=1.5.0\ndefault_route_device=eth0\n",
         )
         .unwrap();
         fs::write(
@@ -2947,7 +3048,7 @@ mod tests {
         .unwrap();
         fs::write(
             temp.path.join("remote-ebpf-status-summary.json"),
-            r#"{"entries":2,"integrity":{"status":"clean","valid_entries":2,"rejected_entries":0,"rejected_entries_this_run":0},"status_counts":{"ok":2},"reason_counts":{"all_smokes_passed_admin_ssh":2},"matrix":{"ready":false,"minimum_hosts":2,"minimum_kernels":2,"unique_hosts":1,"unique_kernels":1,"unique_architectures":1,"unidentified_successful_runs":0,"successful_host_counts":{"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa":2},"successful_kernel_counts":{"6.8.0-test":2},"successful_arch_counts":{"x86_64":2}}}"#,
+            r#"{"target_kind":"physical","entries":2,"integrity":{"status":"clean","valid_entries":2,"rejected_entries":0,"rejected_entries_this_run":0},"status_counts":{"ok":2},"reason_counts":{"all_smokes_passed_admin_ssh":2},"matrix":{"ready":false,"breadth_ready":false,"release_eligible":true,"minimum_hosts":2,"minimum_kernels":2,"unique_hosts":1,"unique_kernels":1,"unique_architectures":1,"unidentified_successful_runs":0,"successful_host_counts":{"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa":2},"successful_kernel_counts":{"6.8.0-test":2},"successful_arch_counts":{"x86_64":2}}}"#,
         )
         .unwrap();
         fs::write(
@@ -3000,6 +3101,44 @@ mod tests {
                 .contains("current Gewyvern package version")
         );
         assert!(remote_ebpf_remediation("all_smokes_passed_privileged_helper").is_none());
+    }
+
+    #[test]
+    fn remote_target_kind_cli_is_explicit_and_strict() {
+        let defaults = parse_remote_linux_host_options(Vec::new()).unwrap();
+        assert_eq!(defaults.target_kind, RemoteLinuxTargetKind::Physical);
+
+        let vm = parse_remote_linux_host_options(vec![
+            "--target-kind".to_string(),
+            "vm".to_string(),
+            "--host".to_string(),
+            "gewyvern-jammy".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(vm.target_kind, RemoteLinuxTargetKind::Vm);
+        assert_eq!(vm.host, "gewyvern-jammy");
+
+        assert!(
+            parse_remote_linux_host_options(vec![
+                "--target-kind".to_string(),
+                "container".to_string(),
+            ])
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn remote_vm_posture_is_compatibility_only() {
+        let ebpf = BTreeMap::from([("status".to_string(), "ok".to_string())]);
+        let summary = serde_json::Map::from_iter([
+            ("target_kind".to_string(), json!("vm")),
+            ("remote_ebpf_matrix".to_string(), json!({"ready": false})),
+        ]);
+
+        let (posture, signal, next_step) = summarize_remote_validation_posture(&ebpf, &summary);
+        assert_eq!(posture, "full");
+        assert_eq!(signal, "compatibility_only");
+        assert!(next_step.contains("does not contribute"));
     }
 
     #[test]
@@ -3139,6 +3278,18 @@ mod tests {
         );
         assert_eq!(
             classify_failure(
+                "remote target kind mismatch: requested `physical`, detected `vm` (kvm)\nremote workspace retained at host:path"
+            ),
+            Some((FailureClass::Remote, "remote_target_kind_mismatch"))
+        );
+        assert_eq!(
+            classify_failure(
+                "remote container targets are unsupported by physical-host and VM validation (docker)"
+            ),
+            Some((FailureClass::Remote, "remote_container_unsupported"))
+        );
+        assert_eq!(
+            classify_failure(
                 "GEWY_REMOTE_EBPF_ADMIN_USER is set but GEWY_REMOTE_EBPF_ADMIN_PASSWORD is missing",
             ),
             Some((FailureClass::Remote, "remote_admin_credentials_incomplete"))
@@ -3193,6 +3344,22 @@ mod tests {
             ),
             vec![
                 "next-step: rerun against a Linux x86_64 host, or disable the remote-host stage while narrowing local packaged validation first",
+            ]
+        );
+        assert_eq!(
+            failure_guidance_lines(
+                "remote target kind mismatch: requested `physical`, detected `vm` (kvm)",
+            ),
+            vec![
+                "next-step: rerun with `--target-kind vm` for virtual compatibility evidence, or select a verified bare-metal target for the default physical release shelf",
+            ]
+        );
+        assert_eq!(
+            failure_guidance_lines(
+                "remote container targets are unsupported by physical-host and VM validation (docker)",
+            ),
+            vec![
+                "next-step: select a bare-metal host for release evidence or a full VM with `--target-kind vm`; use the dedicated container validation commands for containers",
             ]
         );
         assert_eq!(
