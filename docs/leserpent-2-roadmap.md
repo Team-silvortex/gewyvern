@@ -2022,6 +2022,15 @@ are classified as unknown outcomes rather than safe rejections, so a possibly
 applied command cannot be repeated before a newer authoritative snapshot.
 Avalonia contains no in-flight, revision-fence, or observation-fence state;
 desktop remote and mobile conformance execute the same coordinator contract.
+Mutation failure completion has now crossed the boundary as well. A shared,
+typed policy classifies known remote rejection, invalid local request, invalid
+response, timeout, network failure, owner shutdown, and unexpected failure.
+The coordinator atomically applies the corresponding clear, observation fence,
+or cancellation and ignores completions from retired operation tokens, so a
+window-close race cannot disturb a newer operation. Bounded single-line
+operator diagnostics omit raw transport and unexpected exception text.
+Avalonia now has one failure-completion call and no mutation transport-exception
+branches; desktop and mobile conformance execute the same policy.
 Authority-health refresh lifecycle has crossed the Gate 7 boundary as well.
 `RemoteAuthorityHealthCoordinator` joins duplicate refresh requests, publishes
 monotonic `Idle`, `Checking`, `Ready`, `Unavailable`, and `Stopped` states,

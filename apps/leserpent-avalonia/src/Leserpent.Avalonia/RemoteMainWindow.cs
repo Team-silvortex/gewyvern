@@ -792,50 +792,9 @@ internal sealed class RemoteMainWindow : Window
                     : $"Refresh applied to {SafeDisplay(runtime.Name)} at revision {result.Revision}",
                 LeserpentTheme.Accent);
         }
-        catch (RemoteMutationException error)
+        catch (Exception error)
         {
-            mutationCoordinator.RejectKnown(operation);
-            SetMutationStatus(
-                $"Refresh rejected ({SafeDisplay(error.Code)}): {SafeDisplay(error.Message)}",
-                LeserpentTheme.Destructive);
-        }
-        catch (InvalidDataException error)
-        {
-            mutationCoordinator.MarkUnknown(operation, currentState);
-            SetMutationStatus(
-                $"Refresh outcome unknown after an invalid response ({SafeDisplay(error.Message)}); wait for an authoritative snapshot before retrying",
-                LeserpentTheme.Destructive);
-        }
-        catch (ArgumentException error)
-        {
-            mutationCoordinator.RejectKnown(operation);
-            SetMutationStatus(
-                $"Refresh blocked: {SafeDisplay(error.Message)}",
-                LeserpentTheme.Destructive);
-        }
-        catch (OperationCanceledException) when (!lifetime.IsCancellationRequested)
-        {
-            mutationCoordinator.MarkUnknown(operation, currentState);
-            SetMutationStatus(
-                "Refresh outcome unknown after timeout; wait for an authoritative snapshot before retrying",
-                LeserpentTheme.Destructive);
-        }
-        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
-        {
-            mutationCoordinator.Cancel(operation);
-            // Window shutdown owns this cancellation.
-        }
-        catch (ObjectDisposedException) when (lifetime.IsCancellationRequested)
-        {
-            mutationCoordinator.Cancel(operation);
-            // The HTTP client may be disposed while the window is closing.
-        }
-        catch (HttpRequestException)
-        {
-            mutationCoordinator.MarkUnknown(operation, currentState);
-            SetMutationStatus(
-                "Refresh outcome unknown after a network failure; wait for an authoritative snapshot before retrying",
-                LeserpentTheme.Destructive);
+            ApplyMutationFailure(operation, error);
         }
         finally
         {
@@ -944,50 +903,9 @@ internal sealed class RemoteMainWindow : Window
                 $"Deployment accepted for {SafeDisplay(runtime.Name)} at revision {result.Revision}",
                 LeserpentTheme.Accent);
         }
-        catch (RemoteMutationException error)
+        catch (Exception error)
         {
-            mutationCoordinator.RejectKnown(operation);
-            SetMutationStatus(
-                $"Deployment rejected ({SafeDisplay(error.Code)}): {SafeDisplay(error.Message)}",
-                LeserpentTheme.Destructive);
-        }
-        catch (InvalidDataException error)
-        {
-            mutationCoordinator.MarkUnknown(operation, currentState);
-            SetMutationStatus(
-                $"Deployment outcome unknown after an invalid response ({SafeDisplay(error.Message)}); wait for an authoritative snapshot before retrying",
-                LeserpentTheme.Destructive);
-        }
-        catch (ArgumentException error)
-        {
-            mutationCoordinator.RejectKnown(operation);
-            SetMutationStatus(
-                $"Deployment blocked: {SafeDisplay(error.Message)}",
-                LeserpentTheme.Destructive);
-        }
-        catch (OperationCanceledException) when (!lifetime.IsCancellationRequested)
-        {
-            mutationCoordinator.MarkUnknown(operation, currentState);
-            SetMutationStatus(
-                "Deployment outcome unknown after timeout; wait for an authoritative snapshot before retrying",
-                LeserpentTheme.Destructive);
-        }
-        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
-        {
-            mutationCoordinator.Cancel(operation);
-            // Window shutdown owns this cancellation.
-        }
-        catch (ObjectDisposedException) when (lifetime.IsCancellationRequested)
-        {
-            mutationCoordinator.Cancel(operation);
-            // The HTTP client may be disposed while the window is closing.
-        }
-        catch (HttpRequestException)
-        {
-            mutationCoordinator.MarkUnknown(operation, currentState);
-            SetMutationStatus(
-                "Deployment outcome unknown after a network failure; wait for an authoritative snapshot before retrying",
-                LeserpentTheme.Destructive);
+            ApplyMutationFailure(operation, error);
         }
         finally
         {
@@ -1018,6 +936,23 @@ internal sealed class RemoteMainWindow : Window
         foreach (var workspace in workspaceWindows.Values)
         {
             SetWorkspaceMutationAvailability(workspace, availability);
+        }
+    }
+
+    private void ApplyMutationFailure(
+        RemoteMutationOperation operation,
+        Exception error)
+    {
+        var failure = mutationCoordinator.CompleteFailure(
+            operation,
+            error,
+            currentState,
+            lifetime.IsCancellationRequested);
+        if (!isClosed
+            && failure.RequiresOperatorAttention
+            && failure.OperatorMessage is { } message)
+        {
+            SetMutationStatus(message, LeserpentTheme.Destructive);
         }
     }
 

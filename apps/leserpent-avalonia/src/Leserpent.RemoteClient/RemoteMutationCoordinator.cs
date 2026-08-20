@@ -172,6 +172,42 @@ public sealed class RemoteMutationCoordinator
         active = null;
     }
 
+    public RemoteMutationFailure CompleteFailure(
+        RemoteMutationOperation operation,
+        Exception error,
+        RemoteFeedState state,
+        bool ownerCancellationRequested)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(error);
+        ArgumentNullException.ThrowIfNull(state);
+        if (!IsActive(operation))
+        {
+            return RemoteMutationFailurePolicy.StaleOperation();
+        }
+        _ = RequireConfirmed(operation);
+        var failure = RemoteMutationFailurePolicy.Classify(
+            operation.Request.Kind,
+            error,
+            ownerCancellationRequested);
+        switch (failure.Disposition)
+        {
+            case RemoteMutationFailureDisposition.KnownRejection:
+                RejectKnown(operation);
+                break;
+            case RemoteMutationFailureDisposition.UnknownOutcome:
+                MarkUnknown(operation, state);
+                break;
+            case RemoteMutationFailureDisposition.Cancelled:
+                Cancel(operation);
+                break;
+            default:
+                throw new InvalidDataException(
+                    "active mutation failure produced an invalid disposition");
+        }
+        return failure;
+    }
+
     public void Abandon(
         RemoteMutationOperation operation,
         RemoteFeedState state)
@@ -250,6 +286,7 @@ public sealed class RemoteMutationCoordinator
 
     public static void VerifyContract()
     {
+        RemoteMutationFailurePolicy.VerifyContract();
         RemoteFeedAuthorityPolicy.VerifyContract();
         RemoteMutationAvailabilityPolicy.VerifyContract();
         var runtime = Runtime("runtime-a", 7);
@@ -431,6 +468,48 @@ public sealed class RemoteMutationCoordinator
             throw new InvalidDataException(
                 "confirmed mutation abandonment lost its unknown outcome fence");
         }
+
+        var failureCoordinator = new RemoteMutationCoordinator();
+        var failed = RequireAccepted(failureCoordinator.Begin(
+            new RemoteMutationRequest("runtime-a", 7, RemoteMutationKind.Refresh),
+            authoritative));
+        _ = RequireAccepted(failureCoordinator.Confirm(failed, authoritative));
+        var failure = failureCoordinator.CompleteFailure(
+            failed,
+            new HttpRequestException("endpoint detail must not escape"),
+            authoritative,
+            ownerCancellationRequested: false);
+        if (failure.Disposition != RemoteMutationFailureDisposition.UnknownOutcome
+            || failureCoordinator.IsInFlight
+            || failureCoordinator.ObservationFence is null)
+        {
+            throw new InvalidDataException(
+                "transport failure did not atomically install its observation fence");
+        }
+        failureCoordinator.Observe(State(runtime, 8, 5, 8));
+
+        var lateRetired = RequireAccepted(failureCoordinator.Begin(
+            new RemoteMutationRequest("runtime-a", 7, RemoteMutationKind.Refresh),
+            authoritative));
+        _ = RequireAccepted(failureCoordinator.Confirm(lateRetired, authoritative));
+        failureCoordinator.Cancel(lateRetired);
+        var lateCurrent = RequireAccepted(failureCoordinator.Begin(
+            new RemoteMutationRequest("runtime-a", 7, RemoteMutationKind.Refresh),
+            authoritative));
+        _ = RequireAccepted(failureCoordinator.Confirm(lateCurrent, authoritative));
+        var staleFailure = failureCoordinator.CompleteFailure(
+            lateRetired,
+            new InvalidDataException("late response"),
+            authoritative,
+            ownerCancellationRequested: false);
+        if (staleFailure.Disposition != RemoteMutationFailureDisposition.Ignored
+            || !failureCoordinator.IsInFlight
+            || failureCoordinator.ObservationFence is not null)
+        {
+            throw new InvalidDataException(
+                "retired mutation failure disturbed current operation ownership");
+        }
+        failureCoordinator.Cancel(lateCurrent);
     }
 
     private static RemoteMutationAdmissionFailure Validate(

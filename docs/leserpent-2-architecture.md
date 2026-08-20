@@ -2202,6 +2202,16 @@ enable mutation or Inspect. Malformed responses and unexpected failures after
 transport admission are unknown outcomes because execution may have committed
 remotely. Renderers provide confirmation UI and invoke transport, but cannot
 clear, replace, or reinterpret mutation lifecycle state.
+Failure completion is part of that shared state machine rather than a renderer
+exception table. The RemoteClient policy maps remote rejection, local request
+validation, invalid response, timeout, transport failure, owner cancellation,
+and unexpected failure into fixed dispositions. Known rejection clears the
+operation, ambiguity installs the observation fence, owner shutdown cancels the
+operation, and a completion for a retired token is ignored without touching a
+newer operation. Operator diagnostics are single-line and bounded; endpoint or
+exception text from transport and unexpected failures is never forwarded to a
+renderer. Desktop and mobile conformance execute the same classifier, while
+source-boundary proof rejects transport-specific mutation catches in Avalonia.
 Read-only authority-health lifecycle is frontend-independent too.
 `RemoteAuthorityHealthCoordinator` owns refresh single-flight, generation,
 caller-cancellation restoration, stable failure categories, and terminal stop.

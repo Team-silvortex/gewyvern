@@ -3881,7 +3881,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.99.0");
+    assert_eq!(avalonia.contract.version, "1.100.0");
     assert!(
         avalonia
             .contract
@@ -3905,6 +3905,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "zero-avalonia-mutation-state-ownership",
         "authoritative-snapshot-action-gate",
         "malformed-mutation-response-observation-fence",
+        "shared-mutation-failure-classification",
+        "zero-avalonia-mutation-failure-branching",
+        "stale-mutation-completion-suppression",
+        "bounded-mutation-failure-diagnostics",
         "shared-authority-health-lifecycle-coordinator-consumer",
         "zero-avalonia-health-state-ownership",
         "authority-health-stop-generation-fence",
@@ -5564,7 +5568,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/remote-console/remote-mobile-console")
         .expect("remote/mobile console contract must remain tracked");
     assert_eq!(remote_console.completion, 98);
-    assert_eq!(remote_console.contract.version, "0.60.0");
+    assert_eq!(remote_console.contract.version, "0.61.0");
     for surface in [
         "renderer-neutral-runtime-search",
         "cross-authority-topology-search",
@@ -5585,6 +5589,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "cached-heartbeat-mutation-rejection",
         "operation-token-stale-callback-fence",
         "malformed-response-unknown-outcome-fence",
+        "frontend-independent-mutation-failure-classification",
+        "mobile-reusable-mutation-failure-policy",
+        "stale-mutation-completion-suppression",
+        "bounded-mutation-failure-diagnostics",
         "mobile-reusable-mutation-lifecycle",
         "authoritative-snapshot-inspect-admission",
         "frontend-independent-authority-health-coordinator",
@@ -5679,7 +5687,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/release-assurance/continuous-proof")
         .expect("continuous proof contract must remain tracked");
     assert_eq!(continuous_proof.completion, 97);
-    assert_eq!(continuous_proof.contract.version, "0.75.0");
+    assert_eq!(continuous_proof.contract.version, "0.76.0");
     assert!(
         continuous_proof
             .contract
@@ -5711,6 +5719,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "zero-avalonia-mutation-state-proof",
         "cached-heartbeat-mutation-negative-proof",
         "malformed-mutation-response-fence-proof",
+        "shared-mutation-failure-classification-proof",
+        "mobile-mutation-failure-policy-consumption-proof",
+        "zero-avalonia-mutation-failure-branching-proof",
+        "stale-mutation-completion-suppression-proof",
+        "bounded-mutation-failure-diagnostics-proof",
         "shared-authority-health-coordinator-boundary-proof",
         "mobile-authority-health-coordinator-consumption-proof",
         "zero-avalonia-health-state-proof",

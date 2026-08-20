@@ -551,6 +551,8 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     let mutation_coordinator = repo_source(
         "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteMutationCoordinator.cs",
     );
+    let mutation_failure =
+        repo_source("apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteMutationFailure.cs");
     let health_coordinator = repo_source(
         "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteAuthorityHealthCoordinator.cs",
     );
@@ -602,11 +604,28 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     assert!(mutation_coordinator.contains("public sealed class RemoteMutationCoordinator"));
     assert!(mutation_coordinator.contains("public RemoteMutationAdmission Begin("));
     assert!(mutation_coordinator.contains("public RemoteMutationAdmission Confirm("));
+    assert!(mutation_coordinator.contains("public RemoteMutationFailure CompleteFailure("));
+    assert!(mutation_coordinator.contains("RemoteMutationFailurePolicy.Classify("));
+    assert!(mutation_coordinator.contains("RemoteMutationFailurePolicy.VerifyContract();"));
     assert!(mutation_coordinator.contains("public void MarkUnknown("));
-    assert!(mutation_coordinator.contains("malformed mutation response did not become an unknown outcome"));
+    assert!(
+        mutation_coordinator
+            .contains("malformed mutation response did not become an unknown outcome")
+    );
     assert!(mutation_coordinator.contains("heartbeat-only state admitted a mutation"));
-    assert!(mutation_coordinator.contains("retired mutation token cleared current operation ownership"));
+    assert!(
+        mutation_coordinator.contains("retired mutation token cleared current operation ownership")
+    );
+    assert!(
+        mutation_coordinator.contains("retired mutation failure disturbed current operation ownership")
+    );
     assert!(!mutation_coordinator.contains("Avalonia"));
+    assert!(mutation_failure.contains("public static class RemoteMutationFailurePolicy"));
+    assert!(mutation_failure.contains("RemoteMutationFailureDisposition.UnknownOutcome"));
+    assert!(mutation_failure.contains("RemoteMutationFailureDisposition.Ignored"));
+    assert!(mutation_failure.contains("public const int MaxOperatorMessageLength = 320"));
+    assert!(mutation_failure.contains("unexpected failure exposed exception detail"));
+    assert!(!mutation_failure.contains("Avalonia"));
     assert!(health_coordinator.contains("public sealed class RemoteAuthorityHealthCoordinator"));
     assert!(health_coordinator.contains("public Task<RemoteAuthorityHealthState> RefreshAsync("));
     assert!(health_coordinator.contains("RemoteAuthorityHealthPhase.Checking"));
@@ -621,11 +640,16 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     assert!(remote_window.contains("mutationCoordinator.Abandon(operation, currentState)"));
     assert_eq!(
         remote_window
-            .matches("mutationCoordinator.MarkUnknown(operation, currentState);")
+            .matches("ApplyMutationFailure(operation, error);")
             .count(),
-        6,
-        "all ambiguous refresh and deployment outcomes must be fenced"
+        2,
+        "refresh and deployment failures must enter one shared classifier"
     );
+    assert!(remote_window.contains("mutationCoordinator.CompleteFailure("));
+    assert!(!remote_window.contains("catch (RemoteMutationException"));
+    assert!(!remote_window.contains("catch (HttpRequestException"));
+    assert!(!remote_window.contains("mutationCoordinator.MarkUnknown(operation"));
+    assert!(!remote_window.contains("mutationCoordinator.RejectKnown(operation"));
     assert!(!remote_window.contains("private bool mutationInFlight"));
     assert!(!remote_window.contains("mutationRevisionFence"));
     assert!(!remote_window.contains("mutationObservationFence"));
@@ -656,6 +680,9 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     assert!(remote_conformance.contains("mutation_coordination=true"));
     assert!(remote_conformance.contains("cached_heartbeat_mutation=false"));
     assert!(remote_conformance.contains("malformed_mutation_response_unknown=true"));
+    assert!(remote_conformance.contains("shared_failure_classification=true"));
+    assert!(remote_conformance.contains("stale_failure_ignored=true"));
+    assert!(remote_conformance.contains("bounded_failure_diagnostics=true"));
     assert!(remote_conformance.contains(
         "await RemoteAuthorityHealthCoordinator.VerifyContractAsync()"
     ));
@@ -690,6 +717,9 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     assert!(mobile_conformance.contains("RemoteMutationCoordinator.VerifyContract()"));
     assert!(mobile_conformance.contains("mutation_coordination=true"));
     assert!(mobile_conformance.contains("cached_heartbeat_mutation=false"));
+    assert!(mobile_conformance.contains("shared_failure_classification=true"));
+    assert!(mobile_conformance.contains("stale_failure_ignored=true"));
+    assert!(mobile_conformance.contains("bounded_failure_diagnostics=true"));
     assert!(mobile_conformance.contains("action_availability=true"));
     assert!(mobile_conformance.contains("RemoteAuthorityHealthPresentation.VerifyContract()"));
     assert!(mobile_conformance.contains(

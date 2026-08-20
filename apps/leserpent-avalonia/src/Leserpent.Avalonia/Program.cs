@@ -55,7 +55,7 @@ internal static class Program
             RemoteMutationFences.VerifyContract();
             RemoteMutationCoordinator.VerifyContract();
             Console.WriteLine(
-                "remote mutation fence valid: command_revision=true, capability_observation_revision=true, heartbeat_blocked=true, authoritative_snapshot=true, cached_heartbeat_admission=false, pending_projection_blocked=true, malformed_response_unknown=true, shared_coordinator=true, action_availability=true");
+                "remote mutation fence valid: command_revision=true, capability_observation_revision=true, heartbeat_blocked=true, authoritative_snapshot=true, cached_heartbeat_admission=false, pending_projection_blocked=true, malformed_response_unknown=true, shared_coordinator=true, shared_failure_classification=true, stale_failure_ignored=true, bounded_failure_diagnostics=true, action_availability=true");
             return 0;
         }
         if (args is ["--verify-deployment-contract"])
