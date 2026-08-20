@@ -200,10 +200,10 @@ fn inspect_process_resources(pid: u32) -> Option<ProcessResources> {
     #[cfg(target_os = "linux")]
     {
         let process = PathBuf::from(format!("/proc/{pid}"));
-        return Some(ProcessResources {
+        Some(ProcessResources {
             open_fds: fs::read_dir(process.join("fd")).unwrap().count(),
             tasks: fs::read_dir(process.join("task")).unwrap().count(),
-        });
+        })
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -228,7 +228,7 @@ fn inspect_process_fd_targets(pid: u32) -> Vec<String> {
             })
             .collect::<Vec<_>>();
         targets.sort();
-        return targets;
+        targets
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -240,9 +240,9 @@ fn inspect_process_fd_targets(pid: u32) -> Vec<String> {
 fn inspect_process_wait_channel(pid: u32) -> Option<String> {
     #[cfg(target_os = "linux")]
     {
-        return fs::read_to_string(format!("/proc/{pid}/wchan"))
+        fs::read_to_string(format!("/proc/{pid}/wchan"))
             .ok()
-            .map(|value| value.trim().to_string());
+            .map(|value| value.trim().to_string())
     }
     #[cfg(not(target_os = "linux"))]
     {

@@ -82,8 +82,8 @@ rsync -az --delete --delete-excluded \
   --exclude='.git/' \
   --exclude='target/' \
   --exclude='node_modules/' \
-  --exclude='**/bin/' \
-  --exclude='**/obj/' \
+  --exclude='apps/**/bin/' \
+  --exclude='apps/**/obj/' \
   --exclude='**/TestResults/' \
   --exclude='**/__pycache__/' \
   --exclude='apps/leserpent/src/Leserpent/.leserpent-state/' \

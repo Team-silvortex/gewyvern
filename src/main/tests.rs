@@ -29,7 +29,7 @@ use std::time::Duration;
 use std::time::Instant;
 use std::time::SystemTime;
 
-pub(super) fn env_test_lock() -> &'static Mutex<()> {
+pub(crate) fn env_test_lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     LOCK.get_or_init(|| Mutex::new(()))
 }

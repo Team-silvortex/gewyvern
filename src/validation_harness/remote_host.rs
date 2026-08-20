@@ -1404,7 +1404,7 @@ print(hash_obj.hexdigest())
             output.status
         )));
     }
-    validate_remote_workspace_sync_key(&String::from_utf8_lossy(&output.stdout).trim())
+    validate_remote_workspace_sync_key(String::from_utf8_lossy(&output.stdout).trim())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1763,7 +1763,7 @@ print("git-dirty:" + hash_obj.hexdigest())
             output.status
         )));
     }
-    validate_remote_workspace_sync_key(&String::from_utf8_lossy(&output.stdout).trim())
+    validate_remote_workspace_sync_key(String::from_utf8_lossy(&output.stdout).trim())
 }
 
 fn parse_git_status_path(line: &str) -> Option<&str> {

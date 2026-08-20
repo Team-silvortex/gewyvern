@@ -19,11 +19,16 @@ enum ProofCommand {
     Dotnet {
         project: &'static str,
         app_args: &'static [&'static str],
-        success_marker: &'static str,
+        success_lines: &'static [SuccessLineContract],
     },
     DotnetTest {
         project: &'static str,
     },
+}
+
+struct SuccessLineContract {
+    prefix: &'static str,
+    required_fragments: &'static [&'static str],
 }
 
 struct ProofSuite {
@@ -185,7 +190,60 @@ const PROOF_SUITES: &[ProofSuite] = &[
         command: ProofCommand::Dotnet {
             project: "apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Leserpent.RemoteConformance.csproj",
             app_args: &[],
-            success_marker: "remote state conformance valid: codec=true, stale=true, snapshot_revision=true, heartbeat_snapshot_fence=true, topology_state=true, authority_bound_topology=true, unproved_live_rejection=true, retained_topology=true, topology_regression_fence=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false, incremental_logs=true",
+            success_lines: &[
+                SuccessLineContract {
+                    prefix: "remote health conformance valid:",
+                    required_fragments: &[
+                        "codec=true",
+                        "fail_closed=true",
+                        "queue_consistent=true",
+                        "orchestra_replay_horizon=true",
+                    ],
+                },
+                SuccessLineContract {
+                    prefix: "remote GUI Leselang export conformance valid:",
+                    required_fragments: &[
+                        "refresh=true",
+                        "capabilities=true",
+                        "deployment=true",
+                        "workspace_queries=true",
+                        "canonical=true",
+                        "execution=false",
+                    ],
+                },
+                SuccessLineContract {
+                    prefix: "remote state conformance valid:",
+                    required_fragments: &[
+                        "codec=true",
+                        "stale=true",
+                        "snapshot_revision=true",
+                        "heartbeat_snapshot_fence=true",
+                        "topology_state=true",
+                        "authority_bound_topology=true",
+                        "unproved_live_rejection=true",
+                        "retained_topology=true",
+                        "topology_regression_fence=true",
+                        "runtime_search=true",
+                        "topology_refresh_coordination=true",
+                        "workspace_launch_coordination=true",
+                        "mutation_coordination=true",
+                        "cached_heartbeat_mutation=false",
+                        "malformed_mutation_response_unknown=true",
+                        "authority_health_coordination=true",
+                        "health_single_flight=true",
+                        "health_stop_fence=true",
+                        "reconnect_attempts=8",
+                        "manual_resume=true",
+                        "endpoint_cache=true",
+                        "credential_resolution=true",
+                        "trust_identity=true",
+                        "workspace_atomic=true",
+                        "logs_bounded=true",
+                        "endpoint_retained=false",
+                        "incremental_logs=true",
+                    ],
+                },
+            ],
         },
         expected_min_tests: 1,
         invariants: &[
@@ -216,7 +274,30 @@ const PROOF_SUITES: &[ProofSuite] = &[
         command: ProofCommand::Dotnet {
             project: "apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj",
             app_args: &["--verify-workspace-diagnostics"],
-            success_marker: "workspace diagnostics valid: local_only=true, query=true, level=true, combined=true, bounded=true, empty_state=true, command_identity=true, explicit_export=true, file_export=true, maximal_escape=true, live_refresh=true, bounded_retry=true, manual_recovery=true, skip_neutral=true, delta_summary=true, severity_signal=true, snapshot_fence=true, severity_ack=true, incremental_logs=true",
+            success_lines: &[SuccessLineContract {
+                prefix: "workspace diagnostics valid:",
+                required_fragments: &[
+                    "local_only=true",
+                    "query=true",
+                    "level=true",
+                    "combined=true",
+                    "bounded=true",
+                    "empty_state=true",
+                    "command_identity=true",
+                    "explicit_export=true",
+                    "file_export=true",
+                    "maximal_escape=true",
+                    "live_refresh=true",
+                    "bounded_retry=true",
+                    "manual_recovery=true",
+                    "skip_neutral=true",
+                    "delta_summary=true",
+                    "severity_signal=true",
+                    "snapshot_fence=true",
+                    "severity_ack=true",
+                    "incremental_logs=true",
+                ],
+            }],
         },
         expected_min_tests: 1,
         invariants: &[
@@ -297,7 +378,32 @@ const PROOF_SUITES: &[ProofSuite] = &[
         command: ProofCommand::Dotnet {
             project: "apps/leserpent-mobile/src/Leserpent.MobileConformance/Leserpent.MobileConformance.csproj",
             app_args: &[],
-            success_marker: "mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true, workspace_policy=true, ui_projection=true, mutation_fence=true, action_availability=true, authority_health=true",
+            success_lines: &[SuccessLineContract {
+                prefix: "mobile lifecycle conformance valid:",
+                required_fragments: &[
+                    "foreground=true",
+                    "background_disconnect=true",
+                    "credential_reload=true",
+                    "generation_fence=true",
+                    "failure_cleanup=true",
+                    "application_entry=true",
+                    "duplicate_callbacks=true",
+                    "reconfigure=true",
+                    "workspace_policy=true",
+                    "runtime_search=true",
+                    "topology_refresh=true",
+                    "workspace_launch=true",
+                    "ui_projection=true",
+                    "mutation_fence=true",
+                    "mutation_coordination=true",
+                    "cached_heartbeat_mutation=false",
+                    "action_availability=true",
+                    "authority_health=true",
+                    "authority_health_coordination=true",
+                    "health_single_flight=true",
+                    "health_stop_fence=true",
+                ],
+            }],
         },
         expected_min_tests: 1,
         invariants: &[
@@ -551,7 +657,7 @@ fn execute_suite(
         ProofCommand::Dotnet {
             project,
             app_args,
-            success_marker,
+            success_lines,
         } => {
             let suite_artifacts = dotnet_artifacts.join(suite.id);
             let mut command = Command::new("dotnet");
@@ -581,17 +687,13 @@ fn execute_suite(
                     suite.id, output.status
                 )));
             }
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let marker_count = stdout
-                .lines()
-                .filter(|line| *line == *success_marker)
-                .count();
-            if marker_count != 1 {
-                return Err(ValidationError::new(format!(
-                    "dotnet conformance '{}' emitted {marker_count} success markers, expected exactly one",
+            let stdout = std::str::from_utf8(&output.stdout).map_err(|_| {
+                ValidationError::new(format!(
+                    "dotnet conformance '{}' emitted non-UTF-8 stdout",
                     suite.id
-                )));
-            }
+                ))
+            })?;
+            verify_success_lines(suite.id, stdout, success_lines)?;
             fs::remove_dir_all(&suite_artifacts)?;
             Ok((
                 1,
@@ -599,7 +701,13 @@ fn execute_suite(
                     "runner": "dotnet",
                     "project": project,
                     "app_args": app_args,
-                    "success_marker": success_marker,
+                    "success_lines": success_lines
+                        .iter()
+                        .map(|contract| json!({
+                            "prefix": contract.prefix,
+                            "required_fragments": contract.required_fragments,
+                        }))
+                        .collect::<Vec<_>>(),
                 }),
             ))
         }
@@ -617,6 +725,41 @@ fn execute_suite(
             ))
         }
     }
+}
+
+fn verify_success_lines(
+    suite_id: &str,
+    stdout: &str,
+    contracts: &[SuccessLineContract],
+) -> Result<(), ValidationError> {
+    for contract in contracts {
+        let matching_lines = stdout
+            .lines()
+            .filter(|line| line.starts_with(contract.prefix))
+            .collect::<Vec<_>>();
+        if matching_lines.len() != 1 {
+            return Err(ValidationError::new(format!(
+                "dotnet conformance '{suite_id}' emitted {} `{}` success lines, expected exactly one",
+                matching_lines.len(),
+                contract.prefix
+            )));
+        }
+        let line = matching_lines[0];
+        let missing = contract
+            .required_fragments
+            .iter()
+            .filter(|fragment| !line.contains(**fragment))
+            .copied()
+            .collect::<Vec<_>>();
+        if !missing.is_empty() {
+            return Err(ValidationError::new(format!(
+                "dotnet conformance '{suite_id}' success line `{}` is missing required fragments: {}",
+                contract.prefix,
+                missing.join(", ")
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn write_output(path: &Path, output: &Output) -> Result<(), ValidationError> {
@@ -733,6 +876,33 @@ mod tests {
         fs::write(&path, "running 0 tests\n").unwrap();
         assert!(passed_test_count(&path).is_err());
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn dotnet_success_contract_tolerates_extensions_but_rejects_stale_or_duplicate_proofs() {
+        let contracts = [SuccessLineContract {
+            prefix: "proof valid:",
+            required_fragments: &["current=true", "fail_closed=true"],
+        }];
+        assert!(
+            verify_success_lines(
+                "fixture",
+                "diagnostic\nproof valid: added=true, fail_closed=true, current=true\n",
+                &contracts,
+            )
+            .is_ok()
+        );
+        assert!(
+            verify_success_lines("fixture", "proof valid: fail_closed=true\n", &contracts).is_err()
+        );
+        assert!(
+            verify_success_lines(
+                "fixture",
+                "proof valid: current=true, fail_closed=true\nproof valid: current=true, fail_closed=true\n",
+                &contracts,
+            )
+            .is_err()
+        );
     }
 
     #[test]

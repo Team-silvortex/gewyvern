@@ -1,16 +1,11 @@
+use super::env_test_lock as env_lock;
 use crate::runtime_migration::prepare_runtime_layout;
 use gewyvern::runtime_layout::runtime_layout;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(unix)]
 use std::os::unix::fs::symlink;
-
-fn env_lock() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
-}
 
 struct EnvGuard {
     key: &'static str,

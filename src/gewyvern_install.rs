@@ -2465,7 +2465,7 @@ mod tests {
     #[test]
     fn path_text_rejects_control_characters() {
         assert_eq!(
-            path_text(&Path::new("relative\nroot")),
+            path_text(Path::new("relative\nroot")),
             Err(GewyvernInstallError::InvalidLayout)
         );
     }

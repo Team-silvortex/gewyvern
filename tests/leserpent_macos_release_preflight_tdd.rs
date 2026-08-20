@@ -29,6 +29,7 @@ fn macos_release_preflight_is_machine_readable_and_fail_closed() {
     assert!(release.contains("native signing snapshot is missing the local orchestra daemon"));
     assert!(release.contains("nested signature Team ID does not match the app bundle"));
     assert_eq!(report["schema_version"], 2);
+    assert_eq!(report["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(
         report["daemon_executable_sha256"].as_str().unwrap().len(),
         64

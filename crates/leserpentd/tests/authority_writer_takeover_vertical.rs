@@ -161,10 +161,10 @@ fn inspect_process_resources(pid: u32) -> Option<ProcessResources> {
     #[cfg(target_os = "linux")]
     {
         let process = PathBuf::from(format!("/proc/{pid}"));
-        return Some(ProcessResources {
+        Some(ProcessResources {
             open_fds: fs::read_dir(process.join("fd")).unwrap().count(),
             tasks: fs::read_dir(process.join("task")).unwrap().count(),
-        });
+        })
     }
     #[cfg(not(target_os = "linux"))]
     {

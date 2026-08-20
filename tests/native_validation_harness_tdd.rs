@@ -467,9 +467,18 @@ fn leserpent_parity_recovery_proof_is_non_vacuous_and_retained() {
     assert!(harness.contains("endpoint-redacted-workspace-output"));
     assert!(harness.contains("dotnet-workspace-leselang-rust-parse"));
     assert!(harness.contains("workspace-structured-read-query-lowering"));
-    assert!(harness.contains(
-        "workspace_atomic=true, logs_bounded=true, endpoint_retained=false, incremental_logs=true"
-    ));
+    assert!(harness.contains("success_lines:"));
+    assert!(harness.contains("required_fragments:"));
+    assert!(harness.contains("verify_success_lines"));
+    assert!(!harness.contains("success_marker:"));
+    for marker in [
+        "workspace_atomic=true",
+        "logs_bounded=true",
+        "endpoint_retained=false",
+        "incremental_logs=true",
+    ] {
+        assert!(harness.contains(marker), "missing proof marker {marker}");
+    }
     assert!(!harness.contains("Command::new(\"sh\")"));
     assert!(binary.contains("print_leserpent_parity_recovery_help"));
 }

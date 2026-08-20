@@ -167,61 +167,6 @@ fn remove_stale_unix_socket(socket_path: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{remove_stale_unix_socket, validate_field_socket_path};
-    use std::io::Write;
-
-    #[test]
-    fn remove_stale_unix_socket_ignores_missing_file() {
-        let path = std::env::temp_dir().join(format!(
-            "gewyvern-smoke-socket-missing-{}",
-            std::process::id()
-        ));
-        let _ = std::fs::remove_file(&path);
-        assert!(remove_stale_unix_socket(path.to_str().unwrap()).is_ok());
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn remove_stale_unix_socket_rejects_regular_file() {
-        let path = std::env::temp_dir().join(format!(
-            "gewyvern-smoke-socket-regular-{}",
-            std::process::id()
-        ));
-        let mut file = std::fs::File::create(&path).unwrap();
-        writeln!(file, "marker").unwrap();
-        let result = remove_stale_unix_socket(path.to_str().unwrap());
-        let _ = std::fs::remove_file(&path);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn validates_field_socket_path_with_valid_value() {
-        let value = validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", "/tmp/gewyvern-field.sock".to_string())
-            .expect("valid socket path should be accepted");
-        assert_eq!(value, "/tmp/gewyvern-field.sock".to_string());
-    }
-
-    #[test]
-    fn rejects_field_socket_path_with_control_chars() {
-        let result = validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", "/tmp/line\nbreak.sock".to_string());
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn rejects_field_socket_path_with_leading_or_trailing_whitespace() {
-        assert!(validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", " /tmp/field.sock".to_string()).is_err());
-        assert!(validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", "/tmp/field.sock ".to_string()).is_err());
-    }
-
-    #[test]
-    fn rejects_field_socket_path_that_is_too_long() {
-        let long = "a".repeat(4097);
-        assert!(validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", long).is_err());
-    }
-}
-
 fn default_field_socket_path() -> Result<String, ValidationError> {
     let value = env::var("GEWY_FIELD_SOCKET_PATH")
         .ok()
@@ -372,4 +317,59 @@ fn write_readme(out_dir: &Path, checks: &[String]) -> Result<(), ValidationError
         ),
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{remove_stale_unix_socket, validate_field_socket_path};
+    use std::io::Write;
+
+    #[test]
+    fn remove_stale_unix_socket_ignores_missing_file() {
+        let path = std::env::temp_dir().join(format!(
+            "gewyvern-smoke-socket-missing-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+        assert!(remove_stale_unix_socket(path.to_str().unwrap()).is_ok());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn remove_stale_unix_socket_rejects_regular_file() {
+        let path = std::env::temp_dir().join(format!(
+            "gewyvern-smoke-socket-regular-{}",
+            std::process::id()
+        ));
+        let mut file = std::fs::File::create(&path).unwrap();
+        writeln!(file, "marker").unwrap();
+        let result = remove_stale_unix_socket(path.to_str().unwrap());
+        let _ = std::fs::remove_file(&path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn validates_field_socket_path_with_valid_value() {
+        let value = validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", "/tmp/gewyvern-field.sock".to_string())
+            .expect("valid socket path should be accepted");
+        assert_eq!(value, "/tmp/gewyvern-field.sock".to_string());
+    }
+
+    #[test]
+    fn rejects_field_socket_path_with_control_chars() {
+        let result = validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", "/tmp/line\nbreak.sock".to_string());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rejects_field_socket_path_with_leading_or_trailing_whitespace() {
+        assert!(validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", " /tmp/field.sock".to_string()).is_err());
+        assert!(validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", "/tmp/field.sock ".to_string()).is_err());
+    }
+
+    #[test]
+    fn rejects_field_socket_path_that_is_too_long() {
+        let long = "a".repeat(4097);
+        assert!(validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", long).is_err());
+    }
 }

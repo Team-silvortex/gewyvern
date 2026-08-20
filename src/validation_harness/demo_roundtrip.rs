@@ -480,87 +480,6 @@ fn validate_external_engine_command(command: &str) -> Result<String, ValidationE
     Ok(trimmed.to_string())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{run_socket_roundtrip_demo, validate_demo_socket_path, validate_external_engine_command};
-
-    #[test]
-    fn reject_external_engine_command_without_path() {
-        assert!(validate_external_engine_command("engine").is_err());
-    }
-
-    #[test]
-    fn reject_external_engine_command_with_shell_chars() {
-        let err = validate_external_engine_command("/usr/bin/engine;rm -rf /").unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("single executable path"));
-    }
-
-    #[test]
-    fn reject_external_engine_command_with_control_characters() {
-        let err = validate_external_engine_command("/usr/bin/engine\u{0007}").unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("control characters"));
-    }
-
-    #[test]
-    fn accept_external_engine_command_with_path() {
-        let current = std::env::current_exe().unwrap();
-        assert!(validate_external_engine_command(current.to_str().unwrap()).is_ok());
-    }
-
-    #[test]
-    fn validates_demo_socket_path_with_valid_value() {
-        let value =
-            validate_demo_socket_path("GEWY_DEMO_SOCKET_PATH", "/tmp/gewyvern-demo.sock".to_string())
-                .expect("valid demo socket path should be accepted");
-        assert_eq!(value, "/tmp/gewyvern-demo.sock".to_string());
-    }
-
-    #[test]
-    fn rejects_demo_socket_path_with_control_chars() {
-        assert!(validate_demo_socket_path(
-            "GEWY_DEMO_SOCKET_PATH",
-            "/tmp/line\nbreak.sock".to_string()
-        )
-        .is_err());
-    }
-
-    #[test]
-    fn rejects_demo_socket_path_with_leading_or_trailing_whitespace() {
-        assert!(validate_demo_socket_path("GEWY_DEMO_SOCKET_PATH", " /tmp/demo.sock".to_string())
-            .is_err());
-        assert!(validate_demo_socket_path("GEWY_DEMO_SOCKET_PATH", "/tmp/demo.sock ".to_string())
-            .is_err());
-    }
-
-    #[test]
-    fn rejects_demo_socket_path_that_is_too_long() {
-        let long = "a".repeat(4097);
-        assert!(validate_demo_socket_path("GEWY_DEMO_SOCKET_PATH", long).is_err());
-    }
-
-    #[test]
-    fn rejects_demo_socket_roundtrip_with_tcp_without_target() {
-        if let Err(err) = run_socket_roundtrip_demo(None, None, None, Some("tcp")) {
-            assert!(err.to_string().contains("required for tcp mode"));
-        } else {
-            panic!("missing tcp target should fail");
-        }
-    }
-
-    #[test]
-    fn rejects_demo_socket_roundtrip_with_unsupported_socket_kind() {
-        if let Err(err) = run_socket_roundtrip_demo(None, None, None, Some("weird")) {
-            assert!(err.to_string().contains("unsupported socket kind"));
-        } else {
-            panic!("unsupported socket kind should fail");
-        }
-    }
-}
-
 fn resolve_engine_root(engine_root: Option<PathBuf>) -> Result<PathBuf, ValidationError> {
     if let Some(root) = engine_root {
         return Ok(root);
@@ -701,4 +620,85 @@ fn write_training_summary(out_dir: &Path, checked: usize) -> Result<(), Validati
         ),
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{run_socket_roundtrip_demo, validate_demo_socket_path, validate_external_engine_command};
+
+    #[test]
+    fn reject_external_engine_command_without_path() {
+        assert!(validate_external_engine_command("engine").is_err());
+    }
+
+    #[test]
+    fn reject_external_engine_command_with_shell_chars() {
+        let err = validate_external_engine_command("/usr/bin/engine;rm -rf /").unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("single executable path"));
+    }
+
+    #[test]
+    fn reject_external_engine_command_with_control_characters() {
+        let err = validate_external_engine_command("/usr/bin/engine\u{0007}").unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("control characters"));
+    }
+
+    #[test]
+    fn accept_external_engine_command_with_path() {
+        let current = std::env::current_exe().unwrap();
+        assert!(validate_external_engine_command(current.to_str().unwrap()).is_ok());
+    }
+
+    #[test]
+    fn validates_demo_socket_path_with_valid_value() {
+        let value =
+            validate_demo_socket_path("GEWY_DEMO_SOCKET_PATH", "/tmp/gewyvern-demo.sock".to_string())
+                .expect("valid demo socket path should be accepted");
+        assert_eq!(value, "/tmp/gewyvern-demo.sock".to_string());
+    }
+
+    #[test]
+    fn rejects_demo_socket_path_with_control_chars() {
+        assert!(validate_demo_socket_path(
+            "GEWY_DEMO_SOCKET_PATH",
+            "/tmp/line\nbreak.sock".to_string()
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn rejects_demo_socket_path_with_leading_or_trailing_whitespace() {
+        assert!(validate_demo_socket_path("GEWY_DEMO_SOCKET_PATH", " /tmp/demo.sock".to_string())
+            .is_err());
+        assert!(validate_demo_socket_path("GEWY_DEMO_SOCKET_PATH", "/tmp/demo.sock ".to_string())
+            .is_err());
+    }
+
+    #[test]
+    fn rejects_demo_socket_path_that_is_too_long() {
+        let long = "a".repeat(4097);
+        assert!(validate_demo_socket_path("GEWY_DEMO_SOCKET_PATH", long).is_err());
+    }
+
+    #[test]
+    fn rejects_demo_socket_roundtrip_with_tcp_without_target() {
+        if let Err(err) = run_socket_roundtrip_demo(None, None, None, Some("tcp")) {
+            assert!(err.to_string().contains("required for tcp mode"));
+        } else {
+            panic!("missing tcp target should fail");
+        }
+    }
+
+    #[test]
+    fn rejects_demo_socket_roundtrip_with_unsupported_socket_kind() {
+        if let Err(err) = run_socket_roundtrip_demo(None, None, None, Some("weird")) {
+            assert!(err.to_string().contains("unsupported socket kind"));
+        } else {
+            panic!("unsupported socket kind should fail");
+        }
+    }
 }

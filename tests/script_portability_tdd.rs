@@ -127,8 +127,10 @@ fn container_entrypoints_default_to_a_bounded_remote_linux_workspace() {
     assert!(runner.contains("/.cache/gewyvern/docker-workspace"));
     assert!(runner.contains("REMOTE_WORKSPACE") && runner.contains("--delete-excluded"));
     assert!(runner.contains("flock -o -w 120"));
-    assert!(runner.contains("--exclude='**/bin/'"));
-    assert!(runner.contains("--exclude='**/obj/'"));
+    assert!(runner.contains("--exclude='apps/**/bin/'"));
+    assert!(runner.contains("--exclude='apps/**/obj/'"));
+    assert!(!runner.contains("--exclude='**/bin/'"));
+    assert!(!runner.contains("--exclude='**/obj/'"));
     assert!(runner.contains("--exclude='**/TestResults/'"));
     assert!(runner.contains("control-plane-state.json"));
     assert!(!runner.contains("DOCKER_HOST="));

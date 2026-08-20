@@ -106,7 +106,7 @@ fn home_dir() -> Option<PathBuf> {
             let path = env::var_os("HOMEPATH")?;
             let drive = validate_runtime_home_var(drive)?;
             let path = validate_runtime_home_var(path)?;
-            let mut joined = PathBuf::from(drive);
+            let mut joined = drive;
             joined.push(path);
             Some(joined)
         })

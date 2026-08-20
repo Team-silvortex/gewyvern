@@ -1,17 +1,11 @@
-use super::{Cli, IngestMode};
+use super::{Cli, IngestMode, env_test_lock as env_lock};
 use crate::runtime_config::{apply_runtime_path_overrides, load_runtime_config, RuntimeConfigFile};
 use crate::runtime_logging::LogLevel;
 use gewyvern::runtime_layout::runtime_layout;
 use crate::{SocketTarget, cli::CliDefaults};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
-
-fn env_lock() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
-}
 
 struct EnvGuard {
     key: &'static str,
@@ -545,8 +539,10 @@ fn runtime_config_rejects_unknown_section() {
 
 #[test]
 fn runtime_config_rejects_unsafe_path_override_values() {
-    let mut config = RuntimeConfigFile::default();
-    config.certificate_root = Some("/srv/gewyvern/certs\n".to_string());
+    let config = RuntimeConfigFile {
+        certificate_root: Some("/srv/gewyvern/certs\n".to_string()),
+        ..RuntimeConfigFile::default()
+    };
 
     let _lock = env_lock().lock().unwrap();
     let _certificate_root = EnvGuard::remove("GEWY_CERTIFICATE_ROOT");
@@ -561,9 +557,11 @@ fn runtime_config_rejects_unsafe_path_override_values() {
 
 #[test]
 fn runtime_config_rejects_unsafe_protocol_and_share_root_path_overrides() {
-    let mut config = RuntimeConfigFile::default();
-    config.protocol_registry_root = Some("/tmp/proto\nroot".to_string());
-    config.share_root = Some(" /tmp/share".to_string());
+    let config = RuntimeConfigFile {
+        protocol_registry_root: Some("/tmp/proto\nroot".to_string()),
+        share_root: Some(" /tmp/share".to_string()),
+        ..RuntimeConfigFile::default()
+    };
 
     let _lock = env_lock().lock().unwrap();
     let _protocol_registry_root = EnvGuard::remove("GEWY_PROTOCOL_REGISTRY_ROOT");
@@ -936,8 +934,10 @@ fn runtime_path_overrides_respects_preexisting_path_environment_variables() {
         "GEWY_PROTOCOL_REGISTRY_ROOT",
         "/tmp/preexisting-protocols-root",
     );
-    let mut config = RuntimeConfigFile::default();
-    config.protocol_registry_root = Some("/tmp/config-protocols-root".into());
+    let config = RuntimeConfigFile {
+        protocol_registry_root: Some("/tmp/config-protocols-root".into()),
+        ..RuntimeConfigFile::default()
+    };
 
     assert!(apply_runtime_path_overrides(&config).is_ok());
     assert_eq!(
@@ -951,9 +951,11 @@ fn runtime_path_overrides_respects_preexisting_certificate_root_env() {
     let _lock = env_lock().lock().unwrap();
     let _certificate_root = EnvGuard::set("GEWY_CERTIFICATE_ROOT", "/tmp/preexisting-certs");
     let _trust_root = EnvGuard::set("GEWY_TRUST_ROOT", "/tmp/preexisting-trust");
-    let mut config = RuntimeConfigFile::default();
-    config.certificate_root = Some("/tmp/config-certs".into());
-    config.trust_root = Some("/tmp/config-trust".into());
+    let config = RuntimeConfigFile {
+        certificate_root: Some("/tmp/config-certs".into()),
+        trust_root: Some("/tmp/config-trust".into()),
+        ..RuntimeConfigFile::default()
+    };
 
     assert!(apply_runtime_path_overrides(&config).is_ok());
     assert_eq!(
@@ -970,8 +972,10 @@ fn runtime_path_overrides_respects_preexisting_certificate_root_env() {
 fn runtime_path_overrides_rejects_invalid_protocol_registry_root() {
     let _lock = env_lock().lock().unwrap();
     let _protocol_registry_root = EnvGuard::remove("GEWY_PROTOCOL_REGISTRY_ROOT");
-    let mut config = RuntimeConfigFile::default();
-    config.protocol_registry_root = Some(" /tmp/config-protocols-root ".into());
+    let config = RuntimeConfigFile {
+        protocol_registry_root: Some(" /tmp/config-protocols-root ".into()),
+        ..RuntimeConfigFile::default()
+    };
 
     assert!(apply_runtime_path_overrides(&config).is_err());
 }
@@ -979,8 +983,10 @@ fn runtime_path_overrides_rejects_invalid_protocol_registry_root() {
 #[test]
 fn runtime_path_overrides_respects_existing_history_retention_env() {
     let _lock = env_lock().lock().unwrap();
-    let mut config = RuntimeConfigFile::default();
-    config.history_retention = Some(17);
+    let config = RuntimeConfigFile {
+        history_retention: Some(17),
+        ..RuntimeConfigFile::default()
+    };
     let _history_retention = EnvGuard::set("GEWY_HISTORY_RETENTION", "23");
 
     assert!(apply_runtime_path_overrides(&config).is_ok());
@@ -993,8 +999,10 @@ fn runtime_path_overrides_respects_existing_history_retention_env() {
 #[test]
 fn runtime_path_overrides_respects_existing_require_explicit_remote_trust_env() {
     let _lock = env_lock().lock().unwrap();
-    let mut config = RuntimeConfigFile::default();
-    config.require_explicit_remote_trust = Some(false);
+    let config = RuntimeConfigFile {
+        require_explicit_remote_trust: Some(false),
+        ..RuntimeConfigFile::default()
+    };
     let _require_remote = EnvGuard::set("GEWY_REQUIRE_EXPLICIT_REMOTE_TRUST", "true");
 
     assert!(apply_runtime_path_overrides(&config).is_ok());
@@ -1007,8 +1015,10 @@ fn runtime_path_overrides_respects_existing_require_explicit_remote_trust_env() 
 #[test]
 fn runtime_path_overrides_applies_require_explicit_remote_trust_when_missing_env() {
     let _lock = env_lock().lock().unwrap();
-    let mut config = RuntimeConfigFile::default();
-    config.require_explicit_remote_trust = Some(false);
+    let config = RuntimeConfigFile {
+        require_explicit_remote_trust: Some(false),
+        ..RuntimeConfigFile::default()
+    };
     let _require_remote = EnvGuard::remove("GEWY_REQUIRE_EXPLICIT_REMOTE_TRUST");
 
     assert!(apply_runtime_path_overrides(&config).is_ok());

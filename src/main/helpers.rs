@@ -118,21 +118,6 @@ pub(crate) fn api_socket_addr_is_local(addr: &str) -> bool {
     tcp_bind_addr_is_local(addr)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn tcp_bind_addr_is_local_rejects_malformed_local_like_addresses() {
-        assert!(tcp_bind_addr_is_local("127.0.0.1:9100"));
-        assert!(tcp_bind_addr_is_local("[::1]:9100"));
-        assert!(!tcp_bind_addr_is_local("localhost:bad"));
-        assert!(!tcp_bind_addr_is_local("localhost"));
-        assert!(!tcp_bind_addr_is_local("localhost.extra:9100"));
-        assert!(!tcp_bind_addr_is_local("bad-localhost:9100"));
-    }
-}
-
 pub(crate) fn filter_export_by_pid(export: &ExportBundle, pid: u32) -> ExportBundle {
     let sessions = export
         .facts
@@ -511,4 +496,19 @@ pub(crate) fn parse_protocol_set_line(line: &str) -> Result<(&str, Option<&str>)
         ));
     }
     Ok((protocol, entry))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tcp_bind_addr_is_local_rejects_malformed_local_like_addresses() {
+        assert!(tcp_bind_addr_is_local("127.0.0.1:9100"));
+        assert!(tcp_bind_addr_is_local("[::1]:9100"));
+        assert!(!tcp_bind_addr_is_local("localhost:bad"));
+        assert!(!tcp_bind_addr_is_local("localhost"));
+        assert!(!tcp_bind_addr_is_local("localhost.extra:9100"));
+        assert!(!tcp_bind_addr_is_local("bad-localhost:9100"));
+    }
 }

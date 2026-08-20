@@ -253,11 +253,11 @@ fn certificate_state_usage() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests::env_test_lock;
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::process::Command;
     use std::process::Stdio;
-    use std::sync::{Mutex, OnceLock};
 
     #[test]
     fn parse_rotation_set_command_requires_path_and_status() {
@@ -466,11 +466,6 @@ mod tests {
         let error = result.expect_err("command should fail");
         assert!(error.contains("note contains control characters"));
         fs::remove_dir_all(root).unwrap();
-    }
-
-    fn env_test_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
     }
 
     fn temp_root(label: &str) -> PathBuf {
