@@ -11,7 +11,7 @@ internal sealed record SilvortexAccountProofResult(
 
 internal static class SilvortexAccountProof
 {
-    public const string ContractVersion = "1.97.0";
+    public const string ContractVersion = "1.99.0";
     private const string ProofId = "leserpent-silvortex-native-desktop-account";
     private const int MaxEvidenceBytes = 16 * 1024;
 

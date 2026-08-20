@@ -36,8 +36,11 @@ internal static class Program
         if (args is ["--verify-authority-health-presentation"])
         {
             RemoteAuthorityHealthPresentation.VerifyContract();
+            RemoteAuthorityHealthCoordinator.VerifyContractAsync()
+                .GetAwaiter()
+                .GetResult();
             Console.WriteLine(
-                "authority health presentation valid: ready=true, queue_pressure=true, saturation_visible=true, endpoint_retained=false");
+                "authority health presentation valid: ready=true, queue_pressure=true, saturation_visible=true, shared_lifecycle=true, single_flight=true, stop_fence=true, endpoint_retained=false");
             return 0;
         }
         if (args is ["--verify-leselang-gui-export"])
@@ -50,9 +53,9 @@ internal static class Program
         if (args is ["--verify-remote-mutation-fence"])
         {
             RemoteMutationFences.VerifyContract();
-            RemoteMutationAvailabilityPolicy.VerifyContract();
+            RemoteMutationCoordinator.VerifyContract();
             Console.WriteLine(
-                "remote mutation fence valid: command_revision=true, capability_observation_revision=true, heartbeat_blocked=true, authoritative_snapshot=true, pending_projection_blocked=true, action_availability=true");
+                "remote mutation fence valid: command_revision=true, capability_observation_revision=true, heartbeat_blocked=true, authoritative_snapshot=true, cached_heartbeat_admission=false, pending_projection_blocked=true, malformed_response_unknown=true, shared_coordinator=true, action_availability=true");
             return 0;
         }
         if (args is ["--verify-deployment-contract"])

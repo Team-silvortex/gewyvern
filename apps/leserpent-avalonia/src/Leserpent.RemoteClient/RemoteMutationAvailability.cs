@@ -12,6 +12,7 @@ public static class RemoteMutationAvailabilityPolicy
         RemoteMutationRevisionFence? revisionFence,
         RemoteMutationObservationFence? observationFence)
     {
+        var authoritative = RemoteFeedAuthorityPolicy.HasAuthoritativeSnapshot(state);
         var live = state.Phase == RemoteFeedPhase.Live && !state.IsStale;
         var mutationReason = mutationInFlight
             ? "A remote change is awaiting confirmation or completion"
@@ -21,16 +22,20 @@ public static class RemoteMutationAvailabilityPolicy
                     : $"Waiting for event revision {revisionFence.Revision} before another remote change"
                 : observationFence is not null
                     ? "Waiting for an authoritative snapshot after an unknown remote outcome"
-                    : live
+                    : authoritative
                         ? null
-                        : "Remote changes are unavailable while the event stream is not live";
-        var inspectReason = live
+                        : live
+                            ? "Remote changes require a generated authoritative snapshot"
+                            : "Remote changes are unavailable while the event stream is not live";
+        var inspectReason = authoritative
             ? null
-            : "Runtime inspection requires a live event stream";
+            : live
+                ? "Runtime inspection requires a generated authoritative snapshot"
+                : "Runtime inspection requires a live event stream";
         return new RemoteMutationAvailability(
             mutationReason is null,
             mutationReason,
-            live,
+            authoritative,
             inspectReason);
     }
 
@@ -43,7 +48,8 @@ public static class RemoteMutationAvailabilityPolicy
             0,
             false,
             "live",
-            3);
+            3,
+            7);
         Require(
             Evaluate(live, false, null, null),
             mutationsEnabled: true,
@@ -102,6 +108,23 @@ public static class RemoteMutationAvailabilityPolicy
         {
             throw new InvalidDataException(
                 "stale remote state did not disable mutation and inspection consistently");
+        }
+        var heartbeatOnly = live with
+        {
+            Revision = 8,
+            SnapshotGeneration = 0,
+            SnapshotRevision = null,
+        };
+        var heartbeatAvailability = Evaluate(heartbeatOnly, false, null, null);
+        if (heartbeatAvailability.MutationsEnabled
+            || heartbeatAvailability.InspectEnabled
+            || heartbeatAvailability.MutationUnavailableReason
+                != "Remote changes require a generated authoritative snapshot"
+            || heartbeatAvailability.InspectUnavailableReason
+                != "Runtime inspection requires a generated authoritative snapshot")
+        {
+            throw new InvalidDataException(
+                "heartbeat-only remote state exposed authoritative actions");
         }
     }
 

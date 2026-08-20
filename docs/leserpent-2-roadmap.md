@@ -2006,6 +2006,26 @@ Avalonia window as well. RemoteClient now owns the runtime/revision/capability
 rules, rejects heartbeat-only release, and requires a newer authoritative
 snapshot after ambiguous transport failure. Desktop and mobile conformance run
 the identical policy.
+The next Gate 7 slice moves the lifecycle owner itself. A shared
+`RemoteMutationCoordinator` now admits one tokenized operation, revalidates the
+runtime and deployment capability after confirmation, captures the snapshot
+generation at transport admission, installs revision or observation fences,
+and ignores stale operation tokens. `RemoteFeedAuthorityPolicy` additionally
+prevents a cached projection followed only by heartbeat from enabling mutation
+or Inspect. Invalid success payloads and unexpected failures after confirmation
+are classified as unknown outcomes rather than safe rejections, so a possibly
+applied command cannot be repeated before a newer authoritative snapshot.
+Avalonia contains no in-flight, revision-fence, or observation-fence state;
+desktop remote and mobile conformance execute the same coordinator contract.
+Authority-health refresh lifecycle has crossed the Gate 7 boundary as well.
+`RemoteAuthorityHealthCoordinator` joins duplicate refresh requests, publishes
+monotonic `Idle`, `Checking`, `Ready`, `Unavailable`, and `Stopped` states,
+restores the prior projection after caller cancellation, and classifies remote
+rejection, invalid request/response, transport, timeout, and unexpected failure
+without exposing transport exception text. Its stop generation prevents a
+loader that ignores cancellation from republishing into a retired frontend.
+Avalonia contains no health in-flight state or health protocol branching;
+desktop, remote, and mobile probes execute the same lifecycle contract.
 Remote action availability now follows that boundary too. A pure policy gives
 in-flight work precedence over revision and observation fences, disables
 mutation and inspection consistently while stale, and supplies bounded reasons

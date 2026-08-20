@@ -2191,6 +2191,26 @@ ambiguous timeout or network failure retains an observation fence until a newer
 authoritative snapshot arrives. Capability changes additionally require a
 revision-bound capability observation, and heartbeat-only progress cannot
 release either safety condition.
+Mutation lifecycle ownership follows the same rule. The shared
+`RemoteMutationCoordinator` is a synchronous state machine around tokenized
+operations: begin, post-confirmation revalidation, transport admission,
+accepted revision, known rejection, unknown result, and authoritative snapshot
+observation. It rejects stale operation tokens and owns both fence instances.
+`RemoteFeedAuthorityPolicy` requires a generated snapshot with a consistent
+event revision; a cached projection made superficially live by heartbeat cannot
+enable mutation or Inspect. Malformed responses and unexpected failures after
+transport admission are unknown outcomes because execution may have committed
+remotely. Renderers provide confirmation UI and invoke transport, but cannot
+clear, replace, or reinterpret mutation lifecycle state.
+Read-only authority-health lifecycle is frontend-independent too.
+`RemoteAuthorityHealthCoordinator` owns refresh single-flight, generation,
+caller-cancellation restoration, stable failure categories, and terminal stop.
+It projects the shared health presentation into renderer-neutral labels,
+accessible names, saturation, attention, and refresh-admission state. A loader
+that completes after shutdown cannot cross the retired-generation fence, even
+when it ignored cancellation. Native and mobile adapters invoke transport and
+map the resulting state to controls; they do not keep an in-flight flag, parse
+health exceptions, or independently select operator-facing semantics.
 The corresponding action-availability projection is shared domain policy.
 In-flight mutation, revision fence, observation fence, and non-live state have
 a deterministic precedence. It independently reports mutation and inspection

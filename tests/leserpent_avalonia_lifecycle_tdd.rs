@@ -542,8 +542,17 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     );
     let mutation_fences =
         repo_source("apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteMutationFences.cs");
+    let authority_policy = repo_source(
+        "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteFeedAuthorityPolicy.cs",
+    );
     let mutation_availability = repo_source(
         "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteMutationAvailability.cs",
+    );
+    let mutation_coordinator = repo_source(
+        "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteMutationCoordinator.cs",
+    );
+    let health_coordinator = repo_source(
+        "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteAuthorityHealthCoordinator.cs",
     );
     let remote_window =
         repo_source("apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteMainWindow.cs");
@@ -580,12 +589,49 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     assert!(mutation_fences.contains("public sealed record RemoteMutationRevisionFence"));
     assert!(mutation_fences.contains("public sealed record RemoteMutationObservationFence"));
     assert!(!mutation_fences.contains("Avalonia"));
+    assert!(authority_policy.contains("public static class RemoteFeedAuthorityPolicy"));
+    assert!(authority_policy.contains("state.SnapshotGeneration > 0"));
+    assert!(authority_policy.contains("revision >= snapshotRevision"));
+    assert!(authority_policy.contains("heartbeatOnly"));
+    assert!(!authority_policy.contains("Avalonia"));
     assert!(mutation_availability.contains("public static class RemoteMutationAvailabilityPolicy"));
     assert!(mutation_availability.contains("public sealed record RemoteMutationAvailability"));
+    assert!(mutation_availability.contains("RemoteFeedAuthorityPolicy.HasAuthoritativeSnapshot"));
+    assert!(mutation_availability.contains("Remote changes require a generated authoritative snapshot"));
     assert!(!mutation_availability.contains("Avalonia"));
-    assert!(remote_window.contains("RemoteMutationFences.SatisfiesRevision"));
-    assert!(remote_window.contains("RemoteMutationFences.SatisfiesObservation"));
-    assert!(remote_window.contains("RemoteMutationAvailabilityPolicy.Evaluate"));
+    assert!(mutation_coordinator.contains("public sealed class RemoteMutationCoordinator"));
+    assert!(mutation_coordinator.contains("public RemoteMutationAdmission Begin("));
+    assert!(mutation_coordinator.contains("public RemoteMutationAdmission Confirm("));
+    assert!(mutation_coordinator.contains("public void MarkUnknown("));
+    assert!(mutation_coordinator.contains("malformed mutation response did not become an unknown outcome"));
+    assert!(mutation_coordinator.contains("heartbeat-only state admitted a mutation"));
+    assert!(mutation_coordinator.contains("retired mutation token cleared current operation ownership"));
+    assert!(!mutation_coordinator.contains("Avalonia"));
+    assert!(health_coordinator.contains("public sealed class RemoteAuthorityHealthCoordinator"));
+    assert!(health_coordinator.contains("public Task<RemoteAuthorityHealthState> RefreshAsync("));
+    assert!(health_coordinator.contains("RemoteAuthorityHealthPhase.Checking"));
+    assert!(health_coordinator.contains("RemoteAuthorityHealthFailure.InvalidResponse"));
+    assert!(health_coordinator.contains("authority health coordinator did not preserve single-flight ownership"));
+    assert!(health_coordinator.contains("retired authority health completion crossed the stop fence"));
+    assert!(!health_coordinator.contains("Avalonia"));
+    assert!(remote_window.contains("private readonly RemoteMutationCoordinator mutationCoordinator"));
+    assert!(remote_window.contains("mutationCoordinator.Begin("));
+    assert!(remote_window.contains("mutationCoordinator.Confirm(operation, currentState)"));
+    assert!(remote_window.contains("mutationCoordinator.Accept(operation, result, currentState)"));
+    assert!(remote_window.contains("mutationCoordinator.Abandon(operation, currentState)"));
+    assert_eq!(
+        remote_window
+            .matches("mutationCoordinator.MarkUnknown(operation, currentState);")
+            .count(),
+        6,
+        "all ambiguous refresh and deployment outcomes must be fenced"
+    );
+    assert!(!remote_window.contains("private bool mutationInFlight"));
+    assert!(!remote_window.contains("mutationRevisionFence"));
+    assert!(!remote_window.contains("mutationObservationFence"));
+    assert!(!remote_window.contains("RemoteMutationFences.SatisfiesRevision"));
+    assert!(!remote_window.contains("RemoteMutationFences.SatisfiesObservation"));
+    assert!(!remote_window.contains("RemoteMutationAvailabilityPolicy.Evaluate"));
     assert!(
         !remote_window
             .contains("Remote changes are unavailable while the event stream is not live")
@@ -606,6 +652,16 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
         remote_conformance.contains("await RemoteTopologyRefreshCoordinator.VerifyContractAsync()")
     );
     assert!(remote_conformance.contains("topology_refresh_coordination=true"));
+    assert!(remote_conformance.contains("RemoteMutationCoordinator.VerifyContract()"));
+    assert!(remote_conformance.contains("mutation_coordination=true"));
+    assert!(remote_conformance.contains("cached_heartbeat_mutation=false"));
+    assert!(remote_conformance.contains("malformed_mutation_response_unknown=true"));
+    assert!(remote_conformance.contains(
+        "await RemoteAuthorityHealthCoordinator.VerifyContractAsync()"
+    ));
+    assert!(remote_conformance.contains("authority_health_coordination=true"));
+    assert!(remote_conformance.contains("health_single_flight=true"));
+    assert!(remote_conformance.contains("health_stop_fence=true"));
     assert!(mobile_project.contains("Leserpent.RemoteClient.csproj"));
     assert!(mobile_conformance.contains("RemoteWorkspaceLogFilter.VerifyContract()"));
     assert!(mobile_conformance.contains("RemoteWorkspaceDiagnosticExport.VerifyContract()"));
@@ -631,10 +687,18 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     assert!(mobile_conformance.contains("ui_projection=true"));
     assert!(mobile_conformance.contains("RemoteMutationFences.VerifyContract()"));
     assert!(mobile_conformance.contains("mutation_fence=true"));
-    assert!(mobile_conformance.contains("RemoteMutationAvailabilityPolicy.VerifyContract()"));
+    assert!(mobile_conformance.contains("RemoteMutationCoordinator.VerifyContract()"));
+    assert!(mobile_conformance.contains("mutation_coordination=true"));
+    assert!(mobile_conformance.contains("cached_heartbeat_mutation=false"));
     assert!(mobile_conformance.contains("action_availability=true"));
     assert!(mobile_conformance.contains("RemoteAuthorityHealthPresentation.VerifyContract()"));
+    assert!(mobile_conformance.contains(
+        "await RemoteAuthorityHealthCoordinator.VerifyContractAsync()"
+    ));
     assert!(mobile_conformance.contains("authority_health=true"));
+    assert!(mobile_conformance.contains("authority_health_coordination=true"));
+    assert!(mobile_conformance.contains("health_single_flight=true"));
+    assert!(mobile_conformance.contains("health_stop_fence=true"));
 }
 
 #[test]
@@ -716,6 +780,7 @@ fn runtime_workspace_launch_is_shared_revision_fenced_and_frontend_neutral() {
     let window = avalonia_source("Leserpent.Avalonia/RemoteMainWindow.cs");
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
     let coordinator = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceLaunchCoordinator.cs");
+    let authority = avalonia_source("Leserpent.RemoteClient/RemoteFeedAuthorityPolicy.cs");
     let remote_conformance = avalonia_source("Leserpent.RemoteConformance/Program.cs");
     let mobile_conformance =
         repo_source("apps/leserpent-mobile/src/Leserpent.MobileConformance/Program.cs");
@@ -729,7 +794,8 @@ fn runtime_workspace_launch_is_shared_revision_fenced_and_frontend_neutral() {
     assert!(!window.contains("RemoteWorkspaceLaunchPolicy.CanResolve"));
     assert!(coordinator.contains("public sealed class RemoteWorkspaceLaunchCoordinator"));
     assert!(coordinator.contains("public static class RemoteWorkspaceLaunchPolicy"));
-    assert!(coordinator.contains("state.SnapshotGeneration > 0"));
+    assert!(coordinator.contains("RemoteFeedAuthorityPolicy.HasAuthoritativeSnapshot(state)"));
+    assert!(authority.contains("state.SnapshotGeneration > 0"));
     assert!(coordinator.contains("Math.Max(previousRevision, minimumRevision)"));
     assert!(coordinator.contains("RemoteWorkspaceLaunchDisposition.RejectUnavailable"));
     assert!(coordinator.contains("combined active and pending capacity"));
@@ -869,18 +935,35 @@ fn connected_authority_health_is_visible_bounded_and_mutation_independent() {
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
     let presentation =
         avalonia_source("Leserpent.RemoteClient/RemoteAuthorityHealthPresentation.cs");
+    let coordinator =
+        avalonia_source("Leserpent.RemoteClient/RemoteAuthorityHealthCoordinator.cs");
 
     assert!(source.contains("remote-authority-health"));
     assert!(source.contains("remote-authority-health-refresh"));
     assert!(source.contains("AutomationLiveSetting.Assertive"));
-    assert!(source.contains("RemoteAuthorityHealthPresentation.Create"));
+    assert!(source.contains("private readonly RemoteAuthorityHealthCoordinator authorityHealthCoordinator"));
+    assert!(source.contains("authorityHealthCoordinator.RefreshAsync(lifetime.Token)"));
+    assert!(source.contains("ApplyAuthorityHealth(authorityHealthCoordinator.State)"));
+    assert!(source.contains("authorityHealthCoordinator.Stop();"));
+    assert!(!source.contains("private bool healthInFlight"));
+    assert!(!source.contains("await healthClient.CheckAsync"));
+    assert!(!source.contains("RemoteAuthorityHealthPresentation.Create"));
     assert!(!source.contains("QUEUE SATURATED"));
     assert!(presentation.contains("public sealed record RemoteAuthorityHealthPresentation"));
     assert!(presentation.contains("QUEUE SATURATED"));
     assert!(presentation.contains("effect queue metrics unavailable"));
     assert!(!presentation.contains("Avalonia"));
+    assert!(coordinator.contains("public sealed record RemoteAuthorityHealthState"));
+    assert!(coordinator.contains("RemoteAuthorityHealthPhase.Stopped"));
+    assert!(coordinator.contains("RemoteAuthorityHealthFailure.Unexpected"));
+    assert!(coordinator.contains("TaskCreationOptions.RunContinuationsAsynchronously"));
+    assert!(!coordinator.contains("Avalonia"));
     assert!(program.contains("--verify-authority-health-presentation"));
+    assert!(program.contains("RemoteAuthorityHealthCoordinator.VerifyContractAsync()"));
     assert!(program.contains("saturation_visible=true"));
+    assert!(program.contains("shared_lifecycle=true"));
+    assert!(program.contains("single_flight=true"));
+    assert!(program.contains("stop_fence=true"));
 }
 
 #[test]
@@ -1222,7 +1305,7 @@ fn silvortex_account_proof_is_native_private_and_existing_credential_safe() {
     let account = avalonia_source("Leserpent.Avalonia/SilvortexAccountSession.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
 
-    assert!(proof.contains("ContractVersion = \"1.97.0\""));
+    assert!(proof.contains("ContractVersion = \"1.99.0\""));
     assert!(!proof.contains("--prove-silvortex-account"));
     assert!(proof.contains("RuntimeFeature.IsDynamicCodeSupported"));
     assert!(proof.contains("packaged-info-plist"));

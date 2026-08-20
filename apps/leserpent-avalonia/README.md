@@ -744,6 +744,24 @@ Mutation revision and unknown-outcome observation fences are likewise owned by
 `Leserpent.RemoteClient`. The window only presents their pending reason;
 heartbeats cannot release a fence, and capability mutations require a matching
 later capability observation before another remote change is enabled.
+The complete lifecycle is now owned by `RemoteMutationCoordinator`, not just
+its fence predicates. It admits one identity-bound operation, revalidates the
+runtime revision and deployment capability after confirmation, captures the
+authoritative snapshot generation before transport, and transitions success,
+known rejection, cancellation, or unknown outcome atomically. A cached startup
+followed only by heartbeat remains non-authoritative and cannot enable mutation
+or Inspect. Timeout, network failure, unexpected confirmed-operation failure,
+and malformed success responses all retain an observation fence because the
+daemon may already have applied the command. Avalonia owns only dialogs,
+authenticated transport invocation, and operator-facing status text.
+Authority-health query lifecycle now follows the same boundary through
+`RemoteAuthorityHealthCoordinator`. It owns one joined refresh, monotonic
+generation state, cancellation restoration, bounded failure classification,
+and a terminal stop fence that rejects late loader completion. Shared snapshots
+carry the label, accessible name, saturation, attention, and refresh-admission
+semantics used by desktop or mobile. Avalonia no longer owns `healthInFlight`,
+decodes health exceptions, or constructs the health presentation; it only maps
+the shared state to native color, live-region, and button properties.
 Action availability is also computed in RemoteClient. Avalonia applies the
 returned mutation and inspection booleans plus their bounded reason strings to
 controls and workspace windows; it does not infer permissions from button or

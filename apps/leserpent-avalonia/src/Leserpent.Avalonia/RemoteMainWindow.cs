@@ -11,6 +11,7 @@ internal sealed class RemoteMainWindow : Window
     private readonly AvaloniaDocumentRenderer renderer;
     private readonly RemoteEventClient eventClient;
     private readonly RemoteHealthClient healthClient;
+    private readonly RemoteAuthorityHealthCoordinator authorityHealthCoordinator;
     private readonly RemoteLeselangClient leselangClient;
     private readonly RemoteMutationClient mutationClient;
     private readonly RemoteClientOptions options;
@@ -18,14 +19,11 @@ internal sealed class RemoteMainWindow : Window
         new(StringComparer.Ordinal);
     private readonly RemoteWorkspaceLaunchCoordinator workspaceLaunch =
         new(MaxOpenWorkspaces);
+    private readonly RemoteMutationCoordinator mutationCoordinator = new();
     private readonly CancellationTokenSource lifetime = new();
     private readonly string principal;
     private RemoteFeedState currentState;
     private bool isClosed;
-    private bool healthInFlight;
-    private bool mutationInFlight;
-    private RemoteMutationObservationFence? mutationObservationFence;
-    private RemoteMutationRevisionFence? mutationRevisionFence;
     private readonly TextBlock statusText = new()
     {
         FontSize = 13,
@@ -152,6 +150,8 @@ internal sealed class RemoteMainWindow : Window
         renderer = new AvaloniaDocumentRenderer(OnActionInvoked);
         eventClient = new RemoteEventClient(options);
         healthClient = new RemoteHealthClient(options);
+        authorityHealthCoordinator = new RemoteAuthorityHealthCoordinator(
+            healthClient.CheckAsync);
         leselangClient = new RemoteLeselangClient(options);
         mutationClient = new RemoteMutationClient(options);
         ConfigureTrustIdentity(eventClient.TrustIdentity);
@@ -239,6 +239,7 @@ internal sealed class RemoteMainWindow : Window
         };
         ApplyResponsiveLayout(RemoteResponsiveLayout.Select(Width));
         ApplyState(currentState);
+        ApplyAuthorityHealth(authorityHealthCoordinator.State);
         eventClient.StateChanged += OnStateChanged;
         Opened += (_, _) =>
         {
@@ -438,7 +439,7 @@ internal sealed class RemoteMainWindow : Window
     private void ApplyState(RemoteFeedState state)
     {
         currentState = state;
-        ClearSatisfiedMutationFences(state);
+        mutationCoordinator.Observe(state);
         RenderProjection();
         statusText.Text = state.IsStale ? $"STALE / {state.Detail}" : state.Detail;
         statusText.Foreground = state.Phase switch
@@ -620,68 +621,34 @@ internal sealed class RemoteMainWindow : Window
 
     private async Task RefreshAuthorityHealthAsync()
     {
-        if (healthInFlight || isClosed)
+        if (isClosed)
         {
             return;
         }
-        healthInFlight = true;
-        authorityHealthButton.IsEnabled = false;
-        authorityHealthText.Text = "AUTHORITY / checking";
-        authorityHealthText.Foreground = LeserpentTheme.Muted;
-        AutomationProperties.SetName(
+        var refresh = authorityHealthCoordinator.RefreshAsync(lifetime.Token);
+        ApplyAuthorityHealth(authorityHealthCoordinator.State);
+        var state = await refresh;
+        if (!isClosed)
+        {
+            ApplyAuthorityHealth(state);
+        }
+    }
+
+    private void ApplyAuthorityHealth(RemoteAuthorityHealthState state)
+    {
+        authorityHealthText.Text = state.Label;
+        authorityHealthText.Foreground = state.RequiresAttention
+            ? LeserpentTheme.Destructive
+            : state.Phase == RemoteAuthorityHealthPhase.Ready
+                ? LeserpentTheme.Accent
+                : LeserpentTheme.Muted;
+        AutomationProperties.SetName(authorityHealthText, state.AutomationName);
+        AutomationProperties.SetLiveSetting(
             authorityHealthText,
-            "Checking remote authority health");
-        try
-        {
-            var health = await healthClient.CheckAsync(lifetime.Token);
-            if (isClosed)
-            {
-                return;
-            }
-            var presentation = RemoteAuthorityHealthPresentation.Create(health);
-            authorityHealthText.Text = presentation.Label;
-            authorityHealthText.Foreground = presentation.RequiresAttention
-                ? LeserpentTheme.Destructive
-                : LeserpentTheme.Accent;
-            AutomationProperties.SetName(
-                authorityHealthText,
-                presentation.AutomationName);
-            AutomationProperties.SetLiveSetting(
-                authorityHealthText,
-                presentation.RequiresAttention
-                    ? AutomationLiveSetting.Assertive
-                    : AutomationLiveSetting.Polite);
-        }
-        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
-        {
-            // Window shutdown owns this cancellation.
-        }
-        catch (Exception error) when (error is
-            ArgumentException
-            or HttpRequestException
-            or InvalidDataException
-            or IOException)
-        {
-            if (!isClosed)
-            {
-                authorityHealthText.Text = "AUTHORITY / unavailable";
-                authorityHealthText.Foreground = LeserpentTheme.Destructive;
-                AutomationProperties.SetName(
-                    authorityHealthText,
-                    $"Remote authority health unavailable: {SafeDisplay(error.Message)}");
-                AutomationProperties.SetLiveSetting(
-                    authorityHealthText,
-                    AutomationLiveSetting.Assertive);
-            }
-        }
-        finally
-        {
-            healthInFlight = false;
-            if (!isClosed)
-            {
-                authorityHealthButton.IsEnabled = true;
-            }
-        }
+            state.RequiresAttention
+                ? AutomationLiveSetting.Assertive
+                : AutomationLiveSetting.Polite);
+        authorityHealthButton.IsEnabled = state.IsRefreshEnabled && !isClosed;
     }
 
     private async Task RequestReconnectAsync()
@@ -732,14 +699,12 @@ internal sealed class RemoteMainWindow : Window
             }
             return;
         }
-        if (mutationInFlight)
+        var mutationAvailability = mutationCoordinator.Availability(currentState);
+        if (!mutationAvailability.MutationsEnabled)
         {
-            SetMutationStatus("A remote change is already in progress", LeserpentTheme.Primary);
-            return;
-        }
-        if (currentState.Phase != RemoteFeedPhase.Live || currentState.IsStale)
-        {
-            SetMutationStatus("Refresh blocked: remote state is not live", LeserpentTheme.Destructive);
+            SetMutationStatus(
+                $"Remote change blocked: {mutationAvailability.MutationUnavailableReason}",
+                LeserpentTheme.Destructive);
             return;
         }
         var invokedAction = FindNode(renderer.Document.Root, nodeId)?.Action;
@@ -763,7 +728,21 @@ internal sealed class RemoteMainWindow : Window
             SetMutationStatus("Refresh blocked: action context is invalid", LeserpentTheme.Destructive);
             return;
         }
-        mutationInFlight = true;
+        var admission = mutationCoordinator.Begin(
+            new RemoteMutationRequest(
+                runtime.Id,
+                runtime.Revision,
+                refreshCapabilities
+                    ? RemoteMutationKind.CapabilityRefresh
+                    : RemoteMutationKind.Refresh),
+            currentState);
+        if (!admission.Accepted || admission.Operation is not { } operation)
+        {
+            SetMutationStatus(
+                $"Refresh blocked: {RemoteMutationCoordinator.DescribeFailure(admission.Failure)}",
+                LeserpentTheme.Destructive);
+            return;
+        }
         UpdateMutationAvailability();
         var confirmed = await new RuntimeRefreshConfirmationWindow(
                 runtime,
@@ -775,24 +754,19 @@ internal sealed class RemoteMainWindow : Window
             .ShowDialog<bool>(this);
         if (!confirmed || lifetime.IsCancellationRequested)
         {
-            mutationInFlight = false;
+            mutationCoordinator.Cancel(operation);
             UpdateMutationAvailability();
             return;
         }
-        var confirmedRuntime = currentState.Runtimes.FirstOrDefault(candidate =>
-            candidate.Id == runtime.Id);
-        if (currentState.Phase != RemoteFeedPhase.Live
-            || currentState.IsStale
-            || confirmedRuntime?.Revision != runtime.Revision)
+        var confirmation = mutationCoordinator.Confirm(operation, currentState);
+        if (!confirmation.Accepted)
         {
-            mutationInFlight = false;
             UpdateMutationAvailability();
             SetMutationStatus(
-                "Refresh blocked: remote state changed during confirmation",
+                $"Refresh blocked: {RemoteMutationCoordinator.DescribeFailure(confirmation.Failure)} during confirmation",
                 LeserpentTheme.Destructive);
             return;
         }
-        var mutationSnapshotGeneration = currentState.SnapshotGeneration;
         SetMutationStatus(
             refreshCapabilities
                 ? $"Discovering capabilities for {SafeDisplay(runtime.Name)} at revision {runtime.Revision}..."
@@ -811,11 +785,7 @@ internal sealed class RemoteMainWindow : Window
                     runtime.Revision,
                     principal,
                     lifetime.Token);
-            mutationRevisionFence = new RemoteMutationRevisionFence(
-                runtime.Id,
-                result.Revision,
-                refreshCapabilities);
-            ClearSatisfiedMutationFences(currentState);
+            mutationCoordinator.Accept(operation, result, currentState);
             SetMutationStatus(
                 refreshCapabilities
                     ? $"Capability discovery requested for {SafeDisplay(runtime.Name)} at revision {result.Revision}"
@@ -824,53 +794,52 @@ internal sealed class RemoteMainWindow : Window
         }
         catch (RemoteMutationException error)
         {
+            mutationCoordinator.RejectKnown(operation);
             SetMutationStatus(
                 $"Refresh rejected ({SafeDisplay(error.Code)}): {SafeDisplay(error.Message)}",
                 LeserpentTheme.Destructive);
         }
         catch (InvalidDataException error)
         {
+            mutationCoordinator.MarkUnknown(operation, currentState);
             SetMutationStatus(
-                $"Refresh response rejected: {SafeDisplay(error.Message)}",
+                $"Refresh outcome unknown after an invalid response ({SafeDisplay(error.Message)}); wait for an authoritative snapshot before retrying",
                 LeserpentTheme.Destructive);
         }
         catch (ArgumentException error)
         {
+            mutationCoordinator.RejectKnown(operation);
             SetMutationStatus(
                 $"Refresh blocked: {SafeDisplay(error.Message)}",
                 LeserpentTheme.Destructive);
         }
         catch (OperationCanceledException) when (!lifetime.IsCancellationRequested)
         {
-            FenceUntilAuthoritativeSnapshot(
-                runtime,
-                refreshCapabilities,
-                mutationSnapshotGeneration);
+            mutationCoordinator.MarkUnknown(operation, currentState);
             SetMutationStatus(
                 "Refresh outcome unknown after timeout; wait for an authoritative snapshot before retrying",
                 LeserpentTheme.Destructive);
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
         {
+            mutationCoordinator.Cancel(operation);
             // Window shutdown owns this cancellation.
         }
         catch (ObjectDisposedException) when (lifetime.IsCancellationRequested)
         {
+            mutationCoordinator.Cancel(operation);
             // The HTTP client may be disposed while the window is closing.
         }
         catch (HttpRequestException)
         {
-            FenceUntilAuthoritativeSnapshot(
-                runtime,
-                refreshCapabilities,
-                mutationSnapshotGeneration);
+            mutationCoordinator.MarkUnknown(operation, currentState);
             SetMutationStatus(
                 "Refresh outcome unknown after a network failure; wait for an authoritative snapshot before retrying",
                 LeserpentTheme.Destructive);
         }
         finally
         {
-            mutationInFlight = false;
+            mutationCoordinator.Abandon(operation, currentState);
             UpdateMutationAvailability();
         }
     }
@@ -880,14 +849,19 @@ internal sealed class RemoteMainWindow : Window
         string nodeId,
         UiForm form)
     {
-        if (runtime.Capabilities is not { AuthenticatedDeployment: true })
+        var admission = mutationCoordinator.Begin(
+            new RemoteMutationRequest(
+                runtime.Id,
+                runtime.Revision,
+                RemoteMutationKind.Deployment),
+            currentState);
+        if (!admission.Accepted || admission.Operation is not { } operation)
         {
             SetMutationStatus(
-                "Deployment blocked: runtime has not advertised authenticated deployment",
+                $"Deployment blocked: {RemoteMutationCoordinator.DescribeFailure(admission.Failure)}",
                 LeserpentTheme.Destructive);
             return;
         }
-        mutationInFlight = true;
         UpdateMutationAvailability();
         var formWindow = new ParameterizedActionFormWindow(
             form,
@@ -916,7 +890,7 @@ internal sealed class RemoteMainWindow : Window
         var intent = await formWindow.ShowDialog<ParameterizedFormIntent?>(this);
         if (intent is null || lifetime.IsCancellationRequested)
         {
-            mutationInFlight = false;
+            mutationCoordinator.Cancel(operation);
             UpdateMutationAvailability();
             return;
         }
@@ -927,7 +901,7 @@ internal sealed class RemoteMainWindow : Window
         }
         catch (InvalidDataException error)
         {
-            mutationInFlight = false;
+            mutationCoordinator.Cancel(operation);
             UpdateMutationAvailability();
             SetMutationStatus(
                 $"Deployment blocked: {SafeDisplay(error.Message)}",
@@ -936,7 +910,7 @@ internal sealed class RemoteMainWindow : Window
         }
         if (!submission.Values.TryGetValue("pipeline_kind", out var pipelineKind))
         {
-            mutationInFlight = false;
+            mutationCoordinator.Cancel(operation);
             UpdateMutationAvailability();
             SetMutationStatus(
                 "Deployment blocked: form did not provide pipeline_kind",
@@ -944,21 +918,15 @@ internal sealed class RemoteMainWindow : Window
             return;
         }
         submission.Values.TryGetValue("target", out var target);
-        var confirmedRuntime = currentState.Runtimes.FirstOrDefault(candidate =>
-            candidate.Id == runtime.Id);
-        if (currentState.Phase != RemoteFeedPhase.Live
-            || currentState.IsStale
-            || confirmedRuntime?.Revision != runtime.Revision
-            || confirmedRuntime.Capabilities is not { AuthenticatedDeployment: true })
+        var confirmation = mutationCoordinator.Confirm(operation, currentState);
+        if (!confirmation.Accepted)
         {
-            mutationInFlight = false;
             UpdateMutationAvailability();
             SetMutationStatus(
-                "Deployment blocked: remote state changed during confirmation",
+                $"Deployment blocked: {RemoteMutationCoordinator.DescribeFailure(confirmation.Failure)} during confirmation",
                 LeserpentTheme.Destructive);
             return;
         }
-        var mutationSnapshotGeneration = currentState.SnapshotGeneration;
         SetMutationStatus(
             $"Deploying {SafeDisplay(pipelineKind)} to {SafeDisplay(runtime.Name)} at revision {runtime.Revision}...",
             LeserpentTheme.Primary);
@@ -971,94 +939,66 @@ internal sealed class RemoteMainWindow : Window
                 pipelineKind,
                 target,
                 lifetime.Token);
-            mutationRevisionFence = new RemoteMutationRevisionFence(
-                runtime.Id,
-                result.Revision,
-                false);
-            ClearSatisfiedMutationFences(currentState);
+            mutationCoordinator.Accept(operation, result, currentState);
             SetMutationStatus(
                 $"Deployment accepted for {SafeDisplay(runtime.Name)} at revision {result.Revision}",
                 LeserpentTheme.Accent);
         }
         catch (RemoteMutationException error)
         {
+            mutationCoordinator.RejectKnown(operation);
             SetMutationStatus(
                 $"Deployment rejected ({SafeDisplay(error.Code)}): {SafeDisplay(error.Message)}",
                 LeserpentTheme.Destructive);
         }
         catch (InvalidDataException error)
         {
+            mutationCoordinator.MarkUnknown(operation, currentState);
             SetMutationStatus(
-                $"Deployment response rejected: {SafeDisplay(error.Message)}",
+                $"Deployment outcome unknown after an invalid response ({SafeDisplay(error.Message)}); wait for an authoritative snapshot before retrying",
                 LeserpentTheme.Destructive);
         }
         catch (ArgumentException error)
         {
+            mutationCoordinator.RejectKnown(operation);
             SetMutationStatus(
                 $"Deployment blocked: {SafeDisplay(error.Message)}",
                 LeserpentTheme.Destructive);
         }
         catch (OperationCanceledException) when (!lifetime.IsCancellationRequested)
         {
-            FenceUntilAuthoritativeSnapshot(runtime, false, mutationSnapshotGeneration);
+            mutationCoordinator.MarkUnknown(operation, currentState);
             SetMutationStatus(
                 "Deployment outcome unknown after timeout; wait for an authoritative snapshot before retrying",
                 LeserpentTheme.Destructive);
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
         {
+            mutationCoordinator.Cancel(operation);
             // Window shutdown owns this cancellation.
         }
         catch (ObjectDisposedException) when (lifetime.IsCancellationRequested)
         {
+            mutationCoordinator.Cancel(operation);
             // The HTTP client may be disposed while the window is closing.
         }
         catch (HttpRequestException)
         {
-            FenceUntilAuthoritativeSnapshot(runtime, false, mutationSnapshotGeneration);
+            mutationCoordinator.MarkUnknown(operation, currentState);
             SetMutationStatus(
                 "Deployment outcome unknown after a network failure; wait for an authoritative snapshot before retrying",
                 LeserpentTheme.Destructive);
         }
         finally
         {
-            mutationInFlight = false;
+            mutationCoordinator.Abandon(operation, currentState);
             UpdateMutationAvailability();
-        }
-    }
-
-    private void FenceUntilAuthoritativeSnapshot(
-        RemoteRuntimeProjection runtime,
-        bool requiresCapabilityChange,
-        ulong snapshotGeneration) => mutationObservationFence = new(
-            runtime.Id,
-            runtime.Revision,
-            snapshotGeneration,
-            requiresCapabilityChange);
-
-    private void ClearSatisfiedMutationFences(RemoteFeedState state)
-    {
-        if (mutationRevisionFence is { } revisionFence
-            && state.Runtimes.Any(runtime => RemoteMutationFences.SatisfiesRevision(
-                runtime,
-                revisionFence)))
-        {
-            mutationRevisionFence = null;
-        }
-        if (mutationObservationFence is { } observationFence
-            && RemoteMutationFences.SatisfiesObservation(state, observationFence))
-        {
-            mutationObservationFence = null;
         }
     }
 
     private void UpdateMutationAvailability()
     {
-        var availability = RemoteMutationAvailabilityPolicy.Evaluate(
-            currentState,
-            mutationInFlight,
-            mutationRevisionFence,
-            mutationObservationFence);
+        var availability = mutationCoordinator.Availability(currentState);
         renderer.SetActionAvailability(
             ActionKind.RuntimeRefresh,
             availability.MutationsEnabled,
@@ -1119,11 +1059,7 @@ internal sealed class RemoteMainWindow : Window
         workspace.Closed += (_, _) => workspaceWindows.Remove(runtime.Id);
         SetWorkspaceMutationAvailability(
             workspace,
-            RemoteMutationAvailabilityPolicy.Evaluate(
-                currentState,
-                mutationInFlight,
-                mutationRevisionFence,
-                mutationObservationFence));
+            mutationCoordinator.Availability(currentState));
         workspace.Show(this);
     }
 
@@ -1137,6 +1073,7 @@ internal sealed class RemoteMainWindow : Window
         }
         isClosed = true;
         eventClient.StateChanged -= OnStateChanged;
+        authorityHealthCoordinator.Stop();
         lifetime.Cancel();
         runtimeFilterTimer.Stop();
         foreach (var workspace in workspaceWindows.Values.ToArray())
@@ -1144,6 +1081,7 @@ internal sealed class RemoteMainWindow : Window
             workspace.Close();
         }
         workspaceLaunch.ClearPending();
+        mutationCoordinator.CancelActive();
         healthClient.Dispose();
         leselangClient.Dispose();
         mutationClient.Dispose();
@@ -1158,7 +1096,7 @@ internal sealed class RemoteMainWindow : Window
         }
         catch (Exception error) when (!isClosed)
         {
-            mutationInFlight = false;
+            mutationCoordinator.AbandonActive(currentState);
             UpdateMutationAvailability();
             SetMutationStatus(
                 $"Remote operation failed safely: {SafeDisplay(error.Message)}",
@@ -1178,14 +1116,7 @@ internal sealed class RemoteMainWindow : Window
         }
         catch (Exception) when (!isClosed)
         {
-            authorityHealthText.Text = "AUTHORITY / unavailable";
-            authorityHealthText.Foreground = LeserpentTheme.Destructive;
-            AutomationProperties.SetName(
-                authorityHealthText,
-                "Remote authority health failed safely");
-            AutomationProperties.SetLiveSetting(
-                authorityHealthText,
-                AutomationLiveSetting.Assertive);
+            ApplyAuthorityHealth(authorityHealthCoordinator.State);
         }
         catch (Exception) when (isClosed)
         {

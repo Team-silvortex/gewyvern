@@ -24,13 +24,8 @@ public static class RemoteWorkspaceLaunchPolicy
     public static bool CanResolve(RemoteFeedState state, ulong minimumRevision)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return state.Phase == RemoteFeedPhase.Live
-            && !state.IsStale
-            && state.SnapshotGeneration > 0
-            && state.SnapshotRevision is { } snapshotRevision
-            && snapshotRevision >= minimumRevision
-            && state.Revision is { } revision
-            && revision >= snapshotRevision;
+        return RemoteFeedAuthorityPolicy.HasAuthoritativeSnapshot(state)
+            && state.SnapshotRevision >= minimumRevision;
     }
 
     public static void VerifyContract()
