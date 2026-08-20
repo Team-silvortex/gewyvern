@@ -1829,6 +1829,11 @@ Keychain profile without exposing credentials. The current retained preflight
 records all tools ready but zero identities and no requested profile, so
 `release_ready=false`; executing and retaining the formal Apple-backed proof
 remains the only macOS release gate.
+The native `cargo dev package desktop` path now accepts an identity and notary
+profile only as a pair, runs that preflight in strict mode, and keeps signing,
+notarization, stapling, and Gatekeeper assessment behind the pending-bundle
+atomic publication boundary. This closes the workflow-integration gap without
+claiming the still-unavailable Apple-backed host evidence.
 The unified native release gate can now ingest that report through
 `--macos-release-preflight`, enforce a bounded and internally consistent schema,
 index a normalized copy, and distinguish an external credential block from a

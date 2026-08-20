@@ -833,8 +833,11 @@ It restores and publishes the locked NativeAOT graph, builds the Rust bundler,
 installer, and `leserpentd/native-ssh` in one cached release batch, atomically
 replaces the artifact, applies a local ad-hoc signature, verifies that signature
 strictly, and installs through the existing content-addressed rollback store.
-Formal Developer ID signing and notarization remain the separate release gate
-described below.
+Supplying `--identity 'Developer ID Application: ...'` together with
+`--notary-profile PROFILE` switches the same pending-bundle workflow to strict
+release preflight, inside-out Developer ID signing, notarization, stapling, and
+Gatekeeper verification. Only a fully successful bundle replaces the existing
+artifact.
 
 The NativeAOT and accessibility proof commands assign separate .NET
 `--artifacts-path` roots under their evidence directories. They can therefore
@@ -936,22 +939,38 @@ overrides must name an explicit regular executable and never fall back to
 bearer token. TLS files are atomically created as `0600` inside a non-symlink
 `0700` state directory, and exported private-key buffers are zeroed after use.
 
+The preferred formal release command is:
+
+```bash
+xcrun notarytool store-credentials leserpent-notary
+
+cargo dev package desktop \
+  --identity 'Developer ID Application: ORGANIZATION (TEAMID)' \
+  --notary-profile leserpent-notary
+```
+
 The native release gate signs nested dylibs before the application, requires a
 `Developer ID Application:` identity, enables Hardened Runtime and a secure
-timestamp, and rejects symlinks or another bundle identity:
+timestamp, and rejects symlinks or another bundle identity. Its lower-level
+commands remain available for diagnostics:
 
 ```bash
 cargo run --bin gewyvern_leserpent_release -- preflight \
-  --app artifacts/leserpent-avalonia/Leserpent.app
+  --app artifacts/leserpent-avalonia/Leserpent.app \
+  --keychain-profile leserpent-notary \
+  --require-ready
 
 cargo run --bin gewyvern_leserpent_release -- sign \
   --app artifacts/leserpent-avalonia/Leserpent.app \
   --identity 'Developer ID Application: ORGANIZATION (TEAMID)'
 ```
 
-`preflight` emits machine-readable readiness JSON and never reads plaintext
-credentials. After storing the notary profile, pass `--keychain-profile
-leserpent-notary` so it can validate the profile through `notarytool history`.
+`preflight` emits machine-readable readiness JSON by default and never reads
+plaintext credentials. After storing the notary profile, pass
+`--keychain-profile leserpent-notary` so it can validate the profile through
+`notarytool history`.
+Use `--require-ready` in a release mutation path so blocked readiness exits
+nonzero before signing.
 The retained macOS host evidence has every required Apple tool but no Developer
 ID Application identity and no requested notary profile, so it correctly
 reports `release_ready=false` rather than claiming an Apple-backed release.

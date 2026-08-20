@@ -28,8 +28,9 @@ cargo dev deploy desktop --launch
 `cargo dev build` runs the Rust, Leserpent control, and Avalonia builds in
 parallel with locked dependency behavior. The package and deploy commands keep
 atomic output boundaries and report their final artifact. Use the scripts and
-specialized Rust binaries below when debugging an individual stage or building
-a formal release pipeline.
+specialized Rust binaries below when debugging an individual stage. Formal
+macOS release packaging uses the same desktop command with the paired
+`--identity` and `--notary-profile` options.
 
 ## JSON Mode
 
@@ -570,6 +571,22 @@ failed pending bundles are removed and an existing complete artifact remains
 available. Automatic replacement is limited to the default managed artifact;
 an existing custom `--output` must be moved explicitly before packaging.
 
+After a Developer ID Application certificate and a `notarytool` Keychain
+profile are provisioned, produce the formal Apple artifact through the same
+atomic entrypoint:
+
+```bash
+cargo dev package desktop \
+  --identity 'Developer ID Application: ORGANIZATION (TEAMID)' \
+  --notary-profile leserpent-notary
+```
+
+The two options are inseparable. Formal mode runs a strict readiness preflight,
+signs every nested native payload and the app with Hardened Runtime and a secure
+timestamp, waits for explicit notarization acceptance, staples and validates
+the ticket, and finishes with Gatekeeper. All work occurs on a pending bundle;
+failure leaves the previously published app untouched.
+
 For lower-level bundle diagnostics after publishing an `osx-arm64` directory,
 run:
 
@@ -622,29 +639,36 @@ remain a separate release gate.
 
 ### I want to sign and notarize the Leserpent macOS app
 
-Use the native release entrypoint after bundle creation:
+Prefer the unified `cargo dev package desktop --identity ...
+--notary-profile ...` command above. Use the native release entrypoint directly
+only to diagnose or rerun an individual stage after bundle creation:
 
 ```bash
+xcrun notarytool store-credentials leserpent-notary
+
 cargo run --bin gewyvern_leserpent_release -- preflight \
-  --app artifacts/leserpent-avalonia/Leserpent.app
+  --app artifacts/leserpent-avalonia/Leserpent.app \
+  --keychain-profile leserpent-notary \
+  --require-ready
 
 cargo run --bin gewyvern_leserpent_release -- sign \
   --app artifacts/leserpent-avalonia/Leserpent.app \
   --identity 'Developer ID Application: ORGANIZATION (TEAMID)'
-
-xcrun notarytool store-credentials leserpent-notary
 
 cargo run --bin gewyvern_leserpent_release -- notarize \
   --app artifacts/leserpent-avalonia/Leserpent.app \
   --keychain-profile leserpent-notary
 ```
 
-`preflight` always emits one JSON object. Its v2 schema binds separate SHA-256
-digests for the main executable and bundled `leserpentd`, validates the checked
-entitlements, and inventories `codesign`, `ditto`, `plutil`, `security`, `spctl`,
-`xcrun`, `notarytool`, and `stapler`, and counts valid Developer ID Application
-identities. Add `--keychain-profile leserpent-notary` after storing credentials
-to verify that profile through `notarytool history` without exposing its secret.
+`preflight` emits one JSON object by default, including when readiness is
+blocked. Add `--require-ready` when it is a mutation gate; blocked readiness
+then exits nonzero and includes the report in the bounded error. Its v2 schema
+binds separate SHA-256 digests for the main executable and bundled
+`leserpentd`, validates the checked entitlements, inventories `codesign`,
+`ditto`, `plutil`, `security`, `spctl`, `xcrun`, `notarytool`, and `stapler`, and
+counts valid Developer ID Application identities. Add `--keychain-profile
+leserpent-notary` after storing credentials to verify that profile through
+`notarytool history` without exposing its secret.
 Only a complete toolchain, at least one valid identity, and a validated profile
 produce `release_ready=true`. The current retained fixture at
 `docs/fixtures/leserpent_macos_release_preflight.json` is explicitly blocked by

@@ -189,6 +189,20 @@ stage but cannot produce a ready ship signal; malformed or contradictory input
 fails closed. The normalized report is indexed at
 `target/validation/leserpent-macos-release-preflight/release-gate-preflight.json`.
 
+Once the Developer ID certificate and notary Keychain profile are provisioned,
+the preferred atomic build-to-release path is:
+
+```bash
+cargo dev package desktop \
+  --identity 'Developer ID Application: ORGANIZATION (TEAMID)' \
+  --notary-profile leserpent-notary
+```
+
+The paired options activate strict preflight, inside-out signing, notarization,
+stapling, ticket validation, and Gatekeeper assessment on a pending app. A
+failure cannot replace the prior published artifact. Use the lower-level
+release binary only when diagnosing one stage.
+
 The lower-level packaged release-minded entrypoint is:
 
 ```bash

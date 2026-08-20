@@ -5614,7 +5614,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/release-assurance/two-zero-seal")
         .expect("2.0 release seal must be tracked independently");
     assert_eq!(two_zero_seal.completion, 64);
-    assert_eq!(two_zero_seal.contract.version, "0.15.0-draft");
+    assert_eq!(two_zero_seal.contract.version, "0.16.0-draft");
     assert!(
         two_zero_seal
             .contract
@@ -5643,6 +5643,19 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .iter()
             .any(|surface| surface == "current-run-schema-scope-artifact-index")
     );
+    for surface in [
+        "strict-release-readiness-mutation-gate",
+        "atomic-apple-release-workflow",
+    ] {
+        assert!(
+            two_zero_seal
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing 2.0 seal surface {surface}"
+        );
+    }
     assert!(two_zero_seal.evidence.iter().any(|evidence| {
         evidence.path == "project/release/leserpent-2-scope-freeze.json"
             && evidence.state == EvidenceState::Present
@@ -5666,7 +5679,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/release-assurance/continuous-proof")
         .expect("continuous proof contract must remain tracked");
     assert_eq!(continuous_proof.completion, 97);
-    assert_eq!(continuous_proof.contract.version, "0.74.0");
+    assert_eq!(continuous_proof.contract.version, "0.75.0");
     assert!(
         continuous_proof
             .contract
@@ -5725,6 +5738,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "reusable-release-binary-packaging",
         "one-command-macos-aot-bundle-install",
         "atomic-signed-desktop-artifact",
+        "strict-apple-release-readiness-gate",
+        "atomic-developer-id-notarization-workflow",
+        "pending-bundle-release-isolation",
     ] {
         assert!(
             continuous_proof
@@ -5745,6 +5761,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }));
     assert!(continuous_proof.evidence.iter().any(|evidence| {
         evidence.path == "crates/gewyvern-dev/src/main.rs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(continuous_proof.evidence.iter().any(|evidence| {
+        evidence.path == "src/bin/gewyvern_leserpent_release.rs"
             && evidence.state == EvidenceState::Present
     }));
     assert!(continuous_proof.evidence.iter().any(|evidence| {

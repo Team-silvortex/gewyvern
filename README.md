@@ -253,6 +253,10 @@ Core CLI and test entrypoints:
   Main regression path for the whole workspace.
 - `cargo dev package desktop` / `cargo dev deploy desktop`
   Build, ad-hoc sign, verify, and optionally install the macOS NativeAOT app.
+  Supplying `--identity 'Developer ID Application: ...'` together with
+  `--notary-profile PROFILE` switches the same atomic workflow to strict
+  preflight, Developer ID signing, notarization, stapling, and Gatekeeper
+  verification.
 
 Packaging entrypoints:
 

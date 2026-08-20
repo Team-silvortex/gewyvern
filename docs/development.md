@@ -92,6 +92,21 @@ with `--scope core`, `--scope control`, or `--scope desktop`; add `--release`
 for optimized output, `--restore` to force dependency verification, or
 `--dry-run` to inspect the exact commands.
 
+Package or install the macOS arm64 desktop app through the same native entry:
+
+```bash
+cargo dev package desktop
+cargo dev deploy desktop --launch
+```
+
+Those commands create a local ad-hoc bundle by default. A formal Apple release
+must supply `--identity 'Developer ID Application: ...'` and
+`--notary-profile PROFILE` together. That mode runs strict readiness preflight,
+signing, notarization, stapling, and Gatekeeper verification against a pending
+bundle; the published artifact is replaced only after every stage succeeds.
+Never pass an Apple password or API private key to this workflow. The notary
+profile is resolved from the current user's Keychain.
+
 Run the demo binary:
 
 ```bash

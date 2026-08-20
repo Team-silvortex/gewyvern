@@ -14,6 +14,7 @@ fn read(path: impl AsRef<Path>) -> String {
 #[test]
 fn macos_release_preflight_is_machine_readable_and_fail_closed() {
     let release = read("src/bin/gewyvern_leserpent_release.rs");
+    let developer_workflow = read("crates/gewyvern-dev/src/main.rs");
     let fixture = read("docs/fixtures/leserpent_macos_release_preflight.json");
     let report: Value = serde_json::from_str(&fixture).unwrap();
 
@@ -28,6 +29,15 @@ fn macos_release_preflight_is_machine_readable_and_fail_closed() {
     assert!(release.contains("for payload in nested_native_payloads(&options.app)?"));
     assert!(release.contains("native signing snapshot is missing the local orchestra daemon"));
     assert!(release.contains("nested signature Team ID does not match the app bundle"));
+    assert!(release.contains("--require-ready"));
+    assert!(release.contains("release preflight is blocked"));
+    assert!(
+        developer_workflow.contains("--identity and --notary-profile must be supplied together")
+    );
+    assert!(developer_workflow.contains("desktop-apple-release-preflight"));
+    assert!(developer_workflow.contains("desktop-developer-id-sign"));
+    assert!(developer_workflow.contains("desktop-apple-notarize"));
+    assert!(developer_workflow.contains("desktop-apple-release-verify"));
     assert_eq!(report["schema_version"], 2);
     assert_eq!(report["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(

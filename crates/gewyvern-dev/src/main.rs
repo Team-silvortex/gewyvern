@@ -11,8 +11,8 @@ const USAGE: &str = r#"Usage:
   cargo dev doctor
   cargo dev build [--scope core|control|desktop|all] [--release] [--restore] [--dry-run]
   cargo dev package linux [--format layout|deb|rpm|all] [--skip-build] [--out-dir PATH] [--dry-run]
-  cargo dev package desktop [--output APP] [--silvortex-issuer URL] [--dry-run]
-  cargo dev deploy desktop [--output APP] [--silvortex-issuer URL] [--launch] [--dry-run]
+  cargo dev package desktop [--output APP] [--silvortex-issuer URL] [--identity ID --notary-profile PROFILE] [--dry-run]
+  cargo dev deploy desktop [--output APP] [--silvortex-issuer URL] [--identity ID --notary-profile PROFILE] [--launch] [--dry-run]
 
 The native workflow keeps compiler caches intact, reports stage timings, and
 uses the checked package, bundle, and atomic installer boundaries."#;
@@ -117,9 +117,16 @@ struct LinuxPackageOptions {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+struct AppleReleaseOptions {
+    identity: String,
+    notary_profile: String,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 struct DesktopOptions {
     output: PathBuf,
     silvortex_issuer: Option<String>,
+    apple_release: Option<AppleReleaseOptions>,
     install: bool,
     launch: bool,
     dry_run: bool,
@@ -224,6 +231,8 @@ fn parse_desktop(
     let mut output = PathBuf::from("artifacts/leserpent-avalonia/Leserpent.app");
     let mut output_seen = false;
     let mut silvortex_issuer = None;
+    let mut identity = None;
+    let mut notary_profile = None;
     let mut launch = false;
     let mut dry_run = false;
     let mut arguments = arguments.peekable();
@@ -235,6 +244,12 @@ fn parse_desktop(
             }
             "--silvortex-issuer" if silvortex_issuer.is_none() => {
                 silvortex_issuer = Some(next_value(&mut arguments, "--silvortex-issuer")?);
+            }
+            "--identity" if identity.is_none() => {
+                identity = Some(next_value(&mut arguments, "--identity")?);
+            }
+            "--notary-profile" if notary_profile.is_none() => {
+                notary_profile = Some(next_value(&mut arguments, "--notary-profile")?);
             }
             "--launch" if install && !launch => launch = true,
             "--dry-run" if !dry_run => dry_run = true,
@@ -249,13 +264,47 @@ fn parse_desktop(
     {
         return Err("--silvortex-issuer must be a canonical HTTPS origin ending in /".to_string());
     }
+    let apple_release = match (identity, notary_profile) {
+        (None, None) => None,
+        (Some(identity), Some(notary_profile)) => {
+            validate_apple_release_value(&identity, "--identity")?;
+            validate_apple_release_value(&notary_profile, "--notary-profile")?;
+            if !identity.starts_with("Developer ID Application:") {
+                return Err(
+                    "--identity must name a Developer ID Application certificate".to_string(),
+                );
+            }
+            Some(AppleReleaseOptions {
+                identity,
+                notary_profile,
+            })
+        }
+        _ => {
+            return Err(
+                "--identity and --notary-profile must be supplied together for an Apple release"
+                    .to_string(),
+            );
+        }
+    };
     Ok(DesktopOptions {
         output,
         silvortex_issuer,
+        apple_release,
         install,
         launch,
         dry_run,
     })
+}
+
+fn validate_apple_release_value(value: &str, option: &str) -> Result<(), String> {
+    if value.is_empty()
+        || value.len() > 256
+        || value.starts_with('-')
+        || value.chars().any(char::is_control)
+    {
+        return Err(format!("{option} is invalid"));
+    }
+    Ok(())
 }
 
 fn next_value(
@@ -637,6 +686,7 @@ fn desktop_pipeline(root: &Path, options: &DesktopOptions) -> Result<PathBuf, St
     let release_dir = target_root.join("release");
     let bundler = release_dir.join("gewyvern_leserpent_bundle");
     let installer = release_dir.join("gewyvern_leserpent_install");
+    let release_tool = release_dir.join("gewyvern_leserpent_release");
     let daemon = release_dir.join("leserpentd");
     let _lock = if options.dry_run {
         None
@@ -661,28 +711,7 @@ fn desktop_pipeline(root: &Path, options: &DesktopOptions) -> Result<PathBuf, St
         ],
         root,
     );
-    let native_tools = ProcessSpec::new(
-        "desktop-native-tools",
-        "cargo",
-        [
-            "build",
-            "--locked",
-            "--release",
-            "-p",
-            "gewyvern",
-            "--bin",
-            "gewyvern_leserpent_bundle",
-            "--bin",
-            "gewyvern_leserpent_install",
-            "-p",
-            "leserpentd",
-            "--bin",
-            "leserpentd",
-            "--features",
-            "leserpentd/native-ssh",
-        ],
-        root,
-    );
+    let native_tools = desktop_native_tools_spec(root, options.apple_release.is_some());
     run_parallel(vec![restore, native_tools], options.dry_run)?;
 
     if !options.dry_run {
@@ -737,37 +766,9 @@ fn desktop_pipeline(root: &Path, options: &DesktopOptions) -> Result<PathBuf, St
         ),
         options.dry_run,
     )?;
-    run_one(
-        ProcessSpec::new(
-            "desktop-adhoc-sign",
-            "/usr/bin/codesign",
-            [
-                OsString::from("--force"),
-                OsString::from("--deep"),
-                OsString::from("--sign"),
-                OsString::from("-"),
-                OsString::from("--timestamp=none"),
-                pending.as_os_str().to_owned(),
-            ],
-            root,
-        ),
-        options.dry_run,
-    )?;
-    run_one(
-        ProcessSpec::new(
-            "desktop-signature-verify",
-            "/usr/bin/codesign",
-            [
-                OsString::from("--verify"),
-                OsString::from("--deep"),
-                OsString::from("--strict"),
-                OsString::from("--verbose=2"),
-                pending.as_os_str().to_owned(),
-            ],
-            root,
-        ),
-        options.dry_run,
-    )?;
+    for spec in desktop_signing_specs(root, options, &pending, &release_tool) {
+        run_one(spec, options.dry_run)?;
+    }
     if !options.dry_run {
         atomic_replace_directory(&pending, &output)?;
         pending_guard
@@ -806,6 +807,117 @@ fn desktop_pipeline(root: &Path, options: &DesktopOptions) -> Result<PathBuf, St
         }
     }
     Ok(output)
+}
+
+fn desktop_native_tools_spec(root: &Path, apple_release: bool) -> ProcessSpec {
+    let mut arguments = vec![
+        OsString::from("build"),
+        OsString::from("--locked"),
+        OsString::from("--release"),
+        OsString::from("-p"),
+        OsString::from("gewyvern"),
+        OsString::from("--bin"),
+        OsString::from("gewyvern_leserpent_bundle"),
+        OsString::from("--bin"),
+        OsString::from("gewyvern_leserpent_install"),
+    ];
+    if apple_release {
+        arguments.push(OsString::from("--bin"));
+        arguments.push(OsString::from("gewyvern_leserpent_release"));
+    }
+    arguments.extend([
+        OsString::from("-p"),
+        OsString::from("leserpentd"),
+        OsString::from("--bin"),
+        OsString::from("leserpentd"),
+        OsString::from("--features"),
+        OsString::from("leserpentd/native-ssh"),
+    ]);
+    ProcessSpec::new("desktop-native-tools", "cargo", arguments, root)
+}
+
+fn desktop_signing_specs(
+    root: &Path,
+    options: &DesktopOptions,
+    pending: &Path,
+    release_tool: &Path,
+) -> Vec<ProcessSpec> {
+    let Some(release) = options.apple_release.as_ref() else {
+        return vec![
+            ProcessSpec::new(
+                "desktop-adhoc-sign",
+                "/usr/bin/codesign",
+                [
+                    OsString::from("--force"),
+                    OsString::from("--deep"),
+                    OsString::from("--sign"),
+                    OsString::from("-"),
+                    OsString::from("--timestamp=none"),
+                    pending.as_os_str().to_owned(),
+                ],
+                root,
+            ),
+            ProcessSpec::new(
+                "desktop-signature-verify",
+                "/usr/bin/codesign",
+                [
+                    OsString::from("--verify"),
+                    OsString::from("--deep"),
+                    OsString::from("--strict"),
+                    OsString::from("--verbose=2"),
+                    pending.as_os_str().to_owned(),
+                ],
+                root,
+            ),
+        ];
+    };
+
+    let app = pending.as_os_str().to_owned();
+    vec![
+        ProcessSpec::new(
+            "desktop-apple-release-preflight",
+            release_tool.as_os_str(),
+            [
+                OsString::from("preflight"),
+                OsString::from("--app"),
+                app.clone(),
+                OsString::from("--keychain-profile"),
+                OsString::from(&release.notary_profile),
+                OsString::from("--require-ready"),
+            ],
+            root,
+        ),
+        ProcessSpec::new(
+            "desktop-developer-id-sign",
+            release_tool.as_os_str(),
+            [
+                OsString::from("sign"),
+                OsString::from("--app"),
+                app.clone(),
+                OsString::from("--identity"),
+                OsString::from(&release.identity),
+            ],
+            root,
+        ),
+        ProcessSpec::new(
+            "desktop-apple-notarize",
+            release_tool.as_os_str(),
+            [
+                OsString::from("notarize"),
+                OsString::from("--app"),
+                app.clone(),
+                OsString::from("--keychain-profile"),
+                OsString::from(&release.notary_profile),
+            ],
+            root,
+        ),
+        ProcessSpec::new(
+            "desktop-apple-release-verify",
+            release_tool.as_os_str(),
+            [OsString::from("verify"), OsString::from("--app"), app],
+            root,
+        ),
+    ]
 }
 
 fn doctor(root: &Path) -> Result<(), String> {
@@ -1152,6 +1264,7 @@ mod tests {
         };
         assert!(desktop.install);
         assert!(desktop.launch);
+        assert!(desktop.apple_release.is_none());
         assert_eq!(
             desktop.output,
             PathBuf::from("artifacts/leserpent-avalonia/Leserpent.app")
@@ -1202,6 +1315,116 @@ mod tests {
                 "http://example.test/".into(),
             ])
             .is_err()
+        );
+    }
+
+    #[test]
+    fn desktop_apple_release_options_are_explicit_and_atomic() {
+        let workflow = Workflow::parse(vec![
+            "package".into(),
+            "desktop".into(),
+            "--identity".into(),
+            "Developer ID Application: Team Silvortex (TEAM123)".into(),
+            "--notary-profile".into(),
+            "leserpent-notary".into(),
+        ])
+        .unwrap();
+        let Workflow::Desktop(options) = workflow else {
+            panic!("expected desktop workflow");
+        };
+        assert_eq!(
+            options.apple_release,
+            Some(AppleReleaseOptions {
+                identity: "Developer ID Application: Team Silvortex (TEAM123)".into(),
+                notary_profile: "leserpent-notary".into(),
+            })
+        );
+        assert!(
+            Workflow::parse(vec![
+                "package".into(),
+                "desktop".into(),
+                "--identity".into(),
+                "Developer ID Application: Team Silvortex (TEAM123)".into(),
+            ])
+            .unwrap_err()
+            .contains("must be supplied together")
+        );
+        assert!(
+            Workflow::parse(vec![
+                "package".into(),
+                "desktop".into(),
+                "--identity".into(),
+                "Apple Development: Team Silvortex (TEAM123)".into(),
+                "--notary-profile".into(),
+                "leserpent-notary".into(),
+            ])
+            .unwrap_err()
+            .contains("Developer ID Application")
+        );
+    }
+
+    #[test]
+    fn desktop_apple_release_pipeline_uses_the_strict_native_gate() {
+        let options = DesktopOptions {
+            output: PathBuf::from("Leserpent.app"),
+            silvortex_issuer: None,
+            apple_release: Some(AppleReleaseOptions {
+                identity: "Developer ID Application: Team Silvortex (TEAM123)".into(),
+                notary_profile: "leserpent-notary".into(),
+            }),
+            install: false,
+            launch: false,
+            dry_run: true,
+        };
+        let specs = desktop_signing_specs(
+            Path::new("/repo"),
+            &options,
+            Path::new("/repo/.Leserpent.pending.app"),
+            Path::new("/repo/target/release/gewyvern_leserpent_release"),
+        );
+        assert_eq!(
+            specs.iter().map(|spec| spec.label).collect::<Vec<_>>(),
+            [
+                "desktop-apple-release-preflight",
+                "desktop-developer-id-sign",
+                "desktop-apple-notarize",
+                "desktop-apple-release-verify",
+            ]
+        );
+        assert!(specs[0].rendered().contains("--require-ready"));
+        assert!(specs[1].rendered().contains("Developer ID Application"));
+        assert!(specs[2].rendered().contains("--keychain-profile"));
+        assert!(
+            !specs
+                .iter()
+                .any(|spec| spec.rendered().contains("--allow-adhoc"))
+        );
+
+        let release_build = desktop_native_tools_spec(Path::new("/repo"), true).rendered();
+        assert!(release_build.contains("--bin gewyvern_leserpent_release"));
+        let local_build = desktop_native_tools_spec(Path::new("/repo"), false).rendered();
+        assert!(!local_build.contains("gewyvern_leserpent_release"));
+
+        let local = DesktopOptions {
+            output: PathBuf::from("Leserpent.app"),
+            silvortex_issuer: None,
+            apple_release: None,
+            install: false,
+            launch: false,
+            dry_run: true,
+        };
+        let local_specs = desktop_signing_specs(
+            Path::new("/repo"),
+            &local,
+            Path::new("/repo/.Leserpent.pending.app"),
+            Path::new("/repo/target/release/gewyvern_leserpent_release"),
+        );
+        assert_eq!(
+            local_specs
+                .iter()
+                .map(|spec| spec.label)
+                .collect::<Vec<_>>(),
+            ["desktop-adhoc-sign", "desktop-signature-verify"]
         );
     }
 

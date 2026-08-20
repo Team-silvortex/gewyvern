@@ -41,6 +41,7 @@ struct Options {
     entitlements: PathBuf,
     custom_entitlements: bool,
     allow_adhoc: bool,
+    require_ready: bool,
 }
 
 impl Options {
@@ -60,6 +61,7 @@ impl Options {
         let mut entitlements = PathBuf::from(DEFAULT_ENTITLEMENTS);
         let mut custom_entitlements = false;
         let mut allow_adhoc = false;
+        let mut require_ready = false;
         while let Some(argument) = args.next() {
             let value = match argument.as_str() {
                 "--app" | "--identity" | "--keychain-profile" | "--entitlements" => args
@@ -67,6 +69,10 @@ impl Options {
                     .ok_or_else(|| format!("{argument} requires a value"))?,
                 "--allow-adhoc" => {
                     allow_adhoc = true;
+                    continue;
+                }
+                "--require-ready" => {
+                    require_ready = true;
                     continue;
                 }
                 _ => return Err(format!("unknown argument `{argument}`")),
@@ -90,6 +96,7 @@ impl Options {
             entitlements,
             custom_entitlements,
             allow_adhoc,
+            require_ready,
         };
         options.validate()?;
         Ok(options)
@@ -114,7 +121,7 @@ impl Options {
                     );
                 }
                 validate_opaque(identity, "identity")?;
-                if self.keychain_profile.is_some() || self.allow_adhoc {
+                if self.keychain_profile.is_some() || self.allow_adhoc || self.require_ready {
                     return Err("sign received an option for another action".to_string());
                 }
             }
@@ -124,7 +131,11 @@ impl Options {
                     .as_deref()
                     .ok_or_else(|| "notarize requires --keychain-profile".to_string())?;
                 validate_opaque(profile, "keychain profile")?;
-                if self.identity.is_some() || self.allow_adhoc || self.custom_entitlements {
+                if self.identity.is_some()
+                    || self.allow_adhoc
+                    || self.custom_entitlements
+                    || self.require_ready
+                {
                     return Err("notarize received an option for another action".to_string());
                 }
             }
@@ -132,6 +143,7 @@ impl Options {
                 if self.identity.is_some()
                     || self.keychain_profile.is_some()
                     || self.custom_entitlements
+                    || self.require_ready
                 {
                     return Err("verify received an option for another action".to_string());
                 }
@@ -191,6 +203,7 @@ fn preflight(options: &Options) -> Result<String, String> {
     let release_ready = blockers.is_empty();
     let executable = options.app.join("Contents/MacOS").join(EXECUTABLE);
     let daemon = options.app.join("Contents/MacOS").join(DAEMON_EXECUTABLE);
+    let blocker_summary = blockers.join(",");
     let report = json!({
         "schema_version": 2,
         "proof": "leserpent-macos-release-preflight",
@@ -209,7 +222,27 @@ fn preflight(options: &Options) -> Result<String, String> {
         "blockers": blockers,
         "result": if release_ready { "ready" } else { "blocked" },
     });
-    serde_json::to_string(&report).map_err(|error| error.to_string())
+    let report = serde_json::to_string(&report).map_err(|error| error.to_string())?;
+    enforce_preflight_readiness(
+        options.require_ready,
+        release_ready,
+        &blocker_summary,
+        report,
+    )
+}
+
+fn enforce_preflight_readiness(
+    require_ready: bool,
+    release_ready: bool,
+    blocker_summary: &str,
+    report: String,
+) -> Result<String, String> {
+    if require_ready && !release_ready {
+        return Err(format!(
+            "release preflight is blocked: {blocker_summary}; report={report}"
+        ));
+    }
+    Ok(report)
 }
 
 fn apple_release_tools() -> Vec<(&'static str, bool)> {
@@ -733,7 +766,7 @@ fn run_checked(command: &mut Command, context: &str) -> Result<Output, String> {
 }
 
 fn usage() -> &'static str {
-    "usage:\n  gewyvern_leserpent_release preflight --app Leserpent.app [--keychain-profile PROFILE] [--entitlements FILE]\n  gewyvern_leserpent_release sign --app Leserpent.app --identity 'Developer ID Application: ...' [--entitlements FILE]\n  gewyvern_leserpent_release notarize --app Leserpent.app --keychain-profile PROFILE\n  gewyvern_leserpent_release verify --app Leserpent.app [--allow-adhoc]"
+    "usage:\n  gewyvern_leserpent_release preflight --app Leserpent.app [--keychain-profile PROFILE] [--entitlements FILE] [--require-ready]\n  gewyvern_leserpent_release sign --app Leserpent.app --identity 'Developer ID Application: ...' [--entitlements FILE]\n  gewyvern_leserpent_release notarize --app Leserpent.app --keychain-profile PROFILE\n  gewyvern_leserpent_release verify --app Leserpent.app [--allow-adhoc]"
 }
 
 #[cfg(test)]
@@ -764,7 +797,8 @@ mod tests {
                 "--app",
                 "Leserpent.app",
                 "--keychain-profile",
-                "leserpent-notary"
+                "leserpent-notary",
+                "--require-ready"
             ])
             .is_ok()
         );
@@ -799,6 +833,7 @@ mod tests {
             ])
             .is_err()
         );
+        assert!(parse(&["verify", "--app", "Leserpent.app", "--require-ready"]).is_err());
         assert!(
             parse(&[
                 "sign",
@@ -877,6 +912,30 @@ mod tests {
             ["notary_keychain_profile_unavailable"]
         );
         assert!(preflight_blockers(true, 1, true, true).is_empty());
+        let blocked_report = r#"{"release_ready":false}"#.to_string();
+        assert_eq!(
+            enforce_preflight_readiness(
+                false,
+                false,
+                "developer_id_application_identity_missing",
+                blocked_report.clone(),
+            )
+            .unwrap(),
+            blocked_report
+        );
+        let error = enforce_preflight_readiness(
+            true,
+            false,
+            "developer_id_application_identity_missing",
+            r#"{"release_ready":false}"#.to_string(),
+        )
+        .unwrap_err();
+        assert!(error.contains("release preflight is blocked"));
+        assert!(error.contains("developer_id_application_identity_missing"));
+        assert!(
+            enforce_preflight_readiness(true, true, "", r#"{"release_ready":true}"#.to_string(),)
+                .is_ok()
+        );
     }
 
     #[test]
