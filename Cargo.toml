@@ -2,6 +2,7 @@
 members = [
     ".",
     "crates/gewyc",
+    "crates/gewyvern-dev",
     "crates/leselang-command",
     "crates/leselang-hir",
     "crates/leselang-observe",

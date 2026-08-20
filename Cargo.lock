@@ -829,6 +829,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "gewyvern-dev"
+version = "1.15.0"
+
+[[package]]
 name = "ghash"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

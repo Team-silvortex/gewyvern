@@ -1,0 +1,1286 @@
+use std::env;
+use std::ffi::OsString;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::sync::mpsc;
+use std::thread;
+use std::time::Instant;
+
+const USAGE: &str = r#"Usage:
+  cargo dev doctor
+  cargo dev build [--scope core|control|desktop|all] [--release] [--restore] [--dry-run]
+  cargo dev package linux [--format layout|deb|rpm|all] [--skip-build] [--out-dir PATH] [--dry-run]
+  cargo dev package desktop [--output APP] [--silvortex-issuer URL] [--dry-run]
+  cargo dev deploy desktop [--output APP] [--silvortex-issuer URL] [--launch] [--dry-run]
+
+The native workflow keeps compiler caches intact, reports stage timings, and
+uses the checked package, bundle, and atomic installer boundaries."#;
+
+fn main() {
+    let arguments = env::args().skip(1).collect::<Vec<_>>();
+    if arguments.is_empty()
+        || arguments
+            .iter()
+            .any(|argument| matches!(argument.as_str(), "-h" | "--help"))
+    {
+        println!("{USAGE}");
+        return;
+    }
+    let started = Instant::now();
+    let result = Workflow::parse(arguments).and_then(|workflow| execute(workflow, repo_root()));
+    match result {
+        Ok(outcome) => eprintln!(
+            "workflow complete: action={}, elapsed={:.3}s{}",
+            outcome.action,
+            started.elapsed().as_secs_f64(),
+            outcome
+                .artifact
+                .as_deref()
+                .map(|path| format!(", artifact={}", path.display()))
+                .unwrap_or_default()
+        ),
+        Err(error) => {
+            eprintln!("workflow failed: {error}");
+            std::process::exit(1);
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BuildScope {
+    Core,
+    Control,
+    Desktop,
+    All,
+}
+
+impl BuildScope {
+    fn parse(value: &str) -> Result<Self, String> {
+        match value {
+            "core" => Ok(Self::Core),
+            "control" => Ok(Self::Control),
+            "desktop" => Ok(Self::Desktop),
+            "all" => Ok(Self::All),
+            _ => Err(format!(
+                "--scope must be core, control, desktop, or all; got `{value}`"
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LinuxPackageFormat {
+    Layout,
+    Deb,
+    Rpm,
+    All,
+}
+
+impl LinuxPackageFormat {
+    fn parse(value: &str) -> Result<Self, String> {
+        match value {
+            "layout" => Ok(Self::Layout),
+            "deb" => Ok(Self::Deb),
+            "rpm" => Ok(Self::Rpm),
+            "all" => Ok(Self::All),
+            _ => Err(format!(
+                "--format must be layout, deb, rpm, or all; got `{value}`"
+            )),
+        }
+    }
+
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Layout => "layout",
+            Self::Deb => "deb",
+            Self::Rpm => "rpm",
+            Self::All => "all",
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct BuildOptions {
+    scope: BuildScope,
+    release: bool,
+    restore: bool,
+    dry_run: bool,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct LinuxPackageOptions {
+    format: LinuxPackageFormat,
+    skip_build: bool,
+    out_dir: Option<PathBuf>,
+    dry_run: bool,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct DesktopOptions {
+    output: PathBuf,
+    silvortex_issuer: Option<String>,
+    install: bool,
+    launch: bool,
+    dry_run: bool,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum Workflow {
+    Doctor,
+    Build(BuildOptions),
+    PackageLinux(LinuxPackageOptions),
+    Desktop(DesktopOptions),
+}
+
+impl Workflow {
+    fn parse(arguments: Vec<String>) -> Result<Self, String> {
+        let mut arguments = arguments.into_iter();
+        match arguments.next().as_deref() {
+            Some("doctor") => {
+                reject_trailing(arguments)?;
+                Ok(Self::Doctor)
+            }
+            Some("build") => parse_build(arguments).map(Self::Build),
+            Some("package") => match arguments.next().as_deref() {
+                Some("linux") => parse_linux_package(arguments).map(Self::PackageLinux),
+                Some("desktop") => parse_desktop(arguments, false).map(Self::Desktop),
+                Some(value) => Err(format!("unknown package target `{value}`\n{USAGE}")),
+                None => Err(format!("package requires linux or desktop\n{USAGE}")),
+            },
+            Some("deploy") => match arguments.next().as_deref() {
+                Some("desktop") => parse_desktop(arguments, true).map(Self::Desktop),
+                Some(value) => Err(format!("unknown deploy target `{value}`\n{USAGE}")),
+                None => Err(format!("deploy requires desktop\n{USAGE}")),
+            },
+            Some(value) => Err(format!("unknown workflow `{value}`\n{USAGE}")),
+            None => Err(USAGE.to_string()),
+        }
+    }
+}
+
+fn parse_build(arguments: impl Iterator<Item = String>) -> Result<BuildOptions, String> {
+    let mut scope = BuildScope::All;
+    let mut scope_seen = false;
+    let mut release = false;
+    let mut restore = false;
+    let mut dry_run = false;
+    let mut arguments = arguments.peekable();
+    while let Some(argument) = arguments.next() {
+        match argument.as_str() {
+            "--scope" if !scope_seen => {
+                scope = BuildScope::parse(&next_value(&mut arguments, "--scope")?)?;
+                scope_seen = true;
+            }
+            "--release" if !release => release = true,
+            "--restore" if !restore => restore = true,
+            "--dry-run" if !dry_run => dry_run = true,
+            _ => return Err(format!("unknown or repeated build option `{argument}`")),
+        }
+    }
+    Ok(BuildOptions {
+        scope,
+        release,
+        restore,
+        dry_run,
+    })
+}
+
+fn parse_linux_package(
+    arguments: impl Iterator<Item = String>,
+) -> Result<LinuxPackageOptions, String> {
+    let mut format = LinuxPackageFormat::All;
+    let mut format_seen = false;
+    let mut skip_build = false;
+    let mut out_dir = None;
+    let mut dry_run = false;
+    let mut arguments = arguments.peekable();
+    while let Some(argument) = arguments.next() {
+        match argument.as_str() {
+            "--format" if !format_seen => {
+                format = LinuxPackageFormat::parse(&next_value(&mut arguments, "--format")?)?;
+                format_seen = true;
+            }
+            "--skip-build" if !skip_build => skip_build = true,
+            "--out-dir" if out_dir.is_none() => {
+                out_dir = Some(PathBuf::from(next_value(&mut arguments, "--out-dir")?));
+            }
+            "--dry-run" if !dry_run => dry_run = true,
+            _ => return Err(format!("unknown or repeated package option `{argument}`")),
+        }
+    }
+    Ok(LinuxPackageOptions {
+        format,
+        skip_build,
+        out_dir,
+        dry_run,
+    })
+}
+
+fn parse_desktop(
+    arguments: impl Iterator<Item = String>,
+    install: bool,
+) -> Result<DesktopOptions, String> {
+    let mut output = PathBuf::from("artifacts/leserpent-avalonia/Leserpent.app");
+    let mut output_seen = false;
+    let mut silvortex_issuer = None;
+    let mut launch = false;
+    let mut dry_run = false;
+    let mut arguments = arguments.peekable();
+    while let Some(argument) = arguments.next() {
+        match argument.as_str() {
+            "--output" if !output_seen => {
+                output = PathBuf::from(next_value(&mut arguments, "--output")?);
+                output_seen = true;
+            }
+            "--silvortex-issuer" if silvortex_issuer.is_none() => {
+                silvortex_issuer = Some(next_value(&mut arguments, "--silvortex-issuer")?);
+            }
+            "--launch" if install && !launch => launch = true,
+            "--dry-run" if !dry_run => dry_run = true,
+            _ => return Err(format!("unknown or repeated desktop option `{argument}`")),
+        }
+    }
+    if output.extension().and_then(|value| value.to_str()) != Some("app") {
+        return Err("--output must end in .app".to_string());
+    }
+    if let Some(issuer) = silvortex_issuer.as_deref()
+        && (!issuer.starts_with("https://") || !issuer.ends_with('/'))
+    {
+        return Err("--silvortex-issuer must be a canonical HTTPS origin ending in /".to_string());
+    }
+    Ok(DesktopOptions {
+        output,
+        silvortex_issuer,
+        install,
+        launch,
+        dry_run,
+    })
+}
+
+fn next_value(
+    arguments: &mut std::iter::Peekable<impl Iterator<Item = String>>,
+    option: &str,
+) -> Result<String, String> {
+    arguments
+        .next()
+        .filter(|value| !value.is_empty() && !value.starts_with('-'))
+        .ok_or_else(|| format!("{option} requires a value"))
+}
+
+fn reject_trailing(mut arguments: impl Iterator<Item = String>) -> Result<(), String> {
+    match arguments.next() {
+        Some(argument) => Err(format!("unexpected argument `{argument}`")),
+        None => Ok(()),
+    }
+}
+
+struct WorkflowOutcome {
+    action: &'static str,
+    artifact: Option<PathBuf>,
+}
+
+fn execute(workflow: Workflow, root: PathBuf) -> Result<WorkflowOutcome, String> {
+    match workflow {
+        Workflow::Doctor => {
+            doctor(&root)?;
+            Ok(WorkflowOutcome {
+                action: "doctor",
+                artifact: None,
+            })
+        }
+        Workflow::Build(options) => {
+            run_parallel(build_specs(&root, &options), options.dry_run)?;
+            Ok(WorkflowOutcome {
+                action: "build",
+                artifact: None,
+            })
+        }
+        Workflow::PackageLinux(options) => {
+            let artifact = package_linux(&root, &options)?;
+            Ok(WorkflowOutcome {
+                action: "package-linux",
+                artifact: Some(artifact),
+            })
+        }
+        Workflow::Desktop(options) => {
+            let action = if options.install {
+                "deploy-desktop"
+            } else {
+                "package-desktop"
+            };
+            let artifact = desktop_pipeline(&root, &options)?;
+            Ok(WorkflowOutcome {
+                action,
+                artifact: Some(artifact),
+            })
+        }
+    }
+}
+
+fn repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("developer workflow crate must live under crates/")
+        .to_path_buf()
+}
+
+#[derive(Clone, Debug)]
+struct ProcessSpec {
+    label: &'static str,
+    program: OsString,
+    arguments: Vec<OsString>,
+    current_dir: PathBuf,
+}
+
+impl ProcessSpec {
+    fn new(
+        label: &'static str,
+        program: impl Into<OsString>,
+        arguments: impl IntoIterator<Item = impl Into<OsString>>,
+        current_dir: &Path,
+    ) -> Self {
+        Self {
+            label,
+            program: program.into(),
+            arguments: arguments.into_iter().map(Into::into).collect(),
+            current_dir: current_dir.to_path_buf(),
+        }
+    }
+
+    fn command(&self) -> Command {
+        let mut command = Command::new(&self.program);
+        command
+            .args(&self.arguments)
+            .current_dir(&self.current_dir)
+            .stdin(Stdio::null())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit());
+        command
+    }
+
+    fn rendered(&self) -> String {
+        std::iter::once(&self.program)
+            .chain(self.arguments.iter())
+            .map(|value| quote_argument(&value.to_string_lossy()))
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+}
+
+fn build_specs(root: &Path, options: &BuildOptions) -> Vec<ProcessSpec> {
+    let mut specs = Vec::new();
+    if matches!(options.scope, BuildScope::Core | BuildScope::All) {
+        let mut arguments = vec!["build", "--locked", "--workspace"];
+        if options.release {
+            arguments.push("--release");
+        }
+        specs.push(ProcessSpec::new("rust-workspace", "cargo", arguments, root));
+    }
+    if matches!(options.scope, BuildScope::Control | BuildScope::All) {
+        let mut arguments = vec![
+            "build",
+            "apps/leserpent/leserpent.slnx",
+            "--nologo",
+            "--verbosity",
+            "minimal",
+        ];
+        add_dotnet_restore_mode(
+            &mut arguments,
+            root,
+            &[
+                "apps/leserpent/src/Leserpent/Leserpent.csproj",
+                "apps/leserpent/tests/Leserpent.RuntimeDeletionCrashHarness/Leserpent.RuntimeDeletionCrashHarness.csproj",
+                "apps/leserpent/tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj",
+            ],
+            options.restore,
+        );
+        if options.release {
+            arguments.extend(["-c", "Release"]);
+        }
+        specs.push(ProcessSpec::new(
+            "leserpent-control",
+            "dotnet",
+            arguments,
+            root,
+        ));
+    }
+    if matches!(options.scope, BuildScope::Desktop | BuildScope::All) {
+        let mut arguments = vec![
+            "build",
+            "apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj",
+            "--nologo",
+            "--verbosity",
+            "minimal",
+        ];
+        add_dotnet_restore_mode(
+            &mut arguments,
+            root,
+            &[
+                "apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj",
+                "apps/leserpent-avalonia/src/Leserpent.RemoteClient/Leserpent.RemoteClient.csproj",
+                "apps/leserpent-avalonia/src/Leserpent.RendererCore/Leserpent.RendererCore.csproj",
+            ],
+            options.restore,
+        );
+        if options.release {
+            arguments.extend(["-c", "Release"]);
+        }
+        specs.push(ProcessSpec::new(
+            "leserpent-desktop",
+            "dotnet",
+            arguments,
+            root,
+        ));
+    }
+    specs
+}
+
+fn add_dotnet_restore_mode(
+    arguments: &mut Vec<&str>,
+    root: &Path,
+    projects: &[&str],
+    force_restore: bool,
+) {
+    if !force_restore && dotnet_restore_is_fresh(root, projects) {
+        arguments.push("--no-restore");
+    } else {
+        arguments.push("-p:RestoreLockedMode=true");
+    }
+}
+
+fn dotnet_restore_is_fresh(root: &Path, projects: &[&str]) -> bool {
+    let shared_inputs = [
+        root.join("Directory.Build.props"),
+        root.join("Directory.Build.targets"),
+        root.join("global.json"),
+        root.join("NuGet.Config"),
+    ];
+    projects.iter().all(|project| {
+        let project = root.join(project);
+        let Some(project_dir) = project.parent().map(Path::to_path_buf) else {
+            return false;
+        };
+        let assets = project_dir.join("obj/project.assets.json");
+        let Ok(assets_modified) = fs::metadata(&assets).and_then(|value| value.modified()) else {
+            return false;
+        };
+        let local_inputs = [
+            project,
+            project_dir.join("packages.lock.json"),
+            project_dir.join("packages.development.lock.json"),
+        ];
+        shared_inputs
+            .iter()
+            .chain(local_inputs.iter())
+            .filter(|path| path.is_file())
+            .all(|path| {
+                fs::metadata(path)
+                    .and_then(|value| value.modified())
+                    .is_ok_and(|modified| modified <= assets_modified)
+            })
+    })
+}
+
+fn run_parallel(specs: Vec<ProcessSpec>, dry_run: bool) -> Result<(), String> {
+    if specs.is_empty() {
+        return Err("workflow contains no build stages".to_string());
+    }
+    if dry_run {
+        for spec in specs {
+            eprintln!("[dry-run:{}] {}", spec.label, spec.rendered());
+        }
+        return Ok(());
+    }
+
+    let started = Instant::now();
+    let mut children: Vec<(ProcessSpec, Child, Instant)> = Vec::new();
+    for spec in specs {
+        eprintln!("[start:{}] {}", spec.label, spec.rendered());
+        match spec.command().spawn() {
+            Ok(child) => children.push((spec, child, Instant::now())),
+            Err(error) => {
+                for (_, child, _) in &mut children {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+                return Err(format!("failed to start {}: {error}", spec.label));
+            }
+        }
+    }
+
+    let stage_count = children.len();
+    let (sender, receiver) = mpsc::channel();
+    for (spec, mut child, stage_started) in children {
+        let sender = sender.clone();
+        let label = spec.label;
+        thread::spawn(move || {
+            let result = child
+                .wait()
+                .map(|status| (spec, status, stage_started.elapsed()))
+                .map_err(|error| format!("failed to wait for {label}: {error}"));
+            let _ = sender.send(result);
+        });
+    }
+    drop(sender);
+    let mut failures = Vec::new();
+    for _ in 0..stage_count {
+        let (spec, status, elapsed) = receiver
+            .recv()
+            .map_err(|error| format!("workflow stage monitor failed: {error}"))??;
+        eprintln!(
+            "[finish:{}] status={}, elapsed={:.3}s",
+            spec.label,
+            status,
+            elapsed.as_secs_f64()
+        );
+        if !status.success() {
+            failures.push(format!("{} ({status})", spec.label));
+        }
+    }
+    eprintln!(
+        "[finish:parallel] stages={}, elapsed={:.3}s",
+        stage_count,
+        started.elapsed().as_secs_f64()
+    );
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(format!("workflow stages failed: {}", failures.join(", ")))
+    }
+}
+
+fn run_one(spec: ProcessSpec, dry_run: bool) -> Result<(), String> {
+    if dry_run {
+        eprintln!("[dry-run:{}] {}", spec.label, spec.rendered());
+        return Ok(());
+    }
+    eprintln!("[start:{}] {}", spec.label, spec.rendered());
+    let started = Instant::now();
+    let status = spec
+        .command()
+        .status()
+        .map_err(|error| format!("failed to start {}: {error}", spec.label))?;
+    eprintln!(
+        "[finish:{}] status={}, elapsed={:.3}s",
+        spec.label,
+        status,
+        started.elapsed().as_secs_f64()
+    );
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("{} failed with {status}", spec.label))
+    }
+}
+
+fn package_linux(root: &Path, options: &LinuxPackageOptions) -> Result<PathBuf, String> {
+    let mut arguments = vec![OsString::from("scripts/packaging/build_packages.sh")];
+    match options.format {
+        LinuxPackageFormat::Layout => arguments.push(OsString::from("--layout-only")),
+        format => {
+            arguments.push(OsString::from("--format"));
+            arguments.push(OsString::from(format.as_str()));
+        }
+    }
+    if options.skip_build {
+        arguments.push(OsString::from("--skip-build"));
+    }
+    if let Some(out_dir) = options.out_dir.as_deref() {
+        arguments.push(OsString::from("--out-dir"));
+        arguments.push(out_dir.as_os_str().to_owned());
+    }
+    run_one(
+        ProcessSpec::new("linux-package", "bash", arguments, root),
+        options.dry_run,
+    )?;
+    Ok(resolve_from_root(
+        root,
+        options
+            .out_dir
+            .as_deref()
+            .unwrap_or_else(|| Path::new("target/packages")),
+    ))
+}
+
+fn desktop_pipeline(root: &Path, options: &DesktopOptions) -> Result<PathBuf, String> {
+    let supported_host = env::consts::OS == "macos" && env::consts::ARCH == "aarch64";
+    if !options.dry_run && !supported_host {
+        return Err("desktop package/deploy currently requires a macOS arm64 host".to_string());
+    }
+    require_file(
+        &root.join("apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj"),
+        "Avalonia project",
+        options.dry_run,
+    )?;
+    require_file(
+        &root.join("assets/branding/leserpent-icon.icns"),
+        "Leserpent icon",
+        options.dry_run,
+    )?;
+    require_file(
+        Path::new("/usr/bin/codesign"),
+        "macOS code-signing tool",
+        options.dry_run,
+    )?;
+
+    let managed_root = root.join("target/dev-workflow/desktop");
+    let dotnet_artifacts = managed_root.join("dotnet-artifacts");
+    let publish_dir = managed_root.join("publish/osx-arm64");
+    let output = resolve_from_root(root, &options.output);
+    let pending = adjacent_temporary_path(&output, "pending")?;
+    if !options.dry_run {
+        preflight_desktop_output(root, &output, &pending)?;
+    }
+    let target_root = cargo_target_root(root);
+    let release_dir = target_root.join("release");
+    let bundler = release_dir.join("gewyvern_leserpent_bundle");
+    let installer = release_dir.join("gewyvern_leserpent_install");
+    let daemon = release_dir.join("leserpentd");
+    let _lock = if options.dry_run {
+        None
+    } else {
+        fs::create_dir_all(&managed_root).map_err(|error| error.to_string())?;
+        Some(DirectoryLock::acquire(&managed_root.join("pipeline.lock"))?)
+    };
+
+    let project = "apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj";
+    let restore = ProcessSpec::new(
+        "desktop-aot-restore",
+        "dotnet",
+        [
+            OsString::from("restore"),
+            OsString::from(project),
+            OsString::from("-p:PublishProfile=NativeAot"),
+            OsString::from("-p:PublishAot=true"),
+            OsString::from("-p:RuntimeIdentifier=osx-arm64"),
+            OsString::from("--locked-mode"),
+            OsString::from("--artifacts-path"),
+            dotnet_artifacts.as_os_str().to_owned(),
+        ],
+        root,
+    );
+    let native_tools = ProcessSpec::new(
+        "desktop-native-tools",
+        "cargo",
+        [
+            "build",
+            "--locked",
+            "--release",
+            "-p",
+            "gewyvern",
+            "--bin",
+            "gewyvern_leserpent_bundle",
+            "--bin",
+            "gewyvern_leserpent_install",
+            "-p",
+            "leserpentd",
+            "--bin",
+            "leserpentd",
+            "--features",
+            "leserpentd/native-ssh",
+        ],
+        root,
+    );
+    run_parallel(vec![restore, native_tools], options.dry_run)?;
+
+    if !options.dry_run {
+        reset_managed_directory(&publish_dir, &managed_root)?;
+    }
+    run_one(
+        ProcessSpec::new(
+            "desktop-aot-publish",
+            "dotnet",
+            [
+                OsString::from("publish"),
+                OsString::from(project),
+                OsString::from("-p:PublishProfile=NativeAot"),
+                OsString::from("-p:PublishAot=true"),
+                OsString::from("-p:RuntimeIdentifier=osx-arm64"),
+                OsString::from("--no-restore"),
+                OsString::from("--artifacts-path"),
+                dotnet_artifacts.as_os_str().to_owned(),
+                OsString::from("-o"),
+                publish_dir.as_os_str().to_owned(),
+            ],
+            root,
+        ),
+        options.dry_run,
+    )?;
+
+    let mut pending_guard = None;
+    if !options.dry_run {
+        if let Some(parent) = output.parent() {
+            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+        pending_guard = Some(PendingDirectory::new(&pending));
+    }
+    let mut bundle_arguments = vec![
+        OsString::from("--publish-dir"),
+        publish_dir.as_os_str().to_owned(),
+        OsString::from("--daemon"),
+        daemon.as_os_str().to_owned(),
+        OsString::from("--output"),
+        pending.as_os_str().to_owned(),
+    ];
+    if let Some(issuer) = options.silvortex_issuer.as_deref() {
+        bundle_arguments.push(OsString::from("--silvortex-issuer"));
+        bundle_arguments.push(OsString::from(issuer));
+    }
+    run_one(
+        ProcessSpec::new(
+            "desktop-bundle",
+            bundler.as_os_str(),
+            bundle_arguments,
+            root,
+        ),
+        options.dry_run,
+    )?;
+    run_one(
+        ProcessSpec::new(
+            "desktop-adhoc-sign",
+            "/usr/bin/codesign",
+            [
+                OsString::from("--force"),
+                OsString::from("--deep"),
+                OsString::from("--sign"),
+                OsString::from("-"),
+                OsString::from("--timestamp=none"),
+                pending.as_os_str().to_owned(),
+            ],
+            root,
+        ),
+        options.dry_run,
+    )?;
+    run_one(
+        ProcessSpec::new(
+            "desktop-signature-verify",
+            "/usr/bin/codesign",
+            [
+                OsString::from("--verify"),
+                OsString::from("--deep"),
+                OsString::from("--strict"),
+                OsString::from("--verbose=2"),
+                pending.as_os_str().to_owned(),
+            ],
+            root,
+        ),
+        options.dry_run,
+    )?;
+    if !options.dry_run {
+        atomic_replace_directory(&pending, &output)?;
+        pending_guard
+            .as_mut()
+            .expect("real desktop workflow owns a pending guard")
+            .disarm();
+    }
+
+    if options.install {
+        run_one(
+            ProcessSpec::new(
+                "desktop-install",
+                installer.as_os_str(),
+                [
+                    OsString::from("install"),
+                    OsString::from("--app"),
+                    output.as_os_str().to_owned(),
+                ],
+                root,
+            ),
+            options.dry_run,
+        )?;
+        if options.launch {
+            let home = env::var_os("HOME")
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| "HOME is required for --launch".to_string())?;
+            run_one(
+                ProcessSpec::new(
+                    "desktop-launch",
+                    "open",
+                    [PathBuf::from(home).join("Applications/Leserpent.app")],
+                    root,
+                ),
+                options.dry_run,
+            )?;
+        }
+    }
+    Ok(output)
+}
+
+fn doctor(root: &Path) -> Result<(), String> {
+    let probes = [
+        ("cargo", true, command_works("cargo", "--version")),
+        ("rustc", true, command_works("rustc", "--version")),
+        ("dotnet", true, command_works("dotnet", "--version")),
+        ("bash", false, command_works("bash", "--version")),
+        ("python3", false, command_works("python3", "--version")),
+        ("flock", false, command_works("flock", "--version")),
+        ("codesign", false, Path::new("/usr/bin/codesign").is_file()),
+        ("dpkg-deb", false, command_works("dpkg-deb", "--version")),
+        ("rpmbuild", false, command_works("rpmbuild", "--version")),
+    ];
+    let mut missing = Vec::new();
+    for (name, required, available) in probes {
+        eprintln!(
+            "tool={name} status={} requirement={}",
+            if available { "ready" } else { "missing" },
+            if required {
+                "required"
+            } else {
+                "workflow-specific"
+            }
+        );
+        if required && !available {
+            missing.push(name);
+        }
+    }
+    for (label, path) in [
+        (
+            "avalonia-project",
+            root.join("apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj"),
+        ),
+        (
+            "leserpent-icon",
+            root.join("assets/branding/leserpent-icon.icns"),
+        ),
+        (
+            "linux-packager",
+            root.join("scripts/packaging/build_packages.sh"),
+        ),
+    ] {
+        let available = path.is_file();
+        eprintln!(
+            "input={label} status={} path={}",
+            if available { "ready" } else { "missing" },
+            path.display()
+        );
+        if !available {
+            missing.push(label);
+        }
+    }
+    if command_works("flock", "--version") {
+        eprintln!("package_lock=flock");
+    } else {
+        eprintln!("package_lock=portable-directory-fallback");
+    }
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "required workflow inputs are missing: {}",
+            missing.join(", ")
+        ))
+    }
+}
+
+fn command_works(program: &str, version_argument: &str) -> bool {
+    Command::new(program)
+        .arg(version_argument)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
+fn require_file(path: &Path, label: &str, dry_run: bool) -> Result<(), String> {
+    if dry_run || path.is_file() {
+        Ok(())
+    } else {
+        Err(format!("{label} is missing: {}", path.display()))
+    }
+}
+
+fn resolve_from_root(root: &Path, path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        root.join(path)
+    }
+}
+
+fn cargo_target_root(root: &Path) -> PathBuf {
+    env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .map(|path| resolve_from_root(root, &path))
+        .unwrap_or_else(|| root.join("target"))
+}
+
+fn reset_managed_directory(path: &Path, managed_root: &Path) -> Result<(), String> {
+    if !path.starts_with(managed_root) || path == managed_root {
+        return Err(format!(
+            "refusing to reset unmanaged directory: {}",
+            path.display()
+        ));
+    }
+    if let Ok(metadata) = fs::symlink_metadata(path) {
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(format!(
+                "managed output must be a non-symlink directory: {}",
+                path.display()
+            ));
+        }
+        fs::remove_dir_all(path).map_err(|error| error.to_string())?;
+    }
+    fs::create_dir_all(path).map_err(|error| error.to_string())
+}
+
+fn adjacent_temporary_path(output: &Path, role: &str) -> Result<PathBuf, String> {
+    let parent = output
+        .parent()
+        .ok_or_else(|| "bundle output must have a parent directory".to_string())?;
+    let stem = output
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "bundle output must have a UTF-8 filename".to_string())?;
+    let extension = output
+        .extension()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "bundle output must have a filename extension".to_string())?;
+    Ok(parent.join(format!(".{stem}.{role}-{}.{extension}", std::process::id())))
+}
+
+fn preflight_desktop_output(root: &Path, output: &Path, pending: &Path) -> Result<(), String> {
+    match fs::symlink_metadata(pending) {
+        Ok(_) => {
+            return Err(format!(
+                "temporary bundle path already exists: {}",
+                pending.display()
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(format!("failed to inspect temporary bundle path: {error}")),
+    }
+    let existing = match fs::symlink_metadata(output) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(format!("failed to inspect bundle output: {error}")),
+    };
+    if existing.file_type().is_symlink() || !existing.is_dir() {
+        return Err(format!(
+            "existing bundle output must be a non-symlink directory: {}",
+            output.display()
+        ));
+    }
+
+    let managed_output = root.join("artifacts/leserpent-avalonia/Leserpent.app");
+    let output_identity = fs::canonicalize(output)
+        .map_err(|error| format!("failed to resolve existing bundle output: {error}"))?;
+    let managed_identity = match fs::canonicalize(&managed_output) {
+        Ok(path) => path,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(format!(
+                "refusing to replace existing custom bundle output: {}; move it first or use the default managed output",
+                output.display()
+            ));
+        }
+        Err(error) => return Err(format!("failed to resolve managed bundle output: {error}")),
+    };
+    if output_identity != managed_identity {
+        return Err(format!(
+            "refusing to replace existing custom bundle output: {}; move it first or use the default managed output",
+            output.display()
+        ));
+    }
+    Ok(())
+}
+
+fn atomic_replace_directory(pending: &Path, output: &Path) -> Result<(), String> {
+    let pending_metadata = fs::symlink_metadata(pending)
+        .map_err(|error| format!("failed to inspect pending bundle: {error}"))?;
+    if pending_metadata.file_type().is_symlink() || !pending_metadata.is_dir() {
+        return Err("pending bundle must be a non-symlink directory".to_string());
+    }
+    let existing = match fs::symlink_metadata(output) {
+        Ok(metadata) => Some(metadata),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error.to_string()),
+    };
+    let Some(existing) = existing else {
+        return fs::rename(pending, output).map_err(|error| error.to_string());
+    };
+    if existing.file_type().is_symlink() || !existing.is_dir() {
+        return Err(format!(
+            "existing bundle output must be a non-symlink directory: {}",
+            output.display()
+        ));
+    }
+    let backup = adjacent_temporary_path(output, "previous")?;
+    if fs::symlink_metadata(&backup).is_ok() {
+        return Err(format!(
+            "temporary bundle backup already exists: {}",
+            backup.display()
+        ));
+    }
+    fs::rename(output, &backup).map_err(|error| error.to_string())?;
+    if let Err(error) = fs::rename(pending, output) {
+        let _ = fs::rename(&backup, output);
+        return Err(format!("failed to publish new bundle: {error}"));
+    }
+    fs::remove_dir_all(&backup)
+        .map_err(|error| format!("new bundle published but old artifact cleanup failed: {error}"))
+}
+
+struct DirectoryLock {
+    path: PathBuf,
+}
+
+struct PendingDirectory {
+    path: PathBuf,
+    armed: bool,
+}
+
+impl PendingDirectory {
+    fn new(path: &Path) -> Self {
+        Self {
+            path: path.to_path_buf(),
+            armed: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for PendingDirectory {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        match fs::symlink_metadata(&self.path) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+                let _ = fs::remove_file(&self.path);
+            }
+            Ok(_) => {
+                let _ = fs::remove_dir_all(&self.path);
+            }
+            Err(_) => {}
+        }
+    }
+}
+
+impl DirectoryLock {
+    fn acquire(path: &Path) -> Result<Self, String> {
+        fs::create_dir(path).map_err(|error| {
+            format!(
+                "desktop workflow lock is unavailable at {}: {error}; remove it only after confirming no workflow is active",
+                path.display()
+            )
+        })?;
+        if let Err(error) = fs::write(path.join("owner.txt"), std::process::id().to_string()) {
+            let _ = fs::remove_dir(path);
+            return Err(format!(
+                "failed to record desktop workflow lock owner: {error}"
+            ));
+        }
+        Ok(Self {
+            path: path.to_path_buf(),
+        })
+    }
+}
+
+impl Drop for DirectoryLock {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(self.path.join("owner.txt"));
+        let _ = fs::remove_dir(&self.path);
+    }
+}
+
+fn quote_argument(value: &str) -> String {
+    if !value.is_empty()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"-_./:=+".contains(&byte))
+    {
+        value.to_string()
+    } else {
+        format!("'{}'", value.replace('\'', "'\\''"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::{File, FileTimes};
+    use std::time::{Duration, UNIX_EPOCH};
+
+    #[test]
+    fn build_defaults_to_parallel_all_debug_workflow() {
+        let Workflow::Build(options) = Workflow::parse(vec!["build".into()]).unwrap() else {
+            panic!("expected build workflow");
+        };
+        assert_eq!(options.scope, BuildScope::All);
+        assert!(!options.release);
+        assert!(!options.restore);
+        let specs = build_specs(Path::new("/repo"), &options);
+        assert_eq!(specs.len(), 3);
+        assert!(
+            specs[0]
+                .rendered()
+                .contains("cargo build --locked --workspace")
+        );
+        assert!(specs[1].rendered().contains("RestoreLockedMode=true"));
+        assert!(specs[2].rendered().contains("Leserpent.Avalonia.csproj"));
+    }
+
+    #[test]
+    fn parser_keeps_linux_reuse_and_desktop_deploy_explicit() {
+        let linux = Workflow::parse(vec![
+            "package".into(),
+            "linux".into(),
+            "--format".into(),
+            "layout".into(),
+            "--skip-build".into(),
+        ])
+        .unwrap();
+        assert_eq!(
+            linux,
+            Workflow::PackageLinux(LinuxPackageOptions {
+                format: LinuxPackageFormat::Layout,
+                skip_build: true,
+                out_dir: None,
+                dry_run: false,
+            })
+        );
+
+        let desktop =
+            Workflow::parse(vec!["deploy".into(), "desktop".into(), "--launch".into()]).unwrap();
+        let Workflow::Desktop(desktop) = desktop else {
+            panic!("expected desktop workflow");
+        };
+        assert!(desktop.install);
+        assert!(desktop.launch);
+        assert_eq!(
+            desktop.output,
+            PathBuf::from("artifacts/leserpent-avalonia/Leserpent.app")
+        );
+        assert!(
+            Workflow::parse(vec!["package".into(), "desktop".into(), "--launch".into()]).is_err()
+        );
+    }
+
+    #[test]
+    fn atomic_bundle_replacement_publishes_complete_new_output() {
+        let root = env::temp_dir().join(format!("gewyvern-dev-bundle-test-{}", std::process::id()));
+        let output = root.join("Leserpent.app");
+        let pending = adjacent_temporary_path(&output, "pending").unwrap();
+        assert_eq!(
+            pending.extension().and_then(|value| value.to_str()),
+            Some("app")
+        );
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&output).unwrap();
+        fs::write(output.join("old"), b"old").unwrap();
+        fs::create_dir_all(&pending).unwrap();
+        fs::write(pending.join("new"), b"new").unwrap();
+
+        atomic_replace_directory(&pending, &output).unwrap();
+        assert!(output.join("new").is_file());
+        assert!(!output.join("old").exists());
+        assert!(!pending.exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn desktop_options_reject_non_app_outputs_and_non_https_issuers() {
+        assert!(
+            Workflow::parse(vec![
+                "package".into(),
+                "desktop".into(),
+                "--output".into(),
+                "artifact".into(),
+            ])
+            .is_err()
+        );
+        assert!(
+            Workflow::parse(vec![
+                "package".into(),
+                "desktop".into(),
+                "--silvortex-issuer".into(),
+                "http://example.test/".into(),
+            ])
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn dotnet_restore_freshness_tracks_project_inputs() {
+        let root =
+            env::temp_dir().join(format!("gewyvern-dev-restore-test-{}", std::process::id()));
+        let project_dir = root.join("src/App");
+        let project = project_dir.join("App.csproj");
+        let lock = project_dir.join("packages.lock.json");
+        let assets = project_dir.join("obj/project.assets.json");
+        let nuget_config = root.join("NuGet.Config");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(assets.parent().unwrap()).unwrap();
+        fs::write(&project, b"<Project />").unwrap();
+        fs::write(&lock, b"{}").unwrap();
+        fs::write(&assets, b"{}").unwrap();
+        fs::write(&nuget_config, b"<configuration />").unwrap();
+
+        let input_time = UNIX_EPOCH + Duration::from_secs(10);
+        let assets_time = UNIX_EPOCH + Duration::from_secs(20);
+        for input in [&project, &lock, &nuget_config] {
+            File::options()
+                .write(true)
+                .open(input)
+                .unwrap()
+                .set_times(FileTimes::new().set_modified(input_time))
+                .unwrap();
+        }
+        File::options()
+            .write(true)
+            .open(&assets)
+            .unwrap()
+            .set_times(FileTimes::new().set_modified(assets_time))
+            .unwrap();
+        assert!(dotnet_restore_is_fresh(&root, &["src/App/App.csproj"]));
+
+        File::options()
+            .write(true)
+            .open(&nuget_config)
+            .unwrap()
+            .set_times(FileTimes::new().set_modified(UNIX_EPOCH + Duration::from_secs(30)))
+            .unwrap();
+        assert!(!dotnet_restore_is_fresh(&root, &["src/App/App.csproj"]));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn failed_desktop_stage_cleans_its_pending_bundle() {
+        let root =
+            env::temp_dir().join(format!("gewyvern-dev-pending-test-{}", std::process::id()));
+        let pending = root.join(".Leserpent.pending-test.app");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&pending).unwrap();
+        {
+            let _guard = PendingDirectory::new(&pending);
+        }
+        assert!(!pending.exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn desktop_output_preflight_replaces_only_the_managed_existing_bundle() {
+        let root = env::temp_dir().join(format!("gewyvern-dev-output-test-{}", std::process::id()));
+        let managed = root.join("artifacts/leserpent-avalonia/Leserpent.app");
+        let custom = root.join("custom/Leserpent.app");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&managed).unwrap();
+        fs::create_dir_all(&custom).unwrap();
+
+        let managed_pending = adjacent_temporary_path(&managed, "pending").unwrap();
+        preflight_desktop_output(&root, &managed, &managed_pending).unwrap();
+        let custom_pending = adjacent_temporary_path(&custom, "pending").unwrap();
+        assert!(
+            preflight_desktop_output(&root, &custom, &custom_pending)
+                .unwrap_err()
+                .contains("refusing to replace existing custom bundle output")
+        );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+}

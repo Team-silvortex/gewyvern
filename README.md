@@ -39,6 +39,10 @@ The long-term direction is:
 If you want the shortest path into the current system:
 
 ```bash
+# Check and build the Rust, control, and desktop stacks
+cargo dev doctor
+cargo dev build
+
 # Confirm the installed release
 gewyvern --version
 
@@ -235,6 +239,8 @@ use [docs/script-entrypoints.md](docs/script-entrypoints.md).
 
 Core CLI and test entrypoints:
 
+- `cargo dev doctor` / `cargo dev build`
+  Check the local toolchain and run the locked cross-stack build in parallel.
 - `cargo run -- ...`
   Start the main `gewyvern` runtime CLI.
 - `cargo run -p gewyc -- ...`
@@ -245,14 +251,18 @@ Core CLI and test entrypoints:
   Resolve a gewy package manifest into a `gewy.lock` snapshot.
 - `cargo test --workspace`
   Main regression path for the whole workspace.
+- `cargo dev package desktop` / `cargo dev deploy desktop`
+  Build, ad-hoc sign, verify, and optionally install the macOS NativeAOT app.
 
 Packaging entrypoints:
 
-On macOS these container-heavy scripts run on the configured Linux server by
-default and synchronize their evidence back. See
+The `cargo dev` layout preview runs on the current host. On macOS the
+container-heavy shell entrypoints run on the configured Linux server by default
+and synchronize their evidence back. See
 [remote Docker execution](docs/remote-docker.md).
 
-- `bash scripts/packaging/build_packages.sh --layout-only`
+- `cargo dev package linux --format layout`
+- `bash scripts/packaging/build_packages.sh --layout-only` (lower-level)
 - `bash scripts/packaging/build_packages_in_container.sh --format all`
 - `bash scripts/packaging/package_install_smoke.sh`
 - `bash scripts/packaging/container_runtime_validation.sh`

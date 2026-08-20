@@ -72,6 +72,26 @@ The shortest practical orientation path is:
 4. `docs/dsl.md` or `docs/fragments.md`, depending on whether the change is language-facing or runtime-facing
 5. `docs/module-boundaries.md` when the change crosses runtime reconstruction or reporting paths
 
+Check the complete local toolchain and checked packaging inputs:
+
+```bash
+cargo dev doctor
+```
+
+Build the Rust workspace, Leserpent control solution, and Avalonia desktop in
+parallel:
+
+```bash
+cargo dev build
+```
+
+The native workflow always uses Cargo's lock file. It reuses a fresh .NET
+assets graph with `--no-restore`, performs a locked restore when project or
+lock inputs changed, and reports each stage's elapsed time. Narrow an iteration
+with `--scope core`, `--scope control`, or `--scope desktop`; add `--release`
+for optimized output, `--restore` to force dependency verification, or
+`--dry-run` to inspect the exact commands.
+
 Run the demo binary:
 
 ```bash

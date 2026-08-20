@@ -22,11 +22,9 @@ fn package_layout_writes_compat_manifest() {
     assert!(build_script.contains("RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v1.15.0}\""));
     assert!(build_script.contains("LAYOUT_VERSION=\"${GEWY_LAYOUT_VERSION:-1}\""));
     assert!(build_script.contains("CONFIG_SCHEMA_VERSION=\"${GEWY_CONFIG_SCHEMA_VERSION:-1}\""));
-    assert!(build_script.contains("TARGET_ROOT=\"${CARGO_TARGET_DIR:-${ROOT}/target}\""));
-    assert!(
-        build_script
-            .contains("RELEASE_BIN_DIR=\"${GEWY_PACKAGE_BINARIES_ROOT:-${TARGET_ROOT}/release}\"")
-    );
+    assert!(build_script.contains("TARGET_ROOT=\"${ROOT}/${CARGO_TARGET_DIR}\""));
+    assert!(build_script.contains("RELEASE_BIN_DIR=\"${TARGET_ROOT}/release\""));
+    assert!(build_script.contains("RELEASE_BIN_DIR=\"${ROOT}/${GEWY_PACKAGE_BINARIES_ROOT}\""));
     assert!(build_script.contains("/usr/share/gewyvern/package-compat.toml"));
     assert!(build_script.contains("release_line = \"${RELEASE_LINE}\""));
     assert!(build_script.contains("layout_version = ${LAYOUT_VERSION}"));
@@ -50,6 +48,9 @@ fn package_layout_writes_compat_manifest() {
     assert!(build_script.contains("Path(sys.argv[1]).stat().st_mtime"));
     assert!(build_script.contains("build-cache-key.txt"));
     assert!(build_script.contains("compute_package_cache_key()"));
+    assert!(build_script.contains("release_bin_dir / \"gewyvern_ebpf_helper\""));
+    assert!(build_script.contains("release_bin_dir / \"gewyvern_ebpf_provision\""));
+    assert!(build_script.contains("root / \"scripts/packaging/build_packages.sh\""));
     assert!(build_script.contains("can_reuse_cached_packages()"));
     assert!(build_script.contains("reusing cached package artifacts..."));
     assert!(build_script.contains("chmod 0644 \"${CACHE_KEY_FILE}\" \"${MANIFEST_FILE}\""));
@@ -60,7 +61,16 @@ fn package_layout_writes_compat_manifest() {
     assert!(build_script.contains("record_manifest \"deb\" \"${deb_path#\"${OUT_DIR}/\"}\""));
     assert!(build_script.contains("record_manifest \"rpm\" \"${rpm_path#\"${OUT_DIR}/\"}\""));
     assert!(build_script.contains("GEWY_PACKAGE_LOCK_TIMEOUT_SECONDS:-120"));
-    assert!(build_script.contains("flock -w \"${PACKAGE_LOCK_TIMEOUT_SECONDS}\" 9"));
+    assert!(build_script.contains("command -v flock"));
+    assert!(build_script.contains("flock -w \"${timeout_seconds}\" 9"));
+    assert!(build_script.contains("portable package build lock"));
+    assert!(build_script.contains("PACKAGE_LOCK_DIR_OWNED"));
+    assert!(build_script.contains("--skip-build"));
+    assert!(build_script.contains("require_release_binaries"));
+    assert!(build_script.contains("cargo build --locked --release"));
+    assert!(build_script.contains("cd \"${ROOT}\""));
+    assert!(build_script.contains("require_option_value \"$1\" \"${2:-}\""));
+    assert!(!build_script.contains("    --bin gewyvern_validate \\\n"));
     assert!(build_script.contains("PENDING_MANIFEST_FILE=\"$(mktemp"));
     assert!(build_script.contains("chmod 0644 \"${PENDING_MANIFEST_FILE}\""));
     assert!(build_script.contains("mv -f \"${PENDING_MANIFEST_FILE}\""));

@@ -4,16 +4,31 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="${ROOT}/target/packages"
-TARGET_ROOT="${CARGO_TARGET_DIR:-${ROOT}/target}"
-RELEASE_BIN_DIR="${GEWY_PACKAGE_BINARIES_ROOT:-${TARGET_ROOT}/release}"
+if [[ -z "${CARGO_TARGET_DIR:-}" ]]; then
+  TARGET_ROOT="${ROOT}/target"
+elif [[ "${CARGO_TARGET_DIR}" == /* ]]; then
+  TARGET_ROOT="${CARGO_TARGET_DIR}"
+else
+  TARGET_ROOT="${ROOT}/${CARGO_TARGET_DIR}"
+fi
+if [[ -z "${GEWY_PACKAGE_BINARIES_ROOT:-}" ]]; then
+  RELEASE_BIN_DIR="${TARGET_ROOT}/release"
+elif [[ "${GEWY_PACKAGE_BINARIES_ROOT}" == /* ]]; then
+  RELEASE_BIN_DIR="${GEWY_PACKAGE_BINARIES_ROOT}"
+else
+  RELEASE_BIN_DIR="${ROOT}/${GEWY_PACKAGE_BINARIES_ROOT}"
+fi
 WORK_DIR=""
 KEEP_WORK_DIR=0
 FORMAT="all"
 LAYOUT_ONLY=0
+SKIP_BUILD=0
 TIMINGS_FILE=""
 MANIFEST_FILE=""
 CACHE_KEY_FILE=""
 PENDING_MANIFEST_FILE=""
+PACKAGE_LOCK_DIR=""
+PACKAGE_LOCK_DIR_OWNED=0
 MAINTAINER="${GEWY_PACKAGE_MAINTAINER:-OpenAI Codex <codex@example.invalid>}"
 PACKAGE_NAME="${GEWY_PACKAGE_NAME:-gewyvern}"
 PACKAGE_RELEASE="${GEWY_PACKAGE_RELEASE:-1}"
@@ -25,7 +40,7 @@ SOURCE_DATE_EPOCH_VALUE=""
 
 usage() {
   cat <<'EOF'
-Usage: scripts/packaging/build_packages.sh [--format deb|rpm|all] [--layout-only]
+Usage: scripts/packaging/build_packages.sh [--format deb|rpm|all] [--layout-only] [--skip-build] [--out-dir PATH]
 
 Build release binaries, stage a Linux installation tree, and optionally emit
 native DEB/RPM packages if the host provides `dpkg-deb` and/or `rpmbuild`.
@@ -33,9 +48,20 @@ native DEB/RPM packages if the host provides `dpkg-deb` and/or `rpmbuild`.
 Options:
   --format <deb|rpm|all>  Select which package format to build. Default: all
   --layout-only           Only create the staged install tree and metadata
+  --skip-build            Reuse validated release binaries instead of invoking Cargo
   --out-dir <path>        Override the package output directory
   -h, --help              Show this help text
 EOF
+}
+
+require_option_value() {
+  local option="$1"
+  local value="${2:-}"
+  if [[ -z "${value}" || "${value}" == -* ]]; then
+    echo "${option} requires a value" >&2
+    usage >&2
+    exit 2
+  fi
 }
 
 read_version() {
@@ -116,6 +142,64 @@ PY
 configure_rust_build_acceleration() {
   if command -v ld.lld >/dev/null 2>&1; then
     export RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=-fuse-ld=lld"
+  fi
+}
+
+require_release_binaries() {
+  local binary path
+  for binary in \
+    gewyvern \
+    gewyvern_socket_send \
+    gewyc \
+    gewyvern_ebpf_helper \
+    gewyvern_ebpf_provision; do
+    path="${RELEASE_BIN_DIR}/${binary}"
+    if [[ ! -f "${path}" || -L "${path}" || ! -x "${path}" ]]; then
+      echo "release binary is missing, non-regular, or not executable: ${path}" >&2
+      echo "rerun without --skip-build to build the required package payloads" >&2
+      return 1
+    fi
+  done
+}
+
+acquire_package_lock() {
+  local timeout_seconds="$1"
+
+  if command -v flock >/dev/null 2>&1; then
+    exec 9>"${PACKAGE_LOCK_FILE}"
+    if ! flock -w "${timeout_seconds}" 9; then
+      echo "timed out waiting for package build lock: ${PACKAGE_LOCK_FILE}" >&2
+      return 1
+    fi
+    return 0
+  fi
+
+  PACKAGE_LOCK_DIR="${PACKAGE_LOCK_FILE}.d"
+  if [[ -L "${PACKAGE_LOCK_DIR}" ]]; then
+    echo "package build lock directory must not be a symlink: ${PACKAGE_LOCK_DIR}" >&2
+    return 1
+  fi
+  local deadline=$((SECONDS + timeout_seconds))
+  while ! mkdir "${PACKAGE_LOCK_DIR}" 2>/dev/null; do
+    if ((SECONDS >= deadline)); then
+      echo "timed out waiting for portable package build lock: ${PACKAGE_LOCK_DIR}" >&2
+      echo "remove the directory only after confirming no package build is active" >&2
+      return 1
+    fi
+    sleep 1
+  done
+  PACKAGE_LOCK_DIR_OWNED=1
+}
+
+cleanup() {
+  if [[ "${KEEP_WORK_DIR}" -eq 0 && -n "${WORK_DIR}" ]]; then
+    rm -rf "${WORK_DIR}"
+  fi
+  if [[ -n "${PENDING_MANIFEST_FILE}" ]]; then
+    rm -f "${PENDING_MANIFEST_FILE}"
+  fi
+  if [[ "${PACKAGE_LOCK_DIR_OWNED}" -eq 1 && -n "${PACKAGE_LOCK_DIR}" ]]; then
+    rmdir "${PACKAGE_LOCK_DIR}" 2>/dev/null || true
   fi
 }
 
@@ -261,12 +345,17 @@ files = [
     release_bin_dir / "gewyvern",
     release_bin_dir / "gewyvern_socket_send",
     release_bin_dir / "gewyc",
+    release_bin_dir / "gewyvern_ebpf_helper",
+    release_bin_dir / "gewyvern_ebpf_provision",
     root / "Cargo.toml",
     root / "README.md",
     root / "LICENSE",
     root / "docs/fixtures/gewyvern.toml.example",
+    root / "packaging/ebpf-helper.conf.example",
+    root / "packaging/gewyvern-ebpf-validation.sudoers.example",
     root / "packaging/deb/control.in",
     root / "packaging/rpm/gewyvern.spec.in",
+    root / "scripts/packaging/build_packages.sh",
 ]
 
 directories = [
@@ -363,15 +452,17 @@ read_manifest_value() {
 }
 
 build_release_binaries() {
-  cargo build --release \
-    -p gewyvern \
-    -p gewyc \
-    --bin gewyvern \
-    --bin gewyvern_socket_send \
-    --bin gewyvern_validate \
-    --bin gewyvern_ebpf_helper \
-    --bin gewyvern_ebpf_provision \
-    --bin gewyc
+  (
+    cd "${ROOT}"
+    cargo build --locked --release \
+      -p gewyvern \
+      -p gewyc \
+      --bin gewyvern \
+      --bin gewyvern_socket_send \
+      --bin gewyvern_ebpf_helper \
+      --bin gewyvern_ebpf_provision \
+      --bin gewyc
+  )
 }
 
 build_deb() {
@@ -501,6 +592,7 @@ build_all_formats() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --format)
+      require_option_value "$1" "${2:-}"
       FORMAT="$2"
       shift 2
       ;;
@@ -508,7 +600,12 @@ while [[ $# -gt 0 ]]; do
       LAYOUT_ONLY=1
       shift
       ;;
+    --skip-build)
+      SKIP_BUILD=1
+      shift
+      ;;
     --out-dir)
+      require_option_value "$1" "${2:-}"
       OUT_DIR="$2"
       shift 2
       ;;
@@ -523,6 +620,10 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "${OUT_DIR}" != /* ]]; then
+  OUT_DIR="${ROOT}/${OUT_DIR}"
+fi
 
 case "${FORMAT}" in
   deb|rpm|all) ;;
@@ -554,11 +655,10 @@ if [[ -L "${PACKAGE_LOCK_FILE}" ]]; then
   echo "package build lock must not be a symlink: ${PACKAGE_LOCK_FILE}" >&2
   exit 2
 fi
-exec 9>"${PACKAGE_LOCK_FILE}"
-if ! flock -w "${PACKAGE_LOCK_TIMEOUT_SECONDS}" 9; then
-  echo "timed out waiting for package build lock: ${PACKAGE_LOCK_FILE}" >&2
+if ! acquire_package_lock "${PACKAGE_LOCK_TIMEOUT_SECONDS}"; then
   exit 3
 fi
+trap cleanup EXIT
 rm -f "${TIMINGS_FILE}"
 TOTAL_STARTED="$(now_seconds)"
 
@@ -571,16 +671,18 @@ fi
 
 STAGE_ROOT="${WORK_DIR}/stage"
 
-if [[ "${KEEP_WORK_DIR}" -eq 0 ]]; then
-  trap 'rm -rf "${WORK_DIR}"; if [[ -n "${PENDING_MANIFEST_FILE}" ]]; then rm -f "${PENDING_MANIFEST_FILE}"; fi' EXIT
+if [[ "${SKIP_BUILD}" -eq 1 ]]; then
+  echo "reusing validated release binaries for packaging..."
+  require_release_binaries
+  record_timing "release_build" "0.000"
+else
+  echo "building release binaries for packaging..."
+  configure_rust_build_acceleration
+  RELEASE_BUILD_STARTED="$(now_seconds)"
+  build_release_binaries
+  RELEASE_BUILD_FINISHED="$(now_seconds)"
+  record_timing "release_build" "$(duration_seconds "${RELEASE_BUILD_STARTED}" "${RELEASE_BUILD_FINISHED}")"
 fi
-
-echo "building release binaries for packaging..."
-configure_rust_build_acceleration
-RELEASE_BUILD_STARTED="$(now_seconds)"
-build_release_binaries
-RELEASE_BUILD_FINISHED="$(now_seconds)"
-record_timing "release_build" "$(duration_seconds "${RELEASE_BUILD_STARTED}" "${RELEASE_BUILD_FINISHED}")"
 
 PACKAGE_CACHE_KEY="$(compute_package_cache_key)"
 if [[ "${LAYOUT_ONLY}" -eq 0 ]]; then

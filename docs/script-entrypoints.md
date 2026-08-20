@@ -12,6 +12,25 @@ The naming split used throughout the repository is:
 - `validation`: one grouped expectation check
 - `summary`: one wrapper over narrower validations
 
+## Native Developer Workflow
+
+Routine build, package, and local desktop deployment no longer require callers
+to compose the lower-level entrypoints by hand:
+
+```bash
+cargo dev doctor
+cargo dev build
+cargo dev package linux --format layout
+cargo dev package desktop
+cargo dev deploy desktop --launch
+```
+
+`cargo dev build` runs the Rust, Leserpent control, and Avalonia builds in
+parallel with locked dependency behavior. The package and deploy commands keep
+atomic output boundaries and report their final artifact. Use the scripts and
+specialized Rust binaries below when debugging an individual stage or building
+a formal release pipeline.
+
 ## JSON Mode
 
 Most native `gewyvern_validate` entrypoints now support a global `--json` flag:
@@ -529,7 +548,30 @@ a locked dependency graph and native-host execution evidence.
 
 ### I want to package the Leserpent macOS app
 
-After publishing the locked `osx-arm64` NativeAOT directory, run:
+Build a locked NativeAOT app, embed the native `leserpentd`, create and strictly
+verify a local ad-hoc signature, and atomically publish the bundle with:
+
+```bash
+cargo dev package desktop
+```
+
+Build and install the same artifact through the versioned user-local installer:
+
+```bash
+cargo dev deploy desktop
+cargo dev deploy desktop --launch
+```
+
+Both commands default to
+`artifacts/leserpent-avalonia/Leserpent.app`. Pass `--output APP` for another
+artifact path or `--silvortex-issuer HTTPS_ORIGIN/` for the reviewed public
+account issuer. Concurrent desktop pipelines are rejected by a managed lock;
+failed pending bundles are removed and an existing complete artifact remains
+available. Automatic replacement is limited to the default managed artifact;
+an existing custom `--output` must be moved explicitly before packaging.
+
+For lower-level bundle diagnostics after publishing an `osx-arm64` directory,
+run:
 
 ```bash
 cargo build --release -p leserpentd --features native-ssh

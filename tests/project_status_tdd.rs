@@ -5666,7 +5666,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/release-assurance/continuous-proof")
         .expect("continuous proof contract must remain tracked");
     assert_eq!(continuous_proof.completion, 97);
-    assert_eq!(continuous_proof.contract.version, "0.73.0");
+    assert_eq!(continuous_proof.contract.version, "0.74.0");
     assert!(
         continuous_proof
             .contract
@@ -5718,6 +5718,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "failed-aot-fixture-log-retention",
         "bounded-local-validation-helper-subprocesses",
         "contextual-host-permission-failure-guidance",
+        "native-developer-workflow",
+        "parallel-cross-stack-build",
+        "smart-locked-dotnet-restore",
+        "portable-package-build-lock",
+        "reusable-release-binary-packaging",
+        "one-command-macos-aot-bundle-install",
+        "atomic-signed-desktop-artifact",
     ] {
         assert!(
             continuous_proof
@@ -5734,6 +5741,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }));
     assert!(continuous_proof.evidence.iter().any(|evidence| {
         evidence.path == "src/validation_harness/release_gate.rs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(continuous_proof.evidence.iter().any(|evidence| {
+        evidence.path == "crates/gewyvern-dev/src/main.rs"
             && evidence.state == EvidenceState::Present
     }));
     assert!(continuous_proof.evidence.iter().any(|evidence| {

@@ -821,6 +821,21 @@ fixture, and retains machine-readable evidence under
 `target/validation/leserpent-aot/`. The lower-level commands below remain useful
 for packaging diagnostics.
 
+For routine macOS arm64 packaging and local installation, use the native
+workspace workflow instead of assembling the stages manually:
+
+```bash
+cargo dev package desktop
+cargo dev deploy desktop --launch
+```
+
+It restores and publishes the locked NativeAOT graph, builds the Rust bundler,
+installer, and `leserpentd/native-ssh` in one cached release batch, atomically
+replaces the artifact, applies a local ad-hoc signature, verifies that signature
+strictly, and installs through the existing content-addressed rollback store.
+Formal Developer ID signing and notarization remain the separate release gate
+described below.
+
 The NativeAOT and accessibility proof commands assign separate .NET
 `--artifacts-path` roots under their evidence directories. They can therefore
 run concurrently without sharing project `obj`, reference assemblies, or PDBs;

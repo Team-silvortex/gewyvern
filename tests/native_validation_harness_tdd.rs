@@ -958,6 +958,7 @@ fn resilience_validation_bundle_is_native_with_legacy_wrappers() {
 fn packaging_container_validations_are_native_with_legacy_wrappers() {
     let packaging = read_repo_file("src/validation_harness/container_packaging.rs");
     let build_packages = read_repo_file("scripts/packaging/build_packages.sh");
+    let native_runner = read_repo_file("scripts/run_native_validation_bin.sh");
     let release_gate = read_repo_file("src/validation_harness/release_gate.rs");
     let smoke = read_repo_file("scripts/packaging/package_install_smoke.sh");
     let protocol = read_repo_file("scripts/packaging/container_protocol_validation.sh");
@@ -995,7 +996,8 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(packaging.contains("rpm -qpl"));
     assert!(packaging.contains("wait_for_http_body"));
     assert!(packaging.contains("gewyvern_socket_send"));
-    assert!(build_packages.contains("--bin gewyvern_validate"));
+    assert!(!build_packages.contains("--bin gewyvern_validate"));
+    assert!(native_runner.contains("cargo build --quiet --bin \"${BIN_NAME}\""));
     assert!(build_packages.contains("-p gewyvern"));
     assert!(build_packages.contains("-p gewyc"));
     assert!(build_packages.contains("command -v ld.lld"));

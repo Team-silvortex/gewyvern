@@ -68,6 +68,38 @@ fn linux_probe_docs_call_out_required_privileges() {
     }
 }
 
+#[test]
+fn native_developer_workflow_owns_locked_build_package_and_desktop_deploy_routes() {
+    let cargo_config = read_repo_file(".cargo/config.toml");
+    let workspace = read_repo_file("Cargo.toml");
+    let workflow = read_repo_file("crates/gewyvern-dev/src/main.rs");
+    let development = read_repo_file("docs/development.md");
+    let packaging = read_repo_file("docs/packaging.md");
+    let entrypoints = read_repo_file("docs/script-entrypoints.md");
+
+    assert!(cargo_config.contains("dev = \"run --quiet --locked -p gewyvern-dev --\""));
+    assert!(workspace.contains("\"crates/gewyvern-dev\""));
+    for command in [
+        "cargo dev doctor",
+        "cargo dev build",
+        "cargo dev package linux",
+        "cargo dev package desktop",
+        "cargo dev deploy desktop",
+    ] {
+        assert!(
+            workflow.contains(command),
+            "missing workflow route: {command}"
+        );
+    }
+    assert!(workflow.contains("vec![\"build\", \"--locked\", \"--workspace\"]"));
+    assert!(workflow.contains("arguments.push(\"--no-restore\")"));
+    assert!(workflow.contains("RestoreLockedMode=true"));
+    assert!(workflow.contains("desktop-signature-verify"));
+    assert!(development.contains("cargo dev build"));
+    assert!(packaging.contains("cargo dev package linux --format layout --skip-build"));
+    assert!(entrypoints.contains("cargo dev deploy desktop --launch"));
+}
+
 #[cfg(unix)]
 #[test]
 fn documented_shell_entrypoints_are_executable() {

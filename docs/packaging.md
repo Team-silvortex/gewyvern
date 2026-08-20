@@ -174,7 +174,13 @@ If you already know the outcome you want and only need the shortest route to
 the right packaging script, start with
 [docs/script-entrypoints.md](docs/script-entrypoints.md).
 
-Use:
+Use the native developer entrypoint:
+
+```bash
+cargo dev package linux --format layout
+```
+
+The lower-level packaging entrypoint remains available for CI and diagnostics:
 
 ```bash
 bash scripts/packaging/build_packages.sh --layout-only
@@ -218,10 +224,25 @@ reuses the existing native package artifacts instead of restaging and
 reassembling them again.
 
 Package generation is serialized per output directory with a bounded lock.
+Hosts with `flock` use it directly; other hosts use a bounded portable
+directory lock and emit an actionable stale-lock path instead of failing with a
+misleading timeout. Use `--out-dir PATH` on `cargo dev package linux` when two
+independent artifact shelves are required.
 DEB/RPM payloads, the build manifest, and the cache key are published through
 same-directory atomic replacement, so readers observe either the previous
 complete package set or the new complete set. `--layout-only` bypasses package
 cache reuse and never removes or replaces the published package manifest.
+
+After a successful release build, restage or reassemble packages without
+relinking unchanged binaries:
+
+```bash
+cargo dev package linux --format layout --skip-build
+```
+
+`--skip-build` fails closed unless every required release executable is a
+regular, non-symlink, executable file. It is intended for a known build output,
+not for downloading or trusting an arbitrary `target/release` tree.
 
 It does not require `dpkg-deb` or `rpmbuild`.
 
@@ -234,7 +255,7 @@ When `--layout-only` is used, the staged tree is kept under:
 If the host has `dpkg-deb`:
 
 ```bash
-bash scripts/packaging/build_packages.sh --format deb
+cargo dev package linux --format deb
 ```
 
 Artifacts are written under:
@@ -246,7 +267,7 @@ Artifacts are written under:
 If the host has `rpmbuild`:
 
 ```bash
-bash scripts/packaging/build_packages.sh --format rpm
+cargo dev package linux --format rpm
 ```
 
 RPM artifacts are written under:
@@ -497,6 +518,8 @@ bash scripts/packaging/container_operator_path_validation.sh --rpm
 
 - packaging is Linux-oriented even if the staging script is run from another
   development host
+- a layout generated on macOS is useful only for structural inspection; its
+  host-native executables are not Linux release artifacts
 - `--layout-only` is the safest local verification path when package manager
   tools are not installed
 - the container path requires a working local Docker daemon
