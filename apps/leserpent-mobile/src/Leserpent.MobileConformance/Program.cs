@@ -189,6 +189,8 @@ try
     RemoteWorkspaceSeverityAlert.VerifyContract();
     RemoteWorkspaceSnapshotChanges.VerifyContract();
     RemoteRuntimeSearch.VerifyContract();
+    await RemoteTopologyRefreshCoordinator.VerifyContractAsync();
+    RemoteWorkspaceLaunchCoordinator.VerifyContract();
     RemoteDocumentProjection.VerifyFilterContract();
     RemoteWorkspaceDocumentProjection.VerifyEndpointIsolation();
     RemoteWorkspaceDocumentProjection.VerifyParameterizedFormContract();
@@ -201,7 +203,7 @@ finally
     Directory.Delete(root, recursive: true);
 }
 
-Console.WriteLine("mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true, workspace_policy=true, runtime_search=true, ui_projection=true, mutation_fence=true, action_availability=true, authority_health=true");
+Console.WriteLine("mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true, workspace_policy=true, runtime_search=true, topology_refresh=true, workspace_launch=true, ui_projection=true, mutation_fence=true, action_availability=true, authority_health=true");
 return 0;
 
 static RemoteFeedState Live(ulong revision) => new(

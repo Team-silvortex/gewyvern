@@ -8,7 +8,7 @@
 
 MIT License
 Status: Active; follows the root `gewyvern` version line
-Current shared release: `1.14.0`
+Current shared release: `1.15.0`
 
 Monorepo home:
 

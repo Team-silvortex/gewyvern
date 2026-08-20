@@ -534,6 +534,9 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     );
     let runtime_search =
         repo_source("apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteRuntimeSearch.cs");
+    let topology_refresh = repo_source(
+        "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteTopologyRefreshCoordinator.cs",
+    );
     let workspace_projection = repo_source(
         "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteWorkspaceDocumentProjection.cs",
     );
@@ -561,6 +564,16 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     assert!(runtime_search.contains("public static RemoteTopologySearchResult FilterTopology"));
     assert!(runtime_search.contains("VisibleAuthorityIds"));
     assert!(!runtime_search.contains("Avalonia"));
+    assert!(topology_refresh.contains("public sealed class RemoteTopologyRefreshCoordinator"));
+    assert!(topology_refresh.contains("public const int DefaultMaxConcurrency = 4"));
+    assert!(topology_refresh.contains("public const int MaxAuthorityCount = 65"));
+    assert!(topology_refresh.contains("AuthorityCount: MaxAuthorityCount"));
+    assert!(
+        topology_refresh.contains("topology coordinator accepted an oversized authority fleet")
+    );
+    assert!(topology_refresh.contains("TaskCreationOptions.RunContinuationsAsynchronously"));
+    assert!(topology_refresh.contains("topology refresh returned a non-terminal phase"));
+    assert!(!topology_refresh.contains("Avalonia"));
     assert!(workspace_projection.contains("public static class RemoteWorkspaceDocumentProjection"));
     assert!(!workspace_projection.contains("Avalonia"));
     assert!(mutation_fences.contains("public static class RemoteMutationFences"));
@@ -589,6 +602,10 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     assert!(!remote_window.contains("SatisfiesObservationFence"));
     assert!(remote_conformance.contains("RemoteRuntimeSearch.VerifyContract()"));
     assert!(remote_conformance.contains("runtime_search=true"));
+    assert!(
+        remote_conformance.contains("await RemoteTopologyRefreshCoordinator.VerifyContractAsync()")
+    );
+    assert!(remote_conformance.contains("topology_refresh_coordination=true"));
     assert!(mobile_project.contains("Leserpent.RemoteClient.csproj"));
     assert!(mobile_conformance.contains("RemoteWorkspaceLogFilter.VerifyContract()"));
     assert!(mobile_conformance.contains("RemoteWorkspaceDiagnosticExport.VerifyContract()"));
@@ -599,6 +616,10 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     assert!(mobile_conformance.contains("RemoteDocumentProjection.VerifyFilterContract()"));
     assert!(mobile_conformance.contains("RemoteRuntimeSearch.VerifyContract()"));
     assert!(mobile_conformance.contains("runtime_search=true"));
+    assert!(
+        mobile_conformance.contains("await RemoteTopologyRefreshCoordinator.VerifyContractAsync()")
+    );
+    assert!(mobile_conformance.contains("topology_refresh=true"));
     assert!(
         mobile_conformance.contains("RemoteWorkspaceDocumentProjection.VerifyEndpointIsolation()")
     );
@@ -647,6 +668,80 @@ fn hub_topology_filter_is_bounded_keyboard_accessible_and_renderer_neutral() {
     assert!(app.contains("cross_authority_runtime_filter=true"));
     assert!(app.contains("empty_filter_state=true"));
     assert!(app.contains("filter_focus_recovery=true"));
+}
+
+#[test]
+fn hub_topology_refresh_is_discoverable_observed_and_single_flight() {
+    let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
+    let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+    let coordinator = avalonia_source("Leserpent.RemoteClient/RemoteTopologyRefreshCoordinator.cs");
+
+    assert!(hub.contains("hub-refresh-all"));
+    assert!(hub.contains("Refresh all daemon topologies (F5)"));
+    assert!(hub.contains("private readonly RemoteTopologyRefreshCoordinator topologyRefresh"));
+    assert!(hub.contains("refreshAllPresentationOperation"));
+    assert!(hub.contains("private bool operatorRefreshRequested"));
+    assert!(hub.contains("topologyRefresh.RefreshAuthorityAsync"));
+    assert!(hub.contains("topologyRefresh.RefreshAllAsync"));
+    assert!(hub.contains("summary.RequiresAttention"));
+    assert!(!hub.contains("SemaphoreSlim topologyLoadGate"));
+    assert!(!hub.contains("card.RefreshOperation"));
+    assert!(hub.contains("ObserveTopologyOperation("));
+    assert!(hub.contains(
+        "catch (Exception)\n        {\n            if (lifetime.IsCancellationRequested)"
+    ));
+    assert!(!hub.contains("catch (Exception) when (!lifetime.IsCancellationRequested)"));
+    assert!(hub.contains("refreshAllTopologyButton.RaiseEvent"));
+    assert!(hub.contains("ReferenceEquals(cardRefresh, cardJoin)"));
+    assert!(hub.contains("ReferenceEquals(refreshAll, refreshAllPresentationOperation)"));
+    assert!(hub.contains("Topology refresh complete with attention"));
+    assert!(!hub.contains("_ = RefreshAllTopologiesAsync"));
+    assert!(!hub.contains("_ = RefreshTopologyAsync"));
+    assert!(app.contains("await window.ProbeRefreshAllControlAsync()"));
+    assert!(app.contains("refresh_all_control=true"));
+    assert!(app.contains("refresh_all_single_flight=true"));
+    assert!(app.contains("card_refresh_join=true"));
+    assert!(app.contains("shared_refresh_policy=true"));
+    assert!(app.contains("refresh_busy_state=true"));
+    assert!(app.contains("refresh_completion_status=true"));
+    assert!(coordinator.contains("ReferenceEquals(alphaRefresh, alphaJoin)"));
+    assert!(coordinator.contains("ReferenceEquals(all, allJoin)"));
+    assert!(coordinator.contains("maximumActive != 2"));
+    assert!(coordinator.contains("topology coordinator did not accept the complete bounded fleet"));
+    assert!(coordinator.contains("cancelled topology refresh reached its authority loader"));
+}
+
+#[test]
+fn runtime_workspace_launch_is_shared_revision_fenced_and_frontend_neutral() {
+    let window = avalonia_source("Leserpent.Avalonia/RemoteMainWindow.cs");
+    let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+    let coordinator = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceLaunchCoordinator.cs");
+    let remote_conformance = avalonia_source("Leserpent.RemoteConformance/Program.cs");
+    let mobile_conformance =
+        repo_source("apps/leserpent-mobile/src/Leserpent.MobileConformance/Program.cs");
+
+    assert!(window.contains("private readonly RemoteWorkspaceLaunchCoordinator workspaceLaunch"));
+    assert!(window.contains("workspaceLaunch.Request("));
+    assert!(window.contains("workspaceLaunch.Observe(state)"));
+    assert!(window.contains("ApplyWorkspaceLaunchDecision"));
+    assert!(!window.contains("Dictionary<string, ulong> pendingWorkspaceRequests"));
+    assert!(!window.contains("internal static class RemoteWorkspaceLaunchPolicy"));
+    assert!(!window.contains("RemoteWorkspaceLaunchPolicy.CanResolve"));
+    assert!(coordinator.contains("public sealed class RemoteWorkspaceLaunchCoordinator"));
+    assert!(coordinator.contains("public static class RemoteWorkspaceLaunchPolicy"));
+    assert!(coordinator.contains("state.SnapshotGeneration > 0"));
+    assert!(coordinator.contains("Math.Max(previousRevision, minimumRevision)"));
+    assert!(coordinator.contains("RemoteWorkspaceLaunchDisposition.RejectUnavailable"));
+    assert!(coordinator.contains("combined active and pending capacity"));
+    assert!(coordinator.contains("coalesced snapshot revision fence"));
+    assert!(coordinator.contains("terminal remote state retained"));
+    assert!(!coordinator.contains("Avalonia"));
+    assert!(app.contains("RemoteWorkspaceLaunchCoordinator.VerifyContract()"));
+    assert!(app.contains("shared_workspace_launch=true"));
+    assert!(remote_conformance.contains("RemoteWorkspaceLaunchCoordinator.VerifyContract()"));
+    assert!(remote_conformance.contains("workspace_launch_coordination=true"));
+    assert!(mobile_conformance.contains("RemoteWorkspaceLaunchCoordinator.VerifyContract()"));
+    assert!(mobile_conformance.contains("workspace_launch=true"));
 }
 
 #[test]
@@ -1127,7 +1222,7 @@ fn silvortex_account_proof_is_native_private_and_existing_credential_safe() {
     let account = avalonia_source("Leserpent.Avalonia/SilvortexAccountSession.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
 
-    assert!(proof.contains("ContractVersion = \"1.94.0\""));
+    assert!(proof.contains("ContractVersion = \"1.97.0\""));
     assert!(!proof.contains("--prove-silvortex-account"));
     assert!(proof.contains("RuntimeFeature.IsDynamicCodeSupported"));
     assert!(proof.contains("packaged-info-plist"));

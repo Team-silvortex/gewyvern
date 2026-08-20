@@ -93,6 +93,6 @@ If you are validating current DNS support, the shortest useful order is:
 
 ## Stability Note
 
-This page is the lookup hub for the DNS family in the current `1.14.x` line.
+This page is the lookup hub for the DNS family in the current `1.15.x` line.
 New DNS transport branches should prefer landing behind this shelf instead of
 being linked from multiple higher-level pages independently.

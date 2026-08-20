@@ -400,12 +400,12 @@ internal sealed class LeserpentApp : Application
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += (_, _) =>
         {
-            DispatcherTimer.RunOnce(() =>
+            DispatcherTimer.RunOnce(async () =>
             {
                 try
                 {
                     window.VerifyTopologyContract();
-                    RemoteWorkspaceLaunchPolicy.VerifyContract();
+                    RemoteWorkspaceLaunchCoordinator.VerifyContract();
                     if (window.RenderedRuntimeCount != 6
                         || window.RenderedRuntimeActionCount != 6
                         || window.LiveTopologyCount != 3
@@ -415,6 +415,7 @@ internal sealed class LeserpentApp : Application
                             "Hub topology did not render live actionable daemon-owned runtime children");
                     }
                     window.ProbeTopologyFilter();
+                    await window.ProbeRefreshAllControlAsync();
                     window.ProbeFirstRuntimeAction();
                     if (runtimeOpenCount != 1)
                     {
@@ -422,7 +423,7 @@ internal sealed class LeserpentApp : Application
                             "Hub runtime action did not preserve its daemon route");
                     }
                     Console.WriteLine(
-                        "Hub topology valid: client_root=true, local_daemon=true, remote_daemons=2, live_topologies=3, authority_proofs=3, queue_health=true, runtime_children=6, runtime_actions=6, topology_filter=true, authority_filter=true, cross_authority_runtime_filter=true, empty_filter_state=true, filter_focus_recovery=true, daemon_route=true, authoritative_workspace_gate=true, retained_topology_state=true, revision_regression_fence=true, bounded_auto_refresh=true, bounded_preview=true, independent_actions=true, legacy_remote_button=false, automation=true");
+                        "Hub topology valid: client_root=true, local_daemon=true, remote_daemons=2, live_topologies=3, authority_proofs=3, queue_health=true, runtime_children=6, runtime_actions=6, topology_filter=true, authority_filter=true, cross_authority_runtime_filter=true, empty_filter_state=true, filter_focus_recovery=true, refresh_all_control=true, refresh_all_single_flight=true, card_refresh_join=true, shared_refresh_policy=true, refresh_busy_state=true, refresh_completion_status=true, daemon_route=true, authoritative_workspace_gate=true, shared_workspace_launch=true, retained_topology_state=true, revision_regression_fence=true, bounded_auto_refresh=true, bounded_preview=true, independent_actions=true, legacy_remote_button=false, automation=true");
                     window.Close();
                 }
                 catch (Exception error)

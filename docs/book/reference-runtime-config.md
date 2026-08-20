@@ -54,7 +54,7 @@ At startup, `gewyvern` looks for a runtime config file in this order:
 
 If no file exists, startup continues with built-in defaults.
 
-Before selecting the file, active `1.14.x` startup prepares the standard runtime
+Before selecting the file, active `1.15.x` startup prepares the standard runtime
 roots and performs a conservative config copy-forward:
 
 - if the standard `gewyvern.toml` is missing
@@ -100,7 +100,7 @@ Recommended posture:
 
 - new config files should include `schema_version = 1` at the top of the file
 - unversioned older files are still accepted as a compatibility path in the
-  active `1.14.x` line
+  active `1.15.x` line
 - if a file declares a higher version than the runtime understands, startup
   fails instead of guessing
 
@@ -194,7 +194,7 @@ And it now publishes the runtime-managed certificate state shelf at:
 
 - `/v1/runtime/certificate-state.json`
 
-This policy surface is intentionally conservative. In the active `1.14.x`
+This policy surface is intentionally conservative. In the active `1.15.x`
 line it highlights:
 
 - explicit remote trust without any trust anchors
@@ -404,6 +404,6 @@ It is not yet the home for every CLI mode or every future persistence feature.
 That broader surface can grow later on top of the now-explicit path and config
 contract.
 
-The current `1.14.x` startup behavior now pairs this config contract with a
+The current `1.15.x` startup behavior now pairs this config contract with a
 standard state root, so `--serve` can mirror the latest API snapshot to disk
 without inventing ad-hoc paths.

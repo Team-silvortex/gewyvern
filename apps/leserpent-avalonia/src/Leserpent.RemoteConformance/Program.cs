@@ -165,6 +165,8 @@ var fixtureReceipt = RemoteUnregistrationReceiptCodec.Decode(
 RemoteLeselangClient.VerifyContract();
 RemoteTopologyStateMachine.VerifyContract();
 RemoteRuntimeSearch.VerifyContract();
+await RemoteTopologyRefreshCoordinator.VerifyContractAsync();
+RemoteWorkspaceLaunchCoordinator.VerifyContract();
 Require(fixtureHealth is
 {
     Status: "ready",
@@ -526,7 +528,7 @@ Console.WriteLine(
     "remote health conformance valid: codec=true, fail_closed=true, queue_consistent=true, orchestra_replay_horizon=true");
 Console.WriteLine(
     "remote GUI Leselang export conformance valid: refresh=true, capabilities=true, deployment=true, workspace_queries=true, canonical=true, execution=false");
-Console.WriteLine("remote state conformance valid: codec=true, stale=true, snapshot_revision=true, heartbeat_snapshot_fence=true, topology_state=true, authority_bound_topology=true, unproved_live_rejection=true, retained_topology=true, topology_regression_fence=true, runtime_search=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false, incremental_logs=true");
+Console.WriteLine("remote state conformance valid: codec=true, stale=true, snapshot_revision=true, heartbeat_snapshot_fence=true, topology_state=true, authority_bound_topology=true, unproved_live_rejection=true, retained_topology=true, topology_regression_fence=true, runtime_search=true, topology_refresh_coordination=true, workspace_launch_coordination=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false, incremental_logs=true");
 return 0;
 
 static object RunWorkspaceLogBenchmark()

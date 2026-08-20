@@ -77,7 +77,7 @@ pub fn run_remote_linux_host_validation(
         .unwrap_or_else(default_remote_dir);
     let remote_path = remote_workspace_path(&remote_dir);
     let release_line = validate_release_line(
-        &env::var("GEWY_RELEASE_LINE").unwrap_or_else(|_| "v1.14.0".to_string()),
+        &env::var("GEWY_RELEASE_LINE").unwrap_or_else(|_| "v1.15.0".to_string()),
     )?;
 
     validation_log(format!("[remote-host] host: {}", options.host));
@@ -4168,9 +4168,9 @@ mod tests {
 
     #[test]
     fn remote_release_line_rejects_unsafe_values() {
-        assert!(validate_release_line("v1.14.0").is_ok());
-        assert!(validate_release_line("  v1.14.0").is_err());
-        assert!(validate_release_line("v1.14.0;rm -rf /").is_err());
+        assert!(validate_release_line("v1.15.0").is_ok());
+        assert!(validate_release_line("  v1.15.0").is_err());
+        assert!(validate_release_line("v1.15.0;rm -rf /").is_err());
         assert!(validate_release_line("").is_err());
     }
 

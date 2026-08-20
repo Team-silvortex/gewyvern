@@ -214,9 +214,29 @@ characters and is shared with desktop, mobile conformance, and the connected
 fleet projection. Filtering is local-only: it does not query a daemon, mutate a
 snapshot, or weaken the authoritative revision fence. `Ctrl+F` or `Cmd+F`
 focuses search, Escape clears an active filter before it can close the Hub, and
-F5 refreshes every non-busy daemon card. Verify the strict wire projection with
+F5 or the discoverable `Refresh all` control refreshes every daemon card. A
+global refresh is single-flight: operator, startup, and periodic requests join
+the active operation, as do duplicate per-daemon requests. The control exposes
+its busy state and reports a live/stale/unavailable completion summary without
+letting a duplicate request impersonate completion. The renderer-neutral
+`RemoteTopologyRefreshCoordinator` owns this policy in `Leserpent.RemoteClient`:
+it accepts at most 65 unique authorities (64 saved remotes plus local
+Orchestra), admits four loaders concurrently, rejects non-terminal outcomes,
+and prevents a cancelled queued request from reaching its loader. Avalonia owns
+only presentation state; desktop remote and mobile conformance execute the same
+coordinator. Verify the strict wire
+projection with
 `--verify-remote-topology`, the shared policy with `--verify-remote-filter`, and
 the real Hub control tree with `--verify-hub-topology`.
+
+Opening a runtime child follows the same renderer-neutral boundary. The
+`RemoteWorkspaceLaunchCoordinator` validates runtime IDs, bounds active plus
+pending workspaces, coalesces repeated requests to the newest required
+revision, and waits for a generated authoritative snapshot rather than a newer
+heartbeat. A terminal stale/stopped session cancels pending launches, while a
+fresh snapshot rejects a runtime that has been removed instead of opening stale
+Hub data. Avalonia owns only window reuse, `Show`/`Activate`, and presentation
+text; desktop remote and mobile conformance execute the same launch contract.
 
 ### Team Silvortex account
 

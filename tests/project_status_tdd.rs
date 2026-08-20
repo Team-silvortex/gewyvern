@@ -3881,7 +3881,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.94.0");
+    assert_eq!(avalonia.contract.version, "1.97.0");
     assert!(
         avalonia
             .contract
@@ -3893,6 +3893,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "native-hub-topology-filter",
         "hub-filter-keyboard-navigation",
         "hub-filter-focus-recovery",
+        "native-hub-refresh-all-control",
+        "global-topology-refresh-single-flight",
+        "per-authority-refresh-join",
+        "operator-refresh-live-status",
+        "shared-topology-refresh-policy-consumer",
+        "zero-avalonia-refresh-concurrency-ownership",
+        "shared-workspace-launch-coordinator-consumer",
+        "zero-avalonia-workspace-launch-policy-ownership",
     ] {
         assert!(
             avalonia
@@ -4175,7 +4183,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(transport.maturity, Maturity::Mature);
     assert_eq!(transport.completion, 100);
     assert_eq!(transport.contract.stability, ContractStability::Stable);
-    assert_eq!(transport.contract.version, "1.14.0");
+    assert_eq!(transport.contract.version, "1.15.0");
     for surface in [
         "optional-unregistration-replay-horizon-health",
         "legacy-horizon-free-health-decode",
@@ -4261,7 +4269,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(runtime.maturity, Maturity::Mature);
     assert_eq!(runtime.completion, 100);
     assert_eq!(runtime.contract.stability, ContractStability::Stable);
-    assert_eq!(runtime.contract.version, "1.14.0");
+    assert_eq!(runtime.contract.version, "1.15.0");
     for surface in [
         "durable-sidecar-endpoint",
         "atomic-sidecar-registration-update",
@@ -5548,11 +5556,22 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/remote-console/remote-mobile-console")
         .expect("remote/mobile console contract must remain tracked");
     assert_eq!(remote_console.completion, 98);
-    assert_eq!(remote_console.contract.version, "0.56.0");
+    assert_eq!(remote_console.contract.version, "0.58.0");
     for surface in [
         "renderer-neutral-runtime-search",
         "cross-authority-topology-search",
         "mobile-reusable-runtime-search",
+        "frontend-independent-topology-refresh-coordinator",
+        "bounded-topology-refresh-fanout",
+        "mobile-reusable-topology-refresh-policy",
+        "terminal-topology-refresh-summary",
+        "cancelled-queued-topology-refresh-fence",
+        "frontend-independent-workspace-launch-coordinator",
+        "coalesced-workspace-launch-revision-fence",
+        "bounded-active-pending-workspace-admission",
+        "terminal-workspace-launch-cancellation",
+        "mobile-reusable-workspace-launch-policy",
+        "authoritative-runtime-removal-rejection",
         "strict-orchestra-delete-replay-health-codec",
         "visible-orchestra-delete-replay-pressure",
         "complete-runtime-projection-wire-coverage",
@@ -5626,7 +5645,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/release-assurance/continuous-proof")
         .expect("continuous proof contract must remain tracked");
     assert_eq!(continuous_proof.completion, 97);
-    assert_eq!(continuous_proof.contract.version, "0.68.0");
+    assert_eq!(continuous_proof.contract.version, "0.71.0");
     assert!(
         continuous_proof
             .contract
@@ -5644,6 +5663,15 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     for surface in [
         "hub-topology-filter-proof",
         "renderer-neutral-runtime-search-proof",
+        "hub-refresh-all-control-proof",
+        "topology-refresh-single-flight-proof",
+        "shared-topology-refresh-boundary-proof",
+        "mobile-topology-refresh-consumption-proof",
+        "zero-avalonia-refresh-coordinator-duplication-proof",
+        "shared-workspace-launch-boundary-proof",
+        "mobile-workspace-launch-consumption-proof",
+        "zero-avalonia-workspace-launch-policy-proof",
+        "heartbeat-resistant-workspace-launch-proof",
     ] {
         assert!(
             continuous_proof

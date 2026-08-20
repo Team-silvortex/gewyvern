@@ -12,8 +12,10 @@ internal sealed class HubWindow : Window
     private const int MaxVisibleRuntimesPerDaemon = 6;
     private readonly List<Control> auditedControls = [];
     private readonly List<DaemonTopologyCard> topologyCards = [];
-    private readonly SemaphoreSlim topologyLoadGate = new(4, 4);
+    private readonly RemoteTopologyRefreshCoordinator topologyRefresh = new();
     private readonly CancellationTokenSource lifetime = new();
+    private Task<RemoteTopologyRefreshSummary>? refreshAllPresentationOperation;
+    private bool operatorRefreshRequested;
     private readonly DispatcherTimer topologyRefreshTimer = new()
     {
         Interval = TimeSpan.FromSeconds(30),
@@ -35,6 +37,11 @@ internal sealed class HubWindow : Window
     {
         Content = "Clear",
         IsVisible = false,
+        Padding = new Thickness(12, 7),
+    };
+    private readonly Button refreshAllTopologyButton = new()
+    {
+        Content = "Refresh all",
         Padding = new Thickness(12, 7),
     };
     private readonly TextBlock topologyFilterSummary = new()
@@ -88,7 +95,8 @@ internal sealed class HubWindow : Window
         SilvortexAccountSession accountSession)
     {
         daemonCardCount = connections.Count + (localSupported ? 1 : 0);
-        expectedAuditedControlCount = 11 + connections.Count * 3 + (localSupported ? 2 : 0);
+        expectedAuditedControlCount = 12 + connections.Count * 3 + (localSupported ? 2 : 0);
+        refreshAllTopologyButton.IsEnabled = daemonCardCount > 0;
         Title = "Leserpent / Hub";
         Width = 900;
         Height = 680;
@@ -304,21 +312,31 @@ internal sealed class HubWindow : Window
         statusText.IsVisible = true;
         AutomationProperties.SetAutomationId(statusText, "hub-status");
         AutomationProperties.SetName(statusText, "Hub topology status");
+        AutomationProperties.SetLiveSetting(statusText, AutomationLiveSetting.Polite);
         auditedControls.Add(statusText);
 
+        var topologyFilterActions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Children = { clearTopologyFilterButton, refreshAllTopologyButton },
+        };
         var topologyFilter = new Grid
         {
-            ColumnDefinitions = ColumnDefinitions.Parse("*,Auto,Auto"),
+            RowDefinitions = RowDefinitions.Parse("Auto,Auto"),
+            ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"),
+            RowSpacing = 6,
             ColumnSpacing = 10,
             Children =
             {
                 topologyFilterBox,
-                clearTopologyFilterButton,
+                topologyFilterActions,
                 topologyFilterSummary,
             },
         };
-        Grid.SetColumn(clearTopologyFilterButton, 1);
-        Grid.SetColumn(topologyFilterSummary, 2);
+        Grid.SetColumn(topologyFilterActions, 1);
+        Grid.SetRow(topologyFilterSummary, 1);
+        Grid.SetColumnSpan(topologyFilterSummary, 2);
 
         Content = new Grid
         {
@@ -344,12 +362,14 @@ internal sealed class HubWindow : Window
         ApplyTopologyFilter();
 
         KeyDown += OnHubKeyDown;
-        topologyRefreshTimer.Tick += (_, _) => _ = RefreshAllTopologiesAsync();
+        topologyRefreshTimer.Tick += (_, _) => ObserveTopologyOperation(
+            RefreshAllTopologiesAsync(TopologyRefreshTrigger.Periodic));
         topologyFilterTimer.Tick += (_, _) => ApplyTopologyFilter();
         Opened += (_, _) =>
         {
             topologyRefreshTimer.Start();
-            _ = RefreshAllTopologiesAsync();
+            ObserveTopologyOperation(
+                RefreshAllTopologiesAsync(TopologyRefreshTrigger.Startup));
         };
         Closed += (_, _) =>
         {
@@ -376,12 +396,21 @@ internal sealed class HubWindow : Window
         AutomationProperties.SetLiveSetting(
             topologyFilterSummary,
             AutomationLiveSetting.Polite);
+        AutomationProperties.SetAutomationId(refreshAllTopologyButton, "hub-refresh-all");
+        AutomationProperties.SetName(refreshAllTopologyButton, "Refresh all daemon topologies");
+        AutomationProperties.SetHelpText(
+            refreshAllTopologyButton,
+            "Refreshes every daemon authority and joins an existing refresh instead of starting duplicate work. Shortcut: F5.");
+        ToolTip.SetTip(refreshAllTopologyButton, "Refresh all daemon topologies (F5)");
         auditedControls.Add(topologyFilterBox);
         auditedControls.Add(clearTopologyFilterButton);
         auditedControls.Add(topologyFilterSummary);
+        auditedControls.Add(refreshAllTopologyButton);
         topologyFilterBox.TextChanged += OnTopologyFilterChanged;
         topologyFilterBox.KeyDown += OnTopologyFilterKeyDown;
         clearTopologyFilterButton.Click += (_, _) => ClearTopologyFilter();
+        refreshAllTopologyButton.Click += (_, _) => ObserveTopologyOperation(
+            RefreshAllTopologiesAsync(TopologyRefreshTrigger.Operator));
     }
 
     private void OnHubKeyDown(object? sender, KeyEventArgs eventArgs)
@@ -398,7 +427,8 @@ internal sealed class HubWindow : Window
         else if (eventArgs.Key == Key.F5)
         {
             eventArgs.Handled = true;
-            _ = RefreshAllTopologiesAsync();
+            ObserveTopologyOperation(
+                RefreshAllTopologiesAsync(TopologyRefreshTrigger.Operator));
         }
         else if (eventArgs.Key == Key.Escape)
         {
@@ -563,6 +593,47 @@ internal sealed class HubWindow : Window
         {
             throw new InvalidDataException(
                 "Hub topology filter did not restore the complete keyboard workflow");
+        }
+    }
+
+    public async Task ProbeRefreshAllControlAsync()
+    {
+        var card = topologyCards.FirstOrDefault()
+            ?? throw new InvalidDataException("Hub topology has no daemon card to refresh");
+        var cardRefresh = RefreshTopologyAsync(card);
+        var cardJoin = RefreshTopologyAsync(card);
+        if (!ReferenceEquals(cardRefresh, cardJoin))
+        {
+            throw new InvalidDataException(
+                "Hub daemon refresh did not join its active operation");
+        }
+
+        var generation = topologyRefresh.Generation;
+        var refreshAll = RefreshAllTopologiesAsync(TopologyRefreshTrigger.Periodic);
+        refreshAllTopologyButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        if (!ReferenceEquals(refreshAll, refreshAllPresentationOperation)
+            || !topologyRefresh.IsRefreshingAll
+            || refreshAllTopologyButton.IsEnabled
+            || refreshAllTopologyButton.Content as string != "Refreshing..."
+            || statusText.Text is not { } refreshingStatus
+            || !refreshingStatus.StartsWith("Refreshing ", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "Hub refresh-all control did not expose its single-flight busy state");
+        }
+
+        await Task.WhenAll(cardRefresh, refreshAll);
+        if (topologyRefresh.Generation != generation + 1
+            || refreshAllPresentationOperation is not null
+            || topologyRefresh.IsRefreshingAll
+            || topologyRefresh.IsAuthorityRefreshing(card.DaemonId)
+            || !refreshAllTopologyButton.IsEnabled
+            || refreshAllTopologyButton.Content as string != "Refresh all"
+            || statusText.Text is not { } completedStatus
+            || !completedStatus.StartsWith("Topology refresh complete", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "Hub refresh-all control did not restore its completed state");
         }
     }
 
@@ -758,22 +829,97 @@ internal sealed class HubWindow : Window
         topologyCard.ReportWorkspaceResult = (runtime, error) =>
             ReportWorkspaceOpen(name, runtime, error);
         topologyCards.Add(topologyCard);
-        refreshButton.Click += (_, _) => _ = RefreshTopologyAsync(topologyCard);
+        refreshButton.Click += (_, _) => ObserveTopologyOperation(
+            RefreshTopologyAsync(topologyCard));
         return root;
     }
 
-    private async Task RefreshAllTopologiesAsync()
+    private Task<RemoteTopologyRefreshSummary> RefreshAllTopologiesAsync(
+        TopologyRefreshTrigger trigger)
     {
-        await Task.WhenAll(topologyCards.Select(RefreshTopologyAsync));
+        if (lifetime.IsCancellationRequested || topologyCards.Count == 0)
+        {
+            return Task.FromResult(new RemoteTopologyRefreshSummary(
+                topologyRefresh.Generation,
+                0,
+                0,
+                0,
+                0));
+        }
+        if (trigger == TopologyRefreshTrigger.Operator)
+        {
+            operatorRefreshRequested = true;
+            statusText.Text = $"Refreshing {topologyCards.Count} daemon topologies...";
+            statusText.Foreground = LeserpentTheme.Primary;
+        }
+        var coordinated = topologyRefresh.RefreshAllAsync(
+            topologyCards.Select(RefreshAuthority),
+            lifetime.Token);
+        if (refreshAllPresentationOperation is { IsCompleted: false } active)
+        {
+            return active;
+        }
+        refreshAllPresentationOperation = PresentRefreshAllAsync(coordinated);
+        return refreshAllPresentationOperation;
     }
 
-    private async Task RefreshTopologyAsync(DaemonTopologyCard card)
+    private async Task<RemoteTopologyRefreshSummary> PresentRefreshAllAsync(
+        Task<RemoteTopologyRefreshSummary> coordinated)
     {
-        if (card.Refreshing || lifetime.IsCancellationRequested)
+        refreshAllTopologyButton.Content = "Refreshing...";
+        refreshAllTopologyButton.IsEnabled = false;
+        AutomationProperties.SetName(
+            refreshAllTopologyButton,
+            "Refreshing all daemon topologies");
+        await Task.Yield();
+        try
         {
-            return;
+            var summary = await coordinated;
+            if (operatorRefreshRequested
+                && !lifetime.IsCancellationRequested)
+            {
+                statusText.Text = summary.RequiresAttention
+                    ? $"Topology refresh complete with attention: {summary.LiveCount} live, {summary.StaleCount} stale, {summary.UnavailableCount} unavailable."
+                    : $"Topology refresh complete: {summary.LiveCount} daemon authorities live.";
+                statusText.Foreground = summary.RequiresAttention
+                    ? LeserpentTheme.Destructive
+                    : LeserpentTheme.Accent;
+            }
+            return summary;
         }
-        card.Refreshing = true;
+        finally
+        {
+            operatorRefreshRequested = false;
+            refreshAllPresentationOperation = null;
+            refreshAllTopologyButton.Content = "Refresh all";
+            AutomationProperties.SetName(
+                refreshAllTopologyButton,
+                "Refresh all daemon topologies");
+            refreshAllTopologyButton.IsEnabled = daemonCardCount > 0
+                && !lifetime.IsCancellationRequested;
+        }
+    }
+
+    private Task<RemoteTopologyPhase> RefreshTopologyAsync(DaemonTopologyCard card)
+    {
+        if (lifetime.IsCancellationRequested)
+        {
+            return Task.FromResult(card.State.State.Phase);
+        }
+        return topologyRefresh.RefreshAuthorityAsync(
+            RefreshAuthority(card),
+            lifetime.Token);
+    }
+
+    private RemoteTopologyRefreshAuthority RefreshAuthority(
+        DaemonTopologyCard card) => new(
+            card.DaemonId,
+            cancellationToken => RefreshTopologyCoreAsync(card, cancellationToken));
+
+    private async Task<RemoteTopologyPhase> RefreshTopologyCoreAsync(
+        DaemonTopologyCard card,
+        CancellationToken cancellationToken)
+    {
         card.RefreshButton.IsEnabled = false;
         var loading = card.State.BeginRefresh();
         card.Summary.Text = loading.Snapshot is null
@@ -783,12 +929,10 @@ internal sealed class HubWindow : Window
         AutomationProperties.SetName(
             card.Summary,
             $"Loading runtime topology for daemon {Safe(card.Name)}");
-        var enteredGate = false;
+        await Task.Yield();
         try
         {
-            await topologyLoadGate.WaitAsync(lifetime.Token);
-            enteredGate = true;
-            var snapshot = await card.Load(lifetime.Token);
+            var snapshot = await card.Load(cancellationToken);
             if (!lifetime.IsCancellationRequested)
             {
                 card.State.Accept(snapshot);
@@ -797,6 +941,7 @@ internal sealed class HubWindow : Window
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
         {
+            throw;
         }
         catch (Exception error) when (StartupFailure.IsExpected(error)
             || error is TaskCanceledException or TimeoutException)
@@ -809,15 +954,32 @@ internal sealed class HubWindow : Window
         }
         finally
         {
-            if (enteredGate)
-            {
-                topologyLoadGate.Release();
-            }
-            card.Refreshing = false;
             if (!lifetime.IsCancellationRequested)
             {
                 card.RefreshButton.IsEnabled = true;
             }
+        }
+        return card.State.State.Phase;
+    }
+
+    private async void ObserveTopologyOperation(Task operation)
+    {
+        try
+        {
+            await operation;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception)
+        {
+            if (lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+            statusText.Text =
+                "Topology refresh stopped unexpectedly. Retry or open the daemon session for diagnostics.";
+            statusText.Foreground = LeserpentTheme.Destructive;
         }
     }
 
@@ -1138,9 +1300,15 @@ internal sealed class HubWindow : Window
         public Button RefreshButton { get; } = refreshButton;
         public Border Root { get; } = root;
         public RemoteTopologyStateMachine State { get; } = new();
-        public bool Refreshing { get; set; }
         public int RenderedRuntimeCount { get; set; }
         public Action<RemoteRuntimeProjection, string?> ReportWorkspaceResult { get; set; } =
             (_, _) => { };
+    }
+
+    private enum TopologyRefreshTrigger
+    {
+        Startup,
+        Periodic,
+        Operator,
     }
 }

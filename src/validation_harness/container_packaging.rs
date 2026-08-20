@@ -692,16 +692,16 @@ mod tests {
             std::thread::current().name().unwrap_or("test")
         ));
         fs::create_dir_all(&root).unwrap();
-        let current = root.join("gewyvern_1.14.0-1_amd64.deb");
+        let current = root.join("gewyvern_1.15.0-1_amd64.deb");
         fs::write(&current, b"current-package").unwrap();
         fs::write(root.join("gewyvern_1.9.0-1_amd64.deb"), b"stale-package").unwrap();
-        write_manifest(&root, &[("deb", Path::new("gewyvern_1.14.0-1_amd64.deb"))]);
+        write_manifest(&root, &[("deb", Path::new("gewyvern_1.15.0-1_amd64.deb"))]);
         assert_eq!(
             package_from_manifest(&root, "deb", "deb").unwrap(),
             fs::canonicalize(&current).unwrap()
         );
 
-        let duplicate = root.join("gewyvern_1.14.0-2_amd64.deb");
+        let duplicate = root.join("gewyvern_1.15.0-2_amd64.deb");
         fs::write(&duplicate, b"duplicate-package").unwrap();
         write_manifest(&root, &[("deb", &current), ("deb", &duplicate)]);
         assert!(package_from_manifest(&root, "deb", "deb").is_err());
@@ -1221,7 +1221,7 @@ echo "container runtime validation: ok"
 
 fn package_install_smoke_deb_body() -> &'static str {
     r#"
-RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.14.0}"
+RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.15.0}"
 
 dpkg-deb -c "${GEWY_PACKAGE_FILE}" >/tmp/gewyvern-package-contents.txt
 grep -q './usr/share/doc/gewyvern/LICENSE' /tmp/gewyvern-package-contents.txt
@@ -1245,7 +1245,7 @@ test -f /usr/share/gewyvern/examples/gewyvern-ebpf-validation.sudoers.example
 
 fn package_install_smoke_rpm_body() -> &'static str {
     r#"
-RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.14.0}"
+RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.15.0}"
 
 rpm -qpl "${GEWY_PACKAGE_FILE}" >/tmp/gewyvern-package-contents.txt
 grep -q '/usr/share/doc/gewyvern/LICENSE' /tmp/gewyvern-package-contents.txt

@@ -5,7 +5,7 @@ This document is the authoritative target architecture for the
 current 1.x implementation. Delivery order and exit gates live in the
 [Leserpent 2.0 roadmap](leserpent-2-roadmap.md).
 
-The current implementation checkpoint is the shared `v1.14.0` release. This
+The current implementation checkpoint is the shared `v1.15.0` release. This
 document remains the `2.0.0` target contract rather than a claim that every
 target capability is already complete.
 
@@ -198,6 +198,15 @@ The native client entry is a daemon hub, not a single direct remote target form:
 
 A single Avalonia window can thus operate several daemon sessions in parallel,
 without collapsing trust, event stream, or revision history across sessions.
+
+Cross-authority refresh admission is frontend-independent. The shared remote
+client coordinator accepts at most 65 unique daemon authorities (64 saved
+remotes plus local Orchestra), permits four loaders at once, joins duplicate
+per-authority and fleet-wide operations, rejects non-terminal refresh phases,
+and stops cancelled queued work before it enters an authority loader. It returns
+a renderer-neutral live/stale/unavailable summary. Native controls, mobile
+shells, and future Web adapters may present that state differently, but none may
+own a second concurrency policy.
 
 In this model:
 
@@ -1044,7 +1053,7 @@ active-active writes.
 
 The fence policy is compile-time exhaustive over every Rust protocol request
 and nested command variant. The C# non-read endpoint set and Rust HTTPS route
-table are also source-scanned against contract version 1.14.0, so a new route
+table are also source-scanned against contract version 1.15.0, so a new route
 cannot silently bypass inventory review. A real three-daemon-process test
 proves live-owner exclusion, clean fresh-process reopening, durable generation
 advance, stale refresh rejection, current refresh application, and idempotent
@@ -2160,6 +2169,16 @@ snapshot deltas, and severity retention live in `Leserpent.RemoteClient` rather
 than an Avalonia assembly. These policies contain no renderer or transport
 dependency; desktop controls consume them, while MobileCore runs the identical
 public contract before a native workspace surface is added.
+Hub-to-session workspace launch is also shared policy rather than window logic.
+`RemoteWorkspaceLaunchCoordinator` receives the current feed state and the
+adapter's active runtime identities, then returns typed wait, open, focus, or
+rejection decisions. It owns ID syntax, the bounded active/pending admission
+budget, duplicate-request revision coalescing, authoritative snapshot and
+generation fences, terminal-state cancellation, and removed-runtime rejection.
+The adapter remains responsible for materializing, showing, activating, and
+closing its native windows. This keeps GUI lifecycle mechanics replaceable
+without allowing a renderer to reinterpret daemon authority or launch stale
+topology.
 Remote fleet and runtime-workspace projection follow the same boundary.
 `Leserpent.RemoteClient` maps remote state into the shared `UiDocument` model,
 including filtering, capability-gated actions, parameterized deployment forms,

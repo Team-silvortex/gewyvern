@@ -7,7 +7,7 @@ defines the invariant destination; this page defines ordered delivery gates.
 The roadmap is capability-gated, not date-gated. A later gate may be prototyped
 early, but it cannot become authoritative before its prerequisites are green.
 
-Current implementation checkpoint: shared release `v1.14.0`. The
+Current implementation checkpoint: shared release `v1.15.0`. The
 [project status tensor](project-status-system.md) remains authoritative for
 per-feature maturity, evidence, dependencies, and next gates.
 
@@ -1499,7 +1499,7 @@ while leaving wire reads and Leselang export unfenced. The inventoried external
 side-effect routes now share one authority boundary. The fifth slice closes the
 previous refresh and bootstrap-session-bind gaps, makes Rust request
 classification compile-time exhaustive, and source-scans both the C# mutation
-routes and Rust HTTPS table against contract 1.14.0. A real three-process daemon
+routes and Rust HTTPS table against contract 1.15.0. A real three-process daemon
 test proves live-owner exclusion, generation advance, stale-writer rejection,
 and durable writer replay across two restarts. Hot failover remains explicitly
 out of scope; future route growth must preserve these executable inventory and
@@ -2035,6 +2035,26 @@ preview, runtime matches retain only matching children under their owning
 authority, and mobile conformance consumes the same 128-character policy.
 Filtering remains local-only and cannot release the topology revision fence;
 the native control probe covers keyboard focus, empty state, and clear recovery.
+The same Hub now exposes a native `Refresh all` action instead of hiding global
+topology refresh behind F5. Startup, periodic, keyboard, and button requests
+join one global operation; duplicate authority refreshes join their card's
+active task. The concurrency owner is now the renderer-neutral
+`RemoteTopologyRefreshCoordinator` in `Leserpent.RemoteClient`, not the
+Avalonia window: it bounds the fleet at 65 authorities (64 saved remotes plus
+local Orchestra), admits four loaders, validates terminal outcomes, fences
+cancelled queued work before loader entry, and returns one
+live/stale/unavailable summary. Busy and completion status
+remain accessible, the native probe drives the real button while a background
+refresh is already active, and desktop plus mobile conformance execute the same
+shared contract.
+Runtime-child workspace admission has now crossed the same boundary. The
+renderer-neutral `RemoteWorkspaceLaunchCoordinator` owns runtime-ID validation,
+the combined active/pending limit, duplicate-request revision coalescing,
+heartbeat-resistant authoritative-snapshot release, terminal-state pending
+cancellation, and removed-runtime rejection. Avalonia retains only native
+window lookup, display, activation, and operator-facing messages. Desktop and
+mobile conformance run the identical coordinator contract, while source-boundary
+TDD rejects a return of the pending dictionary or launch policy to Avalonia.
 The workspace query group also exports canonical structured Leselang as one
 `all(inspect, history, logs)` batch. The production Avalonia preview now sends a
 strict bounded intent through authenticated `POST /v1/leselang-export`;
