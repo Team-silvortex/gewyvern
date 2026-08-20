@@ -58,6 +58,15 @@ internal static class Program
                 "remote mutation fence valid: command_revision=true, capability_observation_revision=true, heartbeat_blocked=true, authoritative_snapshot=true, cached_heartbeat_admission=false, pending_projection_blocked=true, malformed_response_unknown=true, shared_coordinator=true, shared_failure_classification=true, stale_failure_ignored=true, bounded_failure_diagnostics=true, action_availability=true");
             return 0;
         }
+        if (args is ["--verify-remote-event-lifecycle"])
+        {
+            RemoteEventClient.VerifyLifecycleContractAsync()
+                .GetAwaiter()
+                .GetResult();
+            Console.WriteLine(
+                "remote event lifecycle valid: dispose_single_flight=true, resource_release_once=true, restart_identity=true, stopped_start_rejected=true, subscriber_failure_isolated=true, subscriber_failure_count_bounded=true");
+            return 0;
+        }
         if (args is ["--verify-deployment-contract"])
         {
             RemoteMutationClient.VerifyDeploymentContract();

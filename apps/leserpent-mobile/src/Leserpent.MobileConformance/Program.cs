@@ -196,6 +196,7 @@ try
     RemoteWorkspaceDocumentProjection.VerifyParameterizedFormContract();
     RemoteMutationFences.VerifyContract();
     RemoteMutationCoordinator.VerifyContract();
+    await RemoteEventClient.VerifyLifecycleContractAsync();
     RemoteAuthorityHealthPresentation.VerifyContract();
     await RemoteAuthorityHealthCoordinator.VerifyContractAsync();
 }
@@ -204,7 +205,7 @@ finally
     Directory.Delete(root, recursive: true);
 }
 
-Console.WriteLine("mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true, workspace_policy=true, runtime_search=true, topology_refresh=true, workspace_launch=true, ui_projection=true, mutation_fence=true, mutation_coordination=true, cached_heartbeat_mutation=false, shared_failure_classification=true, stale_failure_ignored=true, bounded_failure_diagnostics=true, action_availability=true, authority_health=true, authority_health_coordination=true, health_single_flight=true, health_stop_fence=true");
+Console.WriteLine("mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true, workspace_policy=true, runtime_search=true, topology_refresh=true, workspace_launch=true, ui_projection=true, mutation_fence=true, mutation_coordination=true, cached_heartbeat_mutation=false, shared_failure_classification=true, stale_failure_ignored=true, bounded_failure_diagnostics=true, event_dispose_single_flight=true, event_resource_release_once=true, event_restart_identity=true, subscriber_failure_isolated=true, subscriber_failure_count_bounded=true, action_availability=true, authority_health=true, authority_health_coordination=true, health_single_flight=true, health_stop_fence=true");
 return 0;
 
 static RemoteFeedState Live(ulong revision) => new(

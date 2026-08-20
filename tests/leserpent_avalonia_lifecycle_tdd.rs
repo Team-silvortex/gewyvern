@@ -732,6 +732,58 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
 }
 
 #[test]
+fn remote_event_lifecycle_is_shared_idempotent_and_subscriber_isolated() {
+    let client = avalonia_source("Leserpent.RemoteClient/RemoteEventClient.cs");
+    let lifecycle = avalonia_source("Leserpent.RemoteClient/RemoteEventLifecycle.cs");
+    let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+    let remote_conformance =
+        avalonia_source("Leserpent.RemoteConformance/Program.cs");
+    let mobile_conformance =
+        repo_source("apps/leserpent-mobile/src/Leserpent.MobileConformance/Program.cs");
+
+    assert!(lifecycle.contains("internal sealed class RemoteEventRun"));
+    assert!(lifecycle.contains("private RemoteEventRun? activeRun"));
+    assert!(lifecycle.contains("ReferenceEquals(activeRun, previous)"));
+    assert!(lifecycle.contains("private Task? disposalTask"));
+    assert!(lifecycle.contains("var shutdowns = new Task[16]"));
+    assert!(lifecycle.contains("Parallel.For("));
+    assert!(lifecycle.contains("releaseCount != 1"));
+    assert!(lifecycle.contains("subscribers.GetInvocationList()"));
+    assert!(lifecycle.contains("public int SubscriberFailureCount"));
+    assert!(lifecycle.contains("current == int.MaxValue"));
+    assert!(lifecycle.contains("publisher.Clear()"));
+    assert!(!lifecycle.contains("Avalonia"));
+
+    assert!(client.contains("private readonly RemoteEventLifecycle lifecycle"));
+    assert!(client.contains("previous.Task.WaitAsync(cancellationToken)"));
+    assert!(client.contains("lifecycle.Restart(previous"));
+    assert!(client.contains("new(lifecycle.DisposeAsync())"));
+    assert!(client.contains("publisher.Publish(state)"));
+    assert!(client.contains("publisher.Clear()"));
+    assert!(!client.contains("private readonly CancellationTokenSource shutdown"));
+    assert!(!client.contains("private Task? runTask"));
+    assert!(!client.contains("StateChanged?.Invoke"));
+
+    assert!(program.contains("--verify-remote-event-lifecycle"));
+    for marker in [
+        "event_dispose_single_flight=true",
+        "event_resource_release_once=true",
+        "event_restart_identity=true",
+        "subscriber_failure_isolated=true",
+        "subscriber_failure_count_bounded=true",
+    ] {
+        assert!(
+            remote_conformance.contains(marker),
+            "remote conformance is missing {marker}"
+        );
+        assert!(
+            mobile_conformance.contains(marker),
+            "mobile conformance is missing {marker}"
+        );
+    }
+}
+
+#[test]
 fn hub_topology_filter_is_bounded_keyboard_accessible_and_renderer_neutral() {
     let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");

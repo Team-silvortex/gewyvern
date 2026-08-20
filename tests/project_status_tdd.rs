@@ -3881,7 +3881,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.100.0");
+    assert_eq!(avalonia.contract.version, "1.101.0");
     assert!(
         avalonia
             .contract
@@ -3913,6 +3913,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "zero-avalonia-health-state-ownership",
         "authority-health-stop-generation-fence",
         "shared-health-failure-classification",
+        "shared-event-lifecycle-consumer",
+        "event-run-generation-handle",
+        "event-disposal-single-flight",
+        "subscriber-failure-isolation",
+        "bounded-subscriber-failure-telemetry",
+        "zero-avalonia-event-lifecycle-ownership",
     ] {
         assert!(
             avalonia
@@ -5568,7 +5574,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/remote-console/remote-mobile-console")
         .expect("remote/mobile console contract must remain tracked");
     assert_eq!(remote_console.completion, 98);
-    assert_eq!(remote_console.contract.version, "0.61.0");
+    assert_eq!(remote_console.contract.version, "0.62.0");
     for surface in [
         "renderer-neutral-runtime-search",
         "cross-authority-topology-search",
@@ -5601,6 +5607,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "authority-health-cancellation-restoration",
         "authority-health-bounded-failure-classification",
         "mobile-reusable-authority-health-lifecycle",
+        "frontend-independent-event-lifecycle",
+        "event-run-generation-handle",
+        "idempotent-concurrent-event-shutdown",
+        "mobile-reusable-event-lifecycle",
+        "subscriber-failure-isolation",
+        "bounded-subscriber-failure-count",
         "strict-orchestra-delete-replay-health-codec",
         "visible-orchestra-delete-replay-pressure",
         "complete-runtime-projection-wire-coverage",
@@ -5687,7 +5699,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/release-assurance/continuous-proof")
         .expect("continuous proof contract must remain tracked");
     assert_eq!(continuous_proof.completion, 97);
-    assert_eq!(continuous_proof.contract.version, "0.76.0");
+    assert_eq!(continuous_proof.contract.version, "0.77.0");
     assert!(
         continuous_proof
             .contract
@@ -5729,6 +5741,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "zero-avalonia-health-state-proof",
         "authority-health-stop-fence-proof",
         "authority-health-failure-classification-proof",
+        "shared-event-lifecycle-boundary-proof",
+        "event-generation-handle-proof",
+        "event-disposal-single-flight-proof",
+        "mobile-event-lifecycle-consumption-proof",
+        "zero-avalonia-event-lifecycle-ownership-proof",
+        "subscriber-failure-isolation-proof",
+        "bounded-subscriber-failure-count-proof",
+        "native-aot-event-lifecycle-proof",
     ] {
         assert!(
             continuous_proof

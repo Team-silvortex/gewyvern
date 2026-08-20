@@ -1866,6 +1866,16 @@ requests, unsubscribes remote state, rejects queued post-close projections, and
 contains shutdown-time disposal failures. This keeps renderer replacement and
 application shutdown independent from transport timing.
 
+Remote event ownership itself is renderer-neutral. `RemoteEventLifecycle`
+owns start, restart, cancellation, and resource release; each connection uses a
+distinct `RemoteEventRun` generation handle rather than relying on reusable
+`Task` identity. Concurrent or repeated disposal joins one completion and
+releases subscribers and trust material exactly once. `RemoteFeedPublisher`
+isolates a failing subscriber from healthy consumers and exposes only a
+saturating failure count, never callback exception text. Avalonia and mobile
+therefore consume the same AOT-compatible lifecycle contract instead of owning
+transport tasks or cancellation state.
+
 Every GUI action must support:
 
 - inspection as a normalized `CommandPlan`

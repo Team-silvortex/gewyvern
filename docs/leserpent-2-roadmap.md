@@ -2040,6 +2040,14 @@ without exposing transport exception text. Its stop generation prevents a
 loader that ignores cancellation from republishing into a retired frontend.
 Avalonia contains no health in-flight state or health protocol branching;
 desktop, remote, and mobile probes execute the same lifecycle contract.
+Remote event lifecycle ownership has now crossed that boundary too.
+`RemoteEventLifecycle` gives every start/restart a unique generation handle,
+joins concurrent and repeated disposal into one completion, and releases trust
+and subscriber resources exactly once. `RemoteFeedPublisher` invokes subscribers
+independently, bounds failure telemetry at `int.MaxValue`, and does not expose
+callback exception text. Avalonia owns neither the event cancellation source nor
+the running task; desktop, remote, mobile, and NativeAOT probes execute the same
+contract.
 Remote action availability now follows that boundary too. A pure policy gives
 in-flight work precedence over revision and observation fences, disables
 mutation and inspection consistently while stale, and supplies bounded reasons

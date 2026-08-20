@@ -74,10 +74,9 @@ public sealed class RemoteEventClient : IAsyncDisposable
     private readonly RemoteClientOptions options;
     private readonly RemoteSnapshotStore store;
     private readonly RemoteFeedStateMachine stateMachine = new();
+    private readonly RemoteFeedPublisher publisher = new();
     private readonly X509Certificate2 trustedRoot;
-    private readonly CancellationTokenSource shutdown = new();
-    private readonly object lifecycleGate = new();
-    private Task? runTask;
+    private readonly RemoteEventLifecycle lifecycle;
 
     public RemoteEventClient(RemoteClientOptions options)
     {
@@ -85,6 +84,7 @@ public sealed class RemoteEventClient : IAsyncDisposable
         store = new RemoteSnapshotStore(options.Endpoint, options.CachePath);
         trustedRoot = RemoteTls.LoadRoot(options.CertificateAuthorityPath);
         TrustIdentity = RemoteTrustIdentity.Create(options.Endpoint, trustedRoot);
+        lifecycle = new RemoteEventLifecycle(ReleaseResources);
         try
         {
             if (store.Load() is { } cache)
@@ -98,64 +98,39 @@ public sealed class RemoteEventClient : IAsyncDisposable
         }
     }
 
-    public event Action<RemoteFeedState>? StateChanged;
+    public event Action<RemoteFeedState>? StateChanged
+    {
+        add => publisher.StateChanged += value;
+        remove => publisher.StateChanged -= value;
+    }
     public RemoteFeedState State => stateMachine.State;
     public RemoteTrustIdentity TrustIdentity { get; }
+    public int SubscriberFailureCount => publisher.SubscriberFailureCount;
 
-    public void Start()
-    {
-        lock (lifecycleGate)
-        {
-            ObjectDisposedException.ThrowIf(shutdown.IsCancellationRequested, this);
-            if (runTask is not null)
-            {
-                throw new InvalidOperationException("remote event client is already started");
-            }
-            runTask = RunAsync(shutdown.Token);
-        }
-    }
+    public void Start() => _ = lifecycle.Start(
+        cancellationToken => RunAsync(cancellationToken));
 
     public async Task RestartAsync(CancellationToken cancellationToken = default)
     {
-        Task previous;
-        lock (lifecycleGate)
-        {
-            ObjectDisposedException.ThrowIf(shutdown.IsCancellationRequested, this);
-            previous = runTask
-                ?? throw new InvalidOperationException("remote event client is not started");
-        }
-        await previous.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var previous = lifecycle.RunningOrThrow();
+        await previous.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-        RemoteFeedState resumed;
         var restartGate = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        lock (lifecycleGate)
+        _ = lifecycle.Restart(previous, shutdownToken =>
         {
-            ObjectDisposedException.ThrowIf(shutdown.IsCancellationRequested, this);
-            if (!ReferenceEquals(runTask, previous))
-            {
-                throw new InvalidOperationException("remote event client was already restarted");
-            }
-            resumed = stateMachine.Resume();
-            runTask = RunAsync(shutdown.Token, restartGate.Task, resumed);
-        }
+            var resumed = stateMachine.Resume();
+            return RunAsync(shutdownToken, restartGate.Task, resumed);
+        });
         restartGate.SetResult();
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync() => new(lifecycle.DisposeAsync());
+
+    public static async Task VerifyLifecycleContractAsync()
     {
-        shutdown.Cancel();
-        Task? running;
-        lock (lifecycleGate)
-        {
-            running = runTask;
-        }
-        if (running is not null)
-        {
-            await running.ConfigureAwait(false);
-        }
-        shutdown.Dispose();
-        trustedRoot.Dispose();
+        RemoteFeedPublisher.VerifyContract();
+        await RemoteEventLifecycle.VerifyContractAsync().ConfigureAwait(false);
     }
 
     private async Task RunAsync(
@@ -309,7 +284,13 @@ public sealed class RemoteEventClient : IAsyncDisposable
         return TimeSpan.FromMilliseconds(Math.Min(milliseconds, MaxReconnectDelay.TotalMilliseconds));
     }
 
-    private void Publish(RemoteFeedState state) => StateChanged?.Invoke(state);
+    private void Publish(RemoteFeedState state) => publisher.Publish(state);
+
+    private void ReleaseResources()
+    {
+        publisher.Clear();
+        trustedRoot.Dispose();
+    }
 
     private sealed class ResyncRequiredException : Exception;
 }
