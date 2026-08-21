@@ -2115,10 +2115,16 @@ and Persian, and falls back to English per missing key. Avalonia no longer
 renders every UI-IR `LocalizedText` through its fallback unconditionally:
 visible text, form labels/placeholders, and accessibility names consume the
 selected catalog while stable node/action identities remain untouched. A real
-31-choice control probe, localized native `TextBlock` proof, persistence probe,
-and NativeAOT run gate this boundary. Simplified Chinese includes the complete
-offline tutorial; the remaining desktop-specific long tail stays explicitly
-partial rather than claiming unreviewed translations.
+31-choice control probe, persistence probe, and NativeAOT run gate this boundary.
+All seven non-English built-ins now cover the exact 26-key core semantic UI-IR
+set, with separate native `TextBlock` and accessibility-name proof for each
+locale. Simplified Chinese includes the complete offline tutorial. The other six
+non-English built-in shell catalogs cover all 67 stable shell keys with Web-
+aligned terminology and validated format placeholders, and their semantic
+catalogs use the same bounded key set, but both remain explicit review
+candidates. Their tutorial content, specialist dialogs, semantic keys beyond the
+core set, and all 22 downloadable core-ui packs stay partial rather than
+claiming unreviewed translations.
 Runtime-child workspace admission has now crossed the same boundary. The
 renderer-neutral `RemoteWorkspaceLaunchCoordinator` owns runtime-ID validation,
 the combined active/pending limit, duplicate-request revision coalescing,

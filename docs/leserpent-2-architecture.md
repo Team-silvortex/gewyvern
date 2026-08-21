@@ -218,9 +218,19 @@ translated. The private `desktop-language-v1.json` preference stores only the
 selected locale through strict source-generated JSON, atomic replacement, and
 user-only file permissions. Live selection rebuilds the Hub and native menu and
 reprojects open tutorial, daemon, and runtime windows. English is the complete
-fallback baseline, Simplified Chinese owns the complete Learning Center and
-core native surfaces, and Arabic, Hebrew, and Persian switch the inherited
-Avalonia flow direction to RTL.
+fallback baseline. Each of the eight built-in locales owns an explicit 67-key
+native-shell catalog validated at startup, with Web-aligned terms and bounded
+format placeholders; Simplified Chinese also owns the complete Learning Center.
+All seven non-English built-ins additionally own the exact same 26-key core
+semantic UI-IR set for runtime lists, workspaces, logs, capabilities, history,
+and deployment forms. Startup rejects a missing or extra key, and per-locale
+native `TextBlock` probes validate visible plus accessible text. The six newly
+filled shell and semantic catalogs remain candidates until native-speaker and
+real-layout review, and missing specialist-dialog, tutorial, or semantic keys
+beyond that core set still fall back to English. The native control probe also
+measures every built-in language-selector tree inside the fixed desktop
+envelope; Hub and remote-shell layout expansion remains explicit follow-up work.
+Arabic, Hebrew, and Persian switch the inherited Avalonia flow direction to RTL.
 
 Cross-authority refresh admission is frontend-independent. The shared remote
 client coordinator accepts at most 65 unique daemon authorities (64 saved

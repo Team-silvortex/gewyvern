@@ -496,47 +496,72 @@ internal sealed class LeserpentApp : Application
                 try
                 {
                     window.VerifyAccessibility();
-                    window.ProbeSelectionContract();
-                    var renderer = new AvaloniaDocumentRenderer(
-                        _ => { },
-                        localization.Resolve);
-                    renderer.Mount(new UiDocument
+                    window.VerifyLayoutEnvelope();
+                    foreach (var locale in DesktopLocalization.OfficialLocales.Where(
+                        locale => locale.BuiltIn))
                     {
-                        SchemaVersion = 1,
-                        Revision = 1,
-                        Root = new UiNode
+                        var localizedWindow = new DesktopLanguageWindow(
+                            DesktopLocalization.ForVerification(locale.Locale),
+                            () => { });
+                        localizedWindow.VerifyAccessibility();
+                        localizedWindow.VerifyLayoutEnvelope();
+                    }
+                    window.ProbeSelectionContract();
+                    var semanticSamples = new Dictionary<string, string>
+                    {
+                        ["zh-CN"] = "远程 runtime",
+                        ["zh-TW"] = "遠端 runtimes",
+                        ["ja"] = "リモート runtimes",
+                        ["es"] = "Runtimes remotos",
+                        ["de"] = "Remote-Runtimes",
+                        ["fr"] = "Runtimes distants",
+                        ["ko"] = "원격 runtime",
+                    };
+                    foreach (var sample in semanticSamples)
+                    {
+                        var localized = DesktopLocalization.ForVerification(sample.Key);
+                        var renderer = new AvaloniaDocumentRenderer(
+                            _ => { },
+                            localized.Resolve);
+                        renderer.Mount(new UiDocument
                         {
-                            Id = "localized-verification-title",
-                            Kind = UiNodeKind.Heading,
-                            Text = new LocalizedText
+                            SchemaVersion = 1,
+                            Revision = 1,
+                            Root = new UiNode
                             {
-                                Key = "remote.title",
-                                Fallback = "Remote runtimes",
-                            },
-                            Accessibility = new Accessibility
-                            {
-                                Label = new LocalizedText
+                                Id = $"localized-verification-title-{sample.Key}",
+                                Kind = UiNodeKind.Heading,
+                                Text = new LocalizedText
                                 {
                                     Key = "remote.title",
                                     Fallback = "Remote runtimes",
                                 },
+                                Accessibility = new Accessibility
+                                {
+                                    Label = new LocalizedText
+                                    {
+                                        Key = "remote.title",
+                                        Fallback = "Remote runtimes",
+                                    },
+                                },
+                                Children = [],
                             },
-                            Children = [],
-                        },
-                    });
+                        });
+                        if (renderer.Surface.Content is not TextBlock title
+                            || title.Text != sample.Value
+                            || AutomationProperties.GetName(title) != sample.Value)
+                        {
+                            throw new InvalidDataException(
+                                $"localized UI-IR did not reach its native control for {sample.Key}");
+                        }
+                    }
                     if (appliedCount != 1)
                     {
                         throw new InvalidDataException(
                             "desktop language controls did not apply exactly once");
                     }
-                    if (renderer.Surface.Content is not TextBlock { Text: "远程 runtime" } title
-                        || AutomationProperties.GetName(title) != "远程 runtime")
-                    {
-                        throw new InvalidDataException(
-                            "localized UI-IR did not reach its native control");
-                    }
                     Console.WriteLine(
-                        "desktop language controls valid: official_locales=30, system_choice=true, persistent_preference=true, live_apply=true, english_fallback=true, zh_cn_core=true, zh_cn_tutorial_complete=true, rtl=true, automation_ids=5, automation_names=5, contrast=true");
+                        "desktop language controls valid: official_locales=30, builtin_shell_catalogs=8, builtin_layouts=8, builtin_semantic_catalogs=7, builtin_ui_ir_controls=7, system_choice=true, persistent_preference=true, live_apply=true, english_fallback=true, zh_cn_core=true, zh_cn_tutorial_complete=true, rtl=true, automation_ids=5, automation_names=5, contrast=true");
                 }
                 catch (Exception error)
                 {

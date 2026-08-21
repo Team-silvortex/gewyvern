@@ -2405,12 +2405,12 @@
       "feature": "desktop-localization",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 62,
+      "completion": 78,
       "confidence": "high",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-desktop-localization",
-        "version": "0.1.0",
+        "version": "0.3.0",
         "stability": "draft",
         "surfaces": [
           "shared-official-locale-roster",
@@ -2427,6 +2427,13 @@
           "localized-form-text",
           "localized-accessibility-text",
           "deterministic-english-localization-fallback",
+          "eight-complete-built-in-shell-catalogs",
+          "built-in-shell-format-contract",
+          "web-term-aligned-built-in-catalogs",
+          "eight-built-in-language-selector-layout-envelopes",
+          "seven-non-english-built-in-semantic-catalogs",
+          "semantic-catalog-exact-key-set",
+          "seven-built-in-localized-ui-ir-control-probes",
           "zh-cn-core-native-shell",
           "zh-cn-complete-learning-center",
           "rtl-native-flow-direction",
@@ -2440,12 +2447,14 @@
       "blockers": [
         {
           "id": "desktop-long-tail-language-review",
-          "summary": "English is the complete fallback and Simplified Chinese covers the core native shell plus Learning Center; specialist dialogs and the remaining official locales still require reviewed desktop-specific translations."
+          "summary": "All eight built-in locales now have complete 67-key native-shell catalogs, and all seven non-English built-ins cover the exact 26-key core semantic UI-IR set with native-control probes; the six new candidate translations still require native-speaker review, while specialist dialogs, non-Chinese tutorial content, semantic keys beyond that core set, and the 22 official core-ui packs remain partial."
         }
       ],
       "consumers": ["desktop-operators", "leselang-ui-adapters"],
       "evidence": [
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLocalization.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBuiltInShellCatalogs.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBuiltInSemanticCatalogs.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguagePreferenceStore.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguageWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopTutorialWindow.cs", "state": "present" },
@@ -2453,7 +2462,7 @@
         { "kind": "documentation", "path": "apps/leserpent-avalonia/README.md", "state": "present" },
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" }
       ],
-      "next_gate": "Complete reviewed native-shell translations for the other seven built-in locales, then extend the 22 official core-ui packs without weakening English fallback or stable UI action identities."
+      "next_gate": "Review the six new built-in shell and semantic catalogs with native speakers, localize specialist dialogs through the same semantic-key boundary, and extend real-layout probes from the language selector and core UI-IR controls to Hub and remote shells; then cover non-Chinese tutorials and the 22 official core-ui packs."
     },
     {
       "id": "leserpent-2/remote-console/remote-mobile-console",

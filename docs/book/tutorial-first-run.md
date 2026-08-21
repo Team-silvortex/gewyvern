@@ -20,8 +20,13 @@ To change the desktop language, choose `Language...` beside `Quick tour` in the
 Hub or from the macOS application menu. `Follow System` is the default, and the
 same 30 official locale identifiers used by the Web console are available. The
 choice applies immediately and remains local to this device. Missing
-desktop-specific translations visibly fall back to English; Simplified Chinese
-currently includes the complete six-step Learning Center.
+desktop-specific translations visibly fall back to English. All eight built-in
+languages include the native shell catalog, and all seven non-English built-ins
+also localize the 26 core UI-IR terms used by runtime lists, workspaces, logs,
+capabilities, history, and deployment forms. Simplified Chinese includes the
+complete six-step Learning Center. The six newest shell and semantic
+translations remain marked for native-speaker review rather than being
+presented as complete long-tail coverage.
 
 If you want the lower-level compiler/runtime story, see
 [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md).

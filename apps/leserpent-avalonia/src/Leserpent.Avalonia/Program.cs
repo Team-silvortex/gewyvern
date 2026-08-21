@@ -152,7 +152,7 @@ internal static class Program
             DesktopLocalization.VerifyContract();
             DesktopLanguagePreferenceStore.VerifyContract();
             Console.WriteLine(
-                "desktop localization valid: schema=v1, official_locales=30, builtin_locales=8, downloadable_locales=22, system_resolution=true, bcp47_aliases=true, persistent_preference=true, atomic=true, private=true, unknown_fields=false, localized_ui_ir=true, english_fallback=true, zh_cn_core=true, zh_cn_tutorial_complete=true, rtl_locales=3");
+                "desktop localization valid: schema=v1, official_locales=30, builtin_locales=8, builtin_shell_catalogs=8, builtin_semantic_catalogs=7, semantic_keys=26, downloadable_locales=22, system_resolution=true, bcp47_aliases=true, persistent_preference=true, atomic=true, private=true, unknown_fields=false, localized_ui_ir=true, english_fallback=true, zh_cn_core=true, zh_cn_tutorial_complete=true, rtl_locales=3");
             return 0;
         }
         if (args is ["--verify-local-orchestra", var daemonPath])

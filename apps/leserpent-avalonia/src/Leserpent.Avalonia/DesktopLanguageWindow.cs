@@ -202,6 +202,25 @@ internal sealed class DesktopLanguageWindow : Window
         }
     }
 
+    public void VerifyLayoutEnvelope()
+    {
+        if (Content is not Control root)
+        {
+            throw new InvalidDataException("desktop language window has no control root");
+        }
+        root.Measure(new Size(Width, 900));
+        var desired = root.DesiredSize;
+        if (!double.IsFinite(desired.Width)
+            || !double.IsFinite(desired.Height)
+            || desired.Width <= 0
+            || desired.Height <= 0
+            || desired.Width > Width
+            || desired.Height > 900)
+        {
+            throw new InvalidDataException("desktop language controls exceeded their layout envelope");
+        }
+    }
+
     public void ProbeSelectionContract()
     {
         languageBox.SelectedItem = choices.Single(choice => choice.Preference == "zh-CN");

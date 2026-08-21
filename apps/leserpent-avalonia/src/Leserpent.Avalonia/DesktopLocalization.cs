@@ -279,18 +279,42 @@ internal sealed class DesktopLocalization
         Complete("zh-CN", "Chinese (Simplified)", "简体中文", SimplifiedChineseText,
             SimplifiedChineseSemanticText,
             DesktopLocaleCoverage.Core),
-        Core("zh-TW", "Chinese (Traditional)", "繁體中文", "語言", "控制平面面板",
-            "面向多台鄰近 gewyvern runtime 的輕量 fleet 視圖。"),
-        Core("ja", "Japanese", "日本語", "言語", "コントロールプレーン ダッシュボード",
-            "近くにある複数の gewyvern runtime を見るための軽量 fleet ビューです。"),
-        Core("es", "Spanish", "Español", "Idioma", "Panel de Control",
-            "Una vista ligera del fleet para muchos runtimes gewyvern cercanos."),
-        Core("de", "German", "Deutsch", "Sprache", "Control Plane Dashboard",
-            "Eine leichtgewichtige Fleet-Ansicht für viele nahe gewyvern-Runtimes."),
-        Core("fr", "French", "Français", "Langue", "Tableau de bord du plan de contrôle",
-            "Une vue légère du fleet pour de nombreux runtimes gewyvern proches."),
-        Core("ko", "Korean", "한국어", "언어", "컨트롤 플레인 대시보드",
-            "가까이에 있는 여러 gewyvern 런타임을 위한 가벼운 fleet 보기입니다."),
+        BuiltInShell(
+            "zh-TW",
+            "Chinese (Traditional)",
+            "繁體中文",
+            DesktopBuiltInShellCatalogs.TraditionalChinese,
+            DesktopBuiltInSemanticCatalogs.TraditionalChinese),
+        BuiltInShell(
+            "ja",
+            "Japanese",
+            "日本語",
+            DesktopBuiltInShellCatalogs.Japanese,
+            DesktopBuiltInSemanticCatalogs.Japanese),
+        BuiltInShell(
+            "es",
+            "Spanish",
+            "Español",
+            DesktopBuiltInShellCatalogs.Spanish,
+            DesktopBuiltInSemanticCatalogs.Spanish),
+        BuiltInShell(
+            "de",
+            "German",
+            "Deutsch",
+            DesktopBuiltInShellCatalogs.German,
+            DesktopBuiltInSemanticCatalogs.German),
+        BuiltInShell(
+            "fr",
+            "French",
+            "Français",
+            DesktopBuiltInShellCatalogs.French,
+            DesktopBuiltInSemanticCatalogs.French),
+        BuiltInShell(
+            "ko",
+            "Korean",
+            "한국어",
+            DesktopBuiltInShellCatalogs.Korean,
+            DesktopBuiltInSemanticCatalogs.Korean),
         Core("pt-BR", "Portuguese (Brazil)", "Português (Brasil)", "Idioma",
             "Painel do plano de controle", "Uma visão leve da frota para vários runtimes gewyvern próximos.", false),
         Core("it", "Italian", "Italiano", "Lingua", "Dashboard del piano di controllo",
@@ -432,14 +456,25 @@ internal sealed class DesktopLocalization
 
     public static void VerifyContract()
     {
+        DesktopBuiltInShellCatalogs.VerifyContract();
+        DesktopBuiltInSemanticCatalogs.VerifyContract(
+            SimplifiedChineseSemanticText.Keys);
         var ids = LocaleDefinitions.Select(locale => locale.Locale).ToArray();
+        var desktopTextKeyCount = Enum.GetValues<DesktopTextKey>().Length;
         if (Schema != "leserpent.desktop-localization/v1"
             || LocaleDefinitions.Length != 30
             || LocaleDefinitions.Count(locale => locale.BuiltIn) != 8
+            || LocaleDefinitions.Count(locale => locale.BuiltIn
+                && locale.Text.Count == desktopTextKeyCount) != 8
             || LocaleDefinitions.Count(locale => locale.IsRightToLeft) != 3
             || ids.Distinct(StringComparer.OrdinalIgnoreCase).Count() != 30
-            || EnglishText.Count != Enum.GetValues<DesktopTextKey>().Length
-            || SimplifiedChineseText.Count != Enum.GetValues<DesktopTextKey>().Length
+            || EnglishText.Count != desktopTextKeyCount
+            || SimplifiedChineseText.Count != desktopTextKeyCount
+            || SimplifiedChineseSemanticText.Count
+                != DesktopBuiltInSemanticCatalogs.KeyCount
+            || LocaleDefinitions.Count(locale => locale.BuiltIn
+                && locale.Locale != "en"
+                && locale.SemanticText.Count == DesktopBuiltInSemanticCatalogs.KeyCount) != 7
             || LocaleDefinitions.Any(locale => !ValidLocale(locale)))
         {
             throw new InvalidDataException("desktop localization catalog contract drifted");
@@ -458,6 +493,39 @@ internal sealed class DesktopLocalization
             }) != "Safe fallback")
         {
             throw new InvalidDataException("desktop localized-text resolution drifted");
+        }
+        var builtInSamples = new Dictionary<string, (DesktopTextKey Key, string Value)>
+        {
+            ["zh-TW"] = (DesktopTextKey.ControlTopology, "控制拓撲"),
+            ["ja"] = (DesktopTextKey.Close, "閉じる"),
+            ["es"] = (DesktopTextKey.FollowSystem, "Seguir el sistema"),
+            ["de"] = (DesktopTextKey.Reconnect, "Neu verbinden"),
+            ["fr"] = (DesktopTextKey.LearningCenter, "Centre d’apprentissage..."),
+            ["ko"] = (DesktopTextKey.RefreshAll, "모두 새로고침"),
+        };
+        if (builtInSamples.Any(sample =>
+            ForVerification(sample.Key).Text(sample.Value.Key) != sample.Value.Value))
+        {
+            throw new InvalidDataException("built-in desktop shell translation drifted");
+        }
+        var semanticSamples = new Dictionary<string, string>
+        {
+            ["zh-CN"] = "部署管道",
+            ["zh-TW"] = "部署 pipeline",
+            ["ja"] = "pipeline をデプロイ",
+            ["es"] = "Desplegar pipeline",
+            ["de"] = "Pipeline bereitstellen",
+            ["fr"] = "Déployer le pipeline",
+            ["ko"] = "pipeline 배포",
+        };
+        if (semanticSamples.Any(sample => ForVerification(sample.Key).Resolve(
+            new LocalizedText
+            {
+                Key = "runtime.deploy",
+                Fallback = "Deploy pipeline",
+            }) != sample.Value))
+        {
+            throw new InvalidDataException("built-in desktop semantic translation drifted");
         }
         var system = ForVerification(SystemPreference, "zh-Hans-CN");
         if (system.Active.Locale != "zh-CN"
@@ -492,6 +560,21 @@ internal sealed class DesktopLocalization
             true,
             false,
             coverage,
+            text,
+            semanticText);
+
+    private static DesktopLocaleDefinition BuiltInShell(
+        string locale,
+        string name,
+        string nativeName,
+        IReadOnlyDictionary<DesktopTextKey, string> text,
+        IReadOnlyDictionary<string, string> semanticText) => new(
+            locale,
+            name,
+            nativeName,
+            true,
+            false,
+            DesktopLocaleCoverage.Core,
             text,
             semanticText);
 

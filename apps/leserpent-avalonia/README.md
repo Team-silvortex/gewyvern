@@ -254,11 +254,19 @@ and typed action binding. The Avalonia renderer resolves `LocalizedText.Key`
 through the desktop catalog instead of displaying `Fallback` unconditionally;
 unknown keys still use the validated English fallback. Arabic, Hebrew, and
 Persian select native RTL flow direction. English remains the complete fallback
-baseline, Simplified Chinese covers the core native shell and complete six-step
-tutorial, and other official locales may visibly identify English fallback for
-desktop-specific long-tail text. Run `--verify-desktop-localization` for the
+baseline. All eight built-in locales now carry an explicit 67-key native-shell
+catalog with Web-aligned terminology. All seven non-English built-ins also cover
+the exact 26-key core semantic UI-IR set for runtime lists, workspaces, logs,
+capabilities, history, and deployment forms; per-locale native `TextBlock` probes
+verify both visible and accessible text. Simplified Chinese additionally covers
+the complete six-step tutorial. The six newly completed shell and semantic
+catalogs remain candidate translations pending native-speaker review, while
+their tutorial steps, specialist dialogs, semantic keys beyond that core set,
+and the 22 downloadable locales still fall back to English per missing key. Run
+`--verify-desktop-localization` for the
 catalog/persistence contract and `--verify-desktop-language-controls` for the
-real 31-choice control tree and localized UI-IR proof.
+real 31-choice control tree, all eight built-in selector layout envelopes, and
+all seven non-English localized UI-IR control proofs.
 
 Opening a runtime child follows the same renderer-neutral boundary. The
 `RemoteWorkspaceLaunchCoordinator` validates runtime IDs, bounds active plus

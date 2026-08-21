@@ -5587,8 +5587,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/ui-renderers/desktop-localization")
         .expect("desktop localization contract must remain tracked");
     assert_eq!(desktop_localization.maturity, Maturity::Incubating);
-    assert_eq!(desktop_localization.completion, 62);
-    assert_eq!(desktop_localization.contract.version, "0.1.0");
+    assert_eq!(desktop_localization.completion, 78);
+    assert_eq!(desktop_localization.contract.version, "0.3.0");
     assert_eq!(desktop_localization.contract.stability, ContractStability::Draft);
     for surface in [
         "thirty-official-locale-identifiers",
@@ -5596,6 +5596,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "native-language-settings-window",
         "ui-ir-localized-text-resolution",
         "deterministic-english-localization-fallback",
+        "eight-complete-built-in-shell-catalogs",
+        "built-in-shell-format-contract",
+        "web-term-aligned-built-in-catalogs",
+        "eight-built-in-language-selector-layout-envelopes",
+        "seven-non-english-built-in-semantic-catalogs",
+        "semantic-catalog-exact-key-set",
+        "seven-built-in-localized-ui-ir-control-probes",
         "zh-cn-complete-learning-center",
         "rtl-native-flow-direction",
     ] {
@@ -5610,12 +5617,23 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }
     assert!(desktop_localization.blockers.iter().any(|blocker| {
         blocker.id == "desktop-long-tail-language-review"
-            && blocker.summary.contains("English")
-            && blocker.summary.contains("Simplified Chinese")
+            && blocker.summary.contains("eight built-in locales")
+            && blocker.summary.contains("seven non-English built-ins")
+            && blocker.summary.contains("native-speaker review")
     }));
     assert!(desktop_localization.evidence.iter().any(|evidence| {
         evidence.path
             == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLocalization.cs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(desktop_localization.evidence.iter().any(|evidence| {
+        evidence.path
+            == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBuiltInShellCatalogs.cs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(desktop_localization.evidence.iter().any(|evidence| {
+        evidence.path
+            == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBuiltInSemanticCatalogs.cs"
             && evidence.state == EvidenceState::Present
     }));
 

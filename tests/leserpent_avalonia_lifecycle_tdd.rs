@@ -927,6 +927,8 @@ fn desktop_tutorial_is_offline_accessible_and_ui_reachable() {
 #[test]
 fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     let localization = avalonia_source("Leserpent.Avalonia/DesktopLocalization.cs");
+    let built_in = avalonia_source("Leserpent.Avalonia/DesktopBuiltInShellCatalogs.cs");
+    let semantic = avalonia_source("Leserpent.Avalonia/DesktopBuiltInSemanticCatalogs.cs");
     let store = avalonia_source("Leserpent.Avalonia/DesktopLanguagePreferenceStore.cs");
     let window = avalonia_source("Leserpent.Avalonia/DesktopLanguageWindow.cs");
     let renderer = avalonia_source("Leserpent.Avalonia/AvaloniaDocumentRenderer.cs");
@@ -957,6 +959,61 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
         );
     }
     assert!(localization.contains("public string Resolve(LocalizedText text)"));
+    for marker in [
+        "TraditionalChinese",
+        "Japanese",
+        "Spanish",
+        "German",
+        "French",
+        "Korean",
+        "catalog.Count != expected",
+        "VerifyFormat(catalog[DesktopTextKey.StepProgress]",
+        "built-in desktop shell catalog is incomplete",
+    ] {
+        assert!(built_in.contains(marker), "built-in catalog is missing {marker}");
+    }
+    assert_eq!(built_in.matches("[DesktopTextKey.").count(), 405);
+    assert!(built_in.contains("[DesktopTextKey.ControlTopology] = \"控制拓撲\""));
+    assert!(built_in.contains("[DesktopTextKey.Close] = \"閉じる\""));
+    assert!(built_in.contains("[DesktopTextKey.FollowSystem] = \"Seguir el sistema\""));
+    assert!(built_in.contains("[DesktopTextKey.Reconnect] = \"Neu verbinden\""));
+    assert!(built_in.contains(
+        "[DesktopTextKey.LearningCenter] = \"Centre d’apprentissage...\""
+    ));
+    assert!(built_in.contains("[DesktopTextKey.RefreshAll] = \"모두 새로고침\""));
+    assert!(!built_in.contains("HttpClient"));
+    assert!(!built_in.contains("File."));
+    assert!(!built_in.contains("Process."));
+    for marker in [
+        "TraditionalChinese",
+        "Japanese",
+        "Spanish",
+        "German",
+        "French",
+        "Korean",
+        "public const int KeyCount = 26",
+        "catalog.Count != KeyCount",
+        "SetEquals(expected)",
+        "built-in desktop semantic catalog is incomplete",
+    ] {
+        assert!(
+            semantic.contains(marker),
+            "built-in semantic catalog is missing {marker}"
+        );
+    }
+    assert!(semantic.contains("[\"remote.title\"] = \"遠端 runtimes\""));
+    assert!(semantic.contains("[\"runtime.deploy\"] = \"pipeline をデプロイ\""));
+    assert!(semantic.contains("[\"runtime.logs.title\"] = \"Registros\""));
+    assert!(semantic.contains("[\"runtime.capabilities.title\"] = \"Fähigkeiten\""));
+    assert!(semantic.contains("[\"runtime.history.title\"] = \"Historique\""));
+    assert!(semantic.contains("[\"runtime.deploy.form.title\"] = \"원격 배포 확인\""));
+    assert!(!semantic.contains("HttpClient"));
+    assert!(!semantic.contains("File."));
+    assert!(!semantic.contains("Process."));
+    assert!(localization.contains(
+        "DesktopBuiltInSemanticCatalogs.VerifyContract(\n            SimplifiedChineseSemanticText.Keys)"
+    ));
+    assert!(localization.contains("built-in desktop semantic translation drifted"));
     assert_eq!(web_catalog["officialLocaleCount"], 30);
     assert_eq!(web_catalog["builtinLocaleCount"], 8);
     assert_eq!(web_catalog["downloadableLocaleCount"], 22);
@@ -1001,6 +1058,8 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
         assert!(window.contains(automation_id));
     }
     assert!(window.contains("choices.Count != 31"));
+    assert!(window.contains("public void VerifyLayoutEnvelope()"));
+    assert!(window.contains("desired.Width > Width"));
     assert!(window.contains("localization.SetPreference(choice.Preference)"));
     assert!(!window.contains("HttpClient"));
     assert!(hub.contains("hub-open-language"));
@@ -1008,8 +1067,14 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(lifecycle.contains("DesktopLanguageWindow"));
     assert!(lifecycle.contains("Language..."));
     assert!(app.contains("--verify-desktop-language-controls"));
+    assert!(app.contains("builtin_layouts=8"));
+    assert!(app.contains("builtin_semantic_catalogs=7"));
+    assert!(app.contains("builtin_ui_ir_controls=7"));
     assert!(app.contains("localized UI-IR did not reach its native control"));
     assert!(program.contains("--verify-desktop-localization"));
+    assert!(program.contains("builtin_shell_catalogs=8"));
+    assert!(program.contains("builtin_semantic_catalogs=7"));
+    assert!(program.contains("semantic_keys=26"));
     assert!(program.contains("localized_ui_ir=true"));
 }
 
