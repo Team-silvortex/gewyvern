@@ -7,7 +7,7 @@ defines the invariant destination; this page defines ordered delivery gates.
 The roadmap is capability-gated, not date-gated. A later gate may be prototyped
 early, but it cannot become authoritative before its prerequisites are green.
 
-Current implementation checkpoint: shared release `v1.15.0`. The
+Current implementation checkpoint: shared release `v1.16.0`. The
 [project status tensor](project-status-system.md) remains authoritative for
 per-feature maturity, evidence, dependencies, and next gates.
 
@@ -1504,7 +1504,7 @@ while leaving wire reads and Leselang export unfenced. The inventoried external
 side-effect routes now share one authority boundary. The fifth slice closes the
 previous refresh and bootstrap-session-bind gaps, makes Rust request
 classification compile-time exhaustive, and source-scans both the C# mutation
-routes and Rust HTTPS table against contract 1.15.0. A real three-process daemon
+routes and Rust HTTPS table against contract 1.16.0. A real three-process daemon
 test proves live-owner exclusion, generation advance, stale-writer rejection,
 and durable writer replay across two restarts. Hot failover remains explicitly
 out of scope; future route growth must preserve these executable inventory and

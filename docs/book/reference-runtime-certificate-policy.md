@@ -183,7 +183,7 @@ These reason codes are the stable identifiers for the current policy layer.
 
 ## Root-Policy Expectations
 
-The active `1.15.x` policy assumes this root intent:
+The active `1.16.x` policy assumes this root intent:
 
 - `certificates/trust/`
   - should primarily contain trust anchors, bundles, and chain material

@@ -4214,7 +4214,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(transport.maturity, Maturity::Mature);
     assert_eq!(transport.completion, 100);
     assert_eq!(transport.contract.stability, ContractStability::Stable);
-    assert_eq!(transport.contract.version, "1.15.0");
+    assert_eq!(transport.contract.version, "1.16.0");
     for surface in [
         "optional-unregistration-replay-horizon-health",
         "legacy-horizon-free-health-decode",
@@ -4300,7 +4300,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(runtime.maturity, Maturity::Mature);
     assert_eq!(runtime.completion, 100);
     assert_eq!(runtime.contract.stability, ContractStability::Stable);
-    assert_eq!(runtime.contract.version, "1.15.0");
+    assert_eq!(runtime.contract.version, "1.16.0");
     for surface in [
         "durable-sidecar-endpoint",
         "atomic-sidecar-registration-update",

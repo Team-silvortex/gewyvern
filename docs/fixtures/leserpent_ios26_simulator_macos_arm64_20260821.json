@@ -19,7 +19,7 @@
   },
   "package": {
     "application_id": "org.gewyvern.leserpent",
-    "version": "1.15.0",
+    "version": "1.16.0",
     "minimum_ios": "15.0",
     "device_families": [
       "iphone",

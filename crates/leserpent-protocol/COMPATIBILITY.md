@@ -498,7 +498,7 @@ changing the wire protocol. On physical Linux, every completed hostile batch
 returns to 5 FDs and 1 task; every 64-peer incomplete wave exposes exactly 69
 FDs and 65 tasks before cancellation. All scoped readers join, `/proc/<pid>`,
 the SQLite owner row, and the Unix socket disappear after each exit, and writer
-generation 1 remains a replay across both restarts. Contract `1.15.0` records
+generation 1 remains a replay across both restarts. Contract `1.16.0` records
 this lifecycle proof.
 
 Contract `1.16.0` preserves strict accept-order mutation linearization while

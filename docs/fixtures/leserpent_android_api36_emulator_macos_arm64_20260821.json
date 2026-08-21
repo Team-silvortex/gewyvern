@@ -19,7 +19,7 @@
   },
   "package": {
     "application_id": "org.gewyvern.leserpent",
-    "version": "1.15.0",
+    "version": "1.16.0",
     "minimum_api": 23,
     "target_api": 36,
     "runtime_identifiers": [

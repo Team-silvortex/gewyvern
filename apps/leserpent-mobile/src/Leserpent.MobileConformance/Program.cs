@@ -618,7 +618,7 @@ sealed class FixtureSession(ulong revision, bool failOnStart) : IMobileRemoteSes
         {
             Source = "gewyvern-api",
             Service = "gewyvern",
-            Version = "1.15.0",
+            Version = "1.16.0",
             AuthenticatedDeployment = true,
         },
         CapabilitiesObservedForRevision = value,

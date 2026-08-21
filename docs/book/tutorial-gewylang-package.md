@@ -135,7 +135,7 @@ This is one of the best ways to confirm that:
 - function units were found
 - `use(...)` edges point where you think they do
 
-For the current `1.15.x`-line compiler surfaces, a practical read order is:
+For the current `1.16.x`-line compiler surfaces, a practical read order is:
 
 1. check `envelope.payload.summary.finding_count`
 2. read `envelope.payload.summary.next_step`

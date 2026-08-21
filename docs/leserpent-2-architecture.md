@@ -5,7 +5,7 @@ This document is the authoritative target architecture for the
 current 1.x implementation. Delivery order and exit gates live in the
 [Leserpent 2.0 roadmap](leserpent-2-roadmap.md).
 
-The current implementation checkpoint is the shared `v1.15.0` release. This
+The current implementation checkpoint is the shared `v1.16.0` release. This
 document remains the `2.0.0` target contract rather than a claim that every
 target capability is already complete.
 
@@ -1108,7 +1108,7 @@ active-active writes.
 
 The fence policy is compile-time exhaustive over every Rust protocol request
 and nested command variant. The C# non-read endpoint set and Rust HTTPS route
-table are also source-scanned against contract version 1.15.0, so a new route
+table are also source-scanned against contract version 1.16.0, so a new route
 cannot silently bypass inventory review. A real three-daemon-process test
 proves live-owner exclusion, clean fresh-process reopening, durable generation
 advance, stale refresh rejection, current refresh application, and idempotent

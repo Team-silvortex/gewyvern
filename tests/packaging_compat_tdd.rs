@@ -19,7 +19,7 @@ fn package_layout_writes_compat_manifest() {
         .expect("manifest reader function end")
         .0;
 
-    assert!(build_script.contains("RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v1.15.0}\""));
+    assert!(build_script.contains("RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v1.16.0}\""));
     assert!(build_script.contains("LAYOUT_VERSION=\"${GEWY_LAYOUT_VERSION:-1}\""));
     assert!(build_script.contains("CONFIG_SCHEMA_VERSION=\"${GEWY_CONFIG_SCHEMA_VERSION:-1}\""));
     assert!(build_script.contains("TARGET_ROOT=\"${ROOT}/${CARGO_TARGET_DIR}\""));
@@ -110,7 +110,7 @@ fn install_smoke_validates_packaged_compat_artifacts() {
     assert!(harness.contains("evidence-index.json"));
     assert!(harness.contains("GEWY_DEB_SMOKE_IMAGE"));
     assert!(harness.contains("GEWY_RPM_SMOKE_IMAGE"));
-    assert!(harness.contains("RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v1.15.0}\""));
+    assert!(harness.contains("RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v1.16.0}\""));
     assert!(harness.contains("test -f /usr/share/gewyvern/package-compat.toml"));
     assert!(harness.contains("grep -q '^schema_version = 1$'"));
     assert!(harness.contains("release_line = \\\"${RELEASE_LINE}\\\""));

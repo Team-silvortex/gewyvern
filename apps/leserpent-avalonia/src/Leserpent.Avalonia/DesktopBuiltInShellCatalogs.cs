@@ -444,7 +444,7 @@ internal static class DesktopBuiltInShellCatalogs
                 throw new InvalidDataException("built-in desktop shell catalog is incomplete");
             }
             VerifyFormat(catalog[DesktopTextKey.StepProgress], 1, 6);
-            VerifyFormat(catalog[DesktopTextKey.Version], "1.15.0");
+            VerifyFormat(catalog[DesktopTextKey.Version], "1.16.0");
             VerifyFormat(catalog[DesktopTextKey.RequiredSuffix], "Target");
         }
     }
