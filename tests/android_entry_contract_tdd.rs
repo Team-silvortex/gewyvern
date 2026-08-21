@@ -155,6 +155,8 @@ fn android_native_controls_consume_shared_ui_documents_and_typed_form_events() {
     let activity = source("apps/leserpent-mobile/src/Leserpent.Mobile.Android/MainActivity.cs");
     let binding =
         source("apps/leserpent-mobile/src/Leserpent.MobileCore/MobileUiDocumentBinding.cs");
+    let render_gate =
+        source("apps/leserpent-mobile/src/Leserpent.MobileCore/MobileNativeRenderGate.cs");
     let lifecycle =
         source("apps/leserpent-mobile/src/Leserpent.MobileCore/MobileRemoteLifecycle.cs");
     let coordinator =
@@ -172,6 +174,9 @@ fn android_native_controls_consume_shared_ui_documents_and_typed_form_events() {
         "coordinator.LoadWorkspaceAsync(runtime.Id, lifetime.Token)",
         "coordinator.ExecuteMutationAsync(intent, lifetime.Token)",
         "Values remain local until a validated submit event and explicit confirmation.",
+        "MobileNativeRenderGate.RetainEquivalentPresentation(",
+        "renderGate.ShouldRender(",
+        "renderGate.Invalidate()",
     ] {
         assert!(
             activity.contains(required),
@@ -214,10 +219,28 @@ fn android_native_controls_consume_shared_ui_documents_and_typed_form_events() {
         "RemoteUiActionRouter.ResolveSubmission(",
         "source.Root.Children.Clear()",
         "mobile UI binding did not isolate itself from source mutation",
+        "public bool HasSameNativePresentation(",
+        "SameNode(Root, other.Root, ignoredNodeId)",
+        "mobile native presentation did not isolate transient heartbeat status",
     ] {
         assert!(
             binding.contains(required),
             "mobile UI binding lost {required}"
+        );
+    }
+    for required in [
+        "public sealed class MobileNativeRenderGate",
+        "public static MobileUiDocumentBinding RetainEquivalentPresentation(",
+        "current?.HasSameNativePresentation(candidate, ignoredNodeId)",
+        "ReferenceEquals(document, candidate)",
+        "availability == candidateAvailability",
+        "busy == candidateBusy",
+        "runtimeColumns == candidateRuntimeColumns",
+        "public void Invalidate()",
+    ] {
+        assert!(
+            render_gate.contains(required),
+            "mobile native render gate lost {required}"
         );
     }
     for required in [
@@ -247,14 +270,27 @@ fn android_native_controls_consume_shared_ui_documents_and_typed_form_events() {
     }
     for required in [
         "MobileUiDocumentBinding.VerifyContract();",
+        "return request.Create(",
+        "X509SignatureGenerator.CreateForRSA(",
+        "serialNumber[0] &= 0x7F",
+        "serialNumber[^1] |= 1",
+        "CryptographicOperations.ZeroMemory(serialNumber)",
+        "keychain_independent_certificate_fixture=true",
         "native_parameterized_form=true",
         "native_form_event_routing=true",
         "native_typed_deployment=true",
         "mobile_operation_generation_fence=true",
+        "exact_native_presentation_equivalence=true",
+        "heartbeat_stable_native_render=true",
+        "native_render_state_fence=true",
     ] {
         assert!(
             conformance.contains(required),
             "mobile conformance lost {required}"
         );
     }
+    assert!(
+        !conformance.contains("CreateSelfSigned("),
+        "mobile conformance reintroduced a host Keychain dependency"
+    );
 }

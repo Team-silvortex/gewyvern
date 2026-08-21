@@ -5587,8 +5587,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/ui-renderers/desktop-localization")
         .expect("desktop localization contract must remain tracked");
     assert_eq!(desktop_localization.maturity, Maturity::Incubating);
-    assert_eq!(desktop_localization.completion, 92);
-    assert_eq!(desktop_localization.contract.version, "0.7.0");
+    assert_eq!(desktop_localization.completion, 95);
+    assert_eq!(desktop_localization.contract.version, "0.8.0");
     assert_eq!(desktop_localization.contract.stability, ContractStability::Draft);
     for surface in [
         "thirty-official-locale-identifiers",
@@ -5623,6 +5623,26 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "localized-gewyvern-retirement-controls",
         "eight-built-in-retirement-layout-envelopes",
         "live-retirement-language-reprojection",
+        "shared-strict-domain-catalog-contract",
+        "seven-built-in-daemon-retirement-specialist-catalogs",
+        "daemon-retirement-catalog-exact-key-set",
+        "localized-daemon-retirement-controls",
+        "eight-built-in-daemon-retirement-layout-envelopes",
+        "live-daemon-retirement-language-reprojection",
+        "seven-built-in-startup-recovery-specialist-catalogs",
+        "startup-recovery-catalog-exact-key-set",
+        "localized-startup-recovery-controls",
+        "token-redacted-startup-detail-preservation",
+        "eight-built-in-startup-recovery-layout-envelopes",
+        "live-startup-recovery-language-reprojection",
+        "seven-built-in-account-specialist-catalogs",
+        "account-catalog-exact-key-set",
+        "typed-account-presentation-status",
+        "account-phase-status-compatibility-fence",
+        "localized-account-controls",
+        "eight-built-in-account-layout-envelopes",
+        "live-account-language-reprojection",
+        "minimum-hub-layout-envelope",
         "zh-cn-complete-learning-center",
         "rtl-native-flow-direction",
     ] {
@@ -5639,11 +5659,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         blocker.id == "desktop-long-tail-language-review"
             && blocker.summary.contains("eight built-in locales")
             && blocker.summary.contains("seven non-English built-ins")
-            && blocker.summary.contains("33-key connection/forget domain")
-            && blocker.summary.contains("46-key reverse-deployment domain")
-            && blocker.summary.contains("43-key gewyvern-provisioning domain")
-            && blocker.summary.contains("45-key gewyvern-retirement domain")
-            && blocker.summary.contains("daemon-retirement")
+            && blocker.summary.contains("exact 275-key semantic set")
+            && blocker.summary.contains("daemon retirement")
+            && blocker.summary.contains("startup recovery")
+            && blocker.summary.contains("typed presentation status")
             && blocker.summary.contains("native-speaker review")
     }));
     assert!(desktop_localization.evidence.iter().any(|evidence| {
@@ -5681,6 +5700,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRetirementCatalogs.cs"
             && evidence.state == EvidenceState::Present
     }));
+    for path in [
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopDomainCatalogContract.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopDaemonRetirementCatalogs.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopStartupRecoveryCatalogs.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopAccountCatalogs.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/DaemonRetirementWindow.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/StartupErrorWindow.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/SilvortexAccountControl.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/HubWindow.cs",
+    ] {
+        assert!(desktop_localization.evidence.iter().any(|evidence| {
+            evidence.path == path && evidence.state == EvidenceState::Present
+        }));
+    }
 
     let remote_console = catalog
         .cells
@@ -5688,7 +5721,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/remote-console/remote-mobile-console")
         .expect("remote/mobile console contract must remain tracked");
     assert_eq!(remote_console.completion, 99);
-    assert_eq!(remote_console.contract.version, "0.67.0");
+    assert_eq!(remote_console.contract.version, "0.69.0");
     for surface in [
         "renderer-neutral-runtime-search",
         "cross-authority-topology-search",
@@ -5764,6 +5797,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "release-flag-secure-emulator-proof",
         "cold-hot-relaunch-emulator-proof",
         "mobile-immutable-ui-document-binding",
+        "exact-mobile-native-presentation-equivalence",
+        "heartbeat-stable-mobile-native-render",
+        "native-render-state-fence",
+        "keychain-independent-mobile-conformance-certificate",
         "android-renderer-neutral-native-controls",
         "android-first-frame-ui-document",
         "android-native-workspace-query",
@@ -5792,6 +5829,15 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ios-keyboard-layout-guide",
         "ios-brand-icon-package",
         "ios-debug-keychain-proof",
+        "compact-ios-header-reflow",
+        "native-ios-process-argument-proof-switches",
+        "ios26-simulator-runtime-proof",
+        "ios-keychain-simulator-proof",
+        "ios-debug-simulator-package",
+        "ios-release-aot-package",
+        "ios-compact-expanded-simulator-matrix",
+        "ios-large-font-simulator-proof",
+        "ios-cold-hot-relaunch-simulator-proof",
     ] {
         assert!(
             remote_console
@@ -5813,6 +5859,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }));
     assert!(remote_console.evidence.iter().any(|evidence| {
         evidence.path
+            == "apps/leserpent-mobile/src/Leserpent.MobileCore/MobileNativeRenderGate.cs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(remote_console.evidence.iter().any(|evidence| {
+        evidence.path
             == "apps/leserpent-mobile/src/Leserpent.MobileCore/MobileConnectionProfileStore.cs"
             && evidence.state == EvidenceState::Present
     }));
@@ -5828,6 +5879,15 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }));
     assert!(remote_console.evidence.iter().any(|evidence| {
         evidence.path == "tests/ios_entry_contract_tdd.rs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(remote_console.evidence.iter().any(|evidence| {
+        evidence.path == "tests/leserpent_ios_simulator_tdd.rs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(remote_console.evidence.iter().any(|evidence| {
+        evidence.path
+            == "docs/fixtures/leserpent_ios26_simulator_macos_arm64_20260821.json"
             && evidence.state == EvidenceState::Present
     }));
 

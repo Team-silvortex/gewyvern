@@ -14,6 +14,8 @@ internal sealed class DaemonRetirementWindow : Window
 {
     private const string Principal = "avalonia-hub";
     private const int MaxAutomaticObservations = 30;
+    private static readonly object UnavailableValue = new();
+    private readonly DesktopLocalization localization;
     private readonly DaemonRetirementHubOperations operations;
     private readonly CancellationTokenSource lifetime = new();
     private readonly List<Control> auditedControls = [];
@@ -31,43 +33,72 @@ internal sealed class DaemonRetirementWindow : Window
     };
     private readonly CheckBox confirmation = new()
     {
-        Content = "I confirm removal of the leserpentd service created by this bootstrap",
         Foreground = LeserpentTheme.Body,
     };
-    private readonly Button submitButton = DestructiveButton("Retire daemon");
+    private readonly Button submitButton = DestructiveButton();
     private readonly Button refreshButton = new()
     {
-        Content = "Refresh same attempt",
         Padding = new Thickness(16, 9),
+        Margin = new Thickness(5),
         IsEnabled = false,
+    };
+    private readonly Button closeButton = new()
+    {
+        Padding = new Thickness(16, 9),
+        Margin = new Thickness(5),
     };
     private readonly TextBlock status = new()
     {
         Foreground = LeserpentTheme.Muted,
         TextWrapping = TextWrapping.Wrap,
-        Text = "Choose the daemon authority that performed the original bootstrap.",
     };
     private readonly TextBlock phase = new()
     {
         Foreground = LeserpentTheme.Primary,
         FontWeight = FontWeight.Bold,
         LetterSpacing = 1,
-        Text = "NOT SUBMITTED",
     };
+    private readonly TextBlock kickerText = new()
+    {
+        Foreground = LeserpentTheme.Destructive,
+        FontSize = 12,
+        FontWeight = FontWeight.Bold,
+        LetterSpacing = 2,
+    };
+    private readonly TextBlock headingText = new()
+    {
+        Foreground = LeserpentTheme.Primary,
+        FontSize = 27,
+        FontWeight = FontWeight.Bold,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly TextBlock descriptionText = new()
+    {
+        Foreground = LeserpentTheme.Muted,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly TextBlock authorityLabel = CreateLabel();
+    private readonly TextBlock retirementIdLabel = CreateLabel();
+    private readonly TextBlock bootstrapIdLabel = CreateLabel();
+    private readonly TextBlock credentialLabel = CreateLabel();
     private readonly DispatcherTimer polling = new() { Interval = TimeSpan.FromSeconds(2) };
     private RemoteDaemonRetirementIntent? intent;
     private RemoteDaemonRetirementSnapshot? snapshot;
     private bool operationInFlight;
     private int automaticObservations;
+    private string phaseKey = "phase.not_submitted";
+    private string? localizedStatusKey = "status.initial";
+    private object[] localizedStatusValues = [];
 
     public DaemonRetirementWindow(
         IReadOnlyList<BootstrapAuthorityOption> authorities,
-        DaemonRetirementHubOperations operations)
+        DaemonRetirementHubOperations operations,
+        DesktopLocalization localization)
     {
         this.operations = operations;
-        Title = "Leserpent / Retire daemon";
-        Width = 680;
-        MinWidth = 560;
+        this.localization = localization;
+        Width = 720;
+        MinWidth = 590;
         SizeToContent = SizeToContent.Height;
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -80,8 +111,7 @@ internal sealed class DaemonRetirementWindow : Window
         retirementId.Text =
             $"retire-daemon-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..54];
 
-        var close = new Button { Content = "Close", Padding = new Thickness(16, 9) };
-        close.Click += (_, _) => Close();
+        closeButton.Click += (_, _) => Close();
         submitButton.Click += async (_, _) => await SubmitAsync();
         refreshButton.Click += async (_, _) => await ReconcileAsync(background: false);
         polling.Tick += async (_, _) => await ReconcileAsync(background: true);
@@ -96,24 +126,21 @@ internal sealed class DaemonRetirementWindow : Window
         Closed += (_, _) =>
         {
             polling.Stop();
+            localization.Changed -= OnLocalizationChanged;
             lifetime.Cancel();
             lifetime.Dispose();
         };
 
-        Audit(authority, "daemon-retirement-authority",
-            "Daemon authority owning the original bootstrap");
-        Audit(retirementId, "daemon-retirement-id", "Stable daemon retirement operation ID");
-        Audit(bootstrapId, "daemon-retirement-bootstrap-id",
-            "Original bootstrap authority ID");
-        Audit(credentialHandle, "daemon-retirement-credential-handle",
-            "Opaque SSH credential handle");
-        Audit(confirmation, "daemon-retirement-confirm", "Confirm leserpent daemon removal");
-        Audit(submitButton, "daemon-retirement-submit", "Retire the bootstrapped daemon service");
-        Audit(refreshButton, "daemon-retirement-refresh",
-            "Refresh the same daemon retirement attempt");
-        Audit(close, "daemon-retirement-close", "Close daemon retirement window");
-        Audit(status, "daemon-retirement-status", "Daemon retirement status");
-        Audit(phase, "daemon-retirement-phase", "Daemon retirement phase");
+        Audit(authority, "daemon-retirement-authority");
+        Audit(retirementId, "daemon-retirement-id");
+        Audit(bootstrapId, "daemon-retirement-bootstrap-id");
+        Audit(credentialHandle, "daemon-retirement-credential-handle");
+        Audit(confirmation, "daemon-retirement-confirm");
+        Audit(submitButton, "daemon-retirement-submit");
+        Audit(refreshButton, "daemon-retirement-refresh");
+        Audit(closeButton, "daemon-retirement-close");
+        Audit(status, "daemon-retirement-status");
+        Audit(phase, "daemon-retirement-phase");
         AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Assertive);
 
         Content = new ScrollViewer
@@ -130,27 +157,9 @@ internal sealed class DaemonRetirementWindow : Window
                         Spacing = 5,
                         Children =
                         {
-                            new TextBlock
-                            {
-                                Text = "DAEMON RETIREMENT",
-                                Foreground = LeserpentTheme.Destructive,
-                                FontSize = 12,
-                                FontWeight = FontWeight.Bold,
-                                LetterSpacing = 2,
-                            },
-                            new TextBlock
-                            {
-                                Text = "Remove a bootstrapped authority",
-                                Foreground = LeserpentTheme.Primary,
-                                FontSize = 27,
-                                FontWeight = FontWeight.Bold,
-                            },
-                            new TextBlock
-                            {
-                                Text = "The controller derives host, daemon, generation, and install profile from the bound bootstrap checkpoint. This form cannot override that authority.",
-                                Foreground = LeserpentTheme.Muted,
-                                TextWrapping = TextWrapping.Wrap,
-                            },
+                            kickerText,
+                            headingText,
+                            descriptionText,
                         },
                     },
                     new Border
@@ -165,10 +174,10 @@ internal sealed class DaemonRetirementWindow : Window
                             Spacing = 14,
                             Children =
                             {
-                                Field("Controlling daemon authority", authority),
-                                Field("Retirement ID", retirementId),
-                                Field("Original bootstrap ID", bootstrapId),
-                                Field("SSH credential handle", credentialHandle),
+                                Field(authorityLabel, authority),
+                                Field(retirementIdLabel, retirementId),
+                                Field(bootstrapIdLabel, bootstrapId),
+                                Field(credentialLabel, credentialHandle),
                                 confirmation,
                             },
                         },
@@ -182,16 +191,17 @@ internal sealed class DaemonRetirementWindow : Window
                         Padding = new Thickness(18, 14),
                         Child = new StackPanel { Spacing = 6, Children = { phase, status } },
                     },
-                    new StackPanel
+                    new WrapPanel
                     {
                         Orientation = Orientation.Horizontal,
-                        Spacing = 10,
                         HorizontalAlignment = HorizontalAlignment.Right,
-                        Children = { close, refreshButton, submitButton },
+                        Children = { closeButton, refreshButton, submitButton },
                     },
                 },
             },
         };
+        localization.Changed += OnLocalizationChanged;
+        ApplyLocalization();
     }
 
     public void VerifyAccessibility()
@@ -207,18 +217,90 @@ internal sealed class DaemonRetirementWindow : Window
         }
     }
 
-    public async Task ProbeWorkflowAsync()
+    public void VerifyLayoutEnvelope()
     {
+        if (Content is not Control root)
+        {
+            throw new InvalidDataException("daemon retirement window has no control root");
+        }
+        root.Measure(new Size(Width, 1400));
+        var desired = root.DesiredSize;
+        if (!double.IsFinite(desired.Width)
+            || !double.IsFinite(desired.Height)
+            || desired.Width <= 0
+            || desired.Height <= 0
+            || desired.Width > Width
+            || desired.Height > 1400)
+        {
+            throw new InvalidDataException(
+                "daemon retirement controls exceeded their layout envelope");
+        }
+    }
+
+    public void ProbeLocalizedPresentation(
+        string expectedTitle,
+        string expectedHeading,
+        string expectedSubmit,
+        string expectedPhase,
+        string expectedStatus)
+    {
+        if (Title != expectedTitle
+            || headingText.Text != expectedHeading
+            || submitButton.Content as string != expectedSubmit
+            || AutomationProperties.GetName(submitButton) != Text("a11y.submit")
+            || phase.Text != expectedPhase
+            || status.Text != expectedStatus
+            || FlowDirection != localization.FlowDirection)
+        {
+            throw new InvalidDataException(
+                "daemon retirement localized presentation drifted");
+        }
+    }
+
+    public async Task ProbeWorkflowAsync(string reprojectLocale)
+    {
+        var originalRetirementId = retirementId.Text;
         bootstrapId.Text = "bootstrap-ui-1";
         credentialHandle.Text = "vault:ssh:daemon-example";
         confirmation.IsChecked = true;
         await SubmitAsync();
+        localization.SetPreference(reprojectLocale);
+        if (retirementId.Text != originalRetirementId
+            || bootstrapId.Text != "bootstrap-ui-1"
+            || credentialHandle.Text != "vault:ssh:daemon-example"
+            || phase.Text != Text("phase.planned")
+            || status.Text != Format(
+                "status.planned",
+                "bootstrap-ui-1",
+                "daemon-target"))
+        {
+            throw new InvalidDataException(
+                "daemon retirement language reprojection changed identity or stale status text");
+        }
         await ReconcileAsync(background: false);
         if (snapshot is not { Phase: "service_retired", ServiceRetired: true }
-            || intent is null)
+            || intent is null
+            || phase.Text != Text("phase.service_retired")
+            || status.Text != Format(
+                "status.service_retired",
+                "daemon-target",
+                "daemon.example",
+                22))
         {
             throw new InvalidDataException(
                 "daemon retirement controls did not retire the service");
+        }
+    }
+
+    public async Task ProbeObservationLimitAsync(string reprojectLocale)
+    {
+        automaticObservations = MaxAutomaticObservations;
+        await ReconcileAsync(background: true);
+        localization.SetPreference(reprojectLocale);
+        if (status.Text != Text("status.observation_limit"))
+        {
+            throw new InvalidDataException(
+                "daemon retirement observation limit did not reproject its bounded guidance");
         }
     }
 
@@ -245,9 +327,18 @@ internal sealed class DaemonRetirementWindow : Window
         {
             if (confirmation.IsChecked != true)
             {
-                throw new ArgumentException("Confirm daemon retirement before submitting.");
+                ShowLocalizedStatus(
+                    "error.confirm_required",
+                    LeserpentTheme.Destructive);
+                return;
             }
-            var source = SelectedAuthority();
+            if (SelectedAuthorityOrNull() is not { } source)
+            {
+                ShowLocalizedStatus(
+                    "error.authority_required",
+                    LeserpentTheme.Destructive);
+                return;
+            }
             intent = new RemoteDaemonRetirementIntent(
                 retirementId.Text ?? string.Empty,
                 bootstrapId.Text ?? string.Empty,
@@ -276,8 +367,7 @@ internal sealed class DaemonRetirementWindow : Window
         if (background && automaticObservations >= MaxAutomaticObservations)
         {
             polling.Stop();
-            status.Text = "Automatic observation reached its bounded limit. Use Refresh same attempt to inspect this exact retirement ID without creating another removal.";
-            status.Foreground = LeserpentTheme.Primary;
+            ShowLocalizedStatus("status.observation_limit", LeserpentTheme.Primary);
             return;
         }
         try
@@ -308,8 +398,7 @@ internal sealed class DaemonRetirementWindow : Window
         UpdateActions();
         if (!background)
         {
-            status.Text = "Waiting for the selected daemon authority...";
-            status.Foreground = LeserpentTheme.Muted;
+            ShowLocalizedStatus("status.waiting", LeserpentTheme.Muted);
         }
         try
         {
@@ -325,21 +414,38 @@ internal sealed class DaemonRetirementWindow : Window
 
     private void RenderSnapshot(RemoteDaemonRetirementSnapshot state)
     {
-        phase.Text = state.Phase.Replace('_', ' ').ToUpperInvariant();
+        phaseKey = state.Phase switch
+        {
+            "planned" => "phase.planned",
+            "retiring_service" => "phase.retiring_service",
+            "service_retired" => "phase.service_retired",
+            "failed" => "phase.failed",
+            _ => throw new InvalidDataException("unsupported daemon retirement phase"),
+        };
+        phase.Text = Text(phaseKey);
         phase.Foreground = state.Phase == "failed"
             ? LeserpentTheme.Destructive
             : state.ServiceRetired ? LeserpentTheme.Accent : LeserpentTheme.Primary;
-        status.Foreground = state.Phase == "failed"
+        var statusForeground = state.Phase == "failed"
             ? LeserpentTheme.Destructive
             : LeserpentTheme.Body;
-        status.Text = state.Phase switch
+        var presentation = state.Phase switch
         {
-            "planned" => $"Retirement is durably queued for bootstrap {Safe(state.BootstrapId)}. Derived target authority is locked to daemon {Safe(state.DaemonId)}.",
-            "retiring_service" => $"The controller is removing daemon {Safe(state.DaemonId)} on its checkpoint-derived {Safe(state.InstallProfile)} profile.",
-            "service_retired" => $"Daemon {Safe(state.DaemonId)} was retired from {Safe(state.Host)}:{state.Port}. Remove any now-offline Hub connection separately.",
-            "failed" => $"Daemon retirement failed with bounded fault {Safe(state.FaultCode)}. The service was not marked retired; inspect the controller and use a new retirement ID after remediation.",
+            "planned" => (
+                "status.planned",
+                new object[] { SafeValue(state.BootstrapId), SafeValue(state.DaemonId) }),
+            "retiring_service" => (
+                "status.retiring_service",
+                new object[] { SafeValue(state.DaemonId), SafeValue(state.InstallProfile) }),
+            "service_retired" => (
+                "status.service_retired",
+                new object[] { SafeValue(state.DaemonId), SafeValue(state.Host), state.Port }),
+            "failed" => (
+                "status.failed",
+                new object[] { SafeValue(state.FaultCode) }),
             _ => throw new InvalidDataException("unsupported daemon retirement phase"),
         };
+        ShowLocalizedStatus(presentation.Item1, statusForeground, presentation.Item2);
         if (state.IsTerminal)
         {
             polling.Stop();
@@ -363,51 +469,115 @@ internal sealed class DaemonRetirementWindow : Window
 
     private BootstrapAuthorityOption SelectedAuthority() =>
         authority.SelectedItem as BootstrapAuthorityOption
-        ?? throw new ArgumentException("Select the controlling daemon authority first.");
+        ?? throw new ArgumentException(Text("error.authority_required"));
+
+    private BootstrapAuthorityOption? SelectedAuthorityOrNull() =>
+        authority.SelectedItem as BootstrapAuthorityOption;
 
     private void ShowError(Exception error)
     {
-        status.Text = Safe(error.Message);
+        localizedStatusKey = null;
+        localizedStatusValues = [];
+        status.Text = SafeRaw(error.Message);
         status.Foreground = LeserpentTheme.Destructive;
     }
 
-    private void Audit(Control control, string id, string name)
+    private void ShowLocalizedStatus(
+        string key,
+        IBrush foreground,
+        params object[] values)
+    {
+        localizedStatusKey = key;
+        localizedStatusValues = [.. values];
+        status.Text = values.Length == 0 ? Text(key) : Format(key, values);
+        status.Foreground = foreground;
+    }
+
+    private void OnLocalizationChanged(object? sender, EventArgs eventArgs) =>
+        ApplyLocalization();
+
+    private void ApplyLocalization()
+    {
+        Title = Text("title");
+        FlowDirection = localization.FlowDirection;
+        confirmation.Content = Text("confirmation");
+        submitButton.Content = Text("submit");
+        refreshButton.Content = Text("refresh");
+        closeButton.Content = Text("close");
+        kickerText.Text = Text("kicker");
+        headingText.Text = Text("heading");
+        descriptionText.Text = Text("body");
+        authorityLabel.Text = Text("authority.label");
+        retirementIdLabel.Text = Text("retirement_id.label");
+        bootstrapIdLabel.Text = Text("bootstrap_id.label");
+        credentialLabel.Text = Text("credential.label");
+        phase.Text = Text(phaseKey);
+        if (localizedStatusKey is { } statusKey)
+        {
+            status.Text = localizedStatusValues.Length == 0
+                ? Text(statusKey)
+                : Format(statusKey, localizedStatusValues);
+        }
+
+        AutomationProperties.SetName(authority, Text("a11y.authority"));
+        AutomationProperties.SetName(retirementId, Text("a11y.retirement_id"));
+        AutomationProperties.SetName(bootstrapId, Text("a11y.bootstrap_id"));
+        AutomationProperties.SetName(credentialHandle, Text("a11y.credential"));
+        AutomationProperties.SetName(confirmation, Text("a11y.confirm"));
+        AutomationProperties.SetName(submitButton, Text("a11y.submit"));
+        AutomationProperties.SetName(refreshButton, Text("a11y.refresh"));
+        AutomationProperties.SetName(closeButton, Text("a11y.close"));
+        AutomationProperties.SetName(status, Text("status.name"));
+        AutomationProperties.SetName(phase, Text("phase.name"));
+    }
+
+    private void Audit(Control control, string id)
     {
         AutomationProperties.SetAutomationId(control, id);
-        AutomationProperties.SetName(control, name);
         auditedControls.Add(control);
     }
 
-    private static StackPanel Field(string label, Control control) => new()
+    private string Text(string key) =>
+        DesktopDaemonRetirementCatalogs.Resolve(localization, key);
+
+    private string Format(string key, params object[] values) =>
+        DesktopDaemonRetirementCatalogs.Format(
+            localization,
+            key,
+            values.Select(value => ReferenceEquals(value, UnavailableValue)
+                ? Text("unavailable")
+                : value).ToArray());
+
+    private static StackPanel Field(TextBlock label, Control control) => new()
     {
         Spacing = 6,
-        Children =
-        {
-            new TextBlock
-            {
-                Text = label,
-                Foreground = LeserpentTheme.Body,
-                FontWeight = FontWeight.SemiBold,
-                FontSize = 12,
-            },
-            control,
-        },
+        Children = { label, control },
     };
 
-    private static Button DestructiveButton(string label) => new()
+    private static TextBlock CreateLabel() => new()
     {
-        Content = label,
+        Foreground = LeserpentTheme.Body,
+        FontWeight = FontWeight.SemiBold,
+        FontSize = 12,
+    };
+
+    private static Button DestructiveButton() => new()
+    {
         Background = LeserpentTheme.Destructive,
         Foreground = Brushes.White,
         FontWeight = FontWeight.SemiBold,
         Padding = new Thickness(17, 9),
+        Margin = new Thickness(5),
     };
 
     private static bool IsExpected(Exception error) => error is ArgumentException
         or InvalidDataException or IOException or HttpRequestException
         or RemoteDaemonRetirementException or OperationCanceledException;
 
-    private static string Safe(string? value) => value is null
-        ? "unavailable"
+    private static object SafeValue(string? value) => value is null
+        ? UnavailableValue
         : new string(value.Where(character => !char.IsControl(character)).Take(512).ToArray());
+
+    private static string SafeRaw(string value) =>
+        new(value.Where(character => !char.IsControl(character)).Take(512).ToArray());
 }

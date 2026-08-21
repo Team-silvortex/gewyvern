@@ -225,18 +225,24 @@ All seven non-English built-ins additionally own the exact same 26-key core
 semantic UI-IR set for runtime lists, workspaces, logs, capabilities, history,
 and deployment forms. Startup rejects a missing or extra key, and per-locale
 native `TextBlock` probes validate visible plus accessible text. The six newly
-filled shell and semantic catalogs remain candidates until native-speaker and
-real-layout review. Connection/forget, reverse deployment, gewyvern
-provisioning, and gewyvern retirement are the first specialist domains on the
-same boundary: separate exact 33-key, 46-key, 43-key, and 45-key catalogs merge
-without overlapping the frozen
-core set, all eight built-in locale trees are measured inside fixed native
-envelopes, and open controls, accessible names, controlled phases, status, and
-flow direction reproject on language change while operation identities,
-operator values, and raw remote errors stay untouched. Daemon retirement,
-startup-recovery, account, tutorial, and later semantic domains still fall back to
-English. Hub and remote-shell layout expansion also remains explicit follow-up
-work. Arabic,
+filled shell and semantic catalogs remain candidates until native-speaker
+review. Seven specialist domains share this boundary: connection/forget,
+reverse deployment, gewyvern provisioning/retirement, daemon retirement,
+startup recovery, and account presentation contribute exact 33-key, 46-key,
+43-key, 45-key, 37-key, 9-key, and 36-key catalogs without overlapping the
+frozen core set. `DesktopDomainCatalogContract` gives the three newest domains
+one exact-key, bounded-value, and format-placeholder validator; the full
+non-English built-in semantic set is therefore 275 keys. All eight built-in
+locale trees are measured inside their native dialog envelopes, and open
+controls, accessible names, controlled phases, status, and flow direction
+reproject on language change while operation identities, operator values, and
+raw remote errors stay untouched. Startup recovery translates only its fixed
+shell and empty-detail fallback. The Team Silvortex card consumes a typed
+presentation status from the authentication session and treats bounded failure
+detail as an opaque format argument, so localization cannot change an auth
+decision. The minimum Hub envelope includes the translated account card;
+remaining Hub/remote-shell domains, non-Chinese tutorial content, and all 22
+downloadable packs remain explicit follow-up work. Arabic,
 Hebrew, and Persian switch the inherited Avalonia flow direction to RTL.
 
 Cross-authority refresh admission is frontend-independent. The shared remote
@@ -2343,7 +2349,11 @@ plan to native controls and combines system-bar, display-cutout, and IME insets
 under edge-to-edge rendering so the setup action remains visible above the
 keyboard; narrow multi-window and large-text configurations degrade to the
 compact plan. Layout plans and insets are value types, and the Android host
-fences IME-only updates from structural reflow. The package graph fixes Android
+fences IME-only updates from structural reflow. Exact immutable-presentation
+comparison retains the active semantic source across heartbeat-only status
+changes, while `MobileNativeRenderGate` rebuilds controls whenever document
+content, action availability, operation state, or runtime columns change. The
+package graph fixes Android
 ARM64/x64 RIDs without inheriting the build-host RID, emits a dual-ABI AOT AAB,
 and keeps standalone Debug packaging opt-in so normal fast deployment remains
 cheap. A Debug-only visual-capture switch supports layout inspection; an
@@ -2359,10 +2369,24 @@ fleet/workspace projection, deployment form resolution, explicit mutation
 confirmation, revision fences, and operation generation ownership remain
 shared. `MobileLayoutPolicy` receives the UIKit safe-area viewport and Dynamic
 Type scale, while native constraints provide bounded content width, one/two
-runtime columns, and keyboard-layout-guide avoidance. The asset catalog and
+runtime columns, compact header reflow, and keyboard-layout-guide avoidance.
+The asset catalog and
 launch storyboard are packaging resources rather than semantic UI sources.
 Keychain is the only token store and its simulator probe is compiled only into
 Debug builds.
+
+The retained iOS 26.5 proof closes the simulator side of this boundary. A
+Debug `iossimulator-arm64` app installs and launches on both iPhone 17 Pro and
+iPad Pro 13-inch simulators, while an unsigned Release `ios-arm64` bundle
+completes full trimming, IL stripping, and AOT generation. The phone proves
+Compact layout, maximum Dynamic Type reflow, cold relaunch, and same-process
+background resume; the tablet proves the Expanded two-pane plan. The Debug
+probe uses native `NSProcessInfo.arguments` and verifies Keychain write, read,
+delete, opaque endpoint aliasing, and zero retained secret values. Release is
+scanned to reject those proof switches. The machine-readable record is
+`docs/fixtures/leserpent_ios26_simulator_macos_arm64_20260821.json`; it is not a
+substitute for Apple signing or physical-device TLS, safe-area, lifecycle, and
+AOT execution evidence.
 
 `MobileUiDocumentBinding` mounts each shared fleet or workspace `UiDocument`
 through `SemanticRenderer`, retains a validated private clone, and exposes only

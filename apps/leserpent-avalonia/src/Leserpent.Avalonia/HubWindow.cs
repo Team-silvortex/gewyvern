@@ -241,7 +241,7 @@ internal sealed class HubWindow : Window
             RowDefinitions = RowDefinitions.Parse("Auto,Auto"),
             RowSpacing = 14,
         };
-        accountControl = new SilvortexAccountControl(accountSession);
+        accountControl = new SilvortexAccountControl(accountSession, localization);
         auditedControls.AddRange(accountControl.AuditedControls);
         ConfigureTopologyFilter();
         var headingIdentity = new StackPanel
@@ -428,6 +428,36 @@ internal sealed class HubWindow : Window
             accountControl.Dispose();
         };
     }
+
+    public void VerifyLayoutEnvelope()
+    {
+        if (Content is not Control root)
+        {
+            throw new InvalidDataException("Hub window has no control root");
+        }
+        root.Measure(new Size(MinWidth, MinHeight));
+        var desired = root.DesiredSize;
+        if (!double.IsFinite(desired.Width)
+            || !double.IsFinite(desired.Height)
+            || desired.Width <= 0
+            || desired.Height <= 0
+            || desired.Width > MinWidth
+            || desired.Height > MinHeight)
+        {
+            throw new InvalidDataException("Hub controls exceeded their minimum layout envelope");
+        }
+        accountControl.VerifyLayoutEnvelope();
+    }
+
+    public void ProbeLocalizedAccountPresentation(
+        string expectedLabel,
+        string expectedIdentity,
+        string expectedAction,
+        string expectedStatus) => accountControl.ProbeLocalizedPresentation(
+            expectedLabel,
+            expectedIdentity,
+            expectedAction,
+            expectedStatus);
 
     private void ConfigureTopologyFilter()
     {

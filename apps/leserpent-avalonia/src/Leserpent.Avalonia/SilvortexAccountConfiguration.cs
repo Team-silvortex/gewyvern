@@ -12,7 +12,9 @@ internal enum SilvortexAccountConfigurationSource
 internal sealed record SilvortexAccountConfiguration(
     SilvortexAccountOptions? Options,
     string Message,
-    SilvortexAccountConfigurationSource Source);
+    SilvortexAccountConfigurationSource Source,
+    SilvortexAccountStatus Status = SilvortexAccountStatus.Raw,
+    string? StatusDetail = null);
 
 internal static class SilvortexAccountConfigurationLoader
 {
@@ -56,7 +58,9 @@ internal static class SilvortexAccountConfigurationLoader
             return new SilvortexAccountConfiguration(
                 null,
                 "The packaged Team Silvortex configuration is invalid.",
-                SilvortexAccountConfigurationSource.PackagedBundle);
+                SilvortexAccountConfigurationSource.PackagedBundle,
+                SilvortexAccountStatus.ConfigurationInvalid,
+                "The packaged Team Silvortex configuration is invalid.");
         }
         return Resolve(
             packagedBundle: true,
@@ -186,14 +190,16 @@ internal static class SilvortexAccountConfigurationLoader
                 return new SilvortexAccountConfiguration(
                     null,
                     "Packaged Team Silvortex configuration refuses environment overrides.",
-                    SilvortexAccountConfigurationSource.PackagedBundle);
+                    SilvortexAccountConfigurationSource.PackagedBundle,
+                    SilvortexAccountStatus.OverrideRefused);
             }
             if (string.IsNullOrEmpty(packagedIssuer))
             {
                 return new SilvortexAccountConfiguration(
                     null,
                     "Team Silvortex sign-in is optional and is not configured in this application bundle.",
-                    SilvortexAccountConfigurationSource.PackagedBundle);
+                    SilvortexAccountConfigurationSource.PackagedBundle,
+                    SilvortexAccountStatus.OptionalBundle);
             }
             try
             {
@@ -203,14 +209,17 @@ internal static class SilvortexAccountConfigurationLoader
                         SilvortexAccountOptions.ReviewedClientId,
                         SilvortexAccountOptions.DefaultCallbackPort),
                     "Team Silvortex sign-in is ready from the application bundle.",
-                    SilvortexAccountConfigurationSource.PackagedBundle);
+                    SilvortexAccountConfigurationSource.PackagedBundle,
+                    SilvortexAccountStatus.BundleReady);
             }
             catch (InvalidDataException error)
             {
                 return new SilvortexAccountConfiguration(
                     null,
                     error.Message,
-                    SilvortexAccountConfigurationSource.PackagedBundle);
+                    SilvortexAccountConfigurationSource.PackagedBundle,
+                    SilvortexAccountStatus.ConfigurationInvalid,
+                    error.Message);
             }
         }
 
@@ -219,14 +228,16 @@ internal static class SilvortexAccountConfigurationLoader
             return new SilvortexAccountConfiguration(
                 null,
                 "Team Silvortex sign-in is optional and is not configured for this build.",
-                SilvortexAccountConfigurationSource.Disabled);
+                SilvortexAccountConfigurationSource.Disabled,
+                SilvortexAccountStatus.OptionalBuild);
         }
         if (!HasValue(environmentIssuer))
         {
             return new SilvortexAccountConfiguration(
                 null,
                 $"Set {SilvortexAccountOptions.IssuerEnvironmentVariable} when configuring Team Silvortex sign-in.",
-                SilvortexAccountConfigurationSource.Environment);
+                SilvortexAccountConfigurationSource.Environment,
+                SilvortexAccountStatus.MissingIssuer);
         }
         var clientId = SilvortexAccountOptions.ResolveClientId(environmentClientId);
         var allowInsecure = string.Equals(
@@ -245,14 +256,17 @@ internal static class SilvortexAccountConfigurationLoader
                     port,
                     allowInsecure),
                 "Team Silvortex sign-in is ready from development configuration.",
-                SilvortexAccountConfigurationSource.Environment);
+                SilvortexAccountConfigurationSource.Environment,
+                SilvortexAccountStatus.DevelopmentReady);
         }
         catch (InvalidDataException error)
         {
             return new SilvortexAccountConfiguration(
                 null,
                 error.Message,
-                SilvortexAccountConfigurationSource.Environment);
+                SilvortexAccountConfigurationSource.Environment,
+                SilvortexAccountStatus.ConfigurationInvalid,
+                error.Message);
         }
     }
 

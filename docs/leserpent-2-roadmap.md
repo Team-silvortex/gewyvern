@@ -1943,7 +1943,7 @@ Exit: Rust is authoritative and the old service is an adapter, not the owner.
 Extend the same contracts rather than forking product behavior.
 
 - Android entry project (implemented) and physical-device lifecycle proof
-- iOS native entry project (implemented) and simulator/physical-device proof
+- iOS native entry and simulator proof (implemented), with physical-device proof remaining
 - mobile navigation and adaptive presentation
 - authenticated HTTPS/WebSocket protocol
 - reconnect, offline read cache, and explicit stale-state presentation
@@ -1969,9 +1969,11 @@ two-pane layouts, and selects one/two runtime columns. The Android projection is
 runtime-first, collapses saved setup, handles system bars plus display cutouts,
 and keeps its bottom setup action above IME insets. Host-independent
 conformance proves this layout policy alongside duplicate callback coalescing,
-while value-type plans and an IME structural-reflow fence keep keyboard changes
-cheap. The same contract proves endpoint reconfiguration, failure cleanup, and
-terminal disposal; a static entry-contract test locks both adaptive projection
+while value-type plans, exact native-presentation comparison, and a shared
+render-state gate keep heartbeat-only status and IME changes from rebuilding
+the complete control tree. The same contract proves endpoint reconfiguration,
+failure cleanup, and terminal disposal; a static entry-contract test locks both
+adaptive projection
 and Keystore-only/private profile boundaries. A locked .NET 10/API 36 toolchain
 now produces a directly installable APK and dual-ABI AOT AAB. API 36 ARM64
 emulator proof covers Compact, Medium, Expanded, short-landscape, 1.5x font,
@@ -1990,7 +1992,17 @@ the shared libraries. Endpoint metadata uses native preferences, public CAs and
 snapshot caches use endpoint-hashed app-private paths, and credentials remain
 `WhenUnlockedThisDeviceOnly` Keychain items. The iOS renderer consumes only an
 immutable `MobileUiDocumentBinding`; it does not derive cards from feed state or
-instantiate transport clients.
+instantiate transport clients. Compact and accessibility-equivalent narrow
+widths stack both header action rows vertically, while status-only heartbeats
+retain the mounted controls and their active action-source fence.
+The retained iOS 26.5 matrix now installs the Debug ARM64 simulator app on an
+iPhone 17 Pro and iPad Pro 13-inch, verifies Compact and Expanded/two-pane
+projection, maximum accessibility text reflow, cold relaunch, hot background
+resume, and native this-device-only Keychain CRUD. The same toolchain emits an
+unsigned full-trim/IL-stripped `ios-arm64` AOT bundle whose Release payload is
+free of the Debug proof switches. This removes simulator runtime and Keychain
+evidence from the Gate 6 blocker without overstating Apple signing or physical
+device readiness.
 
 The current desktop slice implements the event consumer and first constrained
 mutation of this gate. A pure
@@ -2025,9 +2037,10 @@ injects missing credentials and startup failure. Android/iOS native store
 projects now compile against .NET 10 platform workloads: Android protects a
 private-preferences AES-256-GCM envelope with a Keystore master key, while iOS
 uses a this-device-only Keychain item. Android workload/AOT packaging and the
-API 36 emulator matrix are retained as machine-readable evidence. The iOS
-simulator/runtime proof, production Android and Apple signing, physical-device
-runtime conformance, and physical-device AOT evidence remain.
+API 36 emulator matrix are retained as machine-readable evidence. The iOS 26.5
+simulator/layout/Keychain matrix and unsigned device-AOT bundle are retained as
+machine-readable evidence too. Production Android and Apple signing,
+physical-device runtime conformance, and physical-device AOT execution remain.
 The shared mobile vault adapter contract now provides endpoint-hashed aliases,
 strict credential CRUD validation, cancellation fencing, and deterministic
 corruption tests; platform storage is therefore replaceable without moving
@@ -2167,16 +2180,21 @@ locale. Simplified Chinese includes the complete offline tutorial. The other six
 non-English built-in shell catalogs cover all 67 stable shell keys with Web-
 aligned terminology and validated format placeholders, and their semantic
 catalogs use the same bounded key set, but both remain explicit review
-candidates. Connection/forget, reverse deployment, gewyvern provisioning, and
-gewyvern retirement now establish the specialist-dialog pattern: seven exact
-33-key, 46-key, 43-key, and 45-key non-English catalogs merge without touching
-the frozen core set, eight-locale native layout probes cover all five windows,
-and live language changes
-reproject labels, controlled phases, status, accessibility, and flow direction
-without rewriting operation identities, operator input, or raw errors. Their
-tutorial content, remaining daemon-retirement/startup/account dialogs, later semantic
-domains, and all 22 downloadable core-ui packs stay partial rather than claiming
-unreviewed translations.
+candidates. Connection/forget, reverse deployment, gewyvern provisioning and
+retirement, daemon retirement, startup recovery, and account presentation now
+establish the specialist-dialog pattern. Their exact 33-key, 46-key, 43-key,
+45-key, 37-key, 9-key, and 36-key catalogs bring every non-English built-in to
+275 semantic keys without touching the frozen core set. The three newest
+domains share one strict key/value/placeholder validator. Eight-locale native
+layout probes cover each dialog and the account card at the minimum Hub
+envelope, and live language changes reproject labels, controlled phases,
+status, accessibility, and flow direction without rewriting operation
+identities, operator input, or raw errors. Startup retains concrete sanitized
+diagnostics as opaque data; account localization projects typed session status
+and cannot decide authentication state. The six candidate translations,
+non-Chinese tutorial content, remaining Hub/remote-shell domains, and all 22
+downloadable core-ui packs stay partial rather than claiming unreviewed
+coverage.
 Runtime-child workspace admission has now crossed the same boundary. The
 renderer-neutral `RemoteWorkspaceLaunchCoordinator` owns runtime-ID validation,
 the combined active/pending limit, duplicate-request revision coalescing,

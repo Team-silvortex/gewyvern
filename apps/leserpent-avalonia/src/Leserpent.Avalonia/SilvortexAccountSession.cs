@@ -16,12 +16,38 @@ internal enum SilvortexAccountPhase
     Error,
 }
 
+internal enum SilvortexAccountStatus
+{
+    Raw,
+    ConfigurationInvalid,
+    OverrideRefused,
+    OptionalBundle,
+    BundleReady,
+    OptionalBuild,
+    MissingIssuer,
+    DevelopmentReady,
+    VerificationDisabled,
+    ProofReady,
+    OpeningBrowser,
+    AwaitingCallback,
+    SignInFailed,
+    SigningOut,
+    SignedOut,
+    SignOutFailed,
+    SignInRequired,
+    Restoring,
+    RestoreFailed,
+    Authenticated,
+}
+
 internal sealed record SilvortexAccountSnapshot(
     SilvortexAccountPhase Phase,
     string Message,
     string? Subject = null,
     string? DisplayName = null,
-    string? Email = null)
+    string? Email = null,
+    SilvortexAccountStatus Status = SilvortexAccountStatus.Raw,
+    string? StatusDetail = null)
 {
     public bool IsSignedIn => Phase == SilvortexAccountPhase.SignedIn;
 }
@@ -139,12 +165,17 @@ internal sealed class SilvortexAccountSession : IDisposable
     private SilvortexAccountSession(
         SilvortexAccountOptions? options,
         string initialMessage,
+        SilvortexAccountStatus initialStatus,
+        string? initialStatusDetail,
         HttpMessageHandler? handler = null)
     {
         this.options = options;
         snapshot = new SilvortexAccountSnapshot(
             options is null ? SilvortexAccountPhase.Disabled : SilvortexAccountPhase.SignedOut,
-            initialMessage);
+            initialMessage,
+            Status: initialStatus,
+            StatusDetail: initialStatusDetail);
+        ValidateSnapshot(snapshot);
         http = handler is null
             ? new HttpClient(new SocketsHttpHandler
             {
@@ -172,14 +203,26 @@ internal sealed class SilvortexAccountSession : IDisposable
     public static SilvortexAccountSession FromRuntimeConfiguration()
     {
         var configuration = SilvortexAccountConfigurationLoader.Load();
-        return new SilvortexAccountSession(configuration.Options, configuration.Message);
+        return new SilvortexAccountSession(
+            configuration.Options,
+            configuration.Message,
+            configuration.Status,
+            configuration.StatusDetail);
     }
 
     internal static SilvortexAccountSession DisabledForVerification() =>
-        new(null, "Team Silvortex sign-in is not configured for verification.");
+        new(
+            null,
+            "Team Silvortex sign-in is not configured for verification.",
+            SilvortexAccountStatus.VerificationDisabled,
+            null);
 
     internal static SilvortexAccountSession CreateForProof(SilvortexAccountOptions options) =>
-        new(options, "Team Silvortex desktop proof is ready.");
+        new(
+            options,
+            "Team Silvortex desktop proof is ready.",
+            SilvortexAccountStatus.ProofReady,
+            null);
 
     public void BeginRestore() => _ = StartRestore();
 
@@ -205,7 +248,8 @@ internal sealed class SilvortexAccountSession : IDisposable
         {
             SetSnapshot(new SilvortexAccountSnapshot(
                 SilvortexAccountPhase.Working,
-                "Opening the secure Team Silvortex sign-in page..."));
+                "Opening the secure Team Silvortex sign-in page...",
+                Status: SilvortexAccountStatus.OpeningBrowser));
             var discovered = await DiscoverAsync(lifetime.Token);
             var transaction = AuthorizationTransaction.Create();
             using var callback = new LoopbackCallbackServer(options);
@@ -214,7 +258,8 @@ internal sealed class SilvortexAccountSession : IDisposable
             SystemBrowserLaunched = true;
             SetSnapshot(new SilvortexAccountSnapshot(
                 SilvortexAccountPhase.Working,
-                "Complete sign-in in your browser. Leserpent is waiting for the local callback."));
+                "Complete sign-in in your browser. Leserpent is waiting for the local callback.",
+                Status: SilvortexAccountStatus.AwaitingCallback));
             var code = await callback.ReceiveCodeAsync(transaction.State, lifetime.Token);
             var tokens = await ExchangeCodeAsync(discovered, transaction, code, lifetime.Token);
             await AcceptTokensAsync(discovered, tokens, transaction.Nonce, lifetime.Token);
@@ -224,9 +269,12 @@ internal sealed class SilvortexAccountSession : IDisposable
         }
         catch (Exception error) when (IsExpectedFailure(error))
         {
+            var detail = SafeFailureDetail(error);
             SetSnapshot(new SilvortexAccountSnapshot(
                 SilvortexAccountPhase.Error,
-                SafeFailure("Sign-in failed", error)));
+                SafeFailure("Sign-in failed", detail),
+                Status: SilvortexAccountStatus.SignInFailed,
+                StatusDetail: detail));
         }
         finally
         {
@@ -245,7 +293,8 @@ internal sealed class SilvortexAccountSession : IDisposable
         {
             SetSnapshot(new SilvortexAccountSnapshot(
                 SilvortexAccountPhase.Working,
-                "Signing out of Leserpent..."));
+                "Signing out of Leserpent...",
+                Status: SilvortexAccountStatus.SigningOut));
             var refreshToken = LoadRefreshToken(options);
             if (metadata is not null)
             {
@@ -260,16 +309,20 @@ internal sealed class SilvortexAccountSession : IDisposable
                 options.CredentialAccount);
             SetSnapshot(new SilvortexAccountSnapshot(
                 SilvortexAccountPhase.SignedOut,
-                "Signed out locally. Daemon connections and offline control remain available."));
+                "Signed out locally. Daemon connections and offline control remain available.",
+                Status: SilvortexAccountStatus.SignedOut));
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
         {
         }
         catch (Exception error) when (IsExpectedFailure(error))
         {
+            var detail = SafeFailureDetail(error);
             SetSnapshot(new SilvortexAccountSnapshot(
                 SilvortexAccountPhase.Error,
-                SafeFailure("Sign-out could not clear the secure session", error)));
+                SafeFailure("Sign-out could not clear the secure session", detail),
+                Status: SilvortexAccountStatus.SignOutFailed,
+                StatusDetail: detail));
         }
         finally
         {
@@ -387,6 +440,7 @@ internal sealed class SilvortexAccountSession : IDisposable
             "GET /oidc/callback?code=bounded-code HTTP/1.1\r\nHost: attacker.invalid",
             options);
         SilvortexAccountConfigurationLoader.VerifyContract();
+        ExpectInvalidPresentationStatus();
         VerifyCryptographicContractAsync(options, metadata).GetAwaiter().GetResult();
     }
 
@@ -438,12 +492,14 @@ internal sealed class SilvortexAccountSession : IDisposable
             {
                 SetSnapshot(new SilvortexAccountSnapshot(
                     SilvortexAccountPhase.SignedOut,
-                    "Sign in to connect this desktop client to your Team Silvortex account."));
+                    "Sign in to connect this desktop client to your Team Silvortex account.",
+                    Status: SilvortexAccountStatus.SignInRequired));
                 return;
             }
             SetSnapshot(new SilvortexAccountSnapshot(
                 SilvortexAccountPhase.Working,
-                "Restoring the protected Team Silvortex session..."));
+                "Restoring the protected Team Silvortex session...",
+                Status: SilvortexAccountStatus.Restoring));
             var discovered = await DiscoverAsync(lifetime.Token);
             var tokens = await RefreshAsync(discovered, refreshToken, lifetime.Token);
             await AcceptTokensAsync(discovered, tokens, null, lifetime.Token);
@@ -453,9 +509,12 @@ internal sealed class SilvortexAccountSession : IDisposable
         }
         catch (Exception error) when (IsExpectedFailure(error))
         {
+            var detail = SafeFailureDetail(error);
             SetSnapshot(new SilvortexAccountSnapshot(
                 SilvortexAccountPhase.Error,
-                SafeFailure("The saved account session could not be restored", error)));
+                SafeFailure("The saved account session could not be restored", detail),
+                Status: SilvortexAccountStatus.RestoreFailed,
+                StatusDetail: detail));
         }
         finally
         {
@@ -616,7 +675,8 @@ internal sealed class SilvortexAccountSession : IDisposable
             "Authenticated with MFA. Daemon credentials remain independently scoped.",
             profile.Subject,
             profile.DisplayName,
-            profile.Email));
+            profile.Email,
+            SilvortexAccountStatus.Authenticated));
     }
 
     private async Task<VerifiedIdentity> VerifyIdTokenAsync(
@@ -1191,6 +1251,8 @@ internal sealed class SilvortexAccountSession : IDisposable
         using var session = new SilvortexAccountSession(
             options,
             "verification",
+            SilvortexAccountStatus.Raw,
+            null,
             new FixtureOidcHandler(jwks));
         var identity = await session.VerifyIdTokenAsync(
             metadata,
@@ -1219,8 +1281,68 @@ internal sealed class SilvortexAccountSession : IDisposable
 
     private void SetSnapshot(SilvortexAccountSnapshot value)
     {
+        ValidateSnapshot(value);
         snapshot = value;
         SnapshotChanged?.Invoke(value);
+    }
+
+    private static void ValidateSnapshot(SilvortexAccountSnapshot value)
+    {
+        var compatible = value.Status == SilvortexAccountStatus.Raw
+            || value.Phase switch
+            {
+                SilvortexAccountPhase.Disabled => value.Status is
+                    SilvortexAccountStatus.ConfigurationInvalid
+                    or SilvortexAccountStatus.OverrideRefused
+                    or SilvortexAccountStatus.OptionalBundle
+                    or SilvortexAccountStatus.OptionalBuild
+                    or SilvortexAccountStatus.MissingIssuer
+                    or SilvortexAccountStatus.VerificationDisabled,
+                SilvortexAccountPhase.SignedOut => value.Status is
+                    SilvortexAccountStatus.BundleReady
+                    or SilvortexAccountStatus.DevelopmentReady
+                    or SilvortexAccountStatus.ProofReady
+                    or SilvortexAccountStatus.SignedOut
+                    or SilvortexAccountStatus.SignInRequired,
+                SilvortexAccountPhase.Working => value.Status is
+                    SilvortexAccountStatus.OpeningBrowser
+                    or SilvortexAccountStatus.AwaitingCallback
+                    or SilvortexAccountStatus.SigningOut
+                    or SilvortexAccountStatus.Restoring,
+                SilvortexAccountPhase.SignedIn =>
+                    value.Status == SilvortexAccountStatus.Authenticated,
+                SilvortexAccountPhase.Error => value.Status is
+                    SilvortexAccountStatus.SignInFailed
+                    or SilvortexAccountStatus.SignOutFailed
+                    or SilvortexAccountStatus.RestoreFailed,
+                _ => false,
+            };
+        if (!compatible
+            || value.Message.Length is <= 0 or > 512
+            || value.Message.Any(char.IsControl)
+            || value.StatusDetail is { Length: > 240 }
+            || value.StatusDetail?.Any(char.IsControl) == true)
+        {
+            throw new InvalidDataException(
+                "Team Silvortex account presentation state is invalid.");
+        }
+    }
+
+    private static void ExpectInvalidPresentationStatus()
+    {
+        try
+        {
+            ValidateSnapshot(new SilvortexAccountSnapshot(
+                SilvortexAccountPhase.SignedIn,
+                "invalid presentation fixture",
+                Status: SilvortexAccountStatus.SignInRequired));
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
+        throw new InvalidDataException(
+            "Team Silvortex accepted an incompatible presentation status.");
     }
 
     private static bool IsExpectedFailure(Exception error) => error is
@@ -1235,15 +1357,18 @@ internal sealed class SilvortexAccountSession : IDisposable
         or SocketException
         or Win32Exception;
 
-    private static string SafeFailure(string prefix, Exception error)
+    private static string SafeFailureDetail(Exception error)
     {
         var message = error.Message.Replace('\r', ' ').Replace('\n', ' ').Trim();
         if (message.Length > 240)
         {
             message = message[..240];
         }
-        return string.IsNullOrEmpty(message) ? prefix : $"{prefix}: {message}";
+        return string.IsNullOrEmpty(message) ? "unavailable" : message;
     }
+
+    private static string SafeFailure(string prefix, string detail) =>
+        $"{prefix}: {detail}";
 
     private sealed record OidcMetadata(
         Uri Issuer,

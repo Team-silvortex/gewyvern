@@ -282,7 +282,10 @@ internal sealed class DesktopLocalization
                 DesktopConnectionCatalogs.SimplifiedChinese,
                 DesktopBootstrapDeploymentCatalogs.SimplifiedChinese,
                 DesktopProvisioningCatalogs.SimplifiedChinese,
-                DesktopRetirementCatalogs.SimplifiedChinese),
+                DesktopRetirementCatalogs.SimplifiedChinese,
+                DesktopDaemonRetirementCatalogs.SimplifiedChinese,
+                DesktopStartupRecoveryCatalogs.SimplifiedChinese,
+                DesktopAccountCatalogs.SimplifiedChinese),
             DesktopLocaleCoverage.Core),
         BuiltInShell(
             "zh-TW",
@@ -294,7 +297,10 @@ internal sealed class DesktopLocalization
                 DesktopConnectionCatalogs.TraditionalChinese,
                 DesktopBootstrapDeploymentCatalogs.TraditionalChinese,
                 DesktopProvisioningCatalogs.TraditionalChinese,
-                DesktopRetirementCatalogs.TraditionalChinese)),
+                DesktopRetirementCatalogs.TraditionalChinese,
+                DesktopDaemonRetirementCatalogs.TraditionalChinese,
+                DesktopStartupRecoveryCatalogs.TraditionalChinese,
+                DesktopAccountCatalogs.TraditionalChinese)),
         BuiltInShell(
             "ja",
             "Japanese",
@@ -305,7 +311,10 @@ internal sealed class DesktopLocalization
                 DesktopConnectionCatalogs.Japanese,
                 DesktopBootstrapDeploymentCatalogs.Japanese,
                 DesktopProvisioningCatalogs.Japanese,
-                DesktopRetirementCatalogs.Japanese)),
+                DesktopRetirementCatalogs.Japanese,
+                DesktopDaemonRetirementCatalogs.Japanese,
+                DesktopStartupRecoveryCatalogs.Japanese,
+                DesktopAccountCatalogs.Japanese)),
         BuiltInShell(
             "es",
             "Spanish",
@@ -316,7 +325,10 @@ internal sealed class DesktopLocalization
                 DesktopConnectionCatalogs.Spanish,
                 DesktopBootstrapDeploymentCatalogs.Spanish,
                 DesktopProvisioningCatalogs.Spanish,
-                DesktopRetirementCatalogs.Spanish)),
+                DesktopRetirementCatalogs.Spanish,
+                DesktopDaemonRetirementCatalogs.Spanish,
+                DesktopStartupRecoveryCatalogs.Spanish,
+                DesktopAccountCatalogs.Spanish)),
         BuiltInShell(
             "de",
             "German",
@@ -327,7 +339,10 @@ internal sealed class DesktopLocalization
                 DesktopConnectionCatalogs.German,
                 DesktopBootstrapDeploymentCatalogs.German,
                 DesktopProvisioningCatalogs.German,
-                DesktopRetirementCatalogs.German)),
+                DesktopRetirementCatalogs.German,
+                DesktopDaemonRetirementCatalogs.German,
+                DesktopStartupRecoveryCatalogs.German,
+                DesktopAccountCatalogs.German)),
         BuiltInShell(
             "fr",
             "French",
@@ -338,7 +353,10 @@ internal sealed class DesktopLocalization
                 DesktopConnectionCatalogs.French,
                 DesktopBootstrapDeploymentCatalogs.French,
                 DesktopProvisioningCatalogs.French,
-                DesktopRetirementCatalogs.French)),
+                DesktopRetirementCatalogs.French,
+                DesktopDaemonRetirementCatalogs.French,
+                DesktopStartupRecoveryCatalogs.French,
+                DesktopAccountCatalogs.French)),
         BuiltInShell(
             "ko",
             "Korean",
@@ -349,7 +367,10 @@ internal sealed class DesktopLocalization
                 DesktopConnectionCatalogs.Korean,
                 DesktopBootstrapDeploymentCatalogs.Korean,
                 DesktopProvisioningCatalogs.Korean,
-                DesktopRetirementCatalogs.Korean)),
+                DesktopRetirementCatalogs.Korean,
+                DesktopDaemonRetirementCatalogs.Korean,
+                DesktopStartupRecoveryCatalogs.Korean,
+                DesktopAccountCatalogs.Korean)),
         Core("pt-BR", "Portuguese (Brazil)", "Português (Brasil)", "Idioma",
             "Painel do plano de controle", "Uma visão leve da frota para vários runtimes gewyvern próximos.", false),
         Core("it", "Italian", "Italiano", "Lingua", "Dashboard del piano di controllo",
@@ -498,13 +519,19 @@ internal sealed class DesktopLocalization
         DesktopBootstrapDeploymentCatalogs.VerifyContract();
         DesktopProvisioningCatalogs.VerifyContract();
         DesktopRetirementCatalogs.VerifyContract();
+        DesktopDaemonRetirementCatalogs.VerifyContract();
+        DesktopStartupRecoveryCatalogs.VerifyContract();
+        DesktopAccountCatalogs.VerifyContract();
         var ids = LocaleDefinitions.Select(locale => locale.Locale).ToArray();
         var desktopTextKeyCount = Enum.GetValues<DesktopTextKey>().Length;
         var builtInSemanticKeyCount = DesktopBuiltInSemanticCatalogs.KeyCount
             + DesktopConnectionCatalogs.KeyCount
             + DesktopBootstrapDeploymentCatalogs.KeyCount
             + DesktopProvisioningCatalogs.KeyCount
-            + DesktopRetirementCatalogs.KeyCount;
+            + DesktopRetirementCatalogs.KeyCount
+            + DesktopDaemonRetirementCatalogs.KeyCount
+            + DesktopStartupRecoveryCatalogs.KeyCount
+            + DesktopAccountCatalogs.KeyCount;
         if (Schema != "leserpent.desktop-localization/v1"
             || LocaleDefinitions.Length != 30
             || LocaleDefinitions.Count(locale => locale.BuiltIn) != 8
@@ -642,6 +669,62 @@ internal sealed class DesktopLocalization
         {
             throw new InvalidDataException(
                 "built-in desktop retirement translation drifted");
+        }
+        var daemonRetirementSamples = new Dictionary<string, string>
+        {
+            ["en"] = "Leserpent / Retire daemon",
+            ["zh-CN"] = "Leserpent / 退役 daemon",
+            ["zh-TW"] = "Leserpent / 退役 daemon",
+            ["ja"] = "Leserpent / daemon を廃止",
+            ["es"] = "Leserpent / Retirar daemon",
+            ["de"] = "Leserpent / Daemon stilllegen",
+            ["fr"] = "Leserpent / Retirer le daemon",
+            ["ko"] = "Leserpent / daemon 폐기",
+        };
+        if (daemonRetirementSamples.Any(sample =>
+            DesktopDaemonRetirementCatalogs.Resolve(
+                ForVerification(sample.Key),
+                "title") != sample.Value))
+        {
+            throw new InvalidDataException(
+                "built-in desktop daemon retirement translation drifted");
+        }
+        var startupRecoverySamples = new Dictionary<string, string>
+        {
+            ["en"] = "Remote console could not start",
+            ["zh-CN"] = "远程控制台无法启动",
+            ["zh-TW"] = "遠端主控台無法啟動",
+            ["ja"] = "リモートコンソールを起動できませんでした",
+            ["es"] = "No se pudo iniciar la consola remota",
+            ["de"] = "Die Remotekonsole konnte nicht gestartet werden",
+            ["fr"] = "La console distante n'a pas pu démarrer",
+            ["ko"] = "원격 콘솔을 시작할 수 없습니다",
+        };
+        if (startupRecoverySamples.Any(sample =>
+            DesktopStartupRecoveryCatalogs.Resolve(
+                ForVerification(sample.Key),
+                "heading") != sample.Value))
+        {
+            throw new InvalidDataException(
+                "built-in desktop startup recovery translation drifted");
+        }
+        var accountSamples = new Dictionary<string, string>
+        {
+            ["en"] = "Sign in",
+            ["zh-CN"] = "登录",
+            ["zh-TW"] = "登入",
+            ["ja"] = "サインイン",
+            ["es"] = "Iniciar sesión",
+            ["de"] = "Anmelden",
+            ["fr"] = "Se connecter",
+            ["ko"] = "로그인",
+        };
+        if (accountSamples.Any(sample => DesktopAccountCatalogs.Resolve(
+            ForVerification(sample.Key),
+            "action.signed_out") != sample.Value))
+        {
+            throw new InvalidDataException(
+                "built-in desktop account translation drifted");
         }
         var system = ForVerification(SystemPreference, "zh-Hans-CN");
         if (system.Active.Locale != "zh-CN"

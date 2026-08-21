@@ -237,13 +237,44 @@ internal sealed class LeserpentApp : Application
         {
             throw new InvalidDataException("startup error token redaction failed");
         }
-        var window = new StartupErrorWindow(description);
+        var localization = DesktopLocalization.ForVerification();
+        var window = new StartupErrorWindow(description, localization);
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += (_, _) =>
         {
             window.VerifyAccessibility();
+            window.VerifyLayoutEnvelope();
+            var localizedLayoutCount = 0;
+            foreach (var locale in DesktopLocalization.OfficialLocales.Where(
+                locale => locale.BuiltIn))
+            {
+                var localized = DesktopLocalization.ForVerification(locale.Locale);
+                var localizedWindow = new StartupErrorWindow(
+                    StartupFailure.DefaultDescription,
+                    localized);
+                localizedWindow.VerifyAccessibility();
+                localizedWindow.VerifyLayoutEnvelope();
+                localizedWindow.ProbeLocalizedPresentation(
+                    DesktopStartupRecoveryCatalogs.Resolve(localized, "title"),
+                    DesktopStartupRecoveryCatalogs.Resolve(localized, "heading"),
+                    DesktopStartupRecoveryCatalogs.Resolve(localized, "close"),
+                    DesktopStartupRecoveryCatalogs.Resolve(localized, "guidance"));
+                localizedLayoutCount++;
+            }
+            localization.SetPreference("zh-CN");
+            window.ProbeLocalizedPresentation(
+                "Leserpent 启动问题",
+                "远程控制台无法启动",
+                "关闭",
+                "请检查 HTTPS 源站、CA 文件，以及 Keychain 或 Secret Service 中限定端点的令牌。令牌绝不会显示在这里。");
+            localization.SetPreference("en");
+            if (localizedLayoutCount != 8)
+            {
+                throw new InvalidDataException(
+                    "startup recovery localized layout coverage drifted");
+            }
             Console.WriteLine(
-                "startup error controls valid: controls=4, automation_ids=4, automation_names=4, token_redacted=true");
+                "startup error controls valid: controls=4, automation_ids=4, automation_names=4, token_redacted=true, localized_startup_catalogs=7, localized_layouts=8, live_language_reprojection=true");
             DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
@@ -442,6 +473,8 @@ internal sealed class LeserpentApp : Application
                 CertificateAuthorityPath = "/verification/beta-ca.pem",
             }),
         };
+        var localization = DesktopLocalization.ForVerification();
+        var accountSession = SilvortexAccountSession.DisabledForVerification();
         var window = new HubWindow(
             connections,
             true,
@@ -468,8 +501,8 @@ internal sealed class LeserpentApp : Application
             _ => { },
             () => tutorialOpenCount++,
             () => languageOpenCount++,
-            DesktopLocalization.ForVerification(),
-            SilvortexAccountSession.DisabledForVerification());
+            localization,
+            accountSession);
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += (_, _) =>
         {
@@ -478,6 +511,32 @@ internal sealed class LeserpentApp : Application
                 try
                 {
                     window.VerifyTopologyContract();
+                    window.VerifyLayoutEnvelope();
+                    var localizedAccountLayoutCount = 0;
+                    foreach (var locale in DesktopLocalization.OfficialLocales.Where(
+                        locale => locale.BuiltIn))
+                    {
+                        localization.SetPreference(locale.Locale);
+                        window.ProbeLocalizedAccountPresentation(
+                            DesktopAccountCatalogs.Resolve(localization, "label"),
+                            DesktopAccountCatalogs.Resolve(
+                                localization,
+                                "identity.disabled"),
+                            DesktopAccountCatalogs.Resolve(
+                                localization,
+                                "action.disabled"),
+                            DesktopAccountCatalogs.Resolve(
+                                localization,
+                                "status.verification_disabled"));
+                        window.VerifyLayoutEnvelope();
+                        localizedAccountLayoutCount++;
+                    }
+                    localization.SetPreference("en");
+                    if (localizedAccountLayoutCount != 8)
+                    {
+                        throw new InvalidDataException(
+                            "Hub account localized layout coverage drifted");
+                    }
                     RemoteWorkspaceLaunchCoordinator.VerifyContract();
                     if (window.RenderedRuntimeCount != 6
                         || window.RenderedRuntimeActionCount != 6
@@ -500,7 +559,7 @@ internal sealed class LeserpentApp : Application
                             "Hub action routing did not preserve its runtime or tutorial target");
                     }
                     Console.WriteLine(
-                        "Hub topology valid: client_root=true, local_daemon=true, remote_daemons=2, live_topologies=3, authority_proofs=3, queue_health=true, runtime_children=6, runtime_actions=6, topology_filter=true, authority_filter=true, cross_authority_runtime_filter=true, empty_filter_state=true, filter_focus_recovery=true, refresh_all_control=true, refresh_all_single_flight=true, card_refresh_join=true, shared_refresh_policy=true, refresh_busy_state=true, refresh_completion_status=true, tutorial_entry=true, language_entry=true, daemon_route=true, authoritative_workspace_gate=true, shared_workspace_launch=true, retained_topology_state=true, revision_regression_fence=true, bounded_auto_refresh=true, bounded_preview=true, independent_actions=true, legacy_remote_button=false, automation=true");
+                        "Hub topology valid: client_root=true, local_daemon=true, remote_daemons=2, live_topologies=3, authority_proofs=3, queue_health=true, runtime_children=6, runtime_actions=6, topology_filter=true, authority_filter=true, cross_authority_runtime_filter=true, empty_filter_state=true, filter_focus_recovery=true, refresh_all_control=true, refresh_all_single_flight=true, card_refresh_join=true, shared_refresh_policy=true, refresh_busy_state=true, refresh_completion_status=true, tutorial_entry=true, language_entry=true, daemon_route=true, authoritative_workspace_gate=true, shared_workspace_launch=true, retained_topology_state=true, revision_regression_fence=true, bounded_auto_refresh=true, bounded_preview=true, independent_actions=true, legacy_remote_button=false, automation=true, localized_account_catalogs=7, localized_account_layouts=8, minimum_hub_layout=true, live_account_language_reprojection=true");
                     window.Close();
                 }
                 catch (Exception error)
@@ -657,7 +716,7 @@ internal sealed class LeserpentApp : Application
                 resolvedToken,
                 Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
             Console.Error.WriteLine($"Leserpent remote startup failed: {description}");
-            var window = new StartupErrorWindow(description);
+            var window = new StartupErrorWindow(description, DesktopLanguage());
             RegisterMainWindowLifecycle(desktop, window);
             window.Closed += (_, _) => desktop.Shutdown(StartupFailure.ExitCode);
             desktop.MainWindow = window;
@@ -1038,67 +1097,112 @@ internal sealed class LeserpentApp : Application
     {
         var reconcileCount = 0;
         RemoteDaemonRetirementIntent? acceptedIntent = null;
-        var window = new DaemonRetirementWindow(
-            [new BootstrapAuthorityOption(
+        var localization = DesktopLocalization.ForVerification();
+        var authorities = new[]
+        {
+            new BootstrapAuthorityOption(
                 "daemon-verification",
                 "Verification authority",
                 "https://controller.example:9443",
-                false)],
-            new DaemonRetirementHubOperations((_, intent, _) =>
+                false),
+        };
+        var operations = new DaemonRetirementHubOperations((_, intent, _) =>
+        {
+            reconcileCount++;
+            acceptedIntent ??= intent;
+            if (acceptedIntent != intent)
             {
-                reconcileCount++;
-                acceptedIntent ??= intent;
-                if (acceptedIntent != intent)
-                {
-                    throw new InvalidDataException(
-                        "daemon retirement controls changed identity while observing progress");
-                }
-                return Task.FromResult(reconcileCount == 1
-                    ? new RemoteDaemonRetirementSnapshot(
-                        intent.RetirementId,
-                        intent.BootstrapId,
-                        "daemon-target",
-                        "planned",
-                        "ssh",
-                        "daemon.example",
-                        22,
-                        new string('a', 64),
-                        "system",
-                        true,
-                        false,
-                        null)
-                    : new RemoteDaemonRetirementSnapshot(
-                        intent.RetirementId,
-                        intent.BootstrapId,
-                        "daemon-target",
-                        "service_retired",
-                        "ssh",
-                        "daemon.example",
-                        22,
-                        new string('a', 64),
-                        "system",
-                        false,
-                        true,
-                        null));
-            }));
+                throw new InvalidDataException(
+                    "daemon retirement controls changed identity while observing progress");
+            }
+            return Task.FromResult(reconcileCount == 1
+                ? new RemoteDaemonRetirementSnapshot(
+                    intent.RetirementId,
+                    intent.BootstrapId,
+                    "daemon-target",
+                    "planned",
+                    "ssh",
+                    "daemon.example",
+                    22,
+                    new string('a', 64),
+                    "system",
+                    true,
+                    false,
+                    null)
+                : new RemoteDaemonRetirementSnapshot(
+                    intent.RetirementId,
+                    intent.BootstrapId,
+                    "daemon-target",
+                    "service_retired",
+                    "ssh",
+                    "daemon.example",
+                    22,
+                    new string('a', 64),
+                    "system",
+                    false,
+                    true,
+                    null));
+        });
+        var window = new DaemonRetirementWindow(
+            authorities,
+            operations,
+            localization);
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += async (_, _) =>
         {
             window.VerifyAccessibility();
+            window.VerifyLayoutEnvelope();
+            var localizedLayoutCount = 0;
+            foreach (var locale in DesktopLocalization.OfficialLocales.Where(
+                locale => locale.BuiltIn))
+            {
+                var localized = DesktopLocalization.ForVerification(locale.Locale);
+                var localizedWindow = new DaemonRetirementWindow(
+                    authorities,
+                    operations,
+                    localized);
+                localizedWindow.VerifyAccessibility();
+                localizedWindow.VerifyLayoutEnvelope();
+                localizedWindow.ProbeLocalizedPresentation(
+                    DesktopDaemonRetirementCatalogs.Resolve(localized, "title"),
+                    DesktopDaemonRetirementCatalogs.Resolve(localized, "heading"),
+                    DesktopDaemonRetirementCatalogs.Resolve(localized, "submit"),
+                    DesktopDaemonRetirementCatalogs.Resolve(
+                        localized,
+                        "phase.not_submitted"),
+                    DesktopDaemonRetirementCatalogs.Resolve(
+                        localized,
+                        "status.initial"));
+                localizedLayoutCount++;
+            }
+            localization.SetPreference("zh-CN");
+            window.ProbeLocalizedPresentation(
+                "Leserpent / 退役 daemon",
+                "移除已 bootstrap 的权威端",
+                "退役 daemon",
+                "尚未提交",
+                "请选择执行原始 bootstrap 的 daemon 权威端。");
+            localization.SetPreference("en");
+            if (localizedLayoutCount != 8)
+            {
+                throw new InvalidDataException(
+                    "daemon retirement localized layout coverage drifted");
+            }
             await window.ProbeConfirmationFenceAsync();
             if (reconcileCount != 0)
             {
                 throw new InvalidDataException(
                     "daemon retirement controls submitted without explicit confirmation");
             }
-            await window.ProbeWorkflowAsync();
+            await window.ProbeWorkflowAsync("zh-CN");
+            await window.ProbeObservationLimitAsync("de");
             if (reconcileCount != 2 || acceptedIntent is null)
             {
                 throw new InvalidDataException(
                     "daemon retirement controls did not preserve submit-observe identity");
             }
             Console.WriteLine(
-                "daemon retirement controls valid: controls=10, authority_scoped=true, bootstrap_bound=true, authority_omitting=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, stable_identity=true, bounded_polling=30, terminal_state=true, retry_guidance=true, automation=true");
+                "daemon retirement controls valid: controls=10, authority_scoped=true, bootstrap_bound=true, authority_omitting=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, stable_identity=true, bounded_polling=30, observation_limit_no_reconcile=true, terminal_state=true, retry_guidance=true, automation=true, localized_daemon_retirement_catalogs=7, localized_layouts=8, live_language_reprojection=true");
             DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
@@ -1532,7 +1636,7 @@ internal sealed class LeserpentApp : Application
             var description = StartupFailure.Describe(
                 error,
                 Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
-            new StartupErrorWindow(description).Show();
+            new StartupErrorWindow(description, DesktopLanguage()).Show();
         }
     }
 
@@ -1619,7 +1723,10 @@ internal sealed class LeserpentApp : Application
                     }
                     return state;
                 });
-            var window = new DaemonRetirementWindow(authorities, operations);
+            var window = new DaemonRetirementWindow(
+                authorities,
+                operations,
+                DesktopLanguage());
             if (desktop.MainWindow is { } owner)
             {
                 window.Show(owner);
@@ -1634,7 +1741,7 @@ internal sealed class LeserpentApp : Application
             var description = StartupFailure.Describe(
                 error,
                 Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
-            new StartupErrorWindow(description).Show();
+            new StartupErrorWindow(description, DesktopLanguage()).Show();
         }
     }
 
@@ -1740,7 +1847,7 @@ internal sealed class LeserpentApp : Application
             var description = StartupFailure.Describe(
                 error,
                 Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
-            new StartupErrorWindow(description).Show();
+            new StartupErrorWindow(description, DesktopLanguage()).Show();
         }
     }
 
@@ -1847,7 +1954,7 @@ internal sealed class LeserpentApp : Application
             var description = StartupFailure.Describe(
                 error,
                 Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
-            new StartupErrorWindow(description).Show();
+            new StartupErrorWindow(description, DesktopLanguage()).Show();
         }
     }
 

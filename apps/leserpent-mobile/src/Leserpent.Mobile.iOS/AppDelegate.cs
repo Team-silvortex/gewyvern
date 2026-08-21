@@ -11,7 +11,7 @@ public sealed class AppDelegate : UIApplicationDelegate
         _ = application;
         _ = launchOptions;
 #if DEBUG
-        if (Environment.GetCommandLineArgs().Contains(
+        if (NSProcessInfo.ProcessInfo.Arguments.Contains(
                 "--leserpent-keychain-proof",
                 StringComparer.Ordinal))
         {

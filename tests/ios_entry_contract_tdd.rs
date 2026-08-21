@@ -13,6 +13,12 @@ fn ios_entry_is_native_secure_and_uses_shared_mobile_policy() {
     let scene = source(&format!("{root}/SceneDelegate.cs"));
     let hub = source(&format!("{root}/MobileHubViewController.cs"));
     let renderer = source(&format!("{root}/IosUiDocumentView.cs"));
+    let binding = source(
+        "apps/leserpent-mobile/src/Leserpent.MobileCore/MobileUiDocumentBinding.cs",
+    );
+    let render_gate = source(
+        "apps/leserpent-mobile/src/Leserpent.MobileCore/MobileNativeRenderGate.cs",
+    );
     let keychain = source(&format!("{root}/IosKeychainSecretStore.cs"));
     let profile = source(&format!("{root}/IosConnectionProfileStore.cs"));
     let platform_proof = source(&format!("{root}/IosPlatformProof.cs"));
@@ -71,6 +77,13 @@ fn ios_entry_is_native_secure_and_uses_shared_mobile_policy() {
             < scene.find("await hub.EnterForegroundAsync()").unwrap(),
         "active iOS UI remained hidden behind a network-dependent foreground transition"
     );
+    assert!(
+        app_delegate.contains("NSProcessInfo.ProcessInfo.Arguments")
+            && hub.contains("NSProcessInfo.ProcessInfo.Arguments")
+            && !app_delegate.contains("Environment.GetCommandLineArgs()")
+            && !hub.contains("Environment.GetCommandLineArgs()"),
+        "iOS simulator proof switches bypassed the native process argument source"
+    );
 
     for required in [
         "new MobileApplicationCoordinator(vault)",
@@ -87,6 +100,12 @@ fn ios_entry_is_native_secure_and_uses_shared_mobile_policy() {
         "ShowConfirmationAsync(",
         "catch (OperationCanceledException) when (lifetime.IsCancellationRequested)",
         "button.TitleLabel.Lines = 0",
+        "MobileNativeRenderGate.RetainEquivalentPresentation(",
+        "renderGate.ShouldRender(",
+        "renderGate.Invalidate()",
+        "connectionHeader.Axis = compact",
+        "documentHeader.Axis = compact",
+        "plan.WidthClass == MobileWidthClass.Compact",
         "Workspace network request failed safely.",
         "Remote change failed safely.",
     ] {
@@ -116,6 +135,30 @@ fn ios_entry_is_native_secure_and_uses_shared_mobile_policy() {
         !renderer.contains("RemoteFeedState") && !renderer.contains("RemoteWorkspaceClient"),
         "iOS document renderer introduced transport or feed ownership"
     );
+    for required in [
+        "public bool HasSameNativePresentation(",
+        "SameNode(Root, other.Root, ignoredNodeId)",
+        "mobile native presentation did not isolate transient heartbeat status",
+    ] {
+        assert!(
+            binding.contains(required),
+            "shared native presentation comparison lost {required}"
+        );
+    }
+    for required in [
+        "public sealed class MobileNativeRenderGate",
+        "public static MobileUiDocumentBinding RetainEquivalentPresentation(",
+        "current?.HasSameNativePresentation(candidate, ignoredNodeId)",
+        "ReferenceEquals(document, candidate)",
+        "availability == candidateAvailability",
+        "busy == candidateBusy",
+        "runtimeColumns == candidateRuntimeColumns",
+    ] {
+        assert!(
+            render_gate.contains(required),
+            "shared native render gate lost {required}"
+        );
+    }
 
     for required in [
         "SecKind.GenericPassword",

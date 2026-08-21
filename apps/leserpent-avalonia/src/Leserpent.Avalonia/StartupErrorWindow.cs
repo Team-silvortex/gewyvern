@@ -10,6 +10,8 @@ using Avalonia.Media;
 internal static class StartupFailure
 {
     public const int ExitCode = 2;
+    public const string DefaultDescription =
+        "The desktop configuration could not be validated.";
 
     public static bool IsExpected(Exception error) => error is
         ArgumentException
@@ -39,24 +41,27 @@ internal static class StartupFailure
             .Take(512)
             .ToArray());
         return string.IsNullOrWhiteSpace(sanitized)
-            ? "The desktop configuration could not be validated."
+            ? DefaultDescription
             : sanitized;
     }
 }
 
 internal sealed class StartupErrorWindow : Window
 {
+    private readonly string description;
+    private readonly DesktopLocalization localization;
     private readonly Button closeButton;
     private readonly TextBlock detailText;
     private readonly TextBlock guidanceText;
     private readonly TextBlock headingText;
 
-    public StartupErrorWindow(string description)
+    public StartupErrorWindow(string description, DesktopLocalization localization)
     {
-        Title = "Leserpent startup problem";
-        Width = 560;
+        this.description = description;
+        this.localization = localization;
+        Width = 600;
         MinWidth = 380;
-        MaxWidth = 720;
+        MaxWidth = 760;
         SizeToContent = SizeToContent.Height;
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -65,12 +70,10 @@ internal sealed class StartupErrorWindow : Window
 
         closeButton = new Button
         {
-            Content = "Close",
             HorizontalAlignment = HorizontalAlignment.Right,
             Padding = new Thickness(20, 9),
         };
         AutomationProperties.SetAutomationId(closeButton, "startup-error-close");
-        AutomationProperties.SetName(closeButton, "Close startup error");
         closeButton.Click += (_, _) => Close();
         Opened += (_, _) => closeButton.Focus();
         KeyDown += (_, eventArgs) =>
@@ -84,38 +87,30 @@ internal sealed class StartupErrorWindow : Window
 
         detailText = new TextBlock
         {
-            Text = description,
             Foreground = LeserpentTheme.Body,
             FontSize = 14,
             LineHeight = 22,
             TextWrapping = TextWrapping.Wrap,
         };
         AutomationProperties.SetAutomationId(detailText, "startup-error-detail");
-        AutomationProperties.SetName(detailText, $"Startup error: {description}");
 
         headingText = new TextBlock
         {
-            Text = "Remote console could not start",
             Foreground = LeserpentTheme.Primary,
             FontSize = 24,
             FontWeight = FontWeight.Bold,
             TextWrapping = TextWrapping.Wrap,
         };
         AutomationProperties.SetAutomationId(headingText, "startup-error-heading");
-        AutomationProperties.SetName(headingText, "Remote console could not start");
 
         guidanceText = new TextBlock
         {
-            Text = "Check the HTTPS origin, CA file, and the endpoint-scoped token in Keychain or Secret Service. Tokens are never shown here.",
             Foreground = LeserpentTheme.Muted,
             FontSize = 13,
             LineHeight = 20,
             TextWrapping = TextWrapping.Wrap,
         };
         AutomationProperties.SetAutomationId(guidanceText, "startup-error-guidance");
-        AutomationProperties.SetName(
-            guidanceText,
-            "Check the HTTPS origin, CA file, and endpoint-scoped platform credential");
 
         Content = new Border
         {
@@ -140,6 +135,9 @@ internal sealed class StartupErrorWindow : Window
                 },
             },
         };
+        Closed += (_, _) => localization.Changed -= OnLocalizationChanged;
+        localization.Changed += OnLocalizationChanged;
+        ApplyLocalization();
     }
 
     public void VerifyAccessibility()
@@ -159,4 +157,70 @@ internal sealed class StartupErrorWindow : Window
                 "startup error controls have duplicate automation IDs");
         }
     }
+
+    public void VerifyLayoutEnvelope()
+    {
+        if (Content is not Control root)
+        {
+            throw new InvalidDataException("startup recovery window has no control root");
+        }
+        root.Measure(new Size(Width, 900));
+        var desired = root.DesiredSize;
+        if (!double.IsFinite(desired.Width)
+            || !double.IsFinite(desired.Height)
+            || desired.Width <= 0
+            || desired.Height <= 0
+            || desired.Width > Width
+            || desired.Height > 900)
+        {
+            throw new InvalidDataException(
+                "startup recovery controls exceeded their layout envelope");
+        }
+    }
+
+    public void ProbeLocalizedPresentation(
+        string expectedTitle,
+        string expectedHeading,
+        string expectedClose,
+        string expectedGuidance)
+    {
+        if (Title != expectedTitle
+            || headingText.Text != expectedHeading
+            || closeButton.Content as string != expectedClose
+            || guidanceText.Text != expectedGuidance
+            || AutomationProperties.GetName(closeButton) != Text("a11y.close")
+            || FlowDirection != localization.FlowDirection)
+        {
+            throw new InvalidDataException(
+                "startup recovery localized presentation drifted");
+        }
+    }
+
+    private void OnLocalizationChanged(object? sender, EventArgs eventArgs) =>
+        ApplyLocalization();
+
+    private void ApplyLocalization()
+    {
+        var displayedDescription = description == StartupFailure.DefaultDescription
+            ? Text("detail.fallback")
+            : description;
+        Title = Text("title");
+        FlowDirection = localization.FlowDirection;
+        closeButton.Content = Text("close");
+        headingText.Text = Text("heading");
+        detailText.Text = displayedDescription;
+        guidanceText.Text = Text("guidance");
+        AutomationProperties.SetName(closeButton, Text("a11y.close"));
+        AutomationProperties.SetName(
+            detailText,
+            Format("a11y.detail", displayedDescription));
+        AutomationProperties.SetName(headingText, Text("a11y.heading"));
+        AutomationProperties.SetName(guidanceText, Text("a11y.guidance"));
+    }
+
+    private string Text(string key) =>
+        DesktopStartupRecoveryCatalogs.Resolve(localization, key);
+
+    private string Format(string key, params object[] values) =>
+        DesktopStartupRecoveryCatalogs.Format(localization, key, values);
 }

@@ -1075,6 +1075,10 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(program.contains("builtin_shell_catalogs=8"));
     assert!(program.contains("builtin_semantic_catalogs=7"));
     assert!(program.contains("semantic_keys=26"));
+    assert!(program.contains("builtin_semantic_keys=275"));
+    assert!(program.contains("builtin_daemon_retirement_catalogs=7"));
+    assert!(program.contains("builtin_startup_recovery_catalogs=7"));
+    assert!(program.contains("builtin_account_catalogs=7"));
     assert!(program.contains("localized_ui_ir=true"));
 }
 
@@ -1236,7 +1240,7 @@ fn gewyvern_provisioning_is_authority_scoped_identity_locked_and_bounded() {
     assert!(program.contains("--verify-provisioning-client"));
     assert!(program.contains("builtin_provisioning_catalogs=7"));
     assert!(program.contains("provisioning_semantic_keys=43"));
-    assert!(program.contains("builtin_semantic_keys=193"));
+    assert!(program.contains("builtin_semantic_keys=275"));
     assert!(program.contains("localized_gewyvern_provisioning=true"));
     assert!(promotion.contains("BootstrapPromotionJsonContext.Default"));
     assert!(!promotion.contains("JsonSerializer.Serialize(new\n"));
@@ -1303,7 +1307,7 @@ fn gewyvern_retirement_is_confirmed_provisioning_bound_and_failure_safe() {
     assert!(program.contains("--verify-retirement-client"));
     assert!(program.contains("builtin_retirement_catalogs=7"));
     assert!(program.contains("retirement_semantic_keys=45"));
-    assert!(program.contains("builtin_semantic_keys=193"));
+    assert!(program.contains("builtin_semantic_keys=275"));
     assert!(program.contains("localized_gewyvern_retirement=true"));
 }
 
@@ -1313,6 +1317,8 @@ fn daemon_retirement_is_bootstrap_bound_authority_omitting_and_runtime_independe
     let contracts = avalonia_source("Leserpent.RemoteClient/RemoteDaemonRetirementContracts.cs");
     let transport = avalonia_source("Leserpent.RemoteClient/RemoteWireTransport.cs");
     let window = avalonia_source("Leserpent.Avalonia/DaemonRetirementWindow.cs");
+    let catalog = avalonia_source("Leserpent.Avalonia/DesktopDaemonRetirementCatalogs.cs");
+    let localization = avalonia_source("Leserpent.Avalonia/DesktopLocalization.cs");
     let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
@@ -1341,14 +1347,75 @@ fn daemon_retirement_is_bootstrap_bound_authority_omitting_and_runtime_independe
     assert!(transport.contains("\"v1/daemon-retirement\""));
     assert!(window.contains("MaxAutomaticObservations = 30"));
     assert!(window.contains("LockIdentityFields()"));
-    assert!(window.contains("new retirement ID"));
     assert!(window.contains("daemon-retirement-credential-handle"));
     assert!(window.contains("AutomationLiveSetting.Assertive"));
+    assert!(window.contains("DesktopDaemonRetirementCatalogs.Resolve(localization, key)"));
+    assert!(window.contains("localization.Changed += OnLocalizationChanged"));
+    assert!(window.contains("localization.Changed -= OnLocalizationChanged"));
+    assert!(window.contains("VerifyLayoutEnvelope()"));
+    assert!(window.contains("ProbeLocalizedPresentation("));
+    assert!(window.contains("ProbeObservationLimitAsync"));
+    assert!(window.contains("new WrapPanel"));
+    assert!(!window.contains("phase.Text = state.Phase.Replace"));
     assert!(!window.contains("private readonly TextBox host"));
+    assert!(catalog.contains("public const int KeyCount = 37;"));
+    assert!(catalog.contains("private const string Prefix = \"desktop.daemon_retirement.\";"));
+    assert!(catalog.contains("public static IReadOnlyDictionary<string, string> Korean"));
+    assert!(catalog.contains("DesktopDomainCatalogContract.Verify("));
+    assert!(catalog.contains("use a new retirement ID after remediation"));
+    assert!(!catalog.contains("HttpClient"));
+    assert!(!catalog.contains("Process."));
+    assert!(!catalog.contains("File."));
+    assert!(localization.contains("DesktopDaemonRetirementCatalogs.VerifyContract();"));
+    assert!(localization.contains("DesktopDaemonRetirementCatalogs.KeyCount"));
     assert!(hub.contains("hub-retire-daemon"));
     assert!(app.contains("ExecuteDaemonRetirementAsync"));
     assert!(app.contains("--verify-daemon-retirement-controls"));
+    assert!(app.contains("localized_daemon_retirement_catalogs=7"));
+    assert!(app.contains("localized_layouts=8"));
+    assert!(app.contains("await window.ProbeWorkflowAsync(\"zh-CN\")"));
+    assert!(app.contains("await window.ProbeObservationLimitAsync(\"de\")"));
     assert!(program.contains("--verify-daemon-retirement-client"));
+    assert!(program.contains("builtin_daemon_retirement_catalogs=7"));
+    assert!(program.contains("daemon_retirement_semantic_keys=37"));
+    assert!(program.contains("localized_daemon_retirement=true"));
+}
+
+#[test]
+fn startup_recovery_is_redacted_strictly_localized_and_layout_bounded() {
+    let window = avalonia_source("Leserpent.Avalonia/StartupErrorWindow.cs");
+    let catalog = avalonia_source("Leserpent.Avalonia/DesktopStartupRecoveryCatalogs.cs");
+    let contract = avalonia_source("Leserpent.Avalonia/DesktopDomainCatalogContract.cs");
+    let localization = avalonia_source("Leserpent.Avalonia/DesktopLocalization.cs");
+    let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+    let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+
+    assert!(window.contains("public const string DefaultDescription"));
+    assert!(window.contains("DesktopStartupRecoveryCatalogs.Resolve(localization, key)"));
+    assert!(window.contains("localization.Changed += OnLocalizationChanged"));
+    assert!(window.contains("localization.Changed -= OnLocalizationChanged"));
+    assert!(window.contains("description == StartupFailure.DefaultDescription"));
+    assert!(window.contains("VerifyLayoutEnvelope()"));
+    assert!(window.contains("ProbeLocalizedPresentation("));
+    assert!(window.contains("Take(512)"));
+    assert!(window.contains("redacted.Replace(secret, \"[redacted]\""));
+    assert!(catalog.contains("public const int KeyCount = 9;"));
+    assert!(catalog.contains("private const string Prefix = \"desktop.startup_recovery.\";"));
+    assert!(catalog.contains("public static IReadOnlyDictionary<string, string> Korean"));
+    assert!(catalog.contains("DesktopDomainCatalogContract.Verify("));
+    assert!(!catalog.contains("HttpClient"));
+    assert!(!catalog.contains("Process."));
+    assert!(!catalog.contains("File."));
+    assert!(contract.contains("SetEquals(expected)"));
+    assert!(contract.contains("HasExpectedPlaceholders"));
+    assert!(contract.contains("entry.Value.Length is > 0 and <= 1024"));
+    assert!(localization.contains("DesktopStartupRecoveryCatalogs.VerifyContract();"));
+    assert!(localization.contains("DesktopStartupRecoveryCatalogs.KeyCount"));
+    assert!(app.contains("localized_startup_catalogs=7"));
+    assert!(app.contains("startup recovery localized layout coverage drifted"));
+    assert!(program.contains("builtin_startup_recovery_catalogs=7"));
+    assert!(program.contains("startup_recovery_semantic_keys=9"));
+    assert!(program.contains("localized_startup_recovery=true"));
 }
 
 #[test]
@@ -1684,7 +1751,7 @@ fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
     assert!(app.contains("live_language_reprojection=true"));
     assert!(program.contains("builtin_connection_catalogs=7"));
     assert!(program.contains("connection_semantic_keys=33"));
-    assert!(program.contains("builtin_semantic_keys=193"));
+    assert!(program.contains("builtin_semantic_keys=275"));
     assert!(window.contains("if (operationInFlight || isClosed)"));
     assert!(health.contains("remote health did not prove a ready protocol-v1 authority"));
     assert!(health.contains("remote health queue counters are inconsistent"));
@@ -1758,7 +1825,7 @@ fn desktop_reverse_deployment_is_strictly_localized_and_operator_data_preserving
     assert!(app.contains("await window.ProbeWorkflowAsync(\"zh-CN\")"));
     assert!(program.contains("builtin_bootstrap_catalogs=7"));
     assert!(program.contains("bootstrap_semantic_keys=46"));
-    assert!(program.contains("builtin_semantic_keys=193"));
+    assert!(program.contains("builtin_semantic_keys=275"));
     assert!(program.contains("localized_reverse_deployment=true"));
 }
 
@@ -1807,6 +1874,8 @@ fn silvortex_account_is_native_pkce_bound_and_offline_optional() {
     let account = avalonia_source("Leserpent.Avalonia/SilvortexAccountSession.cs");
     let configuration = avalonia_source("Leserpent.Avalonia/SilvortexAccountConfiguration.cs");
     let control = avalonia_source("Leserpent.Avalonia/SilvortexAccountControl.cs");
+    let catalog = avalonia_source("Leserpent.Avalonia/DesktopAccountCatalogs.cs");
+    let localization = avalonia_source("Leserpent.Avalonia/DesktopLocalization.cs");
     let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
@@ -1830,11 +1899,30 @@ fn silvortex_account_is_native_pkce_bound_and_offline_optional() {
     assert!(account.contains("urn:silvortex:assurance:mfa"));
     assert!(account.contains("PlatformCredentialVault.Store"));
     assert!(account.contains("CredentialService = \"org.gewyvern.leserpent.silvortex\""));
+    assert!(account.contains("internal enum SilvortexAccountStatus"));
+    assert!(account.contains("Status: SilvortexAccountStatus.SignInFailed"));
+    assert!(account.contains("Status: SilvortexAccountStatus.RestoreFailed"));
+    assert!(account.contains("private static void ValidateSnapshot("));
+    assert!(account.contains("ExpectInvalidPresentationStatus();"));
+    assert!(account.contains("Team Silvortex accepted an incompatible presentation status"));
     assert!(!account.contains("new(\"client_secret\""));
     assert!(control.contains("hub-silvortex-action"));
-    assert!(control.contains("Daemon credentials remain separate"));
+    assert!(control.contains("DesktopAccountCatalogs.Resolve(localization, key)"));
+    assert!(control.contains("localization.Changed += OnLocalizationChanged"));
+    assert!(control.contains("localization.Changed -= OnLocalizationChanged"));
+    assert!(control.contains("VerifyLayoutEnvelope()"));
+    assert!(control.contains("ProbeLocalizedPresentation("));
+    assert!(catalog.contains("public const int KeyCount = 36;"));
+    assert!(catalog.contains("Daemon credentials remain separate"));
+    assert!(catalog.contains("DesktopDomainCatalogContract.Verify("));
+    assert!(localization.contains("DesktopAccountCatalogs.VerifyContract();"));
+    assert!(localization.contains("DesktopAccountCatalogs.KeyCount"));
     assert!(hub.contains("SilvortexAccountControl"));
+    assert!(hub.contains("ProbeLocalizedAccountPresentation("));
+    assert!(hub.contains("accountControl.VerifyLayoutEnvelope();"));
     assert!(app.contains("SilvortexAccountSession.FromRuntimeConfiguration()"));
+    assert!(app.contains("localized_account_catalogs=7"));
+    assert!(app.contains("localized_account_layouts=8"));
     assert!(configuration.contains("LeserpentSilvortexIssuer"));
     assert!(configuration.contains("MaxPlistBytes = 64 * 1024"));
     assert!(configuration.contains("DtdProcessing = DtdProcessing.Ignore"));
@@ -1851,6 +1939,9 @@ fn silvortex_account_is_native_pkce_bound_and_offline_optional() {
     assert!(program.contains("reviewed_application=leserpent"));
     assert!(program.contains("reviewed_profile=leserpent_desktop"));
     assert!(program.contains("default_client_id=true"));
+    assert!(program.contains("builtin_account_catalogs=7"));
+    assert!(program.contains("account_semantic_keys=36"));
+    assert!(program.contains("localized_account=true"));
     assert!(vault.contains("public static class PlatformCredentialVault"));
     assert!(vault.contains("LinuxSecretService.StoreAccount"));
 }

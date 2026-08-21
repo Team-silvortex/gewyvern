@@ -1,0 +1,161 @@
+{
+  "schema_version": 1,
+  "proof": "leserpent-ios26-simulator",
+  "captured_at_utc": "2026-08-21T09:25:59Z",
+  "scope": "build-package-simulator-runtime-layout-keychain-lifecycle",
+  "host": {
+    "platform": "macos-arm64",
+    "os_version": "26.5.2",
+    "build": "25F84"
+  },
+  "toolchain": {
+    "dotnet_sdk": "10.0.300",
+    "workload_set": "10.0.300.2",
+    "ios_workload_manifest": "26.5.10280/10.0.100",
+    "xcode": "26.5",
+    "xcode_build": "17F42",
+    "simulator_runtime": "iOS 26.5",
+    "simulator_runtime_build": "23F77"
+  },
+  "package": {
+    "application_id": "org.gewyvern.leserpent",
+    "version": "1.15.0",
+    "minimum_ios": "15.0",
+    "device_families": [
+      "iphone",
+      "ipad"
+    ],
+    "brand_icon_catalog": "Assets.xcassets/AppIcon.appiconset",
+    "debug_simulator_app": {
+      "runtime_identifier": "iossimulator-arm64",
+      "architecture": "arm64",
+      "allocated_kib": 107828,
+      "executable_bytes": 58363568,
+      "executable_sha256": "79fac5ad814830e9d4d76d6da0169d92edb75a3e5c0d5dde71e093ff132a81fe",
+      "installation_succeeded": true,
+      "proof_switches_present": true
+    },
+    "release_device_app": {
+      "runtime_identifier": "ios-arm64",
+      "architecture": "arm64",
+      "allocated_kib": 27568,
+      "executable_bytes": 19795296,
+      "executable_sha256": "d585f438c513f66751f7a82a9a5b7b33e70b92fa05af23e6a9e2b6c2343a190c",
+      "aot_data_present": true,
+      "trim_mode": "full",
+      "il_stripping": true,
+      "debug_proof_switches_absent": true,
+      "code_signing_enabled": false,
+      "production_signed": false
+    }
+  },
+  "simulator_runtime": {
+    "runtime_identifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
+    "phone": {
+      "model": "iPhone 17 Pro",
+      "device_type": "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro",
+      "cold_launch_succeeded": true,
+      "cold_relaunch_new_process": true,
+      "hot_resume_process_stable": true,
+      "active_ui_restored_after_hot_resume": true,
+      "hot_resume_screenshot_sha256": "dbe3ceae8333b4052fbb6b9ae7b63f6bdc735d796e035d1332e5b1e00f5ec44d"
+    },
+    "tablet": {
+      "model": "iPad Pro 13-inch (M5) (12GB)",
+      "device_type": "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB",
+      "cold_launch_succeeded": true
+    },
+    "app_fault_log_entries": 0,
+    "simulator_launch_metric_errors_only": true
+  },
+  "keychain": {
+    "debug_probe": true,
+    "native_argument_source": "NSProcessInfo.arguments",
+    "accessibility": "WhenUnlockedThisDeviceOnly",
+    "keychain_round_trip": true,
+    "endpoint_opaque_alias": true,
+    "delete_verified": true,
+    "sensitive_values_retained": false
+  },
+  "native_ui_document": {
+    "renderer_neutral_projection": true,
+    "mounted_on_first_render": true,
+    "fleet_heading": "Remote runtimes",
+    "empty_projection": "No runtime projection available.",
+    "native_uikit_controls": true,
+    "compact_header_vertical_reflow": true,
+    "heartbeat_stable_render_gate": true
+  },
+  "layout_matrix": [
+    {
+      "fixture": "iphone-17-pro-compact",
+      "pixels": "1206x2622",
+      "content_size": "large",
+      "width_class": "compact",
+      "two_pane": false,
+      "initial_content_visible": true,
+      "controls_visible_in_initial_viewport": true,
+      "vertical_reflow": false,
+      "overlap_detected": false,
+      "screenshot_sha256": "90a7414debfbd1be14cff476121d3d9ec61e72ffc67ec8ee534ea340bc3ab810"
+    },
+    {
+      "fixture": "iphone-17-pro-accessibility-xxxl",
+      "pixels": "1206x2622",
+      "content_size": "accessibility-extra-extra-extra-large",
+      "width_class": "compact",
+      "two_pane": false,
+      "initial_content_visible": true,
+      "controls_visible_in_initial_viewport": false,
+      "controls_reachable_by_scroll": true,
+      "vertical_reflow": true,
+      "scroll_container_retained": true,
+      "overlap_detected": false,
+      "screenshot_sha256": "87136525f210d0780033f5d2c09da0a794bd7601ce19c4badec8e72c75403974"
+    },
+    {
+      "fixture": "ipad-pro-13-expanded",
+      "pixels": "2064x2752",
+      "content_size": "large",
+      "width_class": "expanded",
+      "two_pane": true,
+      "initial_content_visible": true,
+      "controls_visible_in_initial_viewport": true,
+      "vertical_reflow": false,
+      "overlap_detected": false,
+      "screenshot_sha256": "f829f2bd2d53f201d56423b103e4a55c09ecfce525a6541407930087a582bd05"
+    }
+  ],
+  "security": {
+    "app_transport_security_arbitrary_loads": false,
+    "token_profile_persistence": false,
+    "app_switcher_privacy_shield": true,
+    "debug_probe_release_stripped": true,
+    "unsigned_release_label_explicit": true
+  },
+  "checks": [
+    "debug-simulator-zero-warning-build",
+    "debug-simulator-independent-install",
+    "native-process-argument-proof-switches",
+    "native-keychain-crud",
+    "cold-launch-and-relaunch",
+    "hot-background-resume",
+    "iphone-compact-layout",
+    "iphone-maximum-accessibility-text",
+    "ipad-expanded-two-pane-layout",
+    "renderer-neutral-native-controls",
+    "shared-ui-document-first-render",
+    "release-device-arm64-aot",
+    "release-full-trim-and-il-strip",
+    "release-debug-proof-stripping",
+    "zero-application-fault-logs"
+  ],
+  "remaining": [
+    "production-apple-signing",
+    "physical-iphone-ipad-safe-area-dynamic-type",
+    "physical-device-keychain-tls-lifecycle",
+    "physical-device-aot-execution",
+    "push-and-deep-link-platform-adapters"
+  ],
+  "result": "passed"
+}

@@ -76,6 +76,10 @@ setup collapses after onboarding and reopens explicitly without placing secrets
 in the summary. Fleet and workspace controls now come from the shared
 `UiDocument` projections through `MobileUiDocumentBinding`, which validates and
 clones the semantic source before exposing immutable native-control metadata.
+Exact presentation comparison retains the mounted document across heartbeat-only
+status changes, so native action source fences stay valid without rebuilding the
+control tree. Availability, operation state, columns, or visible document changes
+still pass through the shared `MobileNativeRenderGate` and force a fresh mount.
 Inspect loads a generation-fenced workspace, while refresh, capability discovery,
 and deployment route through the shared typed action and mutation coordinators.
 Deployment fields are created from the capability-gated shared form, become a
@@ -102,19 +106,30 @@ action area.
 Both native hosts consume this plan. Extremely narrow multi-window surfaces and
 oversized accessibility text
 degrade to one column rather than rejecting a valid platform window. The
-resolved plan is a value type, and IME-only changes update action padding
-without rebuilding structural layout parameters.
+resolved plan is a value type, iOS header actions stack vertically under the
+Compact plan, and IME-only changes update Android action padding without
+rebuilding structural layout parameters.
 
 Host-independent conformance plus `tests/android_entry_contract_tdd.rs` and
 `tests/ios_entry_contract_tdd.rs` validate the native compositions, immutable
 document binding, form-event route, mutation fence, adaptive policy, and secure
-platform-storage boundaries without loading an emulator. The locked Android
+platform-storage boundaries without loading an emulator. Its public-only CA
+fixture avoids the temporary Keychain dependency of self-signed certificates on
+macOS CI and restricted sandboxes. The locked Android
 proof additionally builds a directly installable APK and dual-ABI AOT AAB with
 .NET SDK 10.0.201, Android workload 36.1.2, API 36, and Microsoft OpenJDK 17.
 It exercises Compact, Medium, Expanded, short-landscape, 1.5x font, display
 cutout, IME, cold-start, and hot-resume behavior on an API 36 ARM64 emulator.
 The retained result is
 `docs/fixtures/leserpent_android_api36_emulator_macos_arm64_20260821.json`.
+The locked iOS proof builds an installable ARM64 simulator app and an unsigned,
+full-trim ARM64 device AOT bundle with .NET SDK 10.0.300, workload set
+10.0.300.2, Xcode 26.5, and iOS 26.5. It launches the same UIKit composition on
+an iPhone 17 Pro and iPad Pro 13-inch, exercises Compact and Expanded layouts,
+maximum accessibility text, cold relaunch, hot background resume, and native
+Keychain CRUD, and verifies that Debug proof switches are absent from Release.
+The retained result is
+`docs/fixtures/leserpent_ios26_simulator_macos_arm64_20260821.json`.
 
 With `ANDROID_SDK_ROOT` and `JAVA_HOME` set, reproduce the package builds with:
 
@@ -152,4 +167,5 @@ Ordinary Debug builds retain fast deployment. Visual QA may explicitly set
 all production-shaped builds retain `FLAG_SECURE`. The next Android gate is
 production signing and physical-device safe-area, font-scale, Keystore, and TLS
 proof. The remaining iOS release gates are production Apple signing and
-physical-device safe-area, Dynamic Type, Keychain, TLS, and lifecycle proof.
+physical-device safe-area, Dynamic Type, Keychain, TLS, lifecycle, and AOT
+execution proof.

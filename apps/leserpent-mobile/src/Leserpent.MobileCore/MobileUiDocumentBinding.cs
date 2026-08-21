@@ -59,6 +59,11 @@ public sealed class MobileUiDocumentBinding
         return nodes.GetValueOrDefault(nodeId);
     }
 
+    public bool HasSameNativePresentation(
+        MobileUiDocumentBinding? other,
+        string? ignoredNodeId = null) =>
+        other is not null && SameNode(Root, other.Root, ignoredNodeId);
+
     public RemoteUiActionResolution ResolveActivation(
         string nodeId,
         RemoteFeedState state,
@@ -129,8 +134,8 @@ public sealed class MobileUiDocumentBinding
             {
                 Fields:
                 [
-                    { Key: "pipeline_kind", Required: true, InputKind: UiFormInputKind.PathToken },
-                    { Key: "target", Required: false, InputKind: UiFormInputKind.TrimmedText },
+                { Key: "pipeline_kind", Required: true, InputKind: UiFormInputKind.PathToken },
+                { Key: "target", Required: false, InputKind: UiFormInputKind.TrimmedText },
                 ],
             })
         {
@@ -184,6 +189,139 @@ public sealed class MobileUiDocumentBinding
         {
             throw new InvalidDataException(
                 "mobile UI binding did not isolate itself from source mutation");
+        }
+
+        var fleet = Project(RemoteDocumentProjection.Project(state).Document);
+        var heartbeat = Project(RemoteDocumentProjection.Project(state with
+        {
+            Revision = 8,
+            Detail = "Live at revision 8",
+        }).Document);
+        if (!fleet.HasSameNativePresentation(heartbeat, "remote-state")
+            || fleet.HasSameNativePresentation(heartbeat))
+        {
+            throw new InvalidDataException(
+                "mobile native presentation did not isolate transient heartbeat status");
+        }
+        if (!ReferenceEquals(
+                fleet,
+                MobileNativeRenderGate.RetainEquivalentPresentation(
+                    fleet,
+                    heartbeat,
+                    "remote-state")))
+        {
+            throw new InvalidDataException(
+                "mobile native presentation did not retain its active action source");
+        }
+        var renderGate = new MobileNativeRenderGate();
+        if (!renderGate.ShouldRender(fleet, availability, false, 1)
+            || renderGate.ShouldRender(fleet, availability with { }, false, 1)
+            || !renderGate.ShouldRender(fleet, availability, true, 1)
+            || !renderGate.ShouldRender(fleet, availability, false, 2))
+        {
+            throw new InvalidDataException(
+                "mobile native render gate did not suppress only an equivalent frame");
+        }
+        renderGate.Invalidate();
+        if (!renderGate.ShouldRender(fleet, availability, false, 1))
+        {
+            throw new InvalidDataException(
+                "mobile native render gate did not recover after invalidation");
+        }
+        runtime.Name = "Runtime B";
+        var changed = Project(RemoteDocumentProjection.Project(state).Document);
+        if (fleet.HasSameNativePresentation(changed, "remote-state")
+            || fleet.HasSameNativePresentation(null, "remote-state")
+            || ReferenceEquals(
+                fleet,
+                MobileNativeRenderGate.RetainEquivalentPresentation(
+                    fleet,
+                    changed,
+                    "remote-state")))
+        {
+            throw new InvalidDataException(
+                "mobile native presentation suppressed a visible document change");
+        }
+    }
+
+    private static bool SameNode(
+        MobileUiNodeBinding left,
+        MobileUiNodeBinding right,
+        string? ignoredNodeId)
+    {
+        if (!StringComparer.Ordinal.Equals(left.Id, right.Id)
+            || left.Kind != right.Kind
+            || !StringComparer.Ordinal.Equals(left.RuntimeId, right.RuntimeId)
+            || !StringComparer.Ordinal.Equals(left.Text, right.Text)
+            || !StringComparer.Ordinal.Equals(left.AccessibleName, right.AccessibleName)
+            || !StringComparer.Ordinal.Equals(
+                left.AccessibleDescription,
+                right.AccessibleDescription)
+            || left.ActionKind != right.ActionKind
+            || !SameForm(left.Form, right.Form))
+        {
+            return false;
+        }
+
+        var leftIndex = 0;
+        var rightIndex = 0;
+        while (true)
+        {
+            SkipIgnored(left.Children, ignoredNodeId, ref leftIndex);
+            SkipIgnored(right.Children, ignoredNodeId, ref rightIndex);
+            var leftEnded = leftIndex == left.Children.Count;
+            var rightEnded = rightIndex == right.Children.Count;
+            if (leftEnded || rightEnded)
+            {
+                return leftEnded && rightEnded;
+            }
+            if (!SameNode(
+                    left.Children[leftIndex],
+                    right.Children[rightIndex],
+                    ignoredNodeId))
+            {
+                return false;
+            }
+            leftIndex++;
+            rightIndex++;
+        }
+    }
+
+    private static bool SameForm(
+        MobileUiFormBinding? left,
+        MobileUiFormBinding? right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+        if (left is null
+            || right is null
+            || !StringComparer.Ordinal.Equals(left.Title, right.Title)
+            || !StringComparer.Ordinal.Equals(left.SubmitLabel, right.SubmitLabel)
+            || left.Fields.Count != right.Fields.Count)
+        {
+            return false;
+        }
+        for (var index = 0; index < left.Fields.Count; index++)
+        {
+            if (left.Fields[index] != right.Fields[index])
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void SkipIgnored(
+        IReadOnlyList<MobileUiNodeBinding> children,
+        string? ignoredNodeId,
+        ref int index)
+    {
+        while (index < children.Count
+            && StringComparer.Ordinal.Equals(children[index].Id, ignoredNodeId))
+        {
+            index++;
         }
     }
 

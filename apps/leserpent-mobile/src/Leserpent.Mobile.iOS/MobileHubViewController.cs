@@ -1,3 +1,4 @@
+using Foundation;
 using UIKit;
 
 public sealed class MobileHubViewController : UIViewController, IAsyncDisposable
@@ -17,8 +18,11 @@ public sealed class MobileHubViewController : UIViewController, IAsyncDisposable
     private UIButton editConnectionButton = null!;
     private UIButton connectButton = null!;
     private UIButton backToFleetButton = null!;
+    private UIStackView connectionHeader = null!;
+    private UIStackView documentHeader = null!;
     private IosUiDocumentView documentView = null!;
     private NSLayoutConstraint contentMaximumWidth = null!;
+    private readonly MobileNativeRenderGate renderGate = new();
     private MobileLayoutPlan? appliedLayout;
     private MobileUiDocumentBinding? activeDocument;
     private string? activeWorkspaceRuntimeId;
@@ -46,7 +50,7 @@ public sealed class MobileHubViewController : UIViewController, IAsyncDisposable
         UpdateConnectionSummary(profile?.Endpoint);
         var expandConnection = profile is null;
 #if DEBUG
-        expandConnection &= !Environment.GetCommandLineArgs().Contains(
+        expandConnection &= !NSProcessInfo.ProcessInfo.Arguments.Contains(
             "--leserpent-ui-proof",
             StringComparer.Ordinal);
 #endif
@@ -191,7 +195,7 @@ public sealed class MobileHubViewController : UIViewController, IAsyncDisposable
             "Shows or hides authority credentials and trust setup.";
         editConnectionButton.TouchUpInside += (_, _) =>
             SetConnectionExpanded(!connectionExpanded);
-        var connectionHeader = new UIStackView([connectionHeaderText, editConnectionButton])
+        connectionHeader = new UIStackView([connectionHeaderText, editConnectionButton])
         {
             Axis = UILayoutConstraintAxis.Horizontal,
             Alignment = UIStackViewAlignment.Center,
@@ -244,7 +248,7 @@ public sealed class MobileHubViewController : UIViewController, IAsyncDisposable
             Render(coordinator.State);
         };
         documentView = new IosUiDocumentView(InvokeActionAsync);
-        var documentHeader = new UIStackView([status, backToFleetButton])
+        documentHeader = new UIStackView([status, backToFleetButton])
         {
             Axis = UILayoutConstraintAxis.Horizontal,
             Alignment = UIStackViewAlignment.Center,
@@ -345,6 +349,19 @@ public sealed class MobileHubViewController : UIViewController, IAsyncDisposable
         body.Distribution = plan.TwoPane
             ? UIStackViewDistribution.FillEqually
             : UIStackViewDistribution.Fill;
+        var compact = plan.WidthClass == MobileWidthClass.Compact;
+        connectionHeader.Axis = compact
+            ? UILayoutConstraintAxis.Vertical
+            : UILayoutConstraintAxis.Horizontal;
+        connectionHeader.Alignment = compact
+            ? UIStackViewAlignment.Fill
+            : UIStackViewAlignment.Center;
+        documentHeader.Axis = compact
+            ? UILayoutConstraintAxis.Vertical
+            : UILayoutConstraintAxis.Horizontal;
+        documentHeader.Alignment = compact
+            ? UIStackViewAlignment.Fill
+            : UIStackViewAlignment.Center;
         if (previousColumns != plan.RuntimeColumns)
         {
             Render(coordinator.State);
@@ -376,16 +393,19 @@ public sealed class MobileHubViewController : UIViewController, IAsyncDisposable
         try
         {
             var feed = snapshot.Remote?.Feed ?? RemoteFeedState.Initial;
+            string? documentStatus = null;
             if (activeWorkspaceRuntimeId is null)
             {
-                activeDocument = MobileUiDocumentBinding.Project(
+                var candidate = MobileUiDocumentBinding.Project(
                     RemoteDocumentProjection.Project(feed).Document);
+                documentStatus = candidate.Find("remote-state")?.Text;
+                activeDocument = MobileNativeRenderGate.RetainEquivalentPresentation(
+                    activeDocument,
+                    candidate,
+                    "remote-state");
             }
             var document = activeDocument
                 ?? throw new InvalidDataException("mobile UI document is unavailable");
-            var documentStatus = activeWorkspaceRuntimeId is null
-                ? document.Find("remote-state")?.Text
-                : null;
             status.Text = Safe(
                 operationStatus
                 ?? snapshot.Error
@@ -396,16 +416,26 @@ public sealed class MobileHubViewController : UIViewController, IAsyncDisposable
                 ? Theme.Error
                 : Theme.Muted;
             backToFleetButton.Hidden = activeWorkspaceRuntimeId is null;
-            documentView.Mount(
-                document,
-                coordinator.MutationAvailability,
-                operationBusy,
-                appliedLayout?.RuntimeColumns ?? 1);
+            var availability = coordinator.MutationAvailability;
+            var runtimeColumns = appliedLayout?.RuntimeColumns ?? 1;
+            if (renderGate.ShouldRender(
+                    document,
+                    availability,
+                    operationBusy,
+                    runtimeColumns))
+            {
+                documentView.Mount(
+                    document,
+                    availability,
+                    operationBusy,
+                    runtimeColumns);
+            }
         }
         catch (InvalidDataException)
         {
             status.Text = "UI document rejected safely.";
             status.TextColor = Theme.Error;
+            renderGate.Invalidate();
             documentView.MountFailure("Remote projection is unavailable.");
         }
     }

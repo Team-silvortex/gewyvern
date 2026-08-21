@@ -51,6 +51,7 @@ public sealed class MainActivity : Activity
     private bool connectionExpanded;
     private int runtimeColumnCount = 1;
     private LinearLayout runtimeColumnHost = null!;
+    private readonly MobileNativeRenderGate renderGate = new();
     private MobileUiDocumentBinding? activeDocument;
     private string? activeWorkspaceRuntimeId;
     private string? startupStatus;
@@ -482,10 +483,16 @@ public sealed class MainActivity : Activity
         try
         {
             var feed = snapshot.Remote?.Feed ?? RemoteFeedState.Initial;
+            string? documentStatus = null;
             if (activeWorkspaceRuntimeId is null)
             {
-                activeDocument = MobileUiDocumentBinding.Project(
+                var candidate = MobileUiDocumentBinding.Project(
                     RemoteDocumentProjection.Project(feed).Document);
+                documentStatus = candidate.Find("remote-state")?.Text;
+                activeDocument = MobileNativeRenderGate.RetainEquivalentPresentation(
+                    activeDocument,
+                    candidate,
+                    "remote-state");
             }
             var document = activeDocument
                 ?? throw new InvalidDataException("mobile UI document is unavailable");
@@ -497,9 +504,6 @@ public sealed class MainActivity : Activity
             backToFleetButton.Visibility = activeWorkspaceRuntimeId is null
                 ? ViewStates.Gone
                 : ViewStates.Visible;
-            var documentStatus = activeWorkspaceRuntimeId is null
-                ? document.Find("remote-state")?.Text
-                : null;
             statusText.Text = Safe(
                 operationStatus
                 ?? snapshot.Error
@@ -512,6 +516,14 @@ public sealed class MainActivity : Activity
             statusText.SetTextColor(Color.ParseColor(
                 operationFailed || snapshot.Error is not null ? "#FF8A65" : "#B9AA8A"));
 
+            if (!renderGate.ShouldRender(
+                    document,
+                    coordinator.MutationAvailability,
+                    operationBusy,
+                    runtimeColumnCount))
+            {
+                return;
+            }
             runtimeList.RemoveAllViews();
             runtimeList.Orientation = Orientation.Vertical;
             if (document.Root.Kind == UiNodeKind.Column)
@@ -531,6 +543,7 @@ public sealed class MainActivity : Activity
         {
             statusText.Text = $"UI document rejected: {Safe(error.Message)}";
             statusText.SetTextColor(Color.ParseColor("#FF8A65"));
+            renderGate.Invalidate();
             runtimeList.RemoveAllViews();
             runtimeList.AddView(EmptyProjection("Remote projection is unavailable."), MatchWidth());
         }

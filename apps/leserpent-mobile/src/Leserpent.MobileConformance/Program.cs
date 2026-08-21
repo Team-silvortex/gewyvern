@@ -16,9 +16,7 @@ certificateRequest.CertificateExtensions.Add(new X509BasicConstraintsExtension(
     hasPathLengthConstraint: false,
     pathLengthConstraint: 0,
     critical: true));
-using var fixtureCertificate = certificateRequest.CreateSelfSigned(
-    DateTimeOffset.UtcNow.AddMinutes(-1),
-    DateTimeOffset.UtcNow.AddDays(1));
+using var fixtureCertificate = CreatePublicCertificate(certificateRequest, certificateKey);
 var certificatePem = fixtureCertificate.ExportCertificatePem();
 File.WriteAllText(certificate, certificatePem);
 try
@@ -334,8 +332,30 @@ finally
     Directory.Delete(root, recursive: true);
 }
 
-Console.WriteLine("mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true, shared_connection_profile=true, atomic_ca_profile=true, malformed_profile_fail_closed=true, unavailable_profile_storage_fail_closed=true, workspace_policy=true, runtime_search=true, topology_refresh=true, workspace_launch=true, ui_projection=true, mobile_ui_document_binding=true, immutable_native_projection=true, native_parameterized_form=true, native_form_event_routing=true, native_workspace_query=true, native_typed_deployment=true, mobile_operation_generation_fence=true, mutation_fence=true, mutation_coordination=true, cached_heartbeat_mutation=false, shared_failure_classification=true, stale_failure_ignored=true, bounded_failure_diagnostics=true, typed_ui_action_routing=true, opaque_action_node_ids=true, deployment_submission_source_fence=true, event_dispose_single_flight=true, event_resource_release_once=true, event_restart_identity=true, subscriber_failure_isolated=true, subscriber_failure_count_bounded=true, action_availability=true, authority_health=true, authority_health_coordination=true, health_single_flight=true, health_stop_fence=true, mobile_layout_policy=true, value_layout_plan=true, width_classes=3, safe_area=true, font_scale_fence=true, minimum_touch_dp=48, expanded_two_pane=true, runtime_columns=2");
+Console.WriteLine("mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true, shared_connection_profile=true, atomic_ca_profile=true, malformed_profile_fail_closed=true, unavailable_profile_storage_fail_closed=true, keychain_independent_certificate_fixture=true, workspace_policy=true, runtime_search=true, topology_refresh=true, workspace_launch=true, ui_projection=true, mobile_ui_document_binding=true, immutable_native_projection=true, exact_native_presentation_equivalence=true, heartbeat_stable_native_render=true, native_render_state_fence=true, native_parameterized_form=true, native_form_event_routing=true, native_workspace_query=true, native_typed_deployment=true, mobile_operation_generation_fence=true, mutation_fence=true, mutation_coordination=true, cached_heartbeat_mutation=false, shared_failure_classification=true, stale_failure_ignored=true, bounded_failure_diagnostics=true, typed_ui_action_routing=true, opaque_action_node_ids=true, deployment_submission_source_fence=true, event_dispose_single_flight=true, event_resource_release_once=true, event_restart_identity=true, subscriber_failure_isolated=true, subscriber_failure_count_bounded=true, action_availability=true, authority_health=true, authority_health_coordination=true, health_single_flight=true, health_stop_fence=true, mobile_layout_policy=true, value_layout_plan=true, width_classes=3, safe_area=true, font_scale_fence=true, minimum_touch_dp=48, expanded_two_pane=true, runtime_columns=2");
 return 0;
+
+static X509Certificate2 CreatePublicCertificate(
+    CertificateRequest request,
+    RSA key)
+{
+    var serialNumber = RandomNumberGenerator.GetBytes(16);
+    serialNumber[0] &= 0x7F;
+    serialNumber[^1] |= 1;
+    try
+    {
+        return request.Create(
+            request.SubjectName,
+            X509SignatureGenerator.CreateForRSA(key, RSASignaturePadding.Pkcs1),
+            DateTimeOffset.UtcNow.AddMinutes(-1),
+            DateTimeOffset.UtcNow.AddDays(1),
+            serialNumber);
+    }
+    finally
+    {
+        CryptographicOperations.ZeroMemory(serialNumber);
+    }
+}
 
 static IEnumerable<MobileUiNodeBinding> Descendants(MobileUiNodeBinding node)
 {

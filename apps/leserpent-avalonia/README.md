@@ -260,16 +260,21 @@ the exact 26-key core semantic UI-IR set for runtime lists, workspaces, logs,
 capabilities, history, and deployment forms; per-locale native `TextBlock` probes
 verify both visible and accessible text. Simplified Chinese additionally covers
 the complete six-step tutorial. Connection/forget, reverse deployment,
-gewyvern provisioning, and gewyvern retirement are the first complete
-specialist domains: their exact 33-key, 46-key, 43-key, and 45-key catalogs
-cover every built-in language, their native
-windows have eight-locale layout probes, and live language changes reproject
-labels, controlled phases, status, accessibility, and flow direction without
-changing endpoint, operation identity, host, credential, or raw error values.
-The six newly completed catalogs remain candidate translations pending native-
-speaker review, while their tutorial steps, daemon-retirement/startup/account dialogs,
-later semantic domains, and the 22 downloadable locales still fall back to
-English per missing key. Run
+gewyvern provisioning/retirement, daemon retirement, startup recovery, and the
+Team Silvortex account card are complete specialist domains: their exact
+33-key, 46-key, 43-key, 45-key, 37-key, 9-key, and 36-key catalogs bring the
+non-English built-in semantic set to 275 keys. One shared strict validator
+rejects missing/extra keys, malformed placeholders, controls, or oversized
+values. Native controls have eight-locale layout probes, and live language
+changes reproject labels, controlled phases, status, accessibility, and flow
+direction without changing endpoints, operation identities, operator input,
+credentials, or raw error values. Account authentication decisions remain typed
+session state; localization only projects their presentation code and wraps an
+already bounded diagnostic. The Hub verifier also measures the account card at
+the minimum desktop envelope. The six candidate translations remain pending
+native-speaker review, while their tutorial steps, remaining Hub/remote-shell
+domains, and the 22 downloadable locales still fall back to English per missing
+key. Run
 `--verify-desktop-localization` for the
 catalog/persistence contract and `--verify-desktop-language-controls` for the
 real 31-choice control tree, all eight built-in selector layout envelopes, and
@@ -284,6 +289,10 @@ provisioning and runtime IDs, bounded same-attempt observation, and terminal
 registration. `--verify-retirement-controls` extends it to the destructive
 runtime-retirement path, including immutable retirement/provisioning/runtime
 identity and a proof that the observation ceiling emits no additional request.
+`--verify-daemon-retirement-controls` applies that proof to the bootstrap-bound
+daemon path. `--verify-startup-error` measures the token-redacted recovery
+window in all eight built-ins, and `--verify-hub-topology` covers the localized
+account card and minimum Hub layout.
 
 Opening a runtime child follows the same renderer-neutral boundary. The
 `RemoteWorkspaceLaunchCoordinator` validates runtime IDs, bounds active plus
@@ -329,8 +338,12 @@ RS256/JWKS verification, MFA assurance, and UserInfo subject binding. Only the
 rotating refresh token is persisted, under
 `org.gewyvern.leserpent.silvortex` in macOS Keychain or Linux Secret Service;
 access and ID tokens remain process-local. Team Silvortex account identity does
-not replace endpoint-bound `leserpentd` credentials. Verify the offline protocol
-and cryptographic contract with `--verify-silvortex-account`.
+not replace endpoint-bound `leserpentd` credentials. The native account card
+maps typed session status into the same strict eight-language catalog used by
+its visible actions and accessibility metadata; raw bounded failure detail is
+only a format argument and never drives authentication state. Verify the
+offline protocol and cryptographic contract with `--verify-silvortex-account`,
+and its eight-locale Hub layout with `--verify-hub-topology`.
 
 The registered provider path has a retained disposable-database proof at
 `../../docs/fixtures/leserpent_silvortex_oidc_provider_shadow_linux_x86_64_20260810.json`.
@@ -432,7 +445,8 @@ request replays, and status never renders the credential handle. Successful
 service retirement refreshes Hub topology but deliberately does not delete a
 saved connection or credential without a separate operator action. Verify the
 strict AOT codec with `--verify-daemon-retirement-client` and the native controls
-with `--verify-daemon-retirement-controls`.
+with `--verify-daemon-retirement-controls`; the latter also proves all eight
+built-in layouts and live status reprojection without changing operation IDs.
 
 On macOS and Linux, `LESERPENT_GEWYVERN_PROVISIONING_CONFIG` may point to the
 absolute private `gewyvern-provisioning-config` file before app startup. Local
@@ -489,7 +503,10 @@ Avalonia control surfaces with `--verify-connection-management-controls`.
 
 Remote startup validation failures open a bounded, token-redacted error window
 instead of terminating with an unhandled exception. `Escape` and the explicit
-close button exit with status 2. Its real control metadata can be checked with
+close button exit with status 2. Its fixed shell and empty-diagnostic fallback
+use the strict eight-language startup-recovery catalog, while a concrete
+sanitized diagnostic remains opaque operator data. Its real control metadata,
+layout, and live reprojection can be checked with
 `dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- --verify-startup-error`.
 
 The connection window can test an authority before committing the profile.
