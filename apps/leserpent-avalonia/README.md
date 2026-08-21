@@ -259,14 +259,22 @@ catalog with Web-aligned terminology. All seven non-English built-ins also cover
 the exact 26-key core semantic UI-IR set for runtime lists, workspaces, logs,
 capabilities, history, and deployment forms; per-locale native `TextBlock` probes
 verify both visible and accessible text. Simplified Chinese additionally covers
-the complete six-step tutorial. The six newly completed shell and semantic
-catalogs remain candidate translations pending native-speaker review, while
-their tutorial steps, specialist dialogs, semantic keys beyond that core set,
-and the 22 downloadable locales still fall back to English per missing key. Run
+the complete six-step tutorial. The connection settings and endpoint-forget
+confirmation form the first complete specialist domain: all seven non-English
+built-ins share an exact 33-key catalog, both native windows have eight-locale
+layout probes, and an open connection window reprojects immediately after a
+language change without changing endpoint, token, or error values. The six
+newly completed catalogs remain candidate translations pending native-speaker
+review, while their tutorial steps, deployment/provisioning/retirement/startup/
+account dialogs, later semantic domains, and the 22 downloadable locales still
+fall back to English per missing key. Run
 `--verify-desktop-localization` for the
 catalog/persistence contract and `--verify-desktop-language-controls` for the
 real 31-choice control tree, all eight built-in selector layout envelopes, and
 all seven non-English localized UI-IR control proofs.
+`--verify-desktop-connect-controls` additionally verifies localized connection
+controls, confirmation layouts, live language reprojection, and the side-effect-
+free connection test.
 
 Opening a runtime child follows the same renderer-neutral boundary. The
 `RemoteWorkspaceLaunchCoordinator` validates runtime IDs, bounds active plus

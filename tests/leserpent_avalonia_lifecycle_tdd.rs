@@ -1523,7 +1523,11 @@ fn runtime_workspace_refresh_reports_bounded_snapshot_changes() {
 #[test]
 fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
     let window = avalonia_source("Leserpent.Avalonia/DesktopConnectionWindow.cs");
+    let forget = avalonia_source("Leserpent.Avalonia/DesktopForgetConnectionWindow.cs");
+    let catalog = avalonia_source("Leserpent.Avalonia/DesktopConnectionCatalogs.cs");
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+    let localization = avalonia_source("Leserpent.Avalonia/DesktopLocalization.cs");
+    let program = avalonia_source("Leserpent.Avalonia/Program.cs");
     let health = avalonia_source("Leserpent.RemoteClient/RemoteHealthClient.cs");
     let test_start = app
         .find("private static async Task<string?> TestConnectionAsync")
@@ -1536,6 +1540,58 @@ fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
     assert!(window.contains("desktop-connect-test"));
     assert!(window.contains("TestConnectionAsync()"));
     assert!(window.contains("lifetime.Cancel();"));
+    assert!(window.contains("localization.Changed += OnLocalizationChanged"));
+    assert!(window.contains("localization.Changed -= OnLocalizationChanged"));
+    assert!(window.contains("DesktopConnectionCatalogs.Resolve(localization, key)"));
+    assert!(window.contains("public void VerifyLayoutEnvelope()"));
+    assert!(window.contains("public void ProbeLocalizedPresentation("));
+    assert!(!window.contains("Text = \"Connect the desktop console\""));
+    assert!(!window.contains("Content = \"Test connection\""));
+    assert!(forget.contains("DesktopConnectionCatalogs.Resolve(localization, key)"));
+    assert!(forget.contains("public void VerifyLayoutEnvelope()"));
+    assert!(forget.contains("localization.Changed += OnLocalizationChanged"));
+    assert!(!forget.contains("Text = \"Forget this connection?\""));
+    for marker in [
+        "public const int KeyCount = 33",
+        "SimplifiedChinese",
+        "TraditionalChinese",
+        "Japanese",
+        "Spanish",
+        "German",
+        "French",
+        "Korean",
+        "catalog.Count != KeyCount",
+        "SetEquals(expected)",
+        "formattedKeys.Contains(entry.Key)",
+        "VerifyFormat(value)",
+        "desktop connection localization catalog is incomplete",
+    ] {
+        assert!(
+            catalog.contains(marker),
+            "connection catalog is missing {marker}"
+        );
+    }
+    assert!(catalog.contains("[\"heading\"] = \"连接桌面控制台\""));
+    assert!(catalog.contains("[\"connect\"] = \"連線\""));
+    assert!(catalog.contains("[\"test\"] = \"接続をテスト\""));
+    assert!(catalog.contains("[\"forget.action\"] = \"Olvidar conexión\""));
+    assert!(catalog.contains("[\"title\"] = \"Leserpent / Verbinden\""));
+    assert!(catalog.contains("[\"forget.heading\"] = \"Oublier cette connexion ?\""));
+    assert!(catalog.contains(
+        "[\"status.ready\"] = \"연결을 확인했습니다. 원격 권한 주체가 준비되었습니다.\""
+    ));
+    assert!(!catalog.contains("HttpClient"));
+    assert!(!catalog.contains("Process."));
+    assert!(!catalog.contains("File."));
+    assert!(localization.contains("DesktopConnectionCatalogs.VerifyContract();"));
+    assert!(localization.contains("DesktopConnectionCatalogs.KeyCount"));
+    assert!(app.contains("localized_connection_catalogs=7"));
+    assert!(app.contains("localized_layouts=8"));
+    assert!(app.contains("localized_forget_layouts=8"));
+    assert!(app.contains("live_language_reprojection=true"));
+    assert!(program.contains("builtin_connection_catalogs=7"));
+    assert!(program.contains("connection_semantic_keys=33"));
+    assert!(program.contains("builtin_semantic_keys=59"));
     assert!(window.contains("if (operationInFlight || isClosed)"));
     assert!(health.contains("remote health did not prove a ready protocol-v1 authority"));
     assert!(health.contains("remote health queue counters are inconsistent"));

@@ -15,11 +15,14 @@ internal sealed record DesktopConnectionRequest(
 
 internal sealed class DesktopConnectionWindow : Window
 {
+    private readonly DesktopLocalization localization;
     private readonly Func<DesktopConnectionRequest, string?> connect;
     private readonly Func<DesktopConnectionRequest, CancellationToken, Task<string?>>
         testConnection;
     private readonly DesktopConnectionProfile? savedProfile;
+    private readonly Action? closeWindow;
     private readonly Func<string?>? forgetSavedConnection;
+    private readonly bool usesBootstrapTrust;
     private readonly CancellationTokenSource lifetime = new();
     private readonly List<Control> auditedControls = [];
     private readonly TextBox endpoint = new()
@@ -36,7 +39,6 @@ internal sealed class DesktopConnectionWindow : Window
     {
         MaxLength = 4096,
         PasswordChar = '\u2022',
-        PlaceholderText = "Leave blank to use the existing platform credential",
     };
     private readonly TextBlock account = new()
     {
@@ -53,13 +55,11 @@ internal sealed class DesktopConnectionWindow : Window
     };
     private readonly CheckBox remember = new()
     {
-        Content = "Remember this non-secret connection profile",
         IsChecked = true,
         Foreground = LeserpentTheme.Body,
     };
     private readonly Button connectButton = new()
     {
-        Content = "Connect",
         Background = LeserpentTheme.Accent,
         Foreground = Brushes.Black,
         FontWeight = FontWeight.SemiBold,
@@ -67,25 +67,58 @@ internal sealed class DesktopConnectionWindow : Window
     };
     private readonly Button testButton = new()
     {
-        Content = "Test connection",
         Padding = new Thickness(18, 9),
     };
+    private readonly Button browseButton = new()
+    {
+        Padding = new Thickness(14, 8),
+    };
+    private readonly Button closeButton = new()
+    {
+        Padding = new Thickness(18, 9),
+    };
+    private readonly Button forgetButton = new()
+    {
+        Foreground = LeserpentTheme.Destructive,
+        Padding = new Thickness(14, 8),
+    };
+    private readonly TextBlock headingText = new()
+    {
+        Foreground = LeserpentTheme.Primary,
+        FontSize = 25,
+        FontWeight = FontWeight.Bold,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly TextBlock descriptionText = new()
+    {
+        Foreground = LeserpentTheme.Muted,
+        FontSize = 13,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly TextBlock endpointLabel = CreateLabel();
+    private readonly TextBlock certificateLabel = CreateLabel();
+    private readonly TextBlock tokenLabel = CreateLabel();
     private bool operationInFlight;
     private bool isClosed;
+    private bool statusIsError;
+    private string? localizedStatusKey;
 
     public DesktopConnectionWindow(
         DesktopConnectionProfile? profile,
         string? initialError,
         Func<DesktopConnectionRequest, string?> connect,
         Func<DesktopConnectionRequest, CancellationToken, Task<string?>> testConnection,
+        DesktopLocalization localization,
         Action? closeWindow = null,
         Func<string?>? forgetSavedConnection = null)
     {
+        this.localization = localization;
         this.connect = connect;
         this.testConnection = testConnection;
         savedProfile = profile;
+        this.closeWindow = closeWindow;
         this.forgetSavedConnection = forgetSavedConnection;
-        Title = "Leserpent / Connect";
+        usesBootstrapTrust = profile?.BootstrapTrustHandle is not null;
         Width = 640;
         MinWidth = 520;
         SizeToContent = SizeToContent.Height;
@@ -94,35 +127,16 @@ internal sealed class DesktopConnectionWindow : Window
         FontFamily = new FontFamily("Avenir Next, Segoe UI, sans-serif");
         endpoint.Text = profile?.Endpoint ?? string.Empty;
         certificate.Text = profile?.CertificateAuthorityPath ?? string.Empty;
-        var usesBootstrapTrust = profile?.BootstrapTrustHandle is not null;
         if (usesBootstrapTrust)
         {
-            certificate.PlaceholderText = $"Managed by {profile!.BootstrapTrustHandle}";
             certificate.IsReadOnly = true;
         }
         endpoint.TextChanged += (_, _) => UpdateAccount();
-
-        var browse = new Button
-        {
-            Content = "Choose CA...",
-            IsEnabled = !usesBootstrapTrust,
-            Padding = new Thickness(14, 8),
-        };
-        var close = new Button
-        {
-            Content = closeWindow is null ? "Cancel" : "Quit",
-            Padding = new Thickness(18, 9),
-        };
-        var forget = new Button
-        {
-            Content = "Forget saved connection...",
-            Foreground = LeserpentTheme.Destructive,
-            IsVisible = profile is not null && forgetSavedConnection is not null,
-            Padding = new Thickness(14, 8),
-        };
-        browse.Click += async (_, _) => await ChooseCertificateAsync();
-        close.Click += (_, _) => (closeWindow ?? Close)();
-        forget.Click += async (_, _) => await ConfirmForgetAsync(forget);
+        browseButton.IsEnabled = !usesBootstrapTrust;
+        forgetButton.IsVisible = profile is not null && forgetSavedConnection is not null;
+        browseButton.Click += async (_, _) => await ChooseCertificateAsync();
+        closeButton.Click += (_, _) => (closeWindow ?? Close)();
+        forgetButton.Click += async (_, _) => await ConfirmForgetAsync(forgetButton);
         testButton.Click += async (_, _) => await TestConnectionAsync();
         connectButton.Click += (_, _) => Submit();
         KeyDown += (_, eventArgs) =>
@@ -137,56 +151,42 @@ internal sealed class DesktopConnectionWindow : Window
         Closed += (_, _) =>
         {
             isClosed = true;
+            localization.Changed -= OnLocalizationChanged;
             lifetime.Cancel();
             lifetime.Dispose();
         };
 
         AutomationProperties.SetAutomationId(endpoint, "desktop-connect-endpoint");
-        AutomationProperties.SetName(endpoint, "Remote HTTPS authority");
         AutomationProperties.SetAutomationId(certificate, "desktop-connect-ca-path");
-        AutomationProperties.SetName(certificate, "Remote CA certificate path");
         AutomationProperties.SetAutomationId(token, "desktop-connect-token");
-        AutomationProperties.SetName(token, "Endpoint-scoped remote token");
-        AutomationProperties.SetAutomationId(browse, "desktop-connect-ca-browse");
-        AutomationProperties.SetName(browse, "Choose remote CA certificate");
+        AutomationProperties.SetAutomationId(browseButton, "desktop-connect-ca-browse");
         AutomationProperties.SetAutomationId(remember, "desktop-connect-remember");
-        AutomationProperties.SetName(remember, "Remember non-secret connection profile");
         AutomationProperties.SetAutomationId(connectButton, "desktop-connect-submit");
-        AutomationProperties.SetName(connectButton, "Connect to remote authority");
         AutomationProperties.SetAutomationId(testButton, "desktop-connect-test");
-        AutomationProperties.SetName(testButton, "Test remote authority connection");
-        AutomationProperties.SetHelpText(
-            testButton,
-            "Checks TLS, authentication, protocol version, and authority readiness without saving the connection.");
-        AutomationProperties.SetAutomationId(close, "desktop-connect-close");
-        AutomationProperties.SetName(
-            close,
-            closeWindow is null ? "Cancel connection settings" : "Quit Leserpent");
-        AutomationProperties.SetAutomationId(forget, "desktop-connect-forget");
-        AutomationProperties.SetName(forget, "Forget saved connection and credential");
+        AutomationProperties.SetAutomationId(closeButton, "desktop-connect-close");
+        AutomationProperties.SetAutomationId(forgetButton, "desktop-connect-forget");
         AutomationProperties.SetAutomationId(status, "desktop-connect-status");
-        AutomationProperties.SetName(status, "Connection setup status");
         AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Assertive);
         auditedControls.AddRange(
-            [endpoint, certificate, token, browse, remember, testButton, connectButton, close, status]);
-        if (forget.IsVisible)
+            [endpoint, certificate, token, browseButton, remember, testButton, connectButton, closeButton, status]);
+        if (forgetButton.IsVisible)
         {
-            auditedControls.Add(forget);
+            auditedControls.Add(forgetButton);
         }
 
         var certificateRow = new Grid
         {
             ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"),
             ColumnSpacing = 10,
-            Children = { certificate, browse },
+            Children = { certificate, browseButton },
         };
-        Grid.SetColumn(browse, 1);
+        Grid.SetColumn(browseButton, 1);
         var buttons = new StackPanel
         {
             Orientation = Avalonia.Layout.Orientation.Horizontal,
             Spacing = 12,
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-            Children = { close, testButton, connectButton },
+            Children = { closeButton, testButton, connectButton },
         };
         Content = new Border
         {
@@ -204,36 +204,24 @@ internal sealed class DesktopConnectionWindow : Window
                         FontWeight = FontWeight.Bold,
                         LetterSpacing = 2,
                     },
-                    new TextBlock
-                    {
-                        Text = "Connect the desktop console",
-                        Foreground = LeserpentTheme.Primary,
-                        FontSize = 25,
-                        FontWeight = FontWeight.Bold,
-                    },
-                    new TextBlock
-                    {
-                        Text = usesBootstrapTrust
-                            ? "This connection retains its endpoint-bound bootstrap trust handle. Enter a token only to replace the endpoint credential; CA material stays managed outside the UI."
-                            : "Enter a token once to store it in macOS Keychain or Linux Secret Service. Remembered CA certificates are copied into private application storage; the profile stores only the HTTPS origin and managed CA path.",
-                        Foreground = LeserpentTheme.Muted,
-                        FontSize = 13,
-                        TextWrapping = TextWrapping.Wrap,
-                    },
-                    Label("HTTPS authority"),
+                    headingText,
+                    descriptionText,
+                    endpointLabel,
                     endpoint,
-                    Label("CA certificate"),
+                    certificateLabel,
                     certificateRow,
-                    Label("Endpoint-scoped token (optional)"),
+                    tokenLabel,
                     token,
                     account,
                     remember,
-                    forget,
+                    forgetButton,
                     status,
                     buttons,
                 },
             },
         };
+        localization.Changed += OnLocalizationChanged;
+        ApplyLocalization();
         UpdateAccount();
         if (!string.IsNullOrWhiteSpace(initialError))
         {
@@ -265,6 +253,42 @@ internal sealed class DesktopConnectionWindow : Window
         }
     }
 
+    public void VerifyLayoutEnvelope()
+    {
+        if (Content is not Control root)
+        {
+            throw new InvalidDataException("desktop connection window has no control root");
+        }
+        root.Measure(new Size(Width, 1200));
+        var desired = root.DesiredSize;
+        if (!double.IsFinite(desired.Width)
+            || !double.IsFinite(desired.Height)
+            || desired.Width <= 0
+            || desired.Height <= 0
+            || desired.Width > Width
+            || desired.Height > 1200)
+        {
+            throw new InvalidDataException(
+                "desktop connection controls exceeded their layout envelope");
+        }
+    }
+
+    public void ProbeLocalizedPresentation(
+        string expectedTitle,
+        string expectedHeading,
+        string expectedConnect)
+    {
+        if (Title != expectedTitle
+            || headingText.Text != expectedHeading
+            || connectButton.Content as string != expectedConnect
+            || AutomationProperties.GetName(connectButton) != expectedConnect
+            || FlowDirection != localization.FlowDirection)
+        {
+            throw new InvalidDataException(
+                "desktop connection localized presentation drifted");
+        }
+    }
+
     public void ProbeSecureTokenSubmission(string fixtureToken)
     {
         token.Text = fixtureToken;
@@ -279,7 +303,7 @@ internal sealed class DesktopConnectionWindow : Window
     {
         await TestConnectionAsync();
         if (!status.IsVisible
-            || status.Text != "Connection verified. The remote authority is ready."
+            || status.Text != Text("status.ready")
             || operationInFlight)
         {
             throw new InvalidDataException("desktop connection test contract drifted");
@@ -290,11 +314,11 @@ internal sealed class DesktopConnectionWindow : Window
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Choose the trusted CA certificate",
+            Title = Text("picker.title"),
             AllowMultiple = false,
             FileTypeFilter =
             [
-                new FilePickerFileType("PEM certificate")
+                new FilePickerFileType(Text("picker.pem"))
                 {
                     Patterns = ["*.pem", "*.crt", "*.cer"],
                 },
@@ -316,7 +340,8 @@ internal sealed class DesktopConnectionWindow : Window
         forgetControl.IsEnabled = false;
         var confirmation = new DesktopForgetConnectionWindow(
             savedProfile.Endpoint,
-            forgetSavedConnection);
+            forgetSavedConnection,
+            localization);
         var forgotten = await confirmation.ShowDialog<bool>(this);
         forgetControl.IsEnabled = true;
         if (!forgotten)
@@ -329,10 +354,7 @@ internal sealed class DesktopConnectionWindow : Window
         token.Text = string.Empty;
         remember.IsChecked = true;
         forgetControl.IsVisible = false;
-        status.Text = "Saved profile and endpoint credential removed.";
-        status.Foreground = LeserpentTheme.Accent;
-        status.IsVisible = true;
-        AutomationProperties.SetName(status, "Saved connection removed successfully");
+        ShowLocalizedStatus("status.removed", LeserpentTheme.Accent);
         endpoint.Focus();
     }
 
@@ -365,10 +387,7 @@ internal sealed class DesktopConnectionWindow : Window
         operationInFlight = true;
         connectButton.IsEnabled = false;
         testButton.IsEnabled = false;
-        status.Text = "Testing TLS, authentication, and authority readiness...";
-        status.Foreground = LeserpentTheme.Muted;
-        status.IsVisible = true;
-        AutomationProperties.SetName(status, "Testing remote connection");
+        ShowLocalizedStatus("status.testing", LeserpentTheme.Muted);
         try
         {
             var error = await testConnection(
@@ -383,9 +402,7 @@ internal sealed class DesktopConnectionWindow : Window
                 ShowError(error);
                 return;
             }
-            status.Text = "Connection verified. The remote authority is ready.";
-            status.Foreground = LeserpentTheme.Accent;
-            AutomationProperties.SetName(status, "Remote connection verified successfully");
+            ShowLocalizedStatus("status.ready", LeserpentTheme.Accent);
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
         {
@@ -394,7 +411,7 @@ internal sealed class DesktopConnectionWindow : Window
         {
             if (!isClosed)
             {
-                ShowError("Connection test failed safely.");
+                ShowLocalizedError("status.test_failed");
             }
         }
         finally
@@ -431,25 +448,106 @@ internal sealed class DesktopConnectionWindow : Window
         try
         {
             var value = RemoteClientOptions.ParseEndpoint(endpoint.Text?.Trim() ?? string.Empty);
-            account.Text = $"Credential account: {RemoteTokenResolver.Account(value)}";
+            account.Text = Format("account", RemoteTokenResolver.Account(value));
         }
         catch (ArgumentException)
         {
-            account.Text = "Credential account appears after a valid HTTPS origin is entered.";
+            account.Text = Text("account.pending");
         }
     }
 
     private void ShowError(string value)
     {
+        localizedStatusKey = null;
+        statusIsError = true;
         status.Text = Safe(value);
         status.Foreground = LeserpentTheme.Destructive;
         status.IsVisible = true;
-        AutomationProperties.SetName(status, $"Connection setup failed: {Safe(value)}");
+        RefreshStatusAutomationName();
     }
 
-    private static TextBlock Label(string value) => new()
+    private void ShowLocalizedError(string key)
     {
-        Text = value,
+        localizedStatusKey = key;
+        statusIsError = true;
+        status.Text = Text(key);
+        status.Foreground = LeserpentTheme.Destructive;
+        status.IsVisible = true;
+        RefreshStatusAutomationName();
+    }
+
+    private void ShowLocalizedStatus(string key, IBrush foreground)
+    {
+        localizedStatusKey = key;
+        statusIsError = false;
+        status.Text = Text(key);
+        status.Foreground = foreground;
+        status.IsVisible = true;
+        RefreshStatusAutomationName();
+    }
+
+    private void OnLocalizationChanged(object? sender, EventArgs eventArgs) =>
+        ApplyLocalization();
+
+    private void ApplyLocalization()
+    {
+        Title = Text("title");
+        FlowDirection = localization.FlowDirection;
+        token.PlaceholderText = Text("token.placeholder");
+        remember.Content = Text("remember");
+        connectButton.Content = Text("connect");
+        testButton.Content = Text("test");
+        browseButton.Content = Text("choose_ca");
+        closeButton.Content = Text(closeWindow is null ? "cancel" : "quit");
+        forgetButton.Content = Text("forget_saved");
+        headingText.Text = Text("heading");
+        descriptionText.Text = Text(usesBootstrapTrust ? "body.bootstrap" : "body.standard");
+        endpointLabel.Text = Text("endpoint.label");
+        certificateLabel.Text = Text("ca.label");
+        tokenLabel.Text = Text("token.label");
+        certificate.PlaceholderText = usesBootstrapTrust
+            ? Format("managed_ca", savedProfile!.BootstrapTrustHandle!)
+            : "/path/to/ca.pem";
+
+        AutomationProperties.SetName(endpoint, Text("endpoint.label"));
+        AutomationProperties.SetName(certificate, Text("ca.label"));
+        AutomationProperties.SetName(token, Text("token.label"));
+        AutomationProperties.SetName(browseButton, Text("choose_ca"));
+        AutomationProperties.SetName(remember, Text("remember"));
+        AutomationProperties.SetName(connectButton, Text("connect"));
+        AutomationProperties.SetName(testButton, Text("test"));
+        AutomationProperties.SetHelpText(testButton, Text("test.help"));
+        AutomationProperties.SetName(
+            closeButton,
+            Text(closeWindow is null ? "cancel" : "quit"));
+        AutomationProperties.SetName(forgetButton, Text("forget_saved"));
+
+        if (localizedStatusKey is not null)
+        {
+            status.Text = Text(localizedStatusKey);
+        }
+        RefreshStatusAutomationName();
+        UpdateAccount();
+    }
+
+    private void RefreshStatusAutomationName()
+    {
+        var name = !status.IsVisible || string.IsNullOrWhiteSpace(status.Text)
+            ? Text("status.name")
+            : statusIsError
+                ? Format("status.failed", Safe(status.Text))
+                : status.Text;
+        AutomationProperties.SetName(status, name);
+    }
+
+    private string Text(string key) =>
+        DesktopConnectionCatalogs.Resolve(localization, key);
+
+    private string Format(string key, params object[] values) =>
+        DesktopConnectionCatalogs.Format(localization, key, values);
+
+    private static TextBlock CreateLabel() => new()
+    {
         Foreground = LeserpentTheme.Body,
         FontSize = 13,
         FontWeight = FontWeight.SemiBold,

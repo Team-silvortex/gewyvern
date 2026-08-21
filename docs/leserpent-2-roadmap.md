@@ -2122,8 +2122,13 @@ locale. Simplified Chinese includes the complete offline tutorial. The other six
 non-English built-in shell catalogs cover all 67 stable shell keys with Web-
 aligned terminology and validated format placeholders, and their semantic
 catalogs use the same bounded key set, but both remain explicit review
-candidates. Their tutorial content, specialist dialogs, semantic keys beyond the
-core set, and all 22 downloadable core-ui packs stay partial rather than
+candidates. Connection settings and endpoint-forget confirmation now establish
+the specialist-dialog pattern: seven exact 33-key non-English catalogs merge
+without touching the frozen core set, eight-locale native layout probes cover
+both windows, and live language changes reproject labels, status, accessibility,
+and flow direction without rewriting operator input. Their tutorial content,
+remaining deployment/provisioning/retirement/startup/account dialogs, later
+semantic domains, and all 22 downloadable core-ui packs stay partial rather than
 claiming unreviewed translations.
 Runtime-child workspace admission has now crossed the same boundary. The
 renderer-neutral `RemoteWorkspaceLaunchCoordinator` owns runtime-ID validation,

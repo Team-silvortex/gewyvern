@@ -256,6 +256,7 @@ internal sealed class LeserpentApp : Application
         var fixtureToken = new string('t', 32);
         DesktopConnectionRequest? submitted = null;
         var testCount = 0;
+        var localization = DesktopLocalization.ForVerification();
         var window = new DesktopConnectionWindow(null, null, request =>
         {
             submitted = request;
@@ -264,16 +265,56 @@ internal sealed class LeserpentApp : Application
         {
             testCount++;
             return Task.FromResult<string?>(null);
-        });
+        }, localization);
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += async (_, _) =>
         {
             window.VerifyAccessibility();
+            window.VerifyLayoutEnvelope();
             await window.ProbeConnectionTestAsync();
             if (testCount != 1)
             {
                 throw new InvalidDataException(
                     "desktop connection test was not invoked exactly once");
+            }
+            var localizedLayoutCount = 0;
+            foreach (var locale in DesktopLocalization.OfficialLocales.Where(
+                locale => locale.BuiltIn))
+            {
+                var localized = DesktopLocalization.ForVerification(locale.Locale);
+                var localizedWindow = new DesktopConnectionWindow(
+                    null,
+                    null,
+                    _ => "verification only",
+                    (_, _) => Task.FromResult<string?>(null),
+                    localized);
+                localizedWindow.VerifyAccessibility();
+                localizedWindow.VerifyLayoutEnvelope();
+                localizedWindow.ProbeLocalizedPresentation(
+                    DesktopConnectionCatalogs.Resolve(localized, "title"),
+                    DesktopConnectionCatalogs.Resolve(localized, "heading"),
+                    DesktopConnectionCatalogs.Resolve(localized, "connect"));
+                var forgetWindow = new DesktopForgetConnectionWindow(
+                    "https://control.example:9443",
+                    () => null,
+                    localized);
+                forgetWindow.VerifyAccessibility();
+                forgetWindow.VerifyLayoutEnvelope();
+                forgetWindow.ProbeLocalizedPresentation(
+                    DesktopConnectionCatalogs.Resolve(localized, "forget.title"),
+                    DesktopConnectionCatalogs.Resolve(localized, "forget.heading"),
+                    DesktopConnectionCatalogs.Resolve(localized, "forget.action"));
+                localizedLayoutCount++;
+            }
+            localization.SetPreference("zh-CN");
+            window.ProbeLocalizedPresentation(
+                "Leserpent / 连接",
+                "连接桌面控制台",
+                "连接");
+            if (localizedLayoutCount != 8)
+            {
+                throw new InvalidDataException(
+                    "desktop connection localized layout coverage drifted");
             }
             window.ProbeSecureTokenSubmission(fixtureToken);
             if (submitted?.Token != fixtureToken)
@@ -282,7 +323,7 @@ internal sealed class LeserpentApp : Application
                     "desktop connection did not submit the protected token");
             }
             Console.WriteLine(
-                "desktop connection controls valid: controls=9, automation_ids=9, automation_names=9, live_region=true, token_input=secure, token_cleared=true, connection_test=true, test_side_effects=false");
+                "desktop connection controls valid: controls=9, automation_ids=9, automation_names=9, live_region=true, token_input=secure, token_cleared=true, connection_test=true, test_side_effects=false, localized_connection_catalogs=7, localized_layouts=8, localized_forget_layouts=8, live_language_reprojection=true");
             DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
@@ -292,6 +333,7 @@ internal sealed class LeserpentApp : Application
     private static void ConfigureConnectionManagementVerification(
         IClassicDesktopStyleApplicationLifetime desktop)
     {
+        var localization = DesktopLocalization.ForVerification();
         var profile = new DesktopConnectionProfile
         {
             SchemaVersion = 1,
@@ -303,14 +345,20 @@ internal sealed class LeserpentApp : Application
             null,
             _ => "verification only",
             (_, _) => Task.FromResult<string?>(null),
+            localization,
             null,
             () => "verification only");
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += (_, _) =>
         {
             window.VerifyAccessibility();
-            new DesktopForgetConnectionWindow(profile.Endpoint, () => null)
-                .VerifyAccessibility();
+            window.VerifyLayoutEnvelope();
+            var forgetWindow = new DesktopForgetConnectionWindow(
+                profile.Endpoint,
+                () => null,
+                localization);
+            forgetWindow.VerifyAccessibility();
+            forgetWindow.VerifyLayoutEnvelope();
             var trustProfile = new DesktopConnectionProfile
             {
                 SchemaVersion = 1,
@@ -327,8 +375,10 @@ internal sealed class LeserpentApp : Application
                     trustSubmission = request;
                     return "verification only";
                 },
-                (_, _) => Task.FromResult<string?>(null));
+                (_, _) => Task.FromResult<string?>(null),
+                localization);
             trustWindow.VerifyAccessibility();
+            trustWindow.VerifyLayoutEnvelope();
             trustWindow.ProbeSecureTokenSubmission(new string('u', 32));
             if (trustSubmission?.CertificateAuthorityPath.Length != 0
                 || trustSubmission.BootstrapTrustRoot != trustProfile.BootstrapTrustRoot
@@ -339,7 +389,7 @@ internal sealed class LeserpentApp : Application
             }
             trustWindow.Close();
             Console.WriteLine(
-                "desktop connection management controls valid: settings_controls=10, confirmation_controls=3, automation_ids=true, automation_names=true, forget_confirmation=true, endpoint_scoped=true, connection_test=true, bootstrap_trust_retained=true");
+                "desktop connection management controls valid: settings_controls=10, confirmation_controls=3, automation_ids=true, automation_names=true, forget_confirmation=true, endpoint_scoped=true, connection_test=true, bootstrap_trust_retained=true, localized_connection=true, localized_confirmation=true, layout_envelope=true");
             DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
@@ -1808,6 +1858,7 @@ internal sealed class LeserpentApp : Application
                 }
             },
             TestConnectionAsync,
+            DesktopLanguage(),
             isInitialSetup ? () => desktop.TryShutdown(0) : null,
             connection is null
                 ? null

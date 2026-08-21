@@ -6,6 +6,7 @@ using Avalonia.Media;
 
 internal sealed class DesktopForgetConnectionWindow : Window
 {
+    private readonly DesktopLocalization localization;
     private readonly Func<string?> forget;
     private readonly List<Control> auditedControls = [];
     private readonly TextBlock status = new()
@@ -17,17 +18,36 @@ internal sealed class DesktopForgetConnectionWindow : Window
     };
     private readonly Button forgetButton = new()
     {
-        Content = "Forget connection",
         Background = LeserpentTheme.Destructive,
         Foreground = Brushes.White,
         FontWeight = FontWeight.SemiBold,
         Padding = new Thickness(16, 8),
     };
-
-    public DesktopForgetConnectionWindow(string endpoint, Func<string?> forget)
+    private readonly Button cancelButton = new()
     {
+        Padding = new Thickness(16, 8),
+    };
+    private readonly TextBlock headingText = new()
+    {
+        Foreground = LeserpentTheme.Primary,
+        FontSize = 22,
+        FontWeight = FontWeight.Bold,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly TextBlock descriptionText = new()
+    {
+        Foreground = LeserpentTheme.Muted,
+        FontSize = 13,
+        TextWrapping = TextWrapping.Wrap,
+    };
+
+    public DesktopForgetConnectionWindow(
+        string endpoint,
+        Func<string?> forget,
+        DesktopLocalization localization)
+    {
+        this.localization = localization;
         this.forget = forget;
-        Title = "Leserpent / Forget Connection";
         Width = 520;
         MinWidth = 440;
         SizeToContent = SizeToContent.Height;
@@ -35,12 +55,7 @@ internal sealed class DesktopForgetConnectionWindow : Window
         Background = LeserpentTheme.Canvas;
         FontFamily = new FontFamily("Avenir Next, Segoe UI, sans-serif");
 
-        var cancel = new Button
-        {
-            Content = "Cancel",
-            Padding = new Thickness(16, 8),
-        };
-        cancel.Click += (_, _) => Close(false);
+        cancelButton.Click += (_, _) => Close(false);
         forgetButton.Click += (_, _) => ConfirmForget();
         KeyDown += (_, eventArgs) =>
         {
@@ -50,22 +65,20 @@ internal sealed class DesktopForgetConnectionWindow : Window
                 Close(false);
             }
         };
+        Closed += (_, _) => localization.Changed -= OnLocalizationChanged;
 
-        AutomationProperties.SetAutomationId(cancel, "desktop-forget-cancel");
-        AutomationProperties.SetName(cancel, "Cancel forgetting saved connection");
+        AutomationProperties.SetAutomationId(cancelButton, "desktop-forget-cancel");
         AutomationProperties.SetAutomationId(forgetButton, "desktop-forget-confirm");
-        AutomationProperties.SetName(forgetButton, "Confirm forgetting saved connection");
         AutomationProperties.SetAutomationId(status, "desktop-forget-status");
-        AutomationProperties.SetName(status, "Forget connection status");
         AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Assertive);
-        auditedControls.AddRange([cancel, forgetButton, status]);
+        auditedControls.AddRange([cancelButton, forgetButton, status]);
 
         var buttons = new StackPanel
         {
             Orientation = Avalonia.Layout.Orientation.Horizontal,
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
             Spacing = 12,
-            Children = { cancel, forgetButton },
+            Children = { cancelButton, forgetButton },
         };
         Content = new Border
         {
@@ -75,13 +88,7 @@ internal sealed class DesktopForgetConnectionWindow : Window
                 Spacing = 14,
                 Children =
                 {
-                    new TextBlock
-                    {
-                        Text = "Forget this connection?",
-                        Foreground = LeserpentTheme.Primary,
-                        FontSize = 22,
-                        FontWeight = FontWeight.Bold,
-                    },
+                    headingText,
                     new TextBlock
                     {
                         Text = endpoint,
@@ -90,18 +97,14 @@ internal sealed class DesktopForgetConnectionWindow : Window
                         FontSize = 12,
                         TextWrapping = TextWrapping.Wrap,
                     },
-                    new TextBlock
-                    {
-                        Text = "This removes the saved non-secret profile and this endpoint's Keychain or Secret Service credential. Environment variables and credentials for other endpoints are not changed.",
-                        Foreground = LeserpentTheme.Muted,
-                        FontSize = 13,
-                        TextWrapping = TextWrapping.Wrap,
-                    },
+                    descriptionText,
                     status,
                     buttons,
                 },
             },
         };
+        localization.Changed += OnLocalizationChanged;
+        ApplyLocalization();
     }
 
     public void VerifyAccessibility()
@@ -119,6 +122,42 @@ internal sealed class DesktopForgetConnectionWindow : Window
         }
     }
 
+    public void VerifyLayoutEnvelope()
+    {
+        if (Content is not Control root)
+        {
+            throw new InvalidDataException("forget connection window has no control root");
+        }
+        root.Measure(new Size(Width, 700));
+        var desired = root.DesiredSize;
+        if (!double.IsFinite(desired.Width)
+            || !double.IsFinite(desired.Height)
+            || desired.Width <= 0
+            || desired.Height <= 0
+            || desired.Width > Width
+            || desired.Height > 700)
+        {
+            throw new InvalidDataException(
+                "forget connection controls exceeded their layout envelope");
+        }
+    }
+
+    public void ProbeLocalizedPresentation(
+        string expectedTitle,
+        string expectedHeading,
+        string expectedAction)
+    {
+        if (Title != expectedTitle
+            || headingText.Text != expectedHeading
+            || forgetButton.Content as string != expectedAction
+            || AutomationProperties.GetName(forgetButton) != expectedAction
+            || FlowDirection != localization.FlowDirection)
+        {
+            throw new InvalidDataException(
+                "forget connection localized presentation drifted");
+        }
+    }
+
     private void ConfirmForget()
     {
         forgetButton.IsEnabled = false;
@@ -133,7 +172,38 @@ internal sealed class DesktopForgetConnectionWindow : Window
             .Take(512)
             .ToArray());
         status.IsVisible = true;
-        AutomationProperties.SetName(status, $"Forget connection failed: {status.Text}");
+        AutomationProperties.SetName(
+            status,
+            DesktopConnectionCatalogs.Format(
+                localization,
+                "forget.failed",
+                status.Text));
         forgetButton.IsEnabled = true;
     }
+
+    private void OnLocalizationChanged(object? sender, EventArgs eventArgs) =>
+        ApplyLocalization();
+
+    private void ApplyLocalization()
+    {
+        Title = Text("forget.title");
+        FlowDirection = localization.FlowDirection;
+        cancelButton.Content = Text("cancel");
+        forgetButton.Content = Text("forget.action");
+        headingText.Text = Text("forget.heading");
+        descriptionText.Text = Text("forget.body");
+        AutomationProperties.SetName(cancelButton, Text("cancel"));
+        AutomationProperties.SetName(forgetButton, Text("forget.action"));
+        AutomationProperties.SetName(
+            status,
+            status.IsVisible && !string.IsNullOrWhiteSpace(status.Text)
+                ? DesktopConnectionCatalogs.Format(
+                    localization,
+                    "forget.failed",
+                    status.Text)
+                : Text("forget.status.name"));
+    }
+
+    private string Text(string key) =>
+        DesktopConnectionCatalogs.Resolve(localization, key);
 }

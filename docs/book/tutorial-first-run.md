@@ -24,9 +24,12 @@ desktop-specific translations visibly fall back to English. All eight built-in
 languages include the native shell catalog, and all seven non-English built-ins
 also localize the 26 core UI-IR terms used by runtime lists, workspaces, logs,
 capabilities, history, and deployment forms. Simplified Chinese includes the
-complete six-step Learning Center. The six newest shell and semantic
-translations remain marked for native-speaker review rather than being
-presented as complete long-tail coverage.
+complete six-step Learning Center. Connection settings and the confirmation for
+forgetting an endpoint are also localized in every built-in language and update
+immediately if the language changes; endpoint and credential values themselves
+are never translated. The six newest shell and semantic translations remain
+marked for native-speaker review rather than being presented as complete long-
+tail coverage.
 
 If you want the lower-level compiler/runtime story, see
 [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md).
