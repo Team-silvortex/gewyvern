@@ -58,6 +58,13 @@ platform storage. Hosts then delegate foreground/background callbacks to
 `MobileRemoteLifecycle`; they must not use the desktop environment-token
 fallback.
 
+Connection metadata follows the same boundary. `MobileConnectionProfileStore`
+canonicalizes HTTPS endpoints, hashes endpoint-derived CA/cache filenames,
+rejects malformed certificates and private keys, and replaces public CA files
+atomically in app-private storage. Android and iOS persist only the canonical
+endpoint through their native preferences adapters; tokens never enter the
+profile, and malformed or unavailable stored state fails closed.
+
 The Android project is now an executable entry client. Its native `MainActivity`
 accepts an HTTPS authority, public CA certificate, and endpoint-scoped token;
 only the endpoint is stored in private preferences, the CA is validated and
@@ -75,6 +82,15 @@ Deployment fields are created from the capability-gated shared form, become a
 validated `submit` event, and require a second native confirmation before the
 transport is admitted. Form values are never added to the document or profile.
 
+The iOS project is also an executable native entry client. Its UIKit scene
+composes the same application coordinator, shared connection profile, layout
+policy, fleet/workspace documents, typed form events, and mutation coordinator.
+The platform layer supplies native controls, safe-area and Dynamic Type inputs,
+keyboard avoidance, scene foreground/background callbacks, a task-switcher
+privacy shield, and Keychain storage. It does not own transport projections or
+read feed runtimes directly. The branded launch screen and app icon are bundled
+through the asset catalog.
+
 `MobileLayoutPolicy` keeps adaptive behavior outside either native host. It
 classifies the safe, font-scaled viewport as Compact (below 600 dp), Medium, or
 Expanded (840 dp and above), keeps touch targets at least 48 dp, bounds wide
@@ -83,14 +99,16 @@ or two runtime-card columns. The Android host projects the plan into native
 controls, accounts for system bars and display cutouts under edge-to-edge
 rendering, and keeps the setup action above the on-screen keyboard in a bottom
 action area.
-Extremely narrow multi-window surfaces and oversized accessibility text
+Both native hosts consume this plan. Extremely narrow multi-window surfaces and
+oversized accessibility text
 degrade to one column rather than rejecting a valid platform window. The
 resolved plan is a value type, and IME-only changes update action padding
 without rebuilding structural layout parameters.
 
-Host-independent conformance and `tests/android_entry_contract_tdd.rs` validate
-the composition, immutable document binding, form-event route, mutation fence,
-and adaptive policy without an Android SDK. The locked Android
+Host-independent conformance plus `tests/android_entry_contract_tdd.rs` and
+`tests/ios_entry_contract_tdd.rs` validate the native compositions, immutable
+document binding, form-event route, mutation fence, adaptive policy, and secure
+platform-storage boundaries without loading an emulator. The locked Android
 proof additionally builds a directly installable APK and dual-ABI AOT AAB with
 .NET SDK 10.0.201, Android workload 36.1.2, API 36, and Microsoft OpenJDK 17.
 It exercises Compact, Medium, Expanded, short-landscape, 1.5x font, display
@@ -112,8 +130,26 @@ dotnet build \
   -p:JavaSdkDirectory="$JAVA_HOME"
 ```
 
+On macOS with Xcode 26.5, use .NET SDK 10.0.300 and iOS workload set
+10.0.300.2 (iOS workload 26.5.10280). Build a simulator app and an unsigned
+device-shaped release bundle with:
+
+```bash
+dotnet workload install ios --version 10.0.300.2
+xcodebuild -downloadPlatform iOS -architectureVariant arm64
+
+dotnet build \
+  apps/leserpent-mobile/src/Leserpent.Mobile.iOS/Leserpent.Mobile.iOS.csproj \
+  -c Debug -r iossimulator-arm64
+
+dotnet build \
+  apps/leserpent-mobile/src/Leserpent.Mobile.iOS/Leserpent.Mobile.iOS.csproj \
+  -c Release -r ios-arm64 -p:EnableCodeSigning=false
+```
+
 Ordinary Debug builds retain fast deployment. Visual QA may explicitly set
 `LeserpentUiCapture=true`; the project accepts that switch only in Debug, while
 all production-shaped builds retain `FLAG_SECURE`. The next Android gate is
 production signing and physical-device safe-area, font-scale, Keystore, and TLS
-proof. iOS follows only after that Android parity is stable.
+proof. The remaining iOS release gates are production Apple signing and
+physical-device safe-area, Dynamic Type, Keychain, TLS, and lifecycle proof.

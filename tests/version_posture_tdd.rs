@@ -107,6 +107,8 @@ fn leserpent_uses_the_root_dotnet_version_without_app_specific_version() {
     let ios = read_repo_file(
         "apps/leserpent-mobile/src/Leserpent.Mobile.iOS/Leserpent.Mobile.iOS.csproj",
     );
+    let ios_manifest =
+        read_repo_file("apps/leserpent-mobile/src/Leserpent.Mobile.iOS/Info.plist");
     let frontend_package = read_repo_file("apps/leserpent/package.json");
     let frontend_lock = read_repo_file("apps/leserpent/package-lock.json");
     let workspace_version = section_version(&root_manifest, "workspace.package");
@@ -120,6 +122,10 @@ fn leserpent_uses_the_root_dotnet_version_without_app_specific_version() {
     assert!(!ios.contains("<Version>"));
     assert!(android.contains("<ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>"));
     assert!(!android.contains("<ApplicationDisplayVersion>1.5.0</ApplicationDisplayVersion>"));
+    assert!(ios.contains("<ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>"));
+    assert!(!ios.contains("<ApplicationDisplayVersion>1.5.0</ApplicationDisplayVersion>"));
+    assert!(!ios_manifest.contains("CFBundleShortVersionString"));
+    assert!(!ios_manifest.contains("CFBundleVersion"));
     assert!(!frontend_package.contains("\"version\""));
     assert!(!frontend_lock.contains("\"version\": \"0.1.9\""));
 }

@@ -5688,7 +5688,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/remote-console/remote-mobile-console")
         .expect("remote/mobile console contract must remain tracked");
     assert_eq!(remote_console.completion, 99);
-    assert_eq!(remote_console.contract.version, "0.66.0");
+    assert_eq!(remote_console.contract.version, "0.67.0");
     for surface in [
         "renderer-neutral-runtime-search",
         "cross-authority-topology-search",
@@ -5774,6 +5774,24 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "android-shared-mutation-coordinator",
         "mobile-fixed-principal",
         "mobile-operation-generation-fence",
+        "shared-mobile-connection-profile-store",
+        "endpoint-hashed-mobile-ca-cache-paths",
+        "atomic-mobile-ca-profile",
+        "malformed-mobile-profile-fail-closed",
+        "ios-application-entry",
+        "ios-scene-lifecycle",
+        "ios-app-switcher-privacy-shield",
+        "ios-native-hub",
+        "ios-renderer-neutral-native-controls",
+        "ios-native-workspace-query",
+        "ios-parameterized-form-event-controls",
+        "ios-explicit-mutation-confirmation",
+        "ios-shared-mutation-coordinator",
+        "ios-adaptive-safe-area-layout",
+        "ios-dynamic-type-layout",
+        "ios-keyboard-layout-guide",
+        "ios-brand-icon-package",
+        "ios-debug-keychain-proof",
     ] {
         assert!(
             remote_console
@@ -5795,7 +5813,21 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }));
     assert!(remote_console.evidence.iter().any(|evidence| {
         evidence.path
+            == "apps/leserpent-mobile/src/Leserpent.MobileCore/MobileConnectionProfileStore.cs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(remote_console.evidence.iter().any(|evidence| {
+        evidence.path
             == "docs/fixtures/leserpent_android_api36_emulator_macos_arm64_20260821.json"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(remote_console.evidence.iter().any(|evidence| {
+        evidence.path
+            == "apps/leserpent-mobile/src/Leserpent.Mobile.iOS/MobileHubViewController.cs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(remote_console.evidence.iter().any(|evidence| {
+        evidence.path == "tests/ios_entry_contract_tdd.rs"
             && evidence.state == EvidenceState::Present
     }));
 

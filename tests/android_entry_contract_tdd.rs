@@ -13,6 +13,8 @@ fn android_entry_client_preserves_the_mobile_security_boundary() {
     let profile = source(
         "apps/leserpent-mobile/src/Leserpent.Mobile.Android/AndroidConnectionProfileStore.cs",
     );
+    let shared_profile =
+        source("apps/leserpent-mobile/src/Leserpent.MobileCore/MobileConnectionProfileStore.cs");
 
     for required in [
         "<OutputType>Exe</OutputType>",
@@ -52,10 +54,9 @@ fn android_entry_client_preserves_the_mobile_security_boundary() {
     );
     for required in [
         "FileCreationMode.Private",
-        "RemoteClientOptions.ParseEndpoint",
-        "X509Certificate2.CreateFromPem",
-        "PRIVATE KEY",
         "applicationContext.FilesDir",
+        "new MobileConnectionProfileStore(",
+        "AndroidEndpointStore",
     ] {
         assert!(
             profile.contains(required),
@@ -66,6 +67,20 @@ fn android_entry_client_preserves_the_mobile_security_boundary() {
         !profile.contains("token") && !profile.contains("secret"),
         "Android profile store must never persist credentials"
     );
+    for required in [
+        "public interface IMobileEndpointStore",
+        "RemoteClientOptions.ParseEndpoint",
+        "X509Certificate2.CreateFromPem",
+        "PRIVATE KEY",
+        "FileOptions.WriteThrough",
+        "stream.Flush(flushToDisk: true)",
+        "EndpointDigest(endpoint)",
+    ] {
+        assert!(
+            shared_profile.contains(required),
+            "shared mobile profile store lost {required}"
+        );
+    }
 }
 
 #[test]

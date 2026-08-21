@@ -1943,7 +1943,7 @@ Exit: Rust is authoritative and the old service is an adapter, not the owner.
 Extend the same contracts rather than forking product behavior.
 
 - Android entry project (implemented) and physical-device lifecycle proof
-- iOS entry project after Android contract parity is stable
+- iOS native entry project (implemented) and simulator/physical-device proof
 - mobile navigation and adaptive presentation
 - authenticated HTTPS/WebSocket protocol
 - reconnect, offline read cache, and explicit stale-state presentation
@@ -1953,7 +1953,7 @@ Extend the same contracts rather than forking product behavior.
   hosts, using the same native policy contracts and transport semantics
 
 The Android executable entry client now composes the validating credential
-vault, app-private CA/profile storage, `MobileApplicationCoordinator`, and
+vault, shared app-private CA/profile storage, `MobileApplicationCoordinator`, and
 foreground/background callbacks. Its native shell exposes secure setup and
 renders the shared fleet and workspace `UiDocument` projections through an
 immutable MobileCore binding rather than a frontend-owned runtime summary. The
@@ -1981,6 +1981,17 @@ resume pass on that emulator. Production signing and physical-device
 safe-area/font-scale and Keystore/TLS evidence remain before Android parity is
 claimed.
 
+The iOS executable entry now follows the same composition boundary in UIKit.
+Its scene owns native controls, safe-area and Dynamic Type measurements,
+keyboard avoidance, foreground/background callbacks, and an app-switcher
+privacy shield, while fleet/workspace projection, typed form submission,
+confirmation admission, mutation fencing, and layout classification stay in
+the shared libraries. Endpoint metadata uses native preferences, public CAs and
+snapshot caches use endpoint-hashed app-private paths, and credentials remain
+`WhenUnlockedThisDeviceOnly` Keychain items. The iOS renderer consumes only an
+immutable `MobileUiDocumentBinding`; it does not derive cards from feed state or
+instantiate transport clients.
+
 The current desktop slice implements the event consumer and first constrained
 mutation of this gate. A pure
 `Leserpent.RemoteClient` library owns strict event decoding, explicit CA and
@@ -1992,8 +2003,8 @@ renderer used by fixtures. Runtime cards expose only revision-fenced
 retry ambiguous outcomes. A separate conformance executable proves codec,
 cache, resync, and retry behavior; a real Rust daemon to .NET client TLS
 vertical proves authenticated snapshot, confirmed HTTPS mutation, matching
-WebSocket revision, private cache permissions, and endpoint omission. The iOS
-application entry and mobile device runtime evidence remain before Gate 6
+WebSocket revision, private cache permissions, and endpoint omission. Mobile
+production signing and physical-device runtime evidence remain before Gate 6
 completion. Desktop startup now resolves endpoint-scoped tokens from macOS
 Keychain or Linux Secret Service through AOT-compatible native bindings, with a
 bounded environment fallback only when no stored item exists. Deterministic
@@ -2015,12 +2026,16 @@ projects now compile against .NET 10 platform workloads: Android protects a
 private-preferences AES-256-GCM envelope with a Keystore master key, while iOS
 uses a this-device-only Keychain item. Android workload/AOT packaging and the
 API 36 emulator matrix are retained as machine-readable evidence. The iOS
-application entry, production Android signing, physical-device runtime
-conformance, and physical-device AOT evidence remain.
+simulator/runtime proof, production Android and Apple signing, physical-device
+runtime conformance, and physical-device AOT evidence remain.
 The shared mobile vault adapter contract now provides endpoint-hashed aliases,
 strict credential CRUD validation, cancellation fencing, and deterministic
 corruption tests; platform storage is therefore replaceable without moving
 endpoint or token policy out of shared code.
+The adjacent shared connection-profile store canonicalizes HTTPS authorities,
+uses endpoint-hashed CA/cache paths, rejects private keys and corrupt stored
+certificates, and performs durable atomic CA replacement. Native preferences
+remain a minimal endpoint-only adapter on both mobile platforms.
 The workspace policy layer has also moved into `Leserpent.RemoteClient`:
 filtering, bounded export, incremental/full refresh planning, retry state,
 snapshot comparison, and retained severity alerts are renderer-independent.

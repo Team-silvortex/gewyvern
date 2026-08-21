@@ -1,8 +1,26 @@
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+
 var root = Path.Combine(Path.GetTempPath(), $"leserpent-mobile-{Guid.NewGuid():N}");
 Directory.CreateDirectory(root);
 var certificate = Path.Combine(root, "ca.pem");
 var cache = Path.Combine(root, "snapshot.json");
-File.WriteAllText(certificate, "test certificate fixture");
+using var certificateKey = RSA.Create(2048);
+var certificateRequest = new CertificateRequest(
+    "CN=Leserpent Mobile Conformance",
+    certificateKey,
+    HashAlgorithmName.SHA256,
+    RSASignaturePadding.Pkcs1);
+certificateRequest.CertificateExtensions.Add(new X509BasicConstraintsExtension(
+    certificateAuthority: true,
+    hasPathLengthConstraint: false,
+    pathLengthConstraint: 0,
+    critical: true));
+using var fixtureCertificate = certificateRequest.CreateSelfSigned(
+    DateTimeOffset.UtcNow.AddMinutes(-1),
+    DateTimeOffset.UtcNow.AddDays(1));
+var certificatePem = fixtureCertificate.ExportCertificatePem();
+File.WriteAllText(certificate, certificatePem);
 try
 {
     var firstToken = new string('a', 32);
@@ -38,6 +56,52 @@ try
         "cancelled mobile credential load was accepted");
     Require(rawStore.LoadCount == loadCount,
         "cancelled mobile credential load reached the platform store");
+
+    var endpointStore = new FixtureEndpointStore();
+    var profileStore = new MobileConnectionProfileStore(
+        endpointStore,
+        Path.Combine(root, "profile"),
+        Path.Combine(root, "profile-cache"));
+    var savedProfile = profileStore.Save(firstEndpoint.AbsoluteUri, certificatePem);
+    Require(savedProfile.Endpoint == "https://mobile.example:9443/"
+        && endpointStore.Endpoint == savedProfile.Endpoint
+        && File.Exists(savedProfile.CertificateAuthorityPath)
+        && !Path.GetFileName(savedProfile.CertificateAuthorityPath).Contains(
+            "mobile.example",
+            StringComparison.Ordinal)
+        && profileStore.CachePath(savedProfile.Endpoint).EndsWith(
+            ".json",
+            StringComparison.Ordinal),
+        "shared mobile connection profile was not canonical and endpoint opaque");
+    Require(profileStore.Load() == savedProfile,
+        "shared mobile connection profile did not round-trip");
+    RequireThrows<ArgumentException>(
+        () => profileStore.Save(
+            firstEndpoint.AbsoluteUri,
+            certificatePem + certificateKey.ExportPkcs8PrivateKeyPem()),
+        "mobile connection profile accepted private key material");
+    RequireThrows<ArgumentException>(
+        () => profileStore.Save(
+            firstEndpoint.AbsoluteUri,
+            certificatePem + certificateKey.ExportPkcs8PrivateKeyPem().ToLowerInvariant()),
+        "mobile connection profile accepted case-shifted private key material");
+    endpointStore.Endpoint = "http://mobile.example:9443/";
+    Require(profileStore.Load() is null,
+        "malformed stored mobile endpoint was accepted");
+    endpointStore.Endpoint = savedProfile.Endpoint;
+    File.WriteAllText(savedProfile.CertificateAuthorityPath, "corrupt certificate");
+    Require(profileStore.Load() is null,
+        "corrupt stored mobile certificate was accepted");
+    endpointStore.ThrowOnLoad = true;
+    Require(profileStore.Load() is null,
+        "unavailable native endpoint storage escaped the fail-closed profile boundary");
+    endpointStore.ThrowOnLoad = false;
+    savedProfile = profileStore.Save(firstEndpoint.AbsoluteUri, certificatePem);
+    Require(!Directory.EnumerateFiles(
+            Path.GetDirectoryName(savedProfile.CertificateAuthorityPath)!,
+            "*.tmp")
+        .Any(),
+        "mobile connection profile left temporary certificate state");
 
     var vault = new FixtureVault([firstToken, secondToken]);
     var factory = new FixtureSessionFactory();
@@ -270,7 +334,7 @@ finally
     Directory.Delete(root, recursive: true);
 }
 
-Console.WriteLine("mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true, workspace_policy=true, runtime_search=true, topology_refresh=true, workspace_launch=true, ui_projection=true, mobile_ui_document_binding=true, immutable_native_projection=true, native_parameterized_form=true, native_form_event_routing=true, native_workspace_query=true, native_typed_deployment=true, mobile_operation_generation_fence=true, mutation_fence=true, mutation_coordination=true, cached_heartbeat_mutation=false, shared_failure_classification=true, stale_failure_ignored=true, bounded_failure_diagnostics=true, typed_ui_action_routing=true, opaque_action_node_ids=true, deployment_submission_source_fence=true, event_dispose_single_flight=true, event_resource_release_once=true, event_restart_identity=true, subscriber_failure_isolated=true, subscriber_failure_count_bounded=true, action_availability=true, authority_health=true, authority_health_coordination=true, health_single_flight=true, health_stop_fence=true, mobile_layout_policy=true, value_layout_plan=true, width_classes=3, safe_area=true, font_scale_fence=true, minimum_touch_dp=48, expanded_two_pane=true, runtime_columns=2");
+Console.WriteLine("mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true, shared_connection_profile=true, atomic_ca_profile=true, malformed_profile_fail_closed=true, unavailable_profile_storage_fail_closed=true, workspace_policy=true, runtime_search=true, topology_refresh=true, workspace_launch=true, ui_projection=true, mobile_ui_document_binding=true, immutable_native_projection=true, native_parameterized_form=true, native_form_event_routing=true, native_workspace_query=true, native_typed_deployment=true, mobile_operation_generation_fence=true, mutation_fence=true, mutation_coordination=true, cached_heartbeat_mutation=false, shared_failure_classification=true, stale_failure_ignored=true, bounded_failure_diagnostics=true, typed_ui_action_routing=true, opaque_action_node_ids=true, deployment_submission_source_fence=true, event_dispose_single_flight=true, event_resource_release_once=true, event_restart_identity=true, subscriber_failure_isolated=true, subscriber_failure_count_bounded=true, action_availability=true, authority_health=true, authority_health_coordination=true, health_single_flight=true, health_stop_fence=true, mobile_layout_policy=true, value_layout_plan=true, width_classes=3, safe_area=true, font_scale_fence=true, minimum_touch_dp=48, expanded_two_pane=true, runtime_columns=2");
 return 0;
 
 static IEnumerable<MobileUiNodeBinding> Descendants(MobileUiNodeBinding node)
@@ -383,6 +447,18 @@ sealed class FixtureSecretStore : IMobileSecretStore
     }
 
     public void Corrupt(string alias, string value) => values[alias] = value;
+}
+
+sealed class FixtureEndpointStore : IMobileEndpointStore
+{
+    public string? Endpoint { get; set; }
+    public bool ThrowOnLoad { get; set; }
+
+    public string? Load() => ThrowOnLoad
+        ? throw new InvalidOperationException("fixture endpoint storage unavailable")
+        : Endpoint;
+
+    public void Save(string endpoint) => Endpoint = endpoint;
 }
 
 sealed class FixtureSessionFactory(bool failOnStart = false) : IMobileRemoteSessionFactory

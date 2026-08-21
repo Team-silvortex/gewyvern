@@ -2316,6 +2316,14 @@ Android Keystore. iOS uses generic-password Keychain items scoped as
 narrow: shared code enforces endpoint canonicalization, opaque hashed aliases,
 token bounds, read/write validation, deletion, and cancellation before
 platform access.
+`MobileConnectionProfileStore` applies the same policy to non-secret connection
+metadata. It accepts only canonical HTTPS authorities and valid public CA
+certificates, rejects private-key material, derives opaque endpoint-hashed
+CA/cache paths, and replaces CA files atomically in an app-private directory.
+Android private preferences and iOS `NSUserDefaults` therefore store only the
+canonical endpoint and cannot become alternate credential stores. Missing,
+malformed, corrupt, or temporarily unavailable persisted state returns no
+usable profile.
 They do not embed privileged adapters. An optional embedded Rust library may be
 added later for offline mobile operation, but it must implement the same
 `leserpent-protocol` contract.
@@ -2341,6 +2349,20 @@ and keeps standalone Debug packaging opt-in so normal fast deployment remains
 cheap. A Debug-only visual-capture switch supports layout inspection; an
 MSBuild guard rejects that switch outside Debug, and production-shaped builds
 always set `FLAG_SECURE`.
+
+The iOS executable entry is the equivalent thin UIKit composition. Its scene
+creates one `MobileApplicationCoordinator`, delegates active/background
+transitions through that coordinator, and shields task-switcher snapshots as
+soon as the scene resigns active. Native views render only immutable
+`MobileUiDocumentBinding` nodes and invoke their typed action identifiers;
+fleet/workspace projection, deployment form resolution, explicit mutation
+confirmation, revision fences, and operation generation ownership remain
+shared. `MobileLayoutPolicy` receives the UIKit safe-area viewport and Dynamic
+Type scale, while native constraints provide bounded content width, one/two
+runtime columns, and keyboard-layout-guide avoidance. The asset catalog and
+launch storyboard are packaging resources rather than semantic UI sources.
+Keychain is the only token store and its simulator probe is compiled only into
+Debug builds.
 
 `MobileUiDocumentBinding` mounts each shared fleet or workspace `UiDocument`
 through `SemanticRenderer`, retains a validated private clone, and exposes only
