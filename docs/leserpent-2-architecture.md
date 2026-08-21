@@ -226,13 +226,14 @@ semantic UI-IR set for runtime lists, workspaces, logs, capabilities, history,
 and deployment forms. Startup rejects a missing or extra key, and per-locale
 native `TextBlock` probes validate visible plus accessible text. The six newly
 filled shell and semantic catalogs remain candidates until native-speaker
-review. Seven specialist domains share this boundary: connection/forget,
+review. Nine specialist domains share this boundary: connection/forget,
 reverse deployment, gewyvern provisioning/retirement, daemon retirement,
-startup recovery, and account presentation contribute exact 33-key, 46-key,
-43-key, 45-key, 37-key, 9-key, and 36-key catalogs without overlapping the
-frozen core set. `DesktopDomainCatalogContract` gives the three newest domains
-one exact-key, bounded-value, and format-placeholder validator; the full
-non-English built-in semantic set is therefore 275 keys. All eight built-in
+startup recovery, account presentation, the remote daemon shell, and remote
+operation/Leselang controls contribute exact 33-key, 46-key, 43-key, 45-key,
+37-key, 9-key, 36-key, 56-key, and 57-key catalogs without overlapping the frozen
+core set. `DesktopDomainCatalogContract` gives these domains one exact-key,
+bounded-value, and format-placeholder validator; the full non-English built-in
+semantic set is therefore 388 keys. All eight built-in
 locale trees are measured inside their native dialog envelopes, and open
 controls, accessible names, controlled phases, status, and flow direction
 reproject on language change while operation identities, operator values, and
@@ -240,8 +241,13 @@ raw remote errors stay untouched. Startup recovery translates only its fixed
 shell and empty-detail fallback. The Team Silvortex card consumes a typed
 presentation status from the authentication session and treats bounded failure
 detail as an opaque format argument, so localization cannot change an auth
-decision. The minimum Hub envelope includes the translated account card;
-remaining Hub/remote-shell domains, non-Chinese tutorial content, and all 22
+decision. The remote shell projects `RemoteFeedState`, validated `RemoteHealth`,
+mutation admission, and failure enums instead of parsing English status strings;
+operator identifiers and bounded diagnostics remain opaque parameters. Its
+offline proof measures compact and wide shells plus refresh and deployment
+dialogs for every built-in locale without starting a network client. The minimum
+Hub envelope includes the translated account card; remaining Hub dynamic cards,
+the runtime child-workspace shell, non-Chinese tutorial content, and all 22
 downloadable packs remain explicit follow-up work. Arabic,
 Hebrew, and Persian switch the inherited Avalonia flow direction to RTL.
 

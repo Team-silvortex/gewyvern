@@ -285,7 +285,9 @@ internal sealed class DesktopLocalization
                 DesktopRetirementCatalogs.SimplifiedChinese,
                 DesktopDaemonRetirementCatalogs.SimplifiedChinese,
                 DesktopStartupRecoveryCatalogs.SimplifiedChinese,
-                DesktopAccountCatalogs.SimplifiedChinese),
+                DesktopAccountCatalogs.SimplifiedChinese,
+                DesktopRemoteShellCatalogs.SimplifiedChinese,
+                DesktopRemoteOperationCatalogs.SimplifiedChinese),
             DesktopLocaleCoverage.Core),
         BuiltInShell(
             "zh-TW",
@@ -300,7 +302,9 @@ internal sealed class DesktopLocalization
                 DesktopRetirementCatalogs.TraditionalChinese,
                 DesktopDaemonRetirementCatalogs.TraditionalChinese,
                 DesktopStartupRecoveryCatalogs.TraditionalChinese,
-                DesktopAccountCatalogs.TraditionalChinese)),
+                DesktopAccountCatalogs.TraditionalChinese,
+                DesktopRemoteShellCatalogs.TraditionalChinese,
+                DesktopRemoteOperationCatalogs.TraditionalChinese)),
         BuiltInShell(
             "ja",
             "Japanese",
@@ -314,7 +318,9 @@ internal sealed class DesktopLocalization
                 DesktopRetirementCatalogs.Japanese,
                 DesktopDaemonRetirementCatalogs.Japanese,
                 DesktopStartupRecoveryCatalogs.Japanese,
-                DesktopAccountCatalogs.Japanese)),
+                DesktopAccountCatalogs.Japanese,
+                DesktopRemoteShellCatalogs.Japanese,
+                DesktopRemoteOperationCatalogs.Japanese)),
         BuiltInShell(
             "es",
             "Spanish",
@@ -328,7 +334,9 @@ internal sealed class DesktopLocalization
                 DesktopRetirementCatalogs.Spanish,
                 DesktopDaemonRetirementCatalogs.Spanish,
                 DesktopStartupRecoveryCatalogs.Spanish,
-                DesktopAccountCatalogs.Spanish)),
+                DesktopAccountCatalogs.Spanish,
+                DesktopRemoteShellCatalogs.Spanish,
+                DesktopRemoteOperationCatalogs.Spanish)),
         BuiltInShell(
             "de",
             "German",
@@ -342,7 +350,9 @@ internal sealed class DesktopLocalization
                 DesktopRetirementCatalogs.German,
                 DesktopDaemonRetirementCatalogs.German,
                 DesktopStartupRecoveryCatalogs.German,
-                DesktopAccountCatalogs.German)),
+                DesktopAccountCatalogs.German,
+                DesktopRemoteShellCatalogs.German,
+                DesktopRemoteOperationCatalogs.German)),
         BuiltInShell(
             "fr",
             "French",
@@ -356,7 +366,9 @@ internal sealed class DesktopLocalization
                 DesktopRetirementCatalogs.French,
                 DesktopDaemonRetirementCatalogs.French,
                 DesktopStartupRecoveryCatalogs.French,
-                DesktopAccountCatalogs.French)),
+                DesktopAccountCatalogs.French,
+                DesktopRemoteShellCatalogs.French,
+                DesktopRemoteOperationCatalogs.French)),
         BuiltInShell(
             "ko",
             "Korean",
@@ -370,7 +382,9 @@ internal sealed class DesktopLocalization
                 DesktopRetirementCatalogs.Korean,
                 DesktopDaemonRetirementCatalogs.Korean,
                 DesktopStartupRecoveryCatalogs.Korean,
-                DesktopAccountCatalogs.Korean)),
+                DesktopAccountCatalogs.Korean,
+                DesktopRemoteShellCatalogs.Korean,
+                DesktopRemoteOperationCatalogs.Korean)),
         Core("pt-BR", "Portuguese (Brazil)", "Português (Brasil)", "Idioma",
             "Painel do plano de controle", "Uma visão leve da frota para vários runtimes gewyvern próximos.", false),
         Core("it", "Italian", "Italiano", "Lingua", "Dashboard del piano di controllo",
@@ -522,6 +536,8 @@ internal sealed class DesktopLocalization
         DesktopDaemonRetirementCatalogs.VerifyContract();
         DesktopStartupRecoveryCatalogs.VerifyContract();
         DesktopAccountCatalogs.VerifyContract();
+        DesktopRemoteShellCatalogs.VerifyContract();
+        DesktopRemoteOperationCatalogs.VerifyContract();
         var ids = LocaleDefinitions.Select(locale => locale.Locale).ToArray();
         var desktopTextKeyCount = Enum.GetValues<DesktopTextKey>().Length;
         var builtInSemanticKeyCount = DesktopBuiltInSemanticCatalogs.KeyCount
@@ -531,7 +547,9 @@ internal sealed class DesktopLocalization
             + DesktopRetirementCatalogs.KeyCount
             + DesktopDaemonRetirementCatalogs.KeyCount
             + DesktopStartupRecoveryCatalogs.KeyCount
-            + DesktopAccountCatalogs.KeyCount;
+            + DesktopAccountCatalogs.KeyCount
+            + DesktopRemoteShellCatalogs.KeyCount
+            + DesktopRemoteOperationCatalogs.KeyCount;
         if (Schema != "leserpent.desktop-localization/v1"
             || LocaleDefinitions.Length != 30
             || LocaleDefinitions.Count(locale => locale.BuiltIn) != 8
@@ -725,6 +743,44 @@ internal sealed class DesktopLocalization
         {
             throw new InvalidDataException(
                 "built-in desktop account translation drifted");
+        }
+        var remoteShellSamples = new Dictionary<string, string>
+        {
+            ["en"] = "Connecting",
+            ["zh-CN"] = "正在连接",
+            ["zh-TW"] = "正在連線",
+            ["ja"] = "接続中",
+            ["es"] = "Conectando",
+            ["de"] = "Verbindung wird hergestellt",
+            ["fr"] = "Connexion en cours",
+            ["ko"] = "연결 중",
+        };
+        if (remoteShellSamples.Any(sample => DesktopRemoteShellCatalogs.Resolve(
+            ForVerification(sample.Key),
+            "feed.connecting") != sample.Value))
+        {
+            throw new InvalidDataException(
+                "built-in desktop remote shell translation drifted");
+        }
+        var remoteOperationSamples = new Dictionary<string, string>
+        {
+            ["en"] = "Remote operation failed safely: fixture",
+            ["zh-CN"] = "远程操作已安全失败：fixture",
+            ["zh-TW"] = "遠端操作已安全失敗：fixture",
+            ["ja"] = "リモート操作は安全に失敗しました: fixture",
+            ["es"] = "La operación remota falló de forma segura: fixture",
+            ["de"] = "Remotevorgang ist sicher fehlgeschlagen: fixture",
+            ["fr"] = "L’opération distante a échoué de manière sûre : fixture",
+            ["ko"] = "원격 작업이 안전하게 실패했습니다: fixture",
+        };
+        if (remoteOperationSamples.Any(sample =>
+            DesktopRemoteOperationCatalogs.Format(
+                ForVerification(sample.Key),
+                "status.operation_failed",
+                "fixture") != sample.Value))
+        {
+            throw new InvalidDataException(
+                "built-in desktop remote operation translation drifted");
         }
         var system = ForVerification(SystemPreference, "zh-Hans-CN");
         if (system.Active.Locale != "zh-CN"

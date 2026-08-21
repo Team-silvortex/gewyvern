@@ -714,7 +714,8 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
                     "runtime-workspace-query",
                     cancellationToken => leselangClient.ExportWorkspaceAsync(
                         RuntimeId,
-                        cancellationToken)),
+                        cancellationToken),
+                    localization),
             },
         };
         preview.Closed += (_, _) =>

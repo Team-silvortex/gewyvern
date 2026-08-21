@@ -16,6 +16,9 @@ internal sealed class RemoteMainWindow : Window
     private readonly RemoteMutationClient mutationClient;
     private readonly RemoteClientOptions options;
     private readonly DesktopLocalization localization;
+    private readonly RemoteTrustIdentity trustIdentity;
+    private readonly RemoteTokenSource credentialSource;
+    private readonly bool startRemoteClients;
     private readonly Dictionary<string, RemoteRuntimeWorkspaceWindow> workspaceWindows =
         new(StringComparer.Ordinal);
     private readonly RemoteWorkspaceLaunchCoordinator workspaceLaunch =
@@ -24,6 +27,9 @@ internal sealed class RemoteMainWindow : Window
     private readonly CancellationTokenSource lifetime = new();
     private readonly string principal;
     private RemoteFeedState currentState;
+    private RemoteAuthorityHealthState currentAuthorityHealthState;
+    private DesktopRemoteText? mutationNotice;
+    private IBrush mutationNoticeForeground = LeserpentTheme.Muted;
     private bool isClosed;
     private readonly TextBlock statusText = new()
     {
@@ -44,7 +50,6 @@ internal sealed class RemoteMainWindow : Window
     };
     private readonly Button dismissMutationButton = new()
     {
-        Content = "Dismiss",
         Padding = new Thickness(12, 6),
     };
     private readonly Border mutationStatusBar = new()
@@ -57,13 +62,11 @@ internal sealed class RemoteMainWindow : Window
     };
     private readonly Button reconnectButton = new()
     {
-        Content = "Reconnect",
         IsEnabled = false,
         Padding = new Thickness(14, 7),
     };
     private readonly Button connectionButton = new()
     {
-        Content = "Connection...",
         IsVisible = false,
         Padding = new Thickness(14, 7),
     };
@@ -81,7 +84,6 @@ internal sealed class RemoteMainWindow : Window
     private readonly TextBox runtimeFilterBox = new()
     {
         MaxLength = RemoteDocumentProjection.MaxFilterLength,
-        PlaceholderText = "Filter runtimes by name, ID, tag, or status",
     };
     private readonly TextBlock remoteOriginText = new()
     {
@@ -102,11 +104,9 @@ internal sealed class RemoteMainWindow : Window
         Foreground = LeserpentTheme.Muted,
         FontSize = 11,
         FontWeight = FontWeight.Bold,
-        Text = "AUTHORITY / awaiting check",
     };
     private readonly Button authorityHealthButton = new()
     {
-        Content = "Refresh health",
         Padding = new Thickness(12, 6),
     };
     private readonly StackPanel authorityHealthPanel = new()
@@ -124,7 +124,6 @@ internal sealed class RemoteMainWindow : Window
     };
     private readonly Button clearRuntimeFilterButton = new()
     {
-        Content = "Clear",
         IsVisible = false,
         Padding = new Thickness(12, 7),
     };
@@ -138,17 +137,19 @@ internal sealed class RemoteMainWindow : Window
         RemoteClientOptions options,
         RemoteTokenSource tokenSource,
         Action? manageConnection = null,
-        DesktopLocalization? localization = null)
+        DesktopLocalization? localization = null,
+        bool startRemoteClients = true)
     {
         this.options = options;
         this.localization = localization ?? DesktopLocalization.ForVerification();
+        this.startRemoteClients = startRemoteClients;
+        credentialSource = tokenSource;
         Width = 1080;
         Height = 760;
         MinWidth = 640;
         MinHeight = 480;
         Background = LeserpentTheme.Canvas;
         FontFamily = new FontFamily("Avenir Next, Segoe UI, sans-serif");
-        Title = $"Leserpent / {options.Endpoint.Authority}";
 
         renderer = new AvaloniaDocumentRenderer(
             OnActionInvoked,
@@ -157,9 +158,10 @@ internal sealed class RemoteMainWindow : Window
         healthClient = new RemoteHealthClient(options);
         authorityHealthCoordinator = new RemoteAuthorityHealthCoordinator(
             healthClient.CheckAsync);
+        currentAuthorityHealthState = authorityHealthCoordinator.State;
         leselangClient = new RemoteLeselangClient(options);
         mutationClient = new RemoteMutationClient(options);
-        ConfigureTrustIdentity(eventClient.TrustIdentity);
+        trustIdentity = eventClient.TrustIdentity;
         principal = Environment.GetEnvironmentVariable("LESERPENT_PRINCIPAL")
             ?? "avalonia-remote";
         currentState = eventClient.State;
@@ -172,66 +174,36 @@ internal sealed class RemoteMainWindow : Window
         runtimeFilterBox.KeyDown += OnRuntimeFilterKeyDown;
         clearRuntimeFilterButton.Click += (_, _) => ClearRuntimeFilter();
         authorityHealthButton.Click += (_, _) => RefreshAuthorityHealth();
-        ConfigureCredentialSource(tokenSource);
 
         AutomationProperties.SetAutomationId(statusText, "remote-connection-state");
-        AutomationProperties.SetName(statusText, "Remote connection state");
         AutomationProperties.SetLiveSetting(statusText, AutomationLiveSetting.Off);
         AutomationProperties.SetAutomationId(mutationStatusText, "remote-operation-status");
-        AutomationProperties.SetName(mutationStatusText, "Remote operation status");
         AutomationProperties.SetLiveSetting(
             mutationStatusText,
             AutomationLiveSetting.Polite);
         AutomationProperties.SetAutomationId(
             dismissMutationButton,
             "remote-operation-dismiss");
-        AutomationProperties.SetName(
-            dismissMutationButton,
-            "Dismiss remote operation status");
         dismissMutationButton.Click += (_, _) => DismissMutationStatus();
         AutomationProperties.SetAutomationId(reconnectButton, "remote-reconnect");
-        AutomationProperties.SetName(reconnectButton, "Reconnect remote event stream");
-        AutomationProperties.SetHelpText(
-            reconnectButton,
-            "Restarts the read-only event stream after automatic reconnect is exhausted. Shortcut: F5.");
-        ToolTip.SetTip(reconnectButton, "Reconnect event stream (F5)");
         reconnectButton.Click += (_, _) => RequestReconnect();
         connectionButton.IsVisible = manageConnection is not null;
         connectionButton.Click += (_, _) => manageConnection?.Invoke();
         AutomationProperties.SetAutomationId(connectionButton, "remote-manage-connection");
-        AutomationProperties.SetName(connectionButton, "Manage remote connection");
-        AutomationProperties.SetHelpText(
-            connectionButton,
-            "Switch the remote authority or forget the saved profile and endpoint credential.");
         AutomationProperties.SetAutomationId(runtimeFilterBox, "remote-runtime-filter");
-        AutomationProperties.SetName(runtimeFilterBox, "Filter remote runtimes");
-        AutomationProperties.SetHelpText(
-            runtimeFilterBox,
-            "Filters the local runtime projection without contacting the server. Shortcut: Control or Command plus F.");
         AutomationProperties.SetAutomationId(runtimeCountText, "remote-runtime-count");
-        AutomationProperties.SetName(runtimeCountText, "Remote runtime result count");
         AutomationProperties.SetAutomationId(
             clearRuntimeFilterButton,
             "remote-runtime-filter-clear");
-        AutomationProperties.SetName(clearRuntimeFilterButton, "Clear runtime filter");
         AutomationProperties.SetAutomationId(
             authorityHealthText,
             "remote-authority-health");
-        AutomationProperties.SetName(
-            authorityHealthText,
-            "Remote authority health has not been checked");
         AutomationProperties.SetLiveSetting(
             authorityHealthText,
             AutomationLiveSetting.Polite);
         AutomationProperties.SetAutomationId(
             authorityHealthButton,
             "remote-authority-health-refresh");
-        AutomationProperties.SetName(
-            authorityHealthButton,
-            "Refresh remote authority health");
-        AutomationProperties.SetHelpText(
-            authorityHealthButton,
-            "Checks authority ownership, protocol readiness, and effect queue pressure without changing remote state.");
         Content = new Grid
         {
             RowDefinitions = RowDefinitions.Parse("*,Auto,Auto"),
@@ -245,13 +217,16 @@ internal sealed class RemoteMainWindow : Window
         ApplyLocalization();
         ApplyResponsiveLayout(RemoteResponsiveLayout.Select(Width));
         ApplyState(currentState);
-        ApplyAuthorityHealth(authorityHealthCoordinator.State);
+        ApplyAuthorityHealth(currentAuthorityHealthState);
         eventClient.StateChanged += OnStateChanged;
         this.localization.Changed += OnLocalizationChanged;
         Opened += (_, _) =>
         {
-            eventClient.Start();
-            RefreshAuthorityHealth();
+            if (this.startRemoteClients)
+            {
+                eventClient.Start();
+                RefreshAuthorityHealth();
+            }
         };
         KeyDown += OnKeyDown;
         SizeChanged += (_, eventArgs) => ApplyResponsiveLayout(
@@ -270,12 +245,15 @@ internal sealed class RemoteMainWindow : Window
             }
             ApplyLocalization();
             RenderProjection();
-            ApplyAuthorityHealth(authorityHealthCoordinator.State);
         });
 
     private void ApplyLocalization()
     {
         FlowDirection = localization.FlowDirection;
+        Title = DesktopRemoteShellCatalogs.Format(
+            localization,
+            "title",
+            options.Endpoint.Authority);
         dismissMutationButton.Content = localization.Text(DesktopTextKey.Dismiss);
         reconnectButton.Content = localization.Text(DesktopTextKey.Reconnect);
         connectionButton.Content = localization.Text(DesktopTextKey.Connection);
@@ -300,7 +278,39 @@ internal sealed class RemoteMainWindow : Window
             localization.Text(DesktopTextKey.RuntimeResultCount));
         AutomationProperties.SetName(
             clearRuntimeFilterButton,
-            localization.Text(DesktopTextKey.Clear));
+            DesktopRemoteShellCatalogs.Resolve(localization, "a11y.clear_filter"));
+        AutomationProperties.SetName(
+            dismissMutationButton,
+            DesktopRemoteShellCatalogs.Resolve(localization, "a11y.dismiss"));
+        AutomationProperties.SetName(
+            reconnectButton,
+            DesktopRemoteShellCatalogs.Resolve(localization, "a11y.reconnect"));
+        AutomationProperties.SetHelpText(
+            reconnectButton,
+            DesktopRemoteShellCatalogs.Resolve(localization, "help.reconnect"));
+        ToolTip.SetTip(
+            reconnectButton,
+            DesktopRemoteShellCatalogs.Resolve(localization, "tooltip.reconnect"));
+        AutomationProperties.SetHelpText(
+            connectionButton,
+            DesktopRemoteShellCatalogs.Resolve(localization, "help.connection"));
+        AutomationProperties.SetName(
+            runtimeFilterBox,
+            DesktopRemoteShellCatalogs.Resolve(localization, "a11y.filter"));
+        AutomationProperties.SetHelpText(
+            runtimeFilterBox,
+            DesktopRemoteShellCatalogs.Resolve(localization, "help.filter"));
+        AutomationProperties.SetName(
+            authorityHealthButton,
+            DesktopRemoteShellCatalogs.Resolve(localization, "a11y.health_refresh"));
+        AutomationProperties.SetHelpText(
+            authorityHealthButton,
+            DesktopRemoteShellCatalogs.Resolve(localization, "help.health_refresh"));
+        ConfigureTrustIdentity(trustIdentity);
+        ConfigureCredentialSource(credentialSource);
+        ApplyFeedPresentation(currentState);
+        ApplyAuthorityHealth(currentAuthorityHealthState);
+        ApplyMutationStatus();
     }
 
     private Border BuildRemoteBody()
@@ -340,21 +350,33 @@ internal sealed class RemoteMainWindow : Window
     private void ConfigureTrustIdentity(RemoteTrustIdentity identity)
     {
         remoteOriginText.Text = identity.Origin;
-        caFingerprintText.Text = $"CA / {identity.ShortFingerprint}";
+        caFingerprintText.Text = DesktopRemoteShellCatalogs.Format(
+            localization,
+            "identity.ca_short",
+            identity.ShortFingerprint);
         AutomationProperties.SetAutomationId(remoteOriginText, "remote-origin");
         AutomationProperties.SetName(
             remoteOriginText,
-            $"Remote HTTPS origin: {identity.Origin}");
+            DesktopRemoteShellCatalogs.Format(
+                localization,
+                "a11y.origin",
+                identity.Origin));
         AutomationProperties.SetAutomationId(caFingerprintText, "remote-ca-fingerprint");
         AutomationProperties.SetName(
             caFingerprintText,
-            $"Remote CA SHA-256 fingerprint: {identity.Sha256Fingerprint}");
+            DesktopRemoteShellCatalogs.Format(
+                localization,
+                "a11y.ca",
+                identity.Sha256Fingerprint));
         AutomationProperties.SetHelpText(
             caFingerprintText,
-            "Compare this SHA-256 fingerprint with the expected remote authority CA.");
+            DesktopRemoteShellCatalogs.Resolve(localization, "help.ca"));
         ToolTip.SetTip(
             caFingerprintText,
-            $"CA SHA-256\n{identity.Sha256Fingerprint}");
+            DesktopRemoteShellCatalogs.Format(
+                localization,
+                "tooltip.ca",
+                identity.Sha256Fingerprint));
     }
 
     private Border BuildStatusBar()
@@ -423,11 +445,12 @@ internal sealed class RemoteMainWindow : Window
             : new Thickness(0);
 
         statusGrid.ColumnDefinitions = ColumnDefinitions.Parse(
-            compact ? "*,Auto,Auto,Auto" : "*,Auto,Auto,Auto,Auto");
-        statusGrid.RowDefinitions = RowDefinitions.Parse(compact ? "Auto,Auto" : "Auto");
+            compact ? "*,Auto" : "*,Auto,Auto,Auto,Auto");
+        statusGrid.RowDefinitions = RowDefinitions.Parse(
+            compact ? "Auto,Auto,Auto" : "Auto");
         Grid.SetColumn(statusText, 0);
         Grid.SetRow(statusText, 0);
-        Grid.SetColumnSpan(statusText, compact ? 4 : 1);
+        Grid.SetColumnSpan(statusText, compact ? 2 : 1);
         statusText.Margin = compact
             ? new Thickness(0, 0, 0, 8)
             : new Thickness(0);
@@ -435,16 +458,144 @@ internal sealed class RemoteMainWindow : Window
         Grid.SetRow(credentialSourceBadge, compact ? 1 : 0);
         Grid.SetColumn(revisionText, compact ? 1 : 2);
         Grid.SetRow(revisionText, compact ? 1 : 0);
-        Grid.SetColumn(connectionButton, compact ? 2 : 3);
-        Grid.SetRow(connectionButton, compact ? 1 : 0);
-        Grid.SetColumn(reconnectButton, compact ? 3 : 4);
-        Grid.SetRow(reconnectButton, compact ? 1 : 0);
+        Grid.SetColumn(connectionButton, compact ? 0 : 3);
+        Grid.SetRow(connectionButton, compact ? 2 : 0);
+        Grid.SetColumn(reconnectButton, compact ? 1 : 4);
+        Grid.SetRow(reconnectButton, compact ? 2 : 0);
+        connectionButton.Margin = compact
+            ? new Thickness(0, 8, 8, 0)
+            : new Thickness(0);
+        reconnectButton.Margin = compact
+            ? new Thickness(0, 8, 0, 0)
+            : new Thickness(0);
+    }
+
+    public void VerifyLayoutEnvelope()
+    {
+        if (Content is not Control root)
+        {
+            throw new InvalidDataException("remote shell has no control root");
+        }
+        foreach (var (width, height, density) in new[]
+        {
+            (MinWidth, MinHeight, RemoteLayoutDensity.Compact),
+            (1080d, 760d, RemoteLayoutDensity.Wide),
+        })
+        {
+            ApplyResponsiveLayout(density);
+            root.Measure(new Size(width, height));
+            var desired = root.DesiredSize;
+            if (!double.IsFinite(desired.Width)
+                || !double.IsFinite(desired.Height)
+                || desired.Width <= 0
+                || desired.Height <= 0
+                || desired.Width > width
+                || desired.Height > height)
+            {
+                throw new InvalidDataException(
+                    "remote shell controls exceeded their layout envelope");
+            }
+            if (density == RemoteLayoutDensity.Compact
+                && (Grid.GetRow(connectionButton) != 2
+                    || Grid.GetRow(reconnectButton) != 2
+                    || Grid.GetColumnSpan(statusText) != 2))
+            {
+                throw new InvalidDataException(
+                    "remote shell compact status controls can overlap");
+            }
+            if (density == RemoteLayoutDensity.Wide
+                && (Grid.GetRow(connectionButton) != 0
+                    || Grid.GetRow(reconnectButton) != 0
+                    || Grid.GetColumnSpan(statusText) != 1))
+            {
+                throw new InvalidDataException(
+                    "remote shell wide status layout drifted");
+            }
+        }
+        ApplyResponsiveLayout(RemoteResponsiveLayout.Select(Width));
+    }
+
+    public void ProbeTypedPresentation()
+    {
+        ApplyState(new RemoteFeedState(
+            RemoteFeedPhase.Live,
+            42,
+            Array.Empty<RemoteRuntimeProjection>(),
+            0,
+            false,
+            "opaque feed detail must not be presented",
+            4,
+            42));
+        var health = new RemoteHealth(
+            "ready",
+            true,
+            1,
+            new RemoteEffectQueueHealth(2, 1, 4, 0, 3, 4, 16, false));
+        const string compatibilityLabel = "core compatibility label must not render";
+        ApplyAuthorityHealth(new RemoteAuthorityHealthState(
+            1,
+            RemoteAuthorityHealthPhase.Ready,
+            RemoteAuthorityHealthFailure.None,
+            compatibilityLabel,
+            "core compatibility automation name must not render",
+            false,
+            false,
+            health));
+        SetMutationStatus(
+            DesktopRemoteText.Operation("status.operation_failed", "fixture"),
+            LeserpentTheme.Destructive);
+        if (statusText.Text?.Contains("opaque feed detail", StringComparison.Ordinal)
+                == true
+            || authorityHealthText.Text == compatibilityLabel)
+        {
+            throw new InvalidDataException(
+                "remote shell presentation bypassed its typed localization boundary");
+        }
+    }
+
+    public void ProbeLocalizedPresentation(
+        string expectedTitle,
+        string expectedFeed,
+        string expectedRevision,
+        string expectedHealth,
+        string expectedCredential,
+        string expectedOperation)
+    {
+        var failures = new List<string>();
+        if (Title != expectedTitle) failures.Add("title");
+        if (statusText.Text != expectedFeed) failures.Add("feed");
+        if (revisionText.Text != expectedRevision) failures.Add("revision");
+        if (authorityHealthText.Text != expectedHealth) failures.Add("health");
+        if (credentialSourceText.Text != expectedCredential) failures.Add("credential");
+        if (mutationStatusText.Text != expectedOperation) failures.Add("operation");
+        if (AutomationProperties.GetName(statusText)
+            != DesktopRemoteShellCatalogs.Format(
+                localization,
+                "a11y.status",
+                expectedFeed))
+        {
+            failures.Add("feed-a11y");
+        }
+        if (AutomationProperties.GetName(authorityHealthText)
+            != DesktopRemoteShellCatalogs.Format(
+                localization,
+                "a11y.health",
+                expectedHealth))
+        {
+            failures.Add("health-a11y");
+        }
+        if (FlowDirection != localization.FlowDirection) failures.Add("direction");
+        if (failures.Count > 0)
+        {
+            throw new InvalidDataException(
+                $"remote shell localized presentation drifted: {string.Join(',', failures)}");
+        }
     }
 
     private void ConfigureCredentialSource(RemoteTokenSource source)
     {
-        var presentation = RemoteCredentialPresentation.Create(source);
-        credentialSourceText.Text = presentation.Label;
+        var presentation = DesktopRemotePresentation.Credential(source);
+        credentialSourceText.Text = presentation.Label.Resolve(localization);
         credentialSourceText.Foreground = presentation.IsEnvironmentFallback
             ? LeserpentTheme.Primary
             : LeserpentTheme.Muted;
@@ -458,11 +609,11 @@ internal sealed class RemoteMainWindow : Window
             "remote-credential-source");
         AutomationProperties.SetName(
             credentialSourceBadge,
-            presentation.AutomationName);
+            presentation.AutomationName.Resolve(localization));
         AutomationProperties.SetHelpText(
             credentialSourceBadge,
-            presentation.Description);
-        ToolTip.SetTip(credentialSourceBadge, presentation.Description);
+            presentation.Help.Resolve(localization));
+        ToolTip.SetTip(credentialSourceBadge, presentation.Help.Resolve(localization));
     }
 
     private Border BuildMutationStatusBar()
@@ -492,19 +643,7 @@ internal sealed class RemoteMainWindow : Window
         currentState = state;
         mutationCoordinator.Observe(state);
         RenderProjection();
-        statusText.Text = state.IsStale ? $"STALE / {state.Detail}" : state.Detail;
-        statusText.Foreground = state.Phase switch
-        {
-            RemoteFeedPhase.Live => LeserpentTheme.Accent,
-            RemoteFeedPhase.Stale => LeserpentTheme.Destructive,
-            RemoteFeedPhase.Reconnecting => LeserpentTheme.Primary,
-            _ => LeserpentTheme.Muted,
-        };
-        revisionText.Text = state.Revision is { } revision
-            ? $"EVENTS v1  /  rev {revision}"
-            : "EVENTS v1  /  awaiting snapshot";
-        reconnectButton.IsEnabled = state.Phase is RemoteFeedPhase.Stale
-            or RemoteFeedPhase.Stopped;
+        ApplyFeedPresentation(state);
         var live = state.Phase == RemoteFeedPhase.Live && !state.IsStale;
         foreach (var workspace in workspaceWindows.Values)
         {
@@ -516,6 +655,27 @@ internal sealed class RemoteMainWindow : Window
             }
         }
         ResolvePendingWorkspaces(state);
+    }
+
+    private void ApplyFeedPresentation(RemoteFeedState state)
+    {
+        statusText.Text = DesktopRemotePresentation.Feed(state).Resolve(localization);
+        statusText.Foreground = state.Phase switch
+        {
+            RemoteFeedPhase.Live => LeserpentTheme.Accent,
+            RemoteFeedPhase.Stale => LeserpentTheme.Destructive,
+            RemoteFeedPhase.Reconnecting => LeserpentTheme.Primary,
+            _ => LeserpentTheme.Muted,
+        };
+        AutomationProperties.SetName(
+            statusText,
+            DesktopRemoteShellCatalogs.Format(
+                localization,
+                "a11y.status",
+                statusText.Text));
+        revisionText.Text = DesktopRemotePresentation.Revision(state).Resolve(localization);
+        reconnectButton.IsEnabled = state.Phase is RemoteFeedPhase.Stale
+            or RemoteFeedPhase.Stopped;
     }
 
     internal string? RequestRuntimeWorkspace(string runtimeId, ulong topologyRevision)
@@ -538,7 +698,7 @@ internal sealed class RemoteMainWindow : Window
                 decision.Disposition == RemoteWorkspaceLaunchDisposition.RejectUnavailable))
         {
             SetMutationStatus(
-                "Pending workspaces were not opened because no authoritative daemon snapshot is available",
+                DesktopRemoteText.Operation("status.pending_unavailable"),
                 LeserpentTheme.Destructive);
             return;
         }
@@ -553,7 +713,9 @@ internal sealed class RemoteMainWindow : Window
             if (decision.Disposition == RemoteWorkspaceLaunchDisposition.RejectRemoved)
             {
                 SetMutationStatus(
-                    $"Workspace not opened: {SafeDisplay(decision.RuntimeId)} is absent from the authoritative topology",
+                    DesktopRemoteText.Operation(
+                        "status.workspace_removed",
+                        SafeDisplay(decision.RuntimeId)),
                     LeserpentTheme.Destructive);
             }
         }
@@ -573,7 +735,9 @@ internal sealed class RemoteMainWindow : Window
                 return null;
             case RemoteWorkspaceLaunchDisposition.Wait:
                 SetMutationStatus(
-                    $"Waiting for an authoritative daemon snapshot before opening {SafeDisplay(decision.RuntimeId)}...",
+                    DesktopRemoteText.Operation(
+                        "status.workspace_waiting",
+                        SafeDisplay(decision.RuntimeId)),
                     LeserpentTheme.Primary);
                 return null;
             case RemoteWorkspaceLaunchDisposition.RejectInvalidRuntimeId:
@@ -657,12 +821,15 @@ internal sealed class RemoteMainWindow : Window
             runtimeFilterBox.Text);
         renderer.Mount(projection.Document);
         UpdateMutationAvailability();
-        runtimeCountText.Text = projection.VisibleRuntimeCount == projection.TotalRuntimeCount
-            ? $"{projection.TotalRuntimeCount} runtimes"
-            : $"{projection.VisibleRuntimeCount} of {projection.TotalRuntimeCount}";
+        runtimeCountText.Text = DesktopRemotePresentation.RuntimeCount(
+            projection.VisibleRuntimeCount,
+            projection.TotalRuntimeCount).Resolve(localization);
         AutomationProperties.SetName(
             runtimeCountText,
-            $"Showing {projection.VisibleRuntimeCount} of {projection.TotalRuntimeCount} remote runtimes");
+            DesktopRemotePresentation.RuntimeCount(
+                projection.VisibleRuntimeCount,
+                projection.TotalRuntimeCount,
+                automationName: true).Resolve(localization));
     }
 
     private void RequestReconnect() => ObserveUiOperation(RequestReconnectAsync());
@@ -687,13 +854,20 @@ internal sealed class RemoteMainWindow : Window
 
     private void ApplyAuthorityHealth(RemoteAuthorityHealthState state)
     {
-        authorityHealthText.Text = state.Label;
+        currentAuthorityHealthState = state;
+        authorityHealthText.Text = DesktopRemotePresentation.AuthorityHealth(state)
+            .Resolve(localization);
         authorityHealthText.Foreground = state.RequiresAttention
             ? LeserpentTheme.Destructive
             : state.Phase == RemoteAuthorityHealthPhase.Ready
                 ? LeserpentTheme.Accent
                 : LeserpentTheme.Muted;
-        AutomationProperties.SetName(authorityHealthText, state.AutomationName);
+        AutomationProperties.SetName(
+            authorityHealthText,
+            DesktopRemoteShellCatalogs.Format(
+                localization,
+                "a11y.health",
+                authorityHealthText.Text));
         AutomationProperties.SetLiveSetting(
             authorityHealthText,
             state.RequiresAttention
@@ -709,7 +883,9 @@ internal sealed class RemoteMainWindow : Window
             return;
         }
         reconnectButton.IsEnabled = false;
-        SetMutationStatus("Restarting the remote event stream...", LeserpentTheme.Primary);
+        SetMutationStatus(
+            DesktopRemoteText.Operation("status.reconnect_starting"),
+            LeserpentTheme.Primary);
         try
         {
             await eventClient.RestartAsync(lifetime.Token);
@@ -721,7 +897,9 @@ internal sealed class RemoteMainWindow : Window
         catch (InvalidOperationException error)
         {
             SetMutationStatus(
-                $"Reconnect blocked: {SafeDisplay(error.Message)}",
+                DesktopRemoteText.Operation(
+                    "status.reconnect_blocked",
+                    SafeDisplay(error.Message)),
                 LeserpentTheme.Destructive);
             reconnectButton.IsEnabled = currentState.Phase is RemoteFeedPhase.Stale
                 or RemoteFeedPhase.Stopped;
@@ -740,7 +918,10 @@ internal sealed class RemoteMainWindow : Window
         if (!IsActiveActionSource(invocation.Source))
         {
             SetMutationStatus(
-                "Remote action blocked: its workspace is already closed",
+                DesktopRemoteText.Operation(
+                    "status.operation_blocked",
+                    DesktopRemotePresentation.RemoteActionLabel,
+                    DesktopRemoteText.Operation("reason.source_closed")),
                 LeserpentTheme.Destructive);
             return;
         }
@@ -752,19 +933,34 @@ internal sealed class RemoteMainWindow : Window
         if (!resolution.Accepted || resolution.Intent is not { } intent)
         {
             SetMutationStatus(
-                $"Remote action blocked: {resolution.Reason}",
+                DesktopRemoteText.Operation(
+                    "status.operation_blocked",
+                    DesktopRemotePresentation.RemoteActionLabel,
+                    resolution.Reason is null
+                        ? DesktopRemoteText.Shell("unavailable_value")
+                        : SafeDisplay(resolution.Reason)),
                 LeserpentTheme.Destructive);
             return;
         }
         var runtime = intent.Runtime;
         if (intent.Kind == ActionKind.RuntimeInspect)
         {
-            var workspaceError = RequestRuntimeWorkspace(
+            var workspaceDecision = workspaceLaunch.Request(
                 runtime.Id,
-                currentState.SnapshotRevision ?? runtime.Revision);
+                currentState.SnapshotRevision ?? runtime.Revision,
+                currentState,
+                workspaceWindows.Keys);
+            var workspaceError = ApplyWorkspaceLaunchDecision(workspaceDecision);
             if (workspaceError is not null)
             {
-                SetMutationStatus(workspaceError, LeserpentTheme.Destructive);
+                SetMutationStatus(
+                    DesktopRemoteText.Operation(
+                        "status.operation_blocked",
+                        DesktopRemotePresentation.WorkspaceLabel,
+                        DesktopRemotePresentation.WorkspaceReason(
+                            workspaceDecision.Disposition,
+                            MaxOpenWorkspaces)),
+                    LeserpentTheme.Destructive);
             }
             return;
         }
@@ -777,7 +973,10 @@ internal sealed class RemoteMainWindow : Window
             ActionKind.RuntimeRefresh or ActionKind.RuntimeCapabilitiesRefresh))
         {
             SetMutationStatus(
-                "Remote action blocked: unsupported typed action",
+                DesktopRemoteText.Operation(
+                    "status.operation_blocked",
+                    DesktopRemotePresentation.RemoteActionLabel,
+                    DesktopRemoteText.Operation("reason.unsupported_action")),
                 LeserpentTheme.Destructive);
             return;
         }
@@ -793,7 +992,13 @@ internal sealed class RemoteMainWindow : Window
         if (!admission.Accepted || admission.Operation is not { } operation)
         {
             SetMutationStatus(
-                $"Refresh blocked: {RemoteMutationCoordinator.DescribeFailure(admission.Failure)}",
+                DesktopRemoteText.Operation(
+                    "status.operation_blocked",
+                    DesktopRemotePresentation.MutationLabel(
+                        refreshCapabilities
+                            ? RemoteMutationKind.CapabilityRefresh
+                            : RemoteMutationKind.Refresh),
+                    DesktopRemotePresentation.AdmissionReason(admission.Failure)),
                 LeserpentTheme.Destructive);
             return;
         }
@@ -818,14 +1023,19 @@ internal sealed class RemoteMainWindow : Window
         {
             UpdateMutationAvailability();
             SetMutationStatus(
-                $"Refresh blocked: {RemoteMutationCoordinator.DescribeFailure(confirmation.Failure)} during confirmation",
+                DesktopRemoteText.Operation(
+                    "status.confirmation_blocked",
+                    DesktopRemotePresentation.MutationLabel(operation.Request.Kind),
+                    DesktopRemotePresentation.AdmissionReason(confirmation.Failure)),
                 LeserpentTheme.Destructive);
             return;
         }
         SetMutationStatus(
-            refreshCapabilities
-                ? $"Discovering capabilities for {SafeDisplay(runtime.Name)} at revision {runtime.Revision}..."
-                : $"Refreshing {SafeDisplay(runtime.Name)} at revision {runtime.Revision}...",
+            DesktopRemoteText.Operation(
+                "status.operation_starting",
+                DesktopRemotePresentation.MutationLabel(operation.Request.Kind),
+                SafeDisplay(runtime.Name),
+                runtime.Revision),
             LeserpentTheme.Primary);
         try
         {
@@ -842,9 +1052,11 @@ internal sealed class RemoteMainWindow : Window
                     lifetime.Token);
             mutationCoordinator.Accept(operation, result, currentState);
             SetMutationStatus(
-                refreshCapabilities
-                    ? $"Capability discovery requested for {SafeDisplay(runtime.Name)} at revision {result.Revision}"
-                    : $"Refresh applied to {SafeDisplay(runtime.Name)} at revision {result.Revision}",
+                DesktopRemoteText.Operation(
+                    "status.operation_accepted",
+                    DesktopRemotePresentation.MutationLabel(operation.Request.Kind),
+                    SafeDisplay(runtime.Name),
+                    result.Revision),
                 LeserpentTheme.Accent);
         }
         catch (Exception error)
@@ -865,7 +1077,10 @@ internal sealed class RemoteMainWindow : Window
         if (actionIntent.Form is not { } form)
         {
             SetMutationStatus(
-                "Deployment blocked: typed action has no form",
+                DesktopRemoteText.Operation(
+                    "status.operation_blocked",
+                    DesktopRemotePresentation.MutationLabel(RemoteMutationKind.Deployment),
+                    DesktopRemoteText.Operation("reason.missing_form")),
                 LeserpentTheme.Destructive);
             return;
         }
@@ -880,15 +1095,25 @@ internal sealed class RemoteMainWindow : Window
         if (!admission.Accepted || admission.Operation is not { } operation)
         {
             SetMutationStatus(
-                $"Deployment blocked: {RemoteMutationCoordinator.DescribeFailure(admission.Failure)}",
+                DesktopRemoteText.Operation(
+                    "status.operation_blocked",
+                    DesktopRemotePresentation.MutationLabel(RemoteMutationKind.Deployment),
+                    DesktopRemotePresentation.AdmissionReason(admission.Failure)),
                 LeserpentTheme.Destructive);
             return;
         }
         UpdateMutationAvailability();
         var formWindow = new ParameterizedActionFormWindow(
             form,
-            $"{SafeDisplay(runtime.Name)}\nID: {runtime.Id}\nExpected revision: {runtime.Revision}",
-            "This submits an authenticated, revision-checked deployment and is not retried automatically.",
+            DesktopRemoteOperationCatalogs.Format(
+                localization,
+                "deployment.context",
+                SafeDisplay(runtime.Name),
+                SafeDisplay(runtime.Id),
+                runtime.Revision),
+            DesktopRemoteOperationCatalogs.Resolve(
+                localization,
+                "deployment.warning"),
             localization,
             (values, cancellationToken) =>
             {
@@ -940,7 +1165,10 @@ internal sealed class RemoteMainWindow : Window
             mutationCoordinator.Cancel(operation);
             UpdateMutationAvailability();
             SetMutationStatus(
-                $"Deployment blocked: {SafeDisplay(error.Message)}",
+                DesktopRemoteText.Operation(
+                    "status.operation_blocked",
+                    DesktopRemotePresentation.MutationLabel(RemoteMutationKind.Deployment),
+                    SafeDisplay(error.Message)),
                 LeserpentTheme.Destructive);
             return;
         }
@@ -949,7 +1177,10 @@ internal sealed class RemoteMainWindow : Window
             mutationCoordinator.Cancel(operation);
             UpdateMutationAvailability();
             SetMutationStatus(
-                "Deployment blocked: its workspace was closed before submission",
+                DesktopRemoteText.Operation(
+                    "status.operation_blocked",
+                    DesktopRemotePresentation.MutationLabel(RemoteMutationKind.Deployment),
+                    DesktopRemoteText.Operation("reason.source_closed")),
                 LeserpentTheme.Destructive);
             return;
         }
@@ -965,7 +1196,12 @@ internal sealed class RemoteMainWindow : Window
             mutationCoordinator.Cancel(operation);
             UpdateMutationAvailability();
             SetMutationStatus(
-                $"Deployment blocked: {submitted.Reason}",
+                DesktopRemoteText.Operation(
+                    "status.operation_blocked",
+                    DesktopRemotePresentation.MutationLabel(RemoteMutationKind.Deployment),
+                    submitted.Reason is null
+                        ? DesktopRemoteText.Shell("unavailable_value")
+                        : SafeDisplay(submitted.Reason)),
                 LeserpentTheme.Destructive);
             return;
         }
@@ -975,12 +1211,19 @@ internal sealed class RemoteMainWindow : Window
         {
             UpdateMutationAvailability();
             SetMutationStatus(
-                $"Deployment blocked: {RemoteMutationCoordinator.DescribeFailure(confirmation.Failure)} during confirmation",
+                DesktopRemoteText.Operation(
+                    "status.confirmation_blocked",
+                    DesktopRemotePresentation.MutationLabel(RemoteMutationKind.Deployment),
+                    DesktopRemotePresentation.AdmissionReason(confirmation.Failure)),
                 LeserpentTheme.Destructive);
             return;
         }
         SetMutationStatus(
-            $"Deploying {SafeDisplay(pipelineKind)} to {SafeDisplay(runtime.Name)} at revision {runtime.Revision}...",
+            DesktopRemoteText.Operation(
+                "status.operation_starting",
+                DesktopRemotePresentation.MutationLabel(RemoteMutationKind.Deployment),
+                SafeDisplay(runtime.Name),
+                runtime.Revision),
             LeserpentTheme.Primary);
         try
         {
@@ -993,7 +1236,11 @@ internal sealed class RemoteMainWindow : Window
                 lifetime.Token);
             mutationCoordinator.Accept(operation, result, currentState);
             SetMutationStatus(
-                $"Deployment accepted for {SafeDisplay(runtime.Name)} at revision {result.Revision}",
+                DesktopRemoteText.Operation(
+                    "status.operation_accepted",
+                    DesktopRemotePresentation.MutationLabel(RemoteMutationKind.Deployment),
+                    SafeDisplay(runtime.Name),
+                    result.Revision),
                 LeserpentTheme.Accent);
         }
         catch (Exception error)
@@ -1043,9 +1290,19 @@ internal sealed class RemoteMainWindow : Window
             lifetime.IsCancellationRequested);
         if (!isClosed
             && failure.RequiresOperatorAttention
-            && failure.OperatorMessage is { } message)
+            && failure.Kind is not (
+                RemoteMutationFailureKind.OwnerCancelled
+                or RemoteMutationFailureKind.StaleOperation))
         {
-            SetMutationStatus(message, LeserpentTheme.Destructive);
+            var unavailable = DesktopRemoteShellCatalogs.Resolve(
+                localization,
+                "unavailable_value");
+            SetMutationStatus(
+                DesktopRemotePresentation.MutationFailure(
+                    failure,
+                    DesktopRemotePresentation.MutationLabel(operation.Request.Kind),
+                    unavailable),
+                LeserpentTheme.Destructive);
         }
     }
 
@@ -1066,7 +1323,10 @@ internal sealed class RemoteMainWindow : Window
             || currentState.SnapshotGeneration == 0)
         {
             SetMutationStatus(
-                "Inspect blocked: remote state is not live",
+                DesktopRemoteText.Operation(
+                    "status.operation_blocked",
+                    DesktopRemotePresentation.WorkspaceLabel,
+                    DesktopRemoteText.Operation("reason.not_live")),
                 LeserpentTheme.Destructive);
             return;
         }
@@ -1078,7 +1338,12 @@ internal sealed class RemoteMainWindow : Window
         if (workspaceWindows.Count >= MaxOpenWorkspaces)
         {
             SetMutationStatus(
-                $"Inspect blocked: close one of the {MaxOpenWorkspaces} open workspaces first",
+                DesktopRemoteText.Operation(
+                    "status.operation_blocked",
+                    DesktopRemotePresentation.WorkspaceLabel,
+                    DesktopRemoteText.Operation(
+                        "reason.workspace_capacity",
+                        MaxOpenWorkspaces)),
                 LeserpentTheme.Destructive);
             return;
         }
@@ -1133,7 +1398,9 @@ internal sealed class RemoteMainWindow : Window
             mutationCoordinator.AbandonActive(currentState);
             UpdateMutationAvailability();
             SetMutationStatus(
-                $"Remote operation failed safely: {SafeDisplay(error.Message)}",
+                DesktopRemoteText.Operation(
+                    "status.operation_failed",
+                    SafeDisplay(error.Message)),
                 LeserpentTheme.Destructive);
         }
         catch (Exception) when (isClosed)
@@ -1174,28 +1441,48 @@ internal sealed class RemoteMainWindow : Window
         }
     }
 
-    private void SetMutationStatus(string text, IBrush foreground)
+    private void SetMutationStatus(DesktopRemoteText notice, IBrush foreground)
     {
+        mutationNotice = notice;
+        mutationNoticeForeground = foreground;
+        ApplyMutationStatus();
+        mutationStatusBar.IsVisible = true;
+    }
+
+    private void ApplyMutationStatus()
+    {
+        if (mutationNotice is null)
+        {
+            AutomationProperties.SetName(
+                mutationStatusText,
+                localization.Text(DesktopTextKey.RemoteOperationStatus));
+            return;
+        }
+        var text = mutationNotice.Resolve(localization);
         mutationStatusText.Text = text;
+        var foreground = mutationNoticeForeground;
         mutationStatusText.Foreground = foreground;
         AutomationProperties.SetName(
             mutationStatusText,
-            $"Remote operation status: {text}");
+            DesktopRemoteShellCatalogs.Format(
+                localization,
+                "a11y.operation",
+                text));
         AutomationProperties.SetLiveSetting(
             mutationStatusText,
             ReferenceEquals(foreground, LeserpentTheme.Destructive)
                 ? AutomationLiveSetting.Assertive
                 : AutomationLiveSetting.Polite);
-        mutationStatusBar.IsVisible = true;
     }
 
     private void DismissMutationStatus()
     {
         mutationStatusBar.IsVisible = false;
         mutationStatusText.Text = string.Empty;
+        mutationNotice = null;
         AutomationProperties.SetName(
             mutationStatusText,
-            "Remote operation status");
+            localization.Text(DesktopTextKey.RemoteOperationStatus));
         AutomationProperties.SetLiveSetting(
             mutationStatusText,
             AutomationLiveSetting.Off);
@@ -1220,7 +1507,6 @@ internal sealed class RuntimeRefreshConfirmationWindow : Window
         DesktopLocalization localization,
         Func<CancellationToken, Task<string>> exportLeselang)
     {
-        var operation = refreshCapabilities ? "capability discovery" : "runtime refresh";
         var action = localization.Resolve(new LocalizedText
         {
             Key = refreshCapabilities
@@ -1228,7 +1514,11 @@ internal sealed class RuntimeRefreshConfirmationWindow : Window
                 : "runtime.refresh",
             Fallback = refreshCapabilities ? "Discover capabilities" : "Refresh runtime",
         });
-        Title = $"Confirm remote {operation}";
+        Title = DesktopRemoteOperationCatalogs.Resolve(
+            localization,
+            refreshCapabilities
+                ? "confirm.capabilities.title"
+                : "confirm.refresh.title");
         Width = 480;
         MinWidth = 420;
         SizeToContent = SizeToContent.Height;
@@ -1252,19 +1542,20 @@ internal sealed class RuntimeRefreshConfirmationWindow : Window
         };
         var leselang = new LeselangExportControl(
             refreshCapabilities ? "runtime-capabilities-refresh" : "runtime-refresh",
-            exportLeselang);
+            exportLeselang,
+            localization);
         AutomationProperties.SetAutomationId(
             cancel,
             refreshCapabilities
                 ? "runtime-capabilities-refresh-cancel"
                 : "runtime-refresh-cancel");
-        AutomationProperties.SetName(cancel, $"Cancel {operation}");
+        AutomationProperties.SetName(cancel, localization.Text(DesktopTextKey.Cancel));
         AutomationProperties.SetAutomationId(
             confirm,
             refreshCapabilities
                 ? "runtime-capabilities-refresh-confirm"
                 : "runtime-refresh-confirm");
-        AutomationProperties.SetName(confirm, $"Confirm {operation}");
+        AutomationProperties.SetName(confirm, action);
         cancel.Click += (_, _) => Close(false);
         confirm.Click += (_, _) => Close(true);
         Opened += (_, _) => cancel.Focus();
@@ -1277,10 +1568,11 @@ internal sealed class RuntimeRefreshConfirmationWindow : Window
             }
         };
 
-        var buttons = new StackPanel
+        var buttons = new WrapPanel
         {
             Orientation = Avalonia.Layout.Orientation.Horizontal,
-            Spacing = 12,
+            ItemWidth = double.NaN,
+            ItemHeight = double.NaN,
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
             Children = { cancel, confirm },
         };
@@ -1295,15 +1587,24 @@ internal sealed class RuntimeRefreshConfirmationWindow : Window
                     new TextBlock
                     {
                         Text = refreshCapabilities
-                            ? "Discover this runtime's capabilities?"
-                            : "Refresh this remote runtime?",
+                            ? DesktopRemoteOperationCatalogs.Resolve(
+                                localization,
+                                "confirm.capabilities.heading")
+                            : DesktopRemoteOperationCatalogs.Resolve(
+                                localization,
+                                "confirm.refresh.heading"),
                         Foreground = LeserpentTheme.Primary,
                         FontSize = 22,
                         FontWeight = FontWeight.Bold,
                     },
                     new TextBlock
                     {
-                        Text = $"{Safe(runtime.Name)}\nID: {runtime.Id}\nExpected revision: {runtime.Revision}",
+                        Text = DesktopRemoteOperationCatalogs.Format(
+                            localization,
+                            "confirm.context",
+                            Safe(runtime.Name),
+                            Safe(runtime.Id),
+                            runtime.Revision),
                         Foreground = LeserpentTheme.Body,
                         FontSize = 14,
                         LineHeight = 22,
@@ -1311,7 +1612,9 @@ internal sealed class RuntimeRefreshConfirmationWindow : Window
                     },
                     new TextBlock
                     {
-                        Text = "This changes remote state. The request is revision-checked and is not retried automatically.",
+                        Text = DesktopRemoteOperationCatalogs.Resolve(
+                            localization,
+                            "confirm.warning"),
                         Foreground = LeserpentTheme.Muted,
                         FontSize = 13,
                         TextWrapping = TextWrapping.Wrap,
@@ -1321,6 +1624,27 @@ internal sealed class RuntimeRefreshConfirmationWindow : Window
                 },
             },
         };
+    }
+
+    public void VerifyLayoutEnvelope()
+    {
+        if (Content is not Control root)
+        {
+            throw new InvalidDataException(
+                "runtime refresh confirmation has no control root");
+        }
+        root.Measure(new Size(Width, 900));
+        var desired = root.DesiredSize;
+        if (!double.IsFinite(desired.Width)
+            || !double.IsFinite(desired.Height)
+            || desired.Width <= 0
+            || desired.Height <= 0
+            || desired.Width > Width
+            || desired.Height > 900)
+        {
+            throw new InvalidDataException(
+                "runtime refresh confirmation exceeded its layout envelope");
+        }
     }
 
     private static string Safe(string value) => new(value
@@ -1412,7 +1736,9 @@ internal sealed class ParameterizedActionFormWindow : Window
         AutomationProperties.SetName(cancel, localization.Text(DesktopTextKey.Cancel));
         AutomationProperties.SetAutomationId(submit, "parameter-form-submit");
         AutomationProperties.SetName(submit, localization.Resolve(form.SubmitLabel));
-        var leselang = new LeselangExportControl("parameter-form");
+        var leselang = new LeselangExportControl(
+            "parameter-form",
+            localization: localization);
 
         IReadOnlyDictionary<string, string> Values() => inputs
             .Where(entry => !string.IsNullOrEmpty(entry.Value.Input.Text))
@@ -1428,7 +1754,7 @@ internal sealed class ParameterizedActionFormWindow : Window
             submit.IsEnabled = invalid.Field is null;
             validation.Text = invalid.Field is null
                 ? string.Empty
-                : $"{localization.Resolve(invalid.Field.Label)}: {ValidationMessage(invalid.Field)}";
+                : $"{localization.Resolve(invalid.Field.Label)}: {ValidationMessage(invalid.Field, localization)}";
             leselang.Update(invalid.Field is null
                 ? cancellationToken => exportLeselang(Values(), cancellationToken)
                 : null);
@@ -1449,10 +1775,11 @@ internal sealed class ParameterizedActionFormWindow : Window
             }
         };
 
-        var buttons = new StackPanel
+        var buttons = new WrapPanel
         {
             Orientation = Avalonia.Layout.Orientation.Horizontal,
-            Spacing = 12,
+            ItemWidth = double.NaN,
+            ItemHeight = double.NaN,
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
             Children = { cancel, submit },
         };
@@ -1496,6 +1823,27 @@ internal sealed class ParameterizedActionFormWindow : Window
         Validate();
     }
 
+    public void VerifyLayoutEnvelope()
+    {
+        if (Content is not Control root)
+        {
+            throw new InvalidDataException(
+                "parameterized remote form has no control root");
+        }
+        root.Measure(new Size(Width, 1200));
+        var desired = root.DesiredSize;
+        if (!double.IsFinite(desired.Width)
+            || !double.IsFinite(desired.Height)
+            || desired.Width <= 0
+            || desired.Height <= 0
+            || desired.Width > Width
+            || desired.Height > 1200)
+        {
+            throw new InvalidDataException(
+                "parameterized remote form exceeded its layout envelope");
+        }
+    }
+
     private static bool ValidValue(string value, UiFormField field)
     {
         if ((field.Required && value.Length == 0) || value.Length > field.MaxLength)
@@ -1513,13 +1861,17 @@ internal sealed class ParameterizedActionFormWindow : Window
         };
     }
 
-    private static string ValidationMessage(UiFormField field) => field.InputKind switch
+    private static string ValidationMessage(
+        UiFormField field,
+        DesktopLocalization localization) => field.InputKind switch
     {
         UiFormInputKind.PathToken =>
-            "use only letters, digits, '.', '/', '_' and '-' within the declared limit",
+            DesktopRemoteOperationCatalogs.Resolve(localization, "validation.path"),
         UiFormInputKind.TrimmedText =>
-            "use trimmed text without control characters within the declared limit",
-        _ => "unsupported input constraint",
+            DesktopRemoteOperationCatalogs.Resolve(localization, "validation.trimmed"),
+        _ => DesktopRemoteOperationCatalogs.Resolve(
+            localization,
+            "validation.unsupported"),
     };
 
     private static string Safe(string value) => new(value

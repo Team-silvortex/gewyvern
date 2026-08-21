@@ -1075,11 +1075,93 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(program.contains("builtin_shell_catalogs=8"));
     assert!(program.contains("builtin_semantic_catalogs=7"));
     assert!(program.contains("semantic_keys=26"));
-    assert!(program.contains("builtin_semantic_keys=275"));
+    assert!(program.contains("builtin_semantic_keys=388"));
+    assert!(program.contains("builtin_remote_shell_catalogs=7"));
+    assert!(program.contains("remote_shell_semantic_keys=56"));
+    assert!(program.contains("builtin_remote_operation_catalogs=7"));
+    assert!(program.contains("remote_operation_semantic_keys=57"));
     assert!(program.contains("builtin_daemon_retirement_catalogs=7"));
     assert!(program.contains("builtin_startup_recovery_catalogs=7"));
     assert!(program.contains("builtin_account_catalogs=7"));
     assert!(program.contains("localized_ui_ir=true"));
+}
+
+#[test]
+fn remote_desktop_shell_is_strictly_localized_typed_and_layout_probed() {
+    let shell_catalog =
+        avalonia_source("Leserpent.Avalonia/DesktopRemoteShellCatalogs.cs");
+    let operation_catalog =
+        avalonia_source("Leserpent.Avalonia/DesktopRemoteOperationCatalogs.cs");
+    let presentation =
+        avalonia_source("Leserpent.Avalonia/DesktopRemotePresentation.cs");
+    let window = avalonia_source("Leserpent.Avalonia/RemoteMainWindow.cs");
+    let leselang = avalonia_source("Leserpent.Avalonia/LeselangExportControl.cs");
+    let health =
+        avalonia_source("Leserpent.RemoteClient/RemoteAuthorityHealthCoordinator.cs");
+    let localization = avalonia_source("Leserpent.Avalonia/DesktopLocalization.cs");
+    let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+
+    for marker in [
+        "public const int KeyCount = 56",
+        "SimplifiedChinese",
+        "TraditionalChinese",
+        "Japanese",
+        "Spanish",
+        "German",
+        "French",
+        "Korean",
+        "DesktopDomainCatalogContract.Verify(",
+        "Entries.Length != KeyCount",
+        "Distinct(StringComparer.Ordinal).Count()",
+        "feed.cached_connecting",
+        "health.replay_blocked",
+        "credential.environment.help",
+    ] {
+        assert!(
+            shell_catalog.contains(marker),
+            "remote shell catalog is missing {marker}"
+        );
+    }
+    assert_eq!(shell_catalog.matches("new(\"").count(), 56);
+    for marker in [
+        "public const int KeyCount = 57",
+        "DesktopDomainCatalogContract.Verify(",
+        "status.operation_blocked",
+        "reason.observation_fence",
+        "failure.invalid_response",
+        "confirm.capabilities.heading",
+        "leselang.status.generated",
+    ] {
+        assert!(
+            operation_catalog.contains(marker),
+            "remote operation catalog is missing {marker}"
+        );
+    }
+    assert_eq!(operation_catalog.matches("new(\"").count(), 57);
+    assert!(presentation.contains("public static DesktopRemoteText Feed(RemoteFeedState state)"));
+    assert!(presentation.contains("state.Health is { } health"));
+    assert!(presentation.contains("RemoteMutationAdmissionFailure.ObservationFencePending"));
+    assert!(presentation.contains("RemoteMutationFailureKind.InvalidResponse"));
+    assert!(health.contains("RemoteHealth? Health = null"));
+    assert!(health.contains("presentation.RequiresAttention,\n                    health"));
+    assert!(window.contains("public void VerifyLayoutEnvelope()"));
+    assert!(window.contains("public void ProbeTypedPresentation()"));
+    assert!(window.contains("public void ProbeLocalizedPresentation("));
+    assert!(!window.contains("statusText.Text = state.IsStale"));
+    assert!(!window.contains("authorityHealthText.Text = state.Label"));
+    assert!(window.contains("DesktopRemotePresentation.MutationFailure("));
+    assert!(window.contains("RemoteLayoutDensity.Compact"));
+    assert!(window.contains("RemoteLayoutDensity.Wide"));
+    assert!(leselang.contains("DesktopRemoteOperationCatalogs.Resolve("));
+    assert!(leselang.contains("localization.Changed += OnLocalizationChanged"));
+    assert!(localization.contains("DesktopRemoteShellCatalogs.VerifyContract();"));
+    assert!(localization.contains("DesktopRemoteOperationCatalogs.VerifyContract();"));
+    assert!(app.contains("--verify-remote-shell-controls"));
+    assert!(app.contains("startRemoteClients: false"));
+    assert!(app.contains("localized_dialog_layouts=16"));
+    assert!(app.contains("wide_layout=true"));
+    assert!(app.contains("live_language_reprojection=true"));
+    assert!(app.contains("network_started=false"));
 }
 
 #[test]
@@ -1240,7 +1322,7 @@ fn gewyvern_provisioning_is_authority_scoped_identity_locked_and_bounded() {
     assert!(program.contains("--verify-provisioning-client"));
     assert!(program.contains("builtin_provisioning_catalogs=7"));
     assert!(program.contains("provisioning_semantic_keys=43"));
-    assert!(program.contains("builtin_semantic_keys=275"));
+    assert!(program.contains("builtin_semantic_keys=388"));
     assert!(program.contains("localized_gewyvern_provisioning=true"));
     assert!(promotion.contains("BootstrapPromotionJsonContext.Default"));
     assert!(!promotion.contains("JsonSerializer.Serialize(new\n"));
@@ -1307,7 +1389,7 @@ fn gewyvern_retirement_is_confirmed_provisioning_bound_and_failure_safe() {
     assert!(program.contains("--verify-retirement-client"));
     assert!(program.contains("builtin_retirement_catalogs=7"));
     assert!(program.contains("retirement_semantic_keys=45"));
-    assert!(program.contains("builtin_semantic_keys=275"));
+    assert!(program.contains("builtin_semantic_keys=388"));
     assert!(program.contains("localized_gewyvern_retirement=true"));
 }
 
@@ -1477,6 +1559,8 @@ fn gui_mutations_export_canonical_leselang_without_execution() {
     let exporter = avalonia_source("Leserpent.RemoteClient/RemoteLeselangExport.cs");
     let transport = avalonia_source("Leserpent.RemoteClient/RemoteWireTransport.cs");
     let control = avalonia_source("Leserpent.Avalonia/LeselangExportControl.cs");
+    let catalog =
+        avalonia_source("Leserpent.Avalonia/DesktopRemoteOperationCatalogs.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
 
     assert!(window.contains("leselangClient.ExportRefreshAsync"));
@@ -1496,11 +1580,14 @@ fn gui_mutations_export_canonical_leselang_without_execution() {
     assert!(!exporter.contains("runtime.deploy("));
     assert!(!exporter.contains("RemoteMutationClient(options"));
     assert!(transport.contains("\"v1/leselang-export\""));
-    assert!(control.contains("Copy Leselang"));
-    assert!(control.contains("No operation was executed."));
+    assert!(!control.contains("Content = \"Copy Leselang\""));
+    assert!(control.contains("DesktopRemoteOperationCatalogs.Resolve("));
+    assert!(catalog.contains("\"Copy Leselang\""));
+    assert!(catalog.contains("No operation was executed."));
     assert!(control.contains("SetTextAsync(source)"));
     assert!(control.contains("ExportDebounce"));
-    assert!(control.contains("no local template was substituted"));
+    assert!(control.contains("leselang.status.unavailable"));
+    assert!(catalog.contains("no local template was substituted"));
     assert!(program.contains("--verify-leselang-gui-export"));
     assert!(program.contains("rust_authority=true"));
 }
@@ -1751,7 +1838,7 @@ fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
     assert!(app.contains("live_language_reprojection=true"));
     assert!(program.contains("builtin_connection_catalogs=7"));
     assert!(program.contains("connection_semantic_keys=33"));
-    assert!(program.contains("builtin_semantic_keys=275"));
+    assert!(program.contains("builtin_semantic_keys=388"));
     assert!(window.contains("if (operationInFlight || isClosed)"));
     assert!(health.contains("remote health did not prove a ready protocol-v1 authority"));
     assert!(health.contains("remote health queue counters are inconsistent"));
@@ -1825,7 +1912,7 @@ fn desktop_reverse_deployment_is_strictly_localized_and_operator_data_preserving
     assert!(app.contains("await window.ProbeWorkflowAsync(\"zh-CN\")"));
     assert!(program.contains("builtin_bootstrap_catalogs=7"));
     assert!(program.contains("bootstrap_semantic_keys=46"));
-    assert!(program.contains("builtin_semantic_keys=275"));
+    assert!(program.contains("builtin_semantic_keys=388"));
     assert!(program.contains("localized_reverse_deployment=true"));
 }
 

@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Automation;
@@ -49,6 +51,12 @@ internal sealed class LeserpentApp : Application
             if (desktop.Args is ["--verify-hub-topology"])
             {
                 ConfigureHubTopologyVerification(desktop);
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
+            if (desktop.Args is ["--verify-remote-shell-controls"])
+            {
+                ConfigureRemoteShellVerification(desktop);
                 base.OnFrameworkInitializationCompleted();
                 return;
             }
@@ -569,6 +577,187 @@ internal sealed class LeserpentApp : Application
             }, TimeSpan.FromMilliseconds(150));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
+        desktop.MainWindow = window;
+    }
+
+    private static void ConfigureRemoteShellVerification(
+        IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            $"leserpent-remote-shell-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var certificatePath = Path.Combine(directory, "ca.pem");
+        using (var key = RSA.Create(2048))
+        {
+            var request = new CertificateRequest(
+                "CN=Leserpent Remote Shell Verification CA",
+                key,
+                HashAlgorithmName.SHA256,
+                RSASignaturePadding.Pkcs1);
+            request.CertificateExtensions.Add(
+                new X509BasicConstraintsExtension(true, false, 0, true));
+            request.CertificateExtensions.Add(
+                new X509KeyUsageExtension(
+                    X509KeyUsageFlags.KeyCertSign | X509KeyUsageFlags.CrlSign,
+                    true));
+            request.CertificateExtensions.Add(
+                new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
+            using var certificate = request.CreateSelfSigned(
+                DateTimeOffset.UtcNow.AddMinutes(-1),
+                DateTimeOffset.UtcNow.AddDays(1));
+            File.WriteAllText(certificatePath, certificate.ExportCertificatePem());
+        }
+
+        var options = RemoteClientOptions.Create(
+            "https://remote.example:9443",
+            certificatePath,
+            new string('r', 32),
+            Path.Combine(directory, "snapshot.json"));
+        var localization = DesktopLocalization.ForVerification();
+        var window = new RemoteMainWindow(
+            options,
+            RemoteTokenSource.PlatformStore,
+            localization: localization,
+            startRemoteClients: false);
+        RegisterMainWindowLifecycle(desktop, window);
+        window.Opened += async (_, _) =>
+        {
+            try
+            {
+                window.ProbeTypedPresentation();
+                var localizedLayoutCount = 0;
+                var dialogLayoutCount = 0;
+                foreach (var locale in DesktopLocalization.OfficialLocales.Where(
+                    locale => locale.BuiltIn))
+                {
+                    localization.SetPreference(locale.Locale);
+                    await Dispatcher.UIThread.InvokeAsync(
+                        () => { },
+                        DispatcherPriority.Background);
+                    window.ProbeLocalizedPresentation(
+                        DesktopRemoteShellCatalogs.Format(
+                            localization,
+                            "title",
+                            options.Endpoint.Authority),
+                        DesktopRemoteShellCatalogs.Format(
+                            localization,
+                            "feed.live",
+                            42),
+                        DesktopRemoteShellCatalogs.Format(
+                            localization,
+                            "feed.revision",
+                            42),
+                        DesktopRemoteShellCatalogs.Format(
+                            localization,
+                            "health.queue",
+                            3,
+                            16),
+                        DesktopRemotePresentation.Credential(
+                            RemoteTokenSource.PlatformStore).Label.Resolve(localization),
+                        DesktopRemoteOperationCatalogs.Format(
+                            localization,
+                            "status.operation_failed",
+                            "fixture"));
+                    window.VerifyLayoutEnvelope();
+                    localizedLayoutCount++;
+
+                    var runtime = new RemoteRuntimeProjection
+                    {
+                        Id = "runtime-verification",
+                        Name = "Verification runtime",
+                        Revision = 42,
+                        RefreshStatus = RefreshStatus.Ready,
+                        Tags = new RuntimeTags { Environment = "verification" },
+                        Status = new RuntimeStatusSnapshot
+                        {
+                            StatusSource = "verification",
+                        },
+                    };
+                    var confirmation = new RuntimeRefreshConfirmationWindow(
+                        runtime,
+                        refreshCapabilities: locale.Locale != "en",
+                        localization,
+                        _ => Task.FromResult("runtime refresh verification"));
+                    confirmation.VerifyLayoutEnvelope();
+                    confirmation.Close();
+
+                    var form = new UiForm
+                    {
+                        Title = new LocalizedText
+                        {
+                            Key = "runtime.deploy.form.title",
+                            Fallback = "Confirm remote deployment",
+                        },
+                        SubmitLabel = new LocalizedText
+                        {
+                            Key = "runtime.deploy.form.submit",
+                            Fallback = "Deploy pipeline",
+                        },
+                        Fields =
+                        [
+                            new UiFormField
+                            {
+                                Key = "pipeline_kind",
+                                Label = new LocalizedText
+                                {
+                                    Key = "runtime.deploy.form.pipeline_kind",
+                                    Fallback = "Pipeline kind",
+                                },
+                                Placeholder = new LocalizedText
+                                {
+                                    Key = "runtime.deploy.form.pipeline_kind.placeholder",
+                                    Fallback = "http/request",
+                                },
+                                Required = true,
+                                MaxLength = 96,
+                                InputKind = UiFormInputKind.PathToken,
+                            },
+                        ],
+                    };
+                    var parameterized = new ParameterizedActionFormWindow(
+                        form,
+                        DesktopRemoteOperationCatalogs.Format(
+                            localization,
+                            "deployment.context",
+                            runtime.Name,
+                            runtime.Id,
+                            runtime.Revision),
+                        DesktopRemoteOperationCatalogs.Resolve(
+                            localization,
+                            "deployment.warning"),
+                        localization,
+                        (_, _) => Task.FromResult("deployment verification"));
+                    parameterized.VerifyLayoutEnvelope();
+                    parameterized.Close();
+                    dialogLayoutCount += 2;
+                }
+                if (localizedLayoutCount != 8 || dialogLayoutCount != 16)
+                {
+                    throw new InvalidDataException(
+                        "remote shell localized layout coverage drifted");
+                }
+                Console.WriteLine(
+                    "remote shell controls valid: typed_feed=true, typed_health=true, opaque_feed_detail=true, localized_remote_shell_catalogs=7, localized_remote_operation_catalogs=7, shell_semantic_keys=56, operation_semantic_keys=57, localized_layouts=8, compact_layout=true, wide_layout=true, localized_dialog_layouts=16, live_language_reprojection=true, network_started=false");
+                window.Close();
+            }
+            catch (Exception error)
+            {
+                ReportVerificationFailure(desktop, "remote shell controls", error);
+            }
+        };
+        window.Closed += (_, _) =>
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch (IOException)
+            {
+                // Verification cleanup is best-effort after all handles close.
+            }
+            desktop.Shutdown(0);
+        };
         desktop.MainWindow = window;
     }
 

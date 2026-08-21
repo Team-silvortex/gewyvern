@@ -25,7 +25,8 @@ public sealed record RemoteAuthorityHealthState(
     string Label,
     string AutomationName,
     bool IsSaturated,
-    bool RequiresAttention)
+    bool RequiresAttention,
+    RemoteHealth? Health = null)
 {
     public bool IsRefreshEnabled => Phase is
         RemoteAuthorityHealthPhase.Idle
@@ -350,7 +351,8 @@ public sealed class RemoteAuthorityHealthCoordinator : IDisposable
                     presentation.Label,
                     presentation.AutomationName,
                     presentation.IsSaturated,
-                    presentation.RequiresAttention));
+                    presentation.RequiresAttention,
+                    health));
         }
         catch (OperationCanceledException) when (
             operation.Cancellation.IsCancellationRequested)

@@ -5587,8 +5587,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/ui-renderers/desktop-localization")
         .expect("desktop localization contract must remain tracked");
     assert_eq!(desktop_localization.maturity, Maturity::Incubating);
-    assert_eq!(desktop_localization.completion, 95);
-    assert_eq!(desktop_localization.contract.version, "0.8.0");
+    assert_eq!(desktop_localization.completion, 97);
+    assert_eq!(desktop_localization.contract.version, "0.9.0");
     assert_eq!(desktop_localization.contract.stability, ContractStability::Draft);
     for surface in [
         "thirty-official-locale-identifiers",
@@ -5643,6 +5643,19 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "eight-built-in-account-layout-envelopes",
         "live-account-language-reprojection",
         "minimum-hub-layout-envelope",
+        "seven-built-in-remote-shell-specialist-catalogs",
+        "remote-shell-catalog-exact-key-set",
+        "seven-built-in-remote-operation-specialist-catalogs",
+        "remote-operation-catalog-exact-key-set",
+        "typed-remote-feed-presentation",
+        "typed-remote-authority-health-presentation",
+        "localized-remote-credential-source",
+        "localized-remote-mutation-failure-projection",
+        "eight-built-in-remote-shell-layout-envelopes",
+        "sixteen-built-in-remote-dialog-layout-envelopes",
+        "compact-remote-status-overlap-fence",
+        "live-remote-shell-language-reprojection",
+        "offline-remote-shell-layout-verification",
         "zh-cn-complete-learning-center",
         "rtl-native-flow-direction",
     ] {
@@ -5659,10 +5672,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         blocker.id == "desktop-long-tail-language-review"
             && blocker.summary.contains("eight built-in locales")
             && blocker.summary.contains("seven non-English built-ins")
-            && blocker.summary.contains("exact 275-key semantic set")
+            && blocker.summary.contains("exact 388-key semantic set")
             && blocker.summary.contains("daemon retirement")
             && blocker.summary.contains("startup recovery")
-            && blocker.summary.contains("typed presentation status")
+            && blocker.summary.contains("typed facts")
+            && blocker.summary.contains("runtime child-workspace shell")
             && blocker.summary.contains("native-speaker review")
     }));
     assert!(desktop_localization.evidence.iter().any(|evidence| {
@@ -5705,10 +5719,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopDaemonRetirementCatalogs.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopStartupRecoveryCatalogs.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopAccountCatalogs.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRemoteShellCatalogs.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRemoteOperationCatalogs.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRemotePresentation.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/DaemonRetirementWindow.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/StartupErrorWindow.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/SilvortexAccountControl.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/HubWindow.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteMainWindow.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/LeselangExportControl.cs",
+        "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteAuthorityHealthCoordinator.cs",
     ] {
         assert!(desktop_localization.evidence.iter().any(|evidence| {
             evidence.path == path && evidence.state == EvidenceState::Present

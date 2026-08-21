@@ -2405,12 +2405,12 @@
       "feature": "desktop-localization",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 95,
+      "completion": 97,
       "confidence": "high",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-desktop-localization",
-        "version": "0.8.0",
+        "version": "0.9.0",
         "stability": "draft",
         "surfaces": [
           "shared-official-locale-roster",
@@ -2474,6 +2474,19 @@
           "eight-built-in-account-layout-envelopes",
           "live-account-language-reprojection",
           "minimum-hub-layout-envelope",
+          "seven-built-in-remote-shell-specialist-catalogs",
+          "remote-shell-catalog-exact-key-set",
+          "seven-built-in-remote-operation-specialist-catalogs",
+          "remote-operation-catalog-exact-key-set",
+          "typed-remote-feed-presentation",
+          "typed-remote-authority-health-presentation",
+          "localized-remote-credential-source",
+          "localized-remote-mutation-failure-projection",
+          "eight-built-in-remote-shell-layout-envelopes",
+          "sixteen-built-in-remote-dialog-layout-envelopes",
+          "compact-remote-status-overlap-fence",
+          "live-remote-shell-language-reprojection",
+          "offline-remote-shell-layout-verification",
           "zh-cn-core-native-shell",
           "zh-cn-complete-learning-center",
           "rtl-native-flow-direction",
@@ -2487,7 +2500,7 @@
       "blockers": [
         {
           "id": "desktop-long-tail-language-review",
-          "summary": "All eight built-in locales have complete 67-key native-shell catalogs; all seven non-English built-ins cover the exact 275-key semantic set across core UI-IR, connection, reverse deployment, gewyvern provisioning/retirement, daemon retirement, startup recovery, and account domains. The three new operational domains have native-control, eight-locale layout, and live-reprojection probes, and the account projection uses typed presentation status without translating authentication decisions or raw diagnostics. The six candidate translations still require native-speaker review, while non-Chinese tutorial content, remaining Hub and remote-shell domains, and the 22 official core-ui packs remain partial."
+          "summary": "All eight built-in locales have complete 67-key native-shell catalogs; all seven non-English built-ins cover the exact 388-key semantic set across core UI-IR, connection, reverse deployment, gewyvern provisioning/retirement, daemon retirement, startup recovery, account, remote shell, remote operation, and Leselang export domains. Remote feed, authority-health, mutation-failure, and account projection use typed facts while operator identities and bounded diagnostics remain opaque. The six candidate translations still require native-speaker review, while non-Chinese tutorial content, remaining Hub dynamic cards, the runtime child-workspace shell, and the 22 official core-ui packs remain partial."
         }
       ],
       "consumers": ["desktop-operators", "leselang-ui-adapters"],
@@ -2503,6 +2516,9 @@
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopDaemonRetirementCatalogs.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopStartupRecoveryCatalogs.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopAccountCatalogs.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRemoteShellCatalogs.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRemoteOperationCatalogs.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRemotePresentation.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopConnectionWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopForgetConnectionWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/BootstrapDeploymentWindow.cs", "state": "present" },
@@ -2512,6 +2528,9 @@
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/StartupErrorWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/SilvortexAccountControl.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/HubWindow.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteMainWindow.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LeselangExportControl.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteAuthorityHealthCoordinator.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguagePreferenceStore.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguageWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopTutorialWindow.cs", "state": "present" },
@@ -2519,7 +2538,7 @@
         { "kind": "documentation", "path": "apps/leserpent-avalonia/README.md", "state": "present" },
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" }
       ],
-      "next_gate": "Review the six candidate built-in catalogs with native speakers, extend strict domain catalogs and real-layout probes through the remaining Hub and remote shells, then cover non-Chinese tutorials and the 22 official core-ui packs."
+      "next_gate": "Review the six candidate built-in catalogs with native speakers, extend strict domain catalogs and real-layout probes through the remaining Hub dynamic cards and runtime child-workspace shell, then cover non-Chinese tutorials and the 22 official core-ui packs."
     },
     {
       "id": "leserpent-2/remote-console/remote-mobile-console",
