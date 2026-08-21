@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "proof": "leserpent-android-api36-emulator",
+  "captured_at_utc": "2026-08-21T06:19:27Z",
+  "scope": "build-package-emulator-runtime-layout-shared-ui-document",
+  "host": {
+    "platform": "macos-arm64",
+    "os_version": "26.5.2",
+    "build": "25F84"
+  },
+  "toolchain": {
+    "dotnet_sdk": "10.0.201",
+    "android_workload_manifest": "36.1.2/10.0.100",
+    "android_workload_source_sdk": "10.0.200",
+    "android_compile_sdk": 36,
+    "android_build_tools": "36.0.0",
+    "java": "Microsoft OpenJDK 17.0.14",
+    "emulator": "37.1.11.0"
+  },
+  "package": {
+    "application_id": "org.gewyvern.leserpent",
+    "version": "1.15.0",
+    "minimum_api": 23,
+    "target_api": 36,
+    "runtime_identifiers": [
+      "android-arm64",
+      "android-x64"
+    ],
+    "release_aot": true,
+    "brand_icon": "res/mipmap/leserpent_icon.png",
+    "release_apk": {
+      "bytes": 13051888,
+      "sha256": "f3deee32499447a7e6f6fb71332614adae8c32007e04956fb4341aacec581981",
+      "archive_valid": true,
+      "signature_schemes": [
+        "v1",
+        "v2",
+        "v3"
+      ]
+    },
+    "release_aab": {
+      "bytes": 13050638,
+      "sha256": "6cb3c307ad8db811047c86f712f577b29d431d437590e57dd74a3461723be4e9",
+      "archive_valid": true,
+      "aot_abis": [
+        "arm64-v8a",
+        "x86_64"
+      ]
+    },
+    "signing_identity": "Android Debug",
+    "production_signed": false
+  },
+  "emulator_runtime": {
+    "avd": "leserpent_api36",
+    "image": "system-images;android-36;default;arm64-v8a",
+    "model": "Android SDK built for arm64",
+    "api": 36,
+    "abi": "arm64-v8a",
+    "release_cold_start_ms": 312,
+    "release_hot_resume_ms": 38,
+    "foreground_process_stable": true,
+    "fatal_log_entries": 0
+  },
+  "native_ui_document": {
+    "renderer_neutral_projection": true,
+    "mounted_on_first_render": true,
+    "fleet_heading": "Remote runtimes",
+    "empty_projection": "No runtime projection available.",
+    "short_landscape_visible_after_setup_collapse": true,
+    "host_conformance": {
+      "immutable_binding": true,
+      "parameterized_form_event_routing": true,
+      "typed_workspace_query": true,
+      "typed_deployment": true,
+      "operation_generation_fence": true
+    }
+  },
+  "layout_matrix": [
+    {
+      "fixture": "compact-cutout",
+      "pixels": "1080x2400",
+      "density_dpi": 420,
+      "font_scale": 1.0,
+      "width_class": "compact",
+      "two_pane": false,
+      "display_cutout_top_px": 136,
+      "controls_visible": true,
+      "overlap_detected": false
+    },
+    {
+      "fixture": "medium",
+      "pixels": "1200x1800",
+      "density_dpi": 240,
+      "font_scale": 1.0,
+      "width_class": "medium",
+      "two_pane": false,
+      "controls_visible": true,
+      "overlap_detected": false
+    },
+    {
+      "fixture": "expanded",
+      "pixels": "1600x2000",
+      "density_dpi": 240,
+      "font_scale": 1.0,
+      "width_class": "expanded",
+      "two_pane": true,
+      "controls_visible": true,
+      "overlap_detected": false
+    },
+    {
+      "fixture": "short-landscape",
+      "pixels": "1600x900",
+      "density_dpi": 320,
+      "font_scale": 1.0,
+      "width_class": "medium",
+      "two_pane": false,
+      "controls_visible": true,
+      "overlap_detected": false
+    },
+    {
+      "fixture": "large-font",
+      "pixels": "1080x2400",
+      "density_dpi": 420,
+      "font_scale": 1.5,
+      "width_class": "compact",
+      "two_pane": false,
+      "controls_visible": true,
+      "overlap_detected": false
+    }
+  ],
+  "ime": {
+    "input_shown": true,
+    "focused_control": "HTTPS daemon authority",
+    "primary_action_visible_above_ime": true,
+    "structural_overlap_detected": false
+  },
+  "security": {
+    "release_flag_secure": true,
+    "release_screen_capture_blocked": true,
+    "ui_capture_debug_only": true,
+    "release_ui_capture_rejected_by_build": true,
+    "keystore_adapter_packaged": true,
+    "operator_error_allowlist": true
+  },
+  "checks": [
+    "debug-and-release-zero-warning-build",
+    "host-rid-excluded-from-android-release",
+    "dual-abi-release-aot",
+    "release-apk-independent-install",
+    "release-aab-archive-integrity",
+    "brand-icon-packaged",
+    "cold-start-and-hot-resume",
+    "compact-medium-expanded-layout",
+    "short-landscape-single-pane-fallback",
+    "large-font-single-column-fallback",
+    "renderer-neutral-native-controls",
+    "shared-ui-document-first-render",
+    "immutable-mobile-ui-document-binding",
+    "native-parameterized-form-event-routing",
+    "mobile-operation-generation-fence",
+    "operator-error-allowlist",
+    "cutout-safe-area",
+    "ime-primary-action-visibility",
+    "release-screen-capture-protection"
+  ],
+  "remaining": [
+    "production-android-signing",
+    "physical-device-safe-area-font-scale",
+    "physical-device-keystore-tls",
+    "ios-entry-and-device-proof"
+  ],
+  "result": "passed"
+}

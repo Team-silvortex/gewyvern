@@ -169,6 +169,69 @@ try
         && coordinatorFactory.Tokens.SequenceEqual([firstToken, secondToken])
         && applicationStates.Any(state => state.Phase == MobileApplicationPhase.Inactive),
         "application reconfiguration did not replace endpoint-bound ownership");
+
+    MobileUiDocumentBinding.VerifyContract();
+    var currentFeed = coordinator.State.Remote?.Feed
+        ?? throw new InvalidDataException("mobile application lost its remote feed");
+    var fleetBinding = MobileUiDocumentBinding.Project(
+        RemoteDocumentProjection.Project(currentFeed).Document);
+    var inspectNode = Descendants(fleetBinding.Root).Single(node =>
+        node.ActionKind == ActionKind.RuntimeInspect);
+    var inspect = fleetBinding.ResolveActivation(
+        inspectNode.Id,
+        currentFeed,
+        coordinator.MutationAvailability);
+    Require(inspect is { Accepted: true, Intent.Kind: ActionKind.RuntimeInspect },
+        "mobile native document binding did not admit typed inspect");
+    var workspace = await coordinator.LoadWorkspaceAsync(inspect.Intent!.Runtime.Id);
+    Require(workspace.Runtime.Id == "runtime-a"
+        && coordinatorFactory.Sessions[1].WorkspaceLoadCount == 1
+        && coordinatorFactory.Sessions[1].Principals.SequenceEqual(["leserpent-mobile"]),
+        "mobile workspace query did not stay inside the foreground session");
+    var workspaceBinding = MobileUiDocumentBinding.Project(
+        RemoteWorkspaceDocumentProjection.Project(workspace));
+    var deployNode = Descendants(workspaceBinding.Root).Single(node =>
+        node.ActionKind == ActionKind.RuntimeDeploy);
+    var deployment = workspaceBinding.ResolveSubmission(
+        deployNode.Id,
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["pipeline_kind"] = "http/request",
+            ["target"] = "pid:42",
+        },
+        currentFeed);
+    Require(deployment is
+    {
+        Accepted: true,
+        Intent:
+        {
+            Kind: ActionKind.RuntimeDeploy,
+            PipelineKind: "http/request",
+            Target: "pid:42",
+        },
+    }, "mobile parameterized form event did not resolve to a typed deployment");
+    var mutation = await coordinator.ExecuteMutationAsync(deployment.Intent!);
+    Require(mutation is { RuntimeId: "runtime-a", Revision: 3, Status: "applied" }
+        && coordinatorFactory.Sessions[1].Mutations is
+        [
+        {
+            Intent.Kind: ActionKind.RuntimeDeploy,
+            Intent.PipelineKind: "http/request",
+            Intent.Target: "pid:42",
+            Principal: "leserpent-mobile",
+        },
+        ]
+        && coordinator.MutationAvailability.MutationsEnabled,
+        "mobile typed deployment did not complete and release its observed revision fence");
+
+    var activeSession = coordinatorFactory.Sessions[1];
+    activeSession.DeferNextWorkspace = true;
+    var retiredWorkspace = coordinator.LoadWorkspaceAsync("runtime-a");
+    await coordinator.EnterBackgroundAsync();
+    activeSession.CompleteDeferredWorkspace();
+    await RequireThrowsAsync<MobileRemoteGenerationRetiredException>(
+        () => retiredWorkspace,
+        "workspace result crossed a retired mobile foreground generation");
     await coordinator.DisposeAsync();
     await coordinator.DisposeAsync();
     Require(coordinator.State.Phase == MobileApplicationPhase.Stopped
@@ -183,6 +246,7 @@ try
         "stopped application coordinator accepted reconfiguration");
 
     RemoteWorkspaceLogFilter.VerifyContract();
+    MobileLayoutPolicy.VerifyContract();
     RemoteWorkspaceDiagnosticExport.VerifyContract();
     RemoteWorkspaceLiveRefresh.VerifyContract();
     RemoteWorkspaceLogRefreshPlan.VerifyContract();
@@ -206,8 +270,20 @@ finally
     Directory.Delete(root, recursive: true);
 }
 
-Console.WriteLine("mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true, workspace_policy=true, runtime_search=true, topology_refresh=true, workspace_launch=true, ui_projection=true, mutation_fence=true, mutation_coordination=true, cached_heartbeat_mutation=false, shared_failure_classification=true, stale_failure_ignored=true, bounded_failure_diagnostics=true, typed_ui_action_routing=true, opaque_action_node_ids=true, deployment_submission_source_fence=true, event_dispose_single_flight=true, event_resource_release_once=true, event_restart_identity=true, subscriber_failure_isolated=true, subscriber_failure_count_bounded=true, action_availability=true, authority_health=true, authority_health_coordination=true, health_single_flight=true, health_stop_fence=true");
+Console.WriteLine("mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true, workspace_policy=true, runtime_search=true, topology_refresh=true, workspace_launch=true, ui_projection=true, mobile_ui_document_binding=true, immutable_native_projection=true, native_parameterized_form=true, native_form_event_routing=true, native_workspace_query=true, native_typed_deployment=true, mobile_operation_generation_fence=true, mutation_fence=true, mutation_coordination=true, cached_heartbeat_mutation=false, shared_failure_classification=true, stale_failure_ignored=true, bounded_failure_diagnostics=true, typed_ui_action_routing=true, opaque_action_node_ids=true, deployment_submission_source_fence=true, event_dispose_single_flight=true, event_resource_release_once=true, event_restart_identity=true, subscriber_failure_isolated=true, subscriber_failure_count_bounded=true, action_availability=true, authority_health=true, authority_health_coordination=true, health_single_flight=true, health_stop_fence=true, mobile_layout_policy=true, value_layout_plan=true, width_classes=3, safe_area=true, font_scale_fence=true, minimum_touch_dp=48, expanded_two_pane=true, runtime_columns=2");
 return 0;
+
+static IEnumerable<MobileUiNodeBinding> Descendants(MobileUiNodeBinding node)
+{
+    yield return node;
+    foreach (var child in node.Children)
+    {
+        foreach (var descendant in Descendants(child))
+        {
+            yield return descendant;
+        }
+    }
+}
 
 static RemoteFeedState Live(ulong revision) => new(
     RemoteFeedPhase.Live,
@@ -327,6 +403,11 @@ sealed class FixtureSession(ulong revision, bool failOnStart) : IMobileRemoteSes
 {
     private Action<RemoteFeedState>? stateChanged;
     private readonly List<Action<RemoteFeedState>> captured = [];
+    private TaskCompletionSource<RemoteWorkspaceSnapshot>? deferredWorkspace;
+
+    public sealed record MutationInvocation(
+        RemoteUiActionIntent Intent,
+        string Principal);
 
     public event Action<RemoteFeedState>? StateChanged
     {
@@ -349,6 +430,10 @@ sealed class FixtureSession(ulong revision, bool failOnStart) : IMobileRemoteSes
         true,
         "Showing cached revision 0; connecting");
     public int DisposeCount { get; private set; }
+    public int WorkspaceLoadCount { get; private set; }
+    public bool DeferNextWorkspace { get; set; }
+    public List<string> Principals { get; } = [];
+    public List<MutationInvocation> Mutations { get; } = [];
 
     public void Start()
     {
@@ -362,6 +447,54 @@ sealed class FixtureSession(ulong revision, bool failOnStart) : IMobileRemoteSes
 
     public void EmitCaptured(RemoteFeedState state) => captured.Single().Invoke(state);
 
+    public Task<RemoteWorkspaceSnapshot> LoadWorkspaceAsync(
+        string runtimeId,
+        string principal,
+        CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        if (runtimeId != "runtime-a")
+        {
+            throw new ArgumentException("fixture runtime is invalid", nameof(runtimeId));
+        }
+        WorkspaceLoadCount++;
+        Principals.Add(principal);
+        var workspace = Workspace(State.Runtimes.Single());
+        if (!DeferNextWorkspace)
+        {
+            return Task.FromResult(workspace);
+        }
+        DeferNextWorkspace = false;
+        deferredWorkspace = new TaskCompletionSource<RemoteWorkspaceSnapshot>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        return deferredWorkspace.Task;
+    }
+
+    public Task<RemoteMutationResult> ExecuteMutationAsync(
+        RemoteUiActionIntent intent,
+        string principal,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Mutations.Add(new MutationInvocation(intent, principal));
+        var nextRevision = checked(intent.Runtime.Revision + 1);
+        State = Live(nextRevision);
+        stateChanged?.Invoke(State);
+        return Task.FromResult(new RemoteMutationResult(
+            "mobile-fixture-command",
+            intent.Runtime.Id,
+            nextRevision,
+            "applied"));
+    }
+
+    public void CompleteDeferredWorkspace()
+    {
+        var completion = deferredWorkspace
+            ?? throw new InvalidOperationException("no deferred workspace is pending");
+        deferredWorkspace = null;
+        completion.SetResult(Workspace(Runtime(revision)));
+    }
+
     public ValueTask DisposeAsync()
     {
         DisposeCount++;
@@ -371,8 +504,33 @@ sealed class FixtureSession(ulong revision, bool failOnStart) : IMobileRemoteSes
     private static RemoteFeedState Live(ulong value) => new(
         RemoteFeedPhase.Live,
         value,
-        Array.Empty<RemoteRuntimeProjection>(),
+        [Runtime(value)],
         0,
         false,
-        $"Live at revision {value}");
+        $"Live at revision {value}",
+        value,
+        value);
+
+    private static RemoteRuntimeProjection Runtime(ulong value) => new()
+    {
+        Id = "runtime-a",
+        Name = "Runtime A",
+        Revision = value,
+        Tags = new RuntimeTags { Environment = "test" },
+        Status = new RuntimeStatusSnapshot { StatusSource = "gewyvern" },
+        Capabilities = new RuntimeCapabilitySnapshot
+        {
+            Source = "gewyvern-api",
+            Service = "gewyvern",
+            Version = "1.15.0",
+            AuthenticatedDeployment = true,
+        },
+        CapabilitiesObservedForRevision = value,
+    };
+
+    private static RemoteWorkspaceSnapshot Workspace(RemoteRuntimeProjection runtime) => new(
+        runtime.Revision,
+        runtime,
+        [new RemoteHistoryProjection("fixture-command", runtime.Revision, "applied")],
+        [new RemoteLogProjection(1, "info", "fixture workspace ready")]);
 }

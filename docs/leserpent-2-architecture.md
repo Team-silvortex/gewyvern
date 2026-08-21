@@ -2326,9 +2326,35 @@ fork. `MainActivity` delegates repeated start/stop callbacks to the shared
 foreground session uniqueness, background disconnect, failure state, and
 terminal disposal. Android persists only the canonical endpoint in private
 preferences and a validated public CA in app-private files; tokens remain in
-the Keystore-backed vault. The native shell may project connection and runtime
-state, but mutations must arrive through renderer-neutral form events before
-being exposed on Android.
+the Keystore-backed vault. The native shell presents runtime state first and
+collapses sensitive authority setup after onboarding. Its host-independent
+`MobileLayoutPolicy` resolves safe-area and font-scale-adjusted Compact, Medium,
+and Expanded width classes, bounded content width, a 48 dp minimum touch target,
+one/two runtime columns, and a height-gated two-pane plan. Android maps that
+plan to native controls and combines system-bar, display-cutout, and IME insets
+under edge-to-edge rendering so the setup action remains visible above the
+keyboard; narrow multi-window and large-text configurations degrade to the
+compact plan. Layout plans and insets are value types, and the Android host
+fences IME-only updates from structural reflow. The package graph fixes Android
+ARM64/x64 RIDs without inheriting the build-host RID, emits a dual-ABI AOT AAB,
+and keeps standalone Debug packaging opt-in so normal fast deployment remains
+cheap. A Debug-only visual-capture switch supports layout inspection; an
+MSBuild guard rejects that switch outside Debug, and production-shaped builds
+always set `FLAG_SECURE`.
+
+`MobileUiDocumentBinding` mounts each shared fleet or workspace `UiDocument`
+through `SemanticRenderer`, retains a validated private clone, and exposes only
+immutable native node and form metadata. Android recursively materializes those
+bindings as native text, sections, actions, and bounded inputs; it does not read
+`RemoteFeedState.Runtimes` to invent a second projection. Inspect queries and
+mutations are methods on the current mobile session and are rejected if their
+foreground generation retires. Dynamic deployment fields create the shared
+typed `submit` event, resolve again against the current authoritative feed, and
+require a separate native confirmation. `MobileApplicationCoordinator` then
+admits the intent under the fixed `leserpent-mobile` principal and the shared
+`RemoteMutationCoordinator`, preserving revision and unknown-outcome fences
+across the platform boundary. No form value enters the UI document, connection
+profile, or retained mobile state.
 
 Transport schemas are versioned independently from UI releases. Unknown fields
 are ignored only where the schema explicitly allows forward compatibility.

@@ -64,11 +64,56 @@ only the endpoint is stored in private preferences, the CA is validated and
 written to app-private files, and the token goes exclusively through Android
 Keystore. `MobileApplicationCoordinator` maps duplicate platform start/stop
 callbacks onto one foreground session and generation-fenced background
-disconnect. The initial shell renders connection state and bounded runtime
-summaries without introducing Android-owned command semantics.
+disconnect. The runtime view is the default working surface; saved connection
+setup collapses after onboarding and reopens explicitly without placing secrets
+in the summary. Fleet and workspace controls now come from the shared
+`UiDocument` projections through `MobileUiDocumentBinding`, which validates and
+clones the semantic source before exposing immutable native-control metadata.
+Inspect loads a generation-fenced workspace, while refresh, capability discovery,
+and deployment route through the shared typed action and mutation coordinators.
+Deployment fields are created from the capability-gated shared form, become a
+validated `submit` event, and require a second native confirmation before the
+transport is admitted. Form values are never added to the document or profile.
+
+`MobileLayoutPolicy` keeps adaptive behavior outside either native host. It
+classifies the safe, font-scaled viewport as Compact (below 600 dp), Medium, or
+Expanded (840 dp and above), keeps touch targets at least 48 dp, bounds wide
+content, falls back from two panes in short landscape windows, and selects one
+or two runtime-card columns. The Android host projects the plan into native
+controls, accounts for system bars and display cutouts under edge-to-edge
+rendering, and keeps the setup action above the on-screen keyboard in a bottom
+action area.
+Extremely narrow multi-window surfaces and oversized accessibility text
+degrade to one column rather than rejecting a valid platform window. The
+resolved plan is a value type, and IME-only changes update action padding
+without rebuilding structural layout parameters.
 
 Host-independent conformance and `tests/android_entry_contract_tdd.rs` validate
-the composition without an Android SDK. The next Android gate is a locked
-workload build, emulator launch, physical-device Keystore/TLS proof, and reuse
-of the renderer-neutral parameterized form-event contract. iOS follows only
-after that Android parity is stable.
+the composition, immutable document binding, form-event route, mutation fence,
+and adaptive policy without an Android SDK. The locked Android
+proof additionally builds a directly installable APK and dual-ABI AOT AAB with
+.NET SDK 10.0.201, Android workload 36.1.2, API 36, and Microsoft OpenJDK 17.
+It exercises Compact, Medium, Expanded, short-landscape, 1.5x font, display
+cutout, IME, cold-start, and hot-resume behavior on an API 36 ARM64 emulator.
+The retained result is
+`docs/fixtures/leserpent_android_api36_emulator_macos_arm64_20260821.json`.
+
+With `ANDROID_SDK_ROOT` and `JAVA_HOME` set, reproduce the package builds with:
+
+```bash
+dotnet build \
+  apps/leserpent-mobile/src/Leserpent.Mobile.Android/Leserpent.Mobile.Android.csproj \
+  -c Debug -r android-arm64 -p:StandaloneAndroidPackage=true \
+  -p:AndroidSdkDirectory="$ANDROID_SDK_ROOT" -p:JavaSdkDirectory="$JAVA_HOME"
+
+dotnet build \
+  apps/leserpent-mobile/src/Leserpent.Mobile.Android/Leserpent.Mobile.Android.csproj \
+  -c Release -p:AndroidSdkDirectory="$ANDROID_SDK_ROOT" \
+  -p:JavaSdkDirectory="$JAVA_HOME"
+```
+
+Ordinary Debug builds retain fast deployment. Visual QA may explicitly set
+`LeserpentUiCapture=true`; the project accepts that switch only in Debug, while
+all production-shaped builds retain `FLAG_SECURE`. The next Android gate is
+production signing and physical-device safe-area, font-scale, Keystore, and TLS
+proof. iOS follows only after that Android parity is stable.

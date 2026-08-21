@@ -5687,8 +5687,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/remote-console/remote-mobile-console")
         .expect("remote/mobile console contract must remain tracked");
-    assert_eq!(remote_console.completion, 98);
-    assert_eq!(remote_console.contract.version, "0.63.0");
+    assert_eq!(remote_console.completion, 99);
+    assert_eq!(remote_console.contract.version, "0.66.0");
     for surface in [
         "renderer-neutral-runtime-search",
         "cross-authority-topology-search",
@@ -5738,6 +5738,42 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "visible-orchestra-delete-replay-pressure",
         "complete-runtime-projection-wire-coverage",
         "strict-runtime-authority-timestamp-codec",
+        "renderer-neutral-mobile-layout-policy",
+        "compact-medium-expanded-mobile-width-classes",
+        "font-scale-aware-mobile-breakpoints",
+        "safe-area-and-display-cutout-mobile-insets",
+        "ime-aware-mobile-action-area",
+        "allocation-free-mobile-layout-plan",
+        "ime-structural-reflow-fence",
+        "minimum-48dp-touch-targets",
+        "runtime-first-mobile-onboarding",
+        "collapsible-sensitive-mobile-setup",
+        "bounded-mobile-content-width",
+        "expanded-mobile-two-pane-layout",
+        "adaptive-mobile-runtime-columns",
+        "locked-android-arm64-x64-rid-graph",
+        "host-rid-free-android-release",
+        "standalone-debug-apk-opt-in",
+        "dual-abi-android-aot-package",
+        "android-brand-icon-package",
+        "api36-arm64-emulator-runtime-proof",
+        "compact-medium-expanded-emulator-matrix",
+        "short-landscape-emulator-proof",
+        "large-font-emulator-proof",
+        "ime-action-visibility-emulator-proof",
+        "release-flag-secure-emulator-proof",
+        "cold-hot-relaunch-emulator-proof",
+        "mobile-immutable-ui-document-binding",
+        "android-renderer-neutral-native-controls",
+        "android-first-frame-ui-document",
+        "android-native-workspace-query",
+        "android-workspace-back-navigation",
+        "android-parameterized-form-event-controls",
+        "android-explicit-mutation-confirmation",
+        "android-typed-mutation-transport",
+        "android-shared-mutation-coordinator",
+        "mobile-fixed-principal",
+        "mobile-operation-generation-fence",
     ] {
         assert!(
             remote_console
@@ -5748,6 +5784,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing remote console surface {surface}"
         );
     }
+    assert!(remote_console.evidence.iter().any(|evidence| {
+        evidence.path == "apps/leserpent-mobile/src/Leserpent.MobileCore/MobileLayoutPolicy.cs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(remote_console.evidence.iter().any(|evidence| {
+        evidence.path
+            == "apps/leserpent-mobile/src/Leserpent.MobileCore/MobileUiDocumentBinding.cs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(remote_console.evidence.iter().any(|evidence| {
+        evidence.path
+            == "docs/fixtures/leserpent_android_api36_emulator_macos_arm64_20260821.json"
+            && evidence.state == EvidenceState::Present
+    }));
 
     let two_zero_seal = catalog
         .cells

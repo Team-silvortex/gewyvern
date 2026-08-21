@@ -431,8 +431,9 @@ physical Ubuntu x86_64 host both produce five-file self-contained native
 packages and pass all real control fixtures without a managed runtime
 installation. The Linux debugger fixture preserves the one-to-zero
 cancel-control lifecycle under Xvfb. macOS/Linux regressions remain the desktop
-priority. Android entry groundwork is parked until the macOS application,
-connection profile, menu/lifecycle, and release-bundle paradigm is stable.
+priority. That application, profile, lifecycle, and release-bundle paradigm is
+now stable enough for Android entry and adaptive-layout work to proceed under
+Gate 6; Apple release signing remains an independent release-assurance gate.
 Windows native desktop is deferred and Windows operators use the authenticated
 TypeScript web console in this cycle.
 
@@ -1863,9 +1864,9 @@ application-private, content-addressed trust directory. A strict contract proves
 single-PEM parsing, CA and key-usage constraints, atomic/private writes, legacy
 profile migration, valid-certificate replacement rejection, symlink rejection,
 bounded set-based stale-CA pruning, and recognized crash-temporary cleanup.
-Ephemeral connections remain non-persistent.
-Android adoption resumes after that paradigm is stable. Windows native-host
-evidence is not a blocking gate.
+Ephemeral connections remain non-persistent. Android now consumes that stable
+profile and lifecycle paradigm through its shared mobile coordinator. Windows
+native-host evidence is not a blocking gate.
 
 The authenticated deployment adapter is now reachable through a shared
 `runtime.deploy` command vertical. Domain policy separates deployment from
@@ -1941,7 +1942,7 @@ Exit: Rust is authoritative and the old service is an adapter, not the owner.
 
 Extend the same contracts rather than forking product behavior.
 
-- Android entry project and physical-device lifecycle proof
+- Android entry project (implemented) and physical-device lifecycle proof
 - iOS entry project after Android contract parity is stable
 - mobile navigation and adaptive presentation
 - authenticated HTTPS/WebSocket protocol
@@ -1953,13 +1954,32 @@ Extend the same contracts rather than forking product behavior.
 
 The Android executable entry client now composes the validating credential
 vault, app-private CA/profile storage, `MobileApplicationCoordinator`, and
-foreground/background callbacks. Its first native shell exposes secure setup,
-connection state, and bounded runtime summaries. Host-independent conformance
-proves duplicate callback coalescing, endpoint reconfiguration, failure cleanup,
-and terminal disposal; a static entry-contract test locks Keystore-only token
-storage and private profile boundaries. APK compilation, emulator launch,
-physical-device Keystore/TLS evidence, and parameterized form-event controls
-remain before Android parity is claimed.
+foreground/background callbacks. Its native shell exposes secure setup and
+renders the shared fleet and workspace `UiDocument` projections through an
+immutable MobileCore binding rather than a frontend-owned runtime summary. The
+same binding routes typed activation and parameterized deployment submissions;
+native form fields preserve the shared input constraints, remain local until a
+valid `submit` event exists, and require a second explicit confirmation. Mobile
+workspace queries and mutations are bound to the current foreground generation,
+use the fixed `leserpent-mobile` principal, and keep revision/unknown-outcome
+ownership in `RemoteMutationCoordinator`. A shared adaptive policy now
+resolves Compact, Medium, and Expanded width classes after safe-area and font
+scaling, enforces 48 dp touch targets, bounds wide content, rejects short
+two-pane layouts, and selects one/two runtime columns. The Android projection is
+runtime-first, collapses saved setup, handles system bars plus display cutouts,
+and keeps its bottom setup action above IME insets. Host-independent
+conformance proves this layout policy alongside duplicate callback coalescing,
+while value-type plans and an IME structural-reflow fence keep keyboard changes
+cheap. The same contract proves endpoint reconfiguration, failure cleanup, and
+terminal disposal; a static entry-contract test locks both adaptive projection
+and Keystore-only/private profile boundaries. A locked .NET 10/API 36 toolchain
+now produces a directly installable APK and dual-ABI AOT AAB. API 36 ARM64
+emulator proof covers Compact, Medium, Expanded, short-landscape, 1.5x font,
+display-cutout, IME, cold-start/hot-resume, icon packaging, and release screen
+capture protection. The updated renderer-neutral first frame, rotation, and hot
+resume pass on that emulator. Production signing and physical-device
+safe-area/font-scale and Keystore/TLS evidence remain before Android parity is
+claimed.
 
 The current desktop slice implements the event consumer and first constrained
 mutation of this gate. A pure
@@ -1972,8 +1992,8 @@ renderer used by fixtures. Runtime cards expose only revision-fenced
 retry ambiguous outcomes. A separate conformance executable proves codec,
 cache, resync, and retry behavior; a real Rust daemon to .NET client TLS
 vertical proves authenticated snapshot, confirmed HTTPS mutation, matching
-WebSocket revision, private cache permissions, and endpoint omission. Mobile
-application entry clients and device runtime evidence remain before Gate 6
+WebSocket revision, private cache permissions, and endpoint omission. The iOS
+application entry and mobile device runtime evidence remain before Gate 6
 completion. Desktop startup now resolves endpoint-scoped tokens from macOS
 Keychain or Linux Secret Service through AOT-compatible native bindings, with a
 bounded environment fallback only when no stored item exists. Deterministic
@@ -1993,8 +2013,10 @@ from retired sessions. A deterministic conformance runner
 injects missing credentials and startup failure. Android/iOS native store
 projects now compile against .NET 10 platform workloads: Android protects a
 private-preferences AES-256-GCM envelope with a Keystore master key, while iOS
-uses a this-device-only Keychain item. Application entry projects, simulator or
-physical-device runtime conformance, and physical-device AOT evidence remain.
+uses a this-device-only Keychain item. Android workload/AOT packaging and the
+API 36 emulator matrix are retained as machine-readable evidence. The iOS
+application entry, production Android signing, physical-device runtime
+conformance, and physical-device AOT evidence remain.
 The shared mobile vault adapter contract now provides endpoint-hashed aliases,
 strict credential CRUD validation, cancellation fencing, and deterministic
 corruption tests; platform storage is therefore replaceable without moving
@@ -2003,13 +2025,17 @@ The workspace policy layer has also moved into `Leserpent.RemoteClient`:
 filtering, bounded export, incremental/full refresh planning, retry state,
 snapshot comparison, and retained severity alerts are renderer-independent.
 Avalonia now supplies only window/control behavior, and MobileConformance calls
-the same six contracts through MobileCore's project graph to prevent a future
+the same contracts through MobileCore's project graph to prevent a future
 mobile policy fork.
 The fleet and runtime-workspace `UiDocument` projections are now part of the
 same shared library and reference only RendererCore. Their filtering,
 capability-gated actions, parameterized forms, endpoint omission, and empty
 states are no longer Avalonia-exclusive business logic. MobileConformance
-executes both projections without loading a platform renderer.
+executes both projections without loading a platform renderer. Android now
+materializes those documents as native controls through the immutable
+`MobileUiDocumentBinding`; its first frame, workspace navigation, dynamic form,
+typed submission, confirmation, and mutation path therefore consume the same
+semantic source rather than rebuilding presentation policy from feed objects.
 Mutation revision and unknown-outcome observation fences have moved out of the
 Avalonia window as well. RemoteClient now owns the runtime/revision/capability
 rules, rejects heartbeat-only release, and requires a newer authoritative

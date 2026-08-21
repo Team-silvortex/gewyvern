@@ -7,7 +7,12 @@
     <ApplicationVersion>1</ApplicationVersion>
     <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
     <SupportedOSPlatformVersion>23.0</SupportedOSPlatformVersion>
+    <!-- Release trimming must not append the build host RID to Android ABIs. -->
+    <RuntimeIdentifiers Condition="'$(RuntimeIdentifier)' == ''">android-arm64;android-x64</RuntimeIdentifiers>
+    <UseDefaultPublishRuntimeIdentifier>false</UseDefaultPublishRuntimeIdentifier>
+    <EmbedAssembliesIntoApk Condition="'$(StandaloneAndroidPackage)' == 'true' or '$(LeserpentUiCapture)' == 'true'">true</EmbedAssembliesIntoApk>
     <AndroidPackageFormat Condition="'$(Configuration)' == 'Release'">aab</AndroidPackageFormat>
+    <DefineConstants Condition="'$(LeserpentUiCapture)' == 'true'">$(DefineConstants);LESERPENT_UI_CAPTURE</DefineConstants>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -16,5 +21,12 @@
 
   <ItemGroup>
     <ProjectReference Include="../Leserpent.MobileCore/Leserpent.MobileCore.csproj" />
+    <AndroidResource Include="../../../../assets/branding/leserpent-icon.png"
+                     LogicalName="Resources/mipmap/leserpent_icon.png" />
   </ItemGroup>
+
+  <Target Name="RejectReleaseUiCapture" BeforeTargets="CoreCompile"
+          Condition="'$(LeserpentUiCapture)' == 'true' and '$(Configuration)' != 'Debug'">
+    <Error Text="Leserpent UI capture is allowed only in Debug builds." />
+  </Target>
 </Project>

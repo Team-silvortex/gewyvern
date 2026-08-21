@@ -13,18 +13,29 @@ public sealed record MobileApplicationSnapshot(
     MobileRemoteLifecycleSnapshot? Remote,
     string? Error);
 
+public sealed class MobileRemoteMutationException(
+    string message,
+    RemoteMutationFailure failure) : Exception(message)
+{
+    public RemoteMutationFailure Failure { get; } = failure;
+}
+
 public sealed class MobileApplicationCoordinator : IAsyncDisposable
 {
+    private const string MobilePrincipal = "leserpent-mobile";
     private readonly IMobileCredentialVault vault;
     private readonly IMobileRemoteSessionFactory sessionFactory;
     private readonly SemaphoreSlim transitions = new(1, 1);
+    private readonly SemaphoreSlim operations = new(1, 1);
     private readonly object stateGate = new();
+    private readonly object mutationGate = new();
     private MobileApplicationSnapshot snapshot = new(
         MobileApplicationPhase.Unconfigured,
         null,
         null);
     private MobileRemoteLifecycle? lifecycle;
     private Action<MobileRemoteLifecycleSnapshot>? lifecycleHandler;
+    private RemoteMutationCoordinator mutationCoordinator = new();
 
     public MobileApplicationCoordinator(
         IMobileCredentialVault vault,
@@ -43,6 +54,18 @@ public sealed class MobileApplicationCoordinator : IAsyncDisposable
             lock (stateGate)
             {
                 return snapshot;
+            }
+        }
+    }
+
+    public RemoteMutationAvailability MutationAvailability
+    {
+        get
+        {
+            var feed = State.Remote?.Feed ?? RemoteFeedState.Initial;
+            lock (mutationGate)
+            {
+                return mutationCoordinator.Availability(feed);
             }
         }
     }
@@ -76,6 +99,11 @@ public sealed class MobileApplicationCoordinator : IAsyncDisposable
             var previousHandler = lifecycleHandler;
             lifecycle = candidate;
             lifecycleHandler = handler;
+            lock (mutationGate)
+            {
+                mutationCoordinator.CancelActive();
+                mutationCoordinator = new RemoteMutationCoordinator();
+            }
             Publish(new MobileApplicationSnapshot(
                 MobileApplicationPhase.Inactive,
                 candidate.State,
@@ -141,6 +169,125 @@ public sealed class MobileApplicationCoordinator : IAsyncDisposable
         }
     }
 
+    public async Task<RemoteWorkspaceSnapshot> LoadWorkspaceAsync(
+        string runtimeId,
+        CancellationToken cancellationToken = default)
+    {
+        var (active, feed) = RequireForegroundRemote();
+        RemoteMutationAvailability availability;
+        lock (mutationGate)
+        {
+            availability = mutationCoordinator.Availability(feed);
+        }
+        if (!availability.InspectEnabled)
+        {
+            throw new InvalidOperationException(
+                availability.InspectUnavailableReason
+                ?? "runtime inspection is unavailable");
+        }
+        if (!feed.Runtimes.Any(runtime =>
+                StringComparer.Ordinal.Equals(runtime.Id, runtimeId)))
+        {
+            throw new InvalidOperationException(
+                "runtime inspection target is no longer available");
+        }
+        return await active.LoadWorkspaceAsync(
+            runtimeId,
+            MobilePrincipal,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<RemoteMutationResult> ExecuteMutationAsync(
+        RemoteUiActionIntent intent,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(intent);
+        await operations.WaitAsync(cancellationToken).ConfigureAwait(false);
+        RemoteMutationOperation? operation = null;
+        RemoteMutationCoordinator? owner = null;
+        try
+        {
+            var (active, feed) = RequireForegroundRemote();
+            var kind = MutationKind(intent);
+            RemoteMutationAdmission admission;
+            lock (mutationGate)
+            {
+                owner = mutationCoordinator;
+                admission = owner.Begin(
+                    new RemoteMutationRequest(
+                        intent.Runtime.Id,
+                        intent.Runtime.Revision,
+                        kind),
+                    feed);
+                if (admission.Accepted && admission.Operation is { } admitted)
+                {
+                    var confirmed = owner.Confirm(admitted, feed);
+                    admission = confirmed;
+                }
+            }
+            if (!admission.Accepted || admission.Operation is not { } accepted)
+            {
+                throw new InvalidOperationException(
+                    $"Remote change blocked: {RemoteMutationCoordinator.DescribeFailure(admission.Failure)}");
+            }
+            operation = accepted;
+            RemoteMutationResult result;
+            try
+            {
+                result = await active.ExecuteMutationAsync(
+                    intent,
+                    MobilePrincipal,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception error)
+            {
+                RemoteMutationFailure failure;
+                lock (mutationGate)
+                {
+                    failure = owner.CompleteFailure(
+                        operation,
+                        error,
+                        State.Remote?.Feed ?? feed,
+                        cancellationToken.IsCancellationRequested
+                            || error is MobileRemoteGenerationRetiredException);
+                }
+                operation = null;
+                if (failure.Disposition == RemoteMutationFailureDisposition.Cancelled)
+                {
+                    throw new OperationCanceledException(
+                        "mobile remote mutation owner was retired",
+                        error,
+                        cancellationToken);
+                }
+                throw new MobileRemoteMutationException(
+                    failure.OperatorMessage ?? "Remote mutation failed safely",
+                    failure);
+            }
+            lock (mutationGate)
+            {
+                owner.Accept(
+                    operation,
+                    result,
+                    State.Remote?.Feed ?? feed);
+            }
+            operation = null;
+            return result;
+        }
+        finally
+        {
+            if (operation is not null && owner is not null)
+            {
+                lock (mutationGate)
+                {
+                    owner.Abandon(
+                        operation,
+                        State.Remote?.Feed ?? RemoteFeedState.Initial);
+                }
+            }
+            operations.Release();
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         await transitions.WaitAsync().ConfigureAwait(false);
@@ -154,6 +301,11 @@ public sealed class MobileApplicationCoordinator : IAsyncDisposable
             var handler = lifecycleHandler;
             lifecycle = null;
             lifecycleHandler = null;
+            lock (mutationGate)
+            {
+                mutationCoordinator.CancelActive();
+                mutationCoordinator = new RemoteMutationCoordinator();
+            }
             if (active is not null && handler is not null)
             {
                 active.StateChanged -= handler;
@@ -172,6 +324,10 @@ public sealed class MobileApplicationCoordinator : IAsyncDisposable
 
     private void AcceptLifecycleState(MobileRemoteLifecycleSnapshot remote)
     {
+        lock (mutationGate)
+        {
+            mutationCoordinator.Observe(remote.Feed);
+        }
         var phase = remote.Phase switch
         {
             MobileLifecyclePhase.Inactive => MobileApplicationPhase.Inactive,
@@ -199,6 +355,35 @@ public sealed class MobileApplicationCoordinator : IAsyncDisposable
         }
         StateChanged?.Invoke(value);
     }
+
+    private (MobileRemoteLifecycle Lifecycle, RemoteFeedState Feed) RequireForegroundRemote()
+    {
+        ThrowIfStopped();
+        var current = State;
+        if (current.Phase != MobileApplicationPhase.Foreground
+            || current.Remote is not { Phase: MobileLifecyclePhase.Foreground } remote
+            || lifecycle is not { } active)
+        {
+            throw new InvalidOperationException(
+                "mobile remote operation requires a foreground application");
+        }
+        return (active, remote.Feed);
+    }
+
+    private static RemoteMutationKind MutationKind(RemoteUiActionIntent intent) =>
+        intent.Kind switch
+        {
+            ActionKind.RuntimeRefresh when intent.PipelineKind is null && intent.Target is null =>
+                RemoteMutationKind.Refresh,
+            ActionKind.RuntimeCapabilitiesRefresh
+                when intent.PipelineKind is null && intent.Target is null =>
+                RemoteMutationKind.CapabilityRefresh,
+            ActionKind.RuntimeDeploy when intent.PipelineKind is not null =>
+                RemoteMutationKind.Deployment,
+            _ => throw new ArgumentException(
+                "mobile remote mutation intent is invalid",
+                nameof(intent)),
+        };
 
     private static string SafeError(string value) => new(value
         .Where(character => !char.IsControl(character))
