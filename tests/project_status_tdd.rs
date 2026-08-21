@@ -3881,7 +3881,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.101.0");
+    assert_eq!(avalonia.contract.version, "1.103.0");
     assert!(
         avalonia
             .contract
@@ -3919,6 +3919,19 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "subscriber-failure-isolation",
         "bounded-subscriber-failure-telemetry",
         "zero-avalonia-event-lifecycle-ownership",
+        "shared-typed-ui-action-router-consumer",
+        "source-bound-rendered-action-invocation",
+        "multi-workspace-action-source-identity",
+        "retired-workspace-action-source-fence",
+        "zero-node-id-business-routing",
+        "source-renderer-form-registration",
+        "offline-native-learning-center",
+        "hub-visible-tutorial-entry",
+        "macos-learning-center-menu",
+        "singleton-tutorial-window",
+        "tutorial-auxiliary-window-classification",
+        "tutorial-keyboard-navigation",
+        "tutorial-automation-contract",
     ] {
         assert!(
             avalonia
@@ -5574,7 +5587,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/remote-console/remote-mobile-console")
         .expect("remote/mobile console contract must remain tracked");
     assert_eq!(remote_console.completion, 98);
-    assert_eq!(remote_console.contract.version, "0.62.0");
+    assert_eq!(remote_console.contract.version, "0.63.0");
     for surface in [
         "renderer-neutral-runtime-search",
         "cross-authority-topology-search",
@@ -5613,6 +5626,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "mobile-reusable-event-lifecycle",
         "subscriber-failure-isolation",
         "bounded-subscriber-failure-count",
+        "frontend-independent-typed-ui-action-router",
+        "opaque-action-node-identities",
+        "runtime-context-action-binding",
+        "action-availability-routing",
+        "deployment-form-event-routing",
+        "deployment-submission-source-fence",
+        "mobile-reusable-ui-action-routing",
         "strict-orchestra-delete-replay-health-codec",
         "visible-orchestra-delete-replay-pressure",
         "complete-runtime-projection-wire-coverage",
@@ -5699,7 +5719,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/release-assurance/continuous-proof")
         .expect("continuous proof contract must remain tracked");
     assert_eq!(continuous_proof.completion, 97);
-    assert_eq!(continuous_proof.contract.version, "0.77.0");
+    assert_eq!(continuous_proof.contract.version, "0.79.0");
     assert!(
         continuous_proof
             .contract
@@ -5749,6 +5769,18 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "subscriber-failure-isolation-proof",
         "bounded-subscriber-failure-count-proof",
         "native-aot-event-lifecycle-proof",
+        "typed-ui-action-routing-proof",
+        "opaque-action-node-id-proof",
+        "runtime-context-binding-proof",
+        "deployment-form-routing-proof",
+        "multi-workspace-action-source-proof",
+        "retired-workspace-action-source-fence-proof",
+        "mobile-ui-action-routing-consumption-proof",
+        "native-aot-ui-action-routing-proof",
+        "desktop-tutorial-native-control-proof",
+        "hub-tutorial-entry-proof",
+        "desktop-tutorial-lifecycle-proof",
+        "desktop-tutorial-native-aot-proof",
     ] {
         assert!(
             continuous_proof
@@ -5798,6 +5830,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }));
     assert!(continuous_proof.evidence.iter().any(|evidence| {
         evidence.path == "src/bin/gewyvern_leserpent_release.rs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(continuous_proof.evidence.iter().any(|evidence| {
+        evidence.path == "tests/leserpent_avalonia_lifecycle_tdd.rs"
             && evidence.state == EvidenceState::Present
     }));
     assert!(continuous_proof.evidence.iter().any(|evidence| {

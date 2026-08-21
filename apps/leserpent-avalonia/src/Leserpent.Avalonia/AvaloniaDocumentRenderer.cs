@@ -130,7 +130,12 @@ internal sealed record PresentationAutomationResult(
     PresentationAutomationFailureCode FailureCode,
     string? FocusedNodeId = null);
 
-internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
+internal sealed record RenderedActionInvocation(
+    AvaloniaDocumentRenderer Source,
+    string NodeId);
+
+internal sealed class AvaloniaDocumentRenderer(
+    Action<RenderedActionInvocation> actionInvoked)
 {
     private readonly Dictionary<string, RenderedNode> nodes = new(StringComparer.Ordinal);
     private readonly Dictionary<ActionKind, ActionAvailability> actionAvailability = [];
@@ -1824,7 +1829,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
             CornerRadius = new CornerRadius(8),
         };
-        button.Click += (_, _) => actionInvoked(node.Id);
+        button.Click += (_, _) => actionInvoked(new(this, node.Id));
         return button;
     }
 

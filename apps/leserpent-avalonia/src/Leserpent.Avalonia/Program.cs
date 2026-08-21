@@ -67,6 +67,13 @@ internal static class Program
                 "remote event lifecycle valid: dispose_single_flight=true, resource_release_once=true, restart_identity=true, stopped_start_rejected=true, subscriber_failure_isolated=true, subscriber_failure_count_bounded=true");
             return 0;
         }
+        if (args is ["--verify-remote-ui-action-routing"])
+        {
+            RemoteUiActionRouter.VerifyContract();
+            Console.WriteLine(
+                "remote UI action routing valid: typed_binding=true, opaque_node_ids=true, runtime_context=true, availability=true, deployment_form=true, submission_source_fence=true, bounded_failure=true");
+            return 0;
+        }
         if (args is ["--verify-deployment-contract"])
         {
             RemoteMutationClient.VerifyDeploymentContract();
@@ -137,7 +144,7 @@ internal static class Program
         {
             DesktopApplicationLifecycle.VerifyContract();
             Console.WriteLine(
-                "desktop lifecycle valid: app_menu=true, connection_settings=true, about=true, dock_reopen=true, explicit_quit=true");
+                "desktop lifecycle valid: app_menu=true, connection_settings=true, about=true, learning_center=true, offline_tutorial=true, dock_reopen=true, tutorial_not_main_window=true, explicit_quit=true");
             return 0;
         }
         if (args is ["--verify-local-orchestra", var daemonPath])

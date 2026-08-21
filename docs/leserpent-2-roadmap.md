@@ -2048,6 +2048,15 @@ independently, bounds failure telemetry at `int.MaxValue`, and does not expose
 callback exception text. Avalonia owns neither the event cancellation source nor
 the running task; desktop, remote, mobile, and NativeAOT probes execute the same
 contract.
+Remote UI action routing has crossed the boundary as well. The shared
+`RemoteUiActionRouter` resolves opaque node IDs through their typed `UiAction`,
+checks runtime-container identity and shared availability, and validates Deploy
+submission events without frontend extraction of protocol fields. Avalonia now
+passes the emitting renderer with every native action, so independent workspace
+windows register forms and create submissions against their own documents;
+closed workspace sources are fenced before mutation admission. Desktop and
+mobile conformance execute the same router, while the mutation coordinator
+continues to own authorization, confirmation, and revision fencing.
 Remote action availability now follows that boundary too. A pure policy gives
 in-flight work precedence over revision and observation fences, disables
 mutation and inspection consistently while stale, and supplies bounded reasons
@@ -2089,6 +2098,15 @@ live/stale/unavailable summary. Busy and completion status
 remain accessible, the native probe drives the real button while a background
 refresh is already active, and desktop plus mobile conformance execute the same
 shared contract.
+The Hub now also exposes a visible `Quick tour` and F1 route to a singleton
+native Learning Center; the macOS application menu reaches the same window.
+Six bounded offline steps teach topology, authority setup, runtime workspaces,
+focused diagnosis, safety fences, and Leselang equivalence without performing
+I/O or effects. The tutorial has complete Automation ID/name/help-text coverage,
+direct and sequential keyboard navigation, compact scroll-safe layout, and an
+explicit auxiliary-window classification so Dock reopen still targets the Hub.
+The native verification path drives the real controls, and the lifecycle probe
+checks the menu/content contract without requiring a network or daemon.
 Runtime-child workspace admission has now crossed the same boundary. The
 renderer-neutral `RemoteWorkspaceLaunchCoordinator` owns runtime-ID validation,
 the combined active/pending limit, duplicate-request revision coalescing,

@@ -10,6 +10,12 @@ It is intentionally narrow:
 - one report path
 - one reading strategy
 
+If you are starting from Leserpent Desktop instead of the CLI, open `Quick tour`
+from the Hub, press F1, or choose `Learning Center...` from the macOS application
+menu. The same six-step native tutorial is bundled offline and remains read-only:
+it explains the client -> daemon -> runtime model and the safe path to a first
+diagnosis without starting a connection, deployment, or command.
+
 If you want the lower-level compiler/runtime story, see
 [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md).
 

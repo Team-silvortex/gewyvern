@@ -199,6 +199,15 @@ The native client entry is a daemon hub, not a single direct remote target form:
 A single Avalonia window can thus operate several daemon sessions in parallel,
 without collapsing trust, event stream, or revision history across sessions.
 
+Operator teaching is part of the native shell contract rather than a repository
+link. The Hub's visible `Quick tour`, F1, and the macOS application menu resolve
+to one singleton offline Learning Center. Its bounded six-step content explains
+the same client -> daemon -> runtime model, safe diagnostic path, mutation
+fences, and Leselang equivalence without opening a connection or emitting an
+effect. The tutorial is an auxiliary window, so Dock reopen continues to target
+the Hub. Stable Automation IDs, names, help text, direct step selectors, and
+keyboard navigation keep the teaching surface reachable to users and adapters.
+
 Cross-authority refresh admission is frontend-independent. The shared remote
 client coordinator accepts at most 65 unique daemon authorities (64 saved
 remotes plus local Orchestra), permits four loaders at once, joins duplicate
@@ -1875,6 +1884,18 @@ isolates a failing subscriber from healthy consumers and exposes only a
 saturating failure count, never callback exception text. Avalonia and mobile
 therefore consume the same AOT-compatible lifecycle contract instead of owning
 transport tasks or cancellation state.
+
+Remote action dispatch is type-bound rather than node-name-bound. Renderers may
+use any valid opaque node ID; `RemoteUiActionRouter` resolves the attached
+`UiAction`, verifies its runtime-container binding against the current
+projection, applies shared Inspect/mutation availability, and validates Deploy
+submission values with the same `UiEvent` shape used by Leselang lowering.
+Avalonia action callbacks also carry the renderer that emitted them. A workspace
+therefore registers and submits its form against its own `UiDocument`, never the
+fleet renderer, and a callback from a retired workspace source is rejected
+before admission. Submission routing validates semantics but does not authorize
+transport; `RemoteMutationCoordinator` remains the revision-fenced mutation
+authority.
 
 Every GUI action must support:
 

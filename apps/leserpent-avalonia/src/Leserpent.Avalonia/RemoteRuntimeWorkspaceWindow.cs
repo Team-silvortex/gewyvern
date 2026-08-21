@@ -107,7 +107,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         RemoteClientOptions options,
         RemoteRuntimeProjection runtime,
         string principal,
-        Action<string> actionInvoked)
+        Action<RenderedActionInvocation> actionInvoked)
     {
         RuntimeId = runtime.Id;
         this.principal = principal;
@@ -252,6 +252,9 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             lifetime.Dispose();
         };
     }
+
+    internal bool OwnsActionSource(AvaloniaDocumentRenderer source) =>
+        ReferenceEquals(renderer, source);
 
     private void ConfigureLiveRefresh()
     {

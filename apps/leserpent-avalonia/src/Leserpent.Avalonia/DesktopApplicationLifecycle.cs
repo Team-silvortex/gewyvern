@@ -6,7 +6,7 @@ using Avalonia.Input;
 internal static class DesktopApplicationLifecycle
 {
     private static readonly string[] RequiredMenuItems =
-        ["About Leserpent", "Connection...", "Show Leserpent", "Quit Leserpent"];
+        ["About Leserpent", "Learning Center...", "Connection...", "Show Leserpent", "Quit Leserpent"];
 
     public static void Configure(
         Application application,
@@ -22,6 +22,7 @@ internal static class DesktopApplicationLifecycle
         desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         var appMenu = new NativeMenu();
         appMenu.Items.Add(Item("About Leserpent", () => ShowAbout(desktop)));
+        appMenu.Items.Add(Item("Learning Center...", () => ShowTutorial(desktop)));
         appMenu.Items.Add(new NativeMenuItemSeparator());
         appMenu.Items.Add(Item(
             "Connection...",
@@ -58,8 +59,10 @@ internal static class DesktopApplicationLifecycle
 
     public static void VerifyContract()
     {
-        if (RequiredMenuItems.Length != 4
-            || RequiredMenuItems.Distinct(StringComparer.Ordinal).Count() != 4
+        DesktopTutorialWindow.VerifyContentContract();
+        if (RequiredMenuItems.Length != 5
+            || RequiredMenuItems.Distinct(StringComparer.Ordinal).Count() != 5
+            || !RequiredMenuItems.Contains("Learning Center...", StringComparer.Ordinal)
             || !RequiredMenuItems.Contains("Quit Leserpent", StringComparer.Ordinal))
         {
             throw new InvalidDataException("desktop application menu contract drifted");
@@ -81,14 +84,19 @@ internal static class DesktopApplicationLifecycle
         Action reopenMainWindow)
     {
         Window? existing = null;
-        if (desktop.MainWindow is Window mainWindow && mainWindow is not DesktopAboutWindow && mainWindow.IsVisible)
+        if (desktop.MainWindow is Window mainWindow
+            && mainWindow is not DesktopAboutWindow
+            && mainWindow is not DesktopTutorialWindow
+            && mainWindow.IsVisible)
         {
             existing = mainWindow;
         }
         else
         {
             existing = desktop.Windows.FirstOrDefault(
-                window => window is not DesktopAboutWindow && window.IsVisible);
+                window => window is not DesktopAboutWindow
+                    && window is not DesktopTutorialWindow
+                    && window.IsVisible);
         }
 
         if (existing is not null)
@@ -98,6 +106,32 @@ internal static class DesktopApplicationLifecycle
             return;
         }
         reopenMainWindow();
+    }
+
+    internal static void ShowTutorial(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var existing = desktop.Windows.OfType<DesktopTutorialWindow>().FirstOrDefault();
+        if (existing is not null)
+        {
+            existing.Show();
+            existing.Activate();
+            return;
+        }
+        var tutorial = new DesktopTutorialWindow();
+        var owner = desktop.MainWindow is { IsVisible: true } mainWindow
+            ? mainWindow
+            : desktop.Windows.FirstOrDefault(window =>
+                window is not DesktopAboutWindow
+                && window is not DesktopTutorialWindow
+                && window.IsVisible);
+        if (owner is null)
+        {
+            tutorial.Show();
+        }
+        else
+        {
+            tutorial.Show(owner);
+        }
     }
 
     private static void ShowAbout(IClassicDesktopStyleApplicationLifetime desktop)

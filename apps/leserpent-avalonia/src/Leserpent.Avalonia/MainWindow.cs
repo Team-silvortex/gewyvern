@@ -3363,10 +3363,10 @@ internal sealed class MainWindow : Window
         return bar;
     }
 
-    private void OnActionInvoked(string nodeId)
+    private void OnActionInvoked(RenderedActionInvocation invocation)
     {
         invokedActionCount++;
-        statusText.Text = $"Action node emitted: {nodeId}";
+        statusText.Text = $"Action node emitted: {invocation.NodeId}";
         statusText.Foreground = LeserpentTheme.Accent;
     }
 

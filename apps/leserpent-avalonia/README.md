@@ -229,6 +229,15 @@ projection with
 `--verify-remote-topology`, the shared policy with `--verify-remote-filter`, and
 the real Hub control tree with `--verify-hub-topology`.
 
+The visible `Quick tour` control, F1, and the macOS `Learning Center...`
+application-menu item open the same singleton native tutorial window. Its six
+offline steps explain the client/daemon/runtime topology, first authority,
+runtime workspace, focused diagnosis, mutation fences, and Leselang equivalence.
+The tutorial is read-only: it never connects, deploys, or executes a command.
+Every selector and navigation control has a stable Automation ID, name, and help
+text; Left/Right, Home/End, and Escape provide a complete keyboard path. Verify
+the real control tree with `--verify-desktop-tutorial`.
+
 Opening a runtime child follows the same renderer-neutral boundary. The
 `RemoteWorkspaceLaunchCoordinator` validates runtime IDs, bounds active plus
 pending workspaces, coalesces repeated requests to the newest required

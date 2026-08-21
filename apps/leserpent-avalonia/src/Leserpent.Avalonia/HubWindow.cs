@@ -44,6 +44,12 @@ internal sealed class HubWindow : Window
         Content = "Refresh all",
         Padding = new Thickness(12, 7),
     };
+    private readonly Button tutorialButton = new()
+    {
+        Content = "Quick tour",
+        HorizontalAlignment = HorizontalAlignment.Left,
+        Padding = new Thickness(14, 7),
+    };
     private readonly TextBlock topologyFilterSummary = new()
     {
         Foreground = LeserpentTheme.Muted,
@@ -92,10 +98,11 @@ internal sealed class HubWindow : Window
         Action retireRuntime,
         Action addConnection,
         Action<DesktopDaemonConnection> manageConnection,
+        Action openTutorial,
         SilvortexAccountSession accountSession)
     {
         daemonCardCount = connections.Count + (localSupported ? 1 : 0);
-        expectedAuditedControlCount = 12 + connections.Count * 3 + (localSupported ? 2 : 0);
+        expectedAuditedControlCount = 13 + connections.Count * 3 + (localSupported ? 2 : 0);
         refreshAllTopologyButton.IsEnabled = daemonCardCount > 0;
         Title = "Leserpent / Hub";
         Width = 900;
@@ -170,6 +177,15 @@ internal sealed class HubWindow : Window
         auditedControls.Add(retireButton);
         retireButton.Click += (_, _) => retireRuntime();
 
+        AutomationProperties.SetAutomationId(tutorialButton, "hub-open-tutorial");
+        AutomationProperties.SetName(tutorialButton, "Open the Leserpent quick tour");
+        AutomationProperties.SetHelpText(
+            tutorialButton,
+            "Opens the offline, read-only Learning Center. Shortcut: F1.");
+        ToolTip.SetTip(tutorialButton, "Open Learning Center (F1)");
+        auditedControls.Add(tutorialButton);
+        tutorialButton.Click += (_, _) => openTutorial();
+
         var headingActions = new StackPanel
         {
             Spacing = 8,
@@ -228,6 +244,7 @@ internal sealed class HubWindow : Window
                     FontSize = 13,
                     TextWrapping = TextWrapping.Wrap,
                 },
+                tutorialButton,
             },
         };
         var headingTop = new Grid
@@ -430,6 +447,11 @@ internal sealed class HubWindow : Window
             ObserveTopologyOperation(
                 RefreshAllTopologiesAsync(TopologyRefreshTrigger.Operator));
         }
+        else if (eventArgs.Key == Key.F1)
+        {
+            eventArgs.Handled = true;
+            tutorialButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        }
         else if (eventArgs.Key == Key.Escape)
         {
             eventArgs.Handled = true;
@@ -541,6 +563,7 @@ internal sealed class HubWindow : Window
                 string.IsNullOrWhiteSpace(AutomationProperties.GetAutomationId(control))
                 || string.IsNullOrWhiteSpace(AutomationProperties.GetName(control))
                 || !ids.Add(AutomationProperties.GetAutomationId(control)!))
+            || !ids.Contains("hub-open-tutorial")
             || ids.Contains("hub-open-remote"))
         {
             throw new InvalidDataException("Hub topology control contract drifted");
@@ -645,6 +668,9 @@ internal sealed class HubWindow : Window
             ?? throw new InvalidDataException("Hub topology has no runtime action to probe");
         action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     }
+
+    public void ProbeTutorialEntry() =>
+        tutorialButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
     private Border CreateClientRoot(int remoteCount, bool localSupported)
     {

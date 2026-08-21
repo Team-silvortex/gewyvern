@@ -518,7 +518,7 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(window.contains("FormCancelClosedReplayRejected"));
     assert!(app.contains("Avalonia form lifecycle valid:"));
     assert!(app.contains("form_lifecycle_unregistered_rejected="));
-    assert!(remote.contains("using var formRegistration = renderer.RegisterFormFields"));
+    assert!(remote.contains("using var formRegistration = sourceRenderer.RegisterFormFields"));
     assert!(remote.contains("formWindow.FormFields"));
     assert!(remote.contains("formWindow.SubmitButton"));
     assert!(remote.contains("formWindow.CancelButton"));
@@ -784,6 +784,61 @@ fn remote_event_lifecycle_is_shared_idempotent_and_subscriber_isolated() {
 }
 
 #[test]
+fn remote_ui_actions_route_by_typed_binding_and_preserve_workspace_source() {
+    let router = avalonia_source("Leserpent.RemoteClient/RemoteUiActionRouter.cs");
+    let renderer = avalonia_source("Leserpent.Avalonia/AvaloniaDocumentRenderer.cs");
+    let window = remote_main_window_source();
+    let workspace = avalonia_source("Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs");
+    let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+    let remote_conformance = avalonia_source("Leserpent.RemoteConformance/Program.cs");
+    let mobile_conformance =
+        repo_source("apps/leserpent-mobile/src/Leserpent.MobileConformance/Program.cs");
+
+    assert!(router.contains("public static class RemoteUiActionRouter"));
+    assert!(router.contains("ResolveActivation("));
+    assert!(router.contains("ResolveSubmission("));
+    assert!(router.contains("opaque-action-control"));
+    assert!(router.contains("opaque-deployment-control"));
+    assert!(router.contains("StringComparer.Ordinal.Equals(action.RuntimeId, location.RuntimeId)"));
+    assert!(router.contains("RemoteMutationAvailabilityPolicy.Evaluate("));
+    assert!(router.contains("MaxOperatorReasonLength = 320"));
+    assert!(!router.contains("Avalonia"));
+
+    assert!(renderer.contains("internal sealed record RenderedActionInvocation("));
+    assert!(renderer.contains("AvaloniaDocumentRenderer Source"));
+    assert!(renderer.contains("actionInvoked(new(this, node.Id))"));
+    assert!(workspace.contains("Action<RenderedActionInvocation> actionInvoked"));
+    assert!(workspace.contains("internal bool OwnsActionSource("));
+    assert!(window.contains("invocation.Source.Document"));
+    assert!(window.contains("RemoteUiActionRouter.ResolveActivation("));
+    assert!(window.contains("RemoteUiActionRouter.ResolveSubmission("));
+    assert!(window.contains("sourceRenderer.RegisterFormFields("));
+    assert!(window.contains("sourceRenderer.CreateFormSubmission("));
+    assert!(window.contains("IsActiveActionSource(invocation.Source)"));
+    assert!(window.contains("workspace.OwnsActionSource(source)"));
+    assert!(!window.contains("nodeId == $\"runtime:{candidate.Id}:inspect\""));
+    assert!(!window.contains("nodeId == $\"runtime:{candidate.Id}:refresh\""));
+    assert!(!window.contains("FindNode(renderer.Document.Root, nodeId)"));
+    assert!(!window.contains("submission.Values.TryGetValue(\"pipeline_kind\""));
+
+    assert!(program.contains("--verify-remote-ui-action-routing"));
+    for marker in [
+        "typed_ui_action_routing=true",
+        "opaque_action_node_ids=true",
+        "deployment_submission_source_fence=true",
+    ] {
+        assert!(
+            remote_conformance.contains(marker),
+            "remote conformance is missing {marker}"
+        );
+        assert!(
+            mobile_conformance.contains(marker),
+            "mobile conformance is missing {marker}"
+        );
+    }
+}
+
+#[test]
 fn hub_topology_filter_is_bounded_keyboard_accessible_and_renderer_neutral() {
     let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
@@ -814,6 +869,57 @@ fn hub_topology_filter_is_bounded_keyboard_accessible_and_renderer_neutral() {
     assert!(app.contains("cross_authority_runtime_filter=true"));
     assert!(app.contains("empty_filter_state=true"));
     assert!(app.contains("filter_focus_recovery=true"));
+}
+
+#[test]
+fn desktop_tutorial_is_offline_accessible_and_ui_reachable() {
+    let tutorial = avalonia_source("Leserpent.Avalonia/DesktopTutorialWindow.cs");
+    let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
+    let lifecycle = avalonia_source("Leserpent.Avalonia/DesktopApplicationLifecycle.cs");
+    let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+    let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+    let readme = repo_source("apps/leserpent-avalonia/README.md");
+    let first_run = repo_source("docs/book/tutorial-first-run.md");
+
+    for automation_id in [
+        "desktop-tutorial-progress",
+        "desktop-tutorial-previous",
+        "desktop-tutorial-next",
+        "desktop-tutorial-close",
+        "desktop-tutorial-step-",
+    ] {
+        assert!(
+            tutorial.contains(automation_id),
+            "missing tutorial control {automation_id}"
+        );
+    }
+    assert!(tutorial.contains("Steps.Length != 6"));
+    assert!(tutorial.contains("VerifyAccessibility()"));
+    assert!(tutorial.contains("ProbeNavigationContract()"));
+    assert!(tutorial.contains("Finish and close the Leserpent tutorial"));
+    assert!(tutorial.contains("Key.Left"));
+    assert!(tutorial.contains("Key.Right"));
+    assert!(tutorial.contains("Key.Home"));
+    assert!(tutorial.contains("Key.End"));
+    assert!(tutorial.contains("Key.Escape"));
+    assert!(tutorial.contains("LeserpentTheme.MinimumTextContrastRatio < 4.5"));
+    assert!(!tutorial.contains("HttpClient"));
+    assert!(!tutorial.contains("Process.Start"));
+    assert!(!tutorial.contains("RemoteMutation"));
+    assert!(!tutorial.contains("File."));
+
+    assert!(hub.contains("hub-open-tutorial"));
+    assert!(hub.contains("eventArgs.Key == Key.F1"));
+    assert!(hub.contains("ProbeTutorialEntry()"));
+    assert!(app.contains("--verify-desktop-tutorial"));
+    assert!(app.contains("tutorial_entry=true"));
+    assert!(app.contains("desktop tutorial valid:"));
+    assert!(lifecycle.contains("Learning Center..."));
+    assert!(lifecycle.contains("desktop.Windows.OfType<DesktopTutorialWindow>()"));
+    assert!(lifecycle.contains("window is not DesktopTutorialWindow"));
+    assert!(program.contains("offline_tutorial=true"));
+    assert!(readme.contains("`--verify-desktop-tutorial`"));
+    assert!(first_run.contains("`Learning Center...`"));
 }
 
 #[test]
@@ -1003,7 +1109,7 @@ fn remote_window_observes_async_ui_operations_and_fences_shutdown_updates() {
     assert!(!source.contains("private async void RequestReconnect()"));
     assert!(!source.contains("private async void OnActionInvoked(string nodeId)"));
     assert!(source.contains("ObserveUiOperation(RequestReconnectAsync())"));
-    assert!(source.contains("ObserveUiOperation(OnActionInvokedAsync(nodeId))"));
+    assert!(source.contains("ObserveUiOperation(OnActionInvokedAsync(invocation))"));
     assert!(source.contains("ObserveHealthOperation(RefreshAuthorityHealthAsync())"));
     assert!(!source.contains("ObserveUiOperation(RefreshAuthorityHealthAsync())"));
     assert!(source.contains("healthClient.Dispose();"));

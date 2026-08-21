@@ -49,6 +49,12 @@ internal sealed class LeserpentApp : Application
                 base.OnFrameworkInitializationCompleted();
                 return;
             }
+            if (desktop.Args is ["--verify-desktop-tutorial"])
+            {
+                ConfigureTutorialVerification(desktop);
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
             if (desktop.Args is ["--verify-bootstrap-controls"])
             {
                 ConfigureBootstrapControlVerification(desktop);
@@ -332,6 +338,7 @@ internal sealed class LeserpentApp : Application
         IClassicDesktopStyleApplicationLifetime desktop)
     {
         var runtimeOpenCount = 0;
+        var tutorialOpenCount = 0;
         var topology = new RemoteTopologySnapshot(7,
         [
             new RemoteRuntimeProjection
@@ -396,6 +403,7 @@ internal sealed class LeserpentApp : Application
             () => { },
             () => { },
             _ => { },
+            () => tutorialOpenCount++,
             SilvortexAccountSession.DisabledForVerification());
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += (_, _) =>
@@ -417,13 +425,14 @@ internal sealed class LeserpentApp : Application
                     window.ProbeTopologyFilter();
                     await window.ProbeRefreshAllControlAsync();
                     window.ProbeFirstRuntimeAction();
-                    if (runtimeOpenCount != 1)
+                    window.ProbeTutorialEntry();
+                    if (runtimeOpenCount != 1 || tutorialOpenCount != 1)
                     {
                         throw new InvalidDataException(
-                            "Hub runtime action did not preserve its daemon route");
+                            "Hub action routing did not preserve its runtime or tutorial target");
                     }
                     Console.WriteLine(
-                        "Hub topology valid: client_root=true, local_daemon=true, remote_daemons=2, live_topologies=3, authority_proofs=3, queue_health=true, runtime_children=6, runtime_actions=6, topology_filter=true, authority_filter=true, cross_authority_runtime_filter=true, empty_filter_state=true, filter_focus_recovery=true, refresh_all_control=true, refresh_all_single_flight=true, card_refresh_join=true, shared_refresh_policy=true, refresh_busy_state=true, refresh_completion_status=true, daemon_route=true, authoritative_workspace_gate=true, shared_workspace_launch=true, retained_topology_state=true, revision_regression_fence=true, bounded_auto_refresh=true, bounded_preview=true, independent_actions=true, legacy_remote_button=false, automation=true");
+                        "Hub topology valid: client_root=true, local_daemon=true, remote_daemons=2, live_topologies=3, authority_proofs=3, queue_health=true, runtime_children=6, runtime_actions=6, topology_filter=true, authority_filter=true, cross_authority_runtime_filter=true, empty_filter_state=true, filter_focus_recovery=true, refresh_all_control=true, refresh_all_single_flight=true, card_refresh_join=true, shared_refresh_policy=true, refresh_busy_state=true, refresh_completion_status=true, tutorial_entry=true, daemon_route=true, authoritative_workspace_gate=true, shared_workspace_launch=true, retained_topology_state=true, revision_regression_fence=true, bounded_auto_refresh=true, bounded_preview=true, independent_actions=true, legacy_remote_button=false, automation=true");
                     window.Close();
                 }
                 catch (Exception error)
@@ -431,6 +440,23 @@ internal sealed class LeserpentApp : Application
                     ReportVerificationFailure(desktop, "Hub topology controls", error);
                 }
             }, TimeSpan.FromMilliseconds(150));
+        };
+        window.Closed += (_, _) => desktop.Shutdown(0);
+        desktop.MainWindow = window;
+    }
+
+    private static void ConfigureTutorialVerification(
+        IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var window = new DesktopTutorialWindow();
+        RegisterMainWindowLifecycle(desktop, window);
+        window.Opened += (_, _) =>
+        {
+            window.VerifyAccessibility();
+            window.ProbeNavigationContract();
+            Console.WriteLine(
+                "desktop tutorial valid: offline=true, read_only=true, steps=6, direct_navigation=true, previous_next=true, keyboard=true, automation_ids=10, automation_names=10, help_texts=10, contrast=true");
+            DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
         desktop.MainWindow = window;
@@ -880,6 +906,7 @@ internal sealed class LeserpentApp : Application
             () => ShowGewyvernRetirement(desktop, catalogStore, certificateStore),
             () => ShowConnectionManager(desktop, null),
             connection => ShowConnectionManager(desktop, connection),
+            () => DesktopApplicationLifecycle.ShowTutorial(desktop),
             SilvortexAccount());
         RegisterMainWindowLifecycle(desktop, hub);
         desktop.MainWindow = hub;

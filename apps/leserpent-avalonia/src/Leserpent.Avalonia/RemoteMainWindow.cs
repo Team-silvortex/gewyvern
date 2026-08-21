@@ -677,57 +677,60 @@ internal sealed class RemoteMainWindow : Window
         }
     }
 
-    private void OnActionInvoked(string nodeId) =>
-        ObserveUiOperation(OnActionInvokedAsync(nodeId));
+    private void OnActionInvoked(RenderedActionInvocation invocation) =>
+        ObserveUiOperation(OnActionInvokedAsync(invocation));
 
-    private async Task OnActionInvokedAsync(string nodeId)
+    private async Task OnActionInvokedAsync(RenderedActionInvocation invocation)
     {
         if (isClosed)
         {
             return;
         }
-        var inspectedRuntime = currentState.Runtimes.FirstOrDefault(candidate =>
-            nodeId == $"runtime:{candidate.Id}:inspect");
-        if (inspectedRuntime is not null)
+        if (!IsActiveActionSource(invocation.Source))
+        {
+            SetMutationStatus(
+                "Remote action blocked: its workspace is already closed",
+                LeserpentTheme.Destructive);
+            return;
+        }
+        var resolution = RemoteUiActionRouter.ResolveActivation(
+            invocation.Source.Document,
+            invocation.NodeId,
+            currentState,
+            mutationCoordinator.Availability(currentState));
+        if (!resolution.Accepted || resolution.Intent is not { } intent)
+        {
+            SetMutationStatus(
+                $"Remote action blocked: {resolution.Reason}",
+                LeserpentTheme.Destructive);
+            return;
+        }
+        var runtime = intent.Runtime;
+        if (intent.Kind == ActionKind.RuntimeInspect)
         {
             var workspaceError = RequestRuntimeWorkspace(
-                inspectedRuntime.Id,
-                currentState.SnapshotRevision ?? inspectedRuntime.Revision);
+                runtime.Id,
+                currentState.SnapshotRevision ?? runtime.Revision);
             if (workspaceError is not null)
             {
                 SetMutationStatus(workspaceError, LeserpentTheme.Destructive);
             }
             return;
         }
-        var mutationAvailability = mutationCoordinator.Availability(currentState);
-        if (!mutationAvailability.MutationsEnabled)
+        if (intent.Kind == ActionKind.RuntimeDeploy)
+        {
+            await DeployRuntimeAsync(invocation.Source, intent);
+            return;
+        }
+        if (intent.Kind is not (
+            ActionKind.RuntimeRefresh or ActionKind.RuntimeCapabilitiesRefresh))
         {
             SetMutationStatus(
-                $"Remote change blocked: {mutationAvailability.MutationUnavailableReason}",
+                "Remote action blocked: unsupported typed action",
                 LeserpentTheme.Destructive);
             return;
         }
-        var invokedAction = FindNode(renderer.Document.Root, nodeId)?.Action;
-        var deploymentRuntime = invokedAction is
-        { Kind: ActionKind.RuntimeDeploy, RuntimeId: not null, Form: not null }
-            ? currentState.Runtimes.FirstOrDefault(candidate =>
-                candidate.Id == invokedAction.RuntimeId)
-            : null;
-        if (deploymentRuntime is not null && invokedAction?.Form is { } deploymentForm)
-        {
-            await DeployRuntimeAsync(deploymentRuntime, nodeId, deploymentForm);
-            return;
-        }
-        var capabilityRuntime = currentState.Runtimes.FirstOrDefault(candidate =>
-            nodeId == $"runtime:{candidate.Id}:capabilities-refresh");
-        var runtime = capabilityRuntime ?? currentState.Runtimes.FirstOrDefault(candidate =>
-            nodeId == $"runtime:{candidate.Id}:refresh");
-        var refreshCapabilities = capabilityRuntime is not null;
-        if (runtime is null)
-        {
-            SetMutationStatus("Refresh blocked: action context is invalid", LeserpentTheme.Destructive);
-            return;
-        }
+        var refreshCapabilities = intent.Kind == ActionKind.RuntimeCapabilitiesRefresh;
         var admission = mutationCoordinator.Begin(
             new RemoteMutationRequest(
                 runtime.Id,
@@ -804,10 +807,18 @@ internal sealed class RemoteMainWindow : Window
     }
 
     private async Task DeployRuntimeAsync(
-        RemoteRuntimeProjection runtime,
-        string nodeId,
-        UiForm form)
+        AvaloniaDocumentRenderer sourceRenderer,
+        RemoteUiActionIntent actionIntent)
     {
+        if (actionIntent.Form is not { } form)
+        {
+            SetMutationStatus(
+                "Deployment blocked: typed action has no form",
+                LeserpentTheme.Destructive);
+            return;
+        }
+        var runtime = actionIntent.Runtime;
+        var nodeId = actionIntent.NodeId;
         var admission = mutationCoordinator.Begin(
             new RemoteMutationRequest(
                 runtime.Id,
@@ -828,19 +839,32 @@ internal sealed class RemoteMainWindow : Window
             "This submits an authenticated, revision-checked deployment and is not retried automatically.",
             (values, cancellationToken) =>
             {
-                if (!values.TryGetValue("pipeline_kind", out var pipelineKind))
+                var preview = RemoteUiActionRouter.ResolveSubmission(
+                    sourceRenderer.Document,
+                    new UiEvent
+                    {
+                        NodeId = nodeId,
+                        Kind = UiEventKind.Submit,
+                        Values = values.ToDictionary(
+                            entry => entry.Key,
+                            entry => entry.Value,
+                            StringComparer.Ordinal),
+                    },
+                    currentState,
+                    nodeId);
+                if (!preview.Accepted
+                    || preview.Intent is not
+                    { PipelineKind: { } pipelineKind } previewIntent)
                 {
-                    throw new ArgumentException(
-                        "deployment form is missing pipeline_kind");
+                    throw new ArgumentException(preview.Reason);
                 }
-                values.TryGetValue("target", out var target);
                 return leselangClient.ExportDeployAsync(
                     runtime.Id,
                     pipelineKind,
-                    target,
+                    previewIntent.Target,
                     cancellationToken);
             });
-        using var formRegistration = renderer.RegisterFormFields(
+        using var formRegistration = sourceRenderer.RegisterFormFields(
             nodeId,
             formWindow.FormFields,
             formWindow,
@@ -856,7 +880,7 @@ internal sealed class RemoteMainWindow : Window
         UiEvent submission;
         try
         {
-            submission = renderer.CreateFormSubmission(nodeId, intent.Values);
+            submission = sourceRenderer.CreateFormSubmission(nodeId, intent.Values);
         }
         catch (InvalidDataException error)
         {
@@ -867,16 +891,32 @@ internal sealed class RemoteMainWindow : Window
                 LeserpentTheme.Destructive);
             return;
         }
-        if (!submission.Values.TryGetValue("pipeline_kind", out var pipelineKind))
+        if (!IsActiveActionSource(sourceRenderer))
         {
             mutationCoordinator.Cancel(operation);
             UpdateMutationAvailability();
             SetMutationStatus(
-                "Deployment blocked: form did not provide pipeline_kind",
+                "Deployment blocked: its workspace was closed before submission",
                 LeserpentTheme.Destructive);
             return;
         }
-        submission.Values.TryGetValue("target", out var target);
+        var submitted = RemoteUiActionRouter.ResolveSubmission(
+            sourceRenderer.Document,
+            submission,
+            currentState,
+            nodeId);
+        if (!submitted.Accepted
+            || submitted.Intent is not
+            { PipelineKind: { } pipelineKind } submittedIntent)
+        {
+            mutationCoordinator.Cancel(operation);
+            UpdateMutationAvailability();
+            SetMutationStatus(
+                $"Deployment blocked: {submitted.Reason}",
+                LeserpentTheme.Destructive);
+            return;
+        }
+        var target = submittedIntent.Target;
         var confirmation = mutationCoordinator.Confirm(operation, currentState);
         if (!confirmation.Accepted)
         {
@@ -961,6 +1001,10 @@ internal sealed class RemoteMainWindow : Window
         RemoteMutationAvailability availability) => workspace.SetRefreshAvailability(
             availability.MutationsEnabled,
             availability.MutationUnavailableReason);
+
+    private bool IsActiveActionSource(AvaloniaDocumentRenderer source) =>
+        ReferenceEquals(source, renderer)
+        || workspaceWindows.Values.Any(workspace => workspace.OwnsActionSource(source));
 
     private void OpenWorkspace(RemoteRuntimeProjection runtime)
     {
@@ -1109,22 +1153,6 @@ internal sealed class RemoteMainWindow : Window
             .Take(256)
             .ToArray());
         return string.IsNullOrWhiteSpace(sanitized) ? "Unavailable" : sanitized;
-    }
-
-    private static UiNode? FindNode(UiNode node, string nodeId)
-    {
-        if (node.Id == nodeId)
-        {
-            return node;
-        }
-        foreach (var child in node.Children)
-        {
-            if (FindNode(child, nodeId) is { } found)
-            {
-                return found;
-            }
-        }
-        return null;
     }
 
 }
