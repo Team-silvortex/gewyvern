@@ -1236,7 +1236,7 @@ fn gewyvern_provisioning_is_authority_scoped_identity_locked_and_bounded() {
     assert!(program.contains("--verify-provisioning-client"));
     assert!(program.contains("builtin_provisioning_catalogs=7"));
     assert!(program.contains("provisioning_semantic_keys=43"));
-    assert!(program.contains("builtin_semantic_keys=148"));
+    assert!(program.contains("builtin_semantic_keys=193"));
     assert!(program.contains("localized_gewyvern_provisioning=true"));
     assert!(promotion.contains("BootstrapPromotionJsonContext.Default"));
     assert!(!promotion.contains("JsonSerializer.Serialize(new\n"));
@@ -1247,6 +1247,8 @@ fn gewyvern_retirement_is_confirmed_provisioning_bound_and_failure_safe() {
     let client = avalonia_source("Leserpent.RemoteClient/RemoteRetirementClient.cs");
     let transport = avalonia_source("Leserpent.RemoteClient/RemoteWireTransport.cs");
     let window = avalonia_source("Leserpent.Avalonia/GewyvernRetirementWindow.cs");
+    let catalog = avalonia_source("Leserpent.Avalonia/DesktopRetirementCatalogs.cs");
+    let localization = avalonia_source("Leserpent.Avalonia/DesktopLocalization.cs");
     let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
@@ -1263,13 +1265,46 @@ fn gewyvern_retirement_is_confirmed_provisioning_bound_and_failure_safe() {
     assert!(transport.contains("\"v1/retirement\""));
     assert!(window.contains("MaxAutomaticObservations = 30"));
     assert!(window.contains("LockIdentityFields()"));
-    assert!(window.contains("new retirement ID"));
     assert!(window.contains("retirement-credential-handle"));
     assert!(window.contains("AutomationLiveSetting.Assertive"));
+    assert!(window.contains("DesktopRetirementCatalogs.Resolve(localization, key)"));
+    assert!(window.contains("localization.Changed += OnLocalizationChanged"));
+    assert!(window.contains("localizedStatusKey = null"));
+    assert!(window.contains("VerifyLayoutEnvelope()"));
+    assert!(window.contains("ProbeLocalizedPresentation("));
+    assert!(window.contains("ProbeObservationLimitAsync"));
+    assert!(window.contains("new WrapPanel"));
+    assert!(!window.contains("phase.Text = state.Phase.Replace"));
+    assert!(catalog.contains("public const int KeyCount = 45;"));
+    assert!(catalog.contains("private const string Prefix = \"desktop.retirement.\";"));
+    assert!(catalog.contains("public static IReadOnlyDictionary<string, string> Korean"));
+    assert!(catalog.contains("SetEquals(expected)"));
+    assert!(catalog.contains("HasExpectedPlaceholders"));
+    assert!(catalog.contains("use a new retirement ID for a corrected attempt"));
+    assert!(catalog.contains(
+        "[\"status.failed\"] = \"退役失败，受限故障代码为 {0}。runtime 仍保持注册"
+    ));
+    assert!(catalog.contains(
+        "[\"status.waiting\"] = \"선택한 daemon 권한 주체를 기다리는 중...\""
+    ));
+    assert!(!catalog.contains("HttpClient"));
+    assert!(!catalog.contains("Process."));
+    assert!(!catalog.contains("File."));
+    assert!(localization.contains("DesktopRetirementCatalogs.VerifyContract();"));
+    assert!(localization.contains("DesktopRetirementCatalogs.KeyCount"));
     assert!(hub.contains("hub-retire-gewyvern"));
     assert!(app.contains("ExecuteRetirementAsync"));
     assert!(app.contains("--verify-retirement-controls"));
+    assert!(app.contains("localized_retirement_catalogs=7"));
+    assert!(app.contains("localized_layouts=8"));
+    assert!(app.contains("observation_limit_no_reconcile=true"));
+    assert!(app.contains("await window.ProbeWorkflowAsync(\"zh-CN\")"));
+    assert!(app.contains("await window.ProbeObservationLimitAsync(\"de\")"));
     assert!(program.contains("--verify-retirement-client"));
+    assert!(program.contains("builtin_retirement_catalogs=7"));
+    assert!(program.contains("retirement_semantic_keys=45"));
+    assert!(program.contains("builtin_semantic_keys=193"));
+    assert!(program.contains("localized_gewyvern_retirement=true"));
 }
 
 #[test]
@@ -1649,7 +1684,7 @@ fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
     assert!(app.contains("live_language_reprojection=true"));
     assert!(program.contains("builtin_connection_catalogs=7"));
     assert!(program.contains("connection_semantic_keys=33"));
-    assert!(program.contains("builtin_semantic_keys=148"));
+    assert!(program.contains("builtin_semantic_keys=193"));
     assert!(window.contains("if (operationInFlight || isClosed)"));
     assert!(health.contains("remote health did not prove a ready protocol-v1 authority"));
     assert!(health.contains("remote health queue counters are inconsistent"));
@@ -1723,7 +1758,7 @@ fn desktop_reverse_deployment_is_strictly_localized_and_operator_data_preserving
     assert!(app.contains("await window.ProbeWorkflowAsync(\"zh-CN\")"));
     assert!(program.contains("builtin_bootstrap_catalogs=7"));
     assert!(program.contains("bootstrap_semantic_keys=46"));
-    assert!(program.contains("builtin_semantic_keys=148"));
+    assert!(program.contains("builtin_semantic_keys=193"));
     assert!(program.contains("localized_reverse_deployment=true"));
 }
 

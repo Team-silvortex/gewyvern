@@ -226,14 +226,15 @@ semantic UI-IR set for runtime lists, workspaces, logs, capabilities, history,
 and deployment forms. Startup rejects a missing or extra key, and per-locale
 native `TextBlock` probes validate visible plus accessible text. The six newly
 filled shell and semantic catalogs remain candidates until native-speaker and
-real-layout review. Connection/forget, reverse deployment, and gewyvern
-provisioning are the first specialist domains on the same boundary: separate
-exact 33-key, 46-key, and 43-key catalogs merge without overlapping the frozen
+real-layout review. Connection/forget, reverse deployment, gewyvern
+provisioning, and gewyvern retirement are the first specialist domains on the
+same boundary: separate exact 33-key, 46-key, 43-key, and 45-key catalogs merge
+without overlapping the frozen
 core set, all eight built-in locale trees are measured inside fixed native
 envelopes, and open controls, accessible names, controlled phases, status, and
 flow direction reproject on language change while operation identities,
-operator values, and raw remote errors stay untouched. Retirement, startup-
-recovery, account, tutorial, and later semantic domains still fall back to
+operator values, and raw remote errors stay untouched. Daemon retirement,
+startup-recovery, account, tutorial, and later semantic domains still fall back to
 English. Hub and remote-shell layout expansion also remains explicit follow-up
 work. Arabic,
 Hebrew, and Persian switch the inherited Avalonia flow direction to RTL.
@@ -404,7 +405,10 @@ failed retirement preserves an inspectable runtime registration. The Avalonia
 Hub now exposes the same provisioning-bound identity through an explicitly
 confirmed destructive workspace. Its strict 64 KiB client, locked fields,
 bounded replay, credential-free status, and failure guidance preserve the same
-state invariants. The physical Linux proof now runs the real pinned-host-key
+state invariants. Its 45-key specialist catalog covers all eight built-in
+languages; native layout and live-reprojection probes preserve the immutable
+retirement/provisioning/runtime identity and prove that reaching the 30-observation
+ceiling does not send another removal. The physical Linux proof now runs the real pinned-host-key
 native SSH transport against an isolated systemd-user runtime: a forged
 provisioning identity is rejected without preventing the corrected request,
 the bound service is stopped and disabled, its descriptor and runtime root are

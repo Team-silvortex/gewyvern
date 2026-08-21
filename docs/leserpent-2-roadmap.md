@@ -793,6 +793,10 @@ exit codes, and a negative proof that adapter failure preserves registration.
 The Avalonia Hub now provides the matching confirmed control with strict
 provisioning/runtime/target identity fencing, locked fields, bounded replay,
 credential-free status, and explicit failure-preserves-registration guidance.
+Its strict 45-key specialist catalog covers all eight built-in languages; the
+native verifier measures every layout, reprojects controlled progress without
+changing retirement/provisioning/runtime identity, and proves that the bounded
+observation ceiling cannot issue a 31st removal request.
 The physical Linux stop/remove gate is complete. The retained native SSH test
 provisions and health-checks an isolated systemd-user runtime, rejects a forged
 provisioning identity, completes the corrected retirement, replays it
@@ -2122,13 +2126,14 @@ locale. Simplified Chinese includes the complete offline tutorial. The other six
 non-English built-in shell catalogs cover all 67 stable shell keys with Web-
 aligned terminology and validated format placeholders, and their semantic
 catalogs use the same bounded key set, but both remain explicit review
-candidates. Connection/forget, reverse deployment, and gewyvern provisioning
-now establish the specialist-dialog pattern: seven exact 33-key, 46-key, and
-43-key non-English catalogs merge without touching the frozen core set, eight-
-locale native layout probes cover all four windows, and live language changes
+candidates. Connection/forget, reverse deployment, gewyvern provisioning, and
+gewyvern retirement now establish the specialist-dialog pattern: seven exact
+33-key, 46-key, 43-key, and 45-key non-English catalogs merge without touching
+the frozen core set, eight-locale native layout probes cover all five windows,
+and live language changes
 reproject labels, controlled phases, status, accessibility, and flow direction
 without rewriting operation identities, operator input, or raw errors. Their
-tutorial content, remaining retirement/startup/account dialogs, later semantic
+tutorial content, remaining daemon-retirement/startup/account dialogs, later semantic
 domains, and all 22 downloadable core-ui packs stay partial rather than claiming
 unreviewed translations.
 Runtime-child workspace admission has now crossed the same boundary. The

@@ -2405,12 +2405,12 @@
       "feature": "desktop-localization",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 89,
+      "completion": 92,
       "confidence": "high",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-desktop-localization",
-        "version": "0.6.0",
+        "version": "0.7.0",
         "stability": "draft",
         "surfaces": [
           "shared-official-locale-roster",
@@ -2449,6 +2449,11 @@
           "localized-gewyvern-provisioning-controls",
           "eight-built-in-provisioning-layout-envelopes",
           "live-provisioning-language-reprojection",
+          "seven-built-in-retirement-specialist-catalogs",
+          "retirement-catalog-exact-key-set",
+          "localized-gewyvern-retirement-controls",
+          "eight-built-in-retirement-layout-envelopes",
+          "live-retirement-language-reprojection",
           "zh-cn-core-native-shell",
           "zh-cn-complete-learning-center",
           "rtl-native-flow-direction",
@@ -2462,7 +2467,7 @@
       "blockers": [
         {
           "id": "desktop-long-tail-language-review",
-          "summary": "All eight built-in locales have complete 67-key native-shell catalogs; all seven non-English built-ins cover the exact 26-key core semantic UI-IR set, the 33-key connection/forget domain, the 46-key reverse-deployment domain, and the 43-key gewyvern-provisioning domain with native-control, layout, and live-reprojection probes. The six new candidate translations still require native-speaker review, while retirement, startup-recovery, and account dialogs, non-Chinese tutorial content, later semantic domains, and the 22 official core-ui packs remain partial."
+          "summary": "All eight built-in locales have complete 67-key native-shell catalogs; all seven non-English built-ins cover the exact 26-key core semantic UI-IR set, the 33-key connection/forget domain, the 46-key reverse-deployment domain, the 43-key gewyvern-provisioning domain, and the 45-key gewyvern-retirement domain with native-control, layout, and live-reprojection probes. The six new candidate translations still require native-speaker review, while daemon-retirement, startup-recovery, and account dialogs, non-Chinese tutorial content, later semantic domains, and the 22 official core-ui packs remain partial."
         }
       ],
       "consumers": ["desktop-operators", "leselang-ui-adapters"],
@@ -2473,10 +2478,12 @@
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopConnectionCatalogs.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBootstrapDeploymentCatalogs.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopProvisioningCatalogs.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRetirementCatalogs.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopConnectionWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopForgetConnectionWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/BootstrapDeploymentWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/GewyvernProvisioningWindow.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/GewyvernRetirementWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguagePreferenceStore.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguageWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopTutorialWindow.cs", "state": "present" },
@@ -2484,7 +2491,7 @@
         { "kind": "documentation", "path": "apps/leserpent-avalonia/README.md", "state": "present" },
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" }
       ],
-      "next_gate": "Review the six candidate built-in catalogs with native speakers, apply the strict domain-catalog pattern to retirement, startup-recovery, and account dialogs, and extend real-layout probes to Hub and remote shells; then cover non-Chinese tutorials and the 22 official core-ui packs."
+      "next_gate": "Review the six candidate built-in catalogs with native speakers, apply the strict domain-catalog pattern to daemon retirement, startup-recovery, and account dialogs, and extend real-layout probes to Hub and remote shells; then cover non-Chinese tutorials and the 22 official core-ui packs."
     },
     {
       "id": "leserpent-2/remote-console/remote-mobile-console",

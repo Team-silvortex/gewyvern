@@ -259,14 +259,15 @@ catalog with Web-aligned terminology. All seven non-English built-ins also cover
 the exact 26-key core semantic UI-IR set for runtime lists, workspaces, logs,
 capabilities, history, and deployment forms; per-locale native `TextBlock` probes
 verify both visible and accessible text. Simplified Chinese additionally covers
-the complete six-step tutorial. Connection/forget, reverse deployment, and
-gewyvern provisioning are the first complete specialist domains: their exact
-33-key, 46-key, and 43-key catalogs cover every built-in language, their native
+the complete six-step tutorial. Connection/forget, reverse deployment,
+gewyvern provisioning, and gewyvern retirement are the first complete
+specialist domains: their exact 33-key, 46-key, 43-key, and 45-key catalogs
+cover every built-in language, their native
 windows have eight-locale layout probes, and live language changes reproject
 labels, controlled phases, status, accessibility, and flow direction without
 changing endpoint, operation identity, host, credential, or raw error values.
 The six newly completed catalogs remain candidate translations pending native-
-speaker review, while their tutorial steps, retirement/startup/account dialogs,
+speaker review, while their tutorial steps, daemon-retirement/startup/account dialogs,
 later semantic domains, and the 22 downloadable locales still fall back to
 English per missing key. Run
 `--verify-desktop-localization` for the
@@ -280,7 +281,9 @@ reverse-deployment layout and live status reprojection alongside its complete
 confirmation-gated submit, inspect, bind, and promotion sequence.
 The provisioning control verifier applies the same proof to immutable
 provisioning and runtime IDs, bounded same-attempt observation, and terminal
-registration.
+registration. `--verify-retirement-controls` extends it to the destructive
+runtime-retirement path, including immutable retirement/provisioning/runtime
+identity and a proof that the observation ceiling emits no additional request.
 
 Opening a runtime child follows the same renderer-neutral boundary. The
 `RemoteWorkspaceLaunchCoordinator` validates runtime IDs, bounds active plus
@@ -411,7 +414,10 @@ Submission locks the complete identity and bounded observation replays the exact
 request. The UI only reports credential presence, never the handle. A completed
 state refreshes Hub topology only after service retirement and atomic runtime
 unregistration; a failed state explicitly preserves the runtime registration
-for recovery and requires a new retirement ID for a corrected attempt. Verify
+for recovery and requires a new retirement ID for a corrected attempt. The
+native verifier measures all eight built-in language layouts and proves that a
+live language change preserves the complete retirement identity, target, and
+opaque credential handle while reprojecting controlled progress text. Verify
 the strict codec with `--verify-retirement-client` and the native controls with
 `--verify-retirement-controls`.
 

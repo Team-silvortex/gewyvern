@@ -923,65 +923,110 @@ internal sealed class LeserpentApp : Application
     {
         var reconcileCount = 0;
         RemoteRetirementIntent? acceptedIntent = null;
-        var window = new GewyvernRetirementWindow(
-            [new BootstrapAuthorityOption(
+        var localization = DesktopLocalization.ForVerification();
+        var authorities = new[]
+        {
+            new BootstrapAuthorityOption(
                 "daemon-verification",
                 "Verification authority",
                 "https://controller.example:9443",
-                false)],
-            new RetirementHubOperations((_, intent, _) =>
+                false),
+        };
+        var operations = new RetirementHubOperations((_, intent, _) =>
+        {
+            reconcileCount++;
+            acceptedIntent ??= intent;
+            if (acceptedIntent != intent)
             {
-                reconcileCount++;
-                acceptedIntent ??= intent;
-                if (acceptedIntent != intent)
-                {
-                    throw new InvalidDataException(
-                        "retirement controls changed identity while observing progress");
-                }
-                return Task.FromResult(reconcileCount == 1
-                    ? new RemoteRetirementSnapshot(
-                        intent.RetirementId,
-                        intent.ProvisioningId,
-                        intent.RuntimeId,
-                        "planned",
-                        "ssh",
-                        intent.Host,
-                        intent.Port,
-                        true,
-                        false,
-                        true,
-                        null)
-                    : new RemoteRetirementSnapshot(
-                        intent.RetirementId,
-                        intent.ProvisioningId,
-                        intent.RuntimeId,
-                        "runtime_unregistered",
-                        "ssh",
-                        intent.Host,
-                        intent.Port,
-                        false,
-                        true,
-                        false,
-                        null));
-            }));
+                throw new InvalidDataException(
+                    "retirement controls changed identity while observing progress");
+            }
+            return Task.FromResult(reconcileCount == 1
+                ? new RemoteRetirementSnapshot(
+                    intent.RetirementId,
+                    intent.ProvisioningId,
+                    intent.RuntimeId,
+                    "planned",
+                    "ssh",
+                    intent.Host,
+                    intent.Port,
+                    true,
+                    false,
+                    true,
+                    null)
+                : new RemoteRetirementSnapshot(
+                    intent.RetirementId,
+                    intent.ProvisioningId,
+                    intent.RuntimeId,
+                    "runtime_unregistered",
+                    "ssh",
+                    intent.Host,
+                    intent.Port,
+                    false,
+                    true,
+                    false,
+                    null));
+        });
+        var window = new GewyvernRetirementWindow(
+            authorities,
+            operations,
+            localization);
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += async (_, _) =>
         {
             window.VerifyAccessibility();
+            window.VerifyLayoutEnvelope();
+            var localizedLayoutCount = 0;
+            foreach (var locale in DesktopLocalization.OfficialLocales.Where(
+                locale => locale.BuiltIn))
+            {
+                var localized = DesktopLocalization.ForVerification(locale.Locale);
+                var localizedWindow = new GewyvernRetirementWindow(
+                    authorities,
+                    operations,
+                    localized);
+                localizedWindow.VerifyAccessibility();
+                localizedWindow.VerifyLayoutEnvelope();
+                localizedWindow.ProbeLocalizedPresentation(
+                    DesktopRetirementCatalogs.Resolve(localized, "title"),
+                    DesktopRetirementCatalogs.Resolve(localized, "heading"),
+                    DesktopRetirementCatalogs.Resolve(localized, "submit"),
+                    DesktopRetirementCatalogs.Resolve(
+                        localized,
+                        "phase.not_submitted"),
+                    DesktopRetirementCatalogs.Resolve(
+                        localized,
+                        "status.initial"));
+                localizedLayoutCount++;
+            }
+            localization.SetPreference("zh-CN");
+            window.ProbeLocalizedPresentation(
+                "Leserpent / 退役 gewyvern",
+                "停止、移除并注销",
+                "退役 gewyvern",
+                "尚未提交",
+                "请选择拥有此已注册 runtime 的 daemon 权威端。");
+            localization.SetPreference("en");
+            if (localizedLayoutCount != 8)
+            {
+                throw new InvalidDataException(
+                    "gewyvern retirement localized layout coverage drifted");
+            }
             await window.ProbeConfirmationFenceAsync();
             if (reconcileCount != 0)
             {
                 throw new InvalidDataException(
                     "retirement controls submitted without explicit confirmation");
             }
-            await window.ProbeWorkflowAsync();
+            await window.ProbeWorkflowAsync("zh-CN");
+            await window.ProbeObservationLimitAsync("de");
             if (reconcileCount != 2 || acceptedIntent is null)
             {
                 throw new InvalidDataException(
                     "retirement controls did not preserve submit-observe identity");
             }
             Console.WriteLine(
-                "retirement controls valid: controls=13, authority_scoped=true, provisioning_bound=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, stable_identity=true, bounded_polling=30, terminal_state=true, failure_preserves_registration=true, retry_guidance=true, automation=true");
+                "retirement controls valid: controls=13, authority_scoped=true, provisioning_bound=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, stable_identity=true, bounded_polling=30, observation_limit_no_reconcile=true, terminal_state=true, failure_preserves_registration=true, retry_guidance=true, automation=true, localized_retirement_catalogs=7, localized_layouts=8, live_language_reprojection=true");
             DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
@@ -1784,7 +1829,10 @@ internal sealed class LeserpentApp : Application
                     }
                     return state;
                 });
-            var window = new GewyvernRetirementWindow(authorities, operations);
+            var window = new GewyvernRetirementWindow(
+                authorities,
+                operations,
+                DesktopLanguage());
             if (desktop.MainWindow is { } owner)
             {
                 window.Show(owner);
