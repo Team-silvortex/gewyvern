@@ -144,7 +144,15 @@ internal static class Program
         {
             DesktopApplicationLifecycle.VerifyContract();
             Console.WriteLine(
-                "desktop lifecycle valid: app_menu=true, connection_settings=true, about=true, learning_center=true, offline_tutorial=true, dock_reopen=true, tutorial_not_main_window=true, explicit_quit=true");
+                "desktop lifecycle valid: app_menu=true, connection_settings=true, language_settings=true, about=true, learning_center=true, offline_tutorial=true, dock_reopen=true, auxiliary_windows_not_main_window=true, explicit_quit=true");
+            return 0;
+        }
+        if (args is ["--verify-desktop-localization"])
+        {
+            DesktopLocalization.VerifyContract();
+            DesktopLanguagePreferenceStore.VerifyContract();
+            Console.WriteLine(
+                "desktop localization valid: schema=v1, official_locales=30, builtin_locales=8, downloadable_locales=22, system_resolution=true, bcp47_aliases=true, persistent_preference=true, atomic=true, private=true, unknown_fields=false, localized_ui_ir=true, english_fallback=true, zh_cn_core=true, zh_cn_tutorial_complete=true, rtl_locales=3");
             return 0;
         }
         if (args is ["--verify-local-orchestra", var daemonPath])

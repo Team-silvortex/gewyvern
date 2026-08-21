@@ -135,8 +135,11 @@ internal sealed record RenderedActionInvocation(
     string NodeId);
 
 internal sealed class AvaloniaDocumentRenderer(
-    Action<RenderedActionInvocation> actionInvoked)
+    Action<RenderedActionInvocation> actionInvoked,
+    Func<LocalizedText, string>? localizedTextResolver = null)
 {
+    private readonly Func<LocalizedText, string> localizedTextResolver =
+        localizedTextResolver ?? (text => text.Fallback);
     private readonly Dictionary<string, RenderedNode> nodes = new(StringComparer.Ordinal);
     private readonly Dictionary<ActionKind, ActionAvailability> actionAvailability = [];
     private readonly Dictionary<string, RegisteredFormFields> registeredFormFields =
@@ -1702,7 +1705,7 @@ internal sealed class AvaloniaDocumentRenderer(
             node.Selection?.State,
             AutomationName(node),
             node.Accessibility.Label is not null,
-            node.Accessibility.Description?.Fallback,
+            Resolve(node.Accessibility.Description),
             FormFieldLabels(node),
             FormFieldInputKinds(node),
             FormFieldRequired(node),
@@ -1728,18 +1731,18 @@ internal sealed class AvaloniaDocumentRenderer(
             node.Selection?.State,
             AutomationName(node),
             node.Accessibility.Label is not null,
-            node.Accessibility.Description?.Fallback,
+            Resolve(node.Accessibility.Description),
             FormFieldLabels(node),
             FormFieldInputKinds(node),
             FormFieldRequired(node),
             FormFieldMaxLengths(node),
             FormFieldPlaceholders(node));
 
-    private static IReadOnlyDictionary<string, string>? FormFieldLabels(UiNode node) =>
+    private IReadOnlyDictionary<string, string>? FormFieldLabels(UiNode node) =>
         node.Action?.Form is { } form
             ? form.Fields.ToDictionary(
                 field => field.Key,
-                field => field.Label.Fallback,
+                field => Resolve(field.Label)!,
                 StringComparer.Ordinal)
             : null;
 
@@ -1767,15 +1770,15 @@ internal sealed class AvaloniaDocumentRenderer(
                 StringComparer.Ordinal)
             : null;
 
-    private static IReadOnlyDictionary<string, string?>? FormFieldPlaceholders(UiNode node) =>
+    private IReadOnlyDictionary<string, string?>? FormFieldPlaceholders(UiNode node) =>
         node.Action?.Form is { } form
             ? form.Fields.ToDictionary(
                 field => field.Key,
-                field => field.Placeholder?.Fallback,
+                field => Resolve(field.Placeholder),
                 StringComparer.Ordinal)
             : null;
 
-    private static TextBlock BuildHeading(UiNode node) => new()
+    private TextBlock BuildHeading(UiNode node) => new()
     {
         Text = RequiredText(node),
         Foreground = LeserpentTheme.Primary,
@@ -1785,7 +1788,7 @@ internal sealed class AvaloniaDocumentRenderer(
         TextWrapping = TextWrapping.Wrap,
     };
 
-    private static TextBlock BuildText(UiNode node) => new()
+    private TextBlock BuildText(UiNode node) => new()
     {
         Text = RequiredText(node),
         Foreground = node.Kind == UiNodeKind.HistoryEntry
@@ -1796,7 +1799,7 @@ internal sealed class AvaloniaDocumentRenderer(
         TextWrapping = TextWrapping.Wrap,
     };
 
-    private static TextBlock BuildLogText(UiNode node) => new()
+    private TextBlock BuildLogText(UiNode node) => new()
     {
         Text = RequiredText(node),
         Foreground = LeserpentTheme.Body,
@@ -1806,7 +1809,7 @@ internal sealed class AvaloniaDocumentRenderer(
         TextWrapping = TextWrapping.Wrap,
     };
 
-    private static TextBlock BuildDebuggerFrameText(UiNode node) => new()
+    private TextBlock BuildDebuggerFrameText(UiNode node) => new()
     {
         Text = RequiredText(node),
         Foreground = LeserpentTheme.Muted,
@@ -1839,7 +1842,7 @@ internal sealed class AvaloniaDocumentRenderer(
         ApplyActionAvailability(
             button,
             availability,
-            node.Accessibility.Description?.Fallback);
+            Resolve(node.Accessibility.Description));
     }
 
     private ActionAvailability AvailabilityFor(UiNode node) =>
@@ -1896,16 +1899,18 @@ internal sealed class AvaloniaDocumentRenderer(
         ? new VirtualizedChildrenHost()
         : new StackChildrenHost();
 
-    private static void ApplyAutomation(Control control, UiNode node)
+    private void ApplyAutomation(Control control, UiNode node)
     {
         control.Tag = node.Id;
         AutomationProperties.SetAutomationId(control, node.Id);
         AutomationProperties.SetName(
             control,
-            node.Accessibility.Label?.Fallback ?? node.Text?.Fallback ?? node.Id);
+            Resolve(node.Accessibility.Label)
+                ?? Resolve(node.Text)
+                ?? node.Id);
         if (node.Accessibility.Description is { } description)
         {
-            AutomationProperties.SetHelpText(control, description.Fallback);
+            AutomationProperties.SetHelpText(control, Resolve(description));
         }
     }
 
@@ -1959,8 +1964,8 @@ internal sealed class AvaloniaDocumentRenderer(
         }
     }
 
-    private static string AutomationName(UiNode node) =>
-        node.Accessibility.Label?.Fallback ?? node.Text?.Fallback ?? node.Id;
+    private string AutomationName(UiNode node) =>
+        Resolve(node.Accessibility.Label) ?? Resolve(node.Text) ?? node.Id;
 
     private static void EnsureRenderable(UiNode node)
     {
@@ -2048,9 +2053,24 @@ internal sealed class AvaloniaDocumentRenderer(
         nodes.Remove(node.Id);
     }
 
-    private static string RequiredText(UiNode node) => node.Text?.Fallback
-        ?? node.Accessibility.Label?.Fallback
+    private string RequiredText(UiNode node) => Resolve(node.Text)
+        ?? Resolve(node.Accessibility.Label)
         ?? throw new InvalidDataException($"node '{node.Id}' has no display text");
+
+    private string? Resolve(LocalizedText? text)
+    {
+        if (text is null)
+        {
+            return null;
+        }
+        var value = localizedTextResolver(text);
+        if (value.Length is <= 0 or > 1024 || value.Any(char.IsControl))
+        {
+            throw new InvalidDataException(
+                $"localized UI text '{text.Key}' is outside the renderer boundary");
+        }
+        return value;
+    }
 
     private sealed record ActionAvailability(bool IsEnabled, string? UnavailableReason)
     {

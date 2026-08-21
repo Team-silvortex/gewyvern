@@ -15,6 +15,7 @@ internal sealed class RemoteMainWindow : Window
     private readonly RemoteLeselangClient leselangClient;
     private readonly RemoteMutationClient mutationClient;
     private readonly RemoteClientOptions options;
+    private readonly DesktopLocalization localization;
     private readonly Dictionary<string, RemoteRuntimeWorkspaceWindow> workspaceWindows =
         new(StringComparer.Ordinal);
     private readonly RemoteWorkspaceLaunchCoordinator workspaceLaunch =
@@ -136,9 +137,11 @@ internal sealed class RemoteMainWindow : Window
     public RemoteMainWindow(
         RemoteClientOptions options,
         RemoteTokenSource tokenSource,
-        Action? manageConnection = null)
+        Action? manageConnection = null,
+        DesktopLocalization? localization = null)
     {
         this.options = options;
+        this.localization = localization ?? DesktopLocalization.ForVerification();
         Width = 1080;
         Height = 760;
         MinWidth = 640;
@@ -147,7 +150,9 @@ internal sealed class RemoteMainWindow : Window
         FontFamily = new FontFamily("Avenir Next, Segoe UI, sans-serif");
         Title = $"Leserpent / {options.Endpoint.Authority}";
 
-        renderer = new AvaloniaDocumentRenderer(OnActionInvoked);
+        renderer = new AvaloniaDocumentRenderer(
+            OnActionInvoked,
+            this.localization.Resolve);
         eventClient = new RemoteEventClient(options);
         healthClient = new RemoteHealthClient(options);
         authorityHealthCoordinator = new RemoteAuthorityHealthCoordinator(
@@ -237,10 +242,12 @@ internal sealed class RemoteMainWindow : Window
                 BuildStatusBar(),
             },
         };
+        ApplyLocalization();
         ApplyResponsiveLayout(RemoteResponsiveLayout.Select(Width));
         ApplyState(currentState);
         ApplyAuthorityHealth(authorityHealthCoordinator.State);
         eventClient.StateChanged += OnStateChanged;
+        this.localization.Changed += OnLocalizationChanged;
         Opened += (_, _) =>
         {
             eventClient.Start();
@@ -250,6 +257,50 @@ internal sealed class RemoteMainWindow : Window
         SizeChanged += (_, eventArgs) => ApplyResponsiveLayout(
             RemoteResponsiveLayout.Select(eventArgs.NewSize.Width));
         Closed += OnClosed;
+    }
+
+    private void OnLocalizationChanged(object? sender, EventArgs eventArgs) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            _ = sender;
+            _ = eventArgs;
+            if (isClosed)
+            {
+                return;
+            }
+            ApplyLocalization();
+            RenderProjection();
+            ApplyAuthorityHealth(authorityHealthCoordinator.State);
+        });
+
+    private void ApplyLocalization()
+    {
+        FlowDirection = localization.FlowDirection;
+        dismissMutationButton.Content = localization.Text(DesktopTextKey.Dismiss);
+        reconnectButton.Content = localization.Text(DesktopTextKey.Reconnect);
+        connectionButton.Content = localization.Text(DesktopTextKey.Connection);
+        runtimeFilterBox.PlaceholderText = localization.Text(DesktopTextKey.FilterRuntimes);
+        authorityHealthText.Text = localization.Text(DesktopTextKey.AwaitingAuthorityCheck);
+        authorityHealthButton.Content = localization.Text(DesktopTextKey.RefreshHealth);
+        clearRuntimeFilterButton.Content = localization.Text(DesktopTextKey.Clear);
+        AutomationProperties.SetName(
+            statusText,
+            localization.Text(DesktopTextKey.RemoteConnectionState));
+        AutomationProperties.SetName(
+            mutationStatusText,
+            localization.Text(DesktopTextKey.RemoteOperationStatus));
+        AutomationProperties.SetName(
+            connectionButton,
+            localization.Text(DesktopTextKey.ManageConnection));
+        AutomationProperties.SetName(
+            runtimeFilterBox,
+            localization.Text(DesktopTextKey.FilterRuntimes));
+        AutomationProperties.SetName(
+            runtimeCountText,
+            localization.Text(DesktopTextKey.RuntimeResultCount));
+        AutomationProperties.SetName(
+            clearRuntimeFilterButton,
+            localization.Text(DesktopTextKey.Clear));
     }
 
     private Border BuildRemoteBody()
@@ -750,6 +801,7 @@ internal sealed class RemoteMainWindow : Window
         var confirmed = await new RuntimeRefreshConfirmationWindow(
                 runtime,
                 refreshCapabilities,
+                localization,
                 cancellationToken => leselangClient.ExportRefreshAsync(
                     runtime.Id,
                     refreshCapabilities,
@@ -837,6 +889,7 @@ internal sealed class RemoteMainWindow : Window
             form,
             $"{SafeDisplay(runtime.Name)}\nID: {runtime.Id}\nExpected revision: {runtime.Revision}",
             "This submits an authenticated, revision-checked deployment and is not retried automatically.",
+            localization,
             (values, cancellationToken) =>
             {
                 var preview = RemoteUiActionRouter.ResolveSubmission(
@@ -1033,7 +1086,8 @@ internal sealed class RemoteMainWindow : Window
             options,
             runtime,
             principal,
-            OnActionInvoked);
+            OnActionInvoked,
+            localization);
         workspaceWindows.Add(runtime.Id, workspace);
         workspace.Closed += (_, _) => workspaceWindows.Remove(runtime.Id);
         SetWorkspaceMutationAvailability(
@@ -1052,6 +1106,7 @@ internal sealed class RemoteMainWindow : Window
         }
         isClosed = true;
         eventClient.StateChanged -= OnStateChanged;
+        localization.Changed -= OnLocalizationChanged;
         authorityHealthCoordinator.Stop();
         lifetime.Cancel();
         runtimeFilterTimer.Stop();
@@ -1162,10 +1217,17 @@ internal sealed class RuntimeRefreshConfirmationWindow : Window
     public RuntimeRefreshConfirmationWindow(
         RemoteRuntimeProjection runtime,
         bool refreshCapabilities,
+        DesktopLocalization localization,
         Func<CancellationToken, Task<string>> exportLeselang)
     {
         var operation = refreshCapabilities ? "capability discovery" : "runtime refresh";
-        var action = refreshCapabilities ? "Discover capabilities" : "Refresh runtime";
+        var action = localization.Resolve(new LocalizedText
+        {
+            Key = refreshCapabilities
+                ? "runtime.capabilities.refresh"
+                : "runtime.refresh",
+            Fallback = refreshCapabilities ? "Discover capabilities" : "Refresh runtime",
+        });
         Title = $"Confirm remote {operation}";
         Width = 480;
         MinWidth = 420;
@@ -1173,10 +1235,11 @@ internal sealed class RuntimeRefreshConfirmationWindow : Window
         CanResize = false;
         Background = LeserpentTheme.Canvas;
         FontFamily = new FontFamily("Avenir Next, Segoe UI, sans-serif");
+        FlowDirection = localization.FlowDirection;
 
         var cancel = new Button
         {
-            Content = "Cancel",
+            Content = localization.Text(DesktopTextKey.Cancel),
             Padding = new Thickness(18, 9),
         };
         var confirm = new Button
@@ -1278,33 +1341,38 @@ internal sealed class ParameterizedActionFormWindow : Window
         UiForm form,
         string context,
         string warning,
+        DesktopLocalization localization,
         Func<IReadOnlyDictionary<string, string>, CancellationToken, Task<string>> exportLeselang)
     {
-        Title = form.Title.Fallback;
+        Title = localization.Resolve(form.Title);
         Width = 520;
         MinWidth = 440;
         SizeToContent = SizeToContent.Height;
         CanResize = false;
         Background = LeserpentTheme.Canvas;
         FontFamily = new FontFamily("Avenir Next, Segoe UI, sans-serif");
+        FlowDirection = localization.FlowDirection;
 
         var inputs = new Dictionary<string, (UiFormField Field, TextBox Input)>(
             StringComparer.Ordinal);
         var fields = new StackPanel { Spacing = 8 };
         foreach (var field in form.Fields)
         {
+            var label = localization.Resolve(field.Label);
             var input = new TextBox
             {
-                PlaceholderText = field.Placeholder?.Fallback,
+                PlaceholderText = field.Placeholder is null
+                    ? null
+                    : localization.Resolve(field.Placeholder),
                 MaxLength = field.MaxLength,
             };
             AutomationProperties.SetAutomationId(input, $"parameter-form-{field.Key}");
-            AutomationProperties.SetName(input, field.Label.Fallback);
+            AutomationProperties.SetName(input, label);
             fields.Children.Add(new TextBlock
             {
                 Text = field.Required
-                    ? $"{field.Label.Fallback} (required)"
-                    : field.Label.Fallback,
+                    ? localization.Format(DesktopTextKey.RequiredSuffix, label)
+                    : label,
                 Foreground = LeserpentTheme.Body,
                 FontWeight = FontWeight.SemiBold,
             });
@@ -1326,12 +1394,12 @@ internal sealed class ParameterizedActionFormWindow : Window
         };
         CancelButton = new Button
         {
-            Content = "Cancel",
+            Content = localization.Text(DesktopTextKey.Cancel),
             Padding = new Thickness(18, 9),
         };
         SubmitButton = new Button
         {
-            Content = form.SubmitLabel.Fallback,
+            Content = localization.Resolve(form.SubmitLabel),
             Background = LeserpentTheme.Accent,
             Foreground = Brushes.Black,
             FontWeight = FontWeight.SemiBold,
@@ -1341,9 +1409,9 @@ internal sealed class ParameterizedActionFormWindow : Window
         var cancel = CancelButton;
         var submit = SubmitButton;
         AutomationProperties.SetAutomationId(cancel, "parameter-form-cancel");
-        AutomationProperties.SetName(cancel, "Cancel form submission");
+        AutomationProperties.SetName(cancel, localization.Text(DesktopTextKey.Cancel));
         AutomationProperties.SetAutomationId(submit, "parameter-form-submit");
-        AutomationProperties.SetName(submit, form.SubmitLabel.Fallback);
+        AutomationProperties.SetName(submit, localization.Resolve(form.SubmitLabel));
         var leselang = new LeselangExportControl("parameter-form");
 
         IReadOnlyDictionary<string, string> Values() => inputs
@@ -1360,7 +1428,7 @@ internal sealed class ParameterizedActionFormWindow : Window
             submit.IsEnabled = invalid.Field is null;
             validation.Text = invalid.Field is null
                 ? string.Empty
-                : $"{invalid.Field.Label.Fallback}: {ValidationMessage(invalid.Field)}";
+                : $"{localization.Resolve(invalid.Field.Label)}: {ValidationMessage(invalid.Field)}";
             leselang.Update(invalid.Field is null
                 ? cancellationToken => exportLeselang(Values(), cancellationToken)
                 : null);
@@ -1398,7 +1466,7 @@ internal sealed class ParameterizedActionFormWindow : Window
                 {
                     new TextBlock
                     {
-                        Text = form.Title.Fallback,
+                        Text = localization.Resolve(form.Title),
                         Foreground = LeserpentTheme.Primary,
                         FontSize = 22,
                         FontWeight = FontWeight.Bold,

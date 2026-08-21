@@ -26,6 +26,7 @@ internal sealed class HubWindow : Window
     };
     private readonly int daemonCardCount;
     private readonly int expectedAuditedControlCount;
+    private readonly DesktopLocalization localization;
     private readonly SilvortexAccountControl accountControl;
     private readonly StackPanel topologyRoot = new() { Spacing = 10 };
     private readonly TextBox topologyFilterBox = new()
@@ -47,6 +48,11 @@ internal sealed class HubWindow : Window
     private readonly Button tutorialButton = new()
     {
         Content = "Quick tour",
+        HorizontalAlignment = HorizontalAlignment.Left,
+        Padding = new Thickness(14, 7),
+    };
+    private readonly Button languageButton = new()
+    {
         HorizontalAlignment = HorizontalAlignment.Left,
         Padding = new Thickness(14, 7),
     };
@@ -99,10 +105,20 @@ internal sealed class HubWindow : Window
         Action addConnection,
         Action<DesktopDaemonConnection> manageConnection,
         Action openTutorial,
+        Action openLanguage,
+        DesktopLocalization localization,
         SilvortexAccountSession accountSession)
     {
+        this.localization = localization;
         daemonCardCount = connections.Count + (localSupported ? 1 : 0);
-        expectedAuditedControlCount = 13 + connections.Count * 3 + (localSupported ? 2 : 0);
+        expectedAuditedControlCount = 14 + connections.Count * 3 + (localSupported ? 2 : 0);
+        topologyFilterBox.PlaceholderText = localization.Text(DesktopTextKey.FindDaemonOrRuntime);
+        clearTopologyFilterButton.Content = localization.Text(DesktopTextKey.Clear);
+        refreshAllTopologyButton.Content = localization.Text(DesktopTextKey.RefreshAll);
+        tutorialButton.Content = localization.Text(DesktopTextKey.QuickTour);
+        languageButton.Content = localization.Text(DesktopTextKey.Language);
+        ((TextBlock)topologyFilterEmpty.Child!).Text =
+            localization.Text(DesktopTextKey.NoTopologyMatches);
         refreshAllTopologyButton.IsEnabled = daemonCardCount > 0;
         Title = "Leserpent / Hub";
         Width = 900;
@@ -114,10 +130,11 @@ internal sealed class HubWindow : Window
         CanResize = true;
         Background = LeserpentTheme.Canvas;
         FontFamily = new FontFamily("Avenir Next, Segoe UI, sans-serif");
+        FlowDirection = localization.FlowDirection;
 
         var addButton = new Button
         {
-            Content = "+ Add daemon",
+            Content = localization.Text(DesktopTextKey.AddDaemon),
             Background = LeserpentTheme.Accent,
             Foreground = Brushes.Black,
             FontWeight = FontWeight.SemiBold,
@@ -131,7 +148,7 @@ internal sealed class HubWindow : Window
 
         var deployButton = new Button
         {
-            Content = "Deploy daemon",
+            Content = localization.Text(DesktopTextKey.DeployDaemon),
             Padding = new Thickness(17, 9),
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -142,7 +159,7 @@ internal sealed class HubWindow : Window
 
         var retireDaemonButton = new Button
         {
-            Content = "Retire daemon",
+            Content = localization.Text(DesktopTextKey.RetireDaemon),
             Padding = new Thickness(17, 9),
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -155,7 +172,7 @@ internal sealed class HubWindow : Window
 
         var provisionButton = new Button
         {
-            Content = "Provision gewyvern",
+            Content = localization.Text(DesktopTextKey.ProvisionGewyvern),
             Padding = new Thickness(17, 9),
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -166,7 +183,7 @@ internal sealed class HubWindow : Window
 
         var retireButton = new Button
         {
-            Content = "Retire gewyvern",
+            Content = localization.Text(DesktopTextKey.RetireGewyvern),
             Padding = new Thickness(17, 9),
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -185,6 +202,16 @@ internal sealed class HubWindow : Window
         ToolTip.SetTip(tutorialButton, "Open Learning Center (F1)");
         auditedControls.Add(tutorialButton);
         tutorialButton.Click += (_, _) => openTutorial();
+
+        AutomationProperties.SetAutomationId(languageButton, "hub-open-language");
+        AutomationProperties.SetName(
+            languageButton,
+            localization.Text(DesktopTextKey.LanguagePreference));
+        AutomationProperties.SetHelpText(
+            languageButton,
+            localization.Text(DesktopTextKey.AppliesImmediately));
+        auditedControls.Add(languageButton);
+        languageButton.Click += (_, _) => openLanguage();
 
         var headingActions = new StackPanel
         {
@@ -232,19 +259,24 @@ internal sealed class HubWindow : Window
                 },
                 new TextBlock
                 {
-                    Text = "Control topology",
+                    Text = localization.Text(DesktopTextKey.ControlTopology),
                     Foreground = LeserpentTheme.Primary,
                     FontSize = 31,
                     FontWeight = FontWeight.Bold,
                 },
                 new TextBlock
                 {
-                    Text = "One client, multiple daemon authorities. Open a daemon to manage its gewyvern runtimes.",
+                    Text = localization.Text(DesktopTextKey.HubSubcopy),
                     Foreground = LeserpentTheme.Muted,
                     FontSize = 13,
                     TextWrapping = TextWrapping.Wrap,
                 },
-                tutorialButton,
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 8,
+                    Children = { tutorialButton, languageButton },
+                },
             },
         };
         var headingTop = new Grid
@@ -275,10 +307,10 @@ internal sealed class HubWindow : Window
         {
             topologyRoot.Children.Add(CreateDaemonCard(
                 "local-orchestra",
-                "Local Orchestra",
-                "Managed on this device",
-                "LOCAL",
-                "Ephemeral session authority",
+                localization.Text(DesktopTextKey.LocalOrchestra),
+                localization.Text(DesktopTextKey.ManagedOnDevice),
+                localization.Text(DesktopTextKey.Local),
+                localization.Text(DesktopTextKey.EphemeralSessionAuthority),
                 openLocal,
                 openLocalRuntime,
                 loadLocalTopology,
@@ -313,7 +345,7 @@ internal sealed class HubWindow : Window
                 Padding = new Thickness(20),
                 Child = new TextBlock
                 {
-                    Text = "No daemon authorities are configured. Add one to establish the first topology branch.",
+                    Text = localization.Text(DesktopTextKey.NoAuthorities),
                     Foreground = LeserpentTheme.Muted,
                     TextWrapping = TextWrapping.Wrap,
                 },
@@ -400,21 +432,27 @@ internal sealed class HubWindow : Window
     private void ConfigureTopologyFilter()
     {
         AutomationProperties.SetAutomationId(topologyFilterBox, "hub-topology-filter");
-        AutomationProperties.SetName(topologyFilterBox, "Filter daemon and runtime topology");
+        AutomationProperties.SetName(
+            topologyFilterBox,
+            localization.Text(DesktopTextKey.FindDaemonOrRuntime));
         AutomationProperties.SetHelpText(
             topologyFilterBox,
             "Filters the in-memory authority and runtime topology without contacting a daemon. Shortcut: Control or Command plus F.");
         AutomationProperties.SetAutomationId(
             clearTopologyFilterButton,
             "hub-topology-filter-clear");
-        AutomationProperties.SetName(clearTopologyFilterButton, "Clear topology filter");
+        AutomationProperties.SetName(
+            clearTopologyFilterButton,
+            localization.Text(DesktopTextKey.Clear));
         AutomationProperties.SetAutomationId(topologyFilterSummary, "hub-topology-filter-summary");
         AutomationProperties.SetName(topologyFilterSummary, "Topology filter result count");
         AutomationProperties.SetLiveSetting(
             topologyFilterSummary,
             AutomationLiveSetting.Polite);
         AutomationProperties.SetAutomationId(refreshAllTopologyButton, "hub-refresh-all");
-        AutomationProperties.SetName(refreshAllTopologyButton, "Refresh all daemon topologies");
+        AutomationProperties.SetName(
+            refreshAllTopologyButton,
+            localization.Text(DesktopTextKey.RefreshAll));
         AutomationProperties.SetHelpText(
             refreshAllTopologyButton,
             "Refreshes every daemon authority and joins an existing refresh instead of starting duplicate work. Shortcut: F5.");
@@ -564,6 +602,7 @@ internal sealed class HubWindow : Window
                 || string.IsNullOrWhiteSpace(AutomationProperties.GetName(control))
                 || !ids.Add(AutomationProperties.GetAutomationId(control)!))
             || !ids.Contains("hub-open-tutorial")
+            || !ids.Contains("hub-open-language")
             || ids.Contains("hub-open-remote"))
         {
             throw new InvalidDataException("Hub topology control contract drifted");
@@ -672,6 +711,9 @@ internal sealed class HubWindow : Window
     public void ProbeTutorialEntry() =>
         tutorialButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
+    public void ProbeLanguageEntry() =>
+        languageButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
     private Border CreateClientRoot(int remoteCount, bool localSupported)
     {
         var count = remoteCount + (localSupported ? 1 : 0);
@@ -713,7 +755,7 @@ internal sealed class HubWindow : Window
     {
         var openButton = new Button
         {
-            Content = "Open",
+            Content = localization.Text(DesktopTextKey.Open),
             Background = LeserpentTheme.Primary,
             Foreground = Brushes.Black,
             FontWeight = FontWeight.SemiBold,
@@ -726,7 +768,7 @@ internal sealed class HubWindow : Window
 
         var refreshButton = new Button
         {
-            Content = "Refresh",
+            Content = localization.Text(DesktopTextKey.Refresh),
             Padding = new Thickness(14, 8),
         };
         AutomationProperties.SetAutomationId(refreshButton, $"hub-refresh-{daemonId}");
@@ -744,7 +786,7 @@ internal sealed class HubWindow : Window
         {
             var manageButton = new Button
             {
-                Content = "Manage",
+                Content = localization.Text(DesktopTextKey.Manage),
                 Padding = new Thickness(14, 8),
             };
             AutomationProperties.SetAutomationId(manageButton, $"hub-manage-{daemonId}");
@@ -917,10 +959,10 @@ internal sealed class HubWindow : Window
         {
             operatorRefreshRequested = false;
             refreshAllPresentationOperation = null;
-            refreshAllTopologyButton.Content = "Refresh all";
+            refreshAllTopologyButton.Content = localization.Text(DesktopTextKey.RefreshAll);
             AutomationProperties.SetName(
                 refreshAllTopologyButton,
-                "Refresh all daemon topologies");
+                localization.Text(DesktopTextKey.RefreshAll));
             refreshAllTopologyButton.IsEnabled = daemonCardCount > 0
                 && !lifetime.IsCancellationRequested;
         }

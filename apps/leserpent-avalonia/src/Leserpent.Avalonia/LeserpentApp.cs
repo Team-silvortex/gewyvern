@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
@@ -11,6 +12,8 @@ internal sealed class LeserpentApp : Application
     private const int MaxPayloadBytes = 2 * 1024 * 1024;
     private static LocalOrchestraServiceSupervisor? localOrchestraService;
     private static SilvortexAccountSession? silvortexAccountSession;
+    private static DesktopLocalization? desktopLocalization;
+    private static string? desktopLocalizationWarning;
     private static readonly Dictionary<string, RemoteMainWindow> daemonSessions =
         new(StringComparer.Ordinal);
     private static bool shutdownHookInstalled;
@@ -55,6 +58,12 @@ internal sealed class LeserpentApp : Application
                 base.OnFrameworkInitializationCompleted();
                 return;
             }
+            if (desktop.Args is ["--verify-desktop-language-controls"])
+            {
+                ConfigureLanguageVerification(desktop);
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
             if (desktop.Args is ["--verify-bootstrap-controls"])
             {
                 ConfigureBootstrapControlVerification(desktop);
@@ -87,16 +96,19 @@ internal sealed class LeserpentApp : Application
             }
             if (desktop.Args is null or [])
             {
+                var localization = DesktopLanguage();
                 ConfigureInteractiveDesktop(desktop);
                 DesktopApplicationLifecycle.Configure(
                     this,
                     desktop,
+                    localization,
                     () =>
                     {
                         ConfigureInteractiveDesktop(desktop);
                         desktop.MainWindow?.Show();
                     },
-                    () => ShowConnectionManager(desktop));
+                    () => ShowConnectionManager(desktop),
+                    () => RefreshHub(desktop));
                 base.OnFrameworkInitializationCompleted();
                 return;
             }
@@ -339,6 +351,7 @@ internal sealed class LeserpentApp : Application
     {
         var runtimeOpenCount = 0;
         var tutorialOpenCount = 0;
+        var languageOpenCount = 0;
         var topology = new RemoteTopologySnapshot(7,
         [
             new RemoteRuntimeProjection
@@ -404,6 +417,8 @@ internal sealed class LeserpentApp : Application
             () => { },
             _ => { },
             () => tutorialOpenCount++,
+            () => languageOpenCount++,
+            DesktopLocalization.ForVerification(),
             SilvortexAccountSession.DisabledForVerification());
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += (_, _) =>
@@ -426,13 +441,16 @@ internal sealed class LeserpentApp : Application
                     await window.ProbeRefreshAllControlAsync();
                     window.ProbeFirstRuntimeAction();
                     window.ProbeTutorialEntry();
-                    if (runtimeOpenCount != 1 || tutorialOpenCount != 1)
+                    window.ProbeLanguageEntry();
+                    if (runtimeOpenCount != 1
+                        || tutorialOpenCount != 1
+                        || languageOpenCount != 1)
                     {
                         throw new InvalidDataException(
                             "Hub action routing did not preserve its runtime or tutorial target");
                     }
                     Console.WriteLine(
-                        "Hub topology valid: client_root=true, local_daemon=true, remote_daemons=2, live_topologies=3, authority_proofs=3, queue_health=true, runtime_children=6, runtime_actions=6, topology_filter=true, authority_filter=true, cross_authority_runtime_filter=true, empty_filter_state=true, filter_focus_recovery=true, refresh_all_control=true, refresh_all_single_flight=true, card_refresh_join=true, shared_refresh_policy=true, refresh_busy_state=true, refresh_completion_status=true, tutorial_entry=true, daemon_route=true, authoritative_workspace_gate=true, shared_workspace_launch=true, retained_topology_state=true, revision_regression_fence=true, bounded_auto_refresh=true, bounded_preview=true, independent_actions=true, legacy_remote_button=false, automation=true");
+                        "Hub topology valid: client_root=true, local_daemon=true, remote_daemons=2, live_topologies=3, authority_proofs=3, queue_health=true, runtime_children=6, runtime_actions=6, topology_filter=true, authority_filter=true, cross_authority_runtime_filter=true, empty_filter_state=true, filter_focus_recovery=true, refresh_all_control=true, refresh_all_single_flight=true, card_refresh_join=true, shared_refresh_policy=true, refresh_busy_state=true, refresh_completion_status=true, tutorial_entry=true, language_entry=true, daemon_route=true, authoritative_workspace_gate=true, shared_workspace_launch=true, retained_topology_state=true, revision_regression_fence=true, bounded_auto_refresh=true, bounded_preview=true, independent_actions=true, legacy_remote_button=false, automation=true");
                     window.Close();
                 }
                 catch (Exception error)
@@ -448,7 +466,7 @@ internal sealed class LeserpentApp : Application
     private static void ConfigureTutorialVerification(
         IClassicDesktopStyleApplicationLifetime desktop)
     {
-        var window = new DesktopTutorialWindow();
+        var window = new DesktopTutorialWindow(DesktopLocalization.ForVerification());
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += (_, _) =>
         {
@@ -457,6 +475,77 @@ internal sealed class LeserpentApp : Application
             Console.WriteLine(
                 "desktop tutorial valid: offline=true, read_only=true, steps=6, direct_navigation=true, previous_next=true, keyboard=true, automation_ids=10, automation_names=10, help_texts=10, contrast=true");
             DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
+        };
+        window.Closed += (_, _) => desktop.Shutdown(0);
+        desktop.MainWindow = window;
+    }
+
+    private static void ConfigureLanguageVerification(
+        IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var appliedCount = 0;
+        var localization = DesktopLocalization.ForVerification(
+            DesktopLocalization.SystemPreference,
+            "en-US");
+        var window = new DesktopLanguageWindow(localization, () => appliedCount++);
+        RegisterMainWindowLifecycle(desktop, window);
+        window.Opened += (_, _) =>
+        {
+            DispatcherTimer.RunOnce(() =>
+            {
+                try
+                {
+                    window.VerifyAccessibility();
+                    window.ProbeSelectionContract();
+                    var renderer = new AvaloniaDocumentRenderer(
+                        _ => { },
+                        localization.Resolve);
+                    renderer.Mount(new UiDocument
+                    {
+                        SchemaVersion = 1,
+                        Revision = 1,
+                        Root = new UiNode
+                        {
+                            Id = "localized-verification-title",
+                            Kind = UiNodeKind.Heading,
+                            Text = new LocalizedText
+                            {
+                                Key = "remote.title",
+                                Fallback = "Remote runtimes",
+                            },
+                            Accessibility = new Accessibility
+                            {
+                                Label = new LocalizedText
+                                {
+                                    Key = "remote.title",
+                                    Fallback = "Remote runtimes",
+                                },
+                            },
+                            Children = [],
+                        },
+                    });
+                    if (appliedCount != 1)
+                    {
+                        throw new InvalidDataException(
+                            "desktop language controls did not apply exactly once");
+                    }
+                    if (renderer.Surface.Content is not TextBlock { Text: "远程 runtime" } title
+                        || AutomationProperties.GetName(title) != "远程 runtime")
+                    {
+                        throw new InvalidDataException(
+                            "localized UI-IR did not reach its native control");
+                    }
+                    Console.WriteLine(
+                        "desktop language controls valid: official_locales=30, system_choice=true, persistent_preference=true, live_apply=true, english_fallback=true, zh_cn_core=true, zh_cn_tutorial_complete=true, rtl=true, automation_ids=5, automation_names=5, contrast=true");
+                }
+                catch (Exception error)
+                {
+                    ReportVerificationFailure(
+                        desktop,
+                        "desktop language controls",
+                        error);
+                }
+            }, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
         desktop.MainWindow = window;
@@ -479,7 +568,10 @@ internal sealed class LeserpentApp : Application
                 Path.GetFullPath(remote.Certificate),
                 token.Value,
                 remote.Cache is null ? null : Path.GetFullPath(remote.Cache));
-            var window = new RemoteMainWindow(options, token.Source);
+            var window = new RemoteMainWindow(
+                options,
+                token.Source,
+                localization: DesktopLanguage());
             RegisterMainWindowLifecycle(desktop, window);
             desktop.MainWindow = window;
         }
@@ -807,13 +899,14 @@ internal sealed class LeserpentApp : Application
     private static void ConfigureInteractiveDesktop(
         IClassicDesktopStyleApplicationLifetime desktop)
     {
+        var localization = DesktopLanguage();
         var legacyStore = new DesktopConnectionProfileStore(
             DesktopConnectionProfileStore.DefaultPath());
         var catalogStore = new DesktopConnectionCatalogStore(
             DesktopConnectionCatalogStore.DefaultPath());
         var certificateStore = DesktopCertificateAuthorityStore.Default();
         var catalog = DesktopConnectionCatalog.Empty;
-        string? initialError = null;
+        string? initialError = desktopLocalizationWarning;
         try
         {
             catalog = catalogStore.LoadOrMigrate(legacyStore);
@@ -825,9 +918,12 @@ internal sealed class LeserpentApp : Application
         catch (Exception error) when (StartupFailure.IsExpected(error))
         {
             catalog = DesktopConnectionCatalog.Empty;
-            initialError = StartupFailure.Describe(
+            var catalogError = StartupFailure.Describe(
                 error,
                 Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
+            initialError = string.IsNullOrWhiteSpace(initialError)
+                ? catalogError
+                : $"{initialError}{Environment.NewLine}{catalogError}";
         }
 
         if (localOrchestraService is null && !IsMobilePlatform())
@@ -906,7 +1002,12 @@ internal sealed class LeserpentApp : Application
             () => ShowGewyvernRetirement(desktop, catalogStore, certificateStore),
             () => ShowConnectionManager(desktop, null),
             connection => ShowConnectionManager(desktop, connection),
-            () => DesktopApplicationLifecycle.ShowTutorial(desktop),
+            () => DesktopApplicationLifecycle.ShowTutorial(desktop, localization),
+            () => DesktopApplicationLifecycle.ShowLanguageSettings(
+                desktop,
+                localization,
+                () => RefreshHub(desktop)),
+            localization,
             SilvortexAccount());
         RegisterMainWindowLifecycle(desktop, hub);
         desktop.MainWindow = hub;
@@ -914,6 +1015,16 @@ internal sealed class LeserpentApp : Application
 
     private static SilvortexAccountSession SilvortexAccount() =>
         silvortexAccountSession ??= SilvortexAccountSession.FromRuntimeConfiguration();
+
+    private static DesktopLocalization DesktopLanguage()
+    {
+        if (desktopLocalization is null)
+        {
+            desktopLocalization = DesktopLocalization.CreateDefault(
+                out desktopLocalizationWarning);
+        }
+        return desktopLocalization;
+    }
 
     private static string? OpenRemoteFromConnection(
         IClassicDesktopStyleApplicationLifetime desktop,
@@ -1711,7 +1822,8 @@ internal sealed class LeserpentApp : Application
         new(
             plan.Options,
             plan.TokenSource,
-            () => ShowConnectionManager(desktop, FindSavedConnection(plan.Profile)));
+            () => ShowConnectionManager(desktop, FindSavedConnection(plan.Profile)),
+            DesktopLanguage());
 
     private static RemoteMainWindow OpenProductRemoteWindow(
         IClassicDesktopStyleApplicationLifetime desktop,

@@ -24,7 +24,8 @@
     {
       "id": "desktop-hub-workspaces",
       "status_cells": [
-        "leserpent-2/ui-renderers/avalonia-renderer"
+        "leserpent-2/ui-renderers/avalonia-renderer",
+        "leserpent-2/ui-renderers/desktop-localization"
       ]
     },
     {

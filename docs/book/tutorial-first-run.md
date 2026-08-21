@@ -16,6 +16,13 @@ menu. The same six-step native tutorial is bundled offline and remains read-only
 it explains the client -> daemon -> runtime model and the safe path to a first
 diagnosis without starting a connection, deployment, or command.
 
+To change the desktop language, choose `Language...` beside `Quick tour` in the
+Hub or from the macOS application menu. `Follow System` is the default, and the
+same 30 official locale identifiers used by the Web console are available. The
+choice applies immediately and remains local to this device. Missing
+desktop-specific translations visibly fall back to English; Simplified Chinese
+currently includes the complete six-step Learning Center.
+
 If you want the lower-level compiler/runtime story, see
 [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md).
 

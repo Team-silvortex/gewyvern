@@ -5,25 +5,27 @@ using Avalonia.Media;
 
 internal sealed class DesktopAboutWindow : Window
 {
-    public DesktopAboutWindow()
+    public DesktopAboutWindow(DesktopLocalization? localization = null)
     {
-        Title = "About Leserpent";
+        localization ??= DesktopLocalization.ForVerification();
+        Title = localization.Text(DesktopTextKey.AboutLeserpent);
         Width = 420;
         Height = 270;
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = LeserpentTheme.Canvas;
         FontFamily = new FontFamily("Avenir Next, Segoe UI, sans-serif");
+        FlowDirection = localization.FlowDirection;
 
         var close = new Button
         {
-            Content = "Close",
+            Content = localization.Text(DesktopTextKey.Close),
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
             Padding = new Thickness(24, 8),
         };
         close.Click += (_, _) => Close();
         AutomationProperties.SetAutomationId(close, "desktop-about-close");
-        AutomationProperties.SetName(close, "Close About Leserpent");
+        AutomationProperties.SetName(close, localization.Text(DesktopTextKey.Close));
 
         Content = new Border
         {
@@ -44,13 +46,16 @@ internal sealed class DesktopAboutWindow : Window
                     },
                     new TextBlock
                     {
-                        Text = $"Version {typeof(DesktopAboutWindow).Assembly.GetName().Version?.ToString(3) ?? "unknown"}",
+                        Text = localization.Format(
+                            DesktopTextKey.Version,
+                            typeof(DesktopAboutWindow).Assembly.GetName().Version?.ToString(3)
+                                ?? "unknown"),
                         Foreground = LeserpentTheme.Primary,
                         FontSize = 14,
                     },
                     new TextBlock
                     {
-                        Text = "Native orchestration and model-driven control for Gewyvern.",
+                        Text = localization.Text(DesktopTextKey.AboutDescription),
                         Foreground = LeserpentTheme.Muted,
                         TextAlignment = TextAlignment.Center,
                         TextWrapping = TextWrapping.Wrap,

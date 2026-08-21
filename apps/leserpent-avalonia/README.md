@@ -10,11 +10,13 @@ the first Avalonia desktop control shell.
 
 ## Conformance
 
-Rust generates the authoritative version-1 fixture:
+Rust generates the comprehensive version-1 fixture consumed by the standalone
+renderer conformance executable:
 
 ```bash
-cargo run --quiet -p leselang-ui --example render_conformance_fixture -- \
-  apps/leserpent-avalonia/fixtures/renderer-conformance-v1.json
+cargo run --quiet -p leselang-ui \
+  --example render_presentation_conformance_fixture -- \
+  apps/leserpent-avalonia/fixtures/renderer-presentation-conformance-v1.json
 ```
 
 Build and execute the renderer conformance check:
@@ -26,7 +28,7 @@ dotnet build \
 dotnet run --project \
   apps/leserpent-avalonia/src/Leserpent.RendererConformance/Leserpent.RendererConformance.csproj \
   --no-build -- \
-  apps/leserpent-avalonia/fixtures/renderer-conformance-v1.json
+  apps/leserpent-avalonia/fixtures/renderer-presentation-conformance-v1.json
 ```
 
 The renderer rejects payloads above 2 MiB, unknown JSON members, schema or
@@ -34,7 +36,8 @@ revision drift, malformed patch shapes, duplicate IDs, cyclic moves, invalid
 localized text, unlabelled actions, and runtime-binding mismatches. It mounts
 the previous document, applies every incremental operation, and compares its
 semantic tree with the Rust-produced next document. The frozen primary fixture
-remains the version-1 compatibility baseline.
+`renderer-conformance-v1.json` remains the smaller version-1 semantic and native
+control compatibility baseline.
 
 The separate candidate fixture carries Rust-generated
 `UiPresentationOperation::Activate`, `Focus`, `NavigateFocus`, `ScrollIntoView`, `AssertVisible`,
@@ -237,6 +240,25 @@ The tutorial is read-only: it never connects, deploys, or executes a command.
 Every selector and navigation control has a stable Automation ID, name, and help
 text; Left/Right, Home/End, and Escape provide a complete keyboard path. Verify
 the real control tree with `--verify-desktop-tutorial`.
+
+The Hub's visible `Language...` control and the macOS application menu open the
+same singleton native language settings window. The selector contains `Follow
+System` plus the same 30 official locale identifiers as the Web console: 8
+built-in locales and 22 official `core-ui` language-pack locales. The selected
+preference is the only value stored in private
+`desktop-language-v1.json`; it contains no endpoint, token, account, or daemon
+identity and is written through a bounded, unknown-field-rejecting, atomic
+schema. Locale changes rebuild the Hub and native menu, update an open Learning
+Center, remote session, or runtime workspace, and preserve every Automation ID
+and typed action binding. The Avalonia renderer resolves `LocalizedText.Key`
+through the desktop catalog instead of displaying `Fallback` unconditionally;
+unknown keys still use the validated English fallback. Arabic, Hebrew, and
+Persian select native RTL flow direction. English remains the complete fallback
+baseline, Simplified Chinese covers the core native shell and complete six-step
+tutorial, and other official locales may visibly identify English fallback for
+desktop-specific long-tail text. Run `--verify-desktop-localization` for the
+catalog/persistence contract and `--verify-desktop-language-controls` for the
+real 31-choice control tree and localized UI-IR proof.
 
 Opening a runtime child follows the same renderer-neutral boundary. The
 `RemoteWorkspaceLaunchCoordinator` validates runtime IDs, bounds active plus

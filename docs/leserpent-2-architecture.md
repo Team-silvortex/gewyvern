@@ -208,6 +208,20 @@ effect. The tutorial is an auxiliary window, so Dock reopen continues to target
 the Hub. Stable Automation IDs, names, help text, direct step selectors, and
 keyboard navigation keep the teaching surface reachable to users and adapters.
 
+Localization follows the same renderer boundary. The Hub and macOS application
+menu reach one singleton native language settings window with `Follow System`
+plus the Web console's 30 official BCP 47-style locale identifiers. A bounded
+`leserpent.desktop-localization/v1` catalog resolves shell text and UI-IR
+`LocalizedText.Key` values while retaining the protocol fallback for missing
+keys; node IDs, action kinds, form field keys, and authority bindings are never
+translated. The private `desktop-language-v1.json` preference stores only the
+selected locale through strict source-generated JSON, atomic replacement, and
+user-only file permissions. Live selection rebuilds the Hub and native menu and
+reprojects open tutorial, daemon, and runtime windows. English is the complete
+fallback baseline, Simplified Chinese owns the complete Learning Center and
+core native surfaces, and Arabic, Hebrew, and Persian switch the inherited
+Avalonia flow direction to RTL.
+
 Cross-authority refresh admission is frontend-independent. The shared remote
 client coordinator accepts at most 65 unique daemon authorities (64 saved
 remotes plus local Orchestra), permits four loaders at once, joins duplicate

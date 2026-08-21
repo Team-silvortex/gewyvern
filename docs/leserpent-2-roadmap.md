@@ -2107,6 +2107,18 @@ direct and sequential keyboard navigation, compact scroll-safe layout, and an
 explicit auxiliary-window classification so Dock reopen still targets the Hub.
 The native verification path drives the real controls, and the lifecycle probe
 checks the menu/content contract without requiring a network or daemon.
+The same shell now has a native language settings path from both the Hub and
+macOS application menu. It shares the Web roster of 8 built-in plus 22 official
+`core-ui` locales, persists only a bounded private locale preference, resolves
+system-locale aliases deterministically, applies RTL flow for Arabic, Hebrew,
+and Persian, and falls back to English per missing key. Avalonia no longer
+renders every UI-IR `LocalizedText` through its fallback unconditionally:
+visible text, form labels/placeholders, and accessibility names consume the
+selected catalog while stable node/action identities remain untouched. A real
+31-choice control probe, localized native `TextBlock` proof, persistence probe,
+and NativeAOT run gate this boundary. Simplified Chinese includes the complete
+offline tutorial; the remaining desktop-specific long tail stays explicitly
+partial rather than claiming unreviewed translations.
 Runtime-child workspace admission has now crossed the same boundary. The
 renderer-neutral `RemoteWorkspaceLaunchCoordinator` owns runtime-ID validation,
 the combined active/pending limit, duplicate-request revision coalescing,

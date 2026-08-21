@@ -12,6 +12,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
     private readonly AvaloniaDocumentRenderer renderer;
     private readonly RemoteWorkspaceClient client;
     private readonly RemoteLeselangClient leselangClient;
+    private readonly DesktopLocalization localization;
     private readonly CancellationTokenSource lifetime = new();
     private readonly string principal;
     private readonly TextBlock statusText = new()
@@ -107,19 +108,24 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         RemoteClientOptions options,
         RemoteRuntimeProjection runtime,
         string principal,
-        Action<RenderedActionInvocation> actionInvoked)
+        Action<RenderedActionInvocation> actionInvoked,
+        DesktopLocalization? localization = null)
     {
         RuntimeId = runtime.Id;
         this.principal = principal;
+        this.localization = localization ?? DesktopLocalization.ForVerification();
         client = new RemoteWorkspaceClient(options);
         leselangClient = new RemoteLeselangClient(options);
-        renderer = new AvaloniaDocumentRenderer(actionInvoked);
+        renderer = new AvaloniaDocumentRenderer(
+            actionInvoked,
+            this.localization.Resolve);
         Width = 760;
         Height = 620;
         MinWidth = 520;
         MinHeight = 420;
         Background = LeserpentTheme.Canvas;
         FontFamily = new FontFamily("Avenir Next, Segoe UI, sans-serif");
+        FlowDirection = this.localization.FlowDirection;
         Title = $"{Safe(runtime.Name)} / Leserpent";
         AutomationProperties.SetAutomationId(statusText, "runtime-workspace-status");
         AutomationProperties.SetName(statusText, "Runtime workspace query status");
@@ -205,6 +211,8 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         };
         Grid.SetRow(logFilter, 1);
         Grid.SetRow(renderer.Surface, 2);
+        ApplyLocalization();
+        this.localization.Changed += OnLocalizationChanged;
         Opened += (_, _) => _ = ReloadAsync();
         Activated += (_, _) =>
         {
@@ -242,6 +250,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         };
         Closed += (_, _) =>
         {
+            this.localization.Changed -= OnLocalizationChanged;
             logFilterTimer.Stop();
             liveRefreshTimer.Stop();
             liveRefresh.Pause();
@@ -251,6 +260,50 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             leselangClient.Dispose();
             lifetime.Dispose();
         };
+    }
+
+    private void OnLocalizationChanged(object? sender, EventArgs eventArgs) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            _ = sender;
+            _ = eventArgs;
+            if (lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+            ApplyLocalization();
+            ApplyLogFilter();
+            UpdateLiveRefreshPresentation();
+            UpdateSeverityAlertPresentation();
+        });
+
+    private void ApplyLocalization()
+    {
+        FlowDirection = localization.FlowDirection;
+        reloadButton.Content = localization.Text(DesktopTextKey.Reload);
+        liveRefreshButton.Content = localization.Text(DesktopTextKey.LiveLogs);
+        acknowledgeAlertButton.Content = localization.Text(DesktopTextKey.Acknowledge);
+        logSearchBox.PlaceholderText = localization.Text(DesktopTextKey.SearchSanitizedLogs);
+        clearLogFilterButton.Content = localization.Text(DesktopTextKey.Clear);
+        copyDiagnosticsButton.Content = localization.Text(DesktopTextKey.CopyDiagnostics);
+        saveDiagnosticsButton.Content = localization.Text(DesktopTextKey.SaveDiagnostics);
+        workspaceLeselangButton.Content = localization.Text(DesktopTextKey.WorkspaceLeselang);
+        if (latestSnapshot is null)
+        {
+            logFilterSummary.Text = localization.Text(DesktopTextKey.LogsLoadWithSnapshot);
+        }
+        AutomationProperties.SetName(
+            statusText,
+            localization.Text(DesktopTextKey.RemoteOperationStatus));
+        AutomationProperties.SetName(
+            reloadButton,
+            localization.Text(DesktopTextKey.Reload));
+        AutomationProperties.SetName(
+            logSearchBox,
+            localization.Text(DesktopTextKey.SearchSanitizedLogs));
+        AutomationProperties.SetName(
+            clearLogFilterButton,
+            localization.Text(DesktopTextKey.Clear));
     }
 
     internal bool OwnsActionSource(AvaloniaDocumentRenderer source) =>

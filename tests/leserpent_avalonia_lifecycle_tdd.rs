@@ -893,7 +893,9 @@ fn desktop_tutorial_is_offline_accessible_and_ui_reachable() {
             "missing tutorial control {automation_id}"
         );
     }
-    assert!(tutorial.contains("Steps.Length != 6"));
+    assert!(tutorial.contains("EnglishSteps"));
+    assert!(tutorial.contains("SimplifiedChineseSteps"));
+    assert!(tutorial.contains("steps.Length != 6"));
     assert!(tutorial.contains("VerifyAccessibility()"));
     assert!(tutorial.contains("ProbeNavigationContract()"));
     assert!(tutorial.contains("Finish and close the Leserpent tutorial"));
@@ -920,6 +922,95 @@ fn desktop_tutorial_is_offline_accessible_and_ui_reachable() {
     assert!(program.contains("offline_tutorial=true"));
     assert!(readme.contains("`--verify-desktop-tutorial`"));
     assert!(first_run.contains("`Learning Center...`"));
+}
+
+#[test]
+fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
+    let localization = avalonia_source("Leserpent.Avalonia/DesktopLocalization.cs");
+    let store = avalonia_source("Leserpent.Avalonia/DesktopLanguagePreferenceStore.cs");
+    let window = avalonia_source("Leserpent.Avalonia/DesktopLanguageWindow.cs");
+    let renderer = avalonia_source("Leserpent.Avalonia/AvaloniaDocumentRenderer.cs");
+    let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
+    let lifecycle = avalonia_source("Leserpent.Avalonia/DesktopApplicationLifecycle.cs");
+    let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+    let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+    let web_catalog: serde_json::Value = serde_json::from_str(&repo_source(
+        "apps/leserpent/src/Leserpent/wwwroot/language-packs/catalog.json",
+    ))
+    .expect("web language-pack catalog must decode");
+
+    for marker in [
+        "leserpent.desktop-localization/v1",
+        "LocaleDefinitions.Length != 30",
+        "Count(locale => locale.BuiltIn) != 8",
+        "Count(locale => locale.IsRightToLeft) != 3",
+        "SimplifiedChineseSemanticText",
+        "EnglishText[key]",
+        "FlowDirection.RightToLeft",
+        "zh-Hans-CN",
+        "zh-HK",
+        "nb-NO",
+    ] {
+        assert!(
+            localization.contains(marker),
+            "desktop localization is missing {marker}"
+        );
+    }
+    assert!(localization.contains("public string Resolve(LocalizedText text)"));
+    assert_eq!(web_catalog["officialLocaleCount"], 30);
+    assert_eq!(web_catalog["builtinLocaleCount"], 8);
+    assert_eq!(web_catalog["downloadableLocaleCount"], 22);
+    for pack in web_catalog["packs"]
+        .as_array()
+        .expect("web language-pack catalog must contain packs")
+    {
+        let locale = pack["locale"]
+            .as_str()
+            .expect("web language pack must have a locale");
+        assert!(
+            localization.contains(&format!("Core(\"{locale}\"")),
+            "desktop locale roster drifted from web locale {locale}"
+        );
+    }
+    assert!(renderer.contains("Func<LocalizedText, string>? localizedTextResolver"));
+    assert!(renderer.contains("localizedTextResolver(text)"));
+    assert!(!renderer.contains("node.Accessibility.Label?.Fallback"));
+    assert!(!renderer.contains("field => field.Label.Fallback"));
+
+    for marker in [
+        "desktop-language-v1.json",
+        "JsonUnmappedMemberHandling.Disallow",
+        "FileOptions.WriteThrough",
+        "stream.Flush(true)",
+        "File.Move(temporary, path, true)",
+        "UnixFileMode.UserRead | UnixFileMode.UserWrite",
+        "desktop language preference must be a regular file",
+    ] {
+        assert!(store.contains(marker), "language store is missing {marker}");
+    }
+    assert!(!store.to_ascii_lowercase().contains("token"));
+    assert!(!store.to_ascii_lowercase().contains("credential"));
+
+    for automation_id in [
+        "desktop-language-choice",
+        "desktop-language-coverage",
+        "desktop-language-status",
+        "desktop-language-cancel",
+        "desktop-language-apply",
+    ] {
+        assert!(window.contains(automation_id));
+    }
+    assert!(window.contains("choices.Count != 31"));
+    assert!(window.contains("localization.SetPreference(choice.Preference)"));
+    assert!(!window.contains("HttpClient"));
+    assert!(hub.contains("hub-open-language"));
+    assert!(hub.contains("ProbeLanguageEntry()"));
+    assert!(lifecycle.contains("DesktopLanguageWindow"));
+    assert!(lifecycle.contains("Language..."));
+    assert!(app.contains("--verify-desktop-language-controls"));
+    assert!(app.contains("localized UI-IR did not reach its native control"));
+    assert!(program.contains("--verify-desktop-localization"));
+    assert!(program.contains("localized_ui_ir=true"));
 }
 
 #[test]

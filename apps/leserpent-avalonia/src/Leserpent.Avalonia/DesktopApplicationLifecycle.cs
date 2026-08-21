@@ -6,13 +6,15 @@ using Avalonia.Input;
 internal static class DesktopApplicationLifecycle
 {
     private static readonly string[] RequiredMenuItems =
-        ["About Leserpent", "Learning Center...", "Connection...", "Show Leserpent", "Quit Leserpent"];
+        ["About Leserpent", "Learning Center...", "Connection...", "Language...", "Show Leserpent", "Quit Leserpent"];
 
     public static void Configure(
         Application application,
         IClassicDesktopStyleApplicationLifetime desktop,
+        DesktopLocalization localization,
         Action reopenMainWindow,
-        Action manageConnection)
+        Action manageConnection,
+        Action languageApplied)
     {
         if (!OperatingSystem.IsMacOS())
         {
@@ -20,30 +22,20 @@ internal static class DesktopApplicationLifecycle
         }
 
         desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-        var appMenu = new NativeMenu();
-        appMenu.Items.Add(Item("About Leserpent", () => ShowAbout(desktop)));
-        appMenu.Items.Add(Item("Learning Center...", () => ShowTutorial(desktop)));
-        appMenu.Items.Add(new NativeMenuItemSeparator());
-        appMenu.Items.Add(Item(
-            "Connection...",
+        InstallMenu(
+            application,
+            desktop,
+            localization,
+            reopenMainWindow,
             manageConnection,
-            new KeyGesture(Key.OemComma, KeyModifiers.Meta)));
-        appMenu.Items.Add(new NativeMenuItemSeparator());
-        appMenu.Items.Add(Item(
-            "Quit Leserpent",
-            () => desktop.TryShutdown(0),
-            new KeyGesture(Key.Q, KeyModifiers.Meta)));
-
-        var windowMenu = new NativeMenu();
-        windowMenu.Items.Add(Item(
-            "Show Leserpent",
-            () => ShowMainWindow(desktop, reopenMainWindow),
-            new KeyGesture(Key.D0, KeyModifiers.Meta)));
-
-        var menu = new NativeMenu();
-        menu.Items.Add(new NativeMenuItem("Leserpent") { Menu = appMenu });
-        menu.Items.Add(new NativeMenuItem("Window") { Menu = windowMenu });
-        NativeDock.SetMenu(application, menu);
+            languageApplied);
+        localization.Changed += (_, _) => InstallMenu(
+            application,
+            desktop,
+            localization,
+            reopenMainWindow,
+            manageConnection,
+            languageApplied);
 
         if (application.ApplicationLifetime is IActivatableLifetime activatable)
         {
@@ -57,12 +49,55 @@ internal static class DesktopApplicationLifecycle
         }
     }
 
+    private static void InstallMenu(
+        Application application,
+        IClassicDesktopStyleApplicationLifetime desktop,
+        DesktopLocalization localization,
+        Action reopenMainWindow,
+        Action manageConnection,
+        Action languageApplied)
+    {
+        var appMenu = new NativeMenu();
+        appMenu.Items.Add(Item(
+            localization.Text(DesktopTextKey.AboutLeserpent),
+            () => ShowAbout(desktop, localization)));
+        appMenu.Items.Add(Item(
+            localization.Text(DesktopTextKey.LearningCenter),
+            () => ShowTutorial(desktop, localization)));
+        appMenu.Items.Add(new NativeMenuItemSeparator());
+        appMenu.Items.Add(Item(
+            localization.Text(DesktopTextKey.Connection),
+            manageConnection,
+            new KeyGesture(Key.OemComma, KeyModifiers.Meta)));
+        appMenu.Items.Add(Item(
+            localization.Text(DesktopTextKey.Language),
+            () => ShowLanguageSettings(desktop, localization, languageApplied)));
+        appMenu.Items.Add(new NativeMenuItemSeparator());
+        appMenu.Items.Add(Item(
+            localization.Text(DesktopTextKey.QuitLeserpent),
+            () => desktop.TryShutdown(0),
+            new KeyGesture(Key.Q, KeyModifiers.Meta)));
+
+        var windowMenu = new NativeMenu();
+        windowMenu.Items.Add(Item(
+            localization.Text(DesktopTextKey.ShowLeserpent),
+            () => ShowMainWindow(desktop, reopenMainWindow),
+            new KeyGesture(Key.D0, KeyModifiers.Meta)));
+
+        var menu = new NativeMenu();
+        menu.Items.Add(new NativeMenuItem("Leserpent") { Menu = appMenu });
+        menu.Items.Add(new NativeMenuItem("Window") { Menu = windowMenu });
+        NativeDock.SetMenu(application, menu);
+    }
+
     public static void VerifyContract()
     {
         DesktopTutorialWindow.VerifyContentContract();
-        if (RequiredMenuItems.Length != 5
-            || RequiredMenuItems.Distinct(StringComparer.Ordinal).Count() != 5
+        DesktopLocalization.VerifyContract();
+        if (RequiredMenuItems.Length != 6
+            || RequiredMenuItems.Distinct(StringComparer.Ordinal).Count() != 6
             || !RequiredMenuItems.Contains("Learning Center...", StringComparer.Ordinal)
+            || !RequiredMenuItems.Contains("Language...", StringComparer.Ordinal)
             || !RequiredMenuItems.Contains("Quit Leserpent", StringComparer.Ordinal))
         {
             throw new InvalidDataException("desktop application menu contract drifted");
@@ -87,6 +122,7 @@ internal static class DesktopApplicationLifecycle
         if (desktop.MainWindow is Window mainWindow
             && mainWindow is not DesktopAboutWindow
             && mainWindow is not DesktopTutorialWindow
+            && mainWindow is not DesktopLanguageWindow
             && mainWindow.IsVisible)
         {
             existing = mainWindow;
@@ -96,6 +132,7 @@ internal static class DesktopApplicationLifecycle
             existing = desktop.Windows.FirstOrDefault(
                 window => window is not DesktopAboutWindow
                     && window is not DesktopTutorialWindow
+                    && window is not DesktopLanguageWindow
                     && window.IsVisible);
         }
 
@@ -108,7 +145,9 @@ internal static class DesktopApplicationLifecycle
         reopenMainWindow();
     }
 
-    internal static void ShowTutorial(IClassicDesktopStyleApplicationLifetime desktop)
+    internal static void ShowTutorial(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        DesktopLocalization localization)
     {
         var existing = desktop.Windows.OfType<DesktopTutorialWindow>().FirstOrDefault();
         if (existing is not null)
@@ -117,12 +156,13 @@ internal static class DesktopApplicationLifecycle
             existing.Activate();
             return;
         }
-        var tutorial = new DesktopTutorialWindow();
+        var tutorial = new DesktopTutorialWindow(localization);
         var owner = desktop.MainWindow is { IsVisible: true } mainWindow
             ? mainWindow
             : desktop.Windows.FirstOrDefault(window =>
                 window is not DesktopAboutWindow
                 && window is not DesktopTutorialWindow
+                && window is not DesktopLanguageWindow
                 && window.IsVisible);
         if (owner is null)
         {
@@ -134,7 +174,39 @@ internal static class DesktopApplicationLifecycle
         }
     }
 
-    private static void ShowAbout(IClassicDesktopStyleApplicationLifetime desktop)
+    internal static void ShowLanguageSettings(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        DesktopLocalization localization,
+        Action applied)
+    {
+        var existing = desktop.Windows.OfType<DesktopLanguageWindow>().FirstOrDefault();
+        if (existing is not null)
+        {
+            existing.Show();
+            existing.Activate();
+            return;
+        }
+        var window = new DesktopLanguageWindow(localization, applied);
+        var owner = desktop.MainWindow is { IsVisible: true } mainWindow
+            ? mainWindow
+            : desktop.Windows.FirstOrDefault(candidate =>
+                candidate is not DesktopAboutWindow
+                && candidate is not DesktopTutorialWindow
+                && candidate is not DesktopLanguageWindow
+                && candidate.IsVisible);
+        if (owner is null)
+        {
+            window.Show();
+        }
+        else
+        {
+            window.Show(owner);
+        }
+    }
+
+    private static void ShowAbout(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        DesktopLocalization localization)
     {
         var existing = desktop.Windows.OfType<DesktopAboutWindow>().FirstOrDefault();
         if (existing is not null)
@@ -142,6 +214,6 @@ internal static class DesktopApplicationLifecycle
             existing.Activate();
             return;
         }
-        new DesktopAboutWindow().Show();
+        new DesktopAboutWindow(localization).Show();
     }
 }

@@ -15,7 +15,7 @@ internal sealed record DesktopTutorialStep(
 
 internal sealed class DesktopTutorialWindow : Window
 {
-    private static readonly DesktopTutorialStep[] Steps =
+    private static readonly DesktopTutorialStep[] EnglishSteps =
     [
         new(
             "SYSTEM MAP",
@@ -84,6 +84,76 @@ internal sealed class DesktopTutorialWindow : Window
             "native control <-> typed UI action <-> Leselang"),
     ];
 
+    private static readonly DesktopTutorialStep[] SimplifiedChineseSteps =
+    [
+        new(
+            "系统地图",
+            "读懂拓扑",
+            "Leserpent Desktop 是客户端，而不是权威端。它可以管理多个 leserpentd 权威端，每个 daemon 又可以拥有多个 Gewyvern runtime 服务。",
+            [
+                "Hub 根节点代表当前桌面操作员会话。",
+                "每张 daemon 卡片都是独立的本地或远程权威端，并拥有自己的 Web 服务。",
+                "每个 runtime 子节点始终通过拥有它的 daemon 完成路由。",
+            ],
+            "Leserpent 客户端 -> leserpentd 权威端 -> Gewyvern runtime"),
+        new(
+            "首个权威端",
+            "建立 daemon 路径",
+            "可以从本机启动，也可以接入远程机器；主机凭证不会因此变成应用的永久状态。",
+            [
+                "在桌面系统上，本地 Orchestra 会启动由应用托管的回环 daemon。",
+                "部署 daemon 会使用临时提供的主机凭证，在远程安装 leserpentd。",
+                "添加 daemon 会通过端点绑定的信任与 runtime 凭证接入现有服务。",
+                "关闭一个 daemon 会话不会关闭 Hub，也不会影响其他权威端。",
+            ],
+            "本地 Orchestra | 部署 daemon | + 添加 daemon"),
+        new(
+            "工作区",
+            "抵达正确的 runtime",
+            "执行操作前先刷新拓扑，再从所属 daemon 下打开 runtime。工作区绝不会在后台悄悄切换权威端。",
+            [
+                "全部刷新会加入已有任务，而不是重复发起请求。",
+                "只有 LIVE 拓扑可以打开工作区；保留或缓存拓扑会持续显示为陈旧状态。",
+                "部署 gewyvern 会通过选定的 daemon 权威端安装并注册 runtime。",
+                "runtime 按钮会打开或聚焦该 runtime 的原生子窗口。",
+            ],
+            "刷新拓扑 -> 选择权威端 -> 打开 runtime"),
+        new(
+            "首次诊断",
+            "执行聚焦诊断",
+            "在 runtime 工作区部署类型化管道、观察有边界的日志并导出诊断，同时始终保留 daemon 身份。",
+            [
+                "选择 http/request 等管道类型，不要依赖含义不透明的按钮名称。",
+                "只有明确进程范围时，才添加 pid:4242 这样的目标。",
+                "得出结论前，检查状态、能力、快照变化和严重等级。",
+                "其他工程师或工具需要证据时，使用显式诊断导出。",
+            ],
+            "pipeline=http/request  target=pid:4242"),
+        new(
+            "安全围栏",
+            "理解操作为何被阻止",
+            "缺少权威性、新鲜度、能力或 revision 证据时，Leserpent 会安全拒绝。禁用动作是在提供信息，不是应该绕过的阻力。",
+            [
+                "检查与变更可用性来自共享策略，而不是前端猜测。",
+                "部署要求 authenticated capability（已认证能力）和明确确认。",
+                "revision 漂移或工作区关闭会使正在提交的操作失效。",
+                "未知变更结果必须由操作员复核，绝不会在后台隐式重试。",
+            ],
+            "live + authoritative + capable + confirmed -> mutate"),
+        new(
+            "LESELANG",
+            "自动化同一套界面",
+            "原生控件与 Leselang 操作是同一份类型化 UI 协议的两种视图；自动化不会获得隐藏的控制平面。",
+            [
+                "稳定的 Automation ID 标识控件，业务行为来自类型化动作。",
+                "节点 ID 是不透明标识，绝不能解析成协议命令。",
+                "Leselang 可以聚焦、检查、填写、提交、等待和断言人与机器看到的同一状态。",
+                "复核或分享自动化流程时，在执行前导出规范化 Leselang。",
+            ],
+            "原生控件 <-> 类型化 UI 动作 <-> Leselang"),
+    ];
+
+    private readonly DesktopLocalization localization;
     private readonly List<Control> auditedControls = [];
     private readonly List<Button> stepButtons = [];
     private readonly TextBlock progressText = new()
@@ -121,6 +191,9 @@ internal sealed class DesktopTutorialWindow : Window
         FontSize = 13,
         TextWrapping = TextWrapping.Wrap,
     };
+    private readonly TextBlock tutorialKicker = new();
+    private readonly TextBlock tutorialHeading = new();
+    private readonly TextBlock tutorialBody = new();
     private readonly Button previousButton = new()
     {
         Content = "Previous",
@@ -140,11 +213,15 @@ internal sealed class DesktopTutorialWindow : Window
         Padding = new Thickness(16, 8),
     };
     private int selectedStep;
+    private DesktopTutorialStep[] CurrentSteps => localization.Active.Locale == "zh-CN"
+        ? SimplifiedChineseSteps
+        : EnglishSteps;
 
-    public DesktopTutorialWindow()
+    public DesktopTutorialWindow(DesktopLocalization? localization = null)
     {
+        this.localization = localization ?? DesktopLocalization.ForVerification();
         VerifyContentContract();
-        Title = "Leserpent / Learning Center";
+        Title = $"Leserpent / {this.localization.Text(DesktopTextKey.LearningCenter).TrimEnd('.')}";
         Width = 820;
         Height = 620;
         MinWidth = 520;
@@ -154,6 +231,7 @@ internal sealed class DesktopTutorialWindow : Window
         CanResize = true;
         Background = LeserpentTheme.Canvas;
         FontFamily = new FontFamily("Avenir Next, Segoe UI, sans-serif");
+        FlowDirection = this.localization.FlowDirection;
 
         ConfigureNavigationControl(
             progressText,
@@ -179,7 +257,7 @@ internal sealed class DesktopTutorialWindow : Window
         previousButton.Click += (_, _) => ShowStep(selectedStep - 1);
         nextButton.Click += (_, _) =>
         {
-            if (selectedStep == Steps.Length - 1)
+            if (selectedStep == CurrentSteps.Length - 1)
             {
                 Close();
                 return;
@@ -193,7 +271,7 @@ internal sealed class DesktopTutorialWindow : Window
             ColumnDefinitions = ColumnDefinitions.Parse("*,*,*,*,*,*"),
             ColumnSpacing = 8,
         };
-        for (var index = 0; index < Steps.Length; index++)
+        for (var index = 0; index < CurrentSteps.Length; index++)
         {
             var capturedIndex = index;
             var button = new Button
@@ -205,9 +283,9 @@ internal sealed class DesktopTutorialWindow : Window
             ConfigureNavigationControl(
                 button,
                 $"desktop-tutorial-step-{index + 1}",
-                $"Open tutorial step {index + 1}: {Steps[index].Title}",
-                $"Jumps directly to {Steps[index].Label.ToLowerInvariant()}.");
-            ToolTip.SetTip(button, Steps[index].Title);
+                $"Open tutorial step {index + 1}: {CurrentSteps[index].Title}",
+                $"Jumps directly to {CurrentSteps[index].Label.ToLowerInvariant()}.");
+            ToolTip.SetTip(button, CurrentSteps[index].Title);
             button.Click += (_, _) => ShowStep(capturedIndex);
             Grid.SetColumn(button, index);
             stepGrid.Children.Add(button);
@@ -254,33 +332,27 @@ internal sealed class DesktopTutorialWindow : Window
                 HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
             },
         };
+        tutorialKicker.Text = this.localization.Text(DesktopTextKey.TutorialKicker);
+        tutorialKicker.Foreground = LeserpentTheme.Accent;
+        tutorialKicker.FontSize = 13;
+        tutorialKicker.FontWeight = FontWeight.Bold;
+        tutorialKicker.LetterSpacing = 2;
+        tutorialHeading.Text = this.localization.Text(DesktopTextKey.TutorialHeading);
+        tutorialHeading.Foreground = LeserpentTheme.Primary;
+        tutorialHeading.FontSize = 25;
+        tutorialHeading.FontWeight = FontWeight.Bold;
+        tutorialBody.Text = this.localization.Text(DesktopTextKey.TutorialBody);
+        tutorialBody.Foreground = LeserpentTheme.Muted;
+        tutorialBody.FontSize = 13;
+        tutorialBody.TextWrapping = TextWrapping.Wrap;
         var header = new StackPanel
         {
             Spacing = 5,
             Children =
             {
-                new TextBlock
-                {
-                    Text = "LESERPENT LEARNING CENTER",
-                    Foreground = LeserpentTheme.Accent,
-                    FontSize = 13,
-                    FontWeight = FontWeight.Bold,
-                    LetterSpacing = 2,
-                },
-                new TextBlock
-                {
-                    Text = "A six-step operator tour",
-                    Foreground = LeserpentTheme.Primary,
-                    FontSize = 25,
-                    FontWeight = FontWeight.Bold,
-                },
-                new TextBlock
-                {
-                    Text = "Offline, read-only, and safe to revisit. No connection, deployment, or command starts from this window.",
-                    Foreground = LeserpentTheme.Muted,
-                    FontSize = 13,
-                    TextWrapping = TextWrapping.Wrap,
-                },
+                tutorialKicker,
+                tutorialHeading,
+                tutorialBody,
             },
         };
         var footer = new Grid
@@ -303,26 +375,32 @@ internal sealed class DesktopTutorialWindow : Window
         Grid.SetRow(lessonCard, 2);
         Grid.SetRow(footer, 3);
         KeyDown += OnKeyDown;
+        this.localization.Changed += OnLocalizationChanged;
+        Closed += (_, _) => this.localization.Changed -= OnLocalizationChanged;
+        ApplyLocalization();
         ShowStep(0);
     }
 
     public static void VerifyContentContract()
     {
-        var titles = new HashSet<string>(StringComparer.Ordinal);
-        if (Steps.Length != 6
-            || Steps.Any(step => !ValidText(step.Label, 40)
-                || !ValidText(step.Title, 80)
-                || !titles.Add(step.Title)
-                || !ValidText(step.Summary, 500)
-                || step.Points.Count is < 3 or > 5
-                || step.Points.Any(point => !ValidText(point, 240))
-                || !ValidText(step.Model, 160)))
+        foreach (var steps in new[] { EnglishSteps, SimplifiedChineseSteps })
         {
-            throw new InvalidDataException("desktop tutorial content contract drifted");
+            var titles = new HashSet<string>(StringComparer.Ordinal);
+            if (steps.Length != 6
+                || steps.Any(step => !ValidText(step.Label, 40)
+                    || !ValidText(step.Title, 80)
+                    || !titles.Add(step.Title)
+                    || !ValidText(step.Summary, 500)
+                    || step.Points.Count is < 3 or > 5
+                    || step.Points.Any(point => !ValidText(point, 240))
+                    || !ValidText(step.Model, 160)))
+            {
+                throw new InvalidDataException("desktop tutorial content contract drifted");
+            }
         }
         var completeText = string.Join(
             '\n',
-            Steps.SelectMany(step => step.Points.Prepend(step.Summary)));
+            EnglishSteps.SelectMany(step => step.Points.Prepend(step.Summary)));
         foreach (var required in new[]
         {
             "leserpentd",
@@ -343,7 +421,7 @@ internal sealed class DesktopTutorialWindow : Window
     public void VerifyAccessibility()
     {
         var ids = new HashSet<string>(StringComparer.Ordinal);
-        if (auditedControls.Count != Steps.Length + 4
+        if (auditedControls.Count != CurrentSteps.Length + 4
             || auditedControls.Any(control =>
                 string.IsNullOrWhiteSpace(AutomationProperties.GetAutomationId(control))
                 || string.IsNullOrWhiteSpace(AutomationProperties.GetName(control))
@@ -357,7 +435,9 @@ internal sealed class DesktopTutorialWindow : Window
 
     public void ProbeNavigationContract()
     {
-        if (selectedStep != 0 || previousButton.IsEnabled || nextButton.Content as string != "Next")
+        if (selectedStep != 0
+            || previousButton.IsEnabled
+            || nextButton.Content as string != localization.Text(DesktopTextKey.Next))
         {
             throw new InvalidDataException("desktop tutorial did not start at its first step");
         }
@@ -367,7 +447,8 @@ internal sealed class DesktopTutorialWindow : Window
             throw new InvalidDataException("desktop tutorial next control did not advance");
         }
         stepButtons[^1].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        if (selectedStep != Steps.Length - 1 || nextButton.Content as string != "Finish")
+        if (selectedStep != CurrentSteps.Length - 1
+            || nextButton.Content as string != localization.Text(DesktopTextKey.Finish))
         {
             throw new InvalidDataException("desktop tutorial direct navigation did not reach the final step");
         }
@@ -380,7 +461,10 @@ internal sealed class DesktopTutorialWindow : Window
         stepButtons[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         if (selectedStep != 0
             || previousButton.IsEnabled
-            || progressText.Text != $"Step 1 of {Steps.Length}")
+            || progressText.Text != localization.Format(
+                DesktopTextKey.StepProgress,
+                1,
+                CurrentSteps.Length))
         {
             throw new InvalidDataException("desktop tutorial navigation did not restore its first step");
         }
@@ -398,14 +482,39 @@ internal sealed class DesktopTutorialWindow : Window
         auditedControls.Add(control);
     }
 
+    private void OnLocalizationChanged(object? sender, EventArgs eventArgs)
+    {
+        _ = sender;
+        _ = eventArgs;
+        ApplyLocalization();
+    }
+
+    private void ApplyLocalization()
+    {
+        Title = $"Leserpent / {localization.Text(DesktopTextKey.LearningCenter).TrimEnd('.')}";
+        FlowDirection = localization.FlowDirection;
+        tutorialKicker.Text = localization.Text(DesktopTextKey.TutorialKicker);
+        tutorialHeading.Text = localization.Text(DesktopTextKey.TutorialHeading);
+        tutorialBody.Text = localization.Text(DesktopTextKey.TutorialBody);
+        previousButton.Content = localization.Text(DesktopTextKey.Previous);
+        closeButton.Content = localization.Text(DesktopTextKey.Close);
+        AutomationProperties.SetName(previousButton, localization.Text(DesktopTextKey.Previous));
+        AutomationProperties.SetName(closeButton, localization.Text(DesktopTextKey.Close));
+        for (var index = 0; index < stepButtons.Count; index++)
+        {
+            ToolTip.SetTip(stepButtons[index], CurrentSteps[index].Title);
+        }
+        ShowStep(Math.Min(selectedStep, CurrentSteps.Length - 1));
+    }
+
     private void ShowStep(int index)
     {
-        if (index < 0 || index >= Steps.Length)
+        if (index < 0 || index >= CurrentSteps.Length)
         {
             return;
         }
         selectedStep = index;
-        var step = Steps[index];
+        var step = CurrentSteps[index];
         lessonLabel.Text = step.Label;
         lessonTitle.Text = step.Title;
         lessonSummary.Text = step.Summary;
@@ -426,12 +535,14 @@ internal sealed class DesktopTutorialWindow : Window
             AutomationProperties.SetName(
                 button,
                 selected
-                    ? $"Current tutorial step {stepIndex + 1}: {Steps[stepIndex].Title}"
-                    : $"Open tutorial step {stepIndex + 1}: {Steps[stepIndex].Title}");
+                    ? $"Current tutorial step {stepIndex + 1}: {CurrentSteps[stepIndex].Title}"
+                    : $"Open tutorial step {stepIndex + 1}: {CurrentSteps[stepIndex].Title}");
         }
         previousButton.IsEnabled = index > 0;
-        var finalStep = index == Steps.Length - 1;
-        nextButton.Content = finalStep ? "Finish" : "Next";
+        var finalStep = index == CurrentSteps.Length - 1;
+        nextButton.Content = finalStep
+            ? localization.Text(DesktopTextKey.Finish)
+            : localization.Text(DesktopTextKey.Next);
         AutomationProperties.SetName(
             nextButton,
             finalStep
@@ -442,10 +553,13 @@ internal sealed class DesktopTutorialWindow : Window
             finalStep
                 ? "Closes the tutorial and returns to the Hub without starting an operation."
                 : "Advances until the final step. Shortcut: Right Arrow.");
-        progressText.Text = $"Step {index + 1} of {Steps.Length}";
+        progressText.Text = localization.Format(
+            DesktopTextKey.StepProgress,
+            index + 1,
+            CurrentSteps.Length);
         AutomationProperties.SetName(
             progressText,
-            $"Tutorial step {index + 1} of {Steps.Length}: {step.Title}");
+            $"Tutorial step {index + 1} of {CurrentSteps.Length}: {step.Title}");
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs eventArgs)
@@ -457,7 +571,7 @@ internal sealed class DesktopTutorialWindow : Window
                 eventArgs.Handled = true;
                 ShowStep(selectedStep - 1);
                 break;
-            case Key.Right when selectedStep < Steps.Length - 1:
+            case Key.Right when selectedStep < CurrentSteps.Length - 1:
                 eventArgs.Handled = true;
                 ShowStep(selectedStep + 1);
                 break;
@@ -467,7 +581,7 @@ internal sealed class DesktopTutorialWindow : Window
                 break;
             case Key.End:
                 eventArgs.Handled = true;
-                ShowStep(Steps.Length - 1);
+                ShowStep(CurrentSteps.Length - 1);
                 break;
             case Key.Escape:
                 eventArgs.Handled = true;

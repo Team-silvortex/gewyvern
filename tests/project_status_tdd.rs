@@ -3881,7 +3881,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.103.0");
+    assert_eq!(avalonia.contract.version, "1.104.0");
     assert!(
         avalonia
             .contract
@@ -5579,6 +5579,44 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         !blocker
             .summary
             .contains("still needs service activation, registration proof")
+    }));
+
+    let desktop_localization = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/ui-renderers/desktop-localization")
+        .expect("desktop localization contract must remain tracked");
+    assert_eq!(desktop_localization.maturity, Maturity::Incubating);
+    assert_eq!(desktop_localization.completion, 62);
+    assert_eq!(desktop_localization.contract.version, "0.1.0");
+    assert_eq!(desktop_localization.contract.stability, ContractStability::Draft);
+    for surface in [
+        "thirty-official-locale-identifiers",
+        "private-atomic-language-preference",
+        "native-language-settings-window",
+        "ui-ir-localized-text-resolution",
+        "deterministic-english-localization-fallback",
+        "zh-cn-complete-learning-center",
+        "rtl-native-flow-direction",
+    ] {
+        assert!(
+            desktop_localization
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing desktop localization surface {surface}"
+        );
+    }
+    assert!(desktop_localization.blockers.iter().any(|blocker| {
+        blocker.id == "desktop-long-tail-language-review"
+            && blocker.summary.contains("English")
+            && blocker.summary.contains("Simplified Chinese")
+    }));
+    assert!(desktop_localization.evidence.iter().any(|evidence| {
+        evidence.path
+            == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLocalization.cs"
+            && evidence.state == EvidenceState::Present
     }));
 
     let remote_console = catalog
