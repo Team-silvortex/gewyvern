@@ -30,6 +30,9 @@ immediately if the language changes; endpoint and credential values themselves
 are never translated. Reverse daemon deployment has the same coverage for its
 labels, safety copy, phases, status, and accessibility text; changing language
 preserves the target host, opaque SSH credential handle, and raw remote errors.
+Gewyvern provisioning is also covered, including its bounded-observation and
+retry guidance; the provisioning ID, runtime ID, host, and vault handle remain
+unchanged when the interface language changes.
 The six newest shell and semantic translations remain marked for native-speaker
 review rather than being presented as complete long-tail coverage.
 

@@ -259,15 +259,16 @@ catalog with Web-aligned terminology. All seven non-English built-ins also cover
 the exact 26-key core semantic UI-IR set for runtime lists, workspaces, logs,
 capabilities, history, and deployment forms; per-locale native `TextBlock` probes
 verify both visible and accessible text. Simplified Chinese additionally covers
-the complete six-step tutorial. Connection/forget and reverse deployment are
-the first complete specialist domains: their exact 33-key and 46-key catalogs
-cover every built-in language, their native windows have eight-locale layout
-probes, and live language changes reproject labels, controlled deployment
-phases, status, accessibility, and flow direction without changing endpoint,
-host, credential, or raw error values. The six newly completed catalogs remain
-candidate translations pending native-speaker review, while their tutorial
-steps, provisioning/retirement/startup/account dialogs, later semantic domains,
-and the 22 downloadable locales still fall back to English per missing key. Run
+the complete six-step tutorial. Connection/forget, reverse deployment, and
+gewyvern provisioning are the first complete specialist domains: their exact
+33-key, 46-key, and 43-key catalogs cover every built-in language, their native
+windows have eight-locale layout probes, and live language changes reproject
+labels, controlled phases, status, accessibility, and flow direction without
+changing endpoint, operation identity, host, credential, or raw error values.
+The six newly completed catalogs remain candidate translations pending native-
+speaker review, while their tutorial steps, retirement/startup/account dialogs,
+later semantic domains, and the 22 downloadable locales still fall back to
+English per missing key. Run
 `--verify-desktop-localization` for the
 catalog/persistence contract and `--verify-desktop-language-controls` for the
 real 31-choice control tree, all eight built-in selector layout envelopes, and
@@ -277,6 +278,9 @@ controls, confirmation layouts, live language reprojection, and the side-effect-
 free connection test. `--verify-bootstrap-controls` verifies the localized
 reverse-deployment layout and live status reprojection alongside its complete
 confirmation-gated submit, inspect, bind, and promotion sequence.
+The provisioning control verifier applies the same proof to immutable
+provisioning and runtime IDs, bounded same-attempt observation, and terminal
+registration.
 
 Opening a runtime child follows the same renderer-neutral boundary. The
 `RemoteWorkspaceLaunchCoordinator` validates runtime IDs, bounds active plus
@@ -392,7 +396,10 @@ before calling `POST /v1/provisioning`; it never calls the existing
 identity, then performs at most 30 automatic observations by replaying the exact
 request. Manual refresh observes that same attempt. A failed terminal state tells
 the operator to remediate and choose a new provisioning ID, while a registered
-state refreshes the Hub topology. Verify the strict codec with
+state refreshes the Hub topology. The native verifier also measures all eight
+built-in language layouts and proves that live language changes preserve the
+complete provisioning identity and opaque credential handle. Verify the strict
+codec with
 `--verify-provisioning-client` and the native control sequence with
 `--verify-provisioning-controls`.
 

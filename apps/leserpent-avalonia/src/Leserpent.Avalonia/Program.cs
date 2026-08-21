@@ -152,7 +152,7 @@ internal static class Program
             DesktopLocalization.VerifyContract();
             DesktopLanguagePreferenceStore.VerifyContract();
             Console.WriteLine(
-                "desktop localization valid: schema=v1, official_locales=30, builtin_locales=8, builtin_shell_catalogs=8, builtin_semantic_catalogs=7, semantic_keys=26, builtin_connection_catalogs=7, connection_semantic_keys=33, builtin_bootstrap_catalogs=7, bootstrap_semantic_keys=46, builtin_semantic_keys=105, downloadable_locales=22, system_resolution=true, bcp47_aliases=true, persistent_preference=true, atomic=true, private=true, unknown_fields=false, localized_ui_ir=true, localized_connection_dialog=true, localized_reverse_deployment=true, english_fallback=true, zh_cn_core=true, zh_cn_tutorial_complete=true, rtl_locales=3");
+                "desktop localization valid: schema=v1, official_locales=30, builtin_locales=8, builtin_shell_catalogs=8, builtin_semantic_catalogs=7, semantic_keys=26, builtin_connection_catalogs=7, connection_semantic_keys=33, builtin_bootstrap_catalogs=7, bootstrap_semantic_keys=46, builtin_provisioning_catalogs=7, provisioning_semantic_keys=43, builtin_semantic_keys=148, downloadable_locales=22, system_resolution=true, bcp47_aliases=true, persistent_preference=true, atomic=true, private=true, unknown_fields=false, localized_ui_ir=true, localized_connection_dialog=true, localized_reverse_deployment=true, localized_gewyvern_provisioning=true, english_fallback=true, zh_cn_core=true, zh_cn_tutorial_complete=true, rtl_locales=3");
             return 0;
         }
         if (args is ["--verify-local-orchestra", var daemonPath])

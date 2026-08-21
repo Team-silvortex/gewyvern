@@ -5587,8 +5587,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/ui-renderers/desktop-localization")
         .expect("desktop localization contract must remain tracked");
     assert_eq!(desktop_localization.maturity, Maturity::Incubating);
-    assert_eq!(desktop_localization.completion, 86);
-    assert_eq!(desktop_localization.contract.version, "0.5.0");
+    assert_eq!(desktop_localization.completion, 89);
+    assert_eq!(desktop_localization.contract.version, "0.6.0");
     assert_eq!(desktop_localization.contract.stability, ContractStability::Draft);
     for surface in [
         "thirty-official-locale-identifiers",
@@ -5613,6 +5613,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "localized-reverse-deployment-controls",
         "eight-built-in-bootstrap-layout-envelopes",
         "live-bootstrap-language-reprojection",
+        "seven-built-in-provisioning-specialist-catalogs",
+        "provisioning-catalog-exact-key-set",
+        "localized-gewyvern-provisioning-controls",
+        "eight-built-in-provisioning-layout-envelopes",
+        "live-provisioning-language-reprojection",
         "zh-cn-complete-learning-center",
         "rtl-native-flow-direction",
     ] {
@@ -5631,6 +5636,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && blocker.summary.contains("seven non-English built-ins")
             && blocker.summary.contains("33-key connection/forget domain")
             && blocker.summary.contains("46-key reverse-deployment domain")
+            && blocker.summary.contains("43-key gewyvern-provisioning domain")
             && blocker.summary.contains("native-speaker review")
     }));
     assert!(desktop_localization.evidence.iter().any(|evidence| {
@@ -5656,6 +5662,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(desktop_localization.evidence.iter().any(|evidence| {
         evidence.path
             == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBootstrapDeploymentCatalogs.cs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(desktop_localization.evidence.iter().any(|evidence| {
+        evidence.path
+            == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopProvisioningCatalogs.cs"
             && evidence.state == EvidenceState::Present
     }));
 

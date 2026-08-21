@@ -280,7 +280,8 @@ internal sealed class DesktopLocalization
             MergeSemantic(
                 SimplifiedChineseSemanticText,
                 DesktopConnectionCatalogs.SimplifiedChinese,
-                DesktopBootstrapDeploymentCatalogs.SimplifiedChinese),
+                DesktopBootstrapDeploymentCatalogs.SimplifiedChinese,
+                DesktopProvisioningCatalogs.SimplifiedChinese),
             DesktopLocaleCoverage.Core),
         BuiltInShell(
             "zh-TW",
@@ -290,7 +291,8 @@ internal sealed class DesktopLocalization
             MergeSemantic(
                 DesktopBuiltInSemanticCatalogs.TraditionalChinese,
                 DesktopConnectionCatalogs.TraditionalChinese,
-                DesktopBootstrapDeploymentCatalogs.TraditionalChinese)),
+                DesktopBootstrapDeploymentCatalogs.TraditionalChinese,
+                DesktopProvisioningCatalogs.TraditionalChinese)),
         BuiltInShell(
             "ja",
             "Japanese",
@@ -299,7 +301,8 @@ internal sealed class DesktopLocalization
             MergeSemantic(
                 DesktopBuiltInSemanticCatalogs.Japanese,
                 DesktopConnectionCatalogs.Japanese,
-                DesktopBootstrapDeploymentCatalogs.Japanese)),
+                DesktopBootstrapDeploymentCatalogs.Japanese,
+                DesktopProvisioningCatalogs.Japanese)),
         BuiltInShell(
             "es",
             "Spanish",
@@ -308,7 +311,8 @@ internal sealed class DesktopLocalization
             MergeSemantic(
                 DesktopBuiltInSemanticCatalogs.Spanish,
                 DesktopConnectionCatalogs.Spanish,
-                DesktopBootstrapDeploymentCatalogs.Spanish)),
+                DesktopBootstrapDeploymentCatalogs.Spanish,
+                DesktopProvisioningCatalogs.Spanish)),
         BuiltInShell(
             "de",
             "German",
@@ -317,7 +321,8 @@ internal sealed class DesktopLocalization
             MergeSemantic(
                 DesktopBuiltInSemanticCatalogs.German,
                 DesktopConnectionCatalogs.German,
-                DesktopBootstrapDeploymentCatalogs.German)),
+                DesktopBootstrapDeploymentCatalogs.German,
+                DesktopProvisioningCatalogs.German)),
         BuiltInShell(
             "fr",
             "French",
@@ -326,7 +331,8 @@ internal sealed class DesktopLocalization
             MergeSemantic(
                 DesktopBuiltInSemanticCatalogs.French,
                 DesktopConnectionCatalogs.French,
-                DesktopBootstrapDeploymentCatalogs.French)),
+                DesktopBootstrapDeploymentCatalogs.French,
+                DesktopProvisioningCatalogs.French)),
         BuiltInShell(
             "ko",
             "Korean",
@@ -335,7 +341,8 @@ internal sealed class DesktopLocalization
             MergeSemantic(
                 DesktopBuiltInSemanticCatalogs.Korean,
                 DesktopConnectionCatalogs.Korean,
-                DesktopBootstrapDeploymentCatalogs.Korean)),
+                DesktopBootstrapDeploymentCatalogs.Korean,
+                DesktopProvisioningCatalogs.Korean)),
         Core("pt-BR", "Portuguese (Brazil)", "Português (Brasil)", "Idioma",
             "Painel do plano de controle", "Uma visão leve da frota para vários runtimes gewyvern próximos.", false),
         Core("it", "Italian", "Italiano", "Lingua", "Dashboard del piano di controllo",
@@ -482,11 +489,13 @@ internal sealed class DesktopLocalization
             SimplifiedChineseSemanticText.Keys);
         DesktopConnectionCatalogs.VerifyContract();
         DesktopBootstrapDeploymentCatalogs.VerifyContract();
+        DesktopProvisioningCatalogs.VerifyContract();
         var ids = LocaleDefinitions.Select(locale => locale.Locale).ToArray();
         var desktopTextKeyCount = Enum.GetValues<DesktopTextKey>().Length;
         var builtInSemanticKeyCount = DesktopBuiltInSemanticCatalogs.KeyCount
             + DesktopConnectionCatalogs.KeyCount
-            + DesktopBootstrapDeploymentCatalogs.KeyCount;
+            + DesktopBootstrapDeploymentCatalogs.KeyCount
+            + DesktopProvisioningCatalogs.KeyCount;
         if (Schema != "leserpent.desktop-localization/v1"
             || LocaleDefinitions.Length != 30
             || LocaleDefinitions.Count(locale => locale.BuiltIn) != 8
@@ -588,6 +597,24 @@ internal sealed class DesktopLocalization
         {
             throw new InvalidDataException(
                 "built-in desktop bootstrap translation drifted");
+        }
+        var provisioningSamples = new Dictionary<string, string>
+        {
+            ["en"] = "Leserpent / Provision gewyvern",
+            ["zh-CN"] = "Leserpent / 部署 gewyvern",
+            ["zh-TW"] = "Leserpent / 佈建 gewyvern",
+            ["ja"] = "Leserpent / gewyvern をプロビジョニング",
+            ["es"] = "Leserpent / Aprovisionar gewyvern",
+            ["de"] = "Leserpent / Gewyvern bereitstellen",
+            ["fr"] = "Leserpent / Provisionner gewyvern",
+            ["ko"] = "Leserpent / gewyvern 프로비저닝",
+        };
+        if (provisioningSamples.Any(sample => DesktopProvisioningCatalogs.Resolve(
+            ForVerification(sample.Key),
+            "title") != sample.Value))
+        {
+            throw new InvalidDataException(
+                "built-in desktop provisioning translation drifted");
         }
         var system = ForVerification(SystemPreference, "zh-Hans-CN");
         if (system.Active.Locale != "zh-CN"

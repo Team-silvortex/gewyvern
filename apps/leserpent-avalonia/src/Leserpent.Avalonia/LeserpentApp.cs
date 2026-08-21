@@ -806,67 +806,112 @@ internal sealed class LeserpentApp : Application
     {
         var reconcileCount = 0;
         RemoteProvisioningIntent? acceptedIntent = null;
-        var window = new GewyvernProvisioningWindow(
-            [new BootstrapAuthorityOption(
+        var localization = DesktopLocalization.ForVerification();
+        var authorities = new[]
+        {
+            new BootstrapAuthorityOption(
                 "daemon-verification",
                 "Verification authority",
                 "https://controller.example:9443",
-                false)],
-            new ProvisioningHubOperations((_, intent, _) =>
+                false),
+        };
+        var operations = new ProvisioningHubOperations((_, intent, _) =>
+        {
+            reconcileCount++;
+            acceptedIntent ??= intent;
+            if (acceptedIntent != intent)
             {
-                reconcileCount++;
-                acceptedIntent ??= intent;
-                if (acceptedIntent != intent)
-                {
-                    throw new InvalidDataException(
-                        "provisioning controls changed identity while observing progress");
-                }
-                return Task.FromResult(reconcileCount == 1
-                    ? new RemoteProvisioningSnapshot(
-                        intent.ProvisioningId,
-                        intent.RuntimeId,
-                        "planned",
-                        "ssh",
-                        intent.Host,
-                        intent.Port,
-                        true,
-                        null,
-                        null,
-                        null,
-                        null,
-                        false)
-                    : new RemoteProvisioningSnapshot(
-                        intent.ProvisioningId,
-                        intent.RuntimeId,
-                        "runtime_registered",
-                        "ssh",
-                        intent.Host,
-                        intent.Port,
-                        false,
-                        "https://runtime.example:9444",
-                        "vault:gewyvern:runtime-api",
-                        "vault:gewyvern-ca:runtime-ca",
-                        null,
-                        true));
-            }));
+                throw new InvalidDataException(
+                    "provisioning controls changed identity while observing progress");
+            }
+            return Task.FromResult(reconcileCount == 1
+                ? new RemoteProvisioningSnapshot(
+                    intent.ProvisioningId,
+                    intent.RuntimeId,
+                    "planned",
+                    "ssh",
+                    intent.Host,
+                    intent.Port,
+                    true,
+                    null,
+                    null,
+                    null,
+                    null,
+                    false)
+                : new RemoteProvisioningSnapshot(
+                    intent.ProvisioningId,
+                    intent.RuntimeId,
+                    "runtime_registered",
+                    "ssh",
+                    intent.Host,
+                    intent.Port,
+                    false,
+                    "https://runtime.example:9444",
+                    "vault:gewyvern:runtime-api",
+                    "vault:gewyvern-ca:runtime-ca",
+                    null,
+                    true));
+        });
+        var window = new GewyvernProvisioningWindow(
+            authorities,
+            operations,
+            localization);
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += async (_, _) =>
         {
             window.VerifyAccessibility();
+            window.VerifyLayoutEnvelope();
+            var localizedLayoutCount = 0;
+            foreach (var locale in DesktopLocalization.OfficialLocales.Where(
+                locale => locale.BuiltIn))
+            {
+                var localized = DesktopLocalization.ForVerification(locale.Locale);
+                var localizedWindow = new GewyvernProvisioningWindow(
+                    authorities,
+                    operations,
+                    localized);
+                localizedWindow.VerifyAccessibility();
+                localizedWindow.VerifyLayoutEnvelope();
+                localizedWindow.ProbeLocalizedPresentation(
+                    DesktopProvisioningCatalogs.Resolve(localized, "title"),
+                    DesktopProvisioningCatalogs.Resolve(localized, "heading"),
+                    DesktopProvisioningCatalogs.Resolve(localized, "submit"),
+                    DesktopProvisioningCatalogs.Resolve(
+                        localized,
+                        "phase.not_submitted"),
+                    DesktopProvisioningCatalogs.Resolve(
+                        localized,
+                        "status.initial"));
+                localizedLayoutCount++;
+            }
+            localization.SetPreference("zh-CN");
+            window.ProbeLocalizedPresentation(
+                "Leserpent / 部署 gewyvern",
+                "安装并注册 gewyvern",
+                "部署 gewyvern",
+                "尚未提交",
+                "请选择将拥有此 gewyvern runtime 的 daemon 权威端。");
+            localization.SetPreference("en");
+            if (localizedLayoutCount != 8)
+            {
+                throw new InvalidDataException(
+                    "gewyvern provisioning localized layout coverage drifted");
+            }
             await window.ProbeConfirmationFenceAsync();
             if (reconcileCount != 0)
             {
                 throw new InvalidDataException(
                     "provisioning controls submitted without explicit confirmation");
             }
-            await window.ProbeWorkflowAsync();
+            await window.ProbeWorkflowAsync("zh-CN");
+            await window.ProbeObservationLimitAsync("de");
             if (reconcileCount != 2 || acceptedIntent is null)
             {
                 throw new InvalidDataException(
                     "provisioning controls did not preserve submit-observe identity");
             }
             Console.WriteLine(
-                "provisioning controls valid: controls=12, authority_scoped=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, stable_identity=true, bounded_polling=30, terminal_state=true, retry_guidance=true, automation=true");
+                "provisioning controls valid: controls=12, authority_scoped=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, stable_identity=true, bounded_polling=30, observation_limit_no_reconcile=true, terminal_state=true, retry_guidance=true, automation=true, localized_provisioning_catalogs=7, localized_layouts=8, live_language_reprojection=true");
             DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
@@ -1632,7 +1677,10 @@ internal sealed class LeserpentApp : Application
                     }
                     return state;
                 });
-            var window = new GewyvernProvisioningWindow(authorities, operations);
+            var window = new GewyvernProvisioningWindow(
+                authorities,
+                operations,
+                DesktopLanguage());
             if (desktop.MainWindow is { } owner)
             {
                 window.Show(owner);

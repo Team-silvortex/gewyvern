@@ -14,6 +14,8 @@ internal sealed class GewyvernProvisioningWindow : Window
 {
     private const string Principal = "avalonia-hub";
     private const int MaxAutomaticObservations = 30;
+    private static readonly object UnavailableValue = new();
+    private readonly DesktopLocalization localization;
     private readonly ProvisioningHubOperations operations;
     private readonly CancellationTokenSource lifetime = new();
     private readonly List<Control> auditedControls = [];
@@ -43,41 +45,72 @@ internal sealed class GewyvernProvisioningWindow : Window
     };
     private readonly CheckBox confirmation = new()
     {
-        Content = "I confirm gewyvern installation and runtime registration on this host",
         Foreground = LeserpentTheme.Body,
     };
-    private readonly Button submitButton = PrimaryButton("Provision gewyvern");
+    private readonly Button submitButton = PrimaryButton();
     private readonly Button refreshButton = new()
     {
-        Content = "Refresh same attempt",
         Padding = new Thickness(16, 9),
+        Margin = new Thickness(5),
         IsEnabled = false,
+    };
+    private readonly Button closeButton = new()
+    {
+        Padding = new Thickness(16, 9),
+        Margin = new Thickness(5),
     };
     private readonly TextBlock status = new()
     {
         Foreground = LeserpentTheme.Muted,
         TextWrapping = TextWrapping.Wrap,
-        Text = "Choose the daemon authority that will own this gewyvern runtime.",
     };
     private readonly TextBlock phase = new()
     {
         Foreground = LeserpentTheme.Primary,
         FontWeight = FontWeight.Bold,
         LetterSpacing = 1,
-        Text = "NOT SUBMITTED",
     };
+    private readonly TextBlock kickerText = new()
+    {
+        Foreground = LeserpentTheme.Accent,
+        FontSize = 12,
+        FontWeight = FontWeight.Bold,
+        LetterSpacing = 2,
+    };
+    private readonly TextBlock headingText = new()
+    {
+        Foreground = LeserpentTheme.Primary,
+        FontSize = 27,
+        FontWeight = FontWeight.Bold,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly TextBlock descriptionText = new()
+    {
+        Foreground = LeserpentTheme.Muted,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly TextBlock authorityLabel = CreateLabel();
+    private readonly TextBlock provisioningIdLabel = CreateLabel();
+    private readonly TextBlock runtimeIdLabel = CreateLabel();
+    private readonly TextBlock hostLabel = CreateLabel();
+    private readonly TextBlock portLabel = CreateLabel();
+    private readonly TextBlock credentialLabel = CreateLabel();
     private readonly DispatcherTimer polling = new() { Interval = TimeSpan.FromSeconds(2) };
     private RemoteProvisioningIntent? intent;
     private RemoteProvisioningSnapshot? snapshot;
     private bool operationInFlight;
     private int automaticObservations;
+    private string phaseKey = "phase.not_submitted";
+    private string? localizedStatusKey = "status.initial";
+    private object[] localizedStatusValues = [];
 
     public GewyvernProvisioningWindow(
         IReadOnlyList<BootstrapAuthorityOption> authorities,
-        ProvisioningHubOperations operations)
+        ProvisioningHubOperations operations,
+        DesktopLocalization localization)
     {
         this.operations = operations;
-        Title = "Leserpent / Provision gewyvern";
+        this.localization = localization;
         Width = 720;
         MinWidth = 590;
         SizeToContent = SizeToContent.Height;
@@ -91,8 +124,7 @@ internal sealed class GewyvernProvisioningWindow : Window
         authority.IsEnabled = authorities.Count > 1;
         provisioningId.Text = $"provision-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..50];
 
-        var close = new Button { Content = "Close", Padding = new Thickness(16, 9) };
-        close.Click += (_, _) => Close();
+        closeButton.Click += (_, _) => Close();
         submitButton.Click += async (_, _) => await SubmitAsync();
         refreshButton.Click += async (_, _) => await ReconcileAsync(background: false);
         polling.Tick += async (_, _) => await ReconcileAsync(background: true);
@@ -107,29 +139,30 @@ internal sealed class GewyvernProvisioningWindow : Window
         Closed += (_, _) =>
         {
             polling.Stop();
+            localization.Changed -= OnLocalizationChanged;
             lifetime.Cancel();
             lifetime.Dispose();
         };
 
-        Audit(authority, "provisioning-authority", "Daemon authority owning the gewyvern runtime");
-        Audit(provisioningId, "provisioning-id", "Stable gewyvern provisioning operation ID");
-        Audit(runtimeId, "provisioning-runtime-id", "Runtime ID registered by provisioning");
-        Audit(host, "provisioning-host", "Target host for gewyvern installation");
-        Audit(port, "provisioning-port", "Target SSH port");
-        Audit(credentialHandle, "provisioning-credential-handle", "Opaque SSH credential handle");
-        Audit(confirmation, "provisioning-confirm", "Confirm gewyvern installation and registration");
-        Audit(submitButton, "provisioning-submit", "Provision and register gewyvern runtime");
-        Audit(refreshButton, "provisioning-refresh", "Refresh the same provisioning attempt");
-        Audit(close, "provisioning-close", "Close gewyvern provisioning window");
-        Audit(status, "provisioning-status", "Gewyvern provisioning status");
-        Audit(phase, "provisioning-phase", "Gewyvern provisioning phase");
+        Audit(authority, "provisioning-authority");
+        Audit(provisioningId, "provisioning-id");
+        Audit(runtimeId, "provisioning-runtime-id");
+        Audit(host, "provisioning-host");
+        Audit(port, "provisioning-port");
+        Audit(credentialHandle, "provisioning-credential-handle");
+        Audit(confirmation, "provisioning-confirm");
+        Audit(submitButton, "provisioning-submit");
+        Audit(refreshButton, "provisioning-refresh");
+        Audit(closeButton, "provisioning-close");
+        Audit(status, "provisioning-status");
+        Audit(phase, "provisioning-phase");
         AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Assertive);
 
         var target = new Grid
         {
             ColumnDefinitions = ColumnDefinitions.Parse("*,130"),
             ColumnSpacing = 12,
-            Children = { Field("Target host", host), Field("SSH port", port) },
+            Children = { Field(hostLabel, host), Field(portLabel, port) },
         };
         Grid.SetColumn(target.Children[1], 1);
 
@@ -147,27 +180,9 @@ internal sealed class GewyvernProvisioningWindow : Window
                         Spacing = 5,
                         Children =
                         {
-                            new TextBlock
-                            {
-                                Text = "RUNTIME PROVISIONING",
-                                Foreground = LeserpentTheme.Accent,
-                                FontSize = 12,
-                                FontWeight = FontWeight.Bold,
-                                LetterSpacing = 2,
-                            },
-                            new TextBlock
-                            {
-                                Text = "Install and register gewyvern",
-                                Foreground = LeserpentTheme.Primary,
-                                FontSize = 27,
-                                FontWeight = FontWeight.Bold,
-                            },
-                            new TextBlock
-                            {
-                                Text = "The selected leserpentd performs native SSH installation, proves service identity, and atomically registers the runtime. Only an opaque vault handle leaves this desktop.",
-                                Foreground = LeserpentTheme.Muted,
-                                TextWrapping = TextWrapping.Wrap,
-                            },
+                            kickerText,
+                            headingText,
+                            descriptionText,
                         },
                     },
                     new Border
@@ -182,11 +197,11 @@ internal sealed class GewyvernProvisioningWindow : Window
                             Spacing = 14,
                             Children =
                             {
-                                Field("Owning daemon authority", authority),
-                                Field("Provisioning ID", provisioningId),
-                                Field("Runtime ID", runtimeId),
+                                Field(authorityLabel, authority),
+                                Field(provisioningIdLabel, provisioningId),
+                                Field(runtimeIdLabel, runtimeId),
                                 target,
-                                Field("SSH credential handle", credentialHandle),
+                                Field(credentialLabel, credentialHandle),
                                 confirmation,
                             },
                         },
@@ -200,16 +215,17 @@ internal sealed class GewyvernProvisioningWindow : Window
                         Padding = new Thickness(18, 14),
                         Child = new StackPanel { Spacing = 6, Children = { phase, status } },
                     },
-                    new StackPanel
+                    new WrapPanel
                     {
                         Orientation = Orientation.Horizontal,
-                        Spacing = 10,
                         HorizontalAlignment = HorizontalAlignment.Right,
-                        Children = { close, refreshButton, submitButton },
+                        Children = { closeButton, refreshButton, submitButton },
                     },
                 },
             },
         };
+        localization.Changed += OnLocalizationChanged;
+        ApplyLocalization();
     }
 
     public void VerifyAccessibility()
@@ -219,22 +235,80 @@ internal sealed class GewyvernProvisioningWindow : Window
                 .Distinct(StringComparer.Ordinal).Count() != auditedControls.Count
             || auditedControls.Any(control =>
                 string.IsNullOrWhiteSpace(AutomationProperties.GetAutomationId(control))
-                || string.IsNullOrWhiteSpace(AutomationProperties.GetName(control))))
+                || string.IsNullOrWhiteSpace(AutomationProperties.GetName(control)))
+            || AutomationProperties.GetLiveSetting(status) != AutomationLiveSetting.Assertive)
         {
             throw new InvalidDataException("gewyvern provisioning control contract drifted");
         }
     }
 
-    public async Task ProbeWorkflowAsync()
+    public void VerifyLayoutEnvelope()
     {
+        if (Content is not Control root)
+        {
+            throw new InvalidDataException("gewyvern provisioning window has no control root");
+        }
+        root.Measure(new Size(Width, 1600));
+        var desired = root.DesiredSize;
+        if (!double.IsFinite(desired.Width)
+            || !double.IsFinite(desired.Height)
+            || desired.Width <= 0
+            || desired.Height <= 0
+            || desired.Width > Width
+            || desired.Height > 1600)
+        {
+            throw new InvalidDataException(
+                "gewyvern provisioning controls exceeded their layout envelope");
+        }
+    }
+
+    public void ProbeLocalizedPresentation(
+        string expectedTitle,
+        string expectedHeading,
+        string expectedSubmit,
+        string expectedPhase,
+        string expectedStatus)
+    {
+        if (Title != expectedTitle
+            || headingText.Text != expectedHeading
+            || submitButton.Content as string != expectedSubmit
+            || AutomationProperties.GetName(submitButton) != Text("a11y.submit")
+            || phase.Text != expectedPhase
+            || status.Text != expectedStatus
+            || FlowDirection != localization.FlowDirection)
+        {
+            throw new InvalidDataException(
+                "gewyvern provisioning localized presentation drifted");
+        }
+    }
+
+    public async Task ProbeWorkflowAsync(string reprojectLocale)
+    {
+        var originalProvisioningId = provisioningId.Text;
         runtimeId.Text = "runtime-ui-1";
         host.Text = "runtime.example";
         credentialHandle.Text = "vault:ssh:runtime-example";
         confirmation.IsChecked = true;
         await SubmitAsync();
+        localization.SetPreference(reprojectLocale);
+        if (provisioningId.Text != originalProvisioningId
+            || runtimeId.Text != "runtime-ui-1"
+            || host.Text != "runtime.example"
+            || credentialHandle.Text != "vault:ssh:runtime-example"
+            || phase.Text != Text("phase.planned")
+            || status.Text != Text("status.planned"))
+        {
+            throw new InvalidDataException(
+                "provisioning language reprojection changed identity or stale status text");
+        }
         await ReconcileAsync(background: false);
         if (snapshot is not { Phase: "runtime_registered", RuntimeRegistered: true }
-            || intent is null)
+            || intent is null
+            || phase.Text != Text("phase.runtime_registered")
+            || status.Text != Format(
+                "status.runtime_registered",
+                "runtime-ui-1",
+                "https://runtime.example:9444"))
         {
             throw new InvalidDataException("provisioning controls did not register the runtime");
         }
@@ -253,6 +327,18 @@ internal sealed class GewyvernProvisioningWindow : Window
         }
     }
 
+    public async Task ProbeObservationLimitAsync(string reprojectLocale)
+    {
+        automaticObservations = MaxAutomaticObservations;
+        await ReconcileAsync(background: true);
+        localization.SetPreference(reprojectLocale);
+        if (status.Text != Text("status.observation_limit"))
+        {
+            throw new InvalidDataException(
+                "provisioning observation limit did not reproject its bounded guidance");
+        }
+    }
+
     private async Task SubmitAsync()
     {
         if (operationInFlight || snapshot is not null)
@@ -263,9 +349,18 @@ internal sealed class GewyvernProvisioningWindow : Window
         {
             if (confirmation.IsChecked != true)
             {
-                throw new ArgumentException("Confirm gewyvern installation before submitting.");
+                ShowLocalizedStatus(
+                    "error.confirm_required",
+                    LeserpentTheme.Destructive);
+                return;
             }
-            var source = SelectedAuthority();
+            if (SelectedAuthorityOrNull() is not { } source)
+            {
+                ShowLocalizedStatus(
+                    "error.authority_required",
+                    LeserpentTheme.Destructive);
+                return;
+            }
             intent = new RemoteProvisioningIntent(
                 provisioningId.Text ?? string.Empty,
                 runtimeId.Text ?? string.Empty,
@@ -296,8 +391,7 @@ internal sealed class GewyvernProvisioningWindow : Window
         if (background && automaticObservations >= MaxAutomaticObservations)
         {
             polling.Stop();
-            status.Text = "Automatic observation reached its bounded limit. Use Refresh same attempt to inspect this exact provisioning ID without creating another installation.";
-            status.Foreground = LeserpentTheme.Primary;
+            ShowLocalizedStatus("status.observation_limit", LeserpentTheme.Primary);
             return;
         }
         try
@@ -328,8 +422,7 @@ internal sealed class GewyvernProvisioningWindow : Window
         UpdateActions();
         if (!background)
         {
-            status.Text = "Waiting for the selected daemon authority...";
-            status.Foreground = LeserpentTheme.Muted;
+            ShowLocalizedStatus("status.waiting", LeserpentTheme.Muted);
         }
         try
         {
@@ -345,22 +438,38 @@ internal sealed class GewyvernProvisioningWindow : Window
 
     private void RenderSnapshot(RemoteProvisioningSnapshot state)
     {
-        phase.Text = state.Phase.Replace('_', ' ').ToUpperInvariant();
+        phaseKey = state.Phase switch
+        {
+            "planned" => "phase.planned",
+            "installing" => "phase.installing",
+            "service_ready" => "phase.service_ready",
+            "runtime_registered" => "phase.runtime_registered",
+            "failed" => "phase.failed",
+            _ => throw new InvalidDataException("unsupported provisioning phase"),
+        };
+        phase.Text = Text(phaseKey);
         phase.Foreground = state.Phase == "failed"
             ? LeserpentTheme.Destructive
             : state.RuntimeRegistered ? LeserpentTheme.Accent : LeserpentTheme.Primary;
-        status.Foreground = state.Phase == "failed"
+        var statusForeground = state.Phase == "failed"
             ? LeserpentTheme.Destructive
             : LeserpentTheme.Body;
-        status.Text = state.Phase switch
+        var presentation = state.Phase switch
         {
-            "planned" => "Provisioning is durably queued. Observation reuses this exact identity and does not submit a second installation.",
-            "installing" => "The daemon authority is installing and activating gewyvern on the target host.",
-            "service_ready" => $"Gewyvern is verified at {Safe(state.Endpoint)}; atomic runtime registration is pending.",
-            "runtime_registered" => $"Runtime {Safe(state.RuntimeId)} is registered and ready at {Safe(state.Endpoint)}.",
-            "failed" => $"Provisioning failed with bounded fault {Safe(state.FaultCode)}. Correct the cause, then start a new attempt with a new provisioning ID; this failed identity remains immutable for audit.",
+            "planned" => ("status.planned", Array.Empty<object>()),
+            "installing" => ("status.installing", Array.Empty<object>()),
+            "service_ready" => (
+                "status.service_ready",
+                new object[] { SafeValue(state.Endpoint) }),
+            "runtime_registered" => (
+                "status.runtime_registered",
+                new object[] { SafeValue(state.RuntimeId), SafeValue(state.Endpoint) }),
+            "failed" => (
+                "status.failed",
+                new object[] { SafeValue(state.FaultCode) }),
             _ => throw new InvalidDataException("unsupported provisioning phase"),
         };
+        ShowLocalizedStatus(presentation.Item1, statusForeground, presentation.Item2);
         if (state.IsTerminal)
         {
             polling.Stop();
@@ -386,51 +495,119 @@ internal sealed class GewyvernProvisioningWindow : Window
 
     private BootstrapAuthorityOption SelectedAuthority() =>
         authority.SelectedItem as BootstrapAuthorityOption
-        ?? throw new ArgumentException("Select an owning daemon authority first.");
+        ?? throw new ArgumentException(Text("error.authority_required"));
+
+    private BootstrapAuthorityOption? SelectedAuthorityOrNull() =>
+        authority.SelectedItem as BootstrapAuthorityOption;
 
     private void ShowError(Exception error)
     {
-        status.Text = Safe(error.Message);
+        localizedStatusKey = null;
+        localizedStatusValues = [];
+        status.Text = SafeRaw(error.Message);
         status.Foreground = LeserpentTheme.Destructive;
     }
 
-    private void Audit(Control control, string id, string name)
+    private void ShowLocalizedStatus(
+        string key,
+        IBrush foreground,
+        params object[] values)
+    {
+        localizedStatusKey = key;
+        localizedStatusValues = [.. values];
+        status.Text = values.Length == 0 ? Text(key) : Format(key, values);
+        status.Foreground = foreground;
+    }
+
+    private void OnLocalizationChanged(object? sender, EventArgs eventArgs) =>
+        ApplyLocalization();
+
+    private void ApplyLocalization()
+    {
+        Title = Text("title");
+        FlowDirection = localization.FlowDirection;
+        confirmation.Content = Text("confirmation");
+        submitButton.Content = Text("submit");
+        refreshButton.Content = Text("refresh");
+        closeButton.Content = Text("close");
+        kickerText.Text = Text("kicker");
+        headingText.Text = Text("heading");
+        descriptionText.Text = Text("body");
+        authorityLabel.Text = Text("authority.label");
+        provisioningIdLabel.Text = Text("provisioning_id.label");
+        runtimeIdLabel.Text = Text("runtime_id.label");
+        hostLabel.Text = Text("host.label");
+        portLabel.Text = Text("port.label");
+        credentialLabel.Text = Text("credential.label");
+        phase.Text = Text(phaseKey);
+        if (localizedStatusKey is { } statusKey)
+        {
+            status.Text = localizedStatusValues.Length == 0
+                ? Text(statusKey)
+                : Format(statusKey, localizedStatusValues);
+        }
+
+        AutomationProperties.SetName(authority, Text("a11y.authority"));
+        AutomationProperties.SetName(provisioningId, Text("a11y.provisioning_id"));
+        AutomationProperties.SetName(runtimeId, Text("a11y.runtime_id"));
+        AutomationProperties.SetName(host, Text("a11y.host"));
+        AutomationProperties.SetName(port, Text("a11y.port"));
+        AutomationProperties.SetName(credentialHandle, Text("a11y.credential"));
+        AutomationProperties.SetName(confirmation, Text("a11y.confirm"));
+        AutomationProperties.SetName(submitButton, Text("a11y.submit"));
+        AutomationProperties.SetName(refreshButton, Text("a11y.refresh"));
+        AutomationProperties.SetName(closeButton, Text("a11y.close"));
+        AutomationProperties.SetName(status, Text("status.name"));
+        AutomationProperties.SetName(phase, Text("phase.name"));
+    }
+
+    private void Audit(Control control, string id)
     {
         AutomationProperties.SetAutomationId(control, id);
-        AutomationProperties.SetName(control, name);
         auditedControls.Add(control);
     }
 
-    private static StackPanel Field(string label, Control control) => new()
+    private string Text(string key) =>
+        DesktopProvisioningCatalogs.Resolve(localization, key);
+
+    private string Format(string key, params object[] values) =>
+        DesktopProvisioningCatalogs.Format(
+            localization,
+            key,
+            values.Select(value => ReferenceEquals(value, UnavailableValue)
+                ? Text("unavailable")
+                : value).ToArray());
+
+    private static StackPanel Field(TextBlock label, Control control) => new()
     {
         Spacing = 6,
-        Children =
-        {
-            new TextBlock
-            {
-                Text = label,
-                Foreground = LeserpentTheme.Body,
-                FontWeight = FontWeight.SemiBold,
-                FontSize = 12,
-            },
-            control,
-        },
+        Children = { label, control },
     };
 
-    private static Button PrimaryButton(string label) => new()
+    private static TextBlock CreateLabel() => new()
     {
-        Content = label,
+        Foreground = LeserpentTheme.Body,
+        FontWeight = FontWeight.SemiBold,
+        FontSize = 12,
+    };
+
+    private static Button PrimaryButton() => new()
+    {
         Background = LeserpentTheme.Accent,
         Foreground = Brushes.Black,
         FontWeight = FontWeight.SemiBold,
         Padding = new Thickness(17, 9),
+        Margin = new Thickness(5),
     };
 
     private static bool IsExpected(Exception error) => error is ArgumentException
         or InvalidDataException or IOException or HttpRequestException
         or RemoteProvisioningException or OperationCanceledException;
 
-    private static string Safe(string? value) => value is null
-        ? "unavailable"
+    private static object SafeValue(string? value) => value is null
+        ? UnavailableValue
         : new string(value.Where(character => !char.IsControl(character)).Take(512).ToArray());
+
+    private static string SafeRaw(string value) =>
+        new(value.Where(character => !char.IsControl(character)).Take(512).ToArray());
 }
