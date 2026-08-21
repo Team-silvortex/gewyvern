@@ -226,14 +226,15 @@ semantic UI-IR set for runtime lists, workspaces, logs, capabilities, history,
 and deployment forms. Startup rejects a missing or extra key, and per-locale
 native `TextBlock` probes validate visible plus accessible text. The six newly
 filled shell and semantic catalogs remain candidates until native-speaker and
-real-layout review. Connection settings and endpoint-forget confirmation are the
-first specialist domain on the same boundary: a separate exact 33-key catalog is
-merged without overlapping the frozen core set, all eight built-in locale trees
-are measured inside fixed native envelopes, and open connection controls,
-accessible names, dynamic test status, and flow direction reproject on language
-change while operator values stay untouched. Other specialist dialogs,
-tutorials, and later semantic domains still fall back to English. Hub and
-remote-shell layout expansion also remains explicit follow-up work. Arabic,
+real-layout review. Connection/forget and reverse deployment are the first
+specialist domains on the same boundary: separate exact 33-key and 46-key
+catalogs merge without overlapping the frozen core set, all eight built-in
+locale trees are measured inside fixed native envelopes, and open controls,
+accessible names, controlled deployment phases, status, and flow direction
+reproject on language change while operator values and raw remote errors stay
+untouched. Provisioning, retirement, startup-recovery, account, tutorial, and
+later semantic domains still fall back to English. Hub and remote-shell layout
+expansion also remains explicit follow-up work. Arabic,
 Hebrew, and Persian switch the inherited Avalonia flow direction to RTL.
 
 Cross-authority refresh admission is frontend-independent. The shared remote

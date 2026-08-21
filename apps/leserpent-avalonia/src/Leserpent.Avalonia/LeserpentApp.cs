@@ -671,6 +671,7 @@ internal sealed class LeserpentApp : Application
         var inspectCount = 0;
         var bindCount = 0;
         var promoteCount = 0;
+        var localization = DesktopLocalization.ForVerification();
         var target = new RemoteBootstrapSnapshot(
             "bootstrap-verification",
             "planned",
@@ -684,13 +685,15 @@ internal sealed class LeserpentApp : Application
             null,
             null,
             false);
-        var window = new BootstrapDeploymentWindow(
-            [new BootstrapAuthorityOption(
+        var authorities = new[]
+        {
+            new BootstrapAuthorityOption(
                 "daemon-verification",
                 "Verification authority",
                 "https://controller.example:9443",
-                true)],
-            new BootstrapHubOperations(
+                true),
+        };
+        var operations = new BootstrapHubOperations(
                 (_, intent, _) =>
                 {
                     submitCount++;
@@ -732,25 +735,66 @@ internal sealed class LeserpentApp : Application
                     }
                     promoteCount++;
                     return Task.CompletedTask;
-                }));
+                });
+        var window = new BootstrapDeploymentWindow(
+            authorities,
+            operations,
+            localization);
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += async (_, _) =>
         {
             window.VerifyAccessibility();
+            window.VerifyLayoutEnvelope();
+            var localizedLayoutCount = 0;
+            foreach (var locale in DesktopLocalization.OfficialLocales.Where(
+                locale => locale.BuiltIn))
+            {
+                var localized = DesktopLocalization.ForVerification(locale.Locale);
+                var localizedWindow = new BootstrapDeploymentWindow(
+                    authorities,
+                    operations,
+                    localized);
+                localizedWindow.VerifyAccessibility();
+                localizedWindow.VerifyLayoutEnvelope();
+                localizedWindow.ProbeLocalizedPresentation(
+                    DesktopBootstrapDeploymentCatalogs.Resolve(localized, "title"),
+                    DesktopBootstrapDeploymentCatalogs.Resolve(localized, "heading"),
+                    DesktopBootstrapDeploymentCatalogs.Resolve(localized, "deploy"),
+                    DesktopBootstrapDeploymentCatalogs.Resolve(
+                        localized,
+                        "phase.not_submitted"),
+                    DesktopBootstrapDeploymentCatalogs.Resolve(
+                        localized,
+                        "status.initial"));
+                localizedLayoutCount++;
+            }
+            localization.SetPreference("zh-CN");
+            window.ProbeLocalizedPresentation(
+                "Leserpent / 部署 daemon",
+                "部署 daemon 权威端",
+                "部署 leserpentd",
+                "尚未提交",
+                "请选择一个现有 daemon 权威端来执行部署。");
+            localization.SetPreference("en");
+            if (localizedLayoutCount != 8)
+            {
+                throw new InvalidDataException(
+                    "bootstrap deployment localized layout coverage drifted");
+            }
             await window.ProbeConfirmationFenceAsync();
             if (submitCount != 0)
             {
                 throw new InvalidDataException(
                     "bootstrap controls submitted without explicit confirmation");
             }
-            await window.ProbeWorkflowAsync();
+            await window.ProbeWorkflowAsync("zh-CN");
             if (submitCount != 1 || inspectCount != 1 || bindCount != 1 || promoteCount != 1)
             {
                 throw new InvalidDataException(
                     "bootstrap controls did not preserve the submit-inspect-bind-promote sequence");
             }
             Console.WriteLine(
-                "bootstrap controls valid: controls=12, authority_scoped=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, submit=true, inspect=true, bind=true, phase_gated=true, polling=true, mutation_authorized=true, local_promotion=true, automation=true");
+                "bootstrap controls valid: controls=12, authority_scoped=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, submit=true, inspect=true, bind=true, phase_gated=true, polling=true, mutation_authorized=true, local_promotion=true, automation=true, localized_bootstrap_catalogs=7, localized_layouts=8, live_language_reprojection=true");
             DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
@@ -1380,7 +1424,10 @@ internal sealed class LeserpentApp : Application
                         cancellationToken);
                     RefreshHub(desktop);
                 });
-            var window = new BootstrapDeploymentWindow(authorities, operations);
+            var window = new BootstrapDeploymentWindow(
+                authorities,
+                operations,
+                DesktopLanguage());
             if (desktop.MainWindow is { } owner)
             {
                 window.Show(owner);

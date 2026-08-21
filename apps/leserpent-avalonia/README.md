@@ -259,22 +259,24 @@ catalog with Web-aligned terminology. All seven non-English built-ins also cover
 the exact 26-key core semantic UI-IR set for runtime lists, workspaces, logs,
 capabilities, history, and deployment forms; per-locale native `TextBlock` probes
 verify both visible and accessible text. Simplified Chinese additionally covers
-the complete six-step tutorial. The connection settings and endpoint-forget
-confirmation form the first complete specialist domain: all seven non-English
-built-ins share an exact 33-key catalog, both native windows have eight-locale
-layout probes, and an open connection window reprojects immediately after a
-language change without changing endpoint, token, or error values. The six
-newly completed catalogs remain candidate translations pending native-speaker
-review, while their tutorial steps, deployment/provisioning/retirement/startup/
-account dialogs, later semantic domains, and the 22 downloadable locales still
-fall back to English per missing key. Run
+the complete six-step tutorial. Connection/forget and reverse deployment are
+the first complete specialist domains: their exact 33-key and 46-key catalogs
+cover every built-in language, their native windows have eight-locale layout
+probes, and live language changes reproject labels, controlled deployment
+phases, status, accessibility, and flow direction without changing endpoint,
+host, credential, or raw error values. The six newly completed catalogs remain
+candidate translations pending native-speaker review, while their tutorial
+steps, provisioning/retirement/startup/account dialogs, later semantic domains,
+and the 22 downloadable locales still fall back to English per missing key. Run
 `--verify-desktop-localization` for the
 catalog/persistence contract and `--verify-desktop-language-controls` for the
 real 31-choice control tree, all eight built-in selector layout envelopes, and
 all seven non-English localized UI-IR control proofs.
 `--verify-desktop-connect-controls` additionally verifies localized connection
 controls, confirmation layouts, live language reprojection, and the side-effect-
-free connection test.
+free connection test. `--verify-bootstrap-controls` verifies the localized
+reverse-deployment layout and live status reprojection alongside its complete
+confirmation-gated submit, inspect, bind, and promotion sequence.
 
 Opening a runtime child follows the same renderer-neutral boundary. The
 `RemoteWorkspaceLaunchCoordinator` validates runtime IDs, bounds active plus
@@ -365,7 +367,9 @@ only after the authority publishes `Bootstrapped`. Every operation revalidates
 the selected catalog entry and reloads its platform credential; raw passwords,
 private keys, session tokens, and CA material never enter the form or bootstrap
 IR. Verify the strict client codec with `--verify-bootstrap-client` and the real
-control sequence with `--verify-bootstrap-controls`.
+control sequence with `--verify-bootstrap-controls`; the latter also measures
+all eight built-in language layouts and proves that language changes preserve
+the target host and opaque credential handle.
 
 On macOS and Linux, set `LESERPENT_BOOTSTRAP_CONFIG` to the absolute private
 origin-config path before launching the desktop app to make Local Orchestra a

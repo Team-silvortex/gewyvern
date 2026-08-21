@@ -2405,12 +2405,12 @@
       "feature": "desktop-localization",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 82,
+      "completion": 86,
       "confidence": "high",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-desktop-localization",
-        "version": "0.4.0",
+        "version": "0.5.0",
         "stability": "draft",
         "surfaces": [
           "shared-official-locale-roster",
@@ -2439,6 +2439,11 @@
           "localized-connection-and-forget-controls",
           "eight-built-in-connection-layout-envelopes",
           "live-connection-language-reprojection",
+          "seven-built-in-bootstrap-specialist-catalogs",
+          "bootstrap-catalog-exact-key-set",
+          "localized-reverse-deployment-controls",
+          "eight-built-in-bootstrap-layout-envelopes",
+          "live-bootstrap-language-reprojection",
           "zh-cn-core-native-shell",
           "zh-cn-complete-learning-center",
           "rtl-native-flow-direction",
@@ -2452,7 +2457,7 @@
       "blockers": [
         {
           "id": "desktop-long-tail-language-review",
-          "summary": "All eight built-in locales have complete 67-key native-shell catalogs; all seven non-English built-ins cover the exact 26-key core semantic UI-IR set plus the 33-key connection/forget specialist domain with native-control, layout, and live-reprojection probes. The six new candidate translations still require native-speaker review, while deployment, provisioning, retirement, startup-recovery, and account dialogs, non-Chinese tutorial content, later semantic domains, and the 22 official core-ui packs remain partial."
+          "summary": "All eight built-in locales have complete 67-key native-shell catalogs; all seven non-English built-ins cover the exact 26-key core semantic UI-IR set, the 33-key connection/forget domain, and the 46-key reverse-deployment domain with native-control, layout, and live-reprojection probes. The six new candidate translations still require native-speaker review, while provisioning, retirement, startup-recovery, and account dialogs, non-Chinese tutorial content, later semantic domains, and the 22 official core-ui packs remain partial."
         }
       ],
       "consumers": ["desktop-operators", "leselang-ui-adapters"],
@@ -2461,8 +2466,10 @@
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBuiltInShellCatalogs.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBuiltInSemanticCatalogs.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopConnectionCatalogs.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBootstrapDeploymentCatalogs.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopConnectionWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopForgetConnectionWindow.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/BootstrapDeploymentWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguagePreferenceStore.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguageWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopTutorialWindow.cs", "state": "present" },
@@ -2470,7 +2477,7 @@
         { "kind": "documentation", "path": "apps/leserpent-avalonia/README.md", "state": "present" },
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" }
       ],
-      "next_gate": "Review the six candidate built-in catalogs with native speakers, apply the new strict domain-catalog pattern to deployment, provisioning, retirement, startup-recovery, and account dialogs, and extend real-layout probes to Hub and remote shells; then cover non-Chinese tutorials and the 22 official core-ui packs."
+      "next_gate": "Review the six candidate built-in catalogs with native speakers, apply the strict domain-catalog pattern to provisioning, retirement, startup-recovery, and account dialogs, and extend real-layout probes to Hub and remote shells; then cover non-Chinese tutorials and the 22 official core-ui packs."
     },
     {
       "id": "leserpent-2/remote-console/remote-mobile-console",

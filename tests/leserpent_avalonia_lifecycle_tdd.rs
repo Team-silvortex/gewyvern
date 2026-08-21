@@ -1591,7 +1591,7 @@ fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
     assert!(app.contains("live_language_reprojection=true"));
     assert!(program.contains("builtin_connection_catalogs=7"));
     assert!(program.contains("connection_semantic_keys=33"));
-    assert!(program.contains("builtin_semantic_keys=59"));
+    assert!(program.contains("builtin_semantic_keys=105"));
     assert!(window.contains("if (operationInFlight || isClosed)"));
     assert!(health.contains("remote health did not prove a ready protocol-v1 authority"));
     assert!(health.contains("remote health queue counters are inconsistent"));
@@ -1604,6 +1604,69 @@ fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
     assert!(!test_body.contains("RemoteTokenResolver.Store"));
     assert!(!test_body.contains(".Save("));
     assert!(!test_body.contains(".Import("));
+}
+
+#[test]
+fn desktop_reverse_deployment_is_strictly_localized_and_operator_data_preserving() {
+    let catalog =
+        avalonia_source("Leserpent.Avalonia/DesktopBootstrapDeploymentCatalogs.cs");
+    let window = avalonia_source("Leserpent.Avalonia/BootstrapDeploymentWindow.cs");
+    let localization = avalonia_source("Leserpent.Avalonia/DesktopLocalization.cs");
+    let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+    let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+
+    for marker in [
+        "public const int KeyCount = 46",
+        "SimplifiedChinese",
+        "TraditionalChinese",
+        "Japanese",
+        "Spanish",
+        "German",
+        "French",
+        "Korean",
+        "catalog.Count != KeyCount",
+        "SetEquals(expected)",
+        "HasExpectedPlaceholders",
+        "VerifyFormat(entry.Value",
+        "desktop bootstrap localization catalog is incomplete",
+    ] {
+        assert!(
+            catalog.contains(marker),
+            "bootstrap localization catalog is missing {marker}"
+        );
+    }
+    assert_eq!(catalog.matches("[\"").count(), 368);
+    assert!(catalog.contains("[\"heading\"] = \"部署 daemon 权威端\""));
+    assert!(catalog.contains("[\"phase.session_bound\"] = \"工作階段已綁定\""));
+    assert!(catalog.contains("[\"deploy\"] = \"leserpentd をデプロイ\""));
+    assert!(catalog.contains("[\"kicker\"] = \"DESPLIEGUE INVERSO\""));
+    assert!(catalog.contains("[\"title\"] = \"Leserpent / Daemon bereitstellen\""));
+    assert!(catalog.contains("[\"promote\"] = \"Ajouter au Hub\""));
+    assert!(catalog.contains("[\"status.waiting\"] = \"선택한 권한 주체를 기다리는 중...\""));
+    assert!(!catalog.contains("HttpClient"));
+    assert!(!catalog.contains("Process."));
+    assert!(!catalog.contains("File."));
+
+    assert!(window.contains("DesktopBootstrapDeploymentCatalogs.Resolve(localization, key)"));
+    assert!(window.contains("localization.Changed += OnLocalizationChanged"));
+    assert!(window.contains("localization.Changed -= OnLocalizationChanged"));
+    assert!(window.contains("public void VerifyLayoutEnvelope()"));
+    assert!(window.contains("public void ProbeLocalizedPresentation("));
+    assert!(window.contains("SafeValue(state.DaemonId)"));
+    assert!(window.contains("localizedStatusKey = null"));
+    assert!(window.contains("host.Text != \"target.example\""));
+    assert!(!window.contains("Text = \"REVERSE DEPLOYMENT\""));
+    assert!(!window.contains("Content = \"Deploy leserpentd\""));
+
+    assert!(localization.contains("DesktopBootstrapDeploymentCatalogs.VerifyContract();"));
+    assert!(localization.contains("DesktopBootstrapDeploymentCatalogs.KeyCount"));
+    assert!(app.contains("localized_bootstrap_catalogs=7"));
+    assert!(app.contains("localized_layouts=8"));
+    assert!(app.contains("await window.ProbeWorkflowAsync(\"zh-CN\")"));
+    assert!(program.contains("builtin_bootstrap_catalogs=7"));
+    assert!(program.contains("bootstrap_semantic_keys=46"));
+    assert!(program.contains("builtin_semantic_keys=105"));
+    assert!(program.contains("localized_reverse_deployment=true"));
 }
 
 #[test]

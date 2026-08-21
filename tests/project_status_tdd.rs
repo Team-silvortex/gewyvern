@@ -5587,8 +5587,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/ui-renderers/desktop-localization")
         .expect("desktop localization contract must remain tracked");
     assert_eq!(desktop_localization.maturity, Maturity::Incubating);
-    assert_eq!(desktop_localization.completion, 82);
-    assert_eq!(desktop_localization.contract.version, "0.4.0");
+    assert_eq!(desktop_localization.completion, 86);
+    assert_eq!(desktop_localization.contract.version, "0.5.0");
     assert_eq!(desktop_localization.contract.stability, ContractStability::Draft);
     for surface in [
         "thirty-official-locale-identifiers",
@@ -5608,6 +5608,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "localized-connection-and-forget-controls",
         "eight-built-in-connection-layout-envelopes",
         "live-connection-language-reprojection",
+        "seven-built-in-bootstrap-specialist-catalogs",
+        "bootstrap-catalog-exact-key-set",
+        "localized-reverse-deployment-controls",
+        "eight-built-in-bootstrap-layout-envelopes",
+        "live-bootstrap-language-reprojection",
         "zh-cn-complete-learning-center",
         "rtl-native-flow-direction",
     ] {
@@ -5624,7 +5629,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         blocker.id == "desktop-long-tail-language-review"
             && blocker.summary.contains("eight built-in locales")
             && blocker.summary.contains("seven non-English built-ins")
-            && blocker.summary.contains("33-key connection/forget specialist domain")
+            && blocker.summary.contains("33-key connection/forget domain")
+            && blocker.summary.contains("46-key reverse-deployment domain")
             && blocker.summary.contains("native-speaker review")
     }));
     assert!(desktop_localization.evidence.iter().any(|evidence| {
@@ -5645,6 +5651,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(desktop_localization.evidence.iter().any(|evidence| {
         evidence.path
             == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopConnectionCatalogs.cs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(desktop_localization.evidence.iter().any(|evidence| {
+        evidence.path
+            == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBootstrapDeploymentCatalogs.cs"
             && evidence.state == EvidenceState::Present
     }));
 

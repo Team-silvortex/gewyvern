@@ -24,6 +24,8 @@ internal sealed record BootstrapHubOperations(
 internal sealed class BootstrapDeploymentWindow : Window
 {
     private const string Principal = "avalonia-hub";
+    private static readonly object UnavailableValue = new();
+    private readonly DesktopLocalization localization;
     private readonly BootstrapHubOperations operations;
     private readonly CancellationTokenSource lifetime = new();
     private readonly List<Control> auditedControls = [];
@@ -44,47 +46,77 @@ internal sealed class BootstrapDeploymentWindow : Window
     };
     private readonly CheckBox confirmation = new()
     {
-        Content = "I confirm deployment changes on the selected target host",
         Foreground = LeserpentTheme.Body,
     };
-    private readonly Button submitButton = PrimaryButton("Deploy leserpentd");
+    private readonly Button submitButton = PrimaryButton();
     private readonly Button refreshButton = new()
     {
-        Content = "Refresh status",
         Padding = new Thickness(16, 9),
+        Margin = new Thickness(5),
         IsEnabled = false,
     };
     private readonly Button bindButton = new()
     {
-        Content = "Verify & bind session",
         Padding = new Thickness(16, 9),
+        Margin = new Thickness(5),
         IsEnabled = false,
     };
-    private readonly Button promoteButton = PrimaryButton("Add to Hub");
+    private readonly Button promoteButton = PrimaryButton();
+    private readonly Button closeButton = new()
+    {
+        Padding = new Thickness(16, 9),
+        Margin = new Thickness(5),
+    };
     private readonly TextBlock status = new()
     {
         Foreground = LeserpentTheme.Muted,
         TextWrapping = TextWrapping.Wrap,
-        Text = "Choose an existing daemon authority to perform the deployment.",
     };
     private readonly TextBlock phase = new()
     {
         Foreground = LeserpentTheme.Primary,
         FontWeight = FontWeight.Bold,
         LetterSpacing = 1,
-        Text = "NOT SUBMITTED",
     };
+    private readonly TextBlock kickerText = new()
+    {
+        Foreground = LeserpentTheme.Accent,
+        FontSize = 12,
+        FontWeight = FontWeight.Bold,
+        LetterSpacing = 2,
+    };
+    private readonly TextBlock headingText = new()
+    {
+        Foreground = LeserpentTheme.Primary,
+        FontSize = 27,
+        FontWeight = FontWeight.Bold,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly TextBlock descriptionText = new()
+    {
+        Foreground = LeserpentTheme.Muted,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly TextBlock authorityLabel = CreateLabel();
+    private readonly TextBlock bootstrapIdLabel = CreateLabel();
+    private readonly TextBlock hostLabel = CreateLabel();
+    private readonly TextBlock portLabel = CreateLabel();
+    private readonly TextBlock credentialLabel = CreateLabel();
     private readonly DispatcherTimer polling = new() { Interval = TimeSpan.FromSeconds(2) };
     private RemoteBootstrapSnapshot? snapshot;
     private bool operationInFlight;
     private bool promotionCompleted;
+    private string phaseKey = "phase.not_submitted";
+    private string? localizedStatusKey = "status.initial";
+    private object[] localizedStatusValues = [];
 
     public BootstrapDeploymentWindow(
         IReadOnlyList<BootstrapAuthorityOption> authorities,
-        BootstrapHubOperations operations)
+        BootstrapHubOperations operations,
+        DesktopLocalization localization)
     {
         this.operations = operations;
-        Title = "Leserpent / Deploy daemon";
+        this.localization = localization;
         Width = 700;
         MinWidth = 580;
         SizeToContent = SizeToContent.Height;
@@ -99,8 +131,7 @@ internal sealed class BootstrapDeploymentWindow : Window
         promoteButton.IsEnabled = false;
         bootstrapId.Text = $"desktop-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..48];
 
-        var close = new Button { Content = "Close", Padding = new Thickness(16, 9) };
-        close.Click += (_, _) => Close();
+        closeButton.Click += (_, _) => Close();
         submitButton.Click += async (_, _) => await SubmitAsync();
         refreshButton.Click += async (_, _) => await RefreshAsync();
         bindButton.Click += async (_, _) => await BindAsync();
@@ -117,22 +148,23 @@ internal sealed class BootstrapDeploymentWindow : Window
         Closed += (_, _) =>
         {
             polling.Stop();
+            localization.Changed -= OnLocalizationChanged;
             lifetime.Cancel();
             lifetime.Dispose();
         };
 
-        Audit(authority, "bootstrap-authority", "Daemon authority performing bootstrap deployment");
-        Audit(bootstrapId, "bootstrap-id", "Stable bootstrap operation ID");
-        Audit(host, "bootstrap-host", "Target host for leserpent daemon deployment");
-        Audit(port, "bootstrap-port", "Target SSH port");
-        Audit(credentialHandle, "bootstrap-credential-handle", "Opaque SSH credential handle");
-        Audit(confirmation, "bootstrap-confirm", "Confirm target host deployment");
-        Audit(submitButton, "bootstrap-submit", "Deploy leserpent daemon to target host");
-        Audit(refreshButton, "bootstrap-refresh", "Refresh bootstrap deployment status");
-        Audit(bindButton, "bootstrap-bind", "Verify and bind deployed daemon session");
-        Audit(promoteButton, "bootstrap-promote", "Add authenticated daemon connection to Hub");
-        Audit(close, "bootstrap-close", "Close daemon deployment window");
-        Audit(status, "bootstrap-status", "Bootstrap deployment status");
+        Audit(authority, "bootstrap-authority");
+        Audit(bootstrapId, "bootstrap-id");
+        Audit(host, "bootstrap-host");
+        Audit(port, "bootstrap-port");
+        Audit(credentialHandle, "bootstrap-credential-handle");
+        Audit(confirmation, "bootstrap-confirm");
+        Audit(submitButton, "bootstrap-submit");
+        Audit(refreshButton, "bootstrap-refresh");
+        Audit(bindButton, "bootstrap-bind");
+        Audit(promoteButton, "bootstrap-promote");
+        Audit(closeButton, "bootstrap-close");
+        Audit(status, "bootstrap-status");
         AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Assertive);
 
         var heading = new StackPanel
@@ -140,27 +172,9 @@ internal sealed class BootstrapDeploymentWindow : Window
             Spacing = 5,
             Children =
             {
-                new TextBlock
-                {
-                    Text = "REVERSE DEPLOYMENT",
-                    Foreground = LeserpentTheme.Accent,
-                    FontSize = 12,
-                    FontWeight = FontWeight.Bold,
-                    LetterSpacing = 2,
-                },
-                new TextBlock
-                {
-                    Text = "Deploy a daemon authority",
-                    Foreground = LeserpentTheme.Primary,
-                    FontSize = 27,
-                    FontWeight = FontWeight.Bold,
-                },
-                new TextBlock
-                {
-                    Text = "An authenticated leserpentd authority performs native SSH deployment. The desktop sends only an opaque credential handle, never a password or private key.",
-                    Foreground = LeserpentTheme.Muted,
-                    TextWrapping = TextWrapping.Wrap,
-                },
+                kickerText,
+                headingText,
+                descriptionText,
             },
         };
 
@@ -168,7 +182,7 @@ internal sealed class BootstrapDeploymentWindow : Window
         {
             ColumnDefinitions = ColumnDefinitions.Parse("*,130"),
             ColumnSpacing = 12,
-            Children = { Field("Target host", host), Field("SSH port", port) },
+            Children = { Field(hostLabel, host), Field(portLabel, port) },
         };
         Grid.SetColumn(target.Children[1], 1);
 
@@ -184,10 +198,10 @@ internal sealed class BootstrapDeploymentWindow : Window
                 Spacing = 14,
                 Children =
                 {
-                    Field("Deployment authority", authority),
-                    Field("Bootstrap ID", bootstrapId),
+                    Field(authorityLabel, authority),
+                    Field(bootstrapIdLabel, bootstrapId),
                     target,
-                    Field("SSH credential handle", credentialHandle),
+                    Field(credentialLabel, credentialHandle),
                     confirmation,
                 },
             },
@@ -215,14 +229,13 @@ internal sealed class BootstrapDeploymentWindow : Window
                     heading,
                     form,
                     state,
-                    new StackPanel
+                    new WrapPanel
                     {
                         Orientation = Orientation.Horizontal,
-                        Spacing = 10,
                         HorizontalAlignment = HorizontalAlignment.Right,
                         Children =
                         {
-                            close,
+                            closeButton,
                             refreshButton,
                             bindButton,
                             promoteButton,
@@ -232,6 +245,8 @@ internal sealed class BootstrapDeploymentWindow : Window
                 },
             },
         };
+        localization.Changed += OnLocalizationChanged;
+        ApplyLocalization();
     }
 
     public void VerifyAccessibility()
@@ -241,23 +256,75 @@ internal sealed class BootstrapDeploymentWindow : Window
                 .Distinct(StringComparer.Ordinal).Count() != auditedControls.Count
             || auditedControls.Any(control =>
                 string.IsNullOrWhiteSpace(AutomationProperties.GetAutomationId(control))
-                || string.IsNullOrWhiteSpace(AutomationProperties.GetName(control))))
+                || string.IsNullOrWhiteSpace(AutomationProperties.GetName(control)))
+            || AutomationProperties.GetLiveSetting(status) != AutomationLiveSetting.Assertive)
         {
             throw new InvalidDataException("bootstrap deployment control contract drifted");
         }
     }
 
-    public async Task ProbeWorkflowAsync()
+    public void VerifyLayoutEnvelope()
+    {
+        if (Content is not Control root)
+        {
+            throw new InvalidDataException("bootstrap deployment window has no control root");
+        }
+        root.Measure(new Size(Width, 1600));
+        var desired = root.DesiredSize;
+        if (!double.IsFinite(desired.Width)
+            || !double.IsFinite(desired.Height)
+            || desired.Width <= 0
+            || desired.Height <= 0
+            || desired.Width > Width
+            || desired.Height > 1600)
+        {
+            throw new InvalidDataException(
+                "bootstrap deployment controls exceeded their layout envelope");
+        }
+    }
+
+    public void ProbeLocalizedPresentation(
+        string expectedTitle,
+        string expectedHeading,
+        string expectedDeploy,
+        string expectedPhase,
+        string expectedStatus)
+    {
+        if (Title != expectedTitle
+            || headingText.Text != expectedHeading
+            || submitButton.Content as string != expectedDeploy
+            || AutomationProperties.GetName(submitButton) != Text("a11y.deploy")
+            || phase.Text != expectedPhase
+            || status.Text != expectedStatus
+            || FlowDirection != localization.FlowDirection)
+        {
+            throw new InvalidDataException(
+                "bootstrap deployment localized presentation drifted");
+        }
+    }
+
+    public async Task ProbeWorkflowAsync(string reprojectLocale)
     {
         host.Text = "target.example";
         credentialHandle.Text = "vault:ssh:target-example";
         confirmation.IsChecked = true;
         await SubmitAsync();
+        localization.SetPreference(reprojectLocale);
+        if (host.Text != "target.example"
+            || credentialHandle.Text != "vault:ssh:target-example"
+            || phase.Text != Text("phase.planned")
+            || status.Text != Text("status.planned"))
+        {
+            throw new InvalidDataException(
+                "bootstrap language reprojection changed operator input or stale status text");
+        }
         await RefreshAsync();
         await BindAsync();
         await PromoteAsync();
         if (snapshot is not { Phase: "session_bound", MutationAuthorized: true }
-            || !promotionCompleted)
+            || !promotionCompleted
+            || phase.Text != Text("phase.session_bound")
+            || status.Text != Format("status.promoted", "daemon-target"))
         {
             throw new InvalidDataException("bootstrap deployment controls did not complete binding");
         }
@@ -286,9 +353,18 @@ internal sealed class BootstrapDeploymentWindow : Window
         {
             if (confirmation.IsChecked != true)
             {
-                throw new ArgumentException("Confirm target deployment before submitting.");
+                ShowLocalizedStatus(
+                    "error.confirm_required",
+                    LeserpentTheme.Destructive);
+                return;
             }
-            var source = SelectedAuthority();
+            if (SelectedAuthorityOrNull() is not { } source)
+            {
+                ShowLocalizedStatus(
+                    "error.authority_required",
+                    LeserpentTheme.Destructive);
+                return;
+            }
             var intent = new RemoteBootstrapIntent(
                 bootstrapId.Text ?? string.Empty,
                 host.Text ?? string.Empty,
@@ -358,7 +434,11 @@ internal sealed class BootstrapDeploymentWindow : Window
 
     private async Task PromoteAsync()
     {
-        var source = SelectedAuthority();
+        if (SelectedAuthorityOrNull() is not { } source)
+        {
+            ShowLocalizedStatus("error.authority_required", LeserpentTheme.Destructive);
+            return;
+        }
         if (operationInFlight
             || promotionCompleted
             || !source.CanPromote
@@ -368,14 +448,15 @@ internal sealed class BootstrapDeploymentWindow : Window
         }
         operationInFlight = true;
         UpdateActions();
-        status.Text = "Verifying target trust and session credential before saving...";
-        status.Foreground = LeserpentTheme.Muted;
+        ShowLocalizedStatus("status.promoting", LeserpentTheme.Muted);
         try
         {
             await operations.Promote(source.AuthorityId, state, lifetime.Token);
             promotionCompleted = true;
-            status.Text = $"Daemon {Safe(state.DaemonId)} was verified and added to the Hub.";
-            status.Foreground = LeserpentTheme.Accent;
+            ShowLocalizedStatus(
+                "status.promoted",
+                LeserpentTheme.Accent,
+                SafeValue(state.DaemonId));
         }
         catch (Exception error) when (IsExpected(error))
         {
@@ -396,8 +477,7 @@ internal sealed class BootstrapDeploymentWindow : Window
         UpdateActions();
         if (!background)
         {
-            status.Text = "Waiting for the selected authority...";
-            status.Foreground = LeserpentTheme.Muted;
+            ShowLocalizedStatus("status.waiting", LeserpentTheme.Muted);
         }
         try
         {
@@ -413,22 +493,38 @@ internal sealed class BootstrapDeploymentWindow : Window
 
     private void RenderSnapshot(RemoteBootstrapSnapshot state)
     {
-        phase.Text = state.Phase.Replace('_', ' ').ToUpperInvariant();
+        phaseKey = state.Phase switch
+        {
+            "planned" => "phase.planned",
+            "deploying" => "phase.deploying",
+            "bootstrapped" => "phase.bootstrapped",
+            "session_bound" => "phase.session_bound",
+            "failed" => "phase.failed",
+            _ => throw new InvalidDataException("unsupported bootstrap phase"),
+        };
+        phase.Text = Text(phaseKey);
         phase.Foreground = state.Phase == "failed"
             ? LeserpentTheme.Destructive
             : state.MutationAuthorized ? LeserpentTheme.Accent : LeserpentTheme.Primary;
-        status.Foreground = state.Phase == "failed"
+        var statusForeground = state.Phase == "failed"
             ? LeserpentTheme.Destructive
             : LeserpentTheme.Body;
-        status.Text = state.Phase switch
+        var presentation = state.Phase switch
         {
-            "planned" => "Deployment is durably queued. Status refresh will continue without resubmitting the effect.",
-            "deploying" => "The authority is reconciling the target host.",
-            "bootstrapped" => $"Daemon {Safe(state.DaemonId)} is reachable at {Safe(state.Endpoint)}. Verify and bind its session authority before mutations.",
-            "session_bound" => $"Daemon {Safe(state.DaemonId)} is authenticated and mutation authority is enabled.",
-            "failed" => $"Deployment failed with bounded fault {Safe(state.FaultCode)}.",
+            "planned" => ("status.planned", Array.Empty<object>()),
+            "deploying" => ("status.deploying", Array.Empty<object>()),
+            "bootstrapped" => (
+                "status.bootstrapped",
+                new object[] { SafeValue(state.DaemonId), SafeValue(state.Endpoint) }),
+            "session_bound" => (
+                "status.session_bound",
+                new object[] { SafeValue(state.DaemonId) }),
+            "failed" => (
+                "status.failed",
+                new object[] { SafeValue(state.FaultCode) }),
             _ => throw new InvalidDataException("unsupported bootstrap phase"),
         };
+        ShowLocalizedStatus(presentation.Item1, statusForeground, presentation.Item2);
         if (state.IsTerminal || state.CanBind)
         {
             polling.Stop();
@@ -458,54 +554,121 @@ internal sealed class BootstrapDeploymentWindow : Window
 
     private BootstrapAuthorityOption SelectedAuthority() =>
         authority.SelectedItem as BootstrapAuthorityOption
-        ?? throw new ArgumentException("Select a deployment authority first.");
+        ?? throw new ArgumentException(Text("error.authority_required"));
 
     private BootstrapAuthorityOption? SelectedAuthorityOrNull() =>
         authority.SelectedItem as BootstrapAuthorityOption;
 
     private void ShowError(Exception error)
     {
-        status.Text = Safe(error.Message);
+        localizedStatusKey = null;
+        localizedStatusValues = [];
+        status.Text = SafeRaw(error.Message);
         status.Foreground = LeserpentTheme.Destructive;
     }
 
-    private void Audit(Control control, string id, string name)
+    private void ShowLocalizedStatus(
+        string key,
+        IBrush foreground,
+        params object[] values)
+    {
+        localizedStatusKey = key;
+        localizedStatusValues = [.. values];
+        status.Text = values.Length == 0 ? Text(key) : Format(key, values);
+        status.Foreground = foreground;
+    }
+
+    private void OnLocalizationChanged(object? sender, EventArgs eventArgs) =>
+        ApplyLocalization();
+
+    private void ApplyLocalization()
+    {
+        Title = Text("title");
+        FlowDirection = localization.FlowDirection;
+        confirmation.Content = Text("confirmation");
+        submitButton.Content = Text("deploy");
+        refreshButton.Content = Text("refresh");
+        bindButton.Content = Text("bind");
+        promoteButton.Content = Text("promote");
+        closeButton.Content = Text("close");
+        kickerText.Text = Text("kicker");
+        headingText.Text = Text("heading");
+        descriptionText.Text = Text("body");
+        authorityLabel.Text = Text("authority.label");
+        bootstrapIdLabel.Text = Text("bootstrap_id.label");
+        hostLabel.Text = Text("host.label");
+        portLabel.Text = Text("port.label");
+        credentialLabel.Text = Text("credential.label");
+        phase.Text = Text(phaseKey);
+        if (localizedStatusKey is { } statusKey)
+        {
+            status.Text = localizedStatusValues.Length == 0
+                ? Text(statusKey)
+                : Format(statusKey, localizedStatusValues);
+        }
+
+        AutomationProperties.SetName(authority, Text("a11y.authority"));
+        AutomationProperties.SetName(bootstrapId, Text("a11y.bootstrap_id"));
+        AutomationProperties.SetName(host, Text("a11y.host"));
+        AutomationProperties.SetName(port, Text("a11y.port"));
+        AutomationProperties.SetName(credentialHandle, Text("a11y.credential"));
+        AutomationProperties.SetName(confirmation, Text("a11y.confirm"));
+        AutomationProperties.SetName(submitButton, Text("a11y.deploy"));
+        AutomationProperties.SetName(refreshButton, Text("a11y.refresh"));
+        AutomationProperties.SetName(bindButton, Text("a11y.bind"));
+        AutomationProperties.SetName(promoteButton, Text("a11y.promote"));
+        AutomationProperties.SetName(closeButton, Text("a11y.close"));
+        AutomationProperties.SetName(status, Text("status.name"));
+        AutomationProperties.SetHelpText(status, Text("a11y.status"));
+    }
+
+    private void Audit(Control control, string id)
     {
         AutomationProperties.SetAutomationId(control, id);
-        AutomationProperties.SetName(control, name);
         auditedControls.Add(control);
     }
 
-    private static StackPanel Field(string label, Control control) => new()
+    private string Text(string key) =>
+        DesktopBootstrapDeploymentCatalogs.Resolve(localization, key);
+
+    private string Format(string key, params object[] values) =>
+        DesktopBootstrapDeploymentCatalogs.Format(
+            localization,
+            key,
+            values.Select(value => ReferenceEquals(value, UnavailableValue)
+                ? Text("unavailable")
+                : value).ToArray());
+
+    private static StackPanel Field(TextBlock label, Control control) => new()
     {
         Spacing = 6,
-        Children =
-        {
-            new TextBlock
-            {
-                Text = label,
-                Foreground = LeserpentTheme.Body,
-                FontWeight = FontWeight.SemiBold,
-                FontSize = 12,
-            },
-            control,
-        },
+        Children = { label, control },
     };
 
-    private static Button PrimaryButton(string label) => new()
+    private static TextBlock CreateLabel() => new()
     {
-        Content = label,
+        Foreground = LeserpentTheme.Body,
+        FontWeight = FontWeight.SemiBold,
+        FontSize = 12,
+    };
+
+    private static Button PrimaryButton() => new()
+    {
         Background = LeserpentTheme.Accent,
         Foreground = Brushes.Black,
         FontWeight = FontWeight.SemiBold,
         Padding = new Thickness(17, 9),
+        Margin = new Thickness(5),
     };
 
     private static bool IsExpected(Exception error) => error is ArgumentException
         or InvalidDataException or IOException or HttpRequestException
         or RemoteBootstrapException or OperationCanceledException;
 
-    private static string Safe(string? value) => value is null
-        ? "unavailable"
+    private static object SafeValue(string? value) => value is null
+        ? UnavailableValue
         : new string(value.Where(character => !char.IsControl(character)).Take(512).ToArray());
+
+    private static string SafeRaw(string value) =>
+        new(value.Where(character => !char.IsControl(character)).Take(512).ToArray());
 }
