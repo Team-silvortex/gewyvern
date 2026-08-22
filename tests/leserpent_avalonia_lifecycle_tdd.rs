@@ -1075,11 +1075,14 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(program.contains("builtin_shell_catalogs=8"));
     assert!(program.contains("builtin_semantic_catalogs=7"));
     assert!(program.contains("semantic_keys=26"));
-    assert!(program.contains("builtin_semantic_keys=388"));
+    assert!(program.contains("builtin_semantic_keys=466"));
     assert!(program.contains("builtin_remote_shell_catalogs=7"));
     assert!(program.contains("remote_shell_semantic_keys=56"));
     assert!(program.contains("builtin_remote_operation_catalogs=7"));
     assert!(program.contains("remote_operation_semantic_keys=57"));
+    assert!(program.contains("builtin_runtime_workspace_catalogs=7"));
+    assert!(program.contains("runtime_workspace_semantic_keys=78"));
+    assert!(program.contains("localized_runtime_workspace=true"));
     assert!(program.contains("builtin_daemon_retirement_catalogs=7"));
     assert!(program.contains("builtin_startup_recovery_catalogs=7"));
     assert!(program.contains("builtin_account_catalogs=7"));
@@ -1092,6 +1095,10 @@ fn remote_desktop_shell_is_strictly_localized_typed_and_layout_probed() {
         avalonia_source("Leserpent.Avalonia/DesktopRemoteShellCatalogs.cs");
     let operation_catalog =
         avalonia_source("Leserpent.Avalonia/DesktopRemoteOperationCatalogs.cs");
+    let workspace_catalog =
+        avalonia_source("Leserpent.Avalonia/DesktopRuntimeWorkspaceCatalogs.cs");
+    let workspace_presentation =
+        avalonia_source("Leserpent.Avalonia/DesktopRuntimeWorkspacePresentation.cs");
     let presentation =
         avalonia_source("Leserpent.Avalonia/DesktopRemotePresentation.cs");
     let window = avalonia_source("Leserpent.Avalonia/RemoteMainWindow.cs");
@@ -1138,6 +1145,30 @@ fn remote_desktop_shell_is_strictly_localized_typed_and_layout_probed() {
         );
     }
     assert_eq!(operation_catalog.matches("new(\"").count(), 57);
+    for marker in [
+        "public const int KeyCount = 78",
+        "DesktopDomainCatalogContract.Verify(",
+        "a11y.diagnostics_save",
+        "live.recovering",
+        "change.log_sequence_reset",
+        "failure.transport",
+        "status.live_alert",
+    ] {
+        assert!(
+            workspace_catalog.contains(marker),
+            "runtime workspace catalog is missing {marker}"
+        );
+    }
+    assert_eq!(workspace_catalog.matches("new(\"").count(), 78);
+    assert!(workspace_presentation.contains(
+        "public static DesktopRuntimeWorkspaceText Change("
+    ));
+    assert!(workspace_presentation.contains(
+        "RemoteWorkspaceSnapshotChange change"
+    ));
+    assert!(workspace_presentation.contains(
+        "RemoteWorkspaceSeverityAlert alert"
+    ));
     assert!(presentation.contains("public static DesktopRemoteText Feed(RemoteFeedState state)"));
     assert!(presentation.contains("state.Health is { } health"));
     assert!(presentation.contains("RemoteMutationAdmissionFailure.ObservationFencePending"));
@@ -1156,9 +1187,14 @@ fn remote_desktop_shell_is_strictly_localized_typed_and_layout_probed() {
     assert!(leselang.contains("localization.Changed += OnLocalizationChanged"));
     assert!(localization.contains("DesktopRemoteShellCatalogs.VerifyContract();"));
     assert!(localization.contains("DesktopRemoteOperationCatalogs.VerifyContract();"));
+    assert!(localization.contains("DesktopRuntimeWorkspaceCatalogs.VerifyContract();"));
+    assert!(localization.contains("DesktopRuntimeWorkspacePresentation.VerifyContract();"));
     assert!(app.contains("--verify-remote-shell-controls"));
     assert!(app.contains("startRemoteClients: false"));
     assert!(app.contains("localized_dialog_layouts=16"));
+    assert!(app.contains("localized_workspace_layouts=8"));
+    assert!(app.contains("workspace_instances=1"));
+    assert!(app.contains("workspace_live_language_reprojection=true"));
     assert!(app.contains("wide_layout=true"));
     assert!(app.contains("live_language_reprojection=true"));
     assert!(app.contains("network_started=false"));
@@ -1322,7 +1358,7 @@ fn gewyvern_provisioning_is_authority_scoped_identity_locked_and_bounded() {
     assert!(program.contains("--verify-provisioning-client"));
     assert!(program.contains("builtin_provisioning_catalogs=7"));
     assert!(program.contains("provisioning_semantic_keys=43"));
-    assert!(program.contains("builtin_semantic_keys=388"));
+    assert!(program.contains("builtin_semantic_keys=466"));
     assert!(program.contains("localized_gewyvern_provisioning=true"));
     assert!(promotion.contains("BootstrapPromotionJsonContext.Default"));
     assert!(!promotion.contains("JsonSerializer.Serialize(new\n"));
@@ -1389,7 +1425,7 @@ fn gewyvern_retirement_is_confirmed_provisioning_bound_and_failure_safe() {
     assert!(program.contains("--verify-retirement-client"));
     assert!(program.contains("builtin_retirement_catalogs=7"));
     assert!(program.contains("retirement_semantic_keys=45"));
-    assert!(program.contains("builtin_semantic_keys=388"));
+    assert!(program.contains("builtin_semantic_keys=466"));
     assert!(program.contains("localized_gewyvern_retirement=true"));
 }
 
@@ -1561,13 +1597,16 @@ fn gui_mutations_export_canonical_leselang_without_execution() {
     let control = avalonia_source("Leserpent.Avalonia/LeselangExportControl.cs");
     let catalog =
         avalonia_source("Leserpent.Avalonia/DesktopRemoteOperationCatalogs.cs");
+    let workspace_catalog =
+        avalonia_source("Leserpent.Avalonia/DesktopRuntimeWorkspaceCatalogs.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
 
     assert!(window.contains("leselangClient.ExportRefreshAsync"));
     assert!(window.contains("leselangClient.ExportDeployAsync"));
     assert!(workspace.contains("leselangClient.ExportWorkspaceAsync"));
     assert!(workspace.contains("runtime-workspace-leselang"));
-    assert!(workspace.contains("Preview equivalent workspace Leselang"));
+    assert!(workspace.contains("DesktopRuntimeWorkspaceCatalogs.Format("));
+    assert!(workspace_catalog.contains("Preview equivalent workspace Leselang"));
     assert!(workspace.contains("workspaceLeselangWindow.Activate()"));
     assert!(workspace.contains("new LeselangExportControl"));
     assert!(window.contains("new LeselangExportControl"));
@@ -1595,6 +1634,8 @@ fn gui_mutations_export_canonical_leselang_without_execution() {
 #[test]
 fn runtime_workspace_log_filter_is_local_bounded_and_accessible() {
     let window = avalonia_source("Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs");
+    let catalog =
+        avalonia_source("Leserpent.Avalonia/DesktopRuntimeWorkspaceCatalogs.cs");
     let filter = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceLogFilter.cs");
     let export = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceDiagnosticExport.cs");
     let projection = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceDocumentProjection.cs");
@@ -1605,8 +1646,8 @@ fn runtime_workspace_log_filter_is_local_bounded_and_accessible() {
     assert!(window.contains("runtime-log-filter-summary"));
     assert!(window.contains("runtime-diagnostics-copy"));
     assert!(window.contains("runtime-diagnostics-save"));
-    assert!(window.contains("Save visible runtime diagnostics"));
-    assert!(window.contains("Review it before sharing"));
+    assert!(catalog.contains("Save visible runtime diagnostics"));
+    assert!(catalog.contains("Review it before sharing"));
     assert!(window.contains("SaveDiagnosticsAsync"));
     assert!(window.contains("storage is null || !storage.CanSave"));
     assert!(window.contains("SaveFilePickerAsync"));
@@ -1615,8 +1656,10 @@ fn runtime_workspace_log_filter_is_local_bounded_and_accessible() {
     assert!(window.contains("stream.SetLength(0)"));
     assert!(window.contains("stream.Position = 0"));
     assert!(window.contains("RemoteWorkspaceDiagnosticExport.Encode(view)"));
-    assert!(window.contains("Diagnostic save canceled."));
-    assert!(window.contains("Diagnostic save failed safely."));
+    assert!(catalog.contains("Diagnostic save canceled."));
+    assert!(catalog.contains("Diagnostic save failed safely."));
+    assert!(window.contains(".LogFilterSummary(view)"));
+    assert!(window.contains("SelectedLogLevel"));
     assert!(window.contains(
         "catch (Exception)\n        {\n            if (!lifetime.IsCancellationRequested)"
     ));
@@ -1722,10 +1765,17 @@ fn runtime_workspace_refresh_reports_bounded_snapshot_changes() {
     let window = avalonia_source("Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs");
     let changes = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceSnapshotChange.cs");
     let alert = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceSeverityAlert.cs");
+    let presentation =
+        avalonia_source("Leserpent.Avalonia/DesktopRuntimeWorkspacePresentation.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
 
     assert!(window.contains("RemoteWorkspaceSnapshotChanges.Compare"));
-    assert!(window.contains("change.Describe()"));
+    assert!(window.contains("DesktopRuntimeWorkspacePresentation.Loaded("));
+    assert!(!window.contains("change.Describe()"));
+    assert!(!window.contains("severityAlert.Describe()"));
+    assert!(presentation.contains("public static DesktopRuntimeWorkspaceText Change("));
+    assert!(presentation.contains("change.NewErrors"));
+    assert!(presentation.contains("change.NewWarnings"));
     assert!(changes.contains("initial snapshot"));
     assert!(changes.contains("no changes"));
     assert!(changes.contains("logs expired"));
@@ -1838,7 +1888,7 @@ fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
     assert!(app.contains("live_language_reprojection=true"));
     assert!(program.contains("builtin_connection_catalogs=7"));
     assert!(program.contains("connection_semantic_keys=33"));
-    assert!(program.contains("builtin_semantic_keys=388"));
+    assert!(program.contains("builtin_semantic_keys=466"));
     assert!(window.contains("if (operationInFlight || isClosed)"));
     assert!(health.contains("remote health did not prove a ready protocol-v1 authority"));
     assert!(health.contains("remote health queue counters are inconsistent"));
@@ -1912,7 +1962,7 @@ fn desktop_reverse_deployment_is_strictly_localized_and_operator_data_preserving
     assert!(app.contains("await window.ProbeWorkflowAsync(\"zh-CN\")"));
     assert!(program.contains("builtin_bootstrap_catalogs=7"));
     assert!(program.contains("bootstrap_semantic_keys=46"));
-    assert!(program.contains("builtin_semantic_keys=388"));
+    assert!(program.contains("builtin_semantic_keys=466"));
     assert!(program.contains("localized_reverse_deployment=true"));
 }
 

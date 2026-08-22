@@ -262,9 +262,10 @@ verify both visible and accessible text. Simplified Chinese additionally covers
 the complete six-step tutorial. Connection/forget, reverse deployment,
 gewyvern provisioning/retirement, daemon retirement, startup recovery, the Team
 Silvortex account card, the remote daemon shell, and remote operation/Leselang
-controls are complete specialist domains. Their exact 33-key, 46-key, 43-key,
-45-key, 37-key, 9-key, 36-key, 56-key, and 57-key catalogs bring the non-English
-built-in semantic set to 388 keys. One shared strict validator
+controls, plus the runtime child workspace, are complete specialist domains.
+Their exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 36-key, 56-key,
+57-key, and 78-key catalogs bring the non-English built-in semantic set to 466
+keys. One shared strict validator
 rejects missing/extra keys, malformed placeholders, controls, or oversized
 values. Native controls have eight-locale layout probes, and live language
 changes reproject labels, controlled phases, status, accessibility, and flow
@@ -273,12 +274,15 @@ credentials, or raw error values. Account authentication decisions remain typed
 session state; localization only projects their presentation code and wraps an
 already bounded diagnostic. Remote feed, authority-health, admission, and
 mutation-failure text likewise project typed shared-client facts; remote IDs and
-bounded diagnostics stay opaque. The offline remote-shell verifier measures all
-eight built-in locales at compact and wide widths plus 16 confirmation/form
-layouts without starting a network client. The Hub verifier also measures the
-account card at the minimum desktop envelope. The six candidate translations
-remain pending native-speaker review, while their tutorial steps, remaining Hub
-dynamic cards, runtime child-workspace shell, and the 22 downloadable locales
+bounded diagnostics stay opaque. Workspace change, severity alert, live-refresh,
+filter, diagnostic-export, and query-failure text are also projected from typed
+facts; runtime IDs, paths, log bodies, and remote failure detail are never
+translated. The offline remote-shell verifier measures all eight built-in
+locales at compact and wide widths, 16 confirmation/form layouts, and eight
+runtime-workspace layout envelopes without starting a network client. The Hub
+verifier also measures the account card at the minimum desktop envelope. The six
+candidate translations remain pending native-speaker review, while their
+tutorial steps, remaining Hub dynamic cards, and the 22 downloadable locales
 still fall back to English per missing key. Run
 `--verify-desktop-localization` for the
 catalog/persistence contract and `--verify-desktop-language-controls` for the
@@ -286,7 +290,7 @@ real 31-choice control tree, all eight built-in selector layout envelopes, and
 all seven non-English localized UI-IR control proofs.
 `--verify-remote-shell-controls` verifies typed remote presentation, live
 language reprojection, compact overlap protection, wide layout, and localized
-refresh/deployment dialog envelopes without network access.
+refresh/deployment dialog and runtime-workspace envelopes without network access.
 `--verify-desktop-connect-controls` additionally verifies localized connection
 controls, confirmation layouts, live language reprojection, and the side-effect-
 free connection test. `--verify-bootstrap-controls` verifies the localized

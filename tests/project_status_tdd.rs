@@ -5587,8 +5587,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/ui-renderers/desktop-localization")
         .expect("desktop localization contract must remain tracked");
     assert_eq!(desktop_localization.maturity, Maturity::Incubating);
-    assert_eq!(desktop_localization.completion, 97);
-    assert_eq!(desktop_localization.contract.version, "0.9.0");
+    assert_eq!(desktop_localization.completion, 98);
+    assert_eq!(desktop_localization.contract.version, "0.10.0");
     assert_eq!(desktop_localization.contract.stability, ContractStability::Draft);
     for surface in [
         "thirty-official-locale-identifiers",
@@ -5647,6 +5647,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "remote-shell-catalog-exact-key-set",
         "seven-built-in-remote-operation-specialist-catalogs",
         "remote-operation-catalog-exact-key-set",
+        "seven-built-in-runtime-workspace-specialist-catalogs",
+        "runtime-workspace-catalog-exact-key-set",
+        "typed-runtime-workspace-change-presentation",
+        "localized-runtime-workspace-controls",
+        "eight-built-in-runtime-workspace-layout-envelopes",
+        "live-runtime-workspace-language-reprojection",
+        "opaque-runtime-workspace-data-preservation",
         "typed-remote-feed-presentation",
         "typed-remote-authority-health-presentation",
         "localized-remote-credential-source",
@@ -5672,11 +5679,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         blocker.id == "desktop-long-tail-language-review"
             && blocker.summary.contains("eight built-in locales")
             && blocker.summary.contains("seven non-English built-ins")
-            && blocker.summary.contains("exact 388-key semantic set")
+            && blocker.summary.contains("exact 466-key semantic set")
             && blocker.summary.contains("daemon retirement")
             && blocker.summary.contains("startup recovery")
             && blocker.summary.contains("typed facts")
-            && blocker.summary.contains("runtime child-workspace shell")
+            && blocker.summary.contains("runtime child-workspace domains")
+            && !blocker.summary.contains("runtime child-workspace shell")
             && blocker.summary.contains("native-speaker review")
     }));
     assert!(desktop_localization.evidence.iter().any(|evidence| {
@@ -5722,6 +5730,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRemoteShellCatalogs.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRemoteOperationCatalogs.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRemotePresentation.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRuntimeWorkspaceCatalogs.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRuntimeWorkspacePresentation.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/DaemonRetirementWindow.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/StartupErrorWindow.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/SilvortexAccountControl.cs",

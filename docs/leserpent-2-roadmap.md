@@ -2182,10 +2182,11 @@ aligned terminology and validated format placeholders, and their semantic
 catalogs use the same bounded key set, but both remain explicit review
 candidates. Connection/forget, reverse deployment, gewyvern provisioning and
 retirement, daemon retirement, startup recovery, account presentation, the
-remote daemon shell, and remote operation/Leselang controls now establish the
-specialist-dialog pattern. Their exact 33-key, 46-key, 43-key, 45-key, 37-key,
-9-key, 36-key, 56-key, and 57-key catalogs bring every non-English built-in to
-388 semantic keys without touching the frozen core set. They share one strict
+remote daemon shell, remote operation/Leselang controls, and the runtime child
+workspace now establish the specialist-dialog pattern. Their exact 33-key,
+46-key, 43-key, 45-key, 37-key, 9-key, 36-key, 56-key, 57-key, and 78-key catalogs
+bring every non-English built-in to 466 semantic keys without touching the
+frozen core set. They share one strict
 key/value/placeholder validator. Eight-locale native layout probes cover each
 dialog and the account card at the minimum Hub envelope. The remote proof also
 covers compact and wide shells plus 16 refresh/deployment dialog layouts without
@@ -2195,10 +2196,14 @@ identities, operator input, or raw errors. Startup retains concrete sanitized
 diagnostics as opaque data; account localization projects typed session status
 and cannot decide authentication state. Remote localization projects typed feed,
 validated authority-health, admission, and mutation-failure facts rather than
-parsing English core labels. The six candidate translations, non-Chinese
-tutorial content, remaining Hub dynamic cards, the runtime child-workspace
-shell, and all 22 downloadable core-ui packs stay partial rather than claiming
-unreviewed coverage.
+parsing English core labels. Runtime-workspace localization projects typed
+snapshot changes, severity alerts, live-refresh state, filters, diagnostic
+results, and query failures while preserving runtime IDs, paths, log bodies, and
+bounded remote details as opaque data. Its eight-language layout probe shares the
+offline remote-shell verifier and starts no network client. The six candidate
+translations, non-Chinese tutorial content, remaining Hub dynamic cards, and all
+22 downloadable core-ui packs stay partial rather than claiming unreviewed
+coverage.
 Runtime-child workspace admission has now crossed the same boundary. The
 renderer-neutral `RemoteWorkspaceLaunchCoordinator` owns runtime-ID validation,
 the combined active/pending limit, duplicate-request revision coalescing,

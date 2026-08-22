@@ -287,7 +287,8 @@ internal sealed class DesktopLocalization
                 DesktopStartupRecoveryCatalogs.SimplifiedChinese,
                 DesktopAccountCatalogs.SimplifiedChinese,
                 DesktopRemoteShellCatalogs.SimplifiedChinese,
-                DesktopRemoteOperationCatalogs.SimplifiedChinese),
+                DesktopRemoteOperationCatalogs.SimplifiedChinese,
+                DesktopRuntimeWorkspaceCatalogs.SimplifiedChinese),
             DesktopLocaleCoverage.Core),
         BuiltInShell(
             "zh-TW",
@@ -304,7 +305,8 @@ internal sealed class DesktopLocalization
                 DesktopStartupRecoveryCatalogs.TraditionalChinese,
                 DesktopAccountCatalogs.TraditionalChinese,
                 DesktopRemoteShellCatalogs.TraditionalChinese,
-                DesktopRemoteOperationCatalogs.TraditionalChinese)),
+                DesktopRemoteOperationCatalogs.TraditionalChinese,
+                DesktopRuntimeWorkspaceCatalogs.TraditionalChinese)),
         BuiltInShell(
             "ja",
             "Japanese",
@@ -320,7 +322,8 @@ internal sealed class DesktopLocalization
                 DesktopStartupRecoveryCatalogs.Japanese,
                 DesktopAccountCatalogs.Japanese,
                 DesktopRemoteShellCatalogs.Japanese,
-                DesktopRemoteOperationCatalogs.Japanese)),
+                DesktopRemoteOperationCatalogs.Japanese,
+                DesktopRuntimeWorkspaceCatalogs.Japanese)),
         BuiltInShell(
             "es",
             "Spanish",
@@ -336,7 +339,8 @@ internal sealed class DesktopLocalization
                 DesktopStartupRecoveryCatalogs.Spanish,
                 DesktopAccountCatalogs.Spanish,
                 DesktopRemoteShellCatalogs.Spanish,
-                DesktopRemoteOperationCatalogs.Spanish)),
+                DesktopRemoteOperationCatalogs.Spanish,
+                DesktopRuntimeWorkspaceCatalogs.Spanish)),
         BuiltInShell(
             "de",
             "German",
@@ -352,7 +356,8 @@ internal sealed class DesktopLocalization
                 DesktopStartupRecoveryCatalogs.German,
                 DesktopAccountCatalogs.German,
                 DesktopRemoteShellCatalogs.German,
-                DesktopRemoteOperationCatalogs.German)),
+                DesktopRemoteOperationCatalogs.German,
+                DesktopRuntimeWorkspaceCatalogs.German)),
         BuiltInShell(
             "fr",
             "French",
@@ -368,7 +373,8 @@ internal sealed class DesktopLocalization
                 DesktopStartupRecoveryCatalogs.French,
                 DesktopAccountCatalogs.French,
                 DesktopRemoteShellCatalogs.French,
-                DesktopRemoteOperationCatalogs.French)),
+                DesktopRemoteOperationCatalogs.French,
+                DesktopRuntimeWorkspaceCatalogs.French)),
         BuiltInShell(
             "ko",
             "Korean",
@@ -384,7 +390,8 @@ internal sealed class DesktopLocalization
                 DesktopStartupRecoveryCatalogs.Korean,
                 DesktopAccountCatalogs.Korean,
                 DesktopRemoteShellCatalogs.Korean,
-                DesktopRemoteOperationCatalogs.Korean)),
+                DesktopRemoteOperationCatalogs.Korean,
+                DesktopRuntimeWorkspaceCatalogs.Korean)),
         Core("pt-BR", "Portuguese (Brazil)", "Português (Brasil)", "Idioma",
             "Painel do plano de controle", "Uma visão leve da frota para vários runtimes gewyvern próximos.", false),
         Core("it", "Italian", "Italiano", "Lingua", "Dashboard del piano di controllo",
@@ -538,6 +545,8 @@ internal sealed class DesktopLocalization
         DesktopAccountCatalogs.VerifyContract();
         DesktopRemoteShellCatalogs.VerifyContract();
         DesktopRemoteOperationCatalogs.VerifyContract();
+        DesktopRuntimeWorkspaceCatalogs.VerifyContract();
+        DesktopRuntimeWorkspacePresentation.VerifyContract();
         var ids = LocaleDefinitions.Select(locale => locale.Locale).ToArray();
         var desktopTextKeyCount = Enum.GetValues<DesktopTextKey>().Length;
         var builtInSemanticKeyCount = DesktopBuiltInSemanticCatalogs.KeyCount
@@ -549,7 +558,8 @@ internal sealed class DesktopLocalization
             + DesktopStartupRecoveryCatalogs.KeyCount
             + DesktopAccountCatalogs.KeyCount
             + DesktopRemoteShellCatalogs.KeyCount
-            + DesktopRemoteOperationCatalogs.KeyCount;
+            + DesktopRemoteOperationCatalogs.KeyCount
+            + DesktopRuntimeWorkspaceCatalogs.KeyCount;
         if (Schema != "leserpent.desktop-localization/v1"
             || LocaleDefinitions.Length != 30
             || LocaleDefinitions.Count(locale => locale.BuiltIn) != 8
@@ -781,6 +791,27 @@ internal sealed class DesktopLocalization
         {
             throw new InvalidDataException(
                 "built-in desktop remote operation translation drifted");
+        }
+        var runtimeWorkspaceSamples = new Dictionary<string, string>
+        {
+            ["en"] = "Showing 2 of 7 logs",
+            ["zh-CN"] = "显示 7 条日志中的 2 条",
+            ["zh-TW"] = "顯示 7 筆日誌中的 2 筆",
+            ["ja"] = "7 件中 2 件のログを表示",
+            ["es"] = "Mostrando 2 de 7 registros",
+            ["de"] = "2 von 7 Protokollen werden angezeigt",
+            ["fr"] = "Affichage de 2 journaux sur 7",
+            ["ko"] = "로그 7개 중 2개 표시",
+        };
+        if (runtimeWorkspaceSamples.Any(sample =>
+            DesktopRuntimeWorkspaceCatalogs.Format(
+                ForVerification(sample.Key),
+                "filter.some",
+                2,
+                7) != sample.Value))
+        {
+            throw new InvalidDataException(
+                "built-in desktop runtime workspace translation drifted");
         }
         var system = ForVerification(SystemPreference, "zh-Hans-CN");
         if (system.Active.Locale != "zh-CN"
