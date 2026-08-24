@@ -446,6 +446,9 @@ TLS/token health, then stores the target token and secret-free profile. Automati
 promotion currently requires the config's default secret service
 `org.gewyvern.leserpent.adapters`; remote deployment authorities can complete
 binding but cannot export their local trust or session stores into the desktop.
+Promotion never performs global trust collection: the Hub owns that operation
+because only it can retain the complete saved-daemon set together with the live
+Local Orchestra authority.
 Verify the transaction with `--verify-bootstrap-promotion`.
 
 `Provision gewyvern` opens the separate runtime-provisioning workspace for a
@@ -521,11 +524,13 @@ signing key usage. It canonicalizes the public certificate into the private
 `trust-v1` application directory under its SHA-256 fingerprint, writes it
 atomically with `0600` file and `0700` directory modes, and stores only that
 managed path in the profile. Existing external-path profiles migrate on startup.
-The fingerprint filename is revalidated on every launch, so replacing a managed
-file with another valid CA fails closed. Successful migration or connection
-switching prunes stale managed CAs and recognized crash-temporary files while
-refusing unknown entries and links. Run `--verify-desktop-ca-store` for the full
-positive and negative contract.
+The fingerprint filename and canonical certificate bytes are revalidated before
+every prune, so replacing a retained managed file with another valid CA fails
+closed without deleting neighboring state. Hub-owned collection snapshots at
+most 128 entries, validates the complete retained set and directory first, then
+prunes stale managed CAs and recognized crash-temporary files while refusing
+unknown entries and links. Run `--verify-desktop-ca-store` for the full positive
+and negative contract.
 
 Profiles promoted from reverse bootstrap retain a
 `vault:leserpent-ca:*` handle plus its private trust-store root instead of a CA

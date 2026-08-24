@@ -54,11 +54,15 @@ cargo run --bin gewyvern_status -- summary
 cargo run --bin gewyvern_status -- weakest
 cargo run --bin gewyvern_status -- standalone
 cargo run --bin gewyvern_status -- developing --architecture leserpent-2
+cargo run --bin gewyvern_status -- deferred
 cargo run --bin gewyvern_status -- validate
 ```
 
-Use `--architecture`, `--module`, `--feature`, `--lifecycle`, and `--maturity`
-to slice the tensor. Add `--json` for automation or model context.
+Use `--architecture`, `--module`, `--feature`, `--lifecycle`, `--priority`, and
+`--maturity` to slice the tensor. Add `--json` for automation or model context.
+The summary separates priority-weighted delivery health from the equal-weight
+portfolio view; deferred cells have their own query and stay out of default
+attention lists.
 
 ## Security Checks
 

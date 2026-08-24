@@ -24,16 +24,16 @@ architecture x module x feature -> status cell
 Only meaningful intersections become cells. Empty combinations are not
 implicitly planned work.
 
-Schema v2 also carries a `coverage_requirements` manifest. It maps authoritative
-architecture ownership boundaries, roadmap gates, and continuous proof shelves
-onto concrete cells. The manifest covers Gewyvern Core, GewyLang, the
-Leserpent 1.x bridge, Leserpent 2, the Etragon sidecar, and status governance
-itself. Validation is exhaustive and bidirectional: every architecture with a
-cell must declare a requirement, every requirement must reference an existing
-same-architecture cell, and every cell must be covered by at least one
-requirement. This distinguishes a structurally valid sparse tensor from a
-complete architecture map and prevents new architectures from bypassing
-progress governance.
+Schema v3 carries a `coverage_requirements` manifest and a dated `calibration`
+record. Coverage maps authoritative architecture ownership boundaries, roadmap
+gates, and continuous proof shelves onto concrete cells. The manifest covers
+Gewyvern Core, GewyLang, the Leserpent 1.x bridge, Leserpent 2, the Etragon
+sidecar, and status governance itself. Validation is exhaustive and
+bidirectional: every architecture with a cell must declare a requirement, every
+requirement must reference an existing same-architecture cell, and every cell
+must be covered by at least one requirement. This distinguishes a structurally
+valid sparse tensor from a complete architecture map and prevents new
+architectures from bypassing progress governance.
 
 The canonical cell ID is:
 
@@ -46,6 +46,7 @@ The canonical cell ID is:
 Every cell carries:
 
 - lifecycle: current, bridge, target, or retired
+- roadmap priority: critical, active, maintenance, or deferred
 - maturity: planned, incubating, developing, stabilizing, mature, deprecated,
   or blocked
 - completion from 0 to 100
@@ -67,17 +68,35 @@ Every coverage requirement carries:
 
 Completion is an evidence-backed estimate, not a release promise. Confidence
 shows how much trust to place in that estimate. Maturity is categorical and is
-never inferred from completion alone.
+never inferred from completion alone. Priority describes current roadmap
+attention, not architectural value; a deferred cell remains covered and scored
+in the portfolio view.
 
 ## Derived Strength
 
-The Rust status engine computes a score from:
+The Rust status engine computes each cell's strength from:
 
 ```text
 55% maturity + 45% completion - confidence penalty - blocker penalty
 ```
 
-The score ranks attention; it does not replace the underlying fields.
+The score ranks attention; it does not replace the underlying fields. Schema v3
+then derives two project views:
+
+- **Delivery:** priority-weighted strength and completion, using critical = 4,
+  active = 2, maintenance = 1, and deferred = 0. The JSON field
+  `overall_score` is the delivery strength for backward compatibility.
+- **Portfolio:** equal-weight strength and completion across every cell,
+  including deferred work, exposed as `portfolio_score` and
+  `portfolio_completion`.
+
+The default `weakest`, `developing`, and `standalone` attention views exclude
+deferred cells. The `deferred` view keeps them explicit instead of hiding them
+or letting them distort active delivery.
+
+Calibration also enforces coarse maturity/completion coherence: planned cells
+cannot exceed 25, incubating cells cannot exceed 75, and stabilizing cells must
+be at least 70. These are consistency fences, not automatic maturity inference.
 
 A `mature` cell is rejected unless:
 
@@ -99,9 +118,9 @@ Independence answers whether a part can be used outside its current assembly:
 - `standalone-service`: independently deployable service
 - `replaceable-frontend`: interchangeable renderer or client
 
-The `standalone` query reports non-internal cells only after they reach at least
-stabilizing maturity. A planned standalone component remains visible in the
-catalog but is not reported as usable.
+The `standalone` query reports non-deferred, non-internal cells only after they
+reach at least stabilizing maturity. A planned or deferred standalone component
+remains visible in the catalog but is not reported as currently usable.
 
 ## Native Commands
 
@@ -112,6 +131,7 @@ cargo run --bin gewyvern_status -- weakest --limit 10
 cargo run --bin gewyvern_status -- mature
 cargo run --bin gewyvern_status -- standalone
 cargo run --bin gewyvern_status -- developing
+cargo run --bin gewyvern_status -- deferred
 cargo run --bin gewyvern_status -- summary --json
 ```
 
@@ -123,6 +143,9 @@ cargo run --bin gewyvern_status -- developing \
 
 cargo run --bin gewyvern_status -- weakest \
   --module language-vm --json
+
+cargo run --bin gewyvern_status -- mature \
+  --priority critical --json
 ```
 
 JSON output is the automation and model-facing surface. Human output is an
@@ -131,17 +154,19 @@ operator convenience and is not a stable parsing contract.
 ## Update Protocol
 
 Any change that adds or materially changes an architecture, module, feature,
-contract, dependency, blocker, or extraction boundary must update the catalog
-in the same change.
+priority, contract, dependency, blocker, or extraction boundary must update the
+catalog in the same change.
 
 Use this order:
 
 1. add or update dimension entries
 2. add or update cells
-3. record contract version and stability
-4. record dependencies, blockers, consumers, and evidence
-5. choose the next falsifiable gate
-6. run status validation and tests
+3. assign roadmap priority from the current scope rather than component prestige
+4. record contract version and stability
+5. record dependencies, blockers, consumers, and evidence
+6. choose the next falsifiable gate
+7. update `calibration.as_of` when judgment fields are recalibrated
+8. run status validation and tests
 
 Do not mark work mature because it compiles. Do not increase completion without
 new evidence. Do not remove a blocker without recording the evidence that
@@ -155,7 +180,8 @@ cargo run --bin gewyvern_status -- validate
 ```
 
 Validation rejects unknown dimension references, duplicate or non-canonical
-cell IDs, missing contracts, missing present evidence, unknown dependencies,
+cell IDs, missing contracts, incoherent maturity/completion pairs, invalid
+calibration metadata, missing present evidence, unknown dependencies,
 self-dependencies, dependency cycles, and unsupported schema versions.
 It also rejects architectures without a coverage manifest, duplicate
 requirements, missing source documents, unknown or cross-architecture cell

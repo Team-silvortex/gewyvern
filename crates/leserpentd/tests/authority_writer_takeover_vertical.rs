@@ -3,13 +3,13 @@
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::Shutdown;
-use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
+use std::os::unix::fs::{DirBuilderExt, FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::UnixStream;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command as ProcessCommand, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Barrier};
+use std::sync::{Arc, Barrier, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -24,7 +24,7 @@ use leserpent_protocol::{
     decode_response,
 };
 use leserpent_runtime::ControlRuntime;
-use leserpentd::MAX_IPC_CONNECTIONS_PER_TICK;
+use leserpentd::{MAX_IPC_CONNECTIONS_PER_TICK, MAX_IPC_SOCKET_PATH_BYTES};
 use rusqlite::Connection;
 
 const TOKEN: &str = "0123456789abcdef0123456789abcdef";
@@ -43,30 +43,106 @@ const SLOW_PEERS_PER_RECONNECT_GROUP: usize = 15;
 const RECONNECT_FAIRNESS_BUDGET: Duration = Duration::from_secs(5);
 const CRASH_WORKER_DATABASE: &str = "LESERPENT_TEST_AUTHORITY_WRITER_DATABASE";
 const CRASH_WORKER_ID: &str = "LESERPENT_TEST_AUTHORITY_WRITER_ID";
+const LONGEST_TEST_SOCKET_FILE_NAME: &str = "post-recovery-duplicate-retry.sock";
+const MAX_PARALLEL_AUTHORITY_SCENARIOS: usize = 4;
 static TEMP_ROOT_SEQUENCE: AtomicU64 = AtomicU64::new(1);
+static AUTHORITY_SCENARIO_LIMIT: (Mutex<usize>, Condvar) = (Mutex::new(0), Condvar::new());
 
-struct TempRoot(PathBuf);
+struct AuthorityScenarioPermit {
+    slots: usize,
+}
+
+impl AuthorityScenarioPermit {
+    fn shared() -> Self {
+        Self::acquire(1)
+    }
+
+    fn exclusive() -> Self {
+        Self::acquire(MAX_PARALLEL_AUTHORITY_SCENARIOS)
+    }
+
+    fn acquire(slots: usize) -> Self {
+        let (active, available) = &AUTHORITY_SCENARIO_LIMIT;
+        let mut active = active.lock().unwrap_or_else(|error| error.into_inner());
+        while active.saturating_add(slots) > MAX_PARALLEL_AUTHORITY_SCENARIOS {
+            active = available
+                .wait(active)
+                .unwrap_or_else(|error| error.into_inner());
+        }
+        *active += slots;
+        Self { slots }
+    }
+}
+
+impl Drop for AuthorityScenarioPermit {
+    fn drop(&mut self) {
+        let (active, available) = &AUTHORITY_SCENARIO_LIMIT;
+        let mut active = active.lock().unwrap_or_else(|error| error.into_inner());
+        *active = active.saturating_sub(self.slots);
+        available.notify_all();
+    }
+}
+
+struct TempRoot(PathBuf, AuthorityScenarioPermit);
 
 impl TempRoot {
     fn new() -> Self {
+        Self::with_permit(AuthorityScenarioPermit::shared())
+    }
+
+    fn exclusive() -> Self {
+        Self::with_permit(AuthorityScenarioPermit::exclusive())
+    }
+
+    fn with_permit(permit: AuthorityScenarioPermit) -> Self {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
         let sequence = TEMP_ROOT_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-        let root = PathBuf::from(format!(
-            "/tmp/leserpent-aw-{}-{unique}-{sequence}",
+        let name = format!(
+            "leserpent-aw-{}-{unique:x}-{sequence:x}",
             std::process::id()
-        ));
-        fs::create_dir(&root).unwrap();
-        Self(root)
+        );
+        let platform_temp =
+            fs::canonicalize(std::env::temp_dir()).unwrap_or_else(|_| std::env::temp_dir());
+        let mut root = platform_temp.join(&name);
+        if root.join(LONGEST_TEST_SOCKET_FILE_NAME).as_os_str().len() > MAX_IPC_SOCKET_PATH_BYTES {
+            let short_temp = fs::canonicalize("/tmp").unwrap_or_else(|_| PathBuf::from("/tmp"));
+            root = short_temp.join(name);
+        }
+        assert!(
+            root.join(LONGEST_TEST_SOCKET_FILE_NAME).as_os_str().len() <= MAX_IPC_SOCKET_PATH_BYTES
+        );
+        let mut builder = fs::DirBuilder::new();
+        builder.mode(0o700).create(&root).unwrap();
+        let root = fs::canonicalize(root).unwrap();
+        assert_eq!(
+            fs::metadata(&root).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        Self(root, permit)
     }
 }
 
 impl Drop for TempRoot {
     fn drop(&mut self) {
+        let _permit = &self.1;
         let _ = fs::remove_dir_all(&self.0);
     }
+}
+
+#[test]
+fn authority_writer_temp_roots_are_private_and_socket_safe() {
+    let root = TempRoot::new();
+
+    assert_eq!(
+        fs::metadata(&root.0).unwrap().permissions().mode() & 0o777,
+        0o700
+    );
+    assert!(
+        root.0.join(LONGEST_TEST_SOCKET_FILE_NAME).as_os_str().len() <= MAX_IPC_SOCKET_PATH_BYTES
+    );
 }
 
 struct DaemonProcess {
@@ -757,7 +833,7 @@ fn authority_writer_claim_crash_worker() {
 
 #[test]
 fn sigkill_at_writer_claim_commit_preserves_an_atomic_generation() {
-    let root = TempRoot::new();
+    let root = TempRoot::exclusive();
     let database = root.0.join("claim-crash.sqlite");
     {
         let mut baseline = ControlRuntime::open(&database).unwrap();

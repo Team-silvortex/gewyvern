@@ -6,6 +6,7 @@ using System.Text.Json;
 internal sealed class DesktopCertificateAuthorityStore(string directory)
 {
     private const int MaxCertificateBytes = 1024 * 1024;
+    private const int MaxDirectoryEntries = 128;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
     public string Import(string sourcePath)
@@ -94,14 +95,23 @@ internal sealed class DesktopCertificateAuthorityStore(string directory)
 
     public void PruneExcept(IEnumerable<string> retainedPaths)
     {
+        var retainedCandidates = retainedPaths.Take(MaxDirectoryEntries + 1).ToArray();
+        if (retainedCandidates.Length > MaxDirectoryEntries)
+        {
+            throw new InvalidDataException("retained desktop CA set exceeds its entry budget");
+        }
         if (!Directory.Exists(directory))
         {
+            if (retainedCandidates.Length != 0)
+            {
+                throw new InvalidDataException("retained desktop CA directory does not exist");
+            }
             return;
         }
         EnsurePrivateDirectory();
         var trustDirectory = Path.GetFullPath(directory);
         var retained = new HashSet<string>(PathComparer());
-        foreach (var retainedPath in retainedPaths)
+        foreach (var retainedPath in retainedCandidates)
         {
             var fullPath = Path.GetFullPath(retainedPath);
             if (!IsDirectChild(fullPath, trustDirectory))
@@ -116,7 +126,18 @@ internal sealed class DesktopCertificateAuthorityStore(string directory)
             retained.Add(fullPath);
         }
 
-        foreach (var entry in Directory.EnumerateFileSystemEntries(trustDirectory))
+        var entries = Directory.EnumerateFileSystemEntries(trustDirectory)
+            .Take(MaxDirectoryEntries + 1)
+            .ToArray();
+        if (entries.Length > MaxDirectoryEntries)
+        {
+            throw new InvalidDataException("desktop trust directory exceeds its entry budget");
+        }
+        Array.Sort(entries, PathComparer());
+
+        var observedRetained = new HashSet<string>(PathComparer());
+        var deletions = new List<string>();
+        foreach (var entry in entries)
         {
             var attributes = File.GetAttributes(entry);
             if ((attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0)
@@ -126,17 +147,35 @@ internal sealed class DesktopCertificateAuthorityStore(string directory)
             var name = Path.GetFileName(entry);
             if (IsTemporaryCertificateName(name))
             {
-                File.Delete(entry);
+                deletions.Add(entry);
                 continue;
             }
             if (!IsCanonicalCertificateName(name))
             {
                 throw new InvalidDataException("desktop trust directory contains an unknown entry");
             }
-            if (!retained.Contains(entry))
+            if (retained.Contains(entry))
             {
-                File.Delete(entry);
+                VerifyManagedCertificate(entry);
+                observedRetained.Add(entry);
             }
+            else
+            {
+                deletions.Add(entry);
+            }
+        }
+        if (!observedRetained.SetEquals(retained))
+        {
+            throw new InvalidDataException("retained desktop CA changed during pruning");
+        }
+
+        foreach (var retainedPath in retained)
+        {
+            SetPrivateFileMode(retainedPath);
+        }
+        foreach (var entry in deletions)
+        {
+            File.Delete(entry);
         }
     }
 
@@ -311,14 +350,54 @@ internal sealed class DesktopCertificateAuthorityStore(string directory)
                     "desktop CA import accepted a symbolic link");
             }
 
-            File.WriteAllText(imported, certificate.ExportCertificatePem());
+            File.WriteAllText(
+                imported,
+                certificate.ExportCertificatePem().TrimEnd('\r', '\n') + "\n");
             var secondSource = Path.Combine(root, "second.pem");
             File.WriteAllText(secondSource, replacement.ExportCertificatePem());
             var second = store.Import(secondSource);
+            var overflowEntries = Enumerable.Range(0, MaxDirectoryEntries + 1)
+                .Select(index => Path.Combine(
+                    Path.GetDirectoryName(second)!,
+                    $".{new string('A', 64)}.{index:x32}.tmp"))
+                .ToArray();
+            foreach (var overflowEntry in overflowEntries)
+            {
+                File.WriteAllText(overflowEntry, "overflow");
+            }
+            ExpectInvalidData(
+                () => store.PruneExcept([imported, second]),
+                "desktop CA pruning accepted an unbounded directory");
+            if (!File.Exists(imported)
+                || !File.Exists(second)
+                || overflowEntries.Any(entry => !File.Exists(entry)))
+            {
+                throw new InvalidDataException(
+                    "desktop CA entry-budget rejection mutated the trust directory");
+            }
+            foreach (var overflowEntry in overflowEntries)
+            {
+                File.Delete(overflowEntry);
+            }
+
             var staleTemporary = Path.Combine(
                 Path.GetDirectoryName(second)!,
                 $".{new string('A', 64)}.{new string('b', 32)}.tmp");
             File.WriteAllText(staleTemporary, "stale");
+            File.WriteAllText(second, certificate.ExportCertificatePem());
+            ExpectInvalidData(
+                () => store.PruneExcept(second),
+                "desktop CA pruning accepted a replaced retained certificate");
+            if (!File.Exists(imported)
+                || !File.Exists(second)
+                || !File.Exists(staleTemporary))
+            {
+                throw new InvalidDataException(
+                    "desktop CA validation failure partially pruned the trust directory");
+            }
+            File.WriteAllText(
+                second,
+                replacement.ExportCertificatePem().TrimEnd('\r', '\n') + "\n");
             store.PruneExcept([imported, second]);
             if (!File.Exists(imported)
                 || !File.Exists(second)
@@ -427,12 +506,36 @@ internal sealed class DesktopCertificateAuthorityStore(string directory)
 
     private static void EnsureMatchingDestination(string destination, byte[] expected)
     {
+        VerifyMatchingDestination(destination, expected);
+        SetPrivateFileMode(destination);
+    }
+
+    private static void VerifyMatchingDestination(string destination, byte[] expected)
+    {
         var actual = ReadBoundedRegularFile(destination);
         if (!CryptographicOperations.FixedTimeEquals(actual, expected))
         {
             throw new InvalidDataException("desktop trust certificate content does not match its fingerprint");
         }
-        SetPrivateFileMode(destination);
+    }
+
+    private static void VerifyManagedCertificate(string path)
+    {
+        var payload = ReadBoundedRegularFile(path);
+        using var certificate = ParseCertificate(payload);
+        ValidateCertificateAuthority(certificate);
+        var fingerprint = Convert.ToHexString(
+            certificate.GetCertHash(HashAlgorithmName.SHA256));
+        if (!string.Equals(
+                Path.GetFileName(path),
+                $"{fingerprint}.pem",
+                StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "desktop trust certificate content does not match its fingerprint path");
+        }
+        var canonicalPem = certificate.ExportCertificatePem().TrimEnd('\r', '\n') + "\n";
+        VerifyMatchingDestination(path, Encoding.ASCII.GetBytes(canonicalPem));
     }
 
     private static void SetPrivateFileMode(string path)

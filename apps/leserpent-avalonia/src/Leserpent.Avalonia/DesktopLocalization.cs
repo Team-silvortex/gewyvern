@@ -633,29 +633,18 @@ internal sealed class DesktopLocalization
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    public DesktopInstalledLanguagePack InstallLanguagePack(
-        Stream stream,
-        string? expectedSha256 = null,
-        string? expectedLocale = null,
-        string? expectedVersion = null)
+    public DesktopInstalledLanguagePack InstallLanguagePack(Stream stream)
     {
         var packStore = languagePackStore
             ?? throw new InvalidOperationException(
                 "desktop language-pack installation is unavailable");
-        var installed = packStore.Install(
-            stream,
-            expectedSha256,
-            expectedLocale,
-            expectedVersion);
+        var installed = packStore.Install(stream);
         ReplaceInstalledPack(installed);
         return installed;
     }
 
     public async Task<DesktopInstalledLanguagePack> InstallLanguagePackAsync(
         Stream stream,
-        string? expectedSha256 = null,
-        string? expectedLocale = null,
-        string? expectedVersion = null,
         CancellationToken cancellationToken = default)
     {
         var packStore = languagePackStore
@@ -663,28 +652,37 @@ internal sealed class DesktopLocalization
                 "desktop language-pack installation is unavailable");
         var installed = await packStore.InstallAsync(
             stream,
-            expectedSha256,
-            expectedLocale,
-            expectedVersion,
             cancellationToken);
         ReplaceInstalledPack(installed);
         return installed;
     }
 
-    internal DesktopInstalledLanguagePack InstallLanguagePack(
-        ReadOnlySpan<byte> payload,
-        string? expectedSha256 = null,
-        string? expectedLocale = null,
-        string? expectedVersion = null)
+    internal DesktopInstalledLanguagePack InstallLanguagePack(ReadOnlySpan<byte> payload)
     {
         var packStore = languagePackStore
             ?? throw new InvalidOperationException(
                 "desktop language-pack installation is unavailable");
-        var installed = packStore.Install(
+        var installed = packStore.Install(payload);
+        ReplaceInstalledPack(installed);
+        return installed;
+    }
+
+    internal DesktopInstalledLanguagePack InstallCatalogLanguagePack(
+        ReadOnlySpan<byte> payload,
+        string expectedSha256,
+        string expectedLocale,
+        string expectedVersion,
+        CancellationToken cancellationToken = default)
+    {
+        var packStore = languagePackStore
+            ?? throw new InvalidOperationException(
+                "desktop language-pack installation is unavailable");
+        var installed = packStore.InstallCatalogArtifact(
             payload,
             expectedSha256,
             expectedLocale,
-            expectedVersion);
+            expectedVersion,
+            cancellationToken);
         ReplaceInstalledPack(installed);
         return installed;
     }

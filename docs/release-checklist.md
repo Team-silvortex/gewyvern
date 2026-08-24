@@ -250,6 +250,13 @@ VMs and containers, and fails closed when virtualization is unknown. Use
 report `compatibility_only` or `watch`, but can never satisfy this physical-host
 gate.
 
+The SSH alias identity owns preflight, source/target caches, builds, evidence
+retrieval, and cleanup. Optional admin credentials are attach-only fallback
+inputs and must never relocate those phases into an administrator home. Confirm
+that both `remote_workspace_ownership_preflight` and
+`remote_workspace_ownership_postflight` appear in the successful check list;
+either fence rejects symlink roots and foreign numeric UID/GID ownership.
+
 Or fold it into the main release gate:
 
 ```bash

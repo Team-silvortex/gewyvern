@@ -113,10 +113,44 @@ internal sealed class DesktopLanguagePackStore(string root)
 
     public DesktopInstalledLanguagePack Install(
         ReadOnlySpan<byte> payload,
-        string? expectedSha256 = null,
-        string? expectedLocale = null,
-        string? expectedVersion = null,
+        CancellationToken cancellationToken = default) => InstallCore(
+            payload,
+            expectedSha256: null,
+            expectedLocale: null,
+            expectedVersion: null,
+            requireOfficialArtifact: false,
+            cancellationToken);
+
+    public DesktopInstalledLanguagePack InstallCatalogArtifact(
+        ReadOnlySpan<byte> payload,
+        string expectedSha256,
+        string expectedLocale,
+        string expectedVersion,
         CancellationToken cancellationToken = default)
+    {
+        if (expectedSha256 is null
+            || expectedLocale is null
+            || expectedVersion is null)
+        {
+            throw new InvalidDataException(
+                "desktop catalog language pack requires complete catalog bindings");
+        }
+        return InstallCore(
+            payload,
+            expectedSha256,
+            expectedLocale,
+            expectedVersion,
+            requireOfficialArtifact: true,
+            cancellationToken);
+    }
+
+    private DesktopInstalledLanguagePack InstallCore(
+        ReadOnlySpan<byte> payload,
+        string? expectedSha256,
+        string? expectedLocale,
+        string? expectedVersion,
+        bool requireOfficialArtifact,
+        CancellationToken cancellationToken)
     {
         if (payload.Length is <= 0 or > MaxPackBytes)
         {
@@ -125,6 +159,10 @@ internal sealed class DesktopLanguagePackStore(string root)
         var ownedPayload = payload.ToArray();
         var installed = Decode(ownedPayload, expectedSha256);
         VerifyCatalogBinding(installed, expectedLocale, expectedVersion);
+        if (requireOfficialArtifact)
+        {
+            VerifyOfficialArtifact(installed);
+        }
         cancellationToken.ThrowIfCancellationRequested();
         EnsurePrivateDirectory(root, create: true);
         var target = Path.Combine(root, $"{installed.Manifest.Locale}.json");
@@ -153,31 +191,16 @@ internal sealed class DesktopLanguagePackStore(string root)
     }
 
     public DesktopInstalledLanguagePack Install(
-        Stream stream,
-        string? expectedSha256 = null,
-        string? expectedLocale = null,
-        string? expectedVersion = null) => Install(
-            ReadBounded(stream),
-            expectedSha256,
-            expectedLocale,
-            expectedVersion);
+        Stream stream) => Install(ReadBounded(stream));
 
     public async Task<DesktopInstalledLanguagePack> InstallAsync(
         Stream stream,
-        string? expectedSha256 = null,
-        string? expectedLocale = null,
-        string? expectedVersion = null,
         CancellationToken cancellationToken = default)
     {
         var payload = await ReadBoundedAsync(stream, cancellationToken)
             .ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        return Install(
-            payload,
-            expectedSha256,
-            expectedLocale,
-            expectedVersion,
-            cancellationToken);
+        return Install(payload, cancellationToken);
     }
 
     public void Remove(string locale)
@@ -221,7 +244,7 @@ internal sealed class DesktopLanguagePackStore(string root)
             var store = new DesktopLanguagePackStore(verificationRoot);
             var payload = VerificationPayload("pt-BR");
             var digest = Sha256(payload);
-            var installed = store.Install(payload, digest);
+            var installed = store.Install(payload);
             var snapshot = store.LoadAll();
             if (installed.Manifest.Locale != "pt-BR"
                 || installed.Translations.Count != CoreUiKeyCount
@@ -288,14 +311,85 @@ internal sealed class DesktopLanguagePackStore(string root)
                 File.Delete(entry);
             }
 
+            var rejectedOfficialPayload = VerificationPayload(
+                "it",
+                version: OfficialPackVersion);
+            var rejectedOfficialDigest = Sha256(rejectedOfficialPayload);
+            var rejectedOfficialRoot = Path.Combine(
+                verificationRoot,
+                "rejected-official");
             ExpectInvalidData(
-                () => store.Install(payload, new string('0', 64)),
+                () => new DesktopLanguagePackStore(rejectedOfficialRoot)
+                    .InstallCatalogArtifact(
+                        rejectedOfficialPayload,
+                        rejectedOfficialDigest,
+                        "it",
+                        OfficialPackVersion),
+                "incomplete official language pack committed its first install");
+            if (Directory.Exists(rejectedOfficialRoot))
+            {
+                throw new InvalidDataException(
+                    "failed official language-pack install created persistent state");
+            }
+
+            var installedPath = Path.Combine(verificationRoot, "pt-BR.json");
+            var previousPayload = File.ReadAllBytes(installedPath);
+            var rejectedUpgradePayload = VerificationPayload(
+                "pt-BR",
+                version: OfficialPackVersion);
+            ExpectInvalidData(
+                () => store.InstallCatalogArtifact(
+                    rejectedUpgradePayload,
+                    Sha256(rejectedUpgradePayload),
+                    "pt-BR",
+                    OfficialPackVersion),
+                "incomplete official language pack replaced an installed pack");
+            if (!previousPayload.AsSpan().SequenceEqual(File.ReadAllBytes(installedPath))
+                || Directory.EnumerateFiles(verificationRoot).Any(path =>
+                    path.EndsWith(".tmp", StringComparison.Ordinal)))
+            {
+                throw new InvalidDataException(
+                    "failed official language-pack update changed persistent state");
+            }
+
+            var officialPayload = OfficialVerificationPayload("it");
+            var officialInstalled = store.InstallCatalogArtifact(
+                officialPayload,
+                Sha256(officialPayload),
+                "it",
+                OfficialPackVersion);
+            snapshot = store.LoadAll();
+            if (officialInstalled.Manifest.Version != OfficialPackVersion
+                || officialInstalled.Translations.Count != OfficialPackKeyCount
+                || snapshot.Packs.Count != 2
+                || !snapshot.Packs.ContainsKey("it")
+                || snapshot.RejectedFiles.Count != 0)
+            {
+                throw new InvalidDataException(
+                    "official language pack did not pass its pre-commit contract");
+            }
+            store.Remove("it");
+
+            ExpectInvalidData(
+                () => store.InstallCatalogArtifact(
+                    officialPayload,
+                    new string('0', 64),
+                    "it",
+                    OfficialPackVersion),
                 "desktop language pack accepted a mismatched digest");
             ExpectInvalidData(
-                () => store.Install(payload, digest, "it", "1.0.0"),
+                () => store.InstallCatalogArtifact(
+                    officialPayload,
+                    Sha256(officialPayload),
+                    "pt-BR",
+                    OfficialPackVersion),
                 "desktop language pack accepted a mismatched catalog locale");
             ExpectInvalidData(
-                () => store.Install(payload, digest, "pt-BR", "2.0.0"),
+                () => store.InstallCatalogArtifact(
+                    officialPayload,
+                    Sha256(officialPayload),
+                    "it",
+                    "2.0.0"),
                 "desktop language pack accepted a mismatched catalog version");
             ExpectInvalidData(
                 () => store.Install(VerificationPayload("en")),
@@ -353,16 +447,21 @@ internal sealed class DesktopLanguagePackStore(string root)
     internal static byte[] VerificationPayload(
         string locale,
         bool omitLastCoreKey = false,
-        bool includeUnknownField = false)
+        bool includeUnknownField = false,
+        string version = "1.0.0",
+        bool includeOfficialKeys = false)
     {
         var definition = DesktopLocalization.OfficialLocales.FirstOrDefault(candidate =>
             candidate.Locale.Equals(locale, StringComparison.OrdinalIgnoreCase));
         var name = definition?.Name ?? "English";
         var nativeName = definition?.NativeName ?? "English";
         var direction = definition?.IsRightToLeft == true ? "rtl" : "ltr";
-        var values = RequiredCoreUiKeys
+        var requiredKeys = includeOfficialKeys
+            ? RequiredOfficialPackKeys
+            : RequiredCoreUiKeys;
+        var values = requiredKeys
             .Order(StringComparer.Ordinal)
-            .Where((_, index) => !omitLastCoreKey || index < CoreUiKeyCount - 1)
+            .Where((_, index) => !omitLastCoreKey || index < requiredKeys.Count - 1)
             .ToDictionary(key => key, key => $"verified {key}", StringComparer.Ordinal);
         var tree = new Dictionary<string, object>(StringComparer.Ordinal);
         foreach (var entry in values)
@@ -376,7 +475,7 @@ internal sealed class DesktopLanguagePackStore(string root)
         writer.WriteString("locale", locale);
         writer.WriteString("name", name);
         writer.WriteString("nativeName", nativeName);
-        writer.WriteString("version", "1.0.0");
+        writer.WriteString("version", version);
         writer.WriteString("author", "Leserpent verification");
         writer.WriteString("direction", direction);
         writer.WriteString("coverage", "core-ui");
@@ -391,7 +490,12 @@ internal sealed class DesktopLanguagePackStore(string root)
         return buffer.WrittenSpan.ToArray();
     }
 
-    internal static void VerifyOfficialArtifact(DesktopInstalledLanguagePack installed)
+    internal static byte[] OfficialVerificationPayload(string locale) => VerificationPayload(
+        locale,
+        version: OfficialPackVersion,
+        includeOfficialKeys: true);
+
+    private static void VerifyOfficialArtifact(DesktopInstalledLanguagePack installed)
     {
         if (installed.Manifest.Version != OfficialPackVersion
             || installed.Translations.Count != OfficialPackKeyCount

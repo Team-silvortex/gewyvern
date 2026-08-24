@@ -260,8 +260,13 @@ downloadable locales. Every official v1.1.0 artifact carries an exact 30-key
 set, adding language-selection, pack-center, and theme copy without changing the
 legacy acceptance floor. The loader validates a bounded object tree and exact
 official metadata, prevents replacement of built-ins, can bind imported bytes
-to an expected SHA-256, bounds directory enumeration before sorting, reads picker
-streams asynchronously, then atomically stores each package with user-only permissions.
+to an expected SHA-256, bounds directory enumeration before sorting, and reads
+picker streams asynchronously. Manual imports retain the 18-key compatibility
+floor, while catalog installs must match the current official version and exact
+30-key set before the private directory is created or an existing package is
+atomically replaced. When the current official artifact contract rejects a
+package, a first install creates no state and an upgrade preserves the previous
+package without leaving a temporary file.
 One malformed package is isolated from valid siblings, and mapped pack text is
 an overlay above deterministic per-key English fallback. Local file import is
 not described as catalog-authenticated. The native window also exposes an
@@ -611,6 +616,12 @@ requires private directory/file modes, rechecks endpoint and PEM digest, and
 passes the retained PEM into the existing content-addressed desktop CA store.
 The profile retains the opaque handle rather than replacing it with a cached CA
 path, so every connection and topology refresh re-enters the authority binding.
+The store bounds its directory snapshot, revalidates retained certificate bytes
+against their fingerprint paths, and completes all validation before deleting
+stale entries. Global trust collection belongs only to the Hub lifecycle, which
+can retain both the complete saved-daemon catalog and the live Local Orchestra
+authority; bootstrap promotion and single-profile startup helpers never prune
+that shared store.
 
 The first physical-host vertical now exercises this complete path against an
 x86_64 Linux host through `NativeSshBootstrapTransport`: pinned host key,

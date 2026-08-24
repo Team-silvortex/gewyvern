@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "proof": "gewyvern-remote-linux-workspace-identity",
+  "captured_at_utc": "2026-08-24T07:37:32Z",
+  "release_line": "1.16.0",
+  "scope": "physical-linux-full-stack-validation-with-split-ssh-identities",
+  "host": {
+    "alias": "gewyvern-lab",
+    "target_kind": "physical",
+    "os": "linux",
+    "arch": "x86_64",
+    "kernel": "7.0.0-28-generic",
+    "virtualization": "none"
+  },
+  "authentication": {
+    "workspace": "ssh-key",
+    "admin_credentials_present": false,
+    "privileged_path": "fixed-helper",
+    "helper_version": "1.16.0",
+    "helper_protocol": 1
+  },
+  "ownership": {
+    "workspace_identity": "dedicated-unprivileged-ssh-account",
+    "source_cache": "ordinary-account-owned",
+    "target_cache": "ordinary-account-owned",
+    "preflight_fence": true,
+    "postflight_fence": true,
+    "foreign_owned_entries": 0,
+    "remote_run_residue": 0
+  },
+  "checks": [
+    "remote_preflight",
+    "workspace_synced",
+    "remote_workspace_ownership_preflight",
+    "remote_workspace_materialized",
+    "remote_rust_quality",
+    "remote_linux_target_check",
+    "remote_package_build",
+    "remote_leserpent_control_plane_aot",
+    "remote_leserpent_language_pack_local_orchestra_aot",
+    "remote_package_build_timings",
+    "remote_artifacts_present",
+    "remote_package_smoke",
+    "remote_package_smoke_timings",
+    "remote_runtime_smoke",
+    "remote_runtime_smoke_timings",
+    "remote_ebpf_evidence_synced",
+    "remote_ebpf_smoke",
+    "remote_workspace_ownership_postflight",
+    "remote_phase_timings"
+  ],
+  "performance": {
+    "cache_posture": "warm",
+    "total_seconds": 96.274542335,
+    "package_build_seconds": 0.504051167,
+    "control_plane_aot_seconds": 39.696072667,
+    "language_pack_aot_seconds": 53.08061925,
+    "ebpf_attach_seconds": 0.562787958,
+    "budget_warnings": []
+  },
+  "matrix": {
+    "unique_hosts": 1,
+    "unique_kernels": 1,
+    "minimum_hosts": 2,
+    "minimum_kernels": 2,
+    "ready": false
+  },
+  "remaining": [
+    "second-independent-physical-host",
+    "second-kernel-release"
+  ],
+  "result": "passed"
+}

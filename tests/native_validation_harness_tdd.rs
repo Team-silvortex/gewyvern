@@ -1175,10 +1175,14 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("release/gewyvern_validate"));
     assert!(remote.contains("cargo build --quiet --release --bin gewyvern_validate"));
     assert!(!remote.contains("if [ ! -x {validate_bin}"));
-    assert!(remote.contains("CALLER_UID=\"$(id -u)\""));
-    assert!(remote.contains("GEWY_EVIDENCE_UID=$CALLER_UID"));
+    assert!(!remote.contains("CALLER_UID=\"$(id -u)\""));
+    assert!(!remote.contains("GEWY_EVIDENCE_UID=$CALLER_UID"));
+    assert!(remote.contains("GEWY_EVIDENCE_UID=\"$(stat -c %u -- \"$GEWY_WORKSPACE\")\""));
+    assert!(remote.contains("GEWY_EVIDENCE_GID=\"$(stat -c %g -- \"$GEWY_WORKSPACE\")\""));
     assert!(remote.contains("trap restore_evidence_owner EXIT"));
-    assert!(remote.contains("chown -R \"$GEWY_EVIDENCE_UID:$GEWY_EVIDENCE_GID\""));
+    assert!(remote.contains(
+        "chown -R \"$GEWY_EVIDENCE_UID:$GEWY_EVIDENCE_GID\" \"$GEWY_WORKSPACE/target/validation/remote-ebpf\""
+    ));
     assert!(remote.contains("command -v ld.lld"));
     assert!(remote.contains("-C link-arg=-fuse-ld=lld"));
     assert!(!remote.contains(".arg(\"/tests/\")"));
@@ -1200,6 +1204,16 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("ssh_auth_target(host, &auth.user)"));
     assert!(remote.contains("fn ssh_auth_target(host: &str, user: &str) -> String"));
     assert!(!remote.contains(".arg(format!(\"{}@{}\", auth.user, host))"));
+    assert!(remote.contains("ensure_ssh_control_master(&options.host, None)"));
+    assert!(!remote.contains("ensure_ssh_control_master(&options.host, admin_auth.as_ref())"));
+    assert!(remote.contains("fn collect_remote_preflight(\n    host: &str,"));
+    assert!(!remote.contains("fn collect_remote_preflight(\n    auth:"));
+    assert!(remote.contains("fn build_remote_ebpf_validator(\n    host: &str,"));
+    assert!(remote.contains("fn remove_remote_workspace(\n    host: &str,"));
+    assert!(remote.contains("remote_admin_ebpf_script"));
+    assert!(remote.contains("remote_workspace_ownership_script"));
+    assert!(remote.contains("remote_workspace_ownership_preflight"));
+    assert!(remote.contains("remote_workspace_ownership_postflight"));
     assert!(remote.contains("remote_cargo_target_dir"));
     assert!(remote.contains(".cache/gewyvern/remote-target"));
     assert!(remote.contains(

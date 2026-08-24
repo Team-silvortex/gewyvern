@@ -4,16 +4,24 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-pub const STATUS_SCHEMA_VERSION: u32 = 2;
+pub const STATUS_SCHEMA_VERSION: u32 = 3;
+pub const STATUS_CALIBRATION_MODEL: &str = "priority-weighted-strength-v1";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct StatusCatalog {
     pub schema_version: u32,
     pub project: String,
     pub checkpoint: String,
+    pub calibration: StatusCalibration,
     pub dimensions: StatusDimensions,
     pub coverage_requirements: Vec<StatusCoverageRequirement>,
     pub cells: Vec<StatusCell>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct StatusCalibration {
+    pub model: String,
+    pub as_of: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -47,6 +55,7 @@ pub struct StatusCell {
     pub module: String,
     pub feature: String,
     pub lifecycle: Lifecycle,
+    pub priority: Priority,
     pub maturity: Maturity,
     pub completion: u8,
     pub confidence: Confidence,
@@ -90,6 +99,26 @@ pub enum Lifecycle {
     Bridge,
     Target,
     Retired,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Priority {
+    Critical,
+    Active,
+    Maintenance,
+    Deferred,
+}
+
+impl Priority {
+    pub const fn delivery_weight(self) -> u8 {
+        match self {
+            Self::Critical => 4,
+            Self::Active => 2,
+            Self::Maintenance => 1,
+            Self::Deferred => 0,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -161,15 +190,21 @@ pub struct StatusSummary {
     pub schema_version: u32,
     pub project: String,
     pub checkpoint: String,
+    pub calibration: StatusCalibration,
     pub cell_count: usize,
+    pub deferred_cell_count: usize,
     pub coverage: StatusCoverageSummary,
     pub overall_score: u8,
+    pub portfolio_score: u8,
+    pub delivery_completion: u8,
+    pub portfolio_completion: u8,
     pub lifecycles: Vec<StatusGroupSummary>,
     pub architectures: Vec<StatusGroupSummary>,
     pub modules: Vec<StatusGroupSummary>,
     pub weakest: Vec<StatusCellView>,
     pub independently_usable: Vec<StatusCellView>,
     pub in_development: Vec<StatusCellView>,
+    pub deferred: Vec<StatusCellView>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -188,6 +223,7 @@ pub struct StatusGroupSummary {
     pub score: u8,
     pub completion: u8,
     pub cell_count: usize,
+    pub active_cell_count: usize,
     pub weakest_cell: String,
 }
 
@@ -198,6 +234,7 @@ pub struct StatusCellView {
     pub module: String,
     pub feature: String,
     pub lifecycle: Lifecycle,
+    pub priority: Priority,
     pub maturity: Maturity,
     pub completion: u8,
     pub confidence: Confidence,
@@ -234,6 +271,17 @@ impl StatusCatalog {
         }
         require_text("project", &self.project, &mut errors);
         require_text("checkpoint", &self.checkpoint, &mut errors);
+        require_text("calibration.model", &self.calibration.model, &mut errors);
+        require_text("calibration.as_of", &self.calibration.as_of, &mut errors);
+        if self.calibration.model != STATUS_CALIBRATION_MODEL {
+            errors.push(format!(
+                "unsupported calibration model '{}', expected '{STATUS_CALIBRATION_MODEL}'",
+                self.calibration.model
+            ));
+        }
+        if !is_iso_date(&self.calibration.as_of) {
+            errors.push("calibration.as_of must use YYYY-MM-DD".to_string());
+        }
 
         let architectures =
             validate_dimension("architecture", &self.dimensions.architectures, &mut errors);
@@ -244,6 +292,7 @@ impl StatusCatalog {
         let mut used_architectures = BTreeSet::new();
         let mut used_modules = BTreeSet::new();
         let mut used_features = BTreeSet::new();
+        let mut delivery_cells = 0usize;
         for cell in &self.cells {
             if !cell_ids.insert(cell.id.as_str()) {
                 errors.push(format!("duplicate cell id '{}'", cell.id));
@@ -264,9 +313,30 @@ impl StatusCatalog {
             used_architectures.insert(cell.architecture.as_str());
             used_modules.insert(cell.module.as_str());
             used_features.insert(cell.feature.as_str());
+            if cell.priority.delivery_weight() > 0 {
+                delivery_cells += 1;
+            }
             if cell.completion > 100 {
                 errors.push(format!(
                     "cell '{}' completion must be between 0 and 100",
+                    cell.id
+                ));
+            }
+            if cell.maturity == Maturity::Planned && cell.completion > 25 {
+                errors.push(format!(
+                    "planned cell '{}' cannot report completion above 25",
+                    cell.id
+                ));
+            }
+            if cell.maturity == Maturity::Incubating && cell.completion > 75 {
+                errors.push(format!(
+                    "incubating cell '{}' cannot report completion above 75; recalibrate its maturity",
+                    cell.id
+                ));
+            }
+            if cell.maturity == Maturity::Stabilizing && cell.completion < 70 {
+                errors.push(format!(
+                    "stabilizing cell '{}' must report completion of at least 70",
                     cell.id
                 ));
             }
@@ -395,6 +465,9 @@ impl StatusCatalog {
                     ));
                 }
             }
+        }
+        if delivery_cells == 0 {
+            errors.push("status catalog must contain at least one non-deferred cell".to_string());
         }
 
         let mut requirement_ids = BTreeSet::new();
@@ -525,14 +598,20 @@ impl StatusCatalog {
             .collect::<Vec<_>>();
         lifecycles.sort_by_key(|group| std::cmp::Reverse(group.score));
 
-        let mut weakest = self.cells.iter().collect::<Vec<_>>();
+        let delivery_cells = self
+            .cells
+            .iter()
+            .filter(|cell| cell.priority != Priority::Deferred)
+            .collect::<Vec<_>>();
+        let mut weakest = delivery_cells.clone();
         weakest.sort_by_key(|cell| (self.cell_score(cell), cell.id.as_str()));
 
         let mut independently_usable = self
             .cells
             .iter()
             .filter(|cell| {
-                cell.independence != Independence::Internal
+                cell.priority != Priority::Deferred
+                    && cell.independence != Independence::Internal
                     && cell.maturity >= Maturity::Stabilizing
                     && !matches!(cell.maturity, Maturity::Blocked | Maturity::Deprecated)
             })
@@ -544,22 +623,32 @@ impl StatusCatalog {
             .cells
             .iter()
             .filter(|cell| {
-                matches!(
-                    cell.maturity,
-                    Maturity::Incubating
-                        | Maturity::Developing
-                        | Maturity::Stabilizing
-                        | Maturity::Blocked
-                )
+                cell.priority != Priority::Deferred
+                    && matches!(
+                        cell.maturity,
+                        Maturity::Incubating
+                            | Maturity::Developing
+                            | Maturity::Stabilizing
+                            | Maturity::Blocked
+                    )
             })
             .collect::<Vec<_>>();
         in_development.sort_by_key(|cell| (self.cell_score(cell), cell.id.as_str()));
+
+        let mut deferred = self
+            .cells
+            .iter()
+            .filter(|cell| cell.priority == Priority::Deferred)
+            .collect::<Vec<_>>();
+        deferred.sort_by_key(|cell| (self.cell_score(cell), cell.id.as_str()));
 
         StatusSummary {
             schema_version: self.schema_version,
             project: self.project.clone(),
             checkpoint: self.checkpoint.clone(),
+            calibration: self.calibration.clone(),
             cell_count: self.cells.len(),
+            deferred_cell_count: deferred.len(),
             coverage: StatusCoverageSummary {
                 requirement_count: self.coverage_requirements.len(),
                 architecture_count: self
@@ -584,7 +673,18 @@ impl StatusCatalog {
                     .filter(|item| item.kind == CoverageKind::ProofShelf)
                     .count(),
             },
-            overall_score: average(self.cells.iter().map(|cell| self.cell_score(cell))),
+            overall_score: weighted_average(
+                delivery_cells
+                    .iter()
+                    .map(|cell| (self.cell_score(cell), cell.priority.delivery_weight())),
+            ),
+            portfolio_score: average(self.cells.iter().map(|cell| self.cell_score(cell))),
+            delivery_completion: weighted_average(
+                delivery_cells
+                    .iter()
+                    .map(|cell| (cell.completion, cell.priority.delivery_weight())),
+            ),
+            portfolio_completion: average(self.cells.iter().map(|cell| cell.completion)),
             lifecycles,
             architectures,
             modules,
@@ -599,6 +699,11 @@ impl StatusCatalog {
                 .map(|cell| self.cell_view(cell))
                 .collect(),
             in_development: in_development
+                .into_iter()
+                .take(limit)
+                .map(|cell| self.cell_view(cell))
+                .collect(),
+            deferred: deferred
                 .into_iter()
                 .take(limit)
                 .map(|cell| self.cell_view(cell))
@@ -639,6 +744,7 @@ impl StatusCatalog {
             module: cell.module.clone(),
             feature: cell.feature.clone(),
             lifecycle: cell.lifecycle,
+            priority: cell.priority,
             maturity: cell.maturity,
             completion: cell.completion,
             confidence: cell.confidence,
@@ -678,13 +784,42 @@ impl StatusCatalog {
         label: &str,
         cells: &[&StatusCell],
     ) -> Option<StatusGroupSummary> {
-        let weakest = cells.iter().min_by_key(|cell| self.cell_score(cell))?;
+        let active = cells
+            .iter()
+            .copied()
+            .filter(|cell| cell.priority != Priority::Deferred)
+            .collect::<Vec<_>>();
+        let ranked = if active.is_empty() {
+            cells
+        } else {
+            active.as_slice()
+        };
+        let weakest = ranked.iter().min_by_key(|cell| self.cell_score(cell))?;
+        let score = if active.is_empty() {
+            average(cells.iter().map(|cell| self.cell_score(cell)))
+        } else {
+            weighted_average(
+                active
+                    .iter()
+                    .map(|cell| (self.cell_score(cell), cell.priority.delivery_weight())),
+            )
+        };
+        let completion = if active.is_empty() {
+            average(cells.iter().map(|cell| cell.completion))
+        } else {
+            weighted_average(
+                active
+                    .iter()
+                    .map(|cell| (cell.completion, cell.priority.delivery_weight())),
+            )
+        };
         Some(StatusGroupSummary {
             id: id.to_string(),
             label: label.to_string(),
-            score: average(cells.iter().map(|cell| self.cell_score(cell))),
-            completion: average(cells.iter().map(|cell| cell.completion)),
+            score,
+            completion,
             cell_count: cells.len(),
+            active_cell_count: active.len(),
             weakest_cell: weakest.id.clone(),
         })
     }
@@ -761,6 +896,38 @@ fn require_text(field: &str, value: &str, errors: &mut Vec<String>) {
     if value.trim().is_empty() {
         errors.push(format!("{field} cannot be empty"));
     }
+}
+
+fn is_iso_date(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    if bytes.len() != 10
+        || bytes[4] != b'-'
+        || bytes[7] != b'-'
+        || bytes
+            .iter()
+            .enumerate()
+            .any(|(index, byte)| !matches!(index, 4 | 7) && !byte.is_ascii_digit())
+    {
+        return false;
+    }
+    let Ok(year) = value[..4].parse::<u16>() else {
+        return false;
+    };
+    let Ok(month) = value[5..7].parse::<u8>() else {
+        return false;
+    };
+    let Ok(day) = value[8..].parse::<u8>() else {
+        return false;
+    };
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let maximum_day = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => return false,
+    };
+    year > 0 && day >= 1 && day <= maximum_day
 }
 
 fn validate_coverage_source(
@@ -842,6 +1009,22 @@ fn average(values: impl Iterator<Item = u8>) -> u8 {
     (values.iter().sum::<u64>() / values.len() as u64) as u8
 }
 
+fn weighted_average(values: impl Iterator<Item = (u8, u8)>) -> u8 {
+    let values = values.collect::<Vec<_>>();
+    let total_weight = values
+        .iter()
+        .map(|(_, weight)| u64::from(*weight))
+        .sum::<u64>();
+    if total_weight == 0 {
+        return 0;
+    }
+    (values
+        .iter()
+        .map(|(value, weight)| u64::from(*value) * u64::from(*weight))
+        .sum::<u64>()
+        / total_weight) as u8
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -871,6 +1054,65 @@ mod tests {
                 .iter()
                 .all(|cell| cell.independence != Independence::Internal)
         );
+        assert!(
+            summary
+                .weakest
+                .iter()
+                .chain(&summary.in_development)
+                .chain(&summary.independently_usable)
+                .all(|cell| cell.priority != Priority::Deferred)
+        );
+        assert_eq!(summary.deferred_cell_count, summary.deferred.len());
+        assert!(
+            summary
+                .deferred
+                .iter()
+                .all(|cell| cell.priority == Priority::Deferred)
+        );
+    }
+
+    #[test]
+    fn validation_rejects_invalid_calibration_and_maturity_bands() {
+        let mut catalog =
+            StatusCatalog::load(default_catalog_path()).expect("catalog should decode");
+        catalog.calibration.model = "equal-weight-v0".to_string();
+        catalog.calibration.as_of = "2026-02-30".to_string();
+        catalog
+            .cells
+            .iter_mut()
+            .find(|cell| cell.maturity == Maturity::Incubating)
+            .expect("catalog should have an incubating cell")
+            .completion = 76;
+        catalog
+            .cells
+            .iter_mut()
+            .find(|cell| cell.maturity == Maturity::Stabilizing)
+            .expect("catalog should have a stabilizing cell")
+            .completion = 69;
+        let planned = catalog
+            .cells
+            .iter_mut()
+            .find(|cell| cell.maturity == Maturity::Mature)
+            .expect("catalog should have a mature cell");
+        planned.maturity = Maturity::Planned;
+        planned.completion = 26;
+        for cell in &mut catalog.cells {
+            cell.priority = Priority::Deferred;
+        }
+
+        let errors = catalog
+            .validate(env!("CARGO_MANIFEST_DIR"))
+            .expect_err("invalid calibration must be rejected")
+            .join("\n");
+        assert!(errors.contains("unsupported calibration model"));
+        assert!(errors.contains("calibration.as_of must use YYYY-MM-DD"));
+        assert!(errors.contains("at least one non-deferred cell"));
+        assert!(errors.contains("planned cell"));
+        assert!(errors.contains("cannot report completion above 25"));
+        assert!(errors.contains("incubating cell"));
+        assert!(errors.contains("cannot report completion above 75"));
+        assert!(errors.contains("stabilizing cell"));
+        assert!(errors.contains("must report completion of at least 70"));
     }
 
     #[test]

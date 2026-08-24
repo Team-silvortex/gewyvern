@@ -110,7 +110,7 @@ internal sealed class DesktopLanguagePackCatalogClient : IDisposable
 
     public static async Task VerifyContractAsync()
     {
-        var packPayload = DesktopLanguagePackStore.VerificationPayload("pt-BR");
+        var packPayload = DesktopLanguagePackStore.OfficialVerificationPayload("pt-BR");
         var digest = Convert.ToHexString(SHA256.HashData(packPayload)).ToLowerInvariant();
         var catalog = VerificationCatalog(digest);
         var catalogPayload = JsonSerializer.SerializeToUtf8Bytes(
@@ -126,7 +126,7 @@ internal sealed class DesktopLanguagePackCatalogClient : IDisposable
         var downloaded = await client.DownloadAsync("pt-BR").ConfigureAwait(false);
         if (downloaded.SourceId != source.SourceId
             || downloaded.Locale != "pt-BR"
-            || downloaded.Version != "1.0.0"
+            || downloaded.Version != DesktopLanguagePackStore.OfficialPackVersion
             || downloaded.Sha256 != digest
             || !downloaded.Payload.AsSpan().SequenceEqual(packPayload)
             || handler.RequestCount != 2
@@ -146,6 +146,13 @@ internal sealed class DesktopLanguagePackCatalogClient : IDisposable
                 catalog with { Packs = catalog.Packs.Skip(1).ToArray() },
                 DesktopLanguagePackCatalogJsonContext.Default.DesktopLanguagePackCatalog)),
             "desktop language-pack catalog accepted a missing locale");
+        var outdatedPacks = catalog.Packs.ToArray();
+        outdatedPacks[0] = outdatedPacks[0] with { Version = "1.0.0" };
+        ExpectInvalidData(
+            () => DecodeCatalog(JsonSerializer.SerializeToUtf8Bytes(
+                catalog with { Packs = outdatedPacks },
+                DesktopLanguagePackCatalogJsonContext.Default.DesktopLanguagePackCatalog)),
+            "desktop language-pack catalog accepted a non-current official version");
         var unsafePacks = catalog.Packs.ToArray();
         unsafePacks[0] = unsafePacks[0] with { Url = "https://example.invalid/pt-BR.json" };
         ExpectInvalidData(
@@ -191,12 +198,11 @@ internal sealed class DesktopLanguagePackCatalogClient : IDisposable
                     Path.Combine(fullPackRoot, $"{entry.Locale}.json"),
                     DesktopLanguagePackStore.MaxPackBytes);
                 VerifyDownloadedDigest(payload, entry.Sha256);
-                var installed = store.Install(
+                var installed = store.InstallCatalogArtifact(
                     payload,
                     entry.Sha256,
                     entry.Locale,
                     entry.Version);
-                DesktopLanguagePackStore.VerifyOfficialArtifact(installed);
                 if (installed.Manifest.Locale != entry.Locale
                     || installed.Manifest.Version != entry.Version)
                 {
@@ -348,7 +354,7 @@ internal sealed class DesktopLanguagePackCatalogClient : IDisposable
                 || entry.Direction != expectedDirection
                 || entry.Coverage != "core-ui"
                 || entry.Url != $"/language-packs/{definition.Locale}.json"
-                || !ValidVersion(entry.Version)
+                || entry.Version != DesktopLanguagePackStore.OfficialPackVersion
                 || !ValidSha256(entry.Sha256))
             {
                 throw new InvalidDataException(
@@ -444,25 +450,6 @@ internal sealed class DesktopLanguagePackCatalogClient : IDisposable
         return definition;
     }
 
-    private static bool ValidVersion(string? version)
-    {
-        if (version is null)
-        {
-            return false;
-        }
-        var core = version.Split('-', 2, StringSplitOptions.None)[0];
-        var components = core.Split('.', StringSplitOptions.None);
-        return version.Length is > 0 and <= 40
-            && version.All(character => char.IsAsciiLetterOrDigit(character)
-                || character is '.' or '-' or '+')
-            && components.Length == 3
-            && components.All(component => uint.TryParse(
-                component,
-                NumberStyles.None,
-                CultureInfo.InvariantCulture,
-                out _));
-    }
-
     private static bool ValidSha256(string? digest)
     {
         if (digest is null
@@ -544,7 +531,7 @@ internal sealed class DesktopLanguagePackCatalogClient : IDisposable
                 Locale = locale.Locale,
                 Name = locale.Name,
                 NativeName = locale.NativeName,
-                Version = "1.0.0",
+                Version = DesktopLanguagePackStore.OfficialPackVersion,
                 Direction = locale.IsRightToLeft ? "rtl" : "ltr",
                 Coverage = "core-ui",
                 Url = $"/language-packs/{locale.Locale}.json",

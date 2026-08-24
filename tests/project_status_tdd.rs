@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use gewyvern::project_status::{
-    ContractStability, EvidenceKind, EvidenceState, Independence, Maturity, STATUS_SCHEMA_VERSION,
-    StatusCatalog, default_catalog_path,
+    ContractStability, EvidenceKind, EvidenceState, Independence, Maturity, Priority,
+    STATUS_CALIBRATION_MODEL, STATUS_SCHEMA_VERSION, StatusCatalog, default_catalog_path,
 };
 use ring::digest::{SHA256, digest};
 use serde_json::json;
@@ -123,12 +123,18 @@ fn project_status_catalog_is_protocolized_and_valid() {
         "https://json-schema.org/draft/2020-12/schema"
     );
     assert_eq!(
+        schema["$id"],
+        "https://gewyvern.dev/schemas/project-status-tensor-v3.json"
+    );
+    assert_eq!(
         schema["properties"]["schema_version"]["const"],
         STATUS_SCHEMA_VERSION
     );
 
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     catalog.validate(&root).expect("catalog must validate");
+    assert_eq!(catalog.calibration.model, STATUS_CALIBRATION_MODEL);
+    assert_eq!(catalog.calibration.as_of, "2026-08-24");
     assert!(catalog.dimensions.architectures.len() >= 6);
     assert!(catalog.dimensions.modules.len() >= 21);
     assert!(catalog.dimensions.features.len() >= 23);
@@ -141,6 +147,89 @@ fn project_status_catalog_is_protocolized_and_valid() {
         assert!(!cell.contract.surfaces.is_empty());
         assert!(!cell.evidence.is_empty());
         assert!(!cell.next_gate.is_empty());
+    }
+}
+
+#[test]
+fn project_status_calibration_separates_delivery_from_the_full_portfolio() {
+    let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
+    let summary = catalog.summary(catalog.cells.len());
+
+    assert_eq!(Priority::Critical.delivery_weight(), 4);
+    assert_eq!(Priority::Active.delivery_weight(), 2);
+    assert_eq!(Priority::Maintenance.delivery_weight(), 1);
+    assert_eq!(Priority::Deferred.delivery_weight(), 0);
+
+    let delivery_weight = catalog
+        .cells
+        .iter()
+        .map(|cell| u64::from(cell.priority.delivery_weight()))
+        .sum::<u64>();
+    let expected_delivery_score = catalog
+        .cells
+        .iter()
+        .map(|cell| {
+            u64::from(catalog.cell_score(cell)) * u64::from(cell.priority.delivery_weight())
+        })
+        .sum::<u64>()
+        / delivery_weight;
+    let expected_delivery_completion = catalog
+        .cells
+        .iter()
+        .map(|cell| u64::from(cell.completion) * u64::from(cell.priority.delivery_weight()))
+        .sum::<u64>()
+        / delivery_weight;
+    let expected_portfolio_score = catalog
+        .cells
+        .iter()
+        .map(|cell| u64::from(catalog.cell_score(cell)))
+        .sum::<u64>()
+        / catalog.cells.len() as u64;
+
+    assert_eq!(u64::from(summary.overall_score), expected_delivery_score);
+    assert_eq!(
+        u64::from(summary.delivery_completion),
+        expected_delivery_completion
+    );
+    assert_eq!(u64::from(summary.portfolio_score), expected_portfolio_score);
+    assert_eq!(summary.deferred_cell_count, 1);
+    assert_eq!(summary.deferred.len(), 1);
+    assert_eq!(
+        summary.deferred[0].id,
+        "etragon/learning-sidecar/advisory-learning"
+    );
+    for attention_view in [
+        &summary.weakest,
+        &summary.in_development,
+        &summary.independently_usable,
+    ] {
+        assert!(
+            attention_view
+                .iter()
+                .all(|cell| cell.priority != Priority::Deferred)
+        );
+    }
+
+    let governance = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "project-governance/status-governance/status-tensor")
+        .expect("status governance cell must exist");
+    assert_eq!(governance.contract.version, "3.0.0");
+    for surface in [
+        "explicit-roadmap-priority",
+        "priority-weighted-delivery-score",
+        "equal-weight-portfolio-score",
+        "deferred-attention-separation",
+        "maturity-completion-coherence",
+    ] {
+        assert!(
+            governance
+                .contract
+                .surfaces
+                .iter()
+                .any(|item| item == surface)
+        );
     }
 }
 
@@ -951,6 +1040,7 @@ fn local_repeated_hostile_lifecycle_proof_is_non_vacuous() {
     for contract in [
         "const IPC_FRAME_READ_TIMEOUT: Duration = Duration::from_secs(2);",
         "const IPC_FRAME_READ_POLL_INTERVAL: Duration = Duration::from_millis(100);",
+        "pub const MAX_IPC_SOCKET_PATH_BYTES: usize = 100;",
         "pub fn poll_batch_until(",
         "read_frame_until(stream, cancelled)",
         "if cancelled.load(Ordering::Acquire)",
@@ -975,6 +1065,13 @@ fn local_repeated_hostile_lifecycle_proof_is_non_vacuous() {
         "const RECONNECTS_PER_FAIRNESS_WAVE: usize = 4;",
         "const SLOW_PEERS_PER_RECONNECT_GROUP: usize = 15;",
         "const RECONNECT_FAIRNESS_BUDGET: Duration = Duration::from_secs(5);",
+        "const MAX_PARALLEL_AUTHORITY_SCENARIOS: usize = 4;",
+        "fn exclusive() -> Self",
+        "Self::with_permit(AuthorityScenarioPermit::exclusive())",
+        "let root = TempRoot::exclusive();",
+        "builder.mode(0o700).create(&root).unwrap();",
+        "MAX_IPC_SOCKET_PATH_BYTES",
+        "fn authority_writer_temp_roots_are_private_and_socket_safe()",
         "fn repeated_hostile_batches_preserve_owner_heartbeat_and_bounded_sigterm()",
         "fn repeated_hostile_shutdown_restart_cycles_bound_process_resources()",
         "fn burst_reconnects_remain_fair_across_repeated_saturated_hostile_waves()",
@@ -3767,7 +3864,7 @@ fn assert_runtime_deletion_retry_post_recovery_write(
 }
 
 #[test]
-fn etragon_stays_downweighted_until_the_deep_learning_stack_is_proven() {
+fn etragon_stays_deferred_until_the_deep_learning_stack_is_proven() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     let etragon = catalog
         .cells
@@ -3776,6 +3873,7 @@ fn etragon_stays_downweighted_until_the_deep_learning_stack_is_proven() {
         .expect("Etragon advisory-learning cell must exist");
 
     assert_eq!(etragon.maturity, Maturity::Incubating);
+    assert_eq!(etragon.priority, Priority::Deferred);
     assert!(etragon.completion <= 45);
     assert!(etragon.blockers.iter().any(|blocker| {
         blocker.id == "deep-learning-stack-not-integrated"
@@ -3840,7 +3938,10 @@ fn retained_packaged_macos_language_pack_proof_is_non_vacuous() {
     assert_eq!(roundtrip["authorization_header_sent"], false);
     assert_eq!(roundtrip["admin_token_header_sent"], false);
     let saved_roundtrip = &evidence["saved_daemon_roundtrip"];
-    assert_eq!(saved_roundtrip["source_kind"], "persisted-daemon-connection");
+    assert_eq!(
+        saved_roundtrip["source_kind"],
+        "persisted-daemon-connection"
+    );
     assert_eq!(saved_roundtrip["managed_ca_count"], 1);
     assert_eq!(saved_roundtrip["official_pack_version"], "1.1.0");
     assert_eq!(saved_roundtrip["official_pack_keys"], 30);
@@ -3879,8 +3980,7 @@ fn retained_packaged_macos_language_pack_proof_is_non_vacuous() {
         true
     );
     assert_eq!(evidence["lifecycle"]["secret_output"], false);
-    assert!(json_string_set(&evidence, "checks")
-        .contains("official-v1.1.0-exact-30-key-pack"));
+    assert!(json_string_set(&evidence, "checks").contains("official-v1.1.0-exact-30-key-pack"));
     assert_eq!(
         json_string_set(&evidence, "remaining"),
         ["native-speaker-review-and-post-30-key-pack-expansion".to_string()]
@@ -3913,10 +4013,7 @@ fn retained_physical_linux_language_pack_proof_is_non_vacuous() {
     assert_eq!(evidence["package"]["rid"], "linux-x64");
     assert_eq!(evidence["package"]["native_aot"], true);
     for payload in ["avalonia", "leserpentd"] {
-        assert_eq!(
-            evidence["package"][payload]["format"],
-            "ELF 64-bit x86-64"
-        );
+        assert_eq!(evidence["package"][payload]["format"], "ELF 64-bit x86-64");
         assert!(
             evidence["package"][payload]["bytes"]
                 .as_u64()
@@ -3932,8 +4029,7 @@ fn retained_physical_linux_language_pack_proof_is_non_vacuous() {
         );
     }
 
-    let language_pack_root =
-        root.join("apps/leserpent/src/Leserpent/wwwroot/language-packs");
+    let language_pack_root = root.join("apps/leserpent/src/Leserpent/wwwroot/language-packs");
     assert_eq!(
         evidence["language_pack_assets"]["catalog_sha256"],
         sha256_hex(
@@ -3971,7 +4067,10 @@ fn retained_physical_linux_language_pack_proof_is_non_vacuous() {
     assert_eq!(roundtrip["authorization_header_sent"], false);
     assert_eq!(roundtrip["admin_token_header_sent"], false);
     let saved_roundtrip = &evidence["saved_daemon_roundtrip"];
-    assert_eq!(saved_roundtrip["source_kind"], "persisted-daemon-connection");
+    assert_eq!(
+        saved_roundtrip["source_kind"],
+        "persisted-daemon-connection"
+    );
     assert_eq!(saved_roundtrip["managed_ca_count"], 1);
     assert_eq!(saved_roundtrip["official_pack_version"], "1.1.0");
     assert_eq!(saved_roundtrip["official_pack_keys"], 30);
@@ -4019,8 +4118,7 @@ fn retained_physical_linux_language_pack_proof_is_non_vacuous() {
             "missing verifier assertion {assertion}"
         );
     }
-    let saved_verifier_assertions =
-        json_string_set(&evidence, "saved_daemon_verifier_assertions");
+    let saved_verifier_assertions = json_string_set(&evidence, "saved_daemon_verifier_assertions");
     assert_eq!(saved_verifier_assertions.len(), 12);
     for assertion in [
         "persisted_catalog",
@@ -4055,8 +4153,7 @@ fn retained_physical_linux_language_pack_proof_is_non_vacuous() {
         );
     }
     assert_eq!(evidence["lifecycle"]["secret_output"], false);
-    assert!(json_string_set(&evidence, "checks")
-        .contains("official-v1.1.0-exact-30-key-pack"));
+    assert!(json_string_set(&evidence, "checks").contains("official-v1.1.0-exact-30-key-pack"));
     assert_eq!(
         json_string_set(&evidence, "remaining"),
         ["native-speaker-review-and-post-30-key-pack-expansion".to_string()]
@@ -4064,6 +4161,119 @@ fn retained_physical_linux_language_pack_proof_is_non_vacuous() {
             .collect()
     );
     assert_eq!(evidence["result"], "passed");
+}
+
+#[test]
+fn retained_remote_linux_workspace_identity_evidence_is_non_vacuous() {
+    let evidence: serde_json::Value =
+        serde_json::from_str(
+            &std::fs::read_to_string(repository_root().join(
+                "docs/fixtures/gewyvern_remote_linux_workspace_identity_physical_20260824.json",
+            ))
+            .expect("remote Linux workspace identity evidence must exist"),
+        )
+        .expect("remote Linux workspace identity evidence must decode");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(
+        evidence["proof"],
+        "gewyvern-remote-linux-workspace-identity"
+    );
+    assert_eq!(evidence["release_line"], "1.16.0");
+    assert_eq!(evidence["host"]["target_kind"], "physical");
+    assert_eq!(evidence["host"]["os"], "linux");
+    assert_eq!(evidence["host"]["arch"], "x86_64");
+    assert_eq!(evidence["host"]["kernel"], "7.0.0-28-generic");
+    assert_eq!(evidence["host"]["virtualization"], "none");
+    assert_eq!(evidence["authentication"]["workspace"], "ssh-key");
+    assert_eq!(
+        evidence["authentication"]["admin_credentials_present"],
+        false
+    );
+    assert_eq!(
+        evidence["authentication"]["privileged_path"],
+        "fixed-helper"
+    );
+    assert_eq!(evidence["authentication"]["helper_protocol"], 1);
+    assert_eq!(
+        evidence["ownership"]["workspace_identity"],
+        "dedicated-unprivileged-ssh-account"
+    );
+    for fence in ["preflight_fence", "postflight_fence"] {
+        assert_eq!(
+            evidence["ownership"][fence], true,
+            "missing ownership fence {fence}"
+        );
+    }
+    assert_eq!(evidence["ownership"]["foreign_owned_entries"], 0);
+    assert_eq!(evidence["ownership"]["remote_run_residue"], 0);
+
+    let expected_checks = [
+        "remote_preflight",
+        "workspace_synced",
+        "remote_workspace_ownership_preflight",
+        "remote_workspace_materialized",
+        "remote_rust_quality",
+        "remote_linux_target_check",
+        "remote_package_build",
+        "remote_leserpent_control_plane_aot",
+        "remote_leserpent_language_pack_local_orchestra_aot",
+        "remote_package_build_timings",
+        "remote_artifacts_present",
+        "remote_package_smoke",
+        "remote_package_smoke_timings",
+        "remote_runtime_smoke",
+        "remote_runtime_smoke_timings",
+        "remote_ebpf_evidence_synced",
+        "remote_ebpf_smoke",
+        "remote_workspace_ownership_postflight",
+        "remote_phase_timings",
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .collect::<BTreeSet<_>>();
+    assert_eq!(json_string_set(&evidence, "checks"), expected_checks);
+
+    let performance = &evidence["performance"];
+    assert_eq!(performance["cache_posture"], "warm");
+    let total_seconds = performance["total_seconds"]
+        .as_f64()
+        .expect("total duration must be numeric");
+    assert!((90.0..110.0).contains(&total_seconds));
+    assert!(performance["package_build_seconds"].as_f64().unwrap() < 1.0);
+    assert!(performance["ebpf_attach_seconds"].as_f64().unwrap() < 1.0);
+    assert!(performance["control_plane_aot_seconds"].as_f64().unwrap() > 30.0);
+    assert!(performance["language_pack_aot_seconds"].as_f64().unwrap() > 45.0);
+    assert!(
+        performance["budget_warnings"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+
+    assert_eq!(evidence["matrix"]["unique_hosts"], 1);
+    assert_eq!(evidence["matrix"]["unique_kernels"], 1);
+    assert_eq!(evidence["matrix"]["minimum_hosts"], 2);
+    assert_eq!(evidence["matrix"]["minimum_kernels"], 2);
+    assert_eq!(evidence["matrix"]["ready"], false);
+    assert_eq!(
+        json_string_set(&evidence, "remaining"),
+        [
+            "second-independent-physical-host".to_string(),
+            "second-kernel-release".to_string(),
+        ]
+        .into_iter()
+        .collect()
+    );
+    assert_eq!(evidence["result"], "passed");
+
+    let serialized = serde_json::to_string(&evidence).unwrap();
+    for forbidden in ["host_fingerprint", "password", "192.168."] {
+        assert!(
+            !serialized.contains(forbidden),
+            "retained evidence contains sensitive field {forbidden}"
+        );
+    }
 }
 
 #[test]
@@ -4115,8 +4325,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "gewyvern-core/linux-ebpf/linux-attach")
         .expect("Gewyvern Linux attach cell must exist");
-    assert_eq!(linux_attach.completion, 98);
-    assert_eq!(linux_attach.contract.version, "1.5.1");
+    assert_eq!(linux_attach.maturity, Maturity::Stabilizing);
+    assert_eq!(linux_attach.priority, Priority::Critical);
+    assert_eq!(linux_attach.completion, 90);
+    assert_eq!(linux_attach.contract.version, "1.6.0");
     assert_eq!(linux_attach.blockers.len(), 1);
     for surface in [
         "dedicated-project-ssh-alias",
@@ -4128,6 +4340,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "dotnet10-rid-neutral-locked-aot-restore",
         "dynamic-writer-fence-sqlite-activation",
         "physical-linux-helper-version-upgrade-proof",
+        "split-workspace-and-privileged-ssh-identities",
+        "workspace-owner-derived-evidence-restoration",
+        "remote-cache-ownership-preflight",
+        "remote-cache-ownership-postflight",
+        "ordinary-identity-workspace-cleanup",
+        "warm-cache-performance-recheck",
         "shared-native-bounded-process-guard",
         "bounded-local-smoke-subprocesses",
         "bounded-smoke-command-output-capture",
@@ -4142,6 +4360,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }
     assert!(linux_attach.evidence.iter().any(|item| {
         item.path == "docs/fixtures/linux_attach_pinned_source_root.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(linux_attach.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/gewyvern_remote_linux_workspace_identity_physical_20260824.json"
             && item.state == EvidenceState::Present
     }));
     assert!(linux_attach.evidence.iter().any(|item| {
@@ -4170,10 +4392,17 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/ui-renderers/avalonia-renderer")
         .expect("Leserpent Gate 4 renderer cell must exist");
-    assert_eq!(avalonia.maturity, Maturity::Mature);
-    assert_eq!(avalonia.completion, 100);
+    assert_eq!(avalonia.maturity, Maturity::Stabilizing);
+    assert_eq!(avalonia.priority, Priority::Critical);
+    assert_eq!(avalonia.completion, 96);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.104.0");
+    assert_eq!(avalonia.contract.version, "1.105.0");
+    assert!(
+        avalonia
+            .blockers
+            .iter()
+            .any(|blocker| blocker.id == "desktop-production-account-proof")
+    );
     assert!(
         avalonia
             .contract
@@ -4224,6 +4453,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "tutorial-auxiliary-window-classification",
         "tutorial-keyboard-navigation",
         "tutorial-automation-contract",
+        "hub-owned-global-ca-gc",
+        "validation-before-ca-prune",
+        "retained-ca-content-revalidation",
     ] {
         assert!(
             avalonia
@@ -4496,7 +4728,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(avalonia.next_gate.contains("credential-vault"));
     assert!(avalonia.next_gate.contains("local logout"));
     assert!(avalonia.next_gate.contains("Linux Secret Service"));
-    assert!(avalonia.blockers.is_empty());
+    assert_eq!(avalonia.blockers.len(), 1);
+    assert_eq!(avalonia.blockers[0].id, "desktop-production-account-proof");
 
     let transport = catalog
         .cells
@@ -5726,10 +5959,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(bootstrap.maturity, Maturity::Mature);
     assert_eq!(bootstrap.completion, 100);
     assert_eq!(bootstrap.contract.stability, ContractStability::Stable);
-    assert_eq!(bootstrap.contract.version, "1.0.1");
+    assert_eq!(bootstrap.contract.version, "1.0.2");
     for surface in [
         "bounded-native-service-manager-batch",
         "timed-out-service-manager-child-reaping",
+        "promotion-global-ca-gc-separation",
     ] {
         assert!(
             bootstrap
@@ -5885,10 +6119,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/ui-renderers/desktop-localization")
         .expect("desktop localization contract must remain tracked");
-    assert_eq!(desktop_localization.maturity, Maturity::Incubating);
-    assert_eq!(desktop_localization.completion, 99);
-    assert_eq!(desktop_localization.contract.version, "0.18.0");
-    assert_eq!(desktop_localization.contract.stability, ContractStability::Draft);
+    assert_eq!(desktop_localization.maturity, Maturity::Stabilizing);
+    assert_eq!(desktop_localization.priority, Priority::Active);
+    assert_eq!(desktop_localization.completion, 94);
+    assert_eq!(desktop_localization.contract.version, "0.19.0");
+    assert_eq!(
+        desktop_localization.contract.stability,
+        ContractStability::Evolving
+    );
     for surface in [
         "thirty-official-locale-identifiers",
         "private-atomic-language-preference",
@@ -5925,6 +6163,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "strict-remote-language-pack-evidence-revalidation",
         "same-origin-language-pack-path-fence",
         "catalog-locale-version-digest-binding",
+        "catalog-manual-language-pack-install-separation",
+        "pre-commit-official-language-pack-validation",
+        "failed-official-language-pack-update-preservation",
         "private-atomic-language-pack-store",
         "malformed-language-pack-sibling-isolation",
         "per-key-language-pack-english-fallback",
@@ -6041,38 +6282,53 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && blocker.summary.contains("Hub domains")
             && blocker.summary.contains("tutorial domains")
             && blocker.summary.contains("80-key native-shell catalogs")
-            && blocker.summary.contains("18-key core-ui v1 compatibility floor")
+            && blocker
+                .summary
+                .contains("18-key core-ui v1 compatibility floor")
             && blocker.summary.contains("22 official v1.1.0 artifacts")
             && blocker.summary.contains("exact 30-key set")
             && blocker.summary.contains("pack center")
             && blocker.summary.contains("day/night/system theme controls")
-            && blocker.summary.contains("explicitly selected local or saved daemon")
-            && blocker.summary.contains("without sending an admin credential")
-            && blocker.summary.contains("embeds the exact catalog and 22-pack roster")
+            && blocker
+                .summary
+                .contains("explicitly selected local or saved daemon")
+            && blocker
+                .summary
+                .contains("without sending an admin credential")
+            && blocker
+                .summary
+                .contains("embeds the exact catalog and 22-pack roster")
             && blocker.summary.contains("reject bearer/admin headers")
             && blocker.summary.contains("real private-CA TLS download")
             && blocker.summary.contains("digest/locale/version bound")
             && blocker.summary.contains("saved-daemon verifier")
             && blocker.summary.contains("decoy CA at TLS")
-            && blocker.summary.contains("catalog and CA inputs remain immutable")
-            && blocker.summary.contains("physical Linux x86_64 NativeAOT proofs")
+            && blocker
+                .summary
+                .contains("catalog and CA inputs remain immutable")
+            && blocker
+                .summary
+                .contains("physical Linux x86_64 NativeAOT proofs")
             && blocker.summary.contains("both verifier paths")
-            && blocker.summary.contains("dual fixed-contract verifier logs")
+            && blocker
+                .summary
+                .contains("dual fixed-contract verifier logs")
             && blocker.summary.contains("exact regular-file inventory")
             && blocker.summary.contains("language-asset hashes")
             && blocker.summary.contains("credential absence")
             && blocker.summary.contains("not catalog-authenticated")
             && blocker.summary.contains("malformed-sibling isolation")
             && blocker.summary.contains("intentionally partial")
-            && blocker.summary.contains("new 12-key downloadable expansion")
+            && blocker
+                .summary
+                .contains("new 12-key downloadable expansion")
             && !blocker.summary.contains("runtime child-workspace shell")
             && !blocker.summary.contains("remaining Hub dynamic cards")
             && !blocker.summary.contains("non-Chinese tutorial content")
             && blocker.summary.contains("native-speaker review")
     }));
     assert!(desktop_localization.evidence.iter().any(|evidence| {
-        evidence.path
-            == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLocalization.cs"
+        evidence.path == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLocalization.cs"
             && evidence.state == EvidenceState::Present
     }));
     assert!(desktop_localization.evidence.iter().any(|evidence| {
@@ -6105,25 +6361,37 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "src/validation_harness/remote_host.rs",
         "docs/fixtures/leserpent_language_pack_local_orchestra_native_aot_linux_x86_64_20260824.json",
     ] {
-        assert!(desktop_localization.evidence.iter().any(|evidence| {
-            evidence.path == path && evidence.state == EvidenceState::Present
-        }));
+        assert!(
+            desktop_localization.evidence.iter().any(|evidence| {
+                evidence.path == path && evidence.state == EvidenceState::Present
+            })
+        );
     }
-    assert!(!desktop_localization
-        .next_gate
-        .contains("saved remote daemon"));
-    assert!(!desktop_localization
-        .next_gate
-        .contains("physical Linux live-download evidence for Local Orchestra"));
-    assert!(desktop_localization
-        .next_gate
-        .contains("Review the six candidate built-in catalogs and the new"));
-    assert!(desktop_localization
-        .next_gate
-        .contains("new 12-key official-pack expansion with native speakers"));
-    assert!(desktop_localization
-        .next_gate
-        .contains("beyond their exact 30-key"));
+    assert!(
+        !desktop_localization
+            .next_gate
+            .contains("saved remote daemon")
+    );
+    assert!(
+        !desktop_localization
+            .next_gate
+            .contains("physical Linux live-download evidence for Local Orchestra")
+    );
+    assert!(
+        desktop_localization
+            .next_gate
+            .contains("Review the six candidate built-in catalogs and the new")
+    );
+    assert!(
+        desktop_localization
+            .next_gate
+            .contains("new 12-key official-pack expansion with native speakers")
+    );
+    assert!(
+        desktop_localization
+            .next_gate
+            .contains("beyond their exact 30-key")
+    );
     assert!(desktop_localization.evidence.iter().any(|evidence| {
         evidence.path
             == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopConnectionCatalogs.cs"
@@ -6167,9 +6435,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/LeselangExportControl.cs",
         "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteAuthorityHealthCoordinator.cs",
     ] {
-        assert!(desktop_localization.evidence.iter().any(|evidence| {
-            evidence.path == path && evidence.state == EvidenceState::Present
-        }));
+        assert!(
+            desktop_localization.evidence.iter().any(|evidence| {
+                evidence.path == path && evidence.state == EvidenceState::Present
+            })
+        );
     }
 
     let remote_console = catalog
@@ -6177,8 +6447,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/remote-console/remote-mobile-console")
         .expect("remote/mobile console contract must remain tracked");
-    assert_eq!(remote_console.completion, 99);
+    assert_eq!(remote_console.maturity, Maturity::Stabilizing);
+    assert_eq!(remote_console.priority, Priority::Active);
+    assert_eq!(remote_console.completion, 86);
     assert_eq!(remote_console.contract.version, "0.69.0");
+    assert_eq!(
+        remote_console.contract.stability,
+        ContractStability::Evolving
+    );
     for surface in [
         "renderer-neutral-runtime-search",
         "cross-authority-topology-search",
@@ -6310,13 +6586,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && evidence.state == EvidenceState::Present
     }));
     assert!(remote_console.evidence.iter().any(|evidence| {
-        evidence.path
-            == "apps/leserpent-mobile/src/Leserpent.MobileCore/MobileUiDocumentBinding.cs"
+        evidence.path == "apps/leserpent-mobile/src/Leserpent.MobileCore/MobileUiDocumentBinding.cs"
             && evidence.state == EvidenceState::Present
     }));
     assert!(remote_console.evidence.iter().any(|evidence| {
-        evidence.path
-            == "apps/leserpent-mobile/src/Leserpent.MobileCore/MobileNativeRenderGate.cs"
+        evidence.path == "apps/leserpent-mobile/src/Leserpent.MobileCore/MobileNativeRenderGate.cs"
             && evidence.state == EvidenceState::Present
     }));
     assert!(remote_console.evidence.iter().any(|evidence| {
@@ -6325,13 +6599,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && evidence.state == EvidenceState::Present
     }));
     assert!(remote_console.evidence.iter().any(|evidence| {
-        evidence.path
-            == "docs/fixtures/leserpent_android_api36_emulator_macos_arm64_20260821.json"
+        evidence.path == "docs/fixtures/leserpent_android_api36_emulator_macos_arm64_20260821.json"
             && evidence.state == EvidenceState::Present
     }));
     assert!(remote_console.evidence.iter().any(|evidence| {
-        evidence.path
-            == "apps/leserpent-mobile/src/Leserpent.Mobile.iOS/MobileHubViewController.cs"
+        evidence.path == "apps/leserpent-mobile/src/Leserpent.Mobile.iOS/MobileHubViewController.cs"
             && evidence.state == EvidenceState::Present
     }));
     assert!(remote_console.evidence.iter().any(|evidence| {
@@ -6343,8 +6615,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && evidence.state == EvidenceState::Present
     }));
     assert!(remote_console.evidence.iter().any(|evidence| {
-        evidence.path
-            == "docs/fixtures/leserpent_ios26_simulator_macos_arm64_20260821.json"
+        evidence.path == "docs/fixtures/leserpent_ios26_simulator_macos_arm64_20260821.json"
             && evidence.state == EvidenceState::Present
     }));
 
@@ -6354,6 +6625,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/release-assurance/two-zero-seal")
         .expect("2.0 release seal must be tracked independently");
     assert_eq!(two_zero_seal.completion, 64);
+    assert_eq!(two_zero_seal.maturity, Maturity::Developing);
+    assert_eq!(two_zero_seal.priority, Priority::Critical);
     assert_eq!(two_zero_seal.contract.version, "0.16.0-draft");
     assert!(
         two_zero_seal
@@ -6418,8 +6691,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/release-assurance/continuous-proof")
         .expect("continuous proof contract must remain tracked");
-    assert_eq!(continuous_proof.completion, 97);
+    assert_eq!(continuous_proof.maturity, Maturity::Stabilizing);
+    assert_eq!(continuous_proof.priority, Priority::Critical);
+    assert_eq!(continuous_proof.completion, 92);
     assert_eq!(continuous_proof.contract.version, "0.79.0");
+    assert_eq!(
+        continuous_proof.contract.stability,
+        ContractStability::Evolving
+    );
     assert!(
         continuous_proof
             .contract
@@ -7670,6 +7949,11 @@ fn native_status_cli_exposes_human_and_machine_views() {
     let payload: serde_json::Value =
         serde_json::from_slice(&summary.stdout).expect("summary must be JSON");
     assert_eq!(payload["schema_version"], STATUS_SCHEMA_VERSION);
+    assert_eq!(payload["calibration"]["model"], STATUS_CALIBRATION_MODEL);
+    assert_eq!(payload["calibration"]["as_of"], "2026-08-24");
+    assert_eq!(payload["deferred_cell_count"], 1);
+    assert!(payload["overall_score"].is_u64());
+    assert!(payload["portfolio_score"].is_u64());
     assert_eq!(payload["coverage"]["requirement_count"], 29);
     assert_eq!(payload["coverage"]["architecture_count"], 6);
     assert_eq!(payload["coverage"]["ownership_boundary_count"], 21);
@@ -7679,6 +7963,8 @@ fn native_status_cli_exposes_human_and_machine_views() {
     assert!(payload["lifecycles"].as_array().unwrap().len() >= 3);
     assert!(payload["architectures"].as_array().unwrap().len() >= 6);
     assert!(payload["modules"].as_array().unwrap().len() >= 12);
+    assert_eq!(payload["deferred"].as_array().unwrap().len(), 1);
+    assert_eq!(payload["deferred"][0]["priority"], "deferred");
 
     let developing = Command::new(binary)
         .args(["developing", "--architecture", "leserpent-2", "--json"])
@@ -7693,6 +7979,19 @@ fn native_status_cli_exposes_human_and_machine_views() {
             .unwrap()
             .iter()
             .all(|cell| cell["architecture"] == "leserpent-2")
+    );
+
+    let deferred = Command::new(binary)
+        .args(["deferred", "--json"])
+        .output()
+        .expect("status deferred query must run");
+    assert!(deferred.status.success());
+    let payload: serde_json::Value =
+        serde_json::from_slice(&deferred.stdout).expect("deferred view must be JSON");
+    assert_eq!(payload.as_array().unwrap().len(), 1);
+    assert_eq!(
+        payload[0]["id"],
+        "etragon/learning-sidecar/advisory-learning"
     );
 
     let help = Command::new(binary)
@@ -7715,6 +8014,8 @@ fn native_status_cli_exposes_human_and_machine_views() {
             "target",
             "--maturity",
             "mature",
+            "--priority",
+            "critical",
             "--json",
         ])
         .output()
@@ -7724,4 +8025,5 @@ fn native_status_cli_exposes_human_and_machine_views() {
         serde_json::from_slice(&tensor_slice.stdout).expect("tensor slice must be JSON");
     assert_eq!(payload.as_array().unwrap().len(), 1);
     assert_eq!(payload[0]["feature"], "effect-reentry");
+    assert_eq!(payload[0]["priority"], "critical");
 }

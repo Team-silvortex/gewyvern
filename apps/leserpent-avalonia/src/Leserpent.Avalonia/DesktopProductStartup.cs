@@ -34,7 +34,6 @@ internal static class DesktopProductStartup
             };
             profileStore.Save(profile);
         }
-        certificateStore.PruneExcept(importedCertificate);
         return profile;
     }
 

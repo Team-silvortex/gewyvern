@@ -566,12 +566,11 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
                 var download = catalogClient.DownloadAsync("pt-BR")
                     .GetAwaiter().GetResult();
                 var languagePackStore = new DesktopLanguagePackStore(languagePackRoot);
-                var installed = languagePackStore.Install(
+                var installed = languagePackStore.InstallCatalogArtifact(
                     download.Payload,
                     download.Sha256,
                     download.Locale,
                     download.Version);
-                DesktopLanguagePackStore.VerifyOfficialArtifact(installed);
                 var snapshot = languagePackStore.LoadAll();
                 if (download.SourceId != "local-orchestra"
                     || installed.Manifest.Locale != "pt-BR"

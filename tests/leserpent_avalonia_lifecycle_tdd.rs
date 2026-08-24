@@ -1105,6 +1105,7 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
         "public const int CoreUiKeyCount = 18",
         "public const int OfficialPackKeyCount = 30",
         "public const string OfficialPackVersion = \"1.1.0\"",
+        "InstallCatalogArtifact",
         "VerifyOfficialArtifact",
         "public const int MaxPackBytes = 256 * 1024",
         ".Take(MaxDirectoryEntries + 1)",
@@ -1120,6 +1121,8 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
         "built-in locale",
         "malformed desktop language pack blocked a valid sibling",
         "per-key English fallback",
+        "failed official language-pack install created persistent state",
+        "failed official language-pack update changed persistent state",
     ] {
         assert!(
             pack_store.contains(marker),
@@ -1132,6 +1135,27 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(!pack_store_lower.contains("bearer"));
     assert!(!pack_store_lower.contains("admin_token"));
     assert!(!pack_store_lower.contains("credential"));
+    let install_core = pack_store
+        .split("private DesktopInstalledLanguagePack InstallCore")
+        .nth(1)
+        .expect("desktop language-pack store must retain one install commit boundary");
+    let official_validation = install_core
+        .find("VerifyOfficialArtifact(installed)")
+        .expect("official language-pack validation must remain inside the commit boundary");
+    let directory_creation = install_core
+        .find("EnsurePrivateDirectory(root, create: true)")
+        .expect("language-pack commit must retain its private storage boundary");
+    assert!(
+        official_validation < directory_creation,
+        "official language-pack validation must finish before persistent state is created"
+    );
+    assert_eq!(
+        pack_store
+            .matches("VerifyOfficialArtifact(installed)")
+            .count(),
+        1,
+        "official artifact validation must only be called by the pre-commit store path"
+    );
 
     for marker in [
         "leserpent.language-pack-catalog/v1",
@@ -1147,6 +1171,8 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
         "request.Headers.Authorization is null",
         "X-Leserpent-Admin-Token",
         "VerifyPublishedArtifacts",
+        "InstallCatalogArtifact",
+        "entry.Version != DesktopLanguagePackStore.OfficialPackVersion",
         "published language-pack set did not round-trip through desktop storage",
     ] {
         assert!(
@@ -1180,6 +1206,8 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(window.contains("ProbeLanguagePackContract"));
     assert!(window.contains("ProbeLanguagePackDownloadContractAsync"));
     assert!(window.contains("ProbeLanguagePackCancellationContractAsync"));
+    assert!(window.contains("localization.InstallCatalogLanguagePack("));
+    assert!(localization.contains("packStore.InstallCatalogArtifact("));
     assert!(window.contains("languagePackOperationInProgress"));
     assert!(!window.contains("HttpClient"));
     assert!(hub.contains("hub-open-language"));
@@ -1217,6 +1245,9 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(program.contains("language_pack_same_origin=true"));
     assert!(program.contains("language_pack_bearer_sent=false"));
     assert!(program.contains("language_pack_cancellation_fenced=true"));
+    assert!(program.contains("language_pack_official_precommit=true"));
+    assert!(program.contains("language_pack_failed_update_preserves_previous=true"));
+    assert!(program.contains("official_precommit=true"));
     assert!(program.contains("language_pack_bad_sibling_isolation=true"));
     assert!(program.contains("builtin_remote_shell_catalogs=7"));
     assert!(program.contains("remote_shell_semantic_keys=56"));
@@ -1999,6 +2030,55 @@ fn runtime_workspace_refresh_reports_bounded_snapshot_changes() {
 }
 
 #[test]
+fn desktop_ca_pruning_is_bounded_validated_and_hub_owned() {
+    let store = avalonia_source("Leserpent.Avalonia/DesktopCertificateAuthorityStore.cs");
+    let promotion = avalonia_source("Leserpent.Avalonia/DesktopBootstrapPromotion.cs");
+    let startup = avalonia_source("Leserpent.Avalonia/DesktopProductStartup.cs");
+    let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+    let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+    let prune_start = store
+        .find("public void PruneExcept(IEnumerable<string> retainedPaths)")
+        .expect("desktop CA store must expose set-based pruning");
+    let prune_end = store[prune_start..]
+        .find("public static DesktopCertificateAuthorityStore Default()")
+        .expect("desktop CA pruning must have a bounded source region");
+    let prune = &store[prune_start..prune_start + prune_end];
+
+    for marker in [
+        "private const int MaxDirectoryEntries = 128;",
+        ".Take(MaxDirectoryEntries + 1)",
+        "VerifyManagedCertificate(entry)",
+        "var deletions = new List<string>();",
+        "desktop CA entry-budget rejection mutated the trust directory",
+        "desktop CA validation failure partially pruned the trust directory",
+    ] {
+        assert!(
+            store.contains(marker),
+            "desktop CA store is missing {marker}"
+        );
+    }
+    let validation = prune
+        .find("foreach (var entry in entries)")
+        .expect("desktop CA pruning must validate its directory snapshot");
+    let deletion = prune
+        .find("foreach (var entry in deletions)")
+        .expect("desktop CA pruning must retain a separate commit phase");
+    assert!(
+        validation < deletion,
+        "desktop CA pruning must validate the complete snapshot before deletion"
+    );
+    assert!(!promotion.contains(".PruneExcept("));
+    assert!(!startup.contains(".PruneExcept("));
+    assert_eq!(app.matches("certificateStore.PruneExcept(").count(), 3);
+    assert!(app.contains("localOrchestraService?.ManagedAuthorityPath"));
+    assert!(promotion.contains("File.Exists(unrelatedAuthority)"));
+    assert!(program.contains("global_ca_gc=false"));
+    assert!(program.contains("unrelated_managed_ca_preserved=true"));
+    assert!(program.contains("validation_before_prune=true"));
+    assert!(program.contains("retained_content_revalidation=true"));
+}
+
+#[test]
 fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
     let window = avalonia_source("Leserpent.Avalonia/DesktopConnectionWindow.cs");
     let forget = avalonia_source("Leserpent.Avalonia/DesktopForgetConnectionWindow.cs");
@@ -2172,7 +2252,8 @@ fn local_orchestra_is_a_bounded_rust_owned_desktop_session() {
     assert!(supervisor.contains("catalogClient.DownloadAsync(\"pt-BR\")"));
     assert!(supervisor.contains("download.Sha256"));
     assert!(supervisor.contains("download.Version"));
-    assert!(supervisor.contains("DesktopLanguagePackStore.VerifyOfficialArtifact(installed)"));
+    assert!(supervisor.contains("languagePackStore.InstallCatalogArtifact("));
+    assert!(!supervisor.contains("VerifyOfficialArtifact"));
     assert!(supervisor.contains("Kill(entireProcessTree: true)"));
     assert!(supervisor.contains("ObjectDisposedException.ThrowIf(disposed, this)"));
     assert!(token_store.contains("LocalProcess"));
@@ -2213,7 +2294,7 @@ fn saved_daemon_language_packs_are_persisted_ca_bound_and_credential_free() {
         "CryptographicOperations.FixedTimeEquals",
         "download.Sha256",
         "download.Version",
-        "DesktopLanguagePackStore.VerifyOfficialArtifact(installed)",
+        "languagePackStore.InstallCatalogArtifact(",
         "languagePackStore.Remove(download.Locale)",
         "saved daemon language-pack catalog leaked its live credential",
         "saved daemon language-pack proof mutated its persisted inputs",

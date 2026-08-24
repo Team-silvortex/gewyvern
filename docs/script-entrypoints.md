@@ -297,18 +297,25 @@ all-target compile proof consumes them; the complete test shelf adds only about
 1.6 MiB to a cold sync.
 When that filtered workspace snapshot is unchanged, the command now reuses a
 workspace sync cache marker and skips the rsync phase entirely.
+Immediately after sync and again after eBPF evidence collection, the ordinary
+SSH identity performs a bounded ownership scan over both shared caches. A
+symlink cache root or any entry owned by a different numeric UID/GID fails the
+run before the cache can be reused or left behind as hidden privileged residue.
 
 If the fixed helper is not installed but you do have a separate admin account,
 export `GEWY_REMOTE_EBPF_ADMIN_USER` and `GEWY_REMOTE_EBPF_ADMIN_PASSWORD`
-before running the command. The validation run then uses that authenticated SSH
-identity consistently for preflight, workspace sync, caches, package/runtime
-checks, and evidence retrieval; `ssh` and `rsync` must never resolve it to
-different users. Builds still run unprivileged and always incrementally rebuild
-the current `gewyvern_validate` source. Only the three kernel attach commands
-enter `sudo`, and an exit trap restores the eBPF evidence directory to the
-authenticated user. Those privileged commands compile smoke sources only from
-the validator's build-time workspace root; changing the remote working
-directory cannot substitute loader or BPF source files.
+before running the command. Preflight, workspace sync, caches, package/runtime
+checks, validator builds, evidence retrieval, and cleanup always retain the
+ordinary SSH identity selected by `GEWY_REMOTE_HOST`. The password-authenticated
+admin identity is used only for the three kernel attach commands when the fixed
+helper is unavailable. The sudo process reads the synchronized workspace's
+numeric owner through `stat`, rejects malformed ownership values, and restores
+the eBPF evidence directory to that owner on every exit path. This prevents an
+admin fallback from moving source, caches, or build products into the admin
+home while keeping `ssh` and `rsync` aligned on the workspace identity. Those
+privileged commands compile smoke sources only from the validator's build-time
+workspace root; changing the remote working directory cannot substitute loader
+or BPF source files.
 This is a compatibility path. New hosts should install the fixed helper and
 must not grant the validation account unrestricted passwordless `sudo`, or
 authorize `env`, a shell, or workspace binaries in `sudoers`.
@@ -317,11 +324,12 @@ Packaged hosts can configure the fixed path with
 validate the account and installed helper without writing configuration. This
 root-only management binary is deliberately absent from the generated sudoers
 allowlist.
-An authenticated run can cover package/runtime smoke, the Leserpent
+One run can cover package/runtime smoke, the Leserpent
 control-plane NativeAOT persistence proof, and attach/kprobe/tc in one evidence
-transaction. A first run under a new admin identity may report `watch` because
-its isolated source and target caches are cold; rerun with the same identity to
-measure the warm reference. A clean warm run reports `linux_proof_complete=true`.
+transaction. A first run under a new workspace identity may report `watch`
+because its isolated source and target caches are cold; rerun with the same
+ordinary identity to measure the warm reference. A clean warm run reports
+`linux_proof_complete=true`.
 It still reports `coverage_incomplete` until successful evidence spans at least
 two physical host fingerprints and two kernel releases.
 

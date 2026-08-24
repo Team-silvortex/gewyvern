@@ -193,8 +193,9 @@ Measurement notes:
 - date: `2026-07-11`
 - host: `kyuubiki-lab`, Ubuntu 24.04, Linux `6.17.0-35-generic`
 - method: `cargo run --quiet --bin gewyvern_validate -- remote-linux-host-validation`
-- admin-assisted eBPF path: `GEWY_REMOTE_EBPF_ADMIN_USER` +
-  `GEWY_REMOTE_EBPF_ADMIN_PASSWORD`
+- admin-assisted eBPF attach: `GEWY_REMOTE_EBPF_ADMIN_USER` +
+  `GEWY_REMOTE_EBPF_ADMIN_PASSWORD`; current validation keeps workspace and
+  build ownership on the ordinary host alias identity
 - result: package smoke, runtime smoke, and remote eBPF smoke all passed
 - default-route device for tc smoke: `wlp3s0`
 - mode: warm remote source cache, warm package cache, warm SSH control path
@@ -239,6 +240,32 @@ syncing the full 1.6 MiB test shelf. Workspace sync was `2.454`; the incremental
 Linux all-target check no longer appeared among the three slowest phases, while
 `remote_package_build=18.638` remained dominant. This is the current stronger
 compile-coverage observation.
+
+### Identity-Isolated Full-Stack Recheck
+
+On `2026-08-24`, the physical `gewyvern-lab` alias resolved to an Ubuntu
+`x86_64` host running Linux `7.0.0-28-generic` with no detected virtualization.
+The run used the ordinary key-backed SSH identity for preflight, shared caches,
+builds, evidence synchronization, and cleanup. No admin credentials were
+present; the root-owned fixed helper handled only attach/kprobe/tc. Ownership
+fences before materialization and after evidence collection found zero foreign
+UID/GID entries, and no transient remote-run directory remained.
+
+| Phase | Seconds | Notes |
+| --- | ---: | --- |
+| `workspace_sync` | `0.110` | unchanged filtered snapshot, warm source cache |
+| `remote_rust_quality` | `0.620` | locked all-target clippy shelf |
+| `remote_package_build` | `0.504` | manifest-bound warm package artifacts |
+| `remote_leserpent_control_plane_aot` | `39.696` | packaged control-plane NativeAOT proof |
+| `remote_leserpent_language_pack_local_orchestra_aot` | `53.081` | packaged Local Orchestra and saved-daemon proof |
+| `remote_ebpf_attach` | `0.563` | fixed-helper tracepoint, kprobe, and tc proof |
+| `total` | `96.275` | full current remote validation transaction |
+
+No timing budget warning fired. This recheck proves repeatability and identity
+isolation, but it does not increase matrix breadth: retained evidence still
+contains one independent physical host fingerprint and one kernel release. The
+bounded, secret-free record is
+`docs/fixtures/gewyvern_remote_linux_workspace_identity_physical_20260824.json`.
 
 The synchronized evidence for this baseline lives under:
 

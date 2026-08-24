@@ -858,7 +858,9 @@ internal sealed class LeserpentApp : Application
                             DesktopLocalization.ForLanguagePackVerification(packRoot);
                         var payload =
                             DesktopLanguagePackStore.VerificationPayload("pt-BR");
-                        var digest = Convert.ToHexString(SHA256.HashData(payload))
+                        var officialPayload =
+                            DesktopLanguagePackStore.OfficialVerificationPayload("pt-BR");
+                        var digest = Convert.ToHexString(SHA256.HashData(officialPayload))
                             .ToLowerInvariant();
                         var source = new DesktopLanguagePackSource(
                             "daemon-language-verification",
@@ -880,9 +882,9 @@ internal sealed class LeserpentApp : Application
                                 return Task.FromResult(new DesktopLanguagePackDownload(
                                     source.SourceId,
                                     locale,
-                                    "1.0.0",
+                                    DesktopLanguagePackStore.OfficialPackVersion,
                                     digest,
-                                    payload));
+                                    officialPayload));
                             });
                         packWindow.VerifyAccessibility();
                         packWindow.ProbeLanguagePackContract(payload);

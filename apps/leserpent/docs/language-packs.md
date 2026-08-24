@@ -35,7 +35,7 @@ Web 语言包仅保存在当前浏览器的 `localStorage`，不会上传到 Les
 
 Desktop 下载只复用连接配置中的 HTTPS origin 与已保存 CA，不解析或读取该 daemon 的管理 token，也不会发送 bearer 或 `X-Leserpent-Admin-Token`。Rust `leserpentd` 直接内嵌并提供同一份 catalog 与 22 个 pack；这些公开 GET 路由会反向拒绝任何 bearer/admin header，因此成功下载同时证明客户端没有把控制面凭证带入公开内容域。托管 Web host 对同一路径执行相同拒绝策略。catalog 限制为 128 KiB，pack 限制为 256 KiB；禁止重定向、跨源 URL、catalog 外 locale，以及 digest、locale、version 不一致。窗口关闭会取消请求，同一窗口一次只允许一个语言包操作。
 
-Desktop 将通过校验的 pack 原子写入当前用户的私有 `language-packs-v1` 目录。它不写入控制面状态，也不会在 daemon 间同步。catalog 下载拥有来源 CA、同源路径和 SHA-256 绑定；本地 JSON 导入只拥有结构与资源边界校验，不宣称 catalog 身份。
+Desktop 将通过校验的 pack 原子写入当前用户的私有 `language-packs-v1` 目录。它不写入控制面状态，也不会在 daemon 间同步。catalog 下载拥有来源 CA、同源路径和 SHA-256 绑定，并在创建目录或替换文件前要求当前官方 `1.1.0` 精确 30 键契约；被该官方契约拒绝的首次安装不产生目录，被拒绝的升级保留原文件且不遗留临时文件。本地 JSON 导入则保留 18 键兼容基线，只拥有结构与资源边界校验，不宣称 catalog 身份。
 
 ## Pack Format
 
@@ -86,6 +86,8 @@ Desktop 将通过校验的 pack 原子写入当前用户的私有 `language-pack
 - catalog URL 必须同源且位于 `/language-packs/`
 - catalog 安装必须通过 SHA-256
 - 下载包 locale/version 必须匹配 catalog 条目
+- Native Desktop catalog 安装必须在写盘前匹配当前官方 version 与精确 key set
+- Native Desktop 官方契约拒绝不得创建新状态或覆盖既有 pack
 - Native Desktop catalog 必须完整覆盖固定的 8 built-in + 22 downloadable roster
 - Native Desktop 下载仅使用显式选择的 daemon origin 与 CA，且不发送管理凭证
 - Rust daemon 与托管 Web host 都拒绝公开语言包请求携带 `Authorization` 或 `X-Leserpent-Admin-Token`
@@ -154,7 +156,7 @@ catalog 使用：
 - `apps/leserpent-avalonia/src/Leserpent.Avalonia/SavedDaemonLanguagePackVerifier.cs`
   - 持久化连接 catalog、唯一受管 CA、错误 CA 拒绝和输入不变的发布验证
 - `apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguagePackStore.cs`
-  - Native Desktop 的 locale/version/digest 绑定与私有原子存储
+  - Native Desktop 的手动/官方安装信任分层、写盘前官方契约校验与私有原子存储
 - `crates/leserpentd/src/language_packs.rs` 与 `crates/leserpentd/src/remote.rs`
   - Rust daemon 的编译期资产白名单、公开 GET 路由和凭证域隔离
 - `src/Leserpent/ControlPlane/LanguagePackRequestPolicy.cs`
@@ -173,7 +175,7 @@ dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Av
   "$PWD/apps/leserpent/src/Leserpent/wwwroot/language-packs"
 ```
 
-该命令逐包执行 catalog SHA-256、locale/version、18 键兼容基线、官方 `1.1.0` 精确 30 键契约和 Desktop 私有存储 roundtrip，不发起网络请求。
+该命令逐包执行 catalog SHA-256、locale/version、18 键兼容基线、写盘前官方 `1.1.0` 精确 30 键契约和 Desktop 私有存储 roundtrip，不发起网络请求。
 
 本地 Orchestra 的真实 TLS 路径可用同一个桌面二进制验证：
 

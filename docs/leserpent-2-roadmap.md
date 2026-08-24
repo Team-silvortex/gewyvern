@@ -706,7 +706,11 @@ submission, bounded handoff polling, and phase-gated server-verified binding.
 The locally managed authority now also promotes a bound receipt into the saved
 connection catalog only after endpoint-bound trust loading, Rust-compatible
 session-handle resolution, and live target health proof. Remote authorities do
-not export their local trust stores.
+not export their local trust stores. Promotion deliberately does not perform
+global CA collection: Hub lifecycle owns the complete saved-daemon plus Local
+Orchestra retention set. Its bounded CA store validates retained fingerprints,
+canonical bytes, and the complete directory snapshot before any stale entry is
+deleted, so malformed or over-budget state cannot cause a partial prune.
 
 The post-session runtime path now has a separate domain/protocol foundation rather
 than overloading `runtime.deploy`. `runtime.provision` models confirmed native
@@ -2211,7 +2215,11 @@ and all 48 locale-step minimum layouts. Desktop and Web preserve the same 18-key
 artifacts now carry an exact 30-key set, adding language-selection, pack-center,
 and theme copy without invalidating legacy packs. The bounded desktop decoder
 fences official metadata and built-in replacement, supports SHA-256 catalog
-binding, atomically persists private files, isolates malformed siblings, and
+binding, separates 18-key manual compatibility imports from official catalog
+installs, and checks the current official version and exact key set before any
+directory creation or atomic replacement. Artifacts rejected by that official
+contract leave no store on first install; rejected upgrades preserve the prior
+pack and leave no temporary file. It isolates malformed siblings and
 caps directory enumeration while reading picker streams asynchronously. It
 overlays only mapped presentation keys before English fallback. The native
 window now selects either local Orchestra or a saved daemon as its catalog

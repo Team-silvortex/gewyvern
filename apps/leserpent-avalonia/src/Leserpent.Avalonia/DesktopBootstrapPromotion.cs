@@ -76,11 +76,6 @@ internal sealed class DesktopBootstrapPromotion(
             }
             throw;
         }
-        certificateStore.PruneExcept(
-            catalogStore.Load().Connections.Select(item =>
-                DesktopProductStartup.ResolveCertificateAuthorityPath(
-                    item.Profile,
-                    certificateStore)));
         return connection;
     }
 
@@ -115,6 +110,8 @@ internal sealed class DesktopBootstrapPromotion(
             var catalog = new DesktopConnectionCatalogStore(catalogPath);
             var certificates = new DesktopCertificateAuthorityStore(
                 Path.Combine(root, "managed-trust"));
+            var unrelatedAuthority = certificates.ImportPem(
+                CreateCertificateAuthorityPem());
             var vault = new VerificationTokenVault();
             var healthProofs = 0;
             var promotion = new DesktopBootstrapPromotion(
@@ -147,6 +144,7 @@ internal sealed class DesktopBootstrapPromotion(
                 || saved != promoted
                 || saved.Profile.BootstrapTrustRoot != trustRoot
                 || saved.Profile.BootstrapTrustHandle != trustHandle
+                || !File.Exists(unrelatedAuthority)
                 || File.ReadAllText(catalogPath).Contains(
                     new string('s', 32),
                     StringComparison.Ordinal))

@@ -1,14 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://gewyvern.dev/schemas/project-status-tensor-v1.json",
+  "$id": "https://gewyvern.dev/schemas/project-status-tensor-v3.json",
   "title": "Gewyvern Project Status Tensor",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "project", "checkpoint", "dimensions", "coverage_requirements", "cells"],
+  "required": ["schema_version", "project", "checkpoint", "calibration", "dimensions", "coverage_requirements", "cells"],
   "properties": {
-    "schema_version": { "const": 2 },
+    "schema_version": { "const": 3 },
     "project": { "type": "string", "minLength": 1 },
     "checkpoint": { "type": "string", "minLength": 1 },
+    "calibration": { "$ref": "#/$defs/calibration" },
     "dimensions": {
       "type": "object",
       "additionalProperties": false,
@@ -33,6 +34,18 @@
     "identifier": {
       "type": "string",
       "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "calibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "as_of"],
+      "properties": {
+        "model": { "const": "priority-weighted-strength-v1" },
+        "as_of": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        }
+      }
     },
     "dimension": {
       "type": "array",
@@ -75,6 +88,7 @@
         "module",
         "feature",
         "lifecycle",
+        "priority",
         "maturity",
         "completion",
         "confidence",
@@ -96,6 +110,9 @@
         "feature": { "$ref": "#/$defs/identifier" },
         "lifecycle": {
           "enum": ["current", "bridge", "target", "retired"]
+        },
+        "priority": {
+          "enum": ["critical", "active", "maintenance", "deferred"]
         },
         "maturity": {
           "enum": [

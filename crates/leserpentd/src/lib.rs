@@ -48,7 +48,7 @@ mod ipc;
 mod provisioning_submission;
 mod retirement_submission;
 #[cfg(unix)]
-pub use ipc::IpcServer;
+pub use ipc::{IpcServer, MAX_IPC_SOCKET_PATH_BYTES};
 mod remote;
 pub use remote::{RemoteServer, load_remote_token_file};
 mod events;

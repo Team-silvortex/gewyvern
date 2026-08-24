@@ -3,7 +3,8 @@ use std::path::PathBuf;
 use std::process;
 
 use gewyvern::project_status::{
-    Independence, Lifecycle, Maturity, StatusCatalog, StatusCellView, default_catalog_path,
+    Independence, Lifecycle, Maturity, Priority, StatusCatalog, StatusCellView,
+    default_catalog_path,
 };
 
 fn main() {
@@ -58,17 +59,25 @@ fn run(args: Vec<String>) -> Result<String, String> {
 
     let mut cells = catalog.views();
     cells.retain(|cell| match options.command {
-        Command::Weakest => true,
+        Command::Weakest => cell.priority != Priority::Deferred,
         Command::Mature => cell.maturity == Maturity::Mature,
         Command::Standalone => {
-            cell.independence != Independence::Internal
+            cell.priority != Priority::Deferred
+                && cell.independence != Independence::Internal
                 && cell.maturity >= Maturity::Stabilizing
                 && !matches!(cell.maturity, Maturity::Blocked | Maturity::Deprecated)
         }
-        Command::Developing => matches!(
-            cell.maturity,
-            Maturity::Incubating | Maturity::Developing | Maturity::Stabilizing | Maturity::Blocked
-        ),
+        Command::Developing => {
+            cell.priority != Priority::Deferred
+                && matches!(
+                    cell.maturity,
+                    Maturity::Incubating
+                        | Maturity::Developing
+                        | Maturity::Stabilizing
+                        | Maturity::Blocked
+                )
+        }
+        Command::Deferred => cell.priority == Priority::Deferred,
         Command::Summary | Command::Validate | Command::Help => unreachable!(),
     });
     if let Some(architecture) = options.architecture.as_deref() {
@@ -86,7 +95,13 @@ fn run(args: Vec<String>) -> Result<String, String> {
     if let Some(maturity) = options.maturity {
         cells.retain(|cell| cell.maturity == maturity);
     }
-    if options.command == Command::Weakest || options.command == Command::Developing {
+    if let Some(priority) = options.priority {
+        cells.retain(|cell| cell.priority == priority);
+    }
+    if matches!(
+        options.command,
+        Command::Weakest | Command::Developing | Command::Deferred
+    ) {
         cells.sort_by_key(|cell| (cell.score, cell.id.clone()));
     } else {
         cells.sort_by_key(|cell| (std::cmp::Reverse(cell.score), cell.id.clone()));
@@ -102,11 +117,18 @@ fn run(args: Vec<String>) -> Result<String, String> {
 
 fn render_summary(summary: &gewyvern::project_status::StatusSummary) -> String {
     let mut output = format!(
-        "{} status tensor\ncheckpoint: {}\noverall: {}/100 across {} cells\ncoverage: {} requirements across {} architectures (ownership={} gates={} proof={})\n\n",
+        "{} status tensor\ncheckpoint: {}\ncalibration: {} as-of {}\ndelivery: strength={}/100 completion={}/100 across {} active cells\nportfolio: strength={}/100 completion={}/100 across {} cells (deferred={})\ncoverage: {} requirements across {} architectures (ownership={} gates={} proof={})\n\n",
         summary.project,
         summary.checkpoint,
+        summary.calibration.model,
+        summary.calibration.as_of,
         summary.overall_score,
+        summary.delivery_completion,
+        summary.cell_count - summary.deferred_cell_count,
+        summary.portfolio_score,
+        summary.portfolio_completion,
         summary.cell_count,
+        summary.deferred_cell_count,
         summary.coverage.requirement_count,
         summary.coverage.architecture_count,
         summary.coverage.ownership_boundary_count,
@@ -116,22 +138,37 @@ fn render_summary(summary: &gewyvern::project_status::StatusSummary) -> String {
     output.push_str("lifecycles:\n");
     for group in &summary.lifecycles {
         output.push_str(&format!(
-            "- {} score={}/100 completion={} cells={} weakest={}\n",
-            group.label, group.score, group.completion, group.cell_count, group.weakest_cell
+            "- {} score={}/100 completion={} active={}/{} weakest={}\n",
+            group.label,
+            group.score,
+            group.completion,
+            group.active_cell_count,
+            group.cell_count,
+            group.weakest_cell
         ));
     }
     output.push_str("\narchitectures:\n");
     for group in &summary.architectures {
         output.push_str(&format!(
-            "- {} score={}/100 completion={} cells={} weakest={}\n",
-            group.label, group.score, group.completion, group.cell_count, group.weakest_cell
+            "- {} score={}/100 completion={} active={}/{} weakest={}\n",
+            group.label,
+            group.score,
+            group.completion,
+            group.active_cell_count,
+            group.cell_count,
+            group.weakest_cell
         ));
     }
     output.push_str("\nmodules:\n");
     for group in &summary.modules {
         output.push_str(&format!(
-            "- {} score={}/100 completion={} cells={} weakest={}\n",
-            group.label, group.score, group.completion, group.cell_count, group.weakest_cell
+            "- {} score={}/100 completion={} active={}/{} weakest={}\n",
+            group.label,
+            group.score,
+            group.completion,
+            group.active_cell_count,
+            group.cell_count,
+            group.weakest_cell
         ));
     }
     output.push_str("\nweakest:\n");
@@ -140,6 +177,8 @@ fn render_summary(summary: &gewyvern::project_status::StatusSummary) -> String {
     output.push_str(&render_cells(&summary.independently_usable));
     output.push_str("\nin development:\n");
     output.push_str(&render_cells(&summary.in_development));
+    output.push_str("\ndeferred:\n");
+    output.push_str(&render_cells(&summary.deferred));
     output.trim_end().to_string()
 }
 
@@ -151,9 +190,10 @@ fn render_cells(cells: &[StatusCellView]) -> String {
         .iter()
         .map(|cell| {
             format!(
-                "- {} score={}/100 maturity={:?} completion={} confidence={:?} independence={:?} contract={}@{} blockers={} next={}",
+                "- {} score={}/100 priority={:?} maturity={:?} completion={} confidence={:?} independence={:?} contract={}@{} blockers={} next={}",
                 cell.id,
                 cell.score,
+                cell.priority,
                 cell.maturity,
                 cell.completion,
                 cell.confidence,
@@ -177,6 +217,7 @@ enum Command {
     Mature,
     Standalone,
     Developing,
+    Deferred,
     Help,
 }
 
@@ -190,6 +231,7 @@ struct Options {
     feature: Option<String>,
     lifecycle: Option<Lifecycle>,
     maturity: Option<Maturity>,
+    priority: Option<Priority>,
     repository_root: PathBuf,
 }
 
@@ -204,6 +246,7 @@ impl Options {
         let mut feature = None;
         let mut lifecycle = None;
         let mut maturity = None;
+        let mut priority = None;
         let mut repository_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let mut index = 0usize;
         while index < args.len() {
@@ -214,6 +257,7 @@ impl Options {
                 "mature" => command = Command::Mature,
                 "standalone" => command = Command::Standalone,
                 "developing" => command = Command::Developing,
+                "deferred" => command = Command::Deferred,
                 "--json" => json = true,
                 "--catalog" => {
                     index += 1;
@@ -271,6 +315,13 @@ impl Options {
                             .ok_or_else(|| "--maturity requires a value".to_string())?,
                     )?);
                 }
+                "--priority" => {
+                    index += 1;
+                    priority = Some(parse_priority(
+                        args.get(index)
+                            .ok_or_else(|| "--priority requires a value".to_string())?,
+                    )?);
+                }
                 "--root" => {
                     index += 1;
                     repository_root = PathBuf::from(
@@ -293,13 +344,14 @@ impl Options {
             feature,
             lifecycle,
             maturity,
+            priority,
             repository_root,
         })
     }
 }
 
 fn usage() -> &'static str {
-    "usage: gewyvern_status [summary|validate|weakest|mature|standalone|developing] [--json] [--limit N] [--architecture ID] [--module ID] [--feature ID] [--lifecycle current|bridge|target|retired] [--maturity planned|incubating|developing|stabilizing|mature|deprecated|blocked] [--catalog PATH] [--root PATH]"
+    "usage: gewyvern_status [summary|validate|weakest|mature|standalone|developing|deferred] [--json] [--limit N] [--architecture ID] [--module ID] [--feature ID] [--lifecycle current|bridge|target|retired] [--priority critical|active|maintenance|deferred] [--maturity planned|incubating|developing|stabilizing|mature|deprecated|blocked] [--catalog PATH] [--root PATH]"
 }
 
 fn parse_lifecycle(value: &str) -> Result<Lifecycle, String> {
@@ -322,5 +374,15 @@ fn parse_maturity(value: &str) -> Result<Maturity, String> {
         "deprecated" => Ok(Maturity::Deprecated),
         "blocked" => Ok(Maturity::Blocked),
         _ => Err(format!("unknown maturity '{value}'")),
+    }
+}
+
+fn parse_priority(value: &str) -> Result<Priority, String> {
+    match value {
+        "critical" => Ok(Priority::Critical),
+        "active" => Ok(Priority::Active),
+        "maintenance" => Ok(Priority::Maintenance),
+        "deferred" => Ok(Priority::Deferred),
+        _ => Err(format!("unknown priority '{value}'")),
     }
 }

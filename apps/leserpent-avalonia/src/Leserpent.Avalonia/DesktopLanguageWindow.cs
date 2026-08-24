@@ -545,11 +545,12 @@ internal sealed class DesktopLanguageWindow : Window
                 throw new InvalidDataException(
                     "language-pack download did not match its selected source and locale");
             }
-            var installed = localization.InstallLanguagePack(
+            var installed = localization.InstallCatalogLanguagePack(
                 downloaded.Payload,
                 downloaded.Sha256,
                 downloaded.Locale,
-                downloaded.Version);
+                downloaded.Version,
+                lifetime.Token);
             SelectLocale(installed.Manifest.Locale);
             SetStatus(
                 localization.Format(

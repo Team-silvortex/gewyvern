@@ -41,6 +41,7 @@ use crate::wire::{
 const MAX_IPC_FRAME_BYTES: usize = MAX_PROTOCOL_MESSAGE_BYTES + 1024;
 const IPC_FRAME_READ_TIMEOUT: Duration = Duration::from_secs(2);
 const IPC_FRAME_READ_POLL_INTERVAL: Duration = Duration::from_millis(100);
+pub const MAX_IPC_SOCKET_PATH_BYTES: usize = 100;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -90,7 +91,7 @@ impl IpcServer {
     pub fn bind(path: impl AsRef<Path>, token: &str) -> Result<Self, String> {
         validate_auth_token(token).map_err(|error| format!("IPC {error}"))?;
         let path = path.as_ref();
-        if path.as_os_str().len() > 100 {
+        if path.as_os_str().len() > MAX_IPC_SOCKET_PATH_BYTES {
             return Err("IPC socket path is too long".into());
         }
         if let Some(parent) = path.parent() {

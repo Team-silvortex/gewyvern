@@ -97,12 +97,11 @@ internal static class SavedDaemonLanguagePackVerifier
         using (var client = new DesktopLanguagePackCatalogClient(source))
         {
             download = client.DownloadAsync("pt-BR").GetAwaiter().GetResult();
-            var installed = languagePackStore.Install(
+            var installed = languagePackStore.InstallCatalogArtifact(
                 download.Payload,
                 download.Sha256,
                 download.Locale,
                 download.Version);
-            DesktopLanguagePackStore.VerifyOfficialArtifact(installed);
             var snapshot = languagePackStore.LoadAll();
             if (download.SourceId != selected.DaemonId
                 || installed.Manifest.Locale != "pt-BR"
