@@ -132,12 +132,14 @@ use the managed registration path.
 
 With daemon IPC configured, `/v1/runtimes`, `/v1/runtimes/{id}`, and
 `/v1/runtimes/{id}/status` read identity, endpoint, tags, status, and observed
-capability facts from the daemon. The managed store supplies only legacy
-timestamps, sidecar metadata, and token-presence booleans. Managed-only entries
-remain readable during migration; daemon-only entries fail with a typed gateway
-error until compatibility metadata is explicitly reconciled. Attention,
-cleanup, protocol-reading, and recovery still use managed lookups in this
-transition and are not yet evidence that the overlay can be deleted.
+capability facts from the daemon. The managed store supplies only the bounded
+compatibility metadata that has not crossed the Rust contract. Runtime presence
+also comes from the daemon: managed-only entries are omitted and detail reads
+return `runtime_not_found`; daemon-only entries fail with a typed gateway error
+until compatibility metadata is explicitly reconciled. Attention,
+protocol-reading, recovery, and sidecar reads share the same projection, while
+remaining aggregate and persistence views still need explicit cutover evidence
+before the overlay can be deleted.
 
 ## Security Model
 

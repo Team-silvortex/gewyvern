@@ -884,9 +884,11 @@ and strict Web read projection. Runtime registration and update timestamps now
 come from the journal record that durably represents each accepted mutation. They
 survive snapshots and replay, remain unchanged on idempotent replay, and never
 enter frozen command outcomes. Legacy snapshots without authority timestamps
-retain a per-field managed fallback instead of inventing epoch history.
-Managed-only legacy entries remain readable; daemon-only entries fail closed
-rather than receiving fabricated compatibility metadata. Attention, cleanup,
+retain a per-field managed fallback instead of inventing epoch history. Once
+daemon IPC is configured, runtime presence is daemon-authoritative:
+managed-only legacy entries are omitted and detail reads return not found.
+Daemon-only entries fail closed rather than receiving fabricated compatibility
+metadata. Attention, cleanup,
 protocol-reading, and recovery reads now use the shared read projection for
 authoritative identity, endpoints, timestamps, tags, status, and capabilities.
 Sidecar status, including its bounded memory-slot summary, now follows the same

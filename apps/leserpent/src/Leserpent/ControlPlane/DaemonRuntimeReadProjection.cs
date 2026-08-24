@@ -44,23 +44,20 @@ public sealed class RuntimeReadProjectionService(
         RuntimeListFilter filter,
         CancellationToken cancellationToken)
     {
-        var managed = registry.ListRuntimes(filter);
         if (!daemon.Enabled)
         {
-            return managed;
+            return registry.ListRuntimes(filter);
         }
         var managedById = registry.ListRuntimes()
             .ToDictionary(runtime => runtime.RuntimeId, StringComparer.Ordinal);
-        var authoritativeAll = await daemon.ListAsync(
-            new RuntimeListFilter(null, null, null),
-            cancellationToken);
-        var authoritativeIds = authoritativeAll
-            .Select(runtime => runtime.RuntimeId)
-            .ToHashSet(StringComparer.Ordinal);
-        var authoritative = authoritativeAll.Where(runtime => MatchesFilter(runtime.Tags, filter));
-        var projected = new List<RuntimeSummary>(authoritativeAll.Count + managed.Count);
+        var authoritative = await daemon.ListAsync(filter, cancellationToken);
+        var projected = new List<RuntimeSummary>(authoritative.Count);
         foreach (var runtime in authoritative)
         {
+            if (!MatchesFilter(runtime.Tags, filter))
+            {
+                continue;
+            }
             if (!managedById.TryGetValue(runtime.RuntimeId, out var compatibility))
             {
                 throw new DaemonRuntimeProjectionException(
@@ -69,7 +66,6 @@ public sealed class RuntimeReadProjectionService(
             }
             projected.Add(Merge(runtime, compatibility));
         }
-        projected.AddRange(managed.Where(runtime => !authoritativeIds.Contains(runtime.RuntimeId)));
         return projected
             .OrderBy(runtime => runtime.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(runtime => runtime.RuntimeId, StringComparer.Ordinal)
@@ -80,20 +76,20 @@ public sealed class RuntimeReadProjectionService(
         string runtimeId,
         CancellationToken cancellationToken)
     {
-        var managed = registry.GetRuntime(runtimeId);
         if (!daemon.Enabled)
         {
-            return managed;
+            return registry.GetRuntime(runtimeId);
         }
         if (!ValidRuntimeId(runtimeId))
         {
-            return managed;
+            return null;
         }
         var authoritative = await daemon.InspectAsync(runtimeId, cancellationToken);
         if (authoritative is null)
         {
-            return managed;
+            return null;
         }
+        var managed = registry.GetRuntime(runtimeId);
         if (managed is null)
         {
             throw new DaemonRuntimeProjectionException(

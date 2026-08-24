@@ -117,7 +117,7 @@ public sealed class RuntimeReadProjectionTests
     }
 
     [Fact]
-    public async Task UnconfiguredOrManagedOnlyRuntimeRetainsManagedFallback()
+    public async Task UnconfiguredRuntimeRetainsFallbackButConfiguredDaemonOwnsPresence()
     {
         var (registry, statePath) = CreateRegistry();
         try
@@ -131,13 +131,19 @@ public sealed class RuntimeReadProjectionTests
             Assert.Equal(
                 registered.RuntimeId,
                 (await disabled.InspectAsync("runtime-managed", CancellationToken.None))?.RuntimeId);
+            Assert.Single(await disabled.ListAsync(
+                new RuntimeListFilter(null, null, null),
+                CancellationToken.None));
 
-            var transitional = new RuntimeReadProjectionService(
+            var authoritative = new RuntimeReadProjectionService(
                 registry,
                 new FakeDaemonReader(true, Array.Empty<DaemonRuntimeProjection>()));
-            Assert.Equal(
-                registered.RuntimeId,
-                (await transitional.InspectAsync("runtime-managed", CancellationToken.None))?.RuntimeId);
+            Assert.Null(await authoritative.InspectAsync(
+                "runtime-managed",
+                CancellationToken.None));
+            Assert.Empty(await authoritative.ListAsync(
+                new RuntimeListFilter(null, null, null),
+                CancellationToken.None));
         }
         finally
         {
@@ -193,6 +199,12 @@ public sealed class RuntimeReadProjectionTests
             var error = await Assert.ThrowsAsync<DaemonRuntimeProjectionException>(() =>
                 reads.InspectAsync("runtime-orphan", CancellationToken.None));
             Assert.Equal("daemon_projection_unmapped", error.Code);
+
+            var listError = await Assert.ThrowsAsync<DaemonRuntimeProjectionException>(() =>
+                reads.ListAsync(
+                    new RuntimeListFilter(null, null, null),
+                    CancellationToken.None));
+            Assert.Equal("daemon_projection_unmapped", listError.Code);
         }
         finally
         {

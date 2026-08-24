@@ -5603,7 +5603,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.49.3");
+    assert_eq!(compatibility_control.contract.version, "1.49.4");
+    assert!(
+        compatibility_control
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "daemon-authoritative-runtime-presence")
+    );
     assert!(
         compatibility_control
             .contract
@@ -6065,7 +6072,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.49.3");
+    assert_eq!(compatibility_control.contract.version, "1.49.4");
     assert!(
         compatibility_control
             .next_gate

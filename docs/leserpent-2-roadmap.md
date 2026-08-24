@@ -932,10 +932,11 @@ Orchestra recovery compose their available observations into daemon authority
 before writing compatibility copies. The shared runtime-status validator covers
 both direct intake and scheduler completion. Legacy snapshots without authority
 timestamps or sidecar status retain per-field managed fallbacks, while
-token-presence and fetch-only compatibility telemetry stay local.
-Managed-only runtimes stay
-visible until their next registration reconcile, while a daemon-only runtime
-fails closed because the adapter cannot safely invent the missing 1.x metadata.
+token-presence and fetch-only compatibility telemetry stay local. Daemon
+configuration is now an explicit read-authority cutover: managed-only runtimes
+are omitted from lists and return `runtime_not_found` from detail reads. A
+daemon-only runtime still fails closed because the adapter cannot safely invent
+the missing 1.x metadata.
 Unknown projection fields, including secret-shaped fields, are rejected. The
 current slice now moves attention, protocol-reading, recovery, and sidecar reads
 onto this shared projection. Cleanup and generic unregistration now have an
