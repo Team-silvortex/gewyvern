@@ -902,8 +902,15 @@ capabilities differ from their managed compatibility copies. Per-runtime run
 and event history reads first validate daemon membership, then read the durable
 Orchestra store. History persistence, local credentials, recovery activity,
 and the post-session removal race check remain managed effect boundaries; they
-do not redefine runtime authority. The cleanup-plan is the remaining read-only
-runtime-membership view scheduled for projection cutover.
+do not redefine runtime authority. Cleanup-plan display and delete execution
+now share the daemon-authoritative runtime projection. Its v2 token binds the
+selected runtime IDs plus every managed session ID that would be removed.
+Reservation rechecks both sets under the same lock used by session creation and
+before writing a durable deletion intent; an empty target set returns without
+an authority mutation. Session and persistence-history reads remain managed
+history views. Deployment and refresh effects are the next migration boundary:
+their execution context must compose daemon-owned endpoint identity with local
+credential handles without moving secrets into the projection.
 Sidecar status, including its bounded memory-slot summary, now follows the same
 revision-fenced journal and strict read projection. Registration, individual
 refresh, recovery, Fleet refresh, and Orchestra recovery all compose available

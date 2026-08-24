@@ -238,66 +238,62 @@ public sealed partial class RegistryService
         RuntimeCleanupRequest request)
     {
         var plan = GetRuntimeCleanupPlan(filter);
-        var action = kind switch
-        {
-            RuntimeCleanupPolicy.FailedKind => plan.Failed,
-            RuntimeCleanupPolicy.UnobservedKind => plan.Unobserved,
-            RuntimeCleanupPolicy.SliceKind => plan.Slice,
-            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "unknown runtime cleanup kind"),
-        };
-        if (string.IsNullOrWhiteSpace(request.PlanToken) ||
-            !string.Equals(request.PlanToken, action.PlanToken, StringComparison.Ordinal))
-        {
-            throw new RuntimeCleanupPlanMismatchException(
-                "runtime cleanup plan changed; review the current targets before retrying");
-        }
-        if (action.Challenge is not null &&
-            !string.Equals(request.Challenge?.Trim(), action.Challenge, StringComparison.Ordinal))
-        {
-            throw new RuntimeCleanupPlanMismatchException(
-                "runtime cleanup challenge does not match the current plan");
-        }
+        var action = RuntimeCleanupPolicy.RequireMatchingAction(plan, kind, request);
         return action.Targets.Select(target => target.RuntimeId).ToArray();
     }
 
     public RuntimeDeletionReservation ReserveRuntimeDeletion(
         IReadOnlyCollection<string> runtimeIds,
-        bool requireAllTargets = false)
+        bool requireAllTargets = false,
+        IReadOnlyCollection<string>? expectedSessionIds = null)
     {
         RequireControlPlaneWriter();
         var requestedTargets = runtimeIds
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(static runtimeId => runtimeId, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        var targets = requestedTargets
-            .Where(runtimes.ContainsKey)
-            .ToArray();
-        if (requireAllTargets && targets.Length != requestedTargets.Length)
-        {
-            throw new RuntimeCleanupPlanMismatchException(
-                "runtime cleanup targets changed before deletion reservation");
-        }
-        if (targets.Length == 0)
-        {
-            return new RuntimeDeletionReservation(
-                this,
-                string.Empty,
-                string.Empty,
-                targets,
-                string.Empty,
-                null,
-                false);
-        }
-
         lock (orchestraRunSync)
         {
+            var targets = requestedTargets
+                .Where(runtimes.ContainsKey)
+                .ToArray();
+            if (requireAllTargets && targets.Length != requestedTargets.Length)
+            {
+                throw new RuntimeCleanupPlanMismatchException(
+                    "runtime cleanup targets changed before deletion reservation");
+            }
+            if (targets.Length == 0)
+            {
+                return new RuntimeDeletionReservation(
+                    this,
+                    string.Empty,
+                    string.Empty,
+                    targets,
+                    string.Empty,
+                    null,
+                    false);
+            }
+
+            var targetSet = targets.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (expectedSessionIds is not null)
+            {
+                var currentSessionIds = sessions.Values
+                    .Where(session => targetSet.Contains(session.RuntimeId))
+                    .Select(session => session.SessionId)
+                    .ToHashSet(StringComparer.Ordinal);
+                if (!currentSessionIds.SetEquals(expectedSessionIds))
+                {
+                    throw new RuntimeCleanupPlanMismatchException(
+                        "runtime cleanup sessions changed before deletion reservation");
+                }
+            }
+
             var activeRuns = FindActiveOrchestraRuns(targets);
             if (activeRuns.Count > 0)
             {
                 throw new OrchestraRuntimeBusyException(activeRuns);
             }
 
-            var targetSet = targets.ToHashSet(StringComparer.OrdinalIgnoreCase);
             var overlappingIntent = pendingRuntimeDeletions.Values.FirstOrDefault(intent =>
                 intent.RuntimeIds.Any(targetSet.Contains));
             if (overlappingIntent is not null)

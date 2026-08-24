@@ -145,8 +145,14 @@ Orchestra plan display, execute, retry, and session handoff rebuild plans from
 one shared authoritative runtime projection, so revision checks cannot diverge
 between GET and POST. Per-runtime run and event history reads also validate
 daemon membership before reading durable managed history. The cleanup-plan is
-the remaining read-only membership view that still needs explicit cutover
-evidence before the managed overlay can be reduced further.
+now built from the same daemon-authoritative runtime set, and each matching
+delete route validates that exact projection again. Cleanup plan tokens bind
+both runtime IDs and affected managed session IDs; deletion reservation checks
+both sets under the session-creation lock before persisting an intent. Empty
+plans complete without issuing an unregistration command. Session and
+persistence-history GETs remain managed history views. Deployment and refresh
+commands are the next boundary: they still need an explicit execution context
+that combines daemon target coordinates with local credentials.
 
 ## Security Model
 

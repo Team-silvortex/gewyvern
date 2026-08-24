@@ -32,6 +32,45 @@ public static class RuntimeCleanupPolicy
         !(string.Equals(runtime.Status.ResilienceStatus, "idle_ready", StringComparison.OrdinalIgnoreCase) &&
           runtime.Status.ResilienceDegraded is false);
 
+    public static RuntimeCleanupActionPlan RequireMatchingAction(
+        RuntimeCleanupPlan plan,
+        string kind,
+        RuntimeCleanupRequest request)
+    {
+        var action = kind switch
+        {
+            FailedKind => plan.Failed,
+            UnobservedKind => plan.Unobserved,
+            SliceKind => plan.Slice,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "unknown runtime cleanup kind"),
+        };
+        if (string.IsNullOrWhiteSpace(request.PlanToken) ||
+            !string.Equals(request.PlanToken, action.PlanToken, StringComparison.Ordinal))
+        {
+            throw new RuntimeCleanupPlanMismatchException(
+                "runtime cleanup plan changed; review the current targets before retrying");
+        }
+        if (action.Challenge is not null &&
+            !string.Equals(request.Challenge?.Trim(), action.Challenge, StringComparison.Ordinal))
+        {
+            throw new RuntimeCleanupPlanMismatchException(
+                "runtime cleanup challenge does not match the current plan");
+        }
+        return action;
+    }
+
+    internal static IReadOnlyList<string> GetAffectedSessionIds(
+        IReadOnlyCollection<string> runtimeIds,
+        IReadOnlyList<SessionSummary> sessions)
+    {
+        var targetIds = runtimeIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return sessions
+            .Where(session => targetIds.Contains(session.RuntimeId))
+            .Select(session => session.SessionId)
+            .OrderBy(static sessionId => sessionId, StringComparer.Ordinal)
+            .ToArray();
+    }
+
     private static RuntimeCleanupActionPlan BuildAction(
         string kind,
         RuntimeListFilter filter,
@@ -43,19 +82,28 @@ public static class RuntimeCleanupPolicy
             .OrderBy(runtime => runtime.RuntimeId, StringComparer.OrdinalIgnoreCase)
             .Select(runtime => new RuntimeCleanupTarget(runtime.RuntimeId, runtime.Name))
             .ToArray();
-        var targetIds = targets.Select(target => target.RuntimeId).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var sessionCount = sessions.Count(session => targetIds.Contains(session.RuntimeId));
+        var affectedSessionIds = GetAffectedSessionIds(
+            targets.Select(target => target.RuntimeId).ToArray(),
+            sessions);
         string[] canonicalParts =
         [
+            "runtime-cleanup-plan-v2",
             kind,
             filter.Environment?.Trim() ?? string.Empty,
             filter.Cluster?.Trim() ?? string.Empty,
             filter.Role?.Trim() ?? string.Empty,
-            .. targets.Select(target => target.RuntimeId.ToLowerInvariant()),
+            .. targets.Select(target => $"runtime:{target.RuntimeId.ToLowerInvariant()}"),
+            .. affectedSessionIds.Select(sessionId => $"session:{sessionId.ToLowerInvariant()}"),
         ];
         var canonical = string.Join('\n', canonicalParts);
         var token = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
-        return new RuntimeCleanupActionPlan(kind, targets.Length, sessionCount, targets, token, challenge);
+        return new RuntimeCleanupActionPlan(
+            kind,
+            targets.Length,
+            affectedSessionIds.Count,
+            targets,
+            token,
+            challenge);
     }
 
     private static bool IsProtected(RuntimeListFilter filter) =>

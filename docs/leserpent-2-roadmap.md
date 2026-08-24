@@ -948,7 +948,13 @@ sidecar status participates in attention classification. Orchestra plan GET,
 execute, retry, and session handoff share one authoritative plan projection, so
 the displayed revision is the revision validated by the command path.
 Per-runtime Orchestra history GETs authority-check membership before reading
-durable history; the cleanup-plan remains the next read-only membership cutover.
+durable history. Cleanup-plan GET and all matching delete routes now build from
+the same daemon-authoritative runtime projection. Plan-token v2 also binds the
+managed session IDs that would be removed, and deletion reservation atomically
+rechecks target and session membership before persisting an intent. Empty plans
+do not issue authority mutations. The next cutover is an explicit command
+execution context that combines daemon-owned target coordinates with managed
+credentials for deployment and refresh effects.
 Cleanup and generic
 unregistration now have an
 explicit confirmed result contract: a daemon schema-v14 transaction fences all

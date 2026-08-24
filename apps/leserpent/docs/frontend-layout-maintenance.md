@@ -46,10 +46,12 @@ the control-plane-owned `GET /v1/runtimes/cleanup-plan` response for:
 - the clear-slice challenge
 - a plan token that rejects stale confirmations
 
-The matching delete request sends the plan token to the control plane. A changed
-target set returns `409 runtime_cleanup_plan_changed`; the dashboard reloads the
-fleet before the operator confirms again. In particular, `idle_ready` runtimes
-are not unobserved-cleanup targets even when they have no latest snapshot.
+The matching delete request sends the plan token to the control plane. The
+daemon owns target membership, while managed session IDs are included in the
+token as explicit cascade impact. A changed target or session set returns `409
+runtime_cleanup_plan_changed`; the dashboard reloads the fleet before the
+operator confirms again. In particular, `idle_ready` runtimes are not
+unobserved-cleanup targets even when they have no latest snapshot.
 
 Keep presentation-only state such as open panes, local windows, focus, and theme
 in TypeScript. Move target selection, authorization, revisions, risk levels, and

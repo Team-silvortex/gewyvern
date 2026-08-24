@@ -36,10 +36,22 @@ public partial class Program
             }
         });
 
-        app.MapGet("/v1/runtimes/cleanup-plan", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
+        app.MapGet("/v1/runtimes/cleanup-plan", async Task<IResult> (
+            [FromQuery(Name = "environment")] string? environmentTag,
+            string? cluster,
+            string? role,
+            RuntimeCleanupProjectionService cleanupReads,
+            CancellationToken cancellationToken) =>
         {
             var filter = new RuntimeListFilter(environmentTag, cluster, role);
-            return Results.Ok(registry.GetRuntimeCleanupPlan(filter));
+            try
+            {
+                return Results.Ok(await cleanupReads.ReadAsync(filter, cancellationToken));
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex);
+            }
         });
 
         app.MapPost("/v1/runtimes/registration-plan", async Task<IResult> (
@@ -671,6 +683,7 @@ public partial class Program
             string? role,
             RuntimeCleanupRequest request,
             RegistryService registry,
+            RuntimeCleanupProjectionService cleanupReads,
             IRuntimeRegistrationAuthority registrationAuthority,
             CancellationToken cancellationToken) =>
             ExecuteRuntimeCleanupAsync(
@@ -678,6 +691,7 @@ public partial class Program
                 new RuntimeListFilter(environmentTag, cluster, role),
                 request,
                 registry,
+                cleanupReads,
                 registrationAuthority,
                 cancellationToken));
 
@@ -687,6 +701,7 @@ public partial class Program
             string? role,
             RuntimeCleanupRequest request,
             RegistryService registry,
+            RuntimeCleanupProjectionService cleanupReads,
             IRuntimeRegistrationAuthority registrationAuthority,
             CancellationToken cancellationToken) =>
             ExecuteRuntimeCleanupAsync(
@@ -694,6 +709,7 @@ public partial class Program
                 new RuntimeListFilter(environmentTag, cluster, role),
                 request,
                 registry,
+                cleanupReads,
                 registrationAuthority,
                 cancellationToken));
 
@@ -703,6 +719,7 @@ public partial class Program
             string? role,
             RuntimeCleanupRequest request,
             RegistryService registry,
+            RuntimeCleanupProjectionService cleanupReads,
             IRuntimeRegistrationAuthority registrationAuthority,
             CancellationToken cancellationToken) =>
             ExecuteRuntimeCleanupAsync(
@@ -710,24 +727,40 @@ public partial class Program
                 new RuntimeListFilter(environmentTag, cluster, role),
                 request,
                 registry,
+                cleanupReads,
                 registrationAuthority,
                 cancellationToken));
     }
 
-    private static async Task<IResult> ExecuteRuntimeCleanupAsync(
+    internal static async Task<IResult> ExecuteRuntimeCleanupAsync(
         string kind,
         RuntimeListFilter filter,
         RuntimeCleanupRequest request,
         RegistryService registry,
+        RuntimeCleanupProjectionService cleanupReads,
         IRuntimeRegistrationAuthority registrationAuthority,
         CancellationToken cancellationToken)
     {
         try
         {
-            var targetIds = registry.GetPlannedRuntimeCleanupTargetIds(kind, filter, request);
+            var selection = await cleanupReads.SelectAsync(
+                kind,
+                filter,
+                request,
+                cancellationToken);
+            if (selection.RuntimeIds.Count == 0)
+            {
+                return Results.Ok(new RuntimeBulkDeleteResponse(
+                    true,
+                    filter,
+                    0,
+                    0,
+                    Array.Empty<string>()));
+            }
             using var reservation = registry.ReserveRuntimeDeletion(
-                targetIds,
-                requireAllTargets: true);
+                selection.RuntimeIds,
+                requireAllTargets: true,
+                expectedSessionIds: selection.SessionIds);
             await RuntimeDeletionAuthorityWorkflow.ExecuteAsync(
                 registry,
                 reservation,
@@ -741,6 +774,10 @@ public partial class Program
                 deleted.RemovedRuntimeCount,
                 deleted.RemovedSessionCount,
                 deleted.RemovedRuntimeNames));
+        }
+        catch (DaemonRuntimeProjectionException ex)
+        {
+            return RuntimeProjectionFailure(ex);
         }
         catch (RuntimeCleanupPlanMismatchException ex)
         {

@@ -365,6 +365,108 @@ public sealed class RuntimeReadProjectionTests
     }
 
     [Fact]
+    public async Task CleanupPlansUseDaemonAuthorityAndBindManagedSessions()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "Managed Name",
+                    "https://managed.invalid",
+                    "runtime-secret",
+                    Tags: new RuntimeTags("managed", "west", "edge")),
+                "runtime-authoritative");
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "Managed Only",
+                    "https://managed-only.invalid",
+                    "runtime-secret",
+                    Tags: new RuntimeTags("daemon", "east", "edge")),
+                "runtime-managed-only");
+            var firstSession = Assert.IsType<SessionSummary>(registry.CreateSession(
+                new SessionCreateRequest(
+                    "runtime-authoritative",
+                    "diagnostic",
+                    "operator",
+                    Array.Empty<SessionCapabilityRequirement>())).Session);
+
+            var daemonRuntime = Projection("runtime-authoritative");
+            daemonRuntime = daemonRuntime with
+            {
+                Status = daemonRuntime.Status with { StatusSource = "fetch_failed" }
+            };
+            var cleanup = new RuntimeCleanupProjectionService(
+                new RuntimeReadProjectionService(
+                    registry,
+                    new FakeDaemonReader(true, new[] { daemonRuntime })),
+                registry);
+            var filter = new RuntimeListFilter("daemon", null, null);
+
+            var plan = await cleanup.ReadAsync(filter, CancellationToken.None);
+            var failedTarget = Assert.Single(plan.Failed.Targets);
+            Assert.Equal("runtime-authoritative", failedTarget.RuntimeId);
+            Assert.Equal("Daemon Name", failedTarget.Name);
+            Assert.Equal(1, plan.Failed.SessionCount);
+            Assert.Single(plan.Slice.Targets);
+            Assert.Equal("CLEAR 1", plan.Slice.Challenge);
+            Assert.DoesNotContain(
+                plan.Slice.Targets,
+                target => target.RuntimeId == "runtime-managed-only");
+
+            var selection = await cleanup.SelectAsync(
+                RuntimeCleanupPolicy.FailedKind,
+                filter,
+                new RuntimeCleanupRequest(plan.Failed.PlanToken),
+                CancellationToken.None);
+            Assert.Equal(new[] { "runtime-authoritative" }, selection.RuntimeIds);
+            Assert.Equal(new[] { firstSession.SessionId }, selection.SessionIds);
+
+            Assert.NotNull(registry.CreateSession(new SessionCreateRequest(
+                "runtime-authoritative",
+                "follow-up",
+                "operator",
+                Array.Empty<SessionCapabilityRequirement>())).Session);
+            await Assert.ThrowsAsync<RuntimeCleanupPlanMismatchException>(() =>
+                cleanup.SelectAsync(
+                    RuntimeCleanupPolicy.FailedKind,
+                    filter,
+                    new RuntimeCleanupRequest(plan.Failed.PlanToken),
+                    CancellationToken.None));
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public async Task CleanupPlansPropagateDaemonProjectionFailures()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            var cleanup = new RuntimeCleanupProjectionService(
+                new RuntimeReadProjectionService(
+                    registry,
+                    new FakeDaemonReader(
+                        true,
+                        new[] { Projection("runtime-orphan") })),
+                registry);
+
+            var error = await Assert.ThrowsAsync<DaemonRuntimeProjectionException>(() =>
+                cleanup.ReadAsync(
+                    new RuntimeListFilter(null, null, null),
+                    CancellationToken.None));
+            Assert.Equal("daemon_projection_unmapped", error.Code);
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
     public async Task LegacyDaemonProjectionRetainsManagedAuthorityTimestamps()
     {
         var (registry, statePath) = CreateRegistry();
