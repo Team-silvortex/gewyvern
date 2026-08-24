@@ -138,6 +138,55 @@ fn benchmark_reason_chain_reconstruction_8192_facts() {
     );
 }
 
+#[test]
+#[ignore = "local missing-stage export performance baseline"]
+fn benchmark_runtime_export_missing_route_7936_facts() {
+    const FLOWS: u64 = 256;
+    const PACKETS_PER_FLOW: u64 = 30;
+    const ITERATIONS: usize = 10;
+    let config = SessionConfig::for_template(udp_process_debug_template()).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    let mut id = 1;
+
+    for cookie in 1..=FLOWS {
+        session.ingest(sock_lineage_fact(
+            id,
+            cookie,
+            10_000 + cookie as u32,
+            "bench",
+        ));
+        id += 1;
+    }
+    for _ in 0..PACKETS_PER_FLOW {
+        for cookie in 1..=FLOWS {
+            session.ingest(udp_packet_fact(id, cookie, 72));
+            id += 1;
+        }
+    }
+    assert_eq!(id - 1, 7_936);
+
+    let started = Instant::now();
+    for _ in 0..ITERATIONS {
+        let export = session.export_bundle();
+        assert_eq!(export.program_flows.len(), FLOWS as usize);
+        assert_eq!(export.program_findings.len(), FLOWS as usize);
+        assert_eq!(export.module_findings.len(), FLOWS as usize);
+        assert_eq!(export.reasons.len(), FLOWS as usize);
+        assert!(export.protocol_ir.is_empty());
+        assert!(export.program_findings.iter().all(|finding| {
+            finding.cause == gewyvern::flow::ProgramFindingCause::MissingCoreStage
+        }));
+        black_box(export);
+    }
+    let elapsed = started.elapsed();
+
+    println!(
+        "benchmark_runtime_export_missing_route_7936_facts: facts={} flows={FLOWS} iterations={ITERATIONS} elapsed_ms={:.3}",
+        id - 1,
+        elapsed.as_secs_f64() * 1_000.0
+    );
+}
+
 fn concurrent_udp_reconstruction_input() -> (
     Vec<gewyvern::ledger::FactEnvelope>,
     Vec<gewyvern::flow::FlowSnapshot>,

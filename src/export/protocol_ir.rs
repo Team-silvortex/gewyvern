@@ -1,6 +1,8 @@
 use super::{ExportError, JsonValue};
 use crate::flow::{ProgramFlow, ProgramOperation};
-use crate::protocol_profiles::{ProtocolSurfaceSummary, protocol_summaries, protocol_surface};
+use crate::protocol_profiles::{
+    ProtocolSurfaceSummary, protocol_summaries, protocol_surface_from_summaries,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -25,18 +27,32 @@ pub(crate) fn infer_protocol_ir(program_flows: &[ProgramFlow]) -> Vec<ProtocolIr
         .iter()
         .filter_map(|flow| {
             let operation = operation_id(&flow.operation)?;
-            protocol_flow_has_required_phases(flow, &operation).then_some(operation)
+            protocol_flow_has_required_phases(flow, operation).then_some(operation)
         })
         .collect::<BTreeSet<_>>();
+    if operations.is_empty() {
+        return Vec::new();
+    }
+
+    let summaries = protocol_summaries();
     let mut inferred = Vec::new();
-    for summary in protocol_summaries() {
-        for entry in summary.entries {
-            let matched = operation_candidates(&summary.protocol, &entry.mode)
-                .into_iter()
-                .find(|candidate| operations.remove(candidate));
+    'protocols: for summary in &summaries {
+        for entry in &summary.entries {
+            let matched = take_matching_operation(
+                &mut operations,
+                summary.protocol.as_str(),
+                entry.mode.as_str(),
+            );
             let Some(operation) = matched else { continue };
-            if let Some(surface) = protocol_surface(&summary.protocol, &entry.mode) {
+            if let Some(surface) = protocol_surface_from_summaries(
+                &summaries,
+                summary.protocol.as_str(),
+                entry.mode.as_str(),
+            ) {
                 inferred.push(protocol_ir_from_surface(operation, surface));
+            }
+            if operations.is_empty() {
+                break 'protocols;
             }
         }
     }
@@ -196,9 +212,24 @@ fn required_protocol_ir_phases(operation: &str) -> Option<RequiredProtocolPhases
     }
 }
 
-fn operation_candidates(protocol: &str, entry: &str) -> Vec<String> {
+fn take_matching_operation(
+    operations: &mut BTreeSet<&str>,
+    protocol: &str,
+    entry: &str,
+) -> Option<String> {
     let canonical = format!("{}_{}", protocol, entry.replace('-', "_"));
-    let aliases = match (protocol, entry) {
+    if operations.remove(canonical.as_str()) {
+        return Some(canonical);
+    }
+
+    operation_aliases(protocol, entry)
+        .iter()
+        .find(|alias| operations.remove(**alias))
+        .map(|alias| (*alias).to_string())
+}
+
+fn operation_aliases(protocol: &str, entry: &str) -> &'static [&'static str] {
+    match (protocol, entry) {
         ("dns", "udp") => &["dns_lookup"][..],
         ("dns", "tcp") => &["dns_tcp_query"][..],
         ("dns", "tcp-error") => &["dns_tcp_error"][..],
@@ -250,10 +281,7 @@ fn operation_candidates(protocol: &str, entry: &str) -> Vec<String> {
         ("ldap", "sync") => &["ldap_directory_sync_session"][..],
         ("ssh", "channel") => &["ssh_channel_session"][..],
         _ => &[],
-    };
-    std::iter::once(canonical)
-        .chain(aliases.iter().map(|alias| (*alias).to_string()))
-        .collect()
+    }
 }
 
 pub(crate) fn protocol_ir_json(ir: &ProtocolIr) -> JsonValue {
@@ -345,9 +373,9 @@ fn protocol_ir_from_surface(operation: String, surface: ProtocolSurfaceSummary) 
     }
 }
 
-fn operation_id(operation: &ProgramOperation) -> Option<String> {
+fn operation_id(operation: &ProgramOperation) -> Option<&str> {
     match operation {
-        ProgramOperation::Custom(value) => Some(value.clone()),
+        ProgramOperation::Custom(value) => Some(value),
         _ => None,
     }
 }

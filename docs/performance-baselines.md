@@ -130,6 +130,17 @@ test-binary pairs reduced 10 program-flow reconstructions over 8,192 facts and
 reconstructions from `2791.941` to `76.548 ms` (`97.3%`). Runtime export shares
 the same index between both reconstruction stages.
 
+The next complete-export pass avoids scanning the protocol registry when the
+reconstructed flows use built-in operations that cannot produce protocol IR.
+Custom protocol operations still resolve against the complete registry, but now
+reuse one request-local summary snapshot for matching and surface projection.
+Finding rules also prepare shared attach/rejection evidence once, and module
+aggregation borrows grouping keys instead of cloning them twice. Ten alternating
+same-host test-binary pairs reduced 10 complete exports of 7,936 facts across 256
+process flows, each missing its required route stage, from `563.778` to
+`188.872 ms` (`66.5%`). Every export retained 256 program flows, findings,
+module findings, and reason chains; protocol IR correctly remained empty.
+
 The `2026-07-18` macOS arm64 hybrid-log reference measured the 256-entry full
 compose at `2.099 ms` p50 and `321,424` allocated bytes per iteration. The
 8-entry incremental compose-and-merge measured `0.299 ms` and `30,488` bytes,
@@ -184,6 +195,7 @@ The hot paths that matter most are:
 - `benchmark_flow_reconstruction_8192_facts`
 - `benchmark_program_flow_reconstruction_8192_facts`
 - `benchmark_reason_chain_reconstruction_8192_facts`
+- `benchmark_runtime_export_missing_route_7936_facts`
 
 For `gewylang` / `gewyc`, the first useful compiler-facing benchmark family is:
 
@@ -224,6 +236,7 @@ Current baselines:
 | `benchmark_flow_reconstruction_8192_facts` | `139.078` | 50 reconstructions of 8,192 facts across 256 flows, median of 10 optimized samples from alternating binary A/B |
 | `benchmark_program_flow_reconstruction_8192_facts` | `72.931` | 10 reconstructions of 8,192 facts across 256 flows, median of 10 optimized samples from alternating binary A/B |
 | `benchmark_reason_chain_reconstruction_8192_facts` | `76.548` | 10 reconstructions of 8,192 facts across 256 flows, median of 10 optimized samples from alternating binary A/B |
+| `benchmark_runtime_export_missing_route_7936_facts` | `188.872` | 10 complete exports, 7,936 facts, 256 missing-route process flows, median of 10 optimized samples from alternating binary A/B |
 
 ## Ubuntu Physical Host Scan-Report Check
 
@@ -271,6 +284,7 @@ bash scripts/perf/benchmark_summary.sh 3 benchmark_runtime_ingest_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_flow_reconstruction_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_program_flow_reconstruction_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_reason_chain_reconstruction_
+bash scripts/perf/benchmark_summary.sh 3 benchmark_runtime_export_missing_route_
 ```
 
 ## Ubuntu Physical Host Remote Validation Baseline
