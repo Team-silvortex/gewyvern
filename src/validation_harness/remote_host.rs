@@ -35,6 +35,10 @@ const REMOTE_EBPF_HELPER: &str = "/usr/libexec/gewyvern-ebpf-helper";
 const REMOTE_EBPF_EVIDENCE_ROOT: &str = "/var/lib/gewyvern-ebpf-validation";
 const REMOTE_WORKSPACE_SYNC_KEY_MAX_LEN: usize = 256;
 
+fn default_release_line() -> String {
+    format!("v{}", env!("CARGO_PKG_VERSION"))
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum RemoteLinuxTargetKind {
     #[default]
@@ -140,7 +144,7 @@ pub fn run_remote_linux_host_validation(
         .unwrap_or_else(default_remote_dir);
     let remote_path = remote_workspace_path(&remote_dir);
     let release_line = validate_release_line(
-        &env::var("GEWY_RELEASE_LINE").unwrap_or_else(|_| "v1.16.0".to_string()),
+        &env::var("GEWY_RELEASE_LINE").unwrap_or_else(|_| default_release_line()),
     )?;
 
     validation_log(format!("[remote-host] host: {}", options.host));
@@ -4939,6 +4943,11 @@ mod tests {
 
     #[test]
     fn remote_release_line_rejects_unsafe_values() {
+        assert_eq!(
+            super::default_release_line(),
+            format!("v{}", env!("CARGO_PKG_VERSION"))
+        );
+        assert!(validate_release_line(&super::default_release_line()).is_ok());
         assert!(validate_release_line("v1.16.0").is_ok());
         assert!(validate_release_line("  v1.16.0").is_err());
         assert!(validate_release_line("v1.16.0;rm -rf /").is_err());

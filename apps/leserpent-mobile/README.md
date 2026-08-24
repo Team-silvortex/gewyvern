@@ -130,6 +130,11 @@ maximum accessibility text, cold relaunch, hot background resume, and native
 Keychain CRUD, and verifies that Debug proof switches are absent from Release.
 The retained result is
 `docs/fixtures/leserpent_ios26_simulator_macos_arm64_20260821.json`.
+Both retained mobile artifacts remain bound to the exact `1.16.0` packages
+whose binaries and hashes they record. They are historical platform evidence,
+not current-release artifact claims; current source conformance continues
+through the host-independent suites, while fresh production-signed physical
+device evidence remains an explicit deferred gate.
 
 With `ANDROID_SDK_ROOT` and `JAVA_HOME` set, reproduce the package builds with:
 

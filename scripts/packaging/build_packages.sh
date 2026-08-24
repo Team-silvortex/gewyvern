@@ -32,7 +32,6 @@ PACKAGE_LOCK_DIR_OWNED=0
 MAINTAINER="${GEWY_PACKAGE_MAINTAINER:-Team Silvortex <team-silvortex@users.noreply.github.com>}"
 PACKAGE_NAME="${GEWY_PACKAGE_NAME:-gewyvern}"
 PACKAGE_RELEASE="${GEWY_PACKAGE_RELEASE:-1}"
-RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.16.0}"
 LAYOUT_VERSION="${GEWY_LAYOUT_VERSION:-1}"
 CONFIG_SCHEMA_VERSION="${GEWY_CONFIG_SCHEMA_VERSION:-1}"
 RPM_DIST="${GEWY_RPM_DIST:-}"
@@ -66,9 +65,9 @@ require_option_value() {
 
 read_version() {
   awk -F'"' '
-    $0 == "[package]" { in_package = 1; next }
-    /^\[/ { if (in_package) exit }
-    in_package && $1 ~ /^version = / { print $2; exit }
+    $0 == "[workspace.package]" { in_workspace_package = 1; next }
+    /^\[/ { if (in_workspace_package) exit }
+    in_workspace_package && $1 ~ /^version = / { print $2; exit }
   ' "${ROOT}/Cargo.toml"
 }
 
@@ -663,6 +662,7 @@ case "${FORMAT}" in
 esac
 
 VERSION="$(read_version)"
+RELEASE_LINE="${GEWY_RELEASE_LINE:-v${VERSION}}"
 HOST_ARCH="$(uname -m)"
 DEB_ARCH="$(map_deb_arch "${HOST_ARCH}")"
 RPM_ARCH="$(map_rpm_arch "${HOST_ARCH}")"

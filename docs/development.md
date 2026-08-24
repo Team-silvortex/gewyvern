@@ -76,7 +76,19 @@ Check the complete local toolchain and checked packaging inputs:
 
 ```bash
 cargo dev doctor
+cargo dev version check
 ```
+
+Before cutting a release, use `cargo dev version check` to verify that Cargo,
+.NET, lockfiles, public docs, and the status checkpoint still agree on one
+product version. Preview a deliberate version change before applying it:
+
+```bash
+cargo dev version set 1.17.4 --dry-run
+```
+
+Removing `--dry-run` applies the update transactionally. It does not create a
+Git tag or rewrite retained historical evidence.
 
 Build the Rust workspace, Leserpent control solution, and Avalonia desktop in
 parallel:

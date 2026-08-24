@@ -145,7 +145,7 @@ Avoid:
 
 ## Release-Line Discipline
 
-During the active `1.16.x` line, documentation changes should bias toward:
+During the active `1.17.x` line, documentation changes should bias toward:
 
 - clarifying current behavior
 - reducing contradiction
@@ -189,7 +189,7 @@ For this project, the middle numeric version component is the minor line:
 
 - `v0.13.x`
 - `v0.15.x`
-- current and future lines such as `v1.16.x` when those lines actually begin
+- current and future lines such as `v1.17.x` when those lines actually begin
 
 When a new minor line begins:
 

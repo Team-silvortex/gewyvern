@@ -5,7 +5,7 @@ This document is the authoritative target architecture for the
 current 1.x implementation. Delivery order and exit gates live in the
 [Leserpent 2.0 roadmap](leserpent-2-roadmap.md).
 
-The current implementation checkpoint is the shared `v1.16.0` release. This
+The current implementation checkpoint is the shared `v1.17.4` release. This
 document remains the `2.0.0` target contract rather than a claim that every
 target capability is already complete.
 

@@ -1,4 +1,4 @@
-# gewyvern v1.16.x
+# gewyvern v1.17.x
 
 <p align="center">
   <img src="docs/assets/branding/gewyvern-logo-v1.svg" alt="gewyvern logo" width="240">
@@ -41,6 +41,7 @@ If you want the shortest path into the current system:
 ```bash
 # Check and build the Rust, control, and desktop stacks
 cargo dev doctor
+cargo dev version check
 cargo dev build
 
 # Confirm the installed release
@@ -84,7 +85,7 @@ session data.
 
 ## Status
 
-- project version: `1.16.x`
+- project version: `1.17.x`
 - stage: post-1.0 stable development, preserving the sealed debugger core while
   hardening reliability and advancing the Rust Leserpent/Leselang control plane
 - transport support: TCP + UDP
@@ -115,12 +116,12 @@ session data.
 `gewyvern` is no longer just a convergence story. The current line is:
 
 - historical validation baseline: `v0.10.0`
-- current release line: `v1.16.x`, with `v1.16.0` as the current shared release
+- current release line: `v1.17.x`, with `v1.17.4` as the current shared release
 - current focus: keep the broad protocol catalog behaving like one integrated
   local network debugger with stable startup, stop, logs, recovery,
   persistence, cross-validation, and Linux-host execution paths
 
-The `1.0.0` seal established the trust baseline. The `1.16.x` line preserves
+The `1.0.0` seal established the trust baseline. The `1.17.x` line preserves
 that baseline while extending the surrounding system: stable CLI/runtime and
 DSL/compiler boundaries, reliable HTML/JSON/API reporting, predictable
 operational performance, clean lifecycle behavior, and a contract-driven path
@@ -385,7 +386,8 @@ Use these instead of treating the README as the command notebook.
 
 ## Important Current Boundaries
 
-- This is still a prototype, not a stable public schema/runtime
+- the core runtime and shared machine contracts are stable; selected `2.0`
+  control-plane and platform-release surfaces remain explicitly evolving
 - eBPF programs are still hand-written C, not generated from IR
 - `ProgramModel` is now DSL-driven for the built-in path templates, but the IR
   surface is still intentionally small and evolving

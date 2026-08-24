@@ -33,6 +33,7 @@ fn android_emulator_proof_is_non_vacuous_and_fail_closed() {
 
     let package = &proof["package"];
     assert_eq!(package["application_id"], "org.gewyvern.leserpent");
+    assert_eq!(package["version"], "1.16.0");
     assert_eq!(package["release_aot"], true);
     assert_eq!(package["production_signed"], false);
     assert_eq!(package["release_apk"]["archive_valid"], true);

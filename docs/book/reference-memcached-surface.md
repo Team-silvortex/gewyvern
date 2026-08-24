@@ -77,6 +77,6 @@ If you are validating current Memcached support, the shortest useful order is:
 
 ## Stability Note
 
-This page is the lookup hub for the Memcached family in the current `1.16.x`
+This page is the lookup hub for the Memcached family in the current `1.17.x`
 line. New Memcached operation branches should prefer landing behind this shelf
 instead of being linked from multiple higher-level pages independently.

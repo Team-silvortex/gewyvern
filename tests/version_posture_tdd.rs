@@ -78,11 +78,9 @@ fn etragon_inherits_the_workspace_version() {
     let gewyc_manifest = read_repo_file("crates/gewyc/Cargo.toml");
     let lockfile = read_repo_file("Cargo.lock");
     let workspace_version = section_version(&root_manifest, "workspace.package");
-    let package_version = section_version(&root_manifest, "package");
 
-    assert_eq!(workspace_version, "1.16.0");
     assert!(root_manifest.contains("[workspace.package]"));
-    assert_eq!(workspace_version, package_version);
+    assert!(root_manifest.contains("[package]\nname = \"gewyvern\"\nversion.workspace = true"));
     assert!(etragon_manifest.contains("version.workspace = true"));
     assert!(gewyc_manifest.contains("version.workspace = true"));
     assert!(!etragon_manifest.contains("version = \"0.1.0\""));
@@ -228,13 +226,18 @@ fn docs_catalog_anchor_matches_packaged_protocol_tree() {
 #[test]
 fn release_checklist_uses_version_template_for_package_artifacts() {
     let checklist = read_repo_file("docs/release-checklist.md");
+    let root_manifest = read_repo_file("Cargo.toml");
+    let workspace_version = section_version(&root_manifest, "workspace.package");
+    let mut parts = workspace_version.split('.');
+    let active_line = format!("{}.{}.x", parts.next().unwrap(), parts.next().unwrap());
 
     assert!(checklist.contains("target/packages/gewyvern_<version>-1_<deb-arch>.deb"));
     assert!(checklist.contains("target/packages/rpm/gewyvern-<version>-1.<rpm-arch>.rpm"));
     assert!(checklist.contains("root `gewyvern` package metadata"));
+    assert!(checklist.contains("cargo dev version check"));
     assert!(checklist.contains("is never itself a package"));
-    assert!(!checklist.contains("gewyvern_1.16.x-1_"));
-    assert!(!checklist.contains("gewyvern-1.16.x-1."));
+    assert!(!checklist.contains(&format!("gewyvern_{active_line}-1_")));
+    assert!(!checklist.contains(&format!("gewyvern-{active_line}-1.")));
     assert!(!checklist.contains("target/packages/gewyvern_0.20.0-1_<arch>.deb"));
     assert!(!checklist.contains("target/packages/rpm/gewyvern-0.20.0-1.<arch>.rpm"));
 }

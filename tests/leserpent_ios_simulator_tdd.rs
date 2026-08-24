@@ -19,7 +19,7 @@ fn ios_simulator_proof_is_non_vacuous_and_fail_closed() {
 
     let package = &proof["package"];
     assert_eq!(package["application_id"], "org.gewyvern.leserpent");
-    assert_eq!(package["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(package["version"], "1.16.0");
     assert_eq!(package["minimum_ios"], "15.0");
     assert_eq!(package["device_families"].as_array().unwrap().len(), 2);
     for artifact in ["debug_simulator_app", "release_device_app"] {

@@ -180,7 +180,7 @@ contracts, also keep nearby:
 
 ## Future Shape
 
-As the active `1.16.x` line preserves its sealed post-1.0 contract, new
+As the active `1.17.x` line preserves its sealed post-1.0 contract, new
 exact-lookup material should prefer this shelf instead of adding more ad hoc
 “format note” pages at the top level.
 

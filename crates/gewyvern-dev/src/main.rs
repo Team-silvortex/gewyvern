@@ -7,8 +7,12 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Instant;
 
+mod version;
+
 const USAGE: &str = r#"Usage:
   cargo dev doctor
+  cargo dev version check
+  cargo dev version set VERSION [--dry-run]
   cargo dev build [--scope core|control|desktop|all] [--release] [--restore] [--dry-run]
   cargo dev package linux [--format layout|deb|rpm|all] [--skip-build] [--out-dir PATH] [--dry-run]
   cargo dev package desktop [--output APP] [--silvortex-issuer URL] [--identity ID --notary-profile PROFILE] [--dry-run]
@@ -135,6 +139,7 @@ struct DesktopOptions {
 #[derive(Debug, PartialEq, Eq)]
 enum Workflow {
     Doctor,
+    Version(version::VersionAction),
     Build(BuildOptions),
     PackageLinux(LinuxPackageOptions),
     Desktop(DesktopOptions),
@@ -148,6 +153,7 @@ impl Workflow {
                 reject_trailing(arguments)?;
                 Ok(Self::Doctor)
             }
+            Some("version") => version::VersionAction::parse(arguments).map(Self::Version),
             Some("build") => parse_build(arguments).map(Self::Build),
             Some("package") => match arguments.next().as_deref() {
                 Some("linux") => parse_linux_package(arguments).map(Self::PackageLinux),
@@ -335,6 +341,14 @@ fn execute(workflow: Workflow, root: PathBuf) -> Result<WorkflowOutcome, String>
             doctor(&root)?;
             Ok(WorkflowOutcome {
                 action: "doctor",
+                artifact: None,
+            })
+        }
+        Workflow::Version(action) => {
+            let label = action.label();
+            version::execute(&root, action)?;
+            Ok(WorkflowOutcome {
+                action: label,
                 artifact: None,
             })
         }

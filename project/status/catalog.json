@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "project": "gewyvern",
-  "checkpoint": "v1.16.0-to-v2.0.0-roadmap",
+  "checkpoint": "v1.17.4-to-v2.0.0-roadmap",
   "calibration": {
     "model": "priority-weighted-strength-v1",
     "as_of": "2026-08-24"

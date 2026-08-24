@@ -98,7 +98,7 @@ Measurement notes:
 
 ## Release-Candidate Interpretation
 
-For the active `1.16.x` line, the intended acceptance rule is:
+For the active `1.17.x` line, the intended acceptance rule is:
 
 - compare against the `median`
 - judge regressions on the same developer-class machine, not across unrelated

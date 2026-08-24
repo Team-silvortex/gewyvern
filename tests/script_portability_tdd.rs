@@ -81,6 +81,8 @@ fn native_developer_workflow_owns_locked_build_package_and_desktop_deploy_routes
     assert!(workspace.contains("\"crates/gewyvern-dev\""));
     for command in [
         "cargo dev doctor",
+        "cargo dev version check",
+        "cargo dev version set",
         "cargo dev build",
         "cargo dev package linux",
         "cargo dev package desktop",
