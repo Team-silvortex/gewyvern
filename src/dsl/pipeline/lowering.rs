@@ -85,13 +85,19 @@ fn lower_pipeline_call(
 ) -> Result<(), DslError> {
     let line_no = call.line_no;
     let column_no = call.column_no;
-    let call_context = format!("{} while expanding {}", call.name, scope_context);
-    let resolved_args = call
-        .args
-        .iter()
-        .map(|arg| substitute_pipeline_arg(arg, bindings, &call_context))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
+    let resolved_args = if call.args.iter().any(|arg| arg.contains('$')) {
+        let call_context = format!("{} while expanding {}", call.name, scope_context);
+        Some(
+            call.args
+                .iter()
+                .map(|arg| substitute_pipeline_arg(arg, bindings, &call_context))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+        )
+    } else {
+        None
+    };
+    let args = resolved_args.as_deref().unwrap_or(&call.args);
     match call.name.as_str() {
         "template" => {
             if !allow_template_head {
@@ -102,14 +108,14 @@ fn lower_pipeline_call(
             }
             output.push(CanonicalAssignment::new(
                 CanonicalAssignmentValue::Template(
-                    parse_pipeline_single_arg(&resolved_args, "template")
+                    parse_pipeline_single_arg(args, "template")
                         .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
                 ),
                 line_no,
             ));
         }
         "use" => {
-            let use_call = parse_pipeline_use_call(&resolved_args)
+            let use_call = parse_pipeline_use_call(args)
                 .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
             let function_name = use_call.function_name.clone();
             if use_stack.contains(&function_name) {
@@ -160,16 +166,10 @@ fn lower_pipeline_call(
             )
             .at_line(line_no));
         }
-        "window" => lower_pipeline_window(
-            &resolved_args,
-            &call.arg_columns,
-            column_no,
-            line_no,
-            output,
-        )
-        .map_err(|err| err.at_line(line_no))?,
+        "window" => lower_pipeline_window(args, &call.arg_columns, column_no, line_no, output)
+            .map_err(|err| err.at_line(line_no))?,
         "reason" => {
-            let id = parse_pipeline_single_arg(&resolved_args, "reason")
+            let id = parse_pipeline_single_arg(args, "reason")
                 .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
             let profile = ReasonProfile::from_id(&id).ok_or_else(|| {
                 DslError::InvalidValue(format!("unknown reason profile '{id}'")).at_line_column(
@@ -184,27 +184,27 @@ fn lower_pipeline_call(
         }
         "reason_model" => output.push(CanonicalAssignment::new(
             CanonicalAssignmentValue::ReasonModel(
-                parse_pipeline_single_arg(&resolved_args, "reason_model")
+                parse_pipeline_single_arg(args, "reason_model")
                     .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
             ),
             line_no,
         )),
         "fragment" => output.push(CanonicalAssignment::new(
             CanonicalAssignmentValue::Fragment(
-                parse_pipeline_single_arg(&resolved_args, "fragment")
+                parse_pipeline_single_arg(args, "fragment")
                     .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
             ),
             line_no,
         )),
         "program_model" => output.push(CanonicalAssignment::new(
             CanonicalAssignmentValue::ProgramModel(
-                parse_pipeline_single_arg(&resolved_args, "program_model")
+                parse_pipeline_single_arg(args, "program_model")
                     .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
             ),
             line_no,
         )),
         "operation" => {
-            let value = parse_pipeline_single_arg(&resolved_args, "operation")
+            let value = parse_pipeline_single_arg(args, "operation")
                 .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
             output.push(CanonicalAssignment::new(
                 CanonicalAssignmentValue::Operation(legacy::parse_operation(&value)),
@@ -212,25 +212,25 @@ fn lower_pipeline_call(
             ));
         }
         "param" => output.push(CanonicalAssignment::new(
-            lower_pipeline_param(&resolved_args)
+            lower_pipeline_param(args)
                 .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
             line_no,
         )),
         "evidence" => output.push(CanonicalAssignment::new(
-            lower_pipeline_evidence(&resolved_args)
+            lower_pipeline_evidence(args)
                 .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
             line_no,
         )),
         "program_rule" => output.push(CanonicalAssignment::new(
             CanonicalAssignmentValue::ProgramRule(
-                lower_pipeline_program_rule(&resolved_args, &call.arg_columns, column_no)
+                lower_pipeline_program_rule(args, &call.arg_columns, column_no)
                     .map_err(|err| err.at_line(line_no))?,
             ),
             line_no,
         )),
         "reason_rule" => output.push(CanonicalAssignment::new(
             CanonicalAssignmentValue::ReasonRule(
-                lower_pipeline_reason_rule(&resolved_args, &call.arg_columns, column_no)
+                lower_pipeline_reason_rule(args, &call.arg_columns, column_no)
                     .map_err(|err| err.at_line(line_no))?,
             ),
             line_no,
@@ -363,8 +363,14 @@ pub(crate) fn substitute_pipeline_arg(
     bindings: &BTreeMap<String, String>,
     context: &str,
 ) -> Result<String, DslError> {
-    let mut current = arg.to_string();
-    let mut iterations = 0usize;
+    if !arg.contains('$') {
+        return Ok(arg.to_string());
+    }
+    let (mut current, changed) = substitute_pipeline_arg_once(arg, bindings, context)?;
+    if !changed || !current.contains('$') {
+        return Ok(current);
+    }
+    let mut iterations = 1usize;
     loop {
         let (next, changed) = substitute_pipeline_arg_once(&current, bindings, context)?;
         current = next;

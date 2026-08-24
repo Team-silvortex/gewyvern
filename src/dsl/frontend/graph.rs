@@ -4,15 +4,6 @@ use super::{
 };
 use crate::dsl::{PipelineCall, PipelineModule, parse_pipeline_single_arg};
 
-pub(super) fn pipeline_use_edges(module: &PipelineModule) -> Vec<FrontendUseEdge> {
-    let mut edges = Vec::new();
-    append_use_edges("entry", &module.body, &mut edges);
-    for (function_name, function) in &module.functions {
-        append_use_edges(function_name, &function.body, &mut edges);
-    }
-    edges
-}
-
 pub(super) fn pipeline_graph_nodes(module: &PipelineModule) -> Vec<FrontendGraphNode> {
     let mut nodes = Vec::new();
     nodes.push(FrontendGraphNode {
@@ -43,9 +34,11 @@ pub(super) fn pipeline_graph_nodes(module: &PipelineModule) -> Vec<FrontendGraph
     nodes
 }
 
-pub(super) fn pipeline_graph_edges(module: &PipelineModule) -> Vec<FrontendGraphEdge> {
-    let mut edges = module.include_edges.clone();
-    for edge in &module.use_edges {
+pub(super) fn pipeline_graph_edges(
+    mut edges: Vec<FrontendGraphEdge>,
+    use_edges: &[FrontendUseEdge],
+) -> Vec<FrontendGraphEdge> {
+    for edge in use_edges {
         edges.push(FrontendGraphEdge {
             from: scope_graph_id(&edge.from),
             to: format!("fn:{}", edge.to),
@@ -97,20 +90,6 @@ pub(super) fn pipeline_expansion_previews(
         }
     }));
     previews
-}
-
-fn append_use_edges(scope: &str, calls: &[PipelineCall], output: &mut Vec<FrontendUseEdge>) {
-    for call in calls {
-        if call.name == "use"
-            && let Ok(target) = parse_pipeline_single_arg(&call.args, "use")
-        {
-            output.push(FrontendUseEdge {
-                from: scope.to_string(),
-                to: target,
-                line: call.line_no,
-            });
-        }
-    }
 }
 
 fn pipeline_call_preview(call: &PipelineCall) -> String {

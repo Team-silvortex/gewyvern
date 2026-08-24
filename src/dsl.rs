@@ -1,4 +1,4 @@
-use crate::fragment::{RegistryError, builtin_registry};
+use crate::fragment::{RegistryError, builtin_registry_ref};
 use crate::template::TemplateBinding;
 use std::collections::BTreeMap;
 use std::fs;
@@ -18,7 +18,8 @@ pub use self::entry::{
     parse_str_unvalidated, parse_str_with_frontend_unvalidated,
 };
 pub(crate) use self::entry::{
-    load_file_with_package_context, parse_str_with_frontend_unvalidated_with_package,
+    load_file_with_package_context, parse_str_unvalidated_with_package,
+    parse_str_with_frontend_unvalidated_with_package,
 };
 pub(crate) use self::frontend::summarize_frontend_str_with_package;
 pub use self::frontend::{
@@ -231,7 +232,7 @@ pub fn compile_str(input: &str) -> Result<TemplateBinding, DslError> {
 }
 
 pub fn validate_compiled_binding(binding: &TemplateBinding) -> Result<(), RegistryError> {
-    builtin_registry().validate_binding(binding)
+    builtin_registry_ref().validate_binding(binding)
 }
 
 impl DslError {

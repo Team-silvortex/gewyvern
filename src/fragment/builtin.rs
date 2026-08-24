@@ -2,8 +2,18 @@ use super::{
     CapabilityFlag, EvidenceClassSpec, EvidenceTier, FactKindTag, FragmentDescriptor,
     FragmentParamSpec, FragmentParamType, FragmentRegistry, HookPoint, MapKind, MapSpec,
 };
+use std::sync::OnceLock;
 
 pub fn builtin_registry() -> FragmentRegistry {
+    builtin_registry_ref().clone()
+}
+
+pub(crate) fn builtin_registry_ref() -> &'static FragmentRegistry {
+    static REGISTRY: OnceLock<FragmentRegistry> = OnceLock::new();
+    REGISTRY.get_or_init(build_builtin_registry)
+}
+
+fn build_builtin_registry() -> FragmentRegistry {
     let mut registry = FragmentRegistry::new();
     let fragments = [
         FragmentDescriptor {

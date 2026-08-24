@@ -183,6 +183,7 @@ pub(super) fn model_diagnostics_report(model: &ModelDiagnostics) -> ModelDiagnos
 }
 
 pub(super) fn validation_report(
+    registry: &FragmentRegistry,
     binding: &TemplateBinding,
     diagnostics: Option<&BindingDiagnostics>,
     validation_error: Option<&RegistryError>,
@@ -196,23 +197,18 @@ pub(super) fn validation_report(
         required_offsets: required_payload_offsets,
         unsupported_offsets: unsupported_payload_offsets,
     } = match diagnostics {
-        Some(diagnostics) => {
-            builtin_registry().payload_offset_support_summary(binding, diagnostics)
-        }
-        None => {
-            let registry = builtin_registry();
-            PayloadOffsetSupportSummary {
-                sampled_offsets: binding
-                    .template
-                    .fragment_set
-                    .iter()
-                    .filter_map(|fragment_id| registry.descriptor(fragment_id))
-                    .flat_map(|descriptor| descriptor.sampled_payload_offsets.iter().copied())
-                    .collect(),
-                required_offsets: Vec::new(),
-                unsupported_offsets: Vec::new(),
-            }
-        }
+        Some(diagnostics) => registry.payload_offset_support_summary(binding, diagnostics),
+        None => PayloadOffsetSupportSummary {
+            sampled_offsets: binding
+                .template
+                .fragment_set
+                .iter()
+                .filter_map(|fragment_id| registry.descriptor(fragment_id))
+                .flat_map(|descriptor| descriptor.sampled_payload_offsets.iter().copied())
+                .collect(),
+            required_offsets: Vec::new(),
+            unsupported_offsets: Vec::new(),
+        },
     };
     ValidationReport {
         ok: validation_error.is_none(),

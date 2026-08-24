@@ -51,6 +51,13 @@ pub(crate) fn parse_str_with_frontend_unvalidated_with_package(
     parse_str_with_frontend_unvalidated_with_base(input, Some(package))
 }
 
+pub(crate) fn parse_str_unvalidated_with_package(
+    input: &str,
+    package: &PackageContext,
+) -> Result<TemplateBinding, DslError> {
+    parse_str_unvalidated_with_base(input, Some(package))
+}
+
 fn parse_str_unvalidated_with_base(
     input: &str,
     package: Option<&PackageContext>,
@@ -59,7 +66,7 @@ fn parse_str_unvalidated_with_base(
     let normalized = strip_comments_preserve_layout(input)?;
     if looks_like_pipeline_dsl(&normalized) {
         let assignments = pipeline_to_canonical_assignments(&normalized, package)?;
-        return build_binding_from_canonical_assignments(&assignments);
+        return build_binding_from_canonical_assignments(assignments);
     }
     if let Some((include_input, include_package)) =
         resolve_include_entry_alias(&normalized, package)?
@@ -80,7 +87,7 @@ fn parse_str_with_frontend_unvalidated_with_base(
     if looks_like_pipeline_dsl(&normalized) {
         let module = parse_pipeline_module(&normalized, package, true)?;
         let assignments = lower_pipeline_module_to_assignments(&module, true)?;
-        let binding = build_binding_from_canonical_assignments(&assignments)?;
+        let binding = build_binding_from_canonical_assignments(assignments)?;
         let frontend = summarize_pipeline_module(module);
         return Ok((binding, frontend));
     }

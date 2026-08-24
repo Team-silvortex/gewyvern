@@ -101,6 +101,15 @@ publication carries the same surfaces through text, JSON, HTML, per-target
 reports, and the API snapshot, and writes the selected CLI format without a
 second analysis pass.
 
+The `2026-08-24` GewyLang compiler pass reuses one immutable builtin fragment
+registry, validates from the diagnostics already computed for the envelope,
+and transfers parser/lowering values instead of cloning them between stages.
+Ten alternating same-host baseline/optimized binary pairs reduced the binding
+report median from `89.792` to `65.170 ms` (`27.4%`), explain from `44.422` to
+`35.959 ms` (`19.1%`), and the complete envelope from `44.768` to `37.238 ms`
+(`16.8%`). The frontend-only median remained effectively neutral at
+`44.746/44.425 ms`; package lockfile generation was not changed by this pass.
+
 The `2026-07-18` macOS arm64 hybrid-log reference measured the 256-entry full
 compose at `2.099 ms` p50 and `321,424` allocated bytes per iteration. The
 8-entry incremental compose-and-merge measured `0.299 ms` and `30,488` bytes,
@@ -182,6 +191,11 @@ Current baselines:
 | `benchmark_scan_report_html_large_protocol_flow_export` | `939.069` | 10 iterations, 12 targets, 256 flows each, seven samples |
 | `benchmark_http_transactions_json_large_view` | `155.222` | 200 iterations, 256 synthetic HTTP transactions |
 | `benchmark_http_transactions_text_large_view` | `78.767` | 200 iterations, 256 synthetic HTTP transactions |
+| `benchmark_gewyc_binding_report_udp_process_debug` | `65.170` | 200 iterations, median of 10 optimized samples from alternating binary A/B |
+| `benchmark_gewyc_frontend_report_udp_process_debug` | `44.425` | 200 iterations, median of 10 optimized samples; neutral against the paired baseline |
+| `benchmark_gewyc_explain_report_udp_process_debug` | `35.959` | 100 iterations, median of 10 optimized samples from alternating binary A/B |
+| `benchmark_gewyc_envelope_report_udp_process_debug` | `37.238` | 100 iterations, median of 10 optimized samples from alternating binary A/B |
+| `benchmark_gewyc_lockfile_protocol_publish_package` | `3.013` | 100 iterations, unchanged path retained as the current same-host observation |
 
 ## Ubuntu Physical Host Scan-Report Check
 

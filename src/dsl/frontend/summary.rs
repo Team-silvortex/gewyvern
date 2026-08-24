@@ -1,6 +1,4 @@
-use super::graph::{
-    pipeline_expansion_previews, pipeline_graph_edges, pipeline_graph_nodes, pipeline_use_edges,
-};
+use super::graph::{pipeline_expansion_previews, pipeline_graph_edges, pipeline_graph_nodes};
 use super::{FrontendDslKind, FrontendFunctionNode, FrontendFunctionParam, FrontendModuleSummary};
 use crate::dsl::entry::{looks_like_pipeline_dsl, resolve_include_entry_alias};
 use crate::dsl::function_types::{format_pipeline_function_signature, pipeline_value_kind_text};
@@ -75,10 +73,15 @@ pub(super) fn summarize_pipeline_module(module: PipelineModule) -> FrontendModul
             .values()
             .map(|function| function.body.len())
             .sum::<usize>();
-    let use_edges = pipeline_use_edges(&module);
     let graph_nodes = pipeline_graph_nodes(&module);
-    let graph_edges = pipeline_graph_edges(&module);
     let expansion_previews = pipeline_expansion_previews(&module);
+    let graph_edges = pipeline_graph_edges(module.include_edges, &module.use_edges);
+    let mut use_edges = module.use_edges;
+    use_edges.sort_by(|left, right| {
+        (left.from != "entry")
+            .cmp(&(right.from != "entry"))
+            .then_with(|| left.from.cmp(&right.from))
+    });
     FrontendModuleSummary {
         kind: FrontendDslKind::Pipeline,
         module_doc: module.module_doc,

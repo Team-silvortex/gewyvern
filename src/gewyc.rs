@@ -1,12 +1,12 @@
 use crate::dsl::{
-    DslError, compile_file, load_file_with_package_context, parse_str_with_frontend_unvalidated,
-    parse_str_with_frontend_unvalidated_with_package, summarize_frontend_file,
-    summarize_frontend_str, summarize_frontend_str_with_package, validate_compiled_binding,
+    DslError, compile_file, load_file_with_package_context, parse_str_unvalidated_with_package,
+    parse_str_with_frontend_unvalidated, parse_str_with_frontend_unvalidated_with_package,
+    summarize_frontend_file, summarize_frontend_str, summarize_frontend_str_with_package,
 };
 use crate::flow::ProgramOperation;
 use crate::fragment::{
-    BindingDiagnostics, EvidenceTier, ModelDiagnostics, PayloadOffsetSupportSummary, RegistryError,
-    RuleTier, builtin_registry,
+    BindingDiagnostics, EvidenceTier, FragmentRegistry, ModelDiagnostics,
+    PayloadOffsetSupportSummary, RegistryError, RuleTier, builtin_registry_ref,
 };
 use crate::reason::ReasonProfile;
 use crate::template::{FragmentParamValue, TemplateBinding};
@@ -34,11 +34,10 @@ pub fn compile_binding_file(path: &str) -> Result<TemplateBinding, DslError> {
 }
 
 pub fn compile_binding_report_file(path: &str) -> Result<BindingReport, DslError> {
-    compile_envelope_file(path).and_then(|envelope| {
-        envelope
-            .binding
-            .ok_or_else(|| DslError::InvalidValue("binding report unavailable".into()))
-    })
+    let (input, package) = load_file_with_package_context(path)?;
+    parse_str_unvalidated_with_package(&input, &package)
+        .map(|binding| binding_report(&binding))
+        .map_err(|_| DslError::InvalidValue("binding report unavailable".into()))
 }
 
 pub fn compile_frontend_report_file(path: &str) -> Result<FrontendReport, DslError> {
@@ -52,7 +51,7 @@ pub fn compile_frontend_report_str(input: &str) -> Result<FrontendReport, DslErr
 pub fn collect_binding_diagnostics(
     binding: &TemplateBinding,
 ) -> Result<BindingDiagnostics, RegistryError> {
-    builtin_registry().binding_diagnostics(binding)
+    builtin_registry_ref().binding_diagnostics(binding)
 }
 
 pub fn compile_diagnostics_report_file(
@@ -155,11 +154,19 @@ fn compile_envelope_from_parts(
 ) -> CompilerEnvelope {
     match parsed {
         Ok(binding) => {
+            let registry = builtin_registry_ref();
             let binding_report = binding_report(&binding);
-            let diagnostics_result = collect_binding_diagnostics(&binding);
+            let diagnostics_result = registry.binding_diagnostics(&binding);
             let ir_report = ir_report_from_binding(&binding, diagnostics_result.as_ref().ok());
-            let validation_result = validate_compiled_binding(&binding);
+            let validation_result = match registry.validate_binding_params(&binding) {
+                Err(err) => Err(err),
+                Ok(()) => match diagnostics_result.as_ref() {
+                    Ok(diagnostics) => registry.validate_binding_diagnostics(diagnostics),
+                    Err(err) => Err((*err).clone()),
+                },
+            };
             let validation = validation_report(
+                registry,
                 &binding,
                 diagnostics_result.as_ref().ok(),
                 validation_result.err().as_ref(),

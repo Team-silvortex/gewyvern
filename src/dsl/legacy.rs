@@ -47,7 +47,7 @@ impl CanonicalAssignment {
 }
 
 pub(super) fn build_binding_from_canonical_assignments(
-    assignments: &[CanonicalAssignment],
+    assignments: Vec<CanonicalAssignment>,
 ) -> Result<TemplateBinding, DslError> {
     let mut template_id = None;
     let mut window_profile = None;
@@ -64,29 +64,29 @@ pub(super) fn build_binding_from_canonical_assignments(
     let mut evidence_overrides = Vec::new();
 
     for assignment in assignments {
-        match &assignment.value {
-            CanonicalAssignmentValue::Template(value) => template_id = Some(value.clone()),
-            CanonicalAssignmentValue::Window(value) => window_profile = Some(value.clone()),
+        match assignment.value {
+            CanonicalAssignmentValue::Template(value) => template_id = Some(value),
+            CanonicalAssignmentValue::Window(value) => window_profile = Some(value),
             CanonicalAssignmentValue::WindowDuration(value) => {
-                inline_window_duration_ms = Some(*value)
+                inline_window_duration_ms = Some(value)
             }
             CanonicalAssignmentValue::WindowLateness(value) => {
-                inline_window_lateness_ms = Some(*value)
+                inline_window_lateness_ms = Some(value)
             }
-            CanonicalAssignmentValue::Reason(value) => reason_profile = Some(value.clone()),
-            CanonicalAssignmentValue::ReasonModel(value) => reason_model_id = Some(value.clone()),
-            CanonicalAssignmentValue::ReasonRule(value) => reason_rules.push(value.clone()),
-            CanonicalAssignmentValue::Fragment(value) => fragment_set.push(value.clone()),
-            CanonicalAssignmentValue::ProgramModel(value) => program_model_id = Some(value.clone()),
-            CanonicalAssignmentValue::Operation(value) => operation = Some(value.clone()),
-            CanonicalAssignmentValue::ProgramRule(value) => rules.push(value.clone()),
+            CanonicalAssignmentValue::Reason(value) => reason_profile = Some(value),
+            CanonicalAssignmentValue::ReasonModel(value) => reason_model_id = Some(value),
+            CanonicalAssignmentValue::ReasonRule(value) => reason_rules.push(value),
+            CanonicalAssignmentValue::Fragment(value) => fragment_set.push(value),
+            CanonicalAssignmentValue::ProgramModel(value) => program_model_id = Some(value),
+            CanonicalAssignmentValue::Operation(value) => operation = Some(value),
+            CanonicalAssignmentValue::ProgramRule(value) => rules.push(value),
             CanonicalAssignmentValue::FragmentParam {
                 fragment_id,
                 key,
                 value,
-            } => fragment_params.push((fragment_id.clone(), key.clone(), value.clone())),
+            } => fragment_params.push((fragment_id, key, value)),
             CanonicalAssignmentValue::EvidenceOverride { fact_kind, tier } => {
-                evidence_overrides.push((*fact_kind, tier.clone()))
+                evidence_overrides.push((fact_kind, tier))
             }
         }
     }

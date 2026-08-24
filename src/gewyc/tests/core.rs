@@ -43,6 +43,36 @@ fn binding_report_is_owned_and_stable() {
 }
 
 #[test]
+fn binding_report_file_matches_shared_envelope_contract() {
+    let path = dsl_fixture_path("udp_process_debug.gewy");
+    let direct = compile_binding_report_file(&path).unwrap();
+    let envelope = compile_envelope_file(&path).unwrap();
+
+    assert_eq!(Some(direct), envelope.binding);
+}
+
+#[test]
+fn binding_report_file_keeps_parse_failure_error_contract() {
+    let path = std::env::temp_dir().join(format!(
+        "gewyc-binding-report-invalid-{}.gewy",
+        std::process::id()
+    ));
+    std::fs::write(
+        &path,
+        "template(:invalid_binding_report)\n|> oops(:unsupported)\n",
+    )
+    .unwrap();
+
+    let error = compile_binding_report_file(path.to_str().unwrap()).unwrap_err();
+    let _ = std::fs::remove_file(path);
+
+    assert_eq!(
+        error,
+        DslError::InvalidValue("binding report unavailable".into())
+    );
+}
+
+#[test]
 fn compile_diagnostics_report_file_materializes_reason_and_program_models() {
     let report =
         compile_diagnostics_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();

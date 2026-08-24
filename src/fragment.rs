@@ -7,6 +7,7 @@ mod builtin;
 mod diagnostics;
 mod params;
 pub use self::builtin::builtin_registry;
+pub(crate) use self::builtin::builtin_registry_ref;
 pub use self::diagnostics::{
     BindingDiagnostics, ModelDiagnostics, PayloadOffsetSupportSummary, RuleDiagnostics, RuleTier,
 };
@@ -195,7 +196,7 @@ pub struct RingBufStats {
     pub total_max_entries: u32,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RegistryError {
     DuplicateFragmentId(String),
     MissingFragment(String),
@@ -362,7 +363,15 @@ impl FragmentRegistry {
 
     pub fn validate_binding(&self, binding: &TemplateBinding) -> Result<(), RegistryError> {
         self.validate_binding_params(binding)?;
-        self.validate_binding_rule_coverage(binding)
+        let diagnostics = self.binding_diagnostics(binding)?;
+        self.validate_binding_diagnostics(&diagnostics)
+    }
+
+    pub(crate) fn validate_binding_diagnostics(
+        &self,
+        diagnostics: &BindingDiagnostics,
+    ) -> Result<(), RegistryError> {
+        validate_binding_rule_coverage(diagnostics)
     }
 
     pub fn binding_diagnostics(
@@ -563,18 +572,12 @@ impl FragmentRegistry {
         }
     }
 }
-impl FragmentRegistry {
-    fn validate_binding_rule_coverage(
-        &self,
-        binding: &TemplateBinding,
-    ) -> Result<(), RegistryError> {
-        let diagnostics = self.binding_diagnostics(binding)?;
-        if let Some(model) = diagnostics.program_model {
-            validate_model_diagnostics("program_model", &model)?;
-        }
-        if let Some(model) = diagnostics.reason_model {
-            validate_model_diagnostics("reason_model", &model)?;
-        }
-        Ok(())
+fn validate_binding_rule_coverage(diagnostics: &BindingDiagnostics) -> Result<(), RegistryError> {
+    if let Some(model) = &diagnostics.program_model {
+        validate_model_diagnostics("program_model", model)?;
     }
+    if let Some(model) = &diagnostics.reason_model {
+        validate_model_diagnostics("reason_model", model)?;
+    }
+    Ok(())
 }

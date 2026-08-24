@@ -59,14 +59,14 @@ pub(crate) fn parse_pipeline_let_binding(
     };
     validate_pipeline_string_delimiters(line)?;
     validate_no_braced_pipeline_placeholders(line)?;
-    let separators = pipeline_unquoted_char_positions(remainder, '=');
-    if separators.len() > 1 {
+    let (separator, duplicate_separator) = first_two_unquoted_char_positions(remainder, '=');
+    if let Some(duplicate_separator) = duplicate_separator {
         return Err(DslError::InvalidValue(
             "pipeline let binding contains multiple assignment separators".into(),
         )
-        .at_line_column(0, Some(4 + separators[1] + 1)));
+        .at_line_column(0, Some(4 + duplicate_separator + 1)));
     }
-    let separator = separators.first().copied().ok_or_else(|| {
+    let separator = separator.ok_or_else(|| {
         DslError::InvalidValue(format!("invalid let binding '{line}'"))
             .at_line_column(0, Some(line.len() + 1))
     })?;
@@ -92,22 +92,20 @@ pub(crate) fn parse_pipeline_call(
 ) -> Result<(String, Vec<String>, Vec<usize>), DslError> {
     validate_pipeline_string_delimiters(line)?;
     validate_no_braced_pipeline_placeholders(line)?;
-    let open_positions = pipeline_unquoted_char_positions(line, '(');
-    if open_positions.is_empty() {
+    let (open, duplicate_open) = first_two_unquoted_char_positions(line, '(');
+    let Some(open) = open else {
         return parse_pipeline_parenless_call(line);
+    };
+    if let Some(duplicate_open) = duplicate_open {
+        return Err(invalid_pipeline_call_at(line, duplicate_open + 1));
     }
-    if open_positions.len() != 1 {
-        return Err(invalid_pipeline_call_at(line, open_positions[1] + 1));
-    }
-    let open = open_positions[0];
-    let close_positions = pipeline_unquoted_char_positions(line, ')');
-    if close_positions.is_empty() {
+    let (close, duplicate_close) = first_two_unquoted_char_positions(line, ')');
+    let Some(close) = close else {
         return Err(invalid_pipeline_call_at(line, line.len() + 1));
+    };
+    if let Some(duplicate_close) = duplicate_close {
+        return Err(invalid_pipeline_call_at(line, duplicate_close + 1));
     }
-    if close_positions.len() != 1 {
-        return Err(invalid_pipeline_call_at(line, close_positions[1] + 1));
-    }
-    let close = close_positions[0];
     if close < open {
         return Err(invalid_pipeline_call_at(line, close + 1));
     }
@@ -121,17 +119,8 @@ pub(crate) fn parse_pipeline_call(
     let inner = &line[open + 1..close];
     let args_with_columns = split_pipeline_args_with_columns(inner, open + 2)?;
     validate_pipeline_source_arguments(&args_with_columns)?;
-    Ok((
-        name.to_string(),
-        args_with_columns
-            .iter()
-            .map(|(_, value)| value.clone())
-            .collect(),
-        args_with_columns
-            .into_iter()
-            .map(|(column, _)| column)
-            .collect(),
-    ))
+    let (arg_columns, args) = args_with_columns.into_iter().unzip();
+    Ok((name.to_string(), args, arg_columns))
 }
 
 fn parse_pipeline_parenless_call(
@@ -159,21 +148,12 @@ fn parse_pipeline_parenless_call(
         );
     }
     validate_pipeline_source_arguments(&args_with_columns)?;
-    Ok((
-        name.to_string(),
-        args_with_columns
-            .iter()
-            .map(|(_, value)| value.clone())
-            .collect(),
-        args_with_columns
-            .into_iter()
-            .map(|(column, _)| column)
-            .collect(),
-    ))
+    let (arg_columns, args) = args_with_columns.into_iter().unzip();
+    Ok((name.to_string(), args, arg_columns))
 }
 
-fn pipeline_unquoted_char_positions(input: &str, needle: char) -> Vec<usize> {
-    let mut positions = Vec::new();
+fn first_two_unquoted_char_positions(input: &str, needle: char) -> (Option<usize>, Option<usize>) {
+    let mut first = None;
     let mut in_string = false;
     let mut escaped = false;
     for (index, ch) in input.char_indices() {
@@ -188,10 +168,13 @@ fn pipeline_unquoted_char_positions(input: &str, needle: char) -> Vec<usize> {
         if ch == '"' {
             in_string = !in_string;
         } else if !in_string && ch == needle {
-            positions.push(index);
+            if first.is_some() {
+                return (first, Some(index));
+            }
+            first = Some(index);
         }
     }
-    positions
+    (first, None)
 }
 
 fn invalid_pipeline_call_at(line: &str, column: usize) -> DslError {
@@ -271,14 +254,14 @@ pub(crate) fn parse_pipeline_function_signature(
 
 fn parse_pipeline_param(param: &str) -> Result<PipelineParam, DslError> {
     let trimmed = param.trim();
-    let separators = pipeline_unquoted_char_positions(trimmed, '=');
-    if separators.len() > 1 {
+    let (separator, duplicate_separator) = first_two_unquoted_char_positions(trimmed, '=');
+    if let Some(duplicate_separator) = duplicate_separator {
         return Err(DslError::InvalidValue(
             "pipeline parameter contains multiple default separators".into(),
         )
-        .at_line_column(0, Some(separators[1] + 1)));
+        .at_line_column(0, Some(duplicate_separator + 1)));
     }
-    let (name_src, default_value) = match separators.first().copied() {
+    let (name_src, default_value) = match separator {
         Some(separator) => {
             let name = &trimmed[..separator];
             let default = &trimmed[separator + 1..];
