@@ -25,6 +25,20 @@ public interface IRuntimeRegistrationAuthority
         RuntimeStatusDiscoveryResult? statusDiscovery = null,
         RuntimeSidecarDiscoveryResult? sidecarDiscovery = null);
 
+    Task SubmitDiscoveryAtRevisionAsync(
+        string runtimeId,
+        ulong? expectedRevision,
+        CancellationToken cancellationToken,
+        CapabilityDiscoveryResult? capabilityDiscovery = null,
+        RuntimeStatusDiscoveryResult? statusDiscovery = null,
+        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+        SubmitDiscoveryAsync(
+            runtimeId,
+            cancellationToken,
+            capabilityDiscovery,
+            statusDiscovery,
+            sidecarDiscovery);
+
     Task UnregisterAsync(
         IReadOnlyCollection<string> runtimeIds,
         CancellationToken cancellationToken);
@@ -165,8 +179,23 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         }
     }
 
-    public async Task SubmitDiscoveryAsync(
+    public Task SubmitDiscoveryAsync(
         string runtimeId,
+        CancellationToken cancellationToken,
+        CapabilityDiscoveryResult? capabilityDiscovery = null,
+        RuntimeStatusDiscoveryResult? statusDiscovery = null,
+        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+        SubmitDiscoveryAtRevisionAsync(
+            runtimeId,
+            null,
+            cancellationToken,
+            capabilityDiscovery,
+            statusDiscovery,
+            sidecarDiscovery);
+
+    public async Task SubmitDiscoveryAtRevisionAsync(
+        string runtimeId,
+        ulong? expectedRevision,
         CancellationToken cancellationToken,
         CapabilityDiscoveryResult? capabilityDiscovery = null,
         RuntimeStatusDiscoveryResult? statusDiscovery = null,
@@ -186,7 +215,8 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         deadline.CancelAfter(timeout);
         try
         {
-            var revision = await InspectRevisionAsync(runtimeId, deadline.Token)
+            var revision = expectedRevision
+                ?? await InspectRevisionAsync(runtimeId, deadline.Token)
                 ?? throw new InvalidOperationException("leserpentd lost the runtime before discovery intake");
             var command = BuildDiscoveryIntakeCommand(
                 runtimeId,
@@ -256,7 +286,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         deadline.CancelAfter(timeout);
         try
         {
-            var targets = new List<(string RuntimeId, long Revision)>(uniqueRuntimeIds.Length);
+            var targets = new List<(string RuntimeId, ulong Revision)>(uniqueRuntimeIds.Length);
             foreach (var runtimeId in uniqueRuntimeIds)
             {
                 var revision = await InspectRevisionAsync(runtimeId, deadline.Token);
@@ -558,7 +588,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
     private byte[] BuildCommand(
         RuntimeRegistrationRequest request,
         string runtimeId,
-        long? expectedRevision)
+        ulong? expectedRevision)
     {
         var tags = request.Tags ?? new RuntimeTags(null, null, null);
         var stableCommandId = BuildDeterministicCommandId(
@@ -614,7 +644,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         });
     }
 
-    private async Task<long?> InspectRevisionAsync(
+    private async Task<ulong?> InspectRevisionAsync(
         string runtimeId,
         CancellationToken cancellationToken)
     {
@@ -675,12 +705,12 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         {
             throw new InvalidOperationException("leserpentd runtime query returned a different runtime");
         }
-        return runtime.GetProperty("revision").GetInt64();
+        return runtime.GetProperty("revision").GetUInt64();
     }
 
     private byte[] BuildDiscoveryIntakeCommand(
         string runtimeId,
-        long expectedRevision,
+        ulong expectedRevision,
         RuntimeCapabilityAuthoritySnapshot? capabilities,
         RuntimeStatusSnapshot? status,
         RuntimeSidecarStatusSnapshot? sidecarStatus)
@@ -725,7 +755,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
 
     private byte[] BuildUnregisterRequest(
         string commandId,
-        IReadOnlyList<(string RuntimeId, long Revision)> targets)
+        IReadOnlyList<(string RuntimeId, ulong Revision)> targets)
     {
         return BuildFrame(writer =>
         {
@@ -1156,7 +1186,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
 
     private static string BuildDiscoveryCommandId(
         string runtimeId,
-        long expectedRevision,
+        ulong expectedRevision,
         RuntimeCapabilityAuthoritySnapshot? capabilities,
         RuntimeStatusSnapshot? status,
         RuntimeSidecarStatusSnapshot? sidecarStatus)

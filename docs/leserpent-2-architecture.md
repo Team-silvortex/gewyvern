@@ -908,9 +908,19 @@ selected runtime IDs plus every managed session ID that would be removed.
 Reservation rechecks both sets under the same lock used by session creation and
 before writing a durable deletion intent; an empty target set returns without
 an authority mutation. Session and persistence-history reads remain managed
-history views. Deployment and refresh effects are the next migration boundary:
-their execution context must compose daemon-owned endpoint identity with local
-credential handles without moving secrets into the projection.
+history views. Deployment, active protocol reading, individual recovery,
+Fleet refresh, and Orchestra recovery now resolve one internal command
+execution context before touching a target. Runtime identity, endpoint,
+sidecar endpoint, membership, and expected revision come from the daemon;
+runtime and sidecar credentials come only from managed credential slots. The
+context is not an API model, and its diagnostic representation exposes only
+credential presence. Daemon deployment and discovery intake use the captured
+revision directly, while Orchestra combines all observations into one intake
+so a successful first step cannot stale the remaining steps. Compatibility
+responses are rebuilt with daemon identity rather than stale managed
+coordinates. The next boundary is a typed discovery-intake receipt carrying
+the applied revision and projected runtime, so compatibility writes and
+responses can bind to the exact daemon commit without a second query.
 Sidecar status, including its bounded memory-slot summary, now follows the same
 revision-fenced journal and strict read projection. Registration, individual
 refresh, recovery, Fleet refresh, and Orchestra recovery all compose available

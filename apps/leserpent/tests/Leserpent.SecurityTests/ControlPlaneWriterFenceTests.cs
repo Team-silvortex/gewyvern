@@ -219,6 +219,7 @@ public sealed class ControlPlaneWriterFenceTests
                     "https://runtime.example",
                     "pairing-token",
                     new RuntimeTags(null, null, null)),
+                1,
                 new RuntimeDeploymentRequest(
                     "capture/http",
                     "operator",

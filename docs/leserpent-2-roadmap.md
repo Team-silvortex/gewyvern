@@ -952,9 +952,17 @@ durable history. Cleanup-plan GET and all matching delete routes now build from
 the same daemon-authoritative runtime projection. Plan-token v2 also binds the
 managed session IDs that would be removed, and deletion reservation atomically
 rechecks target and session membership before persisting an intent. Empty plans
-do not issue authority mutations. The next cutover is an explicit command
-execution context that combines daemon-owned target coordinates with managed
-credentials for deployment and refresh effects.
+do not issue authority mutations. An internal command execution context now
+combines daemon-owned runtime identity, endpoint, sidecar endpoint, membership,
+and revision with local managed credential slots. Deployment, protocol reading,
+individual refresh and recovery, Fleet refresh, and Orchestra recovery all use
+that context; Fleet no longer enumerates managed membership. Deployment and
+discovery commands carry the captured expected revision, command responses keep
+daemon identity, and Orchestra submits its composed observations in one intake.
+Secrets remain outside read projections, API models, diagnostics, and durable
+history. The next cutover returns a typed discovery-intake receipt with the
+applied revision and runtime projection, then binds compatibility writes and
+responses to that exact daemon commit without a second query.
 Cleanup and generic
 unregistration now have an
 explicit confirmed result contract: a daemon schema-v14 transaction fences all

@@ -10,6 +10,7 @@ public interface IDeploymentAuthority
 
     Task<RuntimeDeploymentResponse> DeployAsync(
         RuntimeControlAccess runtime,
+        ulong expectedRevision,
         RuntimeDeploymentRequest request,
         CancellationToken cancellationToken);
 }
@@ -69,6 +70,7 @@ public sealed class DaemonDeploymentAuthority : IDeploymentAuthority
 
     public async Task<RuntimeDeploymentResponse> DeployAsync(
         RuntimeControlAccess runtime,
+        ulong expectedRevision,
         RuntimeDeploymentRequest request,
         CancellationToken cancellationToken)
     {
@@ -85,7 +87,10 @@ public sealed class DaemonDeploymentAuthority : IDeploymentAuthority
         deadline.CancelAfter(timeout);
         try
         {
-            var command = BuildCommand(runtime.RuntimeId, request);
+            var command = BuildCommand(
+                runtime.RuntimeId,
+                expectedRevision,
+                request);
             using (var response = await ExchangeAsync(command, deadline.Token))
             {
                 ValidateCommandResponse(response.RootElement, request.RequestId);
@@ -220,7 +225,10 @@ public sealed class DaemonDeploymentAuthority : IDeploymentAuthority
         }
     }
 
-    private byte[] BuildCommand(string runtimeId, RuntimeDeploymentRequest request) =>
+    private byte[] BuildCommand(
+        string runtimeId,
+        ulong expectedRevision,
+        RuntimeDeploymentRequest request) =>
         BuildFrame(writer =>
         {
             writer.WriteStartObject();
@@ -233,7 +241,7 @@ public sealed class DaemonDeploymentAuthority : IDeploymentAuthority
             writer.WriteNumber("schema_version", 1);
             writer.WriteString("command_id", request.RequestId);
             writer.WriteString("idempotency_key", request.RequestId);
-            writer.WriteNull("expected_revision");
+            writer.WriteNumber("expected_revision", expectedRevision);
             WritePrincipal(writer, request.RequestedBy);
             WriteCapabilities(writer);
             writer.WriteString("origin", "compatibility_adapter");

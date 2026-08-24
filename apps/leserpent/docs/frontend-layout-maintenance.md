@@ -81,7 +81,11 @@ Suggested attention actions carry `commandKind` directly from the control plane.
 Cooldown, priority, step selection, aggregate outcome, and recovery-history
 recording therefore remain stable when the renderer is replaced. The older
 fine-grained refresh endpoints remain compatibility surfaces, not the dashboard
-workflow authority.
+workflow authority. Those compatibility surfaces and Fleet refresh now resolve
+the same server-side command execution context: daemon membership, endpoints,
+and revision select the target, while local credential slots are attached only
+inside the effect boundary. The browser must never supply or reconstruct those
+coordinates from previously rendered runtime data.
 
 ## Layout Modes
 

@@ -150,9 +150,17 @@ delete route validates that exact projection again. Cleanup plan tokens bind
 both runtime IDs and affected managed session IDs; deletion reservation checks
 both sets under the session-creation lock before persisting an intent. Empty
 plans complete without issuing an unregistration command. Session and
-persistence-history GETs remain managed history views. Deployment and refresh
-commands are the next boundary: they still need an explicit execution context
-that combines daemon target coordinates with local credentials.
+persistence-history GETs remain managed history views. Deployment, active
+protocol reading, individual recovery and refresh, Fleet refresh, and Orchestra
+recovery now resolve an internal command execution context. Daemon projection
+owns runtime membership, identity, runtime and sidecar endpoints, and expected
+revision; the managed store contributes only the matching runtime and sidecar
+credentials. Fleet commands therefore cannot resurrect managed-only runtimes,
+and no command can target a stale managed endpoint. The context is neither an
+API model nor a persistence model, and its diagnostics report only whether
+credentials exist. Daemon deployment and discovery intake are revision-fenced;
+Orchestra composes all observations into one intake before updating managed
+compatibility state.
 
 ## Security Model
 

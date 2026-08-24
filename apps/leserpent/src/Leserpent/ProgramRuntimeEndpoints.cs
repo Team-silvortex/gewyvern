@@ -146,30 +146,31 @@ public partial class Program
                     runtime.SidecarStatus));
         });
 
-        app.MapGet("/v1/runtimes/{id}/protocol-reading", async Task<IResult> (string id, RuntimeReadProjectionService runtimeReads, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
+        app.MapGet("/v1/runtimes/{id}/protocol-reading", async Task<IResult> (string id, RuntimeCommandExecutionContextService commandContexts, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
         {
-            RuntimeSummary? runtime;
+            RuntimeCommandExecutionContext? context;
             try
             {
-                runtime = await runtimeReads.InspectAsync(id, cancellationToken);
+                context = await commandContexts.InspectAsync(id, cancellationToken);
             }
             catch (DaemonRuntimeProjectionException ex)
             {
                 return RuntimeProjectionFailure(ex, id);
             }
-            if (runtime is null)
+            if (context is null)
             {
                 return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
             }
 
             try
             {
+                var runtime = context.Runtime;
                 var reading = await discovery.DiscoverProtocolReadingAsync(
                     runtime.RuntimeId,
                     runtime.Name,
                     runtime.Endpoint,
                     cancellationToken,
-                    registry.GetRuntimeControlAccess(id)?.AdminToken);
+                    context.ControlAccess.AdminToken);
                 return reading is null
                     ? Results.NotFound(new ApiErrorResponse("protocol_reading_unavailable", RuntimeId: id))
                     : Results.Ok(reading);
@@ -293,6 +294,7 @@ public partial class Program
             string id,
             RuntimeDeploymentRequest request,
             RegistryService registry,
+            RuntimeCommandExecutionContextService commandContexts,
             CapabilityDiscoveryService discovery,
             ICompatibilityBridge compatibilityBridge,
             IDeploymentAuthority deploymentAuthority,
@@ -303,12 +305,21 @@ public partial class Program
             {
                 return Results.BadRequest(new ApiErrorResponse("invalid_runtime_deployment", validationError, RuntimeId: id, RequestId: request.RequestId));
             }
-            var runtime = registry.GetRuntime(id);
-            var access = registry.GetRuntimeControlAccess(id);
-            if (runtime is null || access is null)
+            RuntimeCommandExecutionContext? context;
+            try
+            {
+                context = await commandContexts.InspectAsync(id, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex, id);
+            }
+            if (context is null)
             {
                 return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
             }
+            var runtime = context.Runtime;
+            var access = context.ControlAccess;
             if (string.IsNullOrWhiteSpace(access.AdminToken))
             {
                 return Results.Conflict(new ApiErrorResponse(
@@ -346,7 +357,14 @@ public partial class Program
             try
             {
                 var deployed = deploymentAuthority.Enabled
-                    ? await deploymentAuthority.DeployAsync(access, normalizedRequest, cancellationToken)
+                    ? await deploymentAuthority.DeployAsync(
+                        access,
+                        context.AuthorityRevision
+                            ?? throw new DaemonDeploymentException(
+                                "daemon_deployment_revision_missing",
+                                "daemon-authoritative deployment requires a runtime revision"),
+                        normalizedRequest,
+                        cancellationToken)
                     : await discovery.DeployAsync(access, normalizedRequest, cancellationToken);
                 if (!deployed.Replayed || registry.GetOrchestraRunByRequestId(id, normalizedRequest.RequestId) is null)
                 {
@@ -418,25 +436,36 @@ public partial class Program
         app.MapPost("/v1/runtimes/{id}/refresh-capabilities", async (
             string id,
             RegistryService registry,
+            RuntimeCommandExecutionContextService commandContexts,
             CapabilityDiscoveryService discovery,
             IRuntimeRegistrationAuthority registrationAuthority,
             CancellationToken cancellationToken) =>
         {
-            var runtime = registry.GetRuntime(id);
-            if (runtime is null)
+            RuntimeCommandExecutionContext? context;
+            try
+            {
+                context = await commandContexts.InspectAsync(id, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex, id);
+            }
+            if (context is null)
             {
                 return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
             }
 
+            var runtime = context.Runtime;
             var capabilityDiscovery = await discovery.DiscoverAsync(
                 runtime.Endpoint,
                 null,
                 cancellationToken,
-                registry.GetRuntimeControlAccess(id)?.AdminToken);
+                context.ControlAccess.AdminToken);
             try
             {
-                await registrationAuthority.SubmitDiscoveryAsync(
+                await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
                     id,
+                    context.AuthorityRevision,
                     cancellationToken,
                     capabilityDiscovery: capabilityDiscovery);
             }
@@ -447,7 +476,14 @@ public partial class Program
             var refreshed = registry.RefreshRuntimeCapabilities(id, capabilityDiscovery);
             return refreshed is null
                 ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
-                : Results.Ok(refreshed);
+                : Results.Ok(new RuntimeCapabilityRefreshResponse(
+                    runtime.RuntimeId,
+                    runtime.Name,
+                    runtime.Endpoint,
+                    refreshed.Capabilities,
+                    refreshed.CapabilitySource,
+                    refreshed.CapabilityFetchedAt,
+                    refreshed.CapabilityFetchError));
         });
 
         app.MapPost("/v1/runtimes/{id}/recovery", (
@@ -455,14 +491,14 @@ public partial class Program
             RuntimeRecoveryCommandRequest request,
             RegistryService registry,
             CapabilityDiscoveryService discovery,
-            RuntimeReadProjectionService runtimeReads,
+            RuntimeCommandExecutionContextService commandContexts,
             ICompatibilityBridge compatibilityBridge,
             IRuntimeRegistrationAuthority registrationAuthority,
             CancellationToken cancellationToken) =>
             ExecuteRuntimeRecoveryAsync(
                 id,
                 request,
-                runtimeReads,
+                commandContexts,
                 registry,
                 discovery,
                 compatibilityBridge,
@@ -472,22 +508,32 @@ public partial class Program
         app.MapPost("/v1/runtimes/{id}/refresh-status", async (
             string id,
             RegistryService registry,
+            RuntimeCommandExecutionContextService commandContexts,
             CapabilityDiscoveryService discovery,
             ICompatibilityBridge compatibilityBridge,
             IRuntimeRegistrationAuthority registrationAuthority,
             CancellationToken cancellationToken) =>
         {
-            var runtime = registry.GetRuntime(id);
-            if (runtime is null)
+            RuntimeCommandExecutionContext? context;
+            try
+            {
+                context = await commandContexts.InspectAsync(id, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex, id);
+            }
+            if (context is null)
             {
                 return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
             }
 
+            var runtime = context.Runtime;
             var statusDiscovery = await discovery.DiscoverStatusAsync(
                 runtime.Endpoint,
                 null,
                 cancellationToken,
-                registry.GetRuntimeControlAccess(id)?.AdminToken);
+                context.ControlAccess.AdminToken);
             try
             {
                 await compatibilityBridge.ValidateStatusRefreshAsync(
@@ -504,8 +550,9 @@ public partial class Program
             }
             try
             {
-                await registrationAuthority.SubmitDiscoveryAsync(
+                await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
                     id,
+                    context.AuthorityRevision,
                     cancellationToken,
                     statusDiscovery: statusDiscovery);
             }
@@ -532,23 +579,37 @@ public partial class Program
             }
             return refreshed is null
                 ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
-                : Results.Ok(refreshed);
+                : Results.Ok(new RuntimeStatusRefreshResponse(
+                    runtime.RuntimeId,
+                    runtime.Name,
+                    runtime.Endpoint,
+                    refreshed.Status));
         });
 
         app.MapPost("/v1/runtimes/{id}/refresh-sidecar", async (
             string id,
             RegistryService registry,
+            RuntimeCommandExecutionContextService commandContexts,
             CapabilityDiscoveryService discovery,
             IRuntimeRegistrationAuthority registrationAuthority,
             CancellationToken cancellationToken) =>
         {
-            var runtime = registry.GetRuntime(id);
-            if (runtime is null)
+            RuntimeCommandExecutionContext? context;
+            try
+            {
+                context = await commandContexts.InspectAsync(id, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex, id);
+            }
+            if (context is null)
             {
                 return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
             }
 
-            var sidecarAccess = registry.GetRuntimeSidecarAccess(id);
+            var runtime = context.Runtime;
+            var sidecarAccess = context.SidecarAccess;
             if (sidecarAccess is null)
             {
                 return Results.BadRequest(new ApiErrorResponse("runtime_has_no_sidecar_endpoint", RuntimeId: id));
@@ -563,8 +624,9 @@ public partial class Program
             {
                 if (sidecarDiscovery.SidecarStatus is not null)
                 {
-                    await registrationAuthority.SubmitDiscoveryAsync(
+                    await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
                         id,
+                        context.AuthorityRevision,
                         cancellationToken,
                         sidecarDiscovery: sidecarDiscovery);
                 }
@@ -592,7 +654,13 @@ public partial class Program
             }
             return refreshed is null
                 ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
-                : Results.Ok(refreshed);
+                : Results.Ok(new RuntimeSidecarRefreshResponse(
+                    runtime.RuntimeId,
+                    runtime.Name,
+                    runtime.Endpoint,
+                    runtime.SidecarEndpoint,
+                    runtime.HasSidecarAdminToken,
+                    refreshed.SidecarStatus));
         });
 
         app.MapPost("/v1/runtimes/{id}/delete", async (
@@ -815,7 +883,7 @@ public partial class Program
     private static async Task<IResult> ExecuteRuntimeRecoveryAsync(
         string runtimeId,
         RuntimeRecoveryCommandRequest request,
-        RuntimeReadProjectionService runtimeReads,
+        RuntimeCommandExecutionContextService commandContexts,
         RegistryService registry,
         CapabilityDiscoveryService discovery,
         ICompatibilityBridge compatibilityBridge,
@@ -831,21 +899,22 @@ public partial class Program
                 RuntimeId: runtimeId));
         }
 
-        RuntimeSummary? runtime;
+        RuntimeCommandExecutionContext? context;
         try
         {
-            runtime = await runtimeReads.InspectAsync(runtimeId, cancellationToken);
+            context = await commandContexts.InspectAsync(runtimeId, cancellationToken);
         }
         catch (DaemonRuntimeProjectionException ex)
         {
             return RuntimeProjectionFailure(ex, runtimeId);
         }
-        if (runtime is null)
+        if (context is null)
         {
             return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: runtimeId));
         }
-        var controlAccess = registry.GetRuntimeControlAccess(runtimeId);
-        var sidecarAccess = registry.GetRuntimeSidecarAccess(runtimeId);
+        var runtime = context.Runtime;
+        var controlAccess = context.ControlAccess;
+        var sidecarAccess = context.SidecarAccess;
         if (kind == "sidecar" && sidecarAccess is null)
         {
             return Results.BadRequest(new ApiErrorResponse("runtime_has_no_sidecar_endpoint", RuntimeId: runtimeId));
@@ -860,7 +929,7 @@ public partial class Program
                 runtime.Endpoint,
                 null,
                 cancellationToken,
-                controlAccess?.AdminToken);
+                controlAccess.AdminToken);
         }
         if (kind is "all" or "status")
         {
@@ -868,7 +937,7 @@ public partial class Program
                 runtime.Endpoint,
                 null,
                 cancellationToken,
-                controlAccess?.AdminToken);
+                controlAccess.AdminToken);
             try
             {
                 await compatibilityBridge.ValidateStatusRefreshAsync(
@@ -895,8 +964,9 @@ public partial class Program
 
         try
         {
-            await registrationAuthority.SubmitDiscoveryAsync(
+            await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
                 runtimeId,
+                context.AuthorityRevision,
                 cancellationToken,
                 capabilityDiscovery,
                 statusDiscovery,

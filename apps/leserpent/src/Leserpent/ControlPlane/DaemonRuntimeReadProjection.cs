@@ -36,22 +36,35 @@ public sealed record DaemonRuntimeProjection(
     RuntimeCapabilityAuthoritySnapshot? Capabilities,
     RuntimeSidecarStatusSnapshot? SidecarStatus);
 
+internal sealed record RuntimeAuthorityProjection(
+    RuntimeSummary Runtime,
+    ulong? Revision);
+
 public sealed class RuntimeReadProjectionService(
     RegistryService registry,
     IDaemonRuntimeProjectionReader daemon)
 {
     public async Task<IReadOnlyList<RuntimeSummary>> ListAsync(
         RuntimeListFilter filter,
+        CancellationToken cancellationToken) =>
+        (await ListWithAuthorityAsync(filter, cancellationToken))
+            .Select(projection => projection.Runtime)
+            .ToArray();
+
+    internal async Task<IReadOnlyList<RuntimeAuthorityProjection>> ListWithAuthorityAsync(
+        RuntimeListFilter filter,
         CancellationToken cancellationToken)
     {
         if (!daemon.Enabled)
         {
-            return registry.ListRuntimes(filter);
+            return registry.ListRuntimes(filter)
+                .Select(runtime => new RuntimeAuthorityProjection(runtime, null))
+                .ToArray();
         }
         var managedById = registry.ListRuntimes()
             .ToDictionary(runtime => runtime.RuntimeId, StringComparer.Ordinal);
         var authoritative = await daemon.ListAsync(filter, cancellationToken);
-        var projected = new List<RuntimeSummary>(authoritative.Count);
+        var projected = new List<RuntimeAuthorityProjection>(authoritative.Count);
         foreach (var runtime in authoritative)
         {
             if (!MatchesFilter(runtime.Tags, filter))
@@ -64,21 +77,31 @@ public sealed class RuntimeReadProjectionService(
                     "daemon_projection_unmapped",
                     $"daemon runtime '{runtime.RuntimeId}' has no managed compatibility metadata");
             }
-            projected.Add(Merge(runtime, compatibility));
+            projected.Add(new RuntimeAuthorityProjection(
+                Merge(runtime, compatibility),
+                runtime.Revision));
         }
         return projected
-            .OrderBy(runtime => runtime.Name, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(runtime => runtime.RuntimeId, StringComparer.Ordinal)
+            .OrderBy(projection => projection.Runtime.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(projection => projection.Runtime.RuntimeId, StringComparer.Ordinal)
             .ToArray();
     }
 
     public async Task<RuntimeSummary?> InspectAsync(
         string runtimeId,
+        CancellationToken cancellationToken) =>
+        (await InspectWithAuthorityAsync(runtimeId, cancellationToken))?.Runtime;
+
+    internal async Task<RuntimeAuthorityProjection?> InspectWithAuthorityAsync(
+        string runtimeId,
         CancellationToken cancellationToken)
     {
         if (!daemon.Enabled)
         {
-            return registry.GetRuntime(runtimeId);
+            var runtime = registry.GetRuntime(runtimeId);
+            return runtime is null
+                ? null
+                : new RuntimeAuthorityProjection(runtime, null);
         }
         if (!ValidRuntimeId(runtimeId))
         {
@@ -96,7 +119,9 @@ public sealed class RuntimeReadProjectionService(
                 "daemon_projection_unmapped",
                 $"daemon runtime '{runtimeId}' has no managed compatibility metadata");
         }
-        return Merge(authoritative, managed);
+        return new RuntimeAuthorityProjection(
+            Merge(authoritative, managed),
+            authoritative.Revision);
     }
 
     private static RuntimeSummary Merge(

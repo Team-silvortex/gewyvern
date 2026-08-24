@@ -527,6 +527,148 @@ public sealed class RuntimeReadProjectionTests
         }
     }
 
+    [Fact]
+    public async Task CommandContextComposesDaemonTargetAndRevisionWithManagedCredentials()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "Managed Name",
+                    "https://managed.invalid",
+                    "runtime-secret",
+                    Tags: new RuntimeTags("managed", "west", "legacy"),
+                    SidecarEndpoint: "https://managed-sidecar.invalid",
+                    SidecarAdminToken: "sidecar-secret"),
+                "runtime-context");
+            var projection = Projection("runtime-context") with
+            {
+                Revision = 42,
+            };
+            var contexts = new RuntimeCommandExecutionContextService(
+                new RuntimeReadProjectionService(
+                    registry,
+                    new FakeDaemonReader(true, new[] { projection })),
+                registry);
+
+            var context = Assert.IsType<RuntimeCommandExecutionContext>(
+                await contexts.InspectAsync(
+                    "runtime-context",
+                    CancellationToken.None));
+
+            Assert.Equal(42UL, context.AuthorityRevision);
+            Assert.Equal("Daemon Name", context.Runtime.Name);
+            Assert.Equal("https://daemon.invalid", context.Runtime.Endpoint);
+            Assert.Equal("https://daemon.invalid", context.ControlAccess.Endpoint);
+            Assert.Equal("runtime-secret", context.ControlAccess.AdminToken);
+            Assert.Equal("daemon", context.ControlAccess.Tags.Environment);
+            Assert.Equal(
+                "https://daemon-sidecar.invalid",
+                context.SidecarAccess?.SidecarEndpoint);
+            Assert.Equal("sidecar-secret", context.SidecarAccess?.SidecarAdminToken);
+            Assert.DoesNotContain("runtime-secret", context.ToString());
+            Assert.DoesNotContain("sidecar-secret", context.ToString());
+            Assert.DoesNotContain("daemon.invalid", context.ToString());
+            Assert.All(
+                new[]
+                {
+                    context.ControlAccess.Endpoint,
+                    context.SidecarAccess!.SidecarEndpoint,
+                },
+                endpoint => Assert.DoesNotContain("managed.invalid", endpoint));
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public async Task CommandContextListUsesDaemonMembershipAndDoesNotResurrectManagedSidecar()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "Authoritative",
+                    "https://managed-authoritative.invalid",
+                    "runtime-secret",
+                    SidecarEndpoint: "https://managed-sidecar.invalid",
+                    SidecarAdminToken: "sidecar-secret"),
+                "runtime-authoritative");
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "Managed Only",
+                    "https://managed-only.invalid",
+                    "managed-only-secret"),
+                "runtime-managed-only");
+            var projection = Projection("runtime-authoritative") with
+            {
+                SidecarEndpoint = null,
+            };
+            var contexts = new RuntimeCommandExecutionContextService(
+                new RuntimeReadProjectionService(
+                    registry,
+                    new FakeDaemonReader(true, new[] { projection })),
+                registry);
+
+            var context = Assert.Single(await contexts.ListAsync(
+                new RuntimeListFilter(null, null, null),
+                CancellationToken.None));
+
+            Assert.Equal("runtime-authoritative", context.Runtime.RuntimeId);
+            Assert.Null(context.SidecarAccess);
+            Assert.DoesNotContain(
+                "runtime-managed-only",
+                (await contexts.ListAsync(
+                    new RuntimeListFilter(null, null, null),
+                    CancellationToken.None))
+                    .Select(value => value.Runtime.RuntimeId));
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public async Task CommandContextUsesAuthoritativeSidecarWithoutInventingCredential()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "Managed",
+                    "https://managed.invalid",
+                    "runtime-secret"),
+                "runtime-sidecar-context");
+            var contexts = new RuntimeCommandExecutionContextService(
+                new RuntimeReadProjectionService(
+                    registry,
+                    new FakeDaemonReader(
+                        true,
+                        new[] { Projection("runtime-sidecar-context") })),
+                registry);
+
+            var context = Assert.IsType<RuntimeCommandExecutionContext>(
+                await contexts.InspectAsync(
+                    "runtime-sidecar-context",
+                    CancellationToken.None));
+
+            Assert.Equal(
+                "https://daemon-sidecar.invalid",
+                context.SidecarAccess?.SidecarEndpoint);
+            Assert.Null(context.SidecarAccess?.SidecarAdminToken);
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
     private static DaemonRuntimeProjection Projection(string runtimeId) =>
         new(
             runtimeId,

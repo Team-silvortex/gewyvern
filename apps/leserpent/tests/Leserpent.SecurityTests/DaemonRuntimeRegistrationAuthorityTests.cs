@@ -337,6 +337,52 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
     }
 
     [Fact]
+    public async Task DiscoveryIntakeUsesSuppliedProjectionRevisionWithoutReinspection()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var socketPath = TempSocket();
+        using var listener = BindPrivateSocket(socketPath);
+        var requests = new List<JsonElement>();
+        const string runtimeId = "runtime-context";
+        var server = ServeSequenceAsync(listener, requests, (request, _) =>
+        {
+            var payload = request
+                .GetProperty("request")
+                .GetProperty("request")
+                .GetProperty("payload");
+            return CommandResponse(
+                runtimeId,
+                payload.GetProperty("command_id").GetString()!,
+                43);
+        }, 1);
+        var authority = CreateAuthority(
+            ("LESERPENT_DAEMON_SOCKET", socketPath),
+            ("LESERPENT_DAEMON_TOKEN", Token));
+
+        await authority.SubmitDiscoveryAtRevisionAsync(
+            runtimeId,
+            42,
+            CancellationToken.None,
+            capabilityDiscovery: AuthorityDiscovery());
+
+        await server;
+        var request = Assert.Single(requests)
+            .GetProperty("request")
+            .GetProperty("request");
+        Assert.Equal("command", request.GetProperty("kind").GetString());
+        var payload = request.GetProperty("payload");
+        Assert.Equal(42UL, payload.GetProperty("expected_revision").GetUInt64());
+        Assert.Equal(
+            "runtime_discovery_intake",
+            payload.GetProperty("command").GetProperty("kind").GetString());
+
+        TryDelete(socketPath);
+    }
+
+    [Fact]
     public async Task ConfiguredRustDaemonOwnsRegistrationDiscoveryAndUpdateEndToEnd()
     {
         var daemonBinary = Environment.GetEnvironmentVariable("LESERPENT_TEST_DAEMON_BIN");

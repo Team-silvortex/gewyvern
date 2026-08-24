@@ -4638,7 +4638,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeCleanupProjectionService.cs"
             && item.state == EvidenceState::Present
     }));
-    assert!(domain.next_gate.contains("command execution context"));
+    assert!(domain.evidence.iter().any(|item| {
+        item.path
+            == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeCommandExecutionContextService.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(domain.next_gate.contains("typed discovery-intake receipt"));
 
     let language = catalog
         .cells
@@ -5613,7 +5618,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.49.7");
+    assert_eq!(compatibility_control.contract.version, "1.49.8");
     assert!(
         compatibility_control
             .contract
@@ -5637,6 +5642,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "session-bound-cleanup-plan-token",
         "atomic-cleanup-reservation-session-fence",
         "effect-free-empty-cleanup",
+        "daemon-authoritative-command-context",
+        "daemon-authoritative-fleet-command-membership",
+        "revision-fenced-deployment-target",
+        "revision-fenced-refresh-target",
+        "daemon-authoritative-command-response-identity",
+        "single-intake-orchestra-observation",
+        "secret-free-command-context-diagnostics",
     ] {
         assert!(
             compatibility_control
@@ -6108,7 +6120,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.49.7");
+    assert_eq!(compatibility_control.contract.version, "1.49.8");
     assert!(
         compatibility_control
             .next_gate
@@ -8430,4 +8442,55 @@ fn native_status_cli_exposes_human_and_machine_views() {
     assert_eq!(payload.as_array().unwrap().len(), 1);
     assert_eq!(payload[0]["feature"], "effect-reentry");
     assert_eq!(payload[0]["priority"], "critical");
+}
+
+#[test]
+fn leserpent_compatibility_effects_use_authoritative_execution_context() {
+    let root = repository_root();
+    let context = std::fs::read_to_string(root.join(
+        "apps/leserpent/src/Leserpent/ControlPlane/RuntimeCommandExecutionContextService.cs",
+    ))
+    .expect("runtime command execution context must exist");
+    assert!(context.contains("internal sealed class RuntimeCommandExecutionContext"));
+    assert!(context.contains("internal sealed class RuntimeCommandExecutionContextService"));
+    assert!(context.contains("internal RuntimeControlAccess ControlAccess"));
+    assert!(context.contains("internal RuntimeSidecarAccess? SidecarAccess"));
+    assert!(!context.contains("public RuntimeControlAccess ControlAccess"));
+    assert!(!context.contains("public RuntimeSidecarAccess? SidecarAccess"));
+
+    for path in [
+        "apps/leserpent/src/Leserpent/ProgramRuntimeEndpoints.cs",
+        "apps/leserpent/src/Leserpent/ProgramFleetEndpoints.cs",
+        "apps/leserpent/src/Leserpent/OrchestraPlanExecutor.cs",
+    ] {
+        let source = std::fs::read_to_string(root.join(path))
+            .unwrap_or_else(|error| panic!("failed to read {path}: {error}"));
+        assert!(source.contains("RuntimeCommandExecutionContextService"));
+        assert!(source.contains("SubmitDiscoveryAtRevisionAsync"));
+        for forbidden in [
+            "registry.GetRuntimeControlAccess(",
+            "registry.GetRuntimeSidecarAccess(",
+            "registry.ListRuntimes(",
+            "registrationAuthority.SubmitDiscoveryAsync(",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "{path} bypasses the authoritative command context through {forbidden}"
+            );
+        }
+    }
+
+    let deployment = std::fs::read_to_string(root.join(
+        "apps/leserpent/src/Leserpent/ControlPlane/DaemonDeploymentAuthority.cs",
+    ))
+    .expect("daemon deployment authority must exist");
+    assert!(deployment.contains("ulong expectedRevision"));
+    assert!(deployment.contains("WriteNumber(\"expected_revision\", expectedRevision)"));
+
+    let discovery = std::fs::read_to_string(root.join(
+        "apps/leserpent/src/Leserpent/ControlPlane/DaemonRuntimeRegistrationAuthority.cs",
+    ))
+    .expect("daemon registration authority must exist");
+    assert!(discovery.contains("SubmitDiscoveryAtRevisionAsync"));
+    assert!(discovery.contains("var revision = expectedRevision"));
 }

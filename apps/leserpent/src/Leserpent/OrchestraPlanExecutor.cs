@@ -10,8 +10,9 @@ public interface IOrchestraPlanExecutor
         CancellationToken cancellationToken);
 }
 
-public sealed class OrchestraPlanExecutor(
+internal sealed class OrchestraPlanExecutor(
     RegistryService registry,
+    RuntimeCommandExecutionContextService commandContexts,
     CapabilityDiscoveryService discovery,
     IRuntimeRegistrationAuthority registrationAuthority) : IOrchestraPlanExecutor
 {
@@ -21,18 +22,68 @@ public sealed class OrchestraPlanExecutor(
         CancellationToken cancellationToken)
     {
         var results = new List<OrchestraExecutionStepResult>();
-
-        if (string.Equals(planId, "analysis_recovery", StringComparison.OrdinalIgnoreCase))
+        var context = await commandContexts.InspectAsync(
+            runtime.RuntimeId,
+            cancellationToken);
+        if (context is null)
         {
-            var capabilityDiscovery = await discovery.DiscoverAsync(
+            return new[]
+            {
+                new OrchestraExecutionStepResult(
+                    "resolve_runtime",
+                    "failed",
+                    "runtime unavailable before Orchestra execution"),
+            };
+        }
+        runtime = context.Runtime;
+
+        var analysisRecovery = string.Equals(
+            planId,
+            "analysis_recovery",
+            StringComparison.OrdinalIgnoreCase);
+        var refreshCapabilities = analysisRecovery;
+        var refreshStatus = analysisRecovery || string.Equals(
+            planId,
+            "runtime_triage",
+            StringComparison.OrdinalIgnoreCase);
+        var refreshSidecar = context.SidecarAccess is not null
+            && (analysisRecovery || string.Equals(
+                planId,
+                "sidecar_coordination",
+                StringComparison.OrdinalIgnoreCase));
+
+        var capabilityDiscovery = refreshCapabilities
+            ? await discovery.DiscoverAsync(
                 runtime.Endpoint,
                 null,
                 cancellationToken,
-                registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken);
-            await registrationAuthority.SubmitDiscoveryAsync(
-                runtime.RuntimeId,
+                context.ControlAccess.AdminToken)
+            : null;
+        var statusDiscovery = refreshStatus
+            ? await discovery.DiscoverStatusAsync(
+                runtime.Endpoint,
+                null,
                 cancellationToken,
-                capabilityDiscovery: capabilityDiscovery);
+                context.ControlAccess.AdminToken)
+            : null;
+        var sidecarDiscovery = refreshSidecar
+            ? await discovery.DiscoverSidecarStatusAsync(
+                context.SidecarAccess!.SidecarEndpoint,
+                null,
+                context.SidecarAccess.SidecarAdminToken,
+                cancellationToken)
+            : null;
+
+        await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
+            runtime.RuntimeId,
+            context.AuthorityRevision,
+            cancellationToken,
+            capabilityDiscovery,
+            statusDiscovery,
+            sidecarDiscovery);
+
+        if (capabilityDiscovery is not null)
+        {
             var capabilities = registry.RefreshRuntimeCapabilities(
                 runtime.RuntimeId,
                 capabilityDiscovery);
@@ -41,19 +92,8 @@ public sealed class OrchestraPlanExecutor(
                 capabilities is not null && capabilities.CapabilityFetchError is null ? "ok" : "degraded",
                 capabilities?.CapabilityFetchError ?? (capabilities is null ? "runtime unavailable during capability refresh" : "capabilities refreshed")));
         }
-
-        if (string.Equals(planId, "runtime_triage", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(planId, "analysis_recovery", StringComparison.OrdinalIgnoreCase))
+        if (statusDiscovery is not null)
         {
-            var statusDiscovery = await discovery.DiscoverStatusAsync(
-                runtime.Endpoint,
-                null,
-                cancellationToken,
-                registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken);
-            await registrationAuthority.SubmitDiscoveryAsync(
-                runtime.RuntimeId,
-                cancellationToken,
-                statusDiscovery: statusDiscovery);
             var status = registry.RefreshRuntimeStatus(
                 runtime.RuntimeId,
                 statusDiscovery);
@@ -66,35 +106,19 @@ public sealed class OrchestraPlanExecutor(
                 outcome,
                 error ?? (status is null ? "runtime unavailable during status refresh" : "runtime status refreshed")));
         }
-
-        if (string.Equals(planId, "sidecar_coordination", StringComparison.OrdinalIgnoreCase)
-            || (string.Equals(planId, "analysis_recovery", StringComparison.OrdinalIgnoreCase)
-                && !string.IsNullOrWhiteSpace(runtime.SidecarEndpoint)))
+        if (sidecarDiscovery is not null)
         {
-            var sidecarAccess = registry.GetRuntimeSidecarAccess(runtime.RuntimeId);
-            if (sidecarAccess is not null)
-            {
-                var sidecarDiscovery = await discovery.DiscoverSidecarStatusAsync(
-                    sidecarAccess.SidecarEndpoint,
-                    null,
-                    sidecarAccess.SidecarAdminToken,
-                    cancellationToken);
-                await registrationAuthority.SubmitDiscoveryAsync(
-                    runtime.RuntimeId,
-                    cancellationToken,
-                    sidecarDiscovery: sidecarDiscovery);
-                var sidecar = registry.RefreshRuntimeSidecar(
-                    runtime.RuntimeId,
-                    sidecarDiscovery);
-                var error = sidecar?.SidecarStatus?.StatusFetchError;
-                var outcome = sidecar is null
-                    ? "degraded"
-                    : Program.DetermineRefreshOutcome(null, null, sidecar.SidecarStatus?.StatusSource, error);
-                results.Add(new OrchestraExecutionStepResult(
-                    "refresh_sidecar",
-                    outcome,
-                    error ?? (sidecar is null ? "runtime unavailable during sidecar refresh" : "sidecar status refreshed")));
-            }
+            var sidecar = registry.RefreshRuntimeSidecar(
+                runtime.RuntimeId,
+                sidecarDiscovery);
+            var error = sidecar?.SidecarStatus?.StatusFetchError;
+            var outcome = sidecar is null
+                ? "degraded"
+                : Program.DetermineRefreshOutcome(null, null, sidecar.SidecarStatus?.StatusSource, error);
+            results.Add(new OrchestraExecutionStepResult(
+                "refresh_sidecar",
+                outcome,
+                error ?? (sidecar is null ? "runtime unavailable during sidecar refresh" : "sidecar status refreshed")));
         }
 
         return results;

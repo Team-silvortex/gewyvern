@@ -59,6 +59,7 @@ public sealed class DaemonDeploymentAuthorityTests
                 ("LESERPENT_DAEMON_TOKEN", Token));
             var result = await authority.DeployAsync(
                 RuntimeAccess(),
+                7,
                 DeploymentRequest(),
                 CancellationToken.None);
 
@@ -77,6 +78,7 @@ public sealed class DaemonDeploymentAuthorityTests
             Assert.Equal("deploy-1", commandPayload.GetProperty("idempotency_key").GetString());
             Assert.Equal("compatibility_adapter", commandPayload.GetProperty("origin").GetString());
             Assert.Equal("confirmed", commandPayload.GetProperty("confirmation").GetString());
+            Assert.Equal(7UL, commandPayload.GetProperty("expected_revision").GetUInt64());
             Assert.Equal("runtime.deploy", commandPayload.GetProperty("capabilities")[0].GetString());
             Assert.Equal(
                 "runtime-a",
@@ -109,7 +111,7 @@ public sealed class DaemonDeploymentAuthorityTests
                 ("LESERPENT_DAEMON_SOCKET", socketPath),
                 ("LESERPENT_DAEMON_TOKEN", Token));
             var error = await Assert.ThrowsAsync<DaemonDeploymentException>(() =>
-                authority.DeployAsync(RuntimeAccess(), DeploymentRequest(), CancellationToken.None));
+                authority.DeployAsync(RuntimeAccess(), 7, DeploymentRequest(), CancellationToken.None));
             Assert.Equal("daemon_socket_unsafe", error.Code);
         }
         finally
@@ -145,6 +147,7 @@ public sealed class DaemonDeploymentAuthorityTests
                 ("LESERPENT_DAEMON_DEPLOY_TIMEOUT_MS", "10000"));
             var result = await authority.DeployAsync(
                 RuntimeAccess(),
+                1,
                 DeploymentRequest(),
                 CancellationToken.None);
             Assert.Equal("gdep-real", result.DeploymentId);

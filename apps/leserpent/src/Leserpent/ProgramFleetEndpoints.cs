@@ -72,15 +72,26 @@ public partial class Program
             string? cluster,
             string? role,
             RegistryService registry,
+            RuntimeCommandExecutionContextService commandContexts,
             CapabilityDiscoveryService discovery,
             IRuntimeRegistrationAuthority registrationAuthority,
             CancellationToken cancellationToken) =>
         {
             var filter = new RuntimeListFilter(environmentTag, cluster, role);
             var refreshed = new List<FleetRefreshAllItem>();
-            foreach (var runtime in registry.ListRuntimes(filter))
+            IReadOnlyList<RuntimeCommandExecutionContext> contexts;
+            try
             {
-                var runtimeAdminToken = registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken;
+                contexts = await commandContexts.ListAsync(filter, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex);
+            }
+            foreach (var context in contexts)
+            {
+                var runtime = context.Runtime;
+                var runtimeAdminToken = context.ControlAccess.AdminToken;
                 var capabilityDiscovery = await discovery.DiscoverAsync(
                     runtime.Endpoint,
                     null,
@@ -91,7 +102,7 @@ public partial class Program
                     null,
                     cancellationToken,
                     runtimeAdminToken);
-                var sidecarAccess = registry.GetRuntimeSidecarAccess(runtime.RuntimeId);
+                var sidecarAccess = context.SidecarAccess;
                 var sidecarDiscovery = sidecarAccess is null
                     ? null
                     : await discovery.DiscoverSidecarStatusAsync(
@@ -101,8 +112,9 @@ public partial class Program
                         cancellationToken);
                 try
                 {
-                    await registrationAuthority.SubmitDiscoveryAsync(
+                    await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
                         runtime.RuntimeId,
+                        context.AuthorityRevision,
                         cancellationToken,
                         capabilityDiscovery,
                         statusDiscovery,
@@ -140,9 +152,9 @@ public partial class Program
                             sidecarResult?.SidecarStatus?.StatusFetchError));
 
                     refreshed.Add(new FleetRefreshAllItem(
-                        capabilityResult.RuntimeId,
-                        capabilityResult.Name,
-                        capabilityResult.Endpoint,
+                        runtime.RuntimeId,
+                        runtime.Name,
+                        runtime.Endpoint,
                         runtime.SidecarEndpoint,
                         runtime.HasSidecarAdminToken,
                         runtime.Tags,
@@ -165,23 +177,35 @@ public partial class Program
             string? cluster,
             string? role,
             RegistryService registry,
+            RuntimeCommandExecutionContextService commandContexts,
             CapabilityDiscoveryService discovery,
             IRuntimeRegistrationAuthority registrationAuthority,
             CancellationToken cancellationToken) =>
         {
             var filter = new RuntimeListFilter(environmentTag, cluster, role);
             var refreshed = new List<FleetCapabilityRefreshItem>();
-            foreach (var runtime in registry.ListRuntimes(filter))
+            IReadOnlyList<RuntimeCommandExecutionContext> contexts;
+            try
             {
+                contexts = await commandContexts.ListAsync(filter, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex);
+            }
+            foreach (var context in contexts)
+            {
+                var runtime = context.Runtime;
                 var capabilityDiscovery = await discovery.DiscoverAsync(
                     runtime.Endpoint,
                     null,
                     cancellationToken,
-                    registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken);
+                    context.ControlAccess.AdminToken);
                 try
                 {
-                    await registrationAuthority.SubmitDiscoveryAsync(
+                    await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
                         runtime.RuntimeId,
+                        context.AuthorityRevision,
                         cancellationToken,
                         capabilityDiscovery: capabilityDiscovery);
                 }
@@ -195,9 +219,9 @@ public partial class Program
                 if (result is not null)
                 {
                     refreshed.Add(new FleetCapabilityRefreshItem(
-                        result.RuntimeId,
-                        result.Name,
-                        result.Endpoint,
+                        runtime.RuntimeId,
+                        runtime.Name,
+                        runtime.Endpoint,
                         runtime.Tags,
                         result.Capabilities,
                         result.CapabilitySource,
@@ -216,15 +240,26 @@ public partial class Program
             string? cluster,
             string? role,
             RegistryService registry,
+            RuntimeCommandExecutionContextService commandContexts,
             CapabilityDiscoveryService discovery,
             IRuntimeRegistrationAuthority registrationAuthority,
             CancellationToken cancellationToken) =>
         {
             var filter = new RuntimeListFilter(environmentTag, cluster, role);
             var refreshed = new List<FleetSidecarRefreshItem>();
-            foreach (var runtime in registry.ListRuntimes(filter))
+            IReadOnlyList<RuntimeCommandExecutionContext> contexts;
+            try
             {
-                var sidecarAccess = registry.GetRuntimeSidecarAccess(runtime.RuntimeId);
+                contexts = await commandContexts.ListAsync(filter, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex);
+            }
+            foreach (var context in contexts)
+            {
+                var runtime = context.Runtime;
+                var sidecarAccess = context.SidecarAccess;
                 if (sidecarAccess is null)
                 {
                     continue;
@@ -239,8 +274,9 @@ public partial class Program
                 {
                     if (sidecarDiscovery.SidecarStatus is not null)
                     {
-                        await registrationAuthority.SubmitDiscoveryAsync(
+                        await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
                             runtime.RuntimeId,
+                            context.AuthorityRevision,
                             cancellationToken,
                             sidecarDiscovery: sidecarDiscovery);
                     }
@@ -266,10 +302,10 @@ public partial class Program
                             result.SidecarStatus?.StatusSource,
                             result.SidecarStatus?.StatusFetchError));
                     refreshed.Add(new FleetSidecarRefreshItem(
-                        result.RuntimeId,
-                        result.Name,
-                        result.Endpoint,
-                        result.SidecarEndpoint,
+                        runtime.RuntimeId,
+                        runtime.Name,
+                        runtime.Endpoint,
+                        runtime.SidecarEndpoint,
                         runtime.Tags,
                         result.SidecarStatus));
                 }
@@ -285,23 +321,35 @@ public partial class Program
             string? cluster,
             string? role,
             RegistryService registry,
+            RuntimeCommandExecutionContextService commandContexts,
             CapabilityDiscoveryService discovery,
             IRuntimeRegistrationAuthority registrationAuthority,
             CancellationToken cancellationToken) =>
         {
             var filter = new RuntimeListFilter(environmentTag, cluster, role);
             var refreshed = new List<FleetStatusRefreshItem>();
-            foreach (var runtime in registry.ListRuntimes(filter))
+            IReadOnlyList<RuntimeCommandExecutionContext> contexts;
+            try
             {
+                contexts = await commandContexts.ListAsync(filter, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex);
+            }
+            foreach (var context in contexts)
+            {
+                var runtime = context.Runtime;
                 var statusDiscovery = await discovery.DiscoverStatusAsync(
                     runtime.Endpoint,
                     null,
                     cancellationToken,
-                    registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken);
+                    context.ControlAccess.AdminToken);
                 try
                 {
-                    await registrationAuthority.SubmitDiscoveryAsync(
+                    await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
                         runtime.RuntimeId,
+                        context.AuthorityRevision,
                         cancellationToken,
                         statusDiscovery: statusDiscovery);
                 }
@@ -326,9 +374,9 @@ public partial class Program
                             null,
                             null));
                     refreshed.Add(new FleetStatusRefreshItem(
-                        result.RuntimeId,
-                        result.Name,
-                        result.Endpoint,
+                        runtime.RuntimeId,
+                        runtime.Name,
+                        runtime.Endpoint,
                         runtime.Tags,
                         result.Status));
                 }
