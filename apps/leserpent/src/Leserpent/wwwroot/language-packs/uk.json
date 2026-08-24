@@ -3,7 +3,7 @@
   "locale": "uk",
   "name": "Ukrainian",
   "nativeName": "Українська",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "Легкий огляд флоту для кількох сусідніх runtime gewyvern."
     },
     "language": {
-      "label": "Мова"
+      "label": "Мова",
+      "auto": "Як у браузері"
     },
     "languagePacks": {
       "title": "Мовні пакети",
+      "subcopy": "Установіть перевірені пакети з того самого джерела або імпортуйте локальний пакет JSON.",
+      "refresh": "Оновити каталог",
+      "import": "Імпортувати JSON",
+      "installedTitle": "Установлені",
+      "catalogTitle": "Доступні завантаження",
+      "catalogEmpty": "Наразі немає опублікованих пакетів для завантаження.",
+      "noneInstalled": "Додаткові мовні пакети не встановлено.",
       "install": "Установити",
       "installedLabel": "Установити",
       "download": "Завантажити",
+      "export": "Експортувати",
       "remove": "Видалити",
       "coverageCore": "Ядро інтерфейсу"
     },
     "theme": {
-      "label": "Тема"
+      "label": "Тема",
+      "auto": "Як у системі",
+      "light": "День",
+      "dark": "Ніч"
     },
     "tabs": {
       "overview": "Огляд",

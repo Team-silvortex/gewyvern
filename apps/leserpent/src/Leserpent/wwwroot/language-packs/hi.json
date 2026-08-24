@@ -3,7 +3,7 @@
   "locale": "hi",
   "name": "Hindi",
   "nativeName": "हिन्दी",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "कई निकटवर्ती gewyvern रनटाइम के लिए हल्का फ़्लीट दृश्य।"
     },
     "language": {
-      "label": "भाषा"
+      "label": "भाषा",
+      "auto": "ब्राउज़र के अनुसार"
     },
     "languagePacks": {
       "title": "भाषा पैक",
+      "subcopy": "सत्यापित समान-मूल पैक इंस्टॉल करें या स्थानीय JSON पैक आयात करें।",
+      "refresh": "कैटलॉग रीफ़्रेश करें",
+      "import": "JSON आयात करें",
+      "installedTitle": "इंस्टॉल किए गए",
+      "catalogTitle": "उपलब्ध डाउनलोड",
+      "catalogEmpty": "फ़िलहाल कोई डाउनलोड करने योग्य पैक प्रकाशित नहीं है।",
+      "noneInstalled": "कोई अतिरिक्त भाषा पैक इंस्टॉल नहीं है।",
       "install": "इंस्टॉल",
       "installedLabel": "इंस्टॉल",
       "download": "डाउनलोड",
+      "export": "निर्यात करें",
       "remove": "हटाएँ",
       "coverageCore": "कोर यूआई"
     },
     "theme": {
-      "label": "थीम"
+      "label": "थीम",
+      "auto": "सिस्टम के अनुसार",
+      "light": "दिन",
+      "dark": "रात"
     },
     "tabs": {
       "overview": "अवलोकन",

@@ -3,7 +3,7 @@
   "locale": "el",
   "name": "Greek",
   "nativeName": "Ελληνικά",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "Μια ελαφριά προβολή στόλου για πολλά κοντινά runtime gewyvern."
     },
     "language": {
-      "label": "Γλώσσα"
+      "label": "Γλώσσα",
+      "auto": "Ακολούθηση προγράμματος περιήγησης"
     },
     "languagePacks": {
       "title": "Πακέτα γλώσσας",
+      "subcopy": "Εγκαταστήστε επαληθευμένα πακέτα από την ίδια προέλευση ή εισαγάγετε ένα τοπικό πακέτο JSON.",
+      "refresh": "Ανανέωση καταλόγου",
+      "import": "Εισαγωγή JSON",
+      "installedTitle": "Εγκατεστημένα",
+      "catalogTitle": "Διαθέσιμες λήψεις",
+      "catalogEmpty": "Δεν υπάρχουν δημοσιευμένα πακέτα για λήψη αυτήν τη στιγμή.",
+      "noneInstalled": "Δεν έχουν εγκατασταθεί πρόσθετα πακέτα γλώσσας.",
       "install": "Εγκατάσταση",
       "installedLabel": "Εγκατάσταση",
       "download": "Λήψη",
+      "export": "Εξαγωγή",
       "remove": "Κατάργηση",
       "coverageCore": "κεντρικό UI"
     },
     "theme": {
-      "label": "Θέμα"
+      "label": "Θέμα",
+      "auto": "Ακολούθηση συστήματος",
+      "light": "Ημέρα",
+      "dark": "Νύχτα"
     },
     "tabs": {
       "overview": "Επισκόπηση",

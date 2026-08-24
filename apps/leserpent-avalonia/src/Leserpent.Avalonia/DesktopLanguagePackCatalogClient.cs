@@ -196,6 +196,7 @@ internal sealed class DesktopLanguagePackCatalogClient : IDisposable
                     entry.Sha256,
                     entry.Locale,
                     entry.Version);
+                DesktopLanguagePackStore.VerifyOfficialArtifact(installed);
                 if (installed.Manifest.Locale != entry.Locale
                     || installed.Manifest.Version != entry.Version)
                 {

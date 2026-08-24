@@ -3,7 +3,7 @@
   "locale": "vi",
   "name": "Vietnamese",
   "nativeName": "Tiếng Việt",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "Chế độ xem đội nhẹ cho nhiều runtime gewyvern ở gần."
     },
     "language": {
-      "label": "Ngôn ngữ"
+      "label": "Ngôn ngữ",
+      "auto": "Theo trình duyệt"
     },
     "languagePacks": {
       "title": "Gói ngôn ngữ",
+      "subcopy": "Cài đặt gói đã xác minh từ cùng nguồn hoặc nhập gói JSON cục bộ.",
+      "refresh": "Làm mới danh mục",
+      "import": "Nhập JSON",
+      "installedTitle": "Đã cài đặt",
+      "catalogTitle": "Bản tải xuống khả dụng",
+      "catalogEmpty": "Hiện chưa có gói tải xuống nào được phát hành.",
+      "noneInstalled": "Chưa cài đặt gói ngôn ngữ bổ sung.",
       "install": "Cài đặt",
       "installedLabel": "Cài đặt",
       "download": "Tải xuống",
+      "export": "Xuất",
       "remove": "Gỡ bỏ",
       "coverageCore": "Giao diện cốt lõi"
     },
     "theme": {
-      "label": "Chủ đề"
+      "label": "Chủ đề",
+      "auto": "Theo hệ thống",
+      "light": "Ban ngày",
+      "dark": "Ban đêm"
     },
     "tabs": {
       "overview": "Tổng quan",

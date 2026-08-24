@@ -3,7 +3,7 @@
   "locale": "th",
   "name": "Thai",
   "nativeName": "ไทย",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "มุมมองฟลีตแบบเบาสำหรับ gewyvern runtime หลายตัวที่อยู่ใกล้กัน"
     },
     "language": {
-      "label": "ภาษา"
+      "label": "ภาษา",
+      "auto": "ตามเบราว์เซอร์"
     },
     "languagePacks": {
       "title": "แพ็กภาษา",
+      "subcopy": "ติดตั้งแพ็กที่ตรวจสอบแล้วจากต้นทางเดียวกัน หรือนำเข้าแพ็ก JSON ในเครื่อง",
+      "refresh": "รีเฟรชแค็ตตาล็อก",
+      "import": "นำเข้า JSON",
+      "installedTitle": "ติดตั้งแล้ว",
+      "catalogTitle": "ดาวน์โหลดที่พร้อมใช้งาน",
+      "catalogEmpty": "ขณะนี้ยังไม่มีแพ็กที่เผยแพร่ให้ดาวน์โหลด",
+      "noneInstalled": "ยังไม่ได้ติดตั้งแพ็กภาษาเพิ่มเติม",
       "install": "ติดตั้ง",
       "installedLabel": "ติดตั้ง",
       "download": "ดาวน์โหลด",
+      "export": "ส่งออก",
       "remove": "นำออก",
       "coverageCore": "โหมดหลัก"
     },
     "theme": {
-      "label": "ธีม"
+      "label": "ธีม",
+      "auto": "ตามระบบ",
+      "light": "กลางวัน",
+      "dark": "กลางคืน"
     },
     "tabs": {
       "overview": "ภาพรวม",

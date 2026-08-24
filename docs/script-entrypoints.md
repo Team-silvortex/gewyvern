@@ -221,6 +221,12 @@ publishes the Avalonia `linux-x64` NativeAOT client, bundles the current Rust
 private-CA loopback TLS. That proof downloads `pt-BR` without bearer/admin
 headers, binds catalog digest/locale/version, performs the private
 install/load/remove roundtrip, and proves daemon cleanup plus immediate restart.
+The same native package then persists that live authority as a saved daemon,
+reloads it through the production connection catalog and managed CA store, and
+repeats the download through `DesktopLanguagePackSource.FromConnection`. A
+separate wrong-CA request must fail before the selected CA succeeds; both the
+catalog and CA digests must remain unchanged, and the credential-rejecting
+public route proves that no bearer or admin header was sent.
 `--skip-build` skips both NativeAOT phases together with package construction.
 After rsync, the Rust harness strictly revalidates the synchronized evidence:
 the bounded index and exact file inventory, regular non-symlink file types,
@@ -231,7 +237,10 @@ SQLite database are retained in the evidence shelf as bounded files; the local
 Rust validator independently parses their formats and scans every synchronized
 artifact for the proof pairing secret.
 Both the regular CLI summary and the combined release gate repeat this strict
-validation at evidence-consumption time. Current JSON summaries expose
+validation at evidence-consumption time. The language-pack shelf has separate
+fixed-contract `verification.log` and `saved-verification.log` files, so a Local
+Orchestra pass cannot substitute for a missing saved-daemon pass. Current JSON
+summaries expose
 `leserpent_control_plane_aot_evidence_validated=true` and
 `leserpent_language_pack_local_orchestra_aot_evidence_validated=true`;
 replacing either shelf between the remote run and summary rendering therefore
@@ -372,7 +381,7 @@ under `target/validation/remote-workspace-sync-cache/{physical,vm}.txt`.
 The phase-timing file records the observed wall-clock time for each major
 remote validation step so we can tell whether regressions come from sync,
 materialization, build, the Leserpent control-plane NativeAOT proof, package
-smoke, the Avalonia Local Orchestra language-pack NativeAOT proof, runtime
+smoke, the Avalonia Local Orchestra plus saved-daemon language-pack NativeAOT proof, runtime
 smoke, or the privileged eBPF attach path.
 Remote build/package/runtime subphase timing files are mandatory after their
 corresponding successful stage. They use the shared bounded unique-key parser,
@@ -953,8 +962,8 @@ The artifact index uses schema v2. JSON and text carry the same bounded
 the machine commit point. Missing or mismatched IDs are a torn publication and
 must fail closed.
 
-When the remote Linux stage covers the Leserpent control-plane and Local
-Orchestra language-pack NativeAOT proofs, the index includes dedicated
+When the remote Linux stage covers the Leserpent control-plane and the paired
+Local Orchestra/saved-daemon language-pack NativeAOT proofs, the index includes dedicated
 `remote_leserpent_control_plane_aot` and
 `remote_leserpent_language_pack_local_orchestra_aot` high-signal artifacts.
 Their `present` status is tied to the current release-gate checks after strict

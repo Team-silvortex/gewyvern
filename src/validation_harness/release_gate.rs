@@ -854,7 +854,7 @@ fn write_release_artifact_index(out_dir: &Path, checks: &[String]) -> Result<(),
                 check == "remote_leserpent_language_pack_local_orchestra_aot"
             })),
             "gewyvern_validate remote-linux-host-validation",
-            "strictly revalidated Linux x64 NativeAOT Local Orchestra language-pack download, digest binding, private storage, and cleanup evidence shelf",
+            "strictly revalidated Linux x64 NativeAOT Local Orchestra and persisted saved-daemon language-pack download, selected-CA rejection, digest binding, private storage, and cleanup evidence shelf",
         ),
         release_artifact_entry(
             "leserpent_parity_recovery",

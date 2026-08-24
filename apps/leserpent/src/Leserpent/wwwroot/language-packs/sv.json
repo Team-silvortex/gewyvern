@@ -3,7 +3,7 @@
   "locale": "sv",
   "name": "Swedish",
   "nativeName": "Svenska",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "En lätt flottvy för flera närliggande gewyvern-körmiljöer."
     },
     "language": {
-      "label": "Språk"
+      "label": "Språk",
+      "auto": "Följ webbläsaren"
     },
     "languagePacks": {
       "title": "Språkpaket",
+      "subcopy": "Installera verifierade paket från samma ursprung eller importera ett lokalt JSON-paket.",
+      "refresh": "Uppdatera katalog",
+      "import": "Importera JSON",
+      "installedTitle": "Installerade",
+      "catalogTitle": "Tillgängliga hämtningar",
+      "catalogEmpty": "Inga hämtningsbara paket är publicerade just nu.",
+      "noneInstalled": "Inga ytterligare språkpaket är installerade.",
       "install": "Installera",
       "installedLabel": "Installera",
       "download": "Hämta",
+      "export": "Exportera",
       "remove": "Ta bort",
       "coverageCore": "kärnagränssnitt"
     },
     "theme": {
-      "label": "Tema"
+      "label": "Tema",
+      "auto": "Följ systemet",
+      "light": "Dag",
+      "dark": "Natt"
     },
     "tabs": {
       "overview": "Översikt",

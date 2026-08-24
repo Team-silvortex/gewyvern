@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "proof": "leserpent-language-pack-local-orchestra-native-aot",
-  "captured_at_utc": "2026-08-24T03:02:47Z",
-  "scope": "packaged-macos-nativeaot-local-orchestra-language-pack",
+  "captured_at_utc": "2026-08-24T05:17:33Z",
+  "scope": "packaged-macos-nativeaot-local-and-saved-daemon-language-pack",
   "host": {
     "platform": "macos-arm64",
     "os_version": "26.5.2",
@@ -21,13 +21,13 @@
     "signature_valid": true,
     "avalonia": {
       "format": "Mach-O arm64",
-      "bytes": 26198384,
-      "sha256": "c4e23f4af50db7eba38ff3652e0417f989f0a84ad1b22ceb5c98386d4c91779a"
+      "bytes": 26214816,
+      "sha256": "713be019420c9d4bcdd87ec644c4613c9a410b7c1b1ab71781746678e119f5f8"
     },
     "leserpentd": {
       "format": "Mach-O arm64",
-      "bytes": 12390336,
-      "sha256": "b53080481dcae24386b7958dce3783119c56cede73f802f8b43e77dbe4e261dc"
+      "bytes": 12406752,
+      "sha256": "a8973720938d8de5e918a906f860f2b4940f565acb99950458dd4ba9995de58f"
     }
   },
   "language_pack_roundtrip": {
@@ -38,6 +38,9 @@
     "official_locales": 30,
     "downloadable_packs": 22,
     "core_ui_keys": 18,
+    "compatibility_core_ui_keys": 18,
+    "official_pack_version": "1.1.0",
+    "official_pack_keys": 30,
     "loopback_tls": true,
     "selected_private_ca": true,
     "authorization_header_sent": false,
@@ -46,6 +49,24 @@
     "locale_bound": true,
     "version_bound": true,
     "private_store_roundtrip": true,
+    "installed_pack_removed": true
+  },
+  "saved_daemon_roundtrip": {
+    "source_kind": "persisted-daemon-connection",
+    "catalog_persisted": true,
+    "production_connection_source": true,
+    "managed_ca_count": 1,
+    "wrong_ca_rejected": true,
+    "authorization_header_sent": false,
+    "admin_token_header_sent": false,
+    "credential_persisted": false,
+    "sha256_bound": true,
+    "locale_bound": true,
+    "version_bound": true,
+    "official_pack_version": "1.1.0",
+    "official_pack_keys": 30,
+    "private_store_roundtrip": true,
+    "persisted_inputs_immutable": true,
     "installed_pack_removed": true
   },
   "daemon_contract": {
@@ -59,6 +80,7 @@
   "lifecycle": {
     "ephemeral_process_token": true,
     "authority_owned": true,
+    "private_files": true,
     "sigterm_first_cleanup": true,
     "immediate_restart": true,
     "secret_output": false
@@ -73,12 +95,18 @@
     "private-ca-loopback-tls",
     "credential-free-public-content-request",
     "catalog-digest-locale-version-binding",
+    "official-v1.1.0-exact-30-key-pack",
     "private-install-load-remove-roundtrip",
-    "daemon-cleanup-and-immediate-restart"
+    "daemon-cleanup-and-immediate-restart",
+    "persisted-saved-daemon-catalog",
+    "production-saved-connection-source",
+    "selected-ca-only",
+    "wrong-ca-negative-handshake",
+    "saved-daemon-credential-free-download",
+    "saved-daemon-input-immutability"
   ],
   "remaining": [
-    "physical-linux-local-orchestra-language-pack-proof",
-    "saved-remote-daemon-language-pack-proof"
+    "native-speaker-review-and-post-30-key-pack-expansion"
   ],
   "result": "passed"
 }

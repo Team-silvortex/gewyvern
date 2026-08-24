@@ -3,7 +3,7 @@
   "locale": "ru",
   "name": "Russian",
   "nativeName": "Русский",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "Лёгкое представление флота для нескольких ближайших runtime gewyvern."
     },
     "language": {
-      "label": "Язык"
+      "label": "Язык",
+      "auto": "Следовать настройкам браузера"
     },
     "languagePacks": {
       "title": "Языковые пакеты",
+      "subcopy": "Установите проверенные пакеты из того же источника или импортируйте локальный пакет JSON.",
+      "refresh": "Обновить каталог",
+      "import": "Импортировать JSON",
+      "installedTitle": "Установленные",
+      "catalogTitle": "Доступные загрузки",
+      "catalogEmpty": "Сейчас нет опубликованных пакетов для загрузки.",
+      "noneInstalled": "Дополнительные языковые пакеты не установлены.",
       "install": "Установить",
       "installedLabel": "Установить",
       "download": "Скачать",
+      "export": "Экспортировать",
       "remove": "Удалить",
       "coverageCore": "ядро интерфейса"
     },
     "theme": {
-      "label": "Тема"
+      "label": "Тема",
+      "auto": "Как в системе",
+      "light": "День",
+      "dark": "Ночь"
     },
     "tabs": {
       "overview": "Обзор",

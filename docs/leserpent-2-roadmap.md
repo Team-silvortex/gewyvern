@@ -2206,8 +2206,10 @@ refresh summaries, runtime status, and authority-health facts are likewise typed
 its eight-language probe measures the dynamic card tree while preserving daemon
 names, endpoints, runtime identities, and raw failures as opaque data. The
 Learning Center probe covers all six steps, navigation semantics, accessibility,
-and all 48 locale-step minimum layouts. Desktop now installs and removes the same
-18-key `leserpent.language-pack/v1` core-ui artifacts as Web. Its bounded decoder
+and all 48 locale-step minimum layouts. Desktop and Web preserve the same 18-key
+`leserpent.language-pack/v1` compatibility floor. All 22 official v1.1.0
+artifacts now carry an exact 30-key set, adding language-selection, pack-center,
+and theme copy without invalidating legacy packs. The bounded desktop decoder
 fences official metadata and built-in replacement, supports SHA-256 catalog
 binding, atomically persists private files, isolates malformed siblings, and
 caps directory enumeration while reading picker streams asynchronously. It
@@ -2225,12 +2227,15 @@ vertical now proves the native client can traverse real private-CA TLS, install
 the bound pack, reload it, remove it, and restart the daemon. The 2026-08-24
 macOS arm64 bundle and physical Linux x86_64 NativeAOT proofs are now retained.
 The Linux gate strictly revalidates its synchronized file inventory, payload and
-language-asset hashes, verifier assertions, and credential absence locally.
-Only packaged saved-remote proofs and native-speaker/long-tail pack review remain
-on this localization line.
+language-asset hashes, verifier assertions, and credential absence locally. Both
+packages also persist the live authority as a saved daemon, reload exactly one
+managed CA through the production catalog path, reject a decoy CA, and complete
+the credential-free private roundtrip without mutating persisted inputs. Only
+native-speaker and long-tail pack review remain on this localization line.
 The native control proof performs a real temporary import/download/remove roundtrip. The six
-candidate built-in translations and all 22 downloadable packs stay partial
-beyond reviewed keys rather than claiming unreviewed coverage.
+candidate built-in translations plus the new 12-key downloadable expansion stay
+pending native-speaker review; all 22 packs remain partial beyond their exact
+30-key official set rather than claiming unreviewed coverage.
 Runtime-child workspace admission has now crossed the same boundary. The
 renderer-neutral `RemoteWorkspaceLaunchCoordinator` owns runtime-ID validation,
 the combined active/pending limit, duplicate-request revision coalescing,

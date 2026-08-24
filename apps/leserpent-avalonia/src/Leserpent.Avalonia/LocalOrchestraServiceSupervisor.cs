@@ -571,6 +571,7 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
                     download.Sha256,
                     download.Locale,
                     download.Version);
+                DesktopLanguagePackStore.VerifyOfficialArtifact(installed);
                 var snapshot = languagePackStore.LoadAll();
                 if (download.SourceId != "local-orchestra"
                     || installed.Manifest.Locale != "pt-BR"
@@ -703,6 +704,44 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
                         "local orchestra accepted a symbolic-link daemon");
                 }
             }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    public static void VerifySavedDaemonLanguagePackContract(string daemonPath)
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"leserpent-saved-daemon-language-pack-{Environment.ProcessId}-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var runtimeTrust = new DesktopCertificateAuthorityStore(
+                Path.Combine(root, "runtime-trust"));
+            using var supervisor = new LocalOrchestraServiceSupervisor(
+                Path.Combine(root, "daemon-state"),
+                daemonPath);
+            if (!supervisor.TryEnsureReady(
+                    runtimeTrust,
+                    out var plan,
+                    out var failure)
+                || plan is null
+                || failure is not null
+                || plan.TokenSource != RemoteTokenSource.LocalProcess
+                || !plan.Options.Endpoint.IsLoopback
+                || plan.Options.Token.Length != 64)
+            {
+                throw new InvalidDataException(
+                    $"saved daemon language-pack fixture did not become ready: {failure}");
+            }
+
+            SavedDaemonLanguagePackVerifier.Verify(
+                plan.Profile,
+                Path.Combine(root, "saved-client"),
+                plan.Options.Token);
         }
         finally
         {

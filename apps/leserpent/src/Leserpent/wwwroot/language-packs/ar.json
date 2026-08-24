@@ -3,7 +3,7 @@
   "locale": "ar",
   "name": "Arabic",
   "nativeName": "العربية",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "rtl",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "عرض خفيف للأسطول لعدة بيئات تشغيل gewyvern قريبة."
     },
     "language": {
-      "label": "اللغة"
+      "label": "اللغة",
+      "auto": "اتباع المتصفح"
     },
     "languagePacks": {
       "title": "حزم اللغات",
+      "subcopy": "ثبّت حزمًا موثّقة من المصدر نفسه أو استورد حزمة JSON محلية.",
+      "refresh": "تحديث الكتالوج",
+      "import": "استيراد JSON",
+      "installedTitle": "المثبّتة",
+      "catalogTitle": "التنزيلات المتاحة",
+      "catalogEmpty": "لا توجد حزم قابلة للتنزيل منشورة حاليًا.",
+      "noneInstalled": "لا توجد حزم لغات إضافية مثبّتة.",
       "install": "تثبيت",
       "installedLabel": "تثبيت",
       "download": "تنزيل",
+      "export": "تصدير",
       "remove": "إزالة",
       "coverageCore": "واجهة أساسية"
     },
     "theme": {
-      "label": "السمة"
+      "label": "السمة",
+      "auto": "اتباع النظام",
+      "light": "نهاري",
+      "dark": "ليلي"
     },
     "tabs": {
       "overview": "نظرة عامة",

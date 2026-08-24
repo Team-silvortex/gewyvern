@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "proof": "leserpent-language-pack-local-orchestra-native-aot-linux-x64",
-  "captured_at_utc": "2026-08-24T03:43:34Z",
-  "scope": "physical-linux-nativeaot-local-orchestra-language-pack",
+  "captured_at_utc": "2026-08-24T05:16:10Z",
+  "scope": "physical-linux-nativeaot-local-and-saved-daemon-language-pack",
   "host": {
     "platform": "linux-x86_64",
     "target_kind": "physical",
@@ -20,18 +20,18 @@
     "native_aot": true,
     "avalonia": {
       "format": "ELF 64-bit x86-64",
-      "bytes": 32395648,
-      "sha256": "c1a4ab19319759d304ac010f90ba3f9fcc9bbc289632f2a31e7edcc6412dbf93"
+      "bytes": 32403888,
+      "sha256": "6b3e56023547683859a44d85b8dcd9553b447e86c52e7f62c4344ecb787aa37b"
     },
     "leserpentd": {
       "format": "ELF 64-bit x86-64",
-      "bytes": 14705840,
-      "sha256": "cb20bc4095d5f984afe32be542981351496df4a5c70e1a4404e78c9d93f7196d"
+      "bytes": 14722336,
+      "sha256": "72db15518cf779b90c384e5b733863f6d0feecd59568ea5828c278e2e76a5e59"
     }
   },
   "language_pack_assets": {
-    "catalog_sha256": "fd7c1763119c93ad4432fdcf66b78bac6a51d5554c139f5178d47ecfb27012d6",
-    "pt_br_sha256": "eed6c81714c09f2fc2c7a0b67504947be598ef93bc791b93a9e9378fe69873a2"
+    "catalog_sha256": "35ee8f217e2cfdf2f3e91a02c7a8d82191a48fb002dd7ee7904b14acd3efdd84",
+    "pt_br_sha256": "2d1e6f810b7836fb225c0e9ceca1eaa498ee82063068364527536ec71d0afaf1"
   },
   "language_pack_roundtrip": {
     "source_id": "local-orchestra",
@@ -41,6 +41,9 @@
     "official_locales": 30,
     "downloadable_packs": 22,
     "core_ui_keys": 18,
+    "compatibility_core_ui_keys": 18,
+    "official_pack_version": "1.1.0",
+    "official_pack_keys": 30,
     "loopback_tls": true,
     "selected_private_ca": true,
     "authorization_header_sent": false,
@@ -49,6 +52,24 @@
     "locale_bound": true,
     "version_bound": true,
     "private_store_roundtrip": true,
+    "installed_pack_removed": true
+  },
+  "saved_daemon_roundtrip": {
+    "source_kind": "persisted-daemon-connection",
+    "catalog_persisted": true,
+    "production_connection_source": true,
+    "managed_ca_count": 1,
+    "wrong_ca_rejected": true,
+    "authorization_header_sent": false,
+    "admin_token_header_sent": false,
+    "credential_persisted": false,
+    "sha256_bound": true,
+    "locale_bound": true,
+    "version_bound": true,
+    "official_pack_version": "1.1.0",
+    "official_pack_keys": 30,
+    "private_store_roundtrip": true,
+    "persisted_inputs_immutable": true,
     "installed_pack_removed": true
   },
   "daemon_contract": {
@@ -73,9 +94,10 @@
     "exact_regular_file_inventory": true,
     "payload_hash_revalidation": true,
     "language_asset_hash_revalidation": true,
+    "dual_verifier_log_revalidation": true,
     "credential_material_rejected": true,
-    "phase_seconds": 135.873,
-    "total_seconds": 230.332
+    "phase_seconds": 60.124,
+    "total_seconds": 147.303
   },
   "verifier_assertions": [
     "rust_daemon",
@@ -88,6 +110,8 @@
     "credential_free_language_pack_download",
     "language_pack_digest_binding",
     "language_pack_private_roundtrip",
+    "language_pack_official_version_1_1_0",
+    "language_pack_official_keys_30",
     "private_files",
     "minimal_child_environment",
     "optional_bootstrap_origin",
@@ -95,6 +119,20 @@
     "private_bootstrap_trust",
     "package_local_daemon",
     "symlink_rejection",
+    "process_cleanup"
+  ],
+  "saved_daemon_verifier_assertions": [
+    "persisted_catalog",
+    "saved_connection_source",
+    "selected_ca_only",
+    "wrong_ca_rejected",
+    "bearer_sent_false",
+    "admin_token_sent_false",
+    "digest_binding",
+    "private_roundtrip",
+    "language_pack_official_version_1_1_0",
+    "language_pack_official_keys_30",
+    "input_immutable",
     "process_cleanup"
   ],
   "checks": [
@@ -107,13 +145,19 @@
     "private-ca-loopback-tls",
     "credential-free-public-content-request",
     "catalog-digest-locale-version-binding",
+    "official-v1.1.0-exact-30-key-pack",
     "private-install-load-remove-roundtrip",
     "daemon-cleanup-and-immediate-restart",
+    "persisted-saved-daemon-catalog",
+    "production-saved-connection-source",
+    "selected-ca-only",
+    "wrong-ca-negative-handshake",
+    "saved-daemon-credential-free-download",
+    "saved-daemon-input-immutability",
     "strict-local-evidence-revalidation"
   ],
   "remaining": [
-    "saved-remote-daemon-language-pack-proof",
-    "native-speaker-review-and-pack-expansion"
+    "native-speaker-review-and-post-30-key-pack-expansion"
   ],
   "result": "passed"
 }

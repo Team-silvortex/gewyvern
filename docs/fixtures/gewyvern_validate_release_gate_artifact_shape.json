@@ -51,6 +51,13 @@
     },
     {
       "expectation": "optional_high_signal",
+      "key": "remote_leserpent_language_pack_local_orchestra_aot",
+      "kind": "directory",
+      "note": "strictly revalidated Linux x64 NativeAOT Local Orchestra and persisted saved-daemon language-pack download, selected-CA rejection, digest binding, private storage, and cleanup evidence shelf",
+      "producer": "gewyvern_validate remote-linux-host-validation"
+    },
+    {
+      "expectation": "optional_high_signal",
       "key": "leserpent_parity_recovery",
       "kind": "directory",
       "note": "opt-in 13-suite Rust, xUnit, GUI, mobile, and cross-language parity/recovery shelf",

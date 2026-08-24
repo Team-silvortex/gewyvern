@@ -972,6 +972,12 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     let lifecycle = avalonia_source("Leserpent.Avalonia/DesktopApplicationLifecycle.cs");
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+    let pack_generator = repo_source("apps/leserpent/scripts/build-language-packs.mjs");
+    let pack_coverage = repo_source("apps/leserpent/scripts/check-language-pack-coverage.mjs");
+    let pack_artifact_tests = repo_source(
+        "apps/leserpent/tests/Leserpent.SecurityTests/LanguagePackArtifactTests.cs",
+    );
+    let daemon_pack_assets = repo_source("crates/leserpentd/src/language_packs.rs");
     let web_catalog: serde_json::Value = serde_json::from_str(&repo_source(
         "apps/leserpent/src/Leserpent/wwwroot/language-packs/catalog.json",
     ))
@@ -1065,6 +1071,16 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
             "desktop locale roster drifted from web locale {locale}"
         );
     }
+    assert!(pack_generator.contains("const expandedCoreUiFieldCount = 12"));
+    assert!(pack_generator.contains("version: \"1.1.0\""));
+    assert!(pack_generator.contains("expanded core UI locale roster drifted"));
+    assert!(pack_coverage.contains("const officialPackKeys ="));
+    assert!(pack_coverage.contains("publishedKeys.length !== total"));
+    assert!(pack_coverage.contains("entry.version !== \"1.1.0\""));
+    assert!(pack_artifact_tests.contains("OfficialPackVersion = \"1.1.0\""));
+    assert!(pack_artifact_tests.contains("Assert.Equal(30, keys.Count)"));
+    assert!(pack_artifact_tests.contains("OfficialPackKeys.SetEquals(keys)"));
+    assert!(daemon_pack_assets.contains("string_leaf_count(&pack_json[\"translations\"]), 30"));
     assert!(renderer.contains("Func<LocalizedText, string>? localizedTextResolver"));
     assert!(renderer.contains("localizedTextResolver(text)"));
     assert!(!renderer.contains("node.Accessibility.Label?.Fallback"));
@@ -1087,6 +1103,9 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     for marker in [
         "leserpent.language-pack/v1",
         "public const int CoreUiKeyCount = 18",
+        "public const int OfficialPackKeyCount = 30",
+        "public const string OfficialPackVersion = \"1.1.0\"",
+        "VerifyOfficialArtifact",
         "public const int MaxPackBytes = 256 * 1024",
         ".Take(MaxDirectoryEntries + 1)",
         "ReadBoundedAsync",
@@ -1187,6 +1206,11 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(program.contains("semantic_keys=26"));
     assert!(program.contains("builtin_semantic_keys=596"));
     assert!(program.contains("language_pack_core_ui_keys=18"));
+    assert!(program.contains("language_pack_official_version=1.1.0"));
+    assert!(program.contains("language_pack_official_keys=30"));
+    assert!(program.contains("compatibility_keys=18"));
+    assert!(program.contains("official_version=1.1.0"));
+    assert!(program.contains("official_keys=30"));
     assert!(program.contains("language_pack_sha256=true"));
     assert!(program.contains("language_pack_catalog_locale_binding=true"));
     assert!(program.contains("language_pack_catalog_version_binding=true"));
@@ -2148,6 +2172,7 @@ fn local_orchestra_is_a_bounded_rust_owned_desktop_session() {
     assert!(supervisor.contains("catalogClient.DownloadAsync(\"pt-BR\")"));
     assert!(supervisor.contains("download.Sha256"));
     assert!(supervisor.contains("download.Version"));
+    assert!(supervisor.contains("DesktopLanguagePackStore.VerifyOfficialArtifact(installed)"));
     assert!(supervisor.contains("Kill(entireProcessTree: true)"));
     assert!(supervisor.contains("ObjectDisposedException.ThrowIf(disposed, this)"));
     assert!(token_store.contains("LocalProcess"));
@@ -2157,6 +2182,8 @@ fn local_orchestra_is_a_bounded_rust_owned_desktop_session() {
     assert!(program.contains("credential_free_language_pack_download=true"));
     assert!(program.contains("language_pack_digest_binding=true"));
     assert!(program.contains("language_pack_private_roundtrip=true"));
+    assert!(program.contains("language_pack_official_version=1.1.0"));
+    assert!(program.contains("language_pack_official_keys=30"));
     assert!(program.contains("private_files=true"));
     assert!(program.contains("minimal_child_environment=true"));
     assert!(program.contains("optional_bootstrap_origin=true"));
@@ -2168,6 +2195,53 @@ fn local_orchestra_is_a_bounded_rust_owned_desktop_session() {
     assert!(program.contains("symlink_rejection=true"));
     assert!(supervisor.contains("Directory.CreateSymbolicLink"));
     assert!(supervisor.contains("File.CreateSymbolicLink"));
+}
+
+#[test]
+fn saved_daemon_language_packs_are_persisted_ca_bound_and_credential_free() {
+    let verifier = avalonia_source("Leserpent.Avalonia/SavedDaemonLanguagePackVerifier.cs");
+    let supervisor = avalonia_source("Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs");
+    let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+
+    for marker in [
+        "DesktopConnectionCatalogStore",
+        "DesktopProductStartup.PrepareSavedCatalog",
+        "DesktopLanguagePackSource.FromConnection",
+        "DesktopLanguagePackCatalogClient",
+        "VerifyWrongCertificateRejected",
+        "catch (HttpRequestException)",
+        "CryptographicOperations.FixedTimeEquals",
+        "download.Sha256",
+        "download.Version",
+        "DesktopLanguagePackStore.VerifyOfficialArtifact(installed)",
+        "languagePackStore.Remove(download.Locale)",
+        "saved daemon language-pack catalog leaked its live credential",
+        "saved daemon language-pack proof mutated its persisted inputs",
+    ] {
+        assert!(
+            verifier.contains(marker),
+            "saved daemon language-pack verifier is missing {marker}"
+        );
+    }
+    assert!(!verifier.contains("RemoteTokenResolver"));
+    assert!(!verifier.contains("RemoteClientOptions.Create"));
+    assert!(!verifier.contains("AuthenticationHeaderValue"));
+    assert!(!verifier.contains("Authorization"));
+    assert!(!verifier.contains("X-Leserpent-Admin-Token"));
+
+    assert!(supervisor.contains("VerifySavedDaemonLanguagePackContract"));
+    assert!(supervisor.contains("SavedDaemonLanguagePackVerifier.Verify"));
+    assert!(program.contains("--verify-saved-daemon-language-pack"));
+    assert!(program.contains("persisted_catalog=true"));
+    assert!(program.contains("saved_connection_source=true"));
+    assert!(program.contains("selected_ca_only=true"));
+    assert!(program.contains("wrong_ca_rejected=true"));
+    assert!(program.contains("bearer_sent=false"));
+    assert!(program.contains("admin_token_sent=false"));
+    assert!(program.contains("private_roundtrip=true"));
+    assert!(program.contains("language_pack_official_version=1.1.0"));
+    assert!(program.contains("language_pack_official_keys=30"));
+    assert!(program.contains("input_immutable=true"));
 }
 
 #[test]

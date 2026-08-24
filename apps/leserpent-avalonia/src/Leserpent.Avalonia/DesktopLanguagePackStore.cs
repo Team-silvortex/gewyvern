@@ -17,6 +17,8 @@ internal sealed class DesktopLanguagePackStore(string root)
 {
     public const string Schema = "leserpent.language-pack/v1";
     public const int CoreUiKeyCount = 18;
+    public const int OfficialPackKeyCount = 30;
+    public const string OfficialPackVersion = "1.1.0";
     public const int MaxPackBytes = 256 * 1024;
     private const int MaxDirectoryEntries = 64;
     private const int MaxDepth = 12;
@@ -42,6 +44,22 @@ internal sealed class DesktopLanguagePackStore(string root)
         "runtimes.workspaceTabs.panel",
         "runtimePanel.windows.openAll",
         "runtimePanel.windows.closeAll",
+    ];
+    private static readonly HashSet<string> RequiredOfficialPackKeys =
+    [
+        .. RequiredCoreUiKeys,
+        "language.auto",
+        "languagePacks.subcopy",
+        "languagePacks.refresh",
+        "languagePacks.import",
+        "languagePacks.installedTitle",
+        "languagePacks.catalogTitle",
+        "languagePacks.catalogEmpty",
+        "languagePacks.noneInstalled",
+        "languagePacks.export",
+        "theme.auto",
+        "theme.light",
+        "theme.dark",
     ];
 
     public DesktopLanguagePackSnapshot LoadAll()
@@ -190,6 +208,10 @@ internal sealed class DesktopLanguagePackStore(string root)
         if (RequiredCoreUiKeys.Count != CoreUiKeyCount)
         {
             throw new InvalidDataException("desktop language-pack core key contract drifted");
+        }
+        if (RequiredOfficialPackKeys.Count != OfficialPackKeyCount)
+        {
+            throw new InvalidDataException("desktop official language-pack key contract drifted");
         }
         var verificationRoot = Path.Combine(
             Path.GetTempPath(),
@@ -367,6 +389,17 @@ internal sealed class DesktopLanguagePackStore(string root)
         writer.WriteEndObject();
         writer.Flush();
         return buffer.WrittenSpan.ToArray();
+    }
+
+    internal static void VerifyOfficialArtifact(DesktopInstalledLanguagePack installed)
+    {
+        if (installed.Manifest.Version != OfficialPackVersion
+            || installed.Translations.Count != OfficialPackKeyCount
+            || !RequiredOfficialPackKeys.SetEquals(installed.Translations.Keys))
+        {
+            throw new InvalidDataException(
+                "desktop official language pack does not match its published key contract");
+        }
     }
 
     private static DesktopInstalledLanguagePack Decode(

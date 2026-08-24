@@ -3,7 +3,7 @@
   "locale": "cs",
   "name": "Czech",
   "nativeName": "Čeština",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "Lehký pohled na flotilu několika blízkých runtime gewyvern."
     },
     "language": {
-      "label": "Jazyk"
+      "label": "Jazyk",
+      "auto": "Podle prohlížeče"
     },
     "languagePacks": {
       "title": "Jazykové balíčky",
+      "subcopy": "Nainstalujte ověřené balíčky ze stejného zdroje nebo importujte místní balíček JSON.",
+      "refresh": "Obnovit katalog",
+      "import": "Importovat JSON",
+      "installedTitle": "Nainstalované",
+      "catalogTitle": "Dostupná stažení",
+      "catalogEmpty": "Momentálně nejsou publikovány žádné balíčky ke stažení.",
+      "noneInstalled": "Nejsou nainstalovány žádné další jazykové balíčky.",
       "install": "Nainstalovat",
       "installedLabel": "Nainstalovat",
       "download": "Stáhnout",
+      "export": "Exportovat",
       "remove": "Odebrat",
       "coverageCore": "jádro UI"
     },
     "theme": {
-      "label": "Motiv"
+      "label": "Motiv",
+      "auto": "Podle systému",
+      "light": "Den",
+      "dark": "Noc"
     },
     "tabs": {
       "overview": "Přehled",

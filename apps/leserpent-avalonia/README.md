@@ -298,8 +298,10 @@ The Rust daemon embeds the exact catalog and pack roster behind public GET-only
 routes that reject `Authorization` and `X-Leserpent-Admin-Token`; the managed
 Web host applies the same credential-domain fence. A successful native download
 therefore proves that no control-plane credential crossed into content fetches.
-Desktop consumes the same `leserpent.language-pack/v1`
-format and exact 18-key `core-ui` baseline as Web. It rejects built-in-locale
+Desktop consumes the same `leserpent.language-pack/v1` format and retains the
+exact 18-key `core-ui` compatibility baseline used by Web. The 22 official
+v1.1.0 artifacts carry an exact 30-key set that also localizes browser-following
+language selection, the pack center, and day/night/system theme controls. It rejects built-in-locale
 replacement, unofficial or mismatched metadata, duplicate JSON properties,
 arrays, oversized/deep key trees, and files over 256 KiB. Catalog downloads
 bind SHA-256, locale, and version before installation; picker streams are read asynchronously and
@@ -310,9 +312,9 @@ missing text continues to use the built-in English fallback. A file selected
 locally is structurally validated but is not represented as catalog-authenticated.
 Closing the language window cancels an active download, and a single-operation
 fence prevents import/download/remove races.
-The six candidate built-in translations remain pending native-speaker review,
-while the 22 packs remain intentionally partial beyond their reviewed core-ui
-keys. Run
+The six candidate built-in translations and the new 12-key downloadable
+expansion remain pending native-speaker review, while the 22 packs stay
+intentionally partial beyond their exact 30-key official set. Run
 `--verify-desktop-localization` for the
 catalog/persistence contract and `--verify-desktop-language-controls` for the
 real 31-choice and import/download/remove control tree, all eight built-in selector
@@ -1055,16 +1057,21 @@ cargo build -p leserpentd --features native-ssh
 dotnet run --project \
   apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj \
   -- --verify-local-orchestra target/debug/leserpentd
+dotnet run --project \
+  apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj \
+  -- --verify-saved-daemon-language-pack target/debug/leserpentd
 ```
 
 The 2026-08-24 packaged macOS arm64 and physical Linux x86_64 NativeAOT
-campaigns retain this exact live-download path. The Linux remote gate validates
-the bounded regular-file shelf again on the invoking host, recomputes both
-native payload and current language-asset hashes, requires all 18 verifier
-assertions, and rejects synchronized credentials or private keys. The retained
+campaigns retain both the Local Orchestra and persisted saved-daemon paths. The
+saved path reloads the production connection catalog, requires exactly one
+selected managed CA, rejects a decoy CA, sends no bearer/admin header, and
+preserves its catalog and CA inputs. The Linux remote gate validates the bounded
+regular-file shelf again on the invoking host, recomputes both native payload
+and current language-asset hashes, requires the 18 local plus 10 saved-daemon
+verifier assertions, and rejects synchronized credentials or private keys. The retained
 fixtures live at
 `docs/fixtures/leserpent_language_pack_local_orchestra_native_aot_{macos_arm64,linux_x86_64}_20260824.json`.
-Saved remote-daemon coverage remains a separate authority-selection gate.
 
 Daemon resolution fails closed to the executable beside the app; development
 overrides must name an explicit regular executable and never fall back to

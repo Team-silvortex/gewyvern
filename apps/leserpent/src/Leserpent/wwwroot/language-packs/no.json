@@ -3,7 +3,7 @@
   "locale": "no",
   "name": "Norwegian",
   "nativeName": "Norsk",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "En lett flåtevisning for flere gewyvern-kjøretider i nærheten."
     },
     "language": {
-      "label": "Språk"
+      "label": "Språk",
+      "auto": "Følg nettleseren"
     },
     "languagePacks": {
       "title": "Språkpakker",
+      "subcopy": "Installer verifiserte pakker fra samme opprinnelse, eller importer en lokal JSON-pakke.",
+      "refresh": "Oppdater katalog",
+      "import": "Importer JSON",
+      "installedTitle": "Installert",
+      "catalogTitle": "Tilgjengelige nedlastinger",
+      "catalogEmpty": "Det er for øyeblikket ingen publiserte pakker for nedlasting.",
+      "noneInstalled": "Ingen ekstra språkpakker er installert.",
       "install": "Installer",
       "installedLabel": "Installer",
       "download": "Last ned",
+      "export": "Eksporter",
       "remove": "Fjern",
       "coverageCore": "kjerne-UI"
     },
     "theme": {
-      "label": "Tema"
+      "label": "Tema",
+      "auto": "Følg systemet",
+      "light": "Dag",
+      "dark": "Natt"
     },
     "tabs": {
       "overview": "Oversikt",

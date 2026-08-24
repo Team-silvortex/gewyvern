@@ -3,7 +3,7 @@
   "locale": "nl",
   "name": "Dutch",
   "nativeName": "Nederlands",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "Een lichte vlootweergave voor meerdere gewyvern-runtimes in de buurt."
     },
     "language": {
-      "label": "Taal"
+      "label": "Taal",
+      "auto": "Browser volgen"
     },
     "languagePacks": {
       "title": "Taalpakketten",
+      "subcopy": "Installeer geverifieerde pakketten van dezelfde oorsprong of importeer een lokaal JSON-pakket.",
+      "refresh": "Catalogus vernieuwen",
+      "import": "JSON importeren",
+      "installedTitle": "Geïnstalleerd",
+      "catalogTitle": "Beschikbare downloads",
+      "catalogEmpty": "Er zijn momenteel geen downloadbare pakketten gepubliceerd.",
+      "noneInstalled": "Er zijn geen extra taalpakketten geïnstalleerd.",
       "install": "Installeren",
       "installedLabel": "Installeren",
       "download": "Downloaden",
+      "export": "Exporteren",
       "remove": "Verwijderen",
       "coverageCore": "kern-UI"
     },
     "theme": {
-      "label": "Thema"
+      "label": "Thema",
+      "auto": "Systeem volgen",
+      "light": "Dag",
+      "dark": "Nacht"
     },
     "tabs": {
       "overview": "Overzicht",

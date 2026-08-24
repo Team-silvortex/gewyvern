@@ -3,7 +3,7 @@
   "locale": "fa",
   "name": "Persian",
   "nativeName": "فارسی",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "rtl",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "نمای سبک ناوگان برای چند محیط اجرای نزدیک gewyvern."
     },
     "language": {
-      "label": "زبان"
+      "label": "زبان",
+      "auto": "مطابق مرورگر"
     },
     "languagePacks": {
       "title": "بسته‌های زبان",
+      "subcopy": "بسته‌های تأییدشده از همان مبدأ را نصب کنید یا یک بسته JSON محلی وارد کنید.",
+      "refresh": "تازه‌سازی فهرست",
+      "import": "درون‌ریزی JSON",
+      "installedTitle": "نصب‌شده",
+      "catalogTitle": "دریافت‌های موجود",
+      "catalogEmpty": "در حال حاضر هیچ بسته‌ای برای دریافت منتشر نشده است.",
+      "noneInstalled": "هیچ بستهٔ زبان دیگری نصب نشده است.",
       "install": "نصب",
       "installedLabel": "نصب",
       "download": "دانلود",
+      "export": "برون‌ریزی",
       "remove": "حذف",
       "coverageCore": "هسته رابط کاربری"
     },
     "theme": {
-      "label": "پوسته"
+      "label": "پوسته",
+      "auto": "مطابق سیستم",
+      "light": "روز",
+      "dark": "شب"
     },
     "tabs": {
       "overview": "نمای کلی",

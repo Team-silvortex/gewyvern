@@ -3,7 +3,7 @@
   "locale": "he",
   "name": "Hebrew",
   "nativeName": "עברית",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "rtl",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "תצוגת צי קלה עבור מספר סביבות gewyvern קרובות."
     },
     "language": {
-      "label": "שפה"
+      "label": "שפה",
+      "auto": "לפי הדפדפן"
     },
     "languagePacks": {
       "title": "חבילות שפה",
+      "subcopy": "התקינו חבילות מאומתות מאותו מקור או ייבאו חבילת JSON מקומית.",
+      "refresh": "רענון הקטלוג",
+      "import": "ייבוא JSON",
+      "installedTitle": "מותקנות",
+      "catalogTitle": "הורדות זמינות",
+      "catalogEmpty": "אין כרגע חבילות שפורסמו להורדה.",
+      "noneInstalled": "לא מותקנות חבילות שפה נוספות.",
       "install": "התקנה",
       "installedLabel": "התקנה",
       "download": "הורדה",
+      "export": "ייצוא",
       "remove": "הסרה",
       "coverageCore": "UI ליבה"
     },
     "theme": {
-      "label": "ערכת נושא"
+      "label": "ערכת נושא",
+      "auto": "לפי המערכת",
+      "light": "יום",
+      "dark": "לילה"
     },
     "tabs": {
       "overview": "סקירה",

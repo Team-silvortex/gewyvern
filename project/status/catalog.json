@@ -2410,7 +2410,7 @@
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-desktop-localization",
-        "version": "0.16.0",
+        "version": "0.18.0",
         "stability": "draft",
         "surfaces": [
           "shared-official-locale-roster",
@@ -2421,6 +2421,12 @@
           "unknown-preference-field-rejection",
           "shared-web-native-language-pack-v1",
           "eighteen-key-core-ui-pack-contract",
+          "legacy-eighteen-key-pack-compatibility",
+          "official-pack-version-1-1-0",
+          "thirty-key-official-core-ui-pack-contract",
+          "official-pack-exact-key-set",
+          "language-pack-center-theme-expansion",
+          "content-addressed-language-pack-publication",
           "official-downloadable-locale-fence",
           "built-in-locale-replacement-fence",
           "bounded-language-pack-json-tree",
@@ -2438,6 +2444,11 @@
           "live-local-orchestra-language-pack-roundtrip",
           "retained-packaged-macos-language-pack-proof",
           "physical-linux-local-orchestra-language-pack-proof",
+          "persisted-saved-daemon-language-pack-roundtrip",
+          "wrong-ca-saved-daemon-rejection",
+          "packaged-macos-saved-daemon-language-pack-proof",
+          "physical-linux-saved-daemon-language-pack-proof",
+          "dual-verifier-remote-language-pack-evidence",
           "strict-remote-language-pack-evidence-revalidation",
           "same-origin-language-pack-path-fence",
           "catalog-locale-version-digest-binding",
@@ -2551,7 +2562,7 @@
       "blockers": [
         {
           "id": "desktop-long-tail-language-review",
-          "summary": "All eight built-in locales have complete 80-key native-shell catalogs and six-step Learning Center content; all seven non-English built-ins cover the exact 596-key semantic set across core UI-IR, connection, reverse deployment, gewyvern provisioning/retirement, daemon retirement, startup recovery, account, remote shell, remote operation/Leselang, runtime child-workspace, Hub domains, and tutorial domains. Remote feed, authority-health, mutation-failure, account, workspace-change, severity-alert, live-refresh, Hub topology-phase, refresh-summary, and runtime-status projection use typed facts while operator identities, runtime IDs, paths, log bodies, and bounded diagnostics remain opaque. Desktop can atomically install, project, and remove the same strict 18-key core-ui v1 packs as Web, and downloads them from an explicitly selected local or saved daemon through its saved CA trust without sending an admin credential. Rust leserpentd embeds the exact catalog and 22-pack roster; its public GET route and the managed Web host reject bearer/admin headers while authenticated /v1 routes remain separate. The Local Orchestra verifier proves a real private-CA TLS download with digest/locale/version bound before private install, load, removal, and daemon restart. Retained 2026-08-24 packaged macOS arm64 and physical Linux x86_64 NativeAOT proofs run that path through the package-owned client and daemon with no secret output; the remote Linux shelf is revalidated locally for exact regular-file inventory, payload and language-asset hashes, verifier assertions, and credential absence. Offline JSON import remains structurally validated but not catalog-authenticated; malformed-sibling isolation remains enforced and missing keys retain deterministic English fallback. The six candidate built-in translations still require native-speaker review, while all 22 downloadable packs remain intentionally partial beyond their reviewed core-ui keys."
+          "summary": "All eight built-in locales have complete 80-key native-shell catalogs and six-step Learning Center content; all seven non-English built-ins cover the exact 596-key semantic set across core UI-IR, connection, reverse deployment, gewyvern provisioning/retirement, daemon retirement, startup recovery, account, remote shell, remote operation/Leselang, runtime child-workspace, Hub domains, and tutorial domains. Remote feed, authority-health, mutation-failure, account, workspace-change, severity-alert, live-refresh, Hub topology-phase, refresh-summary, and runtime-status projection use typed facts while operator identities, runtime IDs, paths, log bodies, and bounded diagnostics remain opaque. Desktop and Web retain the strict 18-key core-ui v1 compatibility floor, while all 22 official v1.1.0 artifacts now carry an exact 30-key set that additionally localizes browser-following language selection, the pack center, and day/night/system theme controls. Desktop downloads those artifacts from an explicitly selected local or saved daemon through its saved CA trust without sending an admin credential. Rust leserpentd embeds the exact catalog and 22-pack roster; its public GET route and the managed Web host reject bearer/admin headers while authenticated /v1 routes remain separate. The Local Orchestra verifier proves a real private-CA TLS download with digest/locale/version bound before private install, load, removal, and daemon restart. The saved-daemon verifier persists and reloads the production connection catalog, imports exactly one selected managed CA, rejects a decoy CA at TLS, completes the same credential-free digest-bound private roundtrip, and proves the catalog and CA inputs remain immutable. Retained 2026-08-24 packaged macOS arm64 and physical Linux x86_64 NativeAOT proofs run both verifier paths through the package-owned client and daemon with no secret output; the remote Linux shelf is revalidated locally for exact regular-file inventory, dual fixed-contract verifier logs, payload and language-asset hashes, verifier assertions, and credential absence. Offline JSON import remains structurally validated but not catalog-authenticated; malformed-sibling isolation remains enforced and missing keys retain deterministic English fallback. The six candidate built-in translations and the new 12-key downloadable expansion still require native-speaker review, while all 22 downloadable packs remain intentionally partial beyond their exact 30-key official set."
         }
       ],
       "consumers": ["desktop-operators", "leselang-ui-adapters"],
@@ -2591,7 +2602,12 @@
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguagePreferenceStore.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguagePackStore.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguagePackCatalogClient.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent/scripts/build-language-packs.mjs", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent/scripts/check-language-pack-coverage.mjs", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/LanguagePackArtifactTests.cs", "state": "present" },
+        { "kind": "release", "path": "apps/leserpent/frontend-package-manifest.json", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/SavedDaemonLanguagePackVerifier.cs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/language_packs.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/remote.rs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent/src/Leserpent/ControlPlane/LanguagePackRequestPolicy.cs", "state": "present" },
@@ -2605,7 +2621,7 @@
         { "kind": "documentation", "path": "apps/leserpent-avalonia/README.md", "state": "present" },
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" }
       ],
-      "next_gate": "Repeat packaged macOS and physical Linux against a saved remote daemon, proving that only the selected CA trust is used and no bearer/admin credential is sent; then review the six candidate built-in catalogs with native speakers and expand the 22 official packs beyond their 18 reviewed core-ui keys without translating opaque operator data."
+      "next_gate": "Review the six candidate built-in catalogs and the new 12-key official-pack expansion with native speakers, then extend the 22 packs beyond their exact 30-key language, pack-center, theme, and shell set without translating opaque operator data."
     },
     {
       "id": "leserpent-2/remote-console/remote-mobile-console",

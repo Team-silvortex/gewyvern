@@ -3,7 +3,7 @@
   "locale": "tr",
   "name": "Turkish",
   "nativeName": "Türkçe",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "Yakındaki birden çok gewyvern çalışma zamanı için hafif filo görünümü."
     },
     "language": {
-      "label": "Dil"
+      "label": "Dil",
+      "auto": "Tarayıcıyı izle"
     },
     "languagePacks": {
       "title": "Dil paketleri",
+      "subcopy": "Doğrulanmış aynı kaynaklı paketleri yükleyin veya yerel bir JSON paketi içe aktarın.",
+      "refresh": "Kataloğu yenile",
+      "import": "JSON içe aktar",
+      "installedTitle": "Yüklü",
+      "catalogTitle": "Kullanılabilir indirmeler",
+      "catalogEmpty": "Şu anda yayımlanmış indirilebilir paket yok.",
+      "noneInstalled": "Ek dil paketi yüklü değil.",
       "install": "Yükle",
       "installedLabel": "Yükle",
       "download": "İndir",
+      "export": "Dışa aktar",
       "remove": "Kaldır",
       "coverageCore": "çekirdek arayüz"
     },
     "theme": {
-      "label": "Tema"
+      "label": "Tema",
+      "auto": "Sistemi izle",
+      "light": "Gündüz",
+      "dark": "Gece"
     },
     "tabs": {
       "overview": "Genel bakış",

@@ -3,7 +3,7 @@
   "locale": "it",
   "name": "Italian",
   "nativeName": "Italiano",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "Una vista leggera della flotta per più runtime gewyvern vicini."
     },
     "language": {
-      "label": "Lingua"
+      "label": "Lingua",
+      "auto": "Segui il browser"
     },
     "languagePacks": {
       "title": "Pacchetti lingua",
+      "subcopy": "Installa pacchetti verificati della stessa origine oppure importa un pacchetto JSON locale.",
+      "refresh": "Aggiorna catalogo",
+      "import": "Importa JSON",
+      "installedTitle": "Installati",
+      "catalogTitle": "Download disponibili",
+      "catalogEmpty": "Al momento non sono pubblicati pacchetti scaricabili.",
+      "noneInstalled": "Nessun pacchetto lingua aggiuntivo installato.",
       "install": "Installa",
       "installedLabel": "Installa",
       "download": "Scarica",
+      "export": "Esporta",
       "remove": "Rimuovi",
       "coverageCore": "core UI"
     },
     "theme": {
-      "label": "Tema"
+      "label": "Tema",
+      "auto": "Segui il sistema",
+      "light": "Giorno",
+      "dark": "Notte"
     },
     "tabs": {
       "overview": "Panoramica",

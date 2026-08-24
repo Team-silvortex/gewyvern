@@ -52,6 +52,14 @@ mod tests {
         let catalog = find("/language-packs/catalog.json").unwrap();
         assert!(catalog.payload.starts_with(b"{"));
         assert!(catalog.payload.ends_with(b"\n"));
+        let catalog_json: serde_json::Value = serde_json::from_slice(catalog.payload).unwrap();
+        assert!(
+            catalog_json["packs"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|entry| entry["version"].as_str() == Some("1.1.0"))
+        );
 
         for locale in [
             "ar", "bn", "cs", "da", "el", "fa", "fi", "he", "hi", "id", "it", "ms", "nl", "no",
@@ -61,9 +69,20 @@ mod tests {
             let pack = find(&path).expect("official language pack must be embedded");
             assert!(pack.payload.starts_with(b"{"));
             assert!(pack.payload.ends_with(b"\n"));
+            let pack_json: serde_json::Value = serde_json::from_slice(pack.payload).unwrap();
+            assert_eq!(pack_json["version"].as_str(), Some("1.1.0"));
+            assert_eq!(string_leaf_count(&pack_json["translations"]), 30);
         }
         assert!(find("/language-packs/en.json").is_none());
         assert!(find("/language-packs/../catalog.json").is_none());
         assert!(find("/language-packs/catalog.json?cache=false").is_none());
+    }
+
+    fn string_leaf_count(value: &serde_json::Value) -> usize {
+        match value {
+            serde_json::Value::Object(entries) => entries.values().map(string_leaf_count).sum(),
+            serde_json::Value::String(_) => 1,
+            _ => 0,
+        }
     }
 }

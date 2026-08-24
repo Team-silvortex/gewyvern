@@ -3,7 +3,7 @@
   "locale": "fi",
   "name": "Finnish",
   "nativeName": "Suomi",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "Kevyt laivastonäkymä useille lähellä oleville gewyvern-ajoympäristöille."
     },
     "language": {
-      "label": "Kieli"
+      "label": "Kieli",
+      "auto": "Seuraa selainta"
     },
     "languagePacks": {
       "title": "Kielipaketit",
+      "subcopy": "Asenna vahvistettuja paketteja samasta alkuperästä tai tuo paikallinen JSON-paketti.",
+      "refresh": "Päivitä luettelo",
+      "import": "Tuo JSON",
+      "installedTitle": "Asennetut",
+      "catalogTitle": "Saatavilla olevat lataukset",
+      "catalogEmpty": "Julkaistuja ladattavia paketteja ei ole tällä hetkellä.",
+      "noneInstalled": "Lisäkielipaketteja ei ole asennettu.",
       "install": "Asenna",
       "installedLabel": "Asenna",
       "download": "Lataa",
+      "export": "Vie",
       "remove": "Poista",
       "coverageCore": "ydin-käyttöliittymä"
     },
     "theme": {
-      "label": "Teema"
+      "label": "Teema",
+      "auto": "Seuraa järjestelmää",
+      "light": "Päivä",
+      "dark": "Yö"
     },
     "tabs": {
       "overview": "Yleiskatsaus",

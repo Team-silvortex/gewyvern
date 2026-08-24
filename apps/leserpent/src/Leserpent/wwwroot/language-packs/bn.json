@@ -3,7 +3,7 @@
   "locale": "bn",
   "name": "Bengali",
   "nativeName": "বাংলা",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "একাধিক কাছাকাছি gewyvern রানটাইমের জন্য হালকা ফ্লিট ভিউ।"
     },
     "language": {
-      "label": "ভাষা"
+      "label": "ভাষা",
+      "auto": "ব্রাউজার অনুসরণ করুন"
     },
     "languagePacks": {
       "title": "ভাষা প্যাক",
+      "subcopy": "একই উৎসের যাচাইকৃত প্যাক ইনস্টল করুন অথবা স্থানীয় JSON প্যাক আমদানি করুন।",
+      "refresh": "ক্যাটালগ রিফ্রেশ করুন",
+      "import": "JSON আমদানি করুন",
+      "installedTitle": "ইনস্টল করা",
+      "catalogTitle": "উপলভ্য ডাউনলোড",
+      "catalogEmpty": "বর্তমানে ডাউনলোডযোগ্য কোনো প্যাক প্রকাশিত নেই।",
+      "noneInstalled": "কোনো অতিরিক্ত ভাষা প্যাক ইনস্টল করা নেই।",
       "install": "ইনস্টল",
       "installedLabel": "ইনস্টল",
       "download": "ডাউনলোড",
+      "export": "রপ্তানি করুন",
       "remove": "সরান",
       "coverageCore": "কোর UI"
     },
     "theme": {
-      "label": "থিম"
+      "label": "থিম",
+      "auto": "সিস্টেম অনুসরণ করুন",
+      "light": "দিন",
+      "dark": "রাত"
     },
     "tabs": {
       "overview": "সারসংক্ষেপ",

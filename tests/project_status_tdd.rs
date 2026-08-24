@@ -3823,6 +3823,9 @@ fn retained_packaged_macos_language_pack_proof_is_non_vacuous() {
     assert_eq!(roundtrip["locale"], "pt-BR");
     assert_eq!(roundtrip["downloadable_packs"], 22);
     assert_eq!(roundtrip["core_ui_keys"], 18);
+    assert_eq!(roundtrip["compatibility_core_ui_keys"], 18);
+    assert_eq!(roundtrip["official_pack_version"], "1.1.0");
+    assert_eq!(roundtrip["official_pack_keys"], 30);
     for check in [
         "loopback_tls",
         "selected_private_ca",
@@ -3836,6 +3839,37 @@ fn retained_packaged_macos_language_pack_proof_is_non_vacuous() {
     }
     assert_eq!(roundtrip["authorization_header_sent"], false);
     assert_eq!(roundtrip["admin_token_header_sent"], false);
+    let saved_roundtrip = &evidence["saved_daemon_roundtrip"];
+    assert_eq!(saved_roundtrip["source_kind"], "persisted-daemon-connection");
+    assert_eq!(saved_roundtrip["managed_ca_count"], 1);
+    assert_eq!(saved_roundtrip["official_pack_version"], "1.1.0");
+    assert_eq!(saved_roundtrip["official_pack_keys"], 30);
+    for check in [
+        "catalog_persisted",
+        "production_connection_source",
+        "wrong_ca_rejected",
+        "sha256_bound",
+        "locale_bound",
+        "version_bound",
+        "private_store_roundtrip",
+        "persisted_inputs_immutable",
+        "installed_pack_removed",
+    ] {
+        assert_eq!(
+            saved_roundtrip[check], true,
+            "missing packaged macOS saved-daemon proof {check}"
+        );
+    }
+    for check in [
+        "authorization_header_sent",
+        "admin_token_header_sent",
+        "credential_persisted",
+    ] {
+        assert_eq!(
+            saved_roundtrip[check], false,
+            "packaged macOS saved-daemon proof leaked credential state {check}"
+        );
+    }
     assert_eq!(
         evidence["daemon_contract"]["public_routes_reject_authorization"],
         true
@@ -3845,6 +3879,14 @@ fn retained_packaged_macos_language_pack_proof_is_non_vacuous() {
         true
     );
     assert_eq!(evidence["lifecycle"]["secret_output"], false);
+    assert!(json_string_set(&evidence, "checks")
+        .contains("official-v1.1.0-exact-30-key-pack"));
+    assert_eq!(
+        json_string_set(&evidence, "remaining"),
+        ["native-speaker-review-and-post-30-key-pack-expansion".to_string()]
+            .into_iter()
+            .collect()
+    );
     assert_eq!(evidence["result"], "passed");
 }
 
@@ -3912,6 +3954,9 @@ fn retained_physical_linux_language_pack_proof_is_non_vacuous() {
     assert_eq!(roundtrip["locale"], "pt-BR");
     assert_eq!(roundtrip["downloadable_packs"], 22);
     assert_eq!(roundtrip["core_ui_keys"], 18);
+    assert_eq!(roundtrip["compatibility_core_ui_keys"], 18);
+    assert_eq!(roundtrip["official_pack_version"], "1.1.0");
+    assert_eq!(roundtrip["official_pack_keys"], 30);
     for check in [
         "loopback_tls",
         "selected_private_ca",
@@ -3925,13 +3970,46 @@ fn retained_physical_linux_language_pack_proof_is_non_vacuous() {
     }
     assert_eq!(roundtrip["authorization_header_sent"], false);
     assert_eq!(roundtrip["admin_token_header_sent"], false);
+    let saved_roundtrip = &evidence["saved_daemon_roundtrip"];
+    assert_eq!(saved_roundtrip["source_kind"], "persisted-daemon-connection");
+    assert_eq!(saved_roundtrip["managed_ca_count"], 1);
+    assert_eq!(saved_roundtrip["official_pack_version"], "1.1.0");
+    assert_eq!(saved_roundtrip["official_pack_keys"], 30);
+    for check in [
+        "catalog_persisted",
+        "production_connection_source",
+        "wrong_ca_rejected",
+        "sha256_bound",
+        "locale_bound",
+        "version_bound",
+        "private_store_roundtrip",
+        "persisted_inputs_immutable",
+        "installed_pack_removed",
+    ] {
+        assert_eq!(
+            saved_roundtrip[check], true,
+            "missing physical Linux saved-daemon proof {check}"
+        );
+    }
+    for check in [
+        "authorization_header_sent",
+        "admin_token_header_sent",
+        "credential_persisted",
+    ] {
+        assert_eq!(
+            saved_roundtrip[check], false,
+            "physical Linux saved-daemon proof leaked credential state {check}"
+        );
+    }
 
     let verifier_assertions = json_string_set(&evidence, "verifier_assertions");
-    assert_eq!(verifier_assertions.len(), 18);
+    assert_eq!(verifier_assertions.len(), 20);
     for assertion in [
         "credential_free_language_pack_download",
         "language_pack_digest_binding",
         "language_pack_private_roundtrip",
+        "language_pack_official_version_1_1_0",
+        "language_pack_official_keys_30",
         "minimal_child_environment",
         "symlink_rejection",
         "process_cleanup",
@@ -3941,11 +4019,34 @@ fn retained_physical_linux_language_pack_proof_is_non_vacuous() {
             "missing verifier assertion {assertion}"
         );
     }
+    let saved_verifier_assertions =
+        json_string_set(&evidence, "saved_daemon_verifier_assertions");
+    assert_eq!(saved_verifier_assertions.len(), 12);
+    for assertion in [
+        "persisted_catalog",
+        "saved_connection_source",
+        "selected_ca_only",
+        "wrong_ca_rejected",
+        "bearer_sent_false",
+        "admin_token_sent_false",
+        "digest_binding",
+        "private_roundtrip",
+        "language_pack_official_version_1_1_0",
+        "language_pack_official_keys_30",
+        "input_immutable",
+        "process_cleanup",
+    ] {
+        assert!(
+            saved_verifier_assertions.contains(assertion),
+            "missing saved-daemon verifier assertion {assertion}"
+        );
+    }
     for check in [
         "strict_local_revalidation",
         "exact_regular_file_inventory",
         "payload_hash_revalidation",
         "language_asset_hash_revalidation",
+        "dual_verifier_log_revalidation",
         "credential_material_rejected",
     ] {
         assert_eq!(
@@ -3954,6 +4055,14 @@ fn retained_physical_linux_language_pack_proof_is_non_vacuous() {
         );
     }
     assert_eq!(evidence["lifecycle"]["secret_output"], false);
+    assert!(json_string_set(&evidence, "checks")
+        .contains("official-v1.1.0-exact-30-key-pack"));
+    assert_eq!(
+        json_string_set(&evidence, "remaining"),
+        ["native-speaker-review-and-post-30-key-pack-expansion".to_string()]
+            .into_iter()
+            .collect()
+    );
     assert_eq!(evidence["result"], "passed");
 }
 
@@ -5778,13 +5887,19 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .expect("desktop localization contract must remain tracked");
     assert_eq!(desktop_localization.maturity, Maturity::Incubating);
     assert_eq!(desktop_localization.completion, 99);
-    assert_eq!(desktop_localization.contract.version, "0.16.0");
+    assert_eq!(desktop_localization.contract.version, "0.18.0");
     assert_eq!(desktop_localization.contract.stability, ContractStability::Draft);
     for surface in [
         "thirty-official-locale-identifiers",
         "private-atomic-language-preference",
         "shared-web-native-language-pack-v1",
         "eighteen-key-core-ui-pack-contract",
+        "legacy-eighteen-key-pack-compatibility",
+        "official-pack-version-1-1-0",
+        "thirty-key-official-core-ui-pack-contract",
+        "official-pack-exact-key-set",
+        "language-pack-center-theme-expansion",
+        "content-addressed-language-pack-publication",
         "official-downloadable-locale-fence",
         "built-in-locale-replacement-fence",
         "bounded-language-pack-json-tree",
@@ -5802,6 +5917,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "live-local-orchestra-language-pack-roundtrip",
         "retained-packaged-macos-language-pack-proof",
         "physical-linux-local-orchestra-language-pack-proof",
+        "persisted-saved-daemon-language-pack-roundtrip",
+        "wrong-ca-saved-daemon-rejection",
+        "packaged-macos-saved-daemon-language-pack-proof",
+        "physical-linux-saved-daemon-language-pack-proof",
+        "dual-verifier-remote-language-pack-evidence",
         "strict-remote-language-pack-evidence-revalidation",
         "same-origin-language-pack-path-fence",
         "catalog-locale-version-digest-binding",
@@ -5921,20 +6041,30 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && blocker.summary.contains("Hub domains")
             && blocker.summary.contains("tutorial domains")
             && blocker.summary.contains("80-key native-shell catalogs")
-            && blocker.summary.contains("18-key core-ui v1 packs")
+            && blocker.summary.contains("18-key core-ui v1 compatibility floor")
+            && blocker.summary.contains("22 official v1.1.0 artifacts")
+            && blocker.summary.contains("exact 30-key set")
+            && blocker.summary.contains("pack center")
+            && blocker.summary.contains("day/night/system theme controls")
             && blocker.summary.contains("explicitly selected local or saved daemon")
             && blocker.summary.contains("without sending an admin credential")
             && blocker.summary.contains("embeds the exact catalog and 22-pack roster")
             && blocker.summary.contains("reject bearer/admin headers")
             && blocker.summary.contains("real private-CA TLS download")
             && blocker.summary.contains("digest/locale/version bound")
+            && blocker.summary.contains("saved-daemon verifier")
+            && blocker.summary.contains("decoy CA at TLS")
+            && blocker.summary.contains("catalog and CA inputs remain immutable")
             && blocker.summary.contains("physical Linux x86_64 NativeAOT proofs")
+            && blocker.summary.contains("both verifier paths")
+            && blocker.summary.contains("dual fixed-contract verifier logs")
             && blocker.summary.contains("exact regular-file inventory")
             && blocker.summary.contains("language-asset hashes")
             && blocker.summary.contains("credential absence")
             && blocker.summary.contains("not catalog-authenticated")
             && blocker.summary.contains("malformed-sibling isolation")
             && blocker.summary.contains("intentionally partial")
+            && blocker.summary.contains("new 12-key downloadable expansion")
             && !blocker.summary.contains("runtime child-workspace shell")
             && !blocker.summary.contains("remaining Hub dynamic cards")
             && !blocker.summary.contains("non-Chinese tutorial content")
@@ -5961,7 +6091,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && evidence.state == EvidenceState::Present
     }));
     for path in [
+        "apps/leserpent/scripts/build-language-packs.mjs",
+        "apps/leserpent/scripts/check-language-pack-coverage.mjs",
+        "apps/leserpent/tests/Leserpent.SecurityTests/LanguagePackArtifactTests.cs",
+        "apps/leserpent/frontend-package-manifest.json",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/SavedDaemonLanguagePackVerifier.cs",
         "crates/leserpentd/src/language_packs.rs",
         "crates/leserpentd/src/remote.rs",
         "apps/leserpent/src/Leserpent/ControlPlane/LanguagePackRequestPolicy.cs",
@@ -5974,15 +6109,21 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             evidence.path == path && evidence.state == EvidenceState::Present
         }));
     }
-    assert!(desktop_localization
+    assert!(!desktop_localization
         .next_gate
-        .contains("packaged macOS and physical Linux against a saved remote daemon"));
+        .contains("saved remote daemon"));
     assert!(!desktop_localization
         .next_gate
         .contains("physical Linux live-download evidence for Local Orchestra"));
     assert!(desktop_localization
         .next_gate
-        .contains("no bearer/admin credential is sent"));
+        .contains("Review the six candidate built-in catalogs and the new"));
+    assert!(desktop_localization
+        .next_gate
+        .contains("new 12-key official-pack expansion with native speakers"));
+    assert!(desktop_localization
+        .next_gate
+        .contains("beyond their exact 30-key"));
     assert!(desktop_localization.evidence.iter().any(|evidence| {
         evidence.path
             == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopConnectionCatalogs.cs"

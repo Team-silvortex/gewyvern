@@ -3,7 +3,7 @@
   "locale": "ms",
   "name": "Malay",
   "nativeName": "Bahasa Melayu",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "Paparan armada ringan untuk beberapa runtime gewyvern berdekatan."
     },
     "language": {
-      "label": "Bahasa"
+      "label": "Bahasa",
+      "auto": "Ikut pelayar"
     },
     "languagePacks": {
       "title": "Pek bahasa",
+      "subcopy": "Pasang pek disahkan daripada asal yang sama atau import pek JSON setempat.",
+      "refresh": "Segar semula katalog",
+      "import": "Import JSON",
+      "installedTitle": "Dipasang",
+      "catalogTitle": "Muat turun tersedia",
+      "catalogEmpty": "Tiada pek boleh muat turun diterbitkan pada masa ini.",
+      "noneInstalled": "Tiada pek bahasa tambahan dipasang.",
       "install": "Pasang",
       "installedLabel": "Pasang",
       "download": "Muat turun",
+      "export": "Eksport",
       "remove": "Buang",
       "coverageCore": "UI teras"
     },
     "theme": {
-      "label": "Tema"
+      "label": "Tema",
+      "auto": "Ikut sistem",
+      "light": "Siang",
+      "dark": "Malam"
     },
     "tabs": {
       "overview": "Gambaran keseluruhan",

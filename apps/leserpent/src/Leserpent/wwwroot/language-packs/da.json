@@ -3,7 +3,7 @@
   "locale": "da",
   "name": "Danish",
   "nativeName": "Dansk",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "En let flådevisning til flere nærliggende gewyvern-kørsler."
     },
     "language": {
-      "label": "Sprog"
+      "label": "Sprog",
+      "auto": "Følg browseren"
     },
     "languagePacks": {
       "title": "Sprogpakker",
+      "subcopy": "Installer verificerede pakker fra samme oprindelse, eller importér en lokal JSON-pakke.",
+      "refresh": "Opdater katalog",
+      "import": "Importér JSON",
+      "installedTitle": "Installerede",
+      "catalogTitle": "Tilgængelige downloads",
+      "catalogEmpty": "Der er i øjeblikket ingen offentliggjorte pakker til download.",
+      "noneInstalled": "Der er ikke installeret yderligere sprogpakker.",
       "install": "Installer",
       "installedLabel": "Installer",
       "download": "Download",
+      "export": "Eksportér",
       "remove": "Fjern",
       "coverageCore": "kerne-UI"
     },
     "theme": {
-      "label": "Tema"
+      "label": "Tema",
+      "auto": "Følg systemet",
+      "light": "Dag",
+      "dark": "Nat"
     },
     "tabs": {
       "overview": "Oversigt",

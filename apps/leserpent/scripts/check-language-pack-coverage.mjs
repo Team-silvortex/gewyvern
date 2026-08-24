@@ -41,6 +41,23 @@ const coreUiPackKeys = [
   "runtimePanel.windows.closeAll",
 ];
 
+const expandedOfficialPackKeys = [
+  "language.auto",
+  "languagePacks.subcopy",
+  "languagePacks.refresh",
+  "languagePacks.import",
+  "languagePacks.installedTitle",
+  "languagePacks.catalogTitle",
+  "languagePacks.catalogEmpty",
+  "languagePacks.noneInstalled",
+  "languagePacks.export",
+  "theme.auto",
+  "theme.light",
+  "theme.dark",
+];
+
+const officialPackKeys = [...coreUiPackKeys, ...expandedOfficialPackKeys];
+
 function parseLocaleFile(path) {
   const text = readFileSync(path, "utf8");
   const match = /translations(?:\.([A-Za-z0-9_-]+)|\[[\'"]([^\'"]+)[\'"]\])\s*=\s*(?:mergeTranslations\([^,]+,\s*)?\{/.exec(
@@ -212,18 +229,25 @@ for (const locale of builtinLocales) {
 }
 
 const catalog = JSON.parse(readFileSync(join(languagePackRoot, "catalog.json"), "utf8"));
-console.log("downloadable pack core coverage:");
+console.log("downloadable pack official coverage:");
 for (const entry of catalog.packs) {
   const packPath = join(languagePackRoot, `${entry.locale}.json`);
   const pack = JSON.parse(readFileSync(packPath, "utf8"));
   const translations = pack.translations || {};
-  const missingPackKeys = coreUiPackKeys.filter((k) => !hasKey(translations, k));
-  const total = coreUiPackKeys.length;
+  const publishedKeys = flattenKeys(translations);
+  const missingPackKeys = officialPackKeys.filter((k) => !hasKey(translations, k));
+  const unexpectedPackKeys = publishedKeys.filter((k) => !officialPackKeys.includes(k));
+  const total = officialPackKeys.length;
   const covered = total - missingPackKeys.length;
   console.log(`- ${entry.locale}: ${covered}/${total}`);
-  if (missingPackKeys.length) {
+  if (entry.version !== "1.1.0" || pack.version !== entry.version) {
     failures++;
-    console.log(`  missing: ${missingPackKeys.join(", ")}`);
+    console.log(`  version: catalog=${entry.version}, pack=${pack.version}`);
+  }
+  if (missingPackKeys.length || unexpectedPackKeys.length || publishedKeys.length !== total) {
+    failures++;
+    if (missingPackKeys.length) console.log(`  missing: ${missingPackKeys.join(", ")}`);
+    if (unexpectedPackKeys.length) console.log(`  unexpected: ${unexpectedPackKeys.join(", ")}`);
   }
 }
 

@@ -2275,7 +2275,7 @@ pub fn validate_leserpent_control_plane_aot_evidence(root: &Path) -> Result<(), 
 }
 
 const LOCAL_ORCHESTRA_VERIFICATION_PREFIX: &str = "local orchestra valid: ";
-const LOCAL_ORCHESTRA_VERIFICATION_CHECKS: [&str; 18] = [
+const LOCAL_ORCHESTRA_VERIFICATION_CHECKS: [&str; 20] = [
     "rust_daemon=true",
     "loopback_tls=true",
     "ephemeral_token=true",
@@ -2286,6 +2286,8 @@ const LOCAL_ORCHESTRA_VERIFICATION_CHECKS: [&str; 18] = [
     "credential_free_language_pack_download=true",
     "language_pack_digest_binding=true",
     "language_pack_private_roundtrip=true",
+    "language_pack_official_version=1.1.0",
+    "language_pack_official_keys=30",
     "private_files=true",
     "minimal_child_environment=true",
     "optional_bootstrap_origin=true",
@@ -2296,10 +2298,26 @@ const LOCAL_ORCHESTRA_VERIFICATION_CHECKS: [&str; 18] = [
     "process_cleanup=true",
 ];
 
+const SAVED_DAEMON_LANGUAGE_PACK_VERIFICATION_PREFIX: &str = "saved daemon language pack valid: ";
+const SAVED_DAEMON_LANGUAGE_PACK_VERIFICATION_CHECKS: [&str; 12] = [
+    "persisted_catalog=true",
+    "saved_connection_source=true",
+    "selected_ca_only=true",
+    "wrong_ca_rejected=true",
+    "bearer_sent=false",
+    "admin_token_sent=false",
+    "digest_binding=true",
+    "private_roundtrip=true",
+    "language_pack_official_version=1.1.0",
+    "language_pack_official_keys=30",
+    "input_immutable=true",
+    "process_cleanup=true",
+];
+
 pub fn validate_leserpent_language_pack_local_orchestra_aot_evidence(
     root: &Path,
 ) -> Result<(), ValidationError> {
-    const FILES: [&str; 7] = [
+    const FILES: [&str; 8] = [
         "environment.txt",
         "restore.log",
         "publish.log",
@@ -2307,6 +2325,7 @@ pub fn validate_leserpent_language_pack_local_orchestra_aot_evidence(
         "payload.sha256",
         "language-pack-assets.sha256",
         "verification.log",
+        "saved-verification.log",
     ];
     const ENVIRONMENT_KEYS: [&str; 9] = [
         "os",
@@ -2473,6 +2492,31 @@ pub fn validate_leserpent_language_pack_local_orchestra_aot_evidence(
     {
         return Err(ValidationError::new(
             "Leserpent Local Orchestra language-pack verification is incomplete",
+        ));
+    }
+
+    let saved_verification = read_bounded_nonempty_lines(
+        &root.join("saved-verification.log"),
+        "Leserpent saved daemon language-pack verification",
+        64 * 1024,
+        1,
+        4096,
+    )?;
+    let Some(saved_checks) = saved_verification.first().and_then(|line| {
+        line.strip_prefix(SAVED_DAEMON_LANGUAGE_PACK_VERIFICATION_PREFIX)
+    }) else {
+        return Err(ValidationError::new(
+            "Leserpent saved daemon language-pack verification is missing its fixed prefix",
+        ));
+    };
+    let saved_checks = saved_checks.split(", ").collect::<BTreeSet<_>>();
+    if saved_checks
+        != SAVED_DAEMON_LANGUAGE_PACK_VERIFICATION_CHECKS
+            .into_iter()
+            .collect::<BTreeSet<_>>()
+    {
+        return Err(ValidationError::new(
+            "Leserpent saved daemon language-pack verification is incomplete",
         ));
     }
 
@@ -3988,7 +4032,22 @@ file "$PUBLISH/leserpentd" | grep -q 'ELF 64-bit.*x86-64'
 grep -q 'credential_free_language_pack_download=true' "$EVIDENCE/verification.log"
 grep -q 'language_pack_digest_binding=true' "$EVIDENCE/verification.log"
 grep -q 'language_pack_private_roundtrip=true' "$EVIDENCE/verification.log"
+grep -q 'language_pack_official_version=1.1.0' "$EVIDENCE/verification.log"
+grep -q 'language_pack_official_keys=30' "$EVIDENCE/verification.log"
 grep -q 'process_cleanup=true' "$EVIDENCE/verification.log"
+
+"$PUBLISH/Leserpent.Avalonia" \
+  --verify-saved-daemon-language-pack "$PUBLISH/leserpentd" \
+  >"$EVIDENCE/saved-verification.log" 2>&1
+grep -q 'persisted_catalog=true' "$EVIDENCE/saved-verification.log"
+grep -q 'selected_ca_only=true' "$EVIDENCE/saved-verification.log"
+grep -q 'wrong_ca_rejected=true' "$EVIDENCE/saved-verification.log"
+grep -q 'bearer_sent=false' "$EVIDENCE/saved-verification.log"
+grep -q 'admin_token_sent=false' "$EVIDENCE/saved-verification.log"
+grep -q 'language_pack_official_version=1.1.0' "$EVIDENCE/saved-verification.log"
+grep -q 'language_pack_official_keys=30' "$EVIDENCE/saved-verification.log"
+grep -q 'input_immutable=true' "$EVIDENCE/saved-verification.log"
+grep -q 'process_cleanup=true' "$EVIDENCE/saved-verification.log"
 
 printf 'os=Linux\narch=%s\nrid=linux-x64\nkernel=%s\ndotnet_sdk=%s\nrustc=%s\ncargo=%s\navalonia_bytes=%s\nleserpentd_bytes=%s\n' \
   "$(uname -m)" \
@@ -4011,7 +4070,8 @@ cat >"$EVIDENCE/evidence-index.json" <<'JSON'
     "daemon-build.log",
     "payload.sha256",
     "language-pack-assets.sha256",
-    "verification.log"
+    "verification.log",
+    "saved-verification.log"
   ]
 }
 JSON
@@ -5007,6 +5067,8 @@ mod tests {
         assert!(publish.contains("-p:RuntimeIdentifier=linux-x64"));
         assert!(publish.contains("--no-restore"));
         assert!(publish.contains("--verify-local-orchestra"));
+        assert!(publish.contains("--verify-saved-daemon-language-pack"));
+        assert!(publish.contains("saved-verification.log"));
         assert!(publish.contains("language-pack-assets.sha256"));
     }
 
@@ -5075,6 +5137,14 @@ mod tests {
         fs::write(
             root.join("verification.log"),
             "local orchestra valid: rust_daemon=true\n",
+        )
+        .unwrap();
+        assert!(validate_leserpent_language_pack_local_orchestra_aot_evidence(&root).is_err());
+
+        write_valid_leserpent_language_pack_local_orchestra_aot_evidence(&root);
+        fs::write(
+            root.join("saved-verification.log"),
+            "saved daemon language pack valid: persisted_catalog=true\n",
         )
         .unwrap();
         assert!(validate_leserpent_language_pack_local_orchestra_aot_evidence(&root).is_err());
@@ -5201,7 +5271,7 @@ mod tests {
     }
 
     fn write_valid_leserpent_language_pack_local_orchestra_aot_evidence(root: &Path) {
-        const FILES: [&str; 7] = [
+        const FILES: [&str; 8] = [
             "environment.txt",
             "restore.log",
             "publish.log",
@@ -5209,6 +5279,7 @@ mod tests {
             "payload.sha256",
             "language-pack-assets.sha256",
             "verification.log",
+            "saved-verification.log",
         ];
         fs::create_dir_all(root).unwrap();
         fs::write(
@@ -5242,6 +5313,15 @@ mod tests {
                 "{}{}\n",
                 super::LOCAL_ORCHESTRA_VERIFICATION_PREFIX,
                 super::LOCAL_ORCHESTRA_VERIFICATION_CHECKS.join(", ")
+            ),
+        )
+        .unwrap();
+        fs::write(
+            root.join("saved-verification.log"),
+            format!(
+                "{}{}\n",
+                super::SAVED_DAEMON_LANGUAGE_PACK_VERIFICATION_PREFIX,
+                super::SAVED_DAEMON_LANGUAGE_PACK_VERIFICATION_CHECKS.join(", ")
             ),
         )
         .unwrap();

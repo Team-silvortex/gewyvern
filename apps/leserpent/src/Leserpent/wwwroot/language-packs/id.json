@@ -3,7 +3,7 @@
   "locale": "id",
   "name": "Indonesian",
   "nativeName": "Bahasa Indonesia",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -13,18 +13,30 @@
       "subcopy": "Tampilan armada ringan untuk beberapa runtime gewyvern terdekat."
     },
     "language": {
-      "label": "Bahasa"
+      "label": "Bahasa",
+      "auto": "Ikuti browser"
     },
     "languagePacks": {
       "title": "Paket bahasa",
+      "subcopy": "Pasang paket terverifikasi dari origin yang sama atau impor paket JSON lokal.",
+      "refresh": "Segarkan katalog",
+      "import": "Impor JSON",
+      "installedTitle": "Terpasang",
+      "catalogTitle": "Unduhan tersedia",
+      "catalogEmpty": "Saat ini tidak ada paket unduhan yang dipublikasikan.",
+      "noneInstalled": "Tidak ada paket bahasa tambahan yang terpasang.",
       "install": "Pasang",
       "installedLabel": "Pasang",
       "download": "Unduh",
+      "export": "Ekspor",
       "remove": "Hapus",
       "coverageCore": "UI inti"
     },
     "theme": {
-      "label": "Tema"
+      "label": "Tema",
+      "auto": "Ikuti sistem",
+      "light": "Siang",
+      "dark": "Malam"
     },
     "tabs": {
       "overview": "Ringkasan",

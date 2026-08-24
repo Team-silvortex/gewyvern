@@ -254,9 +254,11 @@ English presentation, while daemon names, endpoint details, runtime identities,
 and raw failures remain opaque. Offline proofs measure compact and wide remote
 shells, refresh and deployment dialogs, the runtime-workspace envelope, and the
 Hub dynamic-card and all 48 Learning Center locale-step envelopes without
-starting a network client. Native Desktop now accepts the same strict 18-key
-`leserpent.language-pack/v1` core-ui packs as Web for the 22 official
-downloadable locales. The loader validates a bounded object tree and exact
+starting a network client. Native Desktop and Web retain the same strict 18-key
+`leserpent.language-pack/v1` compatibility floor for the 22 official
+downloadable locales. Every official v1.1.0 artifact carries an exact 30-key
+set, adding language-selection, pack-center, and theme copy without changing the
+legacy acceptance floor. The loader validates a bounded object tree and exact
 official metadata, prevents replacement of built-ins, can bind imported bytes
 to an expected SHA-256, bounds directory enumeration before sorting, reads picker
 streams asynchronously, then atomically stores each package with user-only permissions.
@@ -283,10 +285,12 @@ proofs execute that same package-owned client/daemon boundary. The Linux remote
 stage synchronizes only a fixed evidence inventory and then revalidates regular
 file types, exact index schema, verifier assertions, native payload hashes,
 current catalog/`pt-BR` hashes, and credential absence on the invoking host.
-Saved remote-daemon authority selection remains the only unproven network
-variant of this language-pack path.
-The six candidate built-in translations still need native-speaker review, and
-all 22 packs remain intentionally partial beyond their reviewed core-ui keys.
+The companion saved-daemon proof persists the live authority through the
+production connection catalog, imports exactly one managed CA, rejects a decoy
+CA at TLS, and completes the same private roundtrip without mutating its inputs.
+The six candidate built-in translations and the new 12-key downloadable
+expansion still need native-speaker review. All 22 packs remain intentionally
+partial beyond their exact 30-key official set.
 Arabic, Hebrew, and Persian switch the inherited Avalonia flow direction to RTL.
 
 Cross-authority refresh admission is frontend-independent. The shared remote
