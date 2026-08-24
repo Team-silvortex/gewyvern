@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use leselang_command::{LoweringContext, LoweringError, lower_effect};
 use leselang_hir::{
@@ -4100,20 +4100,20 @@ fn validate_patch(patch: &UiPatch) -> Result<(), UiError> {
     for operation in &patch.operations {
         match operation {
             UiPatchOperation::Remove { node_id } => {
-                NodeId::new(node_id.as_str())?;
+                validate_node_id(node_id.as_str())?;
             }
             UiPatchOperation::Insert {
                 parent_id, node, ..
             } => {
-                NodeId::new(parent_id.as_str())?;
-                let mut ids = BTreeSet::new();
+                validate_node_id(parent_id.as_str())?;
+                let mut ids = HashSet::new();
                 validate_patch_node(node, 1, &mut ids)?;
             }
             UiPatchOperation::Move {
                 node_id, parent_id, ..
             } => {
-                NodeId::new(node_id.as_str())?;
-                NodeId::new(parent_id.as_str())?;
+                validate_node_id(node_id.as_str())?;
+                validate_node_id(parent_id.as_str())?;
             }
             UiPatchOperation::Update { node } => {
                 if !node.children.is_empty() {
@@ -4121,7 +4121,7 @@ fn validate_patch(patch: &UiPatch) -> Result<(), UiError> {
                         reason: "update nodes must be shallow",
                     });
                 }
-                let mut ids = BTreeSet::new();
+                let mut ids = HashSet::new();
                 validate_patch_node(node, 1, &mut ids)?;
             }
         }
@@ -4129,16 +4129,16 @@ fn validate_patch(patch: &UiPatch) -> Result<(), UiError> {
     Ok(())
 }
 
-fn validate_patch_node(
-    node: &UiNode,
+fn validate_patch_node<'a>(
+    node: &'a UiNode,
     depth: usize,
-    ids: &mut BTreeSet<NodeId>,
+    ids: &mut HashSet<&'a str>,
 ) -> Result<(), UiError> {
     if depth > MAX_UI_DEPTH {
         return Err(UiError::DepthLimitExceeded);
     }
-    NodeId::new(node.id.as_str())?;
-    if !ids.insert(node.id.clone()) {
+    validate_node_id(node.id.as_str())?;
+    if !ids.insert(node.id.as_str()) {
         return Err(UiError::DuplicateNodeId {
             node_id: node.id.as_str().to_string(),
         });
@@ -4162,7 +4162,7 @@ fn validate_patch_node(
     }
     match (&node.kind, node.debugger_session_id.as_deref()) {
         (UiNodeKind::DebuggerWorkspace, Some(session_id)) => {
-            NodeId::new(session_id)?;
+            validate_node_id(session_id)?;
         }
         (UiNodeKind::DebuggerWorkspace, None) | (_, Some(_)) => {
             return Err(UiError::InvalidDebuggerBinding {
@@ -4175,7 +4175,7 @@ fn validate_patch_node(
         validate_form(form)?;
     }
     if let Some(UiAction::DebuggerCancel { session_id }) = &node.action {
-        NodeId::new(session_id)?;
+        validate_node_id(session_id)?;
     }
     if ids.len() > MAX_UI_NODES {
         return Err(UiError::NodeLimitExceeded);
@@ -4210,7 +4210,7 @@ pub fn validate_document(document: &UiDocument) -> Result<(), UiError> {
             expected: UI_SCHEMA_VERSION,
         });
     }
-    let mut ids = BTreeSet::new();
+    let mut ids = HashSet::new();
     validate_node(&document.root, 1, None, None, &mut ids)?;
     if ids.len() > MAX_UI_NODES {
         return Err(UiError::NodeLimitExceeded);
@@ -4218,18 +4218,18 @@ pub fn validate_document(document: &UiDocument) -> Result<(), UiError> {
     Ok(())
 }
 
-fn validate_node(
-    node: &UiNode,
+fn validate_node<'a>(
+    node: &'a UiNode,
     depth: usize,
-    runtime_context: Option<&RuntimeId>,
-    debugger_context: Option<&str>,
-    ids: &mut BTreeSet<NodeId>,
+    runtime_context: Option<&'a RuntimeId>,
+    debugger_context: Option<&'a str>,
+    ids: &mut HashSet<&'a str>,
 ) -> Result<(), UiError> {
     if depth > MAX_UI_DEPTH {
         return Err(UiError::DepthLimitExceeded);
     }
-    NodeId::new(node.id.as_str())?;
-    if !ids.insert(node.id.clone()) {
+    validate_node_id(node.id.as_str())?;
+    if !ids.insert(node.id.as_str()) {
         return Err(UiError::DuplicateNodeId {
             node_id: node.id.as_str().to_string(),
         });
@@ -4255,7 +4255,7 @@ fn validate_node(
     };
     let debugger_context = match (&node.kind, node.debugger_session_id.as_deref()) {
         (UiNodeKind::DebuggerWorkspace, Some(session_id)) => {
-            NodeId::new(session_id)?;
+            validate_node_id(session_id)?;
             Some(session_id)
         }
         (UiNodeKind::DebuggerWorkspace, None) | (_, Some(_)) => {
@@ -4294,6 +4294,13 @@ fn validate_node(
     }
     for child in &node.children {
         validate_node(child, depth + 1, runtime_context, debugger_context, ids)?;
+    }
+    Ok(())
+}
+
+fn validate_node_id(node_id: &str) -> Result<(), UiError> {
+    if !validate_ui_node_id(node_id) {
+        return Err(UiError::InvalidNodeId);
     }
     Ok(())
 }

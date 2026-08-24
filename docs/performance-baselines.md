@@ -23,8 +23,9 @@ not directly comparable.
 
 The fixed workload contains 16 fresh SQLite opens, 2,000 list queries over 256
 runtimes, 10,000 effects inserted as batches of 100, and 100 iterations over a
-1,539-node UI document. The UI phase measures document generation,
-diff-plus-apply, and JSON encode-plus-decode. A separate .NET Release probe runs
+1,539-node UI document. The UI phase measures document generation, diff,
+apply, JSON encode, and JSON decode separately while retaining the combined
+diff-plus-apply and encode-plus-decode metrics. A separate .NET Release probe runs
 500 iterations comparing a 256-log full workspace compose with an 8-log
 incremental compose-and-merge while retaining a 256-entry result. The .NET
 workload uses a proof-local artifacts root, so it can run beside parity,
@@ -63,6 +64,15 @@ pipeline p50 was `0.255 ms`; UI document/patch/codec p50 values were
 `1.184 / 2.510 / 3.323 ms`. Incremental workspace-log projection took
 `0.212 ms`, `15.6%` of the full path, with a `9.5%` allocation ratio. The CLI
 and daemon binaries were `3,792,000 / 9,312,784` bytes.
+
+A `2026-08-24` macOS arm64 allocation pass changed successful UI document and
+patch validation to borrow node identifiers instead of allocating temporary
+owned identifiers for every visited node. Across seven release-process samples
+of the fixed workload, document generation fell from `0.742750` to `0.576750 ms`
+(`22.3%`), patch-plus-apply from `1.586750` to `0.934958 ms` (`41.1%`), and
+codec from `2.075792` to `1.839459 ms` (`11.4%`). The benchmark now also emits
+standalone diff, apply, encode, and decode timings so later work can identify
+which half of a combined path changed.
 
 The `2026-07-18` macOS arm64 hybrid-log reference measured the 256-entry full
 compose at `2.099 ms` p50 and `321,424` allocated bytes per iteration. The

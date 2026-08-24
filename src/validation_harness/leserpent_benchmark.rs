@@ -290,6 +290,14 @@ fn validate_ui_benchmark(value: &Value) -> Result<(), ValidationError> {
         UI_DOCUMENT_P50_BUDGET_MS,
     )?;
     require_max(value, &["metrics", "patch_p50_ms"], UI_PATCH_P50_BUDGET_MS)?;
+    for metric in [
+        "diff_p50_ms",
+        "apply_patch_p50_ms",
+        "encode_document_p50_ms",
+        "decode_document_p50_ms",
+    ] {
+        finite_number_at(value, &["metrics", metric])?;
+    }
     let document_p50_ms = finite_number_at(value, &["metrics", "document_p50_ms"])?;
     let patch_p50_ms = finite_number_at(value, &["metrics", "patch_p50_ms"])?;
     if document_p50_ms == 0.0 || patch_p50_ms / document_p50_ms > UI_PATCH_TO_DOCUMENT_RATIO_MAX {
@@ -484,12 +492,20 @@ mod tests {
             "schema_version": 1,
             "workload": {"runtime_count": 256, "ui_node_count": 1_539},
             "metrics": {
-                "document_p50_ms": 2.0, "patch_p50_ms": 6.0,
+                "document_p50_ms": 2.0, "diff_p50_ms": 2.0,
+                "apply_patch_p50_ms": 4.0, "patch_p50_ms": 6.0,
+                "encode_document_p50_ms": 1.5, "decode_document_p50_ms": 2.5,
                 "codec_p50_ms": 4.0, "encoded_document_bytes": 280_000,
                 "patch_operations": 2,
             }
         });
         assert!(validate_ui_benchmark(&healthy).is_ok());
+        let mut incomplete = healthy.clone();
+        incomplete["metrics"]
+            .as_object_mut()
+            .unwrap()
+            .remove("diff_p50_ms");
+        assert!(validate_ui_benchmark(&incomplete).is_err());
         let mut large = healthy.clone();
         large["metrics"]["encoded_document_bytes"] = json!(UI_DOCUMENT_MAX_BYTES + 1);
         assert!(validate_ui_benchmark(&large).is_err());

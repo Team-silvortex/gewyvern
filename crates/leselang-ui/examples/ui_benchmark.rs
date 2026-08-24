@@ -28,7 +28,11 @@ struct Workload {
 #[derive(Serialize)]
 struct Metrics {
     document_p50_ms: f64,
+    diff_p50_ms: f64,
+    apply_patch_p50_ms: f64,
     patch_p50_ms: f64,
+    encode_document_p50_ms: f64,
+    decode_document_p50_ms: f64,
     codec_p50_ms: f64,
     encoded_document_bytes: usize,
     patch_operations: usize,
@@ -50,21 +54,32 @@ fn run() -> Result<(), String> {
     if apply_patch(&before, &patch).map_err(|error| format!("{error:?}"))? != after {
         return Err("UI patch did not converge".into());
     }
+    let encoded = encode_document(&before).map_err(|error| format!("{error:?}"))?;
 
     let document_p50_ms = measure(|| {
         black_box(fleet_document(&before_result).expect("validated benchmark fixture"));
+    });
+    let diff_p50_ms = measure(|| {
+        black_box(diff(&before, &after).expect("validated benchmark fixture"));
+    });
+    let apply_patch_p50_ms = measure(|| {
+        black_box(apply_patch(&before, &patch).expect("validated benchmark patch"));
     });
     let patch_p50_ms = measure(|| {
         let patch = diff(&before, &after).expect("validated benchmark fixture");
         black_box(apply_patch(&before, &patch).expect("validated benchmark patch"));
     });
+    let encode_document_p50_ms = measure(|| {
+        black_box(encode_document(&before).expect("validated benchmark fixture"));
+    });
+    let decode_document_p50_ms = measure(|| {
+        black_box(decode_document(&encoded).expect("validated benchmark encoding"));
+    });
     let codec_p50_ms = measure(|| {
         let encoded = encode_document(&before).expect("validated benchmark fixture");
         black_box(decode_document(&encoded).expect("validated benchmark encoding"));
     });
-    let encoded_document_bytes = encode_document(&before)
-        .map_err(|error| format!("{error:?}"))?
-        .len();
+    let encoded_document_bytes = encoded.len();
     let evidence = BenchmarkEvidence {
         schema_version: 1,
         workload: Workload {
@@ -74,7 +89,11 @@ fn run() -> Result<(), String> {
         },
         metrics: Metrics {
             document_p50_ms,
+            diff_p50_ms,
+            apply_patch_p50_ms,
             patch_p50_ms,
+            encode_document_p50_ms,
+            decode_document_p50_ms,
             codec_p50_ms,
             encoded_document_bytes,
             patch_operations: patch.operations.len(),
