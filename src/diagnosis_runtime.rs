@@ -9,9 +9,12 @@ mod profiles;
 mod render;
 mod status;
 
+#[cfg(test)]
 pub(crate) use self::labels::{
-    failure_basis_label, failure_confidence_label, failure_detail_family_label,
-    failure_detail_label, failure_mode_family_label, failure_mode_label, first_non_none,
+    failure_basis_label, failure_confidence_label, failure_detail_label, failure_mode_label,
+};
+pub(crate) use self::labels::{
+    failure_detail_family_label, failure_labels, failure_mode_family_label, first_non_none,
     first_or_none, module_family_label, reduce_confidence_level, stage_family_label,
 };
 use self::profiles::{
@@ -29,13 +32,13 @@ pub(crate) use self::render::{
     append_protocol_flow_summaries_text_limited, estimate_analysis_snapshot_json_capacity,
     process_network_profiles_text_from_snapshot, protocol_flow_summaries_text_from_snapshot,
 };
+use self::status::protocol_flow_stage_summary;
 pub(crate) use self::status::{
     ExternalSidecarContractState, ScanTargetStatus, analysis_augmentation_names_text,
     analysis_automation_outcome, analysis_evidence_posture, external_capability_summary,
     external_sidecar_consumption_mode, external_sidecar_consumption_mode_for,
     external_sidecar_contract_state, external_sidecar_item_consumption_mode,
-    external_sidecar_presence, external_sidecar_trust_level, protocol_flow_has_terminal_failure,
-    protocol_flow_last_phase, protocol_flow_phases, scan_target_status,
+    external_sidecar_presence, external_sidecar_trust_level, scan_target_status,
 };
 
 #[derive(Default)]
@@ -359,49 +362,31 @@ pub(crate) fn analysis_snapshot_with(
         .iter()
         .map(|finding| finding.suspect_area.clone())
         .collect::<Vec<_>>();
-    let primary_failure_mode = if let Some(profile) = primary_process_profile.as_ref() {
-        profile.primary_failure_mode.clone()
+    let (
+        primary_failure_mode,
+        primary_failure_detail,
+        primary_failure_confidence,
+        primary_failure_basis,
+    ) = if let Some(profile) = primary_process_profile.as_ref() {
+        (
+            profile.primary_failure_mode.clone(),
+            profile.primary_failure_detail.clone(),
+            profile.primary_failure_confidence.clone(),
+            profile.primary_failure_basis.clone(),
+        )
     } else {
-        failure_mode_label(
+        let labels = failure_labels(
             target_status.label(),
             &primary_module_kind,
             &primary_failure_stage,
             &suspect_areas,
+        );
+        (
+            labels.mode.to_string(),
+            labels.detail.to_string(),
+            labels.confidence.to_string(),
+            labels.basis.to_string(),
         )
-        .to_string()
-    };
-    let primary_failure_detail = if let Some(profile) = primary_process_profile.as_ref() {
-        profile.primary_failure_detail.clone()
-    } else {
-        failure_detail_label(
-            target_status.label(),
-            &primary_module_kind,
-            &primary_failure_stage,
-            &suspect_areas,
-        )
-        .to_string()
-    };
-    let primary_failure_confidence = if let Some(profile) = primary_process_profile.as_ref() {
-        profile.primary_failure_confidence.clone()
-    } else {
-        failure_confidence_label(
-            target_status.label(),
-            &primary_module_kind,
-            &primary_failure_stage,
-            &suspect_areas,
-        )
-        .to_string()
-    };
-    let primary_failure_basis = if let Some(profile) = primary_process_profile.as_ref() {
-        profile.primary_failure_basis.clone()
-    } else {
-        failure_basis_label(
-            target_status.label(),
-            &primary_module_kind,
-            &primary_failure_stage,
-            &suspect_areas,
-        )
-        .to_string()
     };
     let primary_module_family = module_family_label(&primary_module_kind).to_string();
     let suspect_modules = if let Some(profile) = primary_process_profile.as_ref() {

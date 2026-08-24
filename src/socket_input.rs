@@ -209,7 +209,7 @@ fn run_facts_session(
         session.ingest(fact);
     }
     session.freeze(window_end);
-    Ok(session.export_bundle())
+    Ok(session.into_export_bundle())
 }
 
 fn collect_stream_facts<R: Read>(

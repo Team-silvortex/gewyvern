@@ -5,10 +5,8 @@ use gewyvern::flow::ProgramFlowId;
 
 use super::{
     ProcessNetworkProfileAccumulator, ProcessNetworkProfileSummary, ProtocolFlowAnalysisSummary,
-    ProtocolFlowFindingAccumulator, ProtocolFlowFindingSummary, failure_basis_label,
-    failure_confidence_label, failure_detail_label, failure_mode_label, first_non_none,
-    module_family_label, protocol_flow_has_terminal_failure, protocol_flow_last_phase,
-    protocol_flow_phases, reduce_confidence_level, stage_family_label,
+    ProtocolFlowFindingAccumulator, ProtocolFlowFindingSummary, failure_labels, first_non_none,
+    module_family_label, protocol_flow_stage_summary, reduce_confidence_level, stage_family_label,
 };
 
 fn bump_profile_score(scores: &mut HashMap<String, u32>, value: &str, weight: u32) {
@@ -77,8 +75,10 @@ fn protocol_flow_analysis_summary(
     flow: &gewyvern::flow::ProgramFlow,
     finding_summary: Option<&ProtocolFlowFindingSummary>,
 ) -> ProtocolFlowAnalysisSummary {
-    let phases = protocol_flow_phases(flow);
-    let last_phase = protocol_flow_last_phase(flow);
+    let has_findings = finding_summary.is_some_and(|summary| summary.has_findings);
+    let stage_summary = protocol_flow_stage_summary(flow, !has_findings);
+    let phases = stage_summary.phases;
+    let last_phase = stage_summary.last_phase;
     let network_module_kind = gewyvern::flow::infer_network_module_kind(
         &flow.operation,
         last_phase.as_deref(),
@@ -86,9 +86,7 @@ fn protocol_flow_analysis_summary(
         "network_module",
     )
     .to_string();
-    let status = if finding_summary.is_some_and(|summary| summary.has_findings)
-        || protocol_flow_has_terminal_failure(flow)
-    {
+    let status = if has_findings || stage_summary.has_terminal_failure {
         "attention"
     } else {
         "healthy"
@@ -108,18 +106,7 @@ fn protocol_flow_analysis_summary(
         .cloned()
         .or_else(|| last_phase.clone())
         .unwrap_or_else(|| "none".into());
-    let failure_mode =
-        failure_mode_label(status, &network_module_kind, &primary_stage, &suspect_areas)
-            .to_string();
-    let failure_detail =
-        failure_detail_label(status, &network_module_kind, &primary_stage, &suspect_areas)
-            .to_string();
-    let failure_confidence =
-        failure_confidence_label(status, &network_module_kind, &primary_stage, &suspect_areas)
-            .to_string();
-    let failure_basis =
-        failure_basis_label(status, &network_module_kind, &primary_stage, &suspect_areas)
-            .to_string();
+    let labels = failure_labels(status, &network_module_kind, &primary_stage, &suspect_areas);
     ProtocolFlowAnalysisSummary {
         program_flow: flow.id.0,
         process: flow.process.clone(),
@@ -127,10 +114,10 @@ fn protocol_flow_analysis_summary(
         network_module_kind,
         network_module_kinds,
         status: status.to_string(),
-        failure_mode,
-        failure_detail,
-        failure_confidence,
-        failure_basis,
+        failure_mode: labels.mode.to_string(),
+        failure_detail: labels.detail.to_string(),
+        failure_confidence: labels.confidence.to_string(),
+        failure_basis: labels.basis.to_string(),
         phases,
         last_phase,
         missing_transitions,
@@ -153,13 +140,13 @@ pub(super) fn process_network_profile_summaries_from_flow_summaries(
     export: &ExportBundle,
     protocol_flows: &[ProtocolFlowAnalysisSummary],
 ) -> Vec<ProcessNetworkProfileSummary> {
-    let mut profiles = HashMap::<(u32, String), ProcessNetworkProfileAccumulator>::new();
+    let mut profiles = HashMap::<(u32, &str), ProcessNetworkProfileAccumulator>::new();
 
     for flow in protocol_flows {
         let Some(process) = flow.process.as_ref() else {
             continue;
         };
-        let key = (process.pid, process.comm.clone());
+        let key = (process.pid, process.comm.as_str());
         let entry = profiles
             .entry(key)
             .or_insert_with(|| ProcessNetworkProfileAccumulator {
@@ -195,7 +182,9 @@ pub(super) fn process_network_profile_summaries_from_flow_summaries(
 
         if flow.status == "attention" {
             summary.attention_flows += 1;
-            summary.status = "attention".into();
+            if summary.status != "attention" {
+                summary.status = "attention".into();
+            }
             if flow.network_module_kinds.is_empty() {
                 bump_profile_score(&mut entry.module_scores, inferred_kind, 10);
             } else {
@@ -227,7 +216,7 @@ pub(super) fn process_network_profile_summaries_from_flow_summaries(
         let Some(process) = finding.process.as_ref() else {
             continue;
         };
-        let key = (process.pid, process.comm.clone());
+        let key = (process.pid, process.comm.as_str());
         let entry = profiles
             .entry(key)
             .or_insert_with(|| ProcessNetworkProfileAccumulator {
@@ -248,7 +237,9 @@ pub(super) fn process_network_profile_summaries_from_flow_summaries(
                 ..Default::default()
             });
         let summary = &mut entry.summary;
-        summary.status = "attention".into();
+        if summary.status != "attention" {
+            summary.status = "attention".into();
+        }
         insert_unique(&mut entry.seen_module_kinds, &finding.network_module_kind);
         insert_unique(&mut entry.seen_suspect_areas, &finding.suspect_area);
         insert_unique(&mut entry.seen_suspect_modules, &finding.module_label);
@@ -312,32 +303,15 @@ pub(super) fn process_network_profile_summaries_from_flow_summaries(
             };
         profile.primary_stage_family =
             stage_family_label(&profile.primary_failure_stage).to_string();
-        profile.primary_failure_mode = failure_mode_label(
-            &profile.status,
-            &profile.primary_module_kind,
-            &profile.primary_failure_stage,
-            &profile.suspect_areas,
-        )
-        .to_string();
-        profile.primary_failure_detail = failure_detail_label(
-            &profile.status,
-            &profile.primary_module_kind,
-            &profile.primary_failure_stage,
-            &profile.suspect_areas,
-        )
-        .to_string();
-        let mut confidence = failure_confidence_label(
+        let labels = failure_labels(
             &profile.status,
             &profile.primary_module_kind,
             &profile.primary_failure_stage,
             &profile.suspect_areas,
         );
-        let basis = failure_basis_label(
-            &profile.status,
-            &profile.primary_module_kind,
-            &profile.primary_failure_stage,
-            &profile.suspect_areas,
-        );
+        profile.primary_failure_mode = labels.mode.to_string();
+        profile.primary_failure_detail = labels.detail.to_string();
+        let mut confidence = labels.confidence;
         let ambiguity_signals = usize::from(profile.module_kinds.len() > 1)
             + usize::from(profile.missing_transitions.len() > 1);
         if ambiguity_signals > 0 {
@@ -373,7 +347,7 @@ pub(super) fn process_network_profile_summaries_from_flow_summaries(
         competing_hypotheses.dedup();
         profile.competing_hypotheses = competing_hypotheses;
         profile.primary_failure_confidence = confidence.to_string();
-        profile.primary_failure_basis = basis.to_string();
+        profile.primary_failure_basis = labels.basis.to_string();
         if let Some(primary_suspect_module) = best_profile_score(suspect_module_scores)
             && let Some(index) = profile
                 .suspect_modules

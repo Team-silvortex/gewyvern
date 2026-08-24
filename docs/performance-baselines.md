@@ -141,6 +141,33 @@ process flows, each missing its required route stage, from `563.778` to
 `188.872 ms` (`66.5%`). Every export retained 256 program flows, findings,
 module findings, and reason chains; protocol IR correctly remained empty.
 
+The following materialized-view pass relies on the runtime session invariant
+that accepted facts are already window-filtered, letting flow, reason, and
+export reconstruction borrow the authoritative ledger without cloning it.
+Flow aggregation uses hash lookup followed by an explicit cookie sort, and
+low-cardinality fragment sources are deduplicated in place before their final
+deterministic sort. Ten alternating same-host binary pairs reduced direct flow
+reconstruction from `142.079` to `119.015 ms` (`16.2%`), session flow snapshots
+from `205.771` to `129.556 ms` (`37.0%`), and repeated borrowed exports from
+`190.847` to `184.901 ms` (`3.1%`). A consuming export API additionally moves
+one-shot session state into the bundle; against a baseline that already
+contained the flow changes, its paired median fell from `186.518` to
+`177.098 ms` (`5.1%`). Borrowed and consuming exports are parity-tested, and
+production one-shot paths use the consuming form.
+
+The diagnosis-projection pass then combines phase collection and last-phase
+selection into one traversal while retaining the finding-first terminal-check
+short circuit. Failure mode, detail, basis, and confidence share one normalized
+stage/module context, with confidence derived directly from the already selected
+basis. Process aggregation also borrows `(pid, comm)` lookup keys and allocates
+its attention state only on the first transition. Ten alternating frozen/current
+binary pairs reduced 200 analyses of the 256-flow workload from `1010.249` to
+`881.959 ms` (`12.7%`); three alternating pairs reduced the complete 24-target
+JSON scan report from `6842.968` to `6328.286 ms` (`7.5%`). The Codex host process
+was concurrently above 150% CPU during these final samples, so they establish
+the paired improvement but do not replace the quieter-host absolute regression
+floors in the table below.
+
 The `2026-07-18` macOS arm64 hybrid-log reference measured the 256-entry full
 compose at `2.099 ms` p50 and `321,424` allocated bytes per iteration. The
 8-entry incremental compose-and-merge measured `0.299 ms` and `30,488` bytes,
@@ -193,9 +220,11 @@ The hot paths that matter most are:
 - `benchmark_scan_report_html_large_protocol_flow_export`
 - `benchmark_runtime_ingest_ordered_8192_facts`
 - `benchmark_flow_reconstruction_8192_facts`
+- `benchmark_runtime_flow_snapshots_8192_facts`
 - `benchmark_program_flow_reconstruction_8192_facts`
 - `benchmark_reason_chain_reconstruction_8192_facts`
 - `benchmark_runtime_export_missing_route_7936_facts`
+- `benchmark_runtime_one_shot_export_missing_route_7936_facts`
 
 For `gewylang` / `gewyc`, the first useful compiler-facing benchmark family is:
 
@@ -233,10 +262,12 @@ Current baselines:
 | `benchmark_gewyc_envelope_report_udp_process_debug` | `37.238` | 100 iterations, median of 10 optimized samples from alternating binary A/B |
 | `benchmark_gewyc_lockfile_protocol_publish_package` | `3.013` | 100 iterations, unchanged path retained as the current same-host observation |
 | `benchmark_runtime_ingest_ordered_8192_facts` | `0.795` | 8,192 ordered facts, median of 10 optimized samples from alternating binary A/B |
-| `benchmark_flow_reconstruction_8192_facts` | `139.078` | 50 reconstructions of 8,192 facts across 256 flows, median of 10 optimized samples from alternating binary A/B |
+| `benchmark_flow_reconstruction_8192_facts` | `119.015` | 50 reconstructions of 8,192 facts across 256 flows, median of 10 optimized samples from alternating binary A/B |
+| `benchmark_runtime_flow_snapshots_8192_facts` | `129.556` | 50 session snapshots of 8,192 materialized facts across 256 flows, median of 10 optimized samples from alternating binary A/B |
 | `benchmark_program_flow_reconstruction_8192_facts` | `72.931` | 10 reconstructions of 8,192 facts across 256 flows, median of 10 optimized samples from alternating binary A/B |
 | `benchmark_reason_chain_reconstruction_8192_facts` | `76.548` | 10 reconstructions of 8,192 facts across 256 flows, median of 10 optimized samples from alternating binary A/B |
-| `benchmark_runtime_export_missing_route_7936_facts` | `188.872` | 10 complete exports, 7,936 facts, 256 missing-route process flows, median of 10 optimized samples from alternating binary A/B |
+| `benchmark_runtime_export_missing_route_7936_facts` | `184.901` | 10 borrowed complete exports, 7,936 facts, 256 missing-route process flows, median of 10 optimized samples from alternating binary A/B |
+| `benchmark_runtime_one_shot_export_missing_route_7936_facts` | `177.098` | 10 consuming one-shot exports from prebuilt sessions, 7,936 facts and 256 missing-route process flows each, median of 10 optimized samples from alternating binary A/B |
 
 ## Ubuntu Physical Host Scan-Report Check
 
@@ -282,9 +313,11 @@ bash scripts/perf/benchmark_summary.sh 3 benchmark_http_transactions_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_gewyc_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_runtime_ingest_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_flow_reconstruction_
+bash scripts/perf/benchmark_summary.sh 3 benchmark_runtime_flow_snapshots_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_program_flow_reconstruction_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_reason_chain_reconstruction_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_runtime_export_missing_route_
+bash scripts/perf/benchmark_summary.sh 3 benchmark_runtime_one_shot_export_missing_route_
 ```
 
 ## Ubuntu Physical Host Remote Validation Baseline

@@ -45,6 +45,30 @@ pub struct RuntimeSession {
     frozen_at: Option<SystemTime>,
 }
 
+struct ExportState {
+    template_id: String,
+    attach_plan: AttachPlan,
+    attach_report: AttachReport,
+    binding_diagnostics: BindingDiagnostics,
+    window_profile: WindowProfile,
+    reason_profile: ReasonProfile,
+    fragment_params: BTreeMap<String, BTreeMap<String, FragmentParamValue>>,
+    evidence_overrides: BTreeMap<FactKindTag, EvidenceTier>,
+    facts: Vec<FactEnvelope>,
+    rejected_facts: Vec<RejectedFact>,
+}
+
+struct ExportAnalysis {
+    attach_failure_summary: Vec<crate::export::AttachFailureSummaryItem>,
+    rejected_fact_summary: Vec<crate::export::RejectedFactSummaryItem>,
+    flows: Vec<FlowSnapshot>,
+    program_flows: Vec<crate::flow::ProgramFlow>,
+    protocol_ir: Vec<crate::export::ProtocolIr>,
+    program_findings: Vec<crate::flow::ProgramFinding>,
+    module_findings: Vec<crate::flow::ModuleFinding>,
+    reasons: Vec<ReasonChain>,
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum RuntimeError {
     InvalidTemplate(TemplateError),
@@ -270,21 +294,28 @@ impl RuntimeSession {
     }
 
     pub fn flow_snapshots(&self) -> Vec<FlowSnapshot> {
-        let facts = self.materialized_facts();
-        build_flow_snapshots(&facts)
+        build_flow_snapshots(&self.facts)
     }
 
     pub fn reasons(&self) -> Vec<ReasonChain> {
-        let facts = self.materialized_facts();
-        let flows = build_flow_snapshots(&facts);
-        let fact_index = FactIndex::new(&facts);
+        let flows = build_flow_snapshots(&self.facts);
+        let fact_index = FactIndex::new(&self.facts);
         build_reason_chains_indexed(&self.reason_profile, &flows, &fact_index)
     }
 
     pub fn export_bundle(&self) -> ExportBundle {
-        let facts = self.materialized_facts();
-        let flows = build_flow_snapshots(&facts);
-        let fact_index = FactIndex::new(&facts);
+        let analysis = self.export_analysis();
+        build_export_bundle(self.cloned_export_state(), analysis)
+    }
+
+    pub fn into_export_bundle(self) -> ExportBundle {
+        let analysis = self.export_analysis();
+        build_export_bundle(self.into_export_state(), analysis)
+    }
+
+    fn export_analysis(&self) -> ExportAnalysis {
+        let flows = build_flow_snapshots(&self.facts);
+        let fact_index = FactIndex::new(&self.facts);
         let program_model = self
             .template
             .program_model
@@ -307,42 +338,8 @@ impl RuntimeSession {
         let rejected_fact_summary = summarize_rejected_facts(&self.rejected_facts);
         let protocol_ir = crate::export::infer_protocol_ir(&program_flows);
 
-        ExportBundle {
-            template_id: self.template.id.clone(),
-            ingest_trust_mode: "unspecified".into(),
-            fragment_inventory: self
-                .attach_plan
-                .fragments
-                .iter()
-                .map(|fragment| crate::export::FragmentInventoryItem {
-                    id: fragment.id.clone(),
-                    version: fragment.version,
-                })
-                .collect(),
-            attach_plan: self.attach_plan.clone(),
-            attach_report: self.attach_report.clone(),
-            binding_diagnostics: self.binding_diagnostics.clone(),
+        ExportAnalysis {
             attach_failure_summary,
-            debug_summary: crate::export::DebugSummary {
-                fragments_loaded: self.attach_report.fragments_loaded.len() as u64,
-                hookpoints_failed: self.attach_report.hookpoints_failed.len() as u64,
-                accepted_facts: facts.len() as u64,
-                rejected_facts: self.rejected_facts.len() as u64,
-                flows: flows.len() as u64,
-                program_flows: program_flows.len() as u64,
-                program_findings: program_findings.len() as u64,
-                module_findings: module_findings.len() as u64,
-                reasons: reasons.len() as u64,
-                degraded: !self.attach_report.hookpoints_failed.is_empty()
-                    || !self.rejected_facts.is_empty(),
-            },
-            window_profile: self.window_profile.clone(),
-            reason_profile_id: self.reason_profile.id().into(),
-            reason_profile: self.reason_profile.clone(),
-            fragment_params: self.fragment_params.clone(),
-            evidence_overrides: self.evidence_overrides.clone(),
-            facts,
-            rejected_facts: self.rejected_facts.clone(),
             rejected_fact_summary,
             flows,
             program_flows,
@@ -353,30 +350,38 @@ impl RuntimeSession {
         }
     }
 
-    pub fn seed_rejected_facts(&mut self, rejected_facts: Vec<RejectedFact>) {
-        self.rejected_facts = rejected_facts;
+    fn cloned_export_state(&self) -> ExportState {
+        ExportState {
+            template_id: self.template.id.clone(),
+            attach_plan: self.attach_plan.clone(),
+            attach_report: self.attach_report.clone(),
+            binding_diagnostics: self.binding_diagnostics.clone(),
+            window_profile: self.window_profile.clone(),
+            reason_profile: self.reason_profile.clone(),
+            fragment_params: self.fragment_params.clone(),
+            evidence_overrides: self.evidence_overrides.clone(),
+            facts: self.facts.clone(),
+            rejected_facts: self.rejected_facts.clone(),
+        }
     }
 
-    fn materialized_facts(&self) -> Vec<FactEnvelope> {
-        match (self.window_end, self.frozen_at) {
-            (Some(window_end), Some(freeze_at)) => {
-                let window_start = window_end
-                    .checked_sub(Duration::from_millis(self.window_profile.duration_ms))
-                    .unwrap_or(SystemTime::UNIX_EPOCH);
-                self.facts
-                    .iter()
-                    .filter(|fact| fact.ts >= window_start && fact.ts <= freeze_at)
-                    .cloned()
-                    .collect()
-            }
-            (_, Some(freeze_at)) => self
-                .facts
-                .iter()
-                .filter(|fact| fact.ts <= freeze_at)
-                .cloned()
-                .collect(),
-            (_, None) => self.facts.clone(),
+    fn into_export_state(self) -> ExportState {
+        ExportState {
+            template_id: self.template.id,
+            attach_plan: self.attach_plan,
+            attach_report: self.attach_report,
+            binding_diagnostics: self.binding_diagnostics,
+            window_profile: self.window_profile,
+            reason_profile: self.reason_profile,
+            fragment_params: self.fragment_params,
+            evidence_overrides: self.evidence_overrides,
+            facts: self.facts,
+            rejected_facts: self.rejected_facts,
         }
+    }
+
+    pub fn seed_rejected_facts(&mut self, rejected_facts: Vec<RejectedFact>) {
+        self.rejected_facts = rejected_facts;
     }
 
     fn window_start(&self) -> Option<SystemTime> {
@@ -432,5 +437,56 @@ impl RuntimeSession {
             return false;
         };
         packet.tot_len < min_len
+    }
+}
+
+fn build_export_bundle(state: ExportState, analysis: ExportAnalysis) -> ExportBundle {
+    let fragment_inventory = state
+        .attach_plan
+        .fragments
+        .iter()
+        .map(|fragment| crate::export::FragmentInventoryItem {
+            id: fragment.id.clone(),
+            version: fragment.version,
+        })
+        .collect();
+    let debug_summary = crate::export::DebugSummary {
+        fragments_loaded: state.attach_report.fragments_loaded.len() as u64,
+        hookpoints_failed: state.attach_report.hookpoints_failed.len() as u64,
+        accepted_facts: state.facts.len() as u64,
+        rejected_facts: state.rejected_facts.len() as u64,
+        flows: analysis.flows.len() as u64,
+        program_flows: analysis.program_flows.len() as u64,
+        program_findings: analysis.program_findings.len() as u64,
+        module_findings: analysis.module_findings.len() as u64,
+        reasons: analysis.reasons.len() as u64,
+        degraded: !state.attach_report.hookpoints_failed.is_empty()
+            || !state.rejected_facts.is_empty(),
+    };
+    let reason_profile_id = state.reason_profile.id().into();
+
+    ExportBundle {
+        template_id: state.template_id,
+        ingest_trust_mode: "unspecified".into(),
+        fragment_inventory,
+        attach_plan: state.attach_plan,
+        attach_report: state.attach_report,
+        binding_diagnostics: state.binding_diagnostics,
+        attach_failure_summary: analysis.attach_failure_summary,
+        debug_summary,
+        window_profile: state.window_profile,
+        reason_profile_id,
+        reason_profile: state.reason_profile,
+        fragment_params: state.fragment_params,
+        evidence_overrides: state.evidence_overrides,
+        facts: state.facts,
+        rejected_facts: state.rejected_facts,
+        rejected_fact_summary: analysis.rejected_fact_summary,
+        flows: analysis.flows,
+        program_flows: analysis.program_flows,
+        protocol_ir: analysis.protocol_ir,
+        program_findings: analysis.program_findings,
+        module_findings: analysis.module_findings,
+        reasons: analysis.reasons,
     }
 }

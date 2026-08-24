@@ -247,7 +247,7 @@ pub(crate) fn run_session(
     }
     session.freeze(window_end);
 
-    let export = session.export_bundle();
+    let export = session.into_export_bundle();
     let replay = ExportBundle::from_json(&export.to_json())
         .expect("runtime should export replayable json")
         .replay()
@@ -276,7 +276,7 @@ pub(crate) fn run_binding_session(
         session.ingest(fact.clone());
     }
     session.freeze(window_end);
-    session.export_bundle()
+    session.into_export_bundle()
 }
 
 pub(crate) fn route_fact(

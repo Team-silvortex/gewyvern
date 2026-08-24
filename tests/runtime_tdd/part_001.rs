@@ -53,6 +53,46 @@ fn route_fingerprint_change_rotates_into_new_flow() {
 }
 
 #[test]
+fn flow_reconstruction_keeps_cookie_and_fragment_source_order_deterministic() {
+    let facts = vec![
+        sock_lineage_fact(1, 30, 4242, "curl"),
+        udp_packet_fact(2, 30, 72),
+        route_fact(3, 30, 7),
+        udp_packet_fact(4, 10, 72),
+    ];
+
+    let flows = build_flow_snapshots(&facts);
+
+    assert_eq!(flows.len(), 2);
+    assert_eq!(flows[0].evidence.packet_facts[0].0, 4);
+    assert_eq!(flows[0].fragment_sources, vec!["udp_packet_meta_fragment"]);
+    assert_eq!(flows[1].evidence.packet_facts[0].0, 2);
+    assert_eq!(
+        flows[1].fragment_sources,
+        vec![
+            "route_meta_fragment",
+            "sock_lineage_fragment",
+            "udp_packet_meta_fragment",
+        ]
+    );
+}
+
+#[test]
+fn consuming_export_matches_borrowed_export() {
+    let config = SessionConfig::for_template(udp_process_debug_template()).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 31, 4242, "curl"));
+    session.ingest(udp_packet_fact(2, 31, 72));
+    session.ingest(route_fact(3, 31, 7));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let borrowed = session.export_bundle();
+    let consumed = session.into_export_bundle();
+
+    assert_eq!(borrowed, consumed);
+}
+
+#[test]
 fn freeze_excludes_facts_beyond_lateness_cutoff() {
     let config = SessionConfig::for_template(handshake_debug_template()).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();

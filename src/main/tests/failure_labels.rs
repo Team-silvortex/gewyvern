@@ -376,6 +376,63 @@ fn failure_confidence_and_basis_distinguish_direct_and_inferred_failures() {
 }
 
 #[test]
+fn combined_failure_labels_match_the_single_field_contract() {
+    let cases = vec![
+        (
+            "attention",
+            "proxy_authentication",
+            "receive_auth_required",
+            Vec::new(),
+        ),
+        (
+            "attention",
+            "http_request_response",
+            "send_request->receive_response",
+            vec!["transport_io".into()],
+        ),
+        (
+            "attention",
+            "tls_handshake",
+            "connect",
+            vec!["route_io".into()],
+        ),
+        (
+            "attention",
+            "DATABASE_ERROR_HANDLING",
+            "RECEIVE_ERROR",
+            Vec::new(),
+        ),
+        (
+            "healthy",
+            "http_request_response",
+            "receive_response",
+            Vec::new(),
+        ),
+        ("idle", "none", "none", Vec::new()),
+    ];
+
+    for (status, module, stage, suspect_areas) in cases {
+        let labels = crate::failure_labels(status, module, stage, &suspect_areas);
+        assert_eq!(
+            labels.mode,
+            crate::failure_mode_label(status, module, stage, &suspect_areas)
+        );
+        assert_eq!(
+            labels.detail,
+            crate::failure_detail_label(status, module, stage, &suspect_areas)
+        );
+        assert_eq!(
+            labels.confidence,
+            crate::failure_confidence_label(status, module, stage, &suspect_areas)
+        );
+        assert_eq!(
+            labels.basis,
+            crate::failure_basis_label(status, module, stage, &suspect_areas)
+        );
+    }
+}
+
+#[test]
 fn process_profiles_lower_confidence_for_competing_missing_transition_hypotheses() {
     let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");

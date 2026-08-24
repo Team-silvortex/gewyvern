@@ -6,6 +6,40 @@ pub(crate) fn first_non_none(items: &[String]) -> Option<String> {
     items.iter().find(|item| item.as_str() != "none").cloned()
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct FailureLabels {
+    pub(crate) mode: &'static str,
+    pub(crate) detail: &'static str,
+    pub(crate) confidence: &'static str,
+    pub(crate) basis: &'static str,
+}
+
+pub(crate) fn failure_labels(
+    status: &str,
+    module_kind: &str,
+    primary_stage: &str,
+    suspect_areas: &[String],
+) -> FailureLabels {
+    if status != "attention" {
+        return FailureLabels {
+            mode: "none",
+            detail: "none",
+            confidence: "none",
+            basis: "none",
+        };
+    }
+
+    let stage = primary_stage.to_ascii_lowercase();
+    let module = module_kind.to_ascii_lowercase();
+    let basis = failure_basis_label_normalized(&module, &stage, suspect_areas);
+    FailureLabels {
+        mode: failure_mode_label_normalized(&module, &stage, suspect_areas),
+        detail: failure_detail_label_normalized(&module, &stage, suspect_areas),
+        confidence: failure_confidence_from_basis(basis),
+        basis,
+    }
+}
+
 pub(crate) fn module_family_label(module_kind: &str) -> &'static str {
     let lowered = module_kind.to_ascii_lowercase();
     if lowered.contains("dns") || lowered.contains("name_resolution") {
@@ -96,6 +130,7 @@ pub(crate) fn stage_family_label(stage: &str) -> &'static str {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn failure_mode_label(
     status: &str,
     module_kind: &str,
@@ -108,7 +143,14 @@ pub(crate) fn failure_mode_label(
 
     let stage = primary_stage.to_ascii_lowercase();
     let module = module_kind.to_ascii_lowercase();
+    failure_mode_label_normalized(&module, &stage, suspect_areas)
+}
 
+fn failure_mode_label_normalized(
+    module: &str,
+    stage: &str,
+    suspect_areas: &[String],
+) -> &'static str {
     if stage.contains("denied")
         || stage.contains("auth_required")
         || stage.contains("authorization_failure")
@@ -272,6 +314,7 @@ pub(crate) fn failure_mode_family_label(mode: &str) -> &'static str {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn failure_detail_label(
     status: &str,
     module_kind: &str,
@@ -284,7 +327,14 @@ pub(crate) fn failure_detail_label(
 
     let stage = primary_stage.to_ascii_lowercase();
     let module = module_kind.to_ascii_lowercase();
+    failure_detail_label_normalized(&module, &stage, suspect_areas)
+}
 
+fn failure_detail_label_normalized(
+    module: &str,
+    stage: &str,
+    suspect_areas: &[String],
+) -> &'static str {
     if stage.contains("constraint") {
         return "protocol_constraint_violation";
     }
@@ -463,6 +513,7 @@ pub(crate) fn reduce_confidence_level(level: &str) -> &'static str {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn failure_basis_label(
     status: &str,
     module_kind: &str,
@@ -475,7 +526,14 @@ pub(crate) fn failure_basis_label(
 
     let stage = primary_stage.to_ascii_lowercase();
     let module = module_kind.to_ascii_lowercase();
+    failure_basis_label_normalized(&module, &stage, suspect_areas)
+}
 
+fn failure_basis_label_normalized(
+    module: &str,
+    stage: &str,
+    suspect_areas: &[String],
+) -> &'static str {
     if stage.contains("denied")
         || stage.contains("auth_required")
         || stage.contains("authorization_failure")
@@ -511,13 +569,23 @@ pub(crate) fn failure_basis_label(
     "heuristic_summary"
 }
 
+#[cfg(test)]
 pub(crate) fn failure_confidence_label(
     status: &str,
     module_kind: &str,
     primary_stage: &str,
     suspect_areas: &[String],
 ) -> &'static str {
-    match failure_basis_label(status, module_kind, primary_stage, suspect_areas) {
+    failure_confidence_from_basis(failure_basis_label(
+        status,
+        module_kind,
+        primary_stage,
+        suspect_areas,
+    ))
+}
+
+pub(crate) fn failure_confidence_from_basis(basis: &str) -> &'static str {
+    match basis {
         "direct_protocol_signal" => "high",
         "missing_transition" => "medium",
         "phase_inference" | "heuristic_summary" => "low",

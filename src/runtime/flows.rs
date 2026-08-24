@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::HashMap;
 
 use crate::flow::{
     EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, PathSegment, PathView, ProcessView,
@@ -17,11 +17,12 @@ struct FlowAccumulator {
     process: Option<ProcessView>,
     segments: Vec<PathSegment>,
     evidence: EvidenceIndex,
-    fragment_sources: BTreeSet<String>,
+    fragment_sources: Vec<String>,
 }
 
 pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {
-    let mut by_cookie: BTreeMap<u64, Vec<FlowAccumulator>> = BTreeMap::new();
+    let mut by_cookie: HashMap<u64, Vec<FlowAccumulator>> =
+        HashMap::with_capacity(facts.len().min(256));
 
     for fact in facts {
         let cookie = match &fact.kind {
@@ -50,8 +51,12 @@ pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {
         }
 
         let acc = flows.last_mut().expect("flow accumulator should exist");
-        if !acc.fragment_sources.contains(fact.fragment_id.as_str()) {
-            acc.fragment_sources.insert(fact.fragment_id.clone());
+        if !acc
+            .fragment_sources
+            .iter()
+            .any(|fragment_id| fragment_id == &fact.fragment_id)
+        {
+            acc.fragment_sources.push(fact.fragment_id.clone());
         }
         acc.last_seen_at = Some(fact.id);
         acc.emerged_at.get_or_insert(fact.id);
@@ -97,17 +102,20 @@ pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {
         }
     }
 
+    let mut by_cookie = by_cookie.into_iter().collect::<Vec<_>>();
+    by_cookie.sort_unstable_by_key(|(cookie, _)| *cookie);
     by_cookie
-        .into_values()
-        .flatten()
+        .into_iter()
+        .flat_map(|(_, flows)| flows)
         .filter(|acc| acc.emerged_at.is_some())
         .enumerate()
         .map(|(idx, acc)| build_flow_snapshot((idx + 1) as u64, acc))
         .collect()
 }
 
-fn build_flow_snapshot(id: u64, acc: FlowAccumulator) -> FlowSnapshot {
+fn build_flow_snapshot(id: u64, mut acc: FlowAccumulator) -> FlowSnapshot {
     let confidence = confidence_for_flow(&acc.evidence);
+    acc.fragment_sources.sort();
     FlowSnapshot {
         id: FlowId(id),
         lifecycle: FlowLifecycleView {
@@ -125,7 +133,7 @@ fn build_flow_snapshot(id: u64, acc: FlowAccumulator) -> FlowSnapshot {
         process: acc.process,
         evidence: acc.evidence,
         confidence,
-        fragment_sources: acc.fragment_sources.into_iter().collect(),
+        fragment_sources: acc.fragment_sources,
     }
 }
 

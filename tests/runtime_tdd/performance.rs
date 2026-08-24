@@ -91,6 +91,31 @@ fn benchmark_flow_reconstruction_8192_facts() {
 }
 
 #[test]
+#[ignore = "local runtime flow-snapshot performance baseline"]
+fn benchmark_runtime_flow_snapshots_8192_facts() {
+    const ITERATIONS: usize = 50;
+    let (facts, _) = concurrent_udp_reconstruction_input();
+    let config = SessionConfig::for_template(udp_process_debug_template()).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    for fact in facts {
+        session.ingest(fact);
+    }
+
+    let started = Instant::now();
+    for _ in 0..ITERATIONS {
+        let flows = session.flow_snapshots();
+        assert_eq!(flows.len(), 256);
+        black_box(flows);
+    }
+    let elapsed = started.elapsed();
+
+    println!(
+        "benchmark_runtime_flow_snapshots_8192_facts: facts=8192 iterations={ITERATIONS} elapsed_ms={:.3}",
+        elapsed.as_secs_f64() * 1_000.0
+    );
+}
+
+#[test]
 #[ignore = "local program-flow reconstruction performance baseline"]
 fn benchmark_program_flow_reconstruction_8192_facts() {
     const ITERATIONS: usize = 10;
@@ -142,8 +167,49 @@ fn benchmark_reason_chain_reconstruction_8192_facts() {
 #[ignore = "local missing-stage export performance baseline"]
 fn benchmark_runtime_export_missing_route_7936_facts() {
     const FLOWS: u64 = 256;
-    const PACKETS_PER_FLOW: u64 = 30;
     const ITERATIONS: usize = 10;
+    let session = concurrent_udp_missing_route_session();
+
+    let started = Instant::now();
+    for _ in 0..ITERATIONS {
+        let export = session.export_bundle();
+        assert_missing_route_export(&export, FLOWS as usize);
+        black_box(export);
+    }
+    let elapsed = started.elapsed();
+
+    println!(
+        "benchmark_runtime_export_missing_route_7936_facts: facts=7936 flows={FLOWS} iterations={ITERATIONS} elapsed_ms={:.3}",
+        elapsed.as_secs_f64() * 1_000.0
+    );
+}
+
+#[test]
+#[ignore = "local one-shot export performance baseline"]
+fn benchmark_runtime_one_shot_export_missing_route_7936_facts() {
+    const FLOWS: usize = 256;
+    const ITERATIONS: usize = 10;
+    let sessions = (0..ITERATIONS)
+        .map(|_| concurrent_udp_missing_route_session())
+        .collect::<Vec<_>>();
+
+    let started = Instant::now();
+    for session in sessions {
+        let export = session.into_export_bundle();
+        assert_missing_route_export(&export, FLOWS);
+        black_box(export);
+    }
+    let elapsed = started.elapsed();
+
+    println!(
+        "benchmark_runtime_one_shot_export_missing_route_7936_facts: facts=7936 flows={FLOWS} iterations={ITERATIONS} elapsed_ms={:.3}",
+        elapsed.as_secs_f64() * 1_000.0
+    );
+}
+
+fn concurrent_udp_missing_route_session() -> RuntimeSession {
+    const FLOWS: u64 = 256;
+    const PACKETS_PER_FLOW: u64 = 30;
     let config = SessionConfig::for_template(udp_process_debug_template()).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     let mut id = 1;
@@ -164,26 +230,19 @@ fn benchmark_runtime_export_missing_route_7936_facts() {
         }
     }
     assert_eq!(id - 1, 7_936);
+    session
+}
 
-    let started = Instant::now();
-    for _ in 0..ITERATIONS {
-        let export = session.export_bundle();
-        assert_eq!(export.program_flows.len(), FLOWS as usize);
-        assert_eq!(export.program_findings.len(), FLOWS as usize);
-        assert_eq!(export.module_findings.len(), FLOWS as usize);
-        assert_eq!(export.reasons.len(), FLOWS as usize);
-        assert!(export.protocol_ir.is_empty());
-        assert!(export.program_findings.iter().all(|finding| {
+fn assert_missing_route_export(export: &ExportBundle, expected_flows: usize) {
+    assert_eq!(export.program_flows.len(), expected_flows);
+    assert_eq!(export.program_findings.len(), expected_flows);
+    assert_eq!(export.module_findings.len(), expected_flows);
+    assert_eq!(export.reasons.len(), expected_flows);
+    assert!(export.protocol_ir.is_empty());
+    assert!(
+        export.program_findings.iter().all(|finding| {
             finding.cause == gewyvern::flow::ProgramFindingCause::MissingCoreStage
-        }));
-        black_box(export);
-    }
-    let elapsed = started.elapsed();
-
-    println!(
-        "benchmark_runtime_export_missing_route_7936_facts: facts={} flows={FLOWS} iterations={ITERATIONS} elapsed_ms={:.3}",
-        id - 1,
-        elapsed.as_secs_f64() * 1_000.0
+        })
     );
 }
 

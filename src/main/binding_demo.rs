@@ -205,7 +205,7 @@ pub(crate) fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
     }
     session.freeze(window_end);
 
-    let export = session.export_bundle();
+    let export = session.into_export_bundle();
     let replay = ExportBundle::from_json(&export.to_json())
         .expect("runtime should export replayable json")
         .replay()

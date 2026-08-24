@@ -58,23 +58,6 @@ impl ScanTargetStatus {
     }
 }
 
-pub(crate) fn protocol_flow_phases(flow: &gewyvern::flow::ProgramFlow) -> Vec<String> {
-    let mut phases = Vec::new();
-    for phase in flow.stages.iter().filter_map(|stage| stage.phase.as_ref()) {
-        if phases.last() != Some(phase) {
-            phases.push(phase.clone());
-        }
-    }
-    phases
-}
-
-pub(crate) fn protocol_flow_last_phase(flow: &gewyvern::flow::ProgramFlow) -> Option<String> {
-    flow.stages
-        .iter()
-        .rev()
-        .find_map(|stage| stage.phase.clone())
-}
-
 fn terminal_failure_phase(phase: &str) -> bool {
     let lowered = phase.to_ascii_lowercase();
     lowered == "denied"
@@ -95,6 +78,34 @@ fn terminal_failure_phase(phase: &str) -> bool {
         || lowered.contains("constraint")
         || lowered.contains("error")
         || lowered.contains("close")
+}
+
+pub(super) struct ProtocolFlowStageSummary {
+    pub(super) phases: Vec<String>,
+    pub(super) last_phase: Option<String>,
+    pub(super) has_terminal_failure: bool,
+}
+
+pub(super) fn protocol_flow_stage_summary(
+    flow: &gewyvern::flow::ProgramFlow,
+    check_terminal_failure: bool,
+) -> ProtocolFlowStageSummary {
+    let mut phases = Vec::with_capacity(flow.stages.len());
+    let mut has_terminal_failure = false;
+    for phase in flow.stages.iter().filter_map(|stage| stage.phase.as_ref()) {
+        if check_terminal_failure && !has_terminal_failure {
+            has_terminal_failure = terminal_failure_phase(phase);
+        }
+        if phases.last() != Some(phase) {
+            phases.push(phase.clone());
+        }
+    }
+    let last_phase = phases.last().cloned();
+    ProtocolFlowStageSummary {
+        phases,
+        last_phase,
+        has_terminal_failure,
+    }
 }
 
 pub(crate) fn protocol_flow_has_terminal_failure(flow: &gewyvern::flow::ProgramFlow) -> bool {

@@ -129,7 +129,7 @@ impl ExportBundle {
             session.ingest(fact.clone());
         }
         session.seed_rejected_facts(self.rejected_facts.clone());
-        let mut replay = session.export_bundle();
+        let mut replay = session.into_export_bundle();
         replay.ingest_trust_mode = self.ingest_trust_mode.clone();
         replay.binding_diagnostics = self.binding_diagnostics.clone();
         replay.attach_failure_summary = self.attach_failure_summary.clone();
