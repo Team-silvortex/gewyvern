@@ -43,6 +43,15 @@ internal enum DesktopTextKey
     CoverageCore,
     CoverageFallback,
     AppliesImmediately,
+    LanguagePacks,
+    InstallLanguagePack,
+    RemoveLanguagePack,
+    BuiltInLanguagePack,
+    LanguagePackInstalled,
+    LanguagePackNotInstalled,
+    LanguagePackInstallSucceeded,
+    LanguagePackRemoveSucceeded,
+    LanguagePackOperationFailed,
     TutorialKicker,
     TutorialHeading,
     TutorialBody,
@@ -136,6 +145,15 @@ internal sealed class DesktopLocalization
             [DesktopTextKey.CoverageCore] = "Core desktop shell; extended views use English fallback",
             [DesktopTextKey.CoverageFallback] = "Official locale available; desktop-specific text currently uses English fallback",
             [DesktopTextKey.AppliesImmediately] = "Applies immediately and is stored only on this device.",
+            [DesktopTextKey.LanguagePacks] = "Language packs",
+            [DesktopTextKey.InstallLanguagePack] = "Install JSON...",
+            [DesktopTextKey.RemoveLanguagePack] = "Remove pack",
+            [DesktopTextKey.BuiltInLanguagePack] = "Built in; no language pack is required.",
+            [DesktopTextKey.LanguagePackInstalled] = "Installed language pack {0}.",
+            [DesktopTextKey.LanguagePackNotInstalled] = "This downloadable language pack is not installed on this device.",
+            [DesktopTextKey.LanguagePackInstallSucceeded] = "Installed {0}.",
+            [DesktopTextKey.LanguagePackRemoveSucceeded] = "Removed {0}; missing text now falls back to English.",
+            [DesktopTextKey.LanguagePackOperationFailed] = "Language-pack operation failed: {0}",
             [DesktopTextKey.TutorialKicker] = "LESERPENT LEARNING CENTER",
             [DesktopTextKey.TutorialHeading] = "A six-step operator tour",
             [DesktopTextKey.TutorialBody] = "Offline, read-only, and safe to revisit. No connection, deployment, or command starts from this window.",
@@ -208,6 +226,15 @@ internal sealed class DesktopLocalization
             [DesktopTextKey.CoverageCore] = "核心桌面外壳；扩展视图回退英文",
             [DesktopTextKey.CoverageFallback] = "官方语言已可选；桌面专用文案目前回退英文",
             [DesktopTextKey.AppliesImmediately] = "立即生效，且仅保存在此设备上。",
+            [DesktopTextKey.LanguagePacks] = "语言包",
+            [DesktopTextKey.InstallLanguagePack] = "安装 JSON...",
+            [DesktopTextKey.RemoveLanguagePack] = "移除语言包",
+            [DesktopTextKey.BuiltInLanguagePack] = "内置语言，无需安装语言包。",
+            [DesktopTextKey.LanguagePackInstalled] = "已安装语言包 {0}。",
+            [DesktopTextKey.LanguagePackNotInstalled] = "此设备尚未安装这个可下载语言包。",
+            [DesktopTextKey.LanguagePackInstallSucceeded] = "已安装 {0}。",
+            [DesktopTextKey.LanguagePackRemoveSucceeded] = "已移除 {0}；缺失文案现已回退英文。",
+            [DesktopTextKey.LanguagePackOperationFailed] = "语言包操作失败：{0}",
             [DesktopTextKey.TutorialKicker] = "LESERPENT 学习中心",
             [DesktopTextKey.TutorialHeading] = "六步操作员入门",
             [DesktopTextKey.TutorialBody] = "离线、只读，随时可以重新查看。此窗口不会发起连接、部署或命令。",
@@ -455,15 +482,21 @@ internal sealed class DesktopLocalization
     private static readonly IReadOnlyDictionary<string, DesktopLocaleDefinition> LocalesById =
         LocaleDefinitions.ToDictionary(locale => locale.Locale, StringComparer.OrdinalIgnoreCase);
     private readonly DesktopLanguagePreferenceStore? store;
+    private readonly DesktopLanguagePackStore? languagePackStore;
     private readonly string systemLocale;
+    private IReadOnlyDictionary<string, DesktopInstalledLanguagePack> installedLanguagePacks;
 
     private DesktopLocalization(
         DesktopLanguagePreferenceStore? store,
         string preference,
-        string systemLocale)
+        string systemLocale,
+        DesktopLanguagePackStore? languagePackStore,
+        IReadOnlyDictionary<string, DesktopInstalledLanguagePack> installedLanguagePacks)
     {
         this.store = store;
+        this.languagePackStore = languagePackStore;
         this.systemLocale = systemLocale;
+        this.installedLanguagePacks = installedLanguagePacks;
         ValidatePreference(preference);
         Preference = CanonicalPreference(preference);
         Active = ResolveActive(Preference, systemLocale);
@@ -475,14 +508,16 @@ internal sealed class DesktopLocalization
     public FlowDirection FlowDirection => Active.IsRightToLeft
         ? FlowDirection.RightToLeft
         : FlowDirection.LeftToRight;
+    public bool SupportsLanguagePackInstallation => languagePackStore is not null;
     public static IReadOnlyList<DesktopLocaleDefinition> OfficialLocales => LocaleDefinitions;
 
     public static DesktopLocalization CreateDefault(out string? warning)
     {
         var store = new DesktopLanguagePreferenceStore(
             DesktopLanguagePreferenceStore.DefaultPath());
+        var packStore = new DesktopLanguagePackStore(DesktopLanguagePackStore.DefaultPath());
+        var warnings = new List<string>();
         string preference;
-        warning = null;
         try
         {
             preference = store.Load();
@@ -490,22 +525,72 @@ internal sealed class DesktopLocalization
         catch (Exception error) when (StartupFailure.IsExpected(error))
         {
             preference = SystemPreference;
-            warning = $"Language preference could not be loaded; following the system language. {error.Message}";
+            warnings.Add(
+                $"Language preference could not be loaded; following the system language. {StartupFailure.Describe(error)}");
         }
+        DesktopLanguagePackSnapshot packs;
+        try
+        {
+            packs = packStore.LoadAll();
+            if (packs.RejectedFiles.Count > 0)
+            {
+                warnings.Add(
+                    $"{packs.RejectedFiles.Count} invalid language-pack file(s) were ignored.");
+            }
+        }
+        catch (Exception error) when (StartupFailure.IsExpected(error))
+        {
+            packs = new DesktopLanguagePackSnapshot(
+                new Dictionary<string, DesktopInstalledLanguagePack>(
+                    StringComparer.OrdinalIgnoreCase),
+                []);
+            warnings.Add(
+                $"Installed language packs could not be loaded; safe fallback remains active. {StartupFailure.Describe(error)}");
+        }
+        warning = warnings.Count == 0 ? null : string.Join(' ', warnings);
         return new DesktopLocalization(
             store,
             preference,
-            CultureInfo.CurrentUICulture.Name);
+            CultureInfo.CurrentUICulture.Name,
+            packStore,
+            packs.Packs);
     }
 
     public static DesktopLocalization ForVerification(
         string preference = "en",
         string systemLocale = "en-US") =>
-        new(null, preference, systemLocale);
+        new(
+            null,
+            preference,
+            systemLocale,
+            null,
+            new Dictionary<string, DesktopInstalledLanguagePack>(
+                StringComparer.OrdinalIgnoreCase));
 
-    public string Text(DesktopTextKey key) => Active.Text.TryGetValue(key, out var value)
-        ? value
-        : EnglishText[key];
+    internal static DesktopLocalization ForLanguagePackVerification(
+        string root,
+        string preference = "en",
+        string systemLocale = "en-US")
+    {
+        var packStore = new DesktopLanguagePackStore(root);
+        var snapshot = packStore.LoadAll();
+        return new DesktopLocalization(
+            null,
+            preference,
+            systemLocale,
+            packStore,
+            snapshot.Packs);
+    }
+
+    public string Text(DesktopTextKey key)
+    {
+        if (installedLanguagePacks.TryGetValue(Active.Locale, out var pack)
+            && DesktopLanguagePackProjection.TryResolve(pack, key, out var packed))
+        {
+            return packed;
+        }
+        return Active.Text.TryGetValue(key, out var value) ? value : EnglishText[key];
+    }
 
     public string Format(DesktopTextKey key, params object[] values) =>
         string.Format(CultureInfo.InvariantCulture, Text(key), values);
@@ -536,11 +621,102 @@ internal sealed class DesktopLocalization
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    public DesktopInstalledLanguagePack InstallLanguagePack(
+        Stream stream,
+        string? expectedSha256 = null)
+    {
+        var packStore = languagePackStore
+            ?? throw new InvalidOperationException(
+                "desktop language-pack installation is unavailable");
+        var installed = packStore.Install(stream, expectedSha256);
+        ReplaceInstalledPack(installed);
+        return installed;
+    }
+
+    public async Task<DesktopInstalledLanguagePack> InstallLanguagePackAsync(
+        Stream stream,
+        string? expectedSha256 = null,
+        CancellationToken cancellationToken = default)
+    {
+        var packStore = languagePackStore
+            ?? throw new InvalidOperationException(
+                "desktop language-pack installation is unavailable");
+        var installed = await packStore.InstallAsync(
+            stream,
+            expectedSha256,
+            cancellationToken);
+        ReplaceInstalledPack(installed);
+        return installed;
+    }
+
+    internal DesktopInstalledLanguagePack InstallLanguagePack(
+        ReadOnlySpan<byte> payload,
+        string? expectedSha256 = null)
+    {
+        var packStore = languagePackStore
+            ?? throw new InvalidOperationException(
+                "desktop language-pack installation is unavailable");
+        var installed = packStore.Install(payload, expectedSha256);
+        ReplaceInstalledPack(installed);
+        return installed;
+    }
+
+    public void RemoveLanguagePack(string locale)
+    {
+        var packStore = languagePackStore
+            ?? throw new InvalidOperationException(
+                "desktop language-pack installation is unavailable");
+        packStore.Remove(locale);
+        if (!installedLanguagePacks.ContainsKey(locale))
+        {
+            return;
+        }
+        var next = new Dictionary<string, DesktopInstalledLanguagePack>(
+            installedLanguagePacks,
+            StringComparer.OrdinalIgnoreCase);
+        next.Remove(locale);
+        installedLanguagePacks = next;
+        if (Active.Locale.Equals(locale, StringComparison.OrdinalIgnoreCase))
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public bool IsLanguagePackInstalled(string locale) =>
+        installedLanguagePacks.ContainsKey(locale);
+
+    public string? InstalledLanguagePackVersion(string locale) =>
+        installedLanguagePacks.TryGetValue(locale, out var pack)
+            ? pack.Manifest.Version
+            : null;
+
+    public static bool TryGetOfficialLocale(
+        string locale,
+        out DesktopLocaleDefinition definition) =>
+        LocalesById.TryGetValue(locale, out definition!);
+
     public static void ValidatePreference(string preference)
     {
         if (preference != SystemPreference && !LocalesById.ContainsKey(preference))
         {
             throw new InvalidDataException("desktop language preference is not an official locale");
+        }
+    }
+
+    private void ReplaceInstalledPack(DesktopInstalledLanguagePack installed)
+    {
+        var next = new Dictionary<string, DesktopInstalledLanguagePack>(
+            installedLanguagePacks,
+            StringComparer.OrdinalIgnoreCase)
+        {
+            [installed.Manifest.Locale] = installed,
+        };
+        installedLanguagePacks = next;
+        if (Active.Locale.Equals(
+            installed.Manifest.Locale,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -579,6 +755,7 @@ internal sealed class DesktopLocalization
             + DesktopHubCatalogs.KeyCount
             + DesktopTutorialCatalogs.KeyCount;
         if (Schema != "leserpent.desktop-localization/v1"
+            || desktopTextKeyCount != 76
             || LocaleDefinitions.Length != 30
             || LocaleDefinitions.Count(locale => locale.BuiltIn) != 8
             || LocaleDefinitions.Count(locale => locale.BuiltIn

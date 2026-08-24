@@ -5588,11 +5588,24 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .expect("desktop localization contract must remain tracked");
     assert_eq!(desktop_localization.maturity, Maturity::Incubating);
     assert_eq!(desktop_localization.completion, 99);
-    assert_eq!(desktop_localization.contract.version, "0.12.0");
+    assert_eq!(desktop_localization.contract.version, "0.13.0");
     assert_eq!(desktop_localization.contract.stability, ContractStability::Draft);
     for surface in [
         "thirty-official-locale-identifiers",
         "private-atomic-language-preference",
+        "shared-web-native-language-pack-v1",
+        "eighteen-key-core-ui-pack-contract",
+        "official-downloadable-locale-fence",
+        "built-in-locale-replacement-fence",
+        "bounded-language-pack-json-tree",
+        "bounded-language-pack-directory-enumeration",
+        "async-bounded-language-pack-stream-read",
+        "language-pack-sha256-binding",
+        "private-atomic-language-pack-store",
+        "malformed-language-pack-sibling-isolation",
+        "per-key-language-pack-english-fallback",
+        "native-language-pack-install-controls",
+        "native-language-pack-remove-controls",
         "native-language-settings-window",
         "ui-ir-localized-text-resolution",
         "deterministic-english-localization-fallback",
@@ -5701,6 +5714,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && blocker.summary.contains("runtime child-workspace")
             && blocker.summary.contains("Hub domains")
             && blocker.summary.contains("tutorial domains")
+            && blocker.summary.contains("76-key native-shell catalogs")
+            && blocker.summary.contains("18-key core-ui v1 packs")
+            && blocker.summary.contains("SHA-256 catalog binding")
+            && blocker.summary.contains("malformed-sibling isolation")
+            && blocker.summary.contains("intentionally partial")
             && !blocker.summary.contains("runtime child-workspace shell")
             && !blocker.summary.contains("remaining Hub dynamic cards")
             && !blocker.summary.contains("non-Chinese tutorial content")
@@ -5754,6 +5772,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopHubCatalogs.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopHubPresentation.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopTutorialCatalogs.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguagePackStore.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/DaemonRetirementWindow.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/StartupErrorWindow.cs",

@@ -963,6 +963,7 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     let built_in = avalonia_source("Leserpent.Avalonia/DesktopBuiltInShellCatalogs.cs");
     let semantic = avalonia_source("Leserpent.Avalonia/DesktopBuiltInSemanticCatalogs.cs");
     let store = avalonia_source("Leserpent.Avalonia/DesktopLanguagePreferenceStore.cs");
+    let pack_store = avalonia_source("Leserpent.Avalonia/DesktopLanguagePackStore.cs");
     let window = avalonia_source("Leserpent.Avalonia/DesktopLanguageWindow.cs");
     let renderer = avalonia_source("Leserpent.Avalonia/AvaloniaDocumentRenderer.cs");
     let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
@@ -1005,7 +1006,7 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     ] {
         assert!(built_in.contains(marker), "built-in catalog is missing {marker}");
     }
-    assert_eq!(built_in.matches("[DesktopTextKey.").count(), 405);
+    assert_eq!(built_in.matches("[DesktopTextKey.").count(), 463);
     assert!(built_in.contains("[DesktopTextKey.ControlTopology] = \"控制拓撲\""));
     assert!(built_in.contains("[DesktopTextKey.Close] = \"閉じる\""));
     assert!(built_in.contains("[DesktopTextKey.FollowSystem] = \"Seguir el sistema\""));
@@ -1081,12 +1082,44 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(!store.to_ascii_lowercase().contains("token"));
     assert!(!store.to_ascii_lowercase().contains("credential"));
 
+    for marker in [
+        "leserpent.language-pack/v1",
+        "public const int CoreUiKeyCount = 18",
+        "public const int MaxPackBytes = 256 * 1024",
+        ".Take(MaxDirectoryEntries + 1)",
+        "ReadBoundedAsync",
+        "ReadAsync(buffer, cancellationToken)",
+        "RequiredCoreUiKeys.IsSubsetOf(translations.Keys)",
+        "CryptographicOperations.FixedTimeEquals",
+        "FileOptions.WriteThrough",
+        "File.Move(temporary, target, true)",
+        "UnixFileMode.UserRead | UnixFileMode.UserWrite",
+        "JsonUnmappedMemberHandling.Disallow",
+        "built-in locale",
+        "malformed desktop language pack blocked a valid sibling",
+        "per-key English fallback",
+    ] {
+        assert!(
+            pack_store.contains(marker),
+            "desktop language-pack store is missing {marker}"
+        );
+    }
+    assert!(!pack_store.contains("HttpClient"));
+    assert!(!pack_store.contains("Process."));
+    let pack_store_lower = pack_store.to_ascii_lowercase();
+    assert!(!pack_store_lower.contains("bearer"));
+    assert!(!pack_store_lower.contains("admin_token"));
+    assert!(!pack_store_lower.contains("credential"));
+
     for automation_id in [
         "desktop-language-choice",
         "desktop-language-coverage",
         "desktop-language-status",
         "desktop-language-cancel",
         "desktop-language-apply",
+        "desktop-language-pack-status",
+        "desktop-language-pack-install",
+        "desktop-language-pack-remove",
     ] {
         assert!(window.contains(automation_id));
     }
@@ -1094,6 +1127,8 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(window.contains("public void VerifyLayoutEnvelope()"));
     assert!(window.contains("desired.Width > Width"));
     assert!(window.contains("localization.SetPreference(choice.Preference)"));
+    assert!(window.contains("OpenFilePickerAsync"));
+    assert!(window.contains("ProbeLanguagePackContract"));
     assert!(!window.contains("HttpClient"));
     assert!(hub.contains("hub-open-language"));
     assert!(hub.contains("ProbeLanguageEntry()"));
@@ -1103,13 +1138,20 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(app.contains("builtin_layouts=8"));
     assert!(app.contains("builtin_semantic_catalogs=7"));
     assert!(app.contains("builtin_ui_ir_controls=7"));
+    assert!(app.contains("language_pack_install=true"));
+    assert!(app.contains("language_pack_applied_mutations=2"));
+    assert!(app.contains("automation_ids=8"));
     assert!(app.contains("localized UI-IR did not reach its native control"));
     assert!(program.contains("--verify-desktop-localization"));
     assert!(program.contains("builtin_shell_catalogs=8"));
+    assert!(program.contains("native_shell_keys=76"));
     assert!(program.contains("complete_builtin_locales=8"));
     assert!(program.contains("builtin_semantic_catalogs=7"));
     assert!(program.contains("semantic_keys=26"));
     assert!(program.contains("builtin_semantic_keys=596"));
+    assert!(program.contains("language_pack_core_ui_keys=18"));
+    assert!(program.contains("language_pack_sha256=true"));
+    assert!(program.contains("language_pack_bad_sibling_isolation=true"));
     assert!(program.contains("builtin_remote_shell_catalogs=7"));
     assert!(program.contains("remote_shell_semantic_keys=56"));
     assert!(program.contains("builtin_remote_operation_catalogs=7"));

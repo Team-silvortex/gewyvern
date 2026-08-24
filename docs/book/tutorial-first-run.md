@@ -34,6 +34,14 @@ preserves the target host, opaque SSH credential handle, and raw remote errors.
 Gewyvern provisioning is also covered, including its bounded-observation and
 retry guidance; the provisioning ID, runtime ID, host, and vault handle remain
 unchanged when the interface language changes.
+For one of the 22 additional locales, select `Install JSON...` in the same
+window and choose a `leserpent.language-pack/v1` file. Desktop accepts only the
+official downloadable locale roster and the shared 18-key core-ui contract; it
+cannot replace a built-in language. Installed packs remain private to this user
+and can be removed from the same window. A malformed pack is rejected without
+changing the active language or other installed packs, and missing keys continue
+to fall back to English. Local import validates the file but does not claim the
+catalog-authenticated status of a SHA-256-bound download.
 The six newest shell, semantic, and tutorial translations remain marked for native-speaker
 review rather than being presented as complete long-tail coverage.
 

@@ -2410,7 +2410,7 @@
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-desktop-localization",
-        "version": "0.12.0",
+        "version": "0.13.0",
         "stability": "draft",
         "surfaces": [
           "shared-official-locale-roster",
@@ -2419,6 +2419,19 @@
           "system-locale-alias-resolution",
           "private-atomic-language-preference",
           "unknown-preference-field-rejection",
+          "shared-web-native-language-pack-v1",
+          "eighteen-key-core-ui-pack-contract",
+          "official-downloadable-locale-fence",
+          "built-in-locale-replacement-fence",
+          "bounded-language-pack-json-tree",
+          "bounded-language-pack-directory-enumeration",
+          "async-bounded-language-pack-stream-read",
+          "language-pack-sha256-binding",
+          "private-atomic-language-pack-store",
+          "malformed-language-pack-sibling-isolation",
+          "per-key-language-pack-english-fallback",
+          "native-language-pack-install-controls",
+          "native-language-pack-remove-controls",
           "native-language-settings-window",
           "hub-visible-language-entry",
           "macos-language-settings-menu",
@@ -2522,7 +2535,7 @@
       "blockers": [
         {
           "id": "desktop-long-tail-language-review",
-          "summary": "All eight built-in locales have complete 67-key native-shell catalogs and six-step Learning Center content; all seven non-English built-ins cover the exact 596-key semantic set across core UI-IR, connection, reverse deployment, gewyvern provisioning/retirement, daemon retirement, startup recovery, account, remote shell, remote operation/Leselang, runtime child-workspace, Hub domains, and tutorial domains. Remote feed, authority-health, mutation-failure, account, workspace-change, severity-alert, live-refresh, Hub topology-phase, refresh-summary, and runtime-status projection use typed facts while operator identities, runtime IDs, paths, log bodies, and bounded diagnostics remain opaque. The six candidate translations still require native-speaker review, while the 22 official core-ui packs remain partial."
+          "summary": "All eight built-in locales have complete 76-key native-shell catalogs and six-step Learning Center content; all seven non-English built-ins cover the exact 596-key semantic set across core UI-IR, connection, reverse deployment, gewyvern provisioning/retirement, daemon retirement, startup recovery, account, remote shell, remote operation/Leselang, runtime child-workspace, Hub domains, and tutorial domains. Remote feed, authority-health, mutation-failure, account, workspace-change, severity-alert, live-refresh, Hub topology-phase, refresh-summary, and runtime-status projection use typed facts while operator identities, runtime IDs, paths, log bodies, and bounded diagnostics remain opaque. Desktop can now atomically install, project, and remove the same strict 18-key core-ui v1 packs as Web, with official-locale and built-in-replacement fences, optional SHA-256 catalog binding, malformed-sibling isolation, and per-key English fallback. The six candidate built-in translations still require native-speaker review, while all 22 downloadable packs remain intentionally partial beyond their reviewed core-ui keys."
         }
       ],
       "consumers": ["desktop-operators", "leselang-ui-adapters"],
@@ -2560,13 +2573,14 @@
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LeselangExportControl.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteAuthorityHealthCoordinator.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguagePreferenceStore.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguagePackStore.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguageWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopTutorialWindow.cs", "state": "present" },
         { "kind": "test", "path": "tests/leserpent_avalonia_lifecycle_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "apps/leserpent-avalonia/README.md", "state": "present" },
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" }
       ],
-      "next_gate": "Review the six candidate built-in catalogs with native speakers, then complete the 22 official downloadable core-ui packs without translating opaque operator data."
+      "next_gate": "Review the six candidate built-in catalogs with native speakers, then expand the 22 safely installable official packs beyond their 18 reviewed core-ui keys without translating opaque operator data."
     },
     {
       "id": "leserpent-2/remote-console/remote-mobile-console",

@@ -842,6 +842,29 @@ internal sealed class LeserpentApp : Application
                         localizedWindow.VerifyAccessibility();
                         localizedWindow.VerifyLayoutEnvelope();
                     }
+                    var packRoot = Path.Combine(
+                        Path.GetTempPath(),
+                        $"leserpent-language-controls-{Guid.NewGuid():N}");
+                    var packAppliedCount = 0;
+                    try
+                    {
+                        var packLocalization =
+                            DesktopLocalization.ForLanguagePackVerification(packRoot);
+                        var packWindow = new DesktopLanguageWindow(
+                            packLocalization,
+                            () => packAppliedCount++);
+                        packWindow.VerifyAccessibility();
+                        packWindow.ProbeLanguagePackContract(
+                            DesktopLanguagePackStore.VerificationPayload("pt-BR"));
+                        packWindow.VerifyLayoutEnvelope();
+                    }
+                    finally
+                    {
+                        if (Directory.Exists(packRoot))
+                        {
+                            Directory.Delete(packRoot, true);
+                        }
+                    }
                     window.ProbeSelectionContract();
                     var semanticSamples = new Dictionary<string, string>
                     {
@@ -891,13 +914,13 @@ internal sealed class LeserpentApp : Application
                                 $"localized UI-IR did not reach its native control for {sample.Key}");
                         }
                     }
-                    if (appliedCount != 1)
+                    if (appliedCount != 1 || packAppliedCount != 2)
                     {
                         throw new InvalidDataException(
-                            "desktop language controls did not apply exactly once");
+                            "desktop language controls did not apply their exact mutation count");
                     }
                     Console.WriteLine(
-                        "desktop language controls valid: official_locales=30, complete_builtin_locales=8, builtin_shell_catalogs=8, builtin_layouts=8, builtin_semantic_catalogs=7, builtin_ui_ir_controls=7, system_choice=true, persistent_preference=true, live_apply=true, english_fallback=true, zh_cn_core=true, zh_cn_tutorial_complete=true, builtin_tutorial_complete=true, rtl=true, automation_ids=5, automation_names=5, contrast=true");
+                        "desktop language controls valid: official_locales=30, complete_builtin_locales=8, builtin_shell_catalogs=8, builtin_layouts=8, builtin_semantic_catalogs=7, builtin_ui_ir_controls=7, system_choice=true, persistent_preference=true, live_apply=true, language_pack_install=true, language_pack_remove=true, language_pack_status=true, language_pack_applied_mutations=2, english_fallback=true, zh_cn_core=true, zh_cn_tutorial_complete=true, builtin_tutorial_complete=true, rtl=true, automation_ids=8, automation_names=8, contrast=true");
                 }
                 catch (Exception error)
                 {

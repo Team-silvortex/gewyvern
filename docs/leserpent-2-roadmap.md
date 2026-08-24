@@ -2177,7 +2177,7 @@ selected catalog while stable node/action identities remain untouched. A real
 All seven non-English built-ins now cover the exact 26-key core semantic UI-IR
 set, with separate native `TextBlock` and accessibility-name proof for each
 locale. All eight built-ins include the complete offline tutorial. The six new
-non-English built-in catalogs cover all 67 stable shell keys and all six tutorial
+non-English built-in catalogs cover all 76 stable shell keys and all six tutorial
 steps with Web-aligned terminology and validated format placeholders; they remain
 explicit review
 candidates. Connection/forget, reverse deployment, gewyvern provisioning and
@@ -2206,9 +2206,15 @@ refresh summaries, runtime status, and authority-health facts are likewise typed
 its eight-language probe measures the dynamic card tree while preserving daemon
 names, endpoints, runtime identities, and raw failures as opaque data. The
 Learning Center probe covers all six steps, navigation semantics, accessibility,
-and all 48 locale-step minimum layouts. The six candidate
-translations and all 22 downloadable core-ui packs stay partial rather than
-claiming unreviewed coverage.
+and all 48 locale-step minimum layouts. Desktop now installs and removes the same
+18-key `leserpent.language-pack/v1` core-ui artifacts as Web. Its bounded decoder
+fences official metadata and built-in replacement, supports SHA-256 catalog
+binding, atomically persists private files, isolates malformed siblings, and
+caps directory enumeration while reading picker streams asynchronously. It
+overlays only mapped presentation keys before English fallback. The native
+control proof performs a real temporary install/remove roundtrip. The six
+candidate built-in translations and all 22 downloadable packs stay partial
+beyond reviewed keys rather than claiming unreviewed coverage.
 Runtime-child workspace admission has now crossed the same boundary. The
 renderer-neutral `RemoteWorkspaceLaunchCoordinator` owns runtime-ID validation,
 the combined active/pending limit, duplicate-request revision coalescing,
