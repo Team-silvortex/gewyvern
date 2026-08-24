@@ -22,6 +22,68 @@ pub struct FactEnvelope {
     pub kind: FactKind,
 }
 
+pub(crate) struct FactIndex<'a> {
+    facts: &'a [FactEnvelope],
+    positions_by_id: Option<Vec<usize>>,
+}
+
+impl<'a> FactIndex<'a> {
+    pub(crate) fn new(facts: &'a [FactEnvelope]) -> Self {
+        let positions_by_id = if facts.windows(2).all(|pair| pair[0].id <= pair[1].id) {
+            None
+        } else {
+            let mut positions = (0..facts.len()).collect::<Vec<_>>();
+            positions.sort_unstable_by_key(|position| (facts[*position].id, *position));
+            Some(positions)
+        };
+        Self {
+            facts,
+            positions_by_id,
+        }
+    }
+
+    pub(crate) fn facts_for_ids(
+        &self,
+        ids: impl IntoIterator<Item = FactId>,
+    ) -> Vec<&'a FactEnvelope> {
+        let mut ids = ids.into_iter().collect::<Vec<_>>();
+        ids.sort_unstable();
+        ids.dedup();
+
+        let mut positions = Vec::with_capacity(ids.len());
+        match &self.positions_by_id {
+            None => {
+                let mut cursor = 0;
+                for id in ids {
+                    let start = cursor + self.facts[cursor..].partition_point(|fact| fact.id < id);
+                    let end = start + self.facts[start..].partition_point(|fact| fact.id <= id);
+                    positions.extend(start..end);
+                    cursor = end;
+                }
+            }
+            Some(positions_by_id) => {
+                let mut cursor = 0;
+                for id in ids {
+                    let start = cursor
+                        + positions_by_id[cursor..]
+                            .partition_point(|position| self.facts[*position].id < id);
+                    let end = start
+                        + positions_by_id[start..]
+                            .partition_point(|position| self.facts[*position].id <= id);
+                    positions.extend_from_slice(&positions_by_id[start..end]);
+                    cursor = end;
+                }
+                positions.sort_unstable();
+            }
+        }
+
+        positions
+            .into_iter()
+            .map(|position| &self.facts[position])
+            .collect()
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FactKind {
     TcpState(TcpStateFact),
@@ -257,4 +319,46 @@ pub fn system_time_to_millis(ts: SystemTime) -> u64 {
 
 pub fn millis_to_system_time(ms: u64) -> SystemTime {
     UNIX_EPOCH + Duration::from_millis(ms)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fact_index_selects_duplicate_ids_in_original_input_order() {
+        let facts = vec![
+            indexed_fact(3, 30),
+            indexed_fact(1, 10),
+            indexed_fact(3, 31),
+            indexed_fact(2, 20),
+        ];
+        let index = FactIndex::new(&facts);
+
+        let selected = index
+            .facts_for_ids([FactId(3), FactId(1), FactId(3)])
+            .into_iter()
+            .map(|fact| match &fact.kind {
+                FactKind::AttachScope(scope) => scope.scope_hash,
+                _ => unreachable!(),
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(selected, vec![30, 10, 31]);
+    }
+
+    fn indexed_fact(id: u64, marker: u64) -> FactEnvelope {
+        FactEnvelope {
+            id: FactId(id),
+            ts: UNIX_EPOCH,
+            cpu: CpuId(0),
+            ifindex: None,
+            session: SessionId(1),
+            fragment_id: "index_test".into(),
+            kind: FactKind::AttachScope(AttachScopeFact {
+                scope_hash: marker,
+                complete: true,
+            }),
+        }
+    }
 }

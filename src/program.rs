@@ -1,9 +1,9 @@
 use crate::flow::{FlowSnapshot, ProgramFlow, ProgramFlowId, ProgramOperation, ProgramStage};
 use crate::ir::{
-    FlowPredicate, NarrativeSurface, NarrativeTemplate, RuleTemplate, matches_flow_predicate,
+    FlowPredicate, NarrativeSurface, NarrativeTemplate, RuleTemplate, matches_flow_predicate_refs,
     render_narrative_template,
 };
-use crate::ledger::FactEnvelope;
+use crate::ledger::{FactEnvelope, FactIndex};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProgramModel {
@@ -21,10 +21,22 @@ pub fn build_program_flows(
     transport_flows: &[FlowSnapshot],
     facts: &[FactEnvelope],
 ) -> Vec<ProgramFlow> {
+    let fact_index = FactIndex::new(facts);
+    build_program_flows_indexed(model, transport_flows, &fact_index)
+}
+
+pub(crate) fn build_program_flows_indexed(
+    model: &ProgramModel,
+    transport_flows: &[FlowSnapshot],
+    fact_index: &FactIndex<'_>,
+) -> Vec<ProgramFlow> {
     transport_flows
         .iter()
         .enumerate()
-        .map(|(idx, flow)| build_program_flow(model, (idx + 1) as u64, flow, facts))
+        .map(|(idx, flow)| {
+            let facts = fact_index.facts_for_ids(flow.evidence.fact_ids());
+            build_program_flow(model, (idx + 1) as u64, flow, &facts)
+        })
         .collect()
 }
 
@@ -32,18 +44,18 @@ fn build_program_flow(
     model: &ProgramModel,
     id: u64,
     flow: &FlowSnapshot,
-    facts: &[FactEnvelope],
+    facts: &[&FactEnvelope],
 ) -> ProgramFlow {
     let mut stages = Vec::new();
     let mut narrative = Vec::new();
     let mut seen_predicates = Vec::new();
 
-    for fact in facts {
+    for &fact in facts {
         for rule in &model.rules {
             if rule.dedupe && seen_predicates.contains(&rule.predicate) {
                 continue;
             }
-            if !matches_flow_predicate(&rule.predicate, flow, fact, facts) {
+            if !matches_flow_predicate_refs(&rule.predicate, flow, fact, facts) {
                 continue;
             }
 

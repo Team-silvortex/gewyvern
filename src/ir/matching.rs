@@ -65,6 +65,27 @@ pub fn matches_flow_predicate(
     fact: &FactEnvelope,
     facts: &[FactEnvelope],
 ) -> bool {
+    matches_flow_predicate_iter(predicate, flow, fact, facts.iter())
+}
+
+pub(crate) fn matches_flow_predicate_refs(
+    predicate: &FlowPredicate,
+    flow: &FlowSnapshot,
+    fact: &FactEnvelope,
+    facts: &[&FactEnvelope],
+) -> bool {
+    matches_flow_predicate_iter(predicate, flow, fact, facts.iter().copied())
+}
+
+fn matches_flow_predicate_iter<'a, I>(
+    predicate: &FlowPredicate,
+    flow: &FlowSnapshot,
+    fact: &FactEnvelope,
+    facts: I,
+) -> bool
+where
+    I: Clone + Iterator<Item = &'a FactEnvelope>,
+{
     match predicate {
         FlowPredicate::ProcessBound => flow.evidence.lineage_facts.contains(&fact.id),
         FlowPredicate::SocketStateObserved {
@@ -212,14 +233,16 @@ pub fn matches_flow_predicate(
         }
         FlowPredicate::All(predicates) => {
             predicates.iter().all(|predicate| {
-                super::predicates::flow_predicate_satisfied_in_flow(predicate, flow, facts)
+                facts.clone().any(|candidate| {
+                    matches_flow_predicate_iter(predicate, flow, candidate, facts.clone())
+                })
             }) && predicates
                 .iter()
-                .any(|predicate| matches_flow_predicate(predicate, flow, fact, facts))
+                .any(|predicate| matches_flow_predicate_iter(predicate, flow, fact, facts.clone()))
         }
         FlowPredicate::Any(predicates) => predicates
             .iter()
-            .any(|predicate| matches_flow_predicate(predicate, flow, fact, facts)),
+            .any(|predicate| matches_flow_predicate_iter(predicate, flow, fact, facts.clone())),
     }
 }
 

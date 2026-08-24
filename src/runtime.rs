@@ -4,10 +4,10 @@ use crate::fragment::{
     AttachFailure, AttachPlan, AttachReport, BindingDiagnostics, EvidenceTier, FragmentRegistry,
     RegistryError, builtin_registry, summarize_attach_failures,
 };
-use crate::ledger::{FactEnvelope, FactId, FactKind, FactKindTag};
+use crate::ledger::{FactEnvelope, FactId, FactIndex, FactKind, FactKindTag};
 use crate::loader::{LinuxProbeLoader, Loader, LoaderError};
-use crate::program::build_program_flows;
-use crate::reason::{ReasonChain, ReasonProfile, build_reason_chains};
+use crate::program::build_program_flows_indexed;
+use crate::reason::{ReasonChain, ReasonProfile, build_reason_chains_indexed};
 use crate::template::{
     FragmentParamValue, Template, TemplateBinding, TemplateError, WindowProfile,
 };
@@ -245,8 +245,7 @@ impl RuntimeSession {
             });
             return;
         }
-        self.facts.push(fact);
-        self.facts.sort_by_key(|fact| fact.id);
+        self.insert_fact_in_id_order(fact);
     }
 
     pub fn freeze(&mut self, end: SystemTime) {
@@ -278,19 +277,21 @@ impl RuntimeSession {
     pub fn reasons(&self) -> Vec<ReasonChain> {
         let facts = self.materialized_facts();
         let flows = build_flow_snapshots(&facts);
-        build_reason_chains(&self.reason_profile, &flows, &facts)
+        let fact_index = FactIndex::new(&facts);
+        build_reason_chains_indexed(&self.reason_profile, &flows, &fact_index)
     }
 
     pub fn export_bundle(&self) -> ExportBundle {
         let facts = self.materialized_facts();
         let flows = build_flow_snapshots(&facts);
+        let fact_index = FactIndex::new(&facts);
         let program_model = self
             .template
             .program_model
             .as_ref()
             .expect("template already validated");
-        let program_flows = build_program_flows(program_model, &flows, &facts);
-        let reasons = build_reason_chains(&self.reason_profile, &flows, &facts);
+        let program_flows = build_program_flows_indexed(program_model, &flows, &fact_index);
+        let reasons = build_reason_chains_indexed(&self.reason_profile, &flows, &fact_index);
         let program_findings = build_program_findings(
             self.template
                 .program_model
@@ -392,6 +393,19 @@ impl RuntimeSession {
             fragment_id: fact.fragment_id,
             reason,
         });
+    }
+
+    fn insert_fact_in_id_order(&mut self, fact: FactEnvelope) {
+        if self.facts.last().is_none_or(|last| last.id <= fact.id) {
+            self.facts.push(fact);
+            return;
+        }
+
+        // Insert after equal IDs to retain the stable arrival order of the old full sort.
+        let index = self
+            .facts
+            .partition_point(|existing| existing.id <= fact.id);
+        self.facts.insert(index, fact);
     }
 
     fn capture_comm_enabled(&self, fragment_id: &str) -> bool {

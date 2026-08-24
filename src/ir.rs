@@ -8,6 +8,7 @@ mod predicates;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use self::matching::matches_flow_predicate_refs;
 pub use self::narrative::{phase_kind, render_narrative_template, render_phase_transition_kind};
 pub use self::predicates::flow_predicate_satisfied_in_flow;
 

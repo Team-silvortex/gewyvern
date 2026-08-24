@@ -20,3 +20,5 @@ use support::{
 mod part_001;
 #[path = "runtime_tdd/part_002.rs"]
 mod part_002;
+#[path = "runtime_tdd/performance.rs"]
+mod performance;

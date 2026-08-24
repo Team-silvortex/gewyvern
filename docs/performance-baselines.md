@@ -110,6 +110,26 @@ report median from `89.792` to `65.170 ms` (`27.4%`), explain from `44.422` to
 (`16.8%`). The frontend-only median remained effectively neutral at
 `44.746/44.425 ms`; package lockfile generation was not changed by this pass.
 
+The same date's runtime-ledger pass replaces the full stable sort after every
+accepted fact with an append fast path and a stable binary-insertion fallback
+for genuinely out-of-order IDs. Ten alternating same-host test-binary pairs on
+8,192 ordered facts reduced the ingest median from `299.352` to `0.795 ms`
+(`99.7%`). Duplicate IDs retain arrival order, and out-of-order input remains
+sorted. Flow reconstruction now borrows repeated fragment-source identifiers
+before cloning the first occurrence; across 50 reconstructions of the same
+8,192-fact, 256-flow input, the paired median fell from `149.925` to
+`139.078 ms` (`7.2%`).
+
+The follow-up evidence-reconstruction pass builds one borrowed FactId index and
+uses it across program-flow and reason-chain construction, so each flow visits
+only its own evidence instead of rescanning the complete ledger. The index
+retains duplicate IDs and original input order, including for unsorted public
+API inputs, without cloning fact envelopes. Ten alternating same-host
+test-binary pairs reduced 10 program-flow reconstructions over 8,192 facts and
+256 flows from `2897.740` to `72.931 ms` (`97.5%`), and 10 reason-chain
+reconstructions from `2791.941` to `76.548 ms` (`97.3%`). Runtime export shares
+the same index between both reconstruction stages.
+
 The `2026-07-18` macOS arm64 hybrid-log reference measured the 256-entry full
 compose at `2.099 ms` p50 and `321,424` allocated bytes per iteration. The
 8-entry incremental compose-and-merge measured `0.299 ms` and `30,488` bytes,
@@ -160,6 +180,10 @@ The hot paths that matter most are:
 - `benchmark_scan_report_json_large_protocol_flow_export`
 - `benchmark_scan_report_text_large_protocol_flow_export`
 - `benchmark_scan_report_html_large_protocol_flow_export`
+- `benchmark_runtime_ingest_ordered_8192_facts`
+- `benchmark_flow_reconstruction_8192_facts`
+- `benchmark_program_flow_reconstruction_8192_facts`
+- `benchmark_reason_chain_reconstruction_8192_facts`
 
 For `gewylang` / `gewyc`, the first useful compiler-facing benchmark family is:
 
@@ -196,6 +220,10 @@ Current baselines:
 | `benchmark_gewyc_explain_report_udp_process_debug` | `35.959` | 100 iterations, median of 10 optimized samples from alternating binary A/B |
 | `benchmark_gewyc_envelope_report_udp_process_debug` | `37.238` | 100 iterations, median of 10 optimized samples from alternating binary A/B |
 | `benchmark_gewyc_lockfile_protocol_publish_package` | `3.013` | 100 iterations, unchanged path retained as the current same-host observation |
+| `benchmark_runtime_ingest_ordered_8192_facts` | `0.795` | 8,192 ordered facts, median of 10 optimized samples from alternating binary A/B |
+| `benchmark_flow_reconstruction_8192_facts` | `139.078` | 50 reconstructions of 8,192 facts across 256 flows, median of 10 optimized samples from alternating binary A/B |
+| `benchmark_program_flow_reconstruction_8192_facts` | `72.931` | 10 reconstructions of 8,192 facts across 256 flows, median of 10 optimized samples from alternating binary A/B |
+| `benchmark_reason_chain_reconstruction_8192_facts` | `76.548` | 10 reconstructions of 8,192 facts across 256 flows, median of 10 optimized samples from alternating binary A/B |
 
 ## Ubuntu Physical Host Scan-Report Check
 
@@ -239,6 +267,10 @@ bash scripts/perf/benchmark_summary.sh 3 benchmark_scan_report_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_findings_json_large_protocol_flow_export
 bash scripts/perf/benchmark_summary.sh 3 benchmark_http_transactions_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_gewyc_
+bash scripts/perf/benchmark_summary.sh 3 benchmark_runtime_ingest_
+bash scripts/perf/benchmark_summary.sh 3 benchmark_flow_reconstruction_
+bash scripts/perf/benchmark_summary.sh 3 benchmark_program_flow_reconstruction_
+bash scripts/perf/benchmark_summary.sh 3 benchmark_reason_chain_reconstruction_
 ```
 
 ## Ubuntu Physical Host Remote Validation Baseline

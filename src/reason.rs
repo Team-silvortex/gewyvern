@@ -1,9 +1,9 @@
 use crate::flow::{FlowId, FlowSnapshot};
 use crate::ir::{
     FlowPredicate, NarrativeSurface, NarrativeTemplate, RuleTemplate, SignalKind,
-    matches_flow_predicate, render_narrative_template,
+    matches_flow_predicate_refs, render_narrative_template,
 };
-use crate::ledger::{FactEnvelope, FactId, FactKind, PacketDir};
+use crate::ledger::{FactEnvelope, FactId, FactIndex, FactKind, PacketDir};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct ReasonId(pub u64);
@@ -94,22 +94,38 @@ pub fn build_reason_chains(
     flows: &[FlowSnapshot],
     facts: &[FactEnvelope],
 ) -> Vec<ReasonChain> {
+    let fact_index = FactIndex::new(facts);
+    build_reason_chains_indexed(profile, flows, &fact_index)
+}
+
+pub(crate) fn build_reason_chains_indexed(
+    profile: &ReasonProfile,
+    flows: &[FlowSnapshot],
+    fact_index: &FactIndex<'_>,
+) -> Vec<ReasonChain> {
     match profile {
         ReasonProfile::HandshakeL1 => flows
             .iter()
             .enumerate()
-            .map(|(idx, flow)| build_handshake_reason(ReasonId((idx + 1) as u64), flow, facts))
+            .map(|(idx, flow)| {
+                let facts = fact_index.facts_for_ids(flow.evidence.fact_ids());
+                build_handshake_reason(ReasonId((idx + 1) as u64), flow, &facts)
+            })
             .collect(),
         ReasonProfile::UdpDatagramL1 => flows
             .iter()
             .enumerate()
-            .map(|(idx, flow)| build_udp_reason(ReasonId((idx + 1) as u64), flow, facts))
+            .map(|(idx, flow)| {
+                let facts = fact_index.facts_for_ids(flow.evidence.fact_ids());
+                build_udp_reason(ReasonId((idx + 1) as u64), flow, &facts)
+            })
             .collect(),
         ReasonProfile::Declarative(model) => flows
             .iter()
             .enumerate()
             .map(|(idx, flow)| {
-                build_declarative_reason(model, ReasonId((idx + 1) as u64), flow, facts)
+                let facts = fact_index.facts_for_ids(flow.evidence.fact_ids());
+                build_declarative_reason(model, ReasonId((idx + 1) as u64), flow, &facts)
             })
             .collect(),
     }
@@ -118,7 +134,7 @@ pub fn build_reason_chains(
 fn build_handshake_reason(
     id: ReasonId,
     flow: &FlowSnapshot,
-    facts: &[FactEnvelope],
+    facts: &[&FactEnvelope],
 ) -> ReasonChain {
     let mut l0_facts = Vec::new();
     let mut timeline = Vec::new();
@@ -126,7 +142,7 @@ fn build_handshake_reason(
     let mut key_events = Vec::new();
     let mut narrative = Vec::new();
 
-    for fact in facts {
+    for &fact in facts {
         if flow.evidence.tcp_state_facts.contains(&fact.id) {
             l0_facts.push(fact.id);
             timeline.push(fact.id);
@@ -229,14 +245,14 @@ fn build_handshake_reason(
     }
 }
 
-fn build_udp_reason(id: ReasonId, flow: &FlowSnapshot, facts: &[FactEnvelope]) -> ReasonChain {
+fn build_udp_reason(id: ReasonId, flow: &FlowSnapshot, facts: &[&FactEnvelope]) -> ReasonChain {
     let mut l0_facts = Vec::new();
     let timeline = Vec::new();
     let mut path_segments = Vec::new();
     let mut key_events = Vec::new();
     let mut narrative = Vec::new();
 
-    for fact in facts {
+    for &fact in facts {
         if flow.evidence.packet_facts.contains(&fact.id) {
             l0_facts.push(fact.id);
             if let FactKind::PacketMeta(packet) = &fact.kind
@@ -310,7 +326,7 @@ fn build_declarative_reason(
     model: &ReasonModel,
     id: ReasonId,
     flow: &FlowSnapshot,
-    facts: &[FactEnvelope],
+    facts: &[&FactEnvelope],
 ) -> ReasonChain {
     let mut l0_facts = Vec::new();
     let mut timeline = Vec::new();
@@ -319,7 +335,7 @@ fn build_declarative_reason(
     let mut narrative = Vec::new();
     let mut seen_predicates = Vec::new();
 
-    for fact in facts {
+    for &fact in facts {
         if flow.evidence.tcp_state_facts.contains(&fact.id)
             || flow.evidence.packet_facts.contains(&fact.id)
             || flow.evidence.quic_facts.contains(&fact.id)
@@ -333,7 +349,7 @@ fn build_declarative_reason(
             if rule.dedupe && seen_predicates.contains(&rule.predicate) {
                 continue;
             }
-            if !matches_flow_predicate(&rule.predicate, flow, fact, facts) {
+            if !matches_flow_predicate_refs(&rule.predicate, flow, fact, facts) {
                 continue;
             }
 

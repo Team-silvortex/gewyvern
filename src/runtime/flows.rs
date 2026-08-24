@@ -50,7 +50,9 @@ pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {
         }
 
         let acc = flows.last_mut().expect("flow accumulator should exist");
-        acc.fragment_sources.insert(fact.fragment_id.clone());
+        if !acc.fragment_sources.contains(fact.fragment_id.as_str()) {
+            acc.fragment_sources.insert(fact.fragment_id.clone());
+        }
         acc.last_seen_at = Some(fact.id);
         acc.emerged_at.get_or_insert(fact.id);
 
@@ -82,16 +84,14 @@ pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {
                     });
                 }
             }
-            FactKind::SockLineage(_) => {
+            FactKind::SockLineage(lineage) => {
                 acc.evidence.lineage_facts.push(fact.id);
-                if let FactKind::SockLineage(lineage) = &fact.kind {
-                    acc.process = Some(ProcessView {
-                        pid: lineage.pid,
-                        tid: lineage.tid,
-                        cgroup_id: lineage.cgroup_id,
-                        comm: decode_comm_or_redacted(&lineage.comm),
-                    });
-                }
+                acc.process = Some(ProcessView {
+                    pid: lineage.pid,
+                    tid: lineage.tid,
+                    cgroup_id: lineage.cgroup_id,
+                    comm: decode_comm_or_redacted(&lineage.comm),
+                });
             }
             FactKind::DropAction(_) | FactKind::AttachScope(_) => {}
         }

@@ -353,3 +353,15 @@ pub struct EvidenceIndex {
     pub route_facts: Vec<FactId>,
     pub lineage_facts: Vec<FactId>,
 }
+
+impl EvidenceIndex {
+    pub(crate) fn fact_ids(&self) -> impl Iterator<Item = FactId> + '_ {
+        self.tcp_state_facts
+            .iter()
+            .chain(&self.packet_facts)
+            .chain(&self.quic_facts)
+            .chain(&self.route_facts)
+            .chain(&self.lineage_facts)
+            .copied()
+    }
+}
