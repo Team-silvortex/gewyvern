@@ -103,6 +103,12 @@ A rejected HTTP mutation returns:
 
 ## Takeover
 
+During startup, an existing Orchestra database may be read before this process
+finishes acquiring its own writer lease. Read-only and writable SQLite
+connections therefore use private page caches: the startup-only transition
+cannot inherit a read-only shared pager and can migrate the database after
+ownership is established. This does not promote an established standby.
+
 An already-loaded standby never promotes itself after the owner exits because
 its compatibility projection may be stale. Operators or supervisors start a
 fresh process, which validates the stale owner record, acquires the lease, and

@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "proof": "leserpent-language-pack-local-orchestra-native-aot",
+  "captured_at_utc": "2026-08-24T03:02:47Z",
+  "scope": "packaged-macos-nativeaot-local-orchestra-language-pack",
+  "host": {
+    "platform": "macos-arm64",
+    "os_version": "26.5.2",
+    "build": "25F84"
+  },
+  "toolchain": {
+    "dotnet_sdk": "10.0.201",
+    "rustc": "1.94.1",
+    "cargo": "1.94.1"
+  },
+  "package": {
+    "version": "1.16.0",
+    "bundle_identifier": "org.gewyvern.leserpent",
+    "native_aot": true,
+    "signature": "adhoc",
+    "signature_valid": true,
+    "avalonia": {
+      "format": "Mach-O arm64",
+      "bytes": 26198384,
+      "sha256": "c4e23f4af50db7eba38ff3652e0417f989f0a84ad1b22ceb5c98386d4c91779a"
+    },
+    "leserpentd": {
+      "format": "Mach-O arm64",
+      "bytes": 12390336,
+      "sha256": "b53080481dcae24386b7958dce3783119c56cede73f802f8b43e77dbe4e261dc"
+    }
+  },
+  "language_pack_roundtrip": {
+    "source_id": "local-orchestra",
+    "locale": "pt-BR",
+    "catalog_schema": "leserpent.language-pack-catalog/v1",
+    "pack_schema": "leserpent.language-pack/v1",
+    "official_locales": 30,
+    "downloadable_packs": 22,
+    "core_ui_keys": 18,
+    "loopback_tls": true,
+    "selected_private_ca": true,
+    "authorization_header_sent": false,
+    "admin_token_header_sent": false,
+    "sha256_bound": true,
+    "locale_bound": true,
+    "version_bound": true,
+    "private_store_roundtrip": true,
+    "installed_pack_removed": true
+  },
+  "daemon_contract": {
+    "embedded_catalog": true,
+    "embedded_pack_count": 22,
+    "public_routes_get_only": true,
+    "public_routes_reject_authorization": true,
+    "public_routes_reject_admin_token": true,
+    "authenticated_v1_routes_preserved": true
+  },
+  "lifecycle": {
+    "ephemeral_process_token": true,
+    "authority_owned": true,
+    "sigterm_first_cleanup": true,
+    "immediate_restart": true,
+    "secret_output": false
+  },
+  "checks": [
+    "locked-native-aot-restore",
+    "native-aot-publish",
+    "current-rust-daemon-bundled",
+    "strict-bundle-allowlist",
+    "adhoc-deep-signature-verify",
+    "packaged-native-client-live-download",
+    "private-ca-loopback-tls",
+    "credential-free-public-content-request",
+    "catalog-digest-locale-version-binding",
+    "private-install-load-remove-roundtrip",
+    "daemon-cleanup-and-immediate-restart"
+  ],
+  "remaining": [
+    "physical-linux-local-orchestra-language-pack-proof",
+    "saved-remote-daemon-language-pack-proof"
+  ],
+  "result": "passed"
+}

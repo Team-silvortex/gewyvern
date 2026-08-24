@@ -6,6 +6,7 @@ use gewyvern::project_status::{
     ContractStability, EvidenceKind, EvidenceState, Independence, Maturity, STATUS_SCHEMA_VERSION,
     StatusCatalog, default_catalog_path,
 };
+use ring::digest::{SHA256, digest};
 use serde_json::json;
 
 fn repository_root() -> PathBuf {
@@ -23,6 +24,14 @@ fn json_string_set(value: &serde_json::Value, field: &str) -> BTreeSet<String> {
                 .unwrap_or_else(|| panic!("{field} entries must be strings"))
                 .to_string()
         })
+        .collect()
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    digest(&SHA256, bytes)
+        .as_ref()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
         .collect()
 }
 
@@ -3775,6 +3784,180 @@ fn etragon_stays_downweighted_until_the_deep_learning_stack_is_proven() {
 }
 
 #[test]
+fn retained_packaged_macos_language_pack_proof_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(
+            "docs/fixtures/leserpent_language_pack_local_orchestra_native_aot_macos_arm64_20260824.json",
+        ))
+        .expect("packaged macOS language-pack evidence must exist"),
+    )
+    .expect("packaged macOS language-pack evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(
+        evidence["proof"],
+        "leserpent-language-pack-local-orchestra-native-aot"
+    );
+    assert_eq!(evidence["host"]["platform"], "macos-arm64");
+    assert_eq!(evidence["package"]["version"], "1.16.0");
+    assert_eq!(evidence["package"]["native_aot"], true);
+    assert_eq!(evidence["package"]["signature_valid"], true);
+    for payload in ["avalonia", "leserpentd"] {
+        assert_eq!(evidence["package"][payload]["format"], "Mach-O arm64");
+        assert!(
+            evidence["package"][payload]["bytes"]
+                .as_u64()
+                .expect("native payload bytes must be numeric")
+                > 1_000_000
+        );
+        assert_eq!(
+            evidence["package"][payload]["sha256"]
+                .as_str()
+                .expect("native payload digest must be text")
+                .len(),
+            64
+        );
+    }
+    let roundtrip = &evidence["language_pack_roundtrip"];
+    assert_eq!(roundtrip["source_id"], "local-orchestra");
+    assert_eq!(roundtrip["locale"], "pt-BR");
+    assert_eq!(roundtrip["downloadable_packs"], 22);
+    assert_eq!(roundtrip["core_ui_keys"], 18);
+    for check in [
+        "loopback_tls",
+        "selected_private_ca",
+        "sha256_bound",
+        "locale_bound",
+        "version_bound",
+        "private_store_roundtrip",
+        "installed_pack_removed",
+    ] {
+        assert_eq!(roundtrip[check], true, "missing roundtrip proof {check}");
+    }
+    assert_eq!(roundtrip["authorization_header_sent"], false);
+    assert_eq!(roundtrip["admin_token_header_sent"], false);
+    assert_eq!(
+        evidence["daemon_contract"]["public_routes_reject_authorization"],
+        true
+    );
+    assert_eq!(
+        evidence["daemon_contract"]["public_routes_reject_admin_token"],
+        true
+    );
+    assert_eq!(evidence["lifecycle"]["secret_output"], false);
+    assert_eq!(evidence["result"], "passed");
+}
+
+#[test]
+fn retained_physical_linux_language_pack_proof_is_non_vacuous() {
+    let root = repository_root();
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(root.join(
+            "docs/fixtures/leserpent_language_pack_local_orchestra_native_aot_linux_x86_64_20260824.json",
+        ))
+        .expect("physical Linux language-pack evidence must exist"),
+    )
+    .expect("physical Linux language-pack evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(
+        evidence["proof"],
+        "leserpent-language-pack-local-orchestra-native-aot-linux-x64"
+    );
+    assert_eq!(evidence["host"]["platform"], "linux-x86_64");
+    assert_eq!(evidence["host"]["target_kind"], "physical");
+    assert_eq!(evidence["host"]["virtualization"], "none");
+    assert_eq!(evidence["package"]["version"], "1.16.0");
+    assert_eq!(evidence["package"]["rid"], "linux-x64");
+    assert_eq!(evidence["package"]["native_aot"], true);
+    for payload in ["avalonia", "leserpentd"] {
+        assert_eq!(
+            evidence["package"][payload]["format"],
+            "ELF 64-bit x86-64"
+        );
+        assert!(
+            evidence["package"][payload]["bytes"]
+                .as_u64()
+                .expect("native payload bytes must be numeric")
+                > 1_000_000
+        );
+        assert_eq!(
+            evidence["package"][payload]["sha256"]
+                .as_str()
+                .expect("native payload digest must be text")
+                .len(),
+            64
+        );
+    }
+
+    let language_pack_root =
+        root.join("apps/leserpent/src/Leserpent/wwwroot/language-packs");
+    assert_eq!(
+        evidence["language_pack_assets"]["catalog_sha256"],
+        sha256_hex(
+            &std::fs::read(language_pack_root.join("catalog.json"))
+                .expect("current language-pack catalog must exist")
+        )
+    );
+    assert_eq!(
+        evidence["language_pack_assets"]["pt_br_sha256"],
+        sha256_hex(
+            &std::fs::read(language_pack_root.join("pt-BR.json"))
+                .expect("current pt-BR language pack must exist")
+        )
+    );
+
+    let roundtrip = &evidence["language_pack_roundtrip"];
+    assert_eq!(roundtrip["source_id"], "local-orchestra");
+    assert_eq!(roundtrip["locale"], "pt-BR");
+    assert_eq!(roundtrip["downloadable_packs"], 22);
+    assert_eq!(roundtrip["core_ui_keys"], 18);
+    for check in [
+        "loopback_tls",
+        "selected_private_ca",
+        "sha256_bound",
+        "locale_bound",
+        "version_bound",
+        "private_store_roundtrip",
+        "installed_pack_removed",
+    ] {
+        assert_eq!(roundtrip[check], true, "missing roundtrip proof {check}");
+    }
+    assert_eq!(roundtrip["authorization_header_sent"], false);
+    assert_eq!(roundtrip["admin_token_header_sent"], false);
+
+    let verifier_assertions = json_string_set(&evidence, "verifier_assertions");
+    assert_eq!(verifier_assertions.len(), 18);
+    for assertion in [
+        "credential_free_language_pack_download",
+        "language_pack_digest_binding",
+        "language_pack_private_roundtrip",
+        "minimal_child_environment",
+        "symlink_rejection",
+        "process_cleanup",
+    ] {
+        assert!(
+            verifier_assertions.contains(assertion),
+            "missing verifier assertion {assertion}"
+        );
+    }
+    for check in [
+        "strict_local_revalidation",
+        "exact_regular_file_inventory",
+        "payload_hash_revalidation",
+        "language_asset_hash_revalidation",
+        "credential_material_rejected",
+    ] {
+        assert_eq!(
+            evidence["remote_validation"][check], true,
+            "missing remote evidence check {check}"
+        );
+    }
+    assert_eq!(evidence["lifecycle"]["secret_output"], false);
+    assert_eq!(evidence["result"], "passed");
+}
+
+#[test]
 fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     let summary = catalog.summary(20);
@@ -4721,13 +4904,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.49.1");
+    assert_eq!(compatibility_control.contract.version, "1.49.2");
     assert!(
         compatibility_control
             .contract
             .surfaces
             .iter()
             .any(|surface| surface == "pending-writer-cold-start-empty-read")
+    );
+    assert!(
+        compatibility_control
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| { surface == "existing-database-private-cache-writer-promotion" })
     );
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/SqliteOrchestraRunStore.cs"
@@ -5172,7 +5362,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.49.1");
+    assert_eq!(compatibility_control.contract.version, "1.49.2");
     assert!(
         compatibility_control
             .next_gate
@@ -5588,7 +5778,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .expect("desktop localization contract must remain tracked");
     assert_eq!(desktop_localization.maturity, Maturity::Incubating);
     assert_eq!(desktop_localization.completion, 99);
-    assert_eq!(desktop_localization.contract.version, "0.14.0");
+    assert_eq!(desktop_localization.contract.version, "0.16.0");
     assert_eq!(desktop_localization.contract.stability, ContractStability::Draft);
     for surface in [
         "thirty-official-locale-identifiers",
@@ -5607,6 +5797,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "explicit-daemon-language-pack-source",
         "saved-ca-bound-language-pack-fetch",
         "credential-free-language-pack-fetch",
+        "daemon-embedded-language-pack-assets",
+        "credential-rejecting-public-language-pack-route",
+        "live-local-orchestra-language-pack-roundtrip",
+        "retained-packaged-macos-language-pack-proof",
+        "physical-linux-local-orchestra-language-pack-proof",
+        "strict-remote-language-pack-evidence-revalidation",
         "same-origin-language-pack-path-fence",
         "catalog-locale-version-digest-binding",
         "private-atomic-language-pack-store",
@@ -5728,7 +5924,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && blocker.summary.contains("18-key core-ui v1 packs")
             && blocker.summary.contains("explicitly selected local or saved daemon")
             && blocker.summary.contains("without sending an admin credential")
+            && blocker.summary.contains("embeds the exact catalog and 22-pack roster")
+            && blocker.summary.contains("reject bearer/admin headers")
+            && blocker.summary.contains("real private-CA TLS download")
             && blocker.summary.contains("digest/locale/version bound")
+            && blocker.summary.contains("physical Linux x86_64 NativeAOT proofs")
+            && blocker.summary.contains("exact regular-file inventory")
+            && blocker.summary.contains("language-asset hashes")
+            && blocker.summary.contains("credential absence")
             && blocker.summary.contains("not catalog-authenticated")
             && blocker.summary.contains("malformed-sibling isolation")
             && blocker.summary.contains("intentionally partial")
@@ -5757,9 +5960,26 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguagePackCatalogClient.cs"
             && evidence.state == EvidenceState::Present
     }));
+    for path in [
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs",
+        "crates/leserpentd/src/language_packs.rs",
+        "crates/leserpentd/src/remote.rs",
+        "apps/leserpent/src/Leserpent/ControlPlane/LanguagePackRequestPolicy.cs",
+        "apps/leserpent/tests/Leserpent.SecurityTests/LanguagePackRequestPolicyTests.cs",
+        "docs/fixtures/leserpent_language_pack_local_orchestra_native_aot_macos_arm64_20260824.json",
+        "src/validation_harness/remote_host.rs",
+        "docs/fixtures/leserpent_language_pack_local_orchestra_native_aot_linux_x86_64_20260824.json",
+    ] {
+        assert!(desktop_localization.evidence.iter().any(|evidence| {
+            evidence.path == path && evidence.state == EvidenceState::Present
+        }));
+    }
     assert!(desktop_localization
         .next_gate
-        .contains("packaged macOS and Linux live-download evidence"));
+        .contains("packaged macOS and physical Linux against a saved remote daemon"));
+    assert!(!desktop_localization
+        .next_gate
+        .contains("physical Linux live-download evidence for Local Orchestra"));
     assert!(desktop_localization
         .next_gate
         .contains("no bearer/admin credential is sent"));

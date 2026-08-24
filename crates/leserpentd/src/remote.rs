@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io::{BufReader, Cursor, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 #[cfg(unix)]
@@ -36,6 +37,7 @@ use crate::daemon_retirement_submission::{
     decode_and_submit as decode_and_submit_daemon_retirement, error as daemon_retirement_error,
 };
 use crate::events::{EventSession, MAX_EVENT_SESSIONS, is_event_upgrade};
+use crate::language_packs::{self, LanguagePackAsset};
 use crate::provisioning_submission::{
     decode_and_submit as decode_and_submit_provisioning, error as provisioning_error,
 };
@@ -374,7 +376,11 @@ impl RemoteServer {
         if cancelled.load(Ordering::Acquire) {
             return Err("remote request cancelled".into());
         }
-        let (status, body) = match request {
+        let (status, body): (HttpStatus, Cow<'static, [u8]>) = match request {
+            Ok(HttpRequest {
+                route: HttpRoute::LanguagePack(asset),
+                ..
+            }) => (HttpStatus::Ok, Cow::Borrowed(asset.payload)),
             Ok(HttpRequest {
                 route: HttpRoute::Wire,
                 body,
@@ -392,7 +398,7 @@ impl RemoteServer {
                 };
                 (
                     HttpStatus::Ok,
-                    encode_response(&response).map_err(|error| error.to_string())?,
+                    Cow::Owned(encode_response(&response).map_err(|error| error.to_string())?),
                 )
             }
             Ok(HttpRequest {
@@ -409,7 +415,9 @@ impl RemoteServer {
                 };
                 (
                     HttpStatus::Ok,
-                    encode_bootstrap_response(&response).map_err(|error| error.to_string())?,
+                    Cow::Owned(
+                        encode_bootstrap_response(&response).map_err(|error| error.to_string())?,
+                    ),
                 )
             }
             Ok(HttpRequest {
@@ -430,7 +438,10 @@ impl RemoteServer {
                 };
                 (
                     HttpStatus::Ok,
-                    encode_provisioning_response(&response).map_err(|error| error.to_string())?,
+                    Cow::Owned(
+                        encode_provisioning_response(&response)
+                            .map_err(|error| error.to_string())?,
+                    ),
                 )
             }
             Ok(HttpRequest {
@@ -451,7 +462,9 @@ impl RemoteServer {
                 };
                 (
                     HttpStatus::Ok,
-                    encode_retirement_response(&response).map_err(|error| error.to_string())?,
+                    Cow::Owned(
+                        encode_retirement_response(&response).map_err(|error| error.to_string())?,
+                    ),
                 )
             }
             Ok(HttpRequest {
@@ -472,8 +485,10 @@ impl RemoteServer {
                 };
                 (
                     HttpStatus::Ok,
-                    encode_daemon_retirement_response(&response)
-                        .map_err(|error| error.to_string())?,
+                    Cow::Owned(
+                        encode_daemon_retirement_response(&response)
+                            .map_err(|error| error.to_string())?,
+                    ),
                 )
             }
             Ok(HttpRequest {
@@ -489,8 +504,10 @@ impl RemoteServer {
                 };
                 (
                     HttpStatus::Ok,
-                    encode_leselang_export_response(&response)
-                        .map_err(|error| error.message().to_string())?,
+                    Cow::Owned(
+                        encode_leselang_export_response(&response)
+                            .map_err(|error| error.message().to_string())?,
+                    ),
                 )
             }
             Err(error) => {
@@ -523,7 +540,7 @@ impl RemoteServer {
                     encode_response(&error_response(error.code, error.message))
                         .map_err(|error| error.to_string())?
                 };
-                (error.status, body)
+                (error.status, Cow::Owned(body))
             }
         };
         if cancelled.load(Ordering::Acquire) {
@@ -614,6 +631,7 @@ struct HttpError {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum HttpRoute {
+    LanguagePack(LanguagePackAsset),
     Wire,
     Bootstrap,
     Provisioning,
@@ -693,6 +711,7 @@ fn read_http_request(
     }
 
     let mut authorization = None;
+    let mut admin_token = false;
     let mut content_length = None;
     let mut content_type = None;
     let mut writer_id = None;
@@ -708,6 +727,8 @@ fn read_http_request(
             if authorization.replace(value).is_some() {
                 return Err(HttpError::bad_request());
             }
+        } else if name.eq_ignore_ascii_case("x-leserpent-admin-token") {
+            admin_token = true;
         } else if name.eq_ignore_ascii_case("content-length") {
             if content_length.replace(value).is_some() {
                 return Err(HttpError::bad_request());
@@ -727,6 +748,41 @@ fn read_http_request(
         } else if name.eq_ignore_ascii_case("transfer-encoding") {
             return Err(HttpError::bad_request());
         }
+    }
+
+    if parts[1].starts_with("/language-packs/") {
+        if authorization.is_some() || admin_token {
+            return Err(HttpError {
+                status: HttpStatus::BadRequest,
+                code: "language_pack_credentials_forbidden",
+                message: "public language-pack requests must not carry credentials",
+            });
+        }
+        if parts[0] != "GET" {
+            return Err(HttpError {
+                status: HttpStatus::MethodNotAllowed,
+                code: "method_not_allowed",
+                message: "language-pack endpoints require GET",
+            });
+        }
+        if content_type.is_some()
+            || writer_id.is_some()
+            || writer_generation.is_some()
+            || content_length.is_some_and(|value| value != "0")
+            || bytes.len() != header_end
+        {
+            return Err(HttpError::bad_request());
+        }
+        let asset = language_packs::find(parts[1]).ok_or(HttpError {
+            status: HttpStatus::NotFound,
+            code: "not_found",
+            message: "language pack was not found",
+        })?;
+        return Ok(HttpRequest {
+            route: HttpRoute::LanguagePack(asset),
+            body: Vec::new(),
+            writer_fence: None,
+        });
     }
 
     let supplied_token = authorization
@@ -782,6 +838,7 @@ fn read_http_request(
         .parse::<usize>()
         .map_err(|_| HttpError::bad_request())?;
     let limit = match route {
+        HttpRoute::LanguagePack(_) => unreachable!("language packs return before body parsing"),
         HttpRoute::Wire => MAX_PROTOCOL_MESSAGE_BYTES,
         HttpRoute::Bootstrap => MAX_BOOTSTRAP_PROTOCOL_BYTES,
         HttpRoute::Provisioning => MAX_PROVISIONING_PROTOCOL_BYTES,
@@ -1067,6 +1124,13 @@ mod tests {
         .bytes()
         .chain(body.iter().copied())
             .collect()
+    }
+
+    fn language_pack_request(path: &str, extra_headers: &str) -> Vec<u8> {
+        format!(
+            "GET {path} HTTP/1.1\r\nHost: localhost\r\nAccept: application/json\r\n{extra_headers}\r\n"
+        )
+        .into_bytes()
     }
 
     fn read_response(stream: &mut impl Read) -> Vec<u8> {
@@ -1531,6 +1595,60 @@ mod tests {
             .status,
             HttpStatus::PayloadTooLarge
         ));
+    }
+
+    #[test]
+    fn language_pack_routes_are_exact_public_gets_and_reject_credentials() {
+        let catalog = read_http_request(
+            &mut Cursor::new(language_pack_request(
+                "/language-packs/catalog.json",
+                "Cache-Control: no-cache\r\n",
+            )),
+            TOKEN.as_bytes(),
+        )
+        .unwrap();
+        assert!(matches!(catalog.route, HttpRoute::LanguagePack(_)));
+        assert!(catalog.body.is_empty());
+        assert_eq!(catalog.writer_fence, None);
+        let HttpRoute::LanguagePack(catalog_asset) = catalog.route else {
+            unreachable!();
+        };
+        assert_eq!(
+            catalog_asset,
+            language_packs::find("/language-packs/catalog.json").unwrap()
+        );
+
+        let pack = read_http_request(
+            &mut Cursor::new(language_pack_request("/language-packs/pt-BR.json", "")),
+            TOKEN.as_bytes(),
+        )
+        .unwrap();
+        assert!(matches!(pack.route, HttpRoute::LanguagePack(_)));
+
+        for header in [
+            format!("Authorization: Bearer {TOKEN}\r\n"),
+            "X-Leserpent-Admin-Token: secret\r\n".to_string(),
+        ] {
+            let error = read_http_request(
+                &mut Cursor::new(language_pack_request(
+                    "/language-packs/catalog.json",
+                    &header,
+                )),
+                TOKEN.as_bytes(),
+            )
+            .unwrap_err();
+            assert!(matches!(error.status, HttpStatus::BadRequest));
+            assert_eq!(error.code, "language_pack_credentials_forbidden");
+        }
+
+        for request in [
+            language_pack_request("/language-packs/en.json", ""),
+            b"POST /language-packs/catalog.json HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n".to_vec(),
+            b"GET /language-packs/catalog.json?cache=false HTTP/1.1\r\nHost: localhost\r\n\r\n".to_vec(),
+            b"GET /language-packs/catalog.json HTTP/1.1\r\nHost: localhost\r\nContent-Length: 1\r\n\r\nx".to_vec(),
+        ] {
+            assert!(read_http_request(&mut Cursor::new(request), TOKEN.as_bytes()).is_err());
+        }
     }
 
     #[test]

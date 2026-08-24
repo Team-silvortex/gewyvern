@@ -859,7 +859,7 @@ mod tests {
     #[test]
     fn credential_handles_cannot_be_raw_secrets() {
         assert_eq!(
-            CredentialHandle::new("print123"),
+            CredentialHandle::new("test-only-raw-secret"),
             Err(BootstrapError::InvalidCredentialHandle)
         );
         assert!(CredentialHandle::new("vault:ssh:host-example").is_ok());

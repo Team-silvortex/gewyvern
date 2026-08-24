@@ -52,6 +52,7 @@ pub use ipc::IpcServer;
 mod remote;
 pub use remote::{RemoteServer, load_remote_token_file};
 mod events;
+mod language_packs;
 mod wire;
 pub use wire::BootstrapSessionVerifier;
 

@@ -821,7 +821,9 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
             Mode = writable
                 ? SqliteOpenMode.ReadWriteCreate
                 : SqliteOpenMode.ReadOnly,
-            Cache = SqliteCacheMode.Shared,
+            // A follower's read-only pager must not survive writer promotion
+            // through SQLite's process-wide shared cache.
+            Cache = SqliteCacheMode.Private,
             Pooling = true,
         }.ToString();
         var connection = new SqliteConnection(connectionString);

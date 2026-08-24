@@ -28,10 +28,6 @@ pub fn run_socket_roundtrip_demo(
 ) -> Result<ValidationReport, ValidationError> {
     let socket_kind = socket_kind.unwrap_or("unix");
     let template = template.unwrap_or("udp");
-    let out_dir = default_out_dir("socket-roundtrip-demo");
-    prepare_dir(&out_dir)?;
-    build_socket_binaries(&out_dir)?;
-
     let socket_target = match socket_kind {
         "unix" => {
             let default_socket = default_demo_socket_path()?;
@@ -52,6 +48,9 @@ pub fn run_socket_roundtrip_demo(
             "unsupported socket kind: {other}"
         ))),
     };
+    let out_dir = default_out_dir("socket-roundtrip-demo");
+    prepare_dir(&out_dir)?;
+    build_socket_binaries(&out_dir)?;
     let output_path = output_path.unwrap_or_else(|| out_dir.join("socket-output.json"));
     if let Some(parent) = output_path.parent() {
         fs::create_dir_all(parent)?;

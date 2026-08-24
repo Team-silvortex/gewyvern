@@ -558,6 +558,35 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
                 throw new InvalidDataException(
                     "local orchestra health and topology did not compose into live authority state");
             }
+
+            var languagePackRoot = Path.Combine(root, "language-packs");
+            using (var catalogClient = new DesktopLanguagePackCatalogClient(
+                DesktopLanguagePackSource.FromLocal(plan)))
+            {
+                var download = catalogClient.DownloadAsync("pt-BR")
+                    .GetAwaiter().GetResult();
+                var languagePackStore = new DesktopLanguagePackStore(languagePackRoot);
+                var installed = languagePackStore.Install(
+                    download.Payload,
+                    download.Sha256,
+                    download.Locale,
+                    download.Version);
+                var snapshot = languagePackStore.LoadAll();
+                if (download.SourceId != "local-orchestra"
+                    || installed.Manifest.Locale != "pt-BR"
+                    || snapshot.Packs.Count != 1
+                    || snapshot.RejectedFiles.Count != 0)
+                {
+                    throw new InvalidDataException(
+                        "local orchestra language-pack download did not round-trip");
+                }
+                languagePackStore.Remove(download.Locale);
+                if (languagePackStore.LoadAll().Packs.Count != 0)
+                {
+                    throw new InvalidDataException(
+                        "local orchestra language-pack verification did not clean its store");
+                }
+            }
             if (!OperatingSystem.IsWindows())
             {
                 var privateFileMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;

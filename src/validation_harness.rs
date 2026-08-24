@@ -58,6 +58,7 @@ pub use release_gate::{
 pub use remote_host::{
     DEFAULT_REMOTE_LINUX_HOST, RemoteLinuxHostOptions, RemoteLinuxTargetKind,
     run_remote_linux_host_validation, validate_leserpent_control_plane_aot_evidence,
+    validate_leserpent_language_pack_local_orchestra_aot_evidence,
 };
 pub use resilience::{
     run_resilience_bundle_validation, run_resilience_drive_bad_json_validation,

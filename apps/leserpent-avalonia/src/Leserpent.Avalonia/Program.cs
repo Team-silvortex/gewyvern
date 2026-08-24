@@ -175,7 +175,7 @@ internal static class Program
         {
             LocalOrchestraServiceSupervisor.VerifyContract(daemonPath);
             Console.WriteLine(
-                "local orchestra valid: rust_daemon=true, loopback_tls=true, ephemeral_token=true, owned_authority=true, runtime_topology_query=true, health_topology_composition=true, authority_bound_live_state=true, private_files=true, minimal_child_environment=true, optional_bootstrap_origin=true, optional_gewyvern_provisioning_origin=true, private_bootstrap_trust=true, package_local_daemon=true, symlink_rejection=true, process_cleanup=true");
+                "local orchestra valid: rust_daemon=true, loopback_tls=true, ephemeral_token=true, owned_authority=true, runtime_topology_query=true, health_topology_composition=true, authority_bound_live_state=true, credential_free_language_pack_download=true, language_pack_digest_binding=true, language_pack_private_roundtrip=true, private_files=true, minimal_child_environment=true, optional_bootstrap_origin=true, optional_gewyvern_provisioning_origin=true, private_bootstrap_trust=true, package_local_daemon=true, symlink_rejection=true, process_cleanup=true");
             return 0;
         }
         if (args is ["--verify-connection-maintenance"])

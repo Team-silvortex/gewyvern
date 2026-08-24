@@ -33,7 +33,7 @@ Web 语言包仅保存在当前浏览器的 `localStorage`，不会上传到 Les
 - 选择 `Download selected`，从该 daemon 的同源 `/language-packs/catalog.json` 下载并安装。
 - 无网络时仍可用 `Install JSON...` 导入本地文件，也可随时 `Remove pack`。
 
-Desktop 下载只复用连接配置中的 HTTPS origin 与已保存 CA，不解析或读取该 daemon 的管理 token，也不会发送 bearer 或 `X-Leserpent-Admin-Token`。catalog 限制为 128 KiB，pack 限制为 256 KiB；禁止重定向、跨源 URL、catalog 外 locale，以及 digest、locale、version 不一致。窗口关闭会取消请求，同一窗口一次只允许一个语言包操作。
+Desktop 下载只复用连接配置中的 HTTPS origin 与已保存 CA，不解析或读取该 daemon 的管理 token，也不会发送 bearer 或 `X-Leserpent-Admin-Token`。Rust `leserpentd` 直接内嵌并提供同一份 catalog 与 22 个 pack；这些公开 GET 路由会反向拒绝任何 bearer/admin header，因此成功下载同时证明客户端没有把控制面凭证带入公开内容域。托管 Web host 对同一路径执行相同拒绝策略。catalog 限制为 128 KiB，pack 限制为 256 KiB；禁止重定向、跨源 URL、catalog 外 locale，以及 digest、locale、version 不一致。窗口关闭会取消请求，同一窗口一次只允许一个语言包操作。
 
 Desktop 将通过校验的 pack 原子写入当前用户的私有 `language-packs-v1` 目录。它不写入控制面状态，也不会在 daemon 间同步。catalog 下载拥有来源 CA、同源路径和 SHA-256 绑定；本地 JSON 导入只拥有结构与资源边界校验，不宣称 catalog 身份。
 
@@ -88,6 +88,7 @@ Desktop 将通过校验的 pack 原子写入当前用户的私有 `language-pack
 - 下载包 locale/version 必须匹配 catalog 条目
 - Native Desktop catalog 必须完整覆盖固定的 8 built-in + 22 downloadable roster
 - Native Desktop 下载仅使用显式选择的 daemon origin 与 CA，且不发送管理凭证
+- Rust daemon 与托管 Web host 都拒绝公开语言包请求携带 `Authorization` 或 `X-Leserpent-Admin-Token`
 
 Leserpent 不接受任意远程语言包 URL，也不会由服务端代替浏览器抓取第三方地址。这样可以避免 SSRF，并把远程供应链边界限制在随 Leserpent 发布的同源静态 catalog。
 
@@ -145,6 +146,10 @@ catalog 使用：
   - Native Desktop 的无凭证 CA-bound catalog 下载、严格解码和 SHA-256 校验
 - `apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguagePackStore.cs`
   - Native Desktop 的 locale/version/digest 绑定与私有原子存储
+- `crates/leserpentd/src/language_packs.rs` 与 `crates/leserpentd/src/remote.rs`
+  - Rust daemon 的编译期资产白名单、公开 GET 路由和凭证域隔离
+- `src/Leserpent/ControlPlane/LanguagePackRequestPolicy.cs`
+  - 托管 Web host 对公开语言包路径执行相同的凭证拒绝策略
 - `scripts/build-language-packs.mjs`
   - 30-locale roster 中 22 个下载包的翻译源、pack 生成与 digest catalog
 
@@ -160,6 +165,18 @@ dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Av
 ```
 
 该命令逐包执行 catalog SHA-256、locale/version、18-key contract 和 Desktop 私有存储 roundtrip，不发起网络请求。
+
+本地 Orchestra 的真实 TLS 路径可用同一个桌面二进制验证：
+
+```bash
+cargo build -p leserpentd --features native-ssh
+dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- \
+  --verify-local-orchestra target/debug/leserpentd
+```
+
+该验证启动真实 Rust daemon，经私有 CA 下载 `pt-BR` catalog entry 与 pack，完成 digest/locale/version 绑定、私有安装、读取和清理。daemon 会拒绝带认证头的公开请求，因此成功往返也是无 bearer/admin header 的端到端证明。
+
+2026-08-24 的 macOS arm64 发布验证进一步从 ad-hoc 签名的 `1.16.0` NativeAOT `.app` 内运行客户端与 daemon；机器可读证据保存在 `docs/fixtures/leserpent_language_pack_local_orchestra_native_aot_macos_arm64_20260824.json`。同日的 physical Linux x86_64 验证通过远程门禁执行锁定 NativeAOT 构建和同一套真实往返，本地再严格复核文件清单、ELF/资产摘要、18 项 verifier 断言与凭证缺失；证据保存在 `docs/fixtures/leserpent_language_pack_local_orchestra_native_aot_linux_x86_64_20260824.json`。当前只剩 packaged macOS/Linux 对 saved remote daemon 的独立证明，以及翻译审阅与长尾扩展。
 
 ## Validation Checklist
 

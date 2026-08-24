@@ -30,6 +30,7 @@ use gewyvern::validation_harness::{
     run_runtime_lifecycle_validation, run_runtime_operator_validation, run_socket_roundtrip_demo,
     run_three_module_stack_smoke, run_training_dataset_roundtrip_demo, set_validation_json_mode,
     validate_leserpent_control_plane_aot_evidence,
+    validate_leserpent_language_pack_local_orchestra_aot_evidence,
 };
 
 const TOP_LEVEL_COMMANDS: &[&str] = &[
@@ -2172,6 +2173,7 @@ fn remote_linux_host_summary_value(
             "remote_linux_target_check",
             "remote_package_build",
             "remote_leserpent_control_plane_aot",
+            "remote_leserpent_language_pack_local_orchestra_aot",
             "remote_artifact_verify",
             "remote_package_smoke",
             "remote_runtime_smoke",
@@ -2193,6 +2195,18 @@ fn remote_linux_host_summary_value(
     if aot_evidence_covered {
         validate_leserpent_control_plane_aot_evidence(
             &out_dir.join("leserpent-control-plane-aot-linux-x64"),
+        )?;
+    }
+    let language_pack_evidence_covered = run.get("checks").is_some_and(|checks| {
+        checks
+            .split(',')
+            .any(|check| check == "remote_leserpent_language_pack_local_orchestra_aot")
+    });
+    if language_pack_evidence_covered {
+        validate_leserpent_language_pack_local_orchestra_aot_evidence(
+            &out_dir.join(
+                "leserpent-language-pack-local-orchestra-native-aot-linux-x64",
+            ),
         )?;
     }
     let package_build_timings = if build_packages_enabled {
@@ -2294,6 +2308,12 @@ fn remote_linux_host_summary_value(
     if aot_evidence_covered {
         summary.insert(
             "leserpent_control_plane_aot_evidence_validated".to_string(),
+            json!(true),
+        );
+    }
+    if language_pack_evidence_covered {
+        summary.insert(
+            "leserpent_language_pack_local_orchestra_aot_evidence_validated".to_string(),
             json!(true),
         );
     }
@@ -2537,6 +2557,7 @@ fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
     const WORKSPACE_SYNC_BUDGET_SECONDS: f64 = 8.0;
     const REMOTE_PACKAGE_BUILD_BUDGET_SECONDS: f64 = 20.0;
     const REMOTE_LESERPENT_CONTROL_PLANE_AOT_BUDGET_SECONDS: f64 = 120.0;
+    const REMOTE_LESERPENT_LANGUAGE_PACK_AOT_BUDGET_SECONDS: f64 = 120.0;
     const REMOTE_PACKAGE_SMOKE_BUDGET_SECONDS: f64 = 2.0;
     const REMOTE_RUNTIME_SMOKE_BUDGET_SECONDS: f64 = 3.0;
     const REMOTE_EBPF_VALIDATOR_BUILD_BUDGET_SECONDS: f64 = 20.0;
@@ -2553,6 +2574,9 @@ fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
                 "remote_package_build" => Some(REMOTE_PACKAGE_BUILD_BUDGET_SECONDS),
                 "remote_leserpent_control_plane_aot" => {
                     Some(REMOTE_LESERPENT_CONTROL_PLANE_AOT_BUDGET_SECONDS)
+                }
+                "remote_leserpent_language_pack_local_orchestra_aot" => {
+                    Some(REMOTE_LESERPENT_LANGUAGE_PACK_AOT_BUDGET_SECONDS)
                 }
                 "remote_package_smoke" => Some(REMOTE_PACKAGE_SMOKE_BUDGET_SECONDS),
                 "remote_runtime_smoke" => Some(REMOTE_RUNTIME_SMOKE_BUDGET_SECONDS),

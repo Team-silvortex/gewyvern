@@ -132,6 +132,20 @@ public partial class Program
         app.UseHttpsRedirection();
         app.Use(async (context, next) =>
         {
+            if (!LanguagePackRequestPolicy.TryAccept(context.Request, out var payload))
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                await context.Response.WriteAsJsonAsync(
+                    payload,
+                    LeserpentJsonContext.Default.ApiErrorResponse,
+                    cancellationToken: context.RequestAborted);
+                return;
+            }
+
+            await next();
+        });
+        app.Use(async (context, next) =>
+        {
             var security = context.RequestServices.GetRequiredService<ControlPlaneSecurityPolicy>();
             if (!security.TryAuthorize(context, out var statusCode, out var payload))
             {

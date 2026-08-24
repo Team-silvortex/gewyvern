@@ -260,7 +260,8 @@ mod tests {
     #[test]
     fn unknown_secret_fields_and_raw_secret_handles_are_rejected() {
         let mut value = serde_json::to_value(request()).unwrap();
-        value["request"]["intent"]["password"] = serde_json::Value::String("print123".into());
+        value["request"]["intent"]["password"] =
+            serde_json::Value::String("test-only-raw-secret".into());
         assert!(matches!(
             decode_bootstrap_request(&serde_json::to_vec(&value).unwrap()),
             Err(BootstrapCodecError::InvalidJson(message)) if message.contains("unknown field")
@@ -268,7 +269,7 @@ mod tests {
 
         let mut value = serde_json::to_value(request()).unwrap();
         value["request"]["intent"]["credential_handle"] =
-            serde_json::Value::String("print123".into());
+            serde_json::Value::String("test-only-raw-secret".into());
         assert!(matches!(
             decode_bootstrap_request(&serde_json::to_vec(&value).unwrap()),
             Err(BootstrapCodecError::InvalidJson(message))

@@ -270,9 +270,23 @@ redirects, accepts only bounded JSON under the same `/language-packs/` origin,
 strictly validates the complete v1 catalog, verifies SHA-256 before returning
 bytes, and binds locale plus version again before atomic installation. Closing
 the window cancels the request, and a single-operation fence prevents download,
-import, remove, or preference changes from racing. The six candidate built-in translations
-still need native-speaker review, and all 22 packs remain intentionally partial
-beyond their reviewed core-ui keys.
+import, remove, or preference changes from racing. The Rust daemon embeds that
+exact catalog and fixed 22-pack roster and exposes
+only exact public GET paths. Its parser rejects bearer or admin-token headers on
+the public content route while retaining mandatory bearer authentication for
+`/v1/*`; the managed Web host mirrors the same credential-domain fence. The
+Local Orchestra verifier now traverses real loopback TLS through the native
+catalog client, digest/locale/version-bound private installation, load, removal,
+and daemon restart rather than relying only on an injected HTTP handler.
+Retained 2026-08-24 packaged macOS arm64 and physical Linux x86_64 NativeAOT
+proofs execute that same package-owned client/daemon boundary. The Linux remote
+stage synchronizes only a fixed evidence inventory and then revalidates regular
+file types, exact index schema, verifier assertions, native payload hashes,
+current catalog/`pt-BR` hashes, and credential absence on the invoking host.
+Saved remote-daemon authority selection remains the only unproven network
+variant of this language-pack path.
+The six candidate built-in translations still need native-speaker review, and
+all 22 packs remain intentionally partial beyond their reviewed core-ui keys.
 Arabic, Hebrew, and Persian switch the inherited Avalonia flow direction to RTL.
 
 Cross-authority refresh admission is frontend-independent. The shared remote

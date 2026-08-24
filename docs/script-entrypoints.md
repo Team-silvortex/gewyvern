@@ -215,8 +215,13 @@ With remote builds enabled, it also publishes the Leserpent control-plane
 NativeAOT bundle for `linux-x64`, verifies the ELF payload inventory, and runs
 the compiled service through health, registration-plan, token-bound
 registration, and unified recovery requests. The proof fails if the pairing
-secret reaches either the runtime state file or SQLite database. `--skip-build`
-skips this NativeAOT phase together with package construction.
+secret reaches either the runtime state file or SQLite database. It then
+publishes the Avalonia `linux-x64` NativeAOT client, bundles the current Rust
+`leserpentd`, and runs the real Local Orchestra language-pack verifier through
+private-CA loopback TLS. That proof downloads `pt-BR` without bearer/admin
+headers, binds catalog digest/locale/version, performs the private
+install/load/remove roundtrip, and proves daemon cleanup plus immediate restart.
+`--skip-build` skips both NativeAOT phases together with package construction.
 After rsync, the Rust harness strictly revalidates the synchronized evidence:
 the bounded index and exact file inventory, regular non-symlink file types,
 health and token shapes, recovery semantics, attention action, payload hash
@@ -227,8 +232,12 @@ Rust validator independently parses their formats and scans every synchronized
 artifact for the proof pairing secret.
 Both the regular CLI summary and the combined release gate repeat this strict
 validation at evidence-consumption time. Current JSON summaries expose
-`leserpent_control_plane_aot_evidence_validated=true`; replacing the shelf
-between the remote run and summary rendering therefore fails closed.
+`leserpent_control_plane_aot_evidence_validated=true` and
+`leserpent_language_pack_local_orchestra_aot_evidence_validated=true`;
+replacing either shelf between the remote run and summary rendering therefore
+fails closed. The language-pack validator also recomputes the current local
+catalog and `pt-BR` asset hashes, so stale synchronized content cannot satisfy
+the gate.
 Before the release build it runs a cached Linux
 `cargo check --workspace --all-targets` over the filtered workspace, catching
 target-specific library, binary, example, benchmark, and inline-test compile
@@ -345,6 +354,7 @@ Evidence written locally:
 - `target/validation/remote-linux-host-validation/remote-ebpf.txt`
 - `target/validation/remote-linux-host-validation/remote-ebpf/`
 - `target/validation/remote-linux-host-validation/leserpent-control-plane-aot-linux-x64/`
+- `target/validation/remote-linux-host-validation/leserpent-language-pack-local-orchestra-native-aot-linux-x64/`
 - `target/validation/remote-linux-host-validation/remote-phase-timings.txt`
 - `target/validation/remote-linux-host-validation/remote-run.txt`
 - `target/validation/remote-linux-host-validation/remote-ebpf-history.jsonl`
@@ -362,7 +372,8 @@ under `target/validation/remote-workspace-sync-cache/{physical,vm}.txt`.
 The phase-timing file records the observed wall-clock time for each major
 remote validation step so we can tell whether regressions come from sync,
 materialization, build, the Leserpent control-plane NativeAOT proof, package
-smoke, runtime smoke, or the privileged eBPF attach path.
+smoke, the Avalonia Local Orchestra language-pack NativeAOT proof, runtime
+smoke, or the privileged eBPF attach path.
 Remote build/package/runtime subphase timing files are mandatory after their
 corresponding successful stage. They use the shared bounded unique-key parser,
 accept only known phases and finite non-negative values up to 24 hours, and
@@ -455,6 +466,8 @@ The `extra` object for this command now includes structured fields such as:
 - `target_cache`
 - `build_packages_enabled`
 - `keep_remote_dir`
+- `leserpent_control_plane_aot_evidence_validated`
+- `leserpent_language_pack_local_orchestra_aot_evidence_validated`
 - `remote_checks`
 - `preflight`
 - `ebpf`
@@ -940,11 +953,12 @@ The artifact index uses schema v2. JSON and text carry the same bounded
 the machine commit point. Missing or mismatched IDs are a torn publication and
 must fail closed.
 
-When the remote Linux stage covers the Leserpent control-plane NativeAOT
-proof, the index includes a dedicated
-`remote_leserpent_control_plane_aot` high-signal artifact. Its `present` status
-is tied to the current release-gate check after strict local revalidation; an
-older directory on disk cannot promote a skipped stage.
+When the remote Linux stage covers the Leserpent control-plane and Local
+Orchestra language-pack NativeAOT proofs, the index includes dedicated
+`remote_leserpent_control_plane_aot` and
+`remote_leserpent_language_pack_local_orchestra_aot` high-signal artifacts.
+Their `present` status is tied to the current release-gate checks after strict
+local revalidation; an older directory on disk cannot promote a skipped stage.
 
 Use those two companion files as the compact directory-level index of which
 release-facing evidence shelves are currently present under `target/validation/`,

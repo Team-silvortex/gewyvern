@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "proof": "leserpent-language-pack-local-orchestra-native-aot-linux-x64",
+  "captured_at_utc": "2026-08-24T03:43:34Z",
+  "scope": "physical-linux-nativeaot-local-orchestra-language-pack",
+  "host": {
+    "platform": "linux-x86_64",
+    "target_kind": "physical",
+    "kernel": "7.0.0-28-generic",
+    "virtualization": "none"
+  },
+  "toolchain": {
+    "dotnet_sdk": "10.0.111",
+    "rustc": "1.95.0",
+    "cargo": "1.95.0"
+  },
+  "package": {
+    "version": "1.16.0",
+    "rid": "linux-x64",
+    "native_aot": true,
+    "avalonia": {
+      "format": "ELF 64-bit x86-64",
+      "bytes": 32395648,
+      "sha256": "c1a4ab19319759d304ac010f90ba3f9fcc9bbc289632f2a31e7edcc6412dbf93"
+    },
+    "leserpentd": {
+      "format": "ELF 64-bit x86-64",
+      "bytes": 14705840,
+      "sha256": "cb20bc4095d5f984afe32be542981351496df4a5c70e1a4404e78c9d93f7196d"
+    }
+  },
+  "language_pack_assets": {
+    "catalog_sha256": "fd7c1763119c93ad4432fdcf66b78bac6a51d5554c139f5178d47ecfb27012d6",
+    "pt_br_sha256": "eed6c81714c09f2fc2c7a0b67504947be598ef93bc791b93a9e9378fe69873a2"
+  },
+  "language_pack_roundtrip": {
+    "source_id": "local-orchestra",
+    "locale": "pt-BR",
+    "catalog_schema": "leserpent.language-pack-catalog/v1",
+    "pack_schema": "leserpent.language-pack/v1",
+    "official_locales": 30,
+    "downloadable_packs": 22,
+    "core_ui_keys": 18,
+    "loopback_tls": true,
+    "selected_private_ca": true,
+    "authorization_header_sent": false,
+    "admin_token_header_sent": false,
+    "sha256_bound": true,
+    "locale_bound": true,
+    "version_bound": true,
+    "private_store_roundtrip": true,
+    "installed_pack_removed": true
+  },
+  "daemon_contract": {
+    "embedded_catalog": true,
+    "embedded_pack_count": 22,
+    "public_routes_get_only": true,
+    "public_routes_reject_authorization": true,
+    "public_routes_reject_admin_token": true,
+    "authenticated_v1_routes_preserved": true
+  },
+  "lifecycle": {
+    "ephemeral_process_token": true,
+    "authority_owned": true,
+    "private_files": true,
+    "minimal_child_environment": true,
+    "sigterm_first_cleanup": true,
+    "immediate_restart": true,
+    "secret_output": false
+  },
+  "remote_validation": {
+    "strict_local_revalidation": true,
+    "exact_regular_file_inventory": true,
+    "payload_hash_revalidation": true,
+    "language_asset_hash_revalidation": true,
+    "credential_material_rejected": true,
+    "phase_seconds": 135.873,
+    "total_seconds": 230.332
+  },
+  "verifier_assertions": [
+    "rust_daemon",
+    "loopback_tls",
+    "ephemeral_token",
+    "owned_authority",
+    "runtime_topology_query",
+    "health_topology_composition",
+    "authority_bound_live_state",
+    "credential_free_language_pack_download",
+    "language_pack_digest_binding",
+    "language_pack_private_roundtrip",
+    "private_files",
+    "minimal_child_environment",
+    "optional_bootstrap_origin",
+    "optional_gewyvern_provisioning_origin",
+    "private_bootstrap_trust",
+    "package_local_daemon",
+    "symlink_rejection",
+    "process_cleanup"
+  ],
+  "checks": [
+    "physical-host-preflight",
+    "locked-native-aot-restore",
+    "native-aot-publish",
+    "current-rust-daemon-bundled",
+    "elf-x86-64-payload-validation",
+    "packaged-native-client-live-download",
+    "private-ca-loopback-tls",
+    "credential-free-public-content-request",
+    "catalog-digest-locale-version-binding",
+    "private-install-load-remove-roundtrip",
+    "daemon-cleanup-and-immediate-restart",
+    "strict-local-evidence-revalidation"
+  ],
+  "remaining": [
+    "saved-remote-daemon-language-pack-proof",
+    "native-speaker-review-and-pack-expansion"
+  ],
+  "result": "passed"
+}

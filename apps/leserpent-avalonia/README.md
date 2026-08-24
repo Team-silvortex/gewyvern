@@ -294,6 +294,10 @@ Orchestra or a saved daemon, then `Download selected` uses only that HTTPS
 origin and its saved CA. The read-only content client never loads or sends the
 daemon bearer/admin credential, rejects redirects and cross-origin paths, caps
 catalog responses at 128 KiB, and requires a strict complete v1 catalog.
+The Rust daemon embeds the exact catalog and pack roster behind public GET-only
+routes that reject `Authorization` and `X-Leserpent-Admin-Token`; the managed
+Web host applies the same credential-domain fence. A successful native download
+therefore proves that no control-plane credential crossed into content fetches.
 Desktop consumes the same `leserpent.language-pack/v1`
 format and exact 18-key `core-ui` baseline as Web. It rejects built-in-locale
 replacement, unofficial or mismatched metadata, duplicate JSON properties,
@@ -1043,7 +1047,8 @@ active remote catalog plus the local authority instead of treating trust as a
 single global slot.
 The supervisor sends SIGTERM first so Rust releases its journal lease, then uses
 a bounded forced-shutdown fallback. Verify the complete start, health,
-shutdown, and immediate-restart path with:
+credential-free language-pack download/install/remove roundtrip, shutdown, and
+immediate-restart path with:
 
 ```bash
 cargo build -p leserpentd --features native-ssh
@@ -1051,6 +1056,15 @@ dotnet run --project \
   apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj \
   -- --verify-local-orchestra target/debug/leserpentd
 ```
+
+The 2026-08-24 packaged macOS arm64 and physical Linux x86_64 NativeAOT
+campaigns retain this exact live-download path. The Linux remote gate validates
+the bounded regular-file shelf again on the invoking host, recomputes both
+native payload and current language-asset hashes, requires all 18 verifier
+assertions, and rejects synchronized credentials or private keys. The retained
+fixtures live at
+`docs/fixtures/leserpent_language_pack_local_orchestra_native_aot_{macos_arm64,linux_x86_64}_20260824.json`.
+Saved remote-daemon coverage remains a separate authority-selection gate.
 
 Daemon resolution fails closed to the executable beside the app; development
 overrides must name an explicit regular executable and never fall back to

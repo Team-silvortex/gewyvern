@@ -13,6 +13,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use ring::digest::{SHA256, digest};
 use serde_json::json;
 
 use super::command::{
@@ -305,6 +306,43 @@ pub fn run_remote_linux_host_validation(
                 &out_dir.join("leserpent-control-plane-aot-linux-x64"),
             )?;
             checks.push("remote_leserpent_control_plane_aot".to_string());
+
+            validation_log("[remote-host] ----------------------------------------");
+            validation_log(
+                "[remote-host] proving packaged Leserpent Local Orchestra language packs",
+            );
+            measure_phase(
+                &mut phase_timings,
+                "remote_leserpent_language_pack_local_orchestra_aot",
+                || {
+                    run_ssh_script(
+                        admin_auth.as_ref(),
+                        &options.host,
+                        &format!(
+                            "cd -- {validation_workspace_quoted} && CARGO_TARGET_DIR={target_dir} bash -s"
+                        ),
+                        REMOTE_LESERPENT_LANGUAGE_PACK_LOCAL_ORCHESTRA_AOT_SCRIPT,
+                        "remote Leserpent Local Orchestra language-pack NativeAOT proof failed",
+                    )
+                },
+            )?;
+            sync_remote_validation_evidence(
+                admin_auth.as_ref(),
+                &options.host,
+                &validation_workspace,
+                &preflight.home_dir,
+                &out_dir,
+                "target/packages/leserpent-language-pack-local-orchestra-native-aot-linux-x64",
+                "leserpent-language-pack-local-orchestra-native-aot-linux-x64",
+            )?;
+            validate_leserpent_language_pack_local_orchestra_aot_evidence(
+                &out_dir.join(
+                    "leserpent-language-pack-local-orchestra-native-aot-linux-x64",
+                ),
+            )?;
+            checks.push(
+                "remote_leserpent_language_pack_local_orchestra_aot".to_string(),
+            );
         } else {
             validation_log("[remote-host] skipping remote package build");
         }
@@ -2236,6 +2274,273 @@ pub fn validate_leserpent_control_plane_aot_evidence(root: &Path) -> Result<(), 
     Ok(())
 }
 
+const LOCAL_ORCHESTRA_VERIFICATION_PREFIX: &str = "local orchestra valid: ";
+const LOCAL_ORCHESTRA_VERIFICATION_CHECKS: [&str; 18] = [
+    "rust_daemon=true",
+    "loopback_tls=true",
+    "ephemeral_token=true",
+    "owned_authority=true",
+    "runtime_topology_query=true",
+    "health_topology_composition=true",
+    "authority_bound_live_state=true",
+    "credential_free_language_pack_download=true",
+    "language_pack_digest_binding=true",
+    "language_pack_private_roundtrip=true",
+    "private_files=true",
+    "minimal_child_environment=true",
+    "optional_bootstrap_origin=true",
+    "optional_gewyvern_provisioning_origin=true",
+    "private_bootstrap_trust=true",
+    "package_local_daemon=true",
+    "symlink_rejection=true",
+    "process_cleanup=true",
+];
+
+pub fn validate_leserpent_language_pack_local_orchestra_aot_evidence(
+    root: &Path,
+) -> Result<(), ValidationError> {
+    const FILES: [&str; 7] = [
+        "environment.txt",
+        "restore.log",
+        "publish.log",
+        "daemon-build.log",
+        "payload.sha256",
+        "language-pack-assets.sha256",
+        "verification.log",
+    ];
+    const ENVIRONMENT_KEYS: [&str; 9] = [
+        "os",
+        "arch",
+        "rid",
+        "kernel",
+        "dotnet_sdk",
+        "rustc",
+        "cargo",
+        "avalonia_bytes",
+        "leserpentd_bytes",
+    ];
+
+    let root_metadata = fs::symlink_metadata(root).map_err(|error| {
+        ValidationError::new(format!(
+            "failed to inspect Leserpent Local Orchestra language-pack evidence '{}': {error}",
+            root.display()
+        ))
+    })?;
+    if root_metadata.file_type().is_symlink() || !root_metadata.is_dir() {
+        return Err(ValidationError::new(format!(
+            "Leserpent Local Orchestra language-pack evidence must be a non-symlink directory: {}",
+            root.display()
+        )));
+    }
+
+    let mut observed = BTreeSet::new();
+    for entry in fs::read_dir(root)? {
+        let entry = entry?;
+        let name = entry.file_name().into_string().map_err(|_| {
+            ValidationError::new(
+                "Leserpent Local Orchestra language-pack evidence has a non-UTF-8 name",
+            )
+        })?;
+        let metadata = fs::symlink_metadata(entry.path())?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(ValidationError::new(format!(
+                "Leserpent Local Orchestra language-pack evidence entry must be a regular non-symlink file: {name}"
+            )));
+        }
+        let max_bytes = if name.ends_with(".log") {
+            2 * 1024 * 1024
+        } else {
+            64 * 1024
+        };
+        if metadata.len() == 0 || metadata.len() > max_bytes {
+            return Err(ValidationError::new(format!(
+                "Leserpent Local Orchestra language-pack evidence entry violates its byte budget: {name}"
+            )));
+        }
+        let bytes = fs::read(entry.path())?;
+        for forbidden in [
+            b"Authorization: Bearer ".as_slice(),
+            b"X-Leserpent-Admin-Token:".as_slice(),
+            b"BEGIN PRIVATE KEY".as_slice(),
+        ] {
+            if bytes
+                .windows(forbidden.len())
+                .any(|window| window == forbidden)
+            {
+                return Err(ValidationError::new(format!(
+                    "Leserpent Local Orchestra language-pack evidence contains forbidden credential material: {name}"
+                )));
+            }
+        }
+        observed.insert(name);
+    }
+    let mut expected = FILES
+        .into_iter()
+        .map(str::to_string)
+        .collect::<BTreeSet<_>>();
+    expected.insert("evidence-index.json".to_string());
+    if observed != expected {
+        return Err(ValidationError::new(
+            "Leserpent Local Orchestra language-pack evidence inventory is incomplete or contains unexpected files",
+        ));
+    }
+
+    let index = read_bounded_json_file(
+        &root.join("evidence-index.json"),
+        "Leserpent Local Orchestra language-pack evidence index",
+        8 * 1024,
+    )?;
+    require_exact_json_keys(
+        &index,
+        &["schema_version", "proof", "result", "files"],
+        "Leserpent Local Orchestra language-pack evidence index",
+    )?;
+    if index
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        != Some(1)
+        || index.get("proof").and_then(serde_json::Value::as_str)
+            != Some("leserpent-language-pack-local-orchestra-native-aot-linux-x64")
+        || index.get("result").and_then(serde_json::Value::as_str) != Some("passed")
+        || index
+            .get("files")
+            .and_then(serde_json::Value::as_array)
+            .map(|files| {
+                files
+                    .iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .collect::<Vec<_>>()
+            })
+            != Some(FILES.to_vec())
+    {
+        return Err(ValidationError::new(
+            "Leserpent Local Orchestra language-pack evidence index violates its fixed contract",
+        ));
+    }
+
+    let environment_body = fs::read_to_string(root.join("environment.txt"))?;
+    let environment = parse_bounded_unique_key_values(
+        &environment_body,
+        "Leserpent Local Orchestra language-pack environment",
+        &ENVIRONMENT_KEYS,
+    )?;
+    if environment.len() != ENVIRONMENT_KEYS.len()
+        || environment.get("os").map(String::as_str) != Some("Linux")
+        || environment.get("arch").map(String::as_str) != Some("x86_64")
+        || environment.get("rid").map(String::as_str) != Some("linux-x64")
+        || ["kernel", "dotnet_sdk", "rustc", "cargo"].iter().any(|key| {
+            environment
+                .get(*key)
+                .is_none_or(|value| value.is_empty() || value.len() > 256)
+        })
+    {
+        return Err(ValidationError::new(
+            "Leserpent Local Orchestra language-pack environment violates its fixed contract",
+        ));
+    }
+    for key in ["avalonia_bytes", "leserpentd_bytes"] {
+        let bytes = environment
+            .get(key)
+            .and_then(|value| value.parse::<u64>().ok())
+            .filter(|value| (1024 * 1024..=512 * 1024 * 1024).contains(value));
+        if bytes.is_none() {
+            return Err(ValidationError::new(format!(
+                "Leserpent Local Orchestra language-pack {key} is invalid"
+            )));
+        }
+    }
+
+    let verification = read_bounded_nonempty_lines(
+        &root.join("verification.log"),
+        "Leserpent Local Orchestra language-pack verification",
+        64 * 1024,
+        1,
+        4096,
+    )?;
+    let Some(checks) = verification
+        .first()
+        .and_then(|line| line.strip_prefix(LOCAL_ORCHESTRA_VERIFICATION_PREFIX))
+    else {
+        return Err(ValidationError::new(
+            "Leserpent Local Orchestra language-pack verification is missing its fixed prefix",
+        ));
+    };
+    let checks = checks.split(", ").collect::<BTreeSet<_>>();
+    if checks
+        != LOCAL_ORCHESTRA_VERIFICATION_CHECKS
+            .into_iter()
+            .collect::<BTreeSet<_>>()
+    {
+        return Err(ValidationError::new(
+            "Leserpent Local Orchestra language-pack verification is incomplete",
+        ));
+    }
+
+    validate_sha256_manifest(
+        root,
+        "payload.sha256",
+        &["Leserpent.Avalonia", "leserpentd"],
+    )?;
+    let asset_hashes = validate_sha256_manifest(
+        root,
+        "language-pack-assets.sha256",
+        &["catalog.json", "pt-BR.json"],
+    )?;
+    let asset_root = repo_root().join("apps/leserpent/src/Leserpent/wwwroot/language-packs");
+    for name in ["catalog.json", "pt-BR.json"] {
+        let expected_hash = evidence_file_sha256(&asset_root.join(name))?;
+        if asset_hashes.get(name) != Some(&expected_hash) {
+            return Err(ValidationError::new(format!(
+                "remote Leserpent language-pack asset drifted from the synchronized workspace: {name}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn validate_sha256_manifest(
+    root: &Path,
+    name: &str,
+    expected_files: &[&str],
+) -> Result<BTreeMap<String, String>, ValidationError> {
+    let lines = read_bounded_nonempty_lines(
+        &root.join(name),
+        &format!("Leserpent Local Orchestra language-pack {name}"),
+        8 * 1024,
+        expected_files.len(),
+        512,
+    )?;
+    let mut values = BTreeMap::new();
+    for line in lines {
+        let mut parts = line.split_whitespace();
+        let hash = parts.next().unwrap_or_default();
+        let file = parts.next().unwrap_or_default();
+        if parts.next().is_some()
+            || !valid_lower_hex(hash, 64)
+            || !expected_files.contains(&file)
+            || values.insert(file.to_string(), hash.to_string()).is_some()
+        {
+            return Err(ValidationError::new(format!(
+                "Leserpent Local Orchestra language-pack {name} is invalid"
+            )));
+        }
+    }
+    if values.len() != expected_files.len() {
+        return Err(ValidationError::new(format!(
+            "Leserpent Local Orchestra language-pack {name} is incomplete"
+        )));
+    }
+    Ok(values)
+}
+
+fn evidence_file_sha256(path: &Path) -> Result<String, ValidationError> {
+    Ok(digest(&SHA256, &fs::read(path)?)
+        .as_ref()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
+}
+
 fn read_aot_json(root: &Path, name: &str) -> Result<serde_json::Value, ValidationError> {
     read_bounded_json_file(
         &root.join(name),
@@ -3626,6 +3931,93 @@ const REMOTE_PACKAGE_MANIFEST_HELPER: &str = r#"package_from_manifest() {
   printf '%s\n' "$resolved"
 }"#;
 
+const REMOTE_LESERPENT_LANGUAGE_PACK_LOCAL_ORCHESTRA_AOT_SCRIPT: &str = r#"set -euo pipefail
+EVIDENCE="$(pwd)/target/packages/leserpent-language-pack-local-orchestra-native-aot-linux-x64"
+PUBLISH="$EVIDENCE/publish"
+DOTNET_ARTIFACTS="$EVIDENCE/dotnet-artifacts"
+DAEMON="$CARGO_TARGET_DIR/release/leserpentd"
+cleanup() {
+  find "$PUBLISH" "$DOTNET_ARTIFACTS" -depth -delete 2>/dev/null || true
+}
+trap cleanup EXIT
+mkdir -p "$EVIDENCE"
+find "$EVIDENCE" -mindepth 1 -depth -delete
+mkdir -p "$PUBLISH"
+
+cargo build --locked --quiet --release -p leserpentd --bin leserpentd \
+  --features leserpentd/native-ssh >"$EVIDENCE/daemon-build.log" 2>&1
+printf 'cargo build completed\n' >>"$EVIDENCE/daemon-build.log"
+dotnet restore apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj \
+  -p:PublishProfile=NativeAot \
+  -p:PublishAot=true \
+  -p:RuntimeIdentifier=linux-x64 \
+  --locked-mode \
+  --artifacts-path "$DOTNET_ARTIFACTS" >"$EVIDENCE/restore.log" 2>&1
+printf 'dotnet restore completed\n' >>"$EVIDENCE/restore.log"
+dotnet publish apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj \
+  -p:PublishProfile=NativeAot \
+  -p:PublishAot=true \
+  -p:RuntimeIdentifier=linux-x64 \
+  --no-restore \
+  --artifacts-path "$DOTNET_ARTIFACTS" \
+  -o "$PUBLISH" >"$EVIDENCE/publish.log" 2>&1
+printf 'dotnet publish completed\n' >>"$EVIDENCE/publish.log"
+
+test -f "$PUBLISH/Leserpent.Avalonia" && test ! -L "$PUBLISH/Leserpent.Avalonia"
+test -x "$PUBLISH/Leserpent.Avalonia"
+test -f "$DAEMON" && test ! -L "$DAEMON" && test -x "$DAEMON"
+cp -- "$DAEMON" "$PUBLISH/leserpentd"
+chmod 0755 "$PUBLISH/leserpentd"
+file "$PUBLISH/Leserpent.Avalonia" | grep -q 'ELF 64-bit.*x86-64'
+file "$PUBLISH/leserpentd" | grep -q 'ELF 64-bit.*x86-64'
+
+(
+  cd -- "$PUBLISH"
+  sha256sum Leserpent.Avalonia leserpentd
+) >"$EVIDENCE/payload.sha256"
+(
+  cd -- apps/leserpent/src/Leserpent/wwwroot/language-packs
+  test -f catalog.json && test ! -L catalog.json
+  test -f pt-BR.json && test ! -L pt-BR.json
+  sha256sum catalog.json pt-BR.json
+) >"$EVIDENCE/language-pack-assets.sha256"
+
+"$PUBLISH/Leserpent.Avalonia" \
+  --verify-local-orchestra "$PUBLISH/leserpentd" \
+  >"$EVIDENCE/verification.log" 2>&1
+grep -q 'credential_free_language_pack_download=true' "$EVIDENCE/verification.log"
+grep -q 'language_pack_digest_binding=true' "$EVIDENCE/verification.log"
+grep -q 'language_pack_private_roundtrip=true' "$EVIDENCE/verification.log"
+grep -q 'process_cleanup=true' "$EVIDENCE/verification.log"
+
+printf 'os=Linux\narch=%s\nrid=linux-x64\nkernel=%s\ndotnet_sdk=%s\nrustc=%s\ncargo=%s\navalonia_bytes=%s\nleserpentd_bytes=%s\n' \
+  "$(uname -m)" \
+  "$(uname -r)" \
+  "$(dotnet --version)" \
+  "$(rustc --version)" \
+  "$(cargo --version)" \
+  "$(stat -c %s "$PUBLISH/Leserpent.Avalonia")" \
+  "$(stat -c %s "$PUBLISH/leserpentd")" \
+  >"$EVIDENCE/environment.txt"
+cat >"$EVIDENCE/evidence-index.json" <<'JSON'
+{
+  "schema_version": 1,
+  "proof": "leserpent-language-pack-local-orchestra-native-aot-linux-x64",
+  "result": "passed",
+  "files": [
+    "environment.txt",
+    "restore.log",
+    "publish.log",
+    "daemon-build.log",
+    "payload.sha256",
+    "language-pack-assets.sha256",
+    "verification.log"
+  ]
+}
+JSON
+echo 'remote Leserpent Local Orchestra language-pack NativeAOT proof: ok'
+"#;
+
 const REMOTE_LESERPENT_CONTROL_PLANE_AOT_SCRIPT: &str = r#"set -euo pipefail
 EVIDENCE="$(pwd)/target/packages/leserpent-control-plane-aot-linux-x64"
 PUBLISH="$EVIDENCE/publish"
@@ -4037,6 +4429,7 @@ fn rsync_remote_target(
 mod tests {
     use super::{
         MAX_SSH_CONTROL_PATH_BYTES, REMOTE_LESERPENT_CONTROL_PLANE_AOT_SCRIPT,
+        REMOTE_LESERPENT_LANGUAGE_PACK_LOCAL_ORCHESTRA_AOT_SCRIPT,
         REMOTE_PACKAGE_MANIFEST_HELPER, RemoteAdminAuth, SSH_CONTROL_TEMP_SUFFIX_RESERVE,
         RemoteLinuxTargetKind,
         acquire_remote_ebpf_history_lock, acquire_remote_validation_run_lock,
@@ -4046,11 +4439,12 @@ mod tests {
         parse_remote_preflight, read_remote_ebpf_history, remote_package_smoke_script,
         remote_runtime_smoke_script, resolve_remote_execution_path, resolve_remote_workspace_path,
         rsync_remote_target, ssh_auth_target, ssh_password_mode_args, summarize_remote_ebpf_history,
-        validate_leserpent_control_plane_aot_evidence, validate_remote_admin_user,
-        validate_remote_admin_password, validate_release_line, validate_remote_command,
-        validate_remote_host,
-        validate_remote_dir, validate_remote_route_device, validate_remote_target_kind,
-        validate_remote_workspace_sync_key, validate_ssh_control_path_template,
+        validate_leserpent_control_plane_aot_evidence,
+        validate_leserpent_language_pack_local_orchestra_aot_evidence,
+        validate_remote_admin_user, validate_remote_admin_password, validate_release_line,
+        validate_remote_command, validate_remote_dir, validate_remote_host,
+        validate_remote_route_device, validate_remote_target_kind, validate_remote_workspace_sync_key,
+        validate_ssh_control_path_template,
     };
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -4567,6 +4961,7 @@ mod tests {
             remote_package_smoke_script("v1.4.6"),
             remote_runtime_smoke_script(),
             REMOTE_LESERPENT_CONTROL_PLANE_AOT_SCRIPT.to_string(),
+            REMOTE_LESERPENT_LANGUAGE_PACK_LOCAL_ORCHESTRA_AOT_SCRIPT.to_string(),
         ] {
             let output = Command::new("bash")
                 .arg("-n")
@@ -4594,6 +4989,25 @@ mod tests {
         assert!(publish.contains("-p:RuntimeIdentifier=linux-x64"));
         assert!(publish.contains("--no-restore"));
         assert!(publish.contains("'\"outcome\":\"degraded\"'"));
+    }
+
+    #[test]
+    fn local_orchestra_language_pack_aot_uses_locked_matching_runtime_graphs() {
+        let (restore, publish) =
+            REMOTE_LESERPENT_LANGUAGE_PACK_LOCAL_ORCHESTRA_AOT_SCRIPT
+                .split_once("dotnet publish")
+                .unwrap();
+        assert!(restore.contains("cargo build --locked --quiet --release -p leserpentd"));
+        assert!(restore.contains("--features leserpentd/native-ssh"));
+        assert!(restore.contains("dotnet restore"));
+        assert!(restore.contains("--locked-mode"));
+        assert!(restore.contains("-p:PublishAot=true"));
+        assert!(restore.contains("-p:RuntimeIdentifier=linux-x64"));
+        assert!(publish.contains("-p:PublishAot=true"));
+        assert!(publish.contains("-p:RuntimeIdentifier=linux-x64"));
+        assert!(publish.contains("--no-restore"));
+        assert!(publish.contains("--verify-local-orchestra"));
+        assert!(publish.contains("language-pack-assets.sha256"));
     }
 
     #[test]
@@ -4633,6 +5047,62 @@ mod tests {
         fs::remove_file(root.join("service.log")).unwrap();
         symlink(root.join("publish.log"), root.join("service.log")).unwrap();
         assert!(validate_leserpent_control_plane_aot_evidence(&root).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn local_orchestra_language_pack_aot_evidence_is_strict_and_non_vacuous() {
+        let root = remote_test_root("leserpent-language-pack-local-orchestra-aot-evidence");
+        write_valid_leserpent_language_pack_local_orchestra_aot_evidence(&root);
+        assert!(validate_leserpent_language_pack_local_orchestra_aot_evidence(&root).is_ok());
+
+        fs::write(root.join("unexpected.txt"), "stale").unwrap();
+        assert!(validate_leserpent_language_pack_local_orchestra_aot_evidence(&root).is_err());
+        fs::remove_file(root.join("unexpected.txt")).unwrap();
+
+        fs::write(
+            root.join("language-pack-assets.sha256"),
+            format!(
+                "{}  catalog.json\n{}  pt-BR.json\n",
+                "0".repeat(64),
+                "1".repeat(64)
+            ),
+        )
+        .unwrap();
+        assert!(validate_leserpent_language_pack_local_orchestra_aot_evidence(&root).is_err());
+
+        write_valid_leserpent_language_pack_local_orchestra_aot_evidence(&root);
+        fs::write(
+            root.join("verification.log"),
+            "local orchestra valid: rust_daemon=true\n",
+        )
+        .unwrap();
+        assert!(validate_leserpent_language_pack_local_orchestra_aot_evidence(&root).is_err());
+
+        write_valid_leserpent_language_pack_local_orchestra_aot_evidence(&root);
+        fs::write(
+            root.join("daemon-build.log"),
+            "Authorization: Bearer forbidden\n",
+        )
+        .unwrap();
+        assert!(validate_leserpent_language_pack_local_orchestra_aot_evidence(&root).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_orchestra_language_pack_aot_evidence_rejects_symlink_entries() {
+        use std::os::unix::fs::symlink;
+
+        let root = remote_test_root("leserpent-language-pack-local-orchestra-aot-symlink");
+        write_valid_leserpent_language_pack_local_orchestra_aot_evidence(&root);
+        fs::remove_file(root.join("verification.log")).unwrap();
+        symlink(
+            root.join("environment.txt"),
+            root.join("verification.log"),
+        )
+        .unwrap();
+        assert!(validate_leserpent_language_pack_local_orchestra_aot_evidence(&root).is_err());
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -4722,6 +5192,64 @@ mod tests {
             serde_json::to_vec(&serde_json::json!({
                 "schema_version": 1,
                 "proof": "leserpent-control-plane-native-aot-linux-x64",
+                "result": "passed",
+                "files": FILES,
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+    }
+
+    fn write_valid_leserpent_language_pack_local_orchestra_aot_evidence(root: &Path) {
+        const FILES: [&str; 7] = [
+            "environment.txt",
+            "restore.log",
+            "publish.log",
+            "daemon-build.log",
+            "payload.sha256",
+            "language-pack-assets.sha256",
+            "verification.log",
+        ];
+        fs::create_dir_all(root).unwrap();
+        fs::write(
+            root.join("environment.txt"),
+            "os=Linux\narch=x86_64\nrid=linux-x64\nkernel=7.0.0-test\ndotnet_sdk=10.0.111\nrustc=rustc 1.95.0\ncargo=cargo 1.95.0\navalonia_bytes=26000000\nleserpentd_bytes=12000000\n",
+        )
+        .unwrap();
+        for log in ["restore.log", "publish.log", "daemon-build.log"] {
+            fs::write(root.join(log), "ok\n").unwrap();
+        }
+        let payload_hash = "a".repeat(64);
+        fs::write(
+            root.join("payload.sha256"),
+            format!(
+                "{payload_hash}  Leserpent.Avalonia\n{payload_hash}  leserpentd\n"
+            ),
+        )
+        .unwrap();
+        let asset_root =
+            super::repo_root().join("apps/leserpent/src/Leserpent/wwwroot/language-packs");
+        let catalog_hash = super::evidence_file_sha256(&asset_root.join("catalog.json")).unwrap();
+        let pack_hash = super::evidence_file_sha256(&asset_root.join("pt-BR.json")).unwrap();
+        fs::write(
+            root.join("language-pack-assets.sha256"),
+            format!("{catalog_hash}  catalog.json\n{pack_hash}  pt-BR.json\n"),
+        )
+        .unwrap();
+        fs::write(
+            root.join("verification.log"),
+            format!(
+                "{}{}\n",
+                super::LOCAL_ORCHESTRA_VERIFICATION_PREFIX,
+                super::LOCAL_ORCHESTRA_VERIFICATION_CHECKS.join(", ")
+            ),
+        )
+        .unwrap();
+        fs::write(
+            root.join("evidence-index.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "schema_version": 1,
+                "proof": "leserpent-language-pack-local-orchestra-native-aot-linux-x64",
                 "result": "passed",
                 "files": FILES,
             }))

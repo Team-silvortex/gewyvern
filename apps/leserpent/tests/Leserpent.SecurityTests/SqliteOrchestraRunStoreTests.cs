@@ -49,6 +49,45 @@ public sealed class SqliteOrchestraRunStoreTests
     }
 
     [Fact]
+    public void ExistingReadOnlyStoreMigratesAfterAcquiringWriterFence()
+    {
+        var databasePath = TemporaryPath("db");
+        CreateVersionOneDatabase(databasePath);
+        var writable = false;
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["LESERPENT_DATABASE_PATH"] = databasePath,
+            })
+            .Build();
+        var store = new SqliteOrchestraRunStore(
+            configuration,
+            new TestHostEnvironment
+            {
+                ContentRootPath = Path.GetDirectoryName(databasePath)!,
+            },
+            NullLogger<SqliteOrchestraRunStore>.Instance,
+            () => writable);
+
+        Assert.Single(store.LoadAll());
+        Assert.Null(store.LastError);
+
+        writable = true;
+        Assert.Single(store.LoadAll());
+        Assert.Null(store.LastError);
+
+        using (var connection = new SqliteConnection(
+            $"Data Source={databasePath};Mode=ReadOnly"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "PRAGMA user_version;";
+            Assert.Equal(5L, Convert.ToInt64(command.ExecuteScalar()));
+        }
+        DeleteDatabase(databasePath);
+    }
+
+    [Fact]
     public void ReadOnlyStoreStillReportsAnExistingCorruptDatabase()
     {
         var databasePath = TemporaryPath("db");

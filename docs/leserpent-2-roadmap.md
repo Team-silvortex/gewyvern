@@ -2218,6 +2218,16 @@ credential is loaded or sent. The dedicated client rejects redirects,
 cross-origin paths, partial or malformed v1 catalogs, and digest/locale/version
 drift; request cancellation and a single-operation fence protect the controls.
 Offline JSON import remains available but is not labeled catalog-authenticated.
+Rust `leserpentd` now embeds the exact official catalog and 22-pack roster behind
+strict public GET paths that reject bearer/admin headers, while `/v1/*` remains
+authenticated; the managed Web host mirrors that fence. The Local Orchestra
+vertical now proves the native client can traverse real private-CA TLS, install
+the bound pack, reload it, remove it, and restart the daemon. The 2026-08-24
+macOS arm64 bundle and physical Linux x86_64 NativeAOT proofs are now retained.
+The Linux gate strictly revalidates its synchronized file inventory, payload and
+language-asset hashes, verifier assertions, and credential absence locally.
+Only packaged saved-remote proofs and native-speaker/long-tail pack review remain
+on this localization line.
 The native control proof performs a real temporary import/download/remove roundtrip. The six
 candidate built-in translations and all 22 downloadable packs stay partial
 beyond reviewed keys rather than claiming unreviewed coverage.

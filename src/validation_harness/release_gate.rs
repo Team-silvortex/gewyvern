@@ -23,6 +23,7 @@ use super::{
     run_leserpent_schema_freeze_validation, run_package_install_smoke,
     run_pathological_container_validation, run_remote_linux_host_validation,
     run_three_module_stack_smoke, validate_leserpent_control_plane_aot_evidence,
+    validate_leserpent_language_pack_local_orchestra_aot_evidence,
     validation_command_stdout, validation_log,
 };
 
@@ -312,6 +313,13 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
         {
             checks.push("remote_leserpent_control_plane_aot".to_string());
         }
+        if remote_report.checks.iter().any(|check| {
+            check == "remote_leserpent_language_pack_local_orchestra_aot"
+        }) {
+            checks.push(
+                "remote_leserpent_language_pack_local_orchestra_aot".to_string(),
+            );
+        }
         if remote_report
             .checks
             .iter()
@@ -418,6 +426,7 @@ fn print_remote_release_gate_summary(out_dir: &Path) -> Result<(), ValidationErr
             "remote_linux_target_check",
             "remote_package_build",
             "remote_leserpent_control_plane_aot",
+            "remote_leserpent_language_pack_local_orchestra_aot",
             "remote_artifact_verify",
             "remote_package_smoke",
             "remote_runtime_smoke",
@@ -459,6 +468,21 @@ fn print_remote_release_gate_summary(out_dir: &Path) -> Result<(), ValidationErr
             &out_dir.join("leserpent-control-plane-aot-linux-x64"),
         )?;
         validation_log("[release-gate] Leserpent control-plane NativeAOT evidence: validated");
+    }
+    let language_pack_evidence_covered = run.get("checks").is_some_and(|checks| {
+        checks
+            .split(',')
+            .any(|check| check == "remote_leserpent_language_pack_local_orchestra_aot")
+    });
+    if language_pack_evidence_covered {
+        validate_leserpent_language_pack_local_orchestra_aot_evidence(
+            &out_dir.join(
+                "leserpent-language-pack-local-orchestra-native-aot-linux-x64",
+            ),
+        )?;
+        validation_log(
+            "[release-gate] Leserpent Local Orchestra language-pack NativeAOT evidence: validated",
+        );
     }
 
     if let Some(remote_dir) = run.get("remote_dir") {
@@ -820,6 +844,19 @@ fn write_release_artifact_index(out_dir: &Path, checks: &[String]) -> Result<(),
             "strictly revalidated Linux x64 NativeAOT control-plane, persistence, registration, and recovery evidence shelf",
         ),
         release_artifact_entry(
+            "remote_leserpent_language_pack_local_orchestra_aot",
+            "directory",
+            &out_dir
+                .join("remote-linux-host-validation")
+                .join("leserpent-language-pack-local-orchestra-native-aot-linux-x64"),
+            "optional_high_signal",
+            Some(checks.iter().any(|check| {
+                check == "remote_leserpent_language_pack_local_orchestra_aot"
+            })),
+            "gewyvern_validate remote-linux-host-validation",
+            "strictly revalidated Linux x64 NativeAOT Local Orchestra language-pack download, digest binding, private storage, and cleanup evidence shelf",
+        ),
+        release_artifact_entry(
             "leserpent_parity_recovery",
             "directory",
             &out_dir.join("leserpent-parity-recovery"),
@@ -1142,6 +1179,7 @@ fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
     const WORKSPACE_SYNC_BUDGET_SECONDS: f64 = 8.0;
     const REMOTE_PACKAGE_BUILD_BUDGET_SECONDS: f64 = 20.0;
     const REMOTE_LESERPENT_CONTROL_PLANE_AOT_BUDGET_SECONDS: f64 = 120.0;
+    const REMOTE_LESERPENT_LANGUAGE_PACK_AOT_BUDGET_SECONDS: f64 = 120.0;
     const REMOTE_PACKAGE_SMOKE_BUDGET_SECONDS: f64 = 2.0;
     const REMOTE_RUNTIME_SMOKE_BUDGET_SECONDS: f64 = 3.0;
     const REMOTE_EBPF_SMOKE_BUDGET_SECONDS: f64 = 10.0;
@@ -1156,6 +1194,9 @@ fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
                 "remote_package_build" => Some(REMOTE_PACKAGE_BUILD_BUDGET_SECONDS),
                 "remote_leserpent_control_plane_aot" => {
                     Some(REMOTE_LESERPENT_CONTROL_PLANE_AOT_BUDGET_SECONDS)
+                }
+                "remote_leserpent_language_pack_local_orchestra_aot" => {
+                    Some(REMOTE_LESERPENT_LANGUAGE_PACK_AOT_BUDGET_SECONDS)
                 }
                 "remote_package_smoke" => Some(REMOTE_PACKAGE_SMOKE_BUDGET_SECONDS),
                 "remote_runtime_smoke" => Some(REMOTE_RUNTIME_SMOKE_BUDGET_SECONDS),
