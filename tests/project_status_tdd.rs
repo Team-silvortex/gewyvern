@@ -4277,6 +4277,326 @@ fn retained_remote_linux_workspace_identity_evidence_is_non_vacuous() {
 }
 
 #[test]
+fn retained_remote_linux_vm_kernel_compatibility_is_non_release_evidence() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            repository_root()
+                .join("docs/fixtures/gewyvern_remote_linux_vm_kernel_compatibility_20260824.json"),
+        )
+        .expect("remote Linux VM compatibility evidence must exist"),
+    )
+    .expect("remote Linux VM compatibility evidence must decode");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(
+        evidence["proof"],
+        "gewyvern-remote-linux-vm-kernel-compatibility"
+    );
+    assert_eq!(evidence["release_line"], "1.16.0");
+    assert_eq!(evidence["host"]["target_kind"], "vm");
+    assert_eq!(evidence["host"]["distribution"], "Ubuntu 22.04.5 LTS");
+    assert_eq!(evidence["host"]["arch"], "x86_64");
+    assert_eq!(evidence["host"]["kernel"], "5.15.0-187-generic");
+    assert_eq!(evidence["host"]["virtualization"], "kvm");
+    assert_eq!(
+        evidence["authentication"]["validation_admin_credentials_present"],
+        false
+    );
+    assert_eq!(
+        evidence["authentication"]["ordinary_account_unrestricted_sudo"],
+        false
+    );
+    assert_eq!(evidence["authentication"]["helper_protocol"], 1);
+    assert_eq!(
+        json_string_set(&evidence["authentication"], "helper_allowed_operations"),
+        ["cleanup", "probe", "run"]
+            .into_iter()
+            .map(str::to_string)
+            .collect()
+    );
+    assert_eq!(evidence["helper_upgrade"]["stale_state"], "incompatible");
+    assert_eq!(evidence["helper_upgrade"]["stale_helper_rejected"], true);
+    assert_eq!(evidence["helper_upgrade"]["post_upgrade_probe"], "ready");
+
+    for fence in ["preflight_fence", "postflight_fence"] {
+        assert_eq!(
+            evidence["ownership"][fence], true,
+            "missing VM ownership fence {fence}"
+        );
+    }
+    assert_eq!(evidence["ownership"]["foreign_owned_entries"], 0);
+    assert_eq!(evidence["ownership"]["remote_run_residue"], 0);
+
+    let checks = json_string_set(&evidence, "checks");
+    assert_eq!(checks.len(), 19);
+    for check in [
+        "remote_rust_quality",
+        "remote_linux_target_check",
+        "remote_package_build",
+        "remote_leserpent_control_plane_aot",
+        "remote_leserpent_language_pack_local_orchestra_aot",
+        "remote_runtime_smoke",
+        "remote_ebpf_smoke",
+        "remote_workspace_ownership_postflight",
+    ] {
+        assert!(
+            checks.contains(check),
+            "missing VM compatibility check {check}"
+        );
+    }
+    for result in [
+        "rust_workspace",
+        "linux_targets",
+        "deb_and_rpm",
+        "runtime_tcp_and_udp",
+        "control_plane_native_aot",
+        "language_pack_native_aot",
+        "ebpf_attach_kprobe_tc",
+    ] {
+        assert_eq!(
+            evidence["compatibility"][result], "passed",
+            "VM compatibility result did not pass for {result}"
+        );
+    }
+
+    let performance = &evidence["performance"];
+    assert_eq!(performance["cache_posture"], "warm");
+    assert!(performance["total_seconds"].as_f64().unwrap() < 120.0);
+    assert!(performance["package_build_seconds"].as_f64().unwrap() < 1.0);
+    assert!(performance["ebpf_attach_seconds"].as_f64().unwrap() < 1.0);
+    assert!(
+        performance["budget_warnings"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+
+    assert_eq!(evidence["release_posture"]["signal"], "compatibility_only");
+    assert_eq!(evidence["release_posture"]["release_eligible"], false);
+    assert_eq!(
+        evidence["release_posture"]["physical_matrix_contribution"],
+        false
+    );
+    assert_eq!(
+        evidence["release_posture"]["physical_matrix_unchanged"],
+        true
+    );
+    assert_eq!(evidence["matrix"]["vm"]["release_eligible"], false);
+    assert_eq!(evidence["matrix"]["vm"]["ready"], false);
+    assert_eq!(evidence["matrix"]["physical"]["unique_hosts"], 1);
+    assert_eq!(evidence["matrix"]["physical"]["unique_kernels"], 1);
+    assert_eq!(evidence["matrix"]["physical"]["ready"], false);
+    assert_eq!(evidence["result"], "passed");
+
+    let serialized = serde_json::to_string(&evidence).unwrap();
+    for forbidden in ["host_fingerprint", "password", "192.168."] {
+        assert!(
+            !serialized.contains(forbidden),
+            "retained VM evidence contains sensitive field {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn retained_remote_linux_vm_hwe_compatibility_covers_package_reboots_and_two_kernels() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            repository_root()
+                .join("docs/fixtures/gewyvern_remote_linux_vm_hwe_compatibility_20260824.json"),
+        )
+        .expect("remote Linux HWE VM evidence must exist"),
+    )
+    .expect("remote Linux HWE VM evidence must decode");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(
+        evidence["proof"],
+        "gewyvern-remote-linux-vm-hwe-compatibility"
+    );
+    assert_eq!(evidence["release_line"], "1.16.0");
+    assert_eq!(evidence["host"]["target_kind"], "vm");
+    assert_eq!(evidence["host"]["kernel"], "6.8.0-138-generic");
+    assert_eq!(evidence["host"]["virtualization"], "kvm");
+
+    for field in [
+        "payload_byte_compared",
+        "artifact_sha256_verified",
+        "artifact_digest_retained_outside_payload",
+        "installed",
+        "dpkg_audit_clean",
+        "dpkg_verify_clean",
+    ] {
+        assert_eq!(
+            evidence["deployment"][field], true,
+            "package deployment field {field} did not pass"
+        );
+    }
+    assert_eq!(evidence["deployment"]["version"], "1.16.0-1");
+    assert_eq!(evidence["package_permissions"]["directories"], 453);
+    assert_eq!(evidence["package_permissions"]["regular_files"], 1574);
+    assert_eq!(
+        evidence["package_permissions"]["executable_entry_points"],
+        5
+    );
+    for field in [
+        "symlinks",
+        "special_files",
+        "setid_files",
+        "group_or_world_writable_files",
+    ] {
+        assert_eq!(
+            evidence["package_permissions"][field], 0,
+            "package permission field {field} is unsafe"
+        );
+    }
+
+    assert_eq!(
+        evidence["boot_lifecycle"]["boot_id_changed_each_reboot"],
+        true
+    );
+    assert_eq!(
+        evidence["boot_lifecycle"]["initial_kernel"],
+        "5.15.0-187-generic"
+    );
+    assert_eq!(
+        evidence["boot_lifecycle"]["package_reboot_kernel"],
+        "5.15.0-190-generic"
+    );
+    assert_eq!(
+        evidence["boot_lifecycle"]["hwe_reboot_kernel"],
+        "6.8.0-138-generic"
+    );
+    assert_eq!(
+        evidence["boot_lifecycle"]["linux_5_15_packaged_ebpf_cycle"],
+        "passed"
+    );
+    assert_eq!(
+        evidence["authentication"]["ordinary_account_unrestricted_sudo"],
+        false
+    );
+    assert_eq!(
+        evidence["authentication"]["direct_unprivileged_helper_rejected"],
+        true
+    );
+    assert_eq!(
+        json_string_set(&evidence["authentication"], "helper_allowed_operations"),
+        ["cleanup", "probe", "run"]
+            .into_iter()
+            .map(str::to_string)
+            .collect()
+    );
+
+    assert_eq!(json_string_set(&evidence, "checks").len(), 19);
+    for result in [
+        "rust_workspace",
+        "linux_targets",
+        "deb_and_rpm",
+        "runtime_tcp_and_udp",
+        "control_plane_native_aot",
+        "language_pack_native_aot",
+        "ebpf_attach_kprobe_tc",
+    ] {
+        assert_eq!(
+            evidence["compatibility"][result], "passed",
+            "HWE compatibility result did not pass for {result}"
+        );
+    }
+
+    let performance = &evidence["performance"];
+    assert!(performance["total_seconds"].as_f64().unwrap() < 180.0);
+    assert!(performance["package_build_seconds"].as_f64().unwrap() < 30.0);
+    assert!(performance["ebpf_attach_seconds"].as_f64().unwrap() < 1.0);
+    assert_eq!(
+        performance["budget_warnings"].as_array().unwrap().len(),
+        1
+    );
+    assert_eq!(evidence["history"]["valid_entries"], 3);
+    assert_eq!(evidence["history"]["rejected_entries"], 0);
+    assert_eq!(
+        json_string_set(&evidence["history"], "successful_vm_kernels"),
+        ["5.15.0-187-generic", "6.8.0-138-generic"]
+            .into_iter()
+            .map(str::to_string)
+            .collect()
+    );
+
+    assert_eq!(evidence["release_posture"]["signal"], "watch");
+    assert_eq!(evidence["release_posture"]["release_eligible"], false);
+    assert_eq!(
+        evidence["release_posture"]["physical_matrix_contribution"],
+        false
+    );
+    assert_eq!(evidence["matrix"]["vm"]["unique_hosts"], 1);
+    assert_eq!(evidence["matrix"]["vm"]["unique_kernels"], 2);
+    assert_eq!(evidence["matrix"]["vm"]["release_eligible"], false);
+    assert_eq!(evidence["matrix"]["physical"]["unique_hosts"], 1);
+    assert_eq!(evidence["matrix"]["physical"]["unique_kernels"], 1);
+    assert_eq!(evidence["matrix"]["physical"]["ready"], false);
+    assert_eq!(evidence["result"], "passed");
+
+    let serialized = serde_json::to_string(&evidence).unwrap();
+    for forbidden in ["host_fingerprint", "password", "192.168."] {
+        assert!(
+            !serialized.contains(forbidden),
+            "retained HWE VM evidence contains sensitive field {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn retained_native_package_container_install_is_offline_and_inactive_by_default() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            repository_root()
+                .join("project/status/evidence/gewyvern_package_container_install_20260824.json"),
+        )
+        .expect("native package container evidence must exist"),
+    )
+    .expect("native package container evidence must decode");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(
+        evidence["proof"],
+        "gewyvern-offline-native-package-container-install"
+    );
+    assert_eq!(evidence["release_line"], "1.16.0");
+    assert_eq!(evidence["execution"]["network"], "none");
+    assert_eq!(evidence["execution"]["artifact_mount"], "read-only");
+    assert_eq!(evidence["deb"]["image"], "ubuntu:24.04");
+    assert_eq!(evidence["deb"]["install"], "passed");
+    assert_eq!(evidence["deb"]["installed_dsl_compile"], "passed");
+    assert_eq!(evidence["rpm"]["image"], "fedora:41");
+    assert_eq!(evidence["rpm"]["install"], "passed");
+    assert_eq!(evidence["rpm"]["rpm_verify"], "passed");
+    assert_eq!(evidence["rpm"]["repository_url_verified"], true);
+    for family in ["deb", "rpm"] {
+        assert_eq!(evidence[family]["helper_auto_configured"], false);
+        assert_eq!(evidence[family]["sudoers_auto_installed"], false);
+        assert_eq!(
+            evidence[family]["shared_payload_group_or_world_writable"],
+            false
+        );
+    }
+    assert_eq!(
+        evidence["security_posture"]["installation_requires_network"],
+        false
+    );
+    assert_eq!(
+        evidence["security_posture"]["privileged_helper_inactive_by_default"],
+        true
+    );
+    assert_eq!(evidence["result"], "passed");
+
+    let serialized = serde_json::to_string(&evidence).unwrap();
+    for forbidden in ["host_fingerprint", "password", "192.168."] {
+        assert!(
+            !serialized.contains(forbidden),
+            "retained package evidence contains sensitive field {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     let summary = catalog.summary(20);
@@ -4328,7 +4648,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(linux_attach.maturity, Maturity::Stabilizing);
     assert_eq!(linux_attach.priority, Priority::Critical);
     assert_eq!(linux_attach.completion, 90);
-    assert_eq!(linux_attach.contract.version, "1.6.0");
+    assert_eq!(linux_attach.contract.version, "1.8.0");
     assert_eq!(linux_attach.blockers.len(), 1);
     for surface in [
         "dedicated-project-ssh-alias",
@@ -4346,6 +4666,19 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "remote-cache-ownership-postflight",
         "ordinary-identity-workspace-cleanup",
         "warm-cache-performance-recheck",
+        "vm-kernel-compatibility-shelf",
+        "vm-physical-matrix-isolation",
+        "linux-5.15-full-stack-compatibility-proof",
+        "stale-vm-helper-fail-closed-upgrade",
+        "vm-warm-cache-performance-proof",
+        "deterministic-package-permission-normalization",
+        "staged-package-symlink-and-special-file-rejection",
+        "installed-deb-reboot-persistence-proof",
+        "linux-5.15.190-installed-package-ebpf-proof",
+        "linux-6.8-hwe-full-stack-compatibility-proof",
+        "vm-two-kernel-history-proof",
+        "post-reboot-command-limited-sudo-proof",
+        "offline-deb-rpm-container-install-proof",
         "shared-native-bounded-process-guard",
         "bounded-local-smoke-subprocesses",
         "bounded-smoke-command-output-capture",
@@ -4367,6 +4700,18 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && item.state == EvidenceState::Present
     }));
     assert!(linux_attach.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/gewyvern_remote_linux_vm_kernel_compatibility_20260824.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(linux_attach.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/gewyvern_remote_linux_vm_hwe_compatibility_20260824.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(linux_attach.evidence.iter().any(|item| {
+        item.path == "project/status/evidence/gewyvern_package_container_install_20260824.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(linux_attach.evidence.iter().any(|item| {
         item.path == "src/bounded_process.rs" && item.state == EvidenceState::Present
     }));
 
@@ -4378,6 +4723,18 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(gewylang.maturity, Maturity::Mature);
     assert_eq!(gewylang.completion, 100);
     assert_eq!(gewylang.contract.stability, ContractStability::Stable);
+    assert_eq!(gewylang.contract.version, "1.29.0");
+    assert!(
+        gewylang
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "standard-cli-help-and-version-exit-contract")
+    );
+    assert!(gewylang.evidence.iter().any(|item| {
+        item.path == "crates/gewyc/tests/cli_information.rs"
+            && item.state == EvidenceState::Present
+    }));
     assert!(gewylang.blockers.is_empty());
     assert!(
         language
@@ -5246,7 +5603,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.49.2");
+    assert_eq!(compatibility_control.contract.version, "1.49.3");
     assert!(
         compatibility_control
             .contract
@@ -5694,6 +6051,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "three-run-physical-phase-stability",
         "post-read-deadline-immediate-http-error",
         "collision-free-parallel-lifecycle-fixtures",
+        "protocolized-rollback-journal-crash-boundary",
+        "panic-safe-claim-worker-reaping",
+        "claim-worker-stderr-failure-propagation",
+        "active-reader-lock-lifetime-proof",
     ] {
         assert!(
             compatibility_control
@@ -5704,7 +6065,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.49.2");
+    assert_eq!(compatibility_control.contract.version, "1.49.3");
     assert!(
         compatibility_control
             .next_gate

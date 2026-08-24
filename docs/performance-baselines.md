@@ -267,6 +267,69 @@ contains one independent physical host fingerprint and one kernel release. The
 bounded, secret-free record is
 `docs/fixtures/gewyvern_remote_linux_workspace_identity_physical_20260824.json`.
 
+### Ubuntu 22.04 VM Kernel Compatibility Recheck
+
+Also on `2026-08-24`, the isolated `gewyvern-jammy` compatibility shelf ran the
+same full transaction on Ubuntu 22.04, Linux `5.15.0-187-generic`, `x86_64`,
+and KVM. Its first preflight rejected an installed `1.15.0` privileged helper
+as incompatible with the current `1.16.0` package. After replacing only the
+root-owned helper and root-only provisioner, the ordinary validation account
+retained no unrestricted sudo and could invoke only `probe`, `run`, and
+`cleanup` through the fixed sudoers contract.
+
+| Phase | Seconds | Notes |
+| --- | ---: | --- |
+| `workspace_sync` | `0.106` | unchanged filtered snapshot, isolated VM cache |
+| `remote_rust_quality` | `0.352` | locked all-target clippy shelf |
+| `remote_package_build` | `0.452` | manifest-bound warm DEB/RPM artifacts |
+| `remote_leserpent_control_plane_aot` | `44.565` | Linux-x64 control-plane NativeAOT proof |
+| `remote_leserpent_language_pack_local_orchestra_aot` | `60.122` | Local Orchestra and saved-daemon NativeAOT proof |
+| `remote_ebpf_attach` | `0.720` | fixed-helper tracepoint, kprobe, and tc proof |
+| `total` | `107.865` | full VM compatibility transaction |
+
+All 19 checks passed without a timing warning. The result is deliberately
+reported as `compatibility_only`: its matrix has `release_eligible=false`, so
+the additional `5.15` kernel evidence cannot satisfy or inflate the physical
+host release gate. The bounded, secret-free record is
+`docs/fixtures/gewyvern_remote_linux_vm_kernel_compatibility_20260824.json`.
+
+### Ubuntu 22.04 HWE Package And Reboot Compatibility
+
+Later on `2026-08-24`, the same isolated VM exercised a stateful deployment
+lifecycle rather than another cache-only rerun. A native `1.16.0-1` DEB was
+built from the validated release binaries, byte-compared with its payload,
+installed, and verified with `dpkg -V`. The VM then rebooted from Linux
+`5.15.0-187-generic` to `5.15.0-190-generic`, passed the packaged helper's
+attach/kprobe/tc cycle, installed the official Jammy HWE meta-package, and
+rebooted again into `6.8.0-138-generic`. Both 5.15 kernels remain available as
+GRUB fallback entries.
+
+The package lifecycle also exposed and fixed builder-umask-dependent payload
+modes. The final archive contains 453 `0755` directories, exactly five `0755`
+command entry points, and 1,569 `0644` shared files; it contains no symlink,
+special, set-id, group/world-writable, or accidentally executable data entry.
+After both reboots, the helper configuration remained root-owned, the sudoers
+rule remained `0440`, and the ordinary account still had access only to
+`probe`, `run`, and `cleanup`.
+
+| Phase | Seconds | Notes |
+| --- | ---: | --- |
+| `workspace_sync` | `0.730` | changed compiler and packaging snapshot |
+| `remote_rust_quality` | `7.272` | locked all-target clippy shelf |
+| `remote_package_build` | `28.539` | `22.252` second release relink plus package assembly |
+| `remote_leserpent_control_plane_aot` | `53.577` | Linux-x64 control-plane NativeAOT proof |
+| `remote_leserpent_language_pack_local_orchestra_aot` | `63.720` | Local Orchestra and saved-daemon NativeAOT proof |
+| `remote_ebpf_attach` | `0.756` | HWE tracepoint, kprobe, and tc proof |
+| `total` | `159.755` | full HWE VM compatibility transaction |
+
+All 19 checks passed. The package phase exceeded the `20s` warm-cache budget
+because this run intentionally relinked changed Rust binaries, so its signal is
+`watch`; that is a performance follow-up, not a functional failure. VM history
+now contains one KVM host with successful `5.15` and `6.8` kernels, while
+`release_eligible=false` and the physical matrix remains exactly one host and
+one kernel. The bounded record is
+`docs/fixtures/gewyvern_remote_linux_vm_hwe_compatibility_20260824.json`.
+
 The synchronized evidence for this baseline lives under:
 
 - `target/validation/remote-linux-host-validation/`

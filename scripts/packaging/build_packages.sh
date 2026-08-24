@@ -29,7 +29,7 @@ CACHE_KEY_FILE=""
 PENDING_MANIFEST_FILE=""
 PACKAGE_LOCK_DIR=""
 PACKAGE_LOCK_DIR_OWNED=0
-MAINTAINER="${GEWY_PACKAGE_MAINTAINER:-OpenAI Codex <codex@example.invalid>}"
+MAINTAINER="${GEWY_PACKAGE_MAINTAINER:-Team Silvortex <team-silvortex@users.noreply.github.com>}"
 PACKAGE_NAME="${GEWY_PACKAGE_NAME:-gewyvern}"
 PACKAGE_RELEASE="${GEWY_PACKAGE_RELEASE:-1}"
 RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.16.0}"
@@ -295,6 +295,34 @@ config_example = "/usr/share/gewyvern/examples/gewyvern.toml.example"
 legacy_compat_root = "~/.gewyvern"
 upgrade_policy = "copy-forward-without-overwrite"
 EOF
+}
+
+normalize_stage_permissions() {
+  local stage_root="$1"
+  python3 - "${stage_root}" <<'PY'
+from pathlib import Path
+import os
+import sys
+
+root = Path(sys.argv[1])
+executables = {
+    root / "usr/bin/gewyvern",
+    root / "usr/bin/gewyvern_socket_send",
+    root / "usr/bin/gewyc",
+    root / "usr/libexec/gewyvern-ebpf-helper",
+    root / "usr/sbin/gewyvern-ebpf-provision",
+}
+
+for path in [root, *sorted(root.rglob("*"))]:
+    if path.is_symlink():
+        raise SystemExit(f"staged package path must not be a symlink: {path}")
+    if path.is_dir():
+        os.chmod(path, 0o755)
+    elif path.is_file():
+        os.chmod(path, 0o755 if path in executables else 0o644)
+    else:
+        raise SystemExit(f"staged package path must be a regular file or directory: {path}")
+PY
 }
 
 normalize_stage_timestamps() {
@@ -714,6 +742,7 @@ fi
 echo "staging install tree..."
 STAGE_LAYOUT_STARTED="$(now_seconds)"
 stage_layout "${STAGE_ROOT}"
+normalize_stage_permissions "${STAGE_ROOT}"
 normalize_stage_timestamps "${STAGE_ROOT}" "${SOURCE_DATE_EPOCH_VALUE}"
 chown -R 0:0 "${STAGE_ROOT}" 2>/dev/null || true
 STAGE_LAYOUT_FINISHED="$(now_seconds)"

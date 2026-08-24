@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "proof": "gewyvern-remote-linux-vm-hwe-compatibility",
+  "captured_at_utc": "2026-08-24T09:47:18Z",
+  "release_line": "1.16.0",
+  "scope": "vm-linux-6.8-package-install-reboot-full-stack-compatibility",
+  "host": {
+    "alias": "gewyvern-jammy",
+    "target_kind": "vm",
+    "distribution": "Ubuntu 22.04.5 LTS",
+    "os": "linux",
+    "arch": "x86_64",
+    "kernel": "6.8.0-138-generic",
+    "virtualization": "kvm"
+  },
+  "deployment": {
+    "package": "gewyvern",
+    "version": "1.16.0-1",
+    "format": "deb",
+    "artifact_sha256_verified": true,
+    "artifact_digest_retained_outside_payload": true,
+    "payload_byte_compared": true,
+    "installed": true,
+    "dpkg_audit_clean": true,
+    "dpkg_verify_clean": true,
+    "installed_dsl_compile": "passed",
+    "gewyc_help_and_version": "passed"
+  },
+  "package_permissions": {
+    "directories": 453,
+    "regular_files": 1574,
+    "executable_entry_points": 5,
+    "directory_mode": "0755",
+    "entry_point_mode": "0755",
+    "shared_file_mode": "0644",
+    "symlinks": 0,
+    "special_files": 0,
+    "setid_files": 0,
+    "group_or_world_writable_files": 0
+  },
+  "boot_lifecycle": {
+    "boot_id_changed_each_reboot": true,
+    "initial_kernel": "5.15.0-187-generic",
+    "package_reboot_kernel": "5.15.0-190-generic",
+    "hwe_reboot_kernel": "6.8.0-138-generic",
+    "fallback_kernels_retained": [
+      "5.15.0-190-generic",
+      "5.15.0-187-generic"
+    ],
+    "package_persisted": true,
+    "helper_policy_persisted": true,
+    "linux_5_15_packaged_ebpf_cycle": "passed"
+  },
+  "authentication": {
+    "workspace": "ssh-key",
+    "validation_admin_credentials_present": false,
+    "ordinary_account_unrestricted_sudo": false,
+    "direct_unprivileged_helper_rejected": true,
+    "privileged_path": "fixed-helper",
+    "helper_version": "1.16.0",
+    "helper_protocol": 1,
+    "helper_allowed_operations": ["probe", "run", "cleanup"],
+    "helper_config_mode": "0644",
+    "sudoers_mode": "0440"
+  },
+  "checks": [
+    "remote_preflight",
+    "workspace_synced",
+    "remote_workspace_ownership_preflight",
+    "remote_workspace_materialized",
+    "remote_rust_quality",
+    "remote_linux_target_check",
+    "remote_package_build",
+    "remote_leserpent_control_plane_aot",
+    "remote_leserpent_language_pack_local_orchestra_aot",
+    "remote_package_build_timings",
+    "remote_artifacts_present",
+    "remote_package_smoke",
+    "remote_package_smoke_timings",
+    "remote_runtime_smoke",
+    "remote_runtime_smoke_timings",
+    "remote_ebpf_evidence_synced",
+    "remote_ebpf_smoke",
+    "remote_workspace_ownership_postflight",
+    "remote_phase_timings"
+  ],
+  "compatibility": {
+    "rust_workspace": "passed",
+    "linux_targets": "passed",
+    "deb_and_rpm": "passed",
+    "runtime_tcp_and_udp": "passed",
+    "control_plane_native_aot": "passed",
+    "language_pack_native_aot": "passed",
+    "ebpf_attach_kprobe_tc": "passed"
+  },
+  "performance": {
+    "cache_posture": "changed-binary-relink",
+    "total_seconds": 159.755,
+    "package_build_seconds": 28.539,
+    "release_build_seconds": 22.252,
+    "control_plane_aot_seconds": 53.577,
+    "language_pack_aot_seconds": 63.72,
+    "ebpf_attach_seconds": 0.756,
+    "budget_warnings": [
+      "remote_package_build exceeded budget (28.539s > 20.000s)"
+    ]
+  },
+  "history": {
+    "valid_entries": 3,
+    "rejected_entries": 0,
+    "successful_vm_kernels": [
+      "5.15.0-187-generic",
+      "6.8.0-138-generic"
+    ]
+  },
+  "release_posture": {
+    "signal": "watch",
+    "release_eligible": false,
+    "physical_matrix_contribution": false,
+    "physical_matrix_unchanged": true
+  },
+  "matrix": {
+    "vm": {
+      "unique_hosts": 1,
+      "unique_kernels": 2,
+      "minimum_hosts": 2,
+      "minimum_kernels": 2,
+      "breadth_ready": false,
+      "release_eligible": false,
+      "ready": false
+    },
+    "physical": {
+      "unique_hosts": 1,
+      "unique_kernels": 1,
+      "minimum_hosts": 2,
+      "minimum_kernels": 2,
+      "ready": false
+    }
+  },
+  "remaining": [
+    "second-independent-physical-host",
+    "second-physical-kernel-release"
+  ],
+  "result": "passed"
+}

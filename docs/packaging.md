@@ -216,6 +216,11 @@ When `--format all` is used for a real package build, the script now emits the
 `deb` and `rpm` packages in parallel against the same staged layout so Linux
 release-style runs spend less wall-clock time waiting on serial package
 assembly.
+Before assembly, the staged tree is permission-normalized independently of the
+builder's umask: directories and the five installed command entry points use
+`0755`, while every shared data and documentation file uses `0644`. Symlinks
+and special files are rejected instead of being copied into a privileged
+installation prefix.
 It also normalizes staged file mtimes with `SOURCE_DATE_EPOCH` or, by default,
 the latest Git commit timestamp so repeated unchanged builds do not drift only
 because packaging ran at a different wall-clock second.

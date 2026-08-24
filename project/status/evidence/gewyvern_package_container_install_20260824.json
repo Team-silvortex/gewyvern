@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "proof": "gewyvern-offline-native-package-container-install",
+  "captured_at_utc": "2026-08-24T09:58:21Z",
+  "release_line": "1.16.0",
+  "artifacts": {
+    "deb": {
+      "filename": "gewyvern_1.16.0-1_amd64.deb",
+      "sha256": "28534c6bc10b991a19b7dafc5adc75360f45a43dacf30ddc7412b1dcbbc62b64",
+      "maintainer": "Team Silvortex <team-silvortex@users.noreply.github.com>"
+    },
+    "rpm": {
+      "filename": "gewyvern-1.16.0-1.x86_64.rpm",
+      "sha256": "ed8cc7509b2b388f01aab94c8e5a85321e65ba3851e0dfefb3b242f5cda144a9",
+      "url": "https://github.com/Team-silvortex/gewyvern"
+    }
+  },
+  "execution": {
+    "engine": "docker",
+    "network": "none",
+    "images_preexisting": true,
+    "artifact_mount": "read-only",
+    "containers_removed_after_run": true
+  },
+  "deb": {
+    "image": "ubuntu:24.04",
+    "install": "passed",
+    "package_status": "install ok installed",
+    "version": "1.16.0-1",
+    "non_document_payload_verify": "passed",
+    "base_image_document_path_exclusion_observed": true,
+    "runtime_version": "passed",
+    "compiler_help_and_version": "passed",
+    "installed_dsl_compile": "passed",
+    "shared_payload_group_or_world_writable": false,
+    "helper_auto_configured": false,
+    "sudoers_auto_installed": false
+  },
+  "rpm": {
+    "image": "fedora:41",
+    "install": "passed",
+    "rpm_verify": "passed",
+    "version": "1.16.0-1",
+    "runtime_version": "passed",
+    "compiler_help_and_version": "passed",
+    "installed_dsl_compile": "passed",
+    "shared_payload_group_or_world_writable": false,
+    "helper_auto_configured": false,
+    "sudoers_auto_installed": false,
+    "repository_url_verified": true
+  },
+  "security_posture": {
+    "installation_requires_network": false,
+    "privileged_helper_inactive_by_default": true,
+    "automatic_sudo_grant": false
+  },
+  "result": "passed"
+}

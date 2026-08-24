@@ -22,6 +22,10 @@ fn package_layout_writes_compat_manifest() {
     assert!(build_script.contains("RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v1.16.0}\""));
     assert!(build_script.contains("LAYOUT_VERSION=\"${GEWY_LAYOUT_VERSION:-1}\""));
     assert!(build_script.contains("CONFIG_SCHEMA_VERSION=\"${GEWY_CONFIG_SCHEMA_VERSION:-1}\""));
+    assert!(build_script.contains(
+        "Team Silvortex <team-silvortex@users.noreply.github.com>"
+    ));
+    assert!(!build_script.contains("codex@example.invalid"));
     assert!(build_script.contains("TARGET_ROOT=\"${ROOT}/${CARGO_TARGET_DIR}\""));
     assert!(build_script.contains("RELEASE_BIN_DIR=\"${TARGET_ROOT}/release\""));
     assert!(build_script.contains("RELEASE_BIN_DIR=\"${ROOT}/${GEWY_PACKAGE_BINARIES_ROOT}\""));
@@ -44,6 +48,12 @@ fn package_layout_writes_compat_manifest() {
     assert!(build_script.contains("SOURCE_DATE_EPOCH_VALUE=\"$(resolve_source_date_epoch)\""));
     assert!(build_script.contains("export SOURCE_DATE_EPOCH=\"${SOURCE_DATE_EPOCH_VALUE}\""));
     assert!(build_script.contains("normalize_stage_timestamps()"));
+    assert!(build_script.contains("normalize_stage_permissions()"));
+    assert!(build_script.contains("normalize_stage_permissions \"${STAGE_ROOT}\""));
+    assert!(build_script.contains("staged package path must not be a symlink"));
+    assert!(
+        build_script.contains("os.chmod(path, 0o755 if path in executables else 0o644)")
+    );
     assert!(build_script.contains("os.utime(path, (epoch, epoch), follow_symlinks=False)"));
     assert!(build_script.contains("Path(sys.argv[1]).stat().st_mtime"));
     assert!(build_script.contains("build-cache-key.txt"));
@@ -87,6 +97,9 @@ fn package_layout_writes_compat_manifest() {
 fn rpm_template_matches_deb_staged_compat_contract() {
     let spec = read_repo_file("packaging/rpm/gewyvern.spec.in");
 
+    assert!(spec.contains("https://github.com/Team-silvortex/gewyvern"));
+    assert!(!spec.contains("example.invalid"));
+    assert!(!spec.contains("OpenAI Codex"));
     assert!(spec.contains("/usr/share/gewyvern/package-compat.toml"));
     assert!(spec.contains("/usr/libexec/gewyvern-ebpf-helper"));
     assert!(spec.contains("/usr/sbin/gewyvern-ebpf-provision"));

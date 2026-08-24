@@ -6,7 +6,7 @@ Version:        @VERSION@
 Release:        @RELEASE@@DIST@
 Summary:        Standalone network debugging runtime and compiler tools
 License:        MIT
-URL:            https://example.invalid/gewyvern
+URL:            https://github.com/Team-silvortex/gewyvern
 BuildArch:      @RPM_ARCH@
 
 %description
@@ -40,5 +40,5 @@ cp -a @STAGE_ROOT@/. %{buildroot}/
 /usr/share/doc/gewyvern/docs
 
 %changelog
-* Sat May 23 2026 OpenAI Codex <codex@example.invalid> - @VERSION@-@RELEASE@
+* Sat May 23 2026 Team Silvortex <team-silvortex@users.noreply.github.com> - @VERSION@-@RELEASE@
 - Package gewyvern standalone runtime, compiler CLI, registry, and docs

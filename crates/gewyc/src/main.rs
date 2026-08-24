@@ -131,7 +131,12 @@ impl UiLocale {
 
 fn main() {
     let locale = UiLocale::detect();
-    let cli = parse_cli(env::args().collect(), locale).unwrap_or_else(|err| {
+    let args = env::args().collect::<Vec<_>>();
+    if let Some(output) = informational_output(&args, locale) {
+        println!("{output}");
+        return;
+    }
+    let cli = parse_cli(args, locale).unwrap_or_else(|err| {
         eprintln!("{err}");
         std::process::exit(2);
     });
@@ -147,6 +152,24 @@ fn main() {
         EmitTarget::Stages => run_stages(cli, locale),
         EmitTarget::Envelope => run_envelope(cli, locale),
     }
+}
+
+fn informational_output(args: &[String], locale: UiLocale) -> Option<String> {
+    if args
+        .iter()
+        .skip(1)
+        .any(|argument| matches!(argument.as_str(), "-h" | "--help"))
+    {
+        return Some(locale.usage().to_string());
+    }
+    if args
+        .iter()
+        .skip(1)
+        .any(|argument| matches!(argument.as_str(), "-V" | "--version"))
+    {
+        return Some(format!("gewyc {}", env!("CARGO_PKG_VERSION")));
+    }
+    None
 }
 
 fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {

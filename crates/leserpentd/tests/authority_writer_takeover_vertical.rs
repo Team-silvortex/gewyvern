@@ -7,7 +7,7 @@ use std::os::unix::fs::{DirBuilderExt, FileTypeExt, MetadataExt, PermissionsExt}
 use std::os::unix::net::UnixStream;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, ChildStdout, Command as ProcessCommand, Stdio};
+use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command as ProcessCommand, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Barrier, Condvar, Mutex};
 use std::thread;
@@ -45,6 +45,10 @@ const CRASH_WORKER_DATABASE: &str = "LESERPENT_TEST_AUTHORITY_WRITER_DATABASE";
 const CRASH_WORKER_ID: &str = "LESERPENT_TEST_AUTHORITY_WRITER_ID";
 const LONGEST_TEST_SOCKET_FILE_NAME: &str = "post-recovery-duplicate-retry.sock";
 const MAX_PARALLEL_AUTHORITY_SCENARIOS: usize = 4;
+const ROLLBACK_JOURNAL_OBSERVATION_BUDGET: Duration = Duration::from_secs(4);
+const CRASH_WORKER_PAUSE_AT_JOURNAL: u8 = b'P';
+const CRASH_WORKER_COMMIT: u8 = b'C';
+const CRASH_WORKER_JOURNAL_MARKER: &str = "authority-writer-worker-journal-ready";
 static TEMP_ROOT_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 static AUTHORITY_SCENARIO_LIMIT: (Mutex<usize>, Condvar) = (Mutex::new(0), Condvar::new());
 
@@ -491,48 +495,94 @@ fn fence(writer_id: &str, generation: u64) -> AuthorityWriterFence {
     }
 }
 
-fn spawn_claim_crash_worker(
-    database: &Path,
-    writer_id: &str,
-) -> (Child, ChildStdin, BufReader<ChildStdout>) {
-    let mut child = ProcessCommand::new(std::env::current_exe().unwrap())
-        .args([
-            "--exact",
-            "authority_writer_claim_crash_worker",
-            "--nocapture",
-        ])
-        .env(CRASH_WORKER_DATABASE, database)
-        .env(CRASH_WORKER_ID, writer_id)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .unwrap();
-    let stdin = child.stdin.take().unwrap();
-    let stdout = BufReader::new(child.stdout.take().unwrap());
-    (child, stdin, stdout)
+struct ClaimCrashWorker {
+    child: Child,
+    stdin: ChildStdin,
+    stdout: BufReader<ChildStdout>,
+    stderr: ChildStderr,
 }
 
-fn wait_for_worker_marker(reader: &mut BufReader<ChildStdout>, marker: &str) {
-    let mut transcript = String::new();
-    loop {
-        let mut line = String::new();
-        let read = reader.read_line(&mut line).unwrap();
-        assert!(
-            read > 0,
-            "claim worker exited before {marker}: {transcript}"
-        );
-        transcript.push_str(&line);
-        if line.contains(marker) {
-            return;
+impl ClaimCrashWorker {
+    fn spawn(database: &Path, writer_id: &str) -> Self {
+        let mut child = ProcessCommand::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "authority_writer_claim_crash_worker",
+                "--nocapture",
+            ])
+            .env(CRASH_WORKER_DATABASE, database)
+            .env(CRASH_WORKER_ID, writer_id)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let stdin = child.stdin.take().unwrap();
+        let stdout = BufReader::new(child.stdout.take().unwrap());
+        let stderr = child.stderr.take().unwrap();
+        Self {
+            child,
+            stdin,
+            stdout,
+            stderr,
         }
+    }
+
+    fn send(&mut self, command: u8) {
+        self.stdin.write_all(&[command]).unwrap();
+        self.stdin.flush().unwrap();
+    }
+
+    fn wait_for_marker(&mut self, marker: &str) {
+        let mut transcript = String::new();
+        loop {
+            let mut line = String::new();
+            let read = self.stdout.read_line(&mut line).unwrap();
+            if read == 0 {
+                let mut stderr = String::new();
+                self.stderr.read_to_string(&mut stderr).unwrap();
+                panic!(
+                    "claim worker exited before {marker}: stdout={transcript:?} stderr={stderr:?}"
+                );
+            }
+            transcript.push_str(&line);
+            if line.contains(marker) {
+                return;
+            }
+        }
+    }
+
+    fn is_running(&mut self) -> bool {
+        self.child.try_wait().unwrap().is_none()
+    }
+
+    fn sigkill(&mut self) {
+        assert!(
+            self.is_running(),
+            "claim worker exited before the requested SIGKILL"
+        );
+        assert_eq!(
+            unsafe { libc::kill(self.child.id() as i32, libc::SIGKILL) },
+            0
+        );
+        let status = self.child.wait().unwrap();
+        assert_eq!(status.signal(), Some(libc::SIGKILL));
+        let mut stderr = String::new();
+        self.stderr.read_to_string(&mut stderr).unwrap();
+        assert!(
+            stderr.is_empty(),
+            "claim worker emitted stderr before SIGKILL: {stderr}"
+        );
     }
 }
 
-fn kill_worker(child: &mut Child) {
-    assert_eq!(unsafe { libc::kill(child.id() as i32, libc::SIGKILL) }, 0);
-    let status = child.wait().unwrap();
-    assert_eq!(status.signal(), Some(libc::SIGKILL));
+impl Drop for ClaimCrashWorker {
+    fn drop(&mut self) {
+        if self.child.try_wait().ok().flatten().is_none() {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+        }
+    }
 }
 
 fn inspect_writer_fence(database: &Path) -> (i64, String, i64) {
@@ -815,13 +865,45 @@ fn authority_writer_claim_crash_worker() {
     let Some(database) = std::env::var_os(CRASH_WORKER_DATABASE) else {
         return;
     };
+    let database = PathBuf::from(database);
     let writer_id = std::env::var(CRASH_WORKER_ID).unwrap();
-    let mut runtime = ControlRuntime::open(database).unwrap();
+    let mut runtime = ControlRuntime::open(&database).unwrap();
     println!("authority-writer-worker-ready");
     std::io::stdout().flush().unwrap();
     let mut command = [0_u8; 1];
     std::io::stdin().read_exact(&mut command).unwrap();
-    assert_eq!(command, [b'C']);
+    if command == [CRASH_WORKER_PAUSE_AT_JOURNAL] {
+        let rollback_journal = PathBuf::from(format!("{}-journal", database.display()));
+        let (ready_tx, ready_rx) = std::sync::mpsc::sync_channel(0);
+        thread::spawn(move || {
+            ready_tx.send(()).unwrap();
+            let deadline = Instant::now() + ROLLBACK_JOURNAL_OBSERVATION_BUDGET;
+            loop {
+                if fs::metadata(&rollback_journal)
+                    .map(|metadata| metadata.len() > 0)
+                    .unwrap_or(false)
+                {
+                    println!("{CRASH_WORKER_JOURNAL_MARKER}");
+                    std::io::stdout().flush().unwrap();
+                    assert_eq!(
+                        unsafe { libc::kill(std::process::id() as i32, libc::SIGSTOP) },
+                        0
+                    );
+                    return;
+                }
+                if Instant::now() >= deadline {
+                    eprintln!(
+                        "claim worker did not observe a rollback journal within {ROLLBACK_JOURNAL_OBSERVATION_BUDGET:?}"
+                    );
+                    std::process::exit(3);
+                }
+                thread::sleep(Duration::from_millis(1));
+            }
+        });
+        ready_rx.recv().unwrap();
+    } else {
+        assert_eq!(command, [CRASH_WORKER_COMMIT]);
+    }
     let claim = runtime.claim_authority_writer(&writer_id).unwrap();
     println!(
         "authority-writer-worker-committed generation={} writer={}",
@@ -841,46 +923,28 @@ fn sigkill_at_writer_claim_commit_preserves_an_atomic_generation() {
         assert_eq!(claim.generation, 1);
     }
 
-    let (mut interrupted, mut interrupted_stdin, mut interrupted_stdout) =
-        spawn_claim_crash_worker(&database, WRITER_B);
-    wait_for_worker_marker(&mut interrupted_stdout, "authority-writer-worker-ready");
+    let mut interrupted = ClaimCrashWorker::spawn(&database, WRITER_B);
+    interrupted.wait_for_marker("authority-writer-worker-ready");
     let blocker = Connection::open(&database).unwrap();
     blocker.execute_batch("BEGIN DEFERRED").unwrap();
-    let baseline_generation: i64 = blocker
-        .query_row(
-            "SELECT generation FROM authority_writer_fence WHERE id = 1",
-            [],
-            |row| row.get(0),
-        )
+    let mut blocker_statement = blocker
+        .prepare("SELECT generation FROM authority_writer_fence WHERE id = 1")
         .unwrap();
+    let mut blocker_rows = blocker_statement.query([]).unwrap();
+    let baseline_generation: i64 = blocker_rows.next().unwrap().unwrap().get(0).unwrap();
     assert_eq!(baseline_generation, 1);
-    interrupted_stdin.write_all(b"C").unwrap();
-    interrupted_stdin.flush().unwrap();
     let rollback_journal = PathBuf::from(format!("{}-journal", database.display()));
-    let deadline = Instant::now() + Duration::from_secs(3);
-    loop {
-        if fs::metadata(&rollback_journal)
+    assert!(
+        !fs::metadata(&rollback_journal)
             .map(|metadata| metadata.len() > 0)
             .unwrap_or(false)
-        {
-            break;
-        }
-        assert!(
-            interrupted.try_wait().unwrap().is_none(),
-            "claim worker exited before creating its rollback journal"
-        );
-        assert!(
-            Instant::now() < deadline,
-            "claim worker did not reach the rollback-journal write boundary"
-        );
-        thread::sleep(Duration::from_millis(10));
-    }
-    thread::sleep(Duration::from_millis(100));
-    assert!(
-        interrupted.try_wait().unwrap().is_none(),
-        "reader lock must hold the writer inside COMMIT"
     );
-    kill_worker(&mut interrupted);
+    interrupted.send(CRASH_WORKER_PAUSE_AT_JOURNAL);
+    interrupted.wait_for_marker(CRASH_WORKER_JOURNAL_MARKER);
+    assert!(fs::metadata(&rollback_journal).unwrap().len() > 0);
+    interrupted.sigkill();
+    drop(blocker_rows);
+    drop(blocker_statement);
     blocker.execute_batch("ROLLBACK").unwrap();
     drop(blocker);
 
@@ -912,16 +976,11 @@ fn sigkill_at_writer_claim_commit_preserves_an_atomic_generation() {
         );
     }
 
-    let (mut committed, mut committed_stdin, mut committed_stdout) =
-        spawn_claim_crash_worker(&database, WRITER_C);
-    wait_for_worker_marker(&mut committed_stdout, "authority-writer-worker-ready");
-    committed_stdin.write_all(b"C").unwrap();
-    committed_stdin.flush().unwrap();
-    wait_for_worker_marker(
-        &mut committed_stdout,
-        "authority-writer-worker-committed generation=3",
-    );
-    kill_worker(&mut committed);
+    let mut committed = ClaimCrashWorker::spawn(&database, WRITER_C);
+    committed.wait_for_marker("authority-writer-worker-ready");
+    committed.send(CRASH_WORKER_COMMIT);
+    committed.wait_for_marker("authority-writer-worker-committed generation=3");
+    committed.sigkill();
     let (generation, writer_id, _) = inspect_writer_fence(&database);
     assert_eq!((generation, writer_id.as_str()), (3, WRITER_C));
 }

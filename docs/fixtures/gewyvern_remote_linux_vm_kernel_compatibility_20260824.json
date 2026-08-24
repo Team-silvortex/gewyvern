@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "proof": "gewyvern-remote-linux-vm-kernel-compatibility",
+  "captured_at_utc": "2026-08-24T08:38:03Z",
+  "release_line": "1.16.0",
+  "scope": "vm-linux-5.15-full-stack-kernel-compatibility",
+  "host": {
+    "alias": "gewyvern-jammy",
+    "target_kind": "vm",
+    "distribution": "Ubuntu 22.04.5 LTS",
+    "os": "linux",
+    "arch": "x86_64",
+    "kernel": "5.15.0-187-generic",
+    "virtualization": "kvm"
+  },
+  "authentication": {
+    "workspace": "ssh-key",
+    "validation_admin_credentials_present": false,
+    "ordinary_account_unrestricted_sudo": false,
+    "privileged_path": "fixed-helper",
+    "helper_version": "1.16.0",
+    "helper_protocol": 1,
+    "helper_allowed_operations": ["probe", "run", "cleanup"]
+  },
+  "helper_upgrade": {
+    "stale_version": "1.15.0",
+    "stale_state": "incompatible",
+    "stale_helper_rejected": true,
+    "replacement_version": "1.16.0",
+    "replacement_owner": "root",
+    "replacement_mode": "0755",
+    "sudoers_mode": "0440",
+    "post_upgrade_probe": "ready"
+  },
+  "ownership": {
+    "workspace_identity": "dedicated-unprivileged-ssh-account",
+    "source_cache": "ordinary-account-owned",
+    "target_cache": "ordinary-account-owned",
+    "preflight_fence": true,
+    "postflight_fence": true,
+    "foreign_owned_entries": 0,
+    "remote_run_residue": 0
+  },
+  "checks": [
+    "remote_preflight",
+    "workspace_synced",
+    "remote_workspace_ownership_preflight",
+    "remote_workspace_materialized",
+    "remote_rust_quality",
+    "remote_linux_target_check",
+    "remote_package_build",
+    "remote_leserpent_control_plane_aot",
+    "remote_leserpent_language_pack_local_orchestra_aot",
+    "remote_package_build_timings",
+    "remote_artifacts_present",
+    "remote_package_smoke",
+    "remote_package_smoke_timings",
+    "remote_runtime_smoke",
+    "remote_runtime_smoke_timings",
+    "remote_ebpf_evidence_synced",
+    "remote_ebpf_smoke",
+    "remote_workspace_ownership_postflight",
+    "remote_phase_timings"
+  ],
+  "compatibility": {
+    "rust_workspace": "passed",
+    "linux_targets": "passed",
+    "deb_and_rpm": "passed",
+    "runtime_tcp_and_udp": "passed",
+    "control_plane_native_aot": "passed",
+    "language_pack_native_aot": "passed",
+    "ebpf_attach_kprobe_tc": "passed"
+  },
+  "performance": {
+    "cache_posture": "warm",
+    "total_seconds": 107.865342666,
+    "package_build_seconds": 0.451888875,
+    "control_plane_aot_seconds": 44.564545333,
+    "language_pack_aot_seconds": 60.121804875,
+    "ebpf_attach_seconds": 0.720407625,
+    "budget_warnings": []
+  },
+  "release_posture": {
+    "signal": "compatibility_only",
+    "release_eligible": false,
+    "physical_matrix_contribution": false,
+    "physical_matrix_unchanged": true
+  },
+  "matrix": {
+    "vm": {
+      "unique_hosts": 1,
+      "unique_kernels": 1,
+      "release_eligible": false,
+      "ready": false
+    },
+    "physical": {
+      "unique_hosts": 1,
+      "unique_kernels": 1,
+      "minimum_hosts": 2,
+      "minimum_kernels": 2,
+      "ready": false
+    }
+  },
+  "remaining": [
+    "second-independent-physical-host",
+    "second-physical-kernel-release"
+  ],
+  "result": "passed"
+}

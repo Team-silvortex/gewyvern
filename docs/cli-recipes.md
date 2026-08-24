@@ -302,6 +302,8 @@ whole built-in registry.
 ## `gewyc` Commands
 
 ```bash
+cargo run -p gewyc -- --help
+cargo run -p gewyc -- --version
 cargo run -p gewyc -- dsl/http_request_path.gewy --json
 cargo run -p gewyc -- explain dsl/http_request_path.gewy --focus binding
 cargo run -p gewyc -- diagnostics dsl/http_request_path.gewy --json
