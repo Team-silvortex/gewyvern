@@ -44,6 +44,10 @@ internal enum DesktopTextKey
     CoverageFallback,
     AppliesImmediately,
     LanguagePacks,
+    LanguagePackSource,
+    DownloadLanguagePack,
+    LanguagePackSourceHint,
+    LanguagePackDownloadSucceeded,
     InstallLanguagePack,
     RemoveLanguagePack,
     BuiltInLanguagePack,
@@ -146,6 +150,10 @@ internal sealed class DesktopLocalization
             [DesktopTextKey.CoverageFallback] = "Official locale available; desktop-specific text currently uses English fallback",
             [DesktopTextKey.AppliesImmediately] = "Applies immediately and is stored only on this device.",
             [DesktopTextKey.LanguagePacks] = "Language packs",
+            [DesktopTextKey.LanguagePackSource] = "Daemon catalog source",
+            [DesktopTextKey.DownloadLanguagePack] = "Download selected",
+            [DesktopTextKey.LanguagePackSourceHint] = "Downloads use the selected daemon's saved TLS trust and never send its admin credential. Install JSON remains available offline.",
+            [DesktopTextKey.LanguagePackDownloadSucceeded] = "Downloaded and installed {0} from {1}.",
             [DesktopTextKey.InstallLanguagePack] = "Install JSON...",
             [DesktopTextKey.RemoveLanguagePack] = "Remove pack",
             [DesktopTextKey.BuiltInLanguagePack] = "Built in; no language pack is required.",
@@ -227,6 +235,10 @@ internal sealed class DesktopLocalization
             [DesktopTextKey.CoverageFallback] = "官方语言已可选；桌面专用文案目前回退英文",
             [DesktopTextKey.AppliesImmediately] = "立即生效，且仅保存在此设备上。",
             [DesktopTextKey.LanguagePacks] = "语言包",
+            [DesktopTextKey.LanguagePackSource] = "Daemon 目录来源",
+            [DesktopTextKey.DownloadLanguagePack] = "下载所选语言",
+            [DesktopTextKey.LanguagePackSourceHint] = "下载仅使用所选 daemon 已保存的 TLS 信任，绝不会发送管理凭证；离线时仍可安装 JSON。",
+            [DesktopTextKey.LanguagePackDownloadSucceeded] = "已从 {1} 下载并安装 {0}。",
             [DesktopTextKey.InstallLanguagePack] = "安装 JSON...",
             [DesktopTextKey.RemoveLanguagePack] = "移除语言包",
             [DesktopTextKey.BuiltInLanguagePack] = "内置语言，无需安装语言包。",
@@ -623,12 +635,18 @@ internal sealed class DesktopLocalization
 
     public DesktopInstalledLanguagePack InstallLanguagePack(
         Stream stream,
-        string? expectedSha256 = null)
+        string? expectedSha256 = null,
+        string? expectedLocale = null,
+        string? expectedVersion = null)
     {
         var packStore = languagePackStore
             ?? throw new InvalidOperationException(
                 "desktop language-pack installation is unavailable");
-        var installed = packStore.Install(stream, expectedSha256);
+        var installed = packStore.Install(
+            stream,
+            expectedSha256,
+            expectedLocale,
+            expectedVersion);
         ReplaceInstalledPack(installed);
         return installed;
     }
@@ -636,6 +654,8 @@ internal sealed class DesktopLocalization
     public async Task<DesktopInstalledLanguagePack> InstallLanguagePackAsync(
         Stream stream,
         string? expectedSha256 = null,
+        string? expectedLocale = null,
+        string? expectedVersion = null,
         CancellationToken cancellationToken = default)
     {
         var packStore = languagePackStore
@@ -644,6 +664,8 @@ internal sealed class DesktopLocalization
         var installed = await packStore.InstallAsync(
             stream,
             expectedSha256,
+            expectedLocale,
+            expectedVersion,
             cancellationToken);
         ReplaceInstalledPack(installed);
         return installed;
@@ -651,12 +673,18 @@ internal sealed class DesktopLocalization
 
     internal DesktopInstalledLanguagePack InstallLanguagePack(
         ReadOnlySpan<byte> payload,
-        string? expectedSha256 = null)
+        string? expectedSha256 = null,
+        string? expectedLocale = null,
+        string? expectedVersion = null)
     {
         var packStore = languagePackStore
             ?? throw new InvalidOperationException(
                 "desktop language-pack installation is unavailable");
-        var installed = packStore.Install(payload, expectedSha256);
+        var installed = packStore.Install(
+            payload,
+            expectedSha256,
+            expectedLocale,
+            expectedVersion);
         ReplaceInstalledPack(installed);
         return installed;
     }
@@ -755,7 +783,7 @@ internal sealed class DesktopLocalization
             + DesktopHubCatalogs.KeyCount
             + DesktopTutorialCatalogs.KeyCount;
         if (Schema != "leserpent.desktop-localization/v1"
-            || desktopTextKeyCount != 76
+            || desktopTextKeyCount != 80
             || LocaleDefinitions.Length != 30
             || LocaleDefinitions.Count(locale => locale.BuiltIn) != 8
             || LocaleDefinitions.Count(locale => locale.BuiltIn

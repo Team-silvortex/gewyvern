@@ -964,6 +964,8 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     let semantic = avalonia_source("Leserpent.Avalonia/DesktopBuiltInSemanticCatalogs.cs");
     let store = avalonia_source("Leserpent.Avalonia/DesktopLanguagePreferenceStore.cs");
     let pack_store = avalonia_source("Leserpent.Avalonia/DesktopLanguagePackStore.cs");
+    let pack_catalog =
+        avalonia_source("Leserpent.Avalonia/DesktopLanguagePackCatalogClient.cs");
     let window = avalonia_source("Leserpent.Avalonia/DesktopLanguageWindow.cs");
     let renderer = avalonia_source("Leserpent.Avalonia/AvaloniaDocumentRenderer.cs");
     let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
@@ -1006,7 +1008,7 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     ] {
         assert!(built_in.contains(marker), "built-in catalog is missing {marker}");
     }
-    assert_eq!(built_in.matches("[DesktopTextKey.").count(), 463);
+    assert_eq!(built_in.matches("[DesktopTextKey.").count(), 488);
     assert!(built_in.contains("[DesktopTextKey.ControlTopology] = \"控制拓撲\""));
     assert!(built_in.contains("[DesktopTextKey.Close] = \"閉じる\""));
     assert!(built_in.contains("[DesktopTextKey.FollowSystem] = \"Seguir el sistema\""));
@@ -1089,6 +1091,7 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
         ".Take(MaxDirectoryEntries + 1)",
         "ReadBoundedAsync",
         "ReadAsync(buffer, cancellationToken)",
+        "cancellationToken.ThrowIfCancellationRequested()",
         "RequiredCoreUiKeys.IsSubsetOf(translations.Keys)",
         "CryptographicOperations.FixedTimeEquals",
         "FileOptions.WriteThrough",
@@ -1111,6 +1114,31 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(!pack_store_lower.contains("admin_token"));
     assert!(!pack_store_lower.contains("credential"));
 
+    for marker in [
+        "leserpent.language-pack-catalog/v1",
+        "public const int MaxCatalogBytes = 128 * 1024",
+        "AllowAutoRedirect = false",
+        "UseCookies = false",
+        "RemoteTls.ValidateServerCertificate",
+        "language-packs/catalog.json",
+        "entry.Url != $\"/language-packs/{definition.Locale}.json\"",
+        "JsonUnmappedMemberHandling.Disallow",
+        "CryptographicOperations.FixedTimeEquals",
+        "download must target an official downloadable locale",
+        "request.Headers.Authorization is null",
+        "X-Leserpent-Admin-Token",
+        "VerifyPublishedArtifacts",
+        "published language-pack set did not round-trip through desktop storage",
+    ] {
+        assert!(
+            pack_catalog.contains(marker),
+            "desktop language-pack catalog client is missing {marker}"
+        );
+    }
+    assert!(!pack_catalog.contains("AuthenticationHeaderValue"));
+    assert!(!pack_catalog.contains("RemoteTokenResolver"));
+    assert!(!pack_catalog.contains("options.Token"));
+
     for automation_id in [
         "desktop-language-choice",
         "desktop-language-coverage",
@@ -1120,6 +1148,8 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
         "desktop-language-pack-status",
         "desktop-language-pack-install",
         "desktop-language-pack-remove",
+        "desktop-language-pack-source",
+        "desktop-language-pack-download",
     ] {
         assert!(window.contains(automation_id));
     }
@@ -1129,6 +1159,9 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(window.contains("localization.SetPreference(choice.Preference)"));
     assert!(window.contains("OpenFilePickerAsync"));
     assert!(window.contains("ProbeLanguagePackContract"));
+    assert!(window.contains("ProbeLanguagePackDownloadContractAsync"));
+    assert!(window.contains("ProbeLanguagePackCancellationContractAsync"));
+    assert!(window.contains("languagePackOperationInProgress"));
     assert!(!window.contains("HttpClient"));
     assert!(hub.contains("hub-open-language"));
     assert!(hub.contains("ProbeLanguageEntry()"));
@@ -1139,18 +1172,27 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(app.contains("builtin_semantic_catalogs=7"));
     assert!(app.contains("builtin_ui_ir_controls=7"));
     assert!(app.contains("language_pack_install=true"));
-    assert!(app.contains("language_pack_applied_mutations=2"));
-    assert!(app.contains("automation_ids=8"));
+    assert!(app.contains("language_pack_catalog_download=true"));
+    assert!(app.contains("language_pack_close_cancellation=true"));
+    assert!(app.contains("language_pack_applied_mutations=3"));
+    assert!(app.contains("automation_ids=10"));
     assert!(app.contains("localized UI-IR did not reach its native control"));
     assert!(program.contains("--verify-desktop-localization"));
+    assert!(program.contains("--verify-desktop-language-pack-artifacts"));
+    assert!(program.contains("native_store_roundtrip=true"));
     assert!(program.contains("builtin_shell_catalogs=8"));
-    assert!(program.contains("native_shell_keys=76"));
+    assert!(program.contains("native_shell_keys=80"));
     assert!(program.contains("complete_builtin_locales=8"));
     assert!(program.contains("builtin_semantic_catalogs=7"));
     assert!(program.contains("semantic_keys=26"));
     assert!(program.contains("builtin_semantic_keys=596"));
     assert!(program.contains("language_pack_core_ui_keys=18"));
     assert!(program.contains("language_pack_sha256=true"));
+    assert!(program.contains("language_pack_catalog_locale_binding=true"));
+    assert!(program.contains("language_pack_catalog_version_binding=true"));
+    assert!(program.contains("language_pack_same_origin=true"));
+    assert!(program.contains("language_pack_bearer_sent=false"));
+    assert!(program.contains("language_pack_cancellation_fenced=true"));
     assert!(program.contains("language_pack_bad_sibling_isolation=true"));
     assert!(program.contains("builtin_remote_shell_catalogs=7"));
     assert!(program.contains("remote_shell_semantic_keys=56"));

@@ -34,8 +34,11 @@ preserves the target host, opaque SSH credential handle, and raw remote errors.
 Gewyvern provisioning is also covered, including its bounded-observation and
 retry guidance; the provisioning ID, runtime ID, host, and vault handle remain
 unchanged when the interface language changes.
-For one of the 22 additional locales, select `Install JSON...` in the same
-window and choose a `leserpent.language-pack/v1` file. Desktop accepts only the
+For one of the 22 additional locales, select the locale and a `Daemon catalog
+source`, then choose `Download selected`. The source may be local Orchestra or
+one of the saved remote daemons. Desktop uses its saved TLS CA but does not send
+the daemon's management credential. For offline use, `Install JSON...` accepts
+a local `leserpent.language-pack/v1` file. Desktop accepts only the
 official downloadable locale roster and the shared 18-key core-ui contract; it
 cannot replace a built-in language. Installed packs remain private to this user
 and can be removed from the same window. A malformed pack is rejected without

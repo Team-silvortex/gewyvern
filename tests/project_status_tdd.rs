@@ -5588,7 +5588,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .expect("desktop localization contract must remain tracked");
     assert_eq!(desktop_localization.maturity, Maturity::Incubating);
     assert_eq!(desktop_localization.completion, 99);
-    assert_eq!(desktop_localization.contract.version, "0.13.0");
+    assert_eq!(desktop_localization.contract.version, "0.14.0");
     assert_eq!(desktop_localization.contract.stability, ContractStability::Draft);
     for surface in [
         "thirty-official-locale-identifiers",
@@ -5600,11 +5600,21 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "bounded-language-pack-json-tree",
         "bounded-language-pack-directory-enumeration",
         "async-bounded-language-pack-stream-read",
+        "cancellation-fenced-language-pack-commit",
         "language-pack-sha256-binding",
+        "strict-language-pack-catalog-v1",
+        "bounded-language-pack-catalog-fetch",
+        "explicit-daemon-language-pack-source",
+        "saved-ca-bound-language-pack-fetch",
+        "credential-free-language-pack-fetch",
+        "same-origin-language-pack-path-fence",
+        "catalog-locale-version-digest-binding",
         "private-atomic-language-pack-store",
         "malformed-language-pack-sibling-isolation",
         "per-key-language-pack-english-fallback",
         "native-language-pack-install-controls",
+        "native-language-pack-download-controls",
+        "cancellable-single-flight-language-pack-download",
         "native-language-pack-remove-controls",
         "native-language-settings-window",
         "ui-ir-localized-text-resolution",
@@ -5714,9 +5724,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && blocker.summary.contains("runtime child-workspace")
             && blocker.summary.contains("Hub domains")
             && blocker.summary.contains("tutorial domains")
-            && blocker.summary.contains("76-key native-shell catalogs")
+            && blocker.summary.contains("80-key native-shell catalogs")
             && blocker.summary.contains("18-key core-ui v1 packs")
-            && blocker.summary.contains("SHA-256 catalog binding")
+            && blocker.summary.contains("explicitly selected local or saved daemon")
+            && blocker.summary.contains("without sending an admin credential")
+            && blocker.summary.contains("digest/locale/version bound")
+            && blocker.summary.contains("not catalog-authenticated")
             && blocker.summary.contains("malformed-sibling isolation")
             && blocker.summary.contains("intentionally partial")
             && !blocker.summary.contains("runtime child-workspace shell")
@@ -5739,6 +5752,17 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBuiltInSemanticCatalogs.cs"
             && evidence.state == EvidenceState::Present
     }));
+    assert!(desktop_localization.evidence.iter().any(|evidence| {
+        evidence.path
+            == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguagePackCatalogClient.cs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(desktop_localization
+        .next_gate
+        .contains("packaged macOS and Linux live-download evidence"));
+    assert!(desktop_localization
+        .next_gate
+        .contains("no bearer/admin credential is sent"));
     assert!(desktop_localization.evidence.iter().any(|evidence| {
         evidence.path
             == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopConnectionCatalogs.cs"

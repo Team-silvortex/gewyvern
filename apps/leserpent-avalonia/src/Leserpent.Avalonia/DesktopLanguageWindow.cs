@@ -18,6 +18,13 @@ internal sealed class DesktopLanguageWindow : Window
 {
     private readonly DesktopLocalization localization;
     private readonly Action applied;
+    private readonly IReadOnlyList<DesktopLanguagePackSource> languagePackSources;
+    private readonly Func<
+        DesktopLanguagePackSource,
+        string,
+        CancellationToken,
+        Task<DesktopLanguagePackDownload>>? downloadLanguagePack;
+    private readonly CancellationTokenSource lifetime = new();
     private readonly List<Control> auditedControls = [];
     private readonly ComboBox languageBox = new()
     {
@@ -43,13 +50,25 @@ internal sealed class DesktopLanguageWindow : Window
         FontSize = 13,
         TextWrapping = TextWrapping.Wrap,
     };
+    private readonly ComboBox languagePackSourceBox = new()
+    {
+        MinWidth = 310,
+        HorizontalAlignment = HorizontalAlignment.Stretch,
+    };
+    private readonly Button downloadLanguagePackButton = new()
+    {
+        Padding = new Thickness(16, 8),
+        Margin = new Thickness(0, 0, 10, 8),
+    };
     private readonly Button installLanguagePackButton = new()
     {
         Padding = new Thickness(16, 8),
+        Margin = new Thickness(0, 0, 10, 8),
     };
     private readonly Button removeLanguagePackButton = new()
     {
         Padding = new Thickness(16, 8),
+        Margin = new Thickness(0, 0, 0, 8),
     };
     private readonly Button cancelButton = new()
     {
@@ -63,11 +82,36 @@ internal sealed class DesktopLanguageWindow : Window
         Padding = new Thickness(22, 8),
     };
     private readonly IReadOnlyList<DesktopLanguageChoice> choices;
+    private bool languagePackOperationInProgress;
 
     public DesktopLanguageWindow(DesktopLocalization localization, Action applied)
+        : this(localization, applied, [], null)
+    {
+    }
+
+    public DesktopLanguageWindow(
+        DesktopLocalization localization,
+        Action applied,
+        IReadOnlyList<DesktopLanguagePackSource> languagePackSources,
+        Func<
+            DesktopLanguagePackSource,
+            string,
+            CancellationToken,
+            Task<DesktopLanguagePackDownload>>? downloadLanguagePack)
     {
         this.localization = localization;
         this.applied = applied;
+        this.languagePackSources = languagePackSources.ToArray();
+        this.downloadLanguagePack = downloadLanguagePack;
+        if ((this.languagePackSources.Count > 0 && downloadLanguagePack is null)
+            || this.languagePackSources.Select(source => source.SourceId)
+                .Distinct(StringComparer.Ordinal).Count() != this.languagePackSources.Count
+            || this.languagePackSources.Select(source => source.Endpoint)
+                .Distinct().Count() != this.languagePackSources.Count)
+        {
+            throw new InvalidDataException(
+                "desktop language-pack sources are inconsistent");
+        }
         choices = BuildChoices(localization);
         Title = localization.Text(DesktopTextKey.LanguageSettingsTitle);
         Width = 610;
@@ -82,6 +126,8 @@ internal sealed class DesktopLanguageWindow : Window
         languageBox.ItemsSource = choices;
         languageBox.SelectedItem = choices.Single(choice =>
             choice.Preference == localization.Preference);
+        languagePackSourceBox.ItemsSource = this.languagePackSources;
+        languagePackSourceBox.SelectedItem = this.languagePackSources.FirstOrDefault();
         ConfigureControl(
             languageBox,
             "desktop-language-choice",
@@ -98,6 +144,14 @@ internal sealed class DesktopLanguageWindow : Window
             languagePackText,
             "desktop-language-pack-status",
             localization.Text(DesktopTextKey.LanguagePacks));
+        ConfigureControl(
+            languagePackSourceBox,
+            "desktop-language-pack-source",
+            localization.Text(DesktopTextKey.LanguagePackSource));
+        ConfigureControl(
+            downloadLanguagePackButton,
+            "desktop-language-pack-download",
+            localization.Text(DesktopTextKey.DownloadLanguagePack));
         ConfigureControl(
             installLanguagePackButton,
             "desktop-language-pack-install",
@@ -121,12 +175,17 @@ internal sealed class DesktopLanguageWindow : Window
             DesktopTextKey.InstallLanguagePack);
         removeLanguagePackButton.Content = localization.Text(
             DesktopTextKey.RemoveLanguagePack);
-        installLanguagePackButton.IsEnabled = localization.SupportsLanguagePackInstallation;
+        downloadLanguagePackButton.Content = localization.Text(
+            DesktopTextKey.DownloadLanguagePack);
         languageBox.SelectionChanged += (_, _) => UpdateCoverage();
+        languagePackSourceBox.SelectionChanged += (_, _) => UpdateActionAvailability();
         cancelButton.Click += (_, _) => Close();
         applyButton.Click += (_, _) => ApplySelection();
         installLanguagePackButton.Click += async (_, _) => await InstallLanguagePackAsync();
+        downloadLanguagePackButton.Click += async (_, _) =>
+            await DownloadSelectedLanguagePackAsync();
         removeLanguagePackButton.Click += (_, _) => RemoveSelectedLanguagePack();
+        Closed += (_, _) => lifetime.Cancel();
 
         var header = new StackPanel
         {
@@ -206,12 +265,27 @@ internal sealed class DesktopLanguageWindow : Window
                         FontWeight = FontWeight.SemiBold,
                     },
                     languagePackText,
-                    new StackPanel
+                    new TextBlock
+                    {
+                        Text = localization.Text(DesktopTextKey.LanguagePackSource),
+                        Foreground = LeserpentTheme.Muted,
+                        FontSize = 12,
+                        FontWeight = FontWeight.SemiBold,
+                    },
+                    languagePackSourceBox,
+                    new TextBlock
+                    {
+                        Text = localization.Text(DesktopTextKey.LanguagePackSourceHint),
+                        Foreground = LeserpentTheme.Muted,
+                        FontSize = 12,
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    new WrapPanel
                     {
                         Orientation = Orientation.Horizontal,
-                        Spacing = 10,
                         Children =
                         {
+                            downloadLanguagePackButton,
                             installLanguagePackButton,
                             removeLanguagePackButton,
                         },
@@ -248,7 +322,7 @@ internal sealed class DesktopLanguageWindow : Window
     {
         var ids = new HashSet<string>(StringComparer.Ordinal);
         if (choices.Count != 31
-            || auditedControls.Count != 8
+            || auditedControls.Count != 10
             || auditedControls.Any(control =>
                 string.IsNullOrWhiteSpace(AutomationProperties.GetAutomationId(control))
                 || string.IsNullOrWhiteSpace(AutomationProperties.GetName(control))
@@ -319,6 +393,46 @@ internal sealed class DesktopLanguageWindow : Window
         }
     }
 
+    public async Task ProbeLanguagePackDownloadContractAsync()
+    {
+        if (languagePackSources.Count != 1 || downloadLanguagePack is null)
+        {
+            throw new InvalidDataException(
+                "desktop language-pack download probe has no source");
+        }
+        SelectLocale("pt-BR");
+        await DownloadSelectedLanguagePackAsync();
+        var source = languagePackSources[0];
+        if (!localization.IsLanguagePackInstalled("pt-BR")
+            || !Equals(languagePackSourceBox.SelectedItem, source)
+            || statusText.Text is null
+            || !statusText.Text.Contains(source.DisplayName, StringComparison.Ordinal)
+            || downloadLanguagePackButton.IsEnabled == false)
+        {
+            throw new InvalidDataException(
+                "desktop language-pack catalog download did not reach native controls");
+        }
+    }
+
+    public async Task ProbeLanguagePackCancellationContractAsync(string locale)
+    {
+        if (languagePackSources.Count != 1 || downloadLanguagePack is null)
+        {
+            throw new InvalidDataException(
+                "desktop language-pack cancellation probe has no source");
+        }
+        SelectLocale(locale);
+        var pending = DownloadSelectedLanguagePackAsync();
+        lifetime.Cancel();
+        await pending;
+        if (localization.IsLanguagePackInstalled(locale)
+            || languagePackOperationInProgress)
+        {
+            throw new InvalidDataException(
+                "desktop language-pack cancellation committed an installation");
+        }
+    }
+
     private static IReadOnlyList<DesktopLanguageChoice> BuildChoices(
         DesktopLocalization localization)
     {
@@ -343,6 +457,7 @@ internal sealed class DesktopLanguageWindow : Window
             coverageText.Text = string.Empty;
             languagePackText.Text = string.Empty;
             removeLanguagePackButton.IsEnabled = false;
+            UpdateActionAvailability();
             return;
         }
         var coverage = choice.Locale.Coverage switch
@@ -357,7 +472,7 @@ internal sealed class DesktopLanguageWindow : Window
 
     private async Task InstallLanguagePackAsync()
     {
-        if (!localization.SupportsLanguagePackInstallation)
+        if (!BeginLanguagePackOperation())
         {
             return;
         }
@@ -382,8 +497,16 @@ internal sealed class DesktopLanguageWindow : Window
             {
                 return;
             }
+            lifetime.Token.ThrowIfCancellationRequested();
             await using var stream = await files[0].OpenReadAsync();
             _ = await InstallLanguagePackAsync(stream);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception error) when (lifetime.IsCancellationRequested
+            && StartupFailure.IsExpected(error))
+        {
         }
         catch (Exception error) when (StartupFailure.IsExpected(error))
         {
@@ -393,11 +516,78 @@ internal sealed class DesktopLanguageWindow : Window
                     StartupFailure.Describe(error)),
                 failed: true);
         }
+        finally
+        {
+            EndLanguagePackOperation();
+        }
+    }
+
+    private async Task DownloadSelectedLanguagePackAsync()
+    {
+        if (languageBox.SelectedItem is not DesktopLanguageChoice choice
+            || choice.Locale.BuiltIn
+            || languagePackSourceBox.SelectedItem is not DesktopLanguagePackSource source
+            || downloadLanguagePack is null
+            || !BeginLanguagePackOperation())
+        {
+            return;
+        }
+        try
+        {
+            var downloaded = await downloadLanguagePack(
+                source,
+                choice.Locale.Locale,
+                lifetime.Token);
+            lifetime.Token.ThrowIfCancellationRequested();
+            if (downloaded.SourceId != source.SourceId
+                || downloaded.Locale != choice.Locale.Locale)
+            {
+                throw new InvalidDataException(
+                    "language-pack download did not match its selected source and locale");
+            }
+            var installed = localization.InstallLanguagePack(
+                downloaded.Payload,
+                downloaded.Sha256,
+                downloaded.Locale,
+                downloaded.Version);
+            SelectLocale(installed.Manifest.Locale);
+            SetStatus(
+                localization.Format(
+                    DesktopTextKey.LanguagePackDownloadSucceeded,
+                    installed.Manifest.NativeName,
+                    source.DisplayName),
+                failed: false);
+            applied();
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception error) when (lifetime.IsCancellationRequested
+            && (StartupFailure.IsExpected(error)
+                || error is HttpRequestException or TaskCanceledException))
+        {
+        }
+        catch (Exception error) when (StartupFailure.IsExpected(error)
+            || error is HttpRequestException or TaskCanceledException)
+        {
+            SetStatus(
+                localization.Format(
+                    DesktopTextKey.LanguagePackOperationFailed,
+                    StartupFailure.Describe(error)),
+                failed: true);
+        }
+        finally
+        {
+            EndLanguagePackOperation();
+        }
     }
 
     private async Task<DesktopInstalledLanguagePack> InstallLanguagePackAsync(Stream stream)
     {
-        var installed = await localization.InstallLanguagePackAsync(stream);
+        var installed = await localization.InstallLanguagePackAsync(
+            stream,
+            cancellationToken: lifetime.Token);
+        lifetime.Token.ThrowIfCancellationRequested();
         SelectLocale(installed.Manifest.Locale);
         SetStatus(
             localization.Format(
@@ -423,7 +613,8 @@ internal sealed class DesktopLanguageWindow : Window
 
     private void RemoveSelectedLanguagePack()
     {
-        if (languageBox.SelectedItem is not DesktopLanguageChoice choice
+        if (languagePackOperationInProgress
+            || languageBox.SelectedItem is not DesktopLanguageChoice choice
             || choice.Locale.BuiltIn
             || !localization.IsLanguagePackInstalled(choice.Locale.Locale))
         {
@@ -462,14 +653,55 @@ internal sealed class DesktopLanguageWindow : Window
         if (locale.BuiltIn)
         {
             languagePackText.Text = localization.Text(DesktopTextKey.BuiltInLanguagePack);
-            removeLanguagePackButton.IsEnabled = false;
+            UpdateActionAvailability();
             return;
         }
         var version = localization.InstalledLanguagePackVersion(locale.Locale);
         languagePackText.Text = version is null
             ? localization.Text(DesktopTextKey.LanguagePackNotInstalled)
             : localization.Format(DesktopTextKey.LanguagePackInstalled, version);
-        removeLanguagePackButton.IsEnabled = version is not null;
+        UpdateActionAvailability();
+    }
+
+    private bool BeginLanguagePackOperation()
+    {
+        if (languagePackOperationInProgress
+            || !localization.SupportsLanguagePackInstallation)
+        {
+            return false;
+        }
+        languagePackOperationInProgress = true;
+        UpdateActionAvailability();
+        return true;
+    }
+
+    private void EndLanguagePackOperation()
+    {
+        languagePackOperationInProgress = false;
+        if (!lifetime.IsCancellationRequested)
+        {
+            UpdateCoverage();
+        }
+    }
+
+    private void UpdateActionAvailability()
+    {
+        var selectedLocale = (languageBox.SelectedItem as DesktopLanguageChoice)?.Locale;
+        var installed = selectedLocale is not null
+            && !selectedLocale.BuiltIn
+            && localization.IsLanguagePackInstalled(selectedLocale.Locale);
+        languageBox.IsEnabled = !languagePackOperationInProgress;
+        languagePackSourceBox.IsEnabled = !languagePackOperationInProgress
+            && languagePackSources.Count > 0;
+        installLanguagePackButton.IsEnabled = !languagePackOperationInProgress
+            && localization.SupportsLanguagePackInstallation;
+        downloadLanguagePackButton.IsEnabled = !languagePackOperationInProgress
+            && localization.SupportsLanguagePackInstallation
+            && downloadLanguagePack is not null
+            && languagePackSourceBox.SelectedItem is DesktopLanguagePackSource
+            && selectedLocale is { BuiltIn: false };
+        removeLanguagePackButton.IsEnabled = !languagePackOperationInProgress && installed;
+        applyButton.IsEnabled = !languagePackOperationInProgress;
     }
 
     private void SetStatus(string value, bool failed)

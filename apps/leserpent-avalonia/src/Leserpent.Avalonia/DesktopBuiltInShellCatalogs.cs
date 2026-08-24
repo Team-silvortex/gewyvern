@@ -44,6 +44,10 @@ internal static class DesktopBuiltInShellCatalogs
             [DesktopTextKey.CoverageFallback] = "官方語言已可選；桌面專用文字目前回退英文",
             [DesktopTextKey.AppliesImmediately] = "立即生效，且只儲存在此裝置上。",
             [DesktopTextKey.LanguagePacks] = "語言套件",
+            [DesktopTextKey.LanguagePackSource] = "Daemon 目錄來源",
+            [DesktopTextKey.DownloadLanguagePack] = "下載所選語言",
+            [DesktopTextKey.LanguagePackSourceHint] = "下載只會使用所選 daemon 已儲存的 TLS 信任，絕不傳送管理憑證；離線時仍可安裝 JSON。",
+            [DesktopTextKey.LanguagePackDownloadSucceeded] = "已從 {1} 下載並安裝 {0}。",
             [DesktopTextKey.InstallLanguagePack] = "安裝 JSON...",
             [DesktopTextKey.RemoveLanguagePack] = "移除語言套件",
             [DesktopTextKey.BuiltInLanguagePack] = "內建語言，無需安裝語言套件。",
@@ -125,6 +129,10 @@ internal static class DesktopBuiltInShellCatalogs
             [DesktopTextKey.CoverageFallback] = "公式ロケールを選択可能。デスクトップ固有テキストは現在英語へフォールバック",
             [DesktopTextKey.AppliesImmediately] = "すぐに適用され、このデバイスだけに保存されます。",
             [DesktopTextKey.LanguagePacks] = "言語パック",
+            [DesktopTextKey.LanguagePackSource] = "Daemon カタログソース",
+            [DesktopTextKey.DownloadLanguagePack] = "選択した言語をダウンロード",
+            [DesktopTextKey.LanguagePackSourceHint] = "ダウンロードには選択した daemon の保存済み TLS 信頼だけを使用し、管理認証情報は送信しません。オフラインでは JSON をインストールできます。",
+            [DesktopTextKey.LanguagePackDownloadSucceeded] = "{1} から {0} をダウンロードしてインストールしました。",
             [DesktopTextKey.InstallLanguagePack] = "JSON をインストール...",
             [DesktopTextKey.RemoveLanguagePack] = "言語パックを削除",
             [DesktopTextKey.BuiltInLanguagePack] = "組み込み言語のため、言語パックは不要です。",
@@ -206,6 +214,10 @@ internal static class DesktopBuiltInShellCatalogs
             [DesktopTextKey.CoverageFallback] = "Idioma oficial disponible; el texto específico de escritorio usa actualmente el inglés",
             [DesktopTextKey.AppliesImmediately] = "Se aplica de inmediato y solo se guarda en este dispositivo.",
             [DesktopTextKey.LanguagePacks] = "Paquetes de idioma",
+            [DesktopTextKey.LanguagePackSource] = "Origen del catálogo daemon",
+            [DesktopTextKey.DownloadLanguagePack] = "Descargar selección",
+            [DesktopTextKey.LanguagePackSourceHint] = "Las descargas solo usan la confianza TLS guardada del daemon seleccionado y nunca envían su credencial de administrador. Instalar JSON sigue disponible sin conexión.",
+            [DesktopTextKey.LanguagePackDownloadSucceeded] = "Se descargó e instaló {0} desde {1}.",
             [DesktopTextKey.InstallLanguagePack] = "Instalar JSON...",
             [DesktopTextKey.RemoveLanguagePack] = "Eliminar paquete",
             [DesktopTextKey.BuiltInLanguagePack] = "Idioma integrado; no requiere un paquete.",
@@ -287,6 +299,10 @@ internal static class DesktopBuiltInShellCatalogs
             [DesktopTextKey.CoverageFallback] = "Offizielle Sprache verfügbar; Desktop-spezifische Texte verwenden derzeit Englisch",
             [DesktopTextKey.AppliesImmediately] = "Wird sofort angewendet und nur auf diesem Gerät gespeichert.",
             [DesktopTextKey.LanguagePacks] = "Sprachpakete",
+            [DesktopTextKey.LanguagePackSource] = "Daemon-Katalogquelle",
+            [DesktopTextKey.DownloadLanguagePack] = "Auswahl herunterladen",
+            [DesktopTextKey.LanguagePackSourceHint] = "Downloads verwenden nur das gespeicherte TLS-Vertrauen des gewählten Daemons und senden nie dessen Administratorzugangsdaten. JSON kann weiterhin offline installiert werden.",
+            [DesktopTextKey.LanguagePackDownloadSucceeded] = "{0} wurde von {1} heruntergeladen und installiert.",
             [DesktopTextKey.InstallLanguagePack] = "JSON installieren...",
             [DesktopTextKey.RemoveLanguagePack] = "Sprachpaket entfernen",
             [DesktopTextKey.BuiltInLanguagePack] = "Integrierte Sprache; kein Sprachpaket erforderlich.",
@@ -368,6 +384,10 @@ internal static class DesktopBuiltInShellCatalogs
             [DesktopTextKey.CoverageFallback] = "Langue officielle disponible ; le texte propre au bureau utilise actuellement l’anglais",
             [DesktopTextKey.AppliesImmediately] = "S’applique immédiatement et n’est enregistré que sur cet appareil.",
             [DesktopTextKey.LanguagePacks] = "Modules linguistiques",
+            [DesktopTextKey.LanguagePackSource] = "Source du catalogue daemon",
+            [DesktopTextKey.DownloadLanguagePack] = "Télécharger la sélection",
+            [DesktopTextKey.LanguagePackSourceHint] = "Les téléchargements utilisent uniquement la confiance TLS enregistrée du daemon sélectionné et n’envoient jamais ses identifiants administrateur. L’installation JSON reste disponible hors ligne.",
+            [DesktopTextKey.LanguagePackDownloadSucceeded] = "{0} a été téléchargé et installé depuis {1}.",
             [DesktopTextKey.InstallLanguagePack] = "Installer un JSON...",
             [DesktopTextKey.RemoveLanguagePack] = "Supprimer le module",
             [DesktopTextKey.BuiltInLanguagePack] = "Langue intégrée ; aucun module linguistique requis.",
@@ -449,6 +469,10 @@ internal static class DesktopBuiltInShellCatalogs
             [DesktopTextKey.CoverageFallback] = "공식 언어 선택 가능. 데스크톱 전용 텍스트는 현재 영어로 대체",
             [DesktopTextKey.AppliesImmediately] = "즉시 적용되며 이 기기에만 저장됩니다.",
             [DesktopTextKey.LanguagePacks] = "언어 팩",
+            [DesktopTextKey.LanguagePackSource] = "Daemon 카탈로그 소스",
+            [DesktopTextKey.DownloadLanguagePack] = "선택 언어 다운로드",
+            [DesktopTextKey.LanguagePackSourceHint] = "다운로드에는 선택한 daemon의 저장된 TLS 신뢰만 사용하며 관리자 자격 증명은 전송하지 않습니다. 오프라인에서는 JSON 설치를 계속 사용할 수 있습니다.",
+            [DesktopTextKey.LanguagePackDownloadSucceeded] = "{1}에서 {0}을(를) 다운로드하여 설치했습니다.",
             [DesktopTextKey.InstallLanguagePack] = "JSON 설치...",
             [DesktopTextKey.RemoveLanguagePack] = "언어 팩 제거",
             [DesktopTextKey.BuiltInLanguagePack] = "기본 제공 언어이므로 언어 팩이 필요하지 않습니다.",
@@ -502,6 +526,10 @@ internal static class DesktopBuiltInShellCatalogs
             VerifyFormat(catalog[DesktopTextKey.RequiredSuffix], "Target");
             VerifyFormat(catalog[DesktopTextKey.LanguagePackInstalled], "1.0.0");
             VerifyFormat(catalog[DesktopTextKey.LanguagePackInstallSucceeded], "Português");
+            VerifyFormat(
+                catalog[DesktopTextKey.LanguagePackDownloadSucceeded],
+                "Português",
+                "Daemon");
             VerifyFormat(catalog[DesktopTextKey.LanguagePackRemoveSucceeded], "Português");
             VerifyFormat(catalog[DesktopTextKey.LanguagePackOperationFailed], "fixture");
         }

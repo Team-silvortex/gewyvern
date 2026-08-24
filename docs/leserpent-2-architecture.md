@@ -218,7 +218,7 @@ translated. The private `desktop-language-v1.json` preference stores only the
 selected locale through strict source-generated JSON, atomic replacement, and
 user-only file permissions. Live selection rebuilds the Hub and native menu and
 reprojects open tutorial, daemon, and runtime windows. English is the complete
-fallback baseline. Each of the eight built-in locales owns an explicit 76-key
+fallback baseline. Each of the eight built-in locales owns an explicit 80-key
 native-shell catalog validated at startup, with Web-aligned terms and bounded
 format placeholders. All eight also own the complete six-step Learning Center.
 All seven non-English built-ins additionally own the exact same 26-key core
@@ -257,12 +257,20 @@ Hub dynamic-card and all 48 Learning Center locale-step envelopes without
 starting a network client. Native Desktop now accepts the same strict 18-key
 `leserpent.language-pack/v1` core-ui packs as Web for the 22 official
 downloadable locales. The loader validates a bounded object tree and exact
-official metadata, prevents replacement of built-ins, optionally binds catalog
-bytes to SHA-256, bounds directory enumeration before sorting, reads picker
+official metadata, prevents replacement of built-ins, can bind imported bytes
+to an expected SHA-256, bounds directory enumeration before sorting, reads picker
 streams asynchronously, then atomically stores each package with user-only permissions.
 One malformed package is isolated from valid siblings, and mapped pack text is
 an overlay above deterministic per-key English fallback. Local file import is
-not described as catalog-authenticated. The six candidate built-in translations
+not described as catalog-authenticated. The native window also exposes an
+explicit source selector over local Orchestra and saved daemon authorities. A
+dedicated read-only client reuses only the selected HTTPS origin and saved CA,
+never the daemon token, bearer header, or admin-token header. It disables
+redirects, accepts only bounded JSON under the same `/language-packs/` origin,
+strictly validates the complete v1 catalog, verifies SHA-256 before returning
+bytes, and binds locale plus version again before atomic installation. Closing
+the window cancels the request, and a single-operation fence prevents download,
+import, remove, or preference changes from racing. The six candidate built-in translations
 still need native-speaker review, and all 22 packs remain intentionally partial
 beyond their reviewed core-ui keys.
 Arabic, Hebrew, and Persian switch the inherited Avalonia flow direction to RTL.

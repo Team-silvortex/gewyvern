@@ -254,7 +254,7 @@ and typed action binding. The Avalonia renderer resolves `LocalizedText.Key`
 through the desktop catalog instead of displaying `Fallback` unconditionally;
 unknown keys still use the validated English fallback. Arabic, Hebrew, and
 Persian select native RTL flow direction. English remains the complete fallback
-baseline. All eight built-in locales now carry an explicit 76-key native-shell
+baseline. All eight built-in locales now carry an explicit 80-key native-shell
 catalog with Web-aligned terminology. All seven non-English built-ins also cover
 the exact 26-key core semantic UI-IR set for runtime lists, workspaces, logs,
 capabilities, history, and deployment forms; per-locale native `TextBlock` probes
@@ -288,24 +288,31 @@ verifier also measures account and dynamic topology cards across all eight
 built-ins at the minimum desktop envelope. The tutorial verifier measures all 48
 locale-step layouts, navigation semantics, and accessibility across the same
 eight locales.
-The language window can install or remove a local JSON pack for any of the 22
-downloadable locales. Desktop consumes the same `leserpent.language-pack/v1`
+The language window can download, install, or remove a pack for any of the 22
+downloadable locales. `Daemon catalog source` explicitly selects local
+Orchestra or a saved daemon, then `Download selected` uses only that HTTPS
+origin and its saved CA. The read-only content client never loads or sends the
+daemon bearer/admin credential, rejects redirects and cross-origin paths, caps
+catalog responses at 128 KiB, and requires a strict complete v1 catalog.
+Desktop consumes the same `leserpent.language-pack/v1`
 format and exact 18-key `core-ui` baseline as Web. It rejects built-in-locale
 replacement, unofficial or mismatched metadata, duplicate JSON properties,
-arrays, oversized/deep key trees, and files over 256 KiB. Optional catalog
-installs bind the bytes to SHA-256; picker streams are read asynchronously and
+arrays, oversized/deep key trees, and files over 256 KiB. Catalog downloads
+bind SHA-256, locale, and version before installation; picker streams are read asynchronously and
 directory enumeration is capped before sorting. Accepted files are written atomically into a
 private per-user directory, and a malformed sibling is ignored without blocking
 other installed packs. Pack text overlays only mapped presentation keys and all
 missing text continues to use the built-in English fallback. A file selected
 locally is structurally validated but is not represented as catalog-authenticated.
+Closing the language window cancels an active download, and a single-operation
+fence prevents import/download/remove races.
 The six candidate built-in translations remain pending native-speaker review,
 while the 22 packs remain intentionally partial beyond their reviewed core-ui
 keys. Run
 `--verify-desktop-localization` for the
 catalog/persistence contract and `--verify-desktop-language-controls` for the
-real 31-choice and install/remove control tree, all eight built-in selector
-layout envelopes, the temporary install/remove roundtrip, and all seven
+real 31-choice and import/download/remove control tree, all eight built-in selector
+layout envelopes, the temporary catalog-bound download roundtrip, and all seven
 non-English localized UI-IR control proofs.
 `--verify-remote-shell-controls` verifies typed remote presentation, live
 language reprojection, compact overlap protection, wide layout, and localized

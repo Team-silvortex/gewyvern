@@ -16,6 +16,8 @@ internal sealed class LeserpentApp : Application
     private static SilvortexAccountSession? silvortexAccountSession;
     private static DesktopLocalization? desktopLocalization;
     private static string? desktopLocalizationWarning;
+    private static DesktopLanguagePackSource? localLanguagePackSource;
+    private static IReadOnlyList<DesktopLanguagePackSource> languagePackSources = [];
     private static readonly Dictionary<string, RemoteMainWindow> daemonSessions =
         new(StringComparer.Ordinal);
     private static bool shutdownHookInstalled;
@@ -116,7 +118,7 @@ internal sealed class LeserpentApp : Application
                         desktop.MainWindow?.Show();
                     },
                     () => ShowConnectionManager(desktop),
-                    () => RefreshHub(desktop));
+                    () => ShowDesktopLanguageSettings(desktop));
                 base.OnFrameworkInitializationCompleted();
                 return;
             }
@@ -827,7 +829,7 @@ internal sealed class LeserpentApp : Application
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += (_, _) =>
         {
-            DispatcherTimer.RunOnce(() =>
+            DispatcherTimer.RunOnce(async () =>
             {
                 try
                 {
@@ -845,24 +847,74 @@ internal sealed class LeserpentApp : Application
                     var packRoot = Path.Combine(
                         Path.GetTempPath(),
                         $"leserpent-language-controls-{Guid.NewGuid():N}");
+                    var cancellationRoot = Path.Combine(
+                        Path.GetTempPath(),
+                        $"leserpent-language-cancellation-{Guid.NewGuid():N}");
                     var packAppliedCount = 0;
+                    var cancellationAppliedCount = 0;
                     try
                     {
                         var packLocalization =
                             DesktopLocalization.ForLanguagePackVerification(packRoot);
+                        var payload =
+                            DesktopLanguagePackStore.VerificationPayload("pt-BR");
+                        var digest = Convert.ToHexString(SHA256.HashData(payload))
+                            .ToLowerInvariant();
+                        var source = new DesktopLanguagePackSource(
+                            "daemon-language-verification",
+                            "Verification authority",
+                            new Uri("https://language.example:9443/"),
+                            "/verification/ca.pem");
                         var packWindow = new DesktopLanguageWindow(
                             packLocalization,
-                            () => packAppliedCount++);
+                            () => packAppliedCount++,
+                            [source],
+                            (selectedSource, locale, cancellationToken) =>
+                            {
+                                cancellationToken.ThrowIfCancellationRequested();
+                                if (selectedSource != source || locale != "pt-BR")
+                                {
+                                    throw new InvalidDataException(
+                                        "desktop language-pack download routed to the wrong source");
+                                }
+                                return Task.FromResult(new DesktopLanguagePackDownload(
+                                    source.SourceId,
+                                    locale,
+                                    "1.0.0",
+                                    digest,
+                                    payload));
+                            });
                         packWindow.VerifyAccessibility();
-                        packWindow.ProbeLanguagePackContract(
-                            DesktopLanguagePackStore.VerificationPayload("pt-BR"));
+                        packWindow.ProbeLanguagePackContract(payload);
+                        await packWindow.ProbeLanguagePackDownloadContractAsync();
                         packWindow.VerifyLayoutEnvelope();
+                        var cancellationLocalization =
+                            DesktopLocalization.ForLanguagePackVerification(
+                                cancellationRoot);
+                        var cancellationWindow = new DesktopLanguageWindow(
+                            cancellationLocalization,
+                            () => cancellationAppliedCount++,
+                            [source],
+                            async (_, _, cancellationToken) =>
+                            {
+                                await Task.Delay(
+                                    Timeout.InfiniteTimeSpan,
+                                    cancellationToken);
+                                throw new InvalidOperationException(
+                                    "cancelled language-pack download resumed");
+                            });
+                        await cancellationWindow
+                            .ProbeLanguagePackCancellationContractAsync("it");
                     }
                     finally
                     {
                         if (Directory.Exists(packRoot))
                         {
                             Directory.Delete(packRoot, true);
+                        }
+                        if (Directory.Exists(cancellationRoot))
+                        {
+                            Directory.Delete(cancellationRoot, true);
                         }
                     }
                     window.ProbeSelectionContract();
@@ -914,13 +966,15 @@ internal sealed class LeserpentApp : Application
                                 $"localized UI-IR did not reach its native control for {sample.Key}");
                         }
                     }
-                    if (appliedCount != 1 || packAppliedCount != 2)
+                    if (appliedCount != 1
+                        || packAppliedCount != 3
+                        || cancellationAppliedCount != 0)
                     {
                         throw new InvalidDataException(
                             "desktop language controls did not apply their exact mutation count");
                     }
                     Console.WriteLine(
-                        "desktop language controls valid: official_locales=30, complete_builtin_locales=8, builtin_shell_catalogs=8, builtin_layouts=8, builtin_semantic_catalogs=7, builtin_ui_ir_controls=7, system_choice=true, persistent_preference=true, live_apply=true, language_pack_install=true, language_pack_remove=true, language_pack_status=true, language_pack_applied_mutations=2, english_fallback=true, zh_cn_core=true, zh_cn_tutorial_complete=true, builtin_tutorial_complete=true, rtl=true, automation_ids=8, automation_names=8, contrast=true");
+                        "desktop language controls valid: official_locales=30, complete_builtin_locales=8, builtin_shell_catalogs=8, builtin_layouts=8, builtin_semantic_catalogs=7, builtin_ui_ir_controls=7, system_choice=true, persistent_preference=true, live_apply=true, language_pack_install=true, language_pack_catalog_download=true, language_pack_source_select=true, language_pack_close_cancellation=true, language_pack_remove=true, language_pack_status=true, language_pack_applied_mutations=3, english_fallback=true, zh_cn_core=true, zh_cn_tutorial_complete=true, builtin_tutorial_complete=true, rtl=true, automation_ids=10, automation_names=10, contrast=true");
                 }
                 catch (Exception error)
                 {
@@ -1469,6 +1523,7 @@ internal sealed class LeserpentApp : Application
             DesktopConnectionCatalogStore.DefaultPath());
         var certificateStore = DesktopCertificateAuthorityStore.Default();
         var catalog = DesktopConnectionCatalog.Empty;
+        DesktopProductStartupPlan? localPlan = null;
         string? initialError = desktopLocalizationWarning;
         try
         {
@@ -1494,8 +1549,12 @@ internal sealed class LeserpentApp : Application
             localOrchestraService = new LocalOrchestraServiceSupervisor();
             localOrchestraService.TryEnsureReady(
                 certificateStore,
-                out _,
+                out localPlan,
                 out var localStartupError);
+            if (localPlan is not null)
+            {
+                localLanguagePackSource = DesktopLanguagePackSource.FromLocal(localPlan);
+            }
             if (!shutdownHookInstalled)
             {
                 AppDomain.CurrentDomain.ProcessExit += (_, _) =>
@@ -1527,6 +1586,24 @@ internal sealed class LeserpentApp : Application
             initialError = string.IsNullOrWhiteSpace(initialError)
                 ? trustError
                 : $"{initialError}{Environment.NewLine}{trustError}";
+        }
+
+        try
+        {
+            languagePackSources = BuildLanguagePackSources(
+                catalog,
+                certificateStore,
+                localLanguagePackSource);
+        }
+        catch (Exception error) when (StartupFailure.IsExpected(error))
+        {
+            languagePackSources = localLanguagePackSource is null
+                ? []
+                : [localLanguagePackSource];
+            var sourceError = StartupFailure.Describe(error);
+            initialError = string.IsNullOrWhiteSpace(initialError)
+                ? sourceError
+                : $"{sourceError}{Environment.NewLine}{initialError}";
         }
 
         var hub = new HubWindow(
@@ -1566,10 +1643,7 @@ internal sealed class LeserpentApp : Application
             () => ShowConnectionManager(desktop, null),
             connection => ShowConnectionManager(desktop, connection),
             () => DesktopApplicationLifecycle.ShowTutorial(desktop, localization),
-            () => DesktopApplicationLifecycle.ShowLanguageSettings(
-                desktop,
-                localization,
-                () => RefreshHub(desktop)),
+            () => ShowDesktopLanguageSettings(desktop),
             localization,
             SilvortexAccount());
         RegisterMainWindowLifecycle(desktop, hub);
@@ -1587,6 +1661,53 @@ internal sealed class LeserpentApp : Application
                 out desktopLocalizationWarning);
         }
         return desktopLocalization;
+    }
+
+    private static void ShowDesktopLanguageSettings(
+        IClassicDesktopStyleApplicationLifetime desktop) =>
+        DesktopApplicationLifecycle.ShowLanguageSettings(
+            desktop,
+            DesktopLanguage(),
+            () => RefreshHub(desktop),
+            languagePackSources,
+            DownloadLanguagePackAsync);
+
+    private static async Task<DesktopLanguagePackDownload> DownloadLanguagePackAsync(
+        DesktopLanguagePackSource source,
+        string locale,
+        CancellationToken cancellationToken)
+    {
+        using var client = new DesktopLanguagePackCatalogClient(source);
+        return await client.DownloadAsync(locale, cancellationToken);
+    }
+
+    private static IReadOnlyList<DesktopLanguagePackSource> BuildLanguagePackSources(
+        DesktopConnectionCatalog catalog,
+        DesktopCertificateAuthorityStore certificateStore,
+        DesktopLanguagePackSource? localSource)
+    {
+        var result = new List<DesktopLanguagePackSource>();
+        var origins = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (localSource is not null)
+        {
+            result.Add(localSource);
+            origins.Add(localSource.Endpoint.ToString());
+        }
+        foreach (var connection in catalog.Connections)
+        {
+            var certificateAuthorityPath =
+                DesktopProductStartup.ResolveCertificateAuthorityPath(
+                    connection.Profile,
+                    certificateStore);
+            var source = DesktopLanguagePackSource.FromConnection(
+                connection,
+                certificateAuthorityPath);
+            if (origins.Add(source.Endpoint.ToString()))
+            {
+                result.Add(source);
+            }
+        }
+        return result;
     }
 
     private static string? OpenRemoteFromConnection(
@@ -1677,6 +1798,13 @@ internal sealed class LeserpentApp : Application
                     out var startupError)
                 && localPlan is not null)
             {
+                localLanguagePackSource = DesktopLanguagePackSource.FromLocal(localPlan);
+                languagePackSources =
+                [
+                    localLanguagePackSource,
+                    .. languagePackSources.Where(source =>
+                        source.Endpoint != localLanguagePackSource.Endpoint),
+                ];
                 OpenProductRemoteWindow(desktop, localPlan);
                 return null;
             }

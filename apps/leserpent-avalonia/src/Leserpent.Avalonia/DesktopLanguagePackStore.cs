@@ -95,7 +95,10 @@ internal sealed class DesktopLanguagePackStore(string root)
 
     public DesktopInstalledLanguagePack Install(
         ReadOnlySpan<byte> payload,
-        string? expectedSha256 = null)
+        string? expectedSha256 = null,
+        string? expectedLocale = null,
+        string? expectedVersion = null,
+        CancellationToken cancellationToken = default)
     {
         if (payload.Length is <= 0 or > MaxPackBytes)
         {
@@ -103,6 +106,8 @@ internal sealed class DesktopLanguagePackStore(string root)
         }
         var ownedPayload = payload.ToArray();
         var installed = Decode(ownedPayload, expectedSha256);
+        VerifyCatalogBinding(installed, expectedLocale, expectedVersion);
+        cancellationToken.ThrowIfCancellationRequested();
         EnsurePrivateDirectory(root, create: true);
         var target = Path.Combine(root, $"{installed.Manifest.Locale}.json");
         if (File.Exists(target))
@@ -119,6 +124,7 @@ internal sealed class DesktopLanguagePackStore(string root)
                 stream.Write(ownedPayload);
                 stream.Flush(true);
             }
+            cancellationToken.ThrowIfCancellationRequested();
             File.Move(temporary, target, true);
         }
         finally
@@ -130,15 +136,31 @@ internal sealed class DesktopLanguagePackStore(string root)
 
     public DesktopInstalledLanguagePack Install(
         Stream stream,
-        string? expectedSha256 = null) => Install(ReadBounded(stream), expectedSha256);
+        string? expectedSha256 = null,
+        string? expectedLocale = null,
+        string? expectedVersion = null) => Install(
+            ReadBounded(stream),
+            expectedSha256,
+            expectedLocale,
+            expectedVersion);
 
     public async Task<DesktopInstalledLanguagePack> InstallAsync(
         Stream stream,
         string? expectedSha256 = null,
-        CancellationToken cancellationToken = default) =>
-        Install(
-            await ReadBoundedAsync(stream, cancellationToken).ConfigureAwait(false),
-            expectedSha256);
+        string? expectedLocale = null,
+        string? expectedVersion = null,
+        CancellationToken cancellationToken = default)
+    {
+        var payload = await ReadBoundedAsync(stream, cancellationToken)
+            .ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Install(
+            payload,
+            expectedSha256,
+            expectedLocale,
+            expectedVersion,
+            cancellationToken);
+    }
 
     public void Remove(string locale)
     {
@@ -198,6 +220,22 @@ internal sealed class DesktopLanguagePackStore(string root)
                         "desktop language-pack async reader changed the payload");
                 }
             }
+            using (var cancelled = new CancellationTokenSource())
+            {
+                cancelled.Cancel();
+                ExpectCancellation(
+                    () => store.InstallAsync(
+                            new MemoryStream(VerificationPayload("it")),
+                            cancellationToken: cancelled.Token)
+                        .GetAwaiter()
+                        .GetResult(),
+                    "desktop language-pack async install ignored cancellation");
+                if (File.Exists(Path.Combine(verificationRoot, "it.json")))
+                {
+                    throw new InvalidDataException(
+                        "cancelled desktop language-pack install committed a file");
+                }
+            }
             if (!OperatingSystem.IsWindows()
                 && (File.GetUnixFileMode(verificationRoot)
                         != (UnixFileMode.UserRead
@@ -231,6 +269,12 @@ internal sealed class DesktopLanguagePackStore(string root)
             ExpectInvalidData(
                 () => store.Install(payload, new string('0', 64)),
                 "desktop language pack accepted a mismatched digest");
+            ExpectInvalidData(
+                () => store.Install(payload, digest, "it", "1.0.0"),
+                "desktop language pack accepted a mismatched catalog locale");
+            ExpectInvalidData(
+                () => store.Install(payload, digest, "pt-BR", "2.0.0"),
+                "desktop language pack accepted a mismatched catalog version");
             ExpectInvalidData(
                 () => store.Install(VerificationPayload("en")),
                 "desktop language pack replaced a built-in locale");
@@ -392,6 +436,21 @@ internal sealed class DesktopLanguagePackStore(string root)
                 "desktop language pack does not cover the core-ui contract");
         }
         return translations;
+    }
+
+    private static void VerifyCatalogBinding(
+        DesktopInstalledLanguagePack installed,
+        string? expectedLocale,
+        string? expectedVersion)
+    {
+        if ((expectedLocale is not null
+                && installed.Manifest.Locale != expectedLocale)
+            || (expectedVersion is not null
+                && installed.Manifest.Version != expectedVersion))
+        {
+            throw new InvalidDataException(
+                "desktop language pack does not match its catalog entry");
+        }
     }
 
     private static void Flatten(
@@ -658,6 +717,19 @@ internal sealed class DesktopLanguagePackStore(string root)
             action();
         }
         catch (InvalidDataException)
+        {
+            return;
+        }
+        throw new InvalidDataException(message);
+    }
+
+    private static void ExpectCancellation(Action action, string message)
+    {
+        try
+        {
+            action();
+        }
+        catch (OperationCanceledException)
         {
             return;
         }

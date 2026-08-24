@@ -9,7 +9,7 @@ Leserpent 支持在不重新构建控制面的情况下安装附加 UI 语言。
 
 `core-ui` 表示主 shell、语言包中心、主题、顶层导航和 runtime 子窗口入口由官方维护；复杂诊断、协议细节和 Orchestra 长尾文案暂时回退 English。阿拉伯语、希伯来语和波斯语会启用 RTL document direction。
 
-## User Workflow
+## Web Workflow
 
 在 dashboard 顶部打开 `Language Packs`：
 
@@ -22,7 +22,20 @@ Leserpent 支持在不重新构建控制面的情况下安装附加 UI 语言。
 
 安装完成后，新 locale 会出现在语言选择器中。卸载当前正在使用的语言包时，UI 自动回退到 `Follow Browser`。
 
-语言包仅保存在当前浏览器的 `localStorage`，不会上传到 Leserpent、写入控制面 JSON/SQLite，或同步给其他操作员。
+Web 语言包仅保存在当前浏览器的 `localStorage`，不会上传到 Leserpent、写入控制面 JSON/SQLite，或同步给其他操作员。
+
+## Native Desktop Workflow
+
+在 Avalonia Hub 或 macOS application menu 打开 `Language...`：
+
+- 选择 22 个可下载 locale 中的一个。
+- 在 `Daemon catalog source` 中显式选择本机 Orchestra 或一个已保存的远程 daemon。
+- 选择 `Download selected`，从该 daemon 的同源 `/language-packs/catalog.json` 下载并安装。
+- 无网络时仍可用 `Install JSON...` 导入本地文件，也可随时 `Remove pack`。
+
+Desktop 下载只复用连接配置中的 HTTPS origin 与已保存 CA，不解析或读取该 daemon 的管理 token，也不会发送 bearer 或 `X-Leserpent-Admin-Token`。catalog 限制为 128 KiB，pack 限制为 256 KiB；禁止重定向、跨源 URL、catalog 外 locale，以及 digest、locale、version 不一致。窗口关闭会取消请求，同一窗口一次只允许一个语言包操作。
+
+Desktop 将通过校验的 pack 原子写入当前用户的私有 `language-packs-v1` 目录。它不写入控制面状态，也不会在 daemon 间同步。catalog 下载拥有来源 CA、同源路径和 SHA-256 绑定；本地 JSON 导入只拥有结构与资源边界校验，不宣称 catalog 身份。
 
 ## Pack Format
 
@@ -73,6 +86,8 @@ Leserpent 支持在不重新构建控制面的情况下安装附加 UI 语言。
 - catalog URL 必须同源且位于 `/language-packs/`
 - catalog 安装必须通过 SHA-256
 - 下载包 locale/version 必须匹配 catalog 条目
+- Native Desktop catalog 必须完整覆盖固定的 8 built-in + 22 downloadable roster
+- Native Desktop 下载仅使用显式选择的 daemon origin 与 CA，且不发送管理凭证
 
 Leserpent 不接受任意远程语言包 URL，也不会由服务端代替浏览器抓取第三方地址。这样可以避免 SSRF，并把远程供应链边界限制在随 Leserpent 发布的同源静态 catalog。
 
@@ -126,10 +141,25 @@ catalog 使用：
   - 浏览器语言解析和动态 locale 应用
 - `src/Leserpent/wwwroot/language-packs/`
   - 同源 catalog 与官方发布包
+- `apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguagePackCatalogClient.cs`
+  - Native Desktop 的无凭证 CA-bound catalog 下载、严格解码和 SHA-256 校验
+- `apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLanguagePackStore.cs`
+  - Native Desktop 的 locale/version/digest 绑定与私有原子存储
 - `scripts/build-language-packs.mjs`
   - 30-locale roster 中 22 个下载包的翻译源、pack 生成与 digest catalog
 
 建议在每次打包前先执行 `npm run verify:language-packs`，用于快速核对内置 locale 对齐和 22 个官方下载包的核心覆盖率。
+
+Native Desktop 发布前再让实际桌面解码器验证同一批产物：
+
+```bash
+dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- \
+  --verify-desktop-language-pack-artifacts \
+  "$PWD/apps/leserpent/src/Leserpent/wwwroot/language-packs/catalog.json" \
+  "$PWD/apps/leserpent/src/Leserpent/wwwroot/language-packs"
+```
+
+该命令逐包执行 catalog SHA-256、locale/version、18-key contract 和 Desktop 私有存储 roundtrip，不发起网络请求。
 
 ## Validation Checklist
 

@@ -2177,7 +2177,7 @@ selected catalog while stable node/action identities remain untouched. A real
 All seven non-English built-ins now cover the exact 26-key core semantic UI-IR
 set, with separate native `TextBlock` and accessibility-name proof for each
 locale. All eight built-ins include the complete offline tutorial. The six new
-non-English built-in catalogs cover all 76 stable shell keys and all six tutorial
+non-English built-in catalogs cover all 80 stable shell keys and all six tutorial
 steps with Web-aligned terminology and validated format placeholders; they remain
 explicit review
 candidates. Connection/forget, reverse deployment, gewyvern provisioning and
@@ -2212,7 +2212,13 @@ fences official metadata and built-in replacement, supports SHA-256 catalog
 binding, atomically persists private files, isolates malformed siblings, and
 caps directory enumeration while reading picker streams asynchronously. It
 overlays only mapped presentation keys before English fallback. The native
-control proof performs a real temporary install/remove roundtrip. The six
+window now selects either local Orchestra or a saved daemon as its catalog
+authority and downloads with only that origin's saved CA: no bearer or admin
+credential is loaded or sent. The dedicated client rejects redirects,
+cross-origin paths, partial or malformed v1 catalogs, and digest/locale/version
+drift; request cancellation and a single-operation fence protect the controls.
+Offline JSON import remains available but is not labeled catalog-authenticated.
+The native control proof performs a real temporary import/download/remove roundtrip. The six
 candidate built-in translations and all 22 downloadable packs stay partial
 beyond reviewed keys rather than claiming unreviewed coverage.
 Runtime-child workspace admission has now crossed the same boundary. The

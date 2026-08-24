@@ -14,7 +14,7 @@ internal static class DesktopApplicationLifecycle
         DesktopLocalization localization,
         Action reopenMainWindow,
         Action manageConnection,
-        Action languageApplied)
+        Action manageLanguage)
     {
         if (!OperatingSystem.IsMacOS())
         {
@@ -28,14 +28,14 @@ internal static class DesktopApplicationLifecycle
             localization,
             reopenMainWindow,
             manageConnection,
-            languageApplied);
+            manageLanguage);
         localization.Changed += (_, _) => InstallMenu(
             application,
             desktop,
             localization,
             reopenMainWindow,
             manageConnection,
-            languageApplied);
+            manageLanguage);
 
         if (application.ApplicationLifetime is IActivatableLifetime activatable)
         {
@@ -55,7 +55,7 @@ internal static class DesktopApplicationLifecycle
         DesktopLocalization localization,
         Action reopenMainWindow,
         Action manageConnection,
-        Action languageApplied)
+        Action manageLanguage)
     {
         var appMenu = new NativeMenu();
         appMenu.Items.Add(Item(
@@ -71,7 +71,7 @@ internal static class DesktopApplicationLifecycle
             new KeyGesture(Key.OemComma, KeyModifiers.Meta)));
         appMenu.Items.Add(Item(
             localization.Text(DesktopTextKey.Language),
-            () => ShowLanguageSettings(desktop, localization, languageApplied)));
+            manageLanguage));
         appMenu.Items.Add(new NativeMenuItemSeparator());
         appMenu.Items.Add(Item(
             localization.Text(DesktopTextKey.QuitLeserpent),
@@ -177,7 +177,13 @@ internal static class DesktopApplicationLifecycle
     internal static void ShowLanguageSettings(
         IClassicDesktopStyleApplicationLifetime desktop,
         DesktopLocalization localization,
-        Action applied)
+        Action applied,
+        IReadOnlyList<DesktopLanguagePackSource> languagePackSources,
+        Func<
+            DesktopLanguagePackSource,
+            string,
+            CancellationToken,
+            Task<DesktopLanguagePackDownload>> downloadLanguagePack)
     {
         var existing = desktop.Windows.OfType<DesktopLanguageWindow>().FirstOrDefault();
         if (existing is not null)
@@ -186,7 +192,11 @@ internal static class DesktopApplicationLifecycle
             existing.Activate();
             return;
         }
-        var window = new DesktopLanguageWindow(localization, applied);
+        var window = new DesktopLanguageWindow(
+            localization,
+            applied,
+            languagePackSources,
+            downloadLanguagePack);
         var owner = desktop.MainWindow is { IsVisible: true } mainWindow
             ? mainWindow
             : desktop.Windows.FirstOrDefault(candidate =>
