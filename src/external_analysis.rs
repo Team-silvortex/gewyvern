@@ -11,7 +11,7 @@ use std::fs;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::diagnosis_runtime::{AnalysisAugmentation, AnalysisSnapshot};
+use crate::diagnosis_runtime::{AnalysisAugmentation, AnalysisSnapshot, analysis_snapshot_json};
 use crate::runtime_events::{
     EVENT_EXTERNAL_ANALYSIS_CIRCUIT_OPEN, EVENT_EXTERNAL_ANALYSIS_FAILED,
     EVENT_EXTERNAL_ANALYSIS_RECOVERED,
@@ -247,7 +247,7 @@ pub(crate) fn set_external_analysis_config(config: Option<ExternalAnalysisConfig
     }
 }
 
-pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, snapshot_json: &str) {
+pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot) {
     #[cfg(test)]
     {
         let config = TEST_EXTERNAL_ANALYSIS_CONFIG.with(|slot| slot.borrow().clone());
@@ -260,8 +260,9 @@ pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, sna
                 .extend(external_fallback_augmentations(&reason));
             return;
         }
+        let snapshot_json = analysis_snapshot_json(snapshot);
         let capabilities = query_external_capabilities(&config);
-        let items = run_external_analysis(&config, capabilities.as_ref(), snapshot_json)
+        let items = run_external_analysis(&config, capabilities.as_ref(), &snapshot_json)
             .inspect(|_| {
                 note_external_analysis_success(&config.engine_bin);
             })
@@ -275,10 +276,11 @@ pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, sna
 
     #[allow(unreachable_code)]
     {
-        let cache_key = snapshot_cache_key(snapshot_json);
         let Some(config) = current_external_analysis_config() else {
             return;
         };
+        let snapshot_json = analysis_snapshot_json(snapshot);
+        let cache_key = snapshot_cache_key(&snapshot_json);
         let cached = {
             let guard = lock_state();
             if let Some(items) = guard.cache.get(&cache_key) {
@@ -290,7 +292,7 @@ pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, sna
                 } else {
                     let capabilities = capability_profile_for_config(&config);
                     let items =
-                        run_external_analysis(&config, capabilities.as_ref(), snapshot_json)
+                        run_external_analysis(&config, capabilities.as_ref(), &snapshot_json)
                             .inspect(|_| {
                                 note_external_analysis_success(&config.engine_bin);
                             })

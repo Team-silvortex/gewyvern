@@ -1,4 +1,6 @@
 use crate::render_utils::{append_json_string, append_string_list_json};
+#[cfg(test)]
+use gewyvern::protocol_profiles::protocol_surface_from_summaries;
 use gewyvern::protocol_profiles::{
     ProtocolClusterHintSummary, ProtocolEntrySummary, ProtocolOverlaySummary, ProtocolShelfSummary,
     ProtocolSummary, ProtocolSurfaceSummary, protocol_summaries, protocol_summary,
@@ -102,13 +104,36 @@ pub(super) fn api_protocol_surface_from_summary_json(
 }
 
 pub(super) fn api_protocol_surface_for_target(name: &str) -> Option<ProtocolSurfaceSummary> {
+    let (protocol_name, entry) = api_protocol_target_parts(name)?;
+    protocol_surface(protocol_name, entry)
+}
+
+#[cfg(test)]
+pub(super) fn api_protocol_surfaces_for_targets<'a>(
+    targets: impl IntoIterator<Item = &'a str>,
+) -> Vec<Option<ProtocolSurfaceSummary>> {
+    let targets = targets.into_iter().collect::<Vec<_>>();
+    if targets.is_empty() {
+        return Vec::new();
+    }
+    let summaries = protocol_summaries();
+    targets
+        .into_iter()
+        .map(|target| {
+            let (protocol_name, entry) = api_protocol_target_parts(target)?;
+            protocol_surface_from_summaries(&summaries, protocol_name, entry)
+        })
+        .collect()
+}
+
+fn api_protocol_target_parts(name: &str) -> Option<(&str, &str)> {
     let mut parts = name.splitn(3, ':');
     if parts.next()? != "scan" {
         return None;
     }
     let protocol_name = parts.next()?;
     let entry = parts.next()?;
-    protocol_surface(protocol_name, entry)
+    Some((protocol_name, entry))
 }
 
 pub(super) fn api_protocol_reading_for_target_json(name: &str) -> Option<String> {

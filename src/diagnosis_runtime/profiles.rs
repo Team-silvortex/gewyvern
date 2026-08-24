@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use gewyvern::export::ExportBundle;
 use gewyvern::flow::ProgramFlowId;
@@ -15,7 +15,17 @@ fn bump_profile_score(scores: &mut HashMap<String, u32>, value: &str, weight: u3
     if value == "none" {
         return;
     }
-    *scores.entry(value.to_string()).or_default() += weight;
+    if let Some(score) = scores.get_mut(value) {
+        *score += weight;
+    } else {
+        scores.insert(value.to_owned(), weight);
+    }
+}
+
+fn insert_unique(values: &mut HashSet<String>, value: &str) {
+    if !values.contains(value) {
+        values.insert(value.to_owned());
+    }
 }
 
 fn best_profile_score(scores: &HashMap<String, u32>) -> Option<String> {
@@ -29,31 +39,28 @@ fn best_profile_score(scores: &HashMap<String, u32>) -> Option<String> {
         .map(|(value, _)| value.clone())
 }
 
-pub(super) fn protocol_flow_finding_summaries(
-    export: &ExportBundle,
+pub(super) fn protocol_flow_finding_summaries<'a>(
+    export: &'a ExportBundle,
 ) -> HashMap<ProgramFlowId, ProtocolFlowFindingSummary> {
-    let mut summaries = HashMap::<ProgramFlowId, ProtocolFlowFindingAccumulator>::new();
+    let mut summaries = HashMap::<ProgramFlowId, ProtocolFlowFindingAccumulator<'a>>::new();
     for finding in &export.program_findings {
         let entry = summaries.entry(finding.program_flow).or_default();
         entry.summary.has_findings = true;
         if let Some(transition) = &finding.phase_transition
-            && entry.seen_missing_transitions.insert(transition.clone())
+            && entry.seen_missing_transitions.insert(transition)
         {
             entry.summary.missing_transitions.push(transition.clone());
         }
         if entry
             .seen_network_module_kinds
-            .insert(finding.network_module_kind.clone())
+            .insert(&finding.network_module_kind)
         {
             entry
                 .summary
                 .network_module_kinds
                 .push(finding.network_module_kind.clone());
         }
-        if entry
-            .seen_suspect_areas
-            .insert(finding.suspect_area.clone())
-        {
+        if entry.seen_suspect_areas.insert(&finding.suspect_area) {
             entry
                 .summary
                 .suspect_areas
@@ -153,73 +160,60 @@ pub(super) fn process_network_profile_summaries_from_flow_summaries(
             continue;
         };
         let key = (process.pid, process.comm.clone());
-        let entry =
-            profiles
-                .entry(key.clone())
-                .or_insert_with(|| ProcessNetworkProfileAccumulator {
-                    summary: ProcessNetworkProfileSummary {
-                        pid: process.pid,
-                        comm: process.comm.clone(),
-                        status: "idle".into(),
-                        primary_module_kind: "none".into(),
-                        primary_module_family: "general".into(),
-                        primary_failure_stage: "none".into(),
-                        primary_stage_family: "none".into(),
-                        primary_failure_mode: "none".into(),
-                        primary_failure_detail: "none".into(),
-                        primary_failure_confidence: "none".into(),
-                        primary_failure_basis: "none".into(),
-                        ..Default::default()
-                    },
+        let entry = profiles
+            .entry(key)
+            .or_insert_with(|| ProcessNetworkProfileAccumulator {
+                summary: ProcessNetworkProfileSummary {
+                    pid: process.pid,
+                    comm: process.comm.clone(),
+                    status: "idle".into(),
+                    primary_module_kind: "none".into(),
+                    primary_module_family: "general".into(),
+                    primary_failure_stage: "none".into(),
+                    primary_stage_family: "none".into(),
+                    primary_failure_mode: "none".into(),
+                    primary_failure_detail: "none".into(),
+                    primary_failure_confidence: "none".into(),
+                    primary_failure_basis: "none".into(),
                     ..Default::default()
-                });
+                },
+                ..Default::default()
+            });
         let summary = &mut entry.summary;
 
-        if entry.seen_operations.insert(flow.operation.clone()) {
-            summary.operations.push(flow.operation.clone());
-        }
+        insert_unique(&mut entry.seen_operations, &flow.operation);
 
-        let inferred_kind = flow.network_module_kind.clone();
-        let last_phase = flow.last_phase.clone().unwrap_or_else(|| "none".into());
-        if entry.seen_module_kinds.insert(inferred_kind.clone()) {
-            summary.module_kinds.push(inferred_kind.clone());
-        }
-        bump_profile_score(&mut entry.module_scores, &inferred_kind, 1);
-        bump_profile_score(&mut entry.stage_scores, &last_phase, 1);
+        let inferred_kind = flow.network_module_kind.as_str();
+        let last_phase = flow.last_phase.as_deref().unwrap_or("none");
+        insert_unique(&mut entry.seen_module_kinds, inferred_kind);
+        bump_profile_score(&mut entry.module_scores, inferred_kind, 1);
+        bump_profile_score(&mut entry.stage_scores, last_phase, 1);
 
         for phase in &flow.phases {
-            if entry.seen_phases.insert(phase.clone()) {
-                summary.phases.push(phase.clone());
-            }
+            insert_unique(&mut entry.seen_phases, phase);
         }
 
         if flow.status == "attention" {
             summary.attention_flows += 1;
             summary.status = "attention".into();
             if flow.network_module_kinds.is_empty() {
-                bump_profile_score(&mut entry.module_scores, &inferred_kind, 10);
+                bump_profile_score(&mut entry.module_scores, inferred_kind, 10);
             } else {
                 for module_kind in &flow.network_module_kinds {
                     bump_profile_score(&mut entry.module_scores, module_kind, 10);
-                    if entry.seen_module_kinds.insert(module_kind.clone()) {
-                        summary.module_kinds.push(module_kind.clone());
-                    }
+                    insert_unique(&mut entry.seen_module_kinds, module_kind);
                 }
             }
             if flow.missing_transitions.is_empty() {
-                bump_profile_score(&mut entry.stage_scores, &last_phase, 10);
+                bump_profile_score(&mut entry.stage_scores, last_phase, 10);
             } else {
                 for transition in &flow.missing_transitions {
                     bump_profile_score(&mut entry.stage_scores, transition, 10);
-                    if entry.seen_missing_transitions.insert(transition.clone()) {
-                        summary.missing_transitions.push(transition.clone());
-                    }
+                    insert_unique(&mut entry.seen_missing_transitions, transition);
                 }
             }
             for suspect_area in &flow.suspect_areas {
-                if entry.seen_suspect_areas.insert(suspect_area.clone()) {
-                    summary.suspect_areas.push(suspect_area.clone());
-                }
+                insert_unique(&mut entry.seen_suspect_areas, suspect_area);
             }
         } else {
             summary.healthy_flows += 1;
@@ -234,48 +228,30 @@ pub(super) fn process_network_profile_summaries_from_flow_summaries(
             continue;
         };
         let key = (process.pid, process.comm.clone());
-        let entry =
-            profiles
-                .entry(key.clone())
-                .or_insert_with(|| ProcessNetworkProfileAccumulator {
-                    summary: ProcessNetworkProfileSummary {
-                        pid: process.pid,
-                        comm: process.comm.clone(),
-                        status: "idle".into(),
-                        primary_module_kind: "none".into(),
-                        primary_module_family: "general".into(),
-                        primary_failure_stage: "none".into(),
-                        primary_stage_family: "none".into(),
-                        primary_failure_mode: "none".into(),
-                        primary_failure_detail: "none".into(),
-                        primary_failure_confidence: "none".into(),
-                        primary_failure_basis: "none".into(),
-                        ..Default::default()
-                    },
+        let entry = profiles
+            .entry(key)
+            .or_insert_with(|| ProcessNetworkProfileAccumulator {
+                summary: ProcessNetworkProfileSummary {
+                    pid: process.pid,
+                    comm: process.comm.clone(),
+                    status: "idle".into(),
+                    primary_module_kind: "none".into(),
+                    primary_module_family: "general".into(),
+                    primary_failure_stage: "none".into(),
+                    primary_stage_family: "none".into(),
+                    primary_failure_mode: "none".into(),
+                    primary_failure_detail: "none".into(),
+                    primary_failure_confidence: "none".into(),
+                    primary_failure_basis: "none".into(),
                     ..Default::default()
-                });
+                },
+                ..Default::default()
+            });
         let summary = &mut entry.summary;
         summary.status = "attention".into();
-        if entry
-            .seen_module_kinds
-            .insert(finding.network_module_kind.clone())
-        {
-            summary
-                .module_kinds
-                .push(finding.network_module_kind.clone());
-        }
-        if entry
-            .seen_suspect_areas
-            .insert(finding.suspect_area.clone())
-        {
-            summary.suspect_areas.push(finding.suspect_area.clone());
-        }
-        if entry
-            .seen_suspect_modules
-            .insert(finding.module_label.clone())
-        {
-            summary.suspect_modules.push(finding.module_label.clone());
-        }
+        insert_unique(&mut entry.seen_module_kinds, &finding.network_module_kind);
+        insert_unique(&mut entry.seen_suspect_areas, &finding.suspect_area);
+        insert_unique(&mut entry.seen_suspect_modules, &finding.module_label);
         bump_profile_score(&mut entry.module_scores, &finding.network_module_kind, 20);
         if let Some(phase) = &finding.phase {
             bump_profile_score(&mut entry.stage_scores, phase, 20);
@@ -289,12 +265,25 @@ pub(super) fn process_network_profile_summaries_from_flow_summaries(
     let mut profiles = profiles
         .into_values()
         .map(|accumulator| {
-            (
-                accumulator.summary,
-                accumulator.module_scores,
-                accumulator.stage_scores,
-                accumulator.suspect_module_scores,
-            )
+            let ProcessNetworkProfileAccumulator {
+                mut summary,
+                seen_operations,
+                seen_module_kinds,
+                seen_phases,
+                seen_missing_transitions,
+                seen_suspect_areas,
+                seen_suspect_modules,
+                module_scores,
+                stage_scores,
+                suspect_module_scores,
+            } = accumulator;
+            summary.operations = seen_operations.into_iter().collect();
+            summary.module_kinds = seen_module_kinds.into_iter().collect();
+            summary.phases = seen_phases.into_iter().collect();
+            summary.missing_transitions = seen_missing_transitions.into_iter().collect();
+            summary.suspect_areas = seen_suspect_areas.into_iter().collect();
+            summary.suspect_modules = seen_suspect_modules.into_iter().collect();
+            (summary, module_scores, stage_scores, suspect_module_scores)
         })
         .collect::<Vec<_>>();
     for (profile, module_scores, stage_scores, suspect_module_scores) in &mut profiles {

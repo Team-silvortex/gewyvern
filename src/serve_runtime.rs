@@ -3,15 +3,21 @@ use gewyvern::protocol_profiles::protocol_target_name_for_template_id;
 use std::net::TcpListener;
 
 use crate::data_api::{
-    ApiRenderedTarget, ApiService, ApiState, persist_api_snapshot,
-    start_api_service, start_api_service_with_admin_token,
-    update_api_snapshot_for_scan, update_api_snapshot_for_single,
+    ApiRenderedTarget, ApiService, ApiState, persist_api_snapshot, start_api_service,
+    start_api_service_with_admin_token, update_api_snapshot_for_scan_with_protocol_surfaces,
+    update_api_snapshot_for_single_with_protocol_surface,
 };
 use crate::diagnosis_runtime::{
     external_capability_summary, external_sidecar_consumption_mode, external_sidecar_presence,
     external_sidecar_trust_level,
 };
-use crate::report_runtime::collect_analyses;
+use crate::report_runtime::{
+    collect_analyses, collect_protocol_surfaces, protocol_surface_for_target,
+    scan_report_html_with_analyses_and_surfaces, scan_report_json_with_analyses_and_surfaces,
+    scan_report_text_with_analyses_and_surfaces,
+    single_target_report_html_with_analysis_and_surface,
+    single_target_report_json_with_analysis_and_surface,
+};
 use crate::runtime_events::{
     EVENT_API_SERVICE_START, EVENT_APPEND_FAILED, EVENT_SNAPSHOT_PERSIST_FAILED,
     EVENT_SOCKET_LISTENER_BIND_FAILED, EVENT_SOCKET_LISTENER_CLEANUP_FAILED,
@@ -27,12 +33,9 @@ use crate::socket_resilience::{
 
 use super::{
     Cli, ReportFormat, SocketTarget, UiLocale, analysis_snapshot, analysis_snapshot_json,
-    annotate_export_trust, findings_json_with_analysis, findings_text, render_scan_outputs,
-    run_binding_session, scan_analysis_json_array, scan_report_html_with_analyses,
-    scan_report_json_with_analyses, scan_report_text_with_analyses, scan_targets_for_cli,
-    single_target_report_html_with_analysis, single_target_report_json_with_analysis,
-    summary_json_with_analysis, summary_line_with_analysis, training_example_json_array,
-    training_example_json_with_analysis,
+    annotate_export_trust, findings_json_with_analysis, findings_text, run_binding_session,
+    scan_analysis_json_array, scan_targets_for_cli, summary_json_with_analysis,
+    summary_line_with_analysis, training_example_json_array, training_example_json_with_analysis,
 };
 
 pub(crate) const SOCKET_SESSION_TARGET_NAME: &str = "socket_session";
@@ -378,14 +381,25 @@ fn emit_rendered(
     api_state: Option<&ApiState>,
 ) {
     let analysis = analysis_snapshot(export);
+    let protocol_surface = protocol_surface_for_target(name);
     let summary_text = summary_line_with_analysis(name, export, &analysis);
     let summary_json_body = summary_json_with_analysis(name, export, &analysis);
     let findings_json_body = findings_json_with_analysis(name, export, &analysis);
     let analysis_json_body = analysis_snapshot_json(&analysis);
     let training_example_json_body = training_example_json_with_analysis(name, export, &analysis);
     let export_json_body = export.to_json();
-    let report_json_body = single_target_report_json_with_analysis(name, export, &analysis);
-    let report_html_body = single_target_report_html_with_analysis(name, export, &analysis);
+    let report_json_body = single_target_report_json_with_analysis_and_surface(
+        name,
+        export,
+        &analysis,
+        protocol_surface.as_ref(),
+    );
+    let report_html_body = single_target_report_html_with_analysis_and_surface(
+        name,
+        export,
+        &analysis,
+        protocol_surface.as_ref(),
+    );
     let (
         has_external_sidecar_context,
         has_external_evidence_chain_enrichment,
@@ -400,7 +414,7 @@ fn emit_rendered(
     let external_sidecar_consumption_mode = external_sidecar_consumption_mode(&analysis);
     let external_sidecar_trust_level = external_sidecar_trust_level(&analysis);
     if let Some(state) = api_state {
-        update_api_snapshot_for_single(
+        update_api_snapshot_for_single_with_protocol_surface(
             state,
             ApiRenderedTarget {
                 name: name.to_string(),
@@ -425,6 +439,7 @@ fn emit_rendered(
                 report_json: report_json_body.clone(),
                 report_html: report_html_body.clone(),
             },
+            protocol_surface,
         );
         if let Err(err) = persist_api_snapshot(state) {
             log_warn_event(
@@ -466,16 +481,21 @@ fn emit_scan_outputs(
     api_state: Option<&ApiState>,
 ) {
     let analyses = collect_analyses(outputs);
-    let scan_summary_text = scan_report_text_with_analyses(outputs, &analyses);
-    let scan_summary_json = scan_report_json_with_analyses(outputs, &analyses);
+    let protocol_surfaces = collect_protocol_surfaces(outputs);
+    let scan_summary_text =
+        scan_report_text_with_analyses_and_surfaces(outputs, &analyses, &protocol_surfaces);
+    let scan_summary_json =
+        scan_report_json_with_analyses_and_surfaces(outputs, &analyses, &protocol_surfaces);
     let scan_analysis_json = scan_analysis_json_array(outputs, &analyses);
     let scan_training_example_json = training_example_json_array(outputs, &analyses);
-    let scan_report_html_body = scan_report_html_with_analyses(outputs, &analyses);
+    let scan_report_html_body =
+        scan_report_html_with_analyses_and_surfaces(outputs, &analyses, &protocol_surfaces);
     if let Some(state) = api_state {
         let targets = outputs
             .iter()
             .zip(analyses.iter())
-            .map(|((name, export), analysis)| {
+            .zip(protocol_surfaces.iter())
+            .map(|(((name, export), analysis), protocol_surface)| {
                 let (
                     has_external_sidecar_context,
                     has_external_evidence_chain_enrichment,
@@ -511,14 +531,25 @@ fn emit_scan_outputs(
                     external_sidecar_trust_level,
                     external_sidecar_consumption_mode,
                     export_json: export.to_json(),
-                    report_json: single_target_report_json_with_analysis(name, export, analysis),
-                    report_html: single_target_report_html_with_analysis(name, export, analysis),
+                    report_json: single_target_report_json_with_analysis_and_surface(
+                        name,
+                        export,
+                        analysis,
+                        protocol_surface.as_ref(),
+                    ),
+                    report_html: single_target_report_html_with_analysis_and_surface(
+                        name,
+                        export,
+                        analysis,
+                        protocol_surface.as_ref(),
+                    ),
                 }
             })
             .collect::<Vec<_>>();
-        update_api_snapshot_for_scan(
+        update_api_snapshot_for_scan_with_protocol_surfaces(
             state,
             targets,
+            protocol_surfaces,
             scan_summary_text.clone(),
             scan_summary_json.clone(),
             scan_analysis_json,
@@ -535,7 +566,12 @@ fn emit_scan_outputs(
             );
         }
     }
-    let rendered = render_scan_outputs(cli, outputs);
+    let rendered = match cli.report_format {
+        Some(ReportFormat::Html) => scan_report_html_body,
+        Some(ReportFormat::Json) => scan_summary_json,
+        None if cli.json => scan_summary_json,
+        None => scan_summary_text,
+    };
     write_rendered_output(cli, &rendered, append);
 }
 

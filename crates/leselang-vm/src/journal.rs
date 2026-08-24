@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fs;
 use std::path::Path;
 use std::time::Duration;
@@ -12,7 +12,7 @@ use crate::{
     DispatchLease, EffectError, EffectRequest, Fault, MAX_CONTINUATION_BYTES,
     MAX_DISPATCH_ATTEMPTS, MAX_DISPATCH_LEASE_MS, MAX_SEMANTIC_RETRIES, MergePlan, RetentionPolicy,
     RetryDisposition, Step, continuation_age_order, encode_json_capped, merge_declared,
-    valid_continuation_token, validate_continuation_size, validate_effect_error,
+    valid_continuation_token, validate_continuation_encoding_size, validate_effect_error,
     validate_effect_request, validate_image, validate_merge_plan, validate_value,
 };
 
@@ -290,7 +290,7 @@ impl EphemeralJournal {
             return Ok(());
         };
         validate_effect_request(request)?;
-        validate_continuation_size(&request.continuation)?;
+        validate_continuation_encoding_size(&request.continuation)?;
         let token = request.continuation.token.clone();
         if let Some(existing) = self.dispatches.get(&token) {
             return if existing.request == *request {
@@ -326,7 +326,7 @@ impl EphemeralJournal {
         branches: &[(&str, &EffectRequest)],
     ) -> Result<(), Fault> {
         for (_, request) in branches {
-            validate_continuation_size(&request.continuation)?;
+            validate_continuation_encoding_size(&request.continuation)?;
         }
         if self.merge_groups.contains_key(group_token)
             || self.dispatches.contains_key(group_token)
@@ -2883,12 +2883,12 @@ fn validate_merge_graph_input(
             "merge branch requests do not match the declared plan",
         ));
     }
-    let mut tokens = BTreeSet::new();
+    let mut tokens = HashSet::with_capacity(branches.len());
     for (position, (name, request)) in branches.iter().enumerate() {
         validate_effect_request(request)?;
         if *name != plan.branches[position]
             || request.continuation.token == *group_token
-            || !tokens.insert(request.continuation.token.clone())
+            || !tokens.insert(request.continuation.token.as_str())
         {
             return Err(journal_fault(
                 "LSV4032",

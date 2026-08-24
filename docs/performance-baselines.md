@@ -74,6 +74,33 @@ codec from `2.075792` to `1.839459 ms` (`11.4%`). The benchmark now also emits
 standalone diff, apply, encode, and decode timings so later work can identify
 which half of a combined path changed.
 
+The same date's follow-up pass removed allocation-heavy identity checks and
+duplicate continuation semantic validation from the 64-branch Leselang VM
+start path. Across seven release-process samples, VM start fell from `0.125125` to
+`0.113417 ms` (`9.4%`) and the complete language pipeline from `0.182000` to
+`0.164209 ms` (`9.8%`). The runtime effect queue now reuses cached SQLite
+SELECT and INSERT statements inside each atomic enqueue batch. Ten alternating
+same-host baseline/optimized pairs reduced the 10,000-effect median from
+`167.844` to `115.426 ms` (`31.2%`) and raised median throughput from `59.6k/s`
+to `86.6k/s`; this paired result is preferred over isolated runs because local
+filesystem commit latency remains visibly noisy.
+
+The core report pass on the same date made external-analysis snapshot JSON
+lazy when no sidecar engine is configured and stopped allocating duplicate
+profile strings during aggregation. Ten alternating same-host binary pairs
+reduced the 200-snapshot median from `1101.081` to `862.733 ms` (`21.6%`). Scan
+reports now resolve every target against one per-report protocol-registry
+snapshot instead of recursively scanning and parsing the registry once per
+target. A preserved pre-change binary took `39385.371 ms` for one precomputed
+24-target JSON run; the optimized path has a seven-run median of `1626.549 ms`
+(`95.9%` lower). The complete recomputing JSON path moved from a same-host
+pre-change sample of `41389.666 ms` to a five-run median of `5737.565 ms`
+(`86.1%` lower). This is request-local snapshot reuse, not a stale process-wide
+cache, so registry changes remain visible to the next report. Service
+publication carries the same surfaces through text, JSON, HTML, per-target
+reports, and the API snapshot, and writes the selected CLI format without a
+second analysis pass.
+
 The `2026-07-18` macOS arm64 hybrid-log reference measured the 256-entry full
 compose at `2.099 ms` p50 and `321,424` allocated bytes per iteration. The
 8-entry incremental compose-and-merge measured `0.299 ms` and `30,488` bytes,
@@ -145,13 +172,14 @@ Current baselines:
 
 | Benchmark | Median (ms) | Notes |
 | --- | ---: | --- |
-| `benchmark_analysis_snapshot_large_protocol_flow_export` | `1217.617` | 200 iterations, 256 flows |
+| `benchmark_analysis_snapshot_large_protocol_flow_export` | `862.733` | 200 iterations, 256 flows, median of 10 optimized samples from alternating binary A/B |
 | `benchmark_analysis_snapshot_json_large_protocol_flow_export` | `139.603` | 200 iterations, precomputed snapshot |
-| `benchmark_summary_json_large_protocol_flow_export` | `1328.418` | 200 iterations, single-target JSON surface |
+| `benchmark_summary_json_large_protocol_flow_export` | `1009.468` | 200 iterations, single-target JSON surface, seven samples |
 | `benchmark_findings_json_large_protocol_flow_export` | `77.081` | 200 iterations, single-target findings JSON |
-| `benchmark_scan_report_json_large_protocol_flow_export` | `6006.350` | 40 iterations, 24 targets, 256 flows each |
-| `benchmark_scan_report_text_large_protocol_flow_export` | `6988.309` | 40 iterations, 24 targets, 256 flows each |
-| `benchmark_scan_report_html_large_protocol_flow_export` | `1049.030` | 10 iterations, 12 targets, 256 flows each |
+| `benchmark_scan_report_json_large_protocol_flow_export` | `5737.565` | 40 iterations, 24 targets, 256 flows each, five samples |
+| `benchmark_scan_report_json_precomputed_analysis_large_protocol_flow_export` | `1626.549` | 40 iterations, 24 targets, shared analysis and registry snapshots, seven samples |
+| `benchmark_scan_report_text_large_protocol_flow_export` | `5684.507` | 40 iterations, 24 targets, 256 flows each, five samples |
+| `benchmark_scan_report_html_large_protocol_flow_export` | `939.069` | 10 iterations, 12 targets, 256 flows each, seven samples |
 | `benchmark_http_transactions_json_large_view` | `155.222` | 200 iterations, 256 synthetic HTTP transactions |
 | `benchmark_http_transactions_text_large_view` | `78.767` | 200 iterations, 256 synthetic HTTP transactions |
 
@@ -168,6 +196,9 @@ Measurement notes:
 These numbers are not interchangeable with the local developer-machine
 baseline above. Use them as the current physical-host reference for scan-report
 hot paths and for checking whether precomputed analysis is being reused.
+They predate the `2026-08-24` per-report registry snapshot optimization and
+must be refreshed on the next physical-host run before they are used as a
+post-change regression floor.
 
 | Benchmark | Median (ms) | Notes |
 | --- | ---: | --- |

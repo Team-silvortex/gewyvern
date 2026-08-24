@@ -1,17 +1,41 @@
-use gewyvern::protocol_profiles::{ProtocolSurfaceSummary, protocol_surface};
+use gewyvern::protocol_profiles::{
+    ProtocolSurfaceSummary, protocol_summaries, protocol_surface, protocol_surface_from_summaries,
+};
 
 use crate::render_utils::append_json_string;
 
 use super::*;
 
 pub(super) fn protocol_surface_for_target(target: &str) -> Option<ProtocolSurfaceSummary> {
+    let (protocol, entry) = protocol_target_parts(target)?;
+    protocol_surface(protocol, entry)
+}
+
+pub(super) fn protocol_surfaces_for_targets<'a>(
+    targets: impl IntoIterator<Item = &'a str>,
+) -> Vec<Option<ProtocolSurfaceSummary>> {
+    let targets = targets.into_iter().collect::<Vec<_>>();
+    if targets.is_empty() {
+        return Vec::new();
+    }
+    let summaries = protocol_summaries();
+    targets
+        .into_iter()
+        .map(|target| {
+            let (protocol, entry) = protocol_target_parts(target)?;
+            protocol_surface_from_summaries(&summaries, protocol, entry)
+        })
+        .collect()
+}
+
+fn protocol_target_parts(target: &str) -> Option<(&str, &str)> {
     let mut parts = target.splitn(3, ':');
     if parts.next()? != "scan" {
         return None;
     }
     let protocol = parts.next()?;
     let entry = parts.next()?;
-    protocol_surface(protocol, entry)
+    Some((protocol, entry))
 }
 
 pub(super) fn estimate_protocol_surface_json_capacity(

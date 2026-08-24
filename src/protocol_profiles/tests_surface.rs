@@ -1,4 +1,16 @@
-use super::{protocol_summaries, protocol_surface};
+use super::{protocol_summaries, protocol_surface, protocol_surface_from_summaries};
+
+#[test]
+fn shared_protocol_summaries_preserve_surface_resolution() {
+    let summaries = protocol_summaries();
+    for (protocol, entry) in [("http", "request"), ("https", "request"), ("redis", "auth")] {
+        assert_eq!(
+            protocol_surface_from_summaries(&summaries, protocol, entry),
+            protocol_surface(protocol, entry),
+        );
+    }
+    assert!(protocol_surface_from_summaries(&summaries, "missing", "entry").is_none());
+}
 
 #[test]
 fn every_built_in_protocol_family_has_a_family_hub_page() {

@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fs::{self, OpenOptions};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -1622,7 +1622,7 @@ impl Journal {
                 "effect enqueue batch must contain between 1 and {MAX_EFFECT_ENQUEUE_BATCH} tasks"
             ));
         }
-        let mut batch_ids = BTreeSet::new();
+        let mut batch_ids = HashSet::with_capacity(effects.len());
         for effect in effects {
             validate_scheduler_id("effect_id", &effect.effect_id)?;
             validate_scheduler_id("effect kind", &effect.kind)?;
@@ -1651,28 +1651,33 @@ impl Journal {
             )
             .map_err(|error| error.to_string())?;
         let mut new_effects = Vec::with_capacity(effects.len());
-        for effect in effects {
-            let existing: Option<(String, Vec<u8>, i64)> = transaction
-                .query_row(
+        {
+            let mut existing_statement = transaction
+                .prepare_cached(
                     "SELECT kind, payload, max_attempts FROM runtime_effect_tasks
                      WHERE effect_id = ?1",
-                    [&effect.effect_id],
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
                 )
-                .optional()
                 .map_err(|error| error.to_string())?;
-            match existing {
-                Some((kind, payload, max_attempts))
-                    if kind == effect.kind
-                        && payload == effect.payload
-                        && max_attempts == i64::from(effect.max_attempts) => {}
-                Some(_) => {
-                    return Err(format!(
-                        "effect id '{}' was reused with different input",
-                        effect.effect_id
-                    ));
+            for effect in effects {
+                let existing: Option<(String, Vec<u8>, i64)> = existing_statement
+                    .query_row([&effect.effect_id], |row| {
+                        Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                    })
+                    .optional()
+                    .map_err(|error| error.to_string())?;
+                match existing {
+                    Some((kind, payload, max_attempts))
+                        if kind == effect.kind
+                            && payload == effect.payload
+                            && max_attempts == i64::from(effect.max_attempts) => {}
+                    Some(_) => {
+                        return Err(format!(
+                            "effect id '{}' was reused with different input",
+                            effect.effect_id
+                        ));
+                    }
+                    None => new_effects.push(effect),
                 }
-                None => new_effects.push(effect),
             }
         }
         let new_count = i64::try_from(new_effects.len())
@@ -1682,22 +1687,26 @@ impl Journal {
                 "runtime effect queue limit {MAX_EFFECT_TASKS} reached"
             ));
         }
-        for effect in new_effects {
-            transaction
-                .execute(
+        {
+            let mut insert_statement = transaction
+                .prepare_cached(
                     "INSERT INTO runtime_effect_tasks
                      (effect_id, kind, payload, state, attempt, max_attempts,
                       available_at_unix_ms, created_at_unix_ms, updated_at_unix_ms)
-                 VALUES (?1, ?2, ?3, 'ready', 0, ?4, ?5, ?5, ?5)",
-                    params![
+                     VALUES (?1, ?2, ?3, 'ready', 0, ?4, ?5, ?5, ?5)",
+                )
+                .map_err(|error| error.to_string())?;
+            for effect in new_effects {
+                insert_statement
+                    .execute(params![
                         effect.effect_id,
                         effect.kind,
                         effect.payload,
                         i64::from(effect.max_attempts),
                         now
-                    ],
-                )
-                .map_err(|error| error.to_string())?;
+                    ])
+                    .map_err(|error| error.to_string())?;
+            }
         }
         transaction.commit().map_err(|error| error.to_string())?;
         u64::try_from(new_count).map_err(|_| "effect enqueue count overflow".into())

@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::io::{self, Write};
 use std::path::Path;
 
@@ -2692,6 +2692,10 @@ pub fn encode_continuation(image: &ContinuationImage) -> Result<Vec<u8>, Fault> 
 
 pub(crate) fn validate_continuation_size(image: &ContinuationImage) -> Result<(), Fault> {
     validate_image(image)?;
+    validate_continuation_encoding_size(image)
+}
+
+fn validate_continuation_encoding_size(image: &ContinuationImage) -> Result<(), Fault> {
     validate_json_size_capped(image, MAX_CONTINUATION_BYTES, "continuation")
 }
 
@@ -2899,7 +2903,7 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
             code: "LSV2010".to_string(),
             message: "effect request has a non-canonical continuation token".to_string(),
         })?;
-    if request.effect_id != format!("effect-{token_suffix}") {
+    if request.effect_id.strip_prefix("effect-") != Some(token_suffix) {
         return Err(Fault {
             code: "LSV2010".to_string(),
             message: "effect identifier does not match continuation token".to_string(),
@@ -4597,13 +4601,17 @@ pub fn merge_declared(
 }
 
 pub(crate) fn validate_merge_plan(plan: &MergePlan) -> Result<(), Fault> {
-    let unique = plan.branches.iter().collect::<BTreeSet<_>>();
-    if !(2..=MAX_MERGE_BRANCHES).contains(&plan.branches.len())
-        || unique.len() != plan.branches.len()
-        || plan
-            .branches
-            .iter()
-            .any(|branch| !valid_merge_branch_name(branch))
+    if !(2..=MAX_MERGE_BRANCHES).contains(&plan.branches.len()) {
+        return Err(Fault {
+            code: "LSV2401".to_string(),
+            message: "structured merge plan is invalid or exceeds runtime bounds".to_string(),
+        });
+    }
+    let mut unique = HashSet::with_capacity(plan.branches.len());
+    if plan
+        .branches
+        .iter()
+        .any(|branch| !valid_merge_branch_name(branch) || !unique.insert(branch.as_str()))
     {
         return Err(Fault {
             code: "LSV2401".to_string(),

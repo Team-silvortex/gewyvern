@@ -47,11 +47,11 @@ pub(super) struct ProtocolFlowFindingSummary {
 }
 
 #[derive(Default)]
-struct ProtocolFlowFindingAccumulator {
+struct ProtocolFlowFindingAccumulator<'a> {
     summary: ProtocolFlowFindingSummary,
-    seen_missing_transitions: HashSet<String>,
-    seen_network_module_kinds: HashSet<String>,
-    seen_suspect_areas: HashSet<String>,
+    seen_missing_transitions: HashSet<&'a str>,
+    seen_network_module_kinds: HashSet<&'a str>,
+    seen_suspect_areas: HashSet<&'a str>,
 }
 
 #[derive(Clone, Default)]
@@ -480,8 +480,7 @@ pub(crate) fn analysis_snapshot_with(
     snapshot.operator_guidance_summary = guidance_summary.into();
     snapshot.evidence_posture = analysis_evidence_posture(export, &snapshot).into();
     snapshot.automation_outcome = analysis_automation_outcome(export, &snapshot).into();
-    let snapshot_json = analysis_snapshot_json(&snapshot);
-    append_external_augmentations(&mut snapshot, &snapshot_json);
+    append_external_augmentations(&mut snapshot);
     snapshot
 }
 

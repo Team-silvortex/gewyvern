@@ -1,5 +1,6 @@
 use gewyvern::export::ExportBundle;
 use gewyvern::http::HttpTransactionView;
+use gewyvern::protocol_profiles::ProtocolSurfaceSummary;
 use std::fmt::Write;
 
 use super::*;
@@ -21,6 +22,16 @@ pub(crate) fn collect_analyses(outputs: &[(String, ExportBundle)]) -> Vec<Analys
         .iter()
         .map(|(_, export)| analysis_snapshot(export))
         .collect()
+}
+
+pub(crate) fn collect_protocol_surfaces(
+    outputs: &[(String, ExportBundle)],
+) -> Vec<Option<ProtocolSurfaceSummary>> {
+    self::scan_surface::protocol_surfaces_for_targets(outputs.iter().map(|(name, _)| name.as_str()))
+}
+
+pub(crate) fn protocol_surface_for_target(name: &str) -> Option<ProtocolSurfaceSummary> {
+    self::scan_surface::protocol_surface_for_target(name)
 }
 
 pub(super) fn summary_line(name: &str, export: &ExportBundle) -> String {
@@ -48,6 +59,7 @@ pub(super) fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
     self::scan::scan_report_json(outputs)
 }
 
+#[cfg(test)]
 pub(super) fn scan_report_json_with_analyses(
     outputs: &[(String, ExportBundle)],
     analyses: &[AnalysisSnapshot],
@@ -55,6 +67,15 @@ pub(super) fn scan_report_json_with_analyses(
     self::scan::scan_report_json_with_analyses(outputs, analyses)
 }
 
+pub(super) fn scan_report_json_with_analyses_and_surfaces(
+    outputs: &[(String, ExportBundle)],
+    analyses: &[AnalysisSnapshot],
+    protocol_surfaces: &[Option<ProtocolSurfaceSummary>],
+) -> String {
+    self::scan::scan_report_json_with_analyses_and_surfaces(outputs, analyses, protocol_surfaces)
+}
+
+#[cfg(test)]
 pub(super) fn single_target_report_json_with_analysis(
     name: &str,
     export: &ExportBundle,
@@ -63,11 +84,26 @@ pub(super) fn single_target_report_json_with_analysis(
     self::scan::single_target_report_json_with_analysis(name, export, analysis)
 }
 
+pub(super) fn single_target_report_json_with_analysis_and_surface(
+    name: &str,
+    export: &ExportBundle,
+    analysis: &AnalysisSnapshot,
+    protocol_surface: Option<&ProtocolSurfaceSummary>,
+) -> String {
+    self::scan::single_target_report_json_with_analysis_and_surface(
+        name,
+        export,
+        analysis,
+        protocol_surface,
+    )
+}
+
 #[cfg(test)]
 pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
     self::scan::scan_report_html(outputs)
 }
 
+#[cfg(test)]
 pub(super) fn scan_report_html_with_analyses(
     outputs: &[(String, ExportBundle)],
     analyses: &[AnalysisSnapshot],
@@ -75,6 +111,15 @@ pub(super) fn scan_report_html_with_analyses(
     self::scan::scan_report_html_with_analyses(outputs, analyses)
 }
 
+pub(super) fn scan_report_html_with_analyses_and_surfaces(
+    outputs: &[(String, ExportBundle)],
+    analyses: &[AnalysisSnapshot],
+    protocol_surfaces: &[Option<ProtocolSurfaceSummary>],
+) -> String {
+    self::scan::scan_report_html_with_analyses_and_surfaces(outputs, analyses, protocol_surfaces)
+}
+
+#[cfg(test)]
 pub(super) fn single_target_report_html_with_analysis(
     name: &str,
     export: &ExportBundle,
@@ -83,16 +128,39 @@ pub(super) fn single_target_report_html_with_analysis(
     self::scan::single_target_report_html_with_analysis(name, export, analysis)
 }
 
+pub(super) fn single_target_report_html_with_analysis_and_surface(
+    name: &str,
+    export: &ExportBundle,
+    analysis: &AnalysisSnapshot,
+    protocol_surface: Option<&ProtocolSurfaceSummary>,
+) -> String {
+    self::scan::single_target_report_html_with_analysis_and_surface(
+        name,
+        export,
+        analysis,
+        protocol_surface,
+    )
+}
+
 #[cfg(test)]
 pub(super) fn scan_report_text(outputs: &[(String, ExportBundle)]) -> String {
     self::scan::scan_report_text(outputs)
 }
 
+#[cfg(test)]
 pub(super) fn scan_report_text_with_analyses(
     outputs: &[(String, ExportBundle)],
     analyses: &[AnalysisSnapshot],
 ) -> String {
     self::scan::scan_report_text_with_analyses(outputs, analyses)
+}
+
+pub(super) fn scan_report_text_with_analyses_and_surfaces(
+    outputs: &[(String, ExportBundle)],
+    analyses: &[AnalysisSnapshot],
+    protocol_surfaces: &[Option<ProtocolSurfaceSummary>],
+) -> String {
+    self::scan::scan_report_text_with_analyses_and_surfaces(outputs, analyses, protocol_surfaces)
 }
 
 pub(super) fn render_scan_outputs(cli: &Cli, outputs: &[(String, ExportBundle)]) -> String {

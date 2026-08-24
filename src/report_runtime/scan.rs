@@ -1,9 +1,11 @@
 use gewyvern::protocol_profiles::ProtocolSurfaceSummary;
 
+#[cfg(test)]
+use super::scan_surface::protocol_surface_for_target;
 use super::scan_surface::{
     append_protocol_surface_json, append_protocol_surface_text,
     estimate_protocol_surface_json_capacity, estimate_protocol_surface_text_capacity,
-    protocol_surface_for_target, protocol_surface_html,
+    protocol_surface_html, protocol_surfaces_for_targets,
 };
 use super::sidecar::{external_sidecar_derived_state, external_sidecar_rollup_counts};
 use super::*;
@@ -19,13 +21,21 @@ pub(super) fn scan_report_json_with_analyses(
     outputs: &[(String, ExportBundle)],
     analyses: &[AnalysisSnapshot],
 ) -> String {
+    let protocol_surfaces =
+        protocol_surfaces_for_targets(outputs.iter().map(|(name, _)| name.as_str()));
+    scan_report_json_with_analyses_and_surfaces(outputs, analyses, &protocol_surfaces)
+}
+
+pub(super) fn scan_report_json_with_analyses_and_surfaces(
+    outputs: &[(String, ExportBundle)],
+    analyses: &[AnalysisSnapshot],
+    protocol_surfaces: &[Option<ProtocolSurfaceSummary>],
+) -> String {
+    debug_assert_eq!(outputs.len(), analyses.len());
+    debug_assert_eq!(outputs.len(), protocol_surfaces.len());
     let total_targets = outputs.len();
     let (healthy_targets, attention_targets, idle_targets) = scan_target_status_counts(analyses);
     let flow_limit = scan_report_flow_limit(outputs);
-    let protocol_surfaces = outputs
-        .iter()
-        .map(|(name, _)| protocol_surface_for_target(name))
-        .collect::<Vec<_>>();
     let estimated_capacity = 160
         + outputs
             .iter()
@@ -36,7 +46,7 @@ pub(super) fn scan_report_json_with_analyses(
                     name,
                     export,
                     analysis,
-                    protocol_surface,
+                    protocol_surface.as_ref(),
                     flow_limit,
                 )
             })
@@ -69,14 +79,29 @@ pub(super) fn scan_report_json_with_analyses(
     json
 }
 
+#[cfg(test)]
 pub(super) fn single_target_report_json_with_analysis(
     name: &str,
     export: &ExportBundle,
     analysis: &AnalysisSnapshot,
 ) -> String {
     let protocol_surface = protocol_surface_for_target(name);
+    single_target_report_json_with_analysis_and_surface(
+        name,
+        export,
+        analysis,
+        protocol_surface.as_ref(),
+    )
+}
+
+pub(super) fn single_target_report_json_with_analysis_and_surface(
+    name: &str,
+    export: &ExportBundle,
+    analysis: &AnalysisSnapshot,
+    protocol_surface: Option<&ProtocolSurfaceSummary>,
+) -> String {
     let estimated_capacity = 160
-        + estimate_scan_target_json_capacity(name, export, analysis, &protocol_surface, usize::MAX);
+        + estimate_scan_target_json_capacity(name, export, analysis, protocol_surface, usize::MAX);
     let mut json = String::with_capacity(estimated_capacity);
     let _ = write!(
         json,
@@ -90,7 +115,7 @@ pub(super) fn single_target_report_json_with_analysis(
         name,
         export,
         analysis,
-        protocol_surface.as_ref(),
+        protocol_surface,
         usize::MAX,
     );
     json.push_str("]}");
@@ -106,12 +131,20 @@ pub(super) fn scan_report_html_with_analyses(
     outputs: &[(String, ExportBundle)],
     analyses: &[AnalysisSnapshot],
 ) -> String {
+    let protocol_surfaces =
+        protocol_surfaces_for_targets(outputs.iter().map(|(name, _)| name.as_str()));
+    scan_report_html_with_analyses_and_surfaces(outputs, analyses, &protocol_surfaces)
+}
+
+pub(super) fn scan_report_html_with_analyses_and_surfaces(
+    outputs: &[(String, ExportBundle)],
+    analyses: &[AnalysisSnapshot],
+    protocol_surfaces: &[Option<ProtocolSurfaceSummary>],
+) -> String {
+    debug_assert_eq!(outputs.len(), analyses.len());
+    debug_assert_eq!(outputs.len(), protocol_surfaces.len());
     let total_targets = outputs.len();
     let (healthy_targets, attention_targets, idle_targets) = scan_target_status_counts(analyses);
-    let protocol_surfaces = outputs
-        .iter()
-        .map(|(name, _)| protocol_surface_for_target(name))
-        .collect::<Vec<_>>();
     let mut family_counts = std::collections::BTreeMap::<&str, usize>::new();
     for analysis in analyses {
         let family = module_family_label(&analysis.primary_module_kind);
@@ -214,12 +247,27 @@ pub(super) fn scan_report_html_with_analyses(
     )
 }
 
+#[cfg(test)]
 pub(super) fn single_target_report_html_with_analysis(
     name: &str,
     export: &ExportBundle,
     analysis: &AnalysisSnapshot,
 ) -> String {
     let protocol_surface = protocol_surface_for_target(name);
+    single_target_report_html_with_analysis_and_surface(
+        name,
+        export,
+        analysis,
+        protocol_surface.as_ref(),
+    )
+}
+
+pub(super) fn single_target_report_html_with_analysis_and_surface(
+    name: &str,
+    export: &ExportBundle,
+    analysis: &AnalysisSnapshot,
+    protocol_surface: Option<&ProtocolSurfaceSummary>,
+) -> String {
     let family = module_family_label(&analysis.primary_module_kind);
     let mut family_summary = String::new();
     let _ = write!(
@@ -254,7 +302,7 @@ pub(super) fn single_target_report_html_with_analysis(
         name,
         export,
         analysis,
-        protocol_surface.as_ref(),
+        protocol_surface,
         usize::MAX,
     ));
     append_scan_target_html_card(
@@ -262,7 +310,7 @@ pub(super) fn single_target_report_html_with_analysis(
         name,
         export,
         analysis,
-        protocol_surface.as_ref(),
+        protocol_surface,
         usize::MAX,
     );
     format!(
@@ -284,13 +332,21 @@ pub(super) fn scan_report_text_with_analyses(
     outputs: &[(String, ExportBundle)],
     analyses: &[AnalysisSnapshot],
 ) -> String {
+    let protocol_surfaces =
+        protocol_surfaces_for_targets(outputs.iter().map(|(name, _)| name.as_str()));
+    scan_report_text_with_analyses_and_surfaces(outputs, analyses, &protocol_surfaces)
+}
+
+pub(super) fn scan_report_text_with_analyses_and_surfaces(
+    outputs: &[(String, ExportBundle)],
+    analyses: &[AnalysisSnapshot],
+    protocol_surfaces: &[Option<ProtocolSurfaceSummary>],
+) -> String {
+    debug_assert_eq!(outputs.len(), analyses.len());
+    debug_assert_eq!(outputs.len(), protocol_surfaces.len());
     let total_targets = outputs.len();
     let (healthy_targets, attention_targets, idle_targets) = scan_target_status_counts(analyses);
     let flow_limit = scan_report_flow_limit(outputs);
-    let protocol_surfaces = outputs
-        .iter()
-        .map(|(name, _)| protocol_surface_for_target(name))
-        .collect::<Vec<_>>();
     let estimated_capacity = 96
         + outputs
             .iter()
@@ -359,7 +415,7 @@ pub(super) fn estimate_scan_target_json_capacity(
     name: &str,
     export: &ExportBundle,
     analysis: &AnalysisSnapshot,
-    protocol_surface: &Option<ProtocolSurfaceSummary>,
+    protocol_surface: Option<&ProtocolSurfaceSummary>,
     flow_limit: usize,
 ) -> usize {
     let flow_count = analysis.protocol_flows.len().min(flow_limit);
@@ -384,7 +440,7 @@ pub(super) fn estimate_scan_target_json_capacity(
         + analysis.process_profiles.len() * 320
         + flow_count * 220
         + analysis.augmentations.len() * 180
-        + estimate_protocol_surface_json_capacity(protocol_surface.as_ref())
+        + estimate_protocol_surface_json_capacity(protocol_surface)
 }
 
 pub(super) fn append_scan_target_json(

@@ -166,8 +166,10 @@ pub struct ApiRenderedTarget {
 }
 
 impl ApiRenderedTarget {
-    pub fn into_snapshot(self) -> ApiTargetSnapshot {
-        let protocol_surface = protocol_catalog::api_protocol_surface_for_target(&self.name);
+    fn into_snapshot_with_protocol_surface(
+        self,
+        protocol_surface: Option<ProtocolSurfaceSummary>,
+    ) -> ApiTargetSnapshot {
         let protocol_surface_json = protocol_surface
             .as_ref()
             .map(protocol_catalog::api_protocol_surface_json);
@@ -223,7 +225,17 @@ pub(crate) fn render_runtime_certificate_state_json() -> String {
     certificate_state::api_runtime_certificate_state_json()
 }
 
+#[cfg(test)]
 pub fn update_api_snapshot_for_single(state: &ApiState, rendered: ApiRenderedTarget) {
+    let protocol_surface = protocol_catalog::api_protocol_surface_for_target(&rendered.name);
+    update_api_snapshot_for_single_with_protocol_surface(state, rendered, protocol_surface);
+}
+
+pub(crate) fn update_api_snapshot_for_single_with_protocol_surface(
+    state: &ApiState,
+    rendered: ApiRenderedTarget,
+    protocol_surface: Option<ProtocolSurfaceSummary>,
+) {
     let target_name = rendered.name.clone();
     let has_external_sidecar_context = rendered.has_external_sidecar_context;
     let has_external_evidence_chain_enrichment = rendered.has_external_evidence_chain_enrichment;
@@ -234,7 +246,9 @@ pub fn update_api_snapshot_for_single(state: &ApiState, rendered: ApiRenderedTar
     let external_context_status = rendered.external_context_status.clone();
     let external_sidecar_trust_level = rendered.external_sidecar_trust_level.clone();
     let external_sidecar_consumption_mode = rendered.external_sidecar_consumption_mode.clone();
-    let target_snapshot = rendered.clone().into_snapshot();
+    let target_snapshot = rendered
+        .clone()
+        .into_snapshot_with_protocol_surface(protocol_surface);
     let mut target_snapshots = HashMap::new();
     target_snapshots.insert(target_name.clone(), target_snapshot);
     let mut guard = state.lock().expect("api snapshot mutex poisoned");
@@ -270,6 +284,7 @@ pub fn update_api_snapshot_for_single(state: &ApiState, rendered: ApiRenderedTar
 
 // Preserve the stable scan publication boundary used by CLI and validation callers.
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub fn update_api_snapshot_for_scan(
     state: &ApiState,
     targets: Vec<ApiRenderedTarget>,
@@ -280,6 +295,35 @@ pub fn update_api_snapshot_for_scan(
     report_json: String,
     report_html: String,
 ) {
+    let protocol_surfaces = protocol_catalog::api_protocol_surfaces_for_targets(
+        targets.iter().map(|target| target.name.as_str()),
+    );
+    update_api_snapshot_for_scan_with_protocol_surfaces(
+        state,
+        targets,
+        protocol_surfaces,
+        summary_text,
+        summary_json,
+        analysis_json,
+        training_example_json,
+        report_json,
+        report_html,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn update_api_snapshot_for_scan_with_protocol_surfaces(
+    state: &ApiState,
+    targets: Vec<ApiRenderedTarget>,
+    protocol_surfaces: Vec<Option<ProtocolSurfaceSummary>>,
+    summary_text: String,
+    summary_json: String,
+    analysis_json: String,
+    training_example_json: String,
+    report_json: String,
+    report_html: String,
+) {
+    debug_assert_eq!(targets.len(), protocol_surfaces.len());
     let rollup = scan_rollup_profile(&targets);
     let mut target_snapshots = HashMap::new();
     let mut target_names = Vec::with_capacity(targets.len());
@@ -292,6 +336,7 @@ pub fn update_api_snapshot_for_scan(
     let mut external_context_status = None;
     let mut external_sidecar_trust_level = None;
     let mut external_sidecar_consumption_mode = None;
+    let mut protocol_surfaces = protocol_surfaces.into_iter();
     for rendered in targets {
         has_external_sidecar_context |= rendered.has_external_sidecar_context;
         has_external_evidence_chain_enrichment |= rendered.has_external_evidence_chain_enrichment;
@@ -313,7 +358,13 @@ pub fn update_api_snapshot_for_scan(
             external_sidecar_consumption_mode = rendered.external_sidecar_consumption_mode.clone();
         }
         target_names.push(rendered.name.clone());
-        target_snapshots.insert(rendered.name.clone(), rendered.into_snapshot());
+        let protocol_surface = protocol_surfaces
+            .next()
+            .unwrap_or_else(|| protocol_catalog::api_protocol_surface_for_target(&rendered.name));
+        target_snapshots.insert(
+            rendered.name.clone(),
+            rendered.into_snapshot_with_protocol_surface(protocol_surface),
+        );
     }
     let mut guard = state.lock().expect("api snapshot mutex poisoned");
     *guard = Arc::new(ApiSnapshot {

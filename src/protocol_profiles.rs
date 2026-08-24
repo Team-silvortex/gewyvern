@@ -135,10 +135,34 @@ pub fn protocol_summary(protocol: &str) -> Option<ProtocolSummary> {
 }
 
 pub fn protocol_surface(protocol: &str, entry: &str) -> Option<ProtocolSurfaceSummary> {
+    protocol_surface_with_summary_lookup(protocol, entry, protocol_summary)
+}
+
+pub fn protocol_surface_from_summaries(
+    summaries: &[ProtocolSummary],
+    protocol: &str,
+    entry: &str,
+) -> Option<ProtocolSurfaceSummary> {
+    protocol_surface_with_summary_lookup(protocol, entry, |protocol| {
+        summaries
+            .iter()
+            .find(|summary| {
+                summary.protocol == protocol
+                    || summary.aliases.iter().any(|alias| alias == protocol)
+            })
+            .cloned()
+    })
+}
+
+fn protocol_surface_with_summary_lookup(
+    protocol: &str,
+    entry: &str,
+    mut summary_for: impl FnMut(&str) -> Option<ProtocolSummary>,
+) -> Option<ProtocolSurfaceSummary> {
     let raw_protocol = protocol;
     let (protocol, _) = split_protocol_alias(protocol);
     let selected_overlay = selected_overlay_for_alias(raw_protocol).map(str::to_string);
-    let (summary, selected_entry) = if let Some(summary) = protocol_summary(protocol) {
+    let (summary, selected_entry) = if let Some(summary) = summary_for(protocol) {
         let selected_entry = summary
             .entries
             .iter()
@@ -148,7 +172,7 @@ pub fn protocol_surface(protocol: &str, entry: &str) -> Option<ProtocolSurfaceSu
         (summary, selected_entry)
     } else {
         let alias = protocol_entry_aliases().find(|alias| alias.alias == protocol)?;
-        let summary = protocol_summary(alias.protocol)?;
+        let summary = summary_for(alias.protocol)?;
         let selected_entry = alias.entry?;
         if selected_entry != entry {
             return None;
