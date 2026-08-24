@@ -70,9 +70,9 @@ public sealed partial class RegistryService
         return string.Equals(actual, expected.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
-    private static IReadOnlyDictionary<string, int> BuildTagCounts(
-        IEnumerable<RuntimeRecord> runtimes,
-        Func<RuntimeRecord, string?> selector) =>
+    private static IReadOnlyDictionary<string, int> BuildTagCounts<T>(
+        IEnumerable<T> runtimes,
+        Func<T, string?> selector) =>
         runtimes
             .Select(selector)
             .Where(value => !string.IsNullOrWhiteSpace(value))

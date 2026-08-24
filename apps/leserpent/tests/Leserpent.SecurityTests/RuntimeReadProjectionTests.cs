@@ -152,6 +152,122 @@ public sealed class RuntimeReadProjectionTests
     }
 
     [Fact]
+    public async Task FleetAggregatesUseDaemonMembershipAndAuthorityFields()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "Managed Active",
+                    "https://managed-active.invalid",
+                    "secret",
+                    Tags: new RuntimeTags("managed", "west", "edge"),
+                    SidecarEndpoint: "https://managed-sidecar.invalid"),
+                "runtime-authoritative");
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "Managed Only",
+                    "https://managed-only.invalid",
+                    "secret",
+                    Tags: new RuntimeTags("managed", "west", "edge")),
+                "runtime-managed-only");
+
+            var filter = new RuntimeListFilter(null, null, null);
+            var localFleet = new FleetReadProjectionService(
+                new RuntimeReadProjectionService(
+                    registry,
+                    new FakeDaemonReader(false, Array.Empty<DaemonRuntimeProjection>())),
+                registry);
+            Assert.Equal(
+                2,
+                (await localFleet.GetSummaryAsync(filter, CancellationToken.None)).RuntimeCount);
+
+            var projection = Projection("runtime-authoritative");
+            projection = projection with
+            {
+                Status = projection.Status with
+                {
+                    StatusSource = "fetch_failed",
+                    HasLatestSnapshot = false,
+                    HasAnalysisJson = false
+                },
+                SidecarStatus = projection.SidecarStatus! with
+                {
+                    StatusSource = "fetch_failed",
+                    Healthy = false
+                }
+            };
+            var fleet = new FleetReadProjectionService(
+                new RuntimeReadProjectionService(
+                    registry,
+                    new FakeDaemonReader(true, new[] { projection })),
+                registry);
+
+            var summary = await fleet.GetSummaryAsync(filter, CancellationToken.None);
+            Assert.Equal(1, summary.RuntimeCount);
+            Assert.Equal(1, summary.RuntimesWithStatusFetchFailed);
+            Assert.Equal(1, summary.RuntimesWithSidecarStatusFetchFailed);
+            Assert.Equal(1, summary.EnvironmentCounts["daemon"]);
+            Assert.False(summary.EnvironmentCounts.ContainsKey("managed"));
+
+            var attention = Assert.Single(
+                await fleet.GetRuntimesNeedingAttentionAsync(filter, CancellationToken.None));
+            Assert.Equal("runtime-authoritative", attention.RuntimeId);
+            Assert.Equal("Daemon Name", attention.Name);
+            Assert.Equal("daemon", attention.Tags.Environment);
+            Assert.Equal("critical", attention.Severity);
+            Assert.Contains("status_fetch_failed", attention.Reasons);
+            Assert.Contains("sidecar_status_fetch_failed", attention.Reasons);
+
+            var attentionSummary = await fleet.GetAttentionSummaryAsync(
+                filter,
+                CancellationToken.None);
+            Assert.Equal(1, attentionSummary.CriticalCount);
+            Assert.Equal(0, attentionSummary.WarningCount);
+            Assert.Equal(1, attentionSummary.ReasonCounts["status_fetch_failed"]);
+            Assert.Equal(1, attentionSummary.ReasonCounts["sidecar_status_fetch_failed"]);
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public async Task FleetAggregatesPropagateDaemonProjectionFailures()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            var fleet = new FleetReadProjectionService(
+                new RuntimeReadProjectionService(
+                    registry,
+                    new FakeDaemonReader(
+                        true,
+                        new[] { Projection("runtime-orphan") })),
+                registry);
+            var filter = new RuntimeListFilter(null, null, null);
+
+            var summaryError = await Assert.ThrowsAsync<DaemonRuntimeProjectionException>(() =>
+                fleet.GetSummaryAsync(filter, CancellationToken.None));
+            Assert.Equal("daemon_projection_unmapped", summaryError.Code);
+
+            var attentionError = await Assert.ThrowsAsync<DaemonRuntimeProjectionException>(() =>
+                fleet.GetRuntimesNeedingAttentionAsync(filter, CancellationToken.None));
+            Assert.Equal("daemon_projection_unmapped", attentionError.Code);
+
+            var attentionSummaryError = await Assert.ThrowsAsync<DaemonRuntimeProjectionException>(() =>
+                fleet.GetAttentionSummaryAsync(filter, CancellationToken.None));
+            Assert.Equal("daemon_projection_unmapped", attentionSummaryError.Code);
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
     public async Task LegacyDaemonProjectionRetainsManagedAuthorityTimestamps()
     {
         var (registry, statePath) = CreateRegistry();

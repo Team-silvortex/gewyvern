@@ -7,20 +7,65 @@ public partial class Program
 {
     private static void MapFleetEndpoints(WebApplication app)
     {
-        app.MapGet("/v1/fleet/summary", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
-            Results.Ok(new FleetSummaryResponse(
-                new RuntimeListFilter(environmentTag, cluster, role),
-                registry.GetFleetSummary(new RuntimeListFilter(environmentTag, cluster, role)))));
+        app.MapGet("/v1/fleet/summary", async Task<IResult> (
+            [FromQuery(Name = "environment")] string? environmentTag,
+            string? cluster,
+            string? role,
+            FleetReadProjectionService fleetReads,
+            CancellationToken cancellationToken) =>
+        {
+            var filter = new RuntimeListFilter(environmentTag, cluster, role);
+            try
+            {
+                return Results.Ok(new FleetSummaryResponse(
+                    filter,
+                    await fleetReads.GetSummaryAsync(filter, cancellationToken)));
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex);
+            }
+        });
 
-        app.MapGet("/v1/fleet/runtimes-needing-attention", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
-            Results.Ok(new FleetAttentionListResponse(
-                new RuntimeListFilter(environmentTag, cluster, role),
-                registry.GetRuntimesNeedingAttention(new RuntimeListFilter(environmentTag, cluster, role)))));
+        app.MapGet("/v1/fleet/runtimes-needing-attention", async Task<IResult> (
+            [FromQuery(Name = "environment")] string? environmentTag,
+            string? cluster,
+            string? role,
+            FleetReadProjectionService fleetReads,
+            CancellationToken cancellationToken) =>
+        {
+            var filter = new RuntimeListFilter(environmentTag, cluster, role);
+            try
+            {
+                return Results.Ok(new FleetAttentionListResponse(
+                    filter,
+                    await fleetReads.GetRuntimesNeedingAttentionAsync(filter, cancellationToken)));
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex);
+            }
+        });
 
-        app.MapGet("/v1/fleet/attention-summary", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
-            Results.Ok(new FleetAttentionSummaryResponse(
-                new RuntimeListFilter(environmentTag, cluster, role),
-                registry.GetFleetAttentionSummary(new RuntimeListFilter(environmentTag, cluster, role)))));
+        app.MapGet("/v1/fleet/attention-summary", async Task<IResult> (
+            [FromQuery(Name = "environment")] string? environmentTag,
+            string? cluster,
+            string? role,
+            FleetReadProjectionService fleetReads,
+            CancellationToken cancellationToken) =>
+        {
+            var filter = new RuntimeListFilter(environmentTag, cluster, role);
+            try
+            {
+                return Results.Ok(new FleetAttentionSummaryResponse(
+                    filter,
+                    await fleetReads.GetAttentionSummaryAsync(filter, cancellationToken)));
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex);
+            }
+        });
 
         app.MapPost("/v1/fleet/refresh-all", async Task<IResult> (
             [FromQuery(Name = "environment")] string? environmentTag,

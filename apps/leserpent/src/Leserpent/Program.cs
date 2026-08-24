@@ -109,6 +109,7 @@ public partial class Program
         builder.Services.AddHostedService<
             OrchestraDeleteCheckpointService>();
         builder.Services.AddSingleton<RuntimeReadProjectionService>();
+        builder.Services.AddSingleton<FleetReadProjectionService>();
         builder.Services.AddHttpClient<CapabilityDiscoveryService>();
         builder.Services.AddSingleton<IOrchestraPlanExecutor, OrchestraPlanExecutor>();
         builder.Services.AddSingleton<OrchestraExecutionCoordinator>();

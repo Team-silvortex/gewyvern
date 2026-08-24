@@ -1906,11 +1906,11 @@ public sealed partial class RegistryService
                 runtime.Tags)
             : null;
 
-    public FleetSummary GetFleetSummary(RuntimeListFilter? filter = null)
+    public FleetSummary GetFleetSummary(RuntimeListFilter? filter = null) =>
+        ProjectFleetSummary(ListRuntimes(filter));
+
+    internal static FleetSummary ProjectFleetSummary(IReadOnlyList<RuntimeSummary> values)
     {
-        var values = runtimes.Values
-            .Where(runtime => MatchesFilter(runtime, filter))
-            .ToArray();
         var snapshotKindCounts = values
             .Where(runtime => runtime.Status.HasLatestSnapshot && !string.IsNullOrWhiteSpace(runtime.Status.SnapshotKind))
             .GroupBy(runtime => runtime.Status.SnapshotKind!, StringComparer.OrdinalIgnoreCase)
@@ -1931,7 +1931,7 @@ public sealed partial class RegistryService
         var roleCounts = BuildTagCounts(values, runtime => runtime.Tags.Role);
 
         return new FleetSummary(
-            values.Length,
+            values.Count,
             values.Count(runtime => runtime.Status.HasLatestSnapshot),
             values.Count(runtime => runtime.Status.HasSummaryJson),
             values.Count(runtime => runtime.Status.HasAnalysisJson),
@@ -1955,32 +1955,34 @@ public sealed partial class RegistryService
     }
 
     public IReadOnlyList<RuntimeAttentionItem> GetRuntimesNeedingAttention(RuntimeListFilter? filter = null) =>
-        runtimes.Values
-            .Where(runtime => MatchesFilter(runtime, filter))
-            .Select(runtime =>
-            {
-                var reasons = GetAttentionReasons(runtime.Status, runtime.SidecarStatus);
-                var recentActivities = GetRecentRecoveryActivities(runtime.RuntimeId);
-                var suggestedActions = GetSuggestedActions(reasons, recentActivities);
-                return new RuntimeAttentionItem(
-                    runtime.RuntimeId,
-                    runtime.Name,
-                    runtime.Endpoint,
-                    runtime.Tags,
-                    runtime.Status,
-                    GetAttentionSeverity(reasons),
-                    reasons,
-                    suggestedActions,
-                    recentActivities);
-            })
-            .Where(item => item.Reasons.Count > 0)
+        ProjectRuntimesNeedingAttention(ListRuntimes(filter));
+
+    internal IReadOnlyList<RuntimeAttentionItem> ProjectRuntimesNeedingAttention(
+        IReadOnlyList<RuntimeSummary> runtimes) =>
+        runtimes
+            .Select(runtime => GetRuntimeAttention(runtime.RuntimeId, runtime))
+            .OfType<RuntimeAttentionView>()
+            .Where(item => item.NeedsAttention)
+            .Select(item => new RuntimeAttentionItem(
+                item.RuntimeId,
+                item.Name,
+                item.Endpoint,
+                item.Tags,
+                item.Status,
+                item.Severity,
+                item.Reasons,
+                item.SuggestedActions,
+                item.RecentRecoveryActivities))
             .OrderByDescending(item => AttentionSeverityRank(item.Severity))
             .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-    public FleetAttentionSummary GetFleetAttentionSummary(RuntimeListFilter? filter = null)
+    public FleetAttentionSummary GetFleetAttentionSummary(RuntimeListFilter? filter = null) =>
+        ProjectFleetAttentionSummary(GetRuntimesNeedingAttention(filter));
+
+    internal static FleetAttentionSummary ProjectFleetAttentionSummary(
+        IReadOnlyList<RuntimeAttentionItem> items)
     {
-        var items = GetRuntimesNeedingAttention(filter);
         var reasonCounts = items
             .SelectMany(item => item.Reasons)
             .GroupBy(reason => reason, StringComparer.OrdinalIgnoreCase)

@@ -938,8 +938,14 @@ are omitted from lists and return `runtime_not_found` from detail reads. A
 daemon-only runtime still fails closed because the adapter cannot safely invent
 the missing 1.x metadata.
 Unknown projection fields, including secret-shaped fields, are rejected. The
-current slice now moves attention, protocol-reading, recovery, and sidecar reads
-onto this shared projection. Cleanup and generic unregistration now have an
+current slice now moves attention, protocol-reading, and recovery reads onto
+this shared projection; sidecar status travels inside the projected runtime,
+while the dedicated sidecar-detail route remains a later cutover. Fleet summary,
+attention-list, and attention-summary GETs now compose from the same
+authoritative runtime set;
+managed recovery history remains a bounded metadata overlay, and projected
+sidecar status participates in attention classification. Cleanup and generic
+unregistration now have an
 explicit confirmed result contract: a daemon schema-v14 transaction fences all
 target revisions, journals removal, deletes Orchestra history, and retains
 idempotent operation results. The Web bridge holds a deletion reservation while

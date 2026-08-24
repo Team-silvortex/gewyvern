@@ -137,9 +137,12 @@ compatibility metadata that has not crossed the Rust contract. Runtime presence
 also comes from the daemon: managed-only entries are omitted and detail reads
 return `runtime_not_found`; daemon-only entries fail with a typed gateway error
 until compatibility metadata is explicitly reconciled. Attention,
-protocol-reading, recovery, and sidecar reads share the same projection, while
-remaining aggregate and persistence views still need explicit cutover evidence
-before the overlay can be deleted.
+protocol-reading, recovery, Fleet summary, Fleet attention-list, and Fleet
+attention-summary reads share the same projection. Fleet aggregation uses the
+projected sidecar status and retains only bounded local recovery history as an
+overlay. The dedicated sidecar-detail route, Orchestra planning, and persistence
+membership checks still need explicit cutover evidence before the managed
+overlay can be deleted.
 
 ## Security Model
 

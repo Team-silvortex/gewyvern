@@ -891,6 +891,10 @@ Daemon-only entries fail closed rather than receiving fabricated compatibility
 metadata. Attention, cleanup,
 protocol-reading, and recovery reads now use the shared read projection for
 authoritative identity, endpoints, timestamps, tags, status, and capabilities.
+Fleet summary, attention-list, and attention-summary reads now obtain that same
+projection before applying the existing aggregate rules and local bounded
+recovery-activity overlay. They no longer enumerate managed runtime membership,
+and authoritative sidecar status now drives attention reasons.
 Sidecar status, including its bounded memory-slot summary, now follows the same
 revision-fenced journal and strict read projection. Registration, individual
 refresh, recovery, Fleet refresh, and Orchestra recovery all compose available

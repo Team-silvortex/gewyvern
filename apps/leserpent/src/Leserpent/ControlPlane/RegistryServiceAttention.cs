@@ -6,7 +6,9 @@ public sealed partial class RegistryService
 {
     private RuntimeAttentionView BuildRuntimeAttention(RuntimeRecord runtime, RuntimeSummary authoritativeRuntime)
     {
-        var reasons = GetAttentionReasons(authoritativeRuntime.Status, runtime.SidecarStatus);
+        var reasons = GetAttentionReasons(
+            authoritativeRuntime.Status,
+            authoritativeRuntime.SidecarStatus);
         var recentActivities = GetRecentRecoveryActivities(runtime.RuntimeId);
         var suggestedActions = GetSuggestedActions(reasons, recentActivities);
         return new RuntimeAttentionView(
