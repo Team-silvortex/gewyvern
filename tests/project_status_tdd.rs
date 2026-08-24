@@ -5587,8 +5587,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/ui-renderers/desktop-localization")
         .expect("desktop localization contract must remain tracked");
     assert_eq!(desktop_localization.maturity, Maturity::Incubating);
-    assert_eq!(desktop_localization.completion, 98);
-    assert_eq!(desktop_localization.contract.version, "0.10.0");
+    assert_eq!(desktop_localization.completion, 99);
+    assert_eq!(desktop_localization.contract.version, "0.12.0");
     assert_eq!(desktop_localization.contract.stability, ContractStability::Draft);
     for surface in [
         "thirty-official-locale-identifiers",
@@ -5597,6 +5597,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-ir-localized-text-resolution",
         "deterministic-english-localization-fallback",
         "eight-complete-built-in-shell-catalogs",
+        "eight-complete-built-in-desktop-surfaces",
         "built-in-shell-format-contract",
         "web-term-aligned-built-in-catalogs",
         "eight-built-in-language-selector-layout-envelopes",
@@ -5654,6 +5655,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "eight-built-in-runtime-workspace-layout-envelopes",
         "live-runtime-workspace-language-reprojection",
         "opaque-runtime-workspace-data-preservation",
+        "seven-built-in-hub-specialist-catalogs",
+        "hub-catalog-exact-key-set",
+        "typed-hub-topology-presentation",
+        "localized-hub-dynamic-cards",
+        "eight-built-in-hub-layout-envelopes",
+        "opaque-hub-operator-data-preservation",
+        "seven-built-in-tutorial-specialist-catalogs",
+        "tutorial-catalog-exact-key-set",
+        "six-step-tutorial-content-all-built-ins",
+        "localized-tutorial-navigation",
+        "localized-tutorial-accessibility",
+        "eight-built-in-tutorial-layout-envelopes",
+        "forty-eight-built-in-tutorial-step-layouts",
+        "live-tutorial-language-reprojection",
         "typed-remote-feed-presentation",
         "typed-remote-authority-health-presentation",
         "localized-remote-credential-source",
@@ -5679,12 +5694,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         blocker.id == "desktop-long-tail-language-review"
             && blocker.summary.contains("eight built-in locales")
             && blocker.summary.contains("seven non-English built-ins")
-            && blocker.summary.contains("exact 466-key semantic set")
+            && blocker.summary.contains("exact 596-key semantic set")
             && blocker.summary.contains("daemon retirement")
             && blocker.summary.contains("startup recovery")
             && blocker.summary.contains("typed facts")
-            && blocker.summary.contains("runtime child-workspace domains")
+            && blocker.summary.contains("runtime child-workspace")
+            && blocker.summary.contains("Hub domains")
+            && blocker.summary.contains("tutorial domains")
             && !blocker.summary.contains("runtime child-workspace shell")
+            && !blocker.summary.contains("remaining Hub dynamic cards")
+            && !blocker.summary.contains("non-Chinese tutorial content")
             && blocker.summary.contains("native-speaker review")
     }));
     assert!(desktop_localization.evidence.iter().any(|evidence| {
@@ -5732,6 +5751,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRemotePresentation.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRuntimeWorkspaceCatalogs.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRuntimeWorkspacePresentation.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopHubCatalogs.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopHubPresentation.cs",
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopTutorialCatalogs.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/DaemonRetirementWindow.cs",
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/StartupErrorWindow.cs",

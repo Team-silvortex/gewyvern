@@ -288,8 +288,9 @@ internal sealed class DesktopLocalization
                 DesktopAccountCatalogs.SimplifiedChinese,
                 DesktopRemoteShellCatalogs.SimplifiedChinese,
                 DesktopRemoteOperationCatalogs.SimplifiedChinese,
-                DesktopRuntimeWorkspaceCatalogs.SimplifiedChinese),
-            DesktopLocaleCoverage.Core),
+                DesktopRuntimeWorkspaceCatalogs.SimplifiedChinese,
+                DesktopHubCatalogs.SimplifiedChinese,
+                DesktopTutorialCatalogs.SimplifiedChinese)),
         BuiltInShell(
             "zh-TW",
             "Chinese (Traditional)",
@@ -306,7 +307,9 @@ internal sealed class DesktopLocalization
                 DesktopAccountCatalogs.TraditionalChinese,
                 DesktopRemoteShellCatalogs.TraditionalChinese,
                 DesktopRemoteOperationCatalogs.TraditionalChinese,
-                DesktopRuntimeWorkspaceCatalogs.TraditionalChinese)),
+                DesktopRuntimeWorkspaceCatalogs.TraditionalChinese,
+                DesktopHubCatalogs.TraditionalChinese,
+                DesktopTutorialCatalogs.TraditionalChinese)),
         BuiltInShell(
             "ja",
             "Japanese",
@@ -323,7 +326,9 @@ internal sealed class DesktopLocalization
                 DesktopAccountCatalogs.Japanese,
                 DesktopRemoteShellCatalogs.Japanese,
                 DesktopRemoteOperationCatalogs.Japanese,
-                DesktopRuntimeWorkspaceCatalogs.Japanese)),
+                DesktopRuntimeWorkspaceCatalogs.Japanese,
+                DesktopHubCatalogs.Japanese,
+                DesktopTutorialCatalogs.Japanese)),
         BuiltInShell(
             "es",
             "Spanish",
@@ -340,7 +345,9 @@ internal sealed class DesktopLocalization
                 DesktopAccountCatalogs.Spanish,
                 DesktopRemoteShellCatalogs.Spanish,
                 DesktopRemoteOperationCatalogs.Spanish,
-                DesktopRuntimeWorkspaceCatalogs.Spanish)),
+                DesktopRuntimeWorkspaceCatalogs.Spanish,
+                DesktopHubCatalogs.Spanish,
+                DesktopTutorialCatalogs.Spanish)),
         BuiltInShell(
             "de",
             "German",
@@ -357,7 +364,9 @@ internal sealed class DesktopLocalization
                 DesktopAccountCatalogs.German,
                 DesktopRemoteShellCatalogs.German,
                 DesktopRemoteOperationCatalogs.German,
-                DesktopRuntimeWorkspaceCatalogs.German)),
+                DesktopRuntimeWorkspaceCatalogs.German,
+                DesktopHubCatalogs.German,
+                DesktopTutorialCatalogs.German)),
         BuiltInShell(
             "fr",
             "French",
@@ -374,7 +383,9 @@ internal sealed class DesktopLocalization
                 DesktopAccountCatalogs.French,
                 DesktopRemoteShellCatalogs.French,
                 DesktopRemoteOperationCatalogs.French,
-                DesktopRuntimeWorkspaceCatalogs.French)),
+                DesktopRuntimeWorkspaceCatalogs.French,
+                DesktopHubCatalogs.French,
+                DesktopTutorialCatalogs.French)),
         BuiltInShell(
             "ko",
             "Korean",
@@ -391,7 +402,9 @@ internal sealed class DesktopLocalization
                 DesktopAccountCatalogs.Korean,
                 DesktopRemoteShellCatalogs.Korean,
                 DesktopRemoteOperationCatalogs.Korean,
-                DesktopRuntimeWorkspaceCatalogs.Korean)),
+                DesktopRuntimeWorkspaceCatalogs.Korean,
+                DesktopHubCatalogs.Korean,
+                DesktopTutorialCatalogs.Korean)),
         Core("pt-BR", "Portuguese (Brazil)", "Português (Brasil)", "Idioma",
             "Painel do plano de controle", "Uma visão leve da frota para vários runtimes gewyvern próximos.", false),
         Core("it", "Italian", "Italiano", "Lingua", "Dashboard del piano di controllo",
@@ -547,6 +560,9 @@ internal sealed class DesktopLocalization
         DesktopRemoteOperationCatalogs.VerifyContract();
         DesktopRuntimeWorkspaceCatalogs.VerifyContract();
         DesktopRuntimeWorkspacePresentation.VerifyContract();
+        DesktopHubCatalogs.VerifyContract();
+        DesktopHubPresentation.VerifyContract();
+        DesktopTutorialCatalogs.VerifyContract();
         var ids = LocaleDefinitions.Select(locale => locale.Locale).ToArray();
         var desktopTextKeyCount = Enum.GetValues<DesktopTextKey>().Length;
         var builtInSemanticKeyCount = DesktopBuiltInSemanticCatalogs.KeyCount
@@ -559,10 +575,16 @@ internal sealed class DesktopLocalization
             + DesktopAccountCatalogs.KeyCount
             + DesktopRemoteShellCatalogs.KeyCount
             + DesktopRemoteOperationCatalogs.KeyCount
-            + DesktopRuntimeWorkspaceCatalogs.KeyCount;
+            + DesktopRuntimeWorkspaceCatalogs.KeyCount
+            + DesktopHubCatalogs.KeyCount
+            + DesktopTutorialCatalogs.KeyCount;
         if (Schema != "leserpent.desktop-localization/v1"
             || LocaleDefinitions.Length != 30
             || LocaleDefinitions.Count(locale => locale.BuiltIn) != 8
+            || LocaleDefinitions.Count(locale => locale.BuiltIn
+                && locale.Coverage == DesktopLocaleCoverage.Complete) != 8
+            || LocaleDefinitions.Count(locale => !locale.BuiltIn
+                && locale.Coverage == DesktopLocaleCoverage.Core) != 22
             || LocaleDefinitions.Count(locale => locale.BuiltIn
                 && locale.Text.Count == desktopTextKeyCount) != 8
             || LocaleDefinitions.Count(locale => locale.IsRightToLeft) != 3
@@ -813,6 +835,43 @@ internal sealed class DesktopLocalization
             throw new InvalidDataException(
                 "built-in desktop runtime workspace translation drifted");
         }
+        var hubSamples = new Dictionary<string, string>
+        {
+            ["en"] = "Topology refresh complete: 2 daemon authorities live.",
+            ["zh-CN"] = "拓扑刷新完成：2 个 daemon 权威端实时可用。",
+            ["zh-TW"] = "拓撲重新整理完成：2 個 daemon 權威端即時可用。",
+            ["ja"] = "トポロジ更新完了: 2 件の daemon 権限元がライブです。",
+            ["es"] = "Actualización de topología completada: 2 autoridades daemon activas.",
+            ["de"] = "Topologieaktualisierung abgeschlossen: 2 Daemon-Autoritäten live.",
+            ["fr"] = "Actualisation de la topologie terminée : 2 autorités daemon actives.",
+            ["ko"] = "토폴로지 새로 고침 완료: daemon 권한 주체 2개 실시간.",
+        };
+        if (hubSamples.Any(sample => DesktopHubCatalogs.Format(
+            ForVerification(sample.Key),
+            "status.refresh_complete",
+            2) != sample.Value))
+        {
+            throw new InvalidDataException(
+                "built-in desktop Hub translation drifted");
+        }
+        var tutorialSamples = new Dictionary<string, string>
+        {
+            ["en"] = "Read the topology",
+            ["zh-CN"] = "读懂拓扑",
+            ["zh-TW"] = "讀懂拓撲",
+            ["ja"] = "トポロジを読み解く",
+            ["es"] = "Leer la topología",
+            ["de"] = "Topologie lesen",
+            ["fr"] = "Lire la topologie",
+            ["ko"] = "토폴로지 이해하기",
+        };
+        if (tutorialSamples.Any(sample => DesktopTutorialCatalogs.Resolve(
+            ForVerification(sample.Key),
+            "step.1.title") != sample.Value))
+        {
+            throw new InvalidDataException(
+                "built-in desktop tutorial translation drifted");
+        }
         var system = ForVerification(SystemPreference, "zh-Hans-CN");
         if (system.Active.Locale != "zh-CN"
             || ForVerification(SystemPreference, "zh-HK").Active.Locale != "zh-TW"
@@ -860,7 +919,7 @@ internal sealed class DesktopLocalization
             nativeName,
             true,
             false,
-            DesktopLocaleCoverage.Core,
+            DesktopLocaleCoverage.Complete,
             text,
             semanticText);
 

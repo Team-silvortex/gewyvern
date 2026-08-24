@@ -220,21 +220,21 @@ user-only file permissions. Live selection rebuilds the Hub and native menu and
 reprojects open tutorial, daemon, and runtime windows. English is the complete
 fallback baseline. Each of the eight built-in locales owns an explicit 67-key
 native-shell catalog validated at startup, with Web-aligned terms and bounded
-format placeholders; Simplified Chinese also owns the complete Learning Center.
+format placeholders. All eight also own the complete six-step Learning Center.
 All seven non-English built-ins additionally own the exact same 26-key core
 semantic UI-IR set for runtime lists, workspaces, logs, capabilities, history,
 and deployment forms. Startup rejects a missing or extra key, and per-locale
 native `TextBlock` probes validate visible plus accessible text. The six newly
-filled shell and semantic catalogs remain candidates until native-speaker
-review. Ten specialist domains share this boundary: connection/forget,
+filled shell, semantic, and tutorial catalogs remain candidates until native-
+speaker review. Twelve specialist domains share this boundary: connection/forget,
 reverse deployment, gewyvern provisioning/retirement, daemon retirement,
 startup recovery, account presentation, the remote daemon shell, and remote
-operation/Leselang controls, plus the runtime child workspace, contribute exact
-33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 36-key, 56-key, 57-key, and 78-key
-catalogs without overlapping the frozen core set. `DesktopDomainCatalogContract`
-gives these domains one exact-key,
+operation/Leselang controls, plus the runtime child workspace, Hub dynamic
+cards, and Learning Center, contribute exact 33-key, 46-key, 43-key, 45-key,
+37-key, 9-key, 36-key, 56-key, 57-key, 78-key, 69-key, and 61-key catalogs without
+overlapping the frozen core set. `DesktopDomainCatalogContract` gives these domains one exact-key,
 bounded-value, and format-placeholder validator; the full non-English built-in
-semantic set is therefore 466 keys. All eight built-in
+semantic set is therefore 596 keys. All eight built-in
 locale trees are measured inside their native dialog envelopes, and open
 controls, accessible names, controlled phases, status, and flow direction
 reproject on language change while operation identities, operator values, and
@@ -248,12 +248,15 @@ operator identifiers and bounded diagnostics remain opaque parameters. Its
 runtime child workspace likewise projects snapshot changes, retained severity
 alerts, live-refresh state, filters, diagnostic export, and query-failure kinds
 from typed facts. Runtime IDs, file paths, log bodies, and bounded remote details
-remain opaque. Its offline proof measures compact and wide shells, refresh and
-deployment dialogs, and the runtime-workspace envelope for every built-in locale
-without starting a network client. The minimum Hub envelope includes the
-translated account card; remaining Hub dynamic cards, non-Chinese tutorial
-content, and all 22 downloadable packs remain explicit follow-up work. Arabic,
-Hebrew, and Persian switch the inherited Avalonia flow direction to RTL.
+remain opaque. Hub cards project topology phases, fleet refresh summaries,
+runtime refresh status, and shared authority-health facts without parsing their
+English presentation, while daemon names, endpoint details, runtime identities,
+and raw failures remain opaque. Offline proofs measure compact and wide remote
+shells, refresh and deployment dialogs, the runtime-workspace envelope, and the
+Hub dynamic-card and all 48 Learning Center locale-step envelopes without
+starting a network client. The six candidate translations still need native-
+speaker review, and all 22 downloadable packs remain explicit follow-up work.
+Arabic, Hebrew, and Persian switch the inherited Avalonia flow direction to RTL.
 
 Cross-authority refresh admission is frontend-independent. The shared remote
 client coordinator accepts at most 65 unique daemon authorities (64 saved

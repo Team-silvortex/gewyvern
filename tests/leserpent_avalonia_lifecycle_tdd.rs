@@ -874,6 +874,8 @@ fn hub_topology_filter_is_bounded_keyboard_accessible_and_renderer_neutral() {
 #[test]
 fn desktop_tutorial_is_offline_accessible_and_ui_reachable() {
     let tutorial = avalonia_source("Leserpent.Avalonia/DesktopTutorialWindow.cs");
+    let tutorial_catalog =
+        avalonia_source("Leserpent.Avalonia/DesktopTutorialCatalogs.cs");
     let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
     let lifecycle = avalonia_source("Leserpent.Avalonia/DesktopApplicationLifecycle.cs");
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
@@ -893,12 +895,34 @@ fn desktop_tutorial_is_offline_accessible_and_ui_reachable() {
             "missing tutorial control {automation_id}"
         );
     }
-    assert!(tutorial.contains("EnglishSteps"));
-    assert!(tutorial.contains("SimplifiedChineseSteps"));
+    assert!(!tutorial.contains("EnglishSteps"));
+    assert!(!tutorial.contains("SimplifiedChineseSteps"));
+    assert!(tutorial.contains("DesktopTutorialCatalogs.Steps("));
+    assert!(tutorial_catalog.contains("public const int KeyCount = 61"));
+    assert_eq!(tutorial_catalog.matches("new(\"").count(), 61);
+    for marker in [
+        "TraditionalChinese",
+        "Japanese",
+        "Spanish",
+        "German",
+        "French",
+        "Korean",
+        "DesktopDomainCatalogContract.Verify(",
+        "a11y.progress.current",
+        "step.1.title",
+        "step.6.point.4",
+    ] {
+        assert!(
+            tutorial_catalog.contains(marker),
+            "tutorial catalog is missing {marker}"
+        );
+    }
     assert!(tutorial.contains("steps.Length != 6"));
     assert!(tutorial.contains("VerifyAccessibility()"));
+    assert!(tutorial.contains("VerifyLayoutEnvelope()"));
+    assert!(tutorial.contains("ProbeLocalizedPresentation()"));
     assert!(tutorial.contains("ProbeNavigationContract()"));
-    assert!(tutorial.contains("Finish and close the Leserpent tutorial"));
+    assert!(tutorial.contains("TutorialText(\"a11y.next.finish\")"));
     assert!(tutorial.contains("Key.Left"));
     assert!(tutorial.contains("Key.Right"));
     assert!(tutorial.contains("Key.Home"));
@@ -916,10 +940,19 @@ fn desktop_tutorial_is_offline_accessible_and_ui_reachable() {
     assert!(app.contains("--verify-desktop-tutorial"));
     assert!(app.contains("tutorial_entry=true"));
     assert!(app.contains("desktop tutorial valid:"));
+    assert!(app.contains("localized_tutorial_catalogs=7"));
+    assert!(app.contains("tutorial_semantic_keys=61"));
+    assert!(app.contains("localized_layouts=8"));
+    assert!(app.contains("localized_step_layouts=48"));
+    assert!(app.contains("localized_accessibility=true"));
+    assert!(app.contains("live_language_reprojection=true"));
     assert!(lifecycle.contains("Learning Center..."));
     assert!(lifecycle.contains("desktop.Windows.OfType<DesktopTutorialWindow>()"));
     assert!(lifecycle.contains("window is not DesktopTutorialWindow"));
     assert!(program.contains("offline_tutorial=true"));
+    assert!(program.contains("builtin_tutorial_catalogs=7"));
+    assert!(program.contains("builtin_semantic_keys=596"));
+    assert!(program.contains("builtin_tutorial_complete=true"));
     assert!(readme.contains("`--verify-desktop-tutorial`"));
     assert!(first_run.contains("`Learning Center...`"));
 }
@@ -1073,9 +1106,10 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(app.contains("localized UI-IR did not reach its native control"));
     assert!(program.contains("--verify-desktop-localization"));
     assert!(program.contains("builtin_shell_catalogs=8"));
+    assert!(program.contains("complete_builtin_locales=8"));
     assert!(program.contains("builtin_semantic_catalogs=7"));
     assert!(program.contains("semantic_keys=26"));
-    assert!(program.contains("builtin_semantic_keys=466"));
+    assert!(program.contains("builtin_semantic_keys=596"));
     assert!(program.contains("builtin_remote_shell_catalogs=7"));
     assert!(program.contains("remote_shell_semantic_keys=56"));
     assert!(program.contains("builtin_remote_operation_catalogs=7"));
@@ -1083,6 +1117,12 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(program.contains("builtin_runtime_workspace_catalogs=7"));
     assert!(program.contains("runtime_workspace_semantic_keys=78"));
     assert!(program.contains("localized_runtime_workspace=true"));
+    assert!(program.contains("builtin_hub_catalogs=7"));
+    assert!(program.contains("hub_semantic_keys=69"));
+    assert!(program.contains("localized_hub=true"));
+    assert!(program.contains("typed_hub_cards=true"));
+    assert!(localization.contains("DesktopHubCatalogs.VerifyContract();"));
+    assert!(localization.contains("DesktopHubPresentation.VerifyContract();"));
     assert!(program.contains("builtin_daemon_retirement_catalogs=7"));
     assert!(program.contains("builtin_startup_recovery_catalogs=7"));
     assert!(program.contains("builtin_account_catalogs=7"));
@@ -1203,11 +1243,37 @@ fn remote_desktop_shell_is_strictly_localized_typed_and_layout_probed() {
 #[test]
 fn hub_topology_refresh_is_discoverable_observed_and_single_flight() {
     let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
+    let hub_catalog = avalonia_source("Leserpent.Avalonia/DesktopHubCatalogs.cs");
+    let hub_presentation =
+        avalonia_source("Leserpent.Avalonia/DesktopHubPresentation.cs");
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
     let coordinator = avalonia_source("Leserpent.RemoteClient/RemoteTopologyRefreshCoordinator.cs");
 
     assert!(hub.contains("hub-refresh-all"));
-    assert!(hub.contains("Refresh all daemon topologies (F5)"));
+    assert!(hub.contains("HubText(\"tooltip.refresh_all\")"));
+    assert!(hub_catalog.contains("public const int KeyCount = 69"));
+    assert_eq!(hub_catalog.matches("new(\"").count(), 69);
+    for marker in [
+        "tooltip.refresh_all",
+        "status.refresh_attention",
+        "summary.filtered",
+        "runtime.status.failed",
+        "a11y.open_runtime",
+    ] {
+        assert!(
+            hub_catalog.contains(marker),
+            "Hub catalog is missing {marker}"
+        );
+    }
+    assert!(hub_presentation.contains(
+        "public static DesktopHubText RefreshSummary("
+    ));
+    assert!(hub_presentation.contains(
+        "public static DesktopHubText TopologySummary("
+    ));
+    assert!(hub_presentation.contains(
+        "DesktopRemotePresentation.AuthorityHealth(state)"
+    ));
     assert!(hub.contains("private readonly RemoteTopologyRefreshCoordinator topologyRefresh"));
     assert!(hub.contains("refreshAllPresentationOperation"));
     assert!(hub.contains("private bool operatorRefreshRequested"));
@@ -1224,7 +1290,10 @@ fn hub_topology_refresh_is_discoverable_observed_and_single_flight() {
     assert!(hub.contains("refreshAllTopologyButton.RaiseEvent"));
     assert!(hub.contains("ReferenceEquals(cardRefresh, cardJoin)"));
     assert!(hub.contains("ReferenceEquals(refreshAll, refreshAllPresentationOperation)"));
-    assert!(hub.contains("Topology refresh complete with attention"));
+    assert!(hub.contains("DesktopHubPresentation.RefreshSummary(summary)"));
+    assert!(hub.contains("DesktopHubPresentation.RuntimeStatus(runtime)"));
+    assert!(!hub.contains("state.Phase.ToString().ToUpperInvariant()"));
+    assert!(!hub.contains("runtime.RefreshStatus.ToString().ToUpperInvariant()"));
     assert!(!hub.contains("_ = RefreshAllTopologiesAsync"));
     assert!(!hub.contains("_ = RefreshTopologyAsync"));
     assert!(app.contains("await window.ProbeRefreshAllControlAsync()"));
@@ -1234,6 +1303,10 @@ fn hub_topology_refresh_is_discoverable_observed_and_single_flight() {
     assert!(app.contains("shared_refresh_policy=true"));
     assert!(app.contains("refresh_busy_state=true"));
     assert!(app.contains("refresh_completion_status=true"));
+    assert!(app.contains("localized_hub_catalogs=7"));
+    assert!(app.contains("hub_semantic_keys=69"));
+    assert!(app.contains("localized_hub_layouts=8"));
+    assert!(app.contains("typed_hub_cards=true"));
     assert!(coordinator.contains("ReferenceEquals(alphaRefresh, alphaJoin)"));
     assert!(coordinator.contains("ReferenceEquals(all, allJoin)"));
     assert!(coordinator.contains("maximumActive != 2"));
@@ -1358,7 +1431,7 @@ fn gewyvern_provisioning_is_authority_scoped_identity_locked_and_bounded() {
     assert!(program.contains("--verify-provisioning-client"));
     assert!(program.contains("builtin_provisioning_catalogs=7"));
     assert!(program.contains("provisioning_semantic_keys=43"));
-    assert!(program.contains("builtin_semantic_keys=466"));
+    assert!(program.contains("builtin_semantic_keys=596"));
     assert!(program.contains("localized_gewyvern_provisioning=true"));
     assert!(promotion.contains("BootstrapPromotionJsonContext.Default"));
     assert!(!promotion.contains("JsonSerializer.Serialize(new\n"));
@@ -1425,7 +1498,7 @@ fn gewyvern_retirement_is_confirmed_provisioning_bound_and_failure_safe() {
     assert!(program.contains("--verify-retirement-client"));
     assert!(program.contains("builtin_retirement_catalogs=7"));
     assert!(program.contains("retirement_semantic_keys=45"));
-    assert!(program.contains("builtin_semantic_keys=466"));
+    assert!(program.contains("builtin_semantic_keys=596"));
     assert!(program.contains("localized_gewyvern_retirement=true"));
 }
 
@@ -1888,7 +1961,7 @@ fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
     assert!(app.contains("live_language_reprojection=true"));
     assert!(program.contains("builtin_connection_catalogs=7"));
     assert!(program.contains("connection_semantic_keys=33"));
-    assert!(program.contains("builtin_semantic_keys=466"));
+    assert!(program.contains("builtin_semantic_keys=596"));
     assert!(window.contains("if (operationInFlight || isClosed)"));
     assert!(health.contains("remote health did not prove a ready protocol-v1 authority"));
     assert!(health.contains("remote health queue counters are inconsistent"));
@@ -1962,7 +2035,7 @@ fn desktop_reverse_deployment_is_strictly_localized_and_operator_data_preserving
     assert!(app.contains("await window.ProbeWorkflowAsync(\"zh-CN\")"));
     assert!(program.contains("builtin_bootstrap_catalogs=7"));
     assert!(program.contains("bootstrap_semantic_keys=46"));
-    assert!(program.contains("builtin_semantic_keys=466"));
+    assert!(program.contains("builtin_semantic_keys=596"));
     assert!(program.contains("localized_reverse_deployment=true"));
 }
 

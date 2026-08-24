@@ -32,22 +32,22 @@ internal sealed class HubWindow : Window
     private readonly TextBox topologyFilterBox = new()
     {
         MaxLength = RemoteRuntimeSearch.MaxFilterLength,
-        PlaceholderText = "Find a daemon or runtime",
+        PlaceholderText = string.Empty,
     };
     private readonly Button clearTopologyFilterButton = new()
     {
-        Content = "Clear",
+        Content = string.Empty,
         IsVisible = false,
         Padding = new Thickness(12, 7),
     };
     private readonly Button refreshAllTopologyButton = new()
     {
-        Content = "Refresh all",
+        Content = string.Empty,
         Padding = new Thickness(12, 7),
     };
     private readonly Button tutorialButton = new()
     {
-        Content = "Quick tour",
+        Content = string.Empty,
         HorizontalAlignment = HorizontalAlignment.Left,
         Padding = new Thickness(14, 7),
     };
@@ -73,7 +73,7 @@ internal sealed class HubWindow : Window
         Padding = new Thickness(18, 15),
         Child = new TextBlock
         {
-            Text = "No daemon authorities or runtimes match this filter.",
+            Text = string.Empty,
             Foreground = LeserpentTheme.Muted,
             TextWrapping = TextWrapping.Wrap,
         },
@@ -142,7 +142,7 @@ internal sealed class HubWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
         };
         AutomationProperties.SetAutomationId(addButton, "hub-add-daemon");
-        AutomationProperties.SetName(addButton, "Add a leserpent daemon connection");
+        AutomationProperties.SetName(addButton, HubText("a11y.add_daemon"));
         auditedControls.Add(addButton);
         addButton.Click += (_, _) => addConnection();
 
@@ -153,7 +153,7 @@ internal sealed class HubWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
         };
         AutomationProperties.SetAutomationId(deployButton, "hub-deploy-daemon");
-        AutomationProperties.SetName(deployButton, "Deploy a leserpent daemon to a target host");
+        AutomationProperties.SetName(deployButton, HubText("a11y.deploy_daemon"));
         auditedControls.Add(deployButton);
         deployButton.Click += (_, _) => deployDaemon();
 
@@ -166,7 +166,7 @@ internal sealed class HubWindow : Window
         AutomationProperties.SetAutomationId(retireDaemonButton, "hub-retire-daemon");
         AutomationProperties.SetName(
             retireDaemonButton,
-            "Retire a daemon service through its original bootstrap authority");
+            HubText("a11y.retire_daemon"));
         auditedControls.Add(retireDaemonButton);
         retireDaemonButton.Click += (_, _) => retireDaemon();
 
@@ -177,7 +177,7 @@ internal sealed class HubWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
         };
         AutomationProperties.SetAutomationId(provisionButton, "hub-provision-gewyvern");
-        AutomationProperties.SetName(provisionButton, "Provision a gewyvern runtime through a daemon authority");
+        AutomationProperties.SetName(provisionButton, HubText("a11y.provision_runtime"));
         auditedControls.Add(provisionButton);
         provisionButton.Click += (_, _) => provisionRuntime();
 
@@ -190,16 +190,16 @@ internal sealed class HubWindow : Window
         AutomationProperties.SetAutomationId(retireButton, "hub-retire-gewyvern");
         AutomationProperties.SetName(
             retireButton,
-            "Retire a gewyvern runtime through its daemon authority");
+            HubText("a11y.retire_runtime"));
         auditedControls.Add(retireButton);
         retireButton.Click += (_, _) => retireRuntime();
 
         AutomationProperties.SetAutomationId(tutorialButton, "hub-open-tutorial");
-        AutomationProperties.SetName(tutorialButton, "Open the Leserpent quick tour");
+        AutomationProperties.SetName(tutorialButton, HubText("a11y.tutorial"));
         AutomationProperties.SetHelpText(
             tutorialButton,
-            "Opens the offline, read-only Learning Center. Shortcut: F1.");
-        ToolTip.SetTip(tutorialButton, "Open Learning Center (F1)");
+            HubText("help.tutorial"));
+        ToolTip.SetTip(tutorialButton, HubText("tooltip.tutorial"));
         auditedControls.Add(tutorialButton);
         tutorialButton.Click += (_, _) => openTutorial();
 
@@ -324,7 +324,7 @@ internal sealed class HubWindow : Window
                 connection.DaemonId,
                 connection.DisplayName,
                 connection.Profile.Endpoint,
-                "REMOTE",
+                HubText("kind.remote"),
                 connection.Profile.BootstrapTrustHandle is { } trustHandle
                     ? $"TRUST  {trustHandle}"
                     : $"CA  {Path.GetFileName(connection.Profile.CertificateAuthorityPath)}",
@@ -352,16 +352,18 @@ internal sealed class HubWindow : Window
             });
         }
 
-        statusText.Foreground = string.IsNullOrWhiteSpace(initialError)
-            ? LeserpentTheme.Muted
-            : LeserpentTheme.Destructive;
-        statusText.Text = string.IsNullOrWhiteSpace(initialError)
-            ? $"Topology ready: {(localSupported ? 1 : 0) + connections.Count} daemon authorit{((localSupported ? 1 : 0) + connections.Count == 1 ? "y" : "ies")}."
-            : Safe(initialError);
-        statusText.IsVisible = true;
         AutomationProperties.SetAutomationId(statusText, "hub-status");
-        AutomationProperties.SetName(statusText, "Hub topology status");
         AutomationProperties.SetLiveSetting(statusText, AutomationLiveSetting.Polite);
+        if (string.IsNullOrWhiteSpace(initialError))
+        {
+            SetStatus(
+                DesktopHubPresentation.Text("status.ready", daemonCardCount),
+                LeserpentTheme.Muted);
+        }
+        else
+        {
+            SetOpaqueStatus(initialError, LeserpentTheme.Destructive);
+        }
         auditedControls.Add(statusText);
 
         var topologyFilterActions = new StackPanel
@@ -459,6 +461,85 @@ internal sealed class HubWindow : Window
             expectedAction,
             expectedStatus);
 
+    public void ProbeLocalizedDynamicPresentation(
+        RemoteTopologySnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        foreach (var card in topologyCards)
+        {
+            card.State.Accept(snapshot);
+        }
+        ApplyTopologyFilter();
+        SetStatus(
+            DesktopHubPresentation.Text("status.ready", daemonCardCount),
+            LeserpentTheme.Muted);
+
+        var expectedFilter = HubFormat(
+            "filter.all",
+            daemonCardCount,
+            daemonCardCount * snapshot.Runtimes.Count);
+        var expectedAuthority = snapshot.Health is { } health
+            ? DesktopHubPresentation.AuthorityHealth(health).Resolve(localization)
+            : throw new InvalidDataException(
+                "localized Hub probe requires authority health proof");
+        if (topologyFilterSummary.Text != expectedFilter
+            || statusText.Text != HubFormat("status.ready", daemonCardCount))
+        {
+            throw new InvalidDataException(
+                "localized Hub summary presentation drifted");
+        }
+
+        foreach (var card in topologyCards)
+        {
+            var state = card.State.State;
+            var expectedSummary = DesktopHubPresentation.TopologySummary(
+                state,
+                snapshot.Runtimes.Count,
+                automationName: false,
+                card.Name).Resolve(localization);
+            var expectedSummaryName = DesktopHubPresentation.TopologySummary(
+                state,
+                snapshot.Runtimes.Count,
+                automationName: true,
+                Safe(card.Name)).Resolve(localization);
+            var expectedAuthorityName = HubFormat(
+                "a11y.authority",
+                Safe(card.Name),
+                expectedAuthority);
+            var rows = card.RuntimeList.Children.OfType<Button>().ToArray();
+            if (card.Summary.Text != expectedSummary
+                || AutomationProperties.GetName(card.Summary) != expectedSummaryName
+                || card.AuthoritySummary.Text != expectedAuthority
+                || AutomationProperties.GetName(card.AuthoritySummary)
+                    != expectedAuthorityName
+                || rows.Length != snapshot.Runtimes.Count)
+            {
+                throw new InvalidDataException(
+                    "localized Hub daemon-card presentation drifted");
+            }
+
+            for (var index = 0; index < rows.Length; index++)
+            {
+                var runtime = snapshot.Runtimes[index];
+                var expectedStatus = DesktopHubPresentation.RuntimeStatus(runtime)
+                    .Resolve(localization);
+                var status = (rows[index].Content as Grid)?.Children
+                    .OfType<TextBlock>()
+                    .SingleOrDefault();
+                if (status?.Text != expectedStatus
+                    || AutomationProperties.GetName(rows[index]) != HubFormat(
+                        "a11y.open_runtime",
+                        Safe(runtime.Name),
+                        Safe(runtime.Id),
+                        expectedStatus))
+                {
+                    throw new InvalidDataException(
+                        "localized Hub runtime-row presentation drifted");
+                }
+            }
+        }
+    }
+
     private void ConfigureTopologyFilter()
     {
         AutomationProperties.SetAutomationId(topologyFilterBox, "hub-topology-filter");
@@ -467,7 +548,7 @@ internal sealed class HubWindow : Window
             localization.Text(DesktopTextKey.FindDaemonOrRuntime));
         AutomationProperties.SetHelpText(
             topologyFilterBox,
-            "Filters the in-memory authority and runtime topology without contacting a daemon. Shortcut: Control or Command plus F.");
+            HubText("help.filter"));
         AutomationProperties.SetAutomationId(
             clearTopologyFilterButton,
             "hub-topology-filter-clear");
@@ -475,7 +556,9 @@ internal sealed class HubWindow : Window
             clearTopologyFilterButton,
             localization.Text(DesktopTextKey.Clear));
         AutomationProperties.SetAutomationId(topologyFilterSummary, "hub-topology-filter-summary");
-        AutomationProperties.SetName(topologyFilterSummary, "Topology filter result count");
+        AutomationProperties.SetName(
+            topologyFilterSummary,
+            HubText("a11y.filter_summary"));
         AutomationProperties.SetLiveSetting(
             topologyFilterSummary,
             AutomationLiveSetting.Polite);
@@ -485,8 +568,8 @@ internal sealed class HubWindow : Window
             localization.Text(DesktopTextKey.RefreshAll));
         AutomationProperties.SetHelpText(
             refreshAllTopologyButton,
-            "Refreshes every daemon authority and joins an existing refresh instead of starting duplicate work. Shortcut: F5.");
-        ToolTip.SetTip(refreshAllTopologyButton, "Refresh all daemon topologies (F5)");
+            HubText("help.refresh_all"));
+        ToolTip.SetTip(refreshAllTopologyButton, HubText("tooltip.refresh_all"));
         auditedControls.Add(topologyFilterBox);
         auditedControls.Add(clearTopologyFilterButton);
         auditedControls.Add(topologyFilterSummary);
@@ -597,7 +680,9 @@ internal sealed class HubWindow : Window
                 if (card.State.State.Phase == RemoteTopologyPhase.Retained)
                 {
                     card.RuntimeList.Children.Insert(0, RuntimeMessage(
-                        $"Refresh failed {card.State.State.ConsecutiveFailures} time(s). Retaining the last known topology; workspace launch still requires a live daemon snapshot."));
+                        HubFormat(
+                            "retained.message",
+                            card.State.State.ConsecutiveFailures)));
                 }
             }
             else if (card.State.State.Phase == RemoteTopologyPhase.Unavailable)
@@ -609,16 +694,19 @@ internal sealed class HubWindow : Window
         topologyFilterEmpty.IsVisible = filterActive
             && result.TotalAuthorityCount > 0
             && result.VisibleAuthorityCount == 0;
-        topologyFilterSummary.Text = filterActive
-            ? $"{result.VisibleAuthorityCount} of {result.TotalAuthorityCount} daemons / {result.VisibleRuntimeCount} of {result.TotalRuntimeCount} runtimes"
-            : result.TotalRuntimeCount == 0
-                ? $"{result.TotalAuthorityCount} daemon authorit{(result.TotalAuthorityCount == 1 ? "y" : "ies")} / topology loading"
-                : $"{result.TotalAuthorityCount} daemons / {result.TotalRuntimeCount} runtimes";
+        var topologyLoading = topologyCards.Any(card =>
+            card.State.State.Phase is RemoteTopologyPhase.Awaiting
+                or RemoteTopologyPhase.Loading);
+        topologyFilterSummary.Text = DesktopHubPresentation.FilterSummary(
+            result,
+            automationName: false,
+            topologyLoading: topologyLoading).Resolve(localization);
         AutomationProperties.SetName(
             topologyFilterSummary,
-            filterActive
-                ? $"Showing {result.VisibleAuthorityCount} of {result.TotalAuthorityCount} daemon authorities and {result.VisibleRuntimeCount} of {result.TotalRuntimeCount} runtimes"
-                : $"Showing all {result.TotalAuthorityCount} daemon authorities and {result.TotalRuntimeCount} runtimes");
+            DesktopHubPresentation.FilterSummary(
+                result,
+                automationName: true,
+                topologyLoading: topologyLoading).Resolve(localization));
     }
 
     public void VerifyTopologyContract()
@@ -706,23 +794,27 @@ internal sealed class HubWindow : Window
         if (!ReferenceEquals(refreshAll, refreshAllPresentationOperation)
             || !topologyRefresh.IsRefreshingAll
             || refreshAllTopologyButton.IsEnabled
-            || refreshAllTopologyButton.Content as string != "Refreshing..."
-            || statusText.Text is not { } refreshingStatus
-            || !refreshingStatus.StartsWith("Refreshing ", StringComparison.Ordinal))
+            || refreshAllTopologyButton.Content as string
+                != HubText("action.refreshing")
+            || statusText.Text
+                != HubFormat("status.refreshing_all", topologyCards.Count))
         {
             throw new InvalidDataException(
                 "Hub refresh-all control did not expose its single-flight busy state");
         }
 
         await Task.WhenAll(cardRefresh, refreshAll);
+        var completedSummary = await refreshAll;
         if (topologyRefresh.Generation != generation + 1
             || refreshAllPresentationOperation is not null
             || topologyRefresh.IsRefreshingAll
             || topologyRefresh.IsAuthorityRefreshing(card.DaemonId)
             || !refreshAllTopologyButton.IsEnabled
-            || refreshAllTopologyButton.Content as string != "Refresh all"
-            || statusText.Text is not { } completedStatus
-            || !completedStatus.StartsWith("Topology refresh complete", StringComparison.Ordinal))
+            || refreshAllTopologyButton.Content as string
+                != localization.Text(DesktopTextKey.RefreshAll)
+            || statusText.Text
+                != DesktopHubPresentation.RefreshSummary(completedSummary)
+                    .Resolve(localization))
         {
             throw new InvalidDataException(
                 "Hub refresh-all control did not restore its completed state");
@@ -747,8 +839,8 @@ internal sealed class HubWindow : Window
     private Border CreateClientRoot(int remoteCount, bool localSupported)
     {
         var count = remoteCount + (localSupported ? 1 : 0);
-        var client = NodeText("Leserpent Desktop", "Topology root / operator session");
-        var daemonCount = CountBadge($"{count} DAEMON{(count == 1 ? string.Empty : "S")}");
+        var client = NodeText(HubText("client.title"), HubText("client.subtitle"));
+        var daemonCount = CountBadge(HubFormat("client.daemon_count", count));
         Grid.SetColumn(client, 1);
         Grid.SetColumn(daemonCount, 2);
         return new Border
@@ -792,7 +884,9 @@ internal sealed class HubWindow : Window
             Padding = new Thickness(16, 8),
         };
         AutomationProperties.SetAutomationId(openButton, $"hub-open-{daemonId}");
-        AutomationProperties.SetName(openButton, $"Open daemon {name}");
+        AutomationProperties.SetName(
+            openButton,
+            HubFormat("a11y.open_daemon", Safe(name)));
         auditedControls.Add(openButton);
         openButton.Click += (_, _) => OpenDaemon(open, openButton, name);
 
@@ -802,7 +896,9 @@ internal sealed class HubWindow : Window
             Padding = new Thickness(14, 8),
         };
         AutomationProperties.SetAutomationId(refreshButton, $"hub-refresh-{daemonId}");
-        AutomationProperties.SetName(refreshButton, $"Refresh runtime topology for daemon {name}");
+        AutomationProperties.SetName(
+            refreshButton,
+            HubFormat("a11y.refresh_daemon", Safe(name)));
         auditedControls.Add(refreshButton);
 
         var actions = new StackPanel
@@ -820,7 +916,9 @@ internal sealed class HubWindow : Window
                 Padding = new Thickness(14, 8),
             };
             AutomationProperties.SetAutomationId(manageButton, $"hub-manage-{daemonId}");
-            AutomationProperties.SetName(manageButton, $"Manage daemon {name}");
+            AutomationProperties.SetName(
+                manageButton,
+                HubFormat("a11y.manage_daemon", Safe(name)));
             auditedControls.Add(manageButton);
             manageButton.Click += (_, _) => manage();
             actions.Children.Add(manageButton);
@@ -842,7 +940,7 @@ internal sealed class HubWindow : Window
 
         var topologySummary = new TextBlock
         {
-            Text = "RUNTIMES / awaiting topology",
+            Text = HubText("summary.awaiting"),
             Foreground = LeserpentTheme.Muted,
             FontSize = 11,
             FontWeight = FontWeight.Bold,
@@ -850,10 +948,10 @@ internal sealed class HubWindow : Window
         };
         AutomationProperties.SetName(
             topologySummary,
-            $"Runtime topology for daemon {name} is awaiting refresh");
+            HubFormat("a11y.summary.awaiting", Safe(name)));
         var authoritySummary = new TextBlock
         {
-            Text = "AUTHORITY / awaiting proof",
+            Text = HubText("authority.awaiting"),
             Foreground = LeserpentTheme.Muted,
             FontSize = 11,
             FontWeight = FontWeight.Bold,
@@ -861,7 +959,7 @@ internal sealed class HubWindow : Window
         };
         AutomationProperties.SetName(
             authoritySummary,
-            $"Authority health for daemon {name} is awaiting proof");
+            HubFormat("a11y.authority.awaiting", Safe(name)));
         var runtimeList = new StackPanel
         {
             Spacing = 7,
@@ -869,7 +967,7 @@ internal sealed class HubWindow : Window
             {
                 new TextBlock
                 {
-                    Text = "Loading bounded runtime summary...",
+                    Text = HubText("runtime.loading"),
                     Foreground = LeserpentTheme.Muted,
                     FontSize = 12,
                 },
@@ -947,8 +1045,11 @@ internal sealed class HubWindow : Window
         if (trigger == TopologyRefreshTrigger.Operator)
         {
             operatorRefreshRequested = true;
-            statusText.Text = $"Refreshing {topologyCards.Count} daemon topologies...";
-            statusText.Foreground = LeserpentTheme.Primary;
+            SetStatus(
+                DesktopHubPresentation.Text(
+                    "status.refreshing_all",
+                    topologyCards.Count),
+                LeserpentTheme.Primary);
         }
         var coordinated = topologyRefresh.RefreshAllAsync(
             topologyCards.Select(RefreshAuthority),
@@ -964,11 +1065,11 @@ internal sealed class HubWindow : Window
     private async Task<RemoteTopologyRefreshSummary> PresentRefreshAllAsync(
         Task<RemoteTopologyRefreshSummary> coordinated)
     {
-        refreshAllTopologyButton.Content = "Refreshing...";
+        refreshAllTopologyButton.Content = HubText("action.refreshing");
         refreshAllTopologyButton.IsEnabled = false;
         AutomationProperties.SetName(
             refreshAllTopologyButton,
-            "Refreshing all daemon topologies");
+            HubText("a11y.refreshing_all"));
         await Task.Yield();
         try
         {
@@ -976,12 +1077,11 @@ internal sealed class HubWindow : Window
             if (operatorRefreshRequested
                 && !lifetime.IsCancellationRequested)
             {
-                statusText.Text = summary.RequiresAttention
-                    ? $"Topology refresh complete with attention: {summary.LiveCount} live, {summary.StaleCount} stale, {summary.UnavailableCount} unavailable."
-                    : $"Topology refresh complete: {summary.LiveCount} daemon authorities live.";
-                statusText.Foreground = summary.RequiresAttention
-                    ? LeserpentTheme.Destructive
-                    : LeserpentTheme.Accent;
+                SetStatus(
+                    DesktopHubPresentation.RefreshSummary(summary),
+                    summary.RequiresAttention
+                        ? LeserpentTheme.Destructive
+                        : LeserpentTheme.Accent);
             }
             return summary;
         }
@@ -1020,13 +1120,12 @@ internal sealed class HubWindow : Window
     {
         card.RefreshButton.IsEnabled = false;
         var loading = card.State.BeginRefresh();
-        card.Summary.Text = loading.Snapshot is null
-            ? "RUNTIMES / loading"
-            : $"RUNTIMES / refreshing / REV {loading.Snapshot.Revision}";
+        card.Summary.Text = DesktopHubPresentation.LoadingSummary(loading)
+            .Resolve(localization);
         card.Summary.Foreground = LeserpentTheme.Primary;
         AutomationProperties.SetName(
             card.Summary,
-            $"Loading runtime topology for daemon {Safe(card.Name)}");
+            HubFormat("a11y.summary.loading", Safe(card.Name)));
         await Task.Yield();
         try
         {
@@ -1075,13 +1174,13 @@ internal sealed class HubWindow : Window
             {
                 return;
             }
-            statusText.Text =
-                "Topology refresh stopped unexpectedly. Retry or open the daemon session for diagnostics.";
-            statusText.Foreground = LeserpentTheme.Destructive;
+            SetStatus(
+                DesktopHubPresentation.Text("status.refresh_unexpected"),
+                LeserpentTheme.Destructive);
         }
     }
 
-    private static void RenderTopology(
+    private void RenderTopology(
         DaemonTopologyCard card,
         RemoteTopologyState state,
         IReadOnlyList<RemoteRuntimeProjection> runtimes)
@@ -1090,22 +1189,38 @@ internal sealed class HubWindow : Window
             ?? throw new InvalidDataException("renderable topology state has no snapshot");
         card.RuntimeList.Children.Clear();
         card.RenderedRuntimeCount = 0;
-        var source = state.Phase.ToString().ToUpperInvariant();
-        card.Summary.Text = runtimes.Count == snapshot.Runtimes.Count
-            ? $"RUNTIMES / {source} / REV {snapshot.Revision} / {snapshot.Runtimes.Count}"
-            : $"RUNTIMES / {source} / REV {snapshot.Revision} / {runtimes.Count} OF {snapshot.Runtimes.Count}";
+        if (state.Phase == RemoteTopologyPhase.Loading)
+        {
+            card.Summary.Text = DesktopHubPresentation.LoadingSummary(state)
+                .Resolve(localization);
+            AutomationProperties.SetName(
+                card.Summary,
+                HubFormat("a11y.summary.loading", Safe(card.Name)));
+        }
+        else
+        {
+            card.Summary.Text = DesktopHubPresentation.TopologySummary(
+                state,
+                runtimes.Count,
+                automationName: false,
+                card.Name).Resolve(localization);
+            AutomationProperties.SetName(
+                card.Summary,
+                DesktopHubPresentation.TopologySummary(
+                    state,
+                    runtimes.Count,
+                    automationName: true,
+                    Safe(card.Name)).Resolve(localization));
+        }
         card.Summary.Foreground = state.Phase is RemoteTopologyPhase.Cached
             or RemoteTopologyPhase.Retained
             ? LeserpentTheme.Muted
             : LeserpentTheme.Accent;
-        AutomationProperties.SetName(
-            card.Summary,
-            $"Daemon {Safe(card.Name)} has {snapshot.Runtimes.Count} runtimes at revision {snapshot.Revision}, {source.ToLowerInvariant()}");
         RenderAuthority(card, state);
         if (runtimes.Count == 0)
         {
             card.RuntimeList.Children.Add(RuntimeMessage(
-                "No gewyvern runtimes are registered under this daemon."));
+                HubText("runtime.empty")));
             return;
         }
         foreach (var runtime in runtimes.Take(MaxVisibleRuntimesPerDaemon))
@@ -1117,28 +1232,29 @@ internal sealed class HubWindow : Window
         if (hidden > 0)
         {
             card.RuntimeList.Children.Add(RuntimeMessage(
-                $"+ {hidden} more runtimes in the daemon session"));
+                HubFormat("runtime.more", hidden)));
         }
     }
 
-    private static void RenderAuthority(
+    private void RenderAuthority(
         DaemonTopologyCard card,
         RemoteTopologyState state)
     {
         if (state.Snapshot?.Health is not { } health)
         {
-            card.AuthoritySummary.Text = "AUTHORITY / unverified cache";
+            card.AuthoritySummary.Text = HubText("authority.unverified");
             card.AuthoritySummary.Foreground = LeserpentTheme.Muted;
             AutomationProperties.SetName(
                 card.AuthoritySummary,
-                $"Authority health for daemon {Safe(card.Name)} is unavailable in the cached topology");
+                HubFormat("a11y.authority.unverified", Safe(card.Name)));
             return;
         }
-        var presentation = RemoteAuthorityHealthPresentation.Create(health);
+        var presentation = DesktopHubPresentation.AuthorityHealth(health);
+        var healthText = presentation.Resolve(localization);
         var stale = state.Phase is RemoteTopologyPhase.Cached or RemoteTopologyPhase.Retained;
         card.AuthoritySummary.Text = stale
-            ? $"{presentation.Label} / STALE"
-            : presentation.Label;
+            ? HubFormat("authority.stale", healthText)
+            : healthText;
         card.AuthoritySummary.Foreground = presentation.RequiresAttention
             ? LeserpentTheme.Destructive
             : stale
@@ -1147,8 +1263,14 @@ internal sealed class HubWindow : Window
         AutomationProperties.SetName(
             card.AuthoritySummary,
             stale
-                ? $"{presentation.AutomationName}; stale topology evidence"
-                : presentation.AutomationName);
+                ? HubFormat(
+                    "a11y.authority.stale",
+                    Safe(card.Name),
+                    healthText)
+                : HubFormat(
+                    "a11y.authority",
+                    Safe(card.Name),
+                    healthText));
         AutomationProperties.SetLiveSetting(
             card.AuthoritySummary,
             presentation.RequiresAttention
@@ -1156,38 +1278,44 @@ internal sealed class HubWindow : Window
                 : AutomationLiveSetting.Polite);
     }
 
-    private static void RenderTopologyFailure(
+    private void RenderTopologyFailure(
         DaemonTopologyCard card,
         RemoteTopologyState state)
     {
         card.RuntimeList.Children.Clear();
         card.RenderedRuntimeCount = 0;
         card.RuntimeList.Children.Add(RuntimeMessage(
-            "Topology unavailable. The daemon session can still be opened manually."));
-        card.Summary.Text = $"RUNTIMES / unavailable / failures {state.ConsecutiveFailures}";
+            HubText("runtime.topology_unavailable")));
+        card.Summary.Text = HubFormat(
+            "summary.unavailable",
+            state.ConsecutiveFailures);
         card.Summary.Foreground = LeserpentTheme.Destructive;
-        card.AuthoritySummary.Text = "AUTHORITY / unavailable";
+        card.AuthoritySummary.Text = HubText("authority.unavailable");
         card.AuthoritySummary.Foreground = LeserpentTheme.Destructive;
         AutomationProperties.SetName(
             card.AuthoritySummary,
-            $"Authority health for daemon {Safe(card.Name)} is unavailable");
+            HubFormat("a11y.authority.unavailable", Safe(card.Name)));
         AutomationProperties.SetName(
             card.Summary,
-            $"Runtime topology for daemon {Safe(card.Name)} is unavailable after {state.ConsecutiveFailures} failures");
+            HubFormat(
+                "a11y.summary.unavailable",
+                Safe(card.Name),
+                state.ConsecutiveFailures));
     }
 
-    private static Button RuntimeRow(
+    private Button RuntimeRow(
         DaemonTopologyCard card,
         RemoteRuntimeProjection runtime,
         ulong topologyRevision)
     {
-        var state = runtime.Status.StatusFetchError is { Length: > 0 }
-            ? "FAILED"
-            : runtime.RefreshStatus.ToString().ToUpperInvariant();
+        var failed = runtime.Status.StatusFetchError is { Length: > 0 }
+            || runtime.RefreshStatus == RefreshStatus.Failed;
+        var state = DesktopHubPresentation.RuntimeStatus(runtime)
+            .Resolve(localization);
         var status = new TextBlock
         {
             Text = state,
-            Foreground = state == "FAILED"
+            Foreground = failed
                 ? LeserpentTheme.Destructive
                 : runtime.RefreshStatus == RefreshStatus.Pending
                     ? LeserpentTheme.Accent
@@ -1241,10 +1369,14 @@ internal sealed class HubWindow : Window
             $"hub-runtime-{card.DaemonId}-{runtime.Id}");
         AutomationProperties.SetName(
             row,
-            $"Open gewyvern runtime {Safe(runtime.Name)}, ID {Safe(runtime.Id)}, status {state}");
+            HubFormat(
+                "a11y.open_runtime",
+                Safe(runtime.Name),
+                Safe(runtime.Id),
+                state));
         AutomationProperties.SetHelpText(
             row,
-            "Opens this runtime through its owning daemon session after an authoritative revision check.");
+            HubText("help.open_runtime"));
         row.Click += (_, _) =>
         {
             var error = card.OpenRuntime(runtime, topologyRevision);
@@ -1261,21 +1393,44 @@ internal sealed class HubWindow : Window
         TextWrapping = TextWrapping.Wrap,
     };
 
+    private string HubText(string key) =>
+        DesktopHubCatalogs.Resolve(localization, key);
+
+    private string HubFormat(string key, params object[] values) =>
+        DesktopHubCatalogs.Format(localization, key, values);
+
+    private void SetStatus(DesktopHubText presentation, IBrush foreground) =>
+        SetStatusValue(presentation.Resolve(localization), foreground);
+
+    private void SetOpaqueStatus(string value, IBrush foreground) =>
+        SetStatusValue(Safe(value), foreground);
+
+    private void SetStatusValue(string value, IBrush foreground)
+    {
+        statusText.Text = value;
+        statusText.Foreground = foreground;
+        statusText.IsVisible = true;
+        AutomationProperties.SetName(
+            statusText,
+            HubFormat("a11y.status_value", value));
+    }
+
     private void OpenDaemon(Func<string?> open, Button button, string name)
     {
         button.IsEnabled = false;
-        statusText.Text = $"Opening {Safe(name)}...";
-        statusText.Foreground = LeserpentTheme.Primary;
+        SetStatus(
+            DesktopHubPresentation.Text("status.opening_daemon", Safe(name)),
+            LeserpentTheme.Primary);
         var error = open();
         if (error is null)
         {
-            statusText.Text = $"{Safe(name)} session is open.";
-            statusText.Foreground = LeserpentTheme.Accent;
+            SetStatus(
+                DesktopHubPresentation.Text("status.daemon_open", Safe(name)),
+                LeserpentTheme.Accent);
             button.IsEnabled = true;
             return;
         }
-        statusText.Text = Safe(error);
-        statusText.Foreground = LeserpentTheme.Destructive;
+        SetOpaqueStatus(error, LeserpentTheme.Destructive);
         button.IsEnabled = true;
     }
 
@@ -1286,12 +1441,15 @@ internal sealed class HubWindow : Window
     {
         if (error is null)
         {
-            statusText.Text = $"Opening {Safe(runtime.Name)} through {Safe(daemonName)}...";
-            statusText.Foreground = LeserpentTheme.Accent;
+            SetStatus(
+                DesktopHubPresentation.Text(
+                    "status.opening_runtime",
+                    Safe(runtime.Name),
+                    Safe(daemonName)),
+                LeserpentTheme.Accent);
             return;
         }
-        statusText.Text = Safe(error);
-        statusText.Foreground = LeserpentTheme.Destructive;
+        SetOpaqueStatus(error, LeserpentTheme.Destructive);
     }
 
     private static Border NodeGlyph(

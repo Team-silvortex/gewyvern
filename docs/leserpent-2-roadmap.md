@@ -2176,17 +2176,18 @@ selected catalog while stable node/action identities remain untouched. A real
 31-choice control probe, persistence probe, and NativeAOT run gate this boundary.
 All seven non-English built-ins now cover the exact 26-key core semantic UI-IR
 set, with separate native `TextBlock` and accessibility-name proof for each
-locale. Simplified Chinese includes the complete offline tutorial. The other six
-non-English built-in shell catalogs cover all 67 stable shell keys with Web-
-aligned terminology and validated format placeholders, and their semantic
-catalogs use the same bounded key set, but both remain explicit review
+locale. All eight built-ins include the complete offline tutorial. The six new
+non-English built-in catalogs cover all 67 stable shell keys and all six tutorial
+steps with Web-aligned terminology and validated format placeholders; they remain
+explicit review
 candidates. Connection/forget, reverse deployment, gewyvern provisioning and
 retirement, daemon retirement, startup recovery, account presentation, the
 remote daemon shell, remote operation/Leselang controls, and the runtime child
-workspace now establish the specialist-dialog pattern. Their exact 33-key,
-46-key, 43-key, 45-key, 37-key, 9-key, 36-key, 56-key, 57-key, and 78-key catalogs
-bring every non-English built-in to 466 semantic keys without touching the
-frozen core set. They share one strict
+workspace, plus Hub dynamic cards and the Learning Center, now establish the
+specialist-dialog pattern.
+Their exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 36-key, 56-key,
+57-key, 78-key, 69-key, and 61-key catalogs bring every non-English built-in to
+596 semantic keys without touching the frozen core set. They share one strict
 key/value/placeholder validator. Eight-locale native layout probes cover each
 dialog and the account card at the minimum Hub envelope. The remote proof also
 covers compact and wide shells plus 16 refresh/deployment dialog layouts without
@@ -2200,10 +2201,14 @@ parsing English core labels. Runtime-workspace localization projects typed
 snapshot changes, severity alerts, live-refresh state, filters, diagnostic
 results, and query failures while preserving runtime IDs, paths, log bodies, and
 bounded remote details as opaque data. Its eight-language layout probe shares the
-offline remote-shell verifier and starts no network client. The six candidate
-translations, non-Chinese tutorial content, remaining Hub dynamic cards, and all
-22 downloadable core-ui packs stay partial rather than claiming unreviewed
-coverage.
+offline remote-shell verifier and starts no network client. Hub topology phases,
+refresh summaries, runtime status, and authority-health facts are likewise typed;
+its eight-language probe measures the dynamic card tree while preserving daemon
+names, endpoints, runtime identities, and raw failures as opaque data. The
+Learning Center probe covers all six steps, navigation semantics, accessibility,
+and all 48 locale-step minimum layouts. The six candidate
+translations and all 22 downloadable core-ui packs stay partial rather than
+claiming unreviewed coverage.
 Runtime-child workspace admission has now crossed the same boundary. The
 renderer-neutral `RemoteWorkspaceLaunchCoordinator` owns runtime-ID validation,
 the combined active/pending limit, duplicate-request revision coalescing,

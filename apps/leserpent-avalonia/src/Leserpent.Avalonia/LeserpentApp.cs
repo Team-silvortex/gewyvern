@@ -521,6 +521,7 @@ internal sealed class LeserpentApp : Application
                     window.VerifyTopologyContract();
                     window.VerifyLayoutEnvelope();
                     var localizedAccountLayoutCount = 0;
+                    var localizedHubLayoutCount = 0;
                     foreach (var locale in DesktopLocalization.OfficialLocales.Where(
                         locale => locale.BuiltIn))
                     {
@@ -536,14 +537,17 @@ internal sealed class LeserpentApp : Application
                             DesktopAccountCatalogs.Resolve(
                                 localization,
                                 "status.verification_disabled"));
+                        window.ProbeLocalizedDynamicPresentation(topology);
                         window.VerifyLayoutEnvelope();
                         localizedAccountLayoutCount++;
+                        localizedHubLayoutCount++;
                     }
                     localization.SetPreference("en");
-                    if (localizedAccountLayoutCount != 8)
+                    if (localizedAccountLayoutCount != 8
+                        || localizedHubLayoutCount != 8)
                     {
                         throw new InvalidDataException(
-                            "Hub account localized layout coverage drifted");
+                            "Hub localized layout coverage drifted");
                     }
                     RemoteWorkspaceLaunchCoordinator.VerifyContract();
                     if (window.RenderedRuntimeCount != 6
@@ -567,7 +571,7 @@ internal sealed class LeserpentApp : Application
                             "Hub action routing did not preserve its runtime or tutorial target");
                     }
                     Console.WriteLine(
-                        "Hub topology valid: client_root=true, local_daemon=true, remote_daemons=2, live_topologies=3, authority_proofs=3, queue_health=true, runtime_children=6, runtime_actions=6, topology_filter=true, authority_filter=true, cross_authority_runtime_filter=true, empty_filter_state=true, filter_focus_recovery=true, refresh_all_control=true, refresh_all_single_flight=true, card_refresh_join=true, shared_refresh_policy=true, refresh_busy_state=true, refresh_completion_status=true, tutorial_entry=true, language_entry=true, daemon_route=true, authoritative_workspace_gate=true, shared_workspace_launch=true, retained_topology_state=true, revision_regression_fence=true, bounded_auto_refresh=true, bounded_preview=true, independent_actions=true, legacy_remote_button=false, automation=true, localized_account_catalogs=7, localized_account_layouts=8, minimum_hub_layout=true, live_account_language_reprojection=true");
+                        "Hub topology valid: client_root=true, local_daemon=true, remote_daemons=2, live_topologies=3, authority_proofs=3, queue_health=true, runtime_children=6, runtime_actions=6, topology_filter=true, authority_filter=true, cross_authority_runtime_filter=true, empty_filter_state=true, filter_focus_recovery=true, refresh_all_control=true, refresh_all_single_flight=true, card_refresh_join=true, shared_refresh_policy=true, refresh_busy_state=true, refresh_completion_status=true, tutorial_entry=true, language_entry=true, daemon_route=true, authoritative_workspace_gate=true, shared_workspace_launch=true, retained_topology_state=true, revision_regression_fence=true, bounded_auto_refresh=true, bounded_preview=true, independent_actions=true, legacy_remote_button=false, automation=true, localized_account_catalogs=7, localized_account_layouts=8, localized_hub_catalogs=7, hub_semantic_keys=69, localized_hub_layouts=8, typed_hub_cards=true, opaque_operator_data=true, minimum_hub_layout=true, live_account_language_reprojection=true");
                     window.Close();
                 }
                 catch (Exception error)
@@ -782,14 +786,30 @@ internal sealed class LeserpentApp : Application
     private static void ConfigureTutorialVerification(
         IClassicDesktopStyleApplicationLifetime desktop)
     {
-        var window = new DesktopTutorialWindow(DesktopLocalization.ForVerification());
+        var localization = DesktopLocalization.ForVerification();
+        var window = new DesktopTutorialWindow(localization);
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += (_, _) =>
         {
             window.VerifyAccessibility();
             window.ProbeNavigationContract();
+            var localizedLayoutCount = 0;
+            foreach (var locale in DesktopLocalization.OfficialLocales.Where(
+                locale => locale.BuiltIn))
+            {
+                localization.SetPreference(locale.Locale);
+                window.ProbeLocalizedPresentation();
+                window.VerifyAccessibility();
+                window.VerifyLayoutEnvelope();
+                localizedLayoutCount++;
+            }
+            if (localizedLayoutCount != 8)
+            {
+                throw new InvalidDataException(
+                    "desktop tutorial localized layout coverage drifted");
+            }
             Console.WriteLine(
-                "desktop tutorial valid: offline=true, read_only=true, steps=6, direct_navigation=true, previous_next=true, keyboard=true, automation_ids=10, automation_names=10, help_texts=10, contrast=true");
+                "desktop tutorial valid: offline=true, read_only=true, steps=6, direct_navigation=true, previous_next=true, keyboard=true, automation_ids=10, automation_names=10, help_texts=10, contrast=true, localized_tutorial_catalogs=7, tutorial_semantic_keys=61, localized_layouts=8, localized_step_layouts=48, localized_accessibility=true, live_language_reprojection=true");
             DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
@@ -877,7 +897,7 @@ internal sealed class LeserpentApp : Application
                             "desktop language controls did not apply exactly once");
                     }
                     Console.WriteLine(
-                        "desktop language controls valid: official_locales=30, builtin_shell_catalogs=8, builtin_layouts=8, builtin_semantic_catalogs=7, builtin_ui_ir_controls=7, system_choice=true, persistent_preference=true, live_apply=true, english_fallback=true, zh_cn_core=true, zh_cn_tutorial_complete=true, rtl=true, automation_ids=5, automation_names=5, contrast=true");
+                        "desktop language controls valid: official_locales=30, complete_builtin_locales=8, builtin_shell_catalogs=8, builtin_layouts=8, builtin_semantic_catalogs=7, builtin_ui_ir_controls=7, system_choice=true, persistent_preference=true, live_apply=true, english_fallback=true, zh_cn_core=true, zh_cn_tutorial_complete=true, builtin_tutorial_complete=true, rtl=true, automation_ids=5, automation_names=5, contrast=true");
                 }
                 catch (Exception error)
                 {

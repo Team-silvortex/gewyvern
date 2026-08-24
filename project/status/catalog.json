@@ -2405,12 +2405,12 @@
       "feature": "desktop-localization",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 98,
+      "completion": 99,
       "confidence": "high",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-desktop-localization",
-        "version": "0.10.0",
+        "version": "0.12.0",
         "stability": "draft",
         "surfaces": [
           "shared-official-locale-roster",
@@ -2428,6 +2428,7 @@
           "localized-accessibility-text",
           "deterministic-english-localization-fallback",
           "eight-complete-built-in-shell-catalogs",
+          "eight-complete-built-in-desktop-surfaces",
           "built-in-shell-format-contract",
           "web-term-aligned-built-in-catalogs",
           "eight-built-in-language-selector-layout-envelopes",
@@ -2485,6 +2486,20 @@
           "eight-built-in-runtime-workspace-layout-envelopes",
           "live-runtime-workspace-language-reprojection",
           "opaque-runtime-workspace-data-preservation",
+          "seven-built-in-hub-specialist-catalogs",
+          "hub-catalog-exact-key-set",
+          "typed-hub-topology-presentation",
+          "localized-hub-dynamic-cards",
+          "eight-built-in-hub-layout-envelopes",
+          "opaque-hub-operator-data-preservation",
+          "seven-built-in-tutorial-specialist-catalogs",
+          "tutorial-catalog-exact-key-set",
+          "six-step-tutorial-content-all-built-ins",
+          "localized-tutorial-navigation",
+          "localized-tutorial-accessibility",
+          "eight-built-in-tutorial-layout-envelopes",
+          "forty-eight-built-in-tutorial-step-layouts",
+          "live-tutorial-language-reprojection",
           "typed-remote-feed-presentation",
           "typed-remote-authority-health-presentation",
           "localized-remote-credential-source",
@@ -2507,7 +2522,7 @@
       "blockers": [
         {
           "id": "desktop-long-tail-language-review",
-          "summary": "All eight built-in locales have complete 67-key native-shell catalogs; all seven non-English built-ins cover the exact 466-key semantic set across core UI-IR, connection, reverse deployment, gewyvern provisioning/retirement, daemon retirement, startup recovery, account, remote shell, remote operation/Leselang, and runtime child-workspace domains. Remote feed, authority-health, mutation-failure, account, workspace-change, severity-alert, and live-refresh projection use typed facts while operator identities, runtime IDs, paths, log bodies, and bounded diagnostics remain opaque. The six candidate translations still require native-speaker review, while non-Chinese tutorial content, remaining Hub dynamic cards, and the 22 official core-ui packs remain partial."
+          "summary": "All eight built-in locales have complete 67-key native-shell catalogs and six-step Learning Center content; all seven non-English built-ins cover the exact 596-key semantic set across core UI-IR, connection, reverse deployment, gewyvern provisioning/retirement, daemon retirement, startup recovery, account, remote shell, remote operation/Leselang, runtime child-workspace, Hub domains, and tutorial domains. Remote feed, authority-health, mutation-failure, account, workspace-change, severity-alert, live-refresh, Hub topology-phase, refresh-summary, and runtime-status projection use typed facts while operator identities, runtime IDs, paths, log bodies, and bounded diagnostics remain opaque. The six candidate translations still require native-speaker review, while the 22 official core-ui packs remain partial."
         }
       ],
       "consumers": ["desktop-operators", "leselang-ui-adapters"],
@@ -2528,6 +2543,9 @@
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRemotePresentation.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRuntimeWorkspaceCatalogs.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRuntimeWorkspacePresentation.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopHubCatalogs.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopHubPresentation.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopTutorialCatalogs.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopConnectionWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopForgetConnectionWindow.cs", "state": "present" },
@@ -2548,7 +2566,7 @@
         { "kind": "documentation", "path": "apps/leserpent-avalonia/README.md", "state": "present" },
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" }
       ],
-      "next_gate": "Review the six candidate built-in catalogs with native speakers, extend strict domain catalogs and real-layout probes through the remaining Hub dynamic cards, then cover non-Chinese tutorials and the 22 official core-ui packs."
+      "next_gate": "Review the six candidate built-in catalogs with native speakers, then complete the 22 official downloadable core-ui packs without translating opaque operator data."
     },
     {
       "id": "leserpent-2/remote-console/remote-mobile-console",
