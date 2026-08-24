@@ -9,34 +9,44 @@ public partial class Program
 {
     private static void MapOrchestraEndpoints(WebApplication app)
     {
-        app.MapGet("/v1/orchestra/plans/{id}", (string id, RegistryService registry) =>
+        app.MapGet("/v1/orchestra/plans/{id}", async Task<IResult> (
+            string id,
+            OrchestraRuntimeProjectionService orchestraReads,
+            CancellationToken cancellationToken) =>
         {
-            var runtime = registry.GetRuntime(id);
-            if (runtime is null)
+            OrchestraRuntimeProjection? projection;
+            try
+            {
+                projection = await orchestraReads.ReadAsync(id, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex, id);
+            }
+            if (projection is null)
             {
                 return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
             }
-            var attention = registry.GetRuntimeAttention(id);
-            var reasons = attention?.Reasons ?? Array.Empty<string>();
-            var severity = attention?.Severity ?? "none";
-            var needsAttention = attention?.NeedsAttention ?? false;
-            var plans = OrchestraPlanner.Build(runtime, reasons, severity, needsAttention);
 
-            return Results.Ok(new OrchestraRuntimePlanResponse(
-                runtime.RuntimeId,
-                runtime.Name,
-                runtime.Endpoint,
-                runtime.Tags,
-                runtime.Status.StatusSource,
-                severity,
-                needsAttention,
-                reasons,
-                plans));
+            return Results.Ok(BuildOrchestraResponse(projection));
         });
 
-        app.MapGet("/v1/orchestra/runtimes/{id}/runs", (string id, RegistryService registry) =>
+        app.MapGet("/v1/orchestra/runtimes/{id}/runs", async Task<IResult> (
+            string id,
+            RuntimeReadProjectionService runtimeReads,
+            RegistryService registry,
+            CancellationToken cancellationToken) =>
         {
-            if (registry.GetRuntime(id) is null)
+            RuntimeSummary? runtime;
+            try
+            {
+                runtime = await runtimeReads.InspectAsync(id, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex, id);
+            }
+            if (runtime is null)
             {
                 return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
             }
@@ -44,12 +54,23 @@ public partial class Program
             return Results.Ok(new OrchestraRunCollectionResponse(id, registry.ListOrchestraRuns(id)));
         });
 
-        app.MapGet("/v1/orchestra/runtimes/{id}/runs/{runId}/events", (
+        app.MapGet("/v1/orchestra/runtimes/{id}/runs/{runId}/events", async Task<IResult> (
             string id,
             string runId,
-            RegistryService registry) =>
+            RuntimeReadProjectionService runtimeReads,
+            RegistryService registry,
+            CancellationToken cancellationToken) =>
         {
-            if (registry.GetRuntime(id) is null)
+            RuntimeSummary? runtime;
+            try
+            {
+                runtime = await runtimeReads.InspectAsync(id, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex, id);
+            }
+            if (runtime is null)
             {
                 return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
             }
@@ -81,23 +102,34 @@ public partial class Program
         app.MapGet("/v1/orchestra/runs", (RegistryService registry) =>
             Results.Ok(registry.GetOrchestraFleetBoard()));
 
-        app.MapPost("/v1/orchestra/plans/{id}/{planId}/execute", (
+        app.MapPost("/v1/orchestra/plans/{id}/{planId}/execute", async Task<IResult> (
             string id,
             string planId,
             OrchestraExecuteRequest request,
             RegistryService registry,
-            OrchestraExecutionCoordinator coordinator) =>
+            OrchestraExecutionCoordinator coordinator,
+            OrchestraRuntimeProjectionService orchestraReads,
+            CancellationToken cancellationToken) =>
         {
             var requestIdError = ValidateOrchestraRequestId(request.RequestId);
             if (requestIdError is not null)
             {
                 return Results.BadRequest(new ApiErrorResponse("invalid_orchestra_request_id", requestIdError));
             }
-            var runtime = registry.GetRuntime(id);
-            if (runtime is null)
+            OrchestraRuntimeProjection? projection;
+            try
+            {
+                projection = await orchestraReads.ReadAsync(id, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex, id);
+            }
+            if (projection is null)
             {
                 return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
             }
+            var runtime = projection.Runtime;
             var replay = registry.GetOrchestraRunByRequestId(id, request.RequestId!.Trim());
             if (replay is not null)
             {
@@ -106,10 +138,7 @@ public partial class Program
                     : Results.Conflict(new ApiErrorResponse("orchestra_request_id_reused_for_different_plan", RuntimeId: id, PlanId: planId, RequestId: request.RequestId));
             }
 
-            var attention = registry.GetRuntimeAttention(id);
-            var reasons = attention?.Reasons ?? Array.Empty<string>();
-            var plans = OrchestraPlanner.Build(runtime, reasons, attention?.Severity ?? "none", attention?.NeedsAttention ?? false);
-            var selectedPlan = plans.FirstOrDefault(plan =>
+            var selectedPlan = projection.Plans.FirstOrDefault(plan =>
                 string.Equals(plan.PlanId, planId, StringComparison.OrdinalIgnoreCase));
             if (selectedPlan is null)
             {
@@ -190,12 +219,14 @@ public partial class Program
                 : Results.Accepted($"/v1/orchestra/runtimes/{id}/runs", new OrchestraRunAcceptedResponse(cancelling));
         });
 
-        app.MapPost("/v1/orchestra/runtimes/{id}/runs/{runId}/retry", (
+        app.MapPost("/v1/orchestra/runtimes/{id}/runs/{runId}/retry", async Task<IResult> (
             string id,
             string runId,
             OrchestraRetryRequest request,
             RegistryService registry,
-            OrchestraExecutionCoordinator coordinator) =>
+            OrchestraExecutionCoordinator coordinator,
+            OrchestraRuntimeProjectionService orchestraReads,
+            CancellationToken cancellationToken) =>
         {
             var requestIdError = ValidateOrchestraRequestId(request.RequestId);
             if (requestIdError is not null)
@@ -219,18 +250,22 @@ public partial class Program
                 return Results.Conflict(new ApiErrorResponse("orchestra_run_not_terminal", RuntimeId: id, RunId: runId, Outcome: previous.Outcome));
             }
 
-            var runtime = registry.GetRuntime(id);
-            if (runtime is null)
+            OrchestraRuntimeProjection? projection;
+            try
+            {
+                projection = await orchestraReads.ReadAsync(id, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex, id);
+            }
+            if (projection is null)
             {
                 return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
             }
-            var attention = registry.GetRuntimeAttention(id);
-            var plans = OrchestraPlanner.Build(
-                runtime,
-                attention?.Reasons ?? Array.Empty<string>(),
-                attention?.Severity ?? "none",
-                attention?.NeedsAttention ?? false);
-            var plan = plans.FirstOrDefault(candidate => string.Equals(candidate.PlanId, previous.PlanId, StringComparison.OrdinalIgnoreCase));
+            var runtime = projection.Runtime;
+            var plan = projection.Plans.FirstOrDefault(candidate =>
+                string.Equals(candidate.PlanId, previous.PlanId, StringComparison.OrdinalIgnoreCase));
             if (plan is null || !string.Equals(plan.ExecutionMode, "automatic", StringComparison.OrdinalIgnoreCase))
             {
                 return Results.Conflict(new ApiErrorResponse("orchestra_run_not_retryable", RuntimeId: id, PlanId: previous.PlanId, RunId: runId));
@@ -270,10 +305,12 @@ public partial class Program
                 : Results.Accepted($"/v1/orchestra/runtimes/{id}/runs", new OrchestraRunAcceptedResponse(started.Run, started.Replayed));
         });
 
-        app.MapPost("/v1/orchestra/plans/{id}/session", (
+        app.MapPost("/v1/orchestra/plans/{id}/session", async Task<IResult> (
             string id,
             OrchestraSessionHandoffRequest request,
-            RegistryService registry) =>
+            RegistryService registry,
+            OrchestraRuntimeProjectionService orchestraReads,
+            CancellationToken cancellationToken) =>
         {
             if (string.IsNullOrWhiteSpace(request.PipelineKind)
                 || string.IsNullOrWhiteSpace(request.RequestedBy)
@@ -285,16 +322,22 @@ public partial class Program
                     "pipelineKind and requestedBy are required and must stay within their length limits"));
             }
 
-            var runtime = registry.GetRuntime(id);
-            if (runtime is null)
+            OrchestraRuntimeProjection? projection;
+            try
+            {
+                projection = await orchestraReads.ReadAsync(id, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex, id);
+            }
+            if (projection is null)
             {
                 return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
             }
 
-            var attention = registry.GetRuntimeAttention(id);
-            var reasons = attention?.Reasons ?? Array.Empty<string>();
-            var plans = OrchestraPlanner.Build(runtime, reasons, attention?.Severity ?? "none", attention?.NeedsAttention ?? false);
-            var sessionPlan = plans.Single(plan => string.Equals(plan.PlanId, "session_preparation", StringComparison.Ordinal));
+            var sessionPlan = projection.Plans.Single(plan =>
+                string.Equals(plan.PlanId, "session_preparation", StringComparison.Ordinal));
             var requirements = sessionPlan.RequiredCapabilities
                 .Select(capability => new SessionCapabilityRequirement(capability, "fully_supported"))
                 .ToArray();
@@ -323,8 +366,7 @@ public partial class Program
                     "ok",
                     $"session {result.Session.SessionId} created for pipeline {result.Session.PipelineKind}"),
             };
-            var currentRuntime = registry.GetRuntime(id);
-            if (currentRuntime is null)
+            if (registry.GetRuntime(id) is null)
             {
                 return Results.Conflict(new ApiErrorResponse("runtime_removed_during_orchestra_handoff", RuntimeId: id));
             }
@@ -350,35 +392,25 @@ public partial class Program
                     LeserpentJsonContext.Default.ApiErrorResponse,
                     statusCode: StatusCodes.Status503ServiceUnavailable);
             }
-            var currentAttention = registry.GetRuntimeAttention(id);
-            var currentReasons = currentAttention?.Reasons ?? Array.Empty<string>();
-            var currentPlans = OrchestraPlanner.Build(
-                currentRuntime,
-                currentReasons,
-                currentAttention?.Severity ?? "none",
-                currentAttention?.NeedsAttention ?? false);
             return Results.Ok(new OrchestraSessionHandoffResponse(
                 run,
                 result.Session,
-                BuildOrchestraResponse(currentRuntime, currentAttention, currentReasons, currentPlans)));
+                BuildOrchestraResponse(projection)));
         });
     }
 
     private static OrchestraRuntimePlanResponse BuildOrchestraResponse(
-        RuntimeSummary runtime,
-        RuntimeAttentionView? attention,
-        IReadOnlyList<string> reasons,
-        IReadOnlyList<OrchestraPlan> plans) =>
+        OrchestraRuntimeProjection projection) =>
         new(
-            runtime.RuntimeId,
-            runtime.Name,
-            runtime.Endpoint,
-            runtime.Tags,
-            runtime.Status.StatusSource,
-            attention?.Severity ?? "none",
-            attention?.NeedsAttention ?? false,
-            reasons,
-            plans);
+            projection.Runtime.RuntimeId,
+            projection.Runtime.Name,
+            projection.Runtime.Endpoint,
+            projection.Runtime.Tags,
+            projection.Runtime.Status.StatusSource,
+            projection.Attention.Severity,
+            projection.Attention.NeedsAttention,
+            projection.Attention.Reasons,
+            projection.Plans);
 
     internal static string? ValidateOrchestraApproval(OrchestraPlan plan, string? approvedBy, string? approvalNote)
     {

@@ -268,6 +268,103 @@ public sealed class RuntimeReadProjectionTests
     }
 
     [Fact]
+    public async Task OrchestraPlansUseDaemonAuthorityAndExcludeManagedOnlyRuntimes()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "Managed Name",
+                    "https://managed.invalid",
+                    "runtime-secret",
+                    Capabilities: new[] { new RuntimeCapability("manual", "fully_supported", "manual") },
+                    Tags: new RuntimeTags("managed", "west", "edge"),
+                    SidecarEndpoint: "https://managed-sidecar.invalid",
+                    SidecarAdminToken: "sidecar-secret"),
+                "runtime-authoritative");
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "Managed Only",
+                    "https://managed-only.invalid",
+                    "runtime-secret"),
+                "runtime-managed-only");
+
+            var managedRuntime = Assert.IsType<RuntimeSummary>(
+                registry.GetRuntime("runtime-authoritative"));
+            var managedAttention = Assert.IsType<RuntimeAttentionView>(
+                registry.GetRuntimeAttention("runtime-authoritative", managedRuntime));
+            var managedTriage = OrchestraPlanner.Build(
+                    managedRuntime,
+                    managedAttention.Reasons,
+                    managedAttention.Severity,
+                    managedAttention.NeedsAttention)
+                .Single(plan => plan.PlanId == "runtime_triage");
+
+            var daemonRuntime = Projection("runtime-authoritative");
+            daemonRuntime = daemonRuntime with
+            {
+                Status = daemonRuntime.Status with { StatusSource = "fetch_failed" },
+                SidecarStatus = daemonRuntime.SidecarStatus! with
+                {
+                    StatusSource = "fetch_failed",
+                    Healthy = false
+                }
+            };
+            var orchestra = new OrchestraRuntimeProjectionService(
+                new RuntimeReadProjectionService(
+                    registry,
+                    new FakeDaemonReader(true, new[] { daemonRuntime })),
+                registry);
+
+            var projected = Assert.IsType<OrchestraRuntimeProjection>(
+                await orchestra.ReadAsync("runtime-authoritative", CancellationToken.None));
+            Assert.Equal("Daemon Name", projected.Runtime.Name);
+            Assert.Equal("https://daemon.invalid", projected.Runtime.Endpoint);
+            Assert.Equal("https://daemon-sidecar.invalid", projected.Runtime.SidecarEndpoint);
+            Assert.Equal("daemon", projected.Runtime.Tags.Environment);
+            Assert.Equal("critical", projected.Attention.Severity);
+            Assert.Contains("status_fetch_failed", projected.Attention.Reasons);
+            Assert.Contains("sidecar_status_fetch_failed", projected.Attention.Reasons);
+            Assert.Contains(projected.Plans, plan => plan.PlanId == "sidecar_coordination");
+            Assert.NotEqual(
+                managedTriage.Revision,
+                projected.Plans.Single(plan => plan.PlanId == "runtime_triage").Revision);
+            Assert.Null(await orchestra.ReadAsync(
+                "runtime-managed-only",
+                CancellationToken.None));
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public async Task OrchestraPlansPropagateDaemonProjectionFailures()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            var orchestra = new OrchestraRuntimeProjectionService(
+                new RuntimeReadProjectionService(
+                    registry,
+                    new FakeDaemonReader(
+                        true,
+                        new[] { Projection("runtime-orphan") })),
+                registry);
+
+            var error = await Assert.ThrowsAsync<DaemonRuntimeProjectionException>(() =>
+                orchestra.ReadAsync("runtime-orphan", CancellationToken.None));
+            Assert.Equal("daemon_projection_unmapped", error.Code);
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
     public async Task LegacyDaemonProjectionRetainsManagedAuthorityTimestamps()
     {
         var (registry, statePath) = CreateRegistry();

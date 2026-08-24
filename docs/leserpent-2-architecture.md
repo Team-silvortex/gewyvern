@@ -888,13 +888,22 @@ retain a per-field managed fallback instead of inventing epoch history. Once
 daemon IPC is configured, runtime presence is daemon-authoritative:
 managed-only legacy entries are omitted and detail reads return not found.
 Daemon-only entries fail closed rather than receiving fabricated compatibility
-metadata. Attention, cleanup,
-protocol-reading, and recovery reads now use the shared read projection for
-authoritative identity, endpoints, timestamps, tags, status, and capabilities.
+metadata. Attention, sidecar detail, protocol-reading, and recovery reads now
+use the shared read projection for authoritative identity, endpoints,
+timestamps, tags, status, and capabilities.
 Fleet summary, attention-list, and attention-summary reads now obtain that same
 projection before applying the existing aggregate rules and local bounded
 recovery-activity overlay. They no longer enumerate managed runtime membership,
 and authoritative sidecar status now drives attention reasons.
+Orchestra plan display, execution, retry, and session handoff all rebuild from
+one shared authoritative plan projection. This keeps plan revisions identical
+across GET and POST even when daemon identity, endpoint, sidecar posture, or
+capabilities differ from their managed compatibility copies. Per-runtime run
+and event history reads first validate daemon membership, then read the durable
+Orchestra store. History persistence, local credentials, recovery activity,
+and the post-session removal race check remain managed effect boundaries; they
+do not redefine runtime authority. The cleanup-plan is the remaining read-only
+runtime-membership view scheduled for projection cutover.
 Sidecar status, including its bounded memory-slot summary, now follows the same
 revision-fenced journal and strict read projection. Registration, individual
 refresh, recovery, Fleet refresh, and Orchestra recovery all compose available

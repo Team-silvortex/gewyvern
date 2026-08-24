@@ -140,9 +140,13 @@ until compatibility metadata is explicitly reconciled. Attention,
 protocol-reading, recovery, Fleet summary, Fleet attention-list, and Fleet
 attention-summary reads share the same projection. Fleet aggregation uses the
 projected sidecar status and retains only bounded local recovery history as an
-overlay. The dedicated sidecar-detail route, Orchestra planning, and persistence
-membership checks still need explicit cutover evidence before the managed
-overlay can be deleted.
+overlay. The dedicated sidecar-detail route now reads that projection as well.
+Orchestra plan display, execute, retry, and session handoff rebuild plans from
+one shared authoritative runtime projection, so revision checks cannot diverge
+between GET and POST. Per-runtime run and event history reads also validate
+daemon membership before reading durable managed history. The cleanup-plan is
+the remaining read-only membership view that still needs explicit cutover
+evidence before the managed overlay can be reduced further.
 
 ## Security Model
 

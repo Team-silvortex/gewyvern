@@ -4629,6 +4629,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .iter()
             .any(|item| item.kind == EvidenceKind::Source && item.state == EvidenceState::Present)
     );
+    assert!(domain.evidence.iter().any(|item| {
+        item.path == "apps/leserpent/src/Leserpent/OrchestraRuntimeProjectionService.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(domain.next_gate.contains("cleanup-plan"));
 
     let language = catalog
         .cells
@@ -5603,7 +5608,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.49.5");
+    assert_eq!(compatibility_control.contract.version, "1.49.6");
     assert!(
         compatibility_control
             .contract
@@ -5618,6 +5623,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .iter()
             .any(|surface| surface == "daemon-authoritative-fleet-read-aggregates")
     );
+    for surface in [
+        "daemon-authoritative-sidecar-detail",
+        "daemon-authoritative-orchestra-plan-reads",
+        "daemon-authoritative-orchestra-history-membership",
+    ] {
+        assert!(
+            compatibility_control
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing authoritative compatibility read surface {surface}"
+        );
+    }
     assert!(
         compatibility_control
             .contract
@@ -6079,7 +6098,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.49.5");
+    assert_eq!(compatibility_control.contract.version, "1.49.6");
     assert!(
         compatibility_control
             .next_gate

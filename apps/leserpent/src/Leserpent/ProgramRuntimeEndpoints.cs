@@ -109,9 +109,20 @@ public partial class Program
                 : Results.Ok(new RuntimeStatusRefreshResponse(runtime.RuntimeId, runtime.Name, runtime.Endpoint, runtime.Status));
         });
 
-        app.MapGet("/v1/runtimes/{id}/sidecar", (string id, RegistryService registry) =>
+        app.MapGet("/v1/runtimes/{id}/sidecar", async Task<IResult> (
+            string id,
+            RuntimeReadProjectionService runtimeReads,
+            CancellationToken cancellationToken) =>
         {
-            var runtime = registry.GetRuntime(id);
+            RuntimeSummary? runtime;
+            try
+            {
+                runtime = await runtimeReads.InspectAsync(id, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex, id);
+            }
             return runtime is null
                 ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
                 : Results.Ok(new RuntimeSidecarRefreshResponse(
