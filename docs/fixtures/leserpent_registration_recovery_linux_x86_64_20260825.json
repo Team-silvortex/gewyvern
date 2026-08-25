@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-08-25T04:04:47.0707176+00:00",
+  "platform": "Unix",
+  "architecture": "X64",
+  "forced_compatibility_process_terminations": 1,
+  "dropped_registration_responses": 2,
+  "registration_command_submissions": 3,
+  "discovery_intake_submissions": 1,
+  "discovery_requests_before_restart": 3,
+  "discovery_requests_after_restart": 0,
+  "daemon_revisions": [
+    1,
+    2
+  ],
+  "checks": {
+    "real_leserpentd": true,
+    "owner_private_unix_response_drop_proxy": true,
+    "two_registration_responses_lost_after_daemon_commit": true,
+    "compatibility_process_force_killed": true,
+    "distinct_recovery_process": true,
+    "exact_registration_command_replayed": true,
+    "persisted_discovery_reused_without_http_rediscovery": true,
+    "discovery_intake_applied_once_after_replay": true,
+    "fresh_credential_bound_after_restart": true,
+    "schema_v9_state_secret_free": true,
+    "pending_registration_cleared_after_compatibility_commit": true
+  }
+}

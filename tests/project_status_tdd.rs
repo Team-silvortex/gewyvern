@@ -134,7 +134,7 @@ fn project_status_catalog_is_protocolized_and_valid() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     catalog.validate(&root).expect("catalog must validate");
     assert_eq!(catalog.calibration.model, STATUS_CALIBRATION_MODEL);
-    assert_eq!(catalog.calibration.as_of, "2026-08-24");
+    assert_eq!(catalog.calibration.as_of, "2026-08-25");
     assert!(catalog.dimensions.architectures.len() >= 6);
     assert!(catalog.dimensions.modules.len() >= 21);
     assert!(catalog.dimensions.features.len() >= 23);
@@ -4597,6 +4597,58 @@ fn retained_native_package_container_install_is_offline_and_inactive_by_default(
 }
 
 #[test]
+fn retained_linux_registration_recovery_proof_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(
+            repository_root()
+                .join("docs/fixtures/leserpent_registration_recovery_linux_x86_64_20260825.json"),
+        )
+        .expect("registration recovery evidence must exist"),
+    )
+    .expect("registration recovery evidence must decode");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["platform"], "Unix");
+    assert_eq!(evidence["architecture"], "X64");
+    assert_eq!(evidence["forced_compatibility_process_terminations"], 1);
+    assert_eq!(evidence["dropped_registration_responses"], 2);
+    assert_eq!(evidence["registration_command_submissions"], 3);
+    assert_eq!(evidence["discovery_intake_submissions"], 1);
+    assert_eq!(evidence["discovery_requests_before_restart"], 3);
+    assert_eq!(evidence["discovery_requests_after_restart"], 0);
+    assert_eq!(evidence["daemon_revisions"], json!([1, 2]));
+    for check in [
+        "real_leserpentd",
+        "owner_private_unix_response_drop_proxy",
+        "two_registration_responses_lost_after_daemon_commit",
+        "compatibility_process_force_killed",
+        "distinct_recovery_process",
+        "exact_registration_command_replayed",
+        "persisted_discovery_reused_without_http_rediscovery",
+        "discovery_intake_applied_once_after_replay",
+        "fresh_credential_bound_after_restart",
+        "schema_v9_state_secret_free",
+        "pending_registration_cleared_after_compatibility_commit",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+
+    let serialized = serde_json::to_string(&evidence).unwrap();
+    for forbidden in [
+        "registration-initial-secret",
+        "registration-refreshed-secret",
+        "plan_token",
+        "command_id",
+        "192.168.",
+    ] {
+        assert!(
+            !serialized.contains(forbidden),
+            "retained registration evidence contains sensitive field {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     let summary = catalog.summary(20);
@@ -4686,6 +4738,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "credential-refresh-on-registration-replay",
         "persisted-discovery-replay",
         "pending-registration-import-rejection",
+        "real-process-registration-response-loss",
+        "forced-compatibility-process-restart",
+        "exact-registration-replay-after-process-restart",
+        "zero-rediscovery-registration-recovery",
+        "persisted-discovery-intake-after-replay",
+        "physical-linux-registration-recovery-proof",
     ] {
         assert!(
             domain
@@ -4699,7 +4757,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         domain
             .next_gate
-            .contains("real process/socket registration response loss")
+            .contains("Preserve cross-platform exact registration replay")
     );
     assert!(domain.evidence.iter().any(|item| {
         item.path
@@ -4714,6 +4772,18 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(domain.evidence.iter().any(|item| {
         item.path
             == "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeRegistrationCommandIdentityTests.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(domain.evidence.iter().any(|item| {
+        item.path == "apps/leserpent/tests/Leserpent.RuntimeDeletionCrashHarness/Program.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(domain.evidence.iter().any(|item| {
+        item.path == "scripts/validation/leserpent_registration_recovery.sh"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(domain.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/leserpent_registration_recovery_linux_x86_64_20260825.json"
             && item.state == EvidenceState::Present
     }));
 
@@ -8505,7 +8575,7 @@ fn native_status_cli_exposes_human_and_machine_views() {
         serde_json::from_slice(&summary.stdout).expect("summary must be JSON");
     assert_eq!(payload["schema_version"], STATUS_SCHEMA_VERSION);
     assert_eq!(payload["calibration"]["model"], STATUS_CALIBRATION_MODEL);
-    assert_eq!(payload["calibration"]["as_of"], "2026-08-24");
+    assert_eq!(payload["calibration"]["as_of"], "2026-08-25");
     assert_eq!(payload["deferred_cell_count"], 1);
     assert!(payload["overall_score"].is_u64());
     assert!(payload["portfolio_score"].is_u64());

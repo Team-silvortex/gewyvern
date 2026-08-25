@@ -832,6 +832,271 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
     }
 
     [Fact]
+    public async Task RegistrationLostResponsesRecoverAcrossCompatibilityProcessRestart()
+    {
+        var daemonBinary = Environment.GetEnvironmentVariable(
+            "LESERPENT_TEST_DAEMON_BIN");
+        if (string.IsNullOrWhiteSpace(daemonBinary) ||
+            OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var harnessAssembly = FindCrashHarnessAssembly();
+        Assert.True(
+            File.Exists(harnessAssembly),
+            $"crash harness was not built at {harnessAssembly}");
+        const string runtimeName = "Registration Recovery Runtime";
+        const string runtimeEndpoint = "http://127.0.0.1:49152";
+        var runtimeId = RuntimeRegistrationPolicy.BuildProposedRuntimeId(
+            runtimeName,
+            runtimeEndpoint);
+        var daemonSocketPath = TempSocket();
+        var proxySocketPath = TempSocket();
+        var databasePath = daemonSocketPath + ".db";
+        var statePath = daemonSocketPath + ".registration-state.json";
+        var ambiguousMarkerPath =
+            daemonSocketPath + ".registration-ambiguous.json";
+        var recoveryMarkerPath =
+            daemonSocketPath + ".registration-recovered.json";
+        using var daemon = StartDaemon(
+            daemonBinary,
+            databasePath,
+            daemonSocketPath);
+        Process? ambiguousHarness = null;
+        Process? recoveryHarness = null;
+        try
+        {
+            await WaitForSocketAsync(daemon, daemonSocketPath);
+            await using var proxy = new RegistrationResponseDropProxy(
+                proxySocketPath,
+                daemonSocketPath,
+                responsesToDrop: 2);
+            ambiguousHarness = StartCrashHarness(
+                harnessAssembly,
+                statePath,
+                proxySocketPath,
+                ambiguousMarkerPath,
+                runtimeId,
+                "registration_ambiguous");
+            await WaitForMarkerAsync(
+                ambiguousHarness,
+                ambiguousMarkerPath);
+            using var ambiguousMarker = JsonDocument.Parse(
+                await File.ReadAllBytesAsync(ambiguousMarkerPath));
+            var ambiguous = ambiguousMarker.RootElement;
+            Assert.Equal(
+                "runtime_registration_outcome_ambiguous",
+                ambiguous.GetProperty("error_code").GetString());
+            Assert.Equal(runtimeId, ambiguous
+                .GetProperty("runtime_id")
+                .GetString());
+            Assert.Equal(2, ambiguous
+                .GetProperty("attempt_count")
+                .GetInt32());
+            Assert.Equal(1, ambiguous
+                .GetProperty("pending_count")
+                .GetInt32());
+            var initialDiscoveryRequestCount = ambiguous
+                .GetProperty("discovery_request_count")
+                .GetInt32();
+            Assert.Equal(3, initialDiscoveryRequestCount);
+            Assert.True(ambiguous
+                .GetProperty("discovery_credentials_bound")
+                .GetBoolean());
+            Assert.True(ambiguous
+                .GetProperty("state_secret_free")
+                .GetBoolean());
+            Assert.Equal(JsonValueKind.Null, ambiguous
+                .GetProperty("expected_revision")
+                .ValueKind);
+            var commandId = ambiguous
+                .GetProperty("command_id")
+                .GetString();
+            Assert.NotNull(commandId);
+            Assert.Equal(32, commandId!.Length);
+            var firstProcessId = ambiguous
+                .GetProperty("process_id")
+                .GetInt32();
+
+            using (var afterLostResponses = await InspectAsync(
+                daemonSocketPath,
+                runtimeId))
+            {
+                var runtime = afterLostResponses.RootElement
+                    .GetProperty("response")
+                    .GetProperty("payload")
+                    .GetProperty("runtime");
+                Assert.Equal(1UL, runtime
+                    .GetProperty("revision")
+                    .GetUInt64());
+                Assert.False(runtime.TryGetProperty(
+                    "capabilities_observed_for_revision",
+                    out _));
+            }
+
+            ambiguousHarness.Kill(entireProcessTree: true);
+            Assert.True(ambiguousHarness.WaitForExit(5000));
+            Assert.NotEqual(0, ambiguousHarness.ExitCode);
+
+            recoveryHarness = StartCrashHarness(
+                harnessAssembly,
+                statePath,
+                proxySocketPath,
+                recoveryMarkerPath,
+                runtimeId,
+                "registration_recover");
+            await WaitForMarkerAsync(
+                recoveryHarness,
+                recoveryMarkerPath);
+            Assert.True(recoveryHarness.WaitForExit(5000));
+            Assert.True(
+                recoveryHarness.ExitCode == 0,
+                await recoveryHarness.StandardError.ReadToEndAsync());
+            using var recoveryMarker = JsonDocument.Parse(
+                await File.ReadAllBytesAsync(recoveryMarkerPath));
+            var recovered = recoveryMarker.RootElement;
+            Assert.Equal(runtimeId, recovered
+                .GetProperty("runtime_id")
+                .GetString());
+            var recoveryProcessId = recovered
+                .GetProperty("process_id")
+                .GetInt32();
+            Assert.NotEqual(firstProcessId, recoveryProcessId);
+            Assert.Equal(0, recovered
+                .GetProperty("pending_count")
+                .GetInt32());
+            var recoveryDiscoveryRequestCount = recovered
+                .GetProperty("discovery_request_count")
+                .GetInt32();
+            Assert.Equal(0, recoveryDiscoveryRequestCount);
+            Assert.True(recovered
+                .GetProperty("credential_refreshed")
+                .GetBoolean());
+            Assert.True(recovered
+                .GetProperty("state_secret_free")
+                .GetBoolean());
+
+            using (var afterRecovery = await InspectAsync(
+                daemonSocketPath,
+                runtimeId))
+            {
+                var runtime = afterRecovery.RootElement
+                    .GetProperty("response")
+                    .GetProperty("payload")
+                    .GetProperty("runtime");
+                Assert.Equal(2UL, runtime
+                    .GetProperty("revision")
+                    .GetUInt64());
+                Assert.Equal(
+                    "1.17.4",
+                    runtime.GetProperty("capabilities")
+                        .GetProperty("version")
+                        .GetString());
+                Assert.Equal(1UL, runtime
+                    .GetProperty("capabilities_observed_for_revision")
+                    .GetUInt64());
+                Assert.Equal(
+                    "gewyvern-api",
+                    runtime.GetProperty("status")
+                        .GetProperty("status_source")
+                        .GetString());
+            }
+
+            Assert.Equal(2, proxy.DroppedRegistrationResponseCount);
+            Assert.Equal(3, proxy.RegistrationCommandIds.Count);
+            Assert.All(
+                proxy.RegistrationCommandIds,
+                replayed => Assert.Equal(commandId, replayed));
+            Assert.Equal(1, proxy.DiscoveryIntakeCount);
+            Assert.Equal(2, proxy.QueryCount);
+            Assert.Null(proxy.Failure);
+
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["LESERPENT_STATE_PATH"] = statePath,
+                })
+                .Build();
+            var store = new ControlPlaneStateStore(
+                configuration,
+                new CrashTestEnvironment(
+                    Path.GetDirectoryName(statePath)!),
+                NullLogger<ControlPlaneStateStore>.Instance);
+            var persisted = Assert.IsType<PersistedControlPlaneState>(
+                store.Load());
+            Assert.Equal(9, persisted.SchemaVersion);
+            Assert.Empty(persisted.PendingRuntimeRegistrations!);
+            Assert.Single(persisted.Runtimes);
+            foreach (var path in new[] { statePath, statePath + ".bak" })
+            {
+                if (!File.Exists(path))
+                {
+                    continue;
+                }
+                var text = await File.ReadAllTextAsync(path);
+                Assert.DoesNotContain(
+                    "registration-initial-secret",
+                    text,
+                    StringComparison.Ordinal);
+                Assert.DoesNotContain(
+                    "registration-refreshed-secret",
+                    text,
+                    StringComparison.Ordinal);
+            }
+            WriteRegistrationRecoveryEvidenceIfRequested(
+                firstProcessId,
+                recoveryProcessId,
+                proxy.DroppedRegistrationResponseCount,
+                proxy.RegistrationCommandIds.Count,
+                proxy.DiscoveryIntakeCount,
+                initialDiscoveryRequestCount,
+                recoveryDiscoveryRequestCount);
+        }
+        finally
+        {
+            foreach (var harness in new[]
+            {
+                ambiguousHarness,
+                recoveryHarness,
+            })
+            {
+                if (harness is null)
+                {
+                    continue;
+                }
+                if (!harness.HasExited)
+                {
+                    harness.Kill(entireProcessTree: true);
+                    harness.WaitForExit(5000);
+                }
+                harness.Dispose();
+            }
+            if (!daemon.HasExited)
+            {
+                daemon.Kill(entireProcessTree: true);
+                daemon.WaitForExit(5000);
+            }
+            foreach (var path in new[]
+            {
+                daemonSocketPath,
+                proxySocketPath,
+                databasePath,
+                databasePath + "-journal",
+                databasePath + "-wal",
+                databasePath + "-shm",
+                statePath,
+                statePath + ".bak",
+                statePath + ".tmp",
+                ambiguousMarkerPath,
+                recoveryMarkerPath,
+            })
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    [Fact]
     public async Task RealDaemonRejectsReplacedWriterAndAcceptsFreshOwner()
     {
         var daemonBinary =
@@ -8783,6 +9048,303 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             {
                 everyPoisonRetriedThreeTimes.TrySetResult();
             }
+        }
+    }
+
+    private static void WriteRegistrationRecoveryEvidenceIfRequested(
+        int firstProcessId,
+        int recoveryProcessId,
+        int droppedResponseCount,
+        int registrationCommandCount,
+        int discoveryIntakeCount,
+        int initialDiscoveryRequestCount,
+        int recoveryDiscoveryRequestCount)
+    {
+        var evidencePath = Environment.GetEnvironmentVariable(
+            "LESERPENT_REGISTRATION_RECOVERY_EVIDENCE");
+        if (string.IsNullOrWhiteSpace(evidencePath))
+        {
+            return;
+        }
+
+        evidencePath = Path.GetFullPath(evidencePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(evidencePath)!);
+        var evidence = new
+        {
+            schema_version = 1,
+            observed_at = DateTimeOffset.UtcNow,
+            platform = Environment.OSVersion.Platform.ToString(),
+            architecture = System.Runtime.InteropServices.RuntimeInformation
+                .ProcessArchitecture
+                .ToString(),
+            forced_compatibility_process_terminations = 1,
+            dropped_registration_responses = droppedResponseCount,
+            registration_command_submissions = registrationCommandCount,
+            discovery_intake_submissions = discoveryIntakeCount,
+            discovery_requests_before_restart = initialDiscoveryRequestCount,
+            discovery_requests_after_restart = recoveryDiscoveryRequestCount,
+            daemon_revisions = new[] { 1, 2 },
+            checks = new
+            {
+                real_leserpentd = true,
+                owner_private_unix_response_drop_proxy = true,
+                two_registration_responses_lost_after_daemon_commit = true,
+                compatibility_process_force_killed = true,
+                distinct_recovery_process =
+                    firstProcessId != recoveryProcessId,
+                exact_registration_command_replayed = true,
+                persisted_discovery_reused_without_http_rediscovery = true,
+                discovery_intake_applied_once_after_replay = true,
+                fresh_credential_bound_after_restart = true,
+                schema_v9_state_secret_free = true,
+                pending_registration_cleared_after_compatibility_commit = true,
+            },
+        };
+        File.WriteAllText(
+            evidencePath,
+            JsonSerializer.Serialize(
+                evidence,
+                new JsonSerializerOptions { WriteIndented = true }) + "\n");
+    }
+
+    private sealed class RegistrationResponseDropProxy : IAsyncDisposable
+    {
+        private static readonly byte[] Newline = [(byte)'\n'];
+        private readonly string socketPath;
+        private readonly string daemonSocketPath;
+        private readonly Socket listener;
+        private readonly CancellationTokenSource shutdown = new();
+        private readonly Task runTask;
+        private readonly object sync = new();
+        private readonly List<string> registrationCommandIds = [];
+        private int responsesToDrop;
+        private int droppedRegistrationResponseCount;
+        private int discoveryIntakeCount;
+        private int queryCount;
+        private Exception? failure;
+
+        internal RegistrationResponseDropProxy(
+            string socketPath,
+            string daemonSocketPath,
+            int responsesToDrop)
+        {
+            this.socketPath = socketPath;
+            this.daemonSocketPath = daemonSocketPath;
+            this.responsesToDrop = responsesToDrop;
+            listener = BindPrivateSocket(socketPath);
+            runTask = RunAsync();
+        }
+
+        internal int DroppedRegistrationResponseCount =>
+            Volatile.Read(ref droppedRegistrationResponseCount);
+        internal int DiscoveryIntakeCount =>
+            Volatile.Read(ref discoveryIntakeCount);
+        internal int QueryCount => Volatile.Read(ref queryCount);
+        internal IReadOnlyList<string> RegistrationCommandIds
+        {
+            get
+            {
+                lock (sync)
+                {
+                    return registrationCommandIds.ToArray();
+                }
+            }
+        }
+        internal Exception? Failure
+        {
+            get
+            {
+                lock (sync)
+                {
+                    return failure;
+                }
+            }
+        }
+
+        private async Task RunAsync()
+        {
+            while (!shutdown.IsCancellationRequested)
+            {
+                try
+                {
+                    using var client = await listener.AcceptAsync(
+                        shutdown.Token);
+                    await ForwardAsync(client, shutdown.Token);
+                }
+                catch (OperationCanceledException)
+                    when (shutdown.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (ObjectDisposedException)
+                    when (shutdown.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception error)
+                {
+                    lock (sync)
+                    {
+                        failure = error;
+                    }
+                    return;
+                }
+            }
+        }
+
+        private async Task ForwardAsync(
+            Socket client,
+            CancellationToken cancellationToken)
+        {
+            var request = await ReadProxyFrameAsync(
+                client,
+                cancellationToken);
+            var shouldDrop = ClassifyRequest(request);
+            using var daemon = new Socket(
+                AddressFamily.Unix,
+                SocketType.Stream,
+                ProtocolType.Unspecified);
+            await daemon.ConnectAsync(
+                new UnixDomainSocketEndPoint(daemonSocketPath),
+                cancellationToken);
+            using (var daemonStream = new NetworkStream(
+                daemon,
+                ownsSocket: false))
+            {
+                await daemonStream.WriteAsync(
+                    request,
+                    cancellationToken);
+                await daemonStream.WriteAsync(
+                    Newline,
+                    cancellationToken);
+                await daemonStream.FlushAsync(cancellationToken);
+            }
+            daemon.Shutdown(SocketShutdown.Send);
+            var response = await ReadProxyFrameAsync(
+                daemon,
+                cancellationToken);
+            if (shouldDrop)
+            {
+                Interlocked.Increment(
+                    ref droppedRegistrationResponseCount);
+                client.Shutdown(SocketShutdown.Send);
+                return;
+            }
+
+            using var clientStream = new NetworkStream(
+                client,
+                ownsSocket: false);
+            await clientStream.WriteAsync(response, cancellationToken);
+            await clientStream.WriteAsync(Newline, cancellationToken);
+            await clientStream.FlushAsync(cancellationToken);
+            client.Shutdown(SocketShutdown.Send);
+        }
+
+        private bool ClassifyRequest(byte[] requestBytes)
+        {
+            using var document = JsonDocument.Parse(requestBytes);
+            var request = document.RootElement
+                .GetProperty("request")
+                .GetProperty("request");
+            var requestKind = request
+                .GetProperty("kind")
+                .GetString();
+            if (string.Equals(
+                requestKind,
+                "query",
+                StringComparison.Ordinal))
+            {
+                Interlocked.Increment(ref queryCount);
+                return false;
+            }
+            if (!string.Equals(
+                requestKind,
+                "command",
+                StringComparison.Ordinal))
+            {
+                return false;
+            }
+            var payload = request.GetProperty("payload");
+            var commandKind = payload
+                .GetProperty("command")
+                .GetProperty("kind")
+                .GetString();
+            if (string.Equals(
+                commandKind,
+                "runtime_discovery_intake",
+                StringComparison.Ordinal))
+            {
+                Interlocked.Increment(ref discoveryIntakeCount);
+                return false;
+            }
+            if (commandKind is not (
+                "runtime_register" or
+                "runtime_registration_update"))
+            {
+                return false;
+            }
+
+            lock (sync)
+            {
+                registrationCommandIds.Add(
+                    payload.GetProperty("command_id").GetString()
+                        ?? throw new InvalidDataException(
+                            "registration command omitted its command ID"));
+                if (responsesToDrop <= 0)
+                {
+                    return false;
+                }
+                responsesToDrop -= 1;
+                return true;
+            }
+        }
+
+        private static async Task<byte[]> ReadProxyFrameAsync(
+            Socket socket,
+            CancellationToken cancellationToken)
+        {
+            using var output = new MemoryStream();
+            var buffer = new byte[1024];
+            while (true)
+            {
+                var read = await socket.ReceiveAsync(
+                    buffer,
+                    SocketFlags.None,
+                    cancellationToken);
+                if (read == 0)
+                {
+                    throw new EndOfStreamException(
+                        "socket closed before a complete response frame");
+                }
+                var newline = Array.IndexOf(
+                    buffer,
+                    (byte)'\n',
+                    0,
+                    read);
+                output.Write(
+                    buffer,
+                    0,
+                    newline < 0 ? read : newline);
+                if (newline >= 0)
+                {
+                    return output.ToArray();
+                }
+            }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            shutdown.Cancel();
+            listener.Dispose();
+            try
+            {
+                await runTask;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            shutdown.Dispose();
+            TryDelete(socketPath);
         }
     }
 

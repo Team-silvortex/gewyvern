@@ -215,6 +215,15 @@ new discovery requests, and uses the caller's current credentials only for the
 local compatibility commit. The pending record is cleared after that commit;
 unresolved records cannot be imported from another state document.
 
+The real Unix-socket recovery campaign drops two registration responses only
+after `leserpentd` has committed them, force-kills the first compatibility
+process, then starts a second process over the same state. The restarted process
+replays the exact command identity, performs no HTTP rediscovery, applies the
+persisted discovery intake once, binds fresh credentials only in local memory,
+and clears the pending intent after the compatibility commit.
+The same entrypoint is retained on physical Linux x86_64 at
+`docs/fixtures/leserpent_registration_recovery_linux_x86_64_20260825.json`.
+
 ## Security Model
 
 The default security posture should remain conservative and local-first:

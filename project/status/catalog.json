@@ -4,7 +4,7 @@
   "checkpoint": "v1.17.4-to-v2.0.0-roadmap",
   "calibration": {
     "model": "priority-weighted-strength-v1",
-    "as_of": "2026-08-24"
+    "as_of": "2026-08-25"
   },
   "dimensions": {
     "architectures": [
@@ -1359,6 +1359,12 @@
           "later-revision-registration-identity-rotation",
           "delimiter-safe-registration-intent",
           "real-daemon-registration-idempotency-proof",
+          "real-process-registration-response-loss",
+          "forced-compatibility-process-restart",
+          "exact-registration-replay-after-process-restart",
+          "zero-rediscovery-registration-recovery",
+          "persisted-discovery-intake-after-replay",
+          "physical-linux-registration-recovery-proof",
           "schema-v9-registration-intent-state",
           "pre-effect-registration-intent-persistence",
           "secret-free-registration-recovery-state",
@@ -1399,9 +1405,12 @@
         { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeReadProjectionTests.cs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/DaemonRuntimeRegistrationAuthorityTests.cs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeRegistrationExecutionServiceTests.cs", "state": "present" },
-        { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeRegistrationCommandIdentityTests.cs", "state": "present" }
+        { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeRegistrationCommandIdentityTests.cs", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent/tests/Leserpent.RuntimeDeletionCrashHarness/Program.cs", "state": "present" },
+        { "kind": "test", "path": "scripts/validation/leserpent_registration_recovery.sh", "state": "present" },
+        { "kind": "release", "path": "docs/fixtures/leserpent_registration_recovery_linux_x86_64_20260825.json", "state": "present" }
       ],
-      "next_gate": "Inject real process/socket registration response loss plus a forced compatibility-process restart, then retain the exact-replay and zero-rediscovery proof on physical Linux x86_64."
+      "next_gate": "Preserve cross-platform exact registration replay, fresh local credential binding, persisted discovery intake, and zero rediscovery across process restart whenever wire or state schemas evolve."
     },
     {
       "id": "leserpent-2/transport-protocol/wire-compatibility",

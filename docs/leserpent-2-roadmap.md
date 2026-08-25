@@ -1005,8 +1005,14 @@ Recovery uses fresh caller credentials but never repeats discovery, and clears
 the record only after the typed receipt reaches the local compatibility state.
 Schema migration initializes an empty queue, semantic validation rejects
 tampered command IDs, and persistence import rejects unresolved intents. The
-next gate is a real process/socket lost-response plus forced-restart campaign,
-followed by retained physical Linux x86_64 evidence.
+real process/socket gate now passes locally: an owner-private proxy drops two
+post-commit registration responses, the first compatibility process is
+force-killed, and a fresh process exactly replays the command before applying
+the persisted discovery intake once with zero HTTP rediscovery. The same
+entrypoint now passes on macOS arm64 and physical Linux x86_64, with the Linux
+result retained as a secret-free fixture. Registration work now returns to a
+preservation gate: wire or state evolution must keep exact replay, fresh local
+credential binding, and zero rediscovery across process restart.
 Cleanup and generic
 unregistration now have an
 explicit confirmed result contract: a daemon schema-v14 transaction fences all

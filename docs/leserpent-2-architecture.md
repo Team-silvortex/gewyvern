@@ -972,9 +972,18 @@ closed with `runtime_registration_recovery_pending`. Restart recovery reuses
 the persisted observations without rediscovery and accepts only fresh caller
 credentials for the local compatibility commit. The intent is removed only
 after the authoritative receipt is projected locally; persistence import
-rejects unresolved registration intents. The next proof boundary injects a
-real process/socket response loss and forced restart, then retains physical
-Linux x86_64 evidence for this same recovery path.
+rejects unresolved registration intents. A real process/socket campaign now
+drops both registration responses after the Rust daemon commits, force-kills
+the first compatibility process, and starts a second process over the same
+schema-v9 state. It proves the same command ID is submitted three times, HTTP
+discovery remains at zero after restart, the persisted discovery intake is
+applied once, fresh credentials reach only the compatibility store, and the
+daemon advances from registration revision 1 to intake revision 2. The same
+entrypoint now passes on macOS arm64 and physical Linux x86_64; the Linux run is
+retained in
+`docs/fixtures/leserpent_registration_recovery_linux_x86_64_20260825.json`.
+Future registration changes must preserve this cross-platform exact-replay and
+zero-rediscovery proof.
 Sidecar status, including its bounded memory-slot summary, now follows the same
 revision-fenced journal and strict read projection. Registration, individual
 refresh, recovery, Fleet refresh, and Orchestra recovery all compose available

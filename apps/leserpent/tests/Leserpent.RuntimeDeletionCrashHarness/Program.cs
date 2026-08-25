@@ -1,3 +1,6 @@
+using System.Net;
+using System.Text;
+using System.Text.Json;
 using Leserpent.ControlPlane;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
@@ -59,6 +62,11 @@ var configuration = new ConfigurationBuilder()
         ["LESERPENT_DAEMON_SOCKET"] = socketPath,
         ["LESERPENT_DAEMON_TOKEN"] = token,
         ["LESERPENT_DAEMON_REGISTRATION_TIMEOUT_MS"] = "10000",
+        ["LESERPENT_ALLOW_PUBLIC_ENDPOINTS"] = phase.StartsWith(
+            "registration_",
+            StringComparison.Ordinal)
+                ? "true"
+                : null,
     })
     .Build();
 var environment = new HarnessEnvironment
@@ -84,6 +92,27 @@ var registry = new RegistryService(stateStore, orchestraRunStore);
 var authority = new DaemonRuntimeRegistrationAuthority(configuration);
 
 if (string.Equals(
+    phase,
+    "registration_ambiguous",
+    StringComparison.Ordinal) ||
+    string.Equals(
+        phase,
+        "registration_recover",
+        StringComparison.Ordinal))
+{
+    await RunRegistrationScenarioAsync(
+        registry,
+        authority,
+        configuration,
+        statePath,
+        markerPath,
+        runtimeId,
+        recover: string.Equals(
+            phase,
+            "registration_recover",
+            StringComparison.Ordinal));
+}
+else if (string.Equals(
     phase,
     "retry_rollover_persist",
     StringComparison.Ordinal))
@@ -354,6 +383,164 @@ else
 
 return 0;
 
+static async Task RunRegistrationScenarioAsync(
+    RegistryService registry,
+    DaemonRuntimeRegistrationAuthority authority,
+    IConfiguration configuration,
+    string statePath,
+    string markerPath,
+    string runtimeId,
+    bool recover)
+{
+    const string runtimeName = "Registration Recovery Runtime";
+    const string runtimeEndpoint = "http://127.0.0.1:49152";
+    const string initialCredential = "registration-initial-secret";
+    const string refreshedCredential = "registration-refreshed-secret";
+    var credential = recover
+        ? refreshedCredential
+        : initialCredential;
+    var discoveryHandler = new HarnessRegistrationDiscoveryHandler(
+        credential,
+        rejectRequests: recover);
+    using var discoveryClient = new HttpClient(discoveryHandler);
+    var security = new ControlPlaneSecurityPolicy(configuration);
+    var discovery = new CapabilityDiscoveryService(
+        discoveryClient,
+        security);
+    var plans = new RuntimeRegistrationPlanProjectionService(
+        registry,
+        authority);
+    var registrations = new RuntimeRegistrationExecutionService(
+        registry,
+        discovery,
+        authority,
+        plans,
+        new RuntimeRegistrationCommitProjectionService(),
+        security);
+    var preview = new RuntimeRegistrationPlanRequest(
+        runtimeName,
+        runtimeEndpoint);
+    var plan = await plans.BuildAsync(
+        preview,
+        CancellationToken.None);
+    if (!string.Equals(
+            plan.PlannedRuntimeId,
+            runtimeId,
+            StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "registration recovery harness received a plan for another runtime");
+    }
+    if (recover &&
+        !string.Equals(
+            plan.Reason,
+            RuntimeRegistrationPolicy
+                .RuntimeRegistrationRecoveryPendingReason,
+            StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "registration recovery harness did not receive the persisted recovery plan");
+    }
+    var request = new RuntimeRegistrationRequest(
+        runtimeName,
+        runtimeEndpoint,
+        credential,
+        Tags: new RuntimeTags("prod", "recovery", "capture"),
+        FetchCapabilities: true,
+        RegistrationPlanToken: plan.PlanToken);
+
+    if (!recover)
+    {
+        try
+        {
+            _ = await registrations.ExecuteAsync(
+                request,
+                CancellationToken.None);
+            throw new InvalidOperationException(
+                "registration ambiguity harness unexpectedly converged");
+        }
+        catch (RuntimeRegistrationExecutionException error)
+            when (string.Equals(
+                error.Code,
+                "runtime_registration_outcome_ambiguous",
+                StringComparison.Ordinal))
+        {
+            var intent = registry
+                .ListPendingRuntimeRegistrations()
+                .Single();
+            var persisted = await File.ReadAllTextAsync(statePath);
+            var stateSecretFree =
+                !persisted.Contains(
+                    initialCredential,
+                    StringComparison.Ordinal) &&
+                !persisted.Contains(
+                    refreshedCredential,
+                    StringComparison.Ordinal) &&
+                !persisted.Contains(
+                    plan.PlanToken,
+                    StringComparison.Ordinal);
+            await WriteMarkerAsync(
+                markerPath,
+                JsonSerializer.Serialize(new
+                {
+                    schema_version = 1,
+                    phase = "registration_ambiguous",
+                    process_id = Environment.ProcessId,
+                    error_code = error.Code,
+                    runtime_id = runtimeId,
+                    command_id = intent.CommandId,
+                    expected_revision = intent.ExpectedRevision,
+                    attempt_count = intent.AttemptCount,
+                    pending_count = 1,
+                    discovery_request_count =
+                        discoveryHandler.RequestCount,
+                    discovery_credentials_bound =
+                        discoveryHandler.CredentialsBound,
+                    state_secret_free = stateSecretFree,
+                }) + "\n");
+            await Task.Delay(Timeout.InfiniteTimeSpan);
+        }
+        return;
+    }
+
+    var registered = await registrations.ExecuteAsync(
+        request,
+        CancellationToken.None);
+    var access = registry.GetRuntimeControlAccess(
+        registered.RuntimeId);
+    var persistedAfterRecovery = await File.ReadAllTextAsync(statePath);
+    var recoveredStateSecretFree =
+        !persistedAfterRecovery.Contains(
+            initialCredential,
+            StringComparison.Ordinal) &&
+        !persistedAfterRecovery.Contains(
+            refreshedCredential,
+            StringComparison.Ordinal) &&
+        !persistedAfterRecovery.Contains(
+            plan.PlanToken,
+            StringComparison.Ordinal);
+    await WriteMarkerAsync(
+        markerPath,
+        JsonSerializer.Serialize(new
+        {
+            schema_version = 1,
+            phase = "registration_recover",
+            process_id = Environment.ProcessId,
+            runtime_id = registered.RuntimeId,
+            pending_count = registry
+                .ListPendingRuntimeRegistrations()
+                .Count,
+            discovery_request_count =
+                discoveryHandler.RequestCount,
+            recovery_plan_revision = plan.ExpectedRevision,
+            credential_refreshed = string.Equals(
+                access?.AdminToken,
+                refreshedCredential,
+                StringComparison.Ordinal),
+            state_secret_free = recoveredStateSecretFree,
+        }) + "\n");
+}
+
 static RuntimeRegistrationRequest CrashBoundaryRequest(string runtimeId) =>
     new(
         $"Crash Boundary Runtime {runtimeId}",
@@ -422,6 +609,54 @@ internal sealed class HarnessEnvironment : IHostEnvironment
     public string ApplicationName { get; set; } = "Leserpent.RuntimeDeletionCrashHarness";
     public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
     public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+}
+
+internal sealed class HarnessRegistrationDiscoveryHandler(
+    string expectedToken,
+    bool rejectRequests) : HttpMessageHandler
+{
+    private int requestCount;
+
+    internal int RequestCount => Volatile.Read(ref requestCount);
+    internal bool CredentialsBound { get; private set; } = true;
+
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        Interlocked.Increment(ref requestCount);
+        if (rejectRequests)
+        {
+            throw new InvalidOperationException(
+                "registration recovery attempted HTTP rediscovery");
+        }
+        var suppliedToken = request.Headers.TryGetValues(
+            CapabilityDiscoveryService.GewyvernAdminTokenHeader,
+            out var values)
+                ? values.SingleOrDefault()
+                : null;
+        CredentialsBound &= string.Equals(
+            suppliedToken,
+            expectedToken,
+            StringComparison.Ordinal);
+        var payload = request.RequestUri?.AbsolutePath switch
+        {
+            "/v1/capabilities" =>
+                """{"service":"gewyvern-api","version":"1.17.4","latest_snapshot":true,"authenticated_deployment":true,"serve_required":true,"external_sidecar_context":true,"target_path_segment_encoding":"percent-encoding","target_direct_path_chars":"A-Z a-z 0-9 . _ ~ :","endpoints":["/v1/capabilities","/v1/deployments"]}""",
+            "/v1/latest/meta" =>
+                """{"updated_unix_ms":1,"kind":"capture","target_count":2,"has_summary_json":true,"has_analysis_json":true,"has_training_example_json":true,"has_export_json":true,"has_report_json":true,"has_report_html":true,"has_external_sidecar_context":false,"has_external_evidence_chain_enrichment":false,"has_external_diagnostic_opinion":false}""",
+            "/v1/runtime/resilience.json" =>
+                """{"degraded":false,"status":"ready","summary":"healthy","socket_service":{"status":"ready","consecutive_idle_timeouts":0,"total_idle_timeouts":0}}""",
+            _ => "{}",
+        };
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                payload,
+                Encoding.UTF8,
+                "application/json"),
+        });
+    }
 }
 
 internal sealed class FailingUnregisterAuthority(

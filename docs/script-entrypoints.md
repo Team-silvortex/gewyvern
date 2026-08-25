@@ -855,6 +855,30 @@ evidence is retained under
 remains the package fixture while release orchestration stays in the native
 validation harness.
 
+### I want to prove registration lost-response recovery
+
+Run:
+
+```bash
+scripts/validation/leserpent_registration_recovery.sh
+```
+
+The entrypoint builds the production Rust `leserpentd`, locked-restores and
+builds the .NET compatibility projects, then runs the real Unix-socket recovery
+campaign. An owner-private proxy drops two registration responses after daemon
+commit; the first compatibility process is force-killed and a fresh process
+must replay the same command, reuse persisted discovery without HTTP requests,
+apply discovery intake once, bind only the fresh local credential, and clear
+schema-v9 pending state. Evidence is written under `target/validation/` with a
+platform-specific name. The retained physical Linux x86_64 result is
+`docs/fixtures/leserpent_registration_recovery_linux_x86_64_20260825.json`.
+
+Use the trusted host wrapper to repeat the same proof remotely:
+
+```bash
+scripts/remote/run_on_linux_host.sh -- scripts/validation/leserpent_registration_recovery.sh
+```
+
 ### I want to prove command parity and restart recovery
 
 Run:
