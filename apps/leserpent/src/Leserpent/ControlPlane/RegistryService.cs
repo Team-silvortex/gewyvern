@@ -243,7 +243,8 @@ public sealed partial class RegistryService
             authority.Status,
             authority.SidecarStatus,
             authority.RuntimeId,
-            preserveCapabilityTelemetry: capabilityDiscovery is null);
+            preserveCapabilityTelemetry: capabilityDiscovery is null,
+            authorityBound: true);
     }
 
     public IReadOnlyList<RuntimeSummary> ListRuntimes(RuntimeListFilter? filter = null) =>
@@ -831,6 +832,14 @@ public sealed partial class RegistryService
                 RuntimeIds = intent.RuntimeIds.ToArray(),
             })
             .ToArray();
+
+    internal bool IsRuntimeDeletionPending(string runtimeId)
+    {
+        lock (orchestraRunSync)
+        {
+            return deletingRuntimes.Contains(runtimeId);
+        }
+    }
 
     public IReadOnlyList<PersistedRuntimeDeletionRetryAudit>
         ListRuntimeDeletionRetryAudit() =>
@@ -2367,7 +2376,8 @@ public sealed partial class RegistryService
         RuntimeStatusSnapshot status,
         RuntimeSidecarStatusSnapshot? sidecarStatus,
         string? runtimeId = null,
-        bool preserveCapabilityTelemetry = false)
+        bool preserveCapabilityTelemetry = false,
+        bool authorityBound = false)
     {
         RequireControlPlaneWriter();
         lock (runtimeRegistrationSync)
@@ -2381,7 +2391,8 @@ public sealed partial class RegistryService
                 status,
                 sidecarStatus,
                 runtimeId,
-                preserveCapabilityTelemetry);
+                preserveCapabilityTelemetry,
+                authorityBound);
         }
     }
 
@@ -2394,31 +2405,47 @@ public sealed partial class RegistryService
         RuntimeStatusSnapshot status,
         RuntimeSidecarStatusSnapshot? sidecarStatus,
         string? runtimeId,
-        bool preserveCapabilityTelemetry)
+        bool preserveCapabilityTelemetry,
+        bool authorityBound)
     {
-        var plan = GetRuntimeRegistrationPlan(new RuntimeRegistrationPlanRequest(
-            request.Name,
-            request.Endpoint,
-            request.SidecarEndpoint));
-        if (!plan.Allowed)
+        string? existingRuntimeId;
+        if (authorityBound)
         {
-            throw new RuntimeRegistrationPlanException(
-                "runtime endpoint is already registered to another runtime",
-                plan);
+            if (string.IsNullOrWhiteSpace(runtimeId))
+            {
+                throw new ArgumentException(
+                    "an authority-bound registration requires a runtime ID",
+                    nameof(runtimeId));
+            }
+            existingRuntimeId = runtimeId;
         }
-        if (!string.IsNullOrWhiteSpace(request.RegistrationPlanToken) &&
-            !string.Equals(request.RegistrationPlanToken, plan.PlanToken, StringComparison.Ordinal))
+        else
         {
-            throw new RuntimeRegistrationPlanException(
-                "runtime registration plan changed; review the current target before retrying",
-                plan);
+            var plan = GetRuntimeRegistrationPlan(new RuntimeRegistrationPlanRequest(
+                request.Name,
+                request.Endpoint,
+                request.SidecarEndpoint));
+            if (!plan.Allowed)
+            {
+                throw new RuntimeRegistrationPlanException(
+                    "runtime endpoint is already registered to another runtime",
+                    plan);
+            }
+            if (!string.IsNullOrWhiteSpace(request.RegistrationPlanToken) &&
+                !string.Equals(request.RegistrationPlanToken, plan.PlanToken, StringComparison.Ordinal))
+            {
+                throw new RuntimeRegistrationPlanException(
+                    "runtime registration plan changed; review the current target before retrying",
+                    plan);
+            }
+            existingRuntimeId = plan.ExistingRuntimeId;
         }
 
         var now = DateTimeOffset.UtcNow;
         var tags = NormalizeTags(request.Tags);
-        var existing = plan.ExistingRuntimeId is null
+        var existing = existingRuntimeId is null
             ? null
-            : runtimes.GetValueOrDefault(plan.ExistingRuntimeId);
+            : runtimes.GetValueOrDefault(existingRuntimeId);
 
         if (existing is not null)
         {

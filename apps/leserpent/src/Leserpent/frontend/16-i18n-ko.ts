@@ -283,6 +283,7 @@ translations.ko = mergeTranslations(translations.en, {
       blockedEndpoint: "등록 차단: 엔드포인트는 http:// 또는 https:// 로 시작하고 유효한 URL 이어야 합니다.",
       blockedSidecarEndpoint: "등록 차단: 사이드카 엔드포인트는 http:// 또는 https:// 로 시작하고 유효한 URL 이어야 합니다.",
       blockedDuplicate: "등록 차단: {reason} 이(가) {name} ({endpoint}) 에 이미 존재합니다.",
+      deletionInProgress: "이 런타임을 삭제하는 동안 등록이 일시 중지됩니다. 정리가 끝난 후 계획을 다시 확인하세요.",
       duplicateNameAndEndpoint: "이름과 엔드포인트",
       duplicateName: "이름",
       duplicateEndpoint: "엔드포인트",

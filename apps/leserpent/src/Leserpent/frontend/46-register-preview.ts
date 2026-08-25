@@ -3,6 +3,9 @@
 
 function registrationPlanConflictMessage(plan) {
   if (!plan || plan.allowed) return "";
+  if (plan.reason === "runtime_deletion_in_progress") {
+    return t("register.deletionInProgress");
+  }
   return t("register.blockedDuplicate", {
     reason: t("register.duplicateEndpoint"),
     name: plan.existingRuntimeName,

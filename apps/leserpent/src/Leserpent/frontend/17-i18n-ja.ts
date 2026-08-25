@@ -324,6 +324,7 @@ translations.ja = mergeTranslations(translations.en, {
       capabilityEnabled: "有効",
       capabilityDisabled: "無効",
       blockedDuplicate: "登録はブロックされました: {reason} はすでに {name} ({endpoint}) に存在します。",
+      deletionInProgress: "このランタイムの削除中は登録が一時停止されます。クリーンアップ完了後にプランを再確認してください。",
       duplicateNameAndEndpoint: "名前と endpoint",
       duplicateName: "名前",
       duplicateEndpoint: "endpoint",

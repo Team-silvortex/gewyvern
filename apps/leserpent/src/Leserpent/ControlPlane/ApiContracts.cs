@@ -196,6 +196,9 @@ public sealed record RuntimeRegistrationPlan(
     string? ExistingRuntimeId,
     string? ExistingRuntimeName,
     string? ExistingRuntimeEndpoint,
+    string? PlannedRuntimeId,
+    ulong? ExpectedRevision,
+    bool AuthorityBound,
     string PlanToken);
 
 public sealed record RuntimeRecoveryCommandRequest(string Kind);

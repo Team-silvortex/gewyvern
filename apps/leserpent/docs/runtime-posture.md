@@ -177,6 +177,16 @@ enabled authority that omits this receipt fails closed; runtime and sidecar
 credentials, plus capability-fetch telemetry, remain only
 in the managed store.
 
+Registration planning is daemon-authoritative whenever daemon IPC is enabled.
+The plan endpoint reads one daemon snapshot and returns `plannedRuntimeId`,
+`expectedRevision`, and `authorityBound`; its v2 token also binds the canonical
+runtime endpoint, optional sidecar endpoint, action, authority, ID, and
+revision. The read is effect-free and contains no credentials. A managed-only
+runtime ID may be reused as a create migration hint only when the daemon does
+not own it, while deletion-reserved IDs produce a rejected plan. The write
+endpoint requires and rebuilds that plan, then supplies its reviewed revision
+to the daemon command without a separate update inspection.
+
 ## Security Model
 
 The default security posture should remain conservative and local-first:

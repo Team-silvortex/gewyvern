@@ -34,6 +34,8 @@ public sealed class OperatorGuardrailContractTests
         Assert.Contains("state.uiActions.has(\"register-runtime\")", app, StringComparison.Ordinal);
         Assert.Contains("/v1/runtimes/registration-plan", app, StringComparison.Ordinal);
         Assert.Contains("registrationPlanToken: registrationPlan.planToken", app, StringComparison.Ordinal);
+        Assert.Contains("plan.reason === \"runtime_deletion_in_progress\"", app, StringComparison.Ordinal);
+        Assert.Contains("register.deletionInProgress", app, StringComparison.Ordinal);
         Assert.DoesNotContain("function findDuplicateRuntime(", app, StringComparison.Ordinal);
         var planDraftStart = app.IndexOf("function registrationPlanDraft()", StringComparison.Ordinal);
         var planDraftEnd = app.IndexOf("function registrationPlanDraftKey(", planDraftStart, StringComparison.Ordinal);

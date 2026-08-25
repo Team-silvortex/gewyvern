@@ -693,6 +693,139 @@ public sealed class RuntimeReadProjectionTests
     }
 
     [Fact]
+    public async Task RegistrationPlanUsesDaemonIdentityRevisionAndSidecarIntent()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            var runtime = Projection("runtime-registration-plan") with
+            {
+                Revision = 41,
+            };
+            var daemon = new FakeDaemonReader(true, new[] { runtime });
+            var plans = new RuntimeRegistrationPlanProjectionService(
+                registry,
+                daemon);
+            var request = new RuntimeRegistrationPlanRequest(
+                runtime.Name.ToUpperInvariant(),
+                "https://replacement.invalid",
+                "https://sidecar-a.invalid");
+
+            var plan = await plans.BuildAsync(request, CancellationToken.None);
+
+            Assert.True(plan.Allowed);
+            Assert.Equal(RuntimeRegistrationPolicy.UpdateAction, plan.Action);
+            Assert.Equal(runtime.RuntimeId, plan.ExistingRuntimeId);
+            Assert.Equal(runtime.RuntimeId, plan.PlannedRuntimeId);
+            Assert.Equal(runtime.Endpoint, plan.ExistingRuntimeEndpoint);
+            Assert.Equal(41UL, plan.ExpectedRevision);
+            Assert.True(plan.AuthorityBound);
+            Assert.Equal(1, daemon.SnapshotCalls);
+            Assert.Equal(0, daemon.ListCalls);
+            Assert.Equal(0, daemon.InspectCalls);
+
+            var advancedPlan = await new RuntimeRegistrationPlanProjectionService(
+                registry,
+                new FakeDaemonReader(true, new[]
+                {
+                    runtime with { Revision = 42 },
+                })).BuildAsync(request, CancellationToken.None);
+            var changedSidecarPlan = await plans.BuildAsync(
+                request with { SidecarEndpoint = "https://sidecar-b.invalid" },
+                CancellationToken.None);
+
+            Assert.NotEqual(plan.PlanToken, advancedPlan.PlanToken);
+            Assert.NotEqual(plan.PlanToken, changedSidecarPlan.PlanToken);
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public async Task RegistrationCreatePlanReusesUnmigratedManagedIdWithoutClaimingAnUpdate()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            var managed = registry.RegisterRuntime(new RuntimeRegistrationRequest(
+                "Legacy Runtime",
+                "https://managed.invalid",
+                "managed-secret"));
+            var daemon = new FakeDaemonReader(
+                true,
+                Array.Empty<DaemonRuntimeProjection>());
+            var plans = new RuntimeRegistrationPlanProjectionService(
+                registry,
+                daemon);
+            var request = new RuntimeRegistrationPlanRequest(
+                "LEGACY RUNTIME",
+                "https://authority.invalid");
+
+            var first = await plans.BuildAsync(request, CancellationToken.None);
+            var second = await plans.BuildAsync(request, CancellationToken.None);
+
+            Assert.True(first.Allowed);
+            Assert.Equal(RuntimeRegistrationPolicy.CreateAction, first.Action);
+            Assert.Null(first.ExistingRuntimeId);
+            Assert.Equal(managed.RuntimeId, first.PlannedRuntimeId);
+            Assert.Null(first.ExpectedRevision);
+            Assert.True(first.AuthorityBound);
+            Assert.Equal(first.PlanToken, second.PlanToken);
+            Assert.Equal(2, daemon.SnapshotCalls);
+            Assert.Equal(0, daemon.ListCalls);
+            Assert.Equal(0, daemon.InspectCalls);
+            Assert.DoesNotContain("managed-secret", first.ToString());
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public async Task RegistrationPlanRejectsManagedIdReservedForDeletion()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            var managed = registry.RegisterRuntime(new RuntimeRegistrationRequest(
+                "Deleting Runtime",
+                "https://managed.invalid",
+                "managed-secret"));
+            using var deletion = registry.ReserveRuntimeDeletion(
+                new[] { managed.RuntimeId });
+            var daemon = new FakeDaemonReader(
+                true,
+                Array.Empty<DaemonRuntimeProjection>());
+            var plans = new RuntimeRegistrationPlanProjectionService(
+                registry,
+                daemon);
+
+            var plan = await plans.BuildAsync(
+                new RuntimeRegistrationPlanRequest(
+                    "Deleting Runtime",
+                    "https://authority.invalid"),
+                CancellationToken.None);
+
+            Assert.False(plan.Allowed);
+            Assert.Equal(RuntimeRegistrationPolicy.RejectAction, plan.Action);
+            Assert.Equal(
+                RuntimeRegistrationPolicy.RuntimeDeletionInProgressReason,
+                plan.Reason);
+            Assert.Equal(managed.RuntimeId, plan.PlannedRuntimeId);
+            Assert.Null(plan.ExpectedRevision);
+            Assert.True(plan.AuthorityBound);
+            Assert.Equal(1, daemon.SnapshotCalls);
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
     public void RegistrationReceiptBindsAuthorityProjectionAndKeepsCredentialsLocal()
     {
         var (registry, statePath) = CreateRegistry();
@@ -802,6 +935,50 @@ public sealed class RuntimeReadProjectionTests
             Assert.Equal(
                 "rotated-sidecar-secret",
                 registry.GetRuntimeSidecarAccess(runtimeId)?.SidecarAdminToken);
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public void AuthorityBoundRegistrationWriteUsesReceiptRuntimeIdOverManagedTopology()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            const string runtimeId = "runtime-authority-write";
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "Managed Stale",
+                    "https://managed.invalid",
+                    "old-secret"),
+                runtimeId);
+            var runtime = Projection(runtimeId) with
+            {
+                Revision = 17,
+            };
+            var request = new RuntimeRegistrationRequest(
+                runtime.Name,
+                runtime.Endpoint,
+                "new-secret",
+                Tags: runtime.Tags,
+                SidecarEndpoint: runtime.SidecarEndpoint,
+                SidecarAdminToken: "new-sidecar-secret",
+                RegistrationPlanToken: "daemon-authoritative-plan-token");
+
+            var registered = registry.RegisterRuntimeFromAuthority(
+                request,
+                runtime);
+
+            Assert.Equal(runtimeId, registered.RuntimeId);
+            Assert.Equal(runtime.Name, registered.Name);
+            Assert.Equal(runtime.Endpoint, registered.Endpoint);
+            Assert.Single(registry.ListRuntimes());
+            Assert.Equal(
+                "new-secret",
+                registry.GetRuntimeControlAccess(runtimeId)?.AdminToken);
         }
         finally
         {
@@ -990,25 +1167,37 @@ public sealed class RuntimeReadProjectionTests
         IReadOnlyList<DaemonRuntimeProjection> runtimes) : IDaemonRuntimeProjectionReader
     {
         public bool Enabled => enabled;
+        public int ListCalls { get; private set; }
+        public int SnapshotCalls { get; private set; }
+        public int InspectCalls { get; private set; }
 
         public Task<IReadOnlyList<DaemonRuntimeProjection>> ListAsync(
             RuntimeListFilter filter,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<DaemonRuntimeProjection>>(runtimes
+            CancellationToken cancellationToken)
+        {
+            ListCalls += 1;
+            return Task.FromResult<IReadOnlyList<DaemonRuntimeProjection>>(runtimes
                 .Where(runtime => string.IsNullOrWhiteSpace(filter.Environment)
                     || string.Equals(runtime.Tags.Environment, filter.Environment, StringComparison.OrdinalIgnoreCase))
                 .ToArray());
+        }
 
         public Task<DaemonRuntimeProjectionSnapshot> SnapshotAsync(
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new DaemonRuntimeProjectionSnapshot(
+            CancellationToken cancellationToken)
+        {
+            SnapshotCalls += 1;
+            return Task.FromResult(new DaemonRuntimeProjectionSnapshot(
                 1,
                 runtimes));
+        }
 
         public Task<DaemonRuntimeProjection?> InspectAsync(
             string runtimeId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(runtimes.FirstOrDefault(runtime => runtime.RuntimeId == runtimeId));
+            CancellationToken cancellationToken)
+        {
+            InspectCalls += 1;
+            return Task.FromResult(runtimes.FirstOrDefault(runtime => runtime.RuntimeId == runtimeId));
+        }
     }
 
     private sealed class TestEnvironment(string contentRootPath) : IHostEnvironment

@@ -937,9 +937,18 @@ inspection is needed. The initial compatibility write and
 response are then rebuilt from the final daemon projection; receiptless
 authoritative registration fails closed, while credentials and capability-fetch
 telemetry remain managed-only. The next
-boundary binds reviewed registration plans to daemon-authoritative runtime IDs
-and revisions so updates execute without a pre-command reinspection, while
-create plans remain effect-free and credentials stay outside plan state.
+registration boundary is now authority-bound as well. A configured plan read
+uses one daemon snapshot and returns the planned runtime ID, expected revision,
+and authority kind. Its v2 token binds canonical name, runtime endpoint,
+optional sidecar endpoint, action, authority, runtime ID, and revision. Create
+planning remains effect-free; an unmigrated managed ID is only a create-time
+migration hint when the daemon does not already own it, and an ID reserved for
+deletion is rejected. Registration rebuilds and requires the current daemon
+plan, then sends its reviewed revision directly to update commands without a
+pre-command inspection. Credentials never enter plan state. The next boundary
+moves plan validation, credential-bound discovery, typed daemon commit, and
+compatibility projection behind one shared registration execution coordinator
+so Web and future native adapters cannot diverge in transaction choreography.
 Sidecar status, including its bounded memory-slot summary, now follows the same
 revision-fenced journal and strict read projection. Registration, individual
 refresh, recovery, Fleet refresh, and Orchestra recovery all compose available

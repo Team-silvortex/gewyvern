@@ -398,6 +398,7 @@ translations.en = {
       blockedEndpoint: "Registration blocked: endpoint must start with http:// or https:// and be a valid URL.",
       blockedSidecarEndpoint: "Registration blocked: sidecar endpoint must start with http:// or https:// and be a valid URL.",
       blockedDuplicate: "Registration blocked: {reason} already exists on {name} ({endpoint}).",
+      deletionInProgress: "Registration is paused while this runtime is being deleted. Wait for cleanup to finish, then review the plan again.",
       duplicateNameAndEndpoint: "name and endpoint",
       duplicateName: "name",
       duplicateEndpoint: "endpoint",

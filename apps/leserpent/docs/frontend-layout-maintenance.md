@@ -65,6 +65,10 @@ plan token with the real registration. The control plane owns these rules:
 - an existing name produces an idempotent `update` that preserves runtime ID
 - an endpoint already owned by another name produces `reject`
 - canonically equivalent HTTP endpoints cannot bypass uniqueness
+- daemon-backed plans expose the planned runtime ID and expected revision
+- plan-token v2 binds runtime, sidecar, action, authority, ID, and revision
+- a daemon-backed registration must submit a current plan token
+- an ID reserved for deletion produces `runtime_deletion_in_progress`
 - a create/update transition after preview invalidates the stale plan token
 
 Suggested names and immediate URL-shape hints may remain browser-local because

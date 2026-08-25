@@ -973,9 +973,17 @@ fence intake, whose receipt receives the same checks, and binds the initial comp
 response to the final daemon projection without a post-registration query.
 Receiptless authority adapters fail closed; credentials and capability-fetch
 telemetry stay local. The next
-cutover binds reviewed registration plans to daemon runtime IDs and revisions,
-removing the remaining pre-update inspection without placing credentials in
-plan state or giving create plans effects.
+cutover is complete: configured registration plans come from one daemon
+snapshot and expose the planned runtime ID, expected revision, and authority
+kind. Plan-token v2 binds canonical runtime and sidecar target identity,
+action, authority, ID, and revision. Create planning has no effects; it may
+reuse an unmigrated managed ID only as a migration hint when the daemon does
+not own that ID, and deletion-reserved IDs are rejected. Registration requires
+and rebuilds the daemon plan, then submits the reviewed revision directly, so
+updates no longer inspect immediately before their command and credentials
+remain outside plan state. The next cutover consolidates plan validation,
+credential-bound discovery, typed daemon commit, and compatibility projection
+in one registration execution coordinator shared by Web and native adapters.
 Cleanup and generic
 unregistration now have an
 explicit confirmed result contract: a daemon schema-v14 transaction fences all

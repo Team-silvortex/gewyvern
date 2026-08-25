@@ -283,6 +283,7 @@ translations.fr = mergeTranslations(translations.en, {
       blockedEndpoint: "Enregistrement bloqué : l'endpoint doit commencer par http:// ou https:// et être une URL valide.",
       blockedSidecarEndpoint: "Enregistrement bloqué : l'endpoint sidecar doit commencer par http:// ou https:// et être une URL valide.",
       blockedDuplicate: "Enregistrement bloqué : {reason} existe déjà sur {name} ({endpoint}).",
+      deletionInProgress: "L'enregistrement est suspendu pendant la suppression de ce runtime. Attendez la fin du nettoyage, puis vérifiez à nouveau le plan.",
       duplicateNameAndEndpoint: "nom et endpoint",
       duplicateName: "nom",
       duplicateEndpoint: "endpoint",

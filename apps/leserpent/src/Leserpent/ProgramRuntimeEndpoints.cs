@@ -1,6 +1,4 @@
 using System.Net;
-using System.Security.Cryptography;
-using System.Text;
 using Leserpent.ControlPlane;
 using Microsoft.AspNetCore.Mvc;
 
@@ -56,7 +54,7 @@ public partial class Program
 
         app.MapPost("/v1/runtimes/registration-plan", async Task<IResult> (
             RuntimeRegistrationPlanRequest request,
-            RegistryService registry,
+            RuntimeRegistrationPlanProjectionService registrationPlans,
             ControlPlaneSecurityPolicy security,
             CancellationToken cancellationToken) =>
         {
@@ -67,9 +65,22 @@ public partial class Program
                     "name and endpoint are required"));
             }
             var validation = await security.ValidateRegistrationPlanAsync(request, cancellationToken);
-            return validation is null
-                ? Results.Ok(registry.GetRuntimeRegistrationPlan(request))
-                : Results.BadRequest(new ApiErrorResponse("invalid_runtime_registration_plan", validation));
+            if (validation is not null)
+            {
+                return Results.BadRequest(new ApiErrorResponse(
+                    "invalid_runtime_registration_plan",
+                    validation));
+            }
+            try
+            {
+                return Results.Ok(await registrationPlans.BuildAsync(
+                    request,
+                    cancellationToken));
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex);
+            }
         });
 
         app.MapGet("/v1/runtimes/{id}", async Task<IResult> (string id, RuntimeReadProjectionService runtimeReads, CancellationToken cancellationToken) =>
@@ -181,7 +192,7 @@ public partial class Program
             }
         });
 
-        app.MapPost("/v1/runtimes/register", async (RuntimeRegistrationRequest request, RegistryService registry, CapabilityDiscoveryService discovery, IRuntimeRegistrationAuthority registrationAuthority, RuntimeRegistrationCommitProjectionService registrationCommits, ControlPlaneSecurityPolicy security, CancellationToken cancellationToken) =>
+        app.MapPost("/v1/runtimes/register", async (RuntimeRegistrationRequest request, RegistryService registry, CapabilityDiscoveryService discovery, IRuntimeRegistrationAuthority registrationAuthority, RuntimeRegistrationPlanProjectionService registrationPlans, RuntimeRegistrationCommitProjectionService registrationCommits, ControlPlaneSecurityPolicy security, CancellationToken cancellationToken) =>
         {
             if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Endpoint))
             {
@@ -202,16 +213,37 @@ public partial class Program
                 return Results.BadRequest(new ApiErrorResponse("invalid_runtime_registration", registrationValidation));
             }
 
-            var plan = registry.GetRuntimeRegistrationPlan(new RuntimeRegistrationPlanRequest(
-                request.Name,
-                request.Endpoint,
-                request.SidecarEndpoint));
+            RuntimeRegistrationPlan plan;
+            try
+            {
+                plan = await registrationPlans.BuildAsync(
+                    new RuntimeRegistrationPlanRequest(
+                        request.Name,
+                        request.Endpoint,
+                        request.SidecarEndpoint),
+                    cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex);
+            }
             if (!plan.Allowed)
             {
+                var message = plan.Reason == RuntimeRegistrationPolicy.RuntimeDeletionInProgressReason
+                    ? "runtime deletion is in progress; review the plan after cleanup completes"
+                    : "runtime endpoint is already registered to another runtime";
                 return Results.Conflict(new ApiErrorResponse(
                     "runtime_registration_plan_changed",
-                    "runtime endpoint is already registered to another runtime",
-                    RuntimeId: plan.ExistingRuntimeId));
+                    message,
+                    RuntimeId: plan.PlannedRuntimeId ?? plan.ExistingRuntimeId));
+            }
+            if (plan.AuthorityBound
+                && string.IsNullOrWhiteSpace(request.RegistrationPlanToken))
+            {
+                return Results.Conflict(new ApiErrorResponse(
+                    "runtime_registration_plan_required",
+                    "review the current daemon registration plan before registering",
+                    RuntimeId: plan.PlannedRuntimeId));
             }
             if (!string.IsNullOrWhiteSpace(request.RegistrationPlanToken)
                 && !string.Equals(request.RegistrationPlanToken, plan.PlanToken, StringComparison.Ordinal))
@@ -222,10 +254,23 @@ public partial class Program
                     RuntimeId: plan.ExistingRuntimeId));
             }
 
-            var shouldUseAuthority = registrationAuthority.Enabled;
-            var runtimeId = shouldUseAuthority
-                ? plan.ExistingRuntimeId ?? BuildRuntimeIdFromRegistration(request.Name, request.Endpoint)
-                : null;
+            if (registrationAuthority.Enabled != plan.AuthorityBound)
+            {
+                return RuntimeProjectionFailure(new DaemonRuntimeProjectionException(
+                    "daemon_projection_configuration_mismatch",
+                    "runtime registration authority and projection authority are inconsistent"));
+            }
+            var shouldUseAuthority = plan.AuthorityBound;
+            var runtimeId = shouldUseAuthority ? plan.PlannedRuntimeId : null;
+            if (shouldUseAuthority
+                && (string.IsNullOrWhiteSpace(runtimeId)
+                    || (plan.Action == RuntimeRegistrationPolicy.UpdateAction
+                        && plan.ExpectedRevision is null)))
+            {
+                return RuntimeProjectionFailure(new DaemonRuntimeProjectionException(
+                    "daemon_projection_invalid_registration_plan",
+                    "daemon registration plan omitted its runtime authority"));
+            }
 
             try
             {
@@ -246,7 +291,8 @@ public partial class Program
                             update: plan.Action == RuntimeRegistrationPolicy.UpdateAction,
                             capabilityDiscovery: capabilityDiscovery,
                             statusDiscovery: statusDiscovery,
-                            sidecarDiscovery: sidecarDiscovery);
+                            sidecarDiscovery: sidecarDiscovery,
+                            expectedRevision: plan.ExpectedRevision);
                         authorityCommit = registrationCommits.Bind(
                             runtimeId,
                             request,
@@ -285,7 +331,8 @@ public partial class Program
                         request,
                         runtimeId,
                         cancellationToken,
-                        update: plan.Action == RuntimeRegistrationPolicy.UpdateAction);
+                        update: plan.Action == RuntimeRegistrationPolicy.UpdateAction,
+                        expectedRevision: plan.ExpectedRevision);
                     var authorityCommit = registrationCommits.Bind(
                         runtimeId,
                         request,
@@ -314,7 +361,9 @@ public partial class Program
             }
             catch (DaemonRuntimeRegistrationException ex)
             {
-                return RuntimeRegistrationAuthorityFailure(ex, plan.ExistingRuntimeId);
+                return RuntimeRegistrationAuthorityFailure(
+                    ex,
+                    plan.PlannedRuntimeId ?? plan.ExistingRuntimeId);
             }
         });
 
@@ -1121,14 +1170,6 @@ public partial class Program
             new ApiErrorResponse("compatibility_bridge_failed", error.Message),
             LeserpentJsonContext.Default.ApiErrorResponse,
             statusCode: StatusCodes.Status502BadGateway);
-
-    private static string BuildRuntimeIdFromRegistration(string name, string endpoint)
-    {
-        var normalizedName = name.Trim();
-        var normalizedEndpoint = endpoint.Trim();
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes($"{normalizedName}\u0000{normalizedEndpoint}"));
-        return Convert.ToHexString(bytes).ToLowerInvariant()[..32];
-    }
 
     private static IResult RuntimeRegistrationAuthorityFailure(
         DaemonRuntimeRegistrationException error,

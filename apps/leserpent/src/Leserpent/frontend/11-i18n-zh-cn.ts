@@ -398,6 +398,7 @@ translations["zh-CN"] = {
       blockedEndpoint: "注册已拦截：endpoint 必须以 http:// 或 https:// 开头，并且是合法 URL。",
       blockedSidecarEndpoint: "注册已拦截：sidecar endpoint 必须以 http:// 或 https:// 开头，并且是合法 URL。",
       blockedDuplicate: "注册已拦截：{reason} 已存在于 {name} ({endpoint})。",
+      deletionInProgress: "该 runtime 正在删除，注册已暂停。请等待清理完成后重新检查计划。",
       duplicateNameAndEndpoint: "名称和 endpoint",
       duplicateName: "名称",
       duplicateEndpoint: "endpoint",

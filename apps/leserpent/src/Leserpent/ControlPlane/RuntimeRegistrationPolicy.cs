@@ -9,10 +9,75 @@ public static class RuntimeRegistrationPolicy
     public const string UpdateAction = "update";
     public const string RejectAction = "reject";
     public const string EndpointConflictReason = "endpoint_conflict";
+    public const string RuntimeDeletionInProgressReason =
+        "runtime_deletion_in_progress";
 
     public static RuntimeRegistrationPlan Build(
         RuntimeRegistrationPlanRequest request,
-        IReadOnlyList<RuntimeSummary> runtimes)
+        IReadOnlyList<RuntimeSummary> runtimes) =>
+        Build(
+            request,
+            runtimes.Select(runtime => new RegistrationCandidate(
+                runtime.RuntimeId,
+                runtime.Name,
+                runtime.Endpoint,
+                null)).ToArray(),
+            null,
+            authorityBound: false);
+
+    internal static RuntimeRegistrationPlan BuildAuthoritative(
+        RuntimeRegistrationPlanRequest request,
+        IReadOnlyList<DaemonRuntimeProjection> runtimes,
+        string plannedCreateRuntimeId) =>
+        Build(
+            request,
+            runtimes.Select(runtime => new RegistrationCandidate(
+                runtime.RuntimeId,
+                runtime.Name,
+                runtime.Endpoint,
+                runtime.Revision)).ToArray(),
+            plannedCreateRuntimeId,
+            authorityBound: true);
+
+    internal static string BuildProposedRuntimeId(string name, string endpoint)
+    {
+        var normalizedName = name.Trim().ToLowerInvariant();
+        var normalizedEndpoint = NormalizeEndpointIdentity(endpoint);
+        var bytes = SHA256.HashData(
+            Encoding.UTF8.GetBytes($"{normalizedName}\u0000{normalizedEndpoint}"));
+        return Convert.ToHexString(bytes).ToLowerInvariant()[..32];
+    }
+
+    internal static RuntimeRegistrationPlan RejectAuthoritative(
+        RuntimeRegistrationPlanRequest request,
+        RuntimeRegistrationPlan plan,
+        string reason)
+    {
+        if (!plan.AuthorityBound)
+        {
+            throw new ArgumentException(
+                "only an authority-bound registration plan can be rejected here",
+                nameof(plan));
+        }
+        return plan with
+        {
+            Allowed = false,
+            Action = RejectAction,
+            Reason = reason,
+            PlanToken = BuildToken(
+                request,
+                RejectAction,
+                plan.PlannedRuntimeId,
+                plan.ExpectedRevision,
+                authorityBound: true),
+        };
+    }
+
+    private static RuntimeRegistrationPlan Build(
+        RuntimeRegistrationPlanRequest request,
+        IReadOnlyList<RegistrationCandidate> runtimes,
+        string? plannedCreateRuntimeId,
+        bool authorityBound)
     {
         var name = request.Name.Trim();
         var endpoint = request.Endpoint.Trim();
@@ -29,15 +94,14 @@ public static class RuntimeRegistrationPolicy
 
         var action = endpointConflict ? RejectAction : sameName is null ? CreateAction : UpdateAction;
         var existing = endpointConflict ? sameEndpoint : sameName;
-        var tokenParts = new[]
-        {
-            name.ToLowerInvariant(),
-            endpointIdentity,
+        var plannedRuntimeId = existing?.RuntimeId ?? plannedCreateRuntimeId;
+        var expectedRevision = existing?.Revision;
+        var token = BuildToken(
+            request,
             action,
-            existing?.RuntimeId.ToLowerInvariant() ?? string.Empty,
-        };
-        var token = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', tokenParts))))
-            .ToLowerInvariant();
+            plannedRuntimeId,
+            expectedRevision,
+            authorityBound);
         return new RuntimeRegistrationPlan(
             !endpointConflict,
             action,
@@ -45,8 +109,44 @@ public static class RuntimeRegistrationPolicy
             existing?.RuntimeId,
             existing?.Name,
             existing?.Endpoint,
+            plannedRuntimeId,
+            expectedRevision,
+            authorityBound,
             token);
     }
+
+    private static string BuildToken(
+        RuntimeRegistrationPlanRequest request,
+        string action,
+        string? plannedRuntimeId,
+        ulong? expectedRevision,
+        bool authorityBound)
+    {
+        var tokenParts = new[]
+        {
+            "runtime-registration-plan-v2",
+            request.Name.Trim().ToLowerInvariant(),
+            NormalizeEndpointIdentity(request.Endpoint),
+            string.IsNullOrWhiteSpace(request.SidecarEndpoint)
+                ? string.Empty
+                : NormalizeEndpointIdentity(request.SidecarEndpoint),
+            authorityBound ? "daemon" : "managed",
+            action,
+            plannedRuntimeId?.ToLowerInvariant() ?? string.Empty,
+            expectedRevision?.ToString(
+                System.Globalization.CultureInfo.InvariantCulture)
+                ?? string.Empty,
+        };
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(string.Join('\n', tokenParts))))
+            .ToLowerInvariant();
+    }
+
+    private sealed record RegistrationCandidate(
+        string RuntimeId,
+        string Name,
+        string Endpoint,
+        ulong? Revision);
 
     private static string NormalizeEndpointIdentity(string endpoint)
     {

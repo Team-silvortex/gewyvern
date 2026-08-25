@@ -413,6 +413,7 @@ translations.en = {
         blockedEndpoint: "Registration blocked: endpoint must start with http:// or https:// and be a valid URL.",
         blockedSidecarEndpoint: "Registration blocked: sidecar endpoint must start with http:// or https:// and be a valid URL.",
         blockedDuplicate: "Registration blocked: {reason} already exists on {name} ({endpoint}).",
+        deletionInProgress: "Registration is paused while this runtime is being deleted. Wait for cleanup to finish, then review the plan again.",
         duplicateNameAndEndpoint: "name and endpoint",
         duplicateName: "name",
         duplicateEndpoint: "endpoint",
@@ -976,6 +977,7 @@ translations["zh-CN"] = {
         blockedEndpoint: "注册已拦截：endpoint 必须以 http:// 或 https:// 开头，并且是合法 URL。",
         blockedSidecarEndpoint: "注册已拦截：sidecar endpoint 必须以 http:// 或 https:// 开头，并且是合法 URL。",
         blockedDuplicate: "注册已拦截：{reason} 已存在于 {name} ({endpoint})。",
+        deletionInProgress: "该 runtime 正在删除，注册已暂停。请等待清理完成后重新检查计划。",
         duplicateNameAndEndpoint: "名称和 endpoint",
         duplicateName: "名称",
         duplicateEndpoint: "endpoint",
@@ -1467,6 +1469,7 @@ translations["zh-TW"] = mergeTranslations(translations.en, {
         blockedEndpoint: "註冊已攔截：endpoint 必須以 http:// 或 https:// 開頭，並且是合法 URL。",
         blockedSidecarEndpoint: "註冊已攔截：sidecar endpoint 必須以 http:// 或 https:// 開頭，並且是合法 URL。",
         blockedDuplicate: "註冊已攔截：{reason} 已存在於 {name} ({endpoint})。",
+        deletionInProgress: "此 runtime 正在刪除，註冊已暫停。請等待清理完成後重新檢查計畫。",
         duplicateNameAndEndpoint: "名稱和 endpoint",
         duplicateName: "名稱",
         duplicateEndpoint: "endpoint",
@@ -1864,6 +1867,7 @@ translations.de = mergeTranslations(translations.en, {
         blockedEndpoint: "Registrierung blockiert: Der Endpunkt muss mit http:// oder https:// beginnen und eine gültige URL sein.",
         blockedSidecarEndpoint: "Registrierung blockiert: Der Sidecar-Endpunkt muss mit http:// oder https:// beginnen und eine gültige URL sein.",
         blockedDuplicate: "Registrierung blockiert: {reason} existiert bereits bei {name} ({endpoint}).",
+        deletionInProgress: "Die Registrierung ist pausiert, während diese Runtime gelöscht wird. Warten Sie auf den Abschluss der Bereinigung und prüfen Sie den Plan erneut.",
         duplicateNameAndEndpoint: "Name und Endpunkt",
         duplicateName: "Name",
         duplicateEndpoint: "Endpunkt",
@@ -2257,6 +2261,7 @@ translations.fr = mergeTranslations(translations.en, {
         blockedEndpoint: "Enregistrement bloqué : l'endpoint doit commencer par http:// ou https:// et être une URL valide.",
         blockedSidecarEndpoint: "Enregistrement bloqué : l'endpoint sidecar doit commencer par http:// ou https:// et être une URL valide.",
         blockedDuplicate: "Enregistrement bloqué : {reason} existe déjà sur {name} ({endpoint}).",
+        deletionInProgress: "L'enregistrement est suspendu pendant la suppression de ce runtime. Attendez la fin du nettoyage, puis vérifiez à nouveau le plan.",
         duplicateNameAndEndpoint: "nom et endpoint",
         duplicateName: "nom",
         duplicateEndpoint: "endpoint",
@@ -3263,6 +3268,7 @@ translations.ko = mergeTranslations(translations.en, {
         blockedEndpoint: "등록 차단: 엔드포인트는 http:// 또는 https:// 로 시작하고 유효한 URL 이어야 합니다.",
         blockedSidecarEndpoint: "등록 차단: 사이드카 엔드포인트는 http:// 또는 https:// 로 시작하고 유효한 URL 이어야 합니다.",
         blockedDuplicate: "등록 차단: {reason} 이(가) {name} ({endpoint}) 에 이미 존재합니다.",
+        deletionInProgress: "이 런타임을 삭제하는 동안 등록이 일시 중지됩니다. 정리가 끝난 후 계획을 다시 확인하세요.",
         duplicateNameAndEndpoint: "이름과 엔드포인트",
         duplicateName: "이름",
         duplicateEndpoint: "엔드포인트",
@@ -3697,6 +3703,7 @@ translations.ja = mergeTranslations(translations.en, {
         capabilityEnabled: "有効",
         capabilityDisabled: "無効",
         blockedDuplicate: "登録はブロックされました: {reason} はすでに {name} ({endpoint}) に存在します。",
+        deletionInProgress: "このランタイムの削除中は登録が一時停止されます。クリーンアップ完了後にプランを再確認してください。",
         duplicateNameAndEndpoint: "名前と endpoint",
         duplicateName: "名前",
         duplicateEndpoint: "endpoint",
@@ -4139,6 +4146,7 @@ translations.es = mergeTranslations(translations.en, {
         blockedEndpoint: "Registro bloqueado: el endpoint debe empezar con http:// o https:// y ser una URL válida.",
         blockedSidecarEndpoint: "Registro bloqueado: el endpoint del sidecar debe empezar con http:// o https:// y ser una URL válida.",
         blockedDuplicate: "Registro bloqueado: {reason} ya existe en {name} ({endpoint}).",
+        deletionInProgress: "El registro está en pausa mientras se elimina este runtime. Espere a que termine la limpieza y vuelva a revisar el plan.",
         duplicateNameAndEndpoint: "nombre y endpoint",
         duplicateName: "nombre",
         duplicateEndpoint: "endpoint",
@@ -7030,6 +7038,9 @@ function runtimeStatusHint(status) {
 function registrationPlanConflictMessage(plan) {
     if (!plan || plan.allowed)
         return "";
+    if (plan.reason === "runtime_deletion_in_progress") {
+        return t("register.deletionInProgress");
+    }
     return t("register.blockedDuplicate", {
         reason: t("register.duplicateEndpoint"),
         name: plan.existingRuntimeName,

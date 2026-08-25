@@ -18,26 +18,18 @@ public interface IRuntimeRegistrationAuthority
         RuntimeStatusDiscoveryResult? statusDiscovery = null,
         RuntimeSidecarDiscoveryResult? sidecarDiscovery = null);
 
-    async Task<RuntimeRegistrationCommitReceipt> RegisterWithReceiptAsync(
+    Task<RuntimeRegistrationCommitReceipt> RegisterWithReceiptAsync(
         RuntimeRegistrationRequest request,
         string runtimeId,
         CancellationToken cancellationToken,
         bool update = false,
         CapabilityDiscoveryResult? capabilityDiscovery = null,
         RuntimeStatusDiscoveryResult? statusDiscovery = null,
-        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null)
-    {
-        var registeredRuntimeId = await RegisterAsync(
-            request,
-            runtimeId,
-            cancellationToken,
-            update,
-            capabilityDiscovery,
-            statusDiscovery,
-            sidecarDiscovery);
-        return RuntimeRegistrationCommitReceipt.WithoutAuthoritativeCommit(
-            registeredRuntimeId);
-    }
+        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null,
+        ulong? expectedRevision = null) =>
+        Task.FromResult(
+            RuntimeRegistrationCommitReceipt.WithoutAuthoritativeCommit(
+                runtimeId));
 
     Task SubmitDiscoveryAsync(
         string runtimeId,
@@ -241,7 +233,8 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         bool update = false,
         CapabilityDiscoveryResult? capabilityDiscovery = null,
         RuntimeStatusDiscoveryResult? statusDiscovery = null,
-        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null)
+        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null,
+        ulong? expectedRevision = null)
     {
         if (!Enabled)
         {
@@ -256,10 +249,21 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         deadline.CancelAfter(timeout);
         try
         {
-            var expectedRevision = update
-                ? await InspectRevisionAsync(runtimeId, deadline.Token)
+            if (!update && expectedRevision is not null)
+            {
+                throw new InvalidOperationException(
+                    "a create registration cannot carry an expected revision");
+            }
+            if (expectedRevision == 0)
+            {
+                throw new InvalidOperationException(
+                    "a registration update requires a non-zero expected revision");
+            }
+            var commandRevision = update
+                ? expectedRevision
+                    ?? await InspectRevisionAsync(runtimeId, deadline.Token)
                 : null;
-            var command = BuildCommand(request, runtimeId, expectedRevision);
+            var command = BuildCommand(request, runtimeId, commandRevision);
             using var response = await ExchangeAsync(command.Frame, deadline.Token);
             var registeredRuntime = ParseAppliedRuntimeProjection(
                 response.RootElement,
@@ -267,7 +271,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
                 command.CommandId,
                 "registration");
             ValidateRegistrationProjection(request, registeredRuntime);
-            if (expectedRevision is { } previousRevision
+            if (commandRevision is { } previousRevision
                 && registeredRuntime.Revision <= previousRevision)
             {
                 throw new InvalidOperationException(

@@ -326,6 +326,7 @@ translations.es = mergeTranslations(translations.en, {
       blockedEndpoint: "Registro bloqueado: el endpoint debe empezar con http:// o https:// y ser una URL válida.",
       blockedSidecarEndpoint: "Registro bloqueado: el endpoint del sidecar debe empezar con http:// o https:// y ser una URL válida.",
       blockedDuplicate: "Registro bloqueado: {reason} ya existe en {name} ({endpoint}).",
+      deletionInProgress: "El registro está en pausa mientras se elimina este runtime. Espere a que termine la limpieza y vuelva a revisar el plan.",
       duplicateNameAndEndpoint: "nombre y endpoint",
       duplicateName: "nombre",
       duplicateEndpoint: "endpoint",

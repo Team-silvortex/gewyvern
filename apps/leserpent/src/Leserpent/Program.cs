@@ -110,6 +110,7 @@ public partial class Program
             OrchestraDeleteCheckpointService>();
         builder.Services.AddSingleton<RuntimeReadProjectionService>();
         builder.Services.AddSingleton<RuntimeCommandExecutionContextService>();
+        builder.Services.AddSingleton<RuntimeRegistrationPlanProjectionService>();
         builder.Services.AddSingleton<RuntimeRegistrationCommitProjectionService>();
         builder.Services.AddSingleton<FleetReadProjectionService>();
         builder.Services.AddSingleton<RuntimeCleanupProjectionService>();

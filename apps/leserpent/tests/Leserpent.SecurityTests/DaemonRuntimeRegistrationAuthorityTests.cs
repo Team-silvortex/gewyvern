@@ -209,7 +209,7 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
     }
 
     [Fact]
-    public async Task ConfiguredAuthorityReconcilesUpdateAndTypedDiscoveryIntake()
+    public async Task ConfiguredAuthorityUsesReviewedRevisionWithoutReinspection()
     {
         if (OperatingSystem.IsWindows())
         {
@@ -222,15 +222,11 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         var server = ServeSequenceAsync(listener, requests, (request, index) =>
         {
             var protocol = request.GetProperty("request").GetProperty("request");
-            if (protocol.GetProperty("kind").GetString() == "query")
-            {
-                return QueryResponse(runtimeId, 4);
-            }
             var commandId = protocol.GetProperty("payload").GetProperty("command_id").GetString()!;
             return CommandResponse(
                 runtimeId,
                 commandId,
-                index == 1 ? 5 : 6,
+                index == 0 ? 5 : 6,
                 includeRuntimeProjection: true,
                 runtimeName: "Runtime A",
                 runtimeEndpoint: "https://runtime.example",
@@ -238,7 +234,7 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 runtimeEnvironment: "prod",
                 runtimeCluster: "eu",
                 runtimeRole: "edge");
-        }, 3);
+        }, 2);
 
         var authority = CreateAuthority(
             ("LESERPENT_DAEMON_SOCKET", socketPath),
@@ -261,19 +257,19 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             update: true,
             capabilityDiscovery: discovery,
             statusDiscovery: statusDiscovery,
-            sidecarDiscovery: sidecarDiscovery);
+            sidecarDiscovery: sidecarDiscovery,
+            expectedRevision: 4);
 
         await server;
         Assert.Equal(runtimeId, receipt.RuntimeId);
         Assert.Equal(5UL, receipt.RegistrationRevision);
         Assert.Equal(6UL, receipt.Revision);
         Assert.True(receipt.DiscoveryApplied);
-        Assert.Equal(3, requests.Count);
-        Assert.Equal("runtime_inspect", requests[0].GetProperty("request").GetProperty("request").GetProperty("payload").GetProperty("query").GetProperty("kind").GetString());
-        var update = requests[1].GetProperty("request").GetProperty("request").GetProperty("payload");
+        Assert.Equal(2, requests.Count);
+        var update = requests[0].GetProperty("request").GetProperty("request").GetProperty("payload");
         Assert.Equal(4, update.GetProperty("expected_revision").GetInt64());
         Assert.Equal("runtime_registration_update", update.GetProperty("command").GetProperty("kind").GetString());
-        var intake = requests[2].GetProperty("request").GetProperty("request").GetProperty("payload");
+        var intake = requests[1].GetProperty("request").GetProperty("request").GetProperty("payload");
         Assert.Equal(5, intake.GetProperty("expected_revision").GetInt64());
         Assert.Equal("runtime_discovery_intake", intake.GetProperty("command").GetProperty("kind").GetString());
         Assert.Equal("1.2.0", intake.GetProperty("command").GetProperty("capabilities").GetProperty("version").GetString());
@@ -286,9 +282,9 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         Assert.DoesNotContain("pairing-token", requests.Select(request => request.GetRawText()));
         Assert.DoesNotContain("secret-token", requests.Select(request => request.GetRawText()));
         Assert.DoesNotContain("status-secret", requests.Select(request => request.GetRawText()));
-        Assert.Single(requests, request =>
-            request.GetProperty("request").GetProperty("request").GetProperty("kind").GetString()
-                == "query");
+        Assert.All(requests, request => Assert.Equal(
+            "command",
+            request.GetProperty("request").GetProperty("request").GetProperty("kind").GetString()));
 
         TryDelete(socketPath);
     }
@@ -599,7 +595,7 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 ("LESERPENT_DAEMON_REGISTRATION_TIMEOUT_MS", "10000"));
             var discovery = AuthorityDiscovery();
             const string runtimeId = "runtime-real";
-            _ = await authority.RegisterAsync(
+            var createReceipt = await authority.RegisterWithReceiptAsync(
                 new RuntimeRegistrationRequest(
                     "Runtime Real",
                     "https://runtime.example",
@@ -607,17 +603,34 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 runtimeId,
                 CancellationToken.None,
                 capabilityDiscovery: discovery);
-            _ = await authority.RegisterAsync(
-                new RuntimeRegistrationRequest(
-                    "Runtime Updated",
-                    "https://runtime.example/v2",
-                    "pairing-token",
-                    SidecarEndpoint: "https://sidecar.example/v2"),
+            Assert.Equal(1UL, createReceipt.RegistrationRevision);
+            Assert.Equal(2UL, createReceipt.Revision);
+            var updateRequest = new RuntimeRegistrationRequest(
+                "Runtime Real",
+                "https://runtime.example/v2",
+                "pairing-token",
+                SidecarEndpoint: "https://sidecar.example/v2");
+            var snapshot = await authority.SnapshotAsync(CancellationToken.None);
+            var updatePlan = RuntimeRegistrationPolicy.BuildAuthoritative(
+                new RuntimeRegistrationPlanRequest(
+                    updateRequest.Name,
+                    updateRequest.Endpoint,
+                    updateRequest.SidecarEndpoint),
+                snapshot.Runtimes,
+                runtimeId);
+            Assert.Equal(runtimeId, updatePlan.PlannedRuntimeId);
+            Assert.Equal(2UL, updatePlan.ExpectedRevision);
+            Assert.True(updatePlan.AuthorityBound);
+            var updateReceipt = await authority.RegisterWithReceiptAsync(
+                updateRequest,
                 runtimeId,
                 CancellationToken.None,
                 update: true,
                 capabilityDiscovery: discovery,
-                sidecarDiscovery: AuthoritySidecarDiscovery());
+                sidecarDiscovery: AuthoritySidecarDiscovery(),
+                expectedRevision: updatePlan.ExpectedRevision);
+            Assert.Equal(3UL, updateReceipt.RegistrationRevision);
+            Assert.Equal(4UL, updateReceipt.Revision);
             var discoveryReceipt = await authority.SubmitDiscoveryAtRevisionAsync(
                 runtimeId,
                 4,
@@ -637,7 +650,7 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 .GetProperty("response")
                 .GetProperty("payload")
                 .GetProperty("runtime");
-            Assert.Equal("Runtime Updated", runtime.GetProperty("name").GetString());
+            Assert.Equal("Runtime Real", runtime.GetProperty("name").GetString());
             Assert.Equal("https://runtime.example/v2", runtime.GetProperty("endpoint").GetString());
             Assert.Equal(
                 "https://sidecar.example/v2",
@@ -663,7 +676,7 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 new RuntimeListFilter(null, null, null),
                 CancellationToken.None);
             var typedInspect = await authority.InspectAsync(runtimeId, CancellationToken.None);
-            Assert.Equal("Runtime Updated", Assert.Single(typedList).Name);
+            Assert.Equal("Runtime Real", Assert.Single(typedList).Name);
             Assert.Equal((ulong)5, typedInspect?.Revision);
             Assert.Equal("https://sidecar.example/v2", typedInspect?.SidecarEndpoint);
             Assert.NotNull(typedInspect?.RegisteredAt);

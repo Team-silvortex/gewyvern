@@ -23,6 +23,9 @@ public sealed class RuntimeRegistrationPolicyTests
             Assert.True(plan.Allowed);
             Assert.Equal(RuntimeRegistrationPolicy.UpdateAction, plan.Action);
             Assert.Equal(original.RuntimeId, plan.ExistingRuntimeId);
+            Assert.Equal(original.RuntimeId, plan.PlannedRuntimeId);
+            Assert.Null(plan.ExpectedRevision);
+            Assert.False(plan.AuthorityBound);
 
             var updated = Register(
                 registry,
@@ -86,6 +89,69 @@ public sealed class RuntimeRegistrationPolicyTests
     }
 
     [Fact]
+    public void RegistrationPlanTokenBindsSidecarEndpointWithoutCredentials()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            var first = registry.GetRuntimeRegistrationPlan(
+                new RuntimeRegistrationPlanRequest(
+                    "runtime",
+                    "http://runtime.test",
+                    "http://sidecar-a.test"));
+            var second = registry.GetRuntimeRegistrationPlan(
+                new RuntimeRegistrationPlanRequest(
+                    "runtime",
+                    "http://runtime.test",
+                    "http://sidecar-b.test"));
+
+            Assert.NotEqual(first.PlanToken, second.PlanToken);
+            Assert.Null(first.ExpectedRevision);
+            Assert.False(first.AuthorityBound);
+            Assert.DoesNotContain("pairing-token", first.ToString());
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public void ProposedAuthorityRuntimeIdUsesCanonicalEndpointIdentity()
+    {
+        var first = RuntimeRegistrationPolicy.BuildProposedRuntimeId(
+            "Runtime",
+            "http://runtime.test");
+        var second = RuntimeRegistrationPolicy.BuildProposedRuntimeId(
+            "RUNTIME",
+            "HTTP://RUNTIME.TEST:80/");
+
+        Assert.Equal(first, second);
+        Assert.Equal(32, first.Length);
+    }
+
+    [Fact]
+    public async Task ReceiptlessRegistrationAdapterFailsBeforeLegacyMutation()
+    {
+        IRuntimeRegistrationAuthority authority =
+            new LegacyRegistrationAuthority();
+
+        var receipt = await authority.RegisterWithReceiptAsync(
+            new RuntimeRegistrationRequest(
+                "runtime",
+                "https://runtime.test",
+                "pairing-token"),
+            "runtime-authority",
+            CancellationToken.None,
+            update: true,
+            expectedRevision: 7);
+
+        var legacy = Assert.IsType<LegacyRegistrationAuthority>(authority);
+        Assert.False(receipt.Applied);
+        Assert.Equal(0, legacy.RegisterCalls);
+    }
+
+    [Fact]
     public void StaleCreatePlanCannotBecomeAnUnreviewedUpdate()
     {
         var (registry, statePath) = CreateRegistry();
@@ -141,5 +207,38 @@ public sealed class RuntimeRegistrationPolicyTests
         public string ApplicationName { get; set; } = "Leserpent.SecurityTests";
         public string ContentRootPath { get; set; } = contentRootPath;
         public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
+
+    private sealed class LegacyRegistrationAuthority :
+        IRuntimeRegistrationAuthority
+    {
+        public bool Enabled => true;
+        public int RegisterCalls { get; private set; }
+
+        public Task<string> RegisterAsync(
+            RuntimeRegistrationRequest request,
+            string runtimeId,
+            CancellationToken cancellationToken,
+            bool update = false,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null)
+        {
+            RegisterCalls += 1;
+            return Task.FromResult(runtimeId);
+        }
+
+        public Task SubmitDiscoveryAsync(
+            string runtimeId,
+            CancellationToken cancellationToken,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            Task.CompletedTask;
+
+        public Task UnregisterAsync(
+            IReadOnlyCollection<string> runtimeIds,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 }

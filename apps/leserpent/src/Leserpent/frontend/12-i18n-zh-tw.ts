@@ -326,6 +326,7 @@ translations["zh-TW"] = mergeTranslations(translations.en, {
       blockedEndpoint: "註冊已攔截：endpoint 必須以 http:// 或 https:// 開頭，並且是合法 URL。",
       blockedSidecarEndpoint: "註冊已攔截：sidecar endpoint 必須以 http:// 或 https:// 開頭，並且是合法 URL。",
       blockedDuplicate: "註冊已攔截：{reason} 已存在於 {name} ({endpoint})。",
+      deletionInProgress: "此 runtime 正在刪除，註冊已暫停。請等待清理完成後重新檢查計畫。",
       duplicateNameAndEndpoint: "名稱和 endpoint",
       duplicateName: "名稱",
       duplicateEndpoint: "endpoint",

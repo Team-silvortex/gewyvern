@@ -410,7 +410,7 @@ fn mobile_adaptation_is_protocolized_in_the_status_tensor() {
         .find(|cell| cell["id"] == "leserpent-1x/web-console/browser-operations")
         .expect("web console status cell must exist");
 
-    assert_eq!(cell["contract"]["version"], "1.4.9");
+    assert_eq!(cell["contract"]["version"], "1.4.10");
     for surface in [
         "width-first-mobile-layout",
         "mobile-filter-disclosure",
@@ -434,6 +434,7 @@ fn mobile_adaptation_is_protocolized_in_the_status_tensor() {
         "secret-remask-and-dom-clear",
         "mobile-sticky-registration-actions",
         "localized-registration-guidance",
+        "deletion-aware-registration-guidance",
         "registration-success-detail-handoff",
         "live-registration-language-switch",
         "operator-first-runtime-detail",
