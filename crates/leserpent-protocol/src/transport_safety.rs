@@ -1,5 +1,5 @@
 use std::fs::{File, Metadata, OpenOptions};
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
@@ -14,6 +14,64 @@ pub const AUTHORITY_WRITER_GENERATION_HEADER: &str = "X-Leserpent-Authority-Writ
 pub struct BoundedFile {
     file: File,
     remaining: u64,
+}
+
+pub struct DeadlineTcpStream {
+    stream: TcpStream,
+    deadline: Instant,
+}
+
+impl DeadlineTcpStream {
+    fn new(stream: TcpStream, deadline: Instant) -> io::Result<Self> {
+        let transport = Self { stream, deadline };
+        transport.refresh_read_timeout()?;
+        transport.refresh_write_timeout()?;
+        Ok(transport)
+    }
+
+    fn remaining(&self) -> io::Result<Duration> {
+        let remaining = self.deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "transport I/O deadline elapsed",
+            ));
+        }
+        Ok(remaining)
+    }
+
+    fn refresh_read_timeout(&self) -> io::Result<()> {
+        self.stream.set_read_timeout(Some(self.remaining()?))
+    }
+
+    fn refresh_write_timeout(&self) -> io::Result<()> {
+        self.stream.set_write_timeout(Some(self.remaining()?))
+    }
+}
+
+impl Read for DeadlineTcpStream {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        if buffer.is_empty() {
+            return Ok(0);
+        }
+        self.refresh_read_timeout()?;
+        self.stream.read(buffer)
+    }
+}
+
+impl Write for DeadlineTcpStream {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        if buffer.is_empty() {
+            return Ok(0);
+        }
+        self.refresh_write_timeout()?;
+        self.stream.write(buffer)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.refresh_write_timeout()?;
+        self.stream.flush()
+    }
 }
 
 impl BoundedFile {
@@ -145,6 +203,26 @@ pub fn connect_with_deadline(
     }))
 }
 
+pub fn connect_with_io_deadline(
+    address: impl ToSocketAddrs,
+    timeout: Duration,
+) -> io::Result<DeadlineTcpStream> {
+    if timeout.is_zero() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "transport I/O timeout must be non-zero",
+        ));
+    }
+    let deadline = Instant::now().checked_add(timeout).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "transport I/O timeout exceeds the supported duration",
+        )
+    })?;
+    let stream = connect_with_deadline(address, timeout)?;
+    DeadlineTcpStream::new(stream, deadline)
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -196,6 +274,38 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn io_deadline_is_absolute_across_trickled_bytes() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let peer = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            for _ in 0..32 {
+                if stream.write_all(b"x").is_err() {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(10));
+            }
+        });
+        let mut stream = connect_with_io_deadline(address, Duration::from_millis(50)).unwrap();
+        let mut received = 0;
+        let error = loop {
+            match stream.read(&mut [0_u8; 1]) {
+                Ok(1) => received += 1,
+                Ok(_) => panic!("trickle peer ended before the I/O deadline"),
+                Err(error) => break error,
+            }
+        };
+
+        assert!(matches!(
+            error.kind(),
+            io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+        ));
+        assert!(received < 32, "trickled bytes extended the I/O deadline");
+        drop(stream);
+        peer.join().unwrap();
     }
 
     #[cfg(unix)]

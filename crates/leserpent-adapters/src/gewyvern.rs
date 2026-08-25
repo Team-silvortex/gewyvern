@@ -10,7 +10,7 @@ use leserpent_domain::{
     RuntimeStatusSnapshot,
 };
 use leserpent_protocol::transport_safety::{
-    BoundedFile, MAX_HTTP_HEADER_BYTES, connect_with_deadline, is_http_header_name,
+    BoundedFile, MAX_HTTP_HEADER_BYTES, connect_with_io_deadline, is_http_header_name,
     open_bounded_regular_file,
 };
 use leserpent_runtime::EffectExecution;
@@ -479,7 +479,7 @@ fn request_json(
     }
     match &target.transport {
         GewyvernTransport::Loopback(address) => {
-            let mut stream = connect_with_deadline(*address, timeout)
+            let mut stream = connect_with_io_deadline(*address, timeout)
                 .map_err(|_| "Gewyvern API connection failed".to_string())?;
             exchange_json(
                 &mut stream,
@@ -491,7 +491,7 @@ fn request_json(
             )
         }
         GewyvernTransport::Https { endpoint, tls } => {
-            let socket = connect_with_deadline((endpoint.host.as_str(), endpoint.port), timeout)
+            let socket = connect_with_io_deadline((endpoint.host.as_str(), endpoint.port), timeout)
                 .map_err(|_| "Gewyvern API connection failed".to_string())?;
             let connection = ClientConnection::new(Arc::clone(tls), endpoint.server_name.clone())
                 .map_err(|_| "Gewyvern TLS setup failed".to_string())?;

@@ -5,7 +5,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use leserpent_protocol::transport_safety::{
-    MAX_HTTP_HEADER_BYTES, connect_with_deadline, is_http_header_name,
+    MAX_HTTP_HEADER_BYTES, connect_with_io_deadline, is_http_header_name,
 };
 use leserpent_protocol::{
     HealthRequest, MAX_PROTOCOL_MESSAGE_BYTES, PROTOCOL_SCHEMA_VERSION, ProtocolRequest,
@@ -87,12 +87,12 @@ fn probe_once(
     body: &[u8],
 ) -> Result<(), String> {
     let socket = match route {
-        HealthRoute::Loopback => connect_with_deadline(
+        HealthRoute::Loopback => connect_with_io_deadline(
             SocketAddr::from((Ipv4Addr::LOCALHOST, endpoint.port)),
             ATTEMPT_TIMEOUT,
         ),
         HealthRoute::Endpoint => {
-            connect_with_deadline((endpoint.host.as_str(), endpoint.port), ATTEMPT_TIMEOUT)
+            connect_with_io_deadline((endpoint.host.as_str(), endpoint.port), ATTEMPT_TIMEOUT)
         }
     }
     .map_err(|_| "bootstrap health endpoint unavailable")?;

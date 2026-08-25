@@ -130,7 +130,9 @@ introducing a second domain or Leselang watch semantic.
 Every executable command has identical local IPC and remote HTTPS lowering,
 confirmation, rendering, and exit-code semantics. The HTTPS client requires
 unique JSON `Content-Length`/`Content-Type` response framing, rejects transfer
-encoding and redirects, and retains the wire-v1 1 MiB response limit.
+encoding and redirects, and retains the wire-v1 1 MiB response limit. One
+monotonic three-second I/O budget spans connection, TLS, request writes, and the
+complete response, so a peer cannot keep a command alive by trickling bytes.
 
 All four read queries support local `--export-leselang` and `--export-plan`. These
 paths require neither socket nor token. List exports normalize filters before

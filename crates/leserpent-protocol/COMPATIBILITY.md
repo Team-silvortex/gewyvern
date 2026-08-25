@@ -621,11 +621,14 @@ LESERPENT_TEST_DAEMON_BIN="$PWD/target/debug/leserpentd" \
 ```
 
 Run `gewyvern_validate leserpent-transport` from the workspace root to prove
-the current wire-v1 authenticated local, HTTPS, and WebSocket transport boundaries. The command
-retains separate logs for protocol fixtures, legacy adaptation, CLI/Leselang
-parity, the native CLI-to-daemon Unix socket, IPC rejection paths, and a real TLS
-loopback through `POST /v1/wire`, plus the native remote CLI and revisioned
-`/v1/events` vertical paths. Event frames use an independently versioned schema,
-omit runtime endpoints, and require the `leserpent.events.v1` subprotocol. Its
-summary explicitly excludes Windows named pipes, remote GUI, and mobile clients, so passing this
-shelf does not imply full Gate 6 completion.
+the current wire-v1 authenticated local, HTTPS, and WebSocket transport
+boundaries. The command retains separate logs for protocol fixtures, legacy
+adaptation, CLI/Leselang parity, the native CLI-to-daemon Unix socket, IPC
+rejection paths, and a real TLS loopback through `POST /v1/wire`, plus the native
+remote CLI and revisioned `/v1/events` vertical paths. Native outbound HTTPS and
+Gewyvern exchanges share an absolute monotonic I/O deadline, so repeated
+successful trickle reads cannot extend a request indefinitely. Event frames use
+an independently versioned schema, omit runtime endpoints, and require the
+`leserpent.events.v1` subprotocol. Its summary explicitly excludes Windows named
+pipes, remote GUI, and mobile clients, so passing this shelf does not imply full
+Gate 6 completion.

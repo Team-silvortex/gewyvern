@@ -1,5 +1,4 @@
 use std::io::{BufReader, Read, Write};
-use std::net::TcpStream;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -24,8 +23,9 @@ use leserpent_protocol::retirement::{
     decode_retirement_response, encode_retirement_request,
 };
 use leserpent_protocol::transport_safety::{
-    AUTHORITY_WRITER_GENERATION_HEADER, AUTHORITY_WRITER_ID_HEADER, BoundedFile,
-    MAX_HTTP_HEADER_BYTES, connect_with_deadline, is_http_header_name, open_bounded_regular_file,
+    AUTHORITY_WRITER_GENERATION_HEADER, AUTHORITY_WRITER_ID_HEADER, BoundedFile, DeadlineTcpStream,
+    MAX_HTTP_HEADER_BYTES, connect_with_io_deadline, is_http_header_name,
+    open_bounded_regular_file,
 };
 use leserpent_protocol::{
     AuthorityWriterFence, MAX_PROTOCOL_MESSAGE_BYTES, RequestEnvelope, ResponseEnvelope,
@@ -245,8 +245,8 @@ fn open_ca_file(ca_path: &Path) -> Result<BoundedFile, CliError> {
     })
 }
 
-fn connect_endpoint(endpoint: &HttpsEndpoint) -> Result<TcpStream, CliError> {
-    connect_with_deadline((endpoint.host.as_str(), endpoint.port), CONNECTION_TIMEOUT)
+fn connect_endpoint(endpoint: &HttpsEndpoint) -> Result<DeadlineTcpStream, CliError> {
+    connect_with_io_deadline((endpoint.host.as_str(), endpoint.port), CONNECTION_TIMEOUT)
         .map_err(|_| CliError::Transport("remote HTTPS endpoint is unavailable".into()))
 }
 

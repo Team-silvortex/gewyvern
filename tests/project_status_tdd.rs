@@ -5251,8 +5251,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(transport.maturity, Maturity::Mature);
     assert_eq!(transport.completion, 100);
     assert_eq!(transport.contract.stability, ContractStability::Stable);
-    assert_eq!(transport.contract.version, "1.16.0");
+    assert_eq!(transport.contract.version, "1.17.0");
     for surface in [
+        "single-source-absolute-io-deadline",
+        "trickle-resistant-outbound-exchange",
         "optional-unregistration-replay-horizon-health",
         "legacy-horizon-free-health-decode",
         "strict-avalonia-horizon-health-decode",

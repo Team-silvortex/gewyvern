@@ -2478,8 +2478,10 @@ physical Linux x86_64 host pass the same eight suites, 28 tests, and 41 declared
 invariants.
 The shared wire-v1 transport contract is now stable: Rust rejects unknown
 versioned envelope and security-relevant projection fields just as the schema
-and .NET client do. Remaining Gate 6 work is mobile-client lifecycle and device
-evidence, not transport-protocol maturity.
+and .NET client do. Native CLI, bootstrap-health, and Gewyvern adapter exchanges
+also share one absolute monotonic I/O deadline, preventing trickled response
+bytes from extending an operation indefinitely. Remaining Gate 6 work is
+mobile-client lifecycle and device evidence, not transport-protocol maturity.
 
 The performance shelf now has the native entrypoint
 `gewyvern_validate leserpent-benchmark`. It measures fixed-size SQLite

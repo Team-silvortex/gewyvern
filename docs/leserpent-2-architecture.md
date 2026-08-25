@@ -2336,16 +2336,20 @@ failures are isolated per connection.
 Transport-independent safety mechanics have one implementation in
 `leserpent-protocol::transport_safety`: HTTP header token validation, bounded
 regular-file opening with atomic symlink rejection on Unix, read-time growth
-enforcement, and deadline-bounded TCP connection. CLI, adapters, and daemon
-consume those primitives while retaining ownership of TLS configuration,
-authentication, private-key permissions, and user-facing error semantics. This
-keeps policy local without duplicating security-sensitive I/O.
+enforcement, deadline-bounded TCP connection, and an absolute-deadline TCP
+stream. CLI HTTPS exchanges, bootstrap health probes, and Gewyvern adapters use
+that stream, so successful trickle reads cannot reset the request budget while
+TLS configuration, authentication, private-key permissions, and user-facing
+error semantics remain locally owned. This keeps policy local without
+duplicating security-sensitive I/O.
 
 The synchronous connection budget starts before address resolution, so time
 spent resolving consumes the remaining socket-attempt budget. The platform
 resolver itself cannot be interrupted through `std::net`; callers therefore
 treat this as a resolved-address connection deadline rather than claiming a
-hard DNS wall-clock timeout.
+hard DNS wall-clock timeout. After resolution returns, the remaining monotonic
+budget spans connection, TLS handshake, request writes, response headers, and
+response body reads.
 
 The event schema is versioned independently from request/response wire-v1.
 Sessions receive endpoint-redacted runtime snapshots, revision heartbeats, and
