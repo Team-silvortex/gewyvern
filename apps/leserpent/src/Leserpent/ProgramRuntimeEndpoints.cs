@@ -192,178 +192,24 @@ public partial class Program
             }
         });
 
-        app.MapPost("/v1/runtimes/register", async (RuntimeRegistrationRequest request, RegistryService registry, CapabilityDiscoveryService discovery, IRuntimeRegistrationAuthority registrationAuthority, RuntimeRegistrationPlanProjectionService registrationPlans, RuntimeRegistrationCommitProjectionService registrationCommits, ControlPlaneSecurityPolicy security, CancellationToken cancellationToken) =>
+        app.MapPost("/v1/runtimes/register", async Task<IResult> (
+            RuntimeRegistrationRequest request,
+            RuntimeRegistrationExecutionService registrations,
+            CancellationToken cancellationToken) =>
         {
-            if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Endpoint))
-            {
-                return Results.BadRequest(new ApiErrorResponse(
-                    "invalid_runtime_registration",
-                    "name and endpoint are required"));
-            }
-
-            request = request with
-            {
-                Name = request.Name.Trim(),
-                Endpoint = request.Endpoint.Trim(),
-            };
-
-            var registrationValidation = await security.ValidateRegistrationAsync(request, cancellationToken);
-            if (registrationValidation is not null)
-            {
-                return Results.BadRequest(new ApiErrorResponse("invalid_runtime_registration", registrationValidation));
-            }
-
-            RuntimeRegistrationPlan plan;
             try
             {
-                plan = await registrationPlans.BuildAsync(
-                    new RuntimeRegistrationPlanRequest(
-                        request.Name,
-                        request.Endpoint,
-                        request.SidecarEndpoint),
-                    cancellationToken);
+                return Results.Ok(await registrations.ExecuteAsync(
+                    request,
+                    cancellationToken));
+            }
+            catch (RuntimeRegistrationExecutionException ex)
+            {
+                return RuntimeRegistrationExecutionFailure(ex);
             }
             catch (DaemonRuntimeProjectionException ex)
             {
                 return RuntimeProjectionFailure(ex);
-            }
-            if (!plan.Allowed)
-            {
-                var message = plan.Reason == RuntimeRegistrationPolicy.RuntimeDeletionInProgressReason
-                    ? "runtime deletion is in progress; review the plan after cleanup completes"
-                    : "runtime endpoint is already registered to another runtime";
-                return Results.Conflict(new ApiErrorResponse(
-                    "runtime_registration_plan_changed",
-                    message,
-                    RuntimeId: plan.PlannedRuntimeId ?? plan.ExistingRuntimeId));
-            }
-            if (plan.AuthorityBound
-                && string.IsNullOrWhiteSpace(request.RegistrationPlanToken))
-            {
-                return Results.Conflict(new ApiErrorResponse(
-                    "runtime_registration_plan_required",
-                    "review the current daemon registration plan before registering",
-                    RuntimeId: plan.PlannedRuntimeId));
-            }
-            if (!string.IsNullOrWhiteSpace(request.RegistrationPlanToken)
-                && !string.Equals(request.RegistrationPlanToken, plan.PlanToken, StringComparison.Ordinal))
-            {
-                return Results.Conflict(new ApiErrorResponse(
-                    "runtime_registration_plan_changed",
-                    "runtime registration plan changed; review the current target before retrying",
-                    RuntimeId: plan.ExistingRuntimeId));
-            }
-
-            if (registrationAuthority.Enabled != plan.AuthorityBound)
-            {
-                return RuntimeProjectionFailure(new DaemonRuntimeProjectionException(
-                    "daemon_projection_configuration_mismatch",
-                    "runtime registration authority and projection authority are inconsistent"));
-            }
-            var shouldUseAuthority = plan.AuthorityBound;
-            var runtimeId = shouldUseAuthority ? plan.PlannedRuntimeId : null;
-            if (shouldUseAuthority
-                && (string.IsNullOrWhiteSpace(runtimeId)
-                    || (plan.Action == RuntimeRegistrationPolicy.UpdateAction
-                        && plan.ExpectedRevision is null)))
-            {
-                return RuntimeProjectionFailure(new DaemonRuntimeProjectionException(
-                    "daemon_projection_invalid_registration_plan",
-                    "daemon registration plan omitted its runtime authority"));
-            }
-
-            try
-            {
-                if (request.FetchCapabilities)
-                {
-                    var capabilityDiscovery = await discovery.DiscoverAsync(request.Endpoint, request.CapabilityEndpoint, cancellationToken, request.PairingToken);
-                    var statusDiscovery = await discovery.DiscoverStatusAsync(request.Endpoint, request.StatusEndpoint, cancellationToken, request.PairingToken);
-                    var sidecarDiscovery = string.IsNullOrWhiteSpace(request.SidecarEndpoint)
-                        ? null
-                        : await discovery.DiscoverSidecarStatusAsync(request.SidecarEndpoint!, request.SidecarStatusEndpoint, request.SidecarAdminToken, cancellationToken);
-                    RuntimeRegistrationCompatibilityCommit? authorityCommit = null;
-                    if (runtimeId is not null)
-                    {
-                        var receipt = await registrationAuthority.RegisterWithReceiptAsync(
-                            request,
-                            runtimeId,
-                            cancellationToken,
-                            update: plan.Action == RuntimeRegistrationPolicy.UpdateAction,
-                            capabilityDiscovery: capabilityDiscovery,
-                            statusDiscovery: statusDiscovery,
-                            sidecarDiscovery: sidecarDiscovery,
-                            expectedRevision: plan.ExpectedRevision);
-                        authorityCommit = registrationCommits.Bind(
-                            runtimeId,
-                            request,
-                            receipt,
-                            capabilityDiscovery,
-                            statusDiscovery,
-                            sidecarDiscovery);
-                    }
-                    var registered = authorityCommit is null
-                        ? registry.RegisterRuntimeFromDiscovery(
-                            request,
-                            capabilityDiscovery,
-                            statusDiscovery,
-                            sidecarDiscovery,
-                            runtimeId)
-                        : registry.RegisterRuntimeFromAuthority(
-                            authorityCommit.Request,
-                            authorityCommit.Runtime,
-                            authorityCommit.CapabilityDiscovery);
-                    registry.RecordRecoveryActivity(
-                        registered.RuntimeId,
-                        "register_runtime",
-                        DetermineRefreshOutcome(
-                            registered.Status.StatusSource,
-                            registered.Status.StatusFetchError,
-                            registered.SidecarStatus?.StatusSource,
-                            registered.SidecarStatus?.StatusFetchError),
-                        "runtime registered through discovery");
-                    return Results.Ok(registered);
-                }
-
-                RuntimeRegistrationResponse manualRegistered;
-                if (runtimeId is not null)
-                {
-                    var receipt = await registrationAuthority.RegisterWithReceiptAsync(
-                        request,
-                        runtimeId,
-                        cancellationToken,
-                        update: plan.Action == RuntimeRegistrationPolicy.UpdateAction,
-                        expectedRevision: plan.ExpectedRevision);
-                    var authorityCommit = registrationCommits.Bind(
-                        runtimeId,
-                        request,
-                        receipt);
-                    manualRegistered = registry.RegisterRuntimeFromAuthority(
-                        authorityCommit.Request,
-                        authorityCommit.Runtime);
-                }
-                else
-                {
-                    manualRegistered = registry.RegisterRuntime(request);
-                }
-                registry.RecordRecoveryActivity(
-                    manualRegistered.RuntimeId,
-                    "register_runtime",
-                    "ok",
-                    "runtime registered with manual capability intake");
-                return Results.Ok(manualRegistered);
-            }
-            catch (RuntimeRegistrationPlanException ex)
-            {
-                return Results.Conflict(new ApiErrorResponse(
-                    "runtime_registration_plan_changed",
-                    ex.Message,
-                    RuntimeId: ex.Plan.ExistingRuntimeId));
-            }
-            catch (DaemonRuntimeRegistrationException ex)
-            {
-                return RuntimeRegistrationAuthorityFailure(
-                    ex,
-                    plan.PlannedRuntimeId ?? plan.ExistingRuntimeId);
             }
         });
 
@@ -1170,6 +1016,34 @@ public partial class Program
             new ApiErrorResponse("compatibility_bridge_failed", error.Message),
             LeserpentJsonContext.Default.ApiErrorResponse,
             statusCode: StatusCodes.Status502BadGateway);
+
+    private static IResult RuntimeRegistrationExecutionFailure(
+        RuntimeRegistrationExecutionException error) =>
+        error.Kind switch
+        {
+            RuntimeRegistrationExecutionFailureKind.InvalidRequest =>
+                Results.BadRequest(new ApiErrorResponse(
+                    error.Code,
+                    error.Message,
+                    RuntimeId: error.RuntimeId)),
+            RuntimeRegistrationExecutionFailureKind.Conflict =>
+                Results.Conflict(new ApiErrorResponse(
+                    error.Code,
+                    error.Message,
+                    RuntimeId: error.RuntimeId)),
+            RuntimeRegistrationExecutionFailureKind.NotFound =>
+                Results.NotFound(new ApiErrorResponse(
+                    error.Code,
+                    error.Message,
+                    RuntimeId: error.RuntimeId)),
+            _ => Results.Json(
+                new ApiErrorResponse(
+                    error.Code,
+                    error.Message,
+                    RuntimeId: error.RuntimeId),
+                LeserpentJsonContext.Default.ApiErrorResponse,
+                statusCode: StatusCodes.Status502BadGateway),
+        };
 
     private static IResult RuntimeRegistrationAuthorityFailure(
         DaemonRuntimeRegistrationException error,

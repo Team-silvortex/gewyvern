@@ -981,9 +981,16 @@ reuse an unmigrated managed ID only as a migration hint when the daemon does
 not own that ID, and deletion-reserved IDs are rejected. Registration requires
 and rebuilds the daemon plan, then submits the reviewed revision directly, so
 updates no longer inspect immediately before their command and credentials
-remain outside plan state. The next cutover consolidates plan validation,
-credential-bound discovery, typed daemon commit, and compatibility projection
-in one registration execution coordinator shared by Web and native adapters.
+remain outside plan state. The cutover is now consolidated behind one
+registration execution coordinator. It validates request safety and the
+rebuilt plan before effects, performs credential-bound discovery, consumes the
+typed daemon receipt, writes the authority-bound compatibility projection, and
+records recovery through one shared policy. Managed fallback uses the same
+entry point, while the HTTP route only invokes the coordinator and maps its
+typed secret-free failures. The next cutover binds registration command and
+idempotency identity to the reviewed expected revision and complete secret-free
+command intent, so exact retries replay and legitimate later updates do not
+collide with older receipts.
 Cleanup and generic
 unregistration now have an
 explicit confirmed result contract: a daemon schema-v14 transaction fences all

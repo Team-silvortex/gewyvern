@@ -4653,14 +4653,24 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationCommitProjectionService.cs"
             && item.state == EvidenceState::Present
     }));
+    assert!(domain.evidence.iter().any(|item| {
+        item.path
+            == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationExecutionService.cs"
+            && item.state == EvidenceState::Present
+    }));
     assert!(
         domain
             .next_gate
-            .contains("shared execution coordinator")
+            .contains("reviewed expected revision")
     );
     assert!(domain.evidence.iter().any(|item| {
         item.path
             == "apps/leserpent/tests/Leserpent.SecurityTests/DaemonRuntimeRegistrationAuthorityTests.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(domain.evidence.iter().any(|item| {
+        item.path
+            == "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeRegistrationExecutionServiceTests.cs"
             && item.state == EvidenceState::Present
     }));
 
@@ -5637,7 +5647,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.50.0");
+    assert_eq!(compatibility_control.contract.version, "1.51.0");
     assert!(
         compatibility_control
             .contract
@@ -5704,6 +5714,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "pre-effect-receiptless-adapter-rejection",
         "authority-id-bound-compatibility-write",
         "secret-free-registration-plan",
+        "shared-registration-execution-coordinator",
+        "thin-registration-http-adapter",
+        "pre-effect-registration-plan-validation",
+        "credential-bound-registration-discovery",
+        "typed-registration-execution-failures",
+        "cross-adapter-registration-transaction-parity",
+        "managed-and-authority-registration-path-parity",
+        "registration-recovery-outcome-policy",
     ] {
         assert!(
             compatibility_control
@@ -5731,6 +5749,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path
             == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationPlanProjectionService.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path
+            == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationExecutionService.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path
+            == "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeRegistrationExecutionServiceTests.cs"
             && item.state == EvidenceState::Present
     }));
     assert!(compatibility_control.evidence.iter().any(|item| {
@@ -6180,7 +6208,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.50.0");
+    assert_eq!(compatibility_control.contract.version, "1.51.0");
     assert!(
         compatibility_control
             .next_gate
@@ -8605,18 +8633,66 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
     assert!(registration_policy.contains("expectedRevision"));
     assert!(registration_policy.contains("request.SidecarEndpoint"));
 
+    let registration_execution = std::fs::read_to_string(root.join(
+        "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationExecutionService.cs",
+    ))
+    .expect("runtime registration execution coordinator must exist");
+    for required in [
+        "security.ValidateRegistrationAsync",
+        "registrationPlans.BuildAsync",
+        "ValidateReviewedPlan",
+        "registrationAuthority.RegisterWithReceiptAsync",
+        "expectedRevision: plan.ExpectedRevision",
+        "discovery.DiscoverAsync",
+        "discovery.DiscoverStatusAsync",
+        "registrationCommits.Bind",
+        "registry.RegisterRuntimeFromAuthority",
+        "RuntimeRefreshOutcomePolicy.Determine",
+    ] {
+        assert!(
+            registration_execution.contains(required),
+            "registration execution coordinator omits {required}"
+        );
+    }
+    assert!(!registration_execution.contains("registrationAuthority.RegisterAsync("));
+    assert!(
+        registration_execution
+            .find("ValidateReviewedPlan(request, plan)")
+            .unwrap()
+            < registration_execution
+                .find("return request.FetchCapabilities")
+                .unwrap()
+    );
+
     let runtime_endpoints = std::fs::read_to_string(
         root.join("apps/leserpent/src/Leserpent/ProgramRuntimeEndpoints.cs"),
     )
     .expect("runtime endpoints must exist");
-    assert!(runtime_endpoints.contains("RegisterWithReceiptAsync"));
-    assert!(runtime_endpoints.contains("registrationCommits.Bind"));
-    assert!(runtime_endpoints.contains("RegisterRuntimeFromAuthority"));
-    assert!(runtime_endpoints.contains("registrationPlans.BuildAsync"));
-    assert!(runtime_endpoints.contains("plan.PlannedRuntimeId"));
-    assert!(runtime_endpoints.contains("plan.ExpectedRevision"));
-    assert!(runtime_endpoints.contains("expectedRevision: plan.ExpectedRevision"));
-    assert!(runtime_endpoints.contains("runtime_registration_plan_required"));
+    let registration_endpoint = runtime_endpoints
+        .split("app.MapPost(\"/v1/runtimes/register\"")
+        .nth(1)
+        .expect("runtime registration endpoint must exist")
+        .split("app.MapPost(\"/v1/runtimes/{id}/deployments\"")
+        .next()
+        .expect("runtime registration endpoint must be bounded");
+    assert!(registration_endpoint.contains("RuntimeRegistrationExecutionService"));
+    assert!(registration_endpoint.contains("registrations.ExecuteAsync"));
+    assert!(registration_endpoint.contains("RuntimeRegistrationExecutionFailure"));
+    for forbidden in [
+        "CapabilityDiscoveryService",
+        "IRuntimeRegistrationAuthority",
+        "RuntimeRegistrationPlanProjectionService",
+        "RuntimeRegistrationCommitProjectionService",
+        "RegisterWithReceiptAsync",
+        "registrationCommits.Bind",
+        "RegisterRuntimeFromAuthority",
+        "registrationPlans.BuildAsync",
+    ] {
+        assert!(
+            !registration_endpoint.contains(forbidden),
+            "HTTP registration endpoint owns transaction step {forbidden}"
+        );
+    }
     assert!(!runtime_endpoints.contains("registry.GetRuntimeRegistrationPlan("));
     assert!(!runtime_endpoints.contains("registrationAuthority.RegisterAsync("));
 }

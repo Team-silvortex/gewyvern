@@ -187,6 +187,14 @@ not own it, while deletion-reserved IDs produce a rejected plan. The write
 endpoint requires and rebuilds that plan, then supplies its reviewed revision
 to the daemon command without a separate update inspection.
 
+Registration execution is adapter-independent. A shared control-plane service
+validates request safety and the rebuilt plan before capability discovery or a
+daemon command, then owns credential-bound discovery, typed receipt binding,
+authority compatibility projection, and recovery recording. The Web route is
+only an HTTP mapper, and an unconfigured daemon still uses the same service for
+managed registration. Expected failures are typed and contain no registration
+credentials.
+
 ## Security Model
 
 The default security posture should remain conservative and local-first:

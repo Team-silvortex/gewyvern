@@ -945,10 +945,18 @@ planning remains effect-free; an unmigrated managed ID is only a create-time
 migration hint when the daemon does not already own it, and an ID reserved for
 deletion is rejected. Registration rebuilds and requires the current daemon
 plan, then sends its reviewed revision directly to update commands without a
-pre-command inspection. Credentials never enter plan state. The next boundary
-moves plan validation, credential-bound discovery, typed daemon commit, and
-compatibility projection behind one shared registration execution coordinator
-so Web and future native adapters cannot diverge in transaction choreography.
+pre-command inspection. Credentials never enter plan state. One shared
+registration execution coordinator now validates request safety and the
+rebuilt plan before any discovery or daemon effect, owns credential-bound
+capability/status discovery, requires typed daemon receipts, applies the exact
+authority compatibility projection, and records the recovery outcome. It
+preserves managed fallback and returns typed, secret-free invalid, conflict,
+not-found, and gateway failures. The HTTP route only invokes this service and
+maps its result, so Web and future native adapters cannot diverge in transaction
+choreography. The next boundary binds registration command and idempotency
+identities to the reviewed expected revision and complete secret-free command
+intent, allowing exact retries to replay without blocking legitimate later
+updates.
 Sidecar status, including its bounded memory-slot summary, now follows the same
 revision-fenced journal and strict read projection. Registration, individual
 refresh, recovery, Fleet refresh, and Orchestra recovery all compose available

@@ -75,6 +75,10 @@ Suggested names and immediate URL-shape hints may remain browser-local because
 they are presentation aids. Pairing tokens and sidecar credentials must never be
 sent to the preview endpoint.
 
+The registration POST is a transport adapter over the shared control-plane
+execution coordinator. Browser code must not reproduce discovery ordering,
+authority receipt validation, compatibility writes, or recovery classification.
+
 Runtime recovery is also server-orchestrated. The browser submits one typed
 `POST /v1/runtimes/{runtimeId}/recovery` command with `all`, `status`,
 `capabilities`, or `sidecar`. The response reports each executed step and its
