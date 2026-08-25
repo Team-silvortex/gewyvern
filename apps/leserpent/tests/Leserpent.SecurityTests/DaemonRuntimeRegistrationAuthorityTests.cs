@@ -72,12 +72,21 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         var server = ServeAsync(
             listener,
             requests,
-            CommandResponse(runtimeId, commandId));
+            CommandResponse(
+                runtimeId,
+                commandId,
+                includeRuntimeProjection: true,
+                runtimeName: "Runtime A",
+                runtimeEndpoint: "https://runtime.example",
+                runtimeSidecarEndpoint: "https://sidecar.example",
+                runtimeEnvironment: "prod",
+                runtimeCluster: "eu",
+                runtimeRole: "edge"));
 
         var authority = CreateAuthority(
             ("LESERPENT_DAEMON_SOCKET", socketPath),
             ("LESERPENT_DAEMON_TOKEN", Token));
-        var registeredId = await authority.RegisterAsync(
+        var receipt = await authority.RegisterWithReceiptAsync(
             new RuntimeRegistrationRequest(
                 "Runtime A",
                 "https://runtime.example",
@@ -88,7 +97,12 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             CancellationToken.None);
 
         await server;
-        Assert.Equal(runtimeId, registeredId);
+        Assert.True(receipt.Applied);
+        Assert.Equal(runtimeId, receipt.RuntimeId);
+        Assert.Equal(1UL, receipt.RegistrationRevision);
+        Assert.Equal(1UL, receipt.Revision);
+        Assert.False(receipt.DiscoveryApplied);
+        Assert.DoesNotContain("daemon.invalid", receipt.ToString());
         Assert.Single(requests);
         var frame = requests[0];
         Assert.Equal(Token, frame.GetProperty("token").GetString());
@@ -112,6 +126,89 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
     }
 
     [Fact]
+    public async Task ConfiguredAuthorityRejectsRegistrationProjectionThatDoesNotMatchCommand()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var socketPath = TempSocket();
+        using var listener = BindPrivateSocket(socketPath);
+        var requests = new List<JsonElement>();
+        const string runtimeId = "runtime-mismatched-registration";
+        var commandId = BuildCommandId(
+            runtimeId,
+            "Runtime A",
+            "https://runtime.example",
+            null);
+        var server = ServeAsync(
+            listener,
+            requests,
+            CommandResponse(
+                runtimeId,
+                commandId,
+                includeRuntimeProjection: true,
+                runtimeName: "Another Runtime",
+                runtimeEndpoint: "https://runtime.example"));
+
+        var authority = CreateAuthority(
+            ("LESERPENT_DAEMON_SOCKET", socketPath),
+            ("LESERPENT_DAEMON_TOKEN", Token));
+        var error = await Assert.ThrowsAsync<DaemonRuntimeRegistrationException>(() =>
+            authority.RegisterWithReceiptAsync(
+                new RuntimeRegistrationRequest(
+                    "Runtime A",
+                    "https://runtime.example",
+                    "pairing-token"),
+                runtimeId,
+                CancellationToken.None));
+
+        await server;
+        Assert.Equal("daemon_protocol_invalid", error.Code);
+        Assert.Single(requests);
+        TryDelete(socketPath);
+    }
+
+    [Fact]
+    public async Task ConfiguredAuthorityRejectsRegistrationReceiptForAnotherCommand()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var socketPath = TempSocket();
+        using var listener = BindPrivateSocket(socketPath);
+        var server = ServeAsync(
+            listener,
+            new List<JsonElement>(),
+            CommandResponse(
+                "runtime-mismatched-command",
+                "another-registration-command",
+                includeRuntimeProjection: true,
+                runtimeName: "Runtime A",
+                runtimeEndpoint: "https://runtime.example",
+                runtimeSidecarEndpoint: null,
+                runtimeEnvironment: null,
+                runtimeRole: null));
+        var authority = CreateAuthority(
+            ("LESERPENT_DAEMON_SOCKET", socketPath),
+            ("LESERPENT_DAEMON_TOKEN", Token));
+
+        var error = await Assert.ThrowsAsync<DaemonRuntimeRegistrationException>(() =>
+            authority.RegisterWithReceiptAsync(
+                new RuntimeRegistrationRequest(
+                    "Runtime A",
+                    "https://runtime.example",
+                    "pairing-token"),
+                "runtime-mismatched-command",
+                CancellationToken.None));
+
+        await server;
+        Assert.Equal("daemon_protocol_invalid", error.Code);
+        TryDelete(socketPath);
+    }
+
+    [Fact]
     public async Task ConfiguredAuthorityReconcilesUpdateAndTypedDiscoveryIntake()
     {
         if (OperatingSystem.IsWindows())
@@ -127,11 +224,21 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             var protocol = request.GetProperty("request").GetProperty("request");
             if (protocol.GetProperty("kind").GetString() == "query")
             {
-                return QueryResponse(runtimeId, index == 0 ? 4 : 5);
+                return QueryResponse(runtimeId, 4);
             }
             var commandId = protocol.GetProperty("payload").GetProperty("command_id").GetString()!;
-            return CommandResponse(runtimeId, commandId, index == 1 ? 5 : 6);
-        }, 4);
+            return CommandResponse(
+                runtimeId,
+                commandId,
+                index == 1 ? 5 : 6,
+                includeRuntimeProjection: true,
+                runtimeName: "Runtime A",
+                runtimeEndpoint: "https://runtime.example",
+                runtimeSidecarEndpoint: null,
+                runtimeEnvironment: "prod",
+                runtimeCluster: "eu",
+                runtimeRole: "edge");
+        }, 3);
 
         var authority = CreateAuthority(
             ("LESERPENT_DAEMON_SOCKET", socketPath),
@@ -143,7 +250,7 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         var statusDiscovery = RuntimeStatusDiscoveryResult.Failed(
             "https://runtime.example/v1/latest/status",
             "raw status failure with status-secret");
-        var registeredId = await authority.RegisterAsync(
+        var receipt = await authority.RegisterWithReceiptAsync(
             new RuntimeRegistrationRequest(
                 "Runtime A",
                 "https://runtime.example",
@@ -157,13 +264,16 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             sidecarDiscovery: sidecarDiscovery);
 
         await server;
-        Assert.Equal(runtimeId, registeredId);
-        Assert.Equal(4, requests.Count);
+        Assert.Equal(runtimeId, receipt.RuntimeId);
+        Assert.Equal(5UL, receipt.RegistrationRevision);
+        Assert.Equal(6UL, receipt.Revision);
+        Assert.True(receipt.DiscoveryApplied);
+        Assert.Equal(3, requests.Count);
         Assert.Equal("runtime_inspect", requests[0].GetProperty("request").GetProperty("request").GetProperty("payload").GetProperty("query").GetProperty("kind").GetString());
         var update = requests[1].GetProperty("request").GetProperty("request").GetProperty("payload");
         Assert.Equal(4, update.GetProperty("expected_revision").GetInt64());
         Assert.Equal("runtime_registration_update", update.GetProperty("command").GetProperty("kind").GetString());
-        var intake = requests[3].GetProperty("request").GetProperty("request").GetProperty("payload");
+        var intake = requests[2].GetProperty("request").GetProperty("request").GetProperty("payload");
         Assert.Equal(5, intake.GetProperty("expected_revision").GetInt64());
         Assert.Equal("runtime_discovery_intake", intake.GetProperty("command").GetProperty("kind").GetString());
         Assert.Equal("1.2.0", intake.GetProperty("command").GetProperty("capabilities").GetProperty("version").GetString());
@@ -176,6 +286,9 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         Assert.DoesNotContain("pairing-token", requests.Select(request => request.GetRawText()));
         Assert.DoesNotContain("secret-token", requests.Select(request => request.GetRawText()));
         Assert.DoesNotContain("status-secret", requests.Select(request => request.GetRawText()));
+        Assert.Single(requests, request =>
+            request.GetProperty("request").GetProperty("request").GetProperty("kind").GetString()
+                == "query");
 
         TryDelete(socketPath);
     }
@@ -356,13 +469,14 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             return CommandResponse(
                 runtimeId,
                 payload.GetProperty("command_id").GetString()!,
-                43);
+                43,
+                includeRuntimeProjection: true);
         }, 1);
         var authority = CreateAuthority(
             ("LESERPENT_DAEMON_SOCKET", socketPath),
             ("LESERPENT_DAEMON_TOKEN", Token));
 
-        await authority.SubmitDiscoveryAtRevisionAsync(
+        var receipt = await authority.SubmitDiscoveryAtRevisionAsync(
             runtimeId,
             42,
             CancellationToken.None,
@@ -378,7 +492,90 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         Assert.Equal(
             "runtime_discovery_intake",
             payload.GetProperty("command").GetProperty("kind").GetString());
+        Assert.True(receipt.Applied);
+        Assert.Equal(runtimeId, receipt.RuntimeId);
+        Assert.Equal(43UL, receipt.Revision);
+        Assert.Equal("Daemon Runtime", receipt.Runtime?.Name);
+        Assert.Equal("https://daemon.invalid", receipt.Runtime?.Endpoint);
+        Assert.DoesNotContain("daemon.invalid", receipt.ToString());
 
+        TryDelete(socketPath);
+    }
+
+    [Fact]
+    public async Task DiscoveryIntakeRejectsReceiptThatDoesNotAdvanceExpectedRevision()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var socketPath = TempSocket();
+        using var listener = BindPrivateSocket(socketPath);
+        const string runtimeId = "runtime-stale-receipt";
+        var server = ServeSequenceAsync(listener, new List<JsonElement>(), (request, _) =>
+        {
+            var payload = request
+                .GetProperty("request")
+                .GetProperty("request")
+                .GetProperty("payload");
+            return CommandResponse(
+                runtimeId,
+                payload.GetProperty("command_id").GetString()!,
+                42,
+                includeRuntimeProjection: true);
+        }, 1);
+        var authority = CreateAuthority(
+            ("LESERPENT_DAEMON_SOCKET", socketPath),
+            ("LESERPENT_DAEMON_TOKEN", Token));
+
+        var error = await Assert.ThrowsAsync<DaemonRuntimeRegistrationException>(
+            () => authority.SubmitDiscoveryAtRevisionAsync(
+                runtimeId,
+                42,
+                CancellationToken.None,
+                capabilityDiscovery: AuthorityDiscovery()));
+
+        await server;
+        Assert.Equal("daemon_protocol_invalid", error.Code);
+        TryDelete(socketPath);
+    }
+
+    [Fact]
+    public async Task DiscoveryIntakeRejectsIncoherentEnvelopeAndProjectionRevisions()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var socketPath = TempSocket();
+        using var listener = BindPrivateSocket(socketPath);
+        const string runtimeId = "runtime-incoherent-receipt";
+        var server = ServeSequenceAsync(listener, new List<JsonElement>(), (request, _) =>
+        {
+            var payload = request
+                .GetProperty("request")
+                .GetProperty("request")
+                .GetProperty("payload");
+            return CommandResponse(
+                runtimeId,
+                payload.GetProperty("command_id").GetString()!,
+                43,
+                includeRuntimeProjection: true,
+                responseRevision: 44);
+        }, 1);
+        var authority = CreateAuthority(
+            ("LESERPENT_DAEMON_SOCKET", socketPath),
+            ("LESERPENT_DAEMON_TOKEN", Token));
+
+        var error = await Assert.ThrowsAsync<DaemonRuntimeRegistrationException>(
+            () => authority.SubmitDiscoveryAtRevisionAsync(
+                runtimeId,
+                42,
+                CancellationToken.None,
+                capabilityDiscovery: AuthorityDiscovery()));
+
+        await server;
+        Assert.Equal("daemon_protocol_invalid", error.Code);
         TryDelete(socketPath);
     }
 
@@ -421,12 +618,19 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 update: true,
                 capabilityDiscovery: discovery,
                 sidecarDiscovery: AuthoritySidecarDiscovery());
-            await authority.SubmitDiscoveryAsync(
+            var discoveryReceipt = await authority.SubmitDiscoveryAtRevisionAsync(
                 runtimeId,
+                4,
                 CancellationToken.None,
                 statusDiscovery: RuntimeStatusDiscoveryResult.Failed(
                     "https://runtime.example/v1/latest/status",
                     "raw daemon refresh failure"));
+            Assert.True(discoveryReceipt.Applied);
+            Assert.Equal(runtimeId, discoveryReceipt.RuntimeId);
+            Assert.Equal(5UL, discoveryReceipt.Revision);
+            Assert.Equal(
+                RuntimeDiagnosticCodes.RuntimeStatusFetchFailed,
+                discoveryReceipt.Runtime?.Status.StatusFetchError);
 
             using var response = await InspectAsync(socketPath, runtimeId);
             var runtime = response.RootElement
@@ -7233,16 +7437,37 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                             2),
                     })));
 
-    private static string CommandResponse(string runtimeId, string commandId, int revision = 1) =>
+    private static string CommandResponse(
+        string runtimeId,
+        string commandId,
+        int revision = 1,
+        bool includeRuntimeProjection = false,
+        string runtimeName = "Daemon Runtime",
+        string runtimeEndpoint = "https://daemon.invalid",
+        string? runtimeSidecarEndpoint = "https://daemon-sidecar.invalid",
+        string? runtimeEnvironment = "prod",
+        string? runtimeCluster = null,
+        string? runtimeRole = "edge",
+        int? responseRevision = null) =>
         "{" +
         "\"schema_version\":1," +
         "\"response\":{\"kind\":\"command\"," +
         "\"payload\":{\"command_id\":\"" +
         commandId +
         "\",\"status\":\"applied\"," +
-        "\"runtime\":{\"id\":\"" +
-        runtimeId +
-        "\"},\"revision\":" + revision + "}}}";
+        "\"runtime\":" +
+        (includeRuntimeProjection
+            ? RuntimeProjectionJson(
+                runtimeId: runtimeId,
+                revision: revision,
+                runtimeName: runtimeName,
+                runtimeEndpoint: runtimeEndpoint,
+                runtimeSidecarEndpoint: runtimeSidecarEndpoint,
+                runtimeEnvironment: runtimeEnvironment,
+                runtimeCluster: runtimeCluster,
+                runtimeRole: runtimeRole)
+            : "{\"id\":\"" + runtimeId + "\"}") +
+        ",\"revision\":" + (responseRevision ?? revision) + "}}}";
 
     private static string QueryResponse(string runtimeId, int revision) =>
         "{" +
@@ -7309,13 +7534,27 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         "\"payload\":{\"kind\":\"runtime_inspect\",\"revision\":2,\"runtime\":" +
         RuntimeProjectionJson(includeSidecarStatus) + "}}}";
 
-    private static string RuntimeProjectionJson(bool includeSidecarStatus = true) =>
+    private static string RuntimeProjectionJson(
+        bool includeSidecarStatus = true,
+        string runtimeId = "runtime-a",
+        int revision = 2,
+        string runtimeName = "Daemon Runtime",
+        string runtimeEndpoint = "https://daemon.invalid",
+        string? runtimeSidecarEndpoint = "https://daemon-sidecar.invalid",
+        string? runtimeEnvironment = "prod",
+        string? runtimeCluster = null,
+        string? runtimeRole = "edge") =>
         "{" +
-        "\"id\":\"runtime-a\",\"name\":\"Daemon Runtime\",\"endpoint\":\"https://daemon.invalid\"," +
-        "\"sidecar_endpoint\":\"https://daemon-sidecar.invalid\"," +
+        "\"id\":\"" + runtimeId +
+        "\",\"name\":" + JsonSerializer.Serialize(runtimeName) +
+        ",\"endpoint\":" + JsonSerializer.Serialize(runtimeEndpoint) + "," +
+        "\"sidecar_endpoint\":" + JsonSerializer.Serialize(runtimeSidecarEndpoint) + "," +
         "\"registered_at_unix_ms\":1784620800000,\"updated_at_unix_ms\":1784626200000," +
-        "\"revision\":2,\"refresh_count\":0,\"refresh_status\":\"ready\"," +
-        "\"tags\":{\"environment\":\"prod\",\"cluster\":null,\"role\":\"edge\"}," +
+        "\"revision\":" + revision +
+        ",\"refresh_count\":0,\"refresh_status\":\"ready\"," +
+        "\"tags\":{\"environment\":" + JsonSerializer.Serialize(runtimeEnvironment) +
+        ",\"cluster\":" + JsonSerializer.Serialize(runtimeCluster) +
+        ",\"role\":" + JsonSerializer.Serialize(runtimeRole) + "}," +
         "\"status\":{\"status_source\":\"gewyvern-api\",\"status_fetched_at\":\"2026-07-20T12:00:00Z\",\"status_fetch_error\":null," +
         "\"has_latest_snapshot\":true,\"snapshot_kind\":\"capture\",\"target_count\":3," +
         "\"has_summary_json\":true,\"has_analysis_json\":true,\"has_training_example_json\":false," +

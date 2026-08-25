@@ -354,7 +354,40 @@ public sealed class ControlPlaneWriterFenceTests
                             runtime = new
                             {
                                 id = "runtime-fenced",
+                                name = "Runtime Fenced",
+                                endpoint = "https://runtime.example",
+                                sidecar_endpoint = (string?)null,
+                                registered_at_unix_ms = 1,
+                                updated_at_unix_ms = 1,
                                 revision = 1,
+                                refresh_count = 0,
+                                refresh_status = "never",
+                                tags = new
+                                {
+                                    environment = (string?)null,
+                                    cluster = (string?)null,
+                                    role = (string?)null,
+                                },
+                                status = new
+                                {
+                                    status_source = "registration",
+                                },
+                                sidecar_status = (object?)null,
+                                capabilities = new
+                                {
+                                    source = "",
+                                    service = "",
+                                    version = "",
+                                    latest_snapshot = false,
+                                    authenticated_deployment = false,
+                                    serve_required = false,
+                                    external_sidecar_context = false,
+                                    target_path_segment_encoding = "",
+                                    target_direct_path_chars = "",
+                                    endpoints = Array.Empty<string>(),
+                                    extensions = new Dictionary<string, bool>(),
+                                },
+                                capabilities_observed_for_revision = (ulong?)null,
                             },
                         },
                     },

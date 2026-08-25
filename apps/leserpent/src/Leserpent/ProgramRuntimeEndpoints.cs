@@ -181,7 +181,7 @@ public partial class Program
             }
         });
 
-        app.MapPost("/v1/runtimes/register", async (RuntimeRegistrationRequest request, RegistryService registry, CapabilityDiscoveryService discovery, IRuntimeRegistrationAuthority registrationAuthority, ControlPlaneSecurityPolicy security, CancellationToken cancellationToken) =>
+        app.MapPost("/v1/runtimes/register", async (RuntimeRegistrationRequest request, RegistryService registry, CapabilityDiscoveryService discovery, IRuntimeRegistrationAuthority registrationAuthority, RuntimeRegistrationCommitProjectionService registrationCommits, ControlPlaneSecurityPolicy security, CancellationToken cancellationToken) =>
         {
             if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Endpoint))
             {
@@ -236,9 +236,10 @@ public partial class Program
                     var sidecarDiscovery = string.IsNullOrWhiteSpace(request.SidecarEndpoint)
                         ? null
                         : await discovery.DiscoverSidecarStatusAsync(request.SidecarEndpoint!, request.SidecarStatusEndpoint, request.SidecarAdminToken, cancellationToken);
+                    RuntimeRegistrationCompatibilityCommit? authorityCommit = null;
                     if (runtimeId is not null)
                     {
-                        _ = await registrationAuthority.RegisterAsync(
+                        var receipt = await registrationAuthority.RegisterWithReceiptAsync(
                             request,
                             runtimeId,
                             cancellationToken,
@@ -246,8 +247,25 @@ public partial class Program
                             capabilityDiscovery: capabilityDiscovery,
                             statusDiscovery: statusDiscovery,
                             sidecarDiscovery: sidecarDiscovery);
+                        authorityCommit = registrationCommits.Bind(
+                            runtimeId,
+                            request,
+                            receipt,
+                            capabilityDiscovery,
+                            statusDiscovery,
+                            sidecarDiscovery);
                     }
-                    var registered = registry.RegisterRuntimeFromDiscovery(request, capabilityDiscovery, statusDiscovery, sidecarDiscovery, runtimeId);
+                    var registered = authorityCommit is null
+                        ? registry.RegisterRuntimeFromDiscovery(
+                            request,
+                            capabilityDiscovery,
+                            statusDiscovery,
+                            sidecarDiscovery,
+                            runtimeId)
+                        : registry.RegisterRuntimeFromAuthority(
+                            authorityCommit.Request,
+                            authorityCommit.Runtime,
+                            authorityCommit.CapabilityDiscovery);
                     registry.RecordRecoveryActivity(
                         registered.RuntimeId,
                         "register_runtime",
@@ -260,16 +278,26 @@ public partial class Program
                     return Results.Ok(registered);
                 }
 
+                RuntimeRegistrationResponse manualRegistered;
                 if (runtimeId is not null)
                 {
-                    _ = await registrationAuthority.RegisterAsync(
+                    var receipt = await registrationAuthority.RegisterWithReceiptAsync(
                         request,
                         runtimeId,
                         cancellationToken,
                         update: plan.Action == RuntimeRegistrationPolicy.UpdateAction);
+                    var authorityCommit = registrationCommits.Bind(
+                        runtimeId,
+                        request,
+                        receipt);
+                    manualRegistered = registry.RegisterRuntimeFromAuthority(
+                        authorityCommit.Request,
+                        authorityCommit.Runtime);
                 }
-
-                var manualRegistered = registry.RegisterRuntime(request, runtimeId);
+                else
+                {
+                    manualRegistered = registry.RegisterRuntime(request);
+                }
                 registry.RecordRecoveryActivity(
                     manualRegistered.RuntimeId,
                     "register_runtime",
@@ -461,11 +489,12 @@ public partial class Program
                 null,
                 cancellationToken,
                 context.ControlAccess.AdminToken);
+            RuntimeDiscoveryCommit commit;
             try
             {
-                await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
-                    id,
-                    context.AuthorityRevision,
+                commit = await commandContexts.CommitDiscoveryAsync(
+                    context,
+                    registrationAuthority,
                     cancellationToken,
                     capabilityDiscovery: capabilityDiscovery);
             }
@@ -473,6 +502,8 @@ public partial class Program
             {
                 return RuntimeRegistrationAuthorityFailure(ex, id);
             }
+            runtime = commit.Context.Runtime;
+            capabilityDiscovery = commit.CapabilityDiscovery!;
             var refreshed = registry.RefreshRuntimeCapabilities(id, capabilityDiscovery);
             return refreshed is null
                 ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
@@ -548,11 +579,12 @@ public partial class Program
             {
                 return CompatibilityBridgeFailure(ex);
             }
+            RuntimeDiscoveryCommit commit;
             try
             {
-                await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
-                    id,
-                    context.AuthorityRevision,
+                commit = await commandContexts.CommitDiscoveryAsync(
+                    context,
+                    registrationAuthority,
                     cancellationToken,
                     statusDiscovery: statusDiscovery);
             }
@@ -560,6 +592,8 @@ public partial class Program
             {
                 return RuntimeRegistrationAuthorityFailure(ex, id);
             }
+            runtime = commit.Context.Runtime;
+            statusDiscovery = commit.StatusDiscovery!;
             var refreshed = registry.RefreshRuntimeStatus(id, statusDiscovery);
             if (refreshed is not null)
             {
@@ -620,21 +654,21 @@ public partial class Program
                 null,
                 sidecarAccess.SidecarAdminToken,
                 cancellationToken);
+            RuntimeDiscoveryCommit commit;
             try
             {
-                if (sidecarDiscovery.SidecarStatus is not null)
-                {
-                    await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
-                        id,
-                        context.AuthorityRevision,
-                        cancellationToken,
-                        sidecarDiscovery: sidecarDiscovery);
-                }
+                commit = await commandContexts.CommitDiscoveryAsync(
+                    context,
+                    registrationAuthority,
+                    cancellationToken,
+                    sidecarDiscovery: sidecarDiscovery);
             }
             catch (DaemonRuntimeRegistrationException ex)
             {
                 return RuntimeRegistrationAuthorityFailure(ex, id);
             }
+            runtime = commit.Context.Runtime;
+            sidecarDiscovery = commit.SidecarDiscovery!;
             var refreshed = registry.RefreshRuntimeSidecar(id, sidecarDiscovery);
             if (refreshed is not null)
             {
@@ -962,11 +996,12 @@ public partial class Program
                 cancellationToken);
         }
 
+        RuntimeDiscoveryCommit commit;
         try
         {
-            await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
-                runtimeId,
-                context.AuthorityRevision,
+            commit = await commandContexts.CommitDiscoveryAsync(
+                context,
+                registrationAuthority,
                 cancellationToken,
                 capabilityDiscovery,
                 statusDiscovery,
@@ -976,6 +1011,10 @@ public partial class Program
         {
             return RuntimeRegistrationAuthorityFailure(ex, runtimeId);
         }
+        runtime = commit.Context.Runtime;
+        capabilityDiscovery = commit.CapabilityDiscovery;
+        statusDiscovery = commit.StatusDiscovery;
+        sidecarDiscovery = commit.SidecarDiscovery;
 
         var steps = new List<RuntimeRecoveryStepResult>();
         if (capabilityDiscovery is not null)

@@ -918,9 +918,28 @@ credential presence. Daemon deployment and discovery intake use the captured
 revision directly, while Orchestra combines all observations into one intake
 so a successful first step cannot stale the remaining steps. Compatibility
 responses are rebuilt with daemon identity rather than stale managed
-coordinates. The next boundary is a typed discovery-intake receipt carrying
-the applied revision and projected runtime, so compatibility writes and
-responses can bind to the exact daemon commit without a second query.
+coordinates. Discovery intake now returns a typed receipt carrying the applied
+runtime revision and a strictly decoded projection from that exact command
+result. One command-context coordinator binds status, capability, and sidecar
+compatibility writes plus command responses to that projection without a
+second query. Receipt and commit diagnostics omit endpoints and credentials;
+credentials remain exclusively in managed slots. An authoritative context with
+a committable observation fails closed if an adapter returns no receipt.
+Registration now follows the same boundary: one typed commit receipt records
+the registration revision and the final revision after optional discovery
+intake. The complete registration command projection is strictly decoded and
+must match the requested name, endpoint, sidecar endpoint, and tags. Its exact
+command ID must match the submitted command. The projection revision is
+authoritative; a legacy redundant envelope revision, when present, must match
+it. That exact revision fences optional discovery, whose receipt has the same
+command-ID and optional-envelope coherence checks, so no post-registration
+inspection is needed. The initial compatibility write and
+response are then rebuilt from the final daemon projection; receiptless
+authoritative registration fails closed, while credentials and capability-fetch
+telemetry remain managed-only. The next
+boundary binds reviewed registration plans to daemon-authoritative runtime IDs
+and revisions so updates execute without a pre-command reinspection, while
+create plans remain effect-free and credentials stay outside plan state.
 Sidecar status, including its bounded memory-slot summary, now follows the same
 revision-fenced journal and strict read projection. Registration, individual
 refresh, recovery, Fleet refresh, and Orchestra recovery all compose available

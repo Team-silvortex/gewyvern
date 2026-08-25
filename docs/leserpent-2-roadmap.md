@@ -960,9 +960,22 @@ that context; Fleet no longer enumerates managed membership. Deployment and
 discovery commands carry the captured expected revision, command responses keep
 daemon identity, and Orchestra submits its composed observations in one intake.
 Secrets remain outside read projections, API models, diagnostics, and durable
-history. The next cutover returns a typed discovery-intake receipt with the
-applied revision and runtime projection, then binds compatibility writes and
-responses to that exact daemon commit without a second query.
+history. Discovery intake now returns a typed receipt with the applied runtime
+revision and strict runtime projection. The shared command-context coordinator
+uses that exact command result for compatibility refresh writes and responses,
+so no post-command query is required and managed credentials never enter
+authority state. Registration now returns one typed commit receipt spanning the
+registration command and optional discovery intake. It strictly verifies the
+command ID, command-result identity, and envelope/projection revision
+coherence when the redundant envelope field is present. The strict runtime
+projection remains the revision authority. Registration uses that revision to
+fence intake, whose receipt receives the same checks, and binds the initial compatibility write and
+response to the final daemon projection without a post-registration query.
+Receiptless authority adapters fail closed; credentials and capability-fetch
+telemetry stay local. The next
+cutover binds reviewed registration plans to daemon runtime IDs and revisions,
+removing the remaining pre-update inspection without placing credentials in
+plan state or giving create plans effects.
 Cleanup and generic
 unregistration now have an
 explicit confirmed result contract: a daemon schema-v14 transaction fences all

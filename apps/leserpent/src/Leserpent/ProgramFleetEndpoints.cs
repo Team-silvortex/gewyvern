@@ -110,11 +110,12 @@ public partial class Program
                         null,
                         sidecarAccess.SidecarAdminToken,
                         cancellationToken);
+                RuntimeDiscoveryCommit commit;
                 try
                 {
-                    await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
-                        runtime.RuntimeId,
-                        context.AuthorityRevision,
+                    commit = await commandContexts.CommitDiscoveryAsync(
+                        context,
+                        registrationAuthority,
                         cancellationToken,
                         capabilityDiscovery,
                         statusDiscovery,
@@ -124,6 +125,10 @@ public partial class Program
                 {
                     return RuntimeRegistrationAuthorityFailure(ex, runtime.RuntimeId);
                 }
+                runtime = commit.Context.Runtime;
+                capabilityDiscovery = commit.CapabilityDiscovery!;
+                statusDiscovery = commit.StatusDiscovery!;
+                sidecarDiscovery = commit.SidecarDiscovery;
 
                 var capabilityResult = registry.RefreshRuntimeCapabilities(
                     runtime.RuntimeId,
@@ -201,11 +206,12 @@ public partial class Program
                     null,
                     cancellationToken,
                     context.ControlAccess.AdminToken);
+                RuntimeDiscoveryCommit commit;
                 try
                 {
-                    await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
-                        runtime.RuntimeId,
-                        context.AuthorityRevision,
+                    commit = await commandContexts.CommitDiscoveryAsync(
+                        context,
+                        registrationAuthority,
                         cancellationToken,
                         capabilityDiscovery: capabilityDiscovery);
                 }
@@ -213,6 +219,8 @@ public partial class Program
                 {
                     return RuntimeRegistrationAuthorityFailure(ex, runtime.RuntimeId);
                 }
+                runtime = commit.Context.Runtime;
+                capabilityDiscovery = commit.CapabilityDiscovery!;
                 var result = registry.RefreshRuntimeCapabilities(
                     runtime.RuntimeId,
                     capabilityDiscovery);
@@ -270,21 +278,21 @@ public partial class Program
                     null,
                     sidecarAccess.SidecarAdminToken,
                     cancellationToken);
+                RuntimeDiscoveryCommit commit;
                 try
                 {
-                    if (sidecarDiscovery.SidecarStatus is not null)
-                    {
-                        await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
-                            runtime.RuntimeId,
-                            context.AuthorityRevision,
-                            cancellationToken,
-                            sidecarDiscovery: sidecarDiscovery);
-                    }
+                    commit = await commandContexts.CommitDiscoveryAsync(
+                        context,
+                        registrationAuthority,
+                        cancellationToken,
+                        sidecarDiscovery: sidecarDiscovery);
                 }
                 catch (DaemonRuntimeRegistrationException ex)
                 {
                     return RuntimeRegistrationAuthorityFailure(ex, runtime.RuntimeId);
                 }
+                runtime = commit.Context.Runtime;
+                sidecarDiscovery = commit.SidecarDiscovery!;
                 var result = registry.RefreshRuntimeSidecar(runtime.RuntimeId, sidecarDiscovery);
                 if (result is not null)
                 {
@@ -345,11 +353,12 @@ public partial class Program
                     null,
                     cancellationToken,
                     context.ControlAccess.AdminToken);
+                RuntimeDiscoveryCommit commit;
                 try
                 {
-                    await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
-                        runtime.RuntimeId,
-                        context.AuthorityRevision,
+                    commit = await commandContexts.CommitDiscoveryAsync(
+                        context,
+                        registrationAuthority,
                         cancellationToken,
                         statusDiscovery: statusDiscovery);
                 }
@@ -357,6 +366,8 @@ public partial class Program
                 {
                     return RuntimeRegistrationAuthorityFailure(ex, runtime.RuntimeId);
                 }
+                runtime = commit.Context.Runtime;
+                statusDiscovery = commit.StatusDiscovery!;
                 var result = registry.RefreshRuntimeStatus(runtime.RuntimeId, statusDiscovery);
                 if (result is not null)
                 {

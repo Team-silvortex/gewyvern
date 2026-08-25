@@ -160,7 +160,22 @@ and no command can target a stale managed endpoint. The context is neither an
 API model nor a persistence model, and its diagnostics report only whether
 credentials exist. Daemon deployment and discovery intake are revision-fenced;
 Orchestra composes all observations into one intake before updating managed
-compatibility state.
+compatibility state. A successful discovery intake returns its exact applied
+revision and strict daemon runtime projection. The command-context coordinator
+uses that receipt for local compatibility refreshes and API responses without
+reinspecting daemon state; a receiptless authoritative observation cannot fall
+back to a local write. Only fetch telemetry and credentials remain local.
+Registration itself now returns a typed commit receipt containing both its
+registration revision and the final revision after optional discovery intake.
+The returned daemon projection must fully decode and match the requested
+identity; its command ID must match the submitted command, and a redundant
+envelope revision must match the projection when present. Its projection
+revision directly fences intake, whose receipt receives the same coherence
+checks, eliminating post-registration inspection, and the final
+projection supplies the initial compatibility write and API response. An
+enabled authority that omits this receipt fails closed; runtime and sidecar
+credentials, plus capability-fetch telemetry, remain only
+in the managed store.
 
 ## Security Model
 

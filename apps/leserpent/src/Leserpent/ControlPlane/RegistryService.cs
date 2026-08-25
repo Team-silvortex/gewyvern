@@ -219,6 +219,33 @@ public sealed partial class RegistryService
             runtimeId);
     }
 
+    public RuntimeRegistrationResponse RegisterRuntimeFromAuthority(
+        RuntimeRegistrationRequest request,
+        DaemonRuntimeProjection authority,
+        CapabilityDiscoveryResult? capabilityDiscovery = null)
+    {
+        ArgumentNullException.ThrowIfNull(authority);
+        var capabilities = authority.Capabilities is not null
+            ? RuntimeCapabilityProjection.ToLegacy(authority.Capabilities)
+            : capabilityDiscovery?.Capabilities.Count > 0
+                ? NormalizeCapabilities(capabilityDiscovery.Capabilities)
+                : NormalizeCapabilities(request.Capabilities);
+        var capabilitySource = authority.Capabilities?.Source
+            ?? (capabilityDiscovery?.Capabilities.Count > 0
+                ? capabilityDiscovery.CapabilitySource
+                : "manual");
+        return RegisterRuntimeInternal(
+            request,
+            capabilities,
+            capabilitySource,
+            capabilityDiscovery?.CapabilityFetchedAt,
+            capabilityDiscovery?.CapabilityFetchError,
+            authority.Status,
+            authority.SidecarStatus,
+            authority.RuntimeId,
+            preserveCapabilityTelemetry: capabilityDiscovery is null);
+    }
+
     public IReadOnlyList<RuntimeSummary> ListRuntimes(RuntimeListFilter? filter = null) =>
         runtimes.Values
             .Where(runtime => MatchesFilter(runtime, filter))
@@ -2339,7 +2366,8 @@ public sealed partial class RegistryService
         string? capabilityFetchError,
         RuntimeStatusSnapshot status,
         RuntimeSidecarStatusSnapshot? sidecarStatus,
-        string? runtimeId = null)
+        string? runtimeId = null,
+        bool preserveCapabilityTelemetry = false)
     {
         RequireControlPlaneWriter();
         lock (runtimeRegistrationSync)
@@ -2352,7 +2380,8 @@ public sealed partial class RegistryService
                 capabilityFetchError,
                 status,
                 sidecarStatus,
-                runtimeId);
+                runtimeId,
+                preserveCapabilityTelemetry);
         }
     }
 
@@ -2364,7 +2393,8 @@ public sealed partial class RegistryService
         string? capabilityFetchError,
         RuntimeStatusSnapshot status,
         RuntimeSidecarStatusSnapshot? sidecarStatus,
-        string? runtimeId)
+        string? runtimeId,
+        bool preserveCapabilityTelemetry)
     {
         var plan = GetRuntimeRegistrationPlan(new RuntimeRegistrationPlanRequest(
             request.Name,
@@ -2394,14 +2424,19 @@ public sealed partial class RegistryService
         {
             var updated = existing with
             {
+                Name = request.Name.Trim(),
                 Endpoint = request.Endpoint.Trim(),
                 RuntimeAdminToken = NormalizeOptionalSecret(request.PairingToken),
                 SidecarEndpoint = NormalizeOptionalEndpoint(request.SidecarEndpoint),
                 SidecarAdminToken = NormalizeOptionalSecret(request.SidecarAdminToken),
                 Capabilities = capabilities,
                 CapabilitySource = capabilitySource,
-                CapabilityFetchedAt = capabilityFetchedAt,
-                CapabilityFetchError = capabilityFetchError,
+                CapabilityFetchedAt = preserveCapabilityTelemetry
+                    ? existing.CapabilityFetchedAt
+                    : capabilityFetchedAt,
+                CapabilityFetchError = preserveCapabilityTelemetry
+                    ? existing.CapabilityFetchError
+                    : capabilityFetchError,
                 Tags = tags,
                 Status = status,
                 SidecarStatus = sidecarStatus,

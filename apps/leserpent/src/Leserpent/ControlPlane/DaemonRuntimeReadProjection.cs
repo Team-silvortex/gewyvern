@@ -124,7 +124,7 @@ public sealed class RuntimeReadProjectionService(
             authoritative.Revision);
     }
 
-    private static RuntimeSummary Merge(
+    internal static RuntimeSummary Merge(
         DaemonRuntimeProjection authoritative,
         RuntimeSummary compatibility)
     {
@@ -713,4 +713,5 @@ internal sealed record DaemonRuntimeSidecarStatusPayload(
 [JsonSourceGenerationOptions(GenerationMode = JsonSourceGenerationMode.Metadata)]
 [JsonSerializable(typeof(DaemonRuntimeListPayload))]
 [JsonSerializable(typeof(DaemonRuntimeInspectPayload))]
+[JsonSerializable(typeof(DaemonRuntimeProjectionPayload))]
 internal sealed partial class DaemonRuntimeProjectionJsonContext : JsonSerializerContext;

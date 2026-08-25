@@ -18,6 +18,27 @@ public interface IRuntimeRegistrationAuthority
         RuntimeStatusDiscoveryResult? statusDiscovery = null,
         RuntimeSidecarDiscoveryResult? sidecarDiscovery = null);
 
+    async Task<RuntimeRegistrationCommitReceipt> RegisterWithReceiptAsync(
+        RuntimeRegistrationRequest request,
+        string runtimeId,
+        CancellationToken cancellationToken,
+        bool update = false,
+        CapabilityDiscoveryResult? capabilityDiscovery = null,
+        RuntimeStatusDiscoveryResult? statusDiscovery = null,
+        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null)
+    {
+        var registeredRuntimeId = await RegisterAsync(
+            request,
+            runtimeId,
+            cancellationToken,
+            update,
+            capabilityDiscovery,
+            statusDiscovery,
+            sidecarDiscovery);
+        return RuntimeRegistrationCommitReceipt.WithoutAuthoritativeCommit(
+            registeredRuntimeId);
+    }
+
     Task SubmitDiscoveryAsync(
         string runtimeId,
         CancellationToken cancellationToken,
@@ -25,19 +46,22 @@ public interface IRuntimeRegistrationAuthority
         RuntimeStatusDiscoveryResult? statusDiscovery = null,
         RuntimeSidecarDiscoveryResult? sidecarDiscovery = null);
 
-    Task SubmitDiscoveryAtRevisionAsync(
+    async Task<RuntimeDiscoveryIntakeReceipt> SubmitDiscoveryAtRevisionAsync(
         string runtimeId,
         ulong? expectedRevision,
         CancellationToken cancellationToken,
         CapabilityDiscoveryResult? capabilityDiscovery = null,
         RuntimeStatusDiscoveryResult? statusDiscovery = null,
-        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
-        SubmitDiscoveryAsync(
+        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null)
+    {
+        await SubmitDiscoveryAsync(
             runtimeId,
             cancellationToken,
             capabilityDiscovery,
             statusDiscovery,
             sidecarDiscovery);
+        return RuntimeDiscoveryIntakeReceipt.WithoutAuthoritativeCommit(runtimeId);
+    }
 
     Task UnregisterAsync(
         IReadOnlyCollection<string> runtimeIds,
@@ -55,6 +79,86 @@ public interface IRuntimeRegistrationAuthority
             CancellationToken cancellationToken) =>
         Task.FromResult(
             RuntimeUnregistrationReceiptLookup.Missing(commandId));
+}
+
+public sealed class RuntimeRegistrationCommitReceipt
+{
+    private RuntimeRegistrationCommitReceipt(
+        string runtimeId,
+        ulong? registrationRevision,
+        DaemonRuntimeProjection? runtime,
+        bool discoveryApplied)
+    {
+        RuntimeId = runtimeId;
+        RegistrationRevision = registrationRevision;
+        Runtime = runtime;
+        DiscoveryApplied = discoveryApplied;
+    }
+
+    public string RuntimeId { get; }
+    public ulong? RegistrationRevision { get; }
+    public ulong? Revision => Runtime?.Revision;
+    public DaemonRuntimeProjection? Runtime { get; }
+    public bool DiscoveryApplied { get; }
+    public bool Applied => Runtime is not null;
+
+    internal static RuntimeRegistrationCommitReceipt WithoutAuthoritativeCommit(
+        string runtimeId) =>
+        new(runtimeId, null, null, false);
+
+    public static RuntimeRegistrationCommitReceipt FromAuthoritativeCommit(
+        ulong registrationRevision,
+        DaemonRuntimeProjection runtime,
+        bool discoveryApplied)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        if (registrationRevision == 0
+            || (discoveryApplied && runtime.Revision <= registrationRevision)
+            || (!discoveryApplied && runtime.Revision != registrationRevision))
+        {
+            throw new ArgumentException(
+                "registration receipt revisions are incoherent",
+                nameof(runtime));
+        }
+        return new(
+            runtime.RuntimeId,
+            registrationRevision,
+            runtime,
+            discoveryApplied);
+    }
+
+    public override string ToString() =>
+        $"RuntimeRegistrationCommitReceipt {{ RuntimeId = {RuntimeId}, RegistrationRevision = {RegistrationRevision?.ToString() ?? "managed"}, Revision = {Revision?.ToString() ?? "managed"}, DiscoveryApplied = {DiscoveryApplied}, Applied = {Applied} }}";
+}
+
+public sealed class RuntimeDiscoveryIntakeReceipt
+{
+    private RuntimeDiscoveryIntakeReceipt(
+        string runtimeId,
+        DaemonRuntimeProjection? runtime)
+    {
+        RuntimeId = runtimeId;
+        Runtime = runtime;
+    }
+
+    public string RuntimeId { get; }
+    public ulong? Revision => Runtime?.Revision;
+    public DaemonRuntimeProjection? Runtime { get; }
+    public bool Applied => Runtime is not null;
+
+    internal static RuntimeDiscoveryIntakeReceipt WithoutAuthoritativeCommit(
+        string runtimeId) =>
+        new(runtimeId, null);
+
+    public static RuntimeDiscoveryIntakeReceipt FromAuthoritativeCommit(
+        DaemonRuntimeProjection runtime)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        return new(runtime.RuntimeId, runtime);
+    }
+
+    public override string ToString() =>
+        $"RuntimeDiscoveryIntakeReceipt {{ RuntimeId = {RuntimeId}, Revision = {Revision?.ToString() ?? "managed"}, Applied = {Applied} }}";
 }
 
 public sealed partial class DaemonRuntimeRegistrationAuthority :
@@ -120,6 +224,23 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         bool update = false,
         CapabilityDiscoveryResult? capabilityDiscovery = null,
         RuntimeStatusDiscoveryResult? statusDiscovery = null,
+        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+        (await RegisterWithReceiptAsync(
+            request,
+            runtimeId,
+            cancellationToken,
+            update,
+            capabilityDiscovery,
+            statusDiscovery,
+            sidecarDiscovery)).RuntimeId;
+
+    public async Task<RuntimeRegistrationCommitReceipt> RegisterWithReceiptAsync(
+        RuntimeRegistrationRequest request,
+        string runtimeId,
+        CancellationToken cancellationToken,
+        bool update = false,
+        CapabilityDiscoveryResult? capabilityDiscovery = null,
+        RuntimeStatusDiscoveryResult? statusDiscovery = null,
         RuntimeSidecarDiscoveryResult? sidecarDiscovery = null)
     {
         if (!Enabled)
@@ -139,25 +260,49 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
                 ? await InspectRevisionAsync(runtimeId, deadline.Token)
                 : null;
             var command = BuildCommand(request, runtimeId, expectedRevision);
-            using var response = await ExchangeAsync(command, deadline.Token);
-            _ = ParseCommandResult(response.RootElement, runtimeId);
+            using var response = await ExchangeAsync(command.Frame, deadline.Token);
+            var registeredRuntime = ParseAppliedRuntimeProjection(
+                response.RootElement,
+                runtimeId,
+                command.CommandId,
+                "registration");
+            ValidateRegistrationProjection(request, registeredRuntime);
+            if (expectedRevision is { } previousRevision
+                && registeredRuntime.Revision <= previousRevision)
+            {
+                throw new InvalidOperationException(
+                    "leserpentd registration receipt did not advance the runtime revision");
+            }
 
             var (capabilitySnapshot, statusSnapshot, sidecarSnapshot) =
                 BuildDiscoverySnapshots(capabilityDiscovery, statusDiscovery, sidecarDiscovery);
+            var finalRuntime = registeredRuntime;
+            var discoveryApplied = false;
             if (capabilitySnapshot is not null || statusSnapshot is not null || sidecarSnapshot is not null)
             {
-                var intakeRevision = await InspectRevisionAsync(runtimeId, deadline.Token)
-                    ?? throw new InvalidOperationException("leserpentd lost the registered runtime before discovery intake");
                 var intake = BuildDiscoveryIntakeCommand(
                     runtimeId,
-                    intakeRevision,
+                    registeredRuntime.Revision,
                     capabilitySnapshot,
                     statusSnapshot,
                     sidecarSnapshot);
-                using var intakeResponse = await ExchangeAsync(intake, deadline.Token);
-                _ = ParseCommandResult(intakeResponse.RootElement, runtimeId);
+                using var intakeResponse = await ExchangeAsync(
+                    intake.Frame,
+                    deadline.Token);
+                var intakeReceipt = ParseDiscoveryIntakeReceipt(
+                    intakeResponse.RootElement,
+                    runtimeId,
+                    intake.CommandId,
+                    registeredRuntime.Revision);
+                finalRuntime = intakeReceipt.Runtime
+                    ?? throw new InvalidOperationException(
+                        "leserpentd discovery intake receipt omitted its runtime projection");
+                discoveryApplied = true;
             }
-            return runtimeId;
+            return RuntimeRegistrationCommitReceipt.FromAuthoritativeCommit(
+                registeredRuntime.Revision,
+                finalRuntime,
+                discoveryApplied);
         }
         catch (OperationCanceledException error) when (!cancellationToken.IsCancellationRequested)
         {
@@ -167,7 +312,8 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
                 error);
         }
         catch (Exception error) when (
-            error is KeyNotFoundException
+            error is JsonException
+                or KeyNotFoundException
                 or InvalidOperationException
                 or FormatException
                 or OverflowException)
@@ -179,13 +325,13 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         }
     }
 
-    public Task SubmitDiscoveryAsync(
+    public async Task SubmitDiscoveryAsync(
         string runtimeId,
         CancellationToken cancellationToken,
         CapabilityDiscoveryResult? capabilityDiscovery = null,
         RuntimeStatusDiscoveryResult? statusDiscovery = null,
         RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
-        SubmitDiscoveryAtRevisionAsync(
+        _ = await SubmitDiscoveryAtRevisionAsync(
             runtimeId,
             null,
             cancellationToken,
@@ -193,7 +339,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
             statusDiscovery,
             sidecarDiscovery);
 
-    public async Task SubmitDiscoveryAtRevisionAsync(
+    public async Task<RuntimeDiscoveryIntakeReceipt> SubmitDiscoveryAtRevisionAsync(
         string runtimeId,
         ulong? expectedRevision,
         CancellationToken cancellationToken,
@@ -203,13 +349,13 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
     {
         if (!Enabled)
         {
-            return;
+            return RuntimeDiscoveryIntakeReceipt.WithoutAuthoritativeCommit(runtimeId);
         }
         var (capabilitySnapshot, statusSnapshot, sidecarSnapshot) =
             BuildDiscoverySnapshots(capabilityDiscovery, statusDiscovery, sidecarDiscovery);
         if (capabilitySnapshot is null && statusSnapshot is null && sidecarSnapshot is null)
         {
-            return;
+            return RuntimeDiscoveryIntakeReceipt.WithoutAuthoritativeCommit(runtimeId);
         }
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(timeout);
@@ -224,8 +370,12 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
                 capabilitySnapshot,
                 statusSnapshot,
                 sidecarSnapshot);
-            using var response = await ExchangeAsync(command, deadline.Token);
-            _ = ParseCommandResult(response.RootElement, runtimeId);
+            using var response = await ExchangeAsync(command.Frame, deadline.Token);
+            return ParseDiscoveryIntakeReceipt(
+                response.RootElement,
+                runtimeId,
+                command.CommandId,
+                revision);
         }
         catch (OperationCanceledException error) when (!cancellationToken.IsCancellationRequested)
         {
@@ -235,7 +385,8 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
                 error);
         }
         catch (Exception error) when (
-            error is KeyNotFoundException
+            error is JsonException
+                or KeyNotFoundException
                 or InvalidOperationException
                 or FormatException
                 or OverflowException)
@@ -585,7 +736,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         }
     }
 
-    private byte[] BuildCommand(
+    private (byte[] Frame, string CommandId) BuildCommand(
         RuntimeRegistrationRequest request,
         string runtimeId,
         ulong? expectedRevision)
@@ -597,7 +748,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
             request.Endpoint,
             request.SidecarEndpoint,
             expectedRevision is not null);
-        return BuildFrame(writer =>
+        var frame = BuildFrame(writer =>
         {
             writer.WriteStartObject();
             writer.WriteNumber("schema_version", 1);
@@ -642,6 +793,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
             writer.WriteEndObject();
             writer.WriteEndObject();
         });
+        return (frame, stableCommandId);
     }
 
     private async Task<ulong?> InspectRevisionAsync(
@@ -708,7 +860,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         return runtime.GetProperty("revision").GetUInt64();
     }
 
-    private byte[] BuildDiscoveryIntakeCommand(
+    private (byte[] Frame, string CommandId) BuildDiscoveryIntakeCommand(
         string runtimeId,
         ulong expectedRevision,
         RuntimeCapabilityAuthoritySnapshot? capabilities,
@@ -721,7 +873,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
             capabilities,
             status,
             sidecarStatus);
-        return BuildFrame(writer =>
+        var frame = BuildFrame(writer =>
         {
             writer.WriteStartObject();
             writer.WriteNumber("schema_version", 1);
@@ -751,6 +903,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
             writer.WriteEndObject();
             writer.WriteEndObject();
         });
+        return (frame, commandId);
     }
 
     private byte[] BuildUnregisterRequest(
@@ -1083,23 +1236,97 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         return output.ToArray();
     }
 
-    private static long ParseCommandResult(JsonElement root, string expectedRuntimeId)
+    private static DaemonRuntimeProjection ParseAppliedRuntimeProjection(
+        JsonElement root,
+        string expectedRuntimeId,
+        string expectedCommandId,
+        string operation)
     {
         var payload = RequireResponse(root, "command");
-        if (!string.Equals(payload.GetProperty("status").GetString(), "applied", StringComparison.Ordinal)
-            || payload.GetProperty("command_id").ValueKind == JsonValueKind.Null)
+        if (!string.Equals(
+                payload.GetProperty("status").GetString(),
+                "applied",
+                StringComparison.Ordinal)
+            || !string.Equals(
+                payload.GetProperty("command_id").GetString(),
+                expectedCommandId,
+                StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("leserpentd registration response is invalid");
+            throw new InvalidOperationException(
+                $"leserpentd {operation} response is invalid");
         }
-        var registeredRuntimeId = payload.GetProperty("runtime").GetProperty("id").GetString();
-        if (!string.Equals(registeredRuntimeId, expectedRuntimeId, StringComparison.Ordinal))
+        var decoded = JsonSerializer.Deserialize(
+            payload.GetProperty("runtime").GetRawText(),
+            DaemonRuntimeProjectionJsonContext.Default.DaemonRuntimeProjectionPayload)
+            ?? throw new InvalidOperationException(
+                $"leserpentd {operation} response omitted its runtime projection");
+        var runtime = ConvertProjection(decoded);
+        if (!string.Equals(
+                runtime.RuntimeId,
+                expectedRuntimeId,
+                StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("leserpentd registration response did not echo the requested runtime ID");
+            throw new InvalidOperationException(
+                $"leserpentd {operation} response returned another runtime");
         }
-        var runtime = payload.GetProperty("runtime");
-        return runtime.TryGetProperty("revision", out var runtimeRevision)
-            ? runtimeRevision.GetInt64()
-            : payload.GetProperty("revision").GetInt64();
+        if (payload.TryGetProperty("revision", out var envelopeRevision)
+            && envelopeRevision.GetUInt64() != runtime.Revision)
+        {
+            throw new InvalidOperationException(
+                $"leserpentd {operation} response returned an incoherent revision");
+        }
+        return runtime;
+    }
+
+    private static void ValidateRegistrationProjection(
+        RuntimeRegistrationRequest request,
+        DaemonRuntimeProjection runtime)
+    {
+        var tags = request.Tags ?? new RuntimeTags(null, null, null);
+        if (!string.Equals(runtime.Name, request.Name.Trim(), StringComparison.Ordinal)
+            || !string.Equals(runtime.Endpoint, request.Endpoint.Trim(), StringComparison.Ordinal)
+            || !string.Equals(
+                runtime.SidecarEndpoint,
+                NormalizeOptionalRegistrationValue(request.SidecarEndpoint),
+                StringComparison.Ordinal)
+            || !string.Equals(
+                runtime.Tags.Environment,
+                NormalizeOptionalRegistrationValue(tags.Environment),
+                StringComparison.Ordinal)
+            || !string.Equals(
+                runtime.Tags.Cluster,
+                NormalizeOptionalRegistrationValue(tags.Cluster),
+                StringComparison.Ordinal)
+            || !string.Equals(
+                runtime.Tags.Role,
+                NormalizeOptionalRegistrationValue(tags.Role),
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "leserpentd registration response does not match the requested identity");
+        }
+    }
+
+    private static string? NormalizeOptionalRegistrationValue(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static RuntimeDiscoveryIntakeReceipt ParseDiscoveryIntakeReceipt(
+        JsonElement root,
+        string expectedRuntimeId,
+        string expectedCommandId,
+        ulong expectedRevision)
+    {
+        var runtime = ParseAppliedRuntimeProjection(
+            root,
+            expectedRuntimeId,
+            expectedCommandId,
+            "discovery intake");
+        if (runtime.Revision <= expectedRevision)
+        {
+            throw new InvalidOperationException(
+                "leserpentd discovery intake receipt did not advance the runtime revision");
+        }
+        return RuntimeDiscoveryIntakeReceipt.FromAuthoritativeCommit(runtime);
     }
 
     private static JsonElement RequireResponse(JsonElement root, string expectedKind)

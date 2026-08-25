@@ -556,7 +556,6 @@ public sealed class RuntimeReadProjectionTests
                 await contexts.InspectAsync(
                     "runtime-context",
                     CancellationToken.None));
-
             Assert.Equal(42UL, context.AuthorityRevision);
             Assert.Equal("Daemon Name", context.Runtime.Name);
             Assert.Equal("https://daemon.invalid", context.Runtime.Endpoint);
@@ -582,6 +581,251 @@ public sealed class RuntimeReadProjectionTests
         {
             DeleteStateFiles(statePath);
         }
+    }
+
+    [Fact]
+    public async Task DiscoveryReceiptBindsCommittedProjectionWithoutMovingCredentials()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "Managed Name",
+                    "https://managed.invalid",
+                    "runtime-secret"),
+                "runtime-context");
+            var initialProjection = Projection("runtime-context") with
+            {
+                Revision = 42,
+            };
+            var contexts = new RuntimeCommandExecutionContextService(
+                new RuntimeReadProjectionService(
+                    registry,
+                    new FakeDaemonReader(true, new[] { initialProjection })),
+                registry);
+            var context = Assert.IsType<RuntimeCommandExecutionContext>(
+                await contexts.InspectAsync(
+                    "runtime-context",
+                    CancellationToken.None));
+            var committedStatus = initialProjection.Status with
+            {
+                SnapshotKind = "receipt-bound",
+                TargetCount = 9,
+            };
+            var receipt = RuntimeDiscoveryIntakeReceipt.FromAuthoritativeCommit(
+                initialProjection with
+                {
+                    Name = "Committed Name",
+                    Endpoint = "https://committed.invalid",
+                    Revision = 43,
+                    Status = committedStatus,
+                });
+            var observedStatus = RuntimeStatusDiscoveryResult.Failed(
+                "https://managed.invalid/v1/latest/status",
+                "raw transport detail");
+
+            var commit = contexts.BindDiscoveryReceipt(
+                context,
+                receipt,
+                statusDiscovery: observedStatus);
+
+            Assert.Equal(43UL, commit.Context.AuthorityRevision);
+            Assert.Equal("Committed Name", commit.Context.Runtime.Name);
+            Assert.Equal("https://committed.invalid", commit.Context.Runtime.Endpoint);
+            Assert.Equal(committedStatus, commit.StatusDiscovery?.Status);
+            Assert.Equal("runtime-secret", commit.Context.ControlAccess.AdminToken);
+            Assert.DoesNotContain("runtime-secret", commit.ToString());
+            Assert.DoesNotContain("committed.invalid", commit.ToString());
+            Assert.DoesNotContain("committed.invalid", receipt.ToString());
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public async Task AuthoritativeDiscoveryCannotFallBackToAReceiptlessCompatibilityWrite()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "Managed Name",
+                    "https://managed.invalid",
+                    "runtime-secret"),
+                "runtime-context");
+            var projection = Projection("runtime-context") with
+            {
+                Revision = 42,
+            };
+            var contexts = new RuntimeCommandExecutionContextService(
+                new RuntimeReadProjectionService(
+                    registry,
+                    new FakeDaemonReader(true, new[] { projection })),
+                registry);
+            var context = Assert.IsType<RuntimeCommandExecutionContext>(
+                await contexts.InspectAsync(
+                    "runtime-context",
+                    CancellationToken.None));
+            var managedStatus = registry.GetRuntime("runtime-context")!.Status;
+
+            var error = Assert.Throws<DaemonRuntimeRegistrationException>(() =>
+                contexts.BindDiscoveryReceipt(
+                    context,
+                    RuntimeDiscoveryIntakeReceipt.WithoutAuthoritativeCommit(
+                        "runtime-context"),
+                    statusDiscovery: RuntimeStatusDiscoveryResult.Failed(
+                        "https://managed.invalid/v1/latest/status",
+                        "raw transport detail")));
+
+            Assert.Equal("daemon_protocol_invalid", error.Code);
+            Assert.Equal(
+                managedStatus,
+                registry.GetRuntime("runtime-context")?.Status);
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public void RegistrationReceiptBindsAuthorityProjectionAndKeepsCredentialsLocal()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            const string runtimeId = "runtime-registration-commit";
+            var runtime = Projection(runtimeId) with
+            {
+                Revision = 8,
+            };
+            var request = new RuntimeRegistrationRequest(
+                runtime.Name,
+                runtime.Endpoint,
+                "runtime-secret",
+                Tags: runtime.Tags,
+                FetchCapabilities: true,
+                SidecarEndpoint: runtime.SidecarEndpoint,
+                SidecarAdminToken: "sidecar-secret");
+            var capabilityDiscovery = CapabilityDiscoveryResult.Succeeded(
+                "https://managed.invalid/v1/capabilities",
+                new[]
+                {
+                    new RuntimeCapability(
+                        "stale-local-capability",
+                        "unknown",
+                        "must be replaced by the daemon receipt"),
+                },
+                runtime.Capabilities);
+            var statusDiscovery = RuntimeStatusDiscoveryResult.Failed(
+                "https://managed.invalid/v1/latest/status",
+                "raw status detail");
+            var sidecarDiscovery = RuntimeSidecarDiscoveryResult.Failed(
+                "https://managed-sidecar.invalid/v1/status",
+                "raw sidecar detail");
+            var service = new RuntimeRegistrationCommitProjectionService();
+
+            var commit = service.Bind(
+                runtimeId,
+                request,
+                RuntimeRegistrationCommitReceipt.FromAuthoritativeCommit(
+                    7,
+                    runtime,
+                    discoveryApplied: true),
+                capabilityDiscovery,
+                statusDiscovery,
+                sidecarDiscovery);
+            var registered = registry.RegisterRuntimeFromAuthority(
+                commit.Request,
+                commit.Runtime,
+                commit.CapabilityDiscovery);
+
+            Assert.Equal(runtime.Name, registered.Name);
+            Assert.Equal(runtime.Endpoint, registered.Endpoint);
+            Assert.Equal(runtime.Tags, registered.Tags);
+            Assert.Equal(runtime.Status, registered.Status);
+            Assert.Equal(runtime.SidecarStatus, registered.SidecarStatus);
+            Assert.Equal(
+                RuntimeCapabilityProjection.ToLegacy(runtime.Capabilities!),
+                registered.Capabilities);
+            Assert.True(registered.HasRuntimeAdminToken);
+            Assert.True(registered.HasSidecarAdminToken);
+            Assert.Equal(runtime.Status, commit.StatusDiscovery?.Status);
+            Assert.Equal(runtime.SidecarStatus, commit.SidecarDiscovery?.SidecarStatus);
+            Assert.Equal(
+                "runtime-secret",
+                registry.GetRuntimeControlAccess(runtimeId)?.AdminToken);
+            Assert.Equal(
+                "sidecar-secret",
+                registry.GetRuntimeSidecarAccess(runtimeId)?.SidecarAdminToken);
+            Assert.DoesNotContain("runtime-secret", commit.ToString());
+            Assert.DoesNotContain("sidecar-secret", commit.ToString());
+            Assert.DoesNotContain("daemon.invalid", commit.ToString());
+
+            var fetchedAt = registered.CapabilityFetchedAt;
+            var updatedStatus = runtime.Status with
+            {
+                SnapshotKind = "registration-update",
+                TargetCount = 11,
+            };
+            var updatedRuntime = runtime with
+            {
+                Revision = 9,
+                Status = updatedStatus,
+            };
+            var updateRequest = request with
+            {
+                PairingToken = "rotated-runtime-secret",
+                SidecarAdminToken = "rotated-sidecar-secret",
+                FetchCapabilities = false,
+            };
+            var updateCommit = service.Bind(
+                runtimeId,
+                updateRequest,
+                RuntimeRegistrationCommitReceipt.FromAuthoritativeCommit(
+                    9,
+                    updatedRuntime,
+                    discoveryApplied: false));
+            var updated = registry.RegisterRuntimeFromAuthority(
+                updateCommit.Request,
+                updateCommit.Runtime);
+
+            Assert.Equal(updatedStatus, updated.Status);
+            Assert.Equal(fetchedAt, updated.CapabilityFetchedAt);
+            Assert.Equal(
+                "rotated-runtime-secret",
+                registry.GetRuntimeControlAccess(runtimeId)?.AdminToken);
+            Assert.Equal(
+                "rotated-sidecar-secret",
+                registry.GetRuntimeSidecarAccess(runtimeId)?.SidecarAdminToken);
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public void AuthoritativeRegistrationCannotFallBackToAReceiptlessWrite()
+    {
+        var service = new RuntimeRegistrationCommitProjectionService();
+        var request = new RuntimeRegistrationRequest(
+            "Runtime",
+            "https://runtime.invalid",
+            "runtime-secret");
+
+        var error = Assert.Throws<DaemonRuntimeRegistrationException>(() =>
+            service.Bind(
+                "runtime-registration",
+                request,
+                RuntimeRegistrationCommitReceipt.WithoutAuthoritativeCommit(
+                    "runtime-registration")));
+
+        Assert.Equal("daemon_protocol_invalid", error.Code);
     }
 
     [Fact]

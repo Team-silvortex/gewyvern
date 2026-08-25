@@ -4643,7 +4643,21 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeCommandExecutionContextService.cs"
             && item.state == EvidenceState::Present
     }));
-    assert!(domain.next_gate.contains("typed discovery-intake receipt"));
+    assert!(domain.evidence.iter().any(|item| {
+        item.path
+            == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationCommitProjectionService.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(
+        domain
+            .next_gate
+            .contains("daemon-authoritative runtime IDs and revisions")
+    );
+    assert!(domain.evidence.iter().any(|item| {
+        item.path
+            == "apps/leserpent/tests/Leserpent.SecurityTests/DaemonRuntimeRegistrationAuthorityTests.cs"
+            && item.state == EvidenceState::Present
+    }));
 
     let language = catalog
         .cells
@@ -5618,7 +5632,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.49.8");
+    assert_eq!(compatibility_control.contract.version, "1.49.10");
     assert!(
         compatibility_control
             .contract
@@ -5649,6 +5663,27 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "daemon-authoritative-command-response-identity",
         "single-intake-orchestra-observation",
         "secret-free-command-context-diagnostics",
+        "typed-discovery-intake-receipt",
+        "authoritative-discovery-receipt-required",
+        "strict-discovery-receipt-projection-decode",
+        "receipt-bound-compatibility-refresh",
+        "receipt-bound-command-response",
+        "single-exchange-discovery-commit",
+        "managed-only-command-secret-retention",
+        "typed-registration-commit-receipt",
+        "strict-registration-receipt-projection-decode",
+        "registration-command-result-revision-fence",
+        "no-post-registration-reinspection",
+        "receipt-bound-registration-compatibility-write",
+        "receipt-bound-registration-response",
+        "authoritative-registration-receipt-required",
+        "managed-only-registration-secrets",
+        "preserved-local-capability-fetch-telemetry",
+        "registration-command-request-identity-fence",
+        "registration-command-id-receipt-fence",
+        "registration-envelope-projection-revision-coherence",
+        "discovery-command-id-receipt-fence",
+        "discovery-envelope-projection-revision-coherence",
     ] {
         assert!(
             compatibility_control
@@ -6120,7 +6155,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.49.8");
+    assert_eq!(compatibility_control.contract.version, "1.49.10");
     assert!(
         compatibility_control
             .next_gate
@@ -8453,6 +8488,10 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
     .expect("runtime command execution context must exist");
     assert!(context.contains("internal sealed class RuntimeCommandExecutionContext"));
     assert!(context.contains("internal sealed class RuntimeCommandExecutionContextService"));
+    assert!(context.contains("internal sealed class RuntimeDiscoveryCommit"));
+    assert!(context.contains("CommitDiscoveryAsync"));
+    assert!(context.contains("SubmitDiscoveryAtRevisionAsync"));
+    assert!(context.contains("BindDiscoveryReceipt"));
     assert!(context.contains("internal RuntimeControlAccess ControlAccess"));
     assert!(context.contains("internal RuntimeSidecarAccess? SidecarAccess"));
     assert!(!context.contains("public RuntimeControlAccess ControlAccess"));
@@ -8466,12 +8505,13 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
         let source = std::fs::read_to_string(root.join(path))
             .unwrap_or_else(|error| panic!("failed to read {path}: {error}"));
         assert!(source.contains("RuntimeCommandExecutionContextService"));
-        assert!(source.contains("SubmitDiscoveryAtRevisionAsync"));
+        assert!(source.contains("CommitDiscoveryAsync"));
         for forbidden in [
             "registry.GetRuntimeControlAccess(",
             "registry.GetRuntimeSidecarAccess(",
             "registry.ListRuntimes(",
             "registrationAuthority.SubmitDiscoveryAsync(",
+            "registrationAuthority.SubmitDiscoveryAtRevisionAsync(",
         ] {
             assert!(
                 !source.contains(forbidden),
@@ -8493,4 +8533,42 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
     .expect("daemon registration authority must exist");
     assert!(discovery.contains("SubmitDiscoveryAtRevisionAsync"));
     assert!(discovery.contains("var revision = expectedRevision"));
+    assert!(discovery.contains("RuntimeDiscoveryIntakeReceipt"));
+    assert!(discovery.contains("ParseDiscoveryIntakeReceipt"));
+    assert!(discovery.contains("RuntimeRegistrationCommitReceipt"));
+    assert!(discovery.contains("RegisterWithReceiptAsync"));
+    assert!(discovery.contains("ValidateRegistrationProjection"));
+    assert!(discovery.contains("string expectedCommandId"));
+    assert!(
+        discovery.contains("payload.TryGetProperty(\"revision\", out var envelopeRevision)")
+    );
+    let registration_method = discovery
+        .split("public async Task<RuntimeRegistrationCommitReceipt> RegisterWithReceiptAsync")
+        .nth(1)
+        .expect("typed registration method must exist")
+        .split("public async Task SubmitDiscoveryAsync")
+        .next()
+        .expect("typed registration method must be bounded");
+    assert_eq!(
+        registration_method.matches("InspectRevisionAsync(").count(),
+        1
+    );
+    assert!(registration_method.contains("registeredRuntime.Revision"));
+
+    let registration_commit = std::fs::read_to_string(root.join(
+        "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationCommitProjectionService.cs",
+    ))
+    .expect("runtime registration commit projection must exist");
+    assert!(registration_commit.contains("RuntimeRegistrationCompatibilityCommit"));
+    assert!(registration_commit.contains("receipt.DiscoveryApplied"));
+    assert!(registration_commit.contains("RuntimeCapabilityProjection.ToLegacy"));
+
+    let runtime_endpoints = std::fs::read_to_string(
+        root.join("apps/leserpent/src/Leserpent/ProgramRuntimeEndpoints.cs"),
+    )
+    .expect("runtime endpoints must exist");
+    assert!(runtime_endpoints.contains("RegisterWithReceiptAsync"));
+    assert!(runtime_endpoints.contains("registrationCommits.Bind"));
+    assert!(runtime_endpoints.contains("RegisterRuntimeFromAuthority"));
+    assert!(!runtime_endpoints.contains("registrationAuthority.RegisterAsync("));
 }

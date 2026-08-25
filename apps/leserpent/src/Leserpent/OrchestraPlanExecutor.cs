@@ -74,13 +74,17 @@ internal sealed class OrchestraPlanExecutor(
                 cancellationToken)
             : null;
 
-        await registrationAuthority.SubmitDiscoveryAtRevisionAsync(
-            runtime.RuntimeId,
-            context.AuthorityRevision,
+        var commit = await commandContexts.CommitDiscoveryAsync(
+            context,
+            registrationAuthority,
             cancellationToken,
             capabilityDiscovery,
             statusDiscovery,
             sidecarDiscovery);
+        runtime = commit.Context.Runtime;
+        capabilityDiscovery = commit.CapabilityDiscovery;
+        statusDiscovery = commit.StatusDiscovery;
+        sidecarDiscovery = commit.SidecarDiscovery;
 
         if (capabilityDiscovery is not null)
         {
