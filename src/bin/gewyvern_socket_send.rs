@@ -114,7 +114,7 @@ impl Cli {
                     let target = SocketTarget::Unix(validate_socket_path(
                         "unix socket path",
                         args.next().ok_or_else(|| {
-                        "missing value for --socket, expected a unix socket path".to_string()
+                            "missing value for --socket, expected a unix socket path".to_string()
                         })?,
                     )?);
                     select_once(
@@ -127,7 +127,7 @@ impl Cli {
                     let target = SocketTarget::Tcp(validate_socket_path(
                         "tcp socket target",
                         args.next().ok_or_else(|| {
-                        "missing value for --tcp-socket, expected host:port".to_string()
+                            "missing value for --tcp-socket, expected host:port".to_string()
                         })?,
                     )?);
                     select_once(
@@ -196,7 +196,9 @@ fn validate_raw_line(line: String) -> Result<String, String> {
 
 fn validate_socket_path(name: &str, value: String) -> Result<String, String> {
     if value.trim() != value {
-        return Err(format!("{name} must not contain leading or trailing whitespace"));
+        return Err(format!(
+            "{name} must not contain leading or trailing whitespace"
+        ));
     }
     if value.is_empty() {
         return Err(format!("{name} must not be empty"));
@@ -357,12 +359,8 @@ mod tests {
         assert!(
             super::Cli::from_args(["--socket".into(), "/tmp/line\nbreak.sock".into()]).is_err()
         );
-        assert!(
-            super::Cli::from_args(["--socket".into(), " /tmp/gewyvern.sock".into()]).is_err()
-        );
-        assert!(
-            super::Cli::from_args(["--socket".into(), "/tmp/gewyvern.sock ".into()]).is_err()
-        );
+        assert!(super::Cli::from_args(["--socket".into(), " /tmp/gewyvern.sock".into()]).is_err());
+        assert!(super::Cli::from_args(["--socket".into(), "/tmp/gewyvern.sock ".into()]).is_err());
     }
 
     #[test]

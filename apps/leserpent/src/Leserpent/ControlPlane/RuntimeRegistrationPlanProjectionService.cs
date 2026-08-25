@@ -12,11 +12,13 @@ internal sealed class RuntimeRegistrationPlanProjectionService(
             registry.GetRuntimeRegistrationRecoveryPlan(request);
         if (recoveryPlan is not null)
         {
-            return recoveryPlan;
+            return RejectIfDeleting(request, recoveryPlan);
         }
         if (!daemon.Enabled)
         {
-            return registry.GetRuntimeRegistrationPlan(request);
+            return RejectIfDeleting(
+                request,
+                registry.GetRuntimeRegistrationPlan(request));
         }
 
         var snapshot = await daemon.SnapshotAsync(cancellationToken);
@@ -27,13 +29,27 @@ internal sealed class RuntimeRegistrationPlanProjectionService(
             request,
             snapshot.Runtimes,
             plannedCreateRuntimeId);
-        return plan.PlannedRuntimeId is not null
-            && registry.IsRuntimeDeletionPending(plan.PlannedRuntimeId)
-                ? RuntimeRegistrationPolicy.RejectAuthoritative(
-                    request,
-                    plan,
-                    RuntimeRegistrationPolicy.RuntimeDeletionInProgressReason)
-                : plan;
+        return RejectIfDeleting(request, plan);
+    }
+
+    private RuntimeRegistrationPlan RejectIfDeleting(
+        RuntimeRegistrationPlanRequest request,
+        RuntimeRegistrationPlan plan)
+    {
+        if (plan.PlannedRuntimeId is null ||
+            !registry.IsRuntimeDeletionPending(plan.PlannedRuntimeId))
+        {
+            return plan;
+        }
+        return plan.AuthorityBound
+            ? RuntimeRegistrationPolicy.RejectAuthoritative(
+                request,
+                plan,
+                RuntimeRegistrationPolicy.RuntimeDeletionInProgressReason)
+            : RuntimeRegistrationPolicy.Reject(
+                request,
+                plan,
+                RuntimeRegistrationPolicy.RuntimeDeletionInProgressReason);
     }
 
     private string ResolvePlannedCreateRuntimeId(

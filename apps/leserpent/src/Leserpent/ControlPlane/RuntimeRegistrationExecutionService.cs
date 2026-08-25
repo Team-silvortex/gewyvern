@@ -70,6 +70,13 @@ internal sealed class RuntimeRegistrationExecutionException :
             PlanRuntimeId(plan),
             plan);
 
+    internal static RuntimeRegistrationExecutionException InProgress() =>
+        new(
+            RuntimeRegistrationExecutionFailureKind.Conflict,
+            "runtime_registration_in_progress",
+            "another runtime registration already owns this target; retry after it completes",
+            null);
+
     internal static RuntimeRegistrationExecutionException Ambiguous(
         RuntimeRegistrationPlan plan,
         Exception innerException) =>
@@ -119,20 +126,34 @@ internal sealed class RuntimeRegistrationExecutionService(
     RuntimeRegistrationCommitProjectionService registrationCommits,
     ControlPlaneSecurityPolicy security)
 {
+    private readonly object activeRegistrationSync = new();
+    private readonly List<RuntimeRegistrationPlanRequest>
+        activeRegistrations = [];
+
     internal async Task<RuntimeRegistrationResponse> ExecuteAsync(
         RuntimeRegistrationRequest request,
         CancellationToken cancellationToken)
     {
         request = await NormalizeAndValidateAsync(request, cancellationToken);
+        using var executionClaim = ClaimRuntimeRegistrationExecution(request);
+        var coordinates = new RuntimeRegistrationPlanRequest(
+            request.Name,
+            request.Endpoint,
+            request.SidecarEndpoint);
         var plan = await registrationPlans.BuildAsync(
-            new RuntimeRegistrationPlanRequest(
-                request.Name,
-                request.Endpoint,
-                request.SidecarEndpoint),
+            coordinates,
             cancellationToken);
         ValidateReviewedPlan(request, plan);
+        request = request with
+        {
+            RegistrationPlanToken = plan.PlanToken,
+        };
         ValidateAuthorityConfiguration(plan);
         var runtimeId = ResolveAuthorityRuntimeId(plan);
+        using var lifecycleClaim = ClaimRuntimeRegistrationLifecycle(
+            coordinates,
+            plan,
+            runtimeId ?? plan.ExistingRuntimeId);
         var pending = registry.ResolveRuntimeRegistrationIntent(request);
 
         try
@@ -519,4 +540,76 @@ internal sealed class RuntimeRegistrationExecutionService(
 
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private IDisposable ClaimRuntimeRegistrationExecution(
+        RuntimeRegistrationRequest request)
+    {
+        var coordinates = new RuntimeRegistrationPlanRequest(
+            request.Name,
+            request.Endpoint,
+            request.SidecarEndpoint);
+        lock (activeRegistrationSync)
+        {
+            if (activeRegistrations.Count >=
+                    ControlPlaneStateValidator
+                        .MaxPendingRuntimeRegistrationIntents ||
+                activeRegistrations.Any(existing =>
+                    RuntimeRegistrationIntentPolicy.Overlaps(
+                        existing,
+                        coordinates)))
+            {
+                throw RuntimeRegistrationExecutionException.InProgress();
+            }
+            activeRegistrations.Add(coordinates);
+        }
+        return new RuntimeRegistrationExecutionClaim(
+            () => ReleaseRuntimeRegistrationExecution(coordinates));
+    }
+
+    private IDisposable? ClaimRuntimeRegistrationLifecycle(
+        RuntimeRegistrationPlanRequest coordinates,
+        RuntimeRegistrationPlan plan,
+        string? runtimeId)
+    {
+        if (runtimeId is null)
+        {
+            return null;
+        }
+        try
+        {
+            return registry.ClaimRuntimeRegistrationLifecycle(runtimeId);
+        }
+        catch (RuntimeRegistrationInProgressException)
+        {
+            throw RuntimeRegistrationExecutionException.InProgress();
+        }
+        catch (RuntimeDeletionInProgressException)
+        {
+            throw RuntimeRegistrationExecutionException.PlanChanged(
+                RuntimeRegistrationPolicy.Reject(
+                    coordinates,
+                    plan,
+                    RuntimeRegistrationPolicy
+                        .RuntimeDeletionInProgressReason),
+                "runtime deletion started after plan review; review the current target before retrying");
+        }
+    }
+
+    private void ReleaseRuntimeRegistrationExecution(
+        RuntimeRegistrationPlanRequest coordinates)
+    {
+        lock (activeRegistrationSync)
+        {
+            _ = activeRegistrations.Remove(coordinates);
+        }
+    }
+
+    private sealed class RuntimeRegistrationExecutionClaim(
+        Action release) : IDisposable
+    {
+        private Action? releaseAction = release;
+
+        public void Dispose() =>
+            Interlocked.Exchange(ref releaseAction, null)?.Invoke();
+    }
 }

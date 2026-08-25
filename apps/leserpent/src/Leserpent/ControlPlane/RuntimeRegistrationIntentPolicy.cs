@@ -71,13 +71,23 @@ internal static class RuntimeRegistrationIntentPolicy
     internal static bool Overlaps(
         PersistedRuntimeRegistrationIntent intent,
         RuntimeRegistrationPlanRequest request) =>
+        Overlaps(
+            new RuntimeRegistrationPlanRequest(
+                intent.Name,
+                intent.Endpoint,
+                intent.SidecarEndpoint),
+            request);
+
+    internal static bool Overlaps(
+        RuntimeRegistrationPlanRequest left,
+        RuntimeRegistrationPlanRequest right) =>
         string.Equals(
-            intent.Name,
-            request.Name.Trim(),
+            left.Name.Trim(),
+            right.Name.Trim(),
             StringComparison.OrdinalIgnoreCase) ||
         RuntimeRegistrationPolicy.EndpointIdentityEquals(
-            intent.Endpoint,
-            request.Endpoint);
+            left.Endpoint,
+            right.Endpoint);
 
     internal static RuntimeRegistrationRequest RestoreRequest(
         PersistedRuntimeRegistrationIntent intent,

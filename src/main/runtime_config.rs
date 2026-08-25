@@ -161,7 +161,9 @@ fn apply_env_usize_override(key: &str, value: Option<usize>) {
 
 fn validate_runtime_config_path_value(name: &str, value: &str) -> Result<(), String> {
     if value.trim() != value {
-        return Err(format!("{name} must not contain leading or trailing whitespace"));
+        return Err(format!(
+            "{name} must not contain leading or trailing whitespace"
+        ));
     }
     if value.is_empty() {
         return Err(format!("{name} must not be empty"));
@@ -176,8 +178,7 @@ fn validate_runtime_config_path_value(name: &str, value: &str) -> Result<(), Str
 }
 
 fn select_runtime_config_path() -> Option<PathBuf> {
-    if let Some(path) = std::env::var_os("GEWY_CONFIG_FILE").and_then(validate_config_file_path)
-    {
+    if let Some(path) = std::env::var_os("GEWY_CONFIG_FILE").and_then(validate_config_file_path) {
         return Some(path);
     }
     let layout = runtime_layout();
@@ -342,16 +343,19 @@ fn apply_external_engine_section(
 ) -> Result<(), String> {
     for (key, value) in external {
         match key.as_str() {
-            "bin" => config
-                .defaults
-                .external_engine_bin = Some(parse_external_engine_path(value, "external_engine.bin")?),
+            "bin" => {
+                config.defaults.external_engine_bin =
+                    Some(parse_external_engine_path(value, "external_engine.bin")?)
+            }
             "worker" => {
                 config.defaults.external_engine_worker =
                     Some(parse_external_engine_path(value, "external_engine.worker")?)
             }
             "python_bin" => {
-                config.defaults.external_engine_python_bin =
-                    Some(parse_external_engine_path(value, "external_engine.python_bin")?)
+                config.defaults.external_engine_python_bin = Some(parse_external_engine_path(
+                    value,
+                    "external_engine.python_bin",
+                )?)
             }
             other => {
                 return Err(format!(
@@ -382,19 +386,19 @@ fn apply_logging_section(
     config: &mut RuntimeConfigFile,
 ) -> Result<(), String> {
     for (key, value) in logging {
-    match key.as_str() {
-        "level" => {
-            config.defaults.log_level = Some(
-                LogLevel::from_str(&parse_string(value))
-                    .map_err(|err| format!("invalid logging.level in config: {err}"))?,
+        match key.as_str() {
+            "level" => {
+                config.defaults.log_level = Some(
+                    LogLevel::from_str(&parse_string(value))
+                        .map_err(|err| format!("invalid logging.level in config: {err}"))?,
                 )
             }
             "stderr" => config.defaults.log_to_stderr = Some(parse_bool(value, "logging.stderr")?),
-        "file" => {
-            let path = parse_string(value);
-            validate_runtime_config_path_value("logging.file", &path)?;
-            config.defaults.log_file = Some(path);
-        }
+            "file" => {
+                let path = parse_string(value);
+                validate_runtime_config_path_value("logging.file", &path)?;
+                config.defaults.log_file = Some(path);
+            }
             "max_bytes" => {
                 config.defaults.log_max_bytes =
                     Some(parse_positive_usize(value, "logging.max_bytes")?)
@@ -501,7 +505,9 @@ fn parse_external_engine_path(value: &str, field: &str) -> Result<String, String
         return Err(format!("{field} must not contain control characters"));
     }
     if !value.contains('/') && !value.contains('\\') {
-        return Err(format!("{field} must be a filesystem path (for example ./engine or /usr/bin/engine)"));
+        return Err(format!(
+            "{field} must be a filesystem path (for example ./engine or /usr/bin/engine)"
+        ));
     }
     Ok(value)
 }

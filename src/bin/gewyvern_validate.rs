@@ -2204,9 +2204,7 @@ fn remote_linux_host_summary_value(
     });
     if language_pack_evidence_covered {
         validate_leserpent_language_pack_local_orchestra_aot_evidence(
-            &out_dir.join(
-                "leserpent-language-pack-local-orchestra-native-aot-linux-x64",
-            ),
+            &out_dir.join("leserpent-language-pack-local-orchestra-native-aot-linux-x64"),
         )?;
     }
     let package_build_timings = if build_packages_enabled {
@@ -3410,10 +3408,7 @@ mod tests {
             Ok(_) => panic!("invalid socket kind should be rejected"),
             Err(err) => err,
         };
-        assert_eq!(
-            err.to_string(),
-            "--socket-kind must be `unix` or `tcp`"
-        );
+        assert_eq!(err.to_string(), "--socket-kind must be `unix` or `tcp`");
     }
 
     #[test]
@@ -3427,11 +3422,15 @@ mod tests {
             "socket-target must not contain leading or trailing whitespace"
         );
 
-        let err = match parse_options(vec!["--socket-target".into(), "tcp\n127.0.0.1:8080".into()]) {
+        let err = match parse_options(vec!["--socket-target".into(), "tcp\n127.0.0.1:8080".into()])
+        {
             Ok(_) => panic!("socket target with control character should be rejected"),
             Err(err) => err,
         };
-        assert_eq!(err.to_string(), "socket-target must not contain control characters");
+        assert_eq!(
+            err.to_string(),
+            "socket-target must not contain control characters"
+        );
     }
 
     #[test]

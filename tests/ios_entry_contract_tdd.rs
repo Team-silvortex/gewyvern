@@ -13,12 +13,10 @@ fn ios_entry_is_native_secure_and_uses_shared_mobile_policy() {
     let scene = source(&format!("{root}/SceneDelegate.cs"));
     let hub = source(&format!("{root}/MobileHubViewController.cs"));
     let renderer = source(&format!("{root}/IosUiDocumentView.cs"));
-    let binding = source(
-        "apps/leserpent-mobile/src/Leserpent.MobileCore/MobileUiDocumentBinding.cs",
-    );
-    let render_gate = source(
-        "apps/leserpent-mobile/src/Leserpent.MobileCore/MobileNativeRenderGate.cs",
-    );
+    let binding =
+        source("apps/leserpent-mobile/src/Leserpent.MobileCore/MobileUiDocumentBinding.cs");
+    let render_gate =
+        source("apps/leserpent-mobile/src/Leserpent.MobileCore/MobileNativeRenderGate.cs");
     let keychain = source(&format!("{root}/IosKeychainSecretStore.cs"));
     let profile = source(&format!("{root}/IosConnectionProfileStore.cs"));
     let platform_proof = source(&format!("{root}/IosPlatformProof.cs"));

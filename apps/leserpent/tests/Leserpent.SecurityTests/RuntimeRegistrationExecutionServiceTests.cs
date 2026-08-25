@@ -154,6 +154,144 @@ public sealed class RuntimeRegistrationExecutionServiceTests
     }
 
     [Fact]
+    public async Task ConcurrentManagedRegistrationHasOneCredentialOwner()
+    {
+        var discovery = new DiscoveryHandler
+        {
+            RequestEntered = new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously),
+            RequestRelease = new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously),
+        };
+        using var fixture = CreateFixture(
+            enabled: false,
+            runtime: null,
+            discovery);
+        const string winningCredential = "managed-winning-secret";
+        const string losingCredential = "managed-losing-secret";
+        var winningTask = fixture.Registrations.ExecuteAsync(
+            new RuntimeRegistrationRequest(
+                "Managed Runtime",
+                RuntimeEndpoint,
+                winningCredential,
+                FetchCapabilities: true),
+            CancellationToken.None);
+        await discovery.RequestEntered.Task.WaitAsync(
+            TimeSpan.FromSeconds(5));
+
+        var losingTask = fixture.Registrations.ExecuteAsync(
+            new RuntimeRegistrationRequest(
+                "managed runtime",
+                RuntimeEndpoint,
+                losingCredential,
+                FetchCapabilities: true),
+            CancellationToken.None);
+        RuntimeRegistrationExecutionException conflict;
+        try
+        {
+            var losingCompletion = await Task.WhenAny(
+                losingTask,
+                Task.Delay(TimeSpan.FromSeconds(5)));
+            Assert.Same(losingTask, losingCompletion);
+            conflict = await Assert.ThrowsAsync<
+                RuntimeRegistrationExecutionException>(() => losingTask);
+        }
+        finally
+        {
+            discovery.RequestRelease.TrySetResult(true);
+        }
+
+        Assert.Equal("runtime_registration_in_progress", conflict.Code);
+        var registered = await winningTask;
+        Assert.Equal(3, discovery.Requests.Count);
+        Assert.Single(fixture.Registry.ListRuntimes());
+        Assert.Equal(
+            winningCredential,
+            fixture.Registry.GetRuntimeControlAccess(
+                registered.RuntimeId)?.AdminToken);
+        Assert.DoesNotContain(
+            losingCredential,
+            await File.ReadAllTextAsync(fixture.StatePath),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ManagedRegistrationAndDeletionAreMutuallyExclusive()
+    {
+        var entered = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var discovery = new DiscoveryHandler
+        {
+            RequestEntered = entered,
+            RequestRelease = release,
+        };
+        using var fixture = CreateFixture(
+            enabled: false,
+            runtime: null,
+            discovery);
+        var existing = fixture.Registry.RegisterRuntime(
+            new RuntimeRegistrationRequest(
+                "Managed Runtime",
+                RuntimeEndpoint,
+                "managed-old-secret"));
+        const string winningCredential = "managed-updated-secret";
+        var registrationTask = fixture.Registrations.ExecuteAsync(
+            new RuntimeRegistrationRequest(
+                existing.Name,
+                existing.Endpoint,
+                winningCredential,
+                FetchCapabilities: true),
+            CancellationToken.None);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        try
+        {
+            var conflict = Assert.Throws<
+                RuntimeRegistrationInProgressException>(() =>
+                    fixture.Registry.ReserveRuntimeDeletion(
+                        new[] { existing.RuntimeId }));
+            Assert.Equal(new[] { existing.RuntimeId }, conflict.RuntimeIds);
+            Assert.Empty(fixture.Registry.ListPendingRuntimeDeletions());
+        }
+        finally
+        {
+            release.TrySetResult(true);
+        }
+
+        var registered = await registrationTask;
+        Assert.Equal(3, discovery.Requests.Count);
+        Assert.Equal(
+            winningCredential,
+            fixture.Registry.GetRuntimeControlAccess(
+                registered.RuntimeId)?.AdminToken);
+
+        using var deletion = fixture.Registry.ReserveRuntimeDeletion(
+            new[] { registered.RuntimeId });
+        var blocked = await Assert.ThrowsAsync<
+            RuntimeRegistrationExecutionException>(() =>
+                fixture.Registrations.ExecuteAsync(
+                    new RuntimeRegistrationRequest(
+                        registered.Name,
+                        registered.Endpoint,
+                        "managed-blocked-secret",
+                        FetchCapabilities: true),
+                    CancellationToken.None));
+        Assert.Equal("runtime_registration_plan_changed", blocked.Code);
+        Assert.False(blocked.Plan?.Allowed);
+        Assert.Equal(
+            RuntimeRegistrationPolicy.RuntimeDeletionInProgressReason,
+            blocked.Plan?.Reason);
+        Assert.Equal(3, discovery.Requests.Count);
+        Assert.Equal(0, fixture.Authority.RegisterCalls);
+        Assert.Equal(
+            winningCredential,
+            fixture.Registry.GetRuntimeControlAccess(
+                registered.RuntimeId)?.AdminToken);
+    }
+
+    [Fact]
     public async Task AmbiguousAuthorityResponseReplaysExactPersistedIntent()
     {
         using var fixture = CreateFixture(
@@ -195,6 +333,12 @@ public sealed class RuntimeRegistrationExecutionServiceTests
             enabled: true,
             Projection(17),
             new DiscoveryHandler());
+        fixture.Registry.RegisterRuntime(
+            new RuntimeRegistrationRequest(
+                "Runtime A",
+                RuntimeEndpoint,
+                "managed-existing-secret"),
+            "runtime-coordinator");
         var preview = new RuntimeRegistrationPlanRequest(
             "Runtime A",
             RuntimeEndpoint,
@@ -237,6 +381,13 @@ public sealed class RuntimeRegistrationExecutionServiceTests
             plan.PlanToken,
             persisted,
             StringComparison.Ordinal);
+
+        var deletionConflict = Assert.Throws<
+            RuntimeRegistrationInProgressException>(() =>
+                fixture.Registry.ReserveRuntimeDeletion(
+                    new[] { intent.RuntimeId }));
+        Assert.Equal(new[] { intent.RuntimeId }, deletionConflict.RuntimeIds);
+        Assert.Empty(fixture.Registry.ListPendingRuntimeDeletions());
 
         var changed = request with
         {
@@ -336,6 +487,124 @@ public sealed class RuntimeRegistrationExecutionServiceTests
         Assert.Equal(
             refreshedCredential,
             restarted.Registry.GetRuntimeControlAccess(
+                registered.RuntimeId)?.AdminToken);
+    }
+
+    [Fact]
+    public async Task ConcurrentRecoveryHasOneCredentialAndMutationOwner()
+    {
+        using var fixture = CreateFixture(
+            enabled: true,
+            Projection(29),
+            new DiscoveryHandler());
+        var preview = new RuntimeRegistrationPlanRequest(
+            "Runtime A",
+            RuntimeEndpoint);
+        var originalPlan = await fixture.Plans.BuildAsync(
+            preview,
+            CancellationToken.None);
+        var originalRequest = new RuntimeRegistrationRequest(
+            preview.Name,
+            preview.Endpoint,
+            PairingToken,
+            FetchCapabilities: true,
+            RegistrationPlanToken: originalPlan.PlanToken);
+        fixture.Authority.AmbiguousFailuresRemaining = 2;
+        _ = await Assert.ThrowsAsync<RuntimeRegistrationExecutionException>(
+            () => fixture.Registrations.ExecuteAsync(
+                originalRequest,
+                CancellationToken.None));
+        var recoveryPlan = await fixture.Plans.BuildAsync(
+            preview,
+            CancellationToken.None);
+        var entered = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Authority.RegistrationEntered = entered;
+        fixture.Authority.RegistrationRelease = release;
+        const string winningCredential = "runtime-winning-secret";
+        const string losingCredential = "runtime-losing-secret";
+        var winningTask = fixture.Registrations.ExecuteAsync(
+            originalRequest with
+            {
+                PairingToken = winningCredential,
+                RegistrationPlanToken = recoveryPlan.PlanToken,
+            },
+            CancellationToken.None);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var losingTask = fixture.Registrations.ExecuteAsync(
+            originalRequest with
+            {
+                PairingToken = losingCredential,
+                RegistrationPlanToken = recoveryPlan.PlanToken,
+            },
+            CancellationToken.None);
+        RuntimeRegistrationExecutionException conflict;
+        RuntimeRegistrationExecutionException competingConflict;
+        try
+        {
+            var losingCompletion = await Task.WhenAny(
+                losingTask,
+                Task.Delay(TimeSpan.FromSeconds(5)));
+            Assert.Same(losingTask, losingCompletion);
+            conflict = await Assert.ThrowsAsync<
+                RuntimeRegistrationExecutionException>(() => losingTask);
+
+            var competingTask = fixture.Registrations.ExecuteAsync(
+                originalRequest with
+                {
+                    PairingToken = losingCredential,
+                    Tags = new RuntimeTags("prod", "competing", "capture"),
+                    RegistrationPlanToken = recoveryPlan.PlanToken,
+                },
+                CancellationToken.None);
+            var competingCompletion = await Task.WhenAny(
+                competingTask,
+                Task.Delay(TimeSpan.FromSeconds(5)));
+            Assert.Same(competingTask, competingCompletion);
+            competingConflict = await Assert.ThrowsAsync<
+                RuntimeRegistrationExecutionException>(() => competingTask);
+        }
+        finally
+        {
+            release.TrySetResult(true);
+        }
+
+        Assert.Equal("runtime_registration_in_progress", conflict.Code);
+        Assert.Equal(
+            "runtime_registration_in_progress",
+            competingConflict.Code);
+        Assert.Equal(3, fixture.Authority.RegisterCalls);
+        Assert.Equal(3, fixture.Discovery.Requests.Count);
+        var registered = await winningTask;
+
+        Assert.Equal("runtime-coordinator", registered.RuntimeId);
+        Assert.Empty(fixture.Registry.ListPendingRuntimeRegistrations());
+        Assert.Equal(
+            winningCredential,
+            fixture.Registry.GetRuntimeControlAccess(
+                registered.RuntimeId)?.AdminToken);
+        Assert.DoesNotContain(
+            losingCredential,
+            await File.ReadAllTextAsync(fixture.StatePath),
+            StringComparison.Ordinal);
+
+        var stale = await Assert.ThrowsAsync<
+            RuntimeRegistrationExecutionException>(() =>
+                fixture.Registrations.ExecuteAsync(
+                    originalRequest with
+                    {
+                        PairingToken = losingCredential,
+                        RegistrationPlanToken = recoveryPlan.PlanToken,
+                    },
+                    CancellationToken.None));
+        Assert.Equal("runtime_registration_plan_changed", stale.Code);
+        Assert.Equal(3, fixture.Authority.RegisterCalls);
+        Assert.Equal(
+            winningCredential,
+            fixture.Registry.GetRuntimeControlAccess(
                 registered.RuntimeId)?.AdminToken);
     }
 
@@ -467,6 +736,8 @@ public sealed class RuntimeRegistrationExecutionServiceTests
         internal bool Update { get; private set; }
         internal CapabilityDiscoveryResult? CapabilityDiscovery { get; private set; }
         internal RuntimeStatusDiscoveryResult? StatusDiscovery { get; private set; }
+        internal TaskCompletionSource<bool>? RegistrationEntered { get; set; }
+        internal TaskCompletionSource<bool>? RegistrationRelease { get; set; }
         private readonly Dictionary<
             string,
             RuntimeRegistrationCommitReceipt> receipts =
@@ -511,7 +782,7 @@ public sealed class RuntimeRegistrationExecutionServiceTests
             throw new InvalidOperationException(
                 "registration coordinator must use the typed receipt path");
 
-        public Task<RuntimeRegistrationCommitReceipt>
+        public async Task<RuntimeRegistrationCommitReceipt>
             RegisterWithReceiptAsync(
                 RuntimeRegistrationRequest request,
                 string runtimeId,
@@ -536,6 +807,11 @@ public sealed class RuntimeRegistrationExecutionServiceTests
                 request.Tags,
                 expectedRevision);
             CommandIds.Add(commandId);
+            RegistrationEntered?.TrySetResult(true);
+            if (RegistrationRelease is not null)
+            {
+                await RegistrationRelease.Task.WaitAsync(cancellationToken);
+            }
             if (!receipts.TryGetValue(commandId, out var receipt))
             {
                 var registrationRevision = update
@@ -581,7 +857,7 @@ public sealed class RuntimeRegistrationExecutionServiceTests
                     "daemon_transport_failed",
                     "daemon applied registration before transport loss");
             }
-            return Task.FromResult(receipt);
+            return receipt;
         }
 
         public Task SubmitDiscoveryAsync(
@@ -602,8 +878,10 @@ public sealed class RuntimeRegistrationExecutionServiceTests
     {
         internal List<string> Requests { get; } = [];
         internal List<string?> AdminTokens { get; } = [];
+        internal TaskCompletionSource<bool>? RequestEntered { get; init; }
+        internal TaskCompletionSource<bool>? RequestRelease { get; init; }
 
-        protected override Task<HttpResponseMessage> SendAsync(
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
@@ -614,6 +892,11 @@ public sealed class RuntimeRegistrationExecutionServiceTests
                     out var values)
                         ? values.SingleOrDefault()
                         : null);
+            RequestEntered?.TrySetResult(true);
+            if (RequestRelease is not null)
+            {
+                await RequestRelease.Task.WaitAsync(cancellationToken);
+            }
             var payload = request.RequestUri?.AbsolutePath switch
             {
                 "/v1/capabilities" =>
@@ -624,13 +907,13 @@ public sealed class RuntimeRegistrationExecutionServiceTests
                     """{"degraded":false,"status":"ready","summary":"healthy","socket_service":{"status":"ready","consecutive_idle_timeouts":0,"total_idle_timeouts":0}}""",
                 _ => "{}",
             };
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(
                     payload,
                     Encoding.UTF8,
                     "application/json"),
-            });
+            };
         }
     }
 

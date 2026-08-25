@@ -82,9 +82,11 @@ fn ios_simulator_proof_is_non_vacuous_and_fail_closed() {
             && fixture["scroll_container_retained"] == true
             && fixture["controls_reachable_by_scroll"] == true
     }));
-    assert!(matrix
-        .iter()
-        .any(|fixture| { fixture["width_class"] == "expanded" && fixture["two_pane"] == true }));
+    assert!(
+        matrix
+            .iter()
+            .any(|fixture| { fixture["width_class"] == "expanded" && fixture["two_pane"] == true })
+    );
 
     let native = &proof["native_ui_document"];
     assert_eq!(native["renderer_neutral_projection"], true);

@@ -193,7 +193,10 @@ pub fn cargo_command_from_env(var_name: &str) -> Result<String, ValidationError>
     }
     if trimmed.chars().any(|ch| {
         ch.is_whitespace()
-            || matches!(ch, ';' | '&' | '|' | '`' | '$' | '<' | '>' | '(' | ')' | '{' | '}')
+            || matches!(
+                ch,
+                ';' | '&' | '|' | '`' | '$' | '<' | '>' | '(' | ')' | '{' | '}'
+            )
     }) {
         return Err(ValidationError::new(format!(
             "{var_name} must be a single executable path without shell metacharacters"
@@ -205,8 +208,9 @@ pub fn cargo_command_from_env(var_name: &str) -> Result<String, ValidationError>
         )));
     }
     if trimmed != "cargo" {
-        let metadata = fs::metadata(trimmed)
-            .map_err(|error| ValidationError::new(format!("{var_name} command path missing: {error}")))?;
+        let metadata = fs::metadata(trimmed).map_err(|error| {
+            ValidationError::new(format!("{var_name} command path missing: {error}"))
+        })?;
         if !metadata.is_file() {
             return Err(ValidationError::new(format!(
                 "{var_name} must point to a regular file"

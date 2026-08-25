@@ -118,8 +118,10 @@ fn android_entry_uses_shared_safe_adaptive_layout() {
             "Android layout lost {required}"
         );
     }
-    assert!(activity
-        .contains("operationFailed || snapshot.Error is not null ? \"#FF8A65\" : \"#B9AA8A\""));
+    assert!(
+        activity
+            .contains("operationFailed || snapshot.Error is not null ? \"#FF8A65\" : \"#B9AA8A\"")
+    );
     assert!(!activity.contains("body.SetPadding(padding, padding, padding, padding)"));
 
     for required in [

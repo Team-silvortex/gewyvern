@@ -16,15 +16,15 @@ use serde_json::json;
 use super::command::{ValidationError, ValidationReport, default_out_dir, repo_root};
 use super::{
     DEFAULT_REMOTE_LINUX_HOST, RemoteLinuxHostOptions, RemoteLinuxTargetKind,
-    read_bounded_json_file,
-    read_bounded_nonempty_lines, read_bounded_phase_timings, read_bounded_unique_key_value_file,
-    run_container_runtime_validation, run_container_validation_summary,
-    run_debugger_cross_validation, run_leserpent_parity_recovery_validation,
-    run_leserpent_schema_freeze_validation, run_package_install_smoke,
-    run_pathological_container_validation, run_remote_linux_host_validation,
-    run_three_module_stack_smoke, validate_leserpent_control_plane_aot_evidence,
-    validate_leserpent_language_pack_local_orchestra_aot_evidence,
-    validation_command_stdout, validation_log,
+    read_bounded_json_file, read_bounded_nonempty_lines, read_bounded_phase_timings,
+    read_bounded_unique_key_value_file, run_container_runtime_validation,
+    run_container_validation_summary, run_debugger_cross_validation,
+    run_leserpent_parity_recovery_validation, run_leserpent_schema_freeze_validation,
+    run_package_install_smoke, run_pathological_container_validation,
+    run_remote_linux_host_validation, run_three_module_stack_smoke,
+    validate_leserpent_control_plane_aot_evidence,
+    validate_leserpent_language_pack_local_orchestra_aot_evidence, validation_command_stdout,
+    validation_log,
 };
 
 const MAX_RELEASE_ARTIFACT_PUBLICATION_BYTES: u64 = 1024 * 1024;
@@ -313,12 +313,12 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
         {
             checks.push("remote_leserpent_control_plane_aot".to_string());
         }
-        if remote_report.checks.iter().any(|check| {
-            check == "remote_leserpent_language_pack_local_orchestra_aot"
-        }) {
-            checks.push(
-                "remote_leserpent_language_pack_local_orchestra_aot".to_string(),
-            );
+        if remote_report
+            .checks
+            .iter()
+            .any(|check| check == "remote_leserpent_language_pack_local_orchestra_aot")
+        {
+            checks.push("remote_leserpent_language_pack_local_orchestra_aot".to_string());
         }
         if remote_report
             .checks
@@ -476,9 +476,7 @@ fn print_remote_release_gate_summary(out_dir: &Path) -> Result<(), ValidationErr
     });
     if language_pack_evidence_covered {
         validate_leserpent_language_pack_local_orchestra_aot_evidence(
-            &out_dir.join(
-                "leserpent-language-pack-local-orchestra-native-aot-linux-x64",
-            ),
+            &out_dir.join("leserpent-language-pack-local-orchestra-native-aot-linux-x64"),
         )?;
         validation_log(
             "[release-gate] Leserpent Local Orchestra language-pack NativeAOT evidence: validated",
@@ -850,9 +848,11 @@ fn write_release_artifact_index(out_dir: &Path, checks: &[String]) -> Result<(),
                 .join("remote-linux-host-validation")
                 .join("leserpent-language-pack-local-orchestra-native-aot-linux-x64"),
             "optional_high_signal",
-            Some(checks.iter().any(|check| {
-                check == "remote_leserpent_language_pack_local_orchestra_aot"
-            })),
+            Some(
+                checks
+                    .iter()
+                    .any(|check| check == "remote_leserpent_language_pack_local_orchestra_aot"),
+            ),
             "gewyvern_validate remote-linux-host-validation",
             "strictly revalidated Linux x64 NativeAOT Local Orchestra and persisted saved-daemon language-pack download, selected-CA rejection, digest binding, private storage, and cleanup evidence shelf",
         ),

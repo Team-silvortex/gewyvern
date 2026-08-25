@@ -2445,12 +2445,12 @@ mod tests {
     #[test]
     fn validate_root_rejects_symlink_components() {
         let temp = fs::canonicalize(env::temp_dir()).unwrap();
-        let redirected = temp.join(format!("gewyvern-install-link-target-{}", std::process::id()));
-        fs::create_dir(&redirected).unwrap();
-        let linked_root = temp.join(format!(
-            "gewyvern-install-link-root-{}",
+        let redirected = temp.join(format!(
+            "gewyvern-install-link-target-{}",
             std::process::id()
         ));
+        fs::create_dir(&redirected).unwrap();
+        let linked_root = temp.join(format!("gewyvern-install-link-root-{}", std::process::id()));
         symlink(&redirected, &linked_root).unwrap();
 
         assert_eq!(

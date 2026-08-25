@@ -616,6 +616,13 @@ public partial class Program
                     "runtime_delete_in_progress",
                     RuntimeId: id));
             }
+            catch (RuntimeRegistrationInProgressException)
+            {
+                return Results.Conflict(new ApiErrorResponse(
+                    "runtime_registration_in_progress",
+                    "runtime registration is in progress; retry deletion after it completes",
+                    RuntimeId: id));
+            }
             catch (OrchestraPersistenceException ex)
             {
                 return Results.Json(
@@ -784,6 +791,13 @@ public partial class Program
         {
             return Results.Conflict(new ApiErrorResponse(
                 "runtime_delete_in_progress",
+                RuntimeId: ex.RuntimeIds.FirstOrDefault()));
+        }
+        catch (RuntimeRegistrationInProgressException ex)
+        {
+            return Results.Conflict(new ApiErrorResponse(
+                "runtime_registration_in_progress",
+                "runtime registration is in progress; retry deletion after it completes",
                 RuntimeId: ex.RuntimeIds.FirstOrDefault()));
         }
         catch (OrchestraRuntimeBusyException ex)

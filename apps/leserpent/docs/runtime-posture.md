@@ -224,6 +224,25 @@ and clears the pending intent after the compatibility commit.
 The same entrypoint is retained on physical Linux x86_64 at
 `docs/fixtures/leserpent_registration_recovery_linux_x86_64_20260825.json`.
 
+Registration is target-overlap single-flight in every mode within one
+compatibility process. The shared coordinator claims the normalized name and
+endpoint before reading a plan, issuing discovery requests, contacting the
+daemon, or entering the managed fallback. A concurrent exact retry or a
+different command for the same target fails with
+`runtime_registration_in_progress`; only the winner may discover state and
+bind local credentials, then either project an authority receipt or commit the
+managed registration. Once the winner finishes, a delayed request must obtain
+a fresh plan, so an old recovery token cannot replace the winner's credential
+state. After plan review, the coordinator also claims the planned or existing
+runtime ID under the same Registry lifecycle lock used by deletion reservation.
+Deletion rejects both active claims and durable pending registrations;
+registration plans in managed and authority modes reject an existing deletion
+intent. Managed commits carry the coordinator's rebuilt plan token internally,
+so a concurrent state replacement cannot move the write outside its claimed
+runtime. The execution claims are deliberately process-local; schema-v9 intent
+persistence remains the authority-bound crash/restart mechanism and continues
+to block deletion after restart.
+
 ## Security Model
 
 The default security posture should remain conservative and local-first:

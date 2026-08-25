@@ -158,7 +158,9 @@ fn validate_demo_socket_path(name: &str, value: String) -> Result<String, Valida
         return Err(ValidationError::new(format!("{name} must not be empty")));
     }
     if value.len() > DEMO_SOCKET_PATH_MAX_LEN {
-        return Err(ValidationError::new(format!("{name} is too long for a filesystem path")));
+        return Err(ValidationError::new(format!(
+            "{name} is too long for a filesystem path"
+        )));
     }
     if value.bytes().any(|byte| byte.is_ascii_control()) {
         return Err(ValidationError::new(format!(

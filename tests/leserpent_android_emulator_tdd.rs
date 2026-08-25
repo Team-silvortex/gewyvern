@@ -53,9 +53,11 @@ fn android_emulator_proof_is_non_vacuous_and_fail_closed() {
         assert_eq!(fixture["controls_visible"], true);
         assert_eq!(fixture["overlap_detected"], false);
     }
-    assert!(matrix
-        .iter()
-        .any(|fixture| { fixture["width_class"] == "expanded" && fixture["two_pane"] == true }));
+    assert!(
+        matrix
+            .iter()
+            .any(|fixture| { fixture["width_class"] == "expanded" && fixture["two_pane"] == true })
+    );
     assert!(matrix.iter().any(|fixture| {
         fixture["fixture"] == "short-landscape" && fixture["two_pane"] == false
     }));

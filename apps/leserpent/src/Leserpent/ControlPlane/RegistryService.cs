@@ -39,6 +39,8 @@ public sealed partial class RegistryService
             ImmutableQueue<
                 PersistedRuntimeDeletionReconciliationAudit>.Empty;
     private readonly HashSet<string> deletingRuntimes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> activeRuntimeRegistrations =
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> activeRuntimeDeletionClaims = new(StringComparer.Ordinal);
     private readonly object orchestraRunSync = new();
     private readonly object runtimeRegistrationSync = new();
@@ -304,6 +306,12 @@ public sealed partial class RegistryService
             }
 
             var targetSet = targets.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (targets.Any(activeRuntimeRegistrations.Contains) ||
+                pendingRuntimeRegistrations.Values.Any(intent =>
+                    targetSet.Contains(intent.RuntimeId)))
+            {
+                throw new RuntimeRegistrationInProgressException(targets);
+            }
             if (expectedSessionIds is not null)
             {
                 var currentSessionIds = sessions.Values
@@ -1899,8 +1907,18 @@ public sealed partial class RegistryService
         }
     }
 
-    public RuntimeRegistrationPlan GetRuntimeRegistrationPlan(RuntimeRegistrationPlanRequest request) =>
-        RuntimeRegistrationPolicy.Build(request, ListRuntimes());
+    public RuntimeRegistrationPlan GetRuntimeRegistrationPlan(
+        RuntimeRegistrationPlanRequest request)
+    {
+        var plan = RuntimeRegistrationPolicy.Build(request, ListRuntimes());
+        return plan.PlannedRuntimeId is not null
+            && IsRuntimeDeletionPending(plan.PlannedRuntimeId)
+                ? RuntimeRegistrationPolicy.Reject(
+                    request,
+                    plan,
+                    RuntimeRegistrationPolicy.RuntimeDeletionInProgressReason)
+                : plan;
+    }
 
     public RuntimeSummary? GetRuntime(string runtimeId) =>
         runtimes.TryGetValue(runtimeId, out var runtime) ? runtime.ToSummary() : null;
@@ -2100,6 +2118,11 @@ public sealed partial class RegistryService
             {
                 throw new InvalidOperationException(
                     "control-plane state import is blocked by a pending runtime registration");
+            }
+            if (activeRuntimeRegistrations.Count > 0)
+            {
+                throw new RuntimeRegistrationInProgressException(
+                    activeRuntimeRegistrations.ToArray());
             }
 
             var previousState = ExportState();
@@ -2440,7 +2463,10 @@ public sealed partial class RegistryService
             if (!plan.Allowed)
             {
                 throw new RuntimeRegistrationPlanException(
-                    "runtime endpoint is already registered to another runtime",
+                    plan.Reason == RuntimeRegistrationPolicy
+                        .RuntimeDeletionInProgressReason
+                            ? "runtime deletion is in progress"
+                            : "runtime endpoint is already registered to another runtime",
                     plan);
             }
             if (!string.IsNullOrWhiteSpace(request.RegistrationPlanToken) &&

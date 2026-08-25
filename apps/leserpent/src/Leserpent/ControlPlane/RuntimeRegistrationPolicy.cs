@@ -61,6 +61,14 @@ public static class RuntimeRegistrationPolicy
                 "only an authority-bound registration plan can be rejected here",
                 nameof(plan));
         }
+        return Reject(request, plan, reason);
+    }
+
+    internal static RuntimeRegistrationPlan Reject(
+        RuntimeRegistrationPlanRequest request,
+        RuntimeRegistrationPlan plan,
+        string reason)
+    {
         return plan with
         {
             Allowed = false,
@@ -71,7 +79,7 @@ public static class RuntimeRegistrationPolicy
                 RejectAction,
                 plan.PlannedRuntimeId,
                 plan.ExpectedRevision,
-                authorityBound: true),
+                plan.AuthorityBound),
         };
     }
 

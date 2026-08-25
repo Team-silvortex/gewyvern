@@ -104,10 +104,22 @@ fn runtime_layout_defaults_when_xdg_home_env_is_unsafe() {
 
     let layout = runtime_layout();
 
-    assert_eq!(layout.config_root, PathBuf::from("/tmp/gewy-home/.config/gewyvern"));
-    assert_eq!(layout.data_root, PathBuf::from("/tmp/gewy-home/.local/share/gewyvern"));
-    assert_eq!(layout.state_root, PathBuf::from("/tmp/gewy-home/.local/state/gewyvern"));
-    assert_eq!(layout.cache_root, PathBuf::from("/tmp/gewy-home/.cache/gewyvern"));
+    assert_eq!(
+        layout.config_root,
+        PathBuf::from("/tmp/gewy-home/.config/gewyvern")
+    );
+    assert_eq!(
+        layout.data_root,
+        PathBuf::from("/tmp/gewy-home/.local/share/gewyvern")
+    );
+    assert_eq!(
+        layout.state_root,
+        PathBuf::from("/tmp/gewy-home/.local/state/gewyvern")
+    );
+    assert_eq!(
+        layout.cache_root,
+        PathBuf::from("/tmp/gewy-home/.cache/gewyvern")
+    );
 }
 
 #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
@@ -126,7 +138,10 @@ fn runtime_layout_falls_back_when_runtime_home_overrides_are_unsafe() {
 
     let layout = runtime_layout();
 
-    assert_eq!(layout.config_root, PathBuf::from("/tmp/xdg-config/gewyvern"));
+    assert_eq!(
+        layout.config_root,
+        PathBuf::from("/tmp/xdg-config/gewyvern")
+    );
     assert_eq!(layout.data_root, PathBuf::from("/tmp/xdg-data/gewyvern"));
     assert_eq!(layout.state_root, PathBuf::from("/tmp/xdg-state/gewyvern"));
     assert_eq!(layout.cache_root, PathBuf::from("/tmp/xdg-cache/gewyvern"));
@@ -218,7 +233,10 @@ fn runtime_layout_defaults_when_macos_env_is_unsafe() {
         layout.state_root,
         PathBuf::from("/tmp/gewy-home/Library/Application Support/gewyvern/state")
     );
-    assert_eq!(layout.cache_root, PathBuf::from("/tmp/gewy-home/Library/Caches/gewyvern"));
+    assert_eq!(
+        layout.cache_root,
+        PathBuf::from("/tmp/gewy-home/Library/Caches/gewyvern")
+    );
 }
 
 #[cfg(target_os = "macos")]
@@ -245,7 +263,10 @@ fn runtime_layout_falls_back_when_runtime_home_overrides_are_unsafe() {
         layout.state_root,
         PathBuf::from("/tmp/gewy-home/Library/Application Support/gewyvern/state")
     );
-    assert_eq!(layout.cache_root, PathBuf::from("/tmp/gewy-home/Library/Caches/gewyvern"));
+    assert_eq!(
+        layout.cache_root,
+        PathBuf::from("/tmp/gewy-home/Library/Caches/gewyvern")
+    );
     assert_eq!(
         layout.certificate_root,
         PathBuf::from("/tmp/gewy-home/Library/Application Support/gewyvern/config/certificates")

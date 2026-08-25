@@ -105,8 +105,7 @@ fn leserpent_uses_the_root_dotnet_version_without_app_specific_version() {
     let ios = read_repo_file(
         "apps/leserpent-mobile/src/Leserpent.Mobile.iOS/Leserpent.Mobile.iOS.csproj",
     );
-    let ios_manifest =
-        read_repo_file("apps/leserpent-mobile/src/Leserpent.Mobile.iOS/Info.plist");
+    let ios_manifest = read_repo_file("apps/leserpent-mobile/src/Leserpent.Mobile.iOS/Info.plist");
     let frontend_package = read_repo_file("apps/leserpent/package.json");
     let frontend_lock = read_repo_file("apps/leserpent/package-lock.json");
     let workspace_version = section_version(&root_manifest, "workspace.package");

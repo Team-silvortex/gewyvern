@@ -2,10 +2,10 @@ use super::env_test_lock as env_lock;
 use crate::runtime_migration::prepare_runtime_layout;
 use gewyvern::runtime_layout::runtime_layout;
 use std::fs;
-use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(unix)]
 use std::os::unix::fs::symlink;
+use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 struct EnvGuard {
     key: &'static str,
@@ -137,32 +137,11 @@ fn runtime_migration_prepares_default_roots_when_config_home_is_invalid() {
 
     let report = prepare_runtime_layout().unwrap();
 
-    assert!(
-        report
-            .created_roots
-            .contains(&expected_layout.config_root)
-    );
-    assert!(
-        report
-            .created_roots
-            .contains(&expected_layout.data_root)
-    );
-    assert!(
-        report
-            .created_roots
-            .contains(&expected_layout.state_root)
-    );
-    assert!(
-        report
-            .created_roots
-            .contains(&expected_layout.cache_root)
-    );
-    assert!(
-        !report
-            .created_roots
-            .iter()
-            .any(|path| path == &config_root)
-    );
+    assert!(report.created_roots.contains(&expected_layout.config_root));
+    assert!(report.created_roots.contains(&expected_layout.data_root));
+    assert!(report.created_roots.contains(&expected_layout.state_root));
+    assert!(report.created_roots.contains(&expected_layout.cache_root));
+    assert!(!report.created_roots.iter().any(|path| path == &config_root));
 
     fs::remove_dir_all(&home).unwrap();
 }
@@ -299,7 +278,10 @@ fn runtime_migration_does_not_follow_legacy_protocols_symlink() {
     let linked_protocols = legacy_root.join("protocols");
     let data_root = home.join("data-root");
     let _home = EnvGuard::set("HOME", home.to_string_lossy());
-    let _config = EnvGuard::set("GEWY_CONFIG_HOME", home.join("config-root").to_string_lossy());
+    let _config = EnvGuard::set(
+        "GEWY_CONFIG_HOME",
+        home.join("config-root").to_string_lossy(),
+    );
     let _data = EnvGuard::set("GEWY_DATA_HOME", data_root.to_string_lossy());
     let _state = EnvGuard::set("GEWY_STATE_HOME", home.join("state-root").to_string_lossy());
     let _cache = EnvGuard::set("GEWY_CACHE_HOME", home.join("cache-root").to_string_lossy());

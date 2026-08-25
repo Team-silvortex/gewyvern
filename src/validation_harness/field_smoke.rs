@@ -1,10 +1,10 @@
+#[cfg(unix)]
+use std::os::unix::fs::FileTypeExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 use std::{env, fs};
-#[cfg(unix)]
-use std::os::unix::fs::FileTypeExt;
 
 use serde_json::Value;
 
@@ -193,10 +193,14 @@ fn validate_field_socket_path(name: &str, value: String) -> Result<String, Valid
         return Err(ValidationError::new(format!("{name} must not be empty")));
     }
     if value.len() > FIELD_SOCKET_PATH_MAX_LEN {
-        return Err(ValidationError::new(format!("{name} is too long for a filesystem path")));
+        return Err(ValidationError::new(format!(
+            "{name} is too long for a filesystem path"
+        )));
     }
     if value.bytes().any(|byte| byte.is_ascii_control()) {
-        return Err(ValidationError::new(format!("{name} must not contain control characters")));
+        return Err(ValidationError::new(format!(
+            "{name} must not contain control characters"
+        )));
     }
     Ok(value)
 }
@@ -350,21 +354,33 @@ mod tests {
 
     #[test]
     fn validates_field_socket_path_with_valid_value() {
-        let value = validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", "/tmp/gewyvern-field.sock".to_string())
-            .expect("valid socket path should be accepted");
+        let value = validate_field_socket_path(
+            "GEWY_FIELD_SOCKET_PATH",
+            "/tmp/gewyvern-field.sock".to_string(),
+        )
+        .expect("valid socket path should be accepted");
         assert_eq!(value, "/tmp/gewyvern-field.sock".to_string());
     }
 
     #[test]
     fn rejects_field_socket_path_with_control_chars() {
-        let result = validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", "/tmp/line\nbreak.sock".to_string());
+        let result = validate_field_socket_path(
+            "GEWY_FIELD_SOCKET_PATH",
+            "/tmp/line\nbreak.sock".to_string(),
+        );
         assert!(result.is_err());
     }
 
     #[test]
     fn rejects_field_socket_path_with_leading_or_trailing_whitespace() {
-        assert!(validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", " /tmp/field.sock".to_string()).is_err());
-        assert!(validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", "/tmp/field.sock ".to_string()).is_err());
+        assert!(
+            validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", " /tmp/field.sock".to_string())
+                .is_err()
+        );
+        assert!(
+            validate_field_socket_path("GEWY_FIELD_SOCKET_PATH", "/tmp/field.sock ".to_string())
+                .is_err()
+        );
     }
 
     #[test]

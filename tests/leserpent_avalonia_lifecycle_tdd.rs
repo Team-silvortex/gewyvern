@@ -599,7 +599,9 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     assert!(mutation_availability.contains("public static class RemoteMutationAvailabilityPolicy"));
     assert!(mutation_availability.contains("public sealed record RemoteMutationAvailability"));
     assert!(mutation_availability.contains("RemoteFeedAuthorityPolicy.HasAuthoritativeSnapshot"));
-    assert!(mutation_availability.contains("Remote changes require a generated authoritative snapshot"));
+    assert!(
+        mutation_availability.contains("Remote changes require a generated authoritative snapshot")
+    );
     assert!(!mutation_availability.contains("Avalonia"));
     assert!(mutation_coordinator.contains("public sealed class RemoteMutationCoordinator"));
     assert!(mutation_coordinator.contains("public RemoteMutationAdmission Begin("));
@@ -617,7 +619,8 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
         mutation_coordinator.contains("retired mutation token cleared current operation ownership")
     );
     assert!(
-        mutation_coordinator.contains("retired mutation failure disturbed current operation ownership")
+        mutation_coordinator
+            .contains("retired mutation failure disturbed current operation ownership")
     );
     assert!(!mutation_coordinator.contains("Avalonia"));
     assert!(mutation_failure.contains("public static class RemoteMutationFailurePolicy"));
@@ -630,10 +633,17 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     assert!(health_coordinator.contains("public Task<RemoteAuthorityHealthState> RefreshAsync("));
     assert!(health_coordinator.contains("RemoteAuthorityHealthPhase.Checking"));
     assert!(health_coordinator.contains("RemoteAuthorityHealthFailure.InvalidResponse"));
-    assert!(health_coordinator.contains("authority health coordinator did not preserve single-flight ownership"));
-    assert!(health_coordinator.contains("retired authority health completion crossed the stop fence"));
+    assert!(
+        health_coordinator
+            .contains("authority health coordinator did not preserve single-flight ownership")
+    );
+    assert!(
+        health_coordinator.contains("retired authority health completion crossed the stop fence")
+    );
     assert!(!health_coordinator.contains("Avalonia"));
-    assert!(remote_window.contains("private readonly RemoteMutationCoordinator mutationCoordinator"));
+    assert!(
+        remote_window.contains("private readonly RemoteMutationCoordinator mutationCoordinator")
+    );
     assert!(remote_window.contains("mutationCoordinator.Begin("));
     assert!(remote_window.contains("mutationCoordinator.Confirm(operation, currentState)"));
     assert!(remote_window.contains("mutationCoordinator.Accept(operation, result, currentState)"));
@@ -683,9 +693,9 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     assert!(remote_conformance.contains("shared_failure_classification=true"));
     assert!(remote_conformance.contains("stale_failure_ignored=true"));
     assert!(remote_conformance.contains("bounded_failure_diagnostics=true"));
-    assert!(remote_conformance.contains(
-        "await RemoteAuthorityHealthCoordinator.VerifyContractAsync()"
-    ));
+    assert!(
+        remote_conformance.contains("await RemoteAuthorityHealthCoordinator.VerifyContractAsync()")
+    );
     assert!(remote_conformance.contains("authority_health_coordination=true"));
     assert!(remote_conformance.contains("health_single_flight=true"));
     assert!(remote_conformance.contains("health_stop_fence=true"));
@@ -722,9 +732,9 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     assert!(mobile_conformance.contains("bounded_failure_diagnostics=true"));
     assert!(mobile_conformance.contains("action_availability=true"));
     assert!(mobile_conformance.contains("RemoteAuthorityHealthPresentation.VerifyContract()"));
-    assert!(mobile_conformance.contains(
-        "await RemoteAuthorityHealthCoordinator.VerifyContractAsync()"
-    ));
+    assert!(
+        mobile_conformance.contains("await RemoteAuthorityHealthCoordinator.VerifyContractAsync()")
+    );
     assert!(mobile_conformance.contains("authority_health=true"));
     assert!(mobile_conformance.contains("authority_health_coordination=true"));
     assert!(mobile_conformance.contains("health_single_flight=true"));
@@ -736,8 +746,7 @@ fn remote_event_lifecycle_is_shared_idempotent_and_subscriber_isolated() {
     let client = avalonia_source("Leserpent.RemoteClient/RemoteEventClient.cs");
     let lifecycle = avalonia_source("Leserpent.RemoteClient/RemoteEventLifecycle.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
-    let remote_conformance =
-        avalonia_source("Leserpent.RemoteConformance/Program.cs");
+    let remote_conformance = avalonia_source("Leserpent.RemoteConformance/Program.cs");
     let mobile_conformance =
         repo_source("apps/leserpent-mobile/src/Leserpent.MobileConformance/Program.cs");
 
@@ -874,8 +883,7 @@ fn hub_topology_filter_is_bounded_keyboard_accessible_and_renderer_neutral() {
 #[test]
 fn desktop_tutorial_is_offline_accessible_and_ui_reachable() {
     let tutorial = avalonia_source("Leserpent.Avalonia/DesktopTutorialWindow.cs");
-    let tutorial_catalog =
-        avalonia_source("Leserpent.Avalonia/DesktopTutorialCatalogs.cs");
+    let tutorial_catalog = avalonia_source("Leserpent.Avalonia/DesktopTutorialCatalogs.cs");
     let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
     let lifecycle = avalonia_source("Leserpent.Avalonia/DesktopApplicationLifecycle.cs");
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
@@ -964,8 +972,7 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     let semantic = avalonia_source("Leserpent.Avalonia/DesktopBuiltInSemanticCatalogs.cs");
     let store = avalonia_source("Leserpent.Avalonia/DesktopLanguagePreferenceStore.cs");
     let pack_store = avalonia_source("Leserpent.Avalonia/DesktopLanguagePackStore.cs");
-    let pack_catalog =
-        avalonia_source("Leserpent.Avalonia/DesktopLanguagePackCatalogClient.cs");
+    let pack_catalog = avalonia_source("Leserpent.Avalonia/DesktopLanguagePackCatalogClient.cs");
     let window = avalonia_source("Leserpent.Avalonia/DesktopLanguageWindow.cs");
     let renderer = avalonia_source("Leserpent.Avalonia/AvaloniaDocumentRenderer.cs");
     let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
@@ -974,9 +981,8 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
     let pack_generator = repo_source("apps/leserpent/scripts/build-language-packs.mjs");
     let pack_coverage = repo_source("apps/leserpent/scripts/check-language-pack-coverage.mjs");
-    let pack_artifact_tests = repo_source(
-        "apps/leserpent/tests/Leserpent.SecurityTests/LanguagePackArtifactTests.cs",
-    );
+    let pack_artifact_tests =
+        repo_source("apps/leserpent/tests/Leserpent.SecurityTests/LanguagePackArtifactTests.cs");
     let daemon_pack_assets = repo_source("crates/leserpentd/src/language_packs.rs");
     let web_catalog: serde_json::Value = serde_json::from_str(&repo_source(
         "apps/leserpent/src/Leserpent/wwwroot/language-packs/catalog.json",
@@ -1012,16 +1018,17 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
         "VerifyFormat(catalog[DesktopTextKey.StepProgress]",
         "built-in desktop shell catalog is incomplete",
     ] {
-        assert!(built_in.contains(marker), "built-in catalog is missing {marker}");
+        assert!(
+            built_in.contains(marker),
+            "built-in catalog is missing {marker}"
+        );
     }
     assert_eq!(built_in.matches("[DesktopTextKey.").count(), 488);
     assert!(built_in.contains("[DesktopTextKey.ControlTopology] = \"控制拓撲\""));
     assert!(built_in.contains("[DesktopTextKey.Close] = \"閉じる\""));
     assert!(built_in.contains("[DesktopTextKey.FollowSystem] = \"Seguir el sistema\""));
     assert!(built_in.contains("[DesktopTextKey.Reconnect] = \"Neu verbinden\""));
-    assert!(built_in.contains(
-        "[DesktopTextKey.LearningCenter] = \"Centre d’apprentissage...\""
-    ));
+    assert!(built_in.contains("[DesktopTextKey.LearningCenter] = \"Centre d’apprentissage...\""));
     assert!(built_in.contains("[DesktopTextKey.RefreshAll] = \"모두 새로고침\""));
     assert!(!built_in.contains("HttpClient"));
     assert!(!built_in.contains("File."));
@@ -1270,20 +1277,16 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
 
 #[test]
 fn remote_desktop_shell_is_strictly_localized_typed_and_layout_probed() {
-    let shell_catalog =
-        avalonia_source("Leserpent.Avalonia/DesktopRemoteShellCatalogs.cs");
-    let operation_catalog =
-        avalonia_source("Leserpent.Avalonia/DesktopRemoteOperationCatalogs.cs");
+    let shell_catalog = avalonia_source("Leserpent.Avalonia/DesktopRemoteShellCatalogs.cs");
+    let operation_catalog = avalonia_source("Leserpent.Avalonia/DesktopRemoteOperationCatalogs.cs");
     let workspace_catalog =
         avalonia_source("Leserpent.Avalonia/DesktopRuntimeWorkspaceCatalogs.cs");
     let workspace_presentation =
         avalonia_source("Leserpent.Avalonia/DesktopRuntimeWorkspacePresentation.cs");
-    let presentation =
-        avalonia_source("Leserpent.Avalonia/DesktopRemotePresentation.cs");
+    let presentation = avalonia_source("Leserpent.Avalonia/DesktopRemotePresentation.cs");
     let window = avalonia_source("Leserpent.Avalonia/RemoteMainWindow.cs");
     let leselang = avalonia_source("Leserpent.Avalonia/LeselangExportControl.cs");
-    let health =
-        avalonia_source("Leserpent.RemoteClient/RemoteAuthorityHealthCoordinator.cs");
+    let health = avalonia_source("Leserpent.RemoteClient/RemoteAuthorityHealthCoordinator.cs");
     let localization = avalonia_source("Leserpent.Avalonia/DesktopLocalization.cs");
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
 
@@ -1339,15 +1342,9 @@ fn remote_desktop_shell_is_strictly_localized_typed_and_layout_probed() {
         );
     }
     assert_eq!(workspace_catalog.matches("new(\"").count(), 78);
-    assert!(workspace_presentation.contains(
-        "public static DesktopRuntimeWorkspaceText Change("
-    ));
-    assert!(workspace_presentation.contains(
-        "RemoteWorkspaceSnapshotChange change"
-    ));
-    assert!(workspace_presentation.contains(
-        "RemoteWorkspaceSeverityAlert alert"
-    ));
+    assert!(workspace_presentation.contains("public static DesktopRuntimeWorkspaceText Change("));
+    assert!(workspace_presentation.contains("RemoteWorkspaceSnapshotChange change"));
+    assert!(workspace_presentation.contains("RemoteWorkspaceSeverityAlert alert"));
     assert!(presentation.contains("public static DesktopRemoteText Feed(RemoteFeedState state)"));
     assert!(presentation.contains("state.Health is { } health"));
     assert!(presentation.contains("RemoteMutationAdmissionFailure.ObservationFencePending"));
@@ -1383,8 +1380,7 @@ fn remote_desktop_shell_is_strictly_localized_typed_and_layout_probed() {
 fn hub_topology_refresh_is_discoverable_observed_and_single_flight() {
     let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
     let hub_catalog = avalonia_source("Leserpent.Avalonia/DesktopHubCatalogs.cs");
-    let hub_presentation =
-        avalonia_source("Leserpent.Avalonia/DesktopHubPresentation.cs");
+    let hub_presentation = avalonia_source("Leserpent.Avalonia/DesktopHubPresentation.cs");
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
     let coordinator = avalonia_source("Leserpent.RemoteClient/RemoteTopologyRefreshCoordinator.cs");
 
@@ -1404,15 +1400,9 @@ fn hub_topology_refresh_is_discoverable_observed_and_single_flight() {
             "Hub catalog is missing {marker}"
         );
     }
-    assert!(hub_presentation.contains(
-        "public static DesktopHubText RefreshSummary("
-    ));
-    assert!(hub_presentation.contains(
-        "public static DesktopHubText TopologySummary("
-    ));
-    assert!(hub_presentation.contains(
-        "DesktopRemotePresentation.AuthorityHealth(state)"
-    ));
+    assert!(hub_presentation.contains("public static DesktopHubText RefreshSummary("));
+    assert!(hub_presentation.contains("public static DesktopHubText TopologySummary("));
+    assert!(hub_presentation.contains("DesktopRemotePresentation.AuthorityHealth(state)"));
     assert!(hub.contains("private readonly RemoteTopologyRefreshCoordinator topologyRefresh"));
     assert!(hub.contains("refreshAllPresentationOperation"));
     assert!(hub.contains("private bool operatorRefreshRequested"));
@@ -1545,15 +1535,13 @@ fn gewyvern_provisioning_is_authority_scoped_identity_locked_and_bounded() {
     assert_eq!(catalog.matches("[\"").count(), 344);
     assert!(catalog.contains("[\"heading\"] = \"安装并注册 gewyvern\""));
     assert!(catalog.contains("[\"submit\"] = \"佈建 gewyvern\""));
-    assert!(catalog.contains(
-        "[\"phase.runtime_registered\"] = \"RUNTIME 登録済み\""
-    ));
+    assert!(catalog.contains("[\"phase.runtime_registered\"] = \"RUNTIME 登録済み\""));
     assert!(catalog.contains("[\"kicker\"] = \"APROVISIONAMIENTO DEL RUNTIME\""));
     assert!(catalog.contains("[\"title\"] = \"Leserpent / Gewyvern bereitstellen\""));
     assert!(catalog.contains("[\"submit\"] = \"Provisionner gewyvern\""));
-    assert!(catalog.contains(
-        "[\"status.waiting\"] = \"선택한 daemon 권한 주체를 기다리는 중...\""
-    ));
+    assert!(
+        catalog.contains("[\"status.waiting\"] = \"선택한 daemon 권한 주체를 기다리는 중...\"")
+    );
     assert!(!catalog.contains("HttpClient"));
     assert!(!catalog.contains("Process."));
     assert!(!catalog.contains("File."));
@@ -1615,12 +1603,13 @@ fn gewyvern_retirement_is_confirmed_provisioning_bound_and_failure_safe() {
     assert!(catalog.contains("SetEquals(expected)"));
     assert!(catalog.contains("HasExpectedPlaceholders"));
     assert!(catalog.contains("use a new retirement ID for a corrected attempt"));
-    assert!(catalog.contains(
-        "[\"status.failed\"] = \"退役失败，受限故障代码为 {0}。runtime 仍保持注册"
-    ));
-    assert!(catalog.contains(
-        "[\"status.waiting\"] = \"선택한 daemon 권한 주체를 기다리는 중...\""
-    ));
+    assert!(
+        catalog
+            .contains("[\"status.failed\"] = \"退役失败，受限故障代码为 {0}。runtime 仍保持注册")
+    );
+    assert!(
+        catalog.contains("[\"status.waiting\"] = \"선택한 daemon 권한 주체를 기다리는 중...\"")
+    );
     assert!(!catalog.contains("HttpClient"));
     assert!(!catalog.contains("Process."));
     assert!(!catalog.contains("File."));
@@ -1769,13 +1758,16 @@ fn connected_authority_health_is_visible_bounded_and_mutation_independent() {
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
     let presentation =
         avalonia_source("Leserpent.RemoteClient/RemoteAuthorityHealthPresentation.cs");
-    let coordinator =
-        avalonia_source("Leserpent.RemoteClient/RemoteAuthorityHealthCoordinator.cs");
+    let coordinator = avalonia_source("Leserpent.RemoteClient/RemoteAuthorityHealthCoordinator.cs");
 
     assert!(source.contains("remote-authority-health"));
     assert!(source.contains("remote-authority-health-refresh"));
     assert!(source.contains("AutomationLiveSetting.Assertive"));
-    assert!(source.contains("private readonly RemoteAuthorityHealthCoordinator authorityHealthCoordinator"));
+    assert!(
+        source.contains(
+            "private readonly RemoteAuthorityHealthCoordinator authorityHealthCoordinator"
+        )
+    );
     assert!(source.contains("authorityHealthCoordinator.RefreshAsync(lifetime.Token)"));
     assert!(source.contains("ApplyAuthorityHealth(authorityHealthCoordinator.State)"));
     assert!(source.contains("authorityHealthCoordinator.Stop();"));
@@ -1807,8 +1799,7 @@ fn gui_mutations_export_canonical_leselang_without_execution() {
     let exporter = avalonia_source("Leserpent.RemoteClient/RemoteLeselangExport.cs");
     let transport = avalonia_source("Leserpent.RemoteClient/RemoteWireTransport.cs");
     let control = avalonia_source("Leserpent.Avalonia/LeselangExportControl.cs");
-    let catalog =
-        avalonia_source("Leserpent.Avalonia/DesktopRemoteOperationCatalogs.cs");
+    let catalog = avalonia_source("Leserpent.Avalonia/DesktopRemoteOperationCatalogs.cs");
     let workspace_catalog =
         avalonia_source("Leserpent.Avalonia/DesktopRuntimeWorkspaceCatalogs.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
@@ -1846,8 +1837,7 @@ fn gui_mutations_export_canonical_leselang_without_execution() {
 #[test]
 fn runtime_workspace_log_filter_is_local_bounded_and_accessible() {
     let window = avalonia_source("Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs");
-    let catalog =
-        avalonia_source("Leserpent.Avalonia/DesktopRuntimeWorkspaceCatalogs.cs");
+    let catalog = avalonia_source("Leserpent.Avalonia/DesktopRuntimeWorkspaceCatalogs.cs");
     let filter = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceLogFilter.cs");
     let export = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceDiagnosticExport.cs");
     let projection = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceDocumentProjection.cs");
@@ -1977,8 +1967,7 @@ fn runtime_workspace_refresh_reports_bounded_snapshot_changes() {
     let window = avalonia_source("Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs");
     let changes = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceSnapshotChange.cs");
     let alert = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceSeverityAlert.cs");
-    let presentation =
-        avalonia_source("Leserpent.Avalonia/DesktopRuntimeWorkspacePresentation.cs");
+    let presentation = avalonia_source("Leserpent.Avalonia/DesktopRuntimeWorkspacePresentation.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
 
     assert!(window.contains("RemoteWorkspaceSnapshotChanges.Compare"));
@@ -2166,8 +2155,7 @@ fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
 
 #[test]
 fn desktop_reverse_deployment_is_strictly_localized_and_operator_data_preserving() {
-    let catalog =
-        avalonia_source("Leserpent.Avalonia/DesktopBootstrapDeploymentCatalogs.cs");
+    let catalog = avalonia_source("Leserpent.Avalonia/DesktopBootstrapDeploymentCatalogs.cs");
     let window = avalonia_source("Leserpent.Avalonia/BootstrapDeploymentWindow.cs");
     let localization = avalonia_source("Leserpent.Avalonia/DesktopLocalization.cs");
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");

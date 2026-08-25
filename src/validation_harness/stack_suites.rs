@@ -930,7 +930,10 @@ impl ThreeModuleStackConfig {
             etragon_root: repo.join("apps/etragon"),
             leserpent_root: repo.join("apps/leserpent"),
             repo_root: repo.clone(),
-            image_tag: validate_docker_cli_token("IMAGE_TAG", env_string("IMAGE_TAG", "gewyvern-stack-dev"))?,
+            image_tag: validate_docker_cli_token(
+                "IMAGE_TAG",
+                env_string("IMAGE_TAG", "gewyvern-stack-dev"),
+            )?,
             skip_docker_build: env_bool("SKIP_DOCKER_BUILD", false),
             docker_base_image: validate_docker_cli_arg_value(
                 "DOCKER_BASE_IMAGE",
@@ -946,10 +949,7 @@ impl ThreeModuleStackConfig {
             )?,
             docker_rustup_init_fallback_url: validate_docker_cli_arg_value(
                 "DOCKER_RUSTUP_INIT_FALLBACK_URL",
-                env_string(
-                    "DOCKER_RUSTUP_INIT_FALLBACK_URL",
-                    "https://sh.rustup.rs",
-                ),
+                env_string("DOCKER_RUSTUP_INIT_FALLBACK_URL", "https://sh.rustup.rs"),
             )?,
             docker_rustup_dist_server: validate_docker_cli_arg_value(
                 "DOCKER_RUSTUP_DIST_SERVER",
@@ -1073,7 +1073,10 @@ impl PathologyConfig {
         let unique = std::process::id();
         Ok(Self {
             repo_root: repo.clone(),
-            image_tag: validate_docker_cli_token("IMAGE_TAG", env_string("IMAGE_TAG", "gewyvern-stack-dev"))?,
+            image_tag: validate_docker_cli_token(
+                "IMAGE_TAG",
+                env_string("IMAGE_TAG", "gewyvern-stack-dev"),
+            )?,
             skip_docker_build: env_bool("SKIP_DOCKER_BUILD", false),
             docker_base_image: validate_docker_cli_arg_value(
                 "DOCKER_BASE_IMAGE",
@@ -1089,10 +1092,7 @@ impl PathologyConfig {
             )?,
             docker_rustup_init_fallback_url: validate_docker_cli_arg_value(
                 "DOCKER_RUSTUP_INIT_FALLBACK_URL",
-                env_string(
-                    "DOCKER_RUSTUP_INIT_FALLBACK_URL",
-                    "https://sh.rustup.rs",
-                ),
+                env_string("DOCKER_RUSTUP_INIT_FALLBACK_URL", "https://sh.rustup.rs"),
             )?,
             docker_rustup_dist_server: validate_docker_cli_arg_value(
                 "DOCKER_RUSTUP_DIST_SERVER",
@@ -1146,7 +1146,10 @@ impl JuiceShopValidationConfig {
     fn from_env(out_dir: Option<PathBuf>) -> Result<Self, ValidationError> {
         let unique = std::process::id();
         Ok(Self {
-            image: validate_docker_cli_token("JUICE_SHOP_IMAGE", env_string("JUICE_SHOP_IMAGE", "bkimminich/juice-shop:latest"))?,
+            image: validate_docker_cli_token(
+                "JUICE_SHOP_IMAGE",
+                env_string("JUICE_SHOP_IMAGE", "bkimminich/juice-shop:latest"),
+            )?,
             container_name: validate_docker_cli_token(
                 "JUICE_SHOP_NAME",
                 env_string("JUICE_SHOP_NAME", &format!("gewyvern-juice-shop-{unique}")),
@@ -1166,7 +1169,10 @@ impl FtpDeniedValidationConfig {
     fn from_env(out_dir: Option<PathBuf>) -> Result<Self, ValidationError> {
         let unique = std::process::id();
         Ok(Self {
-            image: validate_docker_cli_token("FTP_DENIED_IMAGE", env_string("FTP_DENIED_IMAGE", "fauria/vsftpd:latest"))?,
+            image: validate_docker_cli_token(
+                "FTP_DENIED_IMAGE",
+                env_string("FTP_DENIED_IMAGE", "fauria/vsftpd:latest"),
+            )?,
             container_name: validate_docker_cli_token(
                 "FTP_DENIED_NAME",
                 env_string("FTP_DENIED_NAME", &format!("gewyvern-ftp-denied-{unique}")),
@@ -1177,8 +1183,14 @@ impl FtpDeniedValidationConfig {
                 })?,
                 Err(_) => find_free_loopback_port()?,
             },
-            username: validate_docker_cli_arg_value("FTP_DENIED_USER", env_string("FTP_DENIED_USER", "demo"))?,
-            password: validate_docker_cli_arg_value("FTP_DENIED_PASS", env_string("FTP_DENIED_PASS", "demo"))?,
+            username: validate_docker_cli_arg_value(
+                "FTP_DENIED_USER",
+                env_string("FTP_DENIED_USER", "demo"),
+            )?,
+            password: validate_docker_cli_arg_value(
+                "FTP_DENIED_PASS",
+                env_string("FTP_DENIED_PASS", "demo"),
+            )?,
             out_dir: out_dir.unwrap_or_else(|| default_out_dir("ftp-denied-container")),
         })
     }
@@ -2302,7 +2314,10 @@ fn validate_docker_cli_token(name: &str, value: String) -> Result<String, Valida
             "{name} is too long for a docker CLI argument"
         )));
     }
-    if value.chars().any(|c| c.is_ascii_control() || c.is_ascii_whitespace()) {
+    if value
+        .chars()
+        .any(|c| c.is_ascii_control() || c.is_ascii_whitespace())
+    {
         return Err(ValidationError::new(format!(
             "{name} must not contain control or whitespace characters"
         )));
@@ -2329,7 +2344,10 @@ fn validate_docker_cli_arg_value(name: &str, value: String) -> Result<String, Va
             "{name} is too long for a docker CLI argument value"
         )));
     }
-    if value.chars().any(|c| c.is_ascii_control() || c.is_ascii_whitespace()) {
+    if value
+        .chars()
+        .any(|c| c.is_ascii_control() || c.is_ascii_whitespace())
+    {
         return Err(ValidationError::new(format!(
             "{name} must not contain control or whitespace characters"
         )));
@@ -2351,10 +2369,7 @@ fn env_docker_cli_arg_value(name: &str, default: &str) -> Result<String, Validat
     validate_docker_cli_arg_value(name, env::var(name).unwrap_or_else(|_| default.to_string()))
 }
 
-fn env_optional_docker_cli_arg_value(
-    name: &str,
-    default: &str,
-) -> Result<String, ValidationError> {
+fn env_optional_docker_cli_arg_value(name: &str, default: &str) -> Result<String, ValidationError> {
     let value = env::var(name).unwrap_or_else(|_| default.to_string());
     validate_optional_docker_cli_arg_value(name, value)
 }
@@ -2434,12 +2449,16 @@ mod tests {
 
     #[test]
     fn rejects_docker_cli_arg_value_that_starts_with_dash() {
-        assert!(validate_docker_cli_arg_value("DOCKER_BASE_IMAGE", "-invalid".to_string()).is_err());
+        assert!(
+            validate_docker_cli_arg_value("DOCKER_BASE_IMAGE", "-invalid".to_string()).is_err()
+        );
     }
 
     #[test]
     fn rejects_docker_cli_arg_value_with_control_chars() {
-        assert!(validate_docker_cli_arg_value("DOCKER_BASE_IMAGE", "image\nname".to_string()).is_err());
+        assert!(
+            validate_docker_cli_arg_value("DOCKER_BASE_IMAGE", "image\nname".to_string()).is_err()
+        );
     }
 
     #[test]

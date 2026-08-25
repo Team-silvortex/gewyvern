@@ -216,6 +216,27 @@ public sealed partial class RegistryService
             .Select(CloneRuntimeRegistrationIntent)
             .ToArray();
 
+    internal IDisposable ClaimRuntimeRegistrationLifecycle(string runtimeId)
+    {
+        RequireControlPlaneWriter();
+        var normalizedRuntimeId = runtimeId.Trim();
+        lock (orchestraRunSync)
+        {
+            if (deletingRuntimes.Contains(normalizedRuntimeId))
+            {
+                throw new RuntimeDeletionInProgressException(
+                    new[] { normalizedRuntimeId });
+            }
+            if (!activeRuntimeRegistrations.Add(normalizedRuntimeId))
+            {
+                throw new RuntimeRegistrationInProgressException(
+                    new[] { normalizedRuntimeId });
+            }
+        }
+        return new RuntimeRegistrationLifecycleClaim(
+            () => ReleaseRuntimeRegistrationLifecycle(normalizedRuntimeId));
+    }
+
     private void RestorePendingRuntimeRegistrations(
         PersistedControlPlaneState? state)
     {
@@ -265,4 +286,21 @@ public sealed partial class RegistryService
         CloneRuntimeRegistrationIntent(
             PersistedRuntimeRegistrationIntent intent) =>
         ControlPlaneStateValidator.NormalizeRuntimeRegistrationIntent(intent);
+
+    private void ReleaseRuntimeRegistrationLifecycle(string runtimeId)
+    {
+        lock (orchestraRunSync)
+        {
+            _ = activeRuntimeRegistrations.Remove(runtimeId);
+        }
+    }
+
+    private sealed class RuntimeRegistrationLifecycleClaim(
+        Action release) : IDisposable
+    {
+        private Action? releaseAction = release;
+
+        public void Dispose() =>
+            Interlocked.Exchange(ref releaseAction, null)?.Invoke();
+    }
 }

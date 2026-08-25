@@ -92,7 +92,8 @@ fn query_external_capabilities_rejects_oversized_stdout() {
 
 #[test]
 fn validate_external_analysis_binary_rejects_path_search_names() {
-    let err = validate_external_analysis_binary("python3").expect_err("bare executable name should be rejected");
+    let err = validate_external_analysis_binary("python3")
+        .expect_err("bare executable name should be rejected");
     assert!(err.contains("filesystem path"));
 }
 

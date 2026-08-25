@@ -418,9 +418,8 @@ fn run_rpm_validation(
         .ok_or_else(|| ValidationError::new("invalid rpm package filename"))?;
     let package_file = shell_single_quote(&format!("/packages/{package_name}"));
 
-    let install_line = format!(
-        "rpm -Uvh {package_file} >/dev/null || dnf install -y {package_file} >/dev/null"
-    );
+    let install_line =
+        format!("rpm -Uvh {package_file} >/dev/null || dnf install -y {package_file} >/dev/null");
 
     let script = format!(
         "set -euo pipefail\n\
@@ -622,9 +621,7 @@ fn validate_container_image(name: &str, value: &str) -> Result<String, Validatio
         )));
     }
     if trimmed.is_empty() {
-        return Err(ValidationError::new(format!(
-            "{name} must not be empty"
-        )));
+        return Err(ValidationError::new(format!("{name} must not be empty")));
     }
     if value.chars().any(|ch| ch.is_ascii_control()) {
         return Err(ValidationError::new(format!(
@@ -655,9 +652,9 @@ fn validate_positive_u16_timeout(value: &str) -> Result<String, ValidationError>
             "GEWY_CONTAINER_VALIDATION_TIMEOUT_SECONDS must be a positive integer".to_string(),
         ));
     }
-    let parsed = value
-        .parse::<u16>()
-        .map_err(|_| ValidationError::new("GEWY_CONTAINER_VALIDATION_TIMEOUT_SECONDS must fit u16".to_string()))?;
+    let parsed = value.parse::<u16>().map_err(|_| {
+        ValidationError::new("GEWY_CONTAINER_VALIDATION_TIMEOUT_SECONDS must fit u16".to_string())
+    })?;
     if parsed == 0 {
         return Err(ValidationError::new(
             "GEWY_CONTAINER_VALIDATION_TIMEOUT_SECONDS must be greater than zero".to_string(),

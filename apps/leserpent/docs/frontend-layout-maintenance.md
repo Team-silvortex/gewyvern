@@ -88,6 +88,18 @@ request the plan again. An exact target receives a
 revision; adapters must display and submit that plan rather than constructing a
 new revision or repeating discovery themselves. A rejected recovery plan means
 another pending intent owns the overlapping name or endpoint.
+If registration returns `runtime_registration_in_progress`, another request
+already owns an overlapping name or endpoint, whether registration is
+daemon-backed or using the managed development fallback. Adapters must not poll
+by resubmitting credentials or reuse the old plan after that request settles;
+they keep credentials in transient UI scope and request a fresh plan before
+retrying.
+Deletion can return the same `runtime_registration_in_progress` code while an
+overlapping registration owns the runtime lifecycle. Adapters must leave the
+runtime visible, retain no submitted deletion assumption, and refresh both the
+runtime and its registration plan after the active request settles. A
+`runtime_deletion_in_progress` registration plan is authoritative in managed
+and daemon-backed modes and must disable registration submission.
 
 Runtime recovery is also server-orchestrated. The browser submits one typed
 `POST /v1/runtimes/{runtimeId}/recovery` command with `all`, `status`,

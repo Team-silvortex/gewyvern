@@ -48,3 +48,10 @@ public sealed class RuntimeDeletionInProgressException(IReadOnlyCollection<strin
 {
     public IReadOnlyCollection<string> RuntimeIds { get; } = runtimeIds;
 }
+
+public sealed class RuntimeRegistrationInProgressException(
+    IReadOnlyCollection<string> runtimeIds) :
+    InvalidOperationException("runtime registration is already in progress")
+{
+    public IReadOnlyCollection<string> RuntimeIds { get; } = runtimeIds;
+}

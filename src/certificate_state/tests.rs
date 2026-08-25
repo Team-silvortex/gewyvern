@@ -130,10 +130,7 @@ fn read_revocation_records_skips_unknown_status_and_scope_entries() {
 
     let records = read_revocation_records(&path);
     assert_eq!(records.len(), 1);
-    assert_eq!(
-        records[0].relative_path,
-        "trust/anchors/root-ca.pem"
-    );
+    assert_eq!(records[0].relative_path, "trust/anchors/root-ca.pem");
     fs::remove_dir_all(root).unwrap();
 }
 

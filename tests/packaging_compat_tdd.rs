@@ -25,9 +25,7 @@ fn package_layout_writes_compat_manifest() {
     assert!(!build_script.contains("GEWY_RELEASE_LINE:-v1.16.0"));
     assert!(build_script.contains("LAYOUT_VERSION=\"${GEWY_LAYOUT_VERSION:-1}\""));
     assert!(build_script.contains("CONFIG_SCHEMA_VERSION=\"${GEWY_CONFIG_SCHEMA_VERSION:-1}\""));
-    assert!(build_script.contains(
-        "Team Silvortex <team-silvortex@users.noreply.github.com>"
-    ));
+    assert!(build_script.contains("Team Silvortex <team-silvortex@users.noreply.github.com>"));
     assert!(!build_script.contains("codex@example.invalid"));
     assert!(build_script.contains("TARGET_ROOT=\"${ROOT}/${CARGO_TARGET_DIR}\""));
     assert!(build_script.contains("RELEASE_BIN_DIR=\"${TARGET_ROOT}/release\""));
@@ -54,9 +52,7 @@ fn package_layout_writes_compat_manifest() {
     assert!(build_script.contains("normalize_stage_permissions()"));
     assert!(build_script.contains("normalize_stage_permissions \"${STAGE_ROOT}\""));
     assert!(build_script.contains("staged package path must not be a symlink"));
-    assert!(
-        build_script.contains("os.chmod(path, 0o755 if path in executables else 0o644)")
-    );
+    assert!(build_script.contains("os.chmod(path, 0o755 if path in executables else 0o644)"));
     assert!(build_script.contains("os.utime(path, (epoch, epoch), follow_symlinks=False)"));
     assert!(build_script.contains("Path(sys.argv[1]).stat().st_mtime"));
     assert!(build_script.contains("build-cache-key.txt"));
@@ -68,9 +64,10 @@ fn package_layout_writes_compat_manifest() {
     assert!(build_script.contains("reusing cached package artifacts..."));
     assert!(build_script.contains("chmod 0644 \"${CACHE_KEY_FILE}\" \"${MANIFEST_FILE}\""));
     assert!(build_script.contains("write_cache_key"));
-    assert!(manifest_reader.contains(
-        "[[ -f \"${MANIFEST_FILE}\" && ! -L \"${MANIFEST_FILE}\" ]] || return 1"
-    ));
+    assert!(
+        manifest_reader
+            .contains("[[ -f \"${MANIFEST_FILE}\" && ! -L \"${MANIFEST_FILE}\" ]] || return 1")
+    );
     assert!(build_script.contains("record_manifest \"deb\" \"${deb_path#\"${OUT_DIR}/\"}\""));
     assert!(build_script.contains("record_manifest \"rpm\" \"${rpm_path#\"${OUT_DIR}/\"}\""));
     assert!(build_script.contains("GEWY_PACKAGE_LOCK_TIMEOUT_SECONDS:-120"));
@@ -128,9 +125,7 @@ fn install_smoke_validates_packaged_compat_artifacts() {
     assert!(harness.contains("GEWY_RPM_SMOKE_IMAGE"));
     assert!(harness.contains("PRODUCT_VERSION=\"$(gewyvern --version)\""));
     assert!(harness.contains("PRODUCT_VERSION=\"${PRODUCT_VERSION#gewyvern }\""));
-    assert!(harness.contains(
-        "RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v${PRODUCT_VERSION}}\""
-    ));
+    assert!(harness.contains("RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v${PRODUCT_VERSION}}\""));
     assert!(!harness.contains("GEWY_RELEASE_LINE:-v1.16.0"));
     assert!(harness.contains("test -f /usr/share/gewyvern/package-compat.toml"));
     assert!(harness.contains("grep -q '^schema_version = 1$'"));

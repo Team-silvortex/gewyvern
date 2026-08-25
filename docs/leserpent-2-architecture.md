@@ -982,8 +982,27 @@ daemon advances from registration revision 1 to intake revision 2. The same
 entrypoint now passes on macOS arm64 and physical Linux x86_64; the Linux run is
 retained in
 `docs/fixtures/leserpent_registration_recovery_linux_x86_64_20260825.json`.
-Future registration changes must preserve this cross-platform exact-replay and
-zero-rediscovery proof.
+Within one compatibility process, the coordinator now takes a bounded
+target-overlap execution claim before plan lookup, discovery, daemon effects,
+or managed fallback writes. Concurrent exact retries and command-different
+requests sharing a normalized name or endpoint fail with
+`runtime_registration_in_progress`; only the claim owner can bind fresh
+credentials and either commit a managed projection or project the authority
+receipt and clear its intent. After convergence, a delayed daemon-backed
+request's old plan token fails before effects instead of replacing the winning
+credential. The claim is process-local and never enters schema-v9 state,
+leaving durable intent replay as the authority-bound crash/restart mechanism.
+Future registration changes must preserve this all-mode single-flight
+credential fence together with cross-platform exact replay and zero
+rediscovery.
+After plan validation, a second Registry-owned claim binds the execution to its
+planned or existing runtime ID under the deletion-reservation lock. Deletion
+rejects active claims and schema-v9 pending registrations, including after a
+failed authority acknowledgement; registration rejects a durable deletion
+intent in both managed and authority plans. Managed compatibility commits use
+the coordinator's rebuilt token even when the adapter omitted a preview token,
+so state replacement cannot redirect a write beyond the held lifecycle claim.
+This is a bidirectional lifecycle fence, not a distributed transaction.
 Sidecar status, including its bounded memory-slot summary, now follows the same
 revision-fenced journal and strict read projection. Registration, individual
 refresh, recovery, Fleet refresh, and Orchestra recovery all compose available

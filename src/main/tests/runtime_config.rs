@@ -1,8 +1,8 @@
 use super::{Cli, IngestMode, env_test_lock as env_lock};
-use crate::runtime_config::{apply_runtime_path_overrides, load_runtime_config, RuntimeConfigFile};
+use crate::runtime_config::{RuntimeConfigFile, apply_runtime_path_overrides, load_runtime_config};
 use crate::runtime_logging::LogLevel;
-use gewyvern::runtime_layout::runtime_layout;
 use crate::{SocketTarget, cli::CliDefaults};
+use gewyvern::runtime_layout::runtime_layout;
 use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -819,10 +819,7 @@ fn runtime_config_loaded_defaults_rejects_malformed_default_api_socket() {
     let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
 
     let config = load_runtime_config().unwrap();
-    assert_eq!(
-        config.defaults.api_socket.as_deref(),
-        Some(" 0.0.0.0:9100")
-    );
+    assert_eq!(config.defaults.api_socket.as_deref(), Some(" 0.0.0.0:9100"));
     assert_eq!(config.defaults.allow_remote_api, Some(true));
     assert_eq!(
         config.defaults.api_admin_token.as_deref(),
@@ -852,11 +849,8 @@ fn runtime_config_loaded_defaults_accepts_remote_api_with_explicit_flag() {
     let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
 
     let config = load_runtime_config().unwrap();
-    let cli = Cli::from_args_with_defaults(
-        ["--allow-remote-api".to_string()],
-        config.defaults,
-    )
-    .unwrap();
+    let cli =
+        Cli::from_args_with_defaults(["--allow-remote-api".to_string()], config.defaults).unwrap();
 
     assert!(cli.serve);
     assert!(cli.allow_remote_api);
@@ -882,14 +876,18 @@ fn runtime_config_loaded_defaults_uses_api_admin_token_precedence_over_environme
     .unwrap();
     let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
     let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
-    let _api_admin_token =
-        EnvGuard::set("GEWY_API_ADMIN_TOKEN", "runtime-api-token-abcdefghijklmnopqrstuvwxyz");
+    let _api_admin_token = EnvGuard::set(
+        "GEWY_API_ADMIN_TOKEN",
+        "runtime-api-token-abcdefghijklmnopqrstuvwxyz",
+    );
 
     let config = load_runtime_config().unwrap();
     assert_eq!(config.defaults.api_admin_token.as_deref(), Some("short"));
     let configured_token = config.defaults.api_admin_token.as_deref().unwrap_or("");
-    let resolved_token =
-        crate::cli::resolve_api_admin_token(Some(configured_token.to_string()), std::env::var("GEWY_API_ADMIN_TOKEN").ok());
+    let resolved_token = crate::cli::resolve_api_admin_token(
+        Some(configured_token.to_string()),
+        std::env::var("GEWY_API_ADMIN_TOKEN").ok(),
+    );
     assert_eq!(resolved_token, None);
 
     assert!(Cli::from_args_with_defaults(std::iter::empty::<String>(), config.defaults).is_err());
@@ -910,8 +908,10 @@ fn runtime_config_loaded_defaults_accepts_env_api_admin_token_when_missing_from_
     .unwrap();
     let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
     let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
-    let _api_admin_token =
-        EnvGuard::set("GEWY_API_ADMIN_TOKEN", "runtime-api-token-abcdefghijklmnopqrstuvwxyz");
+    let _api_admin_token = EnvGuard::set(
+        "GEWY_API_ADMIN_TOKEN",
+        "runtime-api-token-abcdefghijklmnopqrstuvwxyz",
+    );
 
     let config = load_runtime_config().unwrap();
     let cli = Cli::from_args_with_defaults(std::iter::empty::<String>(), config.defaults).unwrap();
@@ -1007,7 +1007,9 @@ fn runtime_path_overrides_respects_existing_require_explicit_remote_trust_env() 
 
     assert!(apply_runtime_path_overrides(&config).is_ok());
     assert_eq!(
-        std::env::var("GEWY_REQUIRE_EXPLICIT_REMOTE_TRUST").ok().as_deref(),
+        std::env::var("GEWY_REQUIRE_EXPLICIT_REMOTE_TRUST")
+            .ok()
+            .as_deref(),
         Some("true")
     );
 }
@@ -1023,7 +1025,9 @@ fn runtime_path_overrides_applies_require_explicit_remote_trust_when_missing_env
 
     assert!(apply_runtime_path_overrides(&config).is_ok());
     assert_eq!(
-        std::env::var("GEWY_REQUIRE_EXPLICIT_REMOTE_TRUST").ok().as_deref(),
+        std::env::var("GEWY_REQUIRE_EXPLICIT_REMOTE_TRUST")
+            .ok()
+            .as_deref(),
         Some("false")
     );
 }

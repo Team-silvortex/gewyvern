@@ -370,6 +370,13 @@ public partial class Program
                     "control-plane state cannot be imported while runtime deletion is pending",
                     RuntimeId: ex.RuntimeIds.FirstOrDefault()));
             }
+            catch (RuntimeRegistrationInProgressException ex)
+            {
+                return Results.Conflict(new ApiErrorResponse(
+                    "persistence_import_runtime_registration_in_progress",
+                    "control-plane state cannot be imported while runtime registration is active",
+                    RuntimeId: ex.RuntimeIds.FirstOrDefault()));
+            }
             catch (InvalidDataException ex)
             {
                 return Results.BadRequest(new ApiErrorResponse(

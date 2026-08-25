@@ -40,7 +40,7 @@ fn cli_accepts_explicit_external_engine_paths() {
 
 #[test]
 fn cli_rejects_external_engine_path_without_separator() {
-    let err = Cli::from_args(["--external-engine-bin".to_string(), "python3".to_string()])
-        .unwrap_err();
+    let err =
+        Cli::from_args(["--external-engine-bin".to_string(), "python3".to_string()]).unwrap_err();
     assert!(err.contains("filesystem path"));
 }

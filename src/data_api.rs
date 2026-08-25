@@ -531,7 +531,8 @@ mod tests {
     #[test]
     fn normalize_api_admin_token_accepts_trimmed_valid_tokens() {
         assert_eq!(
-            normalize_api_admin_token("  runtime-api-token-abcdefghijklmnopqrstuvwxyz  ").as_deref(),
+            normalize_api_admin_token("  runtime-api-token-abcdefghijklmnopqrstuvwxyz  ")
+                .as_deref(),
             Some("runtime-api-token-abcdefghijklmnopqrstuvwxyz")
         );
         assert_eq!(

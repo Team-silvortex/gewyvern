@@ -90,17 +90,13 @@ pub fn protocol_registry_roots(
 }
 
 fn env_path(key: &str) -> Option<PathBuf> {
-    env::var_os(key)
-        .and_then(validate_runtime_layout_path)
+    env::var_os(key).and_then(validate_runtime_layout_path)
 }
 
 fn home_dir() -> Option<PathBuf> {
     env::var_os("HOME")
         .and_then(validate_runtime_home_var)
-        .or_else(|| {
-            env::var_os("USERPROFILE")
-                .and_then(validate_runtime_home_var)
-        })
+        .or_else(|| env::var_os("USERPROFILE").and_then(validate_runtime_home_var))
         .or_else(|| {
             let drive = env::var_os("HOMEDRIVE")?;
             let path = env::var_os("HOMEPATH")?;
@@ -114,7 +110,10 @@ fn home_dir() -> Option<PathBuf> {
 
 fn validate_runtime_home_var(value: std::ffi::OsString) -> Option<PathBuf> {
     let value = value.to_str()?;
-    if value.trim() != value || value.is_empty() || value.len() > RUNTIME_LAYOUT_PATH_MAX_LEN || value.chars().any(|character| character.is_control())
+    if value.trim() != value
+        || value.is_empty()
+        || value.len() > RUNTIME_LAYOUT_PATH_MAX_LEN
+        || value.chars().any(|character| character.is_control())
     {
         return None;
     }

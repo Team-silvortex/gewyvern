@@ -1,4 +1,5 @@
 use std::collections::{HashMap, VecDeque, hash_map::DefaultHasher};
+use std::fs;
 use std::hash::{Hash, Hasher};
 use std::io::{Read, Write};
 #[cfg(unix)]
@@ -7,7 +8,6 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
-use std::fs;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -500,8 +500,9 @@ fn validate_external_analysis_binary(path: &str) -> Result<(), String> {
     validate_external_analysis_path_argument(path)?;
     #[cfg(unix)]
     {
-        let metadata = fs::symlink_metadata(Path::new(path))
-            .map_err(|error| format!("failed to access external analysis engine '{path}': {error}"))?;
+        let metadata = fs::symlink_metadata(Path::new(path)).map_err(|error| {
+            format!("failed to access external analysis engine '{path}': {error}")
+        })?;
         if metadata.file_type().is_symlink() {
             return Err("external analysis engine path must not be a symlink".into());
         }
@@ -530,15 +531,18 @@ fn validate_external_analysis_path_argument(path: &str) -> Result<(), String> {
     }
 
     if path.trim() != path {
-        return Err("external analysis path must not contain leading or trailing whitespace".into());
+        return Err(
+            "external analysis path must not contain leading or trailing whitespace".into(),
+        );
     }
     if path.is_empty() {
         return Err("external analysis path must not be empty".into());
     }
     #[cfg(unix)]
     {
-        let metadata = fs::symlink_metadata(Path::new(path))
-            .map_err(|error| format!("failed to access external analysis engine '{path}': {error}"))?;
+        let metadata = fs::symlink_metadata(Path::new(path)).map_err(|error| {
+            format!("failed to access external analysis engine '{path}': {error}")
+        })?;
         if metadata.file_type().is_symlink() {
             return Err("external analysis path must not be a symlink".into());
         }

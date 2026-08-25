@@ -4506,10 +4506,7 @@ fn retained_remote_linux_vm_hwe_compatibility_covers_package_reboots_and_two_ker
     assert!(performance["total_seconds"].as_f64().unwrap() < 180.0);
     assert!(performance["package_build_seconds"].as_f64().unwrap() < 30.0);
     assert!(performance["ebpf_attach_seconds"].as_f64().unwrap() < 1.0);
-    assert_eq!(
-        performance["budget_warnings"].as_array().unwrap().len(),
-        1
-    );
+    assert_eq!(performance["budget_warnings"].as_array().unwrap().len(), 1);
     assert_eq!(evidence["history"]["valid_entries"], 3);
     assert_eq!(evidence["history"]["rejected_entries"], 0);
     assert_eq!(
@@ -4686,8 +4683,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && item.state == EvidenceState::Present
     }));
     assert!(domain.evidence.iter().any(|item| {
-        item.path
-            == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeCleanupProjectionService.cs"
+        item.path == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeCleanupProjectionService.cs"
             && item.state == EvidenceState::Present
     }));
     assert!(domain.evidence.iter().any(|item| {
@@ -4716,8 +4712,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && item.state == EvidenceState::Present
     }));
     assert!(domain.evidence.iter().any(|item| {
-        item.path
-            == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationIntentPolicy.cs"
+        item.path == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationIntentPolicy.cs"
             && item.state == EvidenceState::Present
     }));
     assert!(domain.evidence.iter().any(|item| {
@@ -4725,7 +4720,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             == "apps/leserpent/src/Leserpent/ControlPlane/RegistryServiceRegistrationRecovery.cs"
             && item.state == EvidenceState::Present
     }));
-    assert_eq!(domain.contract.version, "0.20.0");
+    assert_eq!(domain.contract.version, "0.23.0");
     for surface in [
         "schema-v9-registration-intent-state",
         "pre-effect-registration-intent-persistence",
@@ -4744,6 +4739,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "zero-rediscovery-registration-recovery",
         "persisted-discovery-intake-after-replay",
         "physical-linux-registration-recovery-proof",
+        "pre-plan-registration-execution-claim",
+        "overlapping-registration-single-flight",
+        "concurrent-registration-credential-fence",
+        "stale-registration-retry-plan-fence",
     ] {
         assert!(
             domain
@@ -4889,8 +4888,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .any(|surface| surface == "standard-cli-help-and-version-exit-contract")
     );
     assert!(gewylang.evidence.iter().any(|item| {
-        item.path == "crates/gewyc/tests/cli_information.rs"
-            && item.state == EvidenceState::Present
+        item.path == "crates/gewyc/tests/cli_information.rs" && item.state == EvidenceState::Present
     }));
     assert!(gewylang.blockers.is_empty());
     assert!(
@@ -5760,7 +5758,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.53.0");
+    assert_eq!(compatibility_control.contract.version, "1.56.0");
     assert!(
         compatibility_control
             .contract
@@ -5828,6 +5826,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "authority-id-bound-compatibility-write",
         "secret-free-registration-plan",
         "shared-registration-execution-coordinator",
+        "pre-plan-registration-execution-claim",
+        "overlapping-registration-single-flight",
+        "concurrent-registration-credential-fence",
+        "stale-registration-retry-plan-fence",
         "thin-registration-http-adapter",
         "pre-effect-registration-plan-validation",
         "credential-bound-registration-discovery",
@@ -6329,7 +6331,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.53.0");
+    assert_eq!(compatibility_control.contract.version, "1.56.0");
     assert!(
         compatibility_control
             .next_gate
@@ -8694,17 +8696,18 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
         }
     }
 
-    let deployment = std::fs::read_to_string(root.join(
-        "apps/leserpent/src/Leserpent/ControlPlane/DaemonDeploymentAuthority.cs",
-    ))
+    let deployment = std::fs::read_to_string(
+        root.join("apps/leserpent/src/Leserpent/ControlPlane/DaemonDeploymentAuthority.cs"),
+    )
     .expect("daemon deployment authority must exist");
     assert!(deployment.contains("ulong expectedRevision"));
     assert!(deployment.contains("WriteNumber(\"expected_revision\", expectedRevision)"));
 
-    let discovery = std::fs::read_to_string(root.join(
-        "apps/leserpent/src/Leserpent/ControlPlane/DaemonRuntimeRegistrationAuthority.cs",
-    ))
-    .expect("daemon registration authority must exist");
+    let discovery =
+        std::fs::read_to_string(root.join(
+            "apps/leserpent/src/Leserpent/ControlPlane/DaemonRuntimeRegistrationAuthority.cs",
+        ))
+        .expect("daemon registration authority must exist");
     assert!(discovery.contains("SubmitDiscoveryAtRevisionAsync"));
     assert!(discovery.contains("var revision = expectedRevision"));
     assert!(discovery.contains("RuntimeDiscoveryIntakeReceipt"));
@@ -8714,9 +8717,7 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
     assert!(discovery.contains("ValidateRegistrationProjection"));
     assert!(discovery.contains("string expectedCommandId"));
     assert!(discovery.contains("RuntimeRegistrationCommandIdentity.ForIntent"));
-    assert!(
-        discovery.contains("payload.TryGetProperty(\"revision\", out var envelopeRevision)")
-    );
+    assert!(discovery.contains("payload.TryGetProperty(\"revision\", out var envelopeRevision)"));
     let registration_method = discovery
         .split("public async Task<RuntimeRegistrationCommitReceipt> RegisterWithReceiptAsync")
         .nth(1)
@@ -8730,10 +8731,11 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
     );
     assert!(registration_method.contains("registeredRuntime.Revision"));
 
-    let registration_identity = std::fs::read_to_string(root.join(
-        "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationCommandIdentity.cs",
-    ))
-    .expect("runtime registration command identity must exist");
+    let registration_identity =
+        std::fs::read_to_string(root.join(
+            "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationCommandIdentity.cs",
+        ))
+        .expect("runtime registration command identity must exist");
     for required in [
         "leserpent.runtime-registration",
         "identity_schema",
@@ -8751,11 +8753,7 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
             "registration command identity omits {required}"
         );
     }
-    for forbidden in [
-        "PairingToken",
-        "SidecarAdminToken",
-        "RegistrationPlanToken",
-    ] {
+    for forbidden in ["PairingToken", "SidecarAdminToken", "RegistrationPlanToken"] {
         assert!(
             !registration_identity.contains(forbidden),
             "registration command identity accepts credential field {forbidden}"
@@ -8790,20 +8788,22 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
     assert!(registration_plan.contains("BuildAuthoritative"));
     assert!(registration_plan.contains("IsRuntimeDeletionPending"));
     assert!(registration_plan.contains("GetRuntimeRegistrationRecoveryPlan"));
+    assert!(registration_plan.contains("RejectIfDeleting"));
 
-    let registration_policy = std::fs::read_to_string(root.join(
-        "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationPolicy.cs",
-    ))
+    let registration_policy = std::fs::read_to_string(
+        root.join("apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationPolicy.cs"),
+    )
     .expect("runtime registration policy must exist");
     assert!(registration_policy.contains("runtime-registration-plan-v2"));
     assert!(registration_policy.contains("plannedRuntimeId"));
     assert!(registration_policy.contains("expectedRevision"));
     assert!(registration_policy.contains("request.SidecarEndpoint"));
 
-    let registration_execution = std::fs::read_to_string(root.join(
-        "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationExecutionService.cs",
-    ))
-    .expect("runtime registration execution coordinator must exist");
+    let registration_execution =
+        std::fs::read_to_string(root.join(
+            "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationExecutionService.cs",
+        ))
+        .expect("runtime registration execution coordinator must exist");
     for required in [
         "security.ValidateRegistrationAsync",
         "registrationPlans.BuildAsync",
@@ -8819,6 +8819,10 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
         "registry.RecordRuntimeRegistrationFailure",
         "registry.CompleteRuntimeRegistrationIntent",
         "RuntimeRegistrationExecutionException.Ambiguous",
+        "ClaimRuntimeRegistrationExecution",
+        "ClaimRuntimeRegistrationLifecycle",
+        "RegistrationPlanToken = plan.PlanToken",
+        "runtime_registration_in_progress",
         "RuntimeRefreshOutcomePolicy.Determine",
     ] {
         assert!(
@@ -8829,6 +8833,27 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
     assert!(!registration_execution.contains("registrationAuthority.RegisterAsync("));
     assert!(
         registration_execution
+            .find("ClaimRuntimeRegistrationExecution(request)")
+            .unwrap()
+            < registration_execution
+                .find("registrationPlans.BuildAsync")
+                .unwrap()
+    );
+    assert!(
+        registration_execution
+            .contains("using var executionClaim = ClaimRuntimeRegistrationExecution(request)")
+    );
+    assert!(!registration_execution.contains("IDisposable? executionClaim"));
+    assert!(
+        registration_execution
+            .find("ClaimRuntimeRegistrationLifecycle(")
+            .unwrap()
+            < registration_execution
+                .find("return request.FetchCapabilities")
+                .unwrap()
+    );
+    assert!(
+        registration_execution
             .find("ValidateReviewedPlan(request, plan)")
             .unwrap()
             < registration_execution
@@ -8836,10 +8861,11 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
                 .unwrap()
     );
 
-    let registration_recovery = std::fs::read_to_string(root.join(
-        "apps/leserpent/src/Leserpent/ControlPlane/RegistryServiceRegistrationRecovery.cs",
-    ))
-    .expect("runtime registration recovery registry must exist");
+    let registration_recovery =
+        std::fs::read_to_string(root.join(
+            "apps/leserpent/src/Leserpent/ControlPlane/RegistryServiceRegistrationRecovery.cs",
+        ))
+        .expect("runtime registration recovery registry must exist");
     for required in [
         "GetRuntimeRegistrationRecoveryPlan",
         "ResolveRuntimeRegistrationIntent",
@@ -8847,22 +8873,24 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
         "BeginRuntimeRegistrationAttempt",
         "RecordRuntimeRegistrationFailure",
         "CompleteRuntimeRegistrationIntent",
+        "ClaimRuntimeRegistrationLifecycle",
+        "activeRuntimeRegistrations.Add",
         "PersistStateStrict",
     ] {
         assert!(registration_recovery.contains(required));
     }
 
-    let registration_intent = std::fs::read_to_string(root.join(
-        "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationIntentPolicy.cs",
-    ))
+    let registration_intent = std::fs::read_to_string(
+        root.join("apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationIntentPolicy.cs"),
+    )
     .expect("runtime registration intent policy must exist");
     assert!(registration_intent.contains("RestoreRequest"));
     assert!(registration_intent.contains("credentialSource with"));
     assert!(!registration_intent.contains("PairingToken ="));
 
-    let state_store = std::fs::read_to_string(root.join(
-        "apps/leserpent/src/Leserpent/ControlPlane/ControlPlaneStateStore.cs",
-    ))
+    let state_store = std::fs::read_to_string(
+        root.join("apps/leserpent/src/Leserpent/ControlPlane/ControlPlaneStateStore.cs"),
+    )
     .expect("control-plane state store must exist");
     assert!(state_store.contains("CurrentSchemaVersion = 9"));
     assert!(state_store.contains("PendingRuntimeRegistrations"));
@@ -8875,9 +8903,20 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
         "AmbiguousAuthorityResponseReplaysExactPersistedIntent",
         "RepeatedAmbiguityPersistsSecretFreeIntentAndBlocksChanges",
         "RestartRecoversPersistedIntentWithoutRediscovery",
+        "ConcurrentRecoveryHasOneCredentialAndMutationOwner",
+        "ConcurrentManagedRegistrationHasOneCredentialOwner",
+        "ManagedRegistrationAndDeletionAreMutuallyExclusive",
     ] {
         assert!(recovery_tests.contains(required));
     }
+
+    let registry_service = std::fs::read_to_string(
+        root.join("apps/leserpent/src/Leserpent/ControlPlane/RegistryService.cs"),
+    )
+    .expect("runtime lifecycle registry must exist");
+    assert!(registry_service.contains("targets.Any(activeRuntimeRegistrations.Contains)"));
+    assert!(registry_service.contains("pendingRuntimeRegistrations.Values.Any"));
+    assert!(registry_service.contains("RuntimeRegistrationInProgressException"));
 
     let runtime_endpoints = std::fs::read_to_string(
         root.join("apps/leserpent/src/Leserpent/ProgramRuntimeEndpoints.cs"),
@@ -8910,4 +8949,5 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
     }
     assert!(!runtime_endpoints.contains("registry.GetRuntimeRegistrationPlan("));
     assert!(!runtime_endpoints.contains("registrationAuthority.RegisterAsync("));
+    assert!(runtime_endpoints.contains("runtime registration is in progress; retry deletion"));
 }

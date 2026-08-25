@@ -1011,8 +1011,23 @@ force-killed, and a fresh process exactly replays the command before applying
 the persisted discovery intake once with zero HTTP rediscovery. The same
 entrypoint now passes on macOS arm64 and physical Linux x86_64, with the Linux
 result retained as a secret-free fixture. Registration work now returns to a
-preservation gate: wire or state evolution must keep exact replay, fresh local
-credential binding, and zero rediscovery across process restart.
+preservation gate. A bounded process-local claim now owns every overlapping
+name or endpoint before plan lookup, discovery, daemon mutation, or managed
+fallback write. Concurrent retries in either mode fail with
+`runtime_registration_in_progress`; only the winner binds credentials and
+commits its projection, while an authority winner also clears the durable
+intent and a delayed loser must review a fresh plan after convergence. Wire or
+state evolution must keep this all-mode single-flight credential fence together
+with exact replay, fresh local credential binding, and zero rediscovery across
+process restart.
+The registration/deletion lifecycle gate is now bidirectional. A reviewed
+registration claims its planned or existing runtime ID under the same Registry
+lock used by deletion reservation; deletion rejects both an active claim and a
+durable pending registration. Managed and authority plans reject an existing
+deletion intent, and managed commits internally bind the rebuilt plan token so
+their final target cannot drift after discovery. The durable registration
+intent continues the deletion fence across restart while process-local claims
+cover in-flight work.
 Cleanup and generic
 unregistration now have an
 explicit confirmed result contract: a daemon schema-v14 transaction fences all

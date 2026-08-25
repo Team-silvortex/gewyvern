@@ -315,7 +315,8 @@ fn validate_leserpent_daemon_target(target: &str) -> Result<String, String> {
     }
     if target.chars().any(char::is_control) || target.contains('/') || target.contains('\\') {
         return Err(
-            "LESERPENT_DAEMON_TARGET must not include control or filesystem path characters".to_string(),
+            "LESERPENT_DAEMON_TARGET must not include control or filesystem path characters"
+                .to_string(),
         );
     }
     if !target
@@ -324,7 +325,8 @@ fn validate_leserpent_daemon_target(target: &str) -> Result<String, String> {
         || target.starts_with('-')
     {
         return Err(
-            "LESERPENT_DAEMON_TARGET must contain only ASCII letters, digits, '-' '_' '.'".to_string(),
+            "LESERPENT_DAEMON_TARGET must contain only ASCII letters, digits, '-' '_' '.'"
+                .to_string(),
         );
     }
     Ok(target.to_string())
