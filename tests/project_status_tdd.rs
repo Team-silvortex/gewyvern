@@ -4658,10 +4658,48 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationExecutionService.cs"
             && item.state == EvidenceState::Present
     }));
+    assert!(domain.evidence.iter().any(|item| {
+        item.path
+            == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationCommandIdentity.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(domain.evidence.iter().any(|item| {
+        item.path
+            == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationIntentPolicy.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(domain.evidence.iter().any(|item| {
+        item.path
+            == "apps/leserpent/src/Leserpent/ControlPlane/RegistryServiceRegistrationRecovery.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert_eq!(domain.contract.version, "0.20.0");
+    for surface in [
+        "schema-v9-registration-intent-state",
+        "pre-effect-registration-intent-persistence",
+        "secret-free-registration-recovery-state",
+        "bounded-registration-attempt-metadata",
+        "transport-ambiguous-registration-replay",
+        "exact-recovery-plan-priority",
+        "conflicting-registration-intent-fence",
+        "restart-registration-intent-recovery",
+        "credential-refresh-on-registration-replay",
+        "persisted-discovery-replay",
+        "pending-registration-import-rejection",
+    ] {
+        assert!(
+            domain
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing registration recovery surface {surface}"
+        );
+    }
     assert!(
         domain
             .next_gate
-            .contains("reviewed expected revision")
+            .contains("real process/socket registration response loss")
     );
     assert!(domain.evidence.iter().any(|item| {
         item.path
@@ -4671,6 +4709,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(domain.evidence.iter().any(|item| {
         item.path
             == "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeRegistrationExecutionServiceTests.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(domain.evidence.iter().any(|item| {
+        item.path
+            == "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeRegistrationCommandIdentityTests.cs"
             && item.state == EvidenceState::Present
     }));
 
@@ -5647,7 +5690,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.51.0");
+    assert_eq!(compatibility_control.contract.version, "1.53.0");
     assert!(
         compatibility_control
             .contract
@@ -5722,6 +5765,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "cross-adapter-registration-transaction-parity",
         "managed-and-authority-registration-path-parity",
         "registration-recovery-outcome-policy",
+        "canonical-registration-command-intent",
+        "reviewed-revision-command-identity",
+        "complete-registration-field-identity",
+        "credential-independent-registration-identity",
+        "exact-registration-update-replay",
+        "later-revision-registration-identity-rotation",
+        "delimiter-safe-registration-intent",
+        "real-daemon-registration-idempotency-proof",
     ] {
         assert!(
             compatibility_control
@@ -6208,7 +6259,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.51.0");
+    assert_eq!(compatibility_control.contract.version, "1.53.0");
     assert!(
         compatibility_control
             .next_gate
@@ -8592,6 +8643,7 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
     assert!(discovery.contains("RegisterWithReceiptAsync"));
     assert!(discovery.contains("ValidateRegistrationProjection"));
     assert!(discovery.contains("string expectedCommandId"));
+    assert!(discovery.contains("RuntimeRegistrationCommandIdentity.ForIntent"));
     assert!(
         discovery.contains("payload.TryGetProperty(\"revision\", out var envelopeRevision)")
     );
@@ -8608,6 +8660,50 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
     );
     assert!(registration_method.contains("registeredRuntime.Revision"));
 
+    let registration_identity = std::fs::read_to_string(root.join(
+        "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationCommandIdentity.cs",
+    ))
+    .expect("runtime registration command identity must exist");
+    for required in [
+        "leserpent.runtime-registration",
+        "identity_schema",
+        "command_kind",
+        "runtime_id",
+        "expected_revision",
+        "sidecar_endpoint",
+        "environment",
+        "cluster",
+        "role",
+        "SHA256.HashData",
+    ] {
+        assert!(
+            registration_identity.contains(required),
+            "registration command identity omits {required}"
+        );
+    }
+    for forbidden in [
+        "PairingToken",
+        "SidecarAdminToken",
+        "RegistrationPlanToken",
+    ] {
+        assert!(
+            !registration_identity.contains(forbidden),
+            "registration command identity accepts credential field {forbidden}"
+        );
+    }
+    let registration_identity_tests = std::fs::read_to_string(root.join(
+        "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeRegistrationCommandIdentityTests.cs",
+    ))
+    .expect("runtime registration command identity tests must exist");
+    for required in [
+        "ExactNormalizedRetryKeepsTheSameIdentity",
+        "ReviewedRevisionRotatesUpdateIdentity",
+        "EveryRegistrationCommandFieldParticipatesInIdentity",
+        "CanonicalEncodingPreservesFieldBoundaries",
+    ] {
+        assert!(registration_identity_tests.contains(required));
+    }
+
     let registration_commit = std::fs::read_to_string(root.join(
         "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationCommitProjectionService.cs",
     ))
@@ -8623,6 +8719,7 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
     assert!(registration_plan.contains("daemon.SnapshotAsync"));
     assert!(registration_plan.contains("BuildAuthoritative"));
     assert!(registration_plan.contains("IsRuntimeDeletionPending"));
+    assert!(registration_plan.contains("GetRuntimeRegistrationRecoveryPlan"));
 
     let registration_policy = std::fs::read_to_string(root.join(
         "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationPolicy.cs",
@@ -8642,11 +8739,16 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
         "registrationPlans.BuildAsync",
         "ValidateReviewedPlan",
         "registrationAuthority.RegisterWithReceiptAsync",
-        "expectedRevision: plan.ExpectedRevision",
+        "expectedRevision: intent.ExpectedRevision",
         "discovery.DiscoverAsync",
         "discovery.DiscoverStatusAsync",
         "registrationCommits.Bind",
         "registry.RegisterRuntimeFromAuthority",
+        "registry.PrepareRuntimeRegistrationIntent",
+        "registry.BeginRuntimeRegistrationAttempt",
+        "registry.RecordRuntimeRegistrationFailure",
+        "registry.CompleteRuntimeRegistrationIntent",
+        "RuntimeRegistrationExecutionException.Ambiguous",
         "RuntimeRefreshOutcomePolicy.Determine",
     ] {
         assert!(
@@ -8663,6 +8765,49 @@ fn leserpent_compatibility_effects_use_authoritative_execution_context() {
                 .find("return request.FetchCapabilities")
                 .unwrap()
     );
+
+    let registration_recovery = std::fs::read_to_string(root.join(
+        "apps/leserpent/src/Leserpent/ControlPlane/RegistryServiceRegistrationRecovery.cs",
+    ))
+    .expect("runtime registration recovery registry must exist");
+    for required in [
+        "GetRuntimeRegistrationRecoveryPlan",
+        "ResolveRuntimeRegistrationIntent",
+        "PrepareRuntimeRegistrationIntent",
+        "BeginRuntimeRegistrationAttempt",
+        "RecordRuntimeRegistrationFailure",
+        "CompleteRuntimeRegistrationIntent",
+        "PersistStateStrict",
+    ] {
+        assert!(registration_recovery.contains(required));
+    }
+
+    let registration_intent = std::fs::read_to_string(root.join(
+        "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationIntentPolicy.cs",
+    ))
+    .expect("runtime registration intent policy must exist");
+    assert!(registration_intent.contains("RestoreRequest"));
+    assert!(registration_intent.contains("credentialSource with"));
+    assert!(!registration_intent.contains("PairingToken ="));
+
+    let state_store = std::fs::read_to_string(root.join(
+        "apps/leserpent/src/Leserpent/ControlPlane/ControlPlaneStateStore.cs",
+    ))
+    .expect("control-plane state store must exist");
+    assert!(state_store.contains("CurrentSchemaVersion = 9"));
+    assert!(state_store.contains("PendingRuntimeRegistrations"));
+
+    let recovery_tests = std::fs::read_to_string(root.join(
+        "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeRegistrationExecutionServiceTests.cs",
+    ))
+    .expect("runtime registration recovery tests must exist");
+    for required in [
+        "AmbiguousAuthorityResponseReplaysExactPersistedIntent",
+        "RepeatedAmbiguityPersistsSecretFreeIntentAndBlocksChanges",
+        "RestartRecoversPersistedIntentWithoutRediscovery",
+    ] {
+        assert!(recovery_tests.contains(required));
+    }
 
     let runtime_endpoints = std::fs::read_to_string(
         root.join("apps/leserpent/src/Leserpent/ProgramRuntimeEndpoints.cs"),

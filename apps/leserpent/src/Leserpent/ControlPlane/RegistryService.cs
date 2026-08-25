@@ -143,6 +143,7 @@ public sealed partial class RegistryService
         var loaded = stateStore.Load();
         restoredFromSavedAt = loaded?.SavedAt;
         (RestoredRuntimeCount, RestoredSessionCount) = RestorePersistedState(loaded);
+        RestorePendingRuntimeRegistrations(loaded);
         RestorePendingRuntimeDeletions(loaded);
         runtimeDeletionRetryAudit = NormalizeRuntimeDeletionRetryAudit(loaded);
         runtimeDeletionReconciliationAudit =
@@ -2056,7 +2057,8 @@ public sealed partial class RegistryService
             runtimeDeletionRetryAudit.ToArray(),
             runtimeDeletionReconciliationAudit.ToArray(),
             orchestraDeleteCheckpointMonitor,
-            orchestraDeleteCheckpointAlertOutbox.ToArray());
+            orchestraDeleteCheckpointAlertOutbox.ToArray(),
+            ListPendingRuntimeRegistrations());
 
     public PersistenceImportResponse ImportState(PersistedControlPlaneState state)
     {
@@ -2071,6 +2073,11 @@ public sealed partial class RegistryService
         {
             throw new InvalidOperationException(
                 "pending runtime deletion intents cannot be imported");
+        }
+        if ((state.PendingRuntimeRegistrations?.Count ?? 0) > 0)
+        {
+            throw new InvalidOperationException(
+                "pending runtime registration intents cannot be imported");
         }
         var importedRetryAudit = NormalizeRuntimeDeletionRetryAudit(state);
         var importedReconciliationAudit =
@@ -2088,6 +2095,11 @@ public sealed partial class RegistryService
                     pendingRuntimeDeletions.Values
                         .SelectMany(static intent => intent.RuntimeIds)
                         .ToArray());
+            }
+            if (!pendingRuntimeRegistrations.IsEmpty)
+            {
+                throw new InvalidOperationException(
+                    "control-plane state import is blocked by a pending runtime registration");
             }
 
             var previousState = ExportState();

@@ -94,6 +94,52 @@ public sealed class ControlPlaneSecurityPolicyTests
     }
 
     [Fact]
+    public async Task PersistenceImportRejectsPendingRegistrationIntent()
+    {
+        var policy = BuildPolicy();
+        var now = DateTimeOffset.UtcNow;
+        var tags = new RuntimeTags(null, null, null);
+        var runtimeId = "runtime-import";
+        var name = "Runtime Import";
+        var endpoint = "http://127.0.0.1:49152";
+        var intent = new PersistedRuntimeRegistrationIntent(
+            RuntimeRegistrationCommandIdentity.ForIntent(
+                runtimeId,
+                name,
+                endpoint,
+                null,
+                tags,
+                null),
+            runtimeId,
+            RuntimeRegistrationPolicy.CreateAction,
+            null,
+            name,
+            endpoint,
+            null,
+            tags,
+            Array.Empty<RuntimeCapability>(),
+            false,
+            null,
+            null,
+            null,
+            now);
+        var state = new PersistedControlPlaneState(
+            9,
+            now,
+            Array.Empty<PersistedRuntimeState>(),
+            Array.Empty<PersistedSessionState>(),
+            PendingRuntimeRegistrations: [intent]);
+
+        var error = await policy.ValidateImportAsync(
+            state,
+            CancellationToken.None);
+
+        Assert.Equal(
+            "pending runtime registration intents cannot be imported",
+            error);
+    }
+
+    [Fact]
     public async Task PublicRuntimeEndpointsAreRejectedByDefault()
     {
         var policy = BuildPolicy();

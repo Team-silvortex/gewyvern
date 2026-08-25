@@ -12,7 +12,9 @@ namespace Leserpent.SecurityTests;
 public sealed class RuntimeRegistrationExecutionServiceTests
 {
     private const string RuntimeEndpoint = "http://127.0.0.1:49152";
+    private const string SidecarEndpoint = "http://127.0.0.1:49154";
     private const string PairingToken = "runtime-pairing-secret";
+    private const string SidecarAdminToken = "sidecar-admin-secret";
 
     [Fact]
     public async Task AuthorityUpdateUsesReviewedRevisionAndCredentialBoundDiscovery()
@@ -151,12 +153,200 @@ public sealed class RuntimeRegistrationExecutionServiceTests
         Assert.Single(fixture.Registry.ListRuntimes());
     }
 
+    [Fact]
+    public async Task AmbiguousAuthorityResponseReplaysExactPersistedIntent()
+    {
+        using var fixture = CreateFixture(
+            enabled: true,
+            Projection(7),
+            new DiscoveryHandler());
+        var preview = new RuntimeRegistrationPlanRequest(
+            "Runtime A",
+            RuntimeEndpoint);
+        var plan = await fixture.Plans.BuildAsync(
+            preview,
+            CancellationToken.None);
+        fixture.Authority.AmbiguousFailuresRemaining = 1;
+
+        var registered = await fixture.Registrations.ExecuteAsync(
+            new RuntimeRegistrationRequest(
+                preview.Name,
+                preview.Endpoint,
+                PairingToken,
+                FetchCapabilities: true,
+                RegistrationPlanToken: plan.PlanToken),
+            CancellationToken.None);
+
+        Assert.Equal("runtime-coordinator", registered.RuntimeId);
+        Assert.Equal(2, fixture.Authority.RegisterCalls);
+        Assert.All(
+            fixture.Authority.ExpectedRevisions,
+            revision => Assert.Equal(7UL, revision));
+        Assert.Single(fixture.Authority.CommandIds.Distinct());
+        Assert.Equal(3, fixture.Discovery.Requests.Count);
+        Assert.Empty(fixture.Registry.ListPendingRuntimeRegistrations());
+        Assert.Equal(9UL, fixture.Authority.Runtime?.Revision);
+    }
+
+    [Fact]
+    public async Task RepeatedAmbiguityPersistsSecretFreeIntentAndBlocksChanges()
+    {
+        using var fixture = CreateFixture(
+            enabled: true,
+            Projection(17),
+            new DiscoveryHandler());
+        var preview = new RuntimeRegistrationPlanRequest(
+            "Runtime A",
+            RuntimeEndpoint,
+            SidecarEndpoint);
+        var plan = await fixture.Plans.BuildAsync(
+            preview,
+            CancellationToken.None);
+        var request = new RuntimeRegistrationRequest(
+            preview.Name,
+            preview.Endpoint,
+            PairingToken,
+            Tags: new RuntimeTags("prod", "alpha", "capture"),
+            FetchCapabilities: true,
+            SidecarEndpoint: SidecarEndpoint,
+            SidecarAdminToken: SidecarAdminToken,
+            RegistrationPlanToken: plan.PlanToken);
+        fixture.Authority.AmbiguousFailuresRemaining = 2;
+
+        var error = await Assert.ThrowsAsync<
+            RuntimeRegistrationExecutionException>(() =>
+                fixture.Registrations.ExecuteAsync(
+                    request,
+                    CancellationToken.None));
+
+        Assert.Equal("runtime_registration_outcome_ambiguous", error.Code);
+        var intent = Assert.Single(
+            fixture.Registry.ListPendingRuntimeRegistrations());
+        Assert.Equal(2, intent.AttemptCount);
+        Assert.Equal("daemon_transport_failed", intent.LastFailureCode);
+        Assert.Equal(2, fixture.Authority.RegisterCalls);
+        Assert.Single(fixture.Authority.CommandIds.Distinct());
+        var persisted = await File.ReadAllTextAsync(fixture.StatePath);
+        Assert.Contains(intent.CommandId, persisted, StringComparison.Ordinal);
+        Assert.DoesNotContain(PairingToken, persisted, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            SidecarAdminToken,
+            persisted,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            plan.PlanToken,
+            persisted,
+            StringComparison.Ordinal);
+
+        var changed = request with
+        {
+            Tags = new RuntimeTags("prod", "beta", "capture"),
+        };
+        var conflict = await Assert.ThrowsAsync<
+            RuntimeRegistrationExecutionException>(() =>
+                fixture.Registrations.ExecuteAsync(
+                    changed,
+                    CancellationToken.None));
+        Assert.Equal("runtime_registration_recovery_pending", conflict.Code);
+        Assert.Equal(2, fixture.Authority.RegisterCalls);
+
+        var tamperedState = new PersistedControlPlaneState(
+            9,
+            DateTimeOffset.UtcNow,
+            Array.Empty<PersistedRuntimeState>(),
+            Array.Empty<PersistedSessionState>(),
+            PendingRuntimeRegistrations:
+            [
+                intent with { CommandId = new string('0', 32) },
+            ]);
+        Assert.Throws<InvalidDataException>(() =>
+            ControlPlaneStateValidator.Validate(tamperedState));
+    }
+
+    [Fact]
+    public async Task RestartRecoversPersistedIntentWithoutRediscovery()
+    {
+        using var fixture = CreateFixture(
+            enabled: true,
+            Projection(23),
+            new DiscoveryHandler());
+        var preview = new RuntimeRegistrationPlanRequest(
+            "Runtime A",
+            RuntimeEndpoint);
+        var originalPlan = await fixture.Plans.BuildAsync(
+            preview,
+            CancellationToken.None);
+        var originalRequest = new RuntimeRegistrationRequest(
+            preview.Name,
+            preview.Endpoint,
+            PairingToken,
+            FetchCapabilities: true,
+            RegistrationPlanToken: originalPlan.PlanToken);
+        fixture.Authority.AmbiguousFailuresRemaining = 2;
+        _ = await Assert.ThrowsAsync<RuntimeRegistrationExecutionException>(
+            () => fixture.Registrations.ExecuteAsync(
+                originalRequest,
+                CancellationToken.None));
+        var snapshotCallsBeforeRestart = fixture.Authority.SnapshotCalls;
+        var commandId = Assert.Single(
+            fixture.Registry.ListPendingRuntimeRegistrations()).CommandId;
+
+        var restartDiscovery = new DiscoveryHandler();
+        using var restarted = CreateFixture(
+            enabled: true,
+            fixture.Authority.Runtime,
+            restartDiscovery,
+            fixture.StatePath,
+            fixture.Authority);
+        var recoveryPlan = await restarted.Plans.BuildAsync(
+            preview,
+            CancellationToken.None);
+
+        Assert.True(recoveryPlan.Allowed);
+        Assert.Equal(
+            RuntimeRegistrationPolicy
+                .RuntimeRegistrationRecoveryPendingReason,
+            recoveryPlan.Reason);
+        Assert.Equal(23UL, recoveryPlan.ExpectedRevision);
+        Assert.Equal(originalPlan.PlanToken, recoveryPlan.PlanToken);
+        Assert.Equal(
+            snapshotCallsBeforeRestart,
+            fixture.Authority.SnapshotCalls);
+
+        fixture.Authority.AmbiguousFailuresRemaining = 0;
+        const string refreshedCredential = "runtime-refreshed-secret";
+        var registered = await restarted.Registrations.ExecuteAsync(
+            originalRequest with
+            {
+                PairingToken = refreshedCredential,
+                RegistrationPlanToken = recoveryPlan.PlanToken,
+            },
+            CancellationToken.None);
+
+        Assert.Equal("runtime-coordinator", registered.RuntimeId);
+        Assert.Equal(3, fixture.Authority.RegisterCalls);
+        Assert.All(
+            fixture.Authority.ExpectedRevisions,
+            revision => Assert.Equal(23UL, revision));
+        Assert.All(
+            fixture.Authority.CommandIds,
+            replayed => Assert.Equal(commandId, replayed));
+        Assert.Empty(restartDiscovery.Requests);
+        Assert.Empty(restarted.Registry.ListPendingRuntimeRegistrations());
+        Assert.Equal(
+            refreshedCredential,
+            restarted.Registry.GetRuntimeControlAccess(
+                registered.RuntimeId)?.AdminToken);
+    }
+
     private static Fixture CreateFixture(
         bool enabled,
         DaemonRuntimeProjection? runtime,
-        DiscoveryHandler discoveryHandler)
+        DiscoveryHandler discoveryHandler,
+        string? statePath = null,
+        FakeRegistrationAuthority? authority = null)
     {
-        var statePath = Path.Combine(
+        statePath ??= Path.Combine(
             Path.GetTempPath(),
             $"leserpent-registration-execution-{Guid.NewGuid():N}.json");
         var configuration = new ConfigurationBuilder()
@@ -178,7 +368,7 @@ public sealed class RuntimeRegistrationExecutionServiceTests
         var security = new ControlPlaneSecurityPolicy(configuration);
         var client = new HttpClient(discoveryHandler);
         var discovery = new CapabilityDiscoveryService(client, security);
-        var authority = new FakeRegistrationAuthority(enabled, runtime);
+        authority ??= new FakeRegistrationAuthority(enabled, runtime);
         var plans = new RuntimeRegistrationPlanProjectionService(
             registry,
             authority);
@@ -249,13 +439,14 @@ public sealed class RuntimeRegistrationExecutionServiceTests
         internal RuntimeRegistrationPlanProjectionService Plans { get; } = plans;
         internal RuntimeRegistrationExecutionService Registrations { get; } = registrations;
         internal DiscoveryHandler Discovery { get; } = discovery;
+        internal string StatePath { get; } = statePath;
 
         public void Dispose()
         {
             client.Dispose();
-            File.Delete(statePath);
-            File.Delete($"{statePath}.bak");
-            File.Delete($"{statePath}.tmp");
+            File.Delete(StatePath);
+            File.Delete($"{StatePath}.bak");
+            File.Delete($"{StatePath}.tmp");
         }
     }
 
@@ -269,10 +460,17 @@ public sealed class RuntimeRegistrationExecutionServiceTests
         internal DaemonRuntimeProjection? Runtime { get; set; } = runtime;
         internal int SnapshotCalls { get; private set; }
         internal int RegisterCalls { get; private set; }
+        internal int AmbiguousFailuresRemaining { get; set; }
         internal ulong? ExpectedRevision { get; private set; }
+        internal List<ulong?> ExpectedRevisions { get; } = [];
+        internal List<string> CommandIds { get; } = [];
         internal bool Update { get; private set; }
         internal CapabilityDiscoveryResult? CapabilityDiscovery { get; private set; }
         internal RuntimeStatusDiscoveryResult? StatusDiscovery { get; private set; }
+        private readonly Dictionary<
+            string,
+            RuntimeRegistrationCommitReceipt> receipts =
+                new(StringComparer.Ordinal);
 
         public Task<IReadOnlyList<DaemonRuntimeProjection>> ListAsync(
             RuntimeListFilter filter,
@@ -326,39 +524,64 @@ public sealed class RuntimeRegistrationExecutionServiceTests
         {
             RegisterCalls += 1;
             ExpectedRevision = expectedRevision;
+            ExpectedRevisions.Add(expectedRevision);
             Update = update;
             CapabilityDiscovery = capabilityDiscovery;
             StatusDiscovery = statusDiscovery;
-            var registrationRevision = update
-                ? (expectedRevision ?? throw new InvalidOperationException(
-                    "update receipt requires the reviewed revision")) + 1
-                : 1;
-            var discoveryApplied = capabilityDiscovery?.AuthoritySnapshot is not null
-                || statusDiscovery is not null
-                || sidecarDiscovery?.SidecarStatus is not null;
-            var finalRevision = registrationRevision
-                + (discoveryApplied ? 1UL : 0UL);
-            var observedAt = DateTimeOffset.Parse(
-                "2026-08-25T08:01:00Z");
-            Runtime = new DaemonRuntimeProjection(
+            var commandId = RuntimeRegistrationCommandIdentity.ForIntent(
                 runtimeId,
-                request.Name.Trim(),
-                request.Endpoint.Trim(),
-                string.IsNullOrWhiteSpace(request.SidecarEndpoint)
-                    ? null
-                    : request.SidecarEndpoint.Trim(),
-                Runtime?.RegisteredAt ?? observedAt,
-                observedAt,
-                finalRevision,
-                request.Tags ?? new RuntimeTags(null, null, null),
-                statusDiscovery?.Status ?? Runtime?.Status ?? Status("manual"),
-                capabilityDiscovery?.AuthoritySnapshot ?? Runtime?.Capabilities,
-                sidecarDiscovery?.SidecarStatus ?? Runtime?.SidecarStatus);
-            return Task.FromResult(
-                RuntimeRegistrationCommitReceipt.FromAuthoritativeCommit(
-                    registrationRevision,
-                    Runtime,
-                    discoveryApplied));
+                request.Name,
+                request.Endpoint,
+                request.SidecarEndpoint,
+                request.Tags,
+                expectedRevision);
+            CommandIds.Add(commandId);
+            if (!receipts.TryGetValue(commandId, out var receipt))
+            {
+                var registrationRevision = update
+                    ? (expectedRevision ?? throw new InvalidOperationException(
+                        "update receipt requires the reviewed revision")) + 1
+                    : 1;
+                var discoveryApplied =
+                    capabilityDiscovery?.AuthoritySnapshot is not null
+                    || statusDiscovery is not null
+                    || sidecarDiscovery?.SidecarStatus is not null;
+                var finalRevision = registrationRevision
+                    + (discoveryApplied ? 1UL : 0UL);
+                var observedAt = DateTimeOffset.Parse(
+                    "2026-08-25T08:01:00Z");
+                Runtime = new DaemonRuntimeProjection(
+                    runtimeId,
+                    request.Name.Trim(),
+                    request.Endpoint.Trim(),
+                    string.IsNullOrWhiteSpace(request.SidecarEndpoint)
+                        ? null
+                        : request.SidecarEndpoint.Trim(),
+                    Runtime?.RegisteredAt ?? observedAt,
+                    observedAt,
+                    finalRevision,
+                    request.Tags ?? new RuntimeTags(null, null, null),
+                    statusDiscovery?.Status ?? Runtime?.Status ??
+                        Status("manual"),
+                    capabilityDiscovery?.AuthoritySnapshot ??
+                        Runtime?.Capabilities,
+                    sidecarDiscovery?.SidecarStatus ??
+                        Runtime?.SidecarStatus);
+                receipt = RuntimeRegistrationCommitReceipt
+                    .FromAuthoritativeCommit(
+                        registrationRevision,
+                        Runtime,
+                        discoveryApplied);
+                receipts.Add(commandId, receipt);
+            }
+            if (AmbiguousFailuresRemaining > 0)
+            {
+                AmbiguousFailuresRemaining -= 1;
+                throw new DaemonRuntimeRegistrationException(
+                    "daemon_transport_failed",
+                    "daemon applied registration before transport loss");
+            }
+            return Task.FromResult(receipt);
         }
 
         public Task SubmitDiscoveryAsync(

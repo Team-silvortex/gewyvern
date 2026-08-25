@@ -326,7 +326,8 @@ public sealed partial class RegistryService
                 state.RuntimeDeletionRetryAudit,
                 state.RuntimeDeletionReconciliationAudit,
                 state.OrchestraDeleteCheckpointMonitor,
-                state.OrchestraDeleteCheckpointAlertOutbox);
+                state.OrchestraDeleteCheckpointAlertOutbox,
+                state.PendingRuntimeRegistrations);
         }
     }
 
@@ -344,7 +345,8 @@ public sealed partial class RegistryService
                 state.RuntimeDeletionRetryAudit,
                 state.RuntimeDeletionReconciliationAudit,
                 state.OrchestraDeleteCheckpointMonitor,
-                state.OrchestraDeleteCheckpointAlertOutbox);
+                state.OrchestraDeleteCheckpointAlertOutbox,
+                state.PendingRuntimeRegistrations);
         }
     }
 }

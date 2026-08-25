@@ -11,6 +11,8 @@ public static class RuntimeRegistrationPolicy
     public const string EndpointConflictReason = "endpoint_conflict";
     public const string RuntimeDeletionInProgressReason =
         "runtime_deletion_in_progress";
+    public const string RuntimeRegistrationRecoveryPendingReason =
+        "runtime_registration_recovery_pending";
 
     public static RuntimeRegistrationPlan Build(
         RuntimeRegistrationPlanRequest request,
@@ -71,6 +73,30 @@ public static class RuntimeRegistrationPolicy
                 plan.ExpectedRevision,
                 authorityBound: true),
         };
+    }
+
+    internal static RuntimeRegistrationPlan BuildRecovery(
+        RuntimeRegistrationPlanRequest request,
+        PersistedRuntimeRegistrationIntent intent,
+        bool allowed)
+    {
+        var action = allowed ? intent.Action : RejectAction;
+        return new RuntimeRegistrationPlan(
+            allowed,
+            action,
+            RuntimeRegistrationRecoveryPendingReason,
+            intent.Action == UpdateAction ? intent.RuntimeId : null,
+            intent.Action == UpdateAction ? intent.Name : null,
+            null,
+            intent.RuntimeId,
+            intent.ExpectedRevision,
+            true,
+            BuildToken(
+                request,
+                action,
+                intent.RuntimeId,
+                intent.ExpectedRevision,
+                authorityBound: true));
     }
 
     private static RuntimeRegistrationPlan Build(
@@ -147,6 +173,14 @@ public static class RuntimeRegistrationPolicy
         string Name,
         string Endpoint,
         ulong? Revision);
+
+    internal static bool EndpointIdentityEquals(
+        string left,
+        string right) =>
+        string.Equals(
+            NormalizeEndpointIdentity(left),
+            NormalizeEndpointIdentity(right),
+            StringComparison.Ordinal);
 
     private static string NormalizeEndpointIdentity(string endpoint)
     {

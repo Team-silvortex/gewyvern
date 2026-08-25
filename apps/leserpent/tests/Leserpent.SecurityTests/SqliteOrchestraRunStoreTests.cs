@@ -883,7 +883,7 @@ public sealed class SqliteOrchestraRunStoreTests
             Assert.True(loaded is not null, store.LastSaveError);
             var restored = Assert.IsType<PersistedControlPlaneState>(loaded);
 
-            Assert.Equal(8, restored.SchemaVersion);
+            Assert.Equal(9, restored.SchemaVersion);
             Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<PersistedRuntimeDeletionIntent>>(
                 restored.PendingRuntimeDeletions));
             Assert.Empty(
@@ -892,6 +892,7 @@ public sealed class SqliteOrchestraRunStoreTests
                 restored.OrchestraDeleteCheckpointMonitor);
             Assert.Empty(
                 restored.OrchestraDeleteCheckpointAlertOutbox!);
+            Assert.Empty(restored.PendingRuntimeRegistrations!);
         }
         finally
         {
@@ -942,7 +943,7 @@ public sealed class SqliteOrchestraRunStoreTests
                 store.Load());
             var intent = Assert.Single(restored.PendingRuntimeDeletions!);
 
-            Assert.Equal(8, restored.SchemaVersion);
+            Assert.Equal(9, restored.SchemaVersion);
             Assert.Equal(0, intent.AttemptCount);
             Assert.Null(intent.LastAttemptAt);
             Assert.Null(intent.NextAttemptAt);
@@ -964,6 +965,7 @@ public sealed class SqliteOrchestraRunStoreTests
                 restored.OrchestraDeleteCheckpointMonitor);
             Assert.Empty(
                 restored.OrchestraDeleteCheckpointAlertOutbox!);
+            Assert.Empty(restored.PendingRuntimeRegistrations!);
         }
         finally
         {

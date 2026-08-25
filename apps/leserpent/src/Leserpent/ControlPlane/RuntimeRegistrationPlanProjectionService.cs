@@ -8,6 +8,12 @@ internal sealed class RuntimeRegistrationPlanProjectionService(
         RuntimeRegistrationPlanRequest request,
         CancellationToken cancellationToken)
     {
+        var recoveryPlan =
+            registry.GetRuntimeRegistrationRecoveryPlan(request);
+        if (recoveryPlan is not null)
+        {
+            return recoveryPlan;
+        }
         if (!daemon.Enabled)
         {
             return registry.GetRuntimeRegistrationPlan(request);

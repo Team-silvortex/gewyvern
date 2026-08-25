@@ -3,7 +3,9 @@ namespace Leserpent.ControlPlane;
 internal static class ControlPlaneStateValidator
 {
     internal const int MaxPendingRuntimeDeletionIntents = 256;
+    internal const int MaxPendingRuntimeRegistrationIntents = 256;
     internal const int MaxRuntimeDeletionAttempts = 1_000_000;
+    internal const int MaxRuntimeRegistrationAttempts = 1_000_000;
     internal const int MaxRuntimeDeletionRetryAuditEntries = 256;
     internal const int MaxRuntimeDeletionReconciliationAuditEntries = 256;
     internal const uint MaxOrchestraDeleteCheckpointFailures = 1_000_000;
@@ -32,6 +34,7 @@ internal static class ControlPlaneStateValidator
         }
 
         ValidateProjectionGraph(state, observedAt);
+        _ = NormalizePendingRuntimeRegistrations(state, observedAt);
         _ = NormalizePendingRuntimeDeletions(state, observedAt);
         _ = NormalizeRuntimeDeletionRetryAudit(state, observedAt);
         _ = NormalizeRuntimeDeletionReconciliationAudit(
@@ -643,6 +646,327 @@ internal static class ControlPlaneStateValidator
             throw new InvalidDataException(
                 "Orchestra persistence step payload is invalid");
         }
+    }
+
+    internal static IReadOnlyList<PersistedRuntimeRegistrationIntent>
+        NormalizePendingRuntimeRegistrations(
+            PersistedControlPlaneState? state,
+            DateTimeOffset? now = null)
+    {
+        var intents = state?.PendingRuntimeRegistrations
+            ?? Array.Empty<PersistedRuntimeRegistrationIntent>();
+        if (intents.Count > MaxPendingRuntimeRegistrationIntents)
+        {
+            throw new InvalidDataException(
+                $"control-plane state contains more than {MaxPendingRuntimeRegistrationIntents} pending runtime registration intents");
+        }
+
+        var observedAt = now ?? DateTimeOffset.UtcNow;
+        var commandIds = new HashSet<string>(StringComparer.Ordinal);
+        var normalized = new List<PersistedRuntimeRegistrationIntent>(
+            intents.Count);
+        foreach (var intent in intents)
+        {
+            ValidateRuntimeRegistrationIntent(intent, observedAt);
+            if (!commandIds.Add(intent.CommandId) ||
+                normalized.Any(existing =>
+                    string.Equals(
+                        existing.RuntimeId,
+                        intent.RuntimeId,
+                        StringComparison.OrdinalIgnoreCase) ||
+                    RuntimeRegistrationIntentPolicy.Overlaps(
+                        existing,
+                        new RuntimeRegistrationPlanRequest(
+                            intent.Name,
+                            intent.Endpoint,
+                            intent.SidecarEndpoint))))
+            {
+                throw new InvalidDataException(
+                    "control-plane state contains overlapping runtime registration intents");
+            }
+            normalized.Add(CloneRuntimeRegistrationIntent(intent));
+        }
+        return normalized;
+    }
+
+    internal static PersistedRuntimeRegistrationIntent
+        NormalizeRuntimeRegistrationIntent(
+            PersistedRuntimeRegistrationIntent intent,
+            DateTimeOffset? now = null)
+    {
+        ValidateRuntimeRegistrationIntent(
+            intent,
+            now ?? DateTimeOffset.UtcNow);
+        return CloneRuntimeRegistrationIntent(intent);
+    }
+
+    private static void ValidateRuntimeRegistrationIntent(
+        PersistedRuntimeRegistrationIntent intent,
+        DateTimeOffset observedAt)
+    {
+        var actionValid =
+            string.Equals(
+                intent.Action,
+                RuntimeRegistrationPolicy.CreateAction,
+                StringComparison.Ordinal) &&
+            intent.ExpectedRevision is null ||
+            string.Equals(
+                intent.Action,
+                RuntimeRegistrationPolicy.UpdateAction,
+                StringComparison.Ordinal) &&
+            intent.ExpectedRevision is > 0;
+        var expectedCommandId = RuntimeRegistrationCommandIdentity.ForIntent(
+            intent.RuntimeId,
+            intent.Name,
+            intent.Endpoint,
+            intent.SidecarEndpoint,
+            intent.Tags,
+            intent.ExpectedRevision);
+        if (!IsRegistrationCommandId(intent.CommandId) ||
+            !string.Equals(
+                intent.CommandId,
+                expectedCommandId,
+                StringComparison.Ordinal) ||
+            !IsStableIdentity(intent.RuntimeId) ||
+            !actionValid ||
+            !IsCanonicalText(intent.Name, 256) ||
+            !IsCanonicalText(intent.Endpoint, 2_048) ||
+            !IsOptionalCanonicalText(intent.SidecarEndpoint, 2_048) ||
+            intent.Tags is null ||
+            !IsOptionalCanonicalText(intent.Tags.Environment, 128) ||
+            !IsOptionalCanonicalText(intent.Tags.Cluster, 128) ||
+            !IsOptionalCanonicalText(intent.Tags.Role, 128) ||
+            intent.ManualCapabilities is null ||
+            !AreValidCapabilities(intent.ManualCapabilities) ||
+            intent.PreparedAt == default ||
+            intent.PreparedAt > observedAt.AddMinutes(5) ||
+            intent.AttemptCount is < 0 or > MaxRuntimeRegistrationAttempts ||
+            (intent.AttemptCount == 0 &&
+                (intent.LastAttemptAt is not null ||
+                    intent.LastFailureCode is not null)) ||
+            (intent.AttemptCount > 0 &&
+                (intent.LastAttemptAt is null ||
+                    intent.LastAttemptAt < intent.PreparedAt ||
+                    intent.LastAttemptAt > observedAt.AddMinutes(5))) ||
+            !IsValidRegistrationFailureCode(intent.LastFailureCode) ||
+            !IsValidRegistrationDiscovery(intent, observedAt))
+        {
+            throw new InvalidDataException(
+                "control-plane state contains an invalid runtime registration intent");
+        }
+    }
+
+    private static bool IsValidRegistrationDiscovery(
+        PersistedRuntimeRegistrationIntent intent,
+        DateTimeOffset observedAt)
+    {
+        if (!intent.FetchCapabilities)
+        {
+            return intent.CapabilityDiscovery is null &&
+                intent.StatusDiscovery is null &&
+                intent.SidecarDiscovery is null;
+        }
+        if (!IsValidCapabilityDiscovery(
+                intent.CapabilityDiscovery,
+                observedAt) ||
+            intent.StatusDiscovery is null ||
+            !IsCanonicalText(
+                intent.StatusDiscovery.StatusEndpoint,
+                2_048) ||
+            intent.StatusDiscovery.Status is null ||
+            !IsValidRuntimeStatus(
+                intent.StatusDiscovery.Status,
+                observedAt))
+        {
+            return false;
+        }
+
+        if (intent.SidecarEndpoint is null)
+        {
+            return intent.SidecarDiscovery is null;
+        }
+        return intent.SidecarDiscovery is not null &&
+            IsCanonicalText(
+                intent.SidecarDiscovery.StatusEndpoint,
+                2_048) &&
+            intent.SidecarDiscovery.SidecarStatus is not null &&
+            IsValidRuntimeSidecarStatus(
+                intent.SidecarDiscovery.SidecarStatus,
+                observedAt);
+    }
+
+    private static bool IsValidCapabilityDiscovery(
+        CapabilityDiscoveryResult? discovery,
+        DateTimeOffset observedAt)
+    {
+        if (discovery is null ||
+            !IsCanonicalText(discovery.CapabilityEndpoint, 2_048) ||
+            discovery.Capabilities is null ||
+            !AreValidCapabilities(discovery.Capabilities))
+        {
+            return false;
+        }
+        if (string.Equals(
+                discovery.CapabilitySource,
+                "fetch_failed",
+                StringComparison.Ordinal))
+        {
+            return discovery.CapabilityFetchedAt is null &&
+                string.Equals(
+                    discovery.CapabilityFetchError,
+                    RuntimeDiagnosticCodes.CapabilityFetchFailed,
+                    StringComparison.Ordinal) &&
+                discovery.Capabilities.Count == 0 &&
+                discovery.AuthoritySnapshot is null;
+        }
+        return string.Equals(
+                discovery.CapabilitySource,
+                "gewyvern-api",
+                StringComparison.Ordinal) &&
+            IsOptionalObservedTimestamp(
+                discovery.CapabilityFetchedAt,
+                observedAt) &&
+            discovery.CapabilityFetchedAt is not null &&
+            discovery.CapabilityFetchError is null &&
+            IsValidCapabilityAuthoritySnapshot(
+                discovery.AuthoritySnapshot);
+    }
+
+    private static bool IsValidCapabilityAuthoritySnapshot(
+        RuntimeCapabilityAuthoritySnapshot? snapshot)
+    {
+        if (snapshot is null ||
+            !IsCanonicalText(snapshot.Source, 128) ||
+            !IsCanonicalText(snapshot.Service, 128) ||
+            !IsCanonicalText(snapshot.Version, 128) ||
+            !IsCanonicalText(
+                snapshot.TargetPathSegmentEncoding,
+                128) ||
+            !IsCanonicalText(snapshot.TargetDirectPathChars, 1_024) ||
+            snapshot.Endpoints is null ||
+            snapshot.Endpoints.Count > MaxRuntimeCapabilities ||
+            snapshot.Extensions is null ||
+            snapshot.Extensions.Count > MaxRuntimeCapabilities)
+        {
+            return false;
+        }
+        return snapshot.Endpoints.All(static endpoint =>
+                IsCanonicalText(endpoint, 2_048)) &&
+            snapshot.Endpoints.Distinct(StringComparer.Ordinal).Count() ==
+                snapshot.Endpoints.Count &&
+            snapshot.Extensions.Keys.All(static key =>
+                IsCanonicalText(key, 128));
+    }
+
+    private static bool AreValidCapabilities(
+        IReadOnlyList<RuntimeCapability> capabilities)
+    {
+        if (capabilities.Count > MaxRuntimeCapabilities)
+        {
+            return false;
+        }
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        return capabilities.All(capability =>
+            capability is not null &&
+            IsCanonicalText(capability.Key, 128) &&
+            keys.Add(capability.Key) &&
+            IsKnownCapabilitySupport(capability.Support) &&
+            IsCanonicalText(capability.Description, 1_024));
+    }
+
+    private static bool IsRegistrationCommandId(string? commandId) =>
+        commandId is { Length: 32 } &&
+        commandId.All(static character =>
+            character is >= '0' and <= '9' or >= 'a' and <= 'f');
+
+    private static bool IsValidRegistrationFailureCode(string? code) =>
+        code is null ||
+        string.Equals(
+            code,
+            "daemon_transport_failed",
+            StringComparison.Ordinal) ||
+        string.Equals(
+            code,
+            "daemon_registration_timeout",
+            StringComparison.Ordinal) ||
+        string.Equals(
+            code,
+            "daemon_protocol_invalid",
+            StringComparison.Ordinal) ||
+        string.Equals(
+            code,
+            "daemon_protocol_mismatch",
+            StringComparison.Ordinal);
+
+    private static PersistedRuntimeRegistrationIntent
+        CloneRuntimeRegistrationIntent(
+            PersistedRuntimeRegistrationIntent intent) =>
+        intent with
+        {
+            Tags = intent.Tags with { },
+            ManualCapabilities = intent.ManualCapabilities
+                .Select(static capability => capability with { })
+                .ToArray(),
+            CapabilityDiscovery = CloneCapabilityDiscovery(
+                intent.CapabilityDiscovery),
+            StatusDiscovery = intent.StatusDiscovery is null
+                ? null
+                : intent.StatusDiscovery with
+                {
+                    Status = intent.StatusDiscovery.Status with { },
+                },
+            SidecarDiscovery = CloneSidecarDiscovery(
+                intent.SidecarDiscovery),
+        };
+
+    private static CapabilityDiscoveryResult? CloneCapabilityDiscovery(
+        CapabilityDiscoveryResult? discovery)
+    {
+        if (discovery is null)
+        {
+            return null;
+        }
+        var authority = discovery.AuthoritySnapshot;
+        return discovery with
+        {
+            Capabilities = discovery.Capabilities
+                .Select(static capability => capability with { })
+                .ToArray(),
+            AuthoritySnapshot = authority is null
+                ? null
+                : authority with
+                {
+                    Endpoints = authority.Endpoints.ToArray(),
+                    Extensions = authority.Extensions.ToDictionary(
+                        static item => item.Key,
+                        static item => item.Value,
+                        StringComparer.Ordinal),
+                },
+        };
+    }
+
+    private static RuntimeSidecarDiscoveryResult? CloneSidecarDiscovery(
+        RuntimeSidecarDiscoveryResult? discovery)
+    {
+        if (discovery?.SidecarStatus is not { } status)
+        {
+            return discovery;
+        }
+        var memory = status.Memory;
+        return discovery with
+        {
+            SidecarStatus = status with
+            {
+                Memory = memory is null
+                    ? null
+                    : memory with
+                    {
+                        Slots = memory.Slots
+                            .Select(static slot => slot with { })
+                            .ToArray(),
+                    },
+            },
+        };
     }
 
     internal static IReadOnlyList<PersistedRuntimeDeletionIntent>

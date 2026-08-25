@@ -4,7 +4,7 @@ namespace Leserpent.ControlPlane;
 
 public sealed class ControlPlaneStateStore
 {
-    private const int CurrentSchemaVersion = 8;
+    private const int CurrentSchemaVersion = 9;
     private const int OldestSupportedSchemaVersion = 1;
 
     private readonly string statePath;
@@ -129,7 +129,9 @@ public sealed class ControlPlaneStateStore
         PersistedOrchestraDeleteCheckpointMonitor?
             orchestraDeleteCheckpointMonitor = null,
         IReadOnlyList<PersistedOrchestraDeleteCheckpointAlertDelivery>?
-            orchestraDeleteCheckpointAlertOutbox = null) =>
+            orchestraDeleteCheckpointAlertOutbox = null,
+        IReadOnlyList<PersistedRuntimeRegistrationIntent>?
+            pendingRuntimeRegistrations = null) =>
         new(
             CurrentSchemaVersion,
             DateTimeOffset.UtcNow,
@@ -143,7 +145,9 @@ public sealed class ControlPlaneStateStore
             orchestraDeleteCheckpointMonitor,
             orchestraDeleteCheckpointAlertOutbox ??
                 Array.Empty<
-                    PersistedOrchestraDeleteCheckpointAlertDelivery>());
+                    PersistedOrchestraDeleteCheckpointAlertDelivery>(),
+            pendingRuntimeRegistrations ??
+                Array.Empty<PersistedRuntimeRegistrationIntent>());
 
     public bool IsCompatible(PersistedControlPlaneState? state) =>
         state is not null &&
@@ -160,7 +164,9 @@ public sealed class ControlPlaneStateStore
         PersistedOrchestraDeleteCheckpointMonitor?
             orchestraDeleteCheckpointMonitor = null,
         IReadOnlyList<PersistedOrchestraDeleteCheckpointAlertDelivery>?
-            orchestraDeleteCheckpointAlertOutbox = null) =>
+            orchestraDeleteCheckpointAlertOutbox = null,
+        IReadOnlyList<PersistedRuntimeRegistrationIntent>?
+            pendingRuntimeRegistrations = null) =>
         SaveCore(
             runtimes,
             sessions,
@@ -170,6 +176,7 @@ public sealed class ControlPlaneStateStore
             runtimeDeletionReconciliationAudit,
             orchestraDeleteCheckpointMonitor,
             orchestraDeleteCheckpointAlertOutbox,
+            pendingRuntimeRegistrations,
             throwOnFailure: false);
 
     public void SaveStrict(
@@ -183,7 +190,9 @@ public sealed class ControlPlaneStateStore
         PersistedOrchestraDeleteCheckpointMonitor?
             orchestraDeleteCheckpointMonitor = null,
         IReadOnlyList<PersistedOrchestraDeleteCheckpointAlertDelivery>?
-            orchestraDeleteCheckpointAlertOutbox = null) =>
+            orchestraDeleteCheckpointAlertOutbox = null,
+        IReadOnlyList<PersistedRuntimeRegistrationIntent>?
+            pendingRuntimeRegistrations = null) =>
         SaveCore(
             runtimes,
             sessions,
@@ -193,6 +202,7 @@ public sealed class ControlPlaneStateStore
             runtimeDeletionReconciliationAudit,
             orchestraDeleteCheckpointMonitor,
             orchestraDeleteCheckpointAlertOutbox,
+            pendingRuntimeRegistrations,
             throwOnFailure: true);
 
     private void SaveCore(
@@ -207,6 +217,8 @@ public sealed class ControlPlaneStateStore
             orchestraDeleteCheckpointMonitor,
         IReadOnlyList<PersistedOrchestraDeleteCheckpointAlertDelivery>?
             orchestraDeleteCheckpointAlertOutbox,
+        IReadOnlyList<PersistedRuntimeRegistrationIntent>?
+            pendingRuntimeRegistrations,
         bool throwOnFailure)
     {
         lock (saveSync)
@@ -220,7 +232,8 @@ public sealed class ControlPlaneStateStore
                 runtimeDeletionRetryAudit,
                 runtimeDeletionReconciliationAudit,
                 orchestraDeleteCheckpointMonitor,
-                orchestraDeleteCheckpointAlertOutbox);
+                orchestraDeleteCheckpointAlertOutbox,
+                pendingRuntimeRegistrations);
             var tempPath = $"{statePath}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
             var backupTempPath =
                 $"{backupStatePath}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
@@ -447,6 +460,11 @@ public sealed class ControlPlaneStateStore
                     : state.OrchestraDeleteCheckpointAlertOutbox ??
                         Array.Empty<
                             PersistedOrchestraDeleteCheckpointAlertDelivery>(),
+            PendingRuntimeRegistrations =
+                state.SchemaVersion < 9
+                    ? Array.Empty<PersistedRuntimeRegistrationIntent>()
+                    : state.PendingRuntimeRegistrations ??
+                        Array.Empty<PersistedRuntimeRegistrationIntent>(),
         };
     }
 

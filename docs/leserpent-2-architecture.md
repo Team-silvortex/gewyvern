@@ -953,10 +953,28 @@ authority compatibility projection, and records the recovery outcome. It
 preserves managed fallback and returns typed, secret-free invalid, conflict,
 not-found, and gateway failures. The HTTP route only invokes this service and
 maps its result, so Web and future native adapters cannot diverge in transaction
-choreography. The next boundary binds registration command and idempotency
-identities to the reviewed expected revision and complete secret-free command
-intent, allowing exact retries to replay without blocking legitimate later
-updates.
+choreography. Registration command and idempotency identities now come from a
+versioned canonical encoding of the complete command intent: action, runtime
+ID, reviewed expected revision, normalized name, runtime and sidecar endpoints,
+and all tags. Credential fields cannot enter the identity API. Exact retries at
+one revision therefore replay the same daemon command, while an otherwise
+identical update at a later revision receives a new identity; canonical JSON
+also prevents delimiter-boundary collisions. Control-plane state schema v9 now
+persists that secret-free intent, its sanitized discovery observations, and
+bounded attempt metadata before the daemon effect. Pairing, sidecar-admin, and
+plan tokens are structurally absent. Transport, timeout, and protocol-ambiguous
+results receive one immediate exact replay; a second ambiguous result leaves
+the intent durable and returns `runtime_registration_outcome_ambiguous`.
+Registration planning prioritizes that recovery record over the daemon's newer
+projection: exact coordinates reproduce the original action, runtime ID,
+revision, and plan token, while overlapping or command-different requests fail
+closed with `runtime_registration_recovery_pending`. Restart recovery reuses
+the persisted observations without rediscovery and accepts only fresh caller
+credentials for the local compatibility commit. The intent is removed only
+after the authoritative receipt is projected locally; persistence import
+rejects unresolved registration intents. The next proof boundary injects a
+real process/socket response loss and forced restart, then retains physical
+Linux x86_64 evidence for this same recovery path.
 Sidecar status, including its bounded memory-slot summary, now follows the same
 revision-fenced journal and strict read projection. Registration, individual
 refresh, recovery, Fleet refresh, and Orchestra recovery all compose available

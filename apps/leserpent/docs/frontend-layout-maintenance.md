@@ -78,6 +78,16 @@ sent to the preview endpoint.
 The registration POST is a transport adapter over the shared control-plane
 execution coordinator. Browser code must not reproduce discovery ordering,
 authority receipt validation, compatibility writes, or recovery classification.
+It must not synthesize command or idempotency IDs either: the control plane
+derives both from the reviewed revision and canonical secret-free registration
+intent.
+If registration returns `runtime_registration_outcome_ambiguous`, adapters must
+retain the entered credentials only in their existing transient UI scope and
+request the plan again. An exact target receives a
+`runtime_registration_recovery_pending` recovery plan bound to the original
+revision; adapters must display and submit that plan rather than constructing a
+new revision or repeating discovery themselves. A rejected recovery plan means
+another pending intent owns the overlapping name or endpoint.
 
 Runtime recovery is also server-orchestrated. The browser submits one typed
 `POST /v1/runtimes/{runtimeId}/recovery` command with `all`, `status`,

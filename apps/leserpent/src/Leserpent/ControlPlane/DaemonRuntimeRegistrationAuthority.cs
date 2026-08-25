@@ -746,12 +746,13 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         ulong? expectedRevision)
     {
         var tags = request.Tags ?? new RuntimeTags(null, null, null);
-        var stableCommandId = BuildDeterministicCommandId(
+        var stableCommandId = RuntimeRegistrationCommandIdentity.ForIntent(
             runtimeId,
             request.Name,
             request.Endpoint,
             request.SidecarEndpoint,
-            expectedRevision is not null);
+            tags,
+            expectedRevision);
         var frame = BuildFrame(writer =>
         {
             writer.WriteStartObject();
@@ -1397,22 +1398,6 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         {
             writer.WriteNumber(name, value.Value);
         }
-    }
-
-    private static string BuildDeterministicCommandId(
-        string runtimeId,
-        string name,
-        string endpoint,
-        string? sidecarEndpoint,
-        bool update)
-    {
-        var normalizedName = name.Trim();
-        var normalizedEndpoint = endpoint.Trim();
-        var normalizedSidecarEndpoint = sidecarEndpoint?.Trim() ?? string.Empty;
-        var prefix = update ? "update|" : string.Empty;
-        var bytes = HashData(
-            $"{prefix}{runtimeId}|{normalizedName}|{normalizedEndpoint}|{normalizedSidecarEndpoint}");
-        return Convert.ToHexString(bytes).ToLowerInvariant().Substring(0, 32);
     }
 
     private static string BuildDiscoveryCommandId(

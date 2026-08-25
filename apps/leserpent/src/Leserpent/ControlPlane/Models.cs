@@ -599,6 +599,26 @@ public sealed record PersistedRuntimeDeletionIntent(
     bool UnregistrationMutationMayHaveStarted = false
 );
 
+public sealed record PersistedRuntimeRegistrationIntent(
+    string CommandId,
+    string RuntimeId,
+    string Action,
+    ulong? ExpectedRevision,
+    string Name,
+    string Endpoint,
+    string? SidecarEndpoint,
+    RuntimeTags Tags,
+    IReadOnlyList<RuntimeCapability> ManualCapabilities,
+    bool FetchCapabilities,
+    CapabilityDiscoveryResult? CapabilityDiscovery,
+    RuntimeStatusDiscoveryResult? StatusDiscovery,
+    RuntimeSidecarDiscoveryResult? SidecarDiscovery,
+    DateTimeOffset PreparedAt,
+    int AttemptCount = 0,
+    DateTimeOffset? LastAttemptAt = null,
+    string? LastFailureCode = null
+);
+
 public sealed record RuntimeUnregistrationReplayHorizon(
     ulong Capacity,
     ulong Retained,
@@ -686,7 +706,9 @@ public sealed record PersistedControlPlaneState(
     PersistedOrchestraDeleteCheckpointMonitor?
         OrchestraDeleteCheckpointMonitor = null,
     IReadOnlyList<PersistedOrchestraDeleteCheckpointAlertDelivery>?
-        OrchestraDeleteCheckpointAlertOutbox = null
+        OrchestraDeleteCheckpointAlertOutbox = null,
+    IReadOnlyList<PersistedRuntimeRegistrationIntent>?
+        PendingRuntimeRegistrations = null
 );
 
 public sealed class RuntimeDeletionRetryException(

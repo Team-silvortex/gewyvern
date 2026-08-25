@@ -60,6 +60,27 @@ internal sealed class RuntimeRegistrationExecutionException :
             plan,
             innerException);
 
+    internal static RuntimeRegistrationExecutionException RecoveryPending(
+        RuntimeRegistrationPlan plan,
+        string message = "an earlier runtime registration has an uncertain outcome; retry its exact reviewed intent first") =>
+        new(
+            RuntimeRegistrationExecutionFailureKind.Conflict,
+            "runtime_registration_recovery_pending",
+            message,
+            PlanRuntimeId(plan),
+            plan);
+
+    internal static RuntimeRegistrationExecutionException Ambiguous(
+        RuntimeRegistrationPlan plan,
+        Exception innerException) =>
+        new(
+            RuntimeRegistrationExecutionFailureKind.Gateway,
+            "runtime_registration_outcome_ambiguous",
+            "runtime registration may have reached the daemon; retry the same reviewed intent",
+            PlanRuntimeId(plan),
+            plan,
+            innerException);
+
     internal static RuntimeRegistrationExecutionException FromAuthority(
         DaemonRuntimeRegistrationException error,
         string runtimeId) =>
@@ -112,9 +133,37 @@ internal sealed class RuntimeRegistrationExecutionService(
         ValidateReviewedPlan(request, plan);
         ValidateAuthorityConfiguration(plan);
         var runtimeId = ResolveAuthorityRuntimeId(plan);
+        var pending = registry.ResolveRuntimeRegistrationIntent(request);
 
         try
         {
+            if (pending.Kind ==
+                RuntimeRegistrationIntentResolutionKind.Conflict)
+            {
+                throw RuntimeRegistrationExecutionException.RecoveryPending(
+                    plan);
+            }
+            if (pending.Kind ==
+                RuntimeRegistrationIntentResolutionKind.Exact)
+            {
+                if (!string.Equals(
+                        plan.Reason,
+                        RuntimeRegistrationPolicy
+                            .RuntimeRegistrationRecoveryPendingReason,
+                        StringComparison.Ordinal) ||
+                    runtimeId is null ||
+                    pending.Intent is null)
+                {
+                    throw RuntimeRegistrationExecutionException.RecoveryPending(
+                        plan,
+                        "runtime registration recovery state changed; review the recovery plan before retrying");
+                }
+                return await ExecuteAuthorityIntentAsync(
+                    request,
+                    plan,
+                    pending.Intent,
+                    cancellationToken);
+            }
             return request.FetchCapabilities
                 ? await ExecuteWithDiscoveryAsync(
                     request,
@@ -133,6 +182,11 @@ internal sealed class RuntimeRegistrationExecutionService(
                 error.Plan,
                 error.Message,
                 error);
+        }
+        catch (RuntimeRegistrationIntentConflictException)
+        {
+            throw RuntimeRegistrationExecutionException.RecoveryPending(
+                plan);
         }
         catch (DaemonRuntimeRegistrationException error)
             when (runtimeId is not null)
@@ -158,6 +212,8 @@ internal sealed class RuntimeRegistrationExecutionService(
         {
             Name = request.Name.Trim(),
             Endpoint = request.Endpoint.Trim(),
+            SidecarEndpoint = NormalizeOptional(request.SidecarEndpoint),
+            Tags = NormalizeTags(request.Tags),
         };
         var validation = await security.ValidateRegistrationAsync(
             normalized,
@@ -173,10 +229,16 @@ internal sealed class RuntimeRegistrationExecutionService(
     {
         if (!plan.Allowed)
         {
-            var message = plan.Reason ==
-                RuntimeRegistrationPolicy.RuntimeDeletionInProgressReason
-                    ? "runtime deletion is in progress; review the plan after cleanup completes"
-                    : "runtime endpoint is already registered to another runtime";
+            if (plan.Reason == RuntimeRegistrationPolicy
+                .RuntimeRegistrationRecoveryPendingReason)
+            {
+                throw RuntimeRegistrationExecutionException.RecoveryPending(
+                    plan);
+            }
+            var message = plan.Reason == RuntimeRegistrationPolicy
+                .RuntimeDeletionInProgressReason
+                ? "runtime deletion is in progress; review the plan after cleanup completes"
+                : "runtime endpoint is already registered to another runtime";
             throw RuntimeRegistrationExecutionException.PlanChanged(
                 plan,
                 message);
@@ -276,26 +338,14 @@ internal sealed class RuntimeRegistrationExecutionService(
         }
         else
         {
-            var receipt = await registrationAuthority.RegisterWithReceiptAsync(
+            return await PrepareAndExecuteAuthorityIntentAsync(
                 request,
+                plan,
                 runtimeId,
-                cancellationToken,
-                update: plan.Action == RuntimeRegistrationPolicy.UpdateAction,
-                capabilityDiscovery: capabilityDiscovery,
-                statusDiscovery: statusDiscovery,
-                sidecarDiscovery: sidecarDiscovery,
-                expectedRevision: plan.ExpectedRevision);
-            var authorityCommit = registrationCommits.Bind(
-                runtimeId,
-                request,
-                receipt,
                 capabilityDiscovery,
                 statusDiscovery,
-                sidecarDiscovery);
-            registered = registry.RegisterRuntimeFromAuthority(
-                authorityCommit.Request,
-                authorityCommit.Runtime,
-                authorityCommit.CapabilityDiscovery);
+                sidecarDiscovery,
+                cancellationToken);
         }
 
         registry.RecordRecoveryActivity(
@@ -323,19 +373,14 @@ internal sealed class RuntimeRegistrationExecutionService(
         }
         else
         {
-            var receipt = await registrationAuthority.RegisterWithReceiptAsync(
+            return await PrepareAndExecuteAuthorityIntentAsync(
                 request,
+                plan,
                 runtimeId,
-                cancellationToken,
-                update: plan.Action == RuntimeRegistrationPolicy.UpdateAction,
-                expectedRevision: plan.ExpectedRevision);
-            var authorityCommit = registrationCommits.Bind(
-                runtimeId,
-                request,
-                receipt);
-            registered = registry.RegisterRuntimeFromAuthority(
-                authorityCommit.Request,
-                authorityCommit.Runtime);
+                null,
+                null,
+                null,
+                cancellationToken);
         }
 
         registry.RecordRecoveryActivity(
@@ -345,4 +390,133 @@ internal sealed class RuntimeRegistrationExecutionService(
             "runtime registered with manual capability intake");
         return registered;
     }
+
+    private async Task<RuntimeRegistrationResponse>
+        PrepareAndExecuteAuthorityIntentAsync(
+            RuntimeRegistrationRequest request,
+            RuntimeRegistrationPlan plan,
+            string runtimeId,
+            CapabilityDiscoveryResult? capabilityDiscovery,
+            RuntimeStatusDiscoveryResult? statusDiscovery,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery,
+            CancellationToken cancellationToken)
+    {
+        var proposed = RuntimeRegistrationIntentPolicy.Build(
+            request,
+            plan,
+            runtimeId,
+            capabilityDiscovery,
+            statusDiscovery,
+            sidecarDiscovery,
+            DateTimeOffset.UtcNow);
+        var prepared = registry.PrepareRuntimeRegistrationIntent(proposed);
+        return await ExecuteAuthorityIntentAsync(
+            request,
+            plan,
+            prepared,
+            cancellationToken);
+    }
+
+    private async Task<RuntimeRegistrationResponse> ExecuteAuthorityIntentAsync(
+        RuntimeRegistrationRequest credentialSource,
+        RuntimeRegistrationPlan plan,
+        PersistedRuntimeRegistrationIntent intent,
+        CancellationToken cancellationToken)
+    {
+        var request = RuntimeRegistrationIntentPolicy.RestoreRequest(
+            intent,
+            credentialSource,
+            plan.PlanToken);
+        var receipt = await CommitRegistrationIntentAsync(
+            request,
+            plan,
+            intent,
+            cancellationToken);
+        var authorityCommit = registrationCommits.Bind(
+            intent.RuntimeId,
+            request,
+            receipt,
+            intent.CapabilityDiscovery,
+            intent.StatusDiscovery,
+            intent.SidecarDiscovery);
+        var registered = registry.RegisterRuntimeFromAuthority(
+            authorityCommit.Request,
+            authorityCommit.Runtime,
+            authorityCommit.CapabilityDiscovery);
+        registry.CompleteRuntimeRegistrationIntent(intent.CommandId);
+        registry.RecordRecoveryActivity(
+            registered.RuntimeId,
+            "register_runtime",
+            RuntimeRefreshOutcomePolicy.Determine(
+                registered.Status.StatusSource,
+                registered.Status.StatusFetchError,
+                registered.SidecarStatus?.StatusSource,
+                registered.SidecarStatus?.StatusFetchError),
+            intent.FetchCapabilities
+                ? "runtime registered through discovery"
+                : "runtime registered with manual capability intake");
+        return registered;
+    }
+
+    private async Task<RuntimeRegistrationCommitReceipt>
+        CommitRegistrationIntentAsync(
+            RuntimeRegistrationRequest request,
+            RuntimeRegistrationPlan plan,
+            PersistedRuntimeRegistrationIntent intent,
+            CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            _ = registry.BeginRuntimeRegistrationAttempt(intent.CommandId);
+            try
+            {
+                return await registrationAuthority.RegisterWithReceiptAsync(
+                    request,
+                    intent.RuntimeId,
+                    cancellationToken,
+                    update: intent.Action ==
+                        RuntimeRegistrationPolicy.UpdateAction,
+                    capabilityDiscovery: intent.CapabilityDiscovery,
+                    statusDiscovery: intent.StatusDiscovery,
+                    sidecarDiscovery: intent.SidecarDiscovery,
+                    expectedRevision: intent.ExpectedRevision);
+            }
+            catch (DaemonRuntimeRegistrationException error)
+                when (IsAmbiguousAuthorityFailure(error.Code))
+            {
+                registry.RecordRuntimeRegistrationFailure(
+                    intent.CommandId,
+                    error.Code);
+                if (attempt == 0)
+                {
+                    continue;
+                }
+                throw RuntimeRegistrationExecutionException.Ambiguous(
+                    plan,
+                    error);
+            }
+            catch (DaemonRuntimeRegistrationException)
+            {
+                registry.CompleteRuntimeRegistrationIntent(intent.CommandId);
+                throw;
+            }
+        }
+        throw new InvalidOperationException(
+            "runtime registration retry loop did not return");
+    }
+
+    private static bool IsAmbiguousAuthorityFailure(string code) =>
+        code is "daemon_transport_failed"
+            or "daemon_registration_timeout"
+            or "daemon_protocol_invalid"
+            or "daemon_protocol_mismatch";
+
+    private static RuntimeTags NormalizeTags(RuntimeTags? tags) =>
+        new(
+            NormalizeOptional(tags?.Environment),
+            NormalizeOptional(tags?.Cluster),
+            NormalizeOptional(tags?.Role));
+
+    private static string? NormalizeOptional(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

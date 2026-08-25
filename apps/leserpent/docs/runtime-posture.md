@@ -195,6 +195,26 @@ only an HTTP mapper, and an unconfigured daemon still uses the same service for
 managed registration. Expected failures are typed and contain no registration
 credentials.
 
+Daemon registration command identity is also credential-independent. A
+versioned canonical hash covers the command kind, runtime ID, reviewed expected
+revision, normalized name, runtime and sidecar endpoints, and all tags. Both
+`command_id` and `idempotency_key` use that value. An exact retry therefore
+replays, while the same fields reviewed at a later revision form a new command;
+pairing tokens, sidecar admin tokens, plan tokens, and discovery observations
+are outside this identity.
+
+Authority-bound registration is now crash-recoverable at the compatibility
+boundary. Before calling the daemon, control-plane state schema v9 strictly
+persists the secret-free command fields, sanitized discovery results, and
+attempt metadata. An ambiguous transport, timeout, or protocol result is
+replayed once immediately with the same command ID and reviewed revision. If it
+remains ambiguous, the registration stays pending across restart and later
+plans that overlap or change the command are rejected. An exact retry receives
+the original recovery plan, reuses persisted observations instead of issuing
+new discovery requests, and uses the caller's current credentials only for the
+local compatibility commit. The pending record is cleared after that commit;
+unresolved records cannot be imported from another state document.
+
 ## Security Model
 
 The default security posture should remain conservative and local-first:

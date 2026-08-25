@@ -987,10 +987,26 @@ rebuilt plan before effects, performs credential-bound discovery, consumes the
 typed daemon receipt, writes the authority-bound compatibility projection, and
 records recovery through one shared policy. Managed fallback uses the same
 entry point, while the HTTP route only invokes the coordinator and maps its
-typed secret-free failures. The next cutover binds registration command and
-idempotency identity to the reviewed expected revision and complete secret-free
-command intent, so exact retries replay and legitimate later updates do not
-collide with older receipts.
+typed secret-free failures. Registration command and idempotency identity now
+use one versioned canonical encoding of the complete daemon command intent.
+The hash covers action, runtime ID, reviewed revision, normalized runtime and
+sidecar coordinates, and all tags, while its API cannot accept credentials.
+Exact retries preserve identity, tags-only changes remain distinct, and the
+same update at a later revision cannot collide with an older receipt. A real
+Rust daemon vertical test proves both replay and later-revision rotation.
+Control-plane schema v9 now durably records the sanitized command intent,
+discovery observations, and attempt state before mutation. Credentials and the
+review token cannot enter the record. One transport-ambiguous result is replayed
+immediately with the same command ID and reviewed revision; a repeated
+ambiguity remains pending across restart. Recovery planning bypasses the
+daemon's advanced snapshot, reconstructs the original plan for an exact
+request, and rejects overlapping or tags-different work until convergence.
+Recovery uses fresh caller credentials but never repeats discovery, and clears
+the record only after the typed receipt reaches the local compatibility state.
+Schema migration initializes an empty queue, semantic validation rejects
+tampered command IDs, and persistence import rejects unresolved intents. The
+next gate is a real process/socket lost-response plus forced-restart campaign,
+followed by retained physical Linux x86_64 evidence.
 Cleanup and generic
 unregistration now have an
 explicit confirmed result contract: a daemon schema-v14 transaction fences all

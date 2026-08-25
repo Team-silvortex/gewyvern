@@ -132,6 +132,10 @@ public sealed class ControlPlaneSecurityPolicy
         {
             return "pending runtime deletion intents cannot be imported";
         }
+        if ((state.PendingRuntimeRegistrations?.Count ?? 0) > 0)
+        {
+            return "pending runtime registration intents cannot be imported";
+        }
 
         foreach (var runtime in state.Runtimes)
         {
