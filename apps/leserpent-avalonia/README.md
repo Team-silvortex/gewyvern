@@ -263,10 +263,11 @@ complete six-step tutorial. Connection/forget, reverse deployment,
 gewyvern provisioning/retirement, daemon retirement, startup recovery, the Team
 Silvortex account card, the remote daemon shell, and remote operation/Leselang
 controls, plus the runtime child workspace, Orchestra plan/control/history workspace,
-Hub dynamic cards, and Learning Center, are complete specialist domains.
+the existing-runtime registration editor, Hub dynamic cards, and Learning Center,
+are complete specialist domains.
 Their exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 36-key, 56-key,
-57-key, 78-key, 72-key, 69-key, and 61-key catalogs bring the non-English built-in
-semantic set to 668 keys. One shared strict validator
+57-key, 78-key, 72-key, 49-key, 69-key, and 61-key catalogs bring the non-English
+built-in semantic set to 717 keys. One shared strict validator
 rejects missing/extra keys, malformed placeholders, controls, or oversized
 values. Native controls have eight-locale layout probes, and live language
 changes reproject labels, controlled phases, status, accessibility, and flow
@@ -282,8 +283,9 @@ translated. Hub topology phases, refresh summaries, runtime status, and shared
 authority-health facts use the same typed boundary while operator-supplied names,
 endpoints, and identities stay opaque. The offline remote-shell verifier measures
 all eight built-in
-locales at compact and wide widths, 16 confirmation/form layouts, and eight
-runtime-workspace layout envelopes without starting a network client. The Hub
+locales at compact and wide widths, 32 confirmation/form layouts, 16 existing-
+runtime registration layouts, and eight runtime-workspace layout envelopes
+without starting a network client. The Hub
 verifier also measures account and dynamic topology cards across all eight
 built-ins at the minimum desktop envelope. The tutorial verifier measures all 48
 locale-step layouts, navigation semantics, and accessibility across the same
@@ -911,6 +913,17 @@ mismatched runtime/run/command identities, and cancels stale plan or event loads
 when selection changes. Run `--verify-orchestra-client` for the strict wire contract and
 `--verify-remote-shell-controls` for all eight built-in locale, accessibility,
 compact/wide layout, and destructive-confirmation probes without network I/O.
+The daemon topology toolbar also exposes `Register existing runtime`, while each
+runtime workspace exposes `Edit registration`. These controls are separate from
+SSH provisioning: they carry only runtime ID, display name, endpoints, and three
+optional tags. `RemoteRegistrationClient` inspects authority-owned metadata,
+submits a side-effect-free `dry_run`, verifies the returned runtime and domain
+event, and reuses the reviewed command identity for explicit confirmation.
+Update plans retain the inspected runtime revision as `expected_revision`; any
+field edit discards the old plan before submission. Run
+`--verify-registration-client` for the strict source-generated wire codec and
+`--verify-remote-shell-controls` for the 16 localized registration layouts and
+the complete review/confirmation/apply state-machine probe.
 The semantic workspace projection can be checked separately with
 `--verify-remote-workspace` on the Avalonia project; use
 `--verify-workspace-diagnostics` for local search, level, command identity,

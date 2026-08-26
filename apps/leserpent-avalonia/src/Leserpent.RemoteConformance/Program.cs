@@ -163,6 +163,7 @@ var fixtureHealth = RemoteHealthCodec.Decode(Encoding.UTF8.GetBytes(Fixtures.Hea
 var fixtureReceipt = RemoteUnregistrationReceiptCodec.Decode(
     Encoding.UTF8.GetBytes(Fixtures.UnregistrationReceiptJson));
 RemoteLeselangClient.VerifyContract();
+RemoteRegistrationClient.VerifyContract();
 RemoteTopologyStateMachine.VerifyContract();
 RemoteRuntimeSearch.VerifyContract();
 await RemoteTopologyRefreshCoordinator.VerifyContractAsync();

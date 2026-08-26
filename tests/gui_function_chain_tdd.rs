@@ -157,7 +157,7 @@ fn gui_summary_separates_product_closure_from_renderer_conformance() {
     let summary = load_catalog().summary();
     assert_eq!(summary.operation_count, 35);
     assert_eq!(summary.chain_count, 11);
-    assert_eq!(summary.target_score, 73);
+    assert_eq!(summary.target_score, 78);
 
     let avalonia = summary
         .surfaces
@@ -165,19 +165,15 @@ fn gui_summary_separates_product_closure_from_renderer_conformance() {
         .find(|surface| surface.id == "avalonia-desktop")
         .expect("Avalonia target summary must exist");
     assert_eq!(avalonia.lifecycle, GuiSurfaceLifecycle::Target);
-    assert_eq!(avalonia.score, 81);
+    assert_eq!(avalonia.score, 86);
     assert_eq!(avalonia.required_chain_count, 9);
-    assert_eq!(avalonia.closed, 6);
-    assert_eq!(avalonia.partial, 2);
+    assert_eq!(avalonia.closed, 7);
+    assert_eq!(avalonia.partial, 1);
     assert_eq!(avalonia.conformance_only, 1);
     assert_eq!(avalonia.absent, 0);
     assert_eq!(
         avalonia.gaps,
-        [
-            "runtime-registration-lifecycle",
-            "debugger-workflow",
-            "product-leselang-automation",
-        ]
+        ["debugger-workflow", "product-leselang-automation",]
     );
 
     let rust_web = summary
@@ -302,18 +298,14 @@ fn native_status_cli_reports_gui_closure_without_hiding_gaps() {
     assert!(output.status.success());
     let payload: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("GUI status view must be JSON");
-    assert_eq!(payload["target_score"], 73);
+    assert_eq!(payload["target_score"], 78);
     assert_eq!(payload["operation_count"], 35);
     assert_eq!(payload["chain_count"], 11);
     assert_eq!(payload["surfaces"][0]["id"], "avalonia-desktop");
-    assert_eq!(payload["surfaces"][0]["score"], 81);
+    assert_eq!(payload["surfaces"][0]["score"], 86);
     assert_eq!(
         payload["surfaces"][0]["gaps"],
-        serde_json::json!([
-            "runtime-registration-lifecycle",
-            "debugger-workflow",
-            "product-leselang-automation",
-        ])
+        serde_json::json!(["debugger-workflow", "product-leselang-automation",])
     );
 
     let validation = Command::new(binary)
@@ -323,6 +315,6 @@ fn native_status_cli_reports_gui_closure_without_hiding_gaps() {
     assert!(validation.status.success());
     let payload: serde_json::Value =
         serde_json::from_slice(&validation.stdout).expect("combined validation must be JSON");
-    assert_eq!(payload["gui_target_score"], 73);
+    assert_eq!(payload["gui_target_score"], 78);
     assert_eq!(payload["gui_operations"], 35);
 }

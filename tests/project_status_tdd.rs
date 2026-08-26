@@ -5250,15 +5250,21 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .expect("product GUI function-chain cell must exist");
     assert_eq!(frontend_parity.maturity, Maturity::Developing);
     assert_eq!(frontend_parity.priority, Priority::Critical);
-    assert_eq!(frontend_parity.completion, 73);
+    assert_eq!(frontend_parity.completion, 78);
     assert_eq!(frontend_parity.contract.stability, ContractStability::Draft);
-    assert_eq!(frontend_parity.contract.version, "0.3.0-draft");
+    assert_eq!(frontend_parity.contract.version, "0.4.0-draft");
     for surface in [
         "avalonia-orchestra-native-plan-run-control-closure",
         "strict-dotnet-orchestra-control-codec",
         "rust-orchestra-durable-reentry",
         "queued-only-cancellation-honesty",
         "cancelled-refresh-projection-settlement",
+        "avalonia-existing-runtime-registration-closure",
+        "strict-dotnet-runtime-registration-codec",
+        "side-effect-free-registration-plan",
+        "revision-fenced-registration-update",
+        "registration-plan-field-invalidation",
+        "localized-registration-editor",
     ] {
         assert!(
             frontend_parity
@@ -5270,7 +5276,6 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         );
     }
     for blocker in [
-        "avalonia-runtime-registration-editor",
         "product-debugger-session-bridge",
         "product-leselang-execution-host",
         "rust-web-self-host",
@@ -5289,6 +5294,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .iter()
             .any(|candidate| candidate.id == "avalonia-orchestra-command-authority")
     );
+    assert!(
+        !frontend_parity
+            .blockers
+            .iter()
+            .any(|candidate| candidate.id == "avalonia-runtime-registration-editor")
+    );
     assert!(frontend_parity.evidence.iter().any(|item| {
         item.kind == EvidenceKind::Release
             && item.path == "project/release/leserpent-gui-function-chain.json"
@@ -5302,6 +5313,18 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(frontend_parity.evidence.iter().any(|item| {
         item.kind == EvidenceKind::Source
             && item.path == "crates/leserpentd/src/orchestra.rs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(frontend_parity.evidence.iter().any(|item| {
+        item.kind == EvidenceKind::Source
+            && item.path
+                == "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteRegistrationClient.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(frontend_parity.evidence.iter().any(|item| {
+        item.kind == EvidenceKind::Source
+            && item.path
+                == "apps/leserpent-avalonia/src/Leserpent.Avalonia/RuntimeRegistrationWindow.cs"
             && item.state == EvidenceState::Present
     }));
 
@@ -6819,7 +6842,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(desktop_localization.maturity, Maturity::Stabilizing);
     assert_eq!(desktop_localization.priority, Priority::Active);
     assert_eq!(desktop_localization.completion, 94);
-    assert_eq!(desktop_localization.contract.version, "0.20.0");
+    assert_eq!(desktop_localization.contract.version, "0.21.0");
     assert_eq!(
         desktop_localization.contract.stability,
         ContractStability::Evolving
@@ -6932,6 +6955,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "localized-orchestra-plan-control-history-controls",
         "eight-built-in-orchestra-layout-envelopes",
         "live-orchestra-language-reprojection",
+        "seven-built-in-registration-specialist-catalogs",
+        "registration-catalog-exact-key-set",
+        "localized-existing-runtime-registration-controls",
+        "sixteen-built-in-registration-layout-envelopes",
+        "live-registration-language-reprojection",
         "typed-runtime-workspace-change-presentation",
         "localized-runtime-workspace-controls",
         "eight-built-in-runtime-workspace-layout-envelopes",
@@ -6976,60 +7004,23 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         blocker.id == "desktop-long-tail-language-review"
             && blocker.summary.contains("eight built-in locales")
             && blocker.summary.contains("seven non-English built-ins")
-            && blocker.summary.contains("exact 668-key semantic set")
-            && blocker.summary.contains("daemon retirement")
-            && blocker.summary.contains("startup recovery")
-            && blocker.summary.contains("typed facts")
-            && blocker.summary.contains("runtime child-workspace")
+            && blocker.summary.contains("exact 717-key semantic set")
             && blocker
                 .summary
-                .contains("Orchestra plan/control/history/cleanup")
-            && blocker.summary.contains("Hub")
-            && blocker.summary.contains("tutorial domains")
+                .contains("existing-runtime registration editor")
+            && blocker.summary.contains("Typed presentation")
             && blocker.summary.contains("80-key native-shell catalogs")
             && blocker
                 .summary
                 .contains("18-key core-ui v1 compatibility floor")
-            && blocker.summary.contains("22 official v1.1.0 artifacts")
+            && blocker.summary.contains("22 official v1.1.0")
             && blocker.summary.contains("exact 30-key set")
-            && blocker.summary.contains("pack center")
-            && blocker.summary.contains("day/night/system theme controls")
-            && blocker
-                .summary
-                .contains("explicitly selected local or saved daemon")
-            && blocker
-                .summary
-                .contains("without sending an admin credential")
-            && blocker
-                .summary
-                .contains("embeds the exact catalog and 22-pack roster")
-            && blocker.summary.contains("reject bearer/admin headers")
-            && blocker.summary.contains("real private-CA TLS download")
-            && blocker.summary.contains("digest/locale/version bound")
-            && blocker.summary.contains("saved-daemon verifier")
-            && blocker.summary.contains("decoy CA at TLS")
-            && blocker
-                .summary
-                .contains("catalog and CA inputs remain immutable")
-            && blocker
-                .summary
-                .contains("physical Linux x86_64 NativeAOT proofs")
-            && blocker.summary.contains("both verifier paths")
-            && blocker
-                .summary
-                .contains("dual fixed-contract verifier logs")
-            && blocker.summary.contains("exact regular-file inventory")
-            && blocker.summary.contains("language-asset hashes")
-            && blocker.summary.contains("credential absence")
-            && blocker.summary.contains("not catalog-authenticated")
-            && blocker.summary.contains("malformed-sibling isolation")
+            && blocker.summary.contains("credential-free")
+            && blocker.summary.contains("digest-bound")
+            && blocker.summary.contains("packaged macOS arm64")
+            && blocker.summary.contains("physical Linux x86_64")
             && blocker.summary.contains("intentionally partial")
-            && blocker
-                .summary
-                .contains("new 12-key downloadable expansion")
-            && !blocker.summary.contains("runtime child-workspace shell")
-            && !blocker.summary.contains("remaining Hub dynamic cards")
-            && !blocker.summary.contains("non-Chinese tutorial content")
+            && blocker.summary.contains("12-key downloadable expansion")
             && blocker.summary.contains("native-speaker review")
     }));
     assert!(desktop_localization.evidence.iter().any(|evidence| {

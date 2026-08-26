@@ -638,6 +638,8 @@ internal sealed class LeserpentApp : Application
                 var dialogLayoutCount = 0;
                 var workspaceLayoutCount = 0;
                 var orchestraLayoutCount = 0;
+                var registrationLayoutCount = 0;
+                var registrationApplyCount = 0;
                 var runtime = new RemoteRuntimeProjection
                 {
                     Id = "runtime-verification",
@@ -650,6 +652,40 @@ internal sealed class LeserpentApp : Application
                         StatusSource = "verification",
                     },
                 };
+                var registrationIntent = new RemoteRegistrationIntent(
+                    runtime.Id,
+                    runtime.Name,
+                    "https://verification.invalid:9443",
+                    "https://verification.invalid:9444",
+                    "verification",
+                    "fixture-a",
+                    "capture");
+                var registrationOperations = new RuntimeRegistrationWindowOperations(
+                    (runtimeId, _, _) => Task.FromResult(new RemoteRegistrationDetails(
+                        registrationIntent with { RuntimeId = runtimeId },
+                        runtime.Revision)),
+                    (intent, _, _) => Task.FromResult(new RemoteRegistrationPlan(
+                        "gui-registration-verification",
+                        RemoteRegistrationMode.Register,
+                        intent,
+                        expectedRevision: null,
+                        plannedRevision: 43)),
+                    (intent, expectedRevision, _, _) => Task.FromResult(
+                        new RemoteRegistrationPlan(
+                            "gui-registration-update-verification",
+                            RemoteRegistrationMode.Update,
+                            intent,
+                            expectedRevision,
+                            plannedRevision: 43)),
+                    (plan, _, _) =>
+                    {
+                        registrationApplyCount++;
+                        return Task.FromResult(new RemoteRegistrationResult(
+                            plan.CommandId,
+                            plan.Mode,
+                            plan.Intent.RuntimeId,
+                            plan.PlannedRevision));
+                    });
                 workspace = new RemoteRuntimeWorkspaceWindow(
                     options,
                     runtime,
@@ -761,6 +797,27 @@ internal sealed class LeserpentApp : Application
                     orchestraWorkspace.VerifyAccessibility();
                     orchestraWorkspace.VerifyLayoutEnvelope();
                     orchestraLayoutCount++;
+                    var registration = new RuntimeRegistrationWindow(
+                        registrationOperations,
+                        "verification-principal",
+                        localization,
+                        closeAfterApply: false);
+                    registration.ProbeLocalizedPresentation();
+                    registration.VerifyAccessibility();
+                    registration.VerifyLayoutEnvelope();
+                    registration.ProbeMutationAvailabilityFence();
+                    registration.Close();
+                    var registrationUpdate = new RuntimeRegistrationWindow(
+                        registrationOperations,
+                        "verification-principal",
+                        localization,
+                        runtime.Id,
+                        closeAfterApply: false);
+                    registrationUpdate.ProbeLocalizedPresentation();
+                    registrationUpdate.VerifyAccessibility();
+                    registrationUpdate.VerifyLayoutEnvelope();
+                    registrationUpdate.Close();
+                    registrationLayoutCount += 2;
                     var cleanup = new OrchestraConfirmationWindow(
                         runtime.Id,
                         OrchestraConfirmationKind.Cleanup,
@@ -778,13 +835,27 @@ internal sealed class LeserpentApp : Application
                 if (localizedLayoutCount != 8
                     || dialogLayoutCount != 32
                     || workspaceLayoutCount != 8
-                    || orchestraLayoutCount != 8)
+                    || orchestraLayoutCount != 8
+                    || registrationLayoutCount != 16)
                 {
                     throw new InvalidDataException(
                         "remote shell localized layout coverage drifted");
                 }
+                localization.SetPreference("en");
+                var registrationWorkflow = new RuntimeRegistrationWindow(
+                    registrationOperations,
+                    "verification-principal",
+                    localization,
+                    closeAfterApply: false);
+                await registrationWorkflow.ProbeRegisterWorkflowAsync("zh-CN");
+                registrationWorkflow.Close();
+                if (registrationApplyCount != 1)
+                {
+                    throw new InvalidDataException(
+                        "runtime registration confirmation submitted an unexpected count");
+                }
                 Console.WriteLine(
-                    "remote shell controls valid: typed_feed=true, typed_health=true, opaque_feed_detail=true, localized_remote_shell_catalogs=7, localized_remote_operation_catalogs=7, localized_runtime_workspace_catalogs=7, localized_orchestra_catalogs=7, shell_semantic_keys=56, operation_semantic_keys=57, workspace_semantic_keys=78, orchestra_semantic_keys=72, localized_layouts=8, compact_layout=true, wide_layout=true, localized_dialog_layouts=32, localized_workspace_layouts=8, localized_orchestra_layouts=8, workspace_instances=1, orchestra_instances=1, native_plans=true, rust_control=true, guided_read_only=true, queued_cancel=true, durable_retry=true, live_language_reprojection=true, workspace_live_language_reprojection=true, orchestra_live_language_reprojection=true, network_started=false");
+                    "remote shell controls valid: typed_feed=true, typed_health=true, opaque_feed_detail=true, localized_remote_shell_catalogs=7, localized_remote_operation_catalogs=7, localized_runtime_workspace_catalogs=7, localized_orchestra_catalogs=7, localized_registration_catalogs=7, shell_semantic_keys=56, operation_semantic_keys=57, workspace_semantic_keys=78, orchestra_semantic_keys=72, registration_semantic_keys=49, localized_layouts=8, compact_layout=true, wide_layout=true, localized_dialog_layouts=32, localized_workspace_layouts=8, localized_orchestra_layouts=8, localized_registration_layouts=16, workspace_instances=1, orchestra_instances=1, native_plans=true, rust_control=true, guided_read_only=true, queued_cancel=true, durable_retry=true, registration_dry_run=true, registration_revision_fence=true, registration_confirmation=true, registration_mutation_fence=true, live_language_reprojection=true, workspace_live_language_reprojection=true, orchestra_live_language_reprojection=true, registration_live_language_reprojection=true, network_started=false");
                 window.Close();
             }
             catch (Exception error)

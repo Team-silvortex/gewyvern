@@ -30,6 +30,8 @@ internal sealed class RemoteMainWindow : Window
     private RemoteAuthorityHealthState currentAuthorityHealthState;
     private DesktopRemoteText? mutationNotice;
     private IBrush mutationNoticeForeground = LeserpentTheme.Muted;
+    private bool registrationMutationEnabled;
+    private string? registrationMutationUnavailableReason;
     private bool isClosed;
     private readonly TextBlock statusText = new()
     {
@@ -113,6 +115,11 @@ internal sealed class RemoteMainWindow : Window
     {
         Padding = new Thickness(12, 7),
     };
+    private readonly Button registrationButton = new()
+    {
+        Padding = new Thickness(12, 7),
+        IsEnabled = false,
+    };
     private readonly StackPanel authorityHealthPanel = new()
     {
         Orientation = Avalonia.Layout.Orientation.Horizontal,
@@ -137,6 +144,7 @@ internal sealed class RemoteMainWindow : Window
     private readonly Grid runtimeToolbarGrid = new();
     private readonly Grid statusGrid = new();
     private RemoteOrchestraWorkspaceWindow? orchestraWorkspace;
+    private RuntimeRegistrationWindow? registrationWindow;
 
     public RemoteMainWindow(
         RemoteClientOptions options,
@@ -180,6 +188,8 @@ internal sealed class RemoteMainWindow : Window
         clearRuntimeFilterButton.Click += (_, _) => ClearRuntimeFilter();
         authorityHealthButton.Click += (_, _) => RefreshAuthorityHealth();
         orchestraButton.Click += (_, _) => OpenOrchestraWorkspace();
+        registrationButton.Click += (_, _) =>
+            ObserveUiOperation(OpenRuntimeRegistrationAsync());
 
         AutomationProperties.SetAutomationId(statusText, "remote-connection-state");
         AutomationProperties.SetLiveSetting(statusText, AutomationLiveSetting.Off);
@@ -213,6 +223,9 @@ internal sealed class RemoteMainWindow : Window
         AutomationProperties.SetAutomationId(
             orchestraButton,
             "remote-orchestra-open");
+        AutomationProperties.SetAutomationId(
+            registrationButton,
+            "remote-runtime-registration-open");
         Content = new Grid
         {
             RowDefinitions = RowDefinitions.Parse("*,Auto,Auto"),
@@ -272,6 +285,9 @@ internal sealed class RemoteMainWindow : Window
         orchestraButton.Content = DesktopOrchestraCatalogs.Resolve(
             localization,
             "entry.open");
+        registrationButton.Content = DesktopRegistrationCatalogs.Resolve(
+            localization,
+            "entry.open");
         clearRuntimeFilterButton.Content = localization.Text(DesktopTextKey.Clear);
         AutomationProperties.SetName(
             statusText,
@@ -324,6 +340,12 @@ internal sealed class RemoteMainWindow : Window
         AutomationProperties.SetHelpText(
             orchestraButton,
             DesktopOrchestraCatalogs.Resolve(localization, "help.entry"));
+        AutomationProperties.SetName(
+            registrationButton,
+            DesktopRegistrationCatalogs.Resolve(localization, "entry.open"));
+        AutomationProperties.SetHelpText(
+            registrationButton,
+            DesktopRegistrationCatalogs.Resolve(localization, "entry.help"));
         ConfigureTrustIdentity(trustIdentity);
         ConfigureCredentialSource(credentialSource);
         ApplyFeedPresentation(currentState);
@@ -354,6 +376,7 @@ internal sealed class RemoteMainWindow : Window
         runtimeToolbarGrid.Children.Add(runtimeFilterBox);
         runtimeToolbarGrid.Children.Add(clearRuntimeFilterButton);
         runtimeToolbarGrid.Children.Add(runtimeCountText);
+        runtimeToolbarGrid.Children.Add(registrationButton);
         runtimeToolbarGrid.Children.Add(orchestraButton);
         var body = new Grid
         {
@@ -446,9 +469,9 @@ internal sealed class RemoteMainWindow : Window
             : new Thickness(0);
 
         runtimeToolbarGrid.ColumnDefinitions = ColumnDefinitions.Parse(
-            compact ? "*,Auto" : "*,Auto,Auto,Auto");
+            compact ? "*,Auto" : "*,Auto,Auto,Auto,Auto");
         runtimeToolbarGrid.RowDefinitions = RowDefinitions.Parse(
-            compact ? "Auto,Auto,Auto" : "Auto");
+            compact ? "Auto,Auto,Auto,Auto" : "Auto");
         Grid.SetColumn(runtimeFilterBox, 0);
         Grid.SetRow(runtimeFilterBox, 0);
         Grid.SetColumnSpan(runtimeFilterBox, compact ? 2 : 1);
@@ -456,8 +479,11 @@ internal sealed class RemoteMainWindow : Window
         Grid.SetRow(clearRuntimeFilterButton, compact ? 1 : 0);
         Grid.SetColumn(runtimeCountText, compact ? 1 : 2);
         Grid.SetRow(runtimeCountText, compact ? 1 : 0);
-        Grid.SetColumn(orchestraButton, compact ? 0 : 3);
-        Grid.SetRow(orchestraButton, compact ? 2 : 0);
+        Grid.SetColumn(registrationButton, compact ? 0 : 3);
+        Grid.SetRow(registrationButton, compact ? 2 : 0);
+        Grid.SetColumnSpan(registrationButton, compact ? 2 : 1);
+        Grid.SetColumn(orchestraButton, compact ? 0 : 4);
+        Grid.SetRow(orchestraButton, compact ? 3 : 0);
         Grid.SetColumnSpan(orchestraButton, compact ? 2 : 1);
         clearRuntimeFilterButton.Margin = compact
             ? new Thickness(0, 8, 0, 0)
@@ -465,8 +491,11 @@ internal sealed class RemoteMainWindow : Window
         runtimeCountText.Margin = compact
             ? new Thickness(0, 8, 0, 0)
             : new Thickness(0);
-        orchestraButton.Margin = compact
+        registrationButton.Margin = compact
             ? new Thickness(0, 8, 0, 0)
+            : new Thickness(0);
+        orchestraButton.Margin = compact
+            ? new Thickness(0, 6, 0, 0)
             : new Thickness(0);
 
         statusGrid.ColumnDefinitions = ColumnDefinitions.Parse(
@@ -524,7 +553,9 @@ internal sealed class RemoteMainWindow : Window
                 && (Grid.GetRow(connectionButton) != 2
                     || Grid.GetRow(reconnectButton) != 2
                     || Grid.GetColumnSpan(statusText) != 2
-                    || Grid.GetRow(orchestraButton) != 2
+                    || Grid.GetRow(registrationButton) != 2
+                    || Grid.GetColumnSpan(registrationButton) != 2
+                    || Grid.GetRow(orchestraButton) != 3
                     || Grid.GetColumnSpan(orchestraButton) != 2))
             {
                 throw new InvalidDataException(
@@ -534,7 +565,9 @@ internal sealed class RemoteMainWindow : Window
                 && (Grid.GetRow(connectionButton) != 0
                     || Grid.GetRow(reconnectButton) != 0
                     || Grid.GetColumnSpan(statusText) != 1
-                    || Grid.GetColumn(orchestraButton) != 3
+                    || Grid.GetColumn(registrationButton) != 3
+                    || Grid.GetColumnSpan(registrationButton) != 1
+                    || Grid.GetColumn(orchestraButton) != 4
                     || Grid.GetColumnSpan(orchestraButton) != 1))
             {
                 throw new InvalidDataException(
@@ -705,6 +738,7 @@ internal sealed class RemoteMainWindow : Window
         revisionText.Text = DesktopRemotePresentation.Revision(state).Resolve(localization);
         reconnectButton.IsEnabled = state.Phase is RemoteFeedPhase.Stale
             or RemoteFeedPhase.Stopped;
+        UpdateRegistrationAvailability();
     }
 
     internal string? RequestRuntimeWorkspace(string runtimeId, ulong topologyRevision)
@@ -1286,6 +1320,10 @@ internal sealed class RemoteMainWindow : Window
     private void UpdateMutationAvailability()
     {
         var availability = mutationCoordinator.Availability(currentState);
+        registrationMutationEnabled = availability.MutationsEnabled;
+        registrationMutationUnavailableReason = availability.MutationUnavailableReason;
+        registrationWindow?.SetMutationAvailability(registrationMutationEnabled);
+        UpdateRegistrationAvailability();
         renderer.SetActionAvailability(
             ActionKind.RuntimeRefresh,
             availability.MutationsEnabled,
@@ -1412,6 +1450,69 @@ internal sealed class RemoteMainWindow : Window
         workspace.Show(this);
     }
 
+    private async Task OpenRuntimeRegistrationAsync()
+    {
+        if (registrationWindow is not null)
+        {
+            registrationWindow.Activate();
+            return;
+        }
+        if (currentState.Phase != RemoteFeedPhase.Live
+            || currentState.IsStale
+            || !registrationMutationEnabled
+            || isClosed)
+        {
+            object reason = string.IsNullOrWhiteSpace(
+                registrationMutationUnavailableReason)
+                ? DesktopRemoteText.Operation("reason.not_live")
+                : SafeDisplay(registrationMutationUnavailableReason);
+            SetMutationStatus(
+                DesktopRemoteText.Operation(
+                    "status.operation_blocked",
+                    new DesktopRemoteSemanticValue(
+                        "desktop.registration.entry.open",
+                        "Register existing runtime"),
+                    reason),
+                LeserpentTheme.Destructive);
+            return;
+        }
+        var window = new RuntimeRegistrationWindow(
+            options,
+            principal,
+            localization);
+        window.SetMutationAvailability(registrationMutationEnabled);
+        registrationWindow = window;
+        registrationButton.IsEnabled = false;
+        window.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(registrationWindow, window))
+            {
+                registrationWindow = null;
+                ApplyFeedPresentation(currentState);
+            }
+        };
+        var result = await window.ShowDialog<RemoteRegistrationResult?>(this);
+        if (result is not null && !isClosed)
+        {
+            SetMutationStatus(
+                DesktopRemoteText.Operation(
+                    "status.operation_accepted",
+                    new DesktopRemoteSemanticValue(
+                        "desktop.registration.action.apply.register",
+                        "Register runtime"),
+                    SafeDisplay(result.RuntimeId),
+                    result.Revision),
+                LeserpentTheme.Accent);
+        }
+    }
+
+    private void UpdateRegistrationAvailability() =>
+        registrationButton.IsEnabled = currentState.Phase == RemoteFeedPhase.Live
+            && !currentState.IsStale
+            && registrationMutationEnabled
+            && registrationWindow is null
+            && !isClosed;
+
     private void OnClosed(object? sender, EventArgs eventArgs)
     {
         _ = sender;
@@ -1432,6 +1533,8 @@ internal sealed class RemoteMainWindow : Window
         }
         orchestraWorkspace?.Close();
         orchestraWorkspace = null;
+        registrationWindow?.Close();
+        registrationWindow = null;
         workspaceLaunch.ClearPending();
         mutationCoordinator.CancelActive();
         healthClient.Dispose();

@@ -117,8 +117,8 @@ fn function_chain_closes_the_native_orchestra_control_slice() {
     assert!(matrix.contains("orchestra-cancel"));
     assert!(matrix.contains("orchestra-retry"));
     assert!(matrix.contains("RemoteOrchestraWorkspaceWindow.cs"));
-    assert!(docs.contains("| Avalonia desktop | target | 81 | 6 | 2 | 1 | 0 |"));
-    assert!(docs.contains("The combined target score is 73"));
+    assert!(docs.contains("| Avalonia desktop | target | 86 | 7 | 1 | 1 | 0 |"));
+    assert!(docs.contains("The combined target score is 78"));
     assert!(docs.contains("Rust-authoritative Orchestra control"));
     assert!(docs.contains("queued-only cancellation"));
 }

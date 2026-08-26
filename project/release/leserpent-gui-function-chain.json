@@ -310,12 +310,15 @@
       "coverage": [
         {
           "surface": "avalonia-desktop",
-          "state": "partial",
-          "gap": "Provisioning and retirement close managed deployment lifecycle, but the product has no general existing-runtime registration/update editor.",
+          "state": "closed",
           "evidence": [
-            { "stage": "entry", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/HubWindow.cs", "contains": "hub-provision-gewyvern" },
-            { "stage": "transport", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteProvisioningClient.cs", "contains": "public sealed class RemoteProvisioningClient" },
-            { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/GewyvernRetirementWindow.cs", "contains": "ReconcileAsync(background: false)" }
+            { "stage": "entry", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteMainWindow.cs", "contains": "remote-runtime-registration-open" },
+            { "stage": "semantic", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RuntimeRegistrationWindow.cs", "contains": "private async Task ReviewAsync()" },
+            { "stage": "transport", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteRegistrationClient.cs", "contains": "runtime_registration_plan" },
+            { "stage": "authority", "path": "crates/leserpentd/src/wire.rs", "contains": "Command::RuntimeRegister { .. }" },
+            { "stage": "persistence", "path": "crates/leserpent-runtime/src/persistence.rs", "contains": "Self::RuntimeRegistration => \"runtime_registration\"" },
+            { "stage": "projection", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RuntimeRegistrationWindow.cs", "contains": "private void RenderPlan()" },
+            { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RuntimeRegistrationWindow.cs", "contains": "status.applied.update" }
           ]
         },
         {

@@ -12,6 +12,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
     private readonly AvaloniaDocumentRenderer renderer;
     private readonly RemoteWorkspaceClient client;
     private readonly RemoteLeselangClient leselangClient;
+    private readonly RemoteClientOptions options;
     private readonly DesktopLocalization localization;
     private readonly CancellationTokenSource lifetime = new();
     private readonly string principal;
@@ -64,6 +65,12 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         Padding = new Thickness(12, 6),
         HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
     };
+    private readonly Button editRegistrationButton = new()
+    {
+        Padding = new Thickness(12, 6),
+        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+        IsEnabled = false,
+    };
     private readonly TextBlock logFilterSummary = new()
     {
         FontSize = 12,
@@ -90,7 +97,9 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
     private bool loadInFlight;
     private bool diagnosticSaveInFlight;
     private bool applyingLocalization;
+    private bool registrationMutationEnabled;
     private Window? workspaceLeselangWindow;
+    private RuntimeRegistrationWindow? registrationWindow;
     private ulong loadedRevision;
     private ulong desiredRevision;
     private RemoteWorkspaceSnapshot? latestSnapshot;
@@ -110,6 +119,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         DesktopLocalization? localization = null)
     {
         RuntimeId = runtime.Id;
+        this.options = options;
         this.principal = principal;
         this.localization = localization ?? DesktopLocalization.ForVerification();
         runtimeName = Safe(runtime.Name);
@@ -167,6 +177,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
                 copyDiagnosticsButton,
                 saveDiagnosticsButton,
                 workspaceLeselangButton,
+                editRegistrationButton,
             },
         };
         Grid.SetColumnSpan(logSearchBox, 2);
@@ -177,7 +188,9 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         Grid.SetColumn(copyDiagnosticsButton, 2);
         Grid.SetRow(saveDiagnosticsButton, 1);
         Grid.SetRow(workspaceLeselangButton, 2);
-        Grid.SetColumnSpan(workspaceLeselangButton, 3);
+        Grid.SetColumnSpan(workspaceLeselangButton, 2);
+        Grid.SetRow(editRegistrationButton, 2);
+        Grid.SetColumn(editRegistrationButton, 2);
         var logFilter = new Border
         {
             Background = LeserpentTheme.Panel,
@@ -249,6 +262,8 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             liveRefreshTimer.Stop();
             liveRefresh.Pause();
             workspaceLeselangWindow?.Close();
+            registrationWindow?.Close();
+            registrationWindow = null;
             lifetime.Cancel();
             client.Dispose();
             leselangClient.Dispose();
@@ -285,6 +300,9 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
                 localization.Text(DesktopTextKey.SaveDiagnostics);
             workspaceLeselangButton.Content =
                 localization.Text(DesktopTextKey.WorkspaceLeselang);
+            editRegistrationButton.Content = DesktopRegistrationCatalogs.Resolve(
+                localization,
+                "workspace.edit");
             ApplyLogLevelOptions();
 
             SetAutomationText(
@@ -316,6 +334,14 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
                 workspaceLeselangButton,
                 "a11y.leselang",
                 "help.leselang");
+            AutomationProperties.SetName(
+                editRegistrationButton,
+                DesktopRegistrationCatalogs.Resolve(localization, "workspace.edit"));
+            AutomationProperties.SetHelpText(
+                editRegistrationButton,
+                DesktopRegistrationCatalogs.Resolve(
+                    localization,
+                    "workspace.edit.help"));
             SetAutomationText(diagnosticCopyStatus, "a11y.diagnostic_status");
 
             if (latestSnapshot is null)
@@ -483,6 +509,10 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
                 != DesktopRuntimeWorkspaceCatalogs.Resolve(
                     localization,
                     "diagnostic.copied")
+            || editRegistrationButton.Content as string
+                != DesktopRegistrationCatalogs.Resolve(
+                    localization,
+                    "workspace.edit")
             || statusText.Text?.Contains(
                 DesktopRuntimeWorkspaceCatalogs.Resolve(
                     localization,
@@ -495,7 +525,11 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             || AutomationProperties.GetHelpText(copyDiagnosticsButton)
                 != DesktopRuntimeWorkspaceCatalogs.Resolve(
                     localization,
-                    "help.diagnostics_copy"))
+                    "help.diagnostics_copy")
+            || AutomationProperties.GetHelpText(editRegistrationButton)
+                != DesktopRegistrationCatalogs.Resolve(
+                    localization,
+                    "workspace.edit.help"))
         {
             throw new InvalidDataException(
                 "runtime workspace localization did not reach native controls");
@@ -666,6 +700,9 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             workspaceLeselangButton,
             "runtime-workspace-leselang");
         AutomationProperties.SetAutomationId(
+            editRegistrationButton,
+            "runtime-registration-edit");
+        AutomationProperties.SetAutomationId(
             diagnosticCopyStatus,
             "runtime-diagnostics-copy-status");
         AutomationProperties.SetLiveSetting(
@@ -697,6 +734,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         copyDiagnosticsButton.Click += (_, _) => _ = CopyDiagnosticsAsync();
         saveDiagnosticsButton.Click += (_, _) => _ = SaveDiagnosticsAsync();
         workspaceLeselangButton.Click += (_, _) => ShowWorkspaceLeselang();
+        editRegistrationButton.Click += (_, _) => _ = EditRegistrationAsync();
         logFilterTimer.Tick += (_, _) =>
         {
             logFilterTimer.Stop();
@@ -882,6 +920,54 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         }
     }
 
+    private async Task EditRegistrationAsync()
+    {
+        if (registrationWindow is not null)
+        {
+            registrationWindow.Activate();
+            return;
+        }
+        if (latestSnapshot is null || lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+        var window = new RuntimeRegistrationWindow(
+            options,
+            principal,
+            localization,
+            RuntimeId);
+        window.SetMutationAvailability(registrationMutationEnabled);
+        registrationWindow = window;
+        UpdateRegistrationAvailability();
+        window.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(registrationWindow, window))
+            {
+                registrationWindow = null;
+                UpdateRegistrationAvailability();
+            }
+        };
+        try
+        {
+            var result = await window.ShowDialog<RemoteRegistrationResult?>(this);
+            if (result is not null && !lifetime.IsCancellationRequested)
+            {
+                ReloadIfOlder(result.Revision);
+            }
+        }
+        catch (Exception) when (lifetime.IsCancellationRequested)
+        {
+            // Closing the workspace invalidates the owned registration dialog.
+        }
+    }
+
+    private void UpdateRegistrationAvailability() =>
+        editRegistrationButton.IsEnabled = latestSnapshot is not null
+            && !loadInFlight
+            && registrationWindow is null
+            && registrationMutationEnabled
+            && !lifetime.IsCancellationRequested;
+
     private void ShowWorkspaceLeselang()
     {
         if (workspaceLeselangWindow is not null)
@@ -962,6 +1048,9 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             enabled,
             reason);
         renderer.SetActionAvailability(ActionKind.RuntimeDeploy, enabled, reason);
+        registrationMutationEnabled = enabled;
+        registrationWindow?.SetMutationAvailability(enabled);
+        UpdateRegistrationAvailability();
     }
 
     public void ReloadIfOlder(ulong revision)
@@ -989,6 +1078,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         var loaded = false;
         var outcome = WorkspaceReloadOutcome.Failed;
         reloadButton.IsEnabled = false;
+        UpdateRegistrationAvailability();
         SetStatus(
             DesktopRuntimeWorkspacePresentation.Text("status.loading"),
             LeserpentTheme.Primary);
@@ -1090,6 +1180,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         {
             loadInFlight = false;
             reloadButton.IsEnabled = !lifetime.IsCancellationRequested;
+            UpdateRegistrationAvailability();
             UpdateLiveRefreshPresentation();
             if (loaded && desiredRevision > loadedRevision)
             {

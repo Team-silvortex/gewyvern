@@ -42,19 +42,22 @@ surface complete.
 
 | Surface | Lifecycle | Score | Closed | Partial | Conformance only | Absent |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Avalonia desktop | target | 81 | 6 | 2 | 1 | 0 |
+| Avalonia desktop | target | 86 | 7 | 1 | 1 | 0 |
 | Rust-hosted Web | target | 0 | 0 | 0 | 0 | 1 |
 | ASP.NET Web | bridge | 100 | 5 | 0 | 0 | 0 |
 
-The combined target score is 73. The closed Avalonia families are fleet
-observation, runtime control, daemon lifecycle, Gewyvern lifecycle, and
-authority health, plus Rust-authoritative Orchestra control. The native
+The combined target score is 78. The closed Avalonia families are fleet
+observation, runtime control, existing-runtime registration, daemon lifecycle,
+Gewyvern lifecycle, authority health, and Rust-authoritative Orchestra control. The native
 Orchestra workspace now closes revision-fenced plan discovery, automatic run,
 queued-only cancellation, lineage-bound retry, authenticated history/event
 drilldown, and idempotent cleanup. Guided plans stay visibly review-only. The
-remaining target gaps are:
+registration editor separately closes already-running runtime intake and
+revision-fenced metadata updates: the daemon produces a side-effect-free plan,
+field edits invalidate it, and an explicit confirmation applies the same command
+identity without sending deployment credentials or service secrets. The remaining
+target gaps are:
 
-- general existing-runtime registration and registration updates in Avalonia;
 - a product VM-session projection and debugger cancellation bridge;
 - a product Leselang VM host for live GUI presentation automation;
 - a Rust-owned per-daemon TypeScript Web console and compatibility API.
