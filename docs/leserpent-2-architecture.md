@@ -2162,9 +2162,19 @@ without accepting credentials on public asset requests. Browser API reads use
 the endpoint-bound Bearer token, reject conflicting legacy credentials, and
 project live `ControlRuntime` fleet state into the established camel-case shell
 contract. The first screen is therefore independently usable for observation;
-the surface remains partial until registration, refresh, deletion, persistence,
-and Orchestra mutations are translated to strict Rust routes. No TypeScript
-handler owns authority during that migration.
+an explicit `--web-console-writer` mode additionally claims a daemon-internal
+authority generation under a fresh CSPRNG writer identity. The browser never
+receives that ticket: same-origin POSTs must carry the mutation-intent header,
+fleet refresh lowers to the existing typed
+status/capability commands, and single-runtime deletion enters the durable
+revision-fenced unregistration transaction. If another process claims the writer
+generation, mutation calls fail closed as standby and capabilities immediately
+report the loss of write availability. Registration planning validates only
+secret-free coordinates and remains rejected until a platform secret-store API
+can atomically commit the pairing credential. The surface remains partial until
+registration execution, bulk cleanup, persistence import/export, and Orchestra
+compatibility routes move to Rust. No TypeScript handler owns authority during
+that migration.
 
 Existing-runtime registration now has a native Avalonia product path independent
 from managed SSH provisioning. `RemoteRegistrationClient` first reads the

@@ -5250,9 +5250,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .expect("product GUI function-chain cell must exist");
     assert_eq!(frontend_parity.maturity, Maturity::Developing);
     assert_eq!(frontend_parity.priority, Priority::Critical);
-    assert_eq!(frontend_parity.completion, 95);
+    assert_eq!(frontend_parity.completion, 97);
     assert_eq!(frontend_parity.contract.stability, ContractStability::Draft);
-    assert_eq!(frontend_parity.contract.version, "0.7.0-draft");
+    assert_eq!(frontend_parity.contract.version, "0.8.0-draft");
     for surface in [
         "avalonia-orchestra-native-plan-run-control-closure",
         "strict-dotnet-orchestra-control-codec",
@@ -5271,7 +5271,15 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "rust-web-bearer-only-read-projection",
         "shared-typescript-dual-host-package",
         "real-tls-rust-web-runtime-proof",
-        "explicit-rust-web-mutation-gap",
+        "explicit-daemon-owned-web-writer-mode",
+        "fresh-private-web-writer-identity",
+        "same-origin-web-mutation-intent-fence",
+        "typed-rust-web-fleet-refresh",
+        "revision-fenced-rust-web-runtime-delete",
+        "writer-takeover-web-standby",
+        "secret-store-registration-fail-closed",
+        "real-tls-rust-web-mutation-proof",
+        "explicit-rust-web-remaining-mutation-gap",
     ] {
         assert!(
             frontend_parity

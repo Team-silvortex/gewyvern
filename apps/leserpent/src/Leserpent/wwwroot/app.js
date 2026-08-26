@@ -7042,6 +7042,11 @@ function registrationPlanConflictMessage(plan) {
     if (plan.reason === "runtime_deletion_in_progress") {
         return t("register.deletionInProgress");
     }
+    if (plan.reason && plan.reason !== "endpoint_conflict") {
+        return t("register.planUnavailable", {
+            message: plan.reasonMessage || plan.reason,
+        });
+    }
     return t("register.blockedDuplicate", {
         reason: t("register.duplicateEndpoint"),
         name: plan.existingRuntimeName,

@@ -57,6 +57,7 @@ mod events;
 mod language_packs;
 mod orchestra;
 mod web_console;
+mod web_console_write;
 mod wire;
 pub use wire::BootstrapSessionVerifier;
 

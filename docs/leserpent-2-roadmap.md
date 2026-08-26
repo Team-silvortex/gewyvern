@@ -236,8 +236,9 @@ presentation operations from the daemon-owned Rust VM, applies them to the
 current product window, and returns revision- and effect-bound outcomes for
 durable VM re-entry. Continuations and source never cross the acknowledgement
 boundary, rejections become visible terminal failures, and the desktop caps one
-run at 64 effects. The per-daemon Rust Web console remains the explicit closure
-work. Expired effects converge to a terminal revision and release the
+run at 64 effects. The per-daemon Rust Web console now owns its first typed
+mutation slice; registration secrets, bulk cleanup, persistence, and Orchestra
+remain the explicit closure work. Expired effects converge to a terminal revision and release the
 32-session daemon registry; cancellation audit remains restart-durable inside a
 bounded 64-journal retention horizon. Active debugger sessions remain
 process-bound, so reconstruction is tracked as later VM-host resilience rather
@@ -2595,7 +2596,8 @@ export LESERPENT_REMOTE_TOKEN='at-least-32-non-whitespace-bytes'
 leserpentd --database /var/lib/leserpent/runtime.sqlite \
   --remote-listen 0.0.0.0:9443 \
   --remote-cert /etc/leserpent/tls/server.crt \
-  --remote-key /etc/leserpent/tls/server.key
+  --remote-key /etc/leserpent/tls/server.key \
+  --web-console-writer
 ```
 
 The three remote arguments must be supplied together. The certificate and key
@@ -2606,9 +2608,16 @@ network policy; the bearer token is never passed on the command line.
 That same HTTPS origin now serves the embedded TypeScript console at `/`.
 Static assets are public but reject credential-bearing requests. Enter the
 daemon token in the console Security panel to unlock the authenticated
-first-screen fleet projections. The current Rust-hosted surface is read-only;
-use Avalonia, the native CLI, or the compatibility bridge for mutations until
-the remaining Web compatibility routes migrate.
+first-screen fleet projections. Rust Web remains read-only when
+`--web-console-writer` is omitted. With the explicit flag,
+fleet refresh uses the typed runtime effect queue and single-runtime deletion
+uses durable revision-fenced unregistration. Every daemon start generates a
+fresh CSPRNG writer identity and keeps its ticket inside the daemon; another
+writer claim moves Web mutations to standby rather than
+sharing authority. Registration is visibly blocked until pairing credentials
+can be committed through an atomic platform secret-store contract. Bulk cleanup,
+persistence import/export, and Orchestra controls still use Avalonia, the native
+CLI, or the compatibility bridge while their Rust routes migrate.
 
 The native CLI uses the same endpoint without changing command syntax:
 

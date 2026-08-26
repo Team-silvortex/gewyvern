@@ -15,6 +15,7 @@ use leserpent_adapters::{
     SecretKey, SecretStore,
 };
 use leserpent_domain::RuntimeId;
+use leserpent_protocol::AuthorityWriterFence;
 use leserpent_runtime::ControlRuntime;
 use leserpentd::{
     AdapterRegistry, BootstrapSessionVerifier, DaemonConfig, DaemonHost, DebuggerAuthority,
@@ -24,6 +25,7 @@ use leserpentd::{
 use leserpentd::{BootstrapOriginConfig, GewyvernOriginConfig};
 #[cfg(unix)]
 use leserpentd::{IpcServer, MAX_IPC_CONNECTIONS_PER_TICK};
+use ring::rand::{SecureRandom, SystemRandom};
 use signal_hook::consts::{SIGINT, SIGTERM};
 use zeroize::Zeroizing;
 
@@ -107,6 +109,7 @@ fn run() -> Result<(), String> {
     let mut remote_certificate = None;
     let mut remote_private_key = None;
     let mut remote_token_file = None;
+    let mut web_console_writer = false;
     let mut gewyvern_targets = Vec::new();
     let mut gewyvern_https_targets = Vec::new();
     let mut gewyvern_admin_secret = None;
@@ -162,6 +165,12 @@ fn run() -> Result<(), String> {
             }
             "--remote-token-file" => {
                 return Err("--remote-token-file was provided more than once".into());
+            }
+            "--web-console-writer" if !web_console_writer => {
+                web_console_writer = true;
+            }
+            "--web-console-writer" => {
+                return Err("--web-console-writer was provided more than once".into());
             }
             "--once" => steps = Some(1),
             "--gewyvern-target" => {
@@ -231,7 +240,7 @@ fn run() -> Result<(), String> {
                 println!(
                     "Usage: leserpentd --database PATH [--socket PATH] \
                      [--remote-listen ADDR --remote-cert PATH --remote-key PATH \
-                      [--remote-token-file PATH]] \
+                      [--remote-token-file PATH] [--web-console-writer]] \
                      [--gewyvern-target ID=LOOPBACK:PORT] \
                      [--gewyvern-https-target ID=HTTPS_ORIGIN,CA_PATH] \
                      [--gewyvern-admin-secret KEY] [--bootstrap-trust-root PATH] \
@@ -240,7 +249,8 @@ fn run() -> Result<(), String> {
                      Environment: LESERPENT_DATABASE may provide the database path; \
                      LESERPENT_IPC_TOKEN is required when --socket is used; \
                      LESERPENT_REMOTE_TOKEN or --remote-token-file is required for HTTPS; \
-                     the HTTPS origin also serves the read-only Rust Web console; \
+                     the HTTPS origin serves Rust Web read projections by default; \
+                     --web-console-writer explicitly grants it daemon-owned mutations; \
                      GEWY_API_ADMIN_TOKEN optionally authenticates Gewyvern targets"
                 );
                 return Ok(());
@@ -251,6 +261,13 @@ fn run() -> Result<(), String> {
     let database = database.ok_or_else(|| {
         "database path is required via --database or LESERPENT_DATABASE".to_string()
     })?;
+    if web_console_writer
+        && (remote_listen.is_none() || remote_certificate.is_none() || remote_private_key.is_none())
+    {
+        return Err(
+            "--web-console-writer requires --remote-listen, --remote-cert, and --remote-key".into(),
+        );
+    }
     #[cfg(not(feature = "native-ssh"))]
     if bootstrap_config.is_some() || gewyvern_provisioning_config.is_some() {
         return Err(
@@ -272,6 +289,18 @@ fn run() -> Result<(), String> {
     }
     let debugger_authority = Arc::new(Mutex::new(DebuggerAuthority::for_database(&database)?));
     let mut runtime = ControlRuntime::open(database).map_err(|error| error.to_string())?;
+    let web_console_writer_fence = if web_console_writer {
+        let writer_id = new_authority_writer_id()?;
+        let claim = runtime
+            .claim_authority_writer(&writer_id)
+            .map_err(|error| format!("cannot claim Rust Web writer authority: {error}"))?;
+        Some(AuthorityWriterFence {
+            generation: claim.generation,
+            writer_id,
+        })
+    } else {
+        None
+    };
     let mut registry = AdapterRegistry::default();
     if !gewyvern_targets.is_empty() || !gewyvern_https_targets.is_empty() {
         let (configured_admin_secret, secrets): (Option<SecretKey>, Arc<dyn SecretStore>) =
@@ -487,6 +516,10 @@ fn run() -> Result<(), String> {
                 (Some(_), Some(_)) => unreachable!("mutual exclusion was checked"),
             };
             let server = RemoteServer::bind(address, certificate, private_key, &token)?;
+            let server = match &web_console_writer_fence {
+                Some(writer_fence) => server.with_web_console_writer(writer_fence.clone()),
+                None => server,
+            };
             let server = server.with_debugger_authority(Arc::clone(&debugger_authority));
             let server = match &bootstrap_verifier {
                 Some(verifier) => server.with_bootstrap_verifier(Arc::clone(verifier)),
@@ -555,6 +588,20 @@ fn run() -> Result<(), String> {
     Ok(())
 }
 
+fn new_authority_writer_id() -> Result<String, String> {
+    let mut bytes = [0_u8; 16];
+    SystemRandom::new()
+        .fill(&mut bytes)
+        .map_err(|_| "cannot generate Rust Web writer identity".to_string())?;
+    let mut writer_id = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        use std::fmt::Write as _;
+        write!(&mut writer_id, "{byte:02x}")
+            .expect("writing a fixed authority writer ID cannot fail");
+    }
+    Ok(writer_id)
+}
+
 fn parse_gewyvern_target(value: &str) -> Result<(String, SocketAddr), String> {
     let (runtime_id, address) = value
         .split_once('=')
@@ -620,5 +667,14 @@ mod tests {
                 .collect::<Vec<_>>(),
             [false, true, false, true, false, true]
         );
+    }
+
+    #[test]
+    fn web_console_writer_identity_is_fresh_private_hex() {
+        let first = new_authority_writer_id().unwrap();
+        let second = new_authority_writer_id().unwrap();
+        assert_eq!(first.len(), 32);
+        assert!(first.bytes().all(|byte| byte.is_ascii_hexdigit()));
+        assert_ne!(first, second);
     }
 }

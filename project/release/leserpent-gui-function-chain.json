@@ -506,11 +506,11 @@
         {
           "surface": "rust-web",
           "state": "partial",
-          "gap": "leserpentd now serves the shared TypeScript package and the authenticated read-only first-screen compatibility projections directly; registration, refresh, deletion, persistence, and Orchestra mutation APIs still depend on the ASP.NET bridge.",
+          "gap": "leserpentd now serves the shared TypeScript package, authenticated first-screen projections, daemon-owned fleet refresh, and revision-fenced single-runtime deletion directly; registration execution still waits for atomic secret-store writes, while bulk cleanup, persistence import/export, and Orchestra compatibility APIs still depend on the ASP.NET bridge.",
           "evidence": [
             { "stage": "entry", "path": "crates/leserpentd/src/web_console.rs", "contains": "pub(crate) fn find_asset(" },
             { "stage": "transport", "path": "crates/leserpentd/src/remote.rs", "contains": "HttpRoute::ConsoleApi(route)" },
-            { "stage": "authority", "path": "crates/leserpentd/src/remote.rs", "contains": "if !constant_time_equals(supplied_token.as_bytes(), expected_token)" },
+            { "stage": "authority", "path": "crates/leserpentd/src/web_console_write.rs", "contains": "fn require_writer(" },
             { "stage": "projection", "path": "crates/leserpentd/src/web_console.rs", "contains": "pub(crate) fn render_api(" },
             { "stage": "feedback", "path": "apps/leserpent/src/Leserpent/frontend/50-dashboard-workflows.ts", "contains": "function renderDashboardFromCache()" }
           ]

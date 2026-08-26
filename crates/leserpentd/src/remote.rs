@@ -44,7 +44,8 @@ use crate::provisioning_submission::{
 use crate::retirement_submission::{
     decode_and_submit as decode_and_submit_retirement, error as retirement_error,
 };
-use crate::web_console::{self, ConsoleApiRoute, ConsoleAsset};
+use crate::web_console::{self, ConsoleApiMethod, ConsoleApiRoute, ConsoleAsset};
+use crate::web_console_write::{self, ConsoleWriteStatus};
 use crate::wire::{
     BootstrapSessionVerifier, authority_writer_fence_error_details, constant_time_equals,
     error_response, execute_request, validate_auth_token,
@@ -193,6 +194,7 @@ pub struct RemoteServer {
     provisioning_submission_enabled: bool,
     retirement_submission_enabled: bool,
     daemon_retirement_submission_enabled: bool,
+    web_console_writer: Option<AuthorityWriterFence>,
 }
 
 impl RemoteServer {
@@ -247,6 +249,7 @@ impl RemoteServer {
             provisioning_submission_enabled: false,
             retirement_submission_enabled: false,
             daemon_retirement_submission_enabled: false,
+            web_console_writer: None,
         })
     }
 
@@ -277,6 +280,11 @@ impl RemoteServer {
 
     pub fn with_daemon_retirement_submission(mut self) -> Self {
         self.daemon_retirement_submission_enabled = true;
+        self
+    }
+
+    pub fn with_web_console_writer(mut self, writer_fence: AuthorityWriterFence) -> Self {
+        self.web_console_writer = Some(writer_fence);
         self
     }
 
@@ -408,25 +416,40 @@ impl RemoteServer {
                 ),
                 Ok(HttpRequest {
                     route: HttpRoute::ConsoleApi(route),
+                    body,
                     ..
-                }) => match web_console::render_api(&route, runtime) {
-                    Ok(body) => (
-                        HttpStatus::Ok,
-                        Cow::Owned(body),
-                        HttpResponsePolicy::private_json(),
-                    ),
-                    Err(_) => (
-                        HttpStatus::InternalServerError,
-                        Cow::Owned(
-                            encode_response(&error_response(
-                                "web_projection_failed",
-                                "Rust Web compatibility projection failed",
-                            ))
-                            .map_err(|error| error.to_string())?,
+                }) => {
+                    let response = if route.method() == ConsoleApiMethod::Get {
+                        let writer_available =
+                            web_console_writer_available(runtime, self.web_console_writer.as_ref());
+                        web_console::render_api(&route, runtime, writer_available).map_err(|_| {
+                            web_console_write::ConsoleWriteError {
+                                status: ConsoleWriteStatus::InternalServerError,
+                                code: "web_projection_failed",
+                                reason: "Rust Web compatibility projection failed",
+                            }
+                        })
+                    } else {
+                        web_console_write::execute(
+                            &route,
+                            &body,
+                            runtime,
+                            self.web_console_writer.as_ref(),
+                        )
+                    };
+                    match response {
+                        Ok(body) => (
+                            HttpStatus::Ok,
+                            Cow::Owned(body),
+                            HttpResponsePolicy::private_json(),
                         ),
-                        HttpResponsePolicy::private_json(),
-                    ),
-                },
+                        Err(error) => (
+                            console_write_http_status(error.status),
+                            Cow::Owned(error.body()),
+                            HttpResponsePolicy::private_json(),
+                        ),
+                    }
+                }
                 Ok(HttpRequest {
                     route: HttpRoute::Wire,
                     body,
@@ -654,6 +677,17 @@ fn specialized_authority_writer_fence_error(
         .map(|error| authority_writer_fence_error_details(&error))
 }
 
+fn web_console_writer_available(
+    runtime: &mut ControlRuntime,
+    writer_fence: Option<&AuthorityWriterFence>,
+) -> bool {
+    writer_fence.is_some_and(|writer_fence| {
+        runtime
+            .require_authority_writer(Some(writer_fence.generation), Some(&writer_fence.writer_id))
+            .is_ok()
+    })
+}
+
 pub fn load_remote_token_file(path: impl AsRef<Path>) -> Result<Zeroizing<String>, String> {
     let file = open_regular_file(
         path.as_ref(),
@@ -685,10 +719,12 @@ enum HttpStatus {
     BadRequest,
     Unauthorized,
     NotFound,
+    Conflict,
     MethodNotAllowed,
     PayloadTooLarge,
     UnsupportedMediaType,
     InternalServerError,
+    ServiceUnavailable,
 }
 
 impl HttpStatus {
@@ -698,11 +734,23 @@ impl HttpStatus {
             Self::BadRequest => "400 Bad Request",
             Self::Unauthorized => "401 Unauthorized",
             Self::NotFound => "404 Not Found",
+            Self::Conflict => "409 Conflict",
             Self::MethodNotAllowed => "405 Method Not Allowed",
             Self::PayloadTooLarge => "413 Payload Too Large",
             Self::UnsupportedMediaType => "415 Unsupported Media Type",
             Self::InternalServerError => "500 Internal Server Error",
+            Self::ServiceUnavailable => "503 Service Unavailable",
         }
+    }
+}
+
+fn console_write_http_status(status: ConsoleWriteStatus) -> HttpStatus {
+    match status {
+        ConsoleWriteStatus::BadRequest => HttpStatus::BadRequest,
+        ConsoleWriteStatus::NotFound => HttpStatus::NotFound,
+        ConsoleWriteStatus::Conflict => HttpStatus::Conflict,
+        ConsoleWriteStatus::ServiceUnavailable => HttpStatus::ServiceUnavailable,
+        ConsoleWriteStatus::InternalServerError => HttpStatus::InternalServerError,
     }
 }
 
@@ -800,6 +848,7 @@ fn read_http_request(
     let mut admin_token = None;
     let mut content_length = None;
     let mut content_type = None;
+    let mut intent = None;
     let mut writer_id = None;
     let mut writer_generation = None;
     let mut duplicate_writer_header = false;
@@ -823,6 +872,10 @@ fn read_http_request(
             }
         } else if name.eq_ignore_ascii_case("content-type") {
             if content_type.replace(value).is_some() {
+                return Err(HttpError::bad_request());
+            }
+        } else if name.eq_ignore_ascii_case("x-leserpent-intent") {
+            if intent.replace(value).is_some() {
                 return Err(HttpError::bad_request());
             }
         } else if name.eq_ignore_ascii_case(AUTHORITY_WRITER_ID_HEADER) {
@@ -854,6 +907,7 @@ fn read_http_request(
             });
         }
         if content_type.is_some()
+            || intent.is_some()
             || writer_id.is_some()
             || writer_generation.is_some()
             || content_length.is_some_and(|value| value != "0")
@@ -884,6 +938,7 @@ fn read_http_request(
             });
         }
         if content_type.is_some()
+            || intent.is_some()
             || writer_id.is_some()
             || writer_generation.is_some()
             || content_length.is_some_and(|value| value != "0")
@@ -930,23 +985,88 @@ fn read_http_request(
         message: "Rust Web compatibility query is invalid",
     })?;
     if let Some(route) = console_api {
-        if parts[0] != "GET" {
+        if writer_fence.is_some() {
+            return Err(HttpError::invalid_authority_writer_fence());
+        }
+        let expected_method = match route.method() {
+            ConsoleApiMethod::Get => "GET",
+            ConsoleApiMethod::PostEmpty | ConsoleApiMethod::PostJson => "POST",
+        };
+        if parts[0] != expected_method {
             return Err(HttpError {
                 status: HttpStatus::MethodNotAllowed,
                 code: "method_not_allowed",
-                message: "Rust Web compatibility endpoints require GET",
+                message: "Rust Web compatibility endpoint method is not allowed",
             });
         }
-        if content_type.is_some()
-            || writer_fence.is_some()
-            || content_length.is_some_and(|value| value != "0")
-            || bytes.len() != header_end
-        {
-            return Err(HttpError::bad_request());
-        }
+        let body = match route.method() {
+            ConsoleApiMethod::Get => {
+                if content_type.is_some()
+                    || intent.is_some()
+                    || content_length.is_some_and(|value| value != "0")
+                    || bytes.len() != header_end
+                {
+                    return Err(HttpError::bad_request());
+                }
+                Vec::new()
+            }
+            ConsoleApiMethod::PostEmpty => {
+                if intent != Some("mutate")
+                    || content_type.is_some()
+                    || content_length.is_some_and(|value| value != "0")
+                    || bytes.len() != header_end
+                {
+                    return Err(HttpError::bad_request());
+                }
+                Vec::new()
+            }
+            ConsoleApiMethod::PostJson => {
+                if intent != Some("mutate") {
+                    return Err(HttpError::bad_request());
+                }
+                if !content_type.is_some_and(|value| {
+                    value.split(';').next().is_some_and(|media_type| {
+                        media_type.trim().eq_ignore_ascii_case("application/json")
+                    })
+                }) {
+                    return Err(HttpError {
+                        status: HttpStatus::UnsupportedMediaType,
+                        code: "unsupported_media_type",
+                        message: "Rust Web JSON endpoint requires application/json",
+                    });
+                }
+                let content_length = content_length
+                    .ok_or_else(HttpError::bad_request)?
+                    .parse::<usize>()
+                    .map_err(|_| HttpError::bad_request())?;
+                if content_length == 0 {
+                    return Err(HttpError::bad_request());
+                }
+                if content_length > web_console::MAX_REGISTRATION_PLAN_BYTES {
+                    return Err(HttpError {
+                        status: HttpStatus::PayloadTooLarge,
+                        code: "payload_too_large",
+                        message: "Rust Web request is too large",
+                    });
+                }
+                let mut body = bytes.split_off(header_end);
+                if body.len() > content_length {
+                    return Err(HttpError::bad_request());
+                }
+                if body.len() < content_length {
+                    let missing = content_length - body.len();
+                    let mut remainder = vec![0_u8; missing];
+                    stream
+                        .read_exact(&mut remainder)
+                        .map_err(|_| HttpError::bad_request())?;
+                    body.extend_from_slice(&remainder);
+                }
+                body
+            }
+        };
         return Ok(HttpRequest {
             route: HttpRoute::ConsoleApi(route),
-            body: Vec::new(),
+            body,
             writer_fence: None,
         });
     }
@@ -1412,6 +1532,37 @@ mod tests {
         .into_bytes()
     }
 
+    fn console_post_request(
+        path: &str,
+        body: &[u8],
+        token: Option<&str>,
+        admin_token: Option<&str>,
+        intent: Option<&str>,
+        json: bool,
+    ) -> Vec<u8> {
+        let authorization = token
+            .map(|token| format!("Authorization: Bearer {token}\r\n"))
+            .unwrap_or_default();
+        let admin = admin_token
+            .map(|token| format!("X-Leserpent-Admin-Token: {token}\r\n"))
+            .unwrap_or_default();
+        let intent = intent
+            .map(|intent| format!("X-Leserpent-Intent: {intent}\r\n"))
+            .unwrap_or_default();
+        let content_type = if json {
+            "Content-Type: application/json\r\n"
+        } else {
+            ""
+        };
+        format!(
+            "POST {path} HTTP/1.1\r\nHost: localhost\r\nAccept: application/json\r\n{authorization}{admin}{intent}{content_type}Content-Length: {}\r\n\r\n",
+            body.len()
+        )
+        .bytes()
+        .chain(body.iter().copied())
+        .collect()
+    }
+
     fn read_response(stream: &mut impl Read) -> Vec<u8> {
         let mut response = Vec::new();
         while find_header_end(&response).is_none() {
@@ -1531,6 +1682,43 @@ mod tests {
             let mut stream = StreamOwned::new(connection, socket);
             stream
                 .write_all(&console_get_request(path, token, admin_token))
+                .unwrap();
+            read_response(&mut stream)
+        })
+    }
+
+    fn tls_console_post_client(
+        address: SocketAddr,
+        certificate: rustls::pki_types::CertificateDer<'static>,
+        path: &'static str,
+        body: Vec<u8>,
+        json: bool,
+    ) -> thread::JoinHandle<Vec<u8>> {
+        thread::spawn(move || {
+            let mut roots = RootCertStore::empty();
+            roots.add(certificate).unwrap();
+            let provider = Arc::new(rustls::crypto::ring::default_provider());
+            let mut config = ClientConfig::builder_with_provider(provider)
+                .with_safe_default_protocol_versions()
+                .unwrap()
+                .with_root_certificates(roots)
+                .with_no_client_auth();
+            config.alpn_protocols = vec![b"http/1.1".to_vec()];
+            let connection =
+                ClientConnection::new(Arc::new(config), ServerName::try_from("localhost").unwrap())
+                    .unwrap();
+            let socket = TcpStream::connect(address).unwrap();
+            socket.set_read_timeout(Some(CONNECTION_TIMEOUT)).unwrap();
+            let mut stream = StreamOwned::new(connection, socket);
+            stream
+                .write_all(&console_post_request(
+                    path,
+                    &body,
+                    Some(TOKEN),
+                    Some(TOKEN),
+                    Some("mutate"),
+                    json,
+                ))
                 .unwrap();
             read_response(&mut stream)
         })
@@ -2006,6 +2194,88 @@ mod tests {
         assert!(runtimes.body.is_empty());
         assert!(runtimes.writer_fence.is_none());
 
+        let plan_body = br#"{"name":"Runtime A","endpoint":"https://runtime.invalid"}"#;
+        let registration_plan = read_http_request(
+            &mut Cursor::new(console_post_request(
+                "/v1/runtimes/registration-plan",
+                plan_body,
+                Some(TOKEN),
+                Some(TOKEN),
+                Some("mutate"),
+                true,
+            )),
+            TOKEN.as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(
+            registration_plan.route,
+            HttpRoute::ConsoleApi(ConsoleApiRoute::RegistrationPlan)
+        );
+        assert_eq!(registration_plan.body, plan_body);
+
+        let refresh = read_http_request(
+            &mut Cursor::new(console_post_request(
+                "/v1/fleet/refresh-status?role=edge",
+                &[],
+                Some(TOKEN),
+                Some(TOKEN),
+                Some("mutate"),
+                false,
+            )),
+            TOKEN.as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(
+            refresh.route,
+            HttpRoute::ConsoleApi(ConsoleApiRoute::FleetRefreshStatus(
+                leserpent_domain::RuntimeListFilter {
+                    environment: None,
+                    cluster: None,
+                    role: Some("edge".into()),
+                }
+            ))
+        );
+
+        let delete = read_http_request(
+            &mut Cursor::new(console_post_request(
+                "/v1/runtimes/runtime%3Aedge/delete",
+                &[],
+                Some(TOKEN),
+                Some(TOKEN),
+                Some("mutate"),
+                false,
+            )),
+            TOKEN.as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(
+            delete.route,
+            HttpRoute::ConsoleApi(ConsoleApiRoute::RuntimeDelete(
+                RuntimeId::new("runtime:edge").unwrap()
+            ))
+        );
+
+        for request in [
+            console_post_request(
+                "/v1/fleet/refresh-status",
+                &[],
+                Some(TOKEN),
+                Some(TOKEN),
+                None,
+                false,
+            ),
+            console_post_request(
+                "/v1/runtimes/registration-plan",
+                plan_body,
+                Some(TOKEN),
+                Some(TOKEN),
+                Some("mutate"),
+                false,
+            ),
+        ] {
+            assert!(read_http_request(&mut Cursor::new(request), TOKEN.as_bytes()).is_err());
+        }
+
         let unauthenticated = read_http_request(
             &mut Cursor::new(console_get_request("/v1/capabilities", None, None)),
             TOKEN.as_bytes(),
@@ -2123,6 +2393,200 @@ mod tests {
                 "TLS projection leaked {forbidden}"
             );
         }
+
+        drop(runtime);
+        fs::remove_file(certificate_path).unwrap();
+        fs::remove_file(key_path).unwrap();
+        fs::remove_file(database_path).unwrap();
+    }
+
+    #[test]
+    fn rust_web_mutations_are_explicit_writer_fenced_over_real_tls() {
+        let CertifiedKey { cert, signing_key } =
+            generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+        let certificate_path = temp_path("rust-web-write", "crt");
+        let key_path = temp_path("rust-web-write", "key");
+        let database_path = temp_path("rust-web-write", "sqlite");
+        fs::write(&certificate_path, cert.pem()).unwrap();
+        fs::write(&key_path, signing_key.serialize_pem()).unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600)).unwrap();
+
+        let mut runtime = ControlRuntime::open(&database_path).unwrap();
+        let runtime_a = RuntimeId::new("runtime-web-write-a").unwrap();
+        let runtime_b = RuntimeId::new("runtime-web-write-b").unwrap();
+        for (runtime_id, name) in [
+            (runtime_a.clone(), "Rust Web write A"),
+            (runtime_b.clone(), "Rust Web write B"),
+        ] {
+            runtime
+                .register_runtime(
+                    runtime_id,
+                    name,
+                    format!(
+                        "https://{}.invalid",
+                        name.replace(' ', "-").to_ascii_lowercase()
+                    ),
+                )
+                .unwrap();
+        }
+        let writer_a = "0123456789abcdef0123456789abcdef";
+        let writer_b = "fedcba9876543210fedcba9876543210";
+        let generation = runtime.claim_authority_writer(writer_a).unwrap().generation;
+        let writer_fence = AuthorityWriterFence {
+            generation,
+            writer_id: writer_a.into(),
+        };
+        let mut server = RemoteServer::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            &certificate_path,
+            &key_path,
+            TOKEN,
+        )
+        .unwrap();
+        let address = server.local_addr().unwrap();
+
+        let disabled = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/fleet/refresh-status",
+                Vec::new(),
+                false,
+            ),
+        );
+        assert!(disabled.starts_with(b"HTTP/1.1 503 Service Unavailable\r\n"));
+        let disabled_body: serde_json::Value =
+            serde_json::from_slice(&disabled[find_header_end(&disabled).unwrap()..]).unwrap();
+        assert_eq!(disabled_body["error"], "web_console_writer_disabled");
+
+        server.web_console_writer = Some(writer_fence.clone());
+        let capabilities = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_get_client(
+                address,
+                cert.der().clone(),
+                "/v1/capabilities",
+                Some(TOKEN),
+                Some(TOKEN),
+            ),
+        );
+        let capabilities: serde_json::Value =
+            serde_json::from_slice(&capabilities[find_header_end(&capabilities).unwrap()..])
+                .unwrap();
+        assert_eq!(capabilities["webConsole"]["mutationAvailable"], true);
+
+        let plan = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/runtimes/registration-plan",
+                br#"{"name":"Runtime C","endpoint":"https://runtime-c.invalid"}"#.to_vec(),
+                true,
+            ),
+        );
+        assert!(plan.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let plan: serde_json::Value =
+            serde_json::from_slice(&plan[find_header_end(&plan).unwrap()..]).unwrap();
+        assert_eq!(plan["allowed"], false);
+        assert_eq!(
+            plan["reason"],
+            "rust_web_registration_secret_store_unavailable"
+        );
+
+        let refreshed = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/fleet/refresh-status",
+                Vec::new(),
+                false,
+            ),
+        );
+        assert!(refreshed.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        assert_eq!(
+            runtime
+                .runtime_projection(&runtime_a)
+                .unwrap()
+                .refresh_count,
+            1
+        );
+        assert_eq!(
+            runtime
+                .runtime_projection(&runtime_b)
+                .unwrap()
+                .refresh_count,
+            1
+        );
+
+        let deleted = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/runtimes/runtime-web-write-a/delete",
+                Vec::new(),
+                false,
+            ),
+        );
+        assert!(deleted.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let deleted_body = &deleted[find_header_end(&deleted).unwrap()..];
+        let deleted: serde_json::Value = serde_json::from_slice(deleted_body).unwrap();
+        assert_eq!(deleted["deleted"], true);
+        assert!(runtime.runtime_projection(&runtime_a).is_none());
+        assert!(
+            !std::str::from_utf8(deleted_body)
+                .unwrap()
+                .contains(writer_a)
+        );
+
+        assert_eq!(
+            runtime.claim_authority_writer(writer_b).unwrap().generation,
+            2
+        );
+        let standby = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/fleet/refresh-capabilities",
+                Vec::new(),
+                false,
+            ),
+        );
+        assert!(standby.starts_with(b"HTTP/1.1 409 Conflict\r\n"));
+        let standby: serde_json::Value =
+            serde_json::from_slice(&standby[find_header_end(&standby).unwrap()..]).unwrap();
+        assert_eq!(standby["error"], "web_console_writer_standby");
+
+        let standby_capabilities = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_get_client(
+                address,
+                cert.der().clone(),
+                "/v1/capabilities",
+                Some(TOKEN),
+                Some(TOKEN),
+            ),
+        );
+        let standby_capabilities: serde_json::Value = serde_json::from_slice(
+            &standby_capabilities[find_header_end(&standby_capabilities).unwrap()..],
+        )
+        .unwrap();
+        assert_eq!(
+            standby_capabilities["webConsole"]["mutationAvailable"],
+            false
+        );
 
         drop(runtime);
         fs::remove_file(certificate_path).unwrap();

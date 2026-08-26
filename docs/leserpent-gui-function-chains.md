@@ -60,8 +60,9 @@ field edits invalidate it, and an explicit confirmation applies the same command
 identity without sending deployment credentials or service secrets. The
 remaining target gap is:
 
-- native Rust compatibility mutations for registration, refresh, deletion,
-  persistence, and Orchestra control, after which the ASP.NET bridge can retire.
+- atomic platform secret-store writes for native registration, plus Rust-owned
+  bulk cleanup, persistence import/export, and Orchestra compatibility routes,
+  after which the ASP.NET bridge can retire.
 
 `leserpentd` now serves the exact packaged TypeScript console from its existing
 authenticated HTTPS listener. Public HTML, JavaScript, CSS, branding, and
@@ -69,10 +70,16 @@ language-pack requests reject credential-bearing variants; API requests require
 the daemon Bearer token and reject disagreeing legacy and Authorization values.
 The first-screen capabilities, fleet summary, attention, runtime, session, and
 safe cleanup-preview reads project live `ControlRuntime` state without endpoint
-credentials. A real TLS test proves the CSP-protected document, the 401 boundary,
-and a persisted runtime reaching the browser-compatible camel-case projection.
-This is a usable read-only product path, but remains `partial` until its mutation
-families stop depending on the 1.x bridge.
+credentials. With explicit `--web-console-writer`, fleet status/capability
+refresh enters the existing typed effect queue and single-runtime deletion uses
+the durable revision-fenced unregistration transaction. Each daemon start uses
+a fresh CSPRNG writer identity, and the resulting ticket stays inside
+`leserpentd`; same-origin mutation intent is mandatory, and a later bridge writer
+claim moves Rust Web to visible `409` standby. Registration planning is
+strict and secret-free but rejects execution until the platform secret store can
+commit credentials atomically. Real TLS tests prove these boundaries. The path
+remains `partial` while registration execution, bulk cleanup, persistence, and
+Orchestra still depend on the 1.x bridge.
 
 The debugger workspace starts a bounded daemon-owned VM only to its first
 effect, mounts the Rust-authored `UiDocument`, and routes its session-bound

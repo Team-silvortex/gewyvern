@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use leserpent_domain::{
-    RuntimeCapabilitySnapshot, RuntimeListFilter, RuntimeProjection, RuntimeSidecarStatusSnapshot,
-    RuntimeStatusSnapshot,
+    RuntimeCapabilitySnapshot, RuntimeId, RuntimeListFilter, RuntimeProjection,
+    RuntimeSidecarStatusSnapshot, RuntimeStatusSnapshot,
 };
 use leserpent_protocol::MAX_PROTOCOL_MESSAGE_BYTES;
 use leserpent_runtime::ControlRuntime;
@@ -11,6 +11,7 @@ use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
 const MAX_FILTER_VALUE_BYTES: usize = 128;
+pub(crate) const MAX_REGISTRATION_PLAN_BYTES: usize = 8 * 1024;
 const FALLBACK_TIMESTAMP: &str = "1970-01-01T00:00:00Z";
 
 macro_rules! asset {
@@ -90,9 +91,40 @@ pub(crate) enum ConsoleApiRoute {
     FleetSummary(RuntimeListFilter),
     FleetAttentionSummary(RuntimeListFilter),
     FleetAttentionList(RuntimeListFilter),
+    FleetRefreshAll(RuntimeListFilter),
+    FleetRefreshCapabilities(RuntimeListFilter),
+    FleetRefreshStatus(RuntimeListFilter),
     Runtimes(RuntimeListFilter),
     Sessions,
     CleanupPlan(RuntimeListFilter),
+    RegistrationPlan,
+    RuntimeDelete(RuntimeId),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ConsoleApiMethod {
+    Get,
+    PostEmpty,
+    PostJson,
+}
+
+impl ConsoleApiRoute {
+    pub(crate) fn method(&self) -> ConsoleApiMethod {
+        match self {
+            Self::Capabilities
+            | Self::FleetSummary(_)
+            | Self::FleetAttentionSummary(_)
+            | Self::FleetAttentionList(_)
+            | Self::Runtimes(_)
+            | Self::Sessions
+            | Self::CleanupPlan(_) => ConsoleApiMethod::Get,
+            Self::FleetRefreshAll(_)
+            | Self::FleetRefreshCapabilities(_)
+            | Self::FleetRefreshStatus(_)
+            | Self::RuntimeDelete(_) => ConsoleApiMethod::PostEmpty,
+            Self::RegistrationPlan => ConsoleApiMethod::PostJson,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -108,13 +140,30 @@ pub(crate) fn parse_api_route(target: &str) -> Result<Option<ConsoleApiRoute>, C
     let (path, query) = target
         .split_once('?')
         .map_or((target, None), |(path, query)| (path, Some(query)));
+    if let Some(runtime_id) = path
+        .strip_prefix("/v1/runtimes/")
+        .and_then(|path| path.strip_suffix("/delete"))
+    {
+        if query.is_some() || runtime_id.is_empty() || runtime_id.contains('/') {
+            return Err(ConsoleRouteError::InvalidTarget);
+        }
+        let runtime_id = decode_path_component(runtime_id)?;
+        let runtime_id =
+            RuntimeId::new(runtime_id).map_err(|_| ConsoleRouteError::InvalidTarget)?;
+        return Ok(Some(ConsoleApiRoute::RuntimeDelete(runtime_id)));
+    }
     let filtered = match path {
         "/v1/fleet/summary"
         | "/v1/fleet/attention-summary"
         | "/v1/fleet/runtimes-needing-attention"
+        | "/v1/fleet/refresh-all"
+        | "/v1/fleet/refresh-capabilities"
+        | "/v1/fleet/refresh-status"
         | "/v1/runtimes"
         | "/v1/runtimes/cleanup-plan" => Some(parse_filter(query)?),
-        "/v1/capabilities" | "/v1/sessions" if query.is_some() => {
+        "/v1/capabilities" | "/v1/sessions" | "/v1/runtimes/registration-plan"
+            if query.is_some() =>
+        {
             return Err(ConsoleRouteError::InvalidQuery);
         }
         _ => None,
@@ -130,6 +179,15 @@ pub(crate) fn parse_api_route(target: &str) -> Result<Option<ConsoleApiRoute>, C
         "/v1/fleet/runtimes-needing-attention" => Some(ConsoleApiRoute::FleetAttentionList(
             filtered.expect("filtered route has a filter"),
         )),
+        "/v1/fleet/refresh-all" => Some(ConsoleApiRoute::FleetRefreshAll(
+            filtered.expect("filtered route has a filter"),
+        )),
+        "/v1/fleet/refresh-capabilities" => Some(ConsoleApiRoute::FleetRefreshCapabilities(
+            filtered.expect("filtered route has a filter"),
+        )),
+        "/v1/fleet/refresh-status" => Some(ConsoleApiRoute::FleetRefreshStatus(
+            filtered.expect("filtered route has a filter"),
+        )),
         "/v1/runtimes" => Some(ConsoleApiRoute::Runtimes(
             filtered.expect("filtered route has a filter"),
         )),
@@ -137,8 +195,41 @@ pub(crate) fn parse_api_route(target: &str) -> Result<Option<ConsoleApiRoute>, C
         "/v1/runtimes/cleanup-plan" => Some(ConsoleApiRoute::CleanupPlan(
             filtered.expect("filtered route has a filter"),
         )),
+        "/v1/runtimes/registration-plan" => Some(ConsoleApiRoute::RegistrationPlan),
         _ => None,
     })
+}
+
+fn decode_path_component(value: &str) -> Result<String, ConsoleRouteError> {
+    if value.len() > MAX_FILTER_VALUE_BYTES * 3 {
+        return Err(ConsoleRouteError::InvalidTarget);
+    }
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut cursor = 0;
+    while cursor < bytes.len() {
+        match bytes[cursor] {
+            b'%' if cursor + 2 < bytes.len() => {
+                let high = hex(bytes[cursor + 1]).ok_or(ConsoleRouteError::InvalidTarget)?;
+                let low = hex(bytes[cursor + 2]).ok_or(ConsoleRouteError::InvalidTarget)?;
+                decoded.push((high << 4) | low);
+                cursor += 3;
+            }
+            b'%' => return Err(ConsoleRouteError::InvalidTarget),
+            byte => {
+                decoded.push(byte);
+                cursor += 1;
+            }
+        }
+        if decoded.len() > MAX_FILTER_VALUE_BYTES {
+            return Err(ConsoleRouteError::InvalidTarget);
+        }
+    }
+    let decoded = String::from_utf8(decoded).map_err(|_| ConsoleRouteError::InvalidTarget)?;
+    if decoded.chars().any(char::is_control) {
+        return Err(ConsoleRouteError::InvalidTarget);
+    }
+    Ok(decoded)
 }
 
 fn parse_filter(query: Option<&str>) -> Result<RuntimeListFilter, ConsoleRouteError> {
@@ -216,10 +307,13 @@ fn hex(byte: u8) -> Option<u8> {
 pub(crate) fn render_api(
     route: &ConsoleApiRoute,
     runtime: &ControlRuntime,
+    writer_enabled: bool,
 ) -> Result<Vec<u8>, String> {
     let (_, all_runtimes) = runtime.runtime_event_state();
     let value = match route {
-        ConsoleApiRoute::Capabilities => capabilities_value(runtime.persistence_enabled()),
+        ConsoleApiRoute::Capabilities => {
+            capabilities_value(runtime.persistence_enabled(), writer_enabled)
+        }
         ConsoleApiRoute::Sessions => json!({ "sessions": [] }),
         ConsoleApiRoute::FleetSummary(filter) => {
             let runtimes = filtered_runtimes(&all_runtimes, filter);
@@ -272,6 +366,13 @@ pub(crate) fn render_api(
             json!({ "filter": filter_value(filter), "runtimes": runtimes })
         }
         ConsoleApiRoute::CleanupPlan(filter) => cleanup_plan_value(filter),
+        ConsoleApiRoute::FleetRefreshAll(_)
+        | ConsoleApiRoute::FleetRefreshCapabilities(_)
+        | ConsoleApiRoute::FleetRefreshStatus(_)
+        | ConsoleApiRoute::RegistrationPlan
+        | ConsoleApiRoute::RuntimeDelete(_) => {
+            return Err("Rust Web mutation route cannot be rendered as a read projection".into());
+        }
     };
     let bytes = serde_json::to_vec(&value).map_err(|error| error.to_string())?;
     if bytes.len() > MAX_PROTOCOL_MESSAGE_BYTES {
@@ -280,11 +381,11 @@ pub(crate) fn render_api(
     Ok(bytes)
 }
 
-fn capabilities_value(persistence_enabled: bool) -> Value {
+fn capabilities_value(persistence_enabled: bool, writer_enabled: bool) -> Value {
     json!({
         "service": "leserpentd",
         "version": env!("CARGO_PKG_VERSION"),
-        "role": "rust-web-read-only",
+        "role": if writer_enabled { "rust-web-native-writer" } else { "rust-web-read-only" },
         "routes": [
             "/v1/capabilities",
             "/v1/fleet/summary",
@@ -293,6 +394,11 @@ fn capabilities_value(persistence_enabled: bool) -> Value {
             "/v1/runtimes",
             "/v1/sessions",
             "/v1/runtimes/cleanup-plan",
+            "/v1/runtimes/registration-plan",
+            "/v1/fleet/refresh-all",
+            "/v1/fleet/refresh-capabilities",
+            "/v1/fleet/refresh-status",
+            "/v1/runtimes/{id}/delete",
             "/v1/wire",
             "/v1/events",
             "/v1/leselang-export"
@@ -313,6 +419,12 @@ fn capabilities_value(persistence_enabled: bool) -> Value {
             "apiMode": "bearer_only",
             "adminTokenConfigured": true,
             "publicEndpointDiscoveryAllowed": false
+        },
+        "webConsole": {
+            "writerMode": if writer_enabled { "daemon_owned" } else { "disabled" },
+            "mutationAvailable": writer_enabled && persistence_enabled,
+            "registrationAvailable": false,
+            "registrationBlocker": "atomic_platform_secret_store_write_contract"
         },
         "runtimePosture": {
             "coreReady": true,
@@ -679,7 +791,7 @@ mod tests {
             )
             .unwrap();
         let route = ConsoleApiRoute::Runtimes(RuntimeListFilter::default());
-        let body = render_api(&route, &runtime).unwrap();
+        let body = render_api(&route, &runtime, false).unwrap();
         let value: Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(value["runtimes"][0]["runtimeId"], "runtime-web");
         assert_eq!(value["runtimes"][0]["name"], "Web runtime");
@@ -697,7 +809,7 @@ mod tests {
             ..RuntimeListFilter::default()
         });
         let value: Value =
-            serde_json::from_slice(&render_api(&filtered, &runtime).unwrap()).unwrap();
+            serde_json::from_slice(&render_api(&filtered, &runtime, false).unwrap()).unwrap();
         assert!(value["runtimes"].as_array().unwrap().is_empty());
     }
 }
