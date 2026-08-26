@@ -1,3 +1,4 @@
+use leselang_ui::{DebuggerProjection, UiDocument};
 use leserpent_domain::bootstrap::{BootstrapId, DeploymentBootstrapSnapshot};
 use leserpent_domain::{
     CapabilitySet, CommandEnvelope, CommandId, CommandResult, DOMAIN_SCHEMA_VERSION, DomainError,
@@ -46,6 +47,8 @@ pub enum ProtocolRequest {
     AuthorityWriterClaim(AuthorityWriterClaimRequest),
     BootstrapHandoff(BootstrapHandoffRequest),
     BootstrapSessionBind(BootstrapSessionBindRequest),
+    DebuggerSessions(DebuggerSessionsRequest),
+    DebuggerSessionStart(DebuggerSessionStartRequest),
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -223,6 +226,27 @@ pub struct BootstrapSessionBindRequest {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct DebuggerSessionsRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DebuggerSessionStartRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub session_id: String,
+    pub source: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_revision: Option<Revision>,
+    pub timeout_ms: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RequestEnvelope {
     pub schema_version: u32,
     pub request: ProtocolRequest,
@@ -248,7 +272,46 @@ pub enum ProtocolResponse {
     RuntimeUnregistrationReceipt(RuntimeUnregistrationReceiptLookupResponse),
     AuthorityWriterClaimed(AuthorityWriterClaimResponse),
     BootstrapHandoff(DeploymentBootstrapSnapshot),
+    DebuggerSessions(DebuggerSessionsResponse),
+    DebuggerSessionStarted(DebuggerSessionResponse),
+    DebuggerCancelled(DebuggerCancelResponse),
     Error(ProtocolError),
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DebuggerSessionView {
+    pub projection: DebuggerProjection,
+    pub document: UiDocument,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DebuggerSessionsResponse {
+    pub sessions: Vec<DebuggerSessionView>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DebuggerSessionResponse {
+    pub session: DebuggerSessionView,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DebuggerMutationStatus {
+    Planned,
+    Applied,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DebuggerCancelResponse {
+    pub command_id: CommandId,
+    pub status: DebuggerMutationStatus,
+    pub session: DebuggerSessionView,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audited_at_ms: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -604,7 +667,9 @@ pub fn decode_request(bytes: &[u8]) -> Result<RequestEnvelope, DecodeError> {
         | ProtocolRequest::RuntimeUnregistrationReceipt(_)
         | ProtocolRequest::AuthorityWriterClaim(_)
         | ProtocolRequest::BootstrapHandoff(_)
-        | ProtocolRequest::BootstrapSessionBind(_) => DOMAIN_SCHEMA_VERSION,
+        | ProtocolRequest::BootstrapSessionBind(_)
+        | ProtocolRequest::DebuggerSessions(_)
+        | ProtocolRequest::DebuggerSessionStart(_) => DOMAIN_SCHEMA_VERSION,
     };
     if domain_version != DOMAIN_SCHEMA_VERSION {
         return Err(DecodeError::InvalidDomainSchemaVersion {
@@ -693,10 +758,10 @@ mod tests {
         BootstrapId, BootstrapPhase, BootstrapTarget, BootstrapTransport, CAPABILITY_HOST_BOOTSTRAP,
     };
     use leserpent_domain::{
-        CAPABILITY_ORCHESTRA_WRITE, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
-        CAPABILITY_RUNTIME_REGISTER, CapabilitySet, Command, CommandEnvelope, CommandId,
-        CommandOrigin, Confirmation, IdempotencyKey, Principal, Query, QueryEnvelope, RuntimeId,
-        RuntimeListFilter, RuntimeSidecarStatusSnapshot, RuntimeTags,
+        CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_ORCHESTRA_WRITE, CAPABILITY_RUNTIME_DEPLOY,
+        CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REGISTER, CapabilitySet, Command,
+        CommandEnvelope, CommandId, CommandOrigin, Confirmation, IdempotencyKey, Principal, Query,
+        QueryEnvelope, RuntimeId, RuntimeListFilter, RuntimeSidecarStatusSnapshot, RuntimeTags,
     };
 
     use super::*;
@@ -718,6 +783,34 @@ mod tests {
         };
         let bytes = encode_request(&request).unwrap();
         assert_eq!(decode_request(&bytes).unwrap(), request);
+    }
+
+    #[test]
+    fn debugger_session_request_is_strict_and_secret_free() {
+        let request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::DebuggerSessionStart(DebuggerSessionStartRequest {
+                principal: Principal {
+                    id: "operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_DEBUGGER_CONTROL]),
+                session_id: "debugger-session-a".into(),
+                source: "fn main() = runtime.list()".into(),
+                expected_revision: Some(Revision(7)),
+                timeout_ms: 30_000,
+            }),
+        };
+        let bytes = encode_request(&request).unwrap();
+        assert_eq!(decode_request(&bytes).unwrap(), request);
+        assert!(!String::from_utf8_lossy(&bytes).contains("token"));
+
+        let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        value["request"]["payload"]["credential"] =
+            serde_json::Value::String("must-not-cross-the-debugger-boundary".into());
+        assert!(matches!(
+            decode_request(&serde_json::to_vec(&value).unwrap()),
+            Err(DecodeError::InvalidJson(message)) if message.contains("unknown field")
+        ));
     }
 
     #[test]

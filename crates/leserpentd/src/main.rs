@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "native-ssh")]
 use leserpent_adapters::{BootstrapTrustStore, FileBootstrapTrustStore};
@@ -17,7 +17,7 @@ use leserpent_adapters::{
 use leserpent_domain::RuntimeId;
 use leserpent_runtime::ControlRuntime;
 use leserpentd::{
-    AdapterRegistry, BootstrapSessionVerifier, DaemonConfig, DaemonHost,
+    AdapterRegistry, BootstrapSessionVerifier, DaemonConfig, DaemonHost, DebuggerAuthority,
     NativeBootstrapSessionVerifier, RemoteServer, load_remote_token_file,
 };
 #[cfg(feature = "native-ssh")]
@@ -269,6 +269,7 @@ fn run() -> Result<(), String> {
     if (bootstrap_origin.is_some() || gewyvern_origin.is_some()) && bootstrap_trust_root.is_none() {
         return Err("SSH origin configuration requires --bootstrap-trust-root".into());
     }
+    let debugger_authority = Arc::new(Mutex::new(DebuggerAuthority::for_database(&database)?));
     let mut runtime = ControlRuntime::open(database).map_err(|error| error.to_string())?;
     let mut registry = AdapterRegistry::default();
     if !gewyvern_targets.is_empty() || !gewyvern_https_targets.is_empty() {
@@ -432,6 +433,7 @@ fn run() -> Result<(), String> {
             let token = std::env::var("LESERPENT_IPC_TOKEN")
                 .map_err(|_| "LESERPENT_IPC_TOKEN is required with --socket".to_string())?;
             let server = IpcServer::bind(path, &token)?;
+            let server = server.with_debugger_authority(Arc::clone(&debugger_authority));
             let server = match &bootstrap_verifier {
                 Some(verifier) => server.with_bootstrap_verifier(Arc::clone(verifier)),
                 None => server,
@@ -484,6 +486,7 @@ fn run() -> Result<(), String> {
                 (Some(_), Some(_)) => unreachable!("mutual exclusion was checked"),
             };
             let server = RemoteServer::bind(address, certificate, private_key, &token)?;
+            let server = server.with_debugger_authority(Arc::clone(&debugger_authority));
             let server = match &bootstrap_verifier {
                 Some(verifier) => server.with_bootstrap_verifier(Arc::clone(verifier)),
                 None => server,

@@ -186,6 +186,7 @@ pub struct RemoteServer {
     tls: Arc<ServerConfig>,
     token: Zeroizing<Vec<u8>>,
     event_sessions: Vec<EventSession>,
+    debugger_authority: Option<crate::SharedDebuggerAuthority>,
     bootstrap_verifier: Option<Arc<dyn BootstrapSessionVerifier>>,
     bootstrap_submission_enabled: bool,
     provisioning_submission_enabled: bool,
@@ -239,6 +240,7 @@ impl RemoteServer {
             tls: Arc::new(tls),
             token: Zeroizing::new(token.as_bytes().to_vec()),
             event_sessions: Vec::new(),
+            debugger_authority: None,
             bootstrap_verifier: None,
             bootstrap_submission_enabled: false,
             provisioning_submission_enabled: false,
@@ -249,6 +251,11 @@ impl RemoteServer {
 
     pub fn with_bootstrap_verifier(mut self, verifier: Arc<dyn BootstrapSessionVerifier>) -> Self {
         self.bootstrap_verifier = Some(verifier);
+        self
+    }
+
+    pub fn with_debugger_authority(mut self, authority: crate::SharedDebuggerAuthority) -> Self {
+        self.debugger_authority = Some(authority);
         self
     }
 
@@ -387,13 +394,29 @@ impl RemoteServer {
                 writer_fence,
             }) => {
                 let response = match decode_request(&body) {
-                    Ok(request) => execute_request(
-                        runtime,
-                        request,
-                        self.bootstrap_verifier.as_deref(),
-                        writer_fence.as_ref(),
-                        false,
-                    ),
+                    Ok(request) => match &self.debugger_authority {
+                        Some(authority) => match authority.lock() {
+                            Ok(mut debugger) => crate::wire::execute_request_with_debugger(
+                                runtime,
+                                request,
+                                self.bootstrap_verifier.as_deref(),
+                                writer_fence.as_ref(),
+                                false,
+                                Some(&mut debugger),
+                            ),
+                            Err(_) => error_response(
+                                "debugger_authority_unavailable",
+                                "Leselang VM debugger authority is unavailable",
+                            ),
+                        },
+                        None => execute_request(
+                            runtime,
+                            request,
+                            self.bootstrap_verifier.as_deref(),
+                            writer_fence.as_ref(),
+                            false,
+                        ),
+                    },
                     Err(_) => error_response("invalid_request", "wire protocol request is invalid"),
                 };
                 (
@@ -986,17 +1009,19 @@ mod tests {
     #[cfg(unix)]
     use std::os::unix::fs::{PermissionsExt, symlink};
     use std::path::PathBuf;
+    use std::sync::Mutex;
     use std::thread;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use leserpent_domain::{
-        CAPABILITY_RUNTIME_DEPLOY, CapabilitySet, Command, CommandEnvelope, CommandId,
-        CommandOrigin, CommandStatus, Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey,
-        Principal, Revision, RuntimeId,
+        CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CapabilitySet, Command,
+        CommandEnvelope, CommandId, CommandOrigin, CommandStatus, Confirmation,
+        DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal, Revision, RuntimeId,
     };
     use leserpent_protocol::{
-        AuthorityWriterFence, HealthRequest, PROTOCOL_SCHEMA_VERSION, ProtocolEvent,
-        ProtocolRequest, RequestEnvelope, decode_event, decode_response, encode_request,
+        AuthorityWriterFence, DebuggerMutationStatus, DebuggerSessionStartRequest, HealthRequest,
+        PROTOCOL_SCHEMA_VERSION, ProtocolEvent, ProtocolRequest, ProtocolResponse, RequestEnvelope,
+        decode_event, decode_response, encode_request,
     };
     use rcgen::{CertifiedKey, generate_simple_self_signed};
     use rustls::pki_types::ServerName;
@@ -1047,6 +1072,50 @@ mod tests {
                     runtime_id: RuntimeId::new(runtime_id).unwrap(),
                     pipeline_kind: "capture/http".into(),
                     target: Some("service-a".into()),
+                },
+            }),
+        })
+        .unwrap()
+    }
+
+    fn debugger_start_body(session_id: &str) -> Vec<u8> {
+        encode_request(&RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::DebuggerSessionStart(DebuggerSessionStartRequest {
+                principal: Principal {
+                    id: "debugger-operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_DEBUGGER_CONTROL]),
+                session_id: session_id.into(),
+                source: "fn main() = runtime.list()".into(),
+                expected_revision: Some(Revision(7)),
+                timeout_ms: 300_000,
+            }),
+        })
+        .unwrap()
+    }
+
+    fn debugger_cancel_body(session_id: &str, dry_run: bool) -> Vec<u8> {
+        encode_request(&RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::Command(CommandEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                command_id: CommandId::new("remote-debugger-cancel").unwrap(),
+                idempotency_key: IdempotencyKey::new("remote-debugger-cancel").unwrap(),
+                expected_revision: Some(Revision(7)),
+                principal: Principal {
+                    id: "debugger-operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_DEBUGGER_CONTROL]),
+                origin: CommandOrigin::Gui,
+                confirmation: if dry_run {
+                    Confirmation::NotRequired
+                } else {
+                    Confirmation::Confirmed
+                },
+                dry_run,
+                command: Command::DebuggerCancel {
+                    session_id: session_id.into(),
                 },
             }),
         })
@@ -1836,6 +1905,100 @@ mod tests {
         assert!(decoded.error.is_none());
 
         drop(runtime);
+        fs::remove_file(certificate_path).unwrap();
+        fs::remove_file(key_path).unwrap();
+        fs::remove_file(database_path).unwrap();
+    }
+
+    #[test]
+    fn authenticated_debugger_vm_lifecycle_crosses_real_tls() {
+        let CertifiedKey { cert, signing_key } =
+            generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+        let certificate_path = temp_path("debugger", "crt");
+        let key_path = temp_path("debugger", "key");
+        let database_path = temp_path("debugger", "sqlite");
+        fs::write(&certificate_path, cert.pem()).unwrap();
+        fs::write(&key_path, signing_key.serialize_pem()).unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600)).unwrap();
+
+        let debugger = Arc::new(Mutex::new(
+            crate::DebuggerAuthority::for_database(&database_path).unwrap(),
+        ));
+        let mut server = RemoteServer::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            &certificate_path,
+            &key_path,
+            TOKEN,
+        )
+        .unwrap()
+        .with_debugger_authority(Arc::clone(&debugger));
+        let address = server.local_addr().unwrap();
+        let mut runtime = ControlRuntime::open(&database_path).unwrap();
+        let session_id = "remote-debugger-session";
+
+        let client = tls_post_client(
+            address,
+            cert.der().clone(),
+            "/v1/wire",
+            debugger_start_body(session_id),
+        );
+        let response = complete_tls_request(&mut server, &mut runtime, client);
+        let body_start = find_header_end(&response).unwrap();
+        assert!(matches!(
+            decode_response(&response[body_start..]).unwrap().response,
+            ProtocolResponse::DebuggerSessionStarted(ref started)
+                if started.session.projection.session_id == session_id
+                    && started.session.projection.revision == Revision(7)
+                    && started.session.projection.state
+                        == leselang_ui::DebuggerState::WaitingEffect
+                    && started.session.document.revision == Revision(7)
+        ));
+
+        let client = tls_post_client(
+            address,
+            cert.der().clone(),
+            "/v1/wire",
+            debugger_cancel_body(session_id, true),
+        );
+        let response = complete_tls_request(&mut server, &mut runtime, client);
+        let body_start = find_header_end(&response).unwrap();
+        assert!(matches!(
+            decode_response(&response[body_start..]).unwrap().response,
+            ProtocolResponse::DebuggerCancelled(ref cancelled)
+                if cancelled.status == DebuggerMutationStatus::Planned
+                    && cancelled.audited_at_ms.is_none()
+                    && cancelled.session.projection.state
+                        == leselang_ui::DebuggerState::WaitingEffect
+        ));
+
+        let client = tls_post_client(
+            address,
+            cert.der().clone(),
+            "/v1/wire",
+            debugger_cancel_body(session_id, false),
+        );
+        let response = complete_tls_request(&mut server, &mut runtime, client);
+        let body_start = find_header_end(&response).unwrap();
+        assert!(matches!(
+            decode_response(&response[body_start..]).unwrap().response,
+            ProtocolResponse::DebuggerCancelled(ref cancelled)
+                if cancelled.status == DebuggerMutationStatus::Applied
+                    && cancelled.audited_at_ms.is_some()
+                    && cancelled.session.projection.state
+                        == leselang_ui::DebuggerState::Cancelled
+                    && cancelled.session.projection.revision == Revision(8)
+                    && cancelled.session.document.revision == Revision(8)
+        ));
+
+        drop(runtime);
+        drop(server);
+        drop(debugger);
+        let debugger_root = database_path.with_file_name(format!(
+            "{}.leselang-debugger",
+            database_path.file_name().unwrap().to_string_lossy()
+        ));
+        fs::remove_dir_all(debugger_root).unwrap();
         fs::remove_file(certificate_path).unwrap();
         fs::remove_file(key_path).unwrap();
         fs::remove_file(database_path).unwrap();

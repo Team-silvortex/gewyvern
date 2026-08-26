@@ -22,7 +22,7 @@ use leserpent_runtime::{
     RuntimeUnregisterTarget as RuntimeTarget,
 };
 
-use crate::orchestra;
+use crate::{DebuggerAuthority, orchestra};
 
 pub(crate) const MAX_AUTH_TOKEN_BYTES: usize = 256;
 
@@ -40,7 +40,57 @@ pub(crate) fn execute_request(
     writer_fence: Option<&AuthorityWriterFence>,
     authority_writer_claim_enabled: bool,
 ) -> ResponseEnvelope {
+    execute_request_with_debugger(
+        runtime,
+        request,
+        bootstrap_verifier,
+        writer_fence,
+        authority_writer_claim_enabled,
+        None,
+    )
+}
+
+pub(crate) fn execute_request_with_debugger(
+    runtime: &mut ControlRuntime,
+    request: RequestEnvelope,
+    bootstrap_verifier: Option<&dyn BootstrapSessionVerifier>,
+    writer_fence: Option<&AuthorityWriterFence>,
+    authority_writer_claim_enabled: bool,
+    debugger: Option<&mut DebuggerAuthority>,
+) -> ResponseEnvelope {
     let request = request.request;
+    let request = match request {
+        ProtocolRequest::DebuggerSessions(request) => {
+            return match debugger {
+                Some(debugger) => match debugger.sessions(request) {
+                    Ok(sessions) => response(ProtocolResponse::DebuggerSessions(sessions)),
+                    Err(error) => error_response(error.code(), error.message()),
+                },
+                None => debugger_unavailable(),
+            };
+        }
+        ProtocolRequest::DebuggerSessionStart(request) => {
+            return match debugger {
+                Some(debugger) => match debugger.start_session(request) {
+                    Ok(session) => response(ProtocolResponse::DebuggerSessionStarted(session)),
+                    Err(error) => error_response(error.code(), error.message()),
+                },
+                None => debugger_unavailable(),
+            };
+        }
+        ProtocolRequest::Command(command)
+            if matches!(&command.command, Command::DebuggerCancel { .. }) =>
+        {
+            return match debugger {
+                Some(debugger) => match debugger.cancel(command) {
+                    Ok(cancelled) => response(ProtocolResponse::DebuggerCancelled(cancelled)),
+                    Err(error) => error_response(error.code(), error.message()),
+                },
+                None => debugger_unavailable(),
+            };
+        }
+        request => request,
+    };
     if let ProtocolRequest::AuthorityWriterClaim(claim) = &request {
         if !authority_writer_claim_enabled {
             return error_response(
@@ -570,7 +620,9 @@ pub(crate) fn execute_request(
         | ProtocolRequest::RuntimeUnregistrationReceipt(_)
         | ProtocolRequest::AuthorityWriterClaim(_)
         | ProtocolRequest::BootstrapHandoff(_)
-        | ProtocolRequest::BootstrapSessionBind(_) => unreachable!(),
+        | ProtocolRequest::BootstrapSessionBind(_)
+        | ProtocolRequest::DebuggerSessions(_)
+        | ProtocolRequest::DebuggerSessionStart(_) => unreachable!(),
     };
     let operation = match request {
         ProtocolRequest::Query(query) => PlannedOperation::Query(query),
@@ -591,7 +643,9 @@ pub(crate) fn execute_request(
         | ProtocolRequest::RuntimeUnregistrationReceipt(_)
         | ProtocolRequest::AuthorityWriterClaim(_)
         | ProtocolRequest::BootstrapHandoff(_)
-        | ProtocolRequest::BootstrapSessionBind(_) => unreachable!(),
+        | ProtocolRequest::BootstrapSessionBind(_)
+        | ProtocolRequest::DebuggerSessions(_)
+        | ProtocolRequest::DebuggerSessionStart(_) => unreachable!(),
     };
     match runtime.execute_plan(CommandPlan {
         schema_version: leserpent_domain::COMMAND_PLAN_SCHEMA_VERSION,
@@ -638,8 +692,17 @@ fn requires_authority_writer_fence(request: &ProtocolRequest) -> bool {
         | ProtocolRequest::OrchestraDeleteReplayHorizon(_)
         | ProtocolRequest::RuntimeUnregistrationReceipt(_)
         | ProtocolRequest::AuthorityWriterClaim(_)
-        | ProtocolRequest::BootstrapHandoff(_) => false,
+        | ProtocolRequest::BootstrapHandoff(_)
+        | ProtocolRequest::DebuggerSessions(_)
+        | ProtocolRequest::DebuggerSessionStart(_) => false,
     }
+}
+
+fn debugger_unavailable() -> ResponseEnvelope {
+    error_response(
+        "debugger_authority_unavailable",
+        "Leselang VM debugger authority is unavailable",
+    )
 }
 
 fn authority_writer_fence_error(error: RuntimeError) -> ResponseEnvelope {
@@ -779,17 +842,20 @@ mod tests {
     use std::path::PathBuf;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+    use leselang_ui::DebuggerState;
     use leserpent_domain::bootstrap::{
         BOOTSTRAP_SESSION_PROTOCOL_VERSION, BootstrapId, BootstrapPhase, BootstrapTarget,
         BootstrapTransport, CredentialHandle, DaemonId, DeploymentBootstrapSnapshot,
     };
     use leserpent_domain::{
-        CapabilitySet, Command, CommandEnvelope, CommandId, CommandOrigin, Confirmation,
-        DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal, RuntimeId,
+        CAPABILITY_DEBUGGER_CONTROL, CapabilitySet, Command, CommandEnvelope, CommandId,
+        CommandOrigin, Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal, Revision,
+        RuntimeId,
     };
     use leserpent_protocol::{
         AuthorityWriterClaimRequest, BootstrapHandoffRequest, BootstrapSessionBindRequest,
-        CAPABILITY_AUTHORITY_WRITER, OrchestraCancelCommandRequest, OrchestraPlanCatalogRequest,
+        CAPABILITY_AUTHORITY_WRITER, DebuggerMutationStatus, DebuggerSessionStartRequest,
+        DebuggerSessionsRequest, OrchestraCancelCommandRequest, OrchestraPlanCatalogRequest,
         OrchestraRunCommandRequest, ProtocolRequest,
     };
 
@@ -935,6 +1001,32 @@ mod tests {
             dry_run: false,
             command,
         })
+    }
+
+    fn debugger_command(session_id: &str, dry_run: bool) -> RequestEnvelope {
+        RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::Command(CommandEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                command_id: CommandId::new("debugger-wire-command").unwrap(),
+                idempotency_key: IdempotencyKey::new("debugger-wire-idempotency").unwrap(),
+                expected_revision: Some(Revision(7)),
+                principal: Principal {
+                    id: "debugger-operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_DEBUGGER_CONTROL]),
+                origin: CommandOrigin::Gui,
+                confirmation: if dry_run {
+                    Confirmation::NotRequired
+                } else {
+                    Confirmation::Confirmed
+                },
+                dry_run,
+                command: Command::DebuggerCancel {
+                    session_id: session_id.into(),
+                },
+            }),
+        }
     }
 
     fn proof(bootstrap_id: &BootstrapId, daemon_id: &str) -> DaemonSessionProof {
@@ -1203,6 +1295,127 @@ mod tests {
             2
         );
         drop(runtime);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn wire_debugger_lifecycle_uses_persistent_rust_vm_authority() {
+        let path = temp_database();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let mut debugger = DebuggerAuthority::for_database(&path).unwrap();
+        let session_id = "debugger-wire-session";
+        let start = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::DebuggerSessionStart(DebuggerSessionStartRequest {
+                principal: Principal {
+                    id: "debugger-operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_DEBUGGER_CONTROL]),
+                session_id: session_id.into(),
+                source: "fn main() = runtime.inspect(runtime_id: \"runtime-a\")".into(),
+                expected_revision: Some(Revision(7)),
+                timeout_ms: 300_000,
+            }),
+        };
+
+        let unavailable = execute_request(&mut runtime, start.clone(), None, None, false);
+        assert!(matches!(
+            unavailable.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "debugger_authority_unavailable"
+        ));
+        let started = execute_request_with_debugger(
+            &mut runtime,
+            start,
+            None,
+            None,
+            false,
+            Some(&mut debugger),
+        );
+        let ProtocolResponse::DebuggerSessionStarted(started) = started.response else {
+            panic!("Rust debugger session was not returned");
+        };
+        assert_eq!(
+            started.session.projection.state,
+            DebuggerState::WaitingEffect
+        );
+        assert_eq!(started.session.document.revision, Revision(7));
+
+        let listed = execute_request_with_debugger(
+            &mut runtime,
+            RequestEnvelope {
+                schema_version: PROTOCOL_SCHEMA_VERSION,
+                request: ProtocolRequest::DebuggerSessions(DebuggerSessionsRequest {
+                    principal: Principal {
+                        id: "debugger-operator".into(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_DEBUGGER_CONTROL]),
+                    session_id: Some(session_id.into()),
+                }),
+            },
+            None,
+            None,
+            false,
+            Some(&mut debugger),
+        );
+        assert!(matches!(
+            listed.response,
+            ProtocolResponse::DebuggerSessions(ref sessions)
+                if sessions.sessions == vec![started.session.clone()]
+        ));
+
+        let planned = execute_request_with_debugger(
+            &mut runtime,
+            debugger_command(session_id, true),
+            None,
+            None,
+            false,
+            Some(&mut debugger),
+        );
+        assert!(matches!(
+            planned.response,
+            ProtocolResponse::DebuggerCancelled(ref response)
+                if response.status == DebuggerMutationStatus::Planned
+                    && response.session.projection.state == DebuggerState::WaitingEffect
+                    && response.audited_at_ms.is_none()
+        ));
+
+        let command = debugger_command(session_id, false);
+        let applied = execute_request_with_debugger(
+            &mut runtime,
+            command.clone(),
+            None,
+            None,
+            false,
+            Some(&mut debugger),
+        );
+        assert!(matches!(
+            applied.response,
+            ProtocolResponse::DebuggerCancelled(ref response)
+                if response.status == DebuggerMutationStatus::Applied
+                    && response.session.projection.state == DebuggerState::Cancelled
+                    && response.session.projection.revision == Revision(8)
+                    && response.audited_at_ms.is_some()
+        ));
+        assert_eq!(
+            execute_request_with_debugger(
+                &mut runtime,
+                command,
+                None,
+                None,
+                false,
+                Some(&mut debugger),
+            ),
+            applied
+        );
+
+        drop(debugger);
+        drop(runtime);
+        fs::remove_dir_all(path.with_file_name(format!(
+            "{}.leselang-debugger",
+            path.file_name().unwrap().to_string_lossy()
+        )))
+        .unwrap();
         fs::remove_file(path).unwrap();
     }
 }

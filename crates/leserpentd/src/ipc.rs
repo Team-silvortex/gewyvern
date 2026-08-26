@@ -23,6 +23,7 @@ use leserpent_protocol::{
 use leserpent_runtime::{ControlRuntime, RuntimeError};
 use serde::Deserialize;
 
+use crate::SharedDebuggerAuthority;
 use crate::bootstrap_submission::{decode_and_submit, error as bootstrap_error};
 use crate::daemon_retirement_submission::{
     decode_and_submit as decode_and_submit_daemon_retirement, error as daemon_retirement_error,
@@ -35,7 +36,8 @@ use crate::retirement_submission::{
 };
 use crate::wire::{
     BootstrapSessionVerifier, MAX_AUTH_TOKEN_BYTES, authority_writer_fence_error_details,
-    constant_time_equals, error_response, execute_request, validate_auth_token,
+    constant_time_equals, error_response, execute_request, execute_request_with_debugger,
+    validate_auth_token,
 };
 
 const MAX_IPC_FRAME_BYTES: usize = MAX_PROTOCOL_MESSAGE_BYTES + 1024;
@@ -80,6 +82,7 @@ pub struct IpcServer {
     socket_device: u64,
     socket_inode: u64,
     token: Vec<u8>,
+    debugger_authority: Option<SharedDebuggerAuthority>,
     bootstrap_verifier: Option<Arc<dyn BootstrapSessionVerifier>>,
     bootstrap_submission_enabled: bool,
     provisioning_submission_enabled: bool,
@@ -111,6 +114,7 @@ impl IpcServer {
             socket_device: metadata.dev(),
             socket_inode: metadata.ino(),
             token: token.as_bytes().to_vec(),
+            debugger_authority: None,
             bootstrap_verifier: None,
             bootstrap_submission_enabled: false,
             provisioning_submission_enabled: false,
@@ -121,6 +125,11 @@ impl IpcServer {
 
     pub fn with_bootstrap_verifier(mut self, verifier: Arc<dyn BootstrapSessionVerifier>) -> Self {
         self.bootstrap_verifier = Some(verifier);
+        self
+    }
+
+    pub fn with_debugger_authority(mut self, authority: SharedDebuggerAuthority) -> Self {
+        self.debugger_authority = Some(authority);
         self
     }
 
@@ -318,13 +327,30 @@ impl IpcServer {
                         )));
                     }
                 };
-                IpcResponse::Wire(Box::new(execute_request(
-                    runtime,
-                    request,
-                    self.bootstrap_verifier.as_deref(),
-                    authenticated.writer_fence.as_ref(),
-                    true,
-                )))
+                let response = match &self.debugger_authority {
+                    Some(authority) => match authority.lock() {
+                        Ok(mut debugger) => execute_request_with_debugger(
+                            runtime,
+                            request,
+                            self.bootstrap_verifier.as_deref(),
+                            authenticated.writer_fence.as_ref(),
+                            true,
+                            Some(&mut debugger),
+                        ),
+                        Err(_) => error_response(
+                            "debugger_authority_unavailable",
+                            "Leselang VM debugger authority is unavailable",
+                        ),
+                    },
+                    None => execute_request(
+                        runtime,
+                        request,
+                        self.bootstrap_verifier.as_deref(),
+                        authenticated.writer_fence.as_ref(),
+                        true,
+                    ),
+                };
+                IpcResponse::Wire(Box::new(response))
             }
             IpcRoute::BootstrapV1 => IpcResponse::Bootstrap(decode_and_submit(
                 runtime,
@@ -473,21 +499,22 @@ mod tests {
     use std::io::{Read, Write};
     use std::net::Shutdown;
     use std::os::unix::fs::{PermissionsExt, symlink};
+    use std::sync::{Arc, Mutex};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use leserpent_domain::{
-        CAPABILITY_ORCHESTRA_WRITE, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
-        CAPABILITY_RUNTIME_REGISTER, CAPABILITY_RUNTIME_UNREGISTER, CapabilitySet, Command,
-        CommandEnvelope, CommandId, CommandOrigin, CommandStatus, Confirmation,
-        DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal, Query, QueryEnvelope, QueryResult,
-        RUNTIME_DEPLOYMENT_EFFECT_KIND, Revision, RuntimeCapabilitySnapshot,
+        CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_ORCHESTRA_WRITE, CAPABILITY_RUNTIME_DEPLOY,
+        CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REGISTER, CAPABILITY_RUNTIME_UNREGISTER,
+        CapabilitySet, Command, CommandEnvelope, CommandId, CommandOrigin, CommandStatus,
+        Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal, Query, QueryEnvelope,
+        QueryResult, RUNTIME_DEPLOYMENT_EFFECT_KIND, Revision, RuntimeCapabilitySnapshot,
         RuntimeDeploymentOutcome, RuntimeDeploymentRequest, RuntimeId, RuntimeListFilter,
         RuntimeLogLevel, RuntimeTags,
     };
     use leserpent_protocol::{
         AuthorityWriterClaimRequest, AuthorityWriterFence, CAPABILITY_AUTHORITY_WRITER,
-        DeploymentReceiptRequest, DeploymentReceiptStatus, HealthRequest,
-        OrchestraDeleteCommandRequest, OrchestraDeleteReplayCheckpointRequest,
+        DebuggerSessionStartRequest, DeploymentReceiptRequest, DeploymentReceiptStatus,
+        HealthRequest, OrchestraDeleteCommandRequest, OrchestraDeleteReplayCheckpointRequest,
         OrchestraDeleteReplayHorizonRequest, OrchestraDeleteRequest, OrchestraHistoryRequest,
         OrchestraPersistenceRequest, PROTOCOL_SCHEMA_VERSION, ProtocolRequest, ProtocolResponse,
         RequestEnvelope, RuntimeUnregisterRequest, RuntimeUnregisterTarget,
@@ -631,6 +658,56 @@ mod tests {
         drop(server);
         assert!(!socket.exists());
         drop(runtime);
+        fs::remove_file(database).unwrap();
+    }
+
+    #[test]
+    fn authenticated_debugger_session_round_trips_over_private_socket() {
+        let database = temp_path("debugger-roundtrip", "sqlite");
+        let socket = temp_path("debugger-roundtrip", "sock");
+        let debugger = Arc::new(Mutex::new(
+            crate::DebuggerAuthority::for_database(&database).unwrap(),
+        ));
+        let mut runtime = ControlRuntime::open(&database).unwrap();
+        let server = IpcServer::bind(&socket, TOKEN)
+            .unwrap()
+            .with_debugger_authority(Arc::clone(&debugger));
+        let response = send(
+            &server,
+            &mut runtime,
+            &socket,
+            TOKEN,
+            RequestEnvelope {
+                schema_version: PROTOCOL_SCHEMA_VERSION,
+                request: ProtocolRequest::DebuggerSessionStart(DebuggerSessionStartRequest {
+                    principal: Principal {
+                        id: "debugger-operator".into(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_DEBUGGER_CONTROL]),
+                    session_id: "debugger-ipc-session".into(),
+                    source: "fn main() = runtime.list()".into(),
+                    expected_revision: Some(Revision(7)),
+                    timeout_ms: 30_000,
+                }),
+            },
+        );
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::DebuggerSessionStarted(ref started)
+                if started.session.projection.session_id == "debugger-ipc-session"
+                    && started.session.projection.revision == Revision(7)
+                    && started.session.projection.state
+                        == leselang_ui::DebuggerState::WaitingEffect
+        ));
+
+        drop(server);
+        drop(runtime);
+        drop(debugger);
+        fs::remove_dir_all(database.with_file_name(format!(
+            "{}.leselang-debugger",
+            database.file_name().unwrap().to_string_lossy()
+        )))
+        .unwrap();
         fs::remove_file(database).unwrap();
     }
 

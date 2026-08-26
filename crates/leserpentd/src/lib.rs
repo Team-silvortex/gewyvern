@@ -43,6 +43,8 @@ mod bootstrap_session;
 pub use bootstrap_session::NativeBootstrapSessionVerifier;
 mod bootstrap_submission;
 mod daemon_retirement_submission;
+mod debugger;
+pub use debugger::{DebuggerAuthority, SharedDebuggerAuthority};
 #[cfg(unix)]
 mod ipc;
 mod provisioning_submission;

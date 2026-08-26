@@ -425,15 +425,16 @@
       "coverage": [
         {
           "surface": "avalonia-desktop",
-          "state": "conformance-only",
-          "gap": "The neutral debugger document and native renderer pass fixtures, but the product has no VM-session projection client and its remote action router explicitly rejects DebuggerCancel.",
+          "state": "closed",
           "evidence": [
-            { "stage": "semantic", "path": "crates/leselang-ui/src/lib.rs", "contains": "pub fn debugger_document(" },
-            { "stage": "authority", "path": "crates/leselang-observe/src/lib.rs", "contains": "execute_debugger_cancel(" },
+            { "stage": "entry", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteMainWindow.cs", "contains": "private void OpenDebuggerWorkspace()" },
+            { "stage": "semantic", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteUiActionRouter.cs", "contains": "public static RemoteDebuggerActionResolution ResolveDebuggerActivation(" },
+            { "stage": "transport", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteDebuggerClient.cs", "contains": "public async Task<RemoteDebuggerSession> StartAsync(" },
+            { "stage": "authority", "path": "crates/leserpentd/src/debugger.rs", "contains": "pub fn cancel(" },
             { "stage": "persistence", "path": "crates/leselang-vm/src/lib.rs", "contains": "cancel_effect_audited(" },
-            { "stage": "projection", "path": "apps/leserpent-avalonia/fixtures/renderer-debugger-conformance-v1.json", "contains": "debugger_workspace" },
-            { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/AvaloniaDocumentRenderer.cs", "contains": "RealizedDebuggerCancelButtonCount" },
-            { "stage": "automation", "path": "crates/leselang-ui/src/lib.rs", "contains": "UiAction::DebuggerCancel" }
+            { "stage": "projection", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteDebuggerClient.cs", "contains": "private static RemoteDebuggerSession DecodeSession(" },
+            { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteDebuggerWindow.cs", "contains": "\"status.cancelled\"" },
+            { "stage": "automation", "path": "crates/leselang-command/src/lib.rs", "contains": "Effect::DebuggerCancel { .. } => CAPABILITY_DEBUGGER_CONTROL" }
           ]
         }
       ]

@@ -23,6 +23,21 @@ public sealed record RemoteUiActionIntent(
     string? PipelineKind = null,
     string? Target = null);
 
+public sealed record RemoteDebuggerActionIntent(
+    ActionKind Kind,
+    string NodeId,
+    string SessionId,
+    ulong Revision);
+
+public sealed record RemoteDebuggerActionResolution(
+    RemoteDebuggerActionIntent? Intent,
+    RemoteUiActionFailure Failure,
+    string? Reason)
+{
+    public bool Accepted => Intent is not null
+        && Failure == RemoteUiActionFailure.None;
+}
+
 public sealed record RemoteUiActionResolution(
     RemoteUiActionIntent? Intent,
     RemoteUiActionFailure Failure,
@@ -106,6 +121,67 @@ public static class RemoteUiActionRouter
             PipelineKind = pipelineKind,
             Target = string.IsNullOrEmpty(target) ? null : target,
         });
+    }
+
+    public static RemoteDebuggerActionResolution ResolveDebuggerActivation(
+        UiDocument document,
+        string nodeId,
+        string expectedSessionId,
+        ulong expectedRevision,
+        bool mutationEnabled,
+        string? mutationUnavailableReason = null)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        if (!IsIdentifier(nodeId)
+            || !IsIdentifier(expectedSessionId)
+            || expectedRevision == 0
+            || document.Revision != expectedRevision)
+        {
+            return RejectDebugger(RemoteUiActionFailure.InvalidNodeId);
+        }
+        NodeLocation? location;
+        try
+        {
+            location = Find(document.Root, nodeId);
+        }
+        catch (InvalidDataException)
+        {
+            return RejectDebugger(RemoteUiActionFailure.InvalidDocument);
+        }
+        if (location is null)
+        {
+            return RejectDebugger(RemoteUiActionFailure.UnknownTarget);
+        }
+        if (location.Node is not
+            {
+                Kind: UiNodeKind.Action,
+                Action:
+                {
+                    Kind: ActionKind.DebuggerCancel,
+                    RuntimeId: null,
+                    Form: null,
+                } action,
+            }
+            || action.SessionId != expectedSessionId
+            || location.DebuggerSessionId != expectedSessionId
+            || location.RuntimeId is not null)
+        {
+            return RejectDebugger(RemoteUiActionFailure.InvalidActionBinding);
+        }
+        if (!mutationEnabled)
+        {
+            return RejectDebugger(
+                RemoteUiActionFailure.ActionUnavailable,
+                mutationUnavailableReason);
+        }
+        return new RemoteDebuggerActionResolution(
+            new RemoteDebuggerActionIntent(
+                action.Kind,
+                nodeId,
+                expectedSessionId,
+                expectedRevision),
+            RemoteUiActionFailure.None,
+            null);
     }
 
     public static void VerifyContract()
@@ -246,6 +322,51 @@ public static class RemoteUiActionRouter
                 availability),
             RemoteUiActionFailure.InvalidActionBinding,
             "action escaped its runtime container binding");
+
+        var debugger = DebuggerDocument();
+        var cancel = ResolveDebuggerActivation(
+            debugger,
+            "opaque-debugger-control",
+            "session-a",
+            9,
+            mutationEnabled: true);
+        if (!cancel.Accepted
+            || cancel.Intent is not
+            {
+                Kind: ActionKind.DebuggerCancel,
+                SessionId: "session-a",
+                Revision: 9,
+            })
+        {
+            throw new InvalidDataException(
+                "debugger cancellation did not route through its typed binding");
+        }
+        var unavailableDebugger = ResolveDebuggerActivation(
+            debugger,
+            "opaque-debugger-control",
+            "session-a",
+            9,
+            mutationEnabled: false,
+            "A debugger mutation is already in flight");
+        if (unavailableDebugger.Accepted
+            || unavailableDebugger.Failure != RemoteUiActionFailure.ActionUnavailable
+            || unavailableDebugger.Reason is not { Length: > 0 })
+        {
+            throw new InvalidDataException(
+                "debugger mutation availability did not fail closed");
+        }
+        debugger.Root.DebuggerSessionId = "session-b";
+        if (ResolveDebuggerActivation(
+                debugger,
+                "opaque-debugger-control",
+                "session-a",
+                9,
+                mutationEnabled: true).Failure
+            != RemoteUiActionFailure.InvalidActionBinding)
+        {
+            throw new InvalidDataException(
+                "debugger action escaped its session-container binding");
+        }
     }
 
     private static RemoteUiActionResolution ResolveTarget(
@@ -283,6 +404,7 @@ public static class RemoteUiActionRouter
             || !IsIdentifier(action.RuntimeId)
             || action.SessionId is not null
             || !StringComparer.Ordinal.Equals(action.RuntimeId, location.RuntimeId)
+            || location.DebuggerSessionId is not null
             || (action.Kind == ActionKind.RuntimeDeploy) != (action.Form is not null))
         {
             return Reject(RemoteUiActionFailure.InvalidActionBinding);
@@ -318,20 +440,25 @@ public static class RemoteUiActionRouter
 
     private static NodeLocation? Find(UiNode root, string nodeId)
     {
-        var stack = new Stack<(UiNode Node, string? RuntimeId, int Depth)>();
-        stack.Push((root, null, 1));
+        var stack = new Stack<(
+            UiNode Node,
+            string? RuntimeId,
+            string? DebuggerSessionId,
+            int Depth)>();
+        stack.Push((root, null, null, 1));
         var visited = 0;
         while (stack.Count > 0)
         {
-            var (node, inheritedRuntimeId, depth) = stack.Pop();
+            var (node, inheritedRuntimeId, inheritedDebuggerSessionId, depth) = stack.Pop();
             if (checked(++visited) > MaxNodes || depth > MaxDepth)
             {
                 throw new InvalidDataException("remote UI document bounds are invalid");
             }
             var runtimeId = inheritedRuntimeId;
+            var debuggerSessionId = inheritedDebuggerSessionId;
             if (node.Kind is UiNodeKind.RuntimeCard or UiNodeKind.RuntimeWorkspace)
             {
-                if (!IsIdentifier(node.RuntimeId))
+                if (!IsIdentifier(node.RuntimeId) || debuggerSessionId is not null)
                 {
                     throw new InvalidDataException("remote UI runtime binding is invalid");
                 }
@@ -341,13 +468,29 @@ public static class RemoteUiActionRouter
             {
                 throw new InvalidDataException("remote UI runtime context is invalid");
             }
+            if (node.Kind == UiNodeKind.DebuggerWorkspace)
+            {
+                if (!IsIdentifier(node.DebuggerSessionId) || runtimeId is not null)
+                {
+                    throw new InvalidDataException("remote UI debugger binding is invalid");
+                }
+                debuggerSessionId = node.DebuggerSessionId;
+            }
+            else if (node.DebuggerSessionId is not null)
+            {
+                throw new InvalidDataException("remote UI debugger context is invalid");
+            }
             if (StringComparer.Ordinal.Equals(node.Id, nodeId))
             {
-                return new NodeLocation(node, runtimeId);
+                return new NodeLocation(node, runtimeId, debuggerSessionId);
             }
             for (var index = node.Children.Count - 1; index >= 0; index--)
             {
-                stack.Push((node.Children[index], runtimeId, checked(depth + 1)));
+                stack.Push((
+                    node.Children[index],
+                    runtimeId,
+                    debuggerSessionId,
+                    checked(depth + 1)));
             }
         }
         return null;
@@ -437,6 +580,37 @@ public static class RemoteUiActionRouter
                                 },
                             ],
                         },
+                    },
+                    Children = [],
+                },
+            ],
+        },
+    };
+
+    private static UiDocument DebuggerDocument() => new()
+    {
+        SchemaVersion = 1,
+        Revision = 9,
+        Root = new UiNode
+        {
+            Id = "opaque-debugger-workspace",
+            Kind = UiNodeKind.DebuggerWorkspace,
+            DebuggerSessionId = "session-a",
+            Accessibility = new Accessibility(),
+            Children =
+            [
+                new UiNode
+                {
+                    Id = "opaque-debugger-control",
+                    Kind = UiNodeKind.Action,
+                    Accessibility = new Accessibility
+                    {
+                        Label = Text("debugger.cancel", "Cancel effect"),
+                    },
+                    Action = new UiAction
+                    {
+                        Kind = ActionKind.DebuggerCancel,
+                        SessionId = "session-a",
                     },
                     Children = [],
                 },
@@ -544,10 +718,24 @@ public static class RemoteUiActionRouter
         return new RemoteUiActionResolution(null, failure, bounded);
     }
 
+    private static RemoteDebuggerActionResolution RejectDebugger(
+        RemoteUiActionFailure failure,
+        string? reason = null)
+    {
+        var rejected = Reject(failure, reason);
+        return new RemoteDebuggerActionResolution(
+            null,
+            rejected.Failure,
+            rejected.Reason);
+    }
+
     private static bool IsIdentifier(string? value) => value is not null
         && value.Length is > 0 and <= 128
         && value.All(character => char.IsAsciiLetterOrDigit(character)
             || character is '-' or '_' or '.' or ':');
 
-    private sealed record NodeLocation(UiNode Node, string? RuntimeId);
+    private sealed record NodeLocation(
+        UiNode Node,
+        string? RuntimeId,
+        string? DebuggerSessionId);
 }

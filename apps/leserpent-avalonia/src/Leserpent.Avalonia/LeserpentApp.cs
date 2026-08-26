@@ -638,8 +638,12 @@ internal sealed class LeserpentApp : Application
                 var dialogLayoutCount = 0;
                 var workspaceLayoutCount = 0;
                 var orchestraLayoutCount = 0;
+                var debuggerLayoutCount = 0;
                 var registrationLayoutCount = 0;
                 var registrationApplyCount = 0;
+                var debuggerStartCount = 0;
+                var debuggerPlanCount = 0;
+                var debuggerApplyCount = 0;
                 var runtime = new RemoteRuntimeProjection
                 {
                     Id = "runtime-verification",
@@ -685,6 +689,45 @@ internal sealed class LeserpentApp : Application
                             plan.Mode,
                             plan.Intent.RuntimeId,
                             plan.PlannedRevision));
+                    });
+                RemoteDebuggerSession? debuggerState = null;
+                var debuggerOperations = new RemoteDebuggerWindowOperations(
+                    (sessionId, _, _, _, _, _) =>
+                    {
+                        debuggerStartCount++;
+                        debuggerState = DebuggerSessionFixture(sessionId, cancelled: false);
+                        return Task.FromResult(debuggerState);
+                    },
+                    (_, requestedSessionId, _) =>
+                    {
+                        if (debuggerState is null
+                            || debuggerState.Projection.SessionId != requestedSessionId)
+                        {
+                            throw new InvalidDataException(
+                                "debugger verification query changed session identity");
+                        }
+                        return Task.FromResult<IReadOnlyList<RemoteDebuggerSession>>(
+                            [debuggerState]);
+                    },
+                    (session, _, _) =>
+                    {
+                        debuggerPlanCount++;
+                        return Task.FromResult(new RemoteDebuggerCancelPlan(
+                            "gui-debugger-verification",
+                            session.Projection.SessionId,
+                            session.Projection.Revision,
+                            session));
+                    },
+                    (plan, _, _) =>
+                    {
+                        debuggerApplyCount++;
+                        debuggerState = DebuggerSessionFixture(
+                            plan.SessionId,
+                            cancelled: true);
+                        return Task.FromResult(new RemoteDebuggerCancelResult(
+                            plan.CommandId,
+                            debuggerState,
+                            1_700_000_000_000));
                     });
                 workspace = new RemoteRuntimeWorkspaceWindow(
                     options,
@@ -797,6 +840,16 @@ internal sealed class LeserpentApp : Application
                     orchestraWorkspace.VerifyAccessibility();
                     orchestraWorkspace.VerifyLayoutEnvelope();
                     orchestraLayoutCount++;
+                    var debugger = new RemoteDebuggerWindow(
+                        debuggerOperations,
+                        options.Endpoint.Authority,
+                        "verification-principal",
+                        localization);
+                    debugger.ProbeLocalizedPresentation();
+                    debugger.VerifyAccessibility();
+                    debugger.VerifyLayoutEnvelope();
+                    debugger.Close();
+                    debuggerLayoutCount++;
                     var registration = new RuntimeRegistrationWindow(
                         registrationOperations,
                         "verification-principal",
@@ -830,12 +883,19 @@ internal sealed class LeserpentApp : Application
                         localization);
                     cancel.VerifyLayoutEnvelope();
                     cancel.Close(false);
-                    dialogLayoutCount += 2;
+                    var debuggerCancel = new DebuggerCancelConfirmationWindow(
+                        "debugger-verification",
+                        "effect-verification",
+                        localization);
+                    debuggerCancel.VerifyLayoutEnvelope();
+                    debuggerCancel.Close(false);
+                    dialogLayoutCount += 3;
                 }
                 if (localizedLayoutCount != 8
-                    || dialogLayoutCount != 32
+                    || dialogLayoutCount != 40
                     || workspaceLayoutCount != 8
                     || orchestraLayoutCount != 8
+                    || debuggerLayoutCount != 8
                     || registrationLayoutCount != 16)
                 {
                     throw new InvalidDataException(
@@ -854,8 +914,22 @@ internal sealed class LeserpentApp : Application
                     throw new InvalidDataException(
                         "runtime registration confirmation submitted an unexpected count");
                 }
+                var debuggerWorkflow = new RemoteDebuggerWindow(
+                    debuggerOperations,
+                    options.Endpoint.Authority,
+                    "verification-principal",
+                    localization);
+                await debuggerWorkflow.ProbeWorkflowAsync();
+                debuggerWorkflow.Close();
+                if (debuggerStartCount != 1
+                    || debuggerPlanCount != 1
+                    || debuggerApplyCount != 1)
+                {
+                    throw new InvalidDataException(
+                        "debugger workflow submitted an unexpected operation count");
+                }
                 Console.WriteLine(
-                    "remote shell controls valid: typed_feed=true, typed_health=true, opaque_feed_detail=true, localized_remote_shell_catalogs=7, localized_remote_operation_catalogs=7, localized_runtime_workspace_catalogs=7, localized_orchestra_catalogs=7, localized_registration_catalogs=7, shell_semantic_keys=56, operation_semantic_keys=57, workspace_semantic_keys=78, orchestra_semantic_keys=72, registration_semantic_keys=49, localized_layouts=8, compact_layout=true, wide_layout=true, localized_dialog_layouts=32, localized_workspace_layouts=8, localized_orchestra_layouts=8, localized_registration_layouts=16, workspace_instances=1, orchestra_instances=1, native_plans=true, rust_control=true, guided_read_only=true, queued_cancel=true, durable_retry=true, registration_dry_run=true, registration_revision_fence=true, registration_confirmation=true, registration_mutation_fence=true, live_language_reprojection=true, workspace_live_language_reprojection=true, orchestra_live_language_reprojection=true, registration_live_language_reprojection=true, network_started=false");
+                    "remote shell controls valid: typed_feed=true, typed_health=true, opaque_feed_detail=true, localized_remote_shell_catalogs=7, localized_remote_operation_catalogs=7, localized_runtime_workspace_catalogs=7, localized_orchestra_catalogs=7, localized_debugger_catalogs=7, localized_registration_catalogs=7, shell_semantic_keys=56, operation_semantic_keys=57, workspace_semantic_keys=78, orchestra_semantic_keys=72, debugger_semantic_keys=29, registration_semantic_keys=49, localized_layouts=8, compact_layout=true, wide_layout=true, localized_dialog_layouts=40, localized_workspace_layouts=8, localized_orchestra_layouts=8, localized_debugger_layouts=8, localized_registration_layouts=16, workspace_instances=1, orchestra_instances=1, debugger_instances=1, native_plans=true, rust_control=true, guided_read_only=true, queued_cancel=true, durable_retry=true, debugger_vm_projection=true, debugger_dry_run=true, debugger_cancel_audit=true, registration_dry_run=true, registration_revision_fence=true, registration_confirmation=true, registration_mutation_fence=true, live_language_reprojection=true, workspace_live_language_reprojection=true, orchestra_live_language_reprojection=true, debugger_live_language_reprojection=true, registration_live_language_reprojection=true, network_started=false");
                 window.Close();
             }
             catch (Exception error)
@@ -881,6 +955,94 @@ internal sealed class LeserpentApp : Application
             desktop.Shutdown(0);
         };
         desktop.MainWindow = window;
+    }
+
+    private static RemoteDebuggerSession DebuggerSessionFixture(
+        string sessionId,
+        bool cancelled)
+    {
+        var revision = cancelled ? 2UL : 1UL;
+        var pending = cancelled
+            ? null
+            : new RemoteDebuggerPendingEffect(
+                "effect-verification",
+                "runtime_list",
+                null);
+        var children = new List<UiNode>
+        {
+            new()
+            {
+                Id = $"debug-{sessionId}-title",
+                Kind = UiNodeKind.Heading,
+                Text = new LocalizedText
+                {
+                    Key = "debugger.title",
+                    Fallback = "Leselang debugger",
+                },
+                Accessibility = new Accessibility(),
+                Children = [],
+            },
+        };
+        if (!cancelled)
+        {
+            children.Add(new UiNode
+            {
+                Id = $"debug-{sessionId}-cancel",
+                Kind = UiNodeKind.Action,
+                Text = new LocalizedText
+                {
+                    Key = "debugger.cancel",
+                    Fallback = "Cancel effect",
+                },
+                Accessibility = new Accessibility
+                {
+                    Label = new LocalizedText
+                    {
+                        Key = "debugger.cancel",
+                        Fallback = "Cancel pending debugger effect",
+                    },
+                },
+                Action = new UiAction
+                {
+                    Kind = ActionKind.DebuggerCancel,
+                    SessionId = sessionId,
+                },
+                Children = [],
+            });
+        }
+        return new RemoteDebuggerSession(
+            new RemoteDebuggerProjection(
+                revision,
+                sessionId,
+                cancelled
+                    ? RemoteDebuggerState.Cancelled
+                    : RemoteDebuggerState.WaitingEffect,
+                1,
+                9_999,
+                cancelled ? null : 300_000,
+                pending,
+                [],
+                null),
+            new UiDocument
+            {
+                SchemaVersion = 1,
+                Revision = revision,
+                Root = new UiNode
+                {
+                    Id = $"debug-{sessionId}",
+                    Kind = UiNodeKind.DebuggerWorkspace,
+                    DebuggerSessionId = sessionId,
+                    Accessibility = new Accessibility
+                    {
+                        Label = new LocalizedText
+                        {
+                            Key = "debugger.workspace",
+                            Fallback = "Leselang debugger workspace",
+                        },
+                    },
+                    Children = children,
+                },
+            });
     }
 
     private static void ConfigureTutorialVerification(

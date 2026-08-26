@@ -212,9 +212,9 @@ That statement covers adapter and renderer conformance, not product reachability
 The machine-validated [GUI function-chain matrix](leserpent-gui-function-chains.md)
 now audits entry, semantic lowering, transport, authority, persistence,
 projection, operator feedback, and Leselang equivalence separately. Its
-2026-08-26 baseline scores the Avalonia product at 86, the Rust-hosted Web target
+2026-08-26 baseline scores the Avalonia product at 94, the Rust-hosted Web target
 at 0, and the supported ASP.NET Web bridge at 100, for a combined target score
-of 78. Avalonia now closes a daemon-owned native Orchestra workspace for strict,
+of 85. Avalonia now closes a daemon-owned native Orchestra workspace for strict,
 revision-fenced plan discovery, Rust-authoritative automatic execution,
 queued-only cancellation, lineage-bound retry, persisted run/event drilldown,
 and idempotent runtime-scoped cleanup. Guided plans remain review-only rather
@@ -222,9 +222,18 @@ than claiming missing sidecar or session authority. The desktop also closes
 existing-runtime registration and registration updates through strict daemon
 inspection, side-effect-free plans, field-change invalidation, explicit
 confirmation, and target-runtime revision fences. The live debugger session
-bridge, product-hosted Leselang automation, and the per-daemon Rust Web console
-remain explicit closure work. Renderer fixtures no longer count as a product
-debugger workflow by themselves.
+bridge is now also closed: `leserpentd` owns a bounded journal-backed VM session,
+stops at the first effect without executing it, returns the Rust-authored
+debugger document over authenticated transport, and applies cancellation only
+after dry-run review and explicit confirmation. The .NET plan remains bound to
+its issuing client and principal, while the desktop refuses to abandon a
+waiting session through its New action. Product-hosted Leselang
+presentation automation and the per-daemon Rust Web console remain explicit
+closure work. Expired effects converge to a terminal revision and release the
+32-session daemon registry; cancellation audit remains restart-durable inside a
+bounded 64-journal retention horizon. Active debugger sessions remain
+process-bound, so reconstruction is tracked as later VM-host resilience rather
+than claimed by this product chain.
 
 The first renderer-neutral slice now exists in `crates/leselang-ui`. It lowers
 the typed fleet projection into a bounded `UiDocument`, resolves revision-fenced
@@ -279,6 +288,12 @@ is pruned with its retained continuation. The waiting debugger document now
 declares a session-bound cancel action that lowers through the same shared
 command planner. Rust and .NET reject session rebinding, and Avalonia renders a
 destructive button while emitting only its stable node ID.
+The product path now exposes that document from a shared `leserpentd`
+`DebuggerAuthority` over local IPC and remote TLS. A strict source-generated
+.NET client validates projection/document equivalence, and the per-daemon
+Avalonia debugger workspace locks session coordinates after start, refreshes
+the authoritative projection, performs a non-mutating cancellation plan, and
+requires explicit confirmation before mounting the audited terminal state.
 `debugger.cancel(session_id: ...)` is now also a typed Leselang effect with
 `debugger.control`, explicit confirmation, a persisted command-correlated
 dispatch result, and restart-safe re-entry. The renderer-neutral UI maps every

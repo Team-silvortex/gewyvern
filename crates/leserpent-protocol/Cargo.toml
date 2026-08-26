@@ -6,6 +6,7 @@ description = "Versioned wire protocol for Leserpent commands, queries, events, 
 license.workspace = true
 
 [dependencies]
+leselang-ui = { path = "../leselang-ui" }
 leserpent-domain = { path = "../leserpent-domain" }
 ring = "0.17"
 serde.workspace = true

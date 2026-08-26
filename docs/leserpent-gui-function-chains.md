@@ -42,13 +42,14 @@ surface complete.
 
 | Surface | Lifecycle | Score | Closed | Partial | Conformance only | Absent |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Avalonia desktop | target | 86 | 7 | 1 | 1 | 0 |
+| Avalonia desktop | target | 94 | 8 | 1 | 0 | 0 |
 | Rust-hosted Web | target | 0 | 0 | 0 | 0 | 1 |
 | ASP.NET Web | bridge | 100 | 5 | 0 | 0 | 0 |
 
-The combined target score is 78. The closed Avalonia families are fleet
+The combined target score is 85. The closed Avalonia families are fleet
 observation, runtime control, existing-runtime registration, daemon lifecycle,
-Gewyvern lifecycle, authority health, and Rust-authoritative Orchestra control. The native
+Gewyvern lifecycle, authority health, Rust-authoritative Orchestra control, and
+the suspended Leselang debugger workflow. The native
 Orchestra workspace now closes revision-fenced plan discovery, automatic run,
 queued-only cancellation, lineage-bound retry, authenticated history/event
 drilldown, and idempotent cleanup. Guided plans stay visibly review-only. The
@@ -58,9 +59,20 @@ field edits invalidate it, and an explicit confirmation applies the same command
 identity without sending deployment credentials or service secrets. The remaining
 target gaps are:
 
-- a product VM-session projection and debugger cancellation bridge;
 - a product Leselang VM host for live GUI presentation automation;
 - a Rust-owned per-daemon TypeScript Web console and compatibility API.
+
+The debugger workspace starts a bounded daemon-owned VM only to its first
+effect, mounts the Rust-authored `UiDocument`, and routes its session-bound
+cancel action through a strict .NET client. Cancellation is reviewed as a
+side-effect-free dry-run, sealed to the issuing client and principal, before
+explicit confirmation consumes the continuation and writes the VM audit. The
+desktop New action stays fenced while that effect is waiting. Active-session
+reconstruction after a daemon restart remains a VM-host resilience concern, not
+part of this closed in-process observation-and-cancellation chain. Deadline
+expiry still converges to a terminal revision and releases the 32-session
+registry. Cancellation audit is restart-durable within a bounded 64-journal
+retention horizon.
 
 ## Commands
 

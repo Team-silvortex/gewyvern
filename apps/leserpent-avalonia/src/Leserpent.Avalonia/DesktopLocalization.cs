@@ -329,6 +329,7 @@ internal sealed class DesktopLocalization
                 DesktopRemoteOperationCatalogs.SimplifiedChinese,
                 DesktopRuntimeWorkspaceCatalogs.SimplifiedChinese,
                 DesktopOrchestraCatalogs.SimplifiedChinese,
+                DesktopDebuggerCatalogs.SimplifiedChinese,
                 DesktopRegistrationCatalogs.SimplifiedChinese,
                 DesktopHubCatalogs.SimplifiedChinese,
                 DesktopTutorialCatalogs.SimplifiedChinese)),
@@ -350,6 +351,7 @@ internal sealed class DesktopLocalization
                 DesktopRemoteOperationCatalogs.TraditionalChinese,
                 DesktopRuntimeWorkspaceCatalogs.TraditionalChinese,
                 DesktopOrchestraCatalogs.TraditionalChinese,
+                DesktopDebuggerCatalogs.TraditionalChinese,
                 DesktopRegistrationCatalogs.TraditionalChinese,
                 DesktopHubCatalogs.TraditionalChinese,
                 DesktopTutorialCatalogs.TraditionalChinese)),
@@ -371,6 +373,7 @@ internal sealed class DesktopLocalization
                 DesktopRemoteOperationCatalogs.Japanese,
                 DesktopRuntimeWorkspaceCatalogs.Japanese,
                 DesktopOrchestraCatalogs.Japanese,
+                DesktopDebuggerCatalogs.Japanese,
                 DesktopRegistrationCatalogs.Japanese,
                 DesktopHubCatalogs.Japanese,
                 DesktopTutorialCatalogs.Japanese)),
@@ -392,6 +395,7 @@ internal sealed class DesktopLocalization
                 DesktopRemoteOperationCatalogs.Spanish,
                 DesktopRuntimeWorkspaceCatalogs.Spanish,
                 DesktopOrchestraCatalogs.Spanish,
+                DesktopDebuggerCatalogs.Spanish,
                 DesktopRegistrationCatalogs.Spanish,
                 DesktopHubCatalogs.Spanish,
                 DesktopTutorialCatalogs.Spanish)),
@@ -413,6 +417,7 @@ internal sealed class DesktopLocalization
                 DesktopRemoteOperationCatalogs.German,
                 DesktopRuntimeWorkspaceCatalogs.German,
                 DesktopOrchestraCatalogs.German,
+                DesktopDebuggerCatalogs.German,
                 DesktopRegistrationCatalogs.German,
                 DesktopHubCatalogs.German,
                 DesktopTutorialCatalogs.German)),
@@ -434,6 +439,7 @@ internal sealed class DesktopLocalization
                 DesktopRemoteOperationCatalogs.French,
                 DesktopRuntimeWorkspaceCatalogs.French,
                 DesktopOrchestraCatalogs.French,
+                DesktopDebuggerCatalogs.French,
                 DesktopRegistrationCatalogs.French,
                 DesktopHubCatalogs.French,
                 DesktopTutorialCatalogs.French)),
@@ -455,6 +461,7 @@ internal sealed class DesktopLocalization
                 DesktopRemoteOperationCatalogs.Korean,
                 DesktopRuntimeWorkspaceCatalogs.Korean,
                 DesktopOrchestraCatalogs.Korean,
+                DesktopDebuggerCatalogs.Korean,
                 DesktopRegistrationCatalogs.Korean,
                 DesktopHubCatalogs.Korean,
                 DesktopTutorialCatalogs.Korean)),
@@ -777,6 +784,7 @@ internal sealed class DesktopLocalization
         DesktopRuntimeWorkspaceCatalogs.VerifyContract();
         DesktopRuntimeWorkspacePresentation.VerifyContract();
         DesktopOrchestraCatalogs.VerifyContract();
+        DesktopDebuggerCatalogs.VerifyContract();
         DesktopRegistrationCatalogs.VerifyContract();
         DesktopHubCatalogs.VerifyContract();
         DesktopHubPresentation.VerifyContract();
@@ -795,6 +803,7 @@ internal sealed class DesktopLocalization
             + DesktopRemoteOperationCatalogs.KeyCount
             + DesktopRuntimeWorkspaceCatalogs.KeyCount
             + DesktopOrchestraCatalogs.KeyCount
+            + DesktopDebuggerCatalogs.KeyCount
             + DesktopRegistrationCatalogs.KeyCount
             + DesktopHubCatalogs.KeyCount
             + DesktopTutorialCatalogs.KeyCount;

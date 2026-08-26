@@ -1668,6 +1668,11 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
         ProtocolResponse::AuthorityWriterClaimed(_) => Err(CliError::Protocol(
             "unexpected internal authority writer response".into(),
         )),
+        ProtocolResponse::DebuggerSessions(_)
+        | ProtocolResponse::DebuggerSessionStarted(_)
+        | ProtocolResponse::DebuggerCancelled(_) => Err(CliError::Protocol(
+            "unexpected debugger response without a typed CLI operation".into(),
+        )),
         ProtocolResponse::Error(error) => Err(CliError::Protocol(format!(
             "{}: {}",
             error.code, error.message
@@ -2946,6 +2951,26 @@ mod tests {
         assert!(rendered.contains("capability_extensions=protocol_catalog=true,training=false"));
         assert!(!rendered.contains("Authorization"));
         assert!(!rendered.contains("secret"));
+    }
+
+    #[test]
+    fn untyped_cli_rejects_debugger_responses_without_rendering_payloads() {
+        let result = render_response(
+            &ResponseEnvelope {
+                schema_version: PROTOCOL_SCHEMA_VERSION,
+                response: ProtocolResponse::DebuggerSessions(
+                    leserpent_protocol::DebuggerSessionsResponse {
+                        sessions: Vec::new(),
+                    },
+                ),
+            },
+            false,
+        );
+        assert!(matches!(
+            result,
+            Err(CliError::Protocol(ref message))
+                if message == "unexpected debugger response without a typed CLI operation"
+        ));
     }
 
     #[test]

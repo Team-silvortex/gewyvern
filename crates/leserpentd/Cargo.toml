@@ -10,7 +10,11 @@ default = []
 native-ssh = ["leserpent-adapters/native-ssh"]
 
 [dependencies]
+leselang-hir = { path = "../leselang-hir" }
+leselang-observe = { path = "../leselang-observe" }
+leselang-syntax = { path = "../leselang-syntax" }
 leselang-ui = { path = "../leselang-ui" }
+leselang-vm = { path = "../leselang-vm" }
 leserpent-adapters = { path = "../leserpent-adapters" }
 leserpent-domain = { path = "../leserpent-domain" }
 leserpent-protocol = { path = "../leserpent-protocol" }
@@ -29,7 +33,5 @@ zeroize = "1"
 libc = "0.2"
 
 [dev-dependencies]
-leselang-hir = { path = "../leselang-hir" }
-leselang-syntax = { path = "../leselang-syntax" }
 rcgen = "0.14"
 rusqlite.workspace = true

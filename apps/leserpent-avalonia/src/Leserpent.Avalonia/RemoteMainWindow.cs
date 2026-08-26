@@ -115,6 +115,10 @@ internal sealed class RemoteMainWindow : Window
     {
         Padding = new Thickness(12, 7),
     };
+    private readonly Button debuggerButton = new()
+    {
+        Padding = new Thickness(12, 7),
+    };
     private readonly Button registrationButton = new()
     {
         Padding = new Thickness(12, 7),
@@ -144,6 +148,7 @@ internal sealed class RemoteMainWindow : Window
     private readonly Grid runtimeToolbarGrid = new();
     private readonly Grid statusGrid = new();
     private RemoteOrchestraWorkspaceWindow? orchestraWorkspace;
+    private RemoteDebuggerWindow? debuggerWorkspace;
     private RuntimeRegistrationWindow? registrationWindow;
 
     public RemoteMainWindow(
@@ -188,6 +193,7 @@ internal sealed class RemoteMainWindow : Window
         clearRuntimeFilterButton.Click += (_, _) => ClearRuntimeFilter();
         authorityHealthButton.Click += (_, _) => RefreshAuthorityHealth();
         orchestraButton.Click += (_, _) => OpenOrchestraWorkspace();
+        debuggerButton.Click += (_, _) => OpenDebuggerWorkspace();
         registrationButton.Click += (_, _) =>
             ObserveUiOperation(OpenRuntimeRegistrationAsync());
 
@@ -223,6 +229,9 @@ internal sealed class RemoteMainWindow : Window
         AutomationProperties.SetAutomationId(
             orchestraButton,
             "remote-orchestra-open");
+        AutomationProperties.SetAutomationId(
+            debuggerButton,
+            "remote-debugger-open");
         AutomationProperties.SetAutomationId(
             registrationButton,
             "remote-runtime-registration-open");
@@ -285,6 +294,9 @@ internal sealed class RemoteMainWindow : Window
         orchestraButton.Content = DesktopOrchestraCatalogs.Resolve(
             localization,
             "entry.open");
+        debuggerButton.Content = DesktopDebuggerCatalogs.Resolve(
+            localization,
+            "entry.open");
         registrationButton.Content = DesktopRegistrationCatalogs.Resolve(
             localization,
             "entry.open");
@@ -341,6 +353,12 @@ internal sealed class RemoteMainWindow : Window
             orchestraButton,
             DesktopOrchestraCatalogs.Resolve(localization, "help.entry"));
         AutomationProperties.SetName(
+            debuggerButton,
+            DesktopDebuggerCatalogs.Resolve(localization, "a11y.entry"));
+        AutomationProperties.SetHelpText(
+            debuggerButton,
+            DesktopDebuggerCatalogs.Resolve(localization, "help.entry"));
+        AutomationProperties.SetName(
             registrationButton,
             DesktopRegistrationCatalogs.Resolve(localization, "entry.open"));
         AutomationProperties.SetHelpText(
@@ -378,6 +396,7 @@ internal sealed class RemoteMainWindow : Window
         runtimeToolbarGrid.Children.Add(runtimeCountText);
         runtimeToolbarGrid.Children.Add(registrationButton);
         runtimeToolbarGrid.Children.Add(orchestraButton);
+        runtimeToolbarGrid.Children.Add(debuggerButton);
         var body = new Grid
         {
             RowDefinitions = RowDefinitions.Parse("Auto,Auto,*"),
@@ -469,9 +488,9 @@ internal sealed class RemoteMainWindow : Window
             : new Thickness(0);
 
         runtimeToolbarGrid.ColumnDefinitions = ColumnDefinitions.Parse(
-            compact ? "*,Auto" : "*,Auto,Auto,Auto,Auto");
+            compact ? "*,Auto" : "*,Auto,Auto,Auto,Auto,Auto");
         runtimeToolbarGrid.RowDefinitions = RowDefinitions.Parse(
-            compact ? "Auto,Auto,Auto,Auto" : "Auto");
+            compact ? "Auto,Auto,Auto,Auto,Auto" : "Auto");
         Grid.SetColumn(runtimeFilterBox, 0);
         Grid.SetRow(runtimeFilterBox, 0);
         Grid.SetColumnSpan(runtimeFilterBox, compact ? 2 : 1);
@@ -485,6 +504,9 @@ internal sealed class RemoteMainWindow : Window
         Grid.SetColumn(orchestraButton, compact ? 0 : 4);
         Grid.SetRow(orchestraButton, compact ? 3 : 0);
         Grid.SetColumnSpan(orchestraButton, compact ? 2 : 1);
+        Grid.SetColumn(debuggerButton, compact ? 0 : 5);
+        Grid.SetRow(debuggerButton, compact ? 4 : 0);
+        Grid.SetColumnSpan(debuggerButton, compact ? 2 : 1);
         clearRuntimeFilterButton.Margin = compact
             ? new Thickness(0, 8, 0, 0)
             : new Thickness(0);
@@ -495,6 +517,9 @@ internal sealed class RemoteMainWindow : Window
             ? new Thickness(0, 8, 0, 0)
             : new Thickness(0);
         orchestraButton.Margin = compact
+            ? new Thickness(0, 6, 0, 0)
+            : new Thickness(0);
+        debuggerButton.Margin = compact
             ? new Thickness(0, 6, 0, 0)
             : new Thickness(0);
 
@@ -556,7 +581,9 @@ internal sealed class RemoteMainWindow : Window
                     || Grid.GetRow(registrationButton) != 2
                     || Grid.GetColumnSpan(registrationButton) != 2
                     || Grid.GetRow(orchestraButton) != 3
-                    || Grid.GetColumnSpan(orchestraButton) != 2))
+                    || Grid.GetColumnSpan(orchestraButton) != 2
+                    || Grid.GetRow(debuggerButton) != 4
+                    || Grid.GetColumnSpan(debuggerButton) != 2))
             {
                 throw new InvalidDataException(
                     "remote shell compact status controls can overlap");
@@ -568,7 +595,9 @@ internal sealed class RemoteMainWindow : Window
                     || Grid.GetColumn(registrationButton) != 3
                     || Grid.GetColumnSpan(registrationButton) != 1
                     || Grid.GetColumn(orchestraButton) != 4
-                    || Grid.GetColumnSpan(orchestraButton) != 1))
+                    || Grid.GetColumnSpan(orchestraButton) != 1
+                    || Grid.GetColumn(debuggerButton) != 5
+                    || Grid.GetColumnSpan(debuggerButton) != 1))
             {
                 throw new InvalidDataException(
                     "remote shell wide status layout drifted");
@@ -1450,6 +1479,28 @@ internal sealed class RemoteMainWindow : Window
         workspace.Show(this);
     }
 
+    private void OpenDebuggerWorkspace()
+    {
+        if (debuggerWorkspace is not null)
+        {
+            debuggerWorkspace.Activate();
+            return;
+        }
+        var workspace = new RemoteDebuggerWindow(
+            options,
+            principal,
+            localization);
+        debuggerWorkspace = workspace;
+        workspace.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(debuggerWorkspace, workspace))
+            {
+                debuggerWorkspace = null;
+            }
+        };
+        workspace.Show(this);
+    }
+
     private async Task OpenRuntimeRegistrationAsync()
     {
         if (registrationWindow is not null)
@@ -1533,6 +1584,8 @@ internal sealed class RemoteMainWindow : Window
         }
         orchestraWorkspace?.Close();
         orchestraWorkspace = null;
+        debuggerWorkspace?.Close();
+        debuggerWorkspace = null;
         registrationWindow?.Close();
         registrationWindow = null;
         workspaceLaunch.ClearPending();

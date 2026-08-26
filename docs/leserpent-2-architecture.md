@@ -2127,14 +2127,23 @@ Rust prints its canonical source and can reconstruct an equivalent event from
 that effect and the current document. This closes business-action parity for
 the current `UiAction` enum.
 
-This is semantic parity, not proof that every action is reachable in the
-product. Product closure is tracked by the source-anchored
-[GUI function-chain matrix](leserpent-gui-function-chains.md). In particular,
-the debugger document, VM cancellation authority, and Avalonia destructive
-button are currently conformance-only: the production remote projection carries
-no debugger session, and `RemoteUiActionRouter` rejects `DebuggerCancel`.
-Likewise, presentation atoms are implemented by the renderer but no product VM
-host currently dispatches a Leselang program against live product windows.
+Semantic parity alone is not proof that every action is reachable in the
+product, so product closure remains tracked by the source-anchored
+[GUI function-chain matrix](leserpent-gui-function-chains.md). The debugger
+workflow now has that product path: `leserpentd` owns the bounded VM session,
+authenticated IPC/TLS returns its Rust-authored projection and `UiDocument`,
+`RemoteUiActionRouter` verifies the inherited debugger-session binding, and the
+Avalonia workspace performs dry-run review before explicitly confirmed,
+journal-audited cancellation. The reviewed plan is sealed to the issuing .NET
+client and principal, and the desktop cannot reset a still-waiting session
+without cancelling it. A deadline crossing advances the projection to a
+terminal failure before another command can race it, so expired sessions release
+the bounded 32-session registry instead of exhausting it. Per-session SQLite
+journals, including rollback/WAL/SHM sidecars, retain cancellation audit across
+restart within a deterministic 64-journal horizon. Active-session reconstruction
+after daemon restart is still a later VM-host resilience concern. Presentation
+atoms are implemented by the renderer, but no product VM host yet dispatches a
+Leselang program against live product windows.
 
 Existing-runtime registration now has a native Avalonia product path independent
 from managed SSH provisioning. `RemoteRegistrationClient` first reads the

@@ -1161,6 +1161,7 @@ dependencies = [
 name = "leserpent-protocol"
 version = "1.17.4"
 dependencies = [
+ "leselang-ui",
  "leserpent-domain",
  "libc",
  "ring",
@@ -1188,8 +1189,10 @@ name = "leserpentd"
 version = "1.17.4"
 dependencies = [
  "leselang-hir",
+ "leselang-observe",
  "leselang-syntax",
  "leselang-ui",
+ "leselang-vm",
  "leserpent-adapters",
  "leserpent-domain",
  "leserpent-protocol",
