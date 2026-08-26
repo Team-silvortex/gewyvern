@@ -226,15 +226,16 @@ semantic UI-IR set for runtime lists, workspaces, logs, capabilities, history,
 and deployment forms. Startup rejects a missing or extra key, and per-locale
 native `TextBlock` probes validate visible plus accessible text. The six newly
 filled shell, semantic, and tutorial catalogs remain candidates until native-
-speaker review. Twelve specialist domains share this boundary: connection/forget,
+speaker review. Thirteen specialist domains share this boundary: connection/forget,
 reverse deployment, gewyvern provisioning/retirement, daemon retirement,
 startup recovery, account presentation, the remote daemon shell, and remote
-operation/Leselang controls, plus the runtime child workspace, Hub dynamic
-cards, and Learning Center, contribute exact 33-key, 46-key, 43-key, 45-key,
-37-key, 9-key, 36-key, 56-key, 57-key, 78-key, 69-key, and 61-key catalogs without
+operation/Leselang controls, plus the runtime child workspace, Orchestra
+history/cleanup workspace, Hub dynamic cards, and Learning Center, contribute
+exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 36-key, 56-key, 57-key,
+78-key, 41-key, 69-key, and 61-key catalogs without
 overlapping the frozen core set. `DesktopDomainCatalogContract` gives these domains one exact-key,
 bounded-value, and format-placeholder validator; the full non-English built-in
-semantic set is therefore 596 keys. All eight built-in
+semantic set is therefore 637 keys. All eight built-in
 locale trees are measured inside their native dialog envelopes, and open
 controls, accessible names, controlled phases, status, and flow direction
 reproject on language change while operation identities, operator values, and

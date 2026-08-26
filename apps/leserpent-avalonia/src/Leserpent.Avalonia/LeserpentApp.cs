@@ -630,12 +630,14 @@ internal sealed class LeserpentApp : Application
         window.Opened += async (_, _) =>
         {
             RemoteRuntimeWorkspaceWindow? workspace = null;
+            RemoteOrchestraWorkspaceWindow? orchestraWorkspace = null;
             try
             {
                 window.ProbeTypedPresentation();
                 var localizedLayoutCount = 0;
                 var dialogLayoutCount = 0;
                 var workspaceLayoutCount = 0;
+                var orchestraLayoutCount = 0;
                 var runtime = new RemoteRuntimeProjection
                 {
                     Id = "runtime-verification",
@@ -654,6 +656,11 @@ internal sealed class LeserpentApp : Application
                     "verification-principal",
                     _ => { },
                     localization);
+                orchestraWorkspace = new RemoteOrchestraWorkspaceWindow(
+                    options,
+                    "verification-principal",
+                    localization,
+                    startLoading: false);
                 foreach (var locale in DesktopLocalization.OfficialLocales.Where(
                     locale => locale.BuiltIn))
                 {
@@ -749,16 +756,28 @@ internal sealed class LeserpentApp : Application
                     workspace.ProbeLocalizedPresentation();
                     workspace.VerifyLayoutEnvelope();
                     workspaceLayoutCount++;
+
+                    orchestraWorkspace.ProbeProjection();
+                    orchestraWorkspace.VerifyAccessibility();
+                    orchestraWorkspace.VerifyLayoutEnvelope();
+                    orchestraLayoutCount++;
+                    var cleanup = new OrchestraCleanupConfirmationWindow(
+                        runtime.Id,
+                        localization);
+                    cleanup.VerifyLayoutEnvelope();
+                    cleanup.Close(false);
+                    dialogLayoutCount++;
                 }
                 if (localizedLayoutCount != 8
-                    || dialogLayoutCount != 16
-                    || workspaceLayoutCount != 8)
+                    || dialogLayoutCount != 24
+                    || workspaceLayoutCount != 8
+                    || orchestraLayoutCount != 8)
                 {
                     throw new InvalidDataException(
                         "remote shell localized layout coverage drifted");
                 }
                 Console.WriteLine(
-                    "remote shell controls valid: typed_feed=true, typed_health=true, opaque_feed_detail=true, localized_remote_shell_catalogs=7, localized_remote_operation_catalogs=7, localized_runtime_workspace_catalogs=7, shell_semantic_keys=56, operation_semantic_keys=57, workspace_semantic_keys=78, localized_layouts=8, compact_layout=true, wide_layout=true, localized_dialog_layouts=16, localized_workspace_layouts=8, workspace_instances=1, live_language_reprojection=true, workspace_live_language_reprojection=true, network_started=false");
+                    "remote shell controls valid: typed_feed=true, typed_health=true, opaque_feed_detail=true, localized_remote_shell_catalogs=7, localized_remote_operation_catalogs=7, localized_runtime_workspace_catalogs=7, localized_orchestra_catalogs=7, shell_semantic_keys=56, operation_semantic_keys=57, workspace_semantic_keys=78, orchestra_semantic_keys=41, localized_layouts=8, compact_layout=true, wide_layout=true, localized_dialog_layouts=24, localized_workspace_layouts=8, localized_orchestra_layouts=8, workspace_instances=1, orchestra_instances=1, live_language_reprojection=true, workspace_live_language_reprojection=true, orchestra_live_language_reprojection=true, network_started=false");
                 window.Close();
             }
             catch (Exception error)
@@ -768,6 +787,7 @@ internal sealed class LeserpentApp : Application
             finally
             {
                 workspace?.Close();
+                orchestraWorkspace?.Close();
             }
         };
         window.Closed += (_, _) =>

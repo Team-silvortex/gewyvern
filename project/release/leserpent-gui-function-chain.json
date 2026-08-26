@@ -362,9 +362,17 @@
       "coverage": [
         {
           "surface": "avalonia-desktop",
-          "state": "absent",
-          "gap": "The desktop product exposes Orchestra health pressure but no plan, run, history, cancel, retry, or cleanup workspace.",
-          "evidence": []
+          "state": "partial",
+          "gap": "The desktop product now closes authenticated persisted run history, event drilldown, and idempotent runtime-scoped cleanup. Plan execution, cancellation, and retry remain compatibility-host authority and have no Rust-authoritative desktop controls.",
+          "evidence": [
+            { "stage": "entry", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteMainWindow.cs", "contains": "private void OpenOrchestraWorkspace()" },
+            { "stage": "semantic", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteOrchestraContracts.cs", "contains": "public sealed class OrchestraHistoryRequest" },
+            { "stage": "transport", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteOrchestraClient.cs", "contains": "public async Task<RemoteOrchestraHistoryPage> LoadRunsAsync(" },
+            { "stage": "authority", "path": "crates/leserpentd/src/wire.rs", "contains": "ProtocolRequest::OrchestraHistory(request)" },
+            { "stage": "persistence", "path": "crates/leserpent-runtime/src/persistence.rs", "contains": "pub fn load_orchestra_history(" },
+            { "stage": "projection", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteOrchestraWorkspaceWindow.cs", "contains": "private void RefreshRunProjection(" },
+            { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteOrchestraWorkspaceWindow.cs", "contains": "private void SetStatus(" }
+          ]
         },
         {
           "surface": "web-1x",

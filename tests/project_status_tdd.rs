@@ -5250,12 +5250,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .expect("product GUI function-chain cell must exist");
     assert_eq!(frontend_parity.maturity, Maturity::Developing);
     assert_eq!(frontend_parity.priority, Priority::Critical);
-    assert_eq!(frontend_parity.completion, 63);
+    assert_eq!(frontend_parity.completion, 68);
     assert_eq!(frontend_parity.contract.stability, ContractStability::Draft);
-    assert_eq!(frontend_parity.contract.version, "0.1.0-draft");
+    assert_eq!(frontend_parity.contract.version, "0.2.0-draft");
     for blocker in [
         "avalonia-runtime-registration-editor",
-        "avalonia-orchestra-workspace",
+        "avalonia-orchestra-command-authority",
         "product-debugger-session-bridge",
         "product-leselang-execution-host",
         "rust-web-self-host",
@@ -6787,7 +6787,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(desktop_localization.maturity, Maturity::Stabilizing);
     assert_eq!(desktop_localization.priority, Priority::Active);
     assert_eq!(desktop_localization.completion, 94);
-    assert_eq!(desktop_localization.contract.version, "0.19.0");
+    assert_eq!(desktop_localization.contract.version, "0.20.0");
     assert_eq!(
         desktop_localization.contract.stability,
         ContractStability::Evolving
@@ -6895,6 +6895,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "remote-operation-catalog-exact-key-set",
         "seven-built-in-runtime-workspace-specialist-catalogs",
         "runtime-workspace-catalog-exact-key-set",
+        "seven-built-in-orchestra-specialist-catalogs",
+        "orchestra-catalog-exact-key-set",
+        "localized-orchestra-history-controls",
+        "eight-built-in-orchestra-layout-envelopes",
+        "live-orchestra-language-reprojection",
         "typed-runtime-workspace-change-presentation",
         "localized-runtime-workspace-controls",
         "eight-built-in-runtime-workspace-layout-envelopes",
@@ -6919,7 +6924,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "localized-remote-credential-source",
         "localized-remote-mutation-failure-projection",
         "eight-built-in-remote-shell-layout-envelopes",
-        "sixteen-built-in-remote-dialog-layout-envelopes",
+        "twenty-four-built-in-remote-dialog-layout-envelopes",
         "compact-remote-status-overlap-fence",
         "live-remote-shell-language-reprojection",
         "offline-remote-shell-layout-verification",
@@ -6939,12 +6944,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         blocker.id == "desktop-long-tail-language-review"
             && blocker.summary.contains("eight built-in locales")
             && blocker.summary.contains("seven non-English built-ins")
-            && blocker.summary.contains("exact 596-key semantic set")
+            && blocker.summary.contains("exact 637-key semantic set")
             && blocker.summary.contains("daemon retirement")
             && blocker.summary.contains("startup recovery")
             && blocker.summary.contains("typed facts")
             && blocker.summary.contains("runtime child-workspace")
-            && blocker.summary.contains("Hub domains")
+            && blocker.summary.contains("Orchestra history/cleanup")
+            && blocker.summary.contains("Hub")
             && blocker.summary.contains("tutorial domains")
             && blocker.summary.contains("80-key native-shell catalogs")
             && blocker

@@ -2529,12 +2529,12 @@
       "lifecycle": "target",
       "priority": "critical",
       "maturity": "developing",
-      "completion": 63,
+      "completion": 68,
       "confidence": "high",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-gui-function-chain",
-        "version": "0.1.0-draft",
+        "version": "0.2.0-draft",
         "stability": "draft",
         "surfaces": [
           "machine-readable-operation-inventory",
@@ -2546,6 +2546,7 @@
           "operator-operation-release-assignment",
           "native-status-gui-view",
           "avalonia-five-family-closure",
+          "avalonia-orchestra-history-event-cleanup-partial",
           "web-bridge-five-family-closure",
           "explicit-avalonia-product-gaps",
           "explicit-rust-web-self-host-gap"
@@ -2565,8 +2566,8 @@
           "summary": "Managed provisioning and retirement are reachable, but Avalonia cannot register or update an already-running arbitrary runtime."
         },
         {
-          "id": "avalonia-orchestra-workspace",
-          "summary": "The desktop product reports Orchestra pressure but has no plan, run, history, cancellation, retry, or cleanup workspace."
+          "id": "avalonia-orchestra-command-authority",
+          "summary": "Avalonia now exposes authenticated persisted run history, event drilldown, and idempotent runtime-scoped cleanup; plan execution, cancellation, and retry still require migration from compatibility-host logic into Rust product authority and desktop controls."
         },
         {
           "id": "product-debugger-session-bridge",
@@ -2586,11 +2587,14 @@
         { "kind": "release", "path": "project/release/leserpent-gui-function-chain.json", "state": "present" },
         { "kind": "source", "path": "src/gui_function_chain.rs", "state": "present" },
         { "kind": "source", "path": "src/bin/gewyvern_status.rs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteOrchestraClient.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteOrchestraWorkspaceWindow.cs", "state": "present" },
         { "kind": "test", "path": "tests/gui_function_chain_tdd.rs", "state": "present" },
+        { "kind": "test", "path": "tests/leserpent_avalonia_orchestra_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" }
       ],
-      "next_gate": "Close the Avalonia Orchestra vertical first, then add general runtime registration/update, the VM-session debugger bridge, the live product Leselang host, and the Rust-owned per-daemon Web console in that order."
+      "next_gate": "Move Orchestra plan, run, cancellation, and retry authority from the ASP.NET compatibility host into Rust and bind those receipts into the existing Avalonia workspace; then add general runtime registration/update, the VM-session debugger bridge, the live product Leselang host, and the Rust-owned per-daemon Web console."
     },
     {
       "id": "leserpent-2/ui-renderers/desktop-localization",
@@ -2605,7 +2609,7 @@
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-desktop-localization",
-        "version": "0.19.0",
+        "version": "0.20.0",
         "stability": "evolving",
         "surfaces": [
           "shared-official-locale-roster",
@@ -2724,6 +2728,11 @@
           "eight-built-in-runtime-workspace-layout-envelopes",
           "live-runtime-workspace-language-reprojection",
           "opaque-runtime-workspace-data-preservation",
+          "seven-built-in-orchestra-specialist-catalogs",
+          "orchestra-catalog-exact-key-set",
+          "localized-orchestra-history-controls",
+          "eight-built-in-orchestra-layout-envelopes",
+          "live-orchestra-language-reprojection",
           "seven-built-in-hub-specialist-catalogs",
           "hub-catalog-exact-key-set",
           "typed-hub-topology-presentation",
@@ -2743,7 +2752,7 @@
           "localized-remote-credential-source",
           "localized-remote-mutation-failure-projection",
           "eight-built-in-remote-shell-layout-envelopes",
-          "sixteen-built-in-remote-dialog-layout-envelopes",
+          "twenty-four-built-in-remote-dialog-layout-envelopes",
           "compact-remote-status-overlap-fence",
           "live-remote-shell-language-reprojection",
           "offline-remote-shell-layout-verification",
@@ -2760,7 +2769,7 @@
       "blockers": [
         {
           "id": "desktop-long-tail-language-review",
-          "summary": "All eight built-in locales have complete 80-key native-shell catalogs and six-step Learning Center content; all seven non-English built-ins cover the exact 596-key semantic set across core UI-IR, connection, reverse deployment, gewyvern provisioning/retirement, daemon retirement, startup recovery, account, remote shell, remote operation/Leselang, runtime child-workspace, Hub domains, and tutorial domains. Remote feed, authority-health, mutation-failure, account, workspace-change, severity-alert, live-refresh, Hub topology-phase, refresh-summary, and runtime-status projection use typed facts while operator identities, runtime IDs, paths, log bodies, and bounded diagnostics remain opaque. Desktop and Web retain the strict 18-key core-ui v1 compatibility floor, while all 22 official v1.1.0 artifacts now carry an exact 30-key set that additionally localizes browser-following language selection, the pack center, and day/night/system theme controls. Desktop downloads those artifacts from an explicitly selected local or saved daemon through its saved CA trust without sending an admin credential. Rust leserpentd embeds the exact catalog and 22-pack roster; its public GET route and the managed Web host reject bearer/admin headers while authenticated /v1 routes remain separate. The Local Orchestra verifier proves a real private-CA TLS download with digest/locale/version bound and the exact current official key set validated before private install, load, removal, and daemon restart. Official-contract rejections create no store on first install, while rejected upgrades preserve the previous pack and leave no temporary file. The saved-daemon verifier persists and reloads the production connection catalog, imports exactly one selected managed CA, rejects a decoy CA at TLS, completes the same credential-free digest-bound private roundtrip, and proves the catalog and CA inputs remain immutable. Retained 2026-08-24 packaged macOS arm64 and physical Linux x86_64 NativeAOT proofs run both verifier paths through the package-owned client and daemon with no secret output; the remote Linux shelf is revalidated locally for exact regular-file inventory, dual fixed-contract verifier logs, payload and language-asset hashes, verifier assertions, and credential absence. Offline JSON import remains structurally validated but not catalog-authenticated; malformed-sibling isolation remains enforced and missing keys retain deterministic English fallback. The six candidate built-in translations and the new 12-key downloadable expansion still require native-speaker review, while all 22 downloadable packs remain intentionally partial beyond their exact 30-key official set."
+          "summary": "All eight built-in locales have complete 80-key native-shell catalogs and six-step Learning Center content; all seven non-English built-ins cover the exact 637-key semantic set across core UI-IR, connection, reverse deployment, gewyvern provisioning/retirement, daemon retirement, startup recovery, account, remote shell, remote operation/Leselang, runtime child-workspace, Orchestra history/cleanup, Hub, and tutorial domains. Remote feed, authority-health, mutation-failure, account, workspace-change, severity-alert, live-refresh, Orchestra history, Hub topology-phase, refresh-summary, and runtime-status projection use typed facts while operator identities, runtime IDs, paths, log bodies, and bounded diagnostics remain opaque. Desktop and Web retain the strict 18-key core-ui v1 compatibility floor, while all 22 official v1.1.0 artifacts now carry an exact 30-key set that additionally localizes browser-following language selection, the pack center, and day/night/system theme controls. Desktop downloads those artifacts from an explicitly selected local or saved daemon through its saved CA trust without sending an admin credential. Rust leserpentd embeds the exact catalog and 22-pack roster; its public GET route and the managed Web host reject bearer/admin headers while authenticated /v1 routes remain separate. The Local Orchestra verifier proves a real private-CA TLS download with digest/locale/version bound and the exact current official key set validated before private install, load, removal, and daemon restart. Official-contract rejections create no store on first install, while rejected upgrades preserve the previous pack and leave no temporary file. The saved-daemon verifier persists and reloads the production connection catalog, imports exactly one selected managed CA, rejects a decoy CA at TLS, completes the same credential-free digest-bound private roundtrip, and proves the catalog and CA inputs remain immutable. Retained 2026-08-24 packaged macOS arm64 and physical Linux x86_64 NativeAOT proofs run both verifier paths through the package-owned client and daemon with no secret output; the remote Linux shelf is revalidated locally for exact regular-file inventory, dual fixed-contract verifier logs, payload and language-asset hashes, verifier assertions, and credential absence. Offline JSON import remains structurally validated but not catalog-authenticated; malformed-sibling isolation remains enforced and missing keys retain deterministic English fallback. The six candidate built-in translations and the new 12-key downloadable expansion still require native-speaker review, while all 22 downloadable packs remain intentionally partial beyond their exact 30-key official set."
         }
       ],
       "consumers": ["desktop-operators", "leselang-ui-adapters"],
@@ -2780,11 +2789,13 @@
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRemoteOperationCatalogs.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRemotePresentation.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRuntimeWorkspaceCatalogs.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopOrchestraCatalogs.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopRuntimeWorkspacePresentation.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopHubCatalogs.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopHubPresentation.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopTutorialCatalogs.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteOrchestraWorkspaceWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopConnectionWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopForgetConnectionWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/BootstrapDeploymentWindow.cs", "state": "present" },

@@ -212,12 +212,15 @@ That statement covers adapter and renderer conformance, not product reachability
 The machine-validated [GUI function-chain matrix](leserpent-gui-function-chains.md)
 now audits entry, semantic lowering, transport, authority, persistence,
 projection, operator feedback, and Leselang equivalence separately. Its
-2026-08-26 baseline scores the Avalonia product at 69, the Rust-hosted Web target
+2026-08-26 baseline scores the Avalonia product at 75, the Rust-hosted Web target
 at 0, and the supported ASP.NET Web bridge at 100, for a combined target score
-of 63. General runtime registration/update, the Avalonia Orchestra workspace,
-the live debugger session bridge, product-hosted Leselang automation, and the
-per-daemon Rust Web console remain explicit closure work. Renderer fixtures no
-longer count as a product debugger workflow by themselves.
+of 68. Avalonia now has a daemon-owned native Orchestra workspace for strict,
+authenticated persisted run history, event drilldown, and idempotent
+runtime-scoped cleanup. Orchestra plan execution, cancellation, and retry still
+need Rust product authority. General runtime registration/update, the live
+debugger session bridge, product-hosted Leselang automation, and the per-daemon
+Rust Web console remain explicit closure work. Renderer fixtures no longer
+count as a product debugger workflow by themselves.
 
 The first renderer-neutral slice now exists in `crates/leselang-ui`. It lowers
 the typed fleet projection into a bounded `UiDocument`, resolves revision-fenced
@@ -2294,15 +2297,15 @@ explicit review
 candidates. Connection/forget, reverse deployment, gewyvern provisioning and
 retirement, daemon retirement, startup recovery, account presentation, the
 remote daemon shell, remote operation/Leselang controls, and the runtime child
-workspace, plus Hub dynamic cards and the Learning Center, now establish the
-specialist-dialog pattern.
+workspace, plus the Orchestra history/cleanup workspace, Hub dynamic cards, and
+the Learning Center, now establish the specialist-dialog pattern.
 Their exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 36-key, 56-key,
-57-key, 78-key, 69-key, and 61-key catalogs bring every non-English built-in to
-596 semantic keys without touching the frozen core set. They share one strict
+57-key, 78-key, 41-key, 69-key, and 61-key catalogs bring every non-English
+built-in to 637 semantic keys without touching the frozen core set. They share one strict
 key/value/placeholder validator. Eight-locale native layout probes cover each
 dialog and the account card at the minimum Hub envelope. The remote proof also
-covers compact and wide shells plus 16 refresh/deployment dialog layouts without
-starting a network client. Live language changes reproject labels, controlled
+covers compact and wide shells plus 24 refresh/deployment/cleanup dialog layouts
+without starting a network client. Live language changes reproject labels, controlled
 phases, status, accessibility, and flow direction without rewriting operation
 identities, operator input, or raw errors. Startup retains concrete sanitized
 diagnostics as opaque data; account localization projects typed session status

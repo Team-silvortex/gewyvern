@@ -109,6 +109,10 @@ internal sealed class RemoteMainWindow : Window
     {
         Padding = new Thickness(12, 6),
     };
+    private readonly Button orchestraButton = new()
+    {
+        Padding = new Thickness(12, 7),
+    };
     private readonly StackPanel authorityHealthPanel = new()
     {
         Orientation = Avalonia.Layout.Orientation.Horizontal,
@@ -132,6 +136,7 @@ internal sealed class RemoteMainWindow : Window
     private readonly Grid identityGrid = new();
     private readonly Grid runtimeToolbarGrid = new();
     private readonly Grid statusGrid = new();
+    private RemoteOrchestraWorkspaceWindow? orchestraWorkspace;
 
     public RemoteMainWindow(
         RemoteClientOptions options,
@@ -174,6 +179,7 @@ internal sealed class RemoteMainWindow : Window
         runtimeFilterBox.KeyDown += OnRuntimeFilterKeyDown;
         clearRuntimeFilterButton.Click += (_, _) => ClearRuntimeFilter();
         authorityHealthButton.Click += (_, _) => RefreshAuthorityHealth();
+        orchestraButton.Click += (_, _) => OpenOrchestraWorkspace();
 
         AutomationProperties.SetAutomationId(statusText, "remote-connection-state");
         AutomationProperties.SetLiveSetting(statusText, AutomationLiveSetting.Off);
@@ -204,6 +210,9 @@ internal sealed class RemoteMainWindow : Window
         AutomationProperties.SetAutomationId(
             authorityHealthButton,
             "remote-authority-health-refresh");
+        AutomationProperties.SetAutomationId(
+            orchestraButton,
+            "remote-orchestra-open");
         Content = new Grid
         {
             RowDefinitions = RowDefinitions.Parse("*,Auto,Auto"),
@@ -260,6 +269,9 @@ internal sealed class RemoteMainWindow : Window
         runtimeFilterBox.PlaceholderText = localization.Text(DesktopTextKey.FilterRuntimes);
         authorityHealthText.Text = localization.Text(DesktopTextKey.AwaitingAuthorityCheck);
         authorityHealthButton.Content = localization.Text(DesktopTextKey.RefreshHealth);
+        orchestraButton.Content = DesktopOrchestraCatalogs.Resolve(
+            localization,
+            "entry.open");
         clearRuntimeFilterButton.Content = localization.Text(DesktopTextKey.Clear);
         AutomationProperties.SetName(
             statusText,
@@ -306,6 +318,12 @@ internal sealed class RemoteMainWindow : Window
         AutomationProperties.SetHelpText(
             authorityHealthButton,
             DesktopRemoteShellCatalogs.Resolve(localization, "help.health_refresh"));
+        AutomationProperties.SetName(
+            orchestraButton,
+            DesktopOrchestraCatalogs.Resolve(localization, "a11y.entry"));
+        AutomationProperties.SetHelpText(
+            orchestraButton,
+            DesktopOrchestraCatalogs.Resolve(localization, "help.entry"));
         ConfigureTrustIdentity(trustIdentity);
         ConfigureCredentialSource(credentialSource);
         ApplyFeedPresentation(currentState);
@@ -336,6 +354,7 @@ internal sealed class RemoteMainWindow : Window
         runtimeToolbarGrid.Children.Add(runtimeFilterBox);
         runtimeToolbarGrid.Children.Add(clearRuntimeFilterButton);
         runtimeToolbarGrid.Children.Add(runtimeCountText);
+        runtimeToolbarGrid.Children.Add(orchestraButton);
         var body = new Grid
         {
             RowDefinitions = RowDefinitions.Parse("Auto,Auto,*"),
@@ -427,9 +446,9 @@ internal sealed class RemoteMainWindow : Window
             : new Thickness(0);
 
         runtimeToolbarGrid.ColumnDefinitions = ColumnDefinitions.Parse(
-            compact ? "*,Auto" : "*,Auto,Auto");
+            compact ? "*,Auto" : "*,Auto,Auto,Auto");
         runtimeToolbarGrid.RowDefinitions = RowDefinitions.Parse(
-            compact ? "Auto,Auto" : "Auto");
+            compact ? "Auto,Auto,Auto" : "Auto");
         Grid.SetColumn(runtimeFilterBox, 0);
         Grid.SetRow(runtimeFilterBox, 0);
         Grid.SetColumnSpan(runtimeFilterBox, compact ? 2 : 1);
@@ -437,10 +456,16 @@ internal sealed class RemoteMainWindow : Window
         Grid.SetRow(clearRuntimeFilterButton, compact ? 1 : 0);
         Grid.SetColumn(runtimeCountText, compact ? 1 : 2);
         Grid.SetRow(runtimeCountText, compact ? 1 : 0);
+        Grid.SetColumn(orchestraButton, compact ? 0 : 3);
+        Grid.SetRow(orchestraButton, compact ? 2 : 0);
+        Grid.SetColumnSpan(orchestraButton, compact ? 2 : 1);
         clearRuntimeFilterButton.Margin = compact
             ? new Thickness(0, 8, 0, 0)
             : new Thickness(0);
         runtimeCountText.Margin = compact
+            ? new Thickness(0, 8, 0, 0)
+            : new Thickness(0);
+        orchestraButton.Margin = compact
             ? new Thickness(0, 8, 0, 0)
             : new Thickness(0);
 
@@ -498,7 +523,9 @@ internal sealed class RemoteMainWindow : Window
             if (density == RemoteLayoutDensity.Compact
                 && (Grid.GetRow(connectionButton) != 2
                     || Grid.GetRow(reconnectButton) != 2
-                    || Grid.GetColumnSpan(statusText) != 2))
+                    || Grid.GetColumnSpan(statusText) != 2
+                    || Grid.GetRow(orchestraButton) != 2
+                    || Grid.GetColumnSpan(orchestraButton) != 2))
             {
                 throw new InvalidDataException(
                     "remote shell compact status controls can overlap");
@@ -506,7 +533,9 @@ internal sealed class RemoteMainWindow : Window
             if (density == RemoteLayoutDensity.Wide
                 && (Grid.GetRow(connectionButton) != 0
                     || Grid.GetRow(reconnectButton) != 0
-                    || Grid.GetColumnSpan(statusText) != 1))
+                    || Grid.GetColumnSpan(statusText) != 1
+                    || Grid.GetColumn(orchestraButton) != 3
+                    || Grid.GetColumnSpan(orchestraButton) != 1))
             {
                 throw new InvalidDataException(
                     "remote shell wide status layout drifted");
@@ -1361,6 +1390,28 @@ internal sealed class RemoteMainWindow : Window
         workspace.Show(this);
     }
 
+    private void OpenOrchestraWorkspace()
+    {
+        if (orchestraWorkspace is not null)
+        {
+            orchestraWorkspace.Activate();
+            return;
+        }
+        var workspace = new RemoteOrchestraWorkspaceWindow(
+            options,
+            principal,
+            localization);
+        orchestraWorkspace = workspace;
+        workspace.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(orchestraWorkspace, workspace))
+            {
+                orchestraWorkspace = null;
+            }
+        };
+        workspace.Show(this);
+    }
+
     private void OnClosed(object? sender, EventArgs eventArgs)
     {
         _ = sender;
@@ -1379,6 +1430,8 @@ internal sealed class RemoteMainWindow : Window
         {
             workspace.Close();
         }
+        orchestraWorkspace?.Close();
+        orchestraWorkspace = null;
         workspaceLaunch.ClearPending();
         mutationCoordinator.CancelActive();
         healthClient.Dispose();

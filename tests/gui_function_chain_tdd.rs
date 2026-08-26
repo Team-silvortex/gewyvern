@@ -153,7 +153,7 @@ fn gui_summary_separates_product_closure_from_renderer_conformance() {
     let summary = load_catalog().summary();
     assert_eq!(summary.operation_count, 31);
     assert_eq!(summary.chain_count, 11);
-    assert_eq!(summary.target_score, 63);
+    assert_eq!(summary.target_score, 68);
 
     let avalonia = summary
         .surfaces
@@ -161,12 +161,12 @@ fn gui_summary_separates_product_closure_from_renderer_conformance() {
         .find(|surface| surface.id == "avalonia-desktop")
         .expect("Avalonia target summary must exist");
     assert_eq!(avalonia.lifecycle, GuiSurfaceLifecycle::Target);
-    assert_eq!(avalonia.score, 69);
+    assert_eq!(avalonia.score, 75);
     assert_eq!(avalonia.required_chain_count, 9);
     assert_eq!(avalonia.closed, 5);
-    assert_eq!(avalonia.partial, 2);
+    assert_eq!(avalonia.partial, 3);
     assert_eq!(avalonia.conformance_only, 1);
-    assert_eq!(avalonia.absent, 1);
+    assert_eq!(avalonia.absent, 0);
     assert_eq!(
         avalonia.gaps,
         [
@@ -299,11 +299,11 @@ fn native_status_cli_reports_gui_closure_without_hiding_gaps() {
     assert!(output.status.success());
     let payload: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("GUI status view must be JSON");
-    assert_eq!(payload["target_score"], 63);
+    assert_eq!(payload["target_score"], 68);
     assert_eq!(payload["operation_count"], 31);
     assert_eq!(payload["chain_count"], 11);
     assert_eq!(payload["surfaces"][0]["id"], "avalonia-desktop");
-    assert_eq!(payload["surfaces"][0]["score"], 69);
+    assert_eq!(payload["surfaces"][0]["score"], 75);
     assert_eq!(
         payload["surfaces"][0]["gaps"],
         serde_json::json!([
@@ -321,6 +321,6 @@ fn native_status_cli_reports_gui_closure_without_hiding_gaps() {
     assert!(validation.status.success());
     let payload: serde_json::Value =
         serde_json::from_slice(&validation.stdout).expect("combined validation must be JSON");
-    assert_eq!(payload["gui_target_score"], 63);
+    assert_eq!(payload["gui_target_score"], 68);
     assert_eq!(payload["gui_operations"], 31);
 }

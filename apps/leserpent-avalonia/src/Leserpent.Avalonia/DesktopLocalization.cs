@@ -328,6 +328,7 @@ internal sealed class DesktopLocalization
                 DesktopRemoteShellCatalogs.SimplifiedChinese,
                 DesktopRemoteOperationCatalogs.SimplifiedChinese,
                 DesktopRuntimeWorkspaceCatalogs.SimplifiedChinese,
+                DesktopOrchestraCatalogs.SimplifiedChinese,
                 DesktopHubCatalogs.SimplifiedChinese,
                 DesktopTutorialCatalogs.SimplifiedChinese)),
         BuiltInShell(
@@ -347,6 +348,7 @@ internal sealed class DesktopLocalization
                 DesktopRemoteShellCatalogs.TraditionalChinese,
                 DesktopRemoteOperationCatalogs.TraditionalChinese,
                 DesktopRuntimeWorkspaceCatalogs.TraditionalChinese,
+                DesktopOrchestraCatalogs.TraditionalChinese,
                 DesktopHubCatalogs.TraditionalChinese,
                 DesktopTutorialCatalogs.TraditionalChinese)),
         BuiltInShell(
@@ -366,6 +368,7 @@ internal sealed class DesktopLocalization
                 DesktopRemoteShellCatalogs.Japanese,
                 DesktopRemoteOperationCatalogs.Japanese,
                 DesktopRuntimeWorkspaceCatalogs.Japanese,
+                DesktopOrchestraCatalogs.Japanese,
                 DesktopHubCatalogs.Japanese,
                 DesktopTutorialCatalogs.Japanese)),
         BuiltInShell(
@@ -385,6 +388,7 @@ internal sealed class DesktopLocalization
                 DesktopRemoteShellCatalogs.Spanish,
                 DesktopRemoteOperationCatalogs.Spanish,
                 DesktopRuntimeWorkspaceCatalogs.Spanish,
+                DesktopOrchestraCatalogs.Spanish,
                 DesktopHubCatalogs.Spanish,
                 DesktopTutorialCatalogs.Spanish)),
         BuiltInShell(
@@ -404,6 +408,7 @@ internal sealed class DesktopLocalization
                 DesktopRemoteShellCatalogs.German,
                 DesktopRemoteOperationCatalogs.German,
                 DesktopRuntimeWorkspaceCatalogs.German,
+                DesktopOrchestraCatalogs.German,
                 DesktopHubCatalogs.German,
                 DesktopTutorialCatalogs.German)),
         BuiltInShell(
@@ -423,6 +428,7 @@ internal sealed class DesktopLocalization
                 DesktopRemoteShellCatalogs.French,
                 DesktopRemoteOperationCatalogs.French,
                 DesktopRuntimeWorkspaceCatalogs.French,
+                DesktopOrchestraCatalogs.French,
                 DesktopHubCatalogs.French,
                 DesktopTutorialCatalogs.French)),
         BuiltInShell(
@@ -442,6 +448,7 @@ internal sealed class DesktopLocalization
                 DesktopRemoteShellCatalogs.Korean,
                 DesktopRemoteOperationCatalogs.Korean,
                 DesktopRuntimeWorkspaceCatalogs.Korean,
+                DesktopOrchestraCatalogs.Korean,
                 DesktopHubCatalogs.Korean,
                 DesktopTutorialCatalogs.Korean)),
         Core("pt-BR", "Portuguese (Brazil)", "Português (Brasil)", "Idioma",
@@ -762,6 +769,7 @@ internal sealed class DesktopLocalization
         DesktopRemoteOperationCatalogs.VerifyContract();
         DesktopRuntimeWorkspaceCatalogs.VerifyContract();
         DesktopRuntimeWorkspacePresentation.VerifyContract();
+        DesktopOrchestraCatalogs.VerifyContract();
         DesktopHubCatalogs.VerifyContract();
         DesktopHubPresentation.VerifyContract();
         DesktopTutorialCatalogs.VerifyContract();
@@ -778,6 +786,7 @@ internal sealed class DesktopLocalization
             + DesktopRemoteShellCatalogs.KeyCount
             + DesktopRemoteOperationCatalogs.KeyCount
             + DesktopRuntimeWorkspaceCatalogs.KeyCount
+            + DesktopOrchestraCatalogs.KeyCount
             + DesktopHubCatalogs.KeyCount
             + DesktopTutorialCatalogs.KeyCount;
         if (Schema != "leserpent.desktop-localization/v1"
