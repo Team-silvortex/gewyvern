@@ -3,7 +3,7 @@ using System.Globalization;
 internal static class DesktopDebuggerCatalogs
 {
     private const string Prefix = "desktop.debugger.";
-    public const int KeyCount = 29;
+    public const int KeyCount = 33;
 
     private sealed record Entry(
         string Key,
@@ -29,11 +29,15 @@ internal static class DesktopDebuggerCatalogs
         new("label.timeout", 0, "Timeout (ms)", "超时（毫秒）", "逾時（毫秒）", "タイムアウト (ms)", "Tiempo límite (ms)", "Zeitlimit (ms)", "Délai (ms)", "시간 제한(ms)"),
         new("label.source", 0, "Leselang source", "Leselang 源码", "Leselang 原始碼", "Leselang ソース", "Código Leselang", "Leselang-Quelltext", "Source Leselang", "Leselang 소스"),
         new("action.start", 0, "Start suspended session", "启动挂起会话", "啟動暫停工作階段", "中断セッションを開始", "Iniciar sesión suspendida", "Angehaltene Sitzung starten", "Démarrer la session suspendue", "일시 중단 세션 시작"),
+        new("action.run_live", 0, "Run on this window", "在当前窗口运行", "在目前視窗執行", "このウィンドウで実行", "Ejecutar en esta ventana", "In diesem Fenster ausführen", "Exécuter dans cette fenêtre", "이 창에서 실행"),
+        new("help.run_live", 0, "Runs bounded UI effects against the live fleet window and returns each result to the Rust VM.", "对实时舰队窗口执行有界 UI 副作用，并将每个结果返回 Rust VM。", "對即時艦隊視窗執行有界 UI 副作用，並將每個結果傳回 Rust VM。", "制限付き UI エフェクトをライブのフリートウィンドウで実行し、各結果を Rust VM に返します。", "Ejecuta efectos de UI acotados en la ventana de flota activa y devuelve cada resultado a la VM Rust.", "Führt begrenzte UI-Effekte im aktiven Flottenfenster aus und gibt jedes Ergebnis an die Rust-VM zurück.", "Exécute des effets d’interface bornés dans la fenêtre de flotte active et renvoie chaque résultat à la VM Rust.", "제한된 UI 효과를 실시간 플릿 창에서 실행하고 각 결과를 Rust VM에 반환합니다."),
         new("action.new", 0, "New session", "新建会话", "新增工作階段", "新しいセッション", "Nueva sesión", "Neue Sitzung", "Nouvelle session", "새 세션"),
         new("action.refresh", 0, "Refresh projection", "刷新投影", "重新整理投影", "投影を更新", "Actualizar proyección", "Projektion aktualisieren", "Actualiser la projection", "프로젝션 새로 고침"),
         new("status.ready", 0, "Ready. The daemon will stop before executing the first effect.", "就绪。daemon 会在执行第一个副作用前停止。", "就緒。daemon 會在執行第一個副作用前停止。", "準備完了。daemon は最初のエフェクトを実行する前に停止します。", "Listo. El daemon se detendrá antes de ejecutar el primer efecto.", "Bereit. Der Daemon stoppt vor der Ausführung des ersten Effekts.", "Prêt. Le daemon s’arrêtera avant d’exécuter le premier effet.", "준비되었습니다. daemon은 첫 번째 효과를 실행하기 전에 중지합니다."),
         new("status.starting", 0, "Starting a bounded VM session...", "正在启动有界 VM 会话...", "正在啟動有界 VM 工作階段...", "制限付き VM セッションを開始中...", "Iniciando una sesión de VM acotada...", "Begrenzte VM-Sitzung wird gestartet...", "Démarrage d’une session de VM bornée...", "제한된 VM 세션을 시작하는 중..."),
         new("status.started", 2, "Session {0} suspended at revision {1}.", "会话 {0} 已在修订 {1} 处挂起。", "工作階段 {0} 已在修訂 {1} 處暫停。", "セッション {0} はリビジョン {1} で中断しました。", "La sesión {0} se suspendió en la revisión {1}.", "Sitzung {0} wurde bei Revision {1} angehalten.", "La session {0} est suspendue à la révision {1}.", "세션 {0}이 리비전 {1}에서 일시 중단되었습니다."),
+        new("status.running_live", 0, "Dispatching bounded presentation effects to the live window...", "正在向实时窗口分派有界展示副作用...", "正在向即時視窗分派有界展示副作用...", "制限付きプレゼンテーションエフェクトをライブウィンドウへ送信しています...", "Enviando efectos de presentación acotados a la ventana activa...", "Begrenzte Darstellungseffekte werden an das aktive Fenster gesendet...", "Envoi d’effets de présentation bornés vers la fenêtre active...", "제한된 프레젠테이션 효과를 실시간 창으로 전달하는 중..."),
+        new("status.live_completed", 2, "Session {0} completed after {1} live UI effect(s).", "会话 {0} 在执行 {1} 个实时 UI 副作用后完成。", "工作階段 {0} 在執行 {1} 個即時 UI 副作用後完成。", "セッション {0} は {1} 個のライブ UI エフェクト後に完了しました。", "La sesión {0} terminó tras {1} efecto(s) de UI activo(s).", "Sitzung {0} wurde nach {1} Live-UI-Effekt(en) abgeschlossen.", "La session {0} s’est terminée après {1} effet(s) d’interface actif(s).", "세션 {0}이 실시간 UI 효과 {1}개 실행 후 완료되었습니다."),
         new("status.refreshing", 0, "Refreshing the authoritative projection...", "正在刷新权威投影...", "正在重新整理權威投影...", "権威投影を更新中...", "Actualizando la proyección autoritativa...", "Autoritative Projektion wird aktualisiert...", "Actualisation de la projection d’autorité...", "권한 프로젝션을 새로 고치는 중..."),
         new("status.refreshed", 2, "Session {0} refreshed at revision {1}.", "会话 {0} 已刷新到修订 {1}。", "工作階段 {0} 已重新整理至修訂 {1}。", "セッション {0} をリビジョン {1} に更新しました。", "La sesión {0} se actualizó en la revisión {1}.", "Sitzung {0} wurde auf Revision {1} aktualisiert.", "La session {0} a été actualisée à la révision {1}.", "세션 {0}을 리비전 {1}로 새로 고쳤습니다."),
         new("status.planning", 0, "Requesting a side-effect-free cancellation plan...", "正在请求无副作用的取消预演...", "正在請求無副作用的取消預演...", "副作用のないキャンセル計画を要求中...", "Solicitando un plan de cancelación sin efectos...", "Nebenwirkungsfreier Abbruchplan wird angefordert...", "Demande d’un plan d’annulation sans effet...", "부작용 없는 취소 계획을 요청하는 중..."),

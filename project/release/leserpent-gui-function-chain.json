@@ -444,18 +444,20 @@
       "label": "Product GUI and Leselang execution equivalence",
       "release_required": true,
       "operations": ["leselang-export", "ui-presentation"],
-      "required_stages": ["entry", "semantic", "authority", "feedback", "automation"],
+      "required_stages": ["entry", "semantic", "transport", "authority", "persistence", "projection", "feedback", "automation"],
       "required_surfaces": ["avalonia-desktop"],
       "coverage": [
         {
           "surface": "avalonia-desktop",
-          "state": "partial",
-          "gap": "Business actions export canonical Leselang and the renderer implements all presentation atoms, but no product VM host dispatches a Leselang program against live product windows.",
+          "state": "closed",
           "evidence": [
-            { "stage": "entry", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LeselangExportControl.cs", "contains": "internal sealed class LeselangExportControl" },
-            { "stage": "semantic", "path": "crates/leselang-ui/src/lib.rs", "contains": "pub enum UiAction" },
-            { "stage": "authority", "path": "crates/leserpentd/src/remote.rs", "contains": "HttpRoute::LeselangExport" },
-            { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LeselangExportControl.cs", "contains": "SetStatus(\"leselang.status.generated\"" },
+            { "stage": "entry", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteDebuggerWindow.cs", "contains": "runLiveButton.Click" },
+            { "stage": "semantic", "path": "crates/leselang-vm/src/lib.rs", "contains": "pub enum PresentationOperation" },
+            { "stage": "transport", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteDebuggerClient.cs", "contains": "public async Task<RemoteDebuggerPresentationResult> AdvancePresentationAsync(" },
+            { "stage": "authority", "path": "crates/leserpentd/src/debugger.rs", "contains": "pub fn acknowledge_presentation(" },
+            { "stage": "persistence", "path": "crates/leselang-vm/src/lib.rs", "contains": "self.journal.record_completed(image, &step)" },
+            { "stage": "projection", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteDebuggerClient.cs", "contains": "private static RemoteDebuggerSession DecodeSession(" },
+            { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteDebuggerWindow.cs", "contains": "\"status.live_completed\"" },
             { "stage": "automation", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/AvaloniaDocumentRenderer.cs", "contains": "ApplyPresentationAsync(" }
           ]
         }

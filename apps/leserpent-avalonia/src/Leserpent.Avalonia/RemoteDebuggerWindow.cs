@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -14,11 +15,14 @@ internal sealed record RemoteDebuggerWindowOperations(
     Func<RemoteDebuggerSession, string, CancellationToken,
         Task<RemoteDebuggerCancelPlan>> PlanCancel,
     Func<RemoteDebuggerCancelPlan, string, CancellationToken,
-        Task<RemoteDebuggerCancelResult>> ApplyCancel);
+        Task<RemoteDebuggerCancelResult>> ApplyCancel,
+    Func<RemoteDebuggerSession, RemoteDebuggerPresentationOutcome, string, CancellationToken,
+        Task<RemoteDebuggerPresentationResult>> AdvancePresentation);
 
 internal sealed class RemoteDebuggerWindow : Window
 {
     private const double CompactWidth = 860;
+    private const int MaxLivePresentationSteps = 64;
     private readonly RemoteDebuggerWindowOperations operations;
     private readonly RemoteDebuggerClient? ownedClient;
     private readonly DesktopLocalization localization;
@@ -27,6 +31,8 @@ internal sealed class RemoteDebuggerWindow : Window
     private readonly List<Control> auditedControls = [];
     private readonly string principal;
     private readonly string daemonAuthority;
+    private readonly Func<UiPresentationOperation, CancellationToken,
+        Task<PresentationAutomationResult>> livePresentation;
     private readonly Grid bodyGrid = new();
     private readonly Border sourcePanel = Panel();
     private readonly Border projectionPanel = Panel();
@@ -62,11 +68,12 @@ internal sealed class RemoteDebuggerWindow : Window
         TextWrapping = TextWrapping.NoWrap,
         MaxLength = RemoteDebuggerClient.MaxSourceBytes,
         MinHeight = 180,
-        Text = "fn main() = runtime.list()",
+        Text = "fn main() = ui.assert_visible(node_id: \"remote-fleet\")",
         FontFamily = new FontFamily("JetBrains Mono, Menlo, monospace"),
         FontSize = 13,
     };
     private readonly Button startButton = PrimaryButton();
+    private readonly Button runLiveButton = PrimaryButton();
     private readonly Button newButton = SecondaryButton();
     private readonly Button refreshButton = SecondaryButton();
     private readonly TextBlock emptyProjection = new()
@@ -93,12 +100,15 @@ internal sealed class RemoteDebuggerWindow : Window
     public RemoteDebuggerWindow(
         RemoteClientOptions options,
         string principal,
-        DesktopLocalization localization)
+        DesktopLocalization localization,
+        Func<UiPresentationOperation, CancellationToken,
+            Task<PresentationAutomationResult>> livePresentation)
         : this(
             new RemoteDebuggerClient(options),
             options.Endpoint.Authority,
             principal,
-            localization)
+            localization,
+            livePresentation)
     {
     }
 
@@ -106,16 +116,20 @@ internal sealed class RemoteDebuggerWindow : Window
         RemoteDebuggerClient client,
         string daemonAuthority,
         string principal,
-        DesktopLocalization localization)
+        DesktopLocalization localization,
+        Func<UiPresentationOperation, CancellationToken,
+            Task<PresentationAutomationResult>> livePresentation)
         : this(
             new RemoteDebuggerWindowOperations(
                 client.StartAsync,
                 client.ListAsync,
                 client.PlanCancelAsync,
-                client.ApplyCancelAsync),
+                client.ApplyCancelAsync,
+                client.AdvancePresentationAsync),
             daemonAuthority,
             principal,
-            localization)
+            localization,
+            livePresentation)
     {
         ownedClient = client;
     }
@@ -124,12 +138,15 @@ internal sealed class RemoteDebuggerWindow : Window
         RemoteDebuggerWindowOperations operations,
         string daemonAuthority,
         string principal,
-        DesktopLocalization localization)
+        DesktopLocalization localization,
+        Func<UiPresentationOperation, CancellationToken,
+            Task<PresentationAutomationResult>> livePresentation)
     {
         this.operations = operations;
         this.daemonAuthority = daemonAuthority;
         this.principal = principal;
         this.localization = localization;
+        this.livePresentation = livePresentation;
         sessionId.Text = NewSessionId();
         Width = 1040;
         Height = 740;
@@ -145,6 +162,7 @@ internal sealed class RemoteDebuggerWindow : Window
         ConfigureControl(timeout, "remote-debugger-timeout");
         ConfigureControl(source, "remote-debugger-source");
         ConfigureControl(startButton, "remote-debugger-start");
+        ConfigureControl(runLiveButton, "remote-debugger-run-live");
         ConfigureControl(newButton, "remote-debugger-new");
         ConfigureControl(refreshButton, "remote-debugger-refresh");
         ConfigureControl(emptyProjection, "remote-debugger-projection-empty");
@@ -184,6 +202,7 @@ internal sealed class RemoteDebuggerWindow : Window
         Content = content;
 
         startButton.Click += (_, _) => Observe(StartAsync());
+        runLiveButton.Click += (_, _) => Observe(RunLiveAsync());
         newButton.Click += (_, _) => ResetSession();
         refreshButton.Click += (_, _) => Observe(RefreshAsync());
         KeyDown += (_, eventArgs) =>
@@ -204,7 +223,7 @@ internal sealed class RemoteDebuggerWindow : Window
 
     public void VerifyAccessibility()
     {
-        if (auditedControls.Count != 8
+        if (auditedControls.Count != 9
             || auditedControls.Select(AutomationProperties.GetAutomationId)
                 .Distinct(StringComparer.Ordinal).Count() != auditedControls.Count
             || auditedControls.Any(control =>
@@ -267,6 +286,7 @@ internal sealed class RemoteDebuggerWindow : Window
             DesktopDebuggerCatalogs.Resolve(localization, "label.timeout"),
             DesktopDebuggerCatalogs.Resolve(localization, "label.source"),
             DesktopDebuggerCatalogs.Resolve(localization, "action.start"),
+            DesktopDebuggerCatalogs.Resolve(localization, "action.run_live"),
             DesktopDebuggerCatalogs.Resolve(localization, "action.new"),
             DesktopDebuggerCatalogs.Resolve(localization, "action.refresh"),
         };
@@ -278,6 +298,7 @@ internal sealed class RemoteDebuggerWindow : Window
             timeoutLabel.Text,
             sourceLabel.Text,
             startButton.Content?.ToString(),
+            runLiveButton.Content?.ToString(),
             newButton.Content?.ToString(),
             refreshButton.Content?.ToString(),
         };
@@ -291,6 +312,7 @@ internal sealed class RemoteDebuggerWindow : Window
 
     public async Task ProbeWorkflowAsync()
     {
+        source.Text = "fn main() = runtime.list()";
         await StartAsync();
         var session = currentSession
             ?? throw new InvalidDataException("remote debugger probe did not mount a session");
@@ -323,6 +345,20 @@ internal sealed class RemoteDebuggerWindow : Window
         }
     }
 
+    public async Task ProbeLiveWorkflowAsync()
+    {
+        source.Text = "fn main() = ui.assert_visible(node_id: \"remote-fleet\")";
+        await RunLiveAsync();
+        if (currentSession?.Projection.State != RemoteDebuggerState.Completed
+            || currentSession.PendingPresentation is not null
+            || !newButton.IsEnabled
+            || runLiveButton.IsEnabled)
+        {
+            throw new InvalidDataException(
+                "remote debugger live presentation did not reach terminal feedback");
+        }
+    }
+
     private Control BuildSourcePanel()
     {
         var coordinates = new Grid
@@ -341,7 +377,7 @@ internal sealed class RemoteDebuggerWindow : Window
             Orientation = Orientation.Horizontal,
             ItemWidth = double.NaN,
             ItemHeight = double.NaN,
-            Children = { startButton, refreshButton, newButton },
+            Children = { runLiveButton, startButton, refreshButton, newButton },
         };
         return new StackPanel
         {
@@ -391,6 +427,107 @@ internal sealed class RemoteDebuggerWindow : Window
                 "status.started",
                 session.Projection.SessionId,
                 session.Projection.Revision);
+        }
+        catch (Exception error) when (!isClosed)
+        {
+            SetFailure(SafeError(error));
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    private async Task RunLiveAsync()
+    {
+        if (operationInFlight || currentSession is not null)
+        {
+            return;
+        }
+        if (!ulong.TryParse(
+                timeout.Text,
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out var timeoutMs))
+        {
+            SetFailure("invalid timeout");
+            return;
+        }
+        SetBusy(true);
+        SetStatus("status.running_live");
+        try
+        {
+            var session = await operations.Start(
+                sessionId.Text ?? string.Empty,
+                source.Text ?? string.Empty,
+                null,
+                timeoutMs,
+                principal,
+                lifetime.Token);
+            Mount(session);
+            for (var step = 1; step <= MaxLivePresentationSteps; step++)
+            {
+                if (session.PendingPresentation is not { } presentation)
+                {
+                    throw new InvalidDataException(
+                        "VM suspended at a non-presentation effect");
+                }
+                var result = await livePresentation(presentation, lifetime.Token);
+                var outcome = new RemoteDebuggerPresentationOutcome(
+                    result.Applied,
+                    result.NodeId,
+                    result.FocusedNodeId,
+                    result.Applied ? null : FailureCode(result.FailureCode));
+                var advanced = await operations.AdvancePresentation(
+                    session,
+                    outcome,
+                    principal,
+                    lifetime.Token);
+                session = advanced.Session;
+                Mount(session);
+                if (!advanced.Applied)
+                {
+                    SetFailure(
+                        session.Projection.Fault?.Code
+                            ?? "presentation adapter rejected the operation");
+                    return;
+                }
+                if (session.Projection.State == RemoteDebuggerState.Completed)
+                {
+                    SetStatus(
+                        "status.live_completed",
+                        session.Projection.SessionId,
+                        step);
+                    return;
+                }
+                if (session.Projection.State == RemoteDebuggerState.Failed)
+                {
+                    SetFailure(
+                        session.Projection.Fault?.Code
+                            ?? "VM failed after presentation re-entry");
+                    return;
+                }
+                if (session.Projection.State != RemoteDebuggerState.WaitingEffect)
+                {
+                    throw new InvalidDataException(
+                        "VM returned an unsupported live presentation state");
+                }
+            }
+            if (session.PendingPresentation is { } pending)
+            {
+                var rejected = await operations.AdvancePresentation(
+                    session,
+                    new RemoteDebuggerPresentationOutcome(
+                        false,
+                        pending.NodeId,
+                        null,
+                        "step_limit_exceeded"),
+                    principal,
+                    lifetime.Token);
+                session = rejected.Session;
+                Mount(session);
+            }
+            SetFailure("live presentation exceeded its bounded step count");
         }
         catch (Exception error) when (!isClosed)
         {
@@ -548,6 +685,7 @@ internal sealed class RemoteDebuggerWindow : Window
     private void UpdateAvailability()
     {
         startButton.IsEnabled = !operationInFlight && currentSession is null;
+        runLiveButton.IsEnabled = !operationInFlight && currentSession is null;
         newButton.IsEnabled = !operationInFlight
             && currentSession?.Projection.State != RemoteDebuggerState.WaitingEffect;
         refreshButton.IsEnabled = !operationInFlight && currentSession is not null;
@@ -586,6 +724,7 @@ internal sealed class RemoteDebuggerWindow : Window
         timeoutLabel.Text = Text("label.timeout");
         sourceLabel.Text = Text("label.source");
         startButton.Content = Text("action.start");
+        runLiveButton.Content = Text("action.run_live");
         newButton.Content = Text("action.new");
         refreshButton.Content = Text("action.refresh");
         emptyProjection.Text = Text("projection.empty");
@@ -594,6 +733,7 @@ internal sealed class RemoteDebuggerWindow : Window
         AutomationProperties.SetName(timeout, timeoutLabel.Text);
         AutomationProperties.SetName(source, sourceLabel.Text);
         AutomationProperties.SetName(startButton, Text("action.start"));
+        AutomationProperties.SetName(runLiveButton, Text("action.run_live"));
         AutomationProperties.SetName(newButton, Text("action.new"));
         AutomationProperties.SetName(refreshButton, Text("action.refresh"));
         AutomationProperties.SetName(emptyProjection, Text("projection.empty"));
@@ -601,6 +741,7 @@ internal sealed class RemoteDebuggerWindow : Window
         AutomationProperties.SetName(renderer.Surface, Text("heading"));
         AutomationProperties.SetHelpText(source, Text("body"));
         AutomationProperties.SetHelpText(startButton, Text("body"));
+        AutomationProperties.SetHelpText(runLiveButton, Text("help.run_live"));
     }
 
     private void ApplyResponsiveLayout(double width)
@@ -696,6 +837,26 @@ internal sealed class RemoteDebuggerWindow : Window
         return string.IsNullOrWhiteSpace(bounded)
             ? "debugger_operation_failed"
             : bounded;
+    }
+
+    private static string FailureCode(PresentationAutomationFailureCode code)
+    {
+        if (code == PresentationAutomationFailureCode.None)
+        {
+            return "adapter_rejected";
+        }
+        var name = code.ToString();
+        var value = new StringBuilder(name.Length + 8);
+        for (var index = 0; index < name.Length; index++)
+        {
+            var character = name[index];
+            if (char.IsUpper(character) && index > 0)
+            {
+                value.Append('_');
+            }
+            value.Append(char.ToLowerInvariant(character));
+        }
+        return value.ToString();
     }
 
     private static string? FirstCancelNode(UiDocument document)

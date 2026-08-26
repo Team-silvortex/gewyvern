@@ -226,17 +226,17 @@ semantic UI-IR set for runtime lists, workspaces, logs, capabilities, history,
 and deployment forms. Startup rejects a missing or extra key, and per-locale
 native `TextBlock` probes validate visible plus accessible text. The six newly
 filled shell, semantic, and tutorial catalogs remain candidates until native-
-speaker review. Fourteen specialist domains share this boundary: connection/forget,
+speaker review. Fifteen specialist domains share this boundary: connection/forget,
 reverse deployment, gewyvern provisioning/retirement, daemon retirement,
 startup recovery, account presentation, the remote daemon shell, and remote
 operation/Leselang controls, plus the runtime child workspace, Orchestra
-plan/control/history workspace, existing-runtime registration editor, Hub dynamic
-cards, and Learning Center, contribute
+plan/control/history workspace, debugger live execution, existing-runtime
+registration editor, Hub dynamic cards, and Learning Center, contribute
 exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 36-key, 56-key, 57-key,
-78-key, 72-key, 49-key, 69-key, and 61-key catalogs without
+78-key, 72-key, 33-key, 49-key, 69-key, and 61-key catalogs without
 overlapping the frozen core set. `DesktopDomainCatalogContract` gives these domains one exact-key,
 bounded-value, and format-placeholder validator; the full non-English built-in
-semantic set is therefore 717 keys. All eight built-in
+semantic set is therefore 750 keys. All eight built-in
 locale trees are measured inside their native dialog envelopes, and open
 controls, accessible names, controlled phases, status, and flow direction
 reproject on language change while operation identities, operator values, and
@@ -2141,9 +2141,18 @@ terminal failure before another command can race it, so expired sessions release
 the bounded 32-session registry instead of exhausting it. Per-session SQLite
 journals, including rollback/WAL/SHM sidecars, retain cancellation audit across
 restart within a deterministic 64-journal horizon. Active-session reconstruction
-after daemon restart is still a later VM-host resilience concern. Presentation
-atoms are implemented by the renderer, but no product VM host yet dispatches a
-Leselang program against live product windows.
+after daemon restart is still a later VM-host resilience concern.
+
+The same product workspace now hosts live Leselang presentation execution.
+**Run live** starts the daemon-owned Rust VM, then the authenticated protocol
+projects one typed `PresentationOperation` at a time without exposing source,
+locals, or continuation images. The strict .NET adapter binds principal,
+capabilities, session, effect, revision, and target node before applying the atom
+to the current native product window. Its typed outcome re-enters the Rust VM and
+is journaled before the next operation is projected. Runs stop after at most 64
+effects; adapter rejection consumes the continuation and produces visible
+terminal failure. This closes the Avalonia product automation chain while
+keeping execution authority below the renderer.
 
 Existing-runtime registration now has a native Avalonia product path independent
 from managed SSH provisioning. `RemoteRegistrationClient` first reads the
@@ -2153,8 +2162,8 @@ The review window locks those coordinates until the operator either returns to
 editing or explicitly confirms the plan. Registration updates reuse the inspected
 runtime revision as `expected_revision`; the final write remains owned and
 persisted by `leserpentd`. This closes the product registration chain without
-inventing a second frontend policy engine. Canonical Leselang dispatch for this
-and other live product workflows remains part of the product VM-host gap above.
+inventing a second frontend policy engine. Canonical Leselang export remains the
+business-command replay form; presentation programs use the live VM host above.
 
 Presentation parity uses a separate, non-command path.
 `ui.activate(node_id: ...)`, `ui.focus(node_id: ...)`,

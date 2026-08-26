@@ -1,4 +1,5 @@
 use leselang_ui::{DebuggerProjection, UiDocument};
+use leselang_vm::PresentationOperation;
 use leserpent_domain::bootstrap::{BootstrapId, DeploymentBootstrapSnapshot};
 use leserpent_domain::{
     CapabilitySet, CommandEnvelope, CommandId, CommandResult, DOMAIN_SCHEMA_VERSION, DomainError,
@@ -49,6 +50,7 @@ pub enum ProtocolRequest {
     BootstrapSessionBind(BootstrapSessionBindRequest),
     DebuggerSessions(DebuggerSessionsRequest),
     DebuggerSessionStart(DebuggerSessionStartRequest),
+    DebuggerPresentationAcknowledge(DebuggerPresentationAcknowledgeRequest),
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -247,6 +249,31 @@ pub struct DebuggerSessionStartRequest {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct DebuggerPresentationAcknowledgeRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub session_id: String,
+    pub effect_id: String,
+    pub expected_revision: Revision,
+    pub outcome: DebuggerPresentationOutcome,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
+pub enum DebuggerPresentationOutcome {
+    Applied {
+        node_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        focused_node_id: Option<String>,
+    },
+    Rejected {
+        node_id: String,
+        code: String,
+    },
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RequestEnvelope {
     pub schema_version: u32,
     pub request: ProtocolRequest,
@@ -274,6 +301,7 @@ pub enum ProtocolResponse {
     BootstrapHandoff(DeploymentBootstrapSnapshot),
     DebuggerSessions(DebuggerSessionsResponse),
     DebuggerSessionStarted(DebuggerSessionResponse),
+    DebuggerPresentationAdvanced(DebuggerPresentationResponse),
     DebuggerCancelled(DebuggerCancelResponse),
     Error(ProtocolError),
 }
@@ -283,6 +311,8 @@ pub enum ProtocolResponse {
 pub struct DebuggerSessionView {
     pub projection: DebuggerProjection,
     pub document: UiDocument,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending_presentation: Option<PresentationOperation>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -295,6 +325,22 @@ pub struct DebuggerSessionsResponse {
 #[serde(deny_unknown_fields)]
 pub struct DebuggerSessionResponse {
     pub session: DebuggerSessionView,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DebuggerPresentationStatus {
+    Applied,
+    Rejected,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DebuggerPresentationResponse {
+    pub effect_id: String,
+    pub status: DebuggerPresentationStatus,
+    pub session: DebuggerSessionView,
+    pub acknowledged_at_ms: u64,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -669,7 +715,8 @@ pub fn decode_request(bytes: &[u8]) -> Result<RequestEnvelope, DecodeError> {
         | ProtocolRequest::BootstrapHandoff(_)
         | ProtocolRequest::BootstrapSessionBind(_)
         | ProtocolRequest::DebuggerSessions(_)
-        | ProtocolRequest::DebuggerSessionStart(_) => DOMAIN_SCHEMA_VERSION,
+        | ProtocolRequest::DebuggerSessionStart(_)
+        | ProtocolRequest::DebuggerPresentationAcknowledge(_) => DOMAIN_SCHEMA_VERSION,
     };
     if domain_version != DOMAIN_SCHEMA_VERSION {
         return Err(DecodeError::InvalidDomainSchemaVersion {
@@ -807,6 +854,45 @@ mod tests {
         let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         value["request"]["payload"]["credential"] =
             serde_json::Value::String("must-not-cross-the-debugger-boundary".into());
+        assert!(matches!(
+            decode_request(&serde_json::to_vec(&value).unwrap()),
+            Err(DecodeError::InvalidJson(message)) if message.contains("unknown field")
+        ));
+    }
+
+    #[test]
+    fn debugger_presentation_acknowledgement_is_strict_and_secret_free() {
+        let request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::DebuggerPresentationAcknowledge(
+                DebuggerPresentationAcknowledgeRequest {
+                    principal: Principal {
+                        id: "operator".into(),
+                    },
+                    capabilities: CapabilitySet::new([
+                        CAPABILITY_DEBUGGER_CONTROL,
+                        "ui.presentation",
+                    ]),
+                    session_id: "debugger-session-a".into(),
+                    effect_id: "effect-1".into(),
+                    expected_revision: Revision(7),
+                    outcome: DebuggerPresentationOutcome::Applied {
+                        node_id: "remote-fleet".into(),
+                        focused_node_id: None,
+                    },
+                },
+            ),
+        };
+        let bytes = encode_request(&request).unwrap();
+        assert_eq!(decode_request(&bytes).unwrap(), request);
+        let encoded = String::from_utf8_lossy(&bytes);
+        assert!(!encoded.contains("continuation"));
+        assert!(!encoded.contains("source"));
+        assert!(!encoded.contains("token"));
+
+        let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        value["request"]["payload"]["continuation"] =
+            serde_json::Value::String("must-remain-in-rust".into());
         assert!(matches!(
             decode_request(&serde_json::to_vec(&value).unwrap()),
             Err(DecodeError::InvalidJson(message)) if message.contains("unknown field")

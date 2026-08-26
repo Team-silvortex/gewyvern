@@ -1013,15 +1013,18 @@ mod tests {
     use std::thread;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use leselang_hir::CAPABILITY_UI_PRESENTATION;
+    use leselang_vm::PresentationOperation;
     use leserpent_domain::{
         CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CapabilitySet, Command,
         CommandEnvelope, CommandId, CommandOrigin, CommandStatus, Confirmation,
         DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal, Revision, RuntimeId,
     };
     use leserpent_protocol::{
-        AuthorityWriterFence, DebuggerMutationStatus, DebuggerSessionStartRequest, HealthRequest,
-        PROTOCOL_SCHEMA_VERSION, ProtocolEvent, ProtocolRequest, ProtocolResponse, RequestEnvelope,
-        decode_event, decode_response, encode_request,
+        AuthorityWriterFence, DebuggerMutationStatus, DebuggerPresentationAcknowledgeRequest,
+        DebuggerPresentationOutcome, DebuggerPresentationStatus, DebuggerSessionStartRequest,
+        HealthRequest, PROTOCOL_SCHEMA_VERSION, ProtocolEvent, ProtocolRequest, ProtocolResponse,
+        RequestEnvelope, decode_event, decode_response, encode_request,
     };
     use rcgen::{CertifiedKey, generate_simple_self_signed};
     use rustls::pki_types::ServerName;
@@ -1078,7 +1081,7 @@ mod tests {
         .unwrap()
     }
 
-    fn debugger_start_body(session_id: &str) -> Vec<u8> {
+    fn debugger_start_body(session_id: &str, source: &str) -> Vec<u8> {
         encode_request(&RequestEnvelope {
             schema_version: PROTOCOL_SCHEMA_VERSION,
             request: ProtocolRequest::DebuggerSessionStart(DebuggerSessionStartRequest {
@@ -1087,10 +1090,39 @@ mod tests {
                 },
                 capabilities: CapabilitySet::new([CAPABILITY_DEBUGGER_CONTROL]),
                 session_id: session_id.into(),
-                source: "fn main() = runtime.list()".into(),
+                source: source.into(),
                 expected_revision: Some(Revision(7)),
                 timeout_ms: 300_000,
             }),
+        })
+        .unwrap()
+    }
+
+    fn debugger_presentation_body(
+        session_id: &str,
+        effect_id: &str,
+        expected_revision: Revision,
+    ) -> Vec<u8> {
+        encode_request(&RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::DebuggerPresentationAcknowledge(
+                DebuggerPresentationAcknowledgeRequest {
+                    principal: Principal {
+                        id: "debugger-operator".into(),
+                    },
+                    capabilities: CapabilitySet::new([
+                        CAPABILITY_DEBUGGER_CONTROL,
+                        CAPABILITY_UI_PRESENTATION,
+                    ]),
+                    session_id: session_id.into(),
+                    effect_id: effect_id.into(),
+                    expected_revision,
+                    outcome: DebuggerPresentationOutcome::Applied {
+                        node_id: "remote-fleet".into(),
+                        focused_node_id: None,
+                    },
+                },
+            ),
         })
         .unwrap()
     }
@@ -1941,7 +1973,7 @@ mod tests {
             address,
             cert.der().clone(),
             "/v1/wire",
-            debugger_start_body(session_id),
+            debugger_start_body(session_id, "fn main() = runtime.list()"),
         );
         let response = complete_tls_request(&mut server, &mut runtime, client);
         let body_start = find_header_end(&response).unwrap();
@@ -1953,6 +1985,59 @@ mod tests {
                     && started.session.projection.state
                         == leselang_ui::DebuggerState::WaitingEffect
                     && started.session.document.revision == Revision(7)
+        ));
+
+        let presentation_session_id = "remote-debugger-presentation";
+        let client = tls_post_client(
+            address,
+            cert.der().clone(),
+            "/v1/wire",
+            debugger_start_body(
+                presentation_session_id,
+                "fn main() = ui.assert_visible(node_id: \"remote-fleet\")",
+            ),
+        );
+        let response = complete_tls_request(&mut server, &mut runtime, client);
+        let body_start = find_header_end(&response).unwrap();
+        let ProtocolResponse::DebuggerSessionStarted(started) =
+            decode_response(&response[body_start..]).unwrap().response
+        else {
+            panic!("TLS debugger presentation session was not returned");
+        };
+        assert_eq!(
+            started.session.pending_presentation,
+            Some(PresentationOperation::AssertVisible {
+                node_id: "remote-fleet".into(),
+            })
+        );
+        let pending = started
+            .session
+            .projection
+            .pending_effect
+            .expect("TLS presentation remains suspended");
+        let client = tls_post_client(
+            address,
+            cert.der().clone(),
+            "/v1/wire",
+            debugger_presentation_body(
+                presentation_session_id,
+                &pending.effect_id,
+                started.session.projection.revision,
+            ),
+        );
+        let response = complete_tls_request(&mut server, &mut runtime, client);
+        let body_start = find_header_end(&response).unwrap();
+        assert!(matches!(
+            decode_response(&response[body_start..]).unwrap().response,
+            ProtocolResponse::DebuggerPresentationAdvanced(ref advanced)
+                if advanced.effect_id == pending.effect_id
+                    && advanced.status == DebuggerPresentationStatus::Applied
+                    && advanced.acknowledged_at_ms > 0
+                    && advanced.session.projection.state
+                        == leselang_ui::DebuggerState::Completed
+                    && advanced.session.projection.revision == Revision(8)
+                    && advanced.session.projection.pending_effect.is_none()
+                    && advanced.session.pending_presentation.is_none()
         ));
 
         let client = tls_post_client(

@@ -262,12 +262,13 @@ verify both visible and accessible text. All eight built-ins also cover the
 complete six-step tutorial. Connection/forget, reverse deployment,
 gewyvern provisioning/retirement, daemon retirement, startup recovery, the Team
 Silvortex account card, the remote daemon shell, and remote operation/Leselang
-controls, plus the runtime child workspace, Orchestra plan/control/history workspace,
-the existing-runtime registration editor, Hub dynamic cards, and Learning Center,
+controls, plus the runtime child workspace, Orchestra plan/control/history
+workspace, debugger live execution, the existing-runtime registration editor,
+Hub dynamic cards, and Learning Center,
 are complete specialist domains.
 Their exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 36-key, 56-key,
-57-key, 78-key, 72-key, 49-key, 69-key, and 61-key catalogs bring the non-English
-built-in semantic set to 717 keys. One shared strict validator
+57-key, 78-key, 72-key, 33-key, 49-key, 69-key, and 61-key catalogs bring the
+non-English built-in semantic set to 750 keys. One shared strict validator
 rejects missing/extra keys, malformed placeholders, controls, or oversized
 values. Native controls have eight-locale layout probes, and live language
 changes reproject labels, controlled phases, status, accessibility, and flow
@@ -913,6 +914,14 @@ mismatched runtime/run/command identities, and cancels stale plan or event loads
 when selection changes. Run `--verify-orchestra-client` for the strict wire contract and
 `--verify-remote-shell-controls` for all eight built-in locale, accessibility,
 compact/wide layout, and destructive-confirmation probes without network I/O.
+The debugger workspace also exposes **Run live**. It starts a bounded
+daemon-owned Rust VM, applies each typed presentation atom to the current native
+daemon window, and returns only an effect-, revision-, principal-, capability-,
+and node-bound outcome. Source, locals, continuation images, endpoint, and bearer
+credentials never enter the acknowledgement. A run is capped at 64 effects and
+adapter rejection becomes visible terminal failure. Use
+`--verify-remote-shell-controls` for the native product workflow and
+`Leserpent.RemoteConformance` for the strict request/response codec.
 The daemon topology toolbar also exposes `Register existing runtime`, while each
 runtime workspace exposes `Edit registration`. These controls are separate from
 SSH provisioning: they carry only runtime ID, display name, endpoints, and three

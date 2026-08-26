@@ -42,14 +42,15 @@ surface complete.
 
 | Surface | Lifecycle | Score | Closed | Partial | Conformance only | Absent |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Avalonia desktop | target | 94 | 8 | 1 | 0 | 0 |
+| Avalonia desktop | target | 100 | 9 | 0 | 0 | 0 |
 | Rust-hosted Web | target | 0 | 0 | 0 | 0 | 1 |
 | ASP.NET Web | bridge | 100 | 5 | 0 | 0 | 0 |
 
-The combined target score is 85. The closed Avalonia families are fleet
+The combined target score is 90. The closed Avalonia families are fleet
 observation, runtime control, existing-runtime registration, daemon lifecycle,
 Gewyvern lifecycle, authority health, Rust-authoritative Orchestra control, and
-the suspended Leselang debugger workflow. The native
+the suspended Leselang debugger workflow, plus live product Leselang
+presentation automation. The native
 Orchestra workspace now closes revision-fenced plan discovery, automatic run,
 queued-only cancellation, lineage-bound retry, authenticated history/event
 drilldown, and idempotent cleanup. Guided plans stay visibly review-only. The
@@ -57,9 +58,8 @@ registration editor separately closes already-running runtime intake and
 revision-fenced metadata updates: the daemon produces a side-effect-free plan,
 field edits invalidate it, and an explicit confirmation applies the same command
 identity without sending deployment credentials or service secrets. The remaining
-target gaps are:
+target gap is:
 
-- a product Leselang VM host for live GUI presentation automation;
 - a Rust-owned per-daemon TypeScript Web console and compatibility API.
 
 The debugger workspace starts a bounded daemon-owned VM only to its first
@@ -73,6 +73,16 @@ part of this closed in-process observation-and-cancellation chain. Deadline
 expiry still converges to a terminal revision and releases the 32-session
 registry. Cancellation audit is restart-durable within a bounded 64-journal
 retention horizon.
+
+The debugger's **Run live** entry now starts that same Rust VM and receives only
+the typed pending `PresentationOperation`; continuation state never crosses the
+wire. Avalonia applies each atom to the current product window, reports a typed
+applied or rejected outcome, and lets the Rust authority consume the continuation
+and persist the re-entry result. The loop is capped at 64 effects, strict .NET
+decoding binds effect ID, revision, node ID, and required capabilities, and an
+adapter rejection converges to visible terminal failure instead of leaving a
+suspended session. Wire, real TLS, strict-client, and native-control probes cover
+the closed chain.
 
 ## Commands
 

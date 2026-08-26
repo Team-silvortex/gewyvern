@@ -10,6 +10,8 @@ public sealed class RemoteDebuggerClient : IDisposable
     private const ulong MaxProjectedDeadlineMs = 24 * 60 * 60 * 1000;
     private const int MaxFrames = 64;
     private const int MaxDisplayBytes = 512;
+    private const int MaxPresentationBytes = 16 * 1024;
+    private const int MaxPresentationFailureCodeBytes = 64;
     private static readonly HashSet<string> EffectKinds =
     [
         "runtime_list", "runtime_inspect", "runtime_history", "runtime_logs",
@@ -80,6 +82,62 @@ public sealed class RemoteDebuggerClient : IDisposable
                 "remote debugger did not return the requested suspended session");
         }
         return session;
+    }
+
+    public async Task<RemoteDebuggerPresentationResult> AdvancePresentationAsync(
+        RemoteDebuggerSession session,
+        RemoteDebuggerPresentationOutcome outcome,
+        string principal,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePresentationOutcome(session, outcome, principal);
+        var effectId = session.Projection.PendingEffect!.EffectId;
+        var payload = EncodePresentation(
+            session.Projection.SessionId,
+            effectId,
+            session.Projection.Revision,
+            outcome,
+            principal);
+        var response = await transport.PostAsync(
+            payload,
+            "debugger_presentation_acknowledge",
+            cancellationToken).ConfigureAwait(false);
+        var envelope = DecodeEnvelope(
+            response,
+            "debugger_presentation_advanced",
+            "presentation acknowledgement");
+        var decoded = Deserialize(
+            envelope.Response.Payload,
+            RemoteDebuggerJsonContext.Default.WireDebuggerPresentationResponse,
+            "debugger presentation response");
+        var advanced = DecodeSession(decoded.Session, session.Projection.SessionId);
+        var applied = decoded.Status switch
+        {
+            "applied" => true,
+            "rejected" => false,
+            _ => throw new InvalidDataException(
+                "remote debugger presentation status is invalid"),
+        };
+        if (decoded.EffectId != effectId
+            || applied != outcome.Applied
+            || decoded.AcknowledgedAtMs == 0
+            || session.Projection.Revision == ulong.MaxValue
+            || advanced.Projection.Revision != session.Projection.Revision + 1
+            || !applied && advanced.Projection.State != RemoteDebuggerState.Failed
+            || !applied && advanced.PendingPresentation is not null
+            || applied && advanced.Projection.State is not (
+                RemoteDebuggerState.WaitingEffect
+                or RemoteDebuggerState.Completed
+                or RemoteDebuggerState.Failed))
+        {
+            throw new InvalidDataException(
+                "remote debugger presentation acknowledgement drifted");
+        }
+        return new RemoteDebuggerPresentationResult(
+            decoded.EffectId,
+            applied,
+            advanced,
+            decoded.AcknowledgedAtMs);
     }
 
     public async Task<IReadOnlyList<RemoteDebuggerSession>> ListAsync(
@@ -300,6 +358,96 @@ public sealed class RemoteDebuggerClient : IDisposable
             throw new InvalidDataException("debugger response projection contract drifted");
         }
 
+        var presentationResponse = response
+            .Replace(
+                "\"kind\":\"runtime_list\"",
+                "\"kind\":\"ui_assert_visible\"",
+                StringComparison.Ordinal)
+            .Replace(
+                "\"document\":",
+                "\"pending_presentation\":{"
+                + "\"kind\":\"assert_visible\","
+                + "\"node_id\":\"remote-fleet\"},\"document\":",
+                StringComparison.Ordinal);
+        var presentationEnvelope = DecodeEnvelope(
+            Encoding.UTF8.GetBytes(presentationResponse),
+            "debugger_session_started",
+            "presentation contract");
+        var presentationDecoded = Deserialize(
+            presentationEnvelope.Response.Payload,
+            RemoteDebuggerJsonContext.Default.WireDebuggerSessionResponse,
+            "debugger presentation contract payload");
+        var presentationSession = DecodeSession(presentationDecoded.Session, "session-a");
+        if (presentationSession.Projection.PendingEffect?.Kind != "ui_assert_visible"
+            || presentationSession.PendingPresentation is not
+                {
+                    Kind: UiPresentationOperationKind.AssertVisible,
+                    NodeId: "remote-fleet",
+                })
+        {
+            throw new InvalidDataException(
+                "debugger presentation response contract drifted");
+        }
+        var outcome = new RemoteDebuggerPresentationOutcome(
+            true,
+            "remote-fleet",
+            null,
+            null);
+        ValidatePresentationOutcome(presentationSession, outcome, "operator-a");
+        var acknowledgement = EncodePresentation(
+            "session-a",
+            "effect-a",
+            7,
+            outcome,
+            "operator-a");
+        using (var document = JsonDocument.Parse(acknowledgement))
+        {
+            var request = document.RootElement.GetProperty("request");
+            var payload = request.GetProperty("payload");
+            var capabilities = payload.GetProperty("capabilities");
+            var encoded = Encoding.UTF8.GetString(acknowledgement);
+            if (request.GetProperty("kind").GetString()
+                    != "debugger_presentation_acknowledge"
+                || payload.GetProperty("session_id").GetString() != "session-a"
+                || payload.GetProperty("effect_id").GetString() != "effect-a"
+                || payload.GetProperty("expected_revision").GetUInt64() != 7
+                || capabilities.GetArrayLength() != 2
+                || capabilities[0].GetString() != "debugger.control"
+                || capabilities[1].GetString() != "ui.presentation"
+                || payload.GetProperty("outcome").GetProperty("status").GetString()
+                    != "applied"
+                || payload.GetProperty("outcome").GetProperty("node_id").GetString()
+                    != "remote-fleet"
+                || encoded.Contains("continuation", StringComparison.OrdinalIgnoreCase)
+                || encoded.Contains("source", StringComparison.OrdinalIgnoreCase)
+                || encoded.Contains("token", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "debugger presentation acknowledgement contract drifted");
+            }
+        }
+        try
+        {
+            var mismatchedEnvelope = DecodeEnvelope(
+                Encoding.UTF8.GetBytes(presentationResponse.Replace(
+                    "ui_assert_visible",
+                    "ui_focus",
+                    StringComparison.Ordinal)),
+                "debugger_session_started",
+                "mismatched presentation contract");
+            var mismatched = Deserialize(
+                mismatchedEnvelope.Response.Payload,
+                RemoteDebuggerJsonContext.Default.WireDebuggerSessionResponse,
+                "mismatched debugger presentation payload");
+            _ = DecodeSession(mismatched.Session, "session-a");
+            throw new InvalidDataException(
+                "debugger accepted a mismatched presentation effect");
+        }
+        catch (InvalidDataException error) when (
+            error.Message.Contains("presentation operation", StringComparison.Ordinal))
+        {
+        }
+
         using var mutable = JsonDocument.Parse(response);
         var forged = mutable.RootElement.GetRawText().Replace(
             "\"document\":",
@@ -374,6 +522,39 @@ public sealed class RemoteDebuggerClient : IDisposable
         return JsonSerializer.SerializeToUtf8Bytes(
             request,
             RemoteDebuggerJsonContext.Default.WireDebuggerSessionStartRequestEnvelope);
+    }
+
+    private static byte[] EncodePresentation(
+        string sessionId,
+        string effectId,
+        ulong expectedRevision,
+        RemoteDebuggerPresentationOutcome outcome,
+        string principal)
+    {
+        var request = new WireDebuggerPresentationRequestEnvelope
+        {
+            Request = new WireDebuggerPresentationRequest
+            {
+                Payload = new WireDebuggerPresentationPayload
+                {
+                    Principal = new RemotePrincipal { Id = principal },
+                    Capabilities = ["debugger.control", "ui.presentation"],
+                    SessionId = sessionId,
+                    EffectId = effectId,
+                    ExpectedRevision = expectedRevision,
+                    Outcome = new WireDebuggerPresentationOutcome
+                    {
+                        Status = outcome.Applied ? "applied" : "rejected",
+                        NodeId = outcome.NodeId,
+                        FocusedNodeId = outcome.FocusedNodeId,
+                        Code = outcome.FailureCode,
+                    },
+                },
+            },
+        };
+        return JsonSerializer.SerializeToUtf8Bytes(
+            request,
+            RemoteDebuggerJsonContext.Default.WireDebuggerPresentationRequestEnvelope);
     }
 
     private static byte[] EncodeCancel(
@@ -497,8 +678,38 @@ public sealed class RemoteDebuggerClient : IDisposable
         {
             throw new InvalidDataException("remote debugger document is invalid", error);
         }
+        UiPresentationOperation? presentation = null;
+        if (view.PendingPresentation is { } encodedPresentation)
+        {
+            try
+            {
+                if (Encoding.UTF8.GetByteCount(encodedPresentation.GetRawText())
+                        > MaxPresentationBytes)
+                {
+                    throw new InvalidDataException(
+                        "remote debugger presentation operation is unbounded");
+                }
+                presentation = encodedPresentation.Deserialize(
+                    RendererJsonContext.Default.UiPresentationOperation)
+                    ?? throw new InvalidDataException(
+                        "remote debugger presentation operation is empty");
+            }
+            catch (JsonException error)
+            {
+                throw new InvalidDataException(
+                    "remote debugger presentation operation JSON is invalid",
+                    error);
+            }
+            catch (InvalidOperationException error)
+            {
+                throw new InvalidDataException(
+                    "remote debugger presentation operation is invalid",
+                    error);
+            }
+        }
         ValidateDocument(document, projection);
-        return new RemoteDebuggerSession(projection, document);
+        ValidatePendingPresentation(projection, presentation);
+        return new RemoteDebuggerSession(projection, document, presentation);
     }
 
     private static RemoteDebuggerProjection DecodeProjection(
@@ -659,6 +870,103 @@ public sealed class RemoteDebuggerClient : IDisposable
         && left.PendingEffect == right.PendingEffect
         && left.Frames.SequenceEqual(right.Frames)
         && left.Fault == right.Fault;
+
+    private static void ValidatePendingPresentation(
+        RemoteDebuggerProjection projection,
+        UiPresentationOperation? presentation)
+    {
+        var pendingKind = projection.PendingEffect?.Kind;
+        var presentationExpected = pendingKind?.StartsWith("ui_", StringComparison.Ordinal)
+            == true;
+        if (presentationExpected != (presentation is not null))
+        {
+            throw new InvalidDataException(
+                "remote debugger presentation binding is inconsistent");
+        }
+        if (presentation is null)
+        {
+            return;
+        }
+        RequirePresentationNodeId(presentation.NodeId, "presentation node ID");
+        var encoded = JsonSerializer.SerializeToElement(
+            presentation,
+            RendererJsonContext.Default.UiPresentationOperation);
+        var kind = encoded.GetProperty("kind").GetString();
+        if (string.IsNullOrWhiteSpace(kind)
+            || pendingKind != $"ui_{kind}"
+            || presentation.TimeoutMs is <= 0
+            || presentation.TimeoutMs is > (int)MaxTimeoutMs)
+        {
+            throw new InvalidDataException(
+                "remote debugger presentation operation is inconsistent");
+        }
+    }
+
+    private static void ValidatePresentationOutcome(
+        RemoteDebuggerSession session,
+        RemoteDebuggerPresentationOutcome outcome,
+        string principal)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(outcome);
+        RemoteQueryValidation.RequireIdentifier(principal, "principal");
+        if (session.Projection.State != RemoteDebuggerState.WaitingEffect
+            || session.Projection.PendingEffect is not { } pending
+            || session.PendingPresentation is not { } presentation
+            || session.Projection.Revision == 0
+            || pending.EffectId.Length == 0)
+        {
+            throw new ArgumentException(
+                "debugger session has no executable presentation effect");
+        }
+        ValidatePendingPresentation(session.Projection, presentation);
+        RequirePresentationNodeId(outcome.NodeId, "presentation outcome node ID");
+        if (outcome.NodeId != presentation.NodeId)
+        {
+            throw new ArgumentException(
+                "presentation outcome target changed before acknowledgement");
+        }
+        var navigates = presentation.Kind == UiPresentationOperationKind.NavigateFocus;
+        if (outcome.Applied)
+        {
+            if (outcome.FailureCode is not null
+                || navigates != (outcome.FocusedNodeId is not null))
+            {
+                throw new ArgumentException(
+                    "applied presentation outcome is inconsistent");
+            }
+            if (outcome.FocusedNodeId is { } focusedNodeId)
+            {
+                RequirePresentationNodeId(focusedNodeId, "focused presentation node ID");
+            }
+            return;
+        }
+        if (outcome.FocusedNodeId is not null
+            || !ValidPresentationFailureCode(outcome.FailureCode))
+        {
+            throw new ArgumentException(
+                "rejected presentation outcome is inconsistent");
+        }
+    }
+
+    private static void RequirePresentationNodeId(string value, string label)
+    {
+        if (string.IsNullOrWhiteSpace(value)
+            || Encoding.UTF8.GetByteCount(value) > 256
+            || value.Any(char.IsControl))
+        {
+            throw new InvalidDataException($"remote {label} is invalid");
+        }
+    }
+
+    private static bool ValidPresentationFailureCode(string? value) =>
+        value is not null
+        && Encoding.UTF8.GetByteCount(value) is > 0 and <= MaxPresentationFailureCodeBytes
+        && value[0] is >= 'a' and <= 'z'
+        && value.All(character =>
+            character is >= 'a' and <= 'z'
+            || character is >= '0' and <= '9'
+            || character == '_');
 
     private static void ValidateCancellable(
         RemoteDebuggerSession session,

@@ -644,6 +644,8 @@ internal sealed class LeserpentApp : Application
                 var debuggerStartCount = 0;
                 var debuggerPlanCount = 0;
                 var debuggerApplyCount = 0;
+                var debuggerPresentationCount = 0;
+                var livePresentationCount = 0;
                 var runtime = new RemoteRuntimeProjection
                 {
                     Id = "runtime-verification",
@@ -691,11 +693,32 @@ internal sealed class LeserpentApp : Application
                             plan.PlannedRevision));
                     });
                 RemoteDebuggerSession? debuggerState = null;
+                Task<PresentationAutomationResult> ApplyLivePresentation(
+                    UiPresentationOperation operation,
+                    CancellationToken _)
+                {
+                    livePresentationCount++;
+                    if (operation.Kind != UiPresentationOperationKind.AssertVisible
+                        || operation.NodeId != "remote-fleet")
+                    {
+                        throw new InvalidDataException(
+                            "debugger verification dispatched an unexpected presentation");
+                    }
+                    return Task.FromResult(new PresentationAutomationResult(
+                        true,
+                        operation.NodeId,
+                        PresentationAutomationFailureCode.None));
+                }
                 var debuggerOperations = new RemoteDebuggerWindowOperations(
-                    (sessionId, _, _, _, _, _) =>
+                    (sessionId, program, _, _, _, _) =>
                     {
                         debuggerStartCount++;
-                        debuggerState = DebuggerSessionFixture(sessionId, cancelled: false);
+                        debuggerState = DebuggerSessionFixture(
+                            sessionId,
+                            cancelled: false,
+                            livePresentation: program.Contains(
+                                "ui.assert_visible",
+                                StringComparison.Ordinal));
                         return Task.FromResult(debuggerState);
                     },
                     (_, requestedSessionId, _) =>
@@ -728,6 +751,28 @@ internal sealed class LeserpentApp : Application
                             plan.CommandId,
                             debuggerState,
                             1_700_000_000_000));
+                    },
+                    (session, outcome, _, _) =>
+                    {
+                        debuggerPresentationCount++;
+                        if (!outcome.Applied
+                            || outcome.NodeId != "remote-fleet"
+                            || session.PendingPresentation?.Kind
+                                != UiPresentationOperationKind.AssertVisible)
+                        {
+                            throw new InvalidDataException(
+                                "debugger verification acknowledgement drifted");
+                        }
+                        debuggerState = DebuggerSessionFixture(
+                            session.Projection.SessionId,
+                            cancelled: false,
+                            livePresentation: false,
+                            completed: true);
+                        return Task.FromResult(new RemoteDebuggerPresentationResult(
+                            session.Projection.PendingEffect!.EffectId,
+                            true,
+                            debuggerState,
+                            1_700_000_000_001));
                     });
                 workspace = new RemoteRuntimeWorkspaceWindow(
                     options,
@@ -844,7 +889,8 @@ internal sealed class LeserpentApp : Application
                         debuggerOperations,
                         options.Endpoint.Authority,
                         "verification-principal",
-                        localization);
+                        localization,
+                        ApplyLivePresentation);
                     debugger.ProbeLocalizedPresentation();
                     debugger.VerifyAccessibility();
                     debugger.VerifyLayoutEnvelope();
@@ -918,18 +964,29 @@ internal sealed class LeserpentApp : Application
                     debuggerOperations,
                     options.Endpoint.Authority,
                     "verification-principal",
-                    localization);
+                    localization,
+                    ApplyLivePresentation);
                 await debuggerWorkflow.ProbeWorkflowAsync();
                 debuggerWorkflow.Close();
-                if (debuggerStartCount != 1
+                var debuggerLiveWorkflow = new RemoteDebuggerWindow(
+                    debuggerOperations,
+                    options.Endpoint.Authority,
+                    "verification-principal",
+                    localization,
+                    ApplyLivePresentation);
+                await debuggerLiveWorkflow.ProbeLiveWorkflowAsync();
+                debuggerLiveWorkflow.Close();
+                if (debuggerStartCount != 2
                     || debuggerPlanCount != 1
-                    || debuggerApplyCount != 1)
+                    || debuggerApplyCount != 1
+                    || debuggerPresentationCount != 1
+                    || livePresentationCount != 1)
                 {
                     throw new InvalidDataException(
                         "debugger workflow submitted an unexpected operation count");
                 }
                 Console.WriteLine(
-                    "remote shell controls valid: typed_feed=true, typed_health=true, opaque_feed_detail=true, localized_remote_shell_catalogs=7, localized_remote_operation_catalogs=7, localized_runtime_workspace_catalogs=7, localized_orchestra_catalogs=7, localized_debugger_catalogs=7, localized_registration_catalogs=7, shell_semantic_keys=56, operation_semantic_keys=57, workspace_semantic_keys=78, orchestra_semantic_keys=72, debugger_semantic_keys=29, registration_semantic_keys=49, localized_layouts=8, compact_layout=true, wide_layout=true, localized_dialog_layouts=40, localized_workspace_layouts=8, localized_orchestra_layouts=8, localized_debugger_layouts=8, localized_registration_layouts=16, workspace_instances=1, orchestra_instances=1, debugger_instances=1, native_plans=true, rust_control=true, guided_read_only=true, queued_cancel=true, durable_retry=true, debugger_vm_projection=true, debugger_dry_run=true, debugger_cancel_audit=true, registration_dry_run=true, registration_revision_fence=true, registration_confirmation=true, registration_mutation_fence=true, live_language_reprojection=true, workspace_live_language_reprojection=true, orchestra_live_language_reprojection=true, debugger_live_language_reprojection=true, registration_live_language_reprojection=true, network_started=false");
+                    "remote shell controls valid: typed_feed=true, typed_health=true, opaque_feed_detail=true, localized_remote_shell_catalogs=7, localized_remote_operation_catalogs=7, localized_runtime_workspace_catalogs=7, localized_orchestra_catalogs=7, localized_debugger_catalogs=7, localized_registration_catalogs=7, shell_semantic_keys=56, operation_semantic_keys=57, workspace_semantic_keys=78, orchestra_semantic_keys=72, debugger_semantic_keys=33, registration_semantic_keys=49, localized_layouts=8, compact_layout=true, wide_layout=true, localized_dialog_layouts=40, localized_workspace_layouts=8, localized_orchestra_layouts=8, localized_debugger_layouts=8, localized_registration_layouts=16, workspace_instances=1, orchestra_instances=1, debugger_instances=2, native_plans=true, rust_control=true, guided_read_only=true, queued_cancel=true, durable_retry=true, debugger_vm_projection=true, debugger_dry_run=true, debugger_cancel_audit=true, debugger_live_presentation=true, debugger_presentation_reentry=true, registration_dry_run=true, registration_revision_fence=true, registration_confirmation=true, registration_mutation_fence=true, live_language_reprojection=true, workspace_live_language_reprojection=true, orchestra_live_language_reprojection=true, debugger_live_language_reprojection=true, registration_live_language_reprojection=true, network_started=false");
                 window.Close();
             }
             catch (Exception error)
@@ -959,14 +1016,17 @@ internal sealed class LeserpentApp : Application
 
     private static RemoteDebuggerSession DebuggerSessionFixture(
         string sessionId,
-        bool cancelled)
+        bool cancelled,
+        bool livePresentation = false,
+        bool completed = false)
     {
-        var revision = cancelled ? 2UL : 1UL;
-        var pending = cancelled
+        var terminal = cancelled || completed;
+        var revision = terminal ? 2UL : 1UL;
+        var pending = terminal
             ? null
             : new RemoteDebuggerPendingEffect(
                 "effect-verification",
-                "runtime_list",
+                livePresentation ? "ui_assert_visible" : "runtime_list",
                 null);
         var children = new List<UiNode>
         {
@@ -983,7 +1043,7 @@ internal sealed class LeserpentApp : Application
                 Children = [],
             },
         };
-        if (!cancelled)
+        if (!terminal)
         {
             children.Add(new UiNode
             {
@@ -1016,10 +1076,12 @@ internal sealed class LeserpentApp : Application
                 sessionId,
                 cancelled
                     ? RemoteDebuggerState.Cancelled
+                    : completed
+                        ? RemoteDebuggerState.Completed
                     : RemoteDebuggerState.WaitingEffect,
                 1,
                 9_999,
-                cancelled ? null : 300_000,
+                terminal ? null : 300_000,
                 pending,
                 [],
                 null),
@@ -1042,7 +1104,14 @@ internal sealed class LeserpentApp : Application
                     },
                     Children = children,
                 },
-            });
+            },
+            livePresentation && !terminal
+                ? new UiPresentationOperation
+                {
+                    Kind = UiPresentationOperationKind.AssertVisible,
+                    NodeId = "remote-fleet",
+                }
+                : null);
     }
 
     private static void ConfigureTutorialVerification(

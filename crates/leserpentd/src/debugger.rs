@@ -7,20 +7,24 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use leselang_hir::{CAPABILITY_UI_PRESENTATION, lower};
+use leselang_hir::{CAPABILITY_UI_PRESENTATION, lower, validate_ui_node_id};
 use leselang_observe::{execute_debugger_cancel, waiting_debugger_projection};
 use leselang_syntax::parse;
 use leselang_ui::{DebuggerFaultSummary, DebuggerProjection, DebuggerState, debugger_document};
-use leselang_vm::{CancellationReason, DEFAULT_FUEL, EffectRequest, Step, Vm};
+use leselang_vm::{
+    CancellationReason, DEFAULT_FUEL, EffectOperation, EffectRequest, EffectResult,
+    PresentationOperation, PresentationResult, Step, Vm,
+};
 use leserpent_domain::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
     CAPABILITY_RUNTIME_REFRESH, CapabilitySet, CommandEnvelope, CommandPlan, PlannedOperation,
     Principal, Revision, validate_debugger_session_id,
 };
 use leserpent_protocol::{
-    DebuggerCancelResponse, DebuggerMutationStatus, DebuggerSessionResponse,
-    DebuggerSessionStartRequest, DebuggerSessionView, DebuggerSessionsRequest,
-    DebuggerSessionsResponse,
+    DebuggerCancelResponse, DebuggerMutationStatus, DebuggerPresentationAcknowledgeRequest,
+    DebuggerPresentationOutcome, DebuggerPresentationResponse, DebuggerPresentationStatus,
+    DebuggerSessionResponse, DebuggerSessionStartRequest, DebuggerSessionView,
+    DebuggerSessionsRequest, DebuggerSessionsResponse,
 };
 use ring::digest::{SHA256, digest};
 
@@ -60,6 +64,10 @@ struct DebuggerSession {
     waiting_projection: DebuggerProjection,
     current_projection: DebuggerProjection,
     applied_cancel: Option<(CommandEnvelope, DebuggerCancelResponse)>,
+    last_presentation: Option<(
+        DebuggerPresentationAcknowledgeRequest,
+        DebuggerPresentationResponse,
+    )>,
 }
 
 pub struct DebuggerAuthority {
@@ -124,7 +132,7 @@ impl DebuggerAuthority {
                 && existing.timeout_ms == request.timeout_ms
             {
                 return Ok(DebuggerSessionResponse {
-                    session: view(&existing.current_projection)?,
+                    session: view_session(existing)?,
                 });
             }
             return Err(DebuggerAuthorityError {
@@ -235,6 +243,9 @@ impl DebuggerAuthority {
                 });
             }
         };
+        let response = DebuggerSessionResponse {
+            session: view(&projection, Some(&effect))?,
+        };
         let session = DebuggerSession {
             principal_id: request.principal.id,
             source_digest,
@@ -247,11 +258,9 @@ impl DebuggerAuthority {
             waiting_projection: projection.clone(),
             current_projection: projection.clone(),
             applied_cancel: None,
+            last_presentation: None,
         };
         self.next_sequence = self.next_sequence.saturating_add(1);
-        let response = DebuggerSessionResponse {
-            session: view(&projection)?,
-        };
         self.sessions.insert(request.session_id, session);
         Ok(response)
     }
@@ -274,7 +283,7 @@ impl DebuggerAuthority {
                     .as_ref()
                     .is_none_or(|expected| expected == *session_id)
             })
-            .map(|(_, session)| view(&session.current_projection))
+            .map(|(_, session)| view_session(session))
             .collect::<Result<Vec<_>, _>>()?;
         if request.session_id.is_some() && sessions.is_empty() {
             return Err(DebuggerAuthorityError {
@@ -283,6 +292,179 @@ impl DebuggerAuthority {
             });
         }
         Ok(DebuggerSessionsResponse { sessions })
+    }
+
+    pub fn acknowledge_presentation(
+        &mut self,
+        request: DebuggerPresentationAcknowledgeRequest,
+    ) -> Result<DebuggerPresentationResponse, DebuggerAuthorityError> {
+        authorize(&request.principal, &request.capabilities)?;
+        if !request.capabilities.contains(CAPABILITY_UI_PRESENTATION)
+            || request.expected_revision.0 == 0
+            || validate_debugger_session_id(&request.session_id).is_err()
+            || !valid_debugger_identifier(&request.effect_id)
+        {
+            return Err(DebuggerAuthorityError {
+                code: "debugger_presentation_unauthorized",
+                message: "live presentation requires explicit UI authority",
+            });
+        }
+
+        let observed_at_ms = now_ms()?;
+        let session = self
+            .sessions
+            .get_mut(&request.session_id)
+            .ok_or(DebuggerAuthorityError {
+                code: "debugger_session_not_found",
+                message: "debugger session was not found",
+            })?;
+        refresh_session_at(session, observed_at_ms)?;
+        if let Some((applied, response)) = &session.last_presentation
+            && applied == &request
+        {
+            return Ok(response.clone());
+        }
+        if session.principal_id != request.principal.id {
+            return Err(DebuggerAuthorityError {
+                code: "debugger_presentation_unauthorized",
+                message: "live presentation is bound to the issuing principal",
+            });
+        }
+        if session.current_projection.state != DebuggerState::WaitingEffect {
+            return Err(DebuggerAuthorityError {
+                code: "debugger_session_not_waiting",
+                message: "debugger session is no longer waiting",
+            });
+        }
+        if session.current_projection.revision != request.expected_revision
+            || session.request.effect_id != request.effect_id
+        {
+            return Err(DebuggerAuthorityError {
+                code: "debugger_presentation_conflict",
+                message: "live presentation coordinates changed before acknowledgement",
+            });
+        }
+        let operation = pending_presentation(&session.request).ok_or(DebuggerAuthorityError {
+            code: "debugger_effect_not_presentation",
+            message: "pending debugger effect is not a UI presentation operation",
+        })?;
+        let expected_node_id = presentation_node_id(&operation)?;
+        let next_revision = Revision(session.current_projection.revision.0.checked_add(1).ok_or(
+            DebuggerAuthorityError {
+                code: "debugger_revision_exhausted",
+                message: "debugger session revision is exhausted",
+            },
+        )?);
+        let effect_id = request.effect_id.clone();
+
+        let (status, step, rejection_code) = match &request.outcome {
+            DebuggerPresentationOutcome::Applied {
+                node_id,
+                focused_node_id,
+            } => {
+                if node_id != &expected_node_id {
+                    return Err(DebuggerAuthorityError {
+                        code: "debugger_presentation_conflict",
+                        message: "live presentation target changed before acknowledgement",
+                    });
+                }
+                let result = presentation_result(&operation, node_id, focused_node_id.as_deref())?;
+                let continuation = session.request.continuation.clone();
+                (
+                    DebuggerPresentationStatus::Applied,
+                    session.vm.resume_at(
+                        &continuation,
+                        observed_at_ms,
+                        EffectResult::Presentation(result),
+                    ),
+                    None,
+                )
+            }
+            DebuggerPresentationOutcome::Rejected { node_id, code } => {
+                if node_id != &expected_node_id || !valid_failure_code(code) {
+                    return Err(DebuggerAuthorityError {
+                        code: "debugger_presentation_rejection_invalid",
+                        message: "live presentation rejection is invalid",
+                    });
+                }
+                let continuation = session.request.continuation.clone();
+                let step = session.vm.cancel_effect(&continuation, observed_at_ms);
+                if !matches!(
+                    step,
+                    Step::Cancelled(ref cancellation)
+                        if cancellation.reason == CancellationReason::Requested
+                ) {
+                    return Err(DebuggerAuthorityError {
+                        code: "debugger_presentation_rejection_failed",
+                        message: "live presentation rejection did not consume the continuation",
+                    });
+                }
+                (
+                    DebuggerPresentationStatus::Rejected,
+                    step,
+                    Some(code.as_str()),
+                )
+            }
+        };
+
+        let mut next_request = None;
+        let projection = match (status, step) {
+            (DebuggerPresentationStatus::Applied, Step::Done(_)) => terminal_projection(
+                &session.current_projection,
+                next_revision,
+                DebuggerState::Completed,
+                None,
+            )?,
+            (DebuggerPresentationStatus::Applied, Step::Effect(effect)) => {
+                let effect = *effect;
+                let projection = waiting_debugger_projection(
+                    &effect,
+                    &request.session_id,
+                    next_revision,
+                    observed_at_ms,
+                )
+                .map_err(|_| DebuggerAuthorityError {
+                    code: "debugger_presentation_reentry_failed",
+                    message: "live presentation could not project the next VM effect",
+                })?;
+                next_request = Some(effect);
+                projection
+            }
+            (DebuggerPresentationStatus::Applied, _) => terminal_projection(
+                &session.current_projection,
+                next_revision,
+                DebuggerState::Failed,
+                Some(DebuggerFaultSummary {
+                    code: "debugger_presentation_reentry_failed".into(),
+                    display: "live presentation did not re-enter the VM safely".into(),
+                }),
+            )?,
+            (DebuggerPresentationStatus::Rejected, _) => terminal_projection(
+                &session.current_projection,
+                next_revision,
+                DebuggerState::Failed,
+                Some(DebuggerFaultSummary {
+                    code: format!(
+                        "debugger_presentation_{}",
+                        rejection_code.expect("rejected presentation retains its code")
+                    ),
+                    display: "the GUI adapter rejected the presentation operation".into(),
+                }),
+            )?,
+        };
+        let response = DebuggerPresentationResponse {
+            effect_id,
+            status,
+            session: view(&projection, next_request.as_ref())?,
+            acknowledged_at_ms: observed_at_ms,
+        };
+        session.current_projection = projection.clone();
+        if let Some(effect) = next_request {
+            session.request = effect;
+            session.waiting_projection = projection;
+        }
+        session.last_presentation = Some((request, response.clone()));
+        Ok(response)
     }
 
     pub fn cancel(
@@ -355,7 +537,10 @@ impl DebuggerAuthority {
         let response = DebuggerCancelResponse {
             command_id: command.command_id.clone(),
             status,
-            session: view(&projection)?,
+            session: view(
+                &projection,
+                (status == DebuggerMutationStatus::Planned).then_some(&session.request),
+            )?,
             audited_at_ms: result.audited_at_ms,
         };
         if status == DebuggerMutationStatus::Applied {
@@ -495,9 +680,94 @@ fn refresh_session_at(
         code: "debugger_deadline_exceeded".into(),
         display: "debugger effect deadline exceeded".into(),
     });
-    view(&projection)?;
+    view(&projection, None)?;
     session.current_projection = projection;
     Ok(())
+}
+
+fn terminal_projection(
+    current: &DebuggerProjection,
+    revision: Revision,
+    state: DebuggerState,
+    fault: Option<DebuggerFaultSummary>,
+) -> Result<DebuggerProjection, DebuggerAuthorityError> {
+    let mut projection = current.clone();
+    projection.revision = revision;
+    projection.state = state;
+    projection.pending_effect = None;
+    projection.deadline_remaining_ms = None;
+    projection.fault = fault;
+    view(&projection, None)?;
+    Ok(projection)
+}
+
+fn presentation_node_id(
+    operation: &PresentationOperation,
+) -> Result<String, DebuggerAuthorityError> {
+    let value = serde_json::to_value(operation).map_err(|_| presentation_result_error())?;
+    let node_id = value
+        .get("node_id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(presentation_result_error)?;
+    if !validate_ui_node_id(node_id) {
+        return Err(presentation_result_error());
+    }
+    Ok(node_id.to_string())
+}
+
+fn presentation_result(
+    operation: &PresentationOperation,
+    node_id: &str,
+    focused_node_id: Option<&str>,
+) -> Result<PresentationResult, DebuggerAuthorityError> {
+    let mut value = serde_json::to_value(operation).map_err(|_| presentation_result_error())?;
+    let object = value
+        .as_object_mut()
+        .ok_or_else(presentation_result_error)?;
+    if object.get("node_id").and_then(serde_json::Value::as_str) != Some(node_id)
+        || !validate_ui_node_id(node_id)
+    {
+        return Err(presentation_result_error());
+    }
+    if matches!(operation, PresentationOperation::NavigateFocus { .. }) {
+        let focused_node_id = focused_node_id
+            .filter(|value| validate_ui_node_id(value))
+            .ok_or_else(presentation_result_error)?;
+        object.insert(
+            "focused_node_id".into(),
+            serde_json::Value::String(focused_node_id.to_string()),
+        );
+    } else if focused_node_id.is_some() {
+        return Err(presentation_result_error());
+    }
+    serde_json::from_value(value).map_err(|_| presentation_result_error())
+}
+
+fn presentation_result_error() -> DebuggerAuthorityError {
+    DebuggerAuthorityError {
+        code: "debugger_presentation_result_invalid",
+        message: "live presentation result does not match the pending VM effect",
+    }
+}
+
+fn valid_debugger_identifier(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.' | b':'))
+}
+
+fn valid_failure_code(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 64
+        && value
+            .bytes()
+            .next()
+            .is_some_and(|byte| byte.is_ascii_lowercase())
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
 }
 
 fn journal_artifacts_exist(path: &Path) -> Result<bool, DebuggerAuthorityError> {
@@ -566,14 +836,33 @@ fn authorize(
     Ok(())
 }
 
-fn view(projection: &DebuggerProjection) -> Result<DebuggerSessionView, DebuggerAuthorityError> {
+fn view_session(session: &DebuggerSession) -> Result<DebuggerSessionView, DebuggerAuthorityError> {
+    view(
+        &session.current_projection,
+        (session.current_projection.state == DebuggerState::WaitingEffect)
+            .then_some(&session.request),
+    )
+}
+
+fn view(
+    projection: &DebuggerProjection,
+    request: Option<&EffectRequest>,
+) -> Result<DebuggerSessionView, DebuggerAuthorityError> {
     Ok(DebuggerSessionView {
         projection: projection.clone(),
         document: debugger_document(projection).map_err(|_| DebuggerAuthorityError {
             code: "debugger_projection_invalid",
             message: "debugger VM state could not be projected safely",
         })?,
+        pending_presentation: request.and_then(pending_presentation),
     })
+}
+
+fn pending_presentation(request: &EffectRequest) -> Option<PresentationOperation> {
+    match &request.operation {
+        EffectOperation::Presentation(envelope) => Some(envelope.operation.clone()),
+        EffectOperation::Query(_) | EffectOperation::Command(_) => None,
+    }
 }
 
 fn vm_capabilities() -> CapabilitySet {
@@ -688,6 +977,25 @@ mod tests {
         }
     }
 
+    fn presentation_acknowledgement(
+        session_id: &str,
+        outcome: DebuggerPresentationOutcome,
+    ) -> DebuggerPresentationAcknowledgeRequest {
+        DebuggerPresentationAcknowledgeRequest {
+            principal: Principal {
+                id: "debugger-operator".into(),
+            },
+            capabilities: CapabilitySet::new([
+                CAPABILITY_DEBUGGER_CONTROL,
+                CAPABILITY_UI_PRESENTATION,
+            ]),
+            session_id: session_id.into(),
+            effect_id: "effect-1".into(),
+            expected_revision: Revision(7),
+            outcome,
+        }
+    }
+
     #[test]
     fn real_vm_session_projects_plans_cancels_and_replays() {
         let root = TempRoot::new("vertical");
@@ -739,6 +1047,133 @@ mod tests {
             authority.cancel(conflicting).unwrap_err().code(),
             "debugger_session_not_waiting"
         );
+    }
+
+    #[test]
+    fn live_presentation_reenters_the_rust_vm_and_replays_idempotently() {
+        let root = TempRoot::new("live-presentation");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-presentation");
+        request.source = "fn main() = ui.assert_visible(node_id: \"remote-fleet\")".into();
+        let started = authority.start_session(request).unwrap();
+        assert_eq!(
+            started.session.pending_presentation,
+            Some(PresentationOperation::AssertVisible {
+                node_id: "remote-fleet".into(),
+            })
+        );
+
+        let acknowledgement = presentation_acknowledgement(
+            "session-presentation",
+            DebuggerPresentationOutcome::Applied {
+                node_id: "remote-fleet".into(),
+                focused_node_id: None,
+            },
+        );
+        let advanced = authority
+            .acknowledge_presentation(acknowledgement.clone())
+            .unwrap();
+        assert_eq!(advanced.status, DebuggerPresentationStatus::Applied);
+        assert_eq!(advanced.effect_id, "effect-1");
+        assert_eq!(advanced.session.projection.state, DebuggerState::Completed);
+        assert_eq!(advanced.session.projection.revision, Revision(8));
+        assert!(advanced.session.pending_presentation.is_none());
+        assert_eq!(
+            authority.acknowledge_presentation(acknowledgement).unwrap(),
+            advanced
+        );
+
+        let mut unauthorized = presentation_acknowledgement(
+            "session-presentation",
+            DebuggerPresentationOutcome::Applied {
+                node_id: "remote-fleet".into(),
+                focused_node_id: None,
+            },
+        );
+        unauthorized.capabilities = CapabilitySet::new([CAPABILITY_DEBUGGER_CONTROL]);
+        assert_eq!(
+            authority
+                .acknowledge_presentation(unauthorized)
+                .unwrap_err()
+                .code(),
+            "debugger_presentation_unauthorized"
+        );
+    }
+
+    #[test]
+    fn focus_navigation_requires_and_reenters_with_the_adapter_destination() {
+        let root = TempRoot::new("focus-navigation");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-navigation");
+        request.source =
+            "fn main() = ui.navigate_focus(node_id: \"remote-fleet\", direction: \"next\")".into();
+        let started = authority.start_session(request).unwrap();
+        assert!(matches!(
+            started.session.pending_presentation,
+            Some(PresentationOperation::NavigateFocus {
+                ref node_id,
+                direction: leselang_hir::UiFocusNavigationDirection::Next,
+            }) if node_id == "remote-fleet"
+        ));
+
+        let missing_destination = presentation_acknowledgement(
+            "session-navigation",
+            DebuggerPresentationOutcome::Applied {
+                node_id: "remote-fleet".into(),
+                focused_node_id: None,
+            },
+        );
+        assert_eq!(
+            authority
+                .acknowledge_presentation(missing_destination)
+                .unwrap_err()
+                .code(),
+            "debugger_presentation_result_invalid"
+        );
+
+        let advanced = authority
+            .acknowledge_presentation(presentation_acknowledgement(
+                "session-navigation",
+                DebuggerPresentationOutcome::Applied {
+                    node_id: "remote-fleet".into(),
+                    focused_node_id: Some("runtime-card-a".into()),
+                },
+            ))
+            .unwrap();
+        assert_eq!(advanced.status, DebuggerPresentationStatus::Applied);
+        assert_eq!(advanced.session.projection.state, DebuggerState::Completed);
+        assert!(advanced.session.pending_presentation.is_none());
+    }
+
+    #[test]
+    fn rejected_live_presentation_converges_to_a_visible_terminal_failure() {
+        let root = TempRoot::new("rejected-presentation");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-presentation-rejected");
+        request.source = "fn main() = ui.assert_visible(node_id: \"remote-fleet\")".into();
+        authority.start_session(request).unwrap();
+
+        let rejected = authority
+            .acknowledge_presentation(presentation_acknowledgement(
+                "session-presentation-rejected",
+                DebuggerPresentationOutcome::Rejected {
+                    node_id: "remote-fleet".into(),
+                    code: "target_not_visible".into(),
+                },
+            ))
+            .unwrap();
+        assert_eq!(rejected.status, DebuggerPresentationStatus::Rejected);
+        assert_eq!(rejected.session.projection.state, DebuggerState::Failed);
+        assert_eq!(
+            rejected
+                .session
+                .projection
+                .fault
+                .as_ref()
+                .map(|fault| fault.code.as_str()),
+            Some("debugger_presentation_target_not_visible")
+        );
+        assert!(rejected.session.pending_presentation.is_none());
     }
 
     #[test]

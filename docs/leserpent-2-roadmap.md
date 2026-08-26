@@ -212,9 +212,9 @@ That statement covers adapter and renderer conformance, not product reachability
 The machine-validated [GUI function-chain matrix](leserpent-gui-function-chains.md)
 now audits entry, semantic lowering, transport, authority, persistence,
 projection, operator feedback, and Leselang equivalence separately. Its
-2026-08-26 baseline scores the Avalonia product at 94, the Rust-hosted Web target
+2026-08-26 baseline scores the Avalonia product at 100, the Rust-hosted Web target
 at 0, and the supported ASP.NET Web bridge at 100, for a combined target score
-of 85. Avalonia now closes a daemon-owned native Orchestra workspace for strict,
+of 90. Avalonia now closes a daemon-owned native Orchestra workspace for strict,
 revision-fenced plan discovery, Rust-authoritative automatic execution,
 queued-only cancellation, lineage-bound retry, persisted run/event drilldown,
 and idempotent runtime-scoped cleanup. Guided plans remain review-only rather
@@ -228,8 +228,13 @@ debugger document over authenticated transport, and applies cancellation only
 after dry-run review and explicit confirmation. The .NET plan remains bound to
 its issuing client and principal, while the desktop refuses to abandon a
 waiting session through its New action. Product-hosted Leselang
-presentation automation and the per-daemon Rust Web console remain explicit
-closure work. Expired effects converge to a terminal revision and release the
+presentation automation is now closed as well: **Run live** receives typed
+presentation operations from the daemon-owned Rust VM, applies them to the
+current product window, and returns revision- and effect-bound outcomes for
+durable VM re-entry. Continuations and source never cross the acknowledgement
+boundary, rejections become visible terminal failures, and the desktop caps one
+run at 64 effects. The per-daemon Rust Web console remains the explicit closure
+work. Expired effects converge to a terminal revision and release the
 32-session daemon registry; cancellation audit remains restart-durable inside a
 bounded 64-journal retention horizon. Active debugger sessions remain
 process-bound, so reconstruction is tracked as later VM-host resilience rather
@@ -2316,12 +2321,13 @@ explicit review
 candidates. Connection/forget, reverse deployment, gewyvern provisioning and
 retirement, daemon retirement, startup recovery, account presentation, the
 remote daemon shell, remote operation/Leselang controls, and the runtime child
-workspace, plus the Orchestra plan/control/history workspace, Hub dynamic cards, and
-the existing-runtime registration editor and Learning Center, now establish the
+workspace, plus the Orchestra plan/control/history workspace, debugger live
+execution, Hub dynamic cards, the existing-runtime registration editor, and
+Learning Center, now establish the
 specialist-dialog pattern.
 Their exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 36-key, 56-key,
-57-key, 78-key, 72-key, 49-key, 69-key, and 61-key catalogs bring every non-English
-built-in to 717 semantic keys without touching the frozen core set. They share one strict
+57-key, 78-key, 72-key, 33-key, 49-key, 69-key, and 61-key catalogs bring every
+non-English built-in to 750 semantic keys without touching the frozen core set. They share one strict
 key/value/placeholder validator. Eight-locale native layout probes cover each
 dialog and the account card at the minimum Hub envelope. The remote proof also
 covers compact and wide shells plus 32 refresh/deployment/cleanup/cancellation

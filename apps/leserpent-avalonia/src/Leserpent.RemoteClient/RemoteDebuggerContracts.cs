@@ -36,7 +36,20 @@ public sealed record RemoteDebuggerProjection(
 
 public sealed record RemoteDebuggerSession(
     RemoteDebuggerProjection Projection,
-    UiDocument Document);
+    UiDocument Document,
+    UiPresentationOperation? PendingPresentation = null);
+
+public sealed record RemoteDebuggerPresentationOutcome(
+    bool Applied,
+    string NodeId,
+    string? FocusedNodeId,
+    string? FailureCode);
+
+public sealed record RemoteDebuggerPresentationResult(
+    string EffectId,
+    bool Applied,
+    RemoteDebuggerSession Session,
+    ulong AcknowledgedAtMs);
 
 public sealed class RemoteDebuggerCancelPlan
 {
@@ -134,6 +147,42 @@ public sealed class WireDebuggerSessionStartPayload
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class WireDebuggerPresentationRequestEnvelope
+{
+    public int SchemaVersion { get; set; } = 1;
+    public required WireDebuggerPresentationRequest Request { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class WireDebuggerPresentationRequest
+{
+    public string Kind { get; set; } = "debugger_presentation_acknowledge";
+    public required WireDebuggerPresentationPayload Payload { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class WireDebuggerPresentationPayload
+{
+    public required RemotePrincipal Principal { get; set; }
+    public required List<string> Capabilities { get; set; }
+    public required string SessionId { get; set; }
+    public required string EffectId { get; set; }
+    public ulong ExpectedRevision { get; set; }
+    public required WireDebuggerPresentationOutcome Outcome { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class WireDebuggerPresentationOutcome
+{
+    public required string Status { get; set; }
+    public required string NodeId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FocusedNodeId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Code { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class WireDebuggerCommandRequestEnvelope
 {
     public int SchemaVersion { get; set; } = 1;
@@ -192,10 +241,21 @@ public sealed class WireDebuggerCancelResponse
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class WireDebuggerPresentationResponse
+{
+    public required string EffectId { get; set; }
+    public required string Status { get; set; }
+    public required WireDebuggerSessionView Session { get; set; }
+    public ulong AcknowledgedAtMs { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class WireDebuggerSessionView
 {
     public required WireDebuggerProjection Projection { get; set; }
     public JsonElement Document { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? PendingPresentation { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -239,9 +299,11 @@ public sealed class WireDebuggerFault
     PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
 [JsonSerializable(typeof(WireDebuggerSessionsRequestEnvelope))]
 [JsonSerializable(typeof(WireDebuggerSessionStartRequestEnvelope))]
+[JsonSerializable(typeof(WireDebuggerPresentationRequestEnvelope))]
 [JsonSerializable(typeof(WireDebuggerCommandRequestEnvelope))]
 [JsonSerializable(typeof(WireResponseEnvelope))]
 [JsonSerializable(typeof(WireDebuggerSessionsResponse))]
 [JsonSerializable(typeof(WireDebuggerSessionResponse))]
+[JsonSerializable(typeof(WireDebuggerPresentationResponse))]
 [JsonSerializable(typeof(WireDebuggerCancelResponse))]
 public partial class RemoteDebuggerJsonContext : JsonSerializerContext;

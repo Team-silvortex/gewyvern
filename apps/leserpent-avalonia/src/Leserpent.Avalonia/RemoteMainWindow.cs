@@ -1489,7 +1489,8 @@ internal sealed class RemoteMainWindow : Window
         var workspace = new RemoteDebuggerWindow(
             options,
             principal,
-            localization);
+            localization,
+            renderer.ApplyPresentationAsync);
         debuggerWorkspace = workspace;
         workspace.Closed += (_, _) =>
         {

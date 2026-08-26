@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 leselang-ui = { path = "../leselang-ui" }
+leselang-vm = { path = "../leselang-vm" }
 leserpent-domain = { path = "../leserpent-domain" }
 ring = "0.17"
 serde.workspace = true

@@ -78,6 +78,17 @@ pub(crate) fn execute_request_with_debugger(
                 None => debugger_unavailable(),
             };
         }
+        ProtocolRequest::DebuggerPresentationAcknowledge(request) => {
+            return match debugger {
+                Some(debugger) => match debugger.acknowledge_presentation(request) {
+                    Ok(advanced) => {
+                        response(ProtocolResponse::DebuggerPresentationAdvanced(advanced))
+                    }
+                    Err(error) => error_response(error.code(), error.message()),
+                },
+                None => debugger_unavailable(),
+            };
+        }
         ProtocolRequest::Command(command)
             if matches!(&command.command, Command::DebuggerCancel { .. }) =>
         {
@@ -622,7 +633,8 @@ pub(crate) fn execute_request_with_debugger(
         | ProtocolRequest::BootstrapHandoff(_)
         | ProtocolRequest::BootstrapSessionBind(_)
         | ProtocolRequest::DebuggerSessions(_)
-        | ProtocolRequest::DebuggerSessionStart(_) => unreachable!(),
+        | ProtocolRequest::DebuggerSessionStart(_)
+        | ProtocolRequest::DebuggerPresentationAcknowledge(_) => unreachable!(),
     };
     let operation = match request {
         ProtocolRequest::Query(query) => PlannedOperation::Query(query),
@@ -645,7 +657,8 @@ pub(crate) fn execute_request_with_debugger(
         | ProtocolRequest::BootstrapHandoff(_)
         | ProtocolRequest::BootstrapSessionBind(_)
         | ProtocolRequest::DebuggerSessions(_)
-        | ProtocolRequest::DebuggerSessionStart(_) => unreachable!(),
+        | ProtocolRequest::DebuggerSessionStart(_)
+        | ProtocolRequest::DebuggerPresentationAcknowledge(_) => unreachable!(),
     };
     match runtime.execute_plan(CommandPlan {
         schema_version: leserpent_domain::COMMAND_PLAN_SCHEMA_VERSION,
@@ -694,7 +707,8 @@ fn requires_authority_writer_fence(request: &ProtocolRequest) -> bool {
         | ProtocolRequest::AuthorityWriterClaim(_)
         | ProtocolRequest::BootstrapHandoff(_)
         | ProtocolRequest::DebuggerSessions(_)
-        | ProtocolRequest::DebuggerSessionStart(_) => false,
+        | ProtocolRequest::DebuggerSessionStart(_)
+        | ProtocolRequest::DebuggerPresentationAcknowledge(_) => false,
     }
 }
 
@@ -842,7 +856,9 @@ mod tests {
     use std::path::PathBuf;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+    use leselang_hir::CAPABILITY_UI_PRESENTATION;
     use leselang_ui::DebuggerState;
+    use leselang_vm::PresentationOperation;
     use leserpent_domain::bootstrap::{
         BOOTSTRAP_SESSION_PROTOCOL_VERSION, BootstrapId, BootstrapPhase, BootstrapTarget,
         BootstrapTransport, CredentialHandle, DaemonId, DeploymentBootstrapSnapshot,
@@ -854,9 +870,11 @@ mod tests {
     };
     use leserpent_protocol::{
         AuthorityWriterClaimRequest, BootstrapHandoffRequest, BootstrapSessionBindRequest,
-        CAPABILITY_AUTHORITY_WRITER, DebuggerMutationStatus, DebuggerSessionStartRequest,
-        DebuggerSessionsRequest, OrchestraCancelCommandRequest, OrchestraPlanCatalogRequest,
-        OrchestraRunCommandRequest, ProtocolRequest,
+        CAPABILITY_AUTHORITY_WRITER, DebuggerMutationStatus,
+        DebuggerPresentationAcknowledgeRequest, DebuggerPresentationOutcome,
+        DebuggerPresentationStatus, DebuggerSessionStartRequest, DebuggerSessionsRequest,
+        OrchestraCancelCommandRequest, OrchestraPlanCatalogRequest, OrchestraRunCommandRequest,
+        ProtocolRequest,
     };
 
     use super::*;
@@ -1407,6 +1425,109 @@ mod tests {
                 Some(&mut debugger),
             ),
             applied
+        );
+
+        drop(debugger);
+        drop(runtime);
+        fs::remove_dir_all(path.with_file_name(format!(
+            "{}.leselang-debugger",
+            path.file_name().unwrap().to_string_lossy()
+        )))
+        .unwrap();
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn wire_live_presentation_reenters_the_rust_vm_without_exposing_continuations() {
+        let path = temp_database();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let mut debugger = DebuggerAuthority::for_database(&path).unwrap();
+        let session_id = "debugger-wire-presentation";
+        let started = execute_request_with_debugger(
+            &mut runtime,
+            RequestEnvelope {
+                schema_version: PROTOCOL_SCHEMA_VERSION,
+                request: ProtocolRequest::DebuggerSessionStart(DebuggerSessionStartRequest {
+                    principal: Principal {
+                        id: "debugger-operator".into(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_DEBUGGER_CONTROL]),
+                    session_id: session_id.into(),
+                    source: "fn main() = ui.assert_visible(node_id: \"remote-fleet\")".into(),
+                    expected_revision: Some(Revision(7)),
+                    timeout_ms: 300_000,
+                }),
+            },
+            None,
+            None,
+            false,
+            Some(&mut debugger),
+        );
+        let ProtocolResponse::DebuggerSessionStarted(started) = started.response else {
+            panic!("Rust debugger presentation session was not returned");
+        };
+        assert_eq!(
+            started.session.pending_presentation,
+            Some(PresentationOperation::AssertVisible {
+                node_id: "remote-fleet".into(),
+            })
+        );
+        let pending = started
+            .session
+            .projection
+            .pending_effect
+            .as_ref()
+            .expect("presentation remains suspended");
+        let acknowledgement = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::DebuggerPresentationAcknowledge(
+                DebuggerPresentationAcknowledgeRequest {
+                    principal: Principal {
+                        id: "debugger-operator".into(),
+                    },
+                    capabilities: CapabilitySet::new([
+                        CAPABILITY_DEBUGGER_CONTROL,
+                        CAPABILITY_UI_PRESENTATION,
+                    ]),
+                    session_id: session_id.into(),
+                    effect_id: pending.effect_id.clone(),
+                    expected_revision: started.session.projection.revision,
+                    outcome: DebuggerPresentationOutcome::Applied {
+                        node_id: "remote-fleet".into(),
+                        focused_node_id: None,
+                    },
+                },
+            ),
+        };
+        let advanced = execute_request_with_debugger(
+            &mut runtime,
+            acknowledgement.clone(),
+            None,
+            None,
+            false,
+            Some(&mut debugger),
+        );
+        assert!(matches!(
+            advanced.response,
+            ProtocolResponse::DebuggerPresentationAdvanced(ref response)
+                if response.status == DebuggerPresentationStatus::Applied
+                    && response.effect_id == pending.effect_id
+                    && response.acknowledged_at_ms > 0
+                    && response.session.projection.state == DebuggerState::Completed
+                    && response.session.projection.revision == Revision(8)
+                    && response.session.projection.pending_effect.is_none()
+                    && response.session.pending_presentation.is_none()
+        ));
+        assert_eq!(
+            execute_request_with_debugger(
+                &mut runtime,
+                acknowledgement,
+                None,
+                None,
+                false,
+                Some(&mut debugger),
+            ),
+            advanced
         );
 
         drop(debugger);

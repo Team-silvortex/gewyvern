@@ -13,15 +13,43 @@ elif [ "${1:-}" != "" ]; then
 fi
 
 find_cleanup_dirs() {
-  find "$ROOT_DIR" \
-    \( \
-      -path "$ROOT_DIR/.git" -o \
-      -path "$ROOT_DIR/apps/leserpent/src/Leserpent/data" -o \
-      -path "$ROOT_DIR/src/bin" \
-    \) -prune -o \
-    -type d \
-    \( -name node_modules -o -name bin -o -name obj -o -name __pycache__ -o -name .pytest_cache \) \
-    -print | sort
+  emit_if_untracked() {
+    local path="$1"
+    local relative_path="${path#"$ROOT_DIR"/}"
+
+    if [ -z "$(git -C "$ROOT_DIR" ls-files -- "$relative_path")" ]; then
+      printf '%s\n' "$path"
+    fi
+  }
+
+  {
+    while IFS= read -r -d '' cache_dir; do
+      emit_if_untracked "$cache_dir"
+    done < <(
+      find "$ROOT_DIR" \
+        \( \
+          -path "$ROOT_DIR/.git" -o \
+          -path "$ROOT_DIR/target" -o \
+          -path "$ROOT_DIR/apps/leserpent/src/Leserpent/data" \
+        \) -prune -o \
+        -type d \
+        \( -name node_modules -o -name __pycache__ -o -name .pytest_cache \) \
+        -print0 -prune
+    )
+
+    while IFS= read -r -d '' project; do
+      project_dir="$(dirname "$project")"
+      for output_dir in "$project_dir/bin" "$project_dir/obj"; do
+        if [ -d "$output_dir" ]; then
+          emit_if_untracked "$output_dir"
+        fi
+      done
+    done < <(
+      find "$ROOT_DIR" \
+        \( -path "$ROOT_DIR/.git" -o -path "$ROOT_DIR/target" \) -prune -o \
+        -type f -name '*.csproj' -print0
+    )
+  } | sort -u
 }
 
 cleanup_dirs="$(find_cleanup_dirs)"
