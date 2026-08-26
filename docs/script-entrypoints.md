@@ -150,6 +150,13 @@ while malformed or contradictory evidence fails the command. When all product
 and Linux stages pass but Apple credentials remain absent, the aggregate signal
 is `apple_credentials_blocked`, never `ready`.
 
+The Apple preflight and release stages share one fixed system-tool inventory:
+the six host commands are executed by absolute `/usr/bin` or `/usr/sbin` path
+under a standard system `PATH`. `xcrun` additionally ignores process-local
+`DEVELOPER_DIR` and `TOOLCHAINS` overrides, so the reviewed Xcode selection must
+be configured through `xcode-select` and cannot change between inventory and
+execution through caller environment drift.
+
 If you only want the packaged part, run:
 
 ```bash

@@ -1,0 +1,497 @@
+{
+  "schema_version": 1,
+  "release_line": "2.0",
+  "as_of": "2026-08-26",
+  "stages": [
+    { "id": "entry", "label": "User-reachable GUI entry" },
+    { "id": "semantic", "label": "Typed semantic intent" },
+    { "id": "transport", "label": "Authenticated transport" },
+    { "id": "authority", "label": "Rust or compatibility authority" },
+    { "id": "persistence", "label": "Durable state or receipt" },
+    { "id": "projection", "label": "Bounded frontend projection" },
+    { "id": "feedback", "label": "Visible operator outcome" },
+    { "id": "automation", "label": "Equivalent Leselang path" }
+  ],
+  "surfaces": [
+    { "id": "avalonia-desktop", "label": "Avalonia desktop product", "lifecycle": "target" },
+    { "id": "rust-web", "label": "Rust-hosted TypeScript console", "lifecycle": "target" },
+    { "id": "web-1x", "label": "ASP.NET TypeScript compatibility console", "lifecycle": "bridge" }
+  ],
+  "operations": [
+    {
+      "id": "runtime-register",
+      "owner": "domain-command",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-domain/src/lib.rs", "contains": "RuntimeRegister {" }
+    },
+    {
+      "id": "runtime-registration-update",
+      "owner": "domain-command",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-domain/src/lib.rs", "contains": "RuntimeRegistrationUpdate {" }
+    },
+    {
+      "id": "runtime-discovery-intake",
+      "owner": "domain-command",
+      "audience": "internal",
+      "definition": { "path": "crates/leserpent-domain/src/lib.rs", "contains": "RuntimeDiscoveryIntake {" }
+    },
+    {
+      "id": "runtime-refresh",
+      "owner": "domain-command",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-domain/src/lib.rs", "contains": "RuntimeRefresh {" }
+    },
+    {
+      "id": "runtime-capabilities-refresh",
+      "owner": "domain-command",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-domain/src/lib.rs", "contains": "RuntimeCapabilitiesRefresh {" }
+    },
+    {
+      "id": "runtime-deploy",
+      "owner": "domain-command",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-domain/src/lib.rs", "contains": "RuntimeDeploy {" }
+    },
+    {
+      "id": "debugger-cancel",
+      "owner": "domain-command",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-domain/src/lib.rs", "contains": "DebuggerCancel {" }
+    },
+    {
+      "id": "runtime-list",
+      "owner": "domain-query",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-domain/src/lib.rs", "contains": "RuntimeList {" }
+    },
+    {
+      "id": "runtime-inspect",
+      "owner": "domain-query",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-domain/src/lib.rs", "contains": "RuntimeInspect {" }
+    },
+    {
+      "id": "runtime-history",
+      "owner": "domain-query",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-domain/src/lib.rs", "contains": "RuntimeHistory {" }
+    },
+    {
+      "id": "runtime-logs",
+      "owner": "domain-query",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-domain/src/lib.rs", "contains": "RuntimeLogs {" }
+    },
+    {
+      "id": "health",
+      "owner": "protocol",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "Health(HealthRequest)" }
+    },
+    {
+      "id": "deployment-receipt",
+      "owner": "protocol",
+      "audience": "internal",
+      "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "DeploymentReceipt(DeploymentReceiptRequest)" }
+    },
+    {
+      "id": "orchestra-persist",
+      "owner": "protocol",
+      "audience": "internal",
+      "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "OrchestraPersist(OrchestraPersistenceRequest)" }
+    },
+    {
+      "id": "orchestra-history",
+      "owner": "protocol",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "OrchestraHistory(OrchestraHistoryRequest)" }
+    },
+    {
+      "id": "orchestra-delete",
+      "owner": "protocol",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "OrchestraDelete(OrchestraDeleteRequest)" }
+    },
+    {
+      "id": "orchestra-delete-command",
+      "owner": "protocol",
+      "audience": "internal",
+      "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "OrchestraDeleteCommand(OrchestraDeleteCommandRequest)" }
+    },
+    {
+      "id": "orchestra-replay-horizon",
+      "owner": "protocol",
+      "audience": "internal",
+      "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "OrchestraDeleteReplayHorizon(OrchestraDeleteReplayHorizonRequest)" }
+    },
+    {
+      "id": "orchestra-replay-checkpoint",
+      "owner": "protocol",
+      "audience": "internal",
+      "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "OrchestraDeleteReplayCheckpoint(OrchestraDeleteReplayCheckpointRequest)" }
+    },
+    {
+      "id": "runtime-unregister",
+      "owner": "protocol",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "RuntimeUnregister(RuntimeUnregisterRequest)" }
+    },
+    {
+      "id": "runtime-unregistration-receipt",
+      "owner": "protocol",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "RuntimeUnregistrationReceipt(RuntimeUnregistrationReceiptRequest)" }
+    },
+    {
+      "id": "authority-writer-claim",
+      "owner": "protocol",
+      "audience": "internal",
+      "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "AuthorityWriterClaim(AuthorityWriterClaimRequest)" }
+    },
+    {
+      "id": "bootstrap-handoff",
+      "owner": "protocol",
+      "audience": "internal",
+      "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "BootstrapHandoff(BootstrapHandoffRequest)" }
+    },
+    {
+      "id": "bootstrap-session-bind",
+      "owner": "protocol",
+      "audience": "internal",
+      "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "BootstrapSessionBind(BootstrapSessionBindRequest)" }
+    },
+    {
+      "id": "reverse-daemon-bootstrap",
+      "owner": "product",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpentd/src/remote.rs", "contains": "POST /v1/bootstrap HTTP/1.1" }
+    },
+    {
+      "id": "gewyvern-provision",
+      "owner": "product",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpentd/src/remote.rs", "contains": "POST /v1/provisioning HTTP/1.1" }
+    },
+    {
+      "id": "gewyvern-retire",
+      "owner": "product",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpentd/src/remote.rs", "contains": "POST /v1/retirement HTTP/1.1" }
+    },
+    {
+      "id": "daemon-retire",
+      "owner": "product",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpentd/src/remote.rs", "contains": "POST /v1/daemon-retirement HTTP/1.1" }
+    },
+    {
+      "id": "leselang-export",
+      "owner": "product",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpentd/src/remote.rs", "contains": "POST /v1/leselang-export HTTP/1.1" }
+    },
+    {
+      "id": "ui-presentation",
+      "owner": "product",
+      "audience": "operator",
+      "definition": { "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/AvaloniaDocumentRenderer.cs", "contains": "ApplyPresentationAsync(" }
+    },
+    {
+      "id": "rust-web-console",
+      "owner": "product",
+      "audience": "operator",
+      "definition": { "path": "docs/leserpent-2-roadmap.md", "contains": "compatibility API for the existing TypeScript dashboard" }
+    }
+  ],
+  "chains": [
+    {
+      "id": "fleet-observation",
+      "label": "Fleet and runtime observation",
+      "release_required": true,
+      "operations": ["runtime-list", "runtime-inspect", "runtime-history", "runtime-logs"],
+      "required_stages": ["entry", "semantic", "transport", "authority", "projection", "feedback"],
+      "required_surfaces": ["avalonia-desktop", "web-1x"],
+      "coverage": [
+        {
+          "surface": "avalonia-desktop",
+          "state": "closed",
+          "evidence": [
+            { "stage": "entry", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/HubWindow.cs", "contains": "private Button RuntimeRow(" },
+            { "stage": "semantic", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteWorkspaceDocumentProjection.cs", "contains": "public static UiDocument Project(" },
+            { "stage": "transport", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteTopologyClient.cs", "contains": "public async Task<RemoteTopologySnapshot> LoadAsync(" },
+            { "stage": "authority", "path": "crates/leserpentd/src/wire.rs", "contains": "ProtocolRequest::Query" },
+            { "stage": "projection", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteWorkspaceDocumentProjection.cs", "contains": "UiNodeKind.LogEntry" },
+            { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs", "contains": "renderer.Mount(RemoteWorkspaceDocumentProjection.Project(" }
+          ]
+        },
+        {
+          "surface": "web-1x",
+          "state": "closed",
+          "evidence": [
+            { "stage": "entry", "path": "apps/leserpent/src/Leserpent/frontend/47-runtime-list-renderer.ts", "contains": "function renderRuntimes(" },
+            { "stage": "semantic", "path": "apps/leserpent/src/Leserpent/ControlPlane/DaemonRuntimeReadProjection.cs", "contains": "class RuntimeReadProjectionService" },
+            { "stage": "transport", "path": "apps/leserpent/src/Leserpent/frontend/50-dashboard-workflows.ts", "contains": "getJson(`/v1/runtimes${query}`" },
+            { "stage": "authority", "path": "apps/leserpent/src/Leserpent/ProgramRuntimeEndpoints.cs", "contains": "app.MapGet(\"/v1/runtimes\"" },
+            { "stage": "projection", "path": "apps/leserpent/src/Leserpent/ControlPlane/DaemonRuntimeReadProjection.cs", "contains": "RuntimeReadProjectionService" },
+            { "stage": "feedback", "path": "apps/leserpent/src/Leserpent/frontend/40-runtime-inspector.ts", "contains": "function renderRuntimeDetail(" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "runtime-control",
+      "label": "Runtime refresh, capability discovery, and deployment",
+      "release_required": true,
+      "operations": ["runtime-refresh", "runtime-capabilities-refresh", "runtime-deploy"],
+      "required_stages": ["entry", "semantic", "transport", "authority", "persistence", "projection", "feedback"],
+      "required_surfaces": ["avalonia-desktop", "web-1x"],
+      "coverage": [
+        {
+          "surface": "avalonia-desktop",
+          "state": "closed",
+          "evidence": [
+            { "stage": "entry", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteMainWindow.cs", "contains": "OnActionInvokedAsync(" },
+            { "stage": "semantic", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteUiActionRouter.cs", "contains": "ResolveActivation(" },
+            { "stage": "transport", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteMutationClient.cs", "contains": "public async Task<RemoteMutationResult>" },
+            { "stage": "authority", "path": "crates/leserpent-runtime/src/lib.rs", "contains": "Command::RuntimeCapabilitiesRefresh" },
+            { "stage": "persistence", "path": "crates/leserpent-runtime/src/lib.rs", "contains": ".append_stamped(JournalEntryKind::CommandPlan" },
+            { "stage": "projection", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteMutationFences.cs", "contains": "SatisfiesRevision(" },
+            { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteMainWindow.cs", "contains": "SetMutationStatus(" }
+          ]
+        },
+        {
+          "surface": "web-1x",
+          "state": "closed",
+          "evidence": [
+            { "stage": "entry", "path": "apps/leserpent/src/Leserpent/frontend/15-preferences-bootstrap.ts", "contains": "nodes.runtimeDetailRefreshCapabilities.addEventListener" },
+            { "stage": "semantic", "path": "apps/leserpent/src/Leserpent/ControlPlane/RuntimeCommandExecutionContextService.cs", "contains": "class RuntimeCommandExecutionContextService" },
+            { "stage": "transport", "path": "apps/leserpent/src/Leserpent/frontend/40-runtime-inspector.ts", "contains": "async function refreshRuntimeById(" },
+            { "stage": "authority", "path": "apps/leserpent/src/Leserpent/ControlPlane/DaemonDeploymentAuthority.cs", "contains": "class DaemonDeploymentAuthority" },
+            { "stage": "persistence", "path": "crates/leserpent-runtime/src/lib.rs", "contains": ".append_stamped(JournalEntryKind::CommandPlan" },
+            { "stage": "projection", "path": "apps/leserpent/src/Leserpent/ProgramRuntimeEndpoints.cs", "contains": "app.MapPost(\"/v1/runtimes/{id}/deployments\"" },
+            { "stage": "feedback", "path": "apps/leserpent/src/Leserpent/frontend/50-dashboard-workflows.ts", "contains": "nodes.statusLine.textContent" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "runtime-registration-lifecycle",
+      "label": "Existing runtime registration, update, and unregister lifecycle",
+      "release_required": true,
+      "operations": ["runtime-register", "runtime-registration-update", "runtime-unregister", "runtime-unregistration-receipt"],
+      "required_stages": ["entry", "semantic", "transport", "authority", "persistence", "projection", "feedback"],
+      "required_surfaces": ["avalonia-desktop", "web-1x"],
+      "coverage": [
+        {
+          "surface": "avalonia-desktop",
+          "state": "partial",
+          "gap": "Provisioning and retirement close managed deployment lifecycle, but the product has no general existing-runtime registration/update editor.",
+          "evidence": [
+            { "stage": "entry", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/HubWindow.cs", "contains": "hub-provision-gewyvern" },
+            { "stage": "transport", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteProvisioningClient.cs", "contains": "public sealed class RemoteProvisioningClient" },
+            { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/GewyvernRetirementWindow.cs", "contains": "ReconcileAsync(background: false)" }
+          ]
+        },
+        {
+          "surface": "web-1x",
+          "state": "closed",
+          "evidence": [
+            { "stage": "entry", "path": "apps/leserpent/src/Leserpent/frontend/50-dashboard-workflows.ts", "contains": "async function submitRegisterForm(" },
+            { "stage": "semantic", "path": "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationExecutionService.cs", "contains": "RuntimeRegistrationPolicy.UpdateAction" },
+            { "stage": "transport", "path": "apps/leserpent/src/Leserpent/frontend/50-dashboard-workflows.ts", "contains": "postJsonBody(\"/v1/runtimes/register\"" },
+            { "stage": "authority", "path": "apps/leserpent/src/Leserpent/ControlPlane/DaemonRuntimeRegistrationAuthority.cs", "contains": "runtime_registration_update" },
+            { "stage": "persistence", "path": "apps/leserpent/src/Leserpent/ControlPlane/RuntimeRegistrationExecutionService.cs", "contains": "ExecuteAuthorityIntentAsync(" },
+            { "stage": "projection", "path": "apps/leserpent/src/Leserpent/ProgramRuntimeEndpoints.cs", "contains": "app.MapPost(\"/v1/runtimes/register\"" },
+            { "stage": "feedback", "path": "apps/leserpent/src/Leserpent/frontend/50-dashboard-workflows.ts", "contains": "setRegisterResult(" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "daemon-lifecycle",
+      "label": "Reverse daemon bootstrap and daemon retirement",
+      "release_required": true,
+      "operations": ["reverse-daemon-bootstrap", "daemon-retire"],
+      "required_stages": ["entry", "transport", "authority", "persistence", "feedback"],
+      "required_surfaces": ["avalonia-desktop"],
+      "coverage": [
+        {
+          "surface": "avalonia-desktop",
+          "state": "closed",
+          "evidence": [
+            { "stage": "entry", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/HubWindow.cs", "contains": "hub-deploy-daemon" },
+            { "stage": "transport", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteBootstrapClient.cs", "contains": "public async Task<RemoteBootstrapSnapshot> SubmitAsync(" },
+            { "stage": "authority", "path": "crates/leserpentd/src/remote.rs", "contains": "HttpRoute::Bootstrap" },
+            { "stage": "persistence", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBootstrapPromotion.cs", "contains": "DesktopConnectionCatalogStore" },
+            { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/BootstrapDeploymentWindow.cs", "contains": "promoteButton.IsEnabled" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gewyvern-lifecycle",
+      "label": "Managed Gewyvern provisioning and retirement",
+      "release_required": true,
+      "operations": ["gewyvern-provision", "gewyvern-retire"],
+      "required_stages": ["entry", "transport", "authority", "persistence", "projection", "feedback"],
+      "required_surfaces": ["avalonia-desktop"],
+      "coverage": [
+        {
+          "surface": "avalonia-desktop",
+          "state": "closed",
+          "evidence": [
+            { "stage": "entry", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/HubWindow.cs", "contains": "hub-provision-gewyvern" },
+            { "stage": "transport", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteProvisioningClient.cs", "contains": "ReconcileAsync(" },
+            { "stage": "authority", "path": "crates/leserpentd/src/remote.rs", "contains": "HttpRoute::Provisioning" },
+            { "stage": "persistence", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteUnregistrationReceiptClient.cs", "contains": "RemoteUnregistrationReceiptLookup" },
+            { "stage": "projection", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteProvisioningContracts.cs", "contains": "RuntimeRegistered" },
+            { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/GewyvernProvisioningWindow.cs", "contains": "ReconcileAsync(background: false)" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "orchestra-control",
+      "label": "Orchestra plan, run, history, cancellation, retry, and cleanup",
+      "release_required": true,
+      "operations": ["orchestra-history", "orchestra-delete"],
+      "required_stages": ["entry", "semantic", "transport", "authority", "persistence", "projection", "feedback"],
+      "required_surfaces": ["avalonia-desktop", "web-1x"],
+      "coverage": [
+        {
+          "surface": "avalonia-desktop",
+          "state": "absent",
+          "gap": "The desktop product exposes Orchestra health pressure but no plan, run, history, cancel, retry, or cleanup workspace.",
+          "evidence": []
+        },
+        {
+          "surface": "web-1x",
+          "state": "closed",
+          "evidence": [
+            { "stage": "entry", "path": "apps/leserpent/src/Leserpent/frontend/48-orchestra-renderer.ts", "contains": "function renderOrchestraPlan(" },
+            { "stage": "semantic", "path": "apps/leserpent/src/Leserpent/ProgramOrchestraEndpoints.cs", "contains": "OrchestraRunAcceptedResponse" },
+            { "stage": "transport", "path": "apps/leserpent/src/Leserpent/frontend/48-orchestra-renderer.ts", "contains": "async function executeOrchestraPlan(" },
+            { "stage": "authority", "path": "apps/leserpent/src/Leserpent/ControlPlane/DaemonOrchestraRunStore.cs", "contains": "class DaemonOrchestraRunStore" },
+            { "stage": "persistence", "path": "crates/leserpent-runtime/src/lib.rs", "contains": "orchestra_history(" },
+            { "stage": "projection", "path": "apps/leserpent/src/Leserpent/ProgramOrchestraEndpoints.cs", "contains": "app.MapGet(\"/v1/orchestra/runs\"" },
+            { "stage": "feedback", "path": "apps/leserpent/src/Leserpent/frontend/48-orchestra-renderer.ts", "contains": "function renderOrchestraHistory(" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "debugger-workflow",
+      "label": "Suspended Leselang VM debugger observation and cancellation",
+      "release_required": true,
+      "operations": ["debugger-cancel"],
+      "required_stages": ["entry", "semantic", "authority", "persistence", "projection", "feedback", "automation"],
+      "required_surfaces": ["avalonia-desktop"],
+      "coverage": [
+        {
+          "surface": "avalonia-desktop",
+          "state": "conformance-only",
+          "gap": "The neutral debugger document and native renderer pass fixtures, but the product has no VM-session projection client and its remote action router explicitly rejects DebuggerCancel.",
+          "evidence": [
+            { "stage": "semantic", "path": "crates/leselang-ui/src/lib.rs", "contains": "pub fn debugger_document(" },
+            { "stage": "authority", "path": "crates/leselang-observe/src/lib.rs", "contains": "execute_debugger_cancel(" },
+            { "stage": "persistence", "path": "crates/leselang-vm/src/lib.rs", "contains": "cancel_effect_audited(" },
+            { "stage": "projection", "path": "apps/leserpent-avalonia/fixtures/renderer-debugger-conformance-v1.json", "contains": "debugger_workspace" },
+            { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/AvaloniaDocumentRenderer.cs", "contains": "RealizedDebuggerCancelButtonCount" },
+            { "stage": "automation", "path": "crates/leselang-ui/src/lib.rs", "contains": "UiAction::DebuggerCancel" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "product-leselang-automation",
+      "label": "Product GUI and Leselang execution equivalence",
+      "release_required": true,
+      "operations": ["leselang-export", "ui-presentation"],
+      "required_stages": ["entry", "semantic", "authority", "feedback", "automation"],
+      "required_surfaces": ["avalonia-desktop"],
+      "coverage": [
+        {
+          "surface": "avalonia-desktop",
+          "state": "partial",
+          "gap": "Business actions export canonical Leselang and the renderer implements all presentation atoms, but no product VM host dispatches a Leselang program against live product windows.",
+          "evidence": [
+            { "stage": "entry", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LeselangExportControl.cs", "contains": "internal sealed class LeselangExportControl" },
+            { "stage": "semantic", "path": "crates/leselang-ui/src/lib.rs", "contains": "pub enum UiAction" },
+            { "stage": "authority", "path": "crates/leserpentd/src/remote.rs", "contains": "HttpRoute::LeselangExport" },
+            { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LeselangExportControl.cs", "contains": "SetStatus(\"leselang.status.generated\"" },
+            { "stage": "automation", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/AvaloniaDocumentRenderer.cs", "contains": "ApplyPresentationAsync(" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "authority-health",
+      "label": "Authority health, queue pressure, and recovery feedback",
+      "release_required": true,
+      "operations": ["health"],
+      "required_stages": ["entry", "transport", "authority", "projection", "feedback"],
+      "required_surfaces": ["avalonia-desktop", "web-1x"],
+      "coverage": [
+        {
+          "surface": "avalonia-desktop",
+          "state": "closed",
+          "evidence": [
+            { "stage": "entry", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteMainWindow.cs", "contains": "authorityHealthButton.Click" },
+            { "stage": "transport", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteHealthClient.cs", "contains": "public async Task<RemoteHealth> CheckAsync(" },
+            { "stage": "authority", "path": "crates/leserpentd/src/wire.rs", "contains": "ProtocolRequest::Health" },
+            { "stage": "projection", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteAuthorityHealthPresentation.cs", "contains": "public static RemoteAuthorityHealthPresentation Create(" },
+            { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteMainWindow.cs", "contains": "ApplyAuthorityHealth(" }
+          ]
+        },
+        {
+          "surface": "web-1x",
+          "state": "closed",
+          "evidence": [
+            { "stage": "entry", "path": "apps/leserpent/src/Leserpent/frontend/45-overview-renderers.ts", "contains": "function renderPersistence(" },
+            { "stage": "transport", "path": "apps/leserpent/src/Leserpent/frontend/50-dashboard-workflows.ts", "contains": "getJson(\"/v1/capabilities\"" },
+            { "stage": "authority", "path": "apps/leserpent/src/Leserpent/ProgramHealthEndpoints.cs", "contains": "app.MapGet(\"/v1/capabilities\"" },
+            { "stage": "projection", "path": "apps/leserpent/src/Leserpent/ProgramHealthEndpoints.cs", "contains": "control-writer-health" },
+            { "stage": "feedback", "path": "apps/leserpent/src/Leserpent/frontend/45-overview-renderers.ts", "contains": "function renderPersistence(" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rust-web-self-host",
+      "label": "Per-daemon Rust-hosted TypeScript console",
+      "release_required": true,
+      "operations": ["rust-web-console"],
+      "required_stages": ["entry", "transport", "authority", "projection", "feedback"],
+      "required_surfaces": ["rust-web"],
+      "coverage": [
+        {
+          "surface": "rust-web",
+          "state": "absent",
+          "gap": "The packaged TypeScript console is still hosted by the ASP.NET compatibility process; leserpentd does not yet serve the console or its compatibility API directly.",
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "id": "internal-authority-maintenance",
+      "label": "Internal authority and replay operations",
+      "release_required": false,
+      "operations": [
+        "runtime-discovery-intake",
+        "deployment-receipt",
+        "orchestra-persist",
+        "orchestra-delete-command",
+        "orchestra-replay-horizon",
+        "orchestra-replay-checkpoint",
+        "authority-writer-claim",
+        "bootstrap-handoff",
+        "bootstrap-session-bind"
+      ],
+      "required_stages": [],
+      "required_surfaces": [],
+      "coverage": []
+    }
+  ]
+}

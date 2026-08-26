@@ -13,6 +13,21 @@ const EXECUTABLE: &str = "Leserpent.Avalonia";
 const DAEMON_EXECUTABLE: &str = "leserpentd";
 const PRODUCT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const DEFAULT_ENTITLEMENTS: &str = "assets/packaging/leserpent-macos.entitlements";
+const CODESIGN_PATH: &str = "/usr/bin/codesign";
+const DITTO_PATH: &str = "/usr/bin/ditto";
+const PLUTIL_PATH: &str = "/usr/bin/plutil";
+const SECURITY_PATH: &str = "/usr/bin/security";
+const SPCTL_PATH: &str = "/usr/sbin/spctl";
+const XCRUN_PATH: &str = "/usr/bin/xcrun";
+const SYSTEM_PATH: &str = "/usr/bin:/bin:/usr/sbin:/sbin";
+const APPLE_RELEASE_TOOL_PATHS: [(&str, &str); 6] = [
+    ("codesign", CODESIGN_PATH),
+    ("ditto", DITTO_PATH),
+    ("plutil", PLUTIL_PATH),
+    ("security", SECURITY_PATH),
+    ("spctl", SPCTL_PATH),
+    ("xcrun", XCRUN_PATH),
+];
 
 fn main() {
     match Options::parse(env::args().skip(1)).and_then(run) {
@@ -182,7 +197,7 @@ fn run(options: Options) -> Result<String, String> {
 fn preflight(options: &Options) -> Result<String, String> {
     validate_regular_file(&options.entitlements, "entitlements")?;
     run_checked(
-        Command::new("plutil")
+        apple_command(PLUTIL_PATH)
             .arg("-lint")
             .arg(&options.entitlements),
         "entitlements plist validation",
@@ -246,21 +261,29 @@ fn enforce_preflight_readiness(
 }
 
 fn apple_release_tools() -> Vec<(&'static str, bool)> {
-    let mut tools = vec![
-        ("codesign", Path::new("/usr/bin/codesign").is_file()),
-        ("ditto", Path::new("/usr/bin/ditto").is_file()),
-        ("plutil", Path::new("/usr/bin/plutil").is_file()),
-        ("security", Path::new("/usr/bin/security").is_file()),
-        ("spctl", Path::new("/usr/sbin/spctl").is_file()),
-        ("xcrun", Path::new("/usr/bin/xcrun").is_file()),
-    ];
+    let mut tools = APPLE_RELEASE_TOOL_PATHS
+        .into_iter()
+        .map(|(name, path)| (name, Path::new(path).is_file()))
+        .collect::<Vec<_>>();
     tools.push(("notarytool", xcrun_finds("notarytool")));
     tools.push(("stapler", xcrun_finds("stapler")));
     tools
 }
 
+fn apple_command(path: &'static str) -> Command {
+    let mut command = Command::new(path);
+    command.env("PATH", SYSTEM_PATH);
+    command
+}
+
+fn xcrun_command() -> Command {
+    let mut command = apple_command(XCRUN_PATH);
+    command.env_remove("DEVELOPER_DIR").env_remove("TOOLCHAINS");
+    command
+}
+
 fn xcrun_finds(tool: &str) -> bool {
-    Command::new("xcrun")
+    xcrun_command()
         .args(["--find", tool])
         .output()
         .is_ok_and(|output| output.status.success())
@@ -268,7 +291,7 @@ fn xcrun_finds(tool: &str) -> bool {
 
 fn developer_id_identity_count() -> Result<usize, String> {
     let output = run_checked(
-        Command::new("security").args(["find-identity", "-v", "-p", "codesigning"]),
+        apple_command(SECURITY_PATH).args(["find-identity", "-v", "-p", "codesigning"]),
         "Developer ID identity inventory",
     )?;
     Ok(String::from_utf8_lossy(&output.stdout)
@@ -279,7 +302,7 @@ fn developer_id_identity_count() -> Result<usize, String> {
 
 fn notary_profile_is_valid(profile: &str) -> bool {
     validate_opaque(profile, "keychain profile").is_ok()
-        && Command::new("xcrun")
+        && xcrun_command()
             .args([
                 "notarytool",
                 "history",
@@ -331,7 +354,7 @@ fn sign(options: &Options) -> Result<String, String> {
     let identity = options.identity.as_deref().expect("validated identity");
     validate_regular_file(&options.entitlements, "entitlements")?;
     run_checked(
-        Command::new("plutil")
+        apple_command(PLUTIL_PATH)
             .arg("-lint")
             .arg(&options.entitlements),
         "entitlements plist validation",
@@ -363,14 +386,14 @@ fn notarize(options: &Options) -> Result<String, String> {
     }
     let result = (|| {
         run_checked(
-            Command::new("ditto")
+            apple_command(DITTO_PATH)
                 .args(["-c", "-k", "--keepParent"])
                 .arg(&options.app)
                 .arg(&archive),
             "notarization archive creation",
         )?;
         let submission = run_checked(
-            Command::new("xcrun")
+            xcrun_command()
                 .args(["notarytool", "submit"])
                 .arg(&archive)
                 .args([
@@ -384,13 +407,13 @@ fn notarize(options: &Options) -> Result<String, String> {
         )?;
         require_accepted(&submission.stdout)?;
         run_checked(
-            Command::new("xcrun")
+            xcrun_command()
                 .args(["stapler", "staple"])
                 .arg(&options.app),
             "notarization ticket staple",
         )?;
         run_checked(
-            Command::new("xcrun")
+            xcrun_command()
                 .args(["stapler", "validate"])
                 .arg(&options.app),
             "notarization ticket validation",
@@ -406,7 +429,7 @@ fn notarize(options: &Options) -> Result<String, String> {
 }
 
 fn run_codesign(identity: &str, path: &Path, entitlements: Option<&Path>) -> Result<(), String> {
-    let mut command = Command::new("codesign");
+    let mut command = apple_command(CODESIGN_PATH);
     command.args([
         "--force",
         "--sign",
@@ -425,7 +448,7 @@ fn run_codesign(identity: &str, path: &Path, entitlements: Option<&Path>) -> Res
 
 fn verify_signature(app: &Path, allow_adhoc: bool) -> Result<(), String> {
     run_checked(
-        Command::new("codesign")
+        apple_command(CODESIGN_PATH)
             .args(["--verify", "--deep", "--strict", "--verbose=2"])
             .arg(app),
         "strict code-signature verification",
@@ -439,7 +462,7 @@ fn verify_signature(app: &Path, allow_adhoc: bool) -> Result<(), String> {
     };
     for payload in nested_native_payloads(app)? {
         run_checked(
-            Command::new("codesign")
+            apple_command(CODESIGN_PATH)
                 .args(["--verify", "--strict", "--verbose=2"])
                 .arg(&payload),
             &format!(
@@ -461,7 +484,7 @@ fn verify_signature(app: &Path, allow_adhoc: bool) -> Result<(), String> {
 
 fn signature_details(path: &Path) -> Result<String, String> {
     let output = run_checked(
-        Command::new("codesign")
+        apple_command(CODESIGN_PATH)
             .args(["--display", "--verbose=4"])
             .arg(path),
         &format!("code-signature inspection for {}", path.display()),
@@ -511,7 +534,7 @@ fn has_hardened_runtime(details: &str) -> bool {
 
 fn gatekeeper_assess(app: &Path) -> Result<(), String> {
     run_checked(
-        Command::new("spctl")
+        apple_command(SPCTL_PATH)
             .args(["--assess", "--type", "execute", "--verbose=4"])
             .arg(app),
         "Gatekeeper assessment",
@@ -772,6 +795,7 @@ fn usage() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::OsStr;
     use std::os::unix::fs::PermissionsExt;
 
     fn parse(arguments: &[&str]) -> Result<Options, String> {
@@ -786,6 +810,27 @@ mod tests {
              <key>CFBundleShortVersionString</key><string>{PRODUCT_VERSION}</string>\
              <key>CFBundleVersion</key><string>{PRODUCT_VERSION}</string></dict>"
         )
+    }
+
+    #[test]
+    fn apple_release_commands_are_pinned_to_system_paths() {
+        for (_, path) in APPLE_RELEASE_TOOL_PATHS {
+            assert!(Path::new(path).is_absolute());
+            let command = apple_command(path);
+            assert_eq!(command.get_program(), OsStr::new(path));
+            assert!(command.get_envs().any(|(key, value)| {
+                key == OsStr::new("PATH") && value == Some(OsStr::new(SYSTEM_PATH))
+            }));
+        }
+
+        let command = xcrun_command();
+        for variable in ["DEVELOPER_DIR", "TOOLCHAINS"] {
+            assert!(
+                command
+                    .get_envs()
+                    .any(|(key, value)| key == OsStr::new(variable) && value.is_none())
+            );
+        }
     }
 
     #[test]

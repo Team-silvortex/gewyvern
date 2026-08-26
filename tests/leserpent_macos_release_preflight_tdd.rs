@@ -31,6 +31,23 @@ fn macos_release_preflight_is_machine_readable_and_fail_closed() {
     assert!(release.contains("nested signature Team ID does not match the app bundle"));
     assert!(release.contains("--require-ready"));
     assert!(release.contains("release preflight is blocked"));
+    assert!(release.contains("const CODESIGN_PATH: &str = \"/usr/bin/codesign\""));
+    assert!(release.contains("const SPCTL_PATH: &str = \"/usr/sbin/spctl\""));
+    assert!(release.contains("command.env(\"PATH\", SYSTEM_PATH)"));
+    assert!(release.contains("command.env_remove(\"DEVELOPER_DIR\").env_remove(\"TOOLCHAINS\")"));
+    for unpinned in [
+        "Command::new(\"codesign\")",
+        "Command::new(\"ditto\")",
+        "Command::new(\"plutil\")",
+        "Command::new(\"security\")",
+        "Command::new(\"spctl\")",
+        "Command::new(\"xcrun\")",
+    ] {
+        assert!(
+            !release.contains(unpinned),
+            "unpinned Apple tool: {unpinned}"
+        );
+    }
     assert!(
         developer_workflow.contains("--identity and --notary-profile must be supplied together")
     );

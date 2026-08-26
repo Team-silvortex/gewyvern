@@ -25,7 +25,8 @@
       "id": "desktop-hub-workspaces",
       "status_cells": [
         "leserpent-2/ui-renderers/avalonia-renderer",
-        "leserpent-2/ui-renderers/desktop-localization"
+        "leserpent-2/ui-renderers/desktop-localization",
+        "leserpent-2/ui-renderers/frontend-functional-parity"
       ]
     },
     {
@@ -39,7 +40,8 @@
       "id": "multi-daemon-gewyvern-orchestration",
       "status_cells": [
         "leserpent-2/daemon-host/daemon-lifecycle",
-        "leserpent-2/deployment-bootstrap/gewyvern-provisioning"
+        "leserpent-2/deployment-bootstrap/gewyvern-provisioning",
+        "leserpent-2/ui-renderers/frontend-functional-parity"
       ]
     },
     {
@@ -69,7 +71,8 @@
         "leserpent-2/language-hir/typed-effects",
         "leserpent-2/language-vm/effect-reentry",
         "leserpent-2/ui-language/ui-ir-lowering",
-        "leserpent-2/ui-renderers/avalonia-renderer"
+        "leserpent-2/ui-renderers/avalonia-renderer",
+        "leserpent-2/ui-renderers/frontend-functional-parity"
       ]
     },
     {

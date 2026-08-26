@@ -9,6 +9,7 @@ pub mod export;
 pub mod flow;
 pub mod fragment;
 pub mod gewyc;
+pub mod gui_function_chain;
 pub mod http;
 pub mod ir;
 pub mod ledger;

@@ -204,6 +204,15 @@ stapling, ticket validation, and Gatekeeper assessment on a pending app. A
 failure cannot replace the prior published artifact. Use the lower-level
 release binary only when diagnosing one stage.
 
+The native release binary inventories and executes `codesign`, `ditto`,
+`plutil`, `security`, `spctl`, and `xcrun` through the same fixed `/usr/bin` or
+`/usr/sbin` paths and gives their subprocesses only the standard system
+`PATH`. It also ignores process-local `DEVELOPER_DIR` and `TOOLCHAINS`
+overrides for `xcrun`; select the reviewed Xcode installation with
+`xcode-select` before running the release workflow. A polluted caller `PATH`
+therefore cannot substitute a different signing, notarization, or Gatekeeper
+tool after preflight.
+
 The lower-level packaged release-minded entrypoint is:
 
 ```bash

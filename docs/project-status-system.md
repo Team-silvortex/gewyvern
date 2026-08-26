@@ -132,7 +132,9 @@ cargo run --bin gewyvern_status -- mature
 cargo run --bin gewyvern_status -- standalone
 cargo run --bin gewyvern_status -- developing
 cargo run --bin gewyvern_status -- deferred
+cargo run --bin gewyvern_status -- gui
 cargo run --bin gewyvern_status -- summary --json
+cargo run --bin gewyvern_status -- gui --json
 ```
 
 Queries can be narrowed:
@@ -179,7 +181,12 @@ cargo test --test project_status_tdd
 cargo run --bin gewyvern_status -- validate
 ```
 
-Validation rejects unknown dimension references, duplicate or non-canonical
+`validate` also loads the Leserpent GUI function-chain catalog, verifies every
+source anchor, and reports its operation count, chain count, and target score.
+The `gui` view separates target and bridge frontends so renderer conformance or
+a working 1.x Web console cannot silently satisfy 2.0 product closure.
+
+Status validation rejects unknown dimension references, duplicate or non-canonical
 cell IDs, missing contracts, incoherent maturity/completion pairs, invalid
 calibration metadata, missing present evidence, unknown dependencies,
 self-dependencies, dependency cycles, and unsupported schema versions.

@@ -208,6 +208,17 @@ complete and stable. Formal Developer ID signing and notarization are
 release-assurance evidence rather than renderer blockers; mobile client work
 remains owned by Gate 6.
 
+That statement covers adapter and renderer conformance, not product reachability.
+The machine-validated [GUI function-chain matrix](leserpent-gui-function-chains.md)
+now audits entry, semantic lowering, transport, authority, persistence,
+projection, operator feedback, and Leselang equivalence separately. Its
+2026-08-26 baseline scores the Avalonia product at 69, the Rust-hosted Web target
+at 0, and the supported ASP.NET Web bridge at 100, for a combined target score
+of 63. General runtime registration/update, the Avalonia Orchestra workspace,
+the live debugger session bridge, product-hosted Leselang automation, and the
+per-daemon Rust Web console remain explicit closure work. Renderer fixtures no
+longer count as a product debugger workflow by themselves.
+
 The first renderer-neutral slice now exists in `crates/leselang-ui`. It lowers
 the typed fleet projection into a bounded `UiDocument`, resolves revision-fenced
 typed events through the shared `CommandPlan` path, and computes deterministic
@@ -1934,6 +1945,11 @@ profile only as a pair, runs that preflight in strict mode, and keeps signing,
 notarization, stapling, and Gatekeeper assessment behind the pending-bundle
 atomic publication boundary. This closes the workflow-integration gap without
 claiming the still-unavailable Apple-backed host evidence.
+The release binary now derives both tool inventory and execution from one fixed
+set of `/usr/bin` and `/usr/sbin` paths, supplies only the standard system
+`PATH`, and strips process-local Xcode selection overrides from every `xcrun`
+stage. The host's reviewed `xcode-select` configuration therefore remains
+usable while caller-path substitution cannot cross the preflight boundary.
 The unified native release gate can now ingest that report through
 `--macos-release-preflight`, enforce a bounded and internally consistent schema,
 index a normalized copy, and distinguish an external credential block from a

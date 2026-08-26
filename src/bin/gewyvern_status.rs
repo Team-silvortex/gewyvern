@@ -2,6 +2,9 @@ use std::env;
 use std::path::PathBuf;
 use std::process;
 
+use gewyvern::gui_function_chain::{
+    GuiFunctionChainCatalog, GuiFunctionChainSummary, default_gui_function_chain_path,
+};
 use gewyvern::project_status::{
     Independence, Lifecycle, Maturity, Priority, StatusCatalog, StatusCellView,
     default_catalog_path,
@@ -29,22 +32,45 @@ fn run(args: Vec<String>) -> Result<String, String> {
             errors.join("\n- ")
         ));
     }
+    let gui_catalog =
+        GuiFunctionChainCatalog::load(default_gui_function_chain_path(&options.repository_root))?;
+    if let Err(errors) = gui_catalog.validate(&options.repository_root) {
+        return Err(format!(
+            "GUI function-chain validation failed:\n- {}",
+            errors.join("\n- ")
+        ));
+    }
+    let gui_summary = gui_catalog.summary();
 
     if options.command == Command::Validate {
         return if options.json {
             Ok(format!(
-                "{{\"schema_version\":{},\"status\":\"valid\",\"cells\":{},\"coverage_requirements\":{}}}",
+                "{{\"schema_version\":{},\"status\":\"valid\",\"cells\":{},\"coverage_requirements\":{},\"gui_operations\":{},\"gui_chains\":{},\"gui_target_score\":{}}}",
                 catalog.schema_version,
                 catalog.cells.len(),
-                catalog.coverage_requirements.len()
+                catalog.coverage_requirements.len(),
+                gui_summary.operation_count,
+                gui_summary.chain_count,
+                gui_summary.target_score
             ))
         } else {
             Ok(format!(
-                "status catalog valid: schema={} cells={} coverage_requirements={}",
+                "status catalog valid: schema={} cells={} coverage_requirements={} gui_operations={} gui_chains={} gui_target_score={}",
                 catalog.schema_version,
                 catalog.cells.len(),
-                catalog.coverage_requirements.len()
+                catalog.coverage_requirements.len(),
+                gui_summary.operation_count,
+                gui_summary.chain_count,
+                gui_summary.target_score
             ))
+        };
+    }
+
+    if options.command == Command::Gui {
+        return if options.json {
+            serde_json::to_string_pretty(&gui_summary).map_err(|error| error.to_string())
+        } else {
+            Ok(render_gui_summary(&gui_summary))
         };
     }
 
@@ -78,7 +104,7 @@ fn run(args: Vec<String>) -> Result<String, String> {
                 )
         }
         Command::Deferred => cell.priority == Priority::Deferred,
-        Command::Summary | Command::Validate | Command::Help => unreachable!(),
+        Command::Summary | Command::Validate | Command::Gui | Command::Help => unreachable!(),
     });
     if let Some(architecture) = options.architecture.as_deref() {
         cells.retain(|cell| cell.architecture == architecture);
@@ -113,6 +139,36 @@ fn run(args: Vec<String>) -> Result<String, String> {
     } else {
         Ok(render_cells(&cells))
     }
+}
+
+fn render_gui_summary(summary: &GuiFunctionChainSummary) -> String {
+    let mut output = format!(
+        "Leserpent GUI function chains\nrelease={} as-of={} operations={} chains={} target-score={}/100\n",
+        summary.release_line,
+        summary.as_of,
+        summary.operation_count,
+        summary.chain_count,
+        summary.target_score
+    );
+    for surface in &summary.surfaces {
+        output.push_str(&format!(
+            "- {} lifecycle={:?} score={}/100 chains={} closed={} partial={} conformance-only={} absent={} gaps={}\n",
+            surface.id,
+            surface.lifecycle,
+            surface.score,
+            surface.required_chain_count,
+            surface.closed,
+            surface.partial,
+            surface.conformance_only,
+            surface.absent,
+            if surface.gaps.is_empty() {
+                "none".to_string()
+            } else {
+                surface.gaps.join(",")
+            }
+        ));
+    }
+    output.trim_end().to_string()
 }
 
 fn render_summary(summary: &gewyvern::project_status::StatusSummary) -> String {
@@ -213,6 +269,7 @@ fn render_cells(cells: &[StatusCellView]) -> String {
 enum Command {
     Summary,
     Validate,
+    Gui,
     Weakest,
     Mature,
     Standalone,
@@ -253,6 +310,7 @@ impl Options {
             match args[index].as_str() {
                 "summary" => command = Command::Summary,
                 "validate" => command = Command::Validate,
+                "gui" => command = Command::Gui,
                 "weakest" => command = Command::Weakest,
                 "mature" => command = Command::Mature,
                 "standalone" => command = Command::Standalone,
@@ -351,7 +409,7 @@ impl Options {
 }
 
 fn usage() -> &'static str {
-    "usage: gewyvern_status [summary|validate|weakest|mature|standalone|developing|deferred] [--json] [--limit N] [--architecture ID] [--module ID] [--feature ID] [--lifecycle current|bridge|target|retired] [--priority critical|active|maintenance|deferred] [--maturity planned|incubating|developing|stabilizing|mature|deprecated|blocked] [--catalog PATH] [--root PATH]"
+    "usage: gewyvern_status [summary|validate|gui|weakest|mature|standalone|developing|deferred] [--json] [--limit N] [--architecture ID] [--module ID] [--feature ID] [--lifecycle current|bridge|target|retired] [--priority critical|active|maintenance|deferred] [--maturity planned|incubating|developing|stabilizing|mature|deprecated|blocked] [--catalog PATH] [--root PATH]"
 }
 
 fn parse_lifecycle(value: &str) -> Result<Lifecycle, String> {

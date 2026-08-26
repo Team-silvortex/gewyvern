@@ -4,7 +4,7 @@
   "checkpoint": "v1.17.4-to-v2.0.0-roadmap",
   "calibration": {
     "model": "priority-weighted-strength-v1",
-    "as_of": "2026-08-25"
+    "as_of": "2026-08-26"
   },
   "dimensions": {
     "architectures": [
@@ -263,6 +263,11 @@
         "summary": "Native desktop and mobile rendering of neutral UI IR."
       },
       {
+        "id": "frontend-functional-parity",
+        "label": "Frontend Functional Parity",
+        "summary": "Machine-validated user-reachable chains from GUI entry through typed semantics, authenticated authority, durable outcome, projection, feedback, and Leselang equivalence."
+      },
+      {
         "id": "desktop-localization",
         "label": "Desktop Localization",
         "summary": "Native language preference, official locale alignment, UI-IR text resolution, fallback, and RTL behavior."
@@ -496,7 +501,7 @@
       "kind": "roadmap-gate",
       "summary": "Gate 4 requires neutral UI IR and a replaceable Avalonia vertical slice.",
       "source": "docs/leserpent-2-roadmap.md",
-      "cells": ["leserpent-2/ui-language/ui-ir-lowering", "leserpent-2/ui-renderers/avalonia-renderer", "leserpent-2/ui-renderers/desktop-localization"]
+      "cells": ["leserpent-2/ui-language/ui-ir-lowering", "leserpent-2/ui-renderers/avalonia-renderer", "leserpent-2/ui-renderers/frontend-functional-parity", "leserpent-2/ui-renderers/desktop-localization"]
     },
     {
       "id": "gate-five-runtime-cutover",
@@ -512,7 +517,7 @@
       "kind": "roadmap-gate",
       "summary": "Gate 6 proves desktop and remote protocol/UI parity plus the declared minimum mobile entry and lifecycle contract.",
       "source": "docs/leserpent-2-roadmap.md",
-      "cells": ["leserpent-2/remote-console/remote-mobile-console", "leserpent-2/ui-renderers/avalonia-renderer", "leserpent-2/transport-protocol/wire-compatibility"]
+      "cells": ["leserpent-2/remote-console/remote-mobile-console", "leserpent-2/ui-renderers/avalonia-renderer", "leserpent-2/ui-renderers/frontend-functional-parity", "leserpent-2/transport-protocol/wire-compatibility"]
     },
     {
       "id": "gate-seven-two-zero-seal",
@@ -2517,6 +2522,77 @@
       "next_gate": "Build the macOS NativeAOT application with --silvortex-issuer set to the reviewed Team Silvortex production origin, execute --prove-silvortex-account from that package, and retain its system-browser, credential-vault refresh, and local logout evidence; then repeat on Linux Secret Service while keeping account identity independent from daemon credentials."
     },
     {
+      "id": "leserpent-2/ui-renderers/frontend-functional-parity",
+      "architecture": "leserpent-2",
+      "module": "ui-renderers",
+      "feature": "frontend-functional-parity",
+      "lifecycle": "target",
+      "priority": "critical",
+      "maturity": "developing",
+      "completion": 63,
+      "confidence": "high",
+      "independence": "replaceable-frontend",
+      "contract": {
+        "id": "leserpent-gui-function-chain",
+        "version": "0.1.0-draft",
+        "stability": "draft",
+        "surfaces": [
+          "machine-readable-operation-inventory",
+          "source-anchored-stage-evidence",
+          "target-bridge-lifecycle-separation",
+          "weighted-chain-closure-summary",
+          "closed-chain-stage-completeness",
+          "nonclosed-gap-requirement",
+          "operator-operation-release-assignment",
+          "native-status-gui-view",
+          "avalonia-five-family-closure",
+          "web-bridge-five-family-closure",
+          "explicit-avalonia-product-gaps",
+          "explicit-rust-web-self-host-gap"
+        ]
+      },
+      "depends_on": [
+        "leserpent-2/domain-model/command-query-kernel",
+        "leserpent-2/transport-protocol/wire-compatibility",
+        "leserpent-2/ui-language/ui-ir-lowering",
+        "leserpent-2/ui-renderers/avalonia-renderer",
+        "leserpent-2/control-runtime/durable-authority",
+        "leserpent-2/daemon-host/daemon-lifecycle"
+      ],
+      "blockers": [
+        {
+          "id": "avalonia-runtime-registration-editor",
+          "summary": "Managed provisioning and retirement are reachable, but Avalonia cannot register or update an already-running arbitrary runtime."
+        },
+        {
+          "id": "avalonia-orchestra-workspace",
+          "summary": "The desktop product reports Orchestra pressure but has no plan, run, history, cancellation, retry, or cleanup workspace."
+        },
+        {
+          "id": "product-debugger-session-bridge",
+          "summary": "Debugger projection, cancellation authority, and native rendering pass conformance, but no product VM-session feed reaches Avalonia and its remote router rejects debugger cancellation."
+        },
+        {
+          "id": "product-leselang-execution-host",
+          "summary": "Canonical export and all presentation atoms exist, but no product VM host dispatches Leselang automation against live product windows."
+        },
+        {
+          "id": "rust-web-self-host",
+          "summary": "The TypeScript console remains in the ASP.NET bridge; leserpentd does not yet own the per-daemon Web console and compatibility API."
+        }
+      ],
+      "consumers": ["release-gates", "desktop-operators", "web-operators", "model-automation"],
+      "evidence": [
+        { "kind": "release", "path": "project/release/leserpent-gui-function-chain.json", "state": "present" },
+        { "kind": "source", "path": "src/gui_function_chain.rs", "state": "present" },
+        { "kind": "source", "path": "src/bin/gewyvern_status.rs", "state": "present" },
+        { "kind": "test", "path": "tests/gui_function_chain_tdd.rs", "state": "present" },
+        { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
+        { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" }
+      ],
+      "next_gate": "Close the Avalonia Orchestra vertical first, then add general runtime registration/update, the VM-session debugger bridge, the live product Leselang host, and the Rust-owned per-daemon Web console in that order."
+    },
+    {
       "id": "leserpent-2/ui-renderers/desktop-localization",
       "architecture": "leserpent-2",
       "module": "ui-renderers",
@@ -2834,11 +2910,11 @@
       "independence": "internal",
       "contract": {
         "id": "leserpent-two-zero-release",
-        "version": "0.16.0-draft",
+        "version": "0.17.0-draft",
         "stability": "draft",
-        "surfaces": ["schema-freeze", "closed-core-capability-scope", "machine-validated-scope-freeze-manifest", "security-audit", "performance-comparison", "migration", "packaging", "rollback", "machine-readable-v1-candidate-inventory", "fixed-non-executable-proof-registry", "non-vacuous-schema-readiness-proof", "reviewed-v1-compatibility-baseline", "sha256-fixture-drift-gate", "wire-and-renderer-golden-coverage", "runtime-journal-v1-v3-v6-migration-replay", "invalid-migration-history-rejection", "legacy-wire-migration-replay", "minimum-migration-test-count", "shared-locked-dotnet-proof-runner", "filtered-managed-migration-proof", "sqlite-v1-in-place-migration", "legacy-json-to-sqlite-migration", "failed-save-snapshot-preservation", "zero-dotnet-artifact-residue", "transactional-migration-write-rollback", "retained-json-byte-preservation", "managed-migration-retry", "operator-json-rollback", "isolated-web-development-aot-lock-graphs", "pinned-web-native-aot-toolchain", "locked-linux-native-aot-rid-graph", "staged-linux-install-upgrade-rollback", "safe-current-previous-release-links", "unsafe-existing-current-link-rejection", "configuration-state-preservation", "rolled-back-live-native-aot-health", "physical-linux-x64-package-rollback-proof", "native-macos-versioned-installer", "bounded-universal-macho-arm64-validation", "stable-user-app-launcher", "macos-current-previous-upgrade", "macos-explicit-rollback-swap", "macos-external-profile-preservation", "installed-adhoc-signature-integrity", "rolled-back-live-macos-control-fixture", "physical-macos-arm64-package-rollback-proof", "machine-readable-apple-release-preflight", "apple-release-tool-inventory", "developer-id-identity-count", "notary-profile-readiness", "explicit-blocked-release-evidence", "bundled-daemon-release-validation", "native-payload-bound-release-identity", "daemon-bound-release-preflight", "unified-leserpent-release-proof-stage", "current-run-schema-scope-artifact-index", "strict-release-readiness-mutation-gate", "atomic-apple-release-workflow"]
+        "surfaces": ["schema-freeze", "closed-core-capability-scope", "machine-validated-scope-freeze-manifest", "security-audit", "performance-comparison", "migration", "packaging", "rollback", "machine-readable-v1-candidate-inventory", "fixed-non-executable-proof-registry", "non-vacuous-schema-readiness-proof", "reviewed-v1-compatibility-baseline", "sha256-fixture-drift-gate", "wire-and-renderer-golden-coverage", "runtime-journal-v1-v3-v6-migration-replay", "invalid-migration-history-rejection", "legacy-wire-migration-replay", "minimum-migration-test-count", "shared-locked-dotnet-proof-runner", "filtered-managed-migration-proof", "sqlite-v1-in-place-migration", "legacy-json-to-sqlite-migration", "failed-save-snapshot-preservation", "zero-dotnet-artifact-residue", "transactional-migration-write-rollback", "retained-json-byte-preservation", "managed-migration-retry", "operator-json-rollback", "isolated-web-development-aot-lock-graphs", "pinned-web-native-aot-toolchain", "locked-linux-native-aot-rid-graph", "staged-linux-install-upgrade-rollback", "safe-current-previous-release-links", "unsafe-existing-current-link-rejection", "configuration-state-preservation", "rolled-back-live-native-aot-health", "physical-linux-x64-package-rollback-proof", "native-macos-versioned-installer", "bounded-universal-macho-arm64-validation", "stable-user-app-launcher", "macos-current-previous-upgrade", "macos-explicit-rollback-swap", "macos-external-profile-preservation", "installed-adhoc-signature-integrity", "rolled-back-live-macos-control-fixture", "physical-macos-arm64-package-rollback-proof", "machine-readable-apple-release-preflight", "apple-release-tool-inventory", "developer-id-identity-count", "notary-profile-readiness", "explicit-blocked-release-evidence", "bundled-daemon-release-validation", "native-payload-bound-release-identity", "daemon-bound-release-preflight", "unified-leserpent-release-proof-stage", "current-run-schema-scope-artifact-index", "strict-release-readiness-mutation-gate", "atomic-apple-release-workflow", "fixed-system-apple-tool-paths", "path-hijack-resistant-apple-release"]
       },
-      "depends_on": ["leserpent-2/remote-console/remote-mobile-console", "leserpent-2/release-assurance/continuous-proof"],
+      "depends_on": ["leserpent-2/remote-console/remote-mobile-console", "leserpent-2/ui-renderers/frontend-functional-parity", "leserpent-2/release-assurance/continuous-proof"],
       "blockers": [
         {
           "id": "prior-gates-open",
@@ -2851,6 +2927,7 @@
         { "kind": "source", "path": "project/release/leserpent-2-scope-freeze.json", "state": "present" },
         { "kind": "source", "path": "project/release/leserpent-v1-schema-inventory.json", "state": "present" },
         { "kind": "source", "path": "project/release/leserpent-v1-compatibility-baseline.json", "state": "present" },
+        { "kind": "release", "path": "project/release/leserpent-gui-function-chain.json", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/leserpent_schema_freeze.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/release_gate.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/dotnet_proof.rs", "state": "present" },

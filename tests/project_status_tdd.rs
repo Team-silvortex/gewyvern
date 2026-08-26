@@ -134,7 +134,7 @@ fn project_status_catalog_is_protocolized_and_valid() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     catalog.validate(&root).expect("catalog must validate");
     assert_eq!(catalog.calibration.model, STATUS_CALIBRATION_MODEL);
-    assert_eq!(catalog.calibration.as_of, "2026-08-25");
+    assert_eq!(catalog.calibration.as_of, "2026-08-26");
     assert!(catalog.dimensions.architectures.len() >= 6);
     assert!(catalog.dimensions.modules.len() >= 21);
     assert!(catalog.dimensions.features.len() >= 23);
@@ -5243,6 +5243,42 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.blockers.len(), 1);
     assert_eq!(avalonia.blockers[0].id, "desktop-production-account-proof");
 
+    let frontend_parity = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/ui-renderers/frontend-functional-parity")
+        .expect("product GUI function-chain cell must exist");
+    assert_eq!(frontend_parity.maturity, Maturity::Developing);
+    assert_eq!(frontend_parity.priority, Priority::Critical);
+    assert_eq!(frontend_parity.completion, 63);
+    assert_eq!(frontend_parity.contract.stability, ContractStability::Draft);
+    assert_eq!(frontend_parity.contract.version, "0.1.0-draft");
+    for blocker in [
+        "avalonia-runtime-registration-editor",
+        "avalonia-orchestra-workspace",
+        "product-debugger-session-bridge",
+        "product-leselang-execution-host",
+        "rust-web-self-host",
+    ] {
+        assert!(
+            frontend_parity
+                .blockers
+                .iter()
+                .any(|candidate| candidate.id == blocker),
+            "frontend parity must retain blocker {blocker}"
+        );
+    }
+    assert!(frontend_parity.evidence.iter().any(|item| {
+        item.kind == EvidenceKind::Release
+            && item.path == "project/release/leserpent-gui-function-chain.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(frontend_parity.evidence.iter().any(|item| {
+        item.kind == EvidenceKind::Test
+            && item.path == "tests/gui_function_chain_tdd.rs"
+            && item.state == EvidenceState::Present
+    }));
+
     let transport = catalog
         .cells
         .iter()
@@ -7256,7 +7292,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(two_zero_seal.completion, 64);
     assert_eq!(two_zero_seal.maturity, Maturity::Developing);
     assert_eq!(two_zero_seal.priority, Priority::Critical);
-    assert_eq!(two_zero_seal.contract.version, "0.16.0-draft");
+    assert_eq!(two_zero_seal.contract.version, "0.17.0-draft");
     assert!(
         two_zero_seal
             .contract
@@ -7288,6 +7324,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     for surface in [
         "strict-release-readiness-mutation-gate",
         "atomic-apple-release-workflow",
+        "fixed-system-apple-tool-paths",
+        "path-hijack-resistant-apple-release",
     ] {
         assert!(
             two_zero_seal
@@ -7306,6 +7344,17 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         evidence.path == "src/validation_harness/release_gate.rs"
             && evidence.state == EvidenceState::Present
     }));
+    assert!(two_zero_seal.evidence.iter().any(|evidence| {
+        evidence.path == "project/release/leserpent-gui-function-chain.json"
+            && evidence.kind == EvidenceKind::Release
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(
+        two_zero_seal
+            .depends_on
+            .iter()
+            .any(|dependency| dependency == "leserpent-2/ui-renderers/frontend-functional-parity")
+    );
     assert!(two_zero_seal.blockers.iter().any(|blocker| {
         blocker.id == "prior-gates-open"
             && blocker
@@ -8579,7 +8628,7 @@ fn native_status_cli_exposes_human_and_machine_views() {
         serde_json::from_slice(&summary.stdout).expect("summary must be JSON");
     assert_eq!(payload["schema_version"], STATUS_SCHEMA_VERSION);
     assert_eq!(payload["calibration"]["model"], STATUS_CALIBRATION_MODEL);
-    assert_eq!(payload["calibration"]["as_of"], "2026-08-25");
+    assert_eq!(payload["calibration"]["as_of"], "2026-08-26");
     assert_eq!(payload["deferred_cell_count"], 1);
     assert!(payload["overall_score"].is_u64());
     assert!(payload["portfolio_score"].is_u64());

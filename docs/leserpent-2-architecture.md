@@ -2125,6 +2125,15 @@ Rust prints its canonical source and can reconstruct an equivalent event from
 that effect and the current document. This closes business-action parity for
 the current `UiAction` enum.
 
+This is semantic parity, not proof that every action is reachable in the
+product. Product closure is tracked by the source-anchored
+[GUI function-chain matrix](leserpent-gui-function-chains.md). In particular,
+the debugger document, VM cancellation authority, and Avalonia destructive
+button are currently conformance-only: the production remote projection carries
+no debugger session, and `RemoteUiActionRouter` rejects `DebuggerCancel`.
+Likewise, presentation atoms are implemented by the renderer but no product VM
+host currently dispatches a Leselang program against live product windows.
+
 Presentation parity uses a separate, non-command path.
 `ui.activate(node_id: ...)`, `ui.focus(node_id: ...)`,
 `ui.navigate_focus(node_id: ..., direction: "next"|"previous"|"first"|"last")`,
@@ -2803,6 +2812,8 @@ Leserpent 2.0 is ready only when:
 - model-generated programs execute only through the normal capability boundary
 - suspended programs survive restart and resume exactly once
 - GUI actions round-trip through canonical Leselang
+- every release-required target GUI function chain is `closed`; bridge-only or
+  conformance-only evidence cannot satisfy this condition
 - macOS desktop, Linux daemon/CLI, and authenticated remote web paths pass
   release tests; mobile retains its minimum entry/lifecycle conformance contract
 - compatibility and rollback from the final 1.x bridge are documented
