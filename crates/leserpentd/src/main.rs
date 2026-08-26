@@ -240,6 +240,7 @@ fn run() -> Result<(), String> {
                      Environment: LESERPENT_DATABASE may provide the database path; \
                      LESERPENT_IPC_TOKEN is required when --socket is used; \
                      LESERPENT_REMOTE_TOKEN or --remote-token-file is required for HTTPS; \
+                     the HTTPS origin also serves the read-only Rust Web console; \
                      GEWY_API_ADMIN_TOKEN optionally authenticates Gewyvern targets"
                 );
                 return Ok(());

@@ -213,8 +213,11 @@ The machine-validated [GUI function-chain matrix](leserpent-gui-function-chains.
 now audits entry, semantic lowering, transport, authority, persistence,
 projection, operator feedback, and Leselang equivalence separately. Its
 2026-08-26 baseline scores the Avalonia product at 100, the Rust-hosted Web target
-at 0, and the supported ASP.NET Web bridge at 100, for a combined target score
-of 90. Avalonia now closes a daemon-owned native Orchestra workspace for strict,
+at 50, and the supported ASP.NET Web bridge at 100, for a combined target score
+of 95. The Rust daemon now serves the shared packaged TypeScript console and its
+Bearer-authenticated first-screen read projections directly; registration,
+refresh, deletion, persistence, and Orchestra mutations remain the explicit
+bridge-retirement gap. Avalonia now closes a daemon-owned native Orchestra workspace for strict,
 revision-fenced plan discovery, Rust-authoritative automatic execution,
 queued-only cancellation, lineage-bound retry, persisted run/event drilldown,
 and idempotent runtime-scoped cleanup. Guided plans remain review-only rather
@@ -2599,6 +2602,13 @@ The three remote arguments must be supplied together. The certificate and key
 must be regular files rather than symlinks, and the private key must grant no
 group or other access on Unix. Use a CA-issued certificate and deployment
 network policy; the bearer token is never passed on the command line.
+
+That same HTTPS origin now serves the embedded TypeScript console at `/`.
+Static assets are public but reject credential-bearing requests. Enter the
+daemon token in the console Security panel to unlock the authenticated
+first-screen fleet projections. The current Rust-hosted surface is read-only;
+use Avalonia, the native CLI, or the compatibility bridge for mutations until
+the remaining Web compatibility routes migrate.
 
 The native CLI uses the same endpoint without changing command syntax:
 

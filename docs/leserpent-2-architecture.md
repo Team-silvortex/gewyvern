@@ -2154,6 +2154,18 @@ effects; adapter rejection consumes the continuation and produces visible
 terminal failure. This closes the Avalonia product automation chain while
 keeping execution authority below the renderer.
 
+The Web migration now has a real per-daemon product entry rather than only a
+renderer or package fixture. The existing `leserpentd` HTTPS listener embeds the
+same bounded TypeScript package used by the ASP.NET compatibility process and
+serves its document, scripts, styles, branding, and official language packs
+without accepting credentials on public asset requests. Browser API reads use
+the endpoint-bound Bearer token, reject conflicting legacy credentials, and
+project live `ControlRuntime` fleet state into the established camel-case shell
+contract. The first screen is therefore independently usable for observation;
+the surface remains partial until registration, refresh, deletion, persistence,
+and Orchestra mutations are translated to strict Rust routes. No TypeScript
+handler owns authority during that migration.
+
 Existing-runtime registration now has a native Avalonia product path independent
 from managed SSH provisioning. `RemoteRegistrationClient` first reads the
 authority-owned record for updates, submits the exact secret-free command as

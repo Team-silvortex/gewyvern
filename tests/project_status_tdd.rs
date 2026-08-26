@@ -4906,9 +4906,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .expect("Leserpent Gate 4 renderer cell must exist");
     assert_eq!(avalonia.maturity, Maturity::Stabilizing);
     assert_eq!(avalonia.priority, Priority::Critical);
-    assert_eq!(avalonia.completion, 96);
+    assert_eq!(avalonia.completion, 97);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.105.0");
+    assert_eq!(avalonia.contract.version, "1.108.0");
     assert!(
         avalonia
             .blockers
@@ -5250,9 +5250,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .expect("product GUI function-chain cell must exist");
     assert_eq!(frontend_parity.maturity, Maturity::Developing);
     assert_eq!(frontend_parity.priority, Priority::Critical);
-    assert_eq!(frontend_parity.completion, 78);
+    assert_eq!(frontend_parity.completion, 95);
     assert_eq!(frontend_parity.contract.stability, ContractStability::Draft);
-    assert_eq!(frontend_parity.contract.version, "0.4.0-draft");
+    assert_eq!(frontend_parity.contract.version, "0.7.0-draft");
     for surface in [
         "avalonia-orchestra-native-plan-run-control-closure",
         "strict-dotnet-orchestra-control-codec",
@@ -5265,6 +5265,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "revision-fenced-registration-update",
         "registration-plan-field-invalidation",
         "localized-registration-editor",
+        "avalonia-debugger-workflow-closure",
+        "avalonia-product-leselang-live-execution-closure",
+        "rust-web-embedded-console-entry",
+        "rust-web-bearer-only-read-projection",
+        "shared-typescript-dual-host-package",
+        "real-tls-rust-web-runtime-proof",
+        "explicit-rust-web-mutation-gap",
     ] {
         assert!(
             frontend_parity
@@ -5275,11 +5282,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "frontend parity must track Orchestra surface {surface}"
         );
     }
-    for blocker in [
-        "product-debugger-session-bridge",
-        "product-leselang-execution-host",
-        "rust-web-self-host",
-    ] {
+    for blocker in ["rust-web-self-host"] {
         assert!(
             frontend_parity
                 .blockers
@@ -5300,6 +5303,18 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .iter()
             .any(|candidate| candidate.id == "avalonia-runtime-registration-editor")
     );
+    for closed_blocker in [
+        "product-debugger-session-bridge",
+        "product-leselang-execution-host",
+    ] {
+        assert!(
+            !frontend_parity
+                .blockers
+                .iter()
+                .any(|candidate| candidate.id == closed_blocker),
+            "closed desktop chain must not retain blocker {closed_blocker}"
+        );
+    }
     assert!(frontend_parity.evidence.iter().any(|item| {
         item.kind == EvidenceKind::Release
             && item.path == "project/release/leserpent-gui-function-chain.json"
@@ -5327,6 +5342,22 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
                 == "apps/leserpent-avalonia/src/Leserpent.Avalonia/RuntimeRegistrationWindow.cs"
             && item.state == EvidenceState::Present
     }));
+    for path in [
+        "crates/leserpentd/src/web_console.rs",
+        "crates/leserpentd/src/remote.rs",
+        "apps/leserpent/src/Leserpent/frontend/20-security-transport.ts",
+    ] {
+        assert!(frontend_parity.evidence.iter().any(|item| {
+            item.kind == EvidenceKind::Source
+                && item.path == path
+                && item.state == EvidenceState::Present
+        }));
+    }
+    assert!(frontend_parity.evidence.iter().any(|item| {
+        item.kind == EvidenceKind::Release
+            && item.path == "apps/leserpent/frontend-package-manifest.json"
+            && item.state == EvidenceState::Present
+    }));
 
     let transport = catalog
         .cells
@@ -5336,7 +5367,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(transport.maturity, Maturity::Mature);
     assert_eq!(transport.completion, 100);
     assert_eq!(transport.contract.stability, ContractStability::Stable);
-    assert_eq!(transport.contract.version, "1.17.0");
+    assert_eq!(transport.contract.version, "1.18.0");
     for surface in [
         "single-source-absolute-io-deadline",
         "trickle-resistant-outbound-exchange",
@@ -5667,7 +5698,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/daemon-host/daemon-lifecycle")
         .expect("Leserpent daemon lifecycle cell must exist");
-    assert_eq!(daemon_lifecycle.contract.version, "1.21.0");
+    assert_eq!(daemon_lifecycle.contract.version, "1.22.0");
     assert_eq!(
         daemon_lifecycle.contract.stability,
         ContractStability::Stable
@@ -5843,7 +5874,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         daemon_lifecycle
             .next_gate
-            .contains("physical Linux x86_64 evidence")
+            .contains("physical Linux x86_64 lifecycle evidence")
     );
 
     let compatibility_control = catalog
@@ -6841,8 +6872,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .expect("desktop localization contract must remain tracked");
     assert_eq!(desktop_localization.maturity, Maturity::Stabilizing);
     assert_eq!(desktop_localization.priority, Priority::Active);
-    assert_eq!(desktop_localization.completion, 94);
-    assert_eq!(desktop_localization.contract.version, "0.21.0");
+    assert_eq!(desktop_localization.completion, 95);
+    assert_eq!(desktop_localization.contract.version, "0.23.0");
     assert_eq!(
         desktop_localization.contract.stability,
         ContractStability::Evolving
@@ -6984,7 +7015,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "localized-remote-credential-source",
         "localized-remote-mutation-failure-projection",
         "eight-built-in-remote-shell-layout-envelopes",
-        "thirty-two-built-in-remote-dialog-layout-envelopes",
+        "forty-built-in-remote-dialog-layout-envelopes",
         "compact-remote-status-overlap-fence",
         "live-remote-shell-language-reprojection",
         "offline-remote-shell-layout-verification",
@@ -7004,7 +7035,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         blocker.id == "desktop-long-tail-language-review"
             && blocker.summary.contains("eight built-in locales")
             && blocker.summary.contains("seven non-English built-ins")
-            && blocker.summary.contains("exact 717-key semantic set")
+            && blocker.summary.contains("exact 750-key semantic set")
             && blocker
                 .summary
                 .contains("existing-runtime registration editor")

@@ -56,6 +56,7 @@ pub use remote::{RemoteServer, load_remote_token_file};
 mod events;
 mod language_packs;
 mod orchestra;
+mod web_console;
 mod wire;
 pub use wire::BootstrapSessionVerifier;
 

@@ -44,6 +44,7 @@ use crate::provisioning_submission::{
 use crate::retirement_submission::{
     decode_and_submit as decode_and_submit_retirement, error as retirement_error,
 };
+use crate::web_console::{self, ConsoleApiRoute, ConsoleAsset};
 use crate::wire::{
     BootstrapSessionVerifier, authority_writer_fence_error_details, constant_time_equals,
     error_response, execute_request, validate_auth_token,
@@ -383,193 +384,251 @@ impl RemoteServer {
         if cancelled.load(Ordering::Acquire) {
             return Err("remote request cancelled".into());
         }
-        let (status, body): (HttpStatus, Cow<'static, [u8]>) = match request {
-            Ok(HttpRequest {
-                route: HttpRoute::LanguagePack(asset),
-                ..
-            }) => (HttpStatus::Ok, Cow::Borrowed(asset.payload)),
-            Ok(HttpRequest {
-                route: HttpRoute::Wire,
-                body,
-                writer_fence,
-            }) => {
-                let response = match decode_request(&body) {
-                    Ok(request) => match &self.debugger_authority {
-                        Some(authority) => match authority.lock() {
-                            Ok(mut debugger) => crate::wire::execute_request_with_debugger(
+        let (status, body, response_policy): (HttpStatus, Cow<'static, [u8]>, HttpResponsePolicy) =
+            match request {
+                Ok(HttpRequest {
+                    route: HttpRoute::ConsoleAsset(asset),
+                    ..
+                }) => (
+                    HttpStatus::Ok,
+                    Cow::Borrowed(asset.payload),
+                    HttpResponsePolicy {
+                        content_type: asset.content_type,
+                        cache_control: asset.cache_control,
+                        document: asset.document,
+                    },
+                ),
+                Ok(HttpRequest {
+                    route: HttpRoute::LanguagePack(asset),
+                    ..
+                }) => (
+                    HttpStatus::Ok,
+                    Cow::Borrowed(asset.payload),
+                    HttpResponsePolicy::public_json(),
+                ),
+                Ok(HttpRequest {
+                    route: HttpRoute::ConsoleApi(route),
+                    ..
+                }) => match web_console::render_api(&route, runtime) {
+                    Ok(body) => (
+                        HttpStatus::Ok,
+                        Cow::Owned(body),
+                        HttpResponsePolicy::private_json(),
+                    ),
+                    Err(_) => (
+                        HttpStatus::InternalServerError,
+                        Cow::Owned(
+                            encode_response(&error_response(
+                                "web_projection_failed",
+                                "Rust Web compatibility projection failed",
+                            ))
+                            .map_err(|error| error.to_string())?,
+                        ),
+                        HttpResponsePolicy::private_json(),
+                    ),
+                },
+                Ok(HttpRequest {
+                    route: HttpRoute::Wire,
+                    body,
+                    writer_fence,
+                }) => {
+                    let response = match decode_request(&body) {
+                        Ok(request) => match &self.debugger_authority {
+                            Some(authority) => match authority.lock() {
+                                Ok(mut debugger) => crate::wire::execute_request_with_debugger(
+                                    runtime,
+                                    request,
+                                    self.bootstrap_verifier.as_deref(),
+                                    writer_fence.as_ref(),
+                                    false,
+                                    Some(&mut debugger),
+                                ),
+                                Err(_) => error_response(
+                                    "debugger_authority_unavailable",
+                                    "Leselang VM debugger authority is unavailable",
+                                ),
+                            },
+                            None => execute_request(
                                 runtime,
                                 request,
                                 self.bootstrap_verifier.as_deref(),
                                 writer_fence.as_ref(),
                                 false,
-                                Some(&mut debugger),
-                            ),
-                            Err(_) => error_response(
-                                "debugger_authority_unavailable",
-                                "Leselang VM debugger authority is unavailable",
                             ),
                         },
-                        None => execute_request(
-                            runtime,
-                            request,
-                            self.bootstrap_verifier.as_deref(),
-                            writer_fence.as_ref(),
-                            false,
+                        Err(_) => {
+                            error_response("invalid_request", "wire protocol request is invalid")
+                        }
+                    };
+                    (
+                        HttpStatus::Ok,
+                        Cow::Owned(encode_response(&response).map_err(|error| error.to_string())?),
+                        HttpResponsePolicy::private_json(),
+                    )
+                }
+                Ok(HttpRequest {
+                    route: HttpRoute::Bootstrap,
+                    body,
+                    writer_fence,
+                }) => {
+                    let response = match specialized_authority_writer_fence_error(
+                        runtime,
+                        writer_fence.as_ref(),
+                    ) {
+                        Some((code, message)) => bootstrap_error(None, code, message),
+                        None => {
+                            decode_and_submit(runtime, &body, self.bootstrap_submission_enabled)
+                        }
+                    };
+                    (
+                        HttpStatus::Ok,
+                        Cow::Owned(
+                            encode_bootstrap_response(&response)
+                                .map_err(|error| error.to_string())?,
                         ),
-                    },
-                    Err(_) => error_response("invalid_request", "wire protocol request is invalid"),
-                };
-                (
-                    HttpStatus::Ok,
-                    Cow::Owned(encode_response(&response).map_err(|error| error.to_string())?),
-                )
-            }
-            Ok(HttpRequest {
-                route: HttpRoute::Bootstrap,
-                body,
-                writer_fence,
-            }) => {
-                let response = match specialized_authority_writer_fence_error(
-                    runtime,
-                    writer_fence.as_ref(),
-                ) {
-                    Some((code, message)) => bootstrap_error(None, code, message),
-                    None => decode_and_submit(runtime, &body, self.bootstrap_submission_enabled),
-                };
-                (
-                    HttpStatus::Ok,
-                    Cow::Owned(
-                        encode_bootstrap_response(&response).map_err(|error| error.to_string())?,
-                    ),
-                )
-            }
-            Ok(HttpRequest {
-                route: HttpRoute::Provisioning,
-                body,
-                writer_fence,
-            }) => {
-                let response = match specialized_authority_writer_fence_error(
-                    runtime,
-                    writer_fence.as_ref(),
-                ) {
-                    Some((code, message)) => provisioning_error(None, code, message),
-                    None => decode_and_submit_provisioning(
+                        HttpResponsePolicy::private_json(),
+                    )
+                }
+                Ok(HttpRequest {
+                    route: HttpRoute::Provisioning,
+                    body,
+                    writer_fence,
+                }) => {
+                    let response = match specialized_authority_writer_fence_error(
                         runtime,
-                        &body,
-                        self.provisioning_submission_enabled,
-                    ),
-                };
-                (
-                    HttpStatus::Ok,
-                    Cow::Owned(
-                        encode_provisioning_response(&response)
-                            .map_err(|error| error.to_string())?,
-                    ),
-                )
-            }
-            Ok(HttpRequest {
-                route: HttpRoute::Retirement,
-                body,
-                writer_fence,
-            }) => {
-                let response = match specialized_authority_writer_fence_error(
-                    runtime,
-                    writer_fence.as_ref(),
-                ) {
-                    Some((code, message)) => retirement_error(None, code, message),
-                    None => decode_and_submit_retirement(
+                        writer_fence.as_ref(),
+                    ) {
+                        Some((code, message)) => provisioning_error(None, code, message),
+                        None => decode_and_submit_provisioning(
+                            runtime,
+                            &body,
+                            self.provisioning_submission_enabled,
+                        ),
+                    };
+                    (
+                        HttpStatus::Ok,
+                        Cow::Owned(
+                            encode_provisioning_response(&response)
+                                .map_err(|error| error.to_string())?,
+                        ),
+                        HttpResponsePolicy::private_json(),
+                    )
+                }
+                Ok(HttpRequest {
+                    route: HttpRoute::Retirement,
+                    body,
+                    writer_fence,
+                }) => {
+                    let response = match specialized_authority_writer_fence_error(
                         runtime,
-                        &body,
-                        self.retirement_submission_enabled,
-                    ),
-                };
-                (
-                    HttpStatus::Ok,
-                    Cow::Owned(
-                        encode_retirement_response(&response).map_err(|error| error.to_string())?,
-                    ),
-                )
-            }
-            Ok(HttpRequest {
-                route: HttpRoute::DaemonRetirement,
-                body,
-                writer_fence,
-            }) => {
-                let response = match specialized_authority_writer_fence_error(
-                    runtime,
-                    writer_fence.as_ref(),
-                ) {
-                    Some((code, message)) => daemon_retirement_error(None, code, message),
-                    None => decode_and_submit_daemon_retirement(
+                        writer_fence.as_ref(),
+                    ) {
+                        Some((code, message)) => retirement_error(None, code, message),
+                        None => decode_and_submit_retirement(
+                            runtime,
+                            &body,
+                            self.retirement_submission_enabled,
+                        ),
+                    };
+                    (
+                        HttpStatus::Ok,
+                        Cow::Owned(
+                            encode_retirement_response(&response)
+                                .map_err(|error| error.to_string())?,
+                        ),
+                        HttpResponsePolicy::private_json(),
+                    )
+                }
+                Ok(HttpRequest {
+                    route: HttpRoute::DaemonRetirement,
+                    body,
+                    writer_fence,
+                }) => {
+                    let response = match specialized_authority_writer_fence_error(
                         runtime,
-                        &body,
-                        self.daemon_retirement_submission_enabled,
-                    ),
-                };
-                (
-                    HttpStatus::Ok,
-                    Cow::Owned(
-                        encode_daemon_retirement_response(&response)
-                            .map_err(|error| error.to_string())?,
-                    ),
-                )
-            }
-            Ok(HttpRequest {
-                route: HttpRoute::LeselangExport,
-                body,
-                ..
-            }) => {
-                let response = match decode_leselang_export_request(&body)
-                    .and_then(|request| export_intent_leselang(&request.intent))
-                {
-                    Ok(source) => LeselangExportResponse::success(source),
-                    Err(error) => LeselangExportResponse::failure(&error),
-                };
-                (
-                    HttpStatus::Ok,
-                    Cow::Owned(
-                        encode_leselang_export_response(&response)
-                            .map_err(|error| error.message().to_string())?,
-                    ),
-                )
-            }
-            Err(error) => {
-                let body = if bootstrap_route {
-                    encode_bootstrap_response(&bootstrap_error(None, error.code, error.message))
+                        writer_fence.as_ref(),
+                    ) {
+                        Some((code, message)) => daemon_retirement_error(None, code, message),
+                        None => decode_and_submit_daemon_retirement(
+                            runtime,
+                            &body,
+                            self.daemon_retirement_submission_enabled,
+                        ),
+                    };
+                    (
+                        HttpStatus::Ok,
+                        Cow::Owned(
+                            encode_daemon_retirement_response(&response)
+                                .map_err(|error| error.to_string())?,
+                        ),
+                        HttpResponsePolicy::private_json(),
+                    )
+                }
+                Ok(HttpRequest {
+                    route: HttpRoute::LeselangExport,
+                    body,
+                    ..
+                }) => {
+                    let response = match decode_leselang_export_request(&body)
+                        .and_then(|request| export_intent_leselang(&request.intent))
+                    {
+                        Ok(source) => LeselangExportResponse::success(source),
+                        Err(error) => LeselangExportResponse::failure(&error),
+                    };
+                    (
+                        HttpStatus::Ok,
+                        Cow::Owned(
+                            encode_leselang_export_response(&response)
+                                .map_err(|error| error.message().to_string())?,
+                        ),
+                        HttpResponsePolicy::private_json(),
+                    )
+                }
+                Err(error) => {
+                    let body = if bootstrap_route {
+                        encode_bootstrap_response(&bootstrap_error(None, error.code, error.message))
+                            .map_err(|error| error.to_string())?
+                    } else if provisioning_route {
+                        encode_provisioning_response(&provisioning_error(
+                            None,
+                            error.code,
+                            error.message,
+                        ))
                         .map_err(|error| error.to_string())?
-                } else if provisioning_route {
-                    encode_provisioning_response(&provisioning_error(
-                        None,
-                        error.code,
-                        error.message,
-                    ))
-                    .map_err(|error| error.to_string())?
-                } else if retirement_route {
-                    encode_retirement_response(&retirement_error(None, error.code, error.message))
+                    } else if retirement_route {
+                        encode_retirement_response(&retirement_error(
+                            None,
+                            error.code,
+                            error.message,
+                        ))
                         .map_err(|error| error.to_string())?
-                } else if daemon_retirement_route {
-                    encode_daemon_retirement_response(&daemon_retirement_error(
-                        None,
-                        error.code,
-                        error.message,
-                    ))
-                    .map_err(|error| error.to_string())?
-                } else if leselang_export_route {
-                    encode_leselang_export_response(&LeselangExportResponse::failure(
-                        &leselang_ui::LeselangExportError::InvalidRequest,
-                    ))
-                    .map_err(|error| error.message().to_string())?
-                } else {
-                    encode_response(&error_response(error.code, error.message))
+                    } else if daemon_retirement_route {
+                        encode_daemon_retirement_response(&daemon_retirement_error(
+                            None,
+                            error.code,
+                            error.message,
+                        ))
                         .map_err(|error| error.to_string())?
-                };
-                (error.status, Cow::Owned(body))
-            }
-        };
+                    } else if leselang_export_route {
+                        encode_leselang_export_response(&LeselangExportResponse::failure(
+                            &leselang_ui::LeselangExportError::InvalidRequest,
+                        ))
+                        .map_err(|error| error.message().to_string())?
+                    } else {
+                        encode_response(&error_response(error.code, error.message))
+                            .map_err(|error| error.to_string())?
+                    };
+                    (
+                        error.status,
+                        Cow::Owned(body),
+                        HttpResponsePolicy::private_json(),
+                    )
+                }
+            };
         if cancelled.load(Ordering::Acquire) {
             return Err("remote request cancelled".into());
         }
-        write_http_response(&mut stream, status, &body)?;
+        write_http_response(&mut stream, status, &body, response_policy)?;
         stream.inner.conn.send_close_notify();
         stream.flush().map_err(|error| error.to_string())?;
         Ok(None)
@@ -629,6 +688,7 @@ enum HttpStatus {
     MethodNotAllowed,
     PayloadTooLarge,
     UnsupportedMediaType,
+    InternalServerError,
 }
 
 impl HttpStatus {
@@ -641,6 +701,7 @@ impl HttpStatus {
             Self::MethodNotAllowed => "405 Method Not Allowed",
             Self::PayloadTooLarge => "413 Payload Too Large",
             Self::UnsupportedMediaType => "415 Unsupported Media Type",
+            Self::InternalServerError => "500 Internal Server Error",
         }
     }
 }
@@ -652,9 +713,11 @@ struct HttpError {
     message: &'static str,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum HttpRoute {
+    ConsoleAsset(ConsoleAsset),
     LanguagePack(LanguagePackAsset),
+    ConsoleApi(ConsoleApiRoute),
     Wire,
     Bootstrap,
     Provisioning,
@@ -734,7 +797,7 @@ fn read_http_request(
     }
 
     let mut authorization = None;
-    let mut admin_token = false;
+    let mut admin_token = None;
     let mut content_length = None;
     let mut content_type = None;
     let mut writer_id = None;
@@ -751,7 +814,9 @@ fn read_http_request(
                 return Err(HttpError::bad_request());
             }
         } else if name.eq_ignore_ascii_case("x-leserpent-admin-token") {
-            admin_token = true;
+            if admin_token.replace(value).is_some() {
+                return Err(HttpError::bad_request());
+            }
         } else if name.eq_ignore_ascii_case("content-length") {
             if content_length.replace(value).is_some() {
                 return Err(HttpError::bad_request());
@@ -773,8 +838,38 @@ fn read_http_request(
         }
     }
 
+    if let Some(asset) = web_console::find_asset(parts[1]) {
+        if authorization.is_some() || admin_token.is_some() {
+            return Err(HttpError {
+                status: HttpStatus::BadRequest,
+                code: "console_asset_credentials_forbidden",
+                message: "public console asset requests must not carry credentials",
+            });
+        }
+        if parts[0] != "GET" {
+            return Err(HttpError {
+                status: HttpStatus::MethodNotAllowed,
+                code: "method_not_allowed",
+                message: "console asset endpoints require GET",
+            });
+        }
+        if content_type.is_some()
+            || writer_id.is_some()
+            || writer_generation.is_some()
+            || content_length.is_some_and(|value| value != "0")
+            || bytes.len() != header_end
+        {
+            return Err(HttpError::bad_request());
+        }
+        return Ok(HttpRequest {
+            route: HttpRoute::ConsoleAsset(asset),
+            body: Vec::new(),
+            writer_fence: None,
+        });
+    }
+
     if parts[1].starts_with("/language-packs/") {
-        if authorization.is_some() || admin_token {
+        if authorization.is_some() || admin_token.is_some() {
             return Err(HttpError {
                 status: HttpStatus::BadRequest,
                 code: "language_pack_credentials_forbidden",
@@ -818,10 +913,43 @@ fn read_http_request(
             message: "remote authentication failed",
         });
     }
+    if admin_token.is_some_and(|token| !constant_time_equals(token.as_bytes(), expected_token)) {
+        return Err(HttpError {
+            status: HttpStatus::Unauthorized,
+            code: "ambiguous_credentials",
+            message: "remote authentication credentials disagree",
+        });
+    }
     if duplicate_writer_header {
         return Err(HttpError::invalid_authority_writer_fence());
     }
     let writer_fence = parse_authority_writer_fence(writer_id, writer_generation)?;
+    let console_api = web_console::parse_api_route(parts[1]).map_err(|_| HttpError {
+        status: HttpStatus::BadRequest,
+        code: "invalid_console_query",
+        message: "Rust Web compatibility query is invalid",
+    })?;
+    if let Some(route) = console_api {
+        if parts[0] != "GET" {
+            return Err(HttpError {
+                status: HttpStatus::MethodNotAllowed,
+                code: "method_not_allowed",
+                message: "Rust Web compatibility endpoints require GET",
+            });
+        }
+        if content_type.is_some()
+            || writer_fence.is_some()
+            || content_length.is_some_and(|value| value != "0")
+            || bytes.len() != header_end
+        {
+            return Err(HttpError::bad_request());
+        }
+        return Ok(HttpRequest {
+            route: HttpRoute::ConsoleApi(route),
+            body: Vec::new(),
+            writer_fence: None,
+        });
+    }
     if parts[0] != "POST" {
         return Err(HttpError {
             status: HttpStatus::MethodNotAllowed,
@@ -861,6 +989,9 @@ fn read_http_request(
         .parse::<usize>()
         .map_err(|_| HttpError::bad_request())?;
     let limit = match route {
+        HttpRoute::ConsoleAsset(_) | HttpRoute::ConsoleApi(_) => {
+            unreachable!("console GET routes return before body parsing")
+        }
         HttpRoute::LanguagePack(_) => unreachable!("language packs return before body parsing"),
         HttpRoute::Wire => MAX_PROTOCOL_MESSAGE_BYTES,
         HttpRoute::Bootstrap => MAX_BOOTSTRAP_PROTOCOL_BYTES,
@@ -957,20 +1088,54 @@ fn find_header_end(bytes: &[u8]) -> Option<usize> {
         .map(|position| position + 4)
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct HttpResponsePolicy {
+    content_type: &'static str,
+    cache_control: &'static str,
+    document: bool,
+}
+
+impl HttpResponsePolicy {
+    fn private_json() -> Self {
+        Self {
+            content_type: "application/json",
+            cache_control: "no-store",
+            document: false,
+        }
+    }
+
+    fn public_json() -> Self {
+        Self {
+            content_type: "application/json",
+            cache_control: "no-cache",
+            document: false,
+        }
+    }
+}
+
 fn write_http_response(
     stream: &mut impl Write,
     status: HttpStatus,
     body: &[u8],
+    policy: HttpResponsePolicy,
 ) -> Result<(), String> {
     let challenge = if matches!(status, HttpStatus::Unauthorized) {
         "WWW-Authenticate: Bearer\r\n"
     } else {
         ""
     };
+    let content_security_policy = if policy.document {
+        "Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https: wss:; frame-src 'self' https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'\r\n"
+    } else {
+        ""
+    };
     let header = format!(
-        "HTTP/1.1 {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n{}Connection: close\r\n\r\n",
+        "HTTP/1.1 {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: {}\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nReferrer-Policy: no-referrer\r\nPermissions-Policy: camera=(), microphone=(), geolocation=()\r\nCross-Origin-Opener-Policy: same-origin\r\n{}{}Connection: close\r\n\r\n",
         status.line(),
+        policy.content_type,
         body.len(),
+        policy.cache_control,
+        content_security_policy,
         challenge,
     );
     stream
@@ -1234,6 +1399,19 @@ mod tests {
         .into_bytes()
     }
 
+    fn console_get_request(path: &str, token: Option<&str>, admin_token: Option<&str>) -> Vec<u8> {
+        let authorization = token
+            .map(|token| format!("Authorization: Bearer {token}\r\n"))
+            .unwrap_or_default();
+        let admin = admin_token
+            .map(|token| format!("X-Leserpent-Admin-Token: {token}\r\n"))
+            .unwrap_or_default();
+        format!(
+            "GET {path} HTTP/1.1\r\nHost: localhost\r\nAccept: application/json\r\n{authorization}{admin}\r\n"
+        )
+        .into_bytes()
+    }
+
     fn read_response(stream: &mut impl Read) -> Vec<u8> {
         let mut response = Vec::new();
         while find_header_end(&response).is_none() {
@@ -1323,6 +1501,36 @@ mod tests {
                     &body,
                     writer_fence.as_ref(),
                 ))
+                .unwrap();
+            read_response(&mut stream)
+        })
+    }
+
+    fn tls_get_client(
+        address: SocketAddr,
+        certificate: rustls::pki_types::CertificateDer<'static>,
+        path: &'static str,
+        token: Option<&'static str>,
+        admin_token: Option<&'static str>,
+    ) -> thread::JoinHandle<Vec<u8>> {
+        thread::spawn(move || {
+            let mut roots = RootCertStore::empty();
+            roots.add(certificate).unwrap();
+            let provider = Arc::new(rustls::crypto::ring::default_provider());
+            let mut config = ClientConfig::builder_with_provider(provider)
+                .with_safe_default_protocol_versions()
+                .unwrap()
+                .with_root_certificates(roots)
+                .with_no_client_auth();
+            config.alpn_protocols = vec![b"http/1.1".to_vec()];
+            let connection =
+                ClientConnection::new(Arc::new(config), ServerName::try_from("localhost").unwrap())
+                    .unwrap();
+            let socket = TcpStream::connect(address).unwrap();
+            socket.set_read_timeout(Some(CONNECTION_TIMEOUT)).unwrap();
+            let mut stream = StreamOwned::new(connection, socket);
+            stream
+                .write_all(&console_get_request(path, token, admin_token))
                 .unwrap();
             read_response(&mut stream)
         })
@@ -1750,6 +1958,176 @@ mod tests {
         ] {
             assert!(read_http_request(&mut Cursor::new(request), TOKEN.as_bytes()).is_err());
         }
+    }
+
+    #[test]
+    fn rust_web_routes_separate_public_assets_from_authenticated_read_projections() {
+        let document = read_http_request(
+            &mut Cursor::new(console_get_request("/", None, None)),
+            TOKEN.as_bytes(),
+        )
+        .unwrap();
+        let HttpRoute::ConsoleAsset(document) = document.route else {
+            panic!("root must resolve to an embedded console document");
+        };
+        assert!(document.document);
+        assert_eq!(document.content_type, "text/html; charset=utf-8");
+
+        for header in [
+            format!("Authorization: Bearer {TOKEN}\r\n"),
+            format!("X-Leserpent-Admin-Token: {TOKEN}\r\n"),
+        ] {
+            let request = format!("GET /app.js HTTP/1.1\r\nHost: localhost\r\n{header}\r\n");
+            let error = read_http_request(&mut Cursor::new(request.into_bytes()), TOKEN.as_bytes())
+                .unwrap_err();
+            assert!(matches!(error.status, HttpStatus::BadRequest));
+            assert_eq!(error.code, "console_asset_credentials_forbidden");
+        }
+
+        let runtimes = read_http_request(
+            &mut Cursor::new(console_get_request(
+                "/v1/runtimes?environment=prod%2Dcn",
+                Some(TOKEN),
+                Some(TOKEN),
+            )),
+            TOKEN.as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(
+            runtimes.route,
+            HttpRoute::ConsoleApi(ConsoleApiRoute::Runtimes(
+                leserpent_domain::RuntimeListFilter {
+                    environment: Some("prod-cn".into()),
+                    cluster: None,
+                    role: None,
+                }
+            ))
+        );
+        assert!(runtimes.body.is_empty());
+        assert!(runtimes.writer_fence.is_none());
+
+        let unauthenticated = read_http_request(
+            &mut Cursor::new(console_get_request("/v1/capabilities", None, None)),
+            TOKEN.as_bytes(),
+        )
+        .unwrap_err();
+        assert!(matches!(unauthenticated.status, HttpStatus::Unauthorized));
+
+        let ambiguous = read_http_request(
+            &mut Cursor::new(console_get_request(
+                "/v1/capabilities",
+                Some(TOKEN),
+                Some("fedcba9876543210fedcba9876543210"),
+            )),
+            TOKEN.as_bytes(),
+        )
+        .unwrap_err();
+        assert!(matches!(ambiguous.status, HttpStatus::Unauthorized));
+        assert_eq!(ambiguous.code, "ambiguous_credentials");
+
+        let invalid_query = read_http_request(
+            &mut Cursor::new(console_get_request(
+                "/v1/runtimes?role=a&role=b",
+                Some(TOKEN),
+                Some(TOKEN),
+            )),
+            TOKEN.as_bytes(),
+        )
+        .unwrap_err();
+        assert!(matches!(invalid_query.status, HttpStatus::BadRequest));
+        assert_eq!(invalid_query.code, "invalid_console_query");
+
+        let wrong_method = read_http_request(
+            &mut Cursor::new(request_at(TOKEN, "/v1/capabilities", b"{}")),
+            TOKEN.as_bytes(),
+        )
+        .unwrap_err();
+        assert!(matches!(wrong_method.status, HttpStatus::MethodNotAllowed));
+    }
+
+    #[test]
+    fn rust_web_console_serves_real_runtime_state_over_tls() {
+        let CertifiedKey { cert, signing_key } =
+            generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+        let certificate_path = temp_path("rust-web", "crt");
+        let key_path = temp_path("rust-web", "key");
+        let database_path = temp_path("rust-web", "sqlite");
+        fs::write(&certificate_path, cert.pem()).unwrap();
+        fs::write(&key_path, signing_key.serialize_pem()).unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600)).unwrap();
+
+        let mut runtime = ControlRuntime::open(&database_path).unwrap();
+        runtime
+            .register_runtime(
+                RuntimeId::new("runtime-rust-web").unwrap(),
+                "Rust Web runtime",
+                "https://runtime.invalid",
+            )
+            .unwrap();
+        let mut server = RemoteServer::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            &certificate_path,
+            &key_path,
+            TOKEN,
+        )
+        .unwrap();
+        let address = server.local_addr().unwrap();
+
+        let document = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_get_client(address, cert.der().clone(), "/", None, None),
+        );
+        assert!(document.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let document_head =
+            std::str::from_utf8(&document[..find_header_end(&document).unwrap()]).unwrap();
+        assert!(document_head.contains("Content-Type: text/html; charset=utf-8\r\n"));
+        assert!(document_head.contains("Content-Security-Policy: default-src 'self';"));
+        assert!(document_head.contains("X-Frame-Options: DENY\r\n"));
+        assert!(document[find_header_end(&document).unwrap()..].starts_with(b"<!DOCTYPE html>"));
+
+        let unauthorized = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_get_client(address, cert.der().clone(), "/v1/runtimes", None, None),
+        );
+        assert!(unauthorized.starts_with(b"HTTP/1.1 401 Unauthorized\r\n"));
+        assert!(
+            unauthorized
+                .windows(b"WWW-Authenticate: Bearer\r\n".len())
+                .any(|window| window == b"WWW-Authenticate: Bearer\r\n")
+        );
+
+        let runtimes = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_get_client(
+                address,
+                cert.der().clone(),
+                "/v1/runtimes",
+                Some(TOKEN),
+                Some(TOKEN),
+            ),
+        );
+        assert!(runtimes.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let body_start = find_header_end(&runtimes).unwrap();
+        let projection: serde_json::Value =
+            serde_json::from_slice(&runtimes[body_start..]).unwrap();
+        assert_eq!(projection["runtimes"][0]["runtimeId"], "runtime-rust-web");
+        assert_eq!(projection["runtimes"][0]["name"], "Rust Web runtime");
+        let encoded = std::str::from_utf8(&runtimes[body_start..]).unwrap();
+        for forbidden in ["adminToken", "pairingToken", "continuation", "secret"] {
+            assert!(
+                !encoded.contains(forbidden),
+                "TLS projection leaked {forbidden}"
+            );
+        }
+
+        drop(runtime);
+        fs::remove_file(certificate_path).unwrap();
+        fs::remove_file(key_path).unwrap();
+        fs::remove_file(database_path).unwrap();
     }
 
     #[test]

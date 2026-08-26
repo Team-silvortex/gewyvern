@@ -2538,12 +2538,12 @@
       "lifecycle": "target",
       "priority": "critical",
       "maturity": "developing",
-      "completion": 90,
+      "completion": 95,
       "confidence": "high",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-gui-function-chain",
-        "version": "0.6.0-draft",
+        "version": "0.7.0-draft",
         "stability": "draft",
         "surfaces": [
           "machine-readable-operation-inventory",
@@ -2585,7 +2585,11 @@
           "rejected-presentation-terminal-feedback",
           "real-tls-debugger-presentation-proof",
           "web-bridge-five-family-closure",
-          "explicit-rust-web-self-host-gap"
+          "rust-web-embedded-console-entry",
+          "rust-web-bearer-only-read-projection",
+          "shared-typescript-dual-host-package",
+          "real-tls-rust-web-runtime-proof",
+          "explicit-rust-web-mutation-gap"
         ]
       },
       "depends_on": [
@@ -2599,7 +2603,7 @@
       "blockers": [
         {
           "id": "rust-web-self-host",
-          "summary": "The TypeScript console remains in the ASP.NET bridge; leserpentd does not yet own the per-daemon Web console and compatibility API."
+          "summary": "leserpentd now owns the per-daemon TypeScript console and authenticated read-only first-screen projections; compatibility mutations still require native Rust routes before the ASP.NET bridge can retire."
         }
       ],
       "consumers": ["release-gates", "desktop-operators", "web-operators", "model-automation"],
@@ -2612,7 +2616,11 @@
         { "kind": "source", "path": "crates/leserpentd/src/orchestra.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/wire.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/debugger.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpentd/src/web_console.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpentd/src/remote.rs", "state": "present" },
         { "kind": "source", "path": "crates/leselang-vm/src/lib.rs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent/src/Leserpent/frontend/20-security-transport.ts", "state": "present" },
+        { "kind": "release", "path": "apps/leserpent/frontend-package-manifest.json", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteOrchestraClient.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteOrchestraWorkspaceWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteRegistrationClient.cs", "state": "present" },
@@ -2629,7 +2637,7 @@
         { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" }
       ],
-      "next_gate": "Add the Rust-owned per-daemon Web console; retain physical Linux and packaged macOS evidence for the closed live Leselang automation, debugger, Rust-authoritative Orchestra, and existing-runtime registration desktop chains."
+      "next_gate": "Move registration, refresh, deletion, persistence, and Orchestra compatibility mutations behind strict Rust routes, then close the per-daemon Web console and retire the ASP.NET bridge without changing the shared TypeScript package."
     },
     {
       "id": "leserpent-2/ui-renderers/desktop-localization",

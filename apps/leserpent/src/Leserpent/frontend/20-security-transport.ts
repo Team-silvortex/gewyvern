@@ -141,7 +141,7 @@ function renderSecurityState(capabilities = null) {
       securityVisualState = "local";
     }
 
-    if (capabilities?.security?.apiMode === "loopback_or_token" && !state.adminToken?.trim()) {
+    if (capabilities?.security?.adminTokenConfigured && !state.adminToken?.trim()) {
       nodes.adminTokenState.textContent = t("security.tokenRequired");
       securityVisualState = "required";
     }
@@ -564,6 +564,7 @@ function apiHeaders({ contentType = null, intent = null } = {}) {
   const token = state.adminToken?.trim();
   if (token) {
     headers["X-Leserpent-Admin-Token"] = token;
+    headers.Authorization = `Bearer ${token}`;
   }
   return headers;
 }

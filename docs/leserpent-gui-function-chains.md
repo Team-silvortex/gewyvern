@@ -43,10 +43,10 @@ surface complete.
 | Surface | Lifecycle | Score | Closed | Partial | Conformance only | Absent |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | Avalonia desktop | target | 100 | 9 | 0 | 0 | 0 |
-| Rust-hosted Web | target | 0 | 0 | 0 | 0 | 1 |
+| Rust-hosted Web | target | 50 | 0 | 1 | 0 | 0 |
 | ASP.NET Web | bridge | 100 | 5 | 0 | 0 | 0 |
 
-The combined target score is 90. The closed Avalonia families are fleet
+The combined target score is 95. The closed Avalonia families are fleet
 observation, runtime control, existing-runtime registration, daemon lifecycle,
 Gewyvern lifecycle, authority health, Rust-authoritative Orchestra control, and
 the suspended Leselang debugger workflow, plus live product Leselang
@@ -57,10 +57,22 @@ drilldown, and idempotent cleanup. Guided plans stay visibly review-only. The
 registration editor separately closes already-running runtime intake and
 revision-fenced metadata updates: the daemon produces a side-effect-free plan,
 field edits invalidate it, and an explicit confirmation applies the same command
-identity without sending deployment credentials or service secrets. The remaining
-target gap is:
+identity without sending deployment credentials or service secrets. The
+remaining target gap is:
 
-- a Rust-owned per-daemon TypeScript Web console and compatibility API.
+- native Rust compatibility mutations for registration, refresh, deletion,
+  persistence, and Orchestra control, after which the ASP.NET bridge can retire.
+
+`leserpentd` now serves the exact packaged TypeScript console from its existing
+authenticated HTTPS listener. Public HTML, JavaScript, CSS, branding, and
+language-pack requests reject credential-bearing variants; API requests require
+the daemon Bearer token and reject disagreeing legacy and Authorization values.
+The first-screen capabilities, fleet summary, attention, runtime, session, and
+safe cleanup-preview reads project live `ControlRuntime` state without endpoint
+credentials. A real TLS test proves the CSP-protected document, the 401 boundary,
+and a persisted runtime reaching the browser-compatible camel-case projection.
+This is a usable read-only product path, but remains `partial` until its mutation
+families stop depending on the 1.x bridge.
 
 The debugger workspace starts a bounded daemon-owned VM only to its first
 effect, mounts the Rust-authored `UiDocument`, and routes its session-bound

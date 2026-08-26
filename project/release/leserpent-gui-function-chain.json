@@ -505,9 +505,15 @@
       "coverage": [
         {
           "surface": "rust-web",
-          "state": "absent",
-          "gap": "The packaged TypeScript console is still hosted by the ASP.NET compatibility process; leserpentd does not yet serve the console or its compatibility API directly.",
-          "evidence": []
+          "state": "partial",
+          "gap": "leserpentd now serves the shared TypeScript package and the authenticated read-only first-screen compatibility projections directly; registration, refresh, deletion, persistence, and Orchestra mutation APIs still depend on the ASP.NET bridge.",
+          "evidence": [
+            { "stage": "entry", "path": "crates/leserpentd/src/web_console.rs", "contains": "pub(crate) fn find_asset(" },
+            { "stage": "transport", "path": "crates/leserpentd/src/remote.rs", "contains": "HttpRoute::ConsoleApi(route)" },
+            { "stage": "authority", "path": "crates/leserpentd/src/remote.rs", "contains": "if !constant_time_equals(supplied_token.as_bytes(), expected_token)" },
+            { "stage": "projection", "path": "crates/leserpentd/src/web_console.rs", "contains": "pub(crate) fn render_api(" },
+            { "stage": "feedback", "path": "apps/leserpent/src/Leserpent/frontend/50-dashboard-workflows.ts", "contains": "function renderDashboardFromCache()" }
+          ]
         }
       ]
     },

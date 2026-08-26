@@ -157,7 +157,7 @@ fn gui_summary_separates_product_closure_from_renderer_conformance() {
     let summary = load_catalog().summary();
     assert_eq!(summary.operation_count, 35);
     assert_eq!(summary.chain_count, 11);
-    assert_eq!(summary.target_score, 78);
+    assert_eq!(summary.target_score, 95);
 
     let avalonia = summary
         .surfaces
@@ -165,16 +165,13 @@ fn gui_summary_separates_product_closure_from_renderer_conformance() {
         .find(|surface| surface.id == "avalonia-desktop")
         .expect("Avalonia target summary must exist");
     assert_eq!(avalonia.lifecycle, GuiSurfaceLifecycle::Target);
-    assert_eq!(avalonia.score, 86);
+    assert_eq!(avalonia.score, 100);
     assert_eq!(avalonia.required_chain_count, 9);
-    assert_eq!(avalonia.closed, 7);
-    assert_eq!(avalonia.partial, 1);
-    assert_eq!(avalonia.conformance_only, 1);
+    assert_eq!(avalonia.closed, 9);
+    assert_eq!(avalonia.partial, 0);
+    assert_eq!(avalonia.conformance_only, 0);
     assert_eq!(avalonia.absent, 0);
-    assert_eq!(
-        avalonia.gaps,
-        ["debugger-workflow", "product-leselang-automation",]
-    );
+    assert!(avalonia.gaps.is_empty());
 
     let rust_web = summary
         .surfaces
@@ -182,8 +179,10 @@ fn gui_summary_separates_product_closure_from_renderer_conformance() {
         .find(|surface| surface.id == "rust-web")
         .expect("Rust Web target summary must exist");
     assert_eq!(rust_web.lifecycle, GuiSurfaceLifecycle::Target);
-    assert_eq!(rust_web.score, 0);
-    assert_eq!(rust_web.absent, 1);
+    assert_eq!(rust_web.score, 50);
+    assert_eq!(rust_web.partial, 1);
+    assert_eq!(rust_web.absent, 0);
+    assert_eq!(rust_web.gaps, ["rust-web-self-host"]);
 
     let bridge = summary
         .surfaces
@@ -219,13 +218,13 @@ fn closed_claims_require_every_stage_and_nonclosed_claims_require_a_gap() {
     assert!(errors.contains("lacks 'transport' evidence"));
 
     let mut catalog = load_catalog();
-    let debugger = catalog
+    let rust_web = catalog
         .chains
         .iter_mut()
-        .find(|chain| chain.id == "debugger-workflow")
+        .find(|chain| chain.id == "rust-web-self-host")
         .unwrap();
-    let coverage = debugger.coverage.first_mut().unwrap();
-    assert_eq!(coverage.state, GuiCoverageState::ConformanceOnly);
+    let coverage = rust_web.coverage.first_mut().unwrap();
+    assert_eq!(coverage.state, GuiCoverageState::Partial);
     coverage.gap = None;
     let errors = catalog
         .validate(root())
@@ -298,14 +297,17 @@ fn native_status_cli_reports_gui_closure_without_hiding_gaps() {
     assert!(output.status.success());
     let payload: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("GUI status view must be JSON");
-    assert_eq!(payload["target_score"], 78);
+    assert_eq!(payload["target_score"], 95);
     assert_eq!(payload["operation_count"], 35);
     assert_eq!(payload["chain_count"], 11);
     assert_eq!(payload["surfaces"][0]["id"], "avalonia-desktop");
-    assert_eq!(payload["surfaces"][0]["score"], 86);
+    assert_eq!(payload["surfaces"][0]["score"], 100);
+    assert_eq!(payload["surfaces"][0]["gaps"], serde_json::json!([]));
+    assert_eq!(payload["surfaces"][1]["id"], "rust-web");
+    assert_eq!(payload["surfaces"][1]["score"], 50);
     assert_eq!(
-        payload["surfaces"][0]["gaps"],
-        serde_json::json!(["debugger-workflow", "product-leselang-automation",])
+        payload["surfaces"][1]["gaps"],
+        serde_json::json!(["rust-web-self-host"])
     );
 
     let validation = Command::new(binary)
@@ -315,6 +317,6 @@ fn native_status_cli_reports_gui_closure_without_hiding_gaps() {
     assert!(validation.status.success());
     let payload: serde_json::Value =
         serde_json::from_slice(&validation.stdout).expect("combined validation must be JSON");
-    assert_eq!(payload["gui_target_score"], 78);
+    assert_eq!(payload["gui_target_score"], 95);
     assert_eq!(payload["gui_operations"], 35);
 }
