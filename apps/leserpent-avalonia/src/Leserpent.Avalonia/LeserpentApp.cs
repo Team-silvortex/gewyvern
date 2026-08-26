@@ -761,15 +761,22 @@ internal sealed class LeserpentApp : Application
                     orchestraWorkspace.VerifyAccessibility();
                     orchestraWorkspace.VerifyLayoutEnvelope();
                     orchestraLayoutCount++;
-                    var cleanup = new OrchestraCleanupConfirmationWindow(
+                    var cleanup = new OrchestraConfirmationWindow(
                         runtime.Id,
+                        OrchestraConfirmationKind.Cleanup,
                         localization);
                     cleanup.VerifyLayoutEnvelope();
                     cleanup.Close(false);
-                    dialogLayoutCount++;
+                    var cancel = new OrchestraConfirmationWindow(
+                        "orun-verification",
+                        OrchestraConfirmationKind.Cancel,
+                        localization);
+                    cancel.VerifyLayoutEnvelope();
+                    cancel.Close(false);
+                    dialogLayoutCount += 2;
                 }
                 if (localizedLayoutCount != 8
-                    || dialogLayoutCount != 24
+                    || dialogLayoutCount != 32
                     || workspaceLayoutCount != 8
                     || orchestraLayoutCount != 8)
                 {
@@ -777,7 +784,7 @@ internal sealed class LeserpentApp : Application
                         "remote shell localized layout coverage drifted");
                 }
                 Console.WriteLine(
-                    "remote shell controls valid: typed_feed=true, typed_health=true, opaque_feed_detail=true, localized_remote_shell_catalogs=7, localized_remote_operation_catalogs=7, localized_runtime_workspace_catalogs=7, localized_orchestra_catalogs=7, shell_semantic_keys=56, operation_semantic_keys=57, workspace_semantic_keys=78, orchestra_semantic_keys=41, localized_layouts=8, compact_layout=true, wide_layout=true, localized_dialog_layouts=24, localized_workspace_layouts=8, localized_orchestra_layouts=8, workspace_instances=1, orchestra_instances=1, live_language_reprojection=true, workspace_live_language_reprojection=true, orchestra_live_language_reprojection=true, network_started=false");
+                    "remote shell controls valid: typed_feed=true, typed_health=true, opaque_feed_detail=true, localized_remote_shell_catalogs=7, localized_remote_operation_catalogs=7, localized_runtime_workspace_catalogs=7, localized_orchestra_catalogs=7, shell_semantic_keys=56, operation_semantic_keys=57, workspace_semantic_keys=78, orchestra_semantic_keys=72, localized_layouts=8, compact_layout=true, wide_layout=true, localized_dialog_layouts=32, localized_workspace_layouts=8, localized_orchestra_layouts=8, workspace_instances=1, orchestra_instances=1, native_plans=true, rust_control=true, guided_read_only=true, queued_cancel=true, durable_retry=true, live_language_reprojection=true, workspace_live_language_reprojection=true, orchestra_live_language_reprojection=true, network_started=false");
                 window.Close();
             }
             catch (Exception error)

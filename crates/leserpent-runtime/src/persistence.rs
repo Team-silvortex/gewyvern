@@ -114,6 +114,21 @@ pub struct EffectRecord {
     pub last_error: Option<String>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OrchestraEffectStatusRecord {
+    pub kind: String,
+    pub payload: Vec<u8>,
+    pub state: String,
+    pub attempt: u32,
+    pub last_error: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct OrchestraEffectCancellationRecord {
+    pub cancelled_effect_count: u32,
+    pub replayed: bool,
+}
+
 pub struct OrchestraPersistenceRecord {
     pub run: Vec<u8>,
     pub event: Vec<u8>,
@@ -906,6 +921,118 @@ impl Journal {
             .transpose()
     }
 
+    pub fn orchestra_effect_status(
+        &mut self,
+        effect_id: &str,
+    ) -> Result<Option<OrchestraEffectStatusRecord>, String> {
+        self.effect_record(effect_id).map(|record| {
+            record.map(|record| OrchestraEffectStatusRecord {
+                kind: record.kind,
+                payload: record.payload,
+                state: record.state,
+                attempt: record.attempt,
+                last_error: record.last_error,
+            })
+        })
+    }
+
+    pub fn cancel_ready_orchestra_effects(
+        &mut self,
+        run_id: &str,
+        command_id: &str,
+        effect_ids: &[String],
+    ) -> Result<OrchestraEffectCancellationRecord, String> {
+        self.ensure_owner()?;
+        validate_scheduler_id("Orchestra run_id", run_id)?;
+        validate_scheduler_id("Orchestra cancellation command_id", command_id)?;
+        if effect_ids.is_empty() || effect_ids.len() > 4 {
+            return Err("Orchestra cancellation effect set is out of bounds".into());
+        }
+        let mut unique = HashSet::with_capacity(effect_ids.len());
+        for effect_id in effect_ids {
+            validate_scheduler_id("Orchestra effect_id", effect_id)?;
+            if !unique.insert(effect_id.as_str()) {
+                return Err("Orchestra cancellation effect set contains a duplicate".into());
+            }
+        }
+        let marker_id = orchestra_cancel_marker_id(run_id)?;
+        let marker_payload = command_id.as_bytes();
+        validate_blob("Orchestra cancellation marker", marker_payload)?;
+        let now = unix_time_ms()?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let existing_marker: Option<(String, Vec<u8>, String)> = transaction
+            .query_row(
+                "SELECT kind, payload, state FROM runtime_effect_tasks WHERE effect_id = ?1",
+                [&marker_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        match existing_marker {
+            Some((kind, payload, state))
+                if kind == "leserpent.orchestra.cancel"
+                    && payload == marker_payload
+                    && state == "failed" =>
+            {
+                transaction.commit().map_err(|error| error.to_string())?;
+                return Ok(OrchestraEffectCancellationRecord {
+                    cancelled_effect_count: 0,
+                    replayed: true,
+                });
+            }
+            Some(_) => {
+                return Err("Orchestra cancellation command identity was reused".into());
+            }
+            None => {}
+        }
+
+        let cancellation_error = format!("orchestra_cancelled:{command_id}");
+        let mut cancelled = 0_u32;
+        for effect_id in effect_ids {
+            let changed = transaction
+                .execute(
+                    "UPDATE runtime_effect_tasks SET state = 'failed', last_error = ?1,
+                         lease_token = NULL, lease_expires_at_unix_ms = NULL,
+                         updated_at_unix_ms = ?2
+                     WHERE effect_id = ?3 AND state = 'ready'",
+                    params![cancellation_error, now, effect_id],
+                )
+                .map_err(|error| error.to_string())?;
+            cancelled = cancelled
+                .checked_add(
+                    u32::try_from(changed)
+                        .map_err(|_| "Orchestra cancellation count overflow".to_string())?,
+                )
+                .ok_or_else(|| "Orchestra cancellation count overflow".to_string())?;
+        }
+        if cancelled == 0 {
+            transaction.commit().map_err(|error| error.to_string())?;
+            return Ok(OrchestraEffectCancellationRecord {
+                cancelled_effect_count: 0,
+                replayed: false,
+            });
+        }
+        transaction
+            .execute(
+                "INSERT INTO runtime_effect_tasks
+                     (effect_id, kind, payload, state, attempt, max_attempts,
+                      available_at_unix_ms, last_error, created_at_unix_ms,
+                      updated_at_unix_ms)
+                 VALUES (?1, 'leserpent.orchestra.cancel', ?2, 'failed', 0, 1,
+                         ?3, ?4, ?3, ?3)",
+                params![marker_id, marker_payload, now, cancellation_error],
+            )
+            .map_err(|error| error.to_string())?;
+        transaction.commit().map_err(|error| error.to_string())?;
+        Ok(OrchestraEffectCancellationRecord {
+            cancelled_effect_count: cancelled,
+            replayed: false,
+        })
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn persist_orchestra_run_event(
         &mut self,
@@ -919,6 +1046,63 @@ impl Journal {
         recorded_at: &str,
         run: &[u8],
         event: &[u8],
+    ) -> Result<OrchestraPersistenceRecord, String> {
+        self.persist_orchestra_run_event_inner(
+            run_id,
+            runtime_id,
+            request_id,
+            event_type,
+            from_outcome,
+            to_outcome,
+            run_outcome,
+            recorded_at,
+            run,
+            event,
+            false,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn persist_orchestra_run_event_start(
+        &mut self,
+        run_id: &str,
+        runtime_id: &str,
+        request_id: &str,
+        event_type: &str,
+        to_outcome: &str,
+        recorded_at: &str,
+        run: &[u8],
+        event: &[u8],
+    ) -> Result<OrchestraPersistenceRecord, String> {
+        self.persist_orchestra_run_event_inner(
+            run_id,
+            runtime_id,
+            Some(request_id),
+            event_type,
+            None,
+            to_outcome,
+            to_outcome,
+            recorded_at,
+            run,
+            event,
+            true,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn persist_orchestra_run_event_inner(
+        &mut self,
+        run_id: &str,
+        runtime_id: &str,
+        request_id: Option<&str>,
+        event_type: &str,
+        from_outcome: Option<&str>,
+        to_outcome: &str,
+        run_outcome: &str,
+        recorded_at: &str,
+        run: &[u8],
+        event: &[u8],
+        require_idle_runtime: bool,
     ) -> Result<OrchestraPersistenceRecord, String> {
         self.ensure_owner()?;
         for (field, value) in [
@@ -997,6 +1181,36 @@ impl Journal {
                 return Err("Orchestra events exist without their retained run".into());
             }
             None => {}
+        }
+        if require_idle_runtime && existing_run.is_none() {
+            let mut statement = transaction
+                .prepare(
+                    "SELECT run_id, request_id, envelope FROM orchestra_runs
+                     WHERE runtime_id = ?1 AND run_id <> ?2",
+                )
+                .map_err(|error| error.to_string())?;
+            let rows = statement
+                .query_map(params![runtime_id, run_id], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                        row.get::<_, Vec<u8>>(2)?,
+                    ))
+                })
+                .map_err(|error| error.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| error.to_string())?;
+            for (retained_run_id, retained_request_id, retained_envelope) in rows {
+                let retained = validate_retained_orchestra_run_row(
+                    &retained_run_id,
+                    runtime_id,
+                    retained_request_id.as_deref(),
+                    &retained_envelope,
+                )?;
+                if is_active_orchestra_outcome(&retained.outcome) {
+                    return Err("Orchestra runtime already has an active run".into());
+                }
+            }
         }
         let existing_event: Option<Vec<u8>> = transaction
             .query_row(
@@ -4692,6 +4906,12 @@ fn validate_scheduler_id(label: &str, value: &str) -> Result<(), String> {
     valid
         .then_some(())
         .ok_or_else(|| format!("invalid {label}"))
+}
+
+fn orchestra_cancel_marker_id(run_id: &str) -> Result<String, String> {
+    let marker_id = format!("{run_id}.cancel");
+    validate_scheduler_id("Orchestra cancellation marker ID", &marker_id)?;
+    Ok(marker_id)
 }
 
 fn validate_lease_duration(duration: Duration) -> Result<i64, String> {

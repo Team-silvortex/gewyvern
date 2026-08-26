@@ -5250,12 +5250,27 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .expect("product GUI function-chain cell must exist");
     assert_eq!(frontend_parity.maturity, Maturity::Developing);
     assert_eq!(frontend_parity.priority, Priority::Critical);
-    assert_eq!(frontend_parity.completion, 68);
+    assert_eq!(frontend_parity.completion, 73);
     assert_eq!(frontend_parity.contract.stability, ContractStability::Draft);
-    assert_eq!(frontend_parity.contract.version, "0.2.0-draft");
+    assert_eq!(frontend_parity.contract.version, "0.3.0-draft");
+    for surface in [
+        "avalonia-orchestra-native-plan-run-control-closure",
+        "strict-dotnet-orchestra-control-codec",
+        "rust-orchestra-durable-reentry",
+        "queued-only-cancellation-honesty",
+        "cancelled-refresh-projection-settlement",
+    ] {
+        assert!(
+            frontend_parity
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "frontend parity must track Orchestra surface {surface}"
+        );
+    }
     for blocker in [
         "avalonia-runtime-registration-editor",
-        "avalonia-orchestra-command-authority",
         "product-debugger-session-bridge",
         "product-leselang-execution-host",
         "rust-web-self-host",
@@ -5268,6 +5283,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "frontend parity must retain blocker {blocker}"
         );
     }
+    assert!(
+        !frontend_parity
+            .blockers
+            .iter()
+            .any(|candidate| candidate.id == "avalonia-orchestra-command-authority")
+    );
     assert!(frontend_parity.evidence.iter().any(|item| {
         item.kind == EvidenceKind::Release
             && item.path == "project/release/leserpent-gui-function-chain.json"
@@ -5276,6 +5297,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(frontend_parity.evidence.iter().any(|item| {
         item.kind == EvidenceKind::Test
             && item.path == "tests/gui_function_chain_tdd.rs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(frontend_parity.evidence.iter().any(|item| {
+        item.kind == EvidenceKind::Source
+            && item.path == "crates/leserpentd/src/orchestra.rs"
             && item.state == EvidenceState::Present
     }));
 
@@ -5375,7 +5401,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(runtime.maturity, Maturity::Mature);
     assert_eq!(runtime.completion, 100);
     assert_eq!(runtime.contract.stability, ContractStability::Stable);
-    assert_eq!(runtime.contract.version, "1.16.0");
+    assert_eq!(runtime.contract.version, "1.17.0");
     for surface in [
         "durable-sidecar-endpoint",
         "atomic-sidecar-registration-update",
@@ -5506,6 +5532,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "three-run-physical-phase-stability",
         "post-read-deadline-immediate-http-error",
         "collision-free-parallel-lifecycle-fixtures",
+        "orchestra-active-runtime-fence",
+        "orchestra-queued-intent-reentry",
+        "orchestra-effect-convergence",
+        "orchestra-ready-only-cancellation",
+        "orchestra-cancelled-refresh-settlement",
+        "orchestra-retry-lineage",
     ] {
         assert!(
             runtime
@@ -6897,7 +6929,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "runtime-workspace-catalog-exact-key-set",
         "seven-built-in-orchestra-specialist-catalogs",
         "orchestra-catalog-exact-key-set",
-        "localized-orchestra-history-controls",
+        "localized-orchestra-plan-control-history-controls",
         "eight-built-in-orchestra-layout-envelopes",
         "live-orchestra-language-reprojection",
         "typed-runtime-workspace-change-presentation",
@@ -6924,7 +6956,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "localized-remote-credential-source",
         "localized-remote-mutation-failure-projection",
         "eight-built-in-remote-shell-layout-envelopes",
-        "twenty-four-built-in-remote-dialog-layout-envelopes",
+        "thirty-two-built-in-remote-dialog-layout-envelopes",
         "compact-remote-status-overlap-fence",
         "live-remote-shell-language-reprojection",
         "offline-remote-shell-layout-verification",
@@ -6944,12 +6976,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         blocker.id == "desktop-long-tail-language-review"
             && blocker.summary.contains("eight built-in locales")
             && blocker.summary.contains("seven non-English built-ins")
-            && blocker.summary.contains("exact 637-key semantic set")
+            && blocker.summary.contains("exact 668-key semantic set")
             && blocker.summary.contains("daemon retirement")
             && blocker.summary.contains("startup recovery")
             && blocker.summary.contains("typed facts")
             && blocker.summary.contains("runtime child-workspace")
-            && blocker.summary.contains("Orchestra history/cleanup")
+            && blocker
+                .summary
+                .contains("Orchestra plan/control/history/cleanup")
             && blocker.summary.contains("Hub")
             && blocker.summary.contains("tutorial domains")
             && blocker.summary.contains("80-key native-shell catalogs")

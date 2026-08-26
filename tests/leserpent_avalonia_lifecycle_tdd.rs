@@ -959,7 +959,7 @@ fn desktop_tutorial_is_offline_accessible_and_ui_reachable() {
     assert!(lifecycle.contains("window is not DesktopTutorialWindow"));
     assert!(program.contains("offline_tutorial=true"));
     assert!(program.contains("builtin_tutorial_catalogs=7"));
-    assert!(program.contains("builtin_semantic_keys=637"));
+    assert!(program.contains("builtin_semantic_keys=668"));
     assert!(program.contains("builtin_tutorial_complete=true"));
     assert!(readme.contains("`--verify-desktop-tutorial`"));
     assert!(first_run.contains("`Learning Center...`"));
@@ -1239,7 +1239,7 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(program.contains("complete_builtin_locales=8"));
     assert!(program.contains("builtin_semantic_catalogs=7"));
     assert!(program.contains("semantic_keys=26"));
-    assert!(program.contains("builtin_semantic_keys=637"));
+    assert!(program.contains("builtin_semantic_keys=668"));
     assert!(program.contains("language_pack_core_ui_keys=18"));
     assert!(program.contains("language_pack_official_version=1.1.0"));
     assert!(program.contains("language_pack_official_keys=30"));
@@ -1264,7 +1264,7 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(program.contains("runtime_workspace_semantic_keys=78"));
     assert!(program.contains("localized_runtime_workspace=true"));
     assert!(program.contains("builtin_orchestra_catalogs=7"));
-    assert!(program.contains("orchestra_semantic_keys=41"));
+    assert!(program.contains("orchestra_semantic_keys=72"));
     assert!(program.contains("localized_orchestra=true"));
     assert!(program.contains("builtin_hub_catalogs=7"));
     assert!(program.contains("hub_semantic_keys=69"));
@@ -1371,7 +1371,7 @@ fn remote_desktop_shell_is_strictly_localized_typed_and_layout_probed() {
     assert!(localization.contains("DesktopOrchestraCatalogs.VerifyContract();"));
     assert!(app.contains("--verify-remote-shell-controls"));
     assert!(app.contains("startRemoteClients: false"));
-    assert!(app.contains("localized_dialog_layouts=24"));
+    assert!(app.contains("localized_dialog_layouts=32"));
     assert!(app.contains("localized_workspace_layouts=8"));
     assert!(app.contains("localized_orchestra_layouts=8"));
     assert!(app.contains("workspace_instances=1"));
@@ -1564,7 +1564,7 @@ fn gewyvern_provisioning_is_authority_scoped_identity_locked_and_bounded() {
     assert!(program.contains("--verify-provisioning-client"));
     assert!(program.contains("builtin_provisioning_catalogs=7"));
     assert!(program.contains("provisioning_semantic_keys=43"));
-    assert!(program.contains("builtin_semantic_keys=637"));
+    assert!(program.contains("builtin_semantic_keys=668"));
     assert!(program.contains("localized_gewyvern_provisioning=true"));
     assert!(promotion.contains("BootstrapPromotionJsonContext.Default"));
     assert!(!promotion.contains("JsonSerializer.Serialize(new\n"));
@@ -1632,7 +1632,7 @@ fn gewyvern_retirement_is_confirmed_provisioning_bound_and_failure_safe() {
     assert!(program.contains("--verify-retirement-client"));
     assert!(program.contains("builtin_retirement_catalogs=7"));
     assert!(program.contains("retirement_semantic_keys=45"));
-    assert!(program.contains("builtin_semantic_keys=637"));
+    assert!(program.contains("builtin_semantic_keys=668"));
     assert!(program.contains("localized_gewyvern_retirement=true"));
 }
 
@@ -2144,7 +2144,7 @@ fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
     assert!(app.contains("live_language_reprojection=true"));
     assert!(program.contains("builtin_connection_catalogs=7"));
     assert!(program.contains("connection_semantic_keys=33"));
-    assert!(program.contains("builtin_semantic_keys=637"));
+    assert!(program.contains("builtin_semantic_keys=668"));
     assert!(window.contains("if (operationInFlight || isClosed)"));
     assert!(health.contains("remote health did not prove a ready protocol-v1 authority"));
     assert!(health.contains("remote health queue counters are inconsistent"));
@@ -2217,7 +2217,7 @@ fn desktop_reverse_deployment_is_strictly_localized_and_operator_data_preserving
     assert!(app.contains("await window.ProbeWorkflowAsync(\"zh-CN\")"));
     assert!(program.contains("builtin_bootstrap_catalogs=7"));
     assert!(program.contains("bootstrap_semantic_keys=46"));
-    assert!(program.contains("builtin_semantic_keys=637"));
+    assert!(program.contains("builtin_semantic_keys=668"));
     assert!(program.contains("localized_reverse_deployment=true"));
 }
 

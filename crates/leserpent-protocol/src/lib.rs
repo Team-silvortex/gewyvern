@@ -32,6 +32,10 @@ pub enum ProtocolRequest {
     Health(HealthRequest),
     DeploymentReceipt(DeploymentReceiptRequest),
     OrchestraPersist(OrchestraPersistenceRequest),
+    OrchestraPlanCatalog(OrchestraPlanCatalogRequest),
+    OrchestraRunCommand(OrchestraRunCommandRequest),
+    OrchestraCancelCommand(OrchestraCancelCommandRequest),
+    OrchestraRetryCommand(OrchestraRetryCommandRequest),
     OrchestraHistory(OrchestraHistoryRequest),
     OrchestraDelete(OrchestraDeleteRequest),
     OrchestraDeleteCommand(OrchestraDeleteCommandRequest),
@@ -63,6 +67,57 @@ pub struct OrchestraPersistenceRequest {
     pub principal: Principal,
     pub capabilities: CapabilitySet,
     pub envelope: compatibility_v1::LegacyOrchestraPersistenceEnvelope,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrchestraPlanCatalogRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub runtime_id: RuntimeId,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrchestraRunCommandRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub command_id: CommandId,
+    pub runtime_id: RuntimeId,
+    pub plan_id: String,
+    pub expected_plan_revision: String,
+    pub confirmed: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approved_by: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval_note: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrchestraCancelCommandRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub command_id: CommandId,
+    pub runtime_id: RuntimeId,
+    pub run_id: String,
+    pub confirmed: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrchestraRetryCommandRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub command_id: CommandId,
+    pub runtime_id: RuntimeId,
+    pub run_id: String,
+    pub expected_plan_revision: String,
+    pub confirmed: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approved_by: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval_note: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -183,6 +238,8 @@ pub enum ProtocolResponse {
     Health(HealthResponse),
     DeploymentReceipt(DeploymentReceiptResponse),
     OrchestraPersisted(OrchestraPersistenceResponse),
+    OrchestraPlanCatalog(OrchestraPlanCatalogResponse),
+    OrchestraRunReceipt(OrchestraRunReceiptResponse),
     OrchestraHistory(OrchestraHistoryResponse),
     OrchestraDeleted(OrchestraDeleteResponse),
     OrchestraDeleteReceipt(OrchestraDeleteReceiptResponse),
@@ -220,6 +277,62 @@ pub struct DeploymentReceiptResponse {
 pub struct OrchestraPersistenceResponse {
     pub envelope: compatibility_v1::LegacyOrchestraPersistenceEnvelope,
     pub event_count: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrchestraPlanCatalogResponse {
+    pub runtime_id: RuntimeId,
+    pub runtime_name: String,
+    pub runtime_revision: Revision,
+    pub status_source: String,
+    pub attention_severity: String,
+    pub needs_attention: bool,
+    pub attention_reasons: Vec<String>,
+    pub plans: Vec<OrchestraPlan>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrchestraPlan {
+    pub plan_id: String,
+    pub intent: String,
+    pub title: String,
+    pub summary: String,
+    pub risk_level: String,
+    pub execution_readiness: String,
+    pub execution_mode: String,
+    pub approval_mode: String,
+    pub revision: String,
+    pub reasons: Vec<String>,
+    pub required_capabilities: Vec<String>,
+    pub steps: Vec<OrchestraPlanStep>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrchestraPlanStep {
+    pub key: String,
+    pub title: String,
+    pub detail: String,
+    pub kind: String,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OrchestraControlOperation {
+    Run,
+    Cancel,
+    Retry,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrchestraRunReceiptResponse {
+    pub command_id: CommandId,
+    pub operation: OrchestraControlOperation,
+    pub run: compatibility_v1::LegacyOrchestraRun,
+    pub replayed: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -478,6 +591,10 @@ pub fn decode_request(bytes: &[u8]) -> Result<RequestEnvelope, DecodeError> {
         ProtocolRequest::Health(_)
         | ProtocolRequest::DeploymentReceipt(_)
         | ProtocolRequest::OrchestraPersist(_)
+        | ProtocolRequest::OrchestraPlanCatalog(_)
+        | ProtocolRequest::OrchestraRunCommand(_)
+        | ProtocolRequest::OrchestraCancelCommand(_)
+        | ProtocolRequest::OrchestraRetryCommand(_)
         | ProtocolRequest::OrchestraHistory(_)
         | ProtocolRequest::OrchestraDelete(_)
         | ProtocolRequest::OrchestraDeleteCommand(_)
@@ -1072,6 +1189,114 @@ mod tests {
         assert_eq!(
             decode_request(&encode_request(&unregister).unwrap()).unwrap(),
             unregister
+        );
+    }
+
+    #[test]
+    fn orchestra_control_contracts_are_strict_identity_bound_and_typed() {
+        let principal = Principal {
+            id: "operator-a".into(),
+        };
+        let capabilities = CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]);
+        let runtime_id = RuntimeId::new("runtime-a").unwrap();
+        let plan_request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraPlanCatalog(OrchestraPlanCatalogRequest {
+                principal: principal.clone(),
+                capabilities: capabilities.clone(),
+                runtime_id: runtime_id.clone(),
+            }),
+        };
+        assert_eq!(
+            decode_request(&encode_request(&plan_request).unwrap()).unwrap(),
+            plan_request
+        );
+
+        let run_request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraRunCommand(OrchestraRunCommandRequest {
+                principal: principal.clone(),
+                capabilities: capabilities.clone(),
+                command_id: CommandId::new("orchestra-run-0001").unwrap(),
+                runtime_id: runtime_id.clone(),
+                plan_id: "runtime_triage".into(),
+                expected_plan_revision: "orchestra-v1-7-runtime_triage".into(),
+                confirmed: true,
+                approved_by: Some("operator-a".into()),
+                approval_note: Some("reviewed".into()),
+            }),
+        };
+        let bytes = encode_request(&run_request).unwrap();
+        assert_eq!(decode_request(&bytes).unwrap(), run_request);
+        let mut forged: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        forged["request"]["payload"]["admin_token"] =
+            serde_json::Value::String("must-not-cross-the-wire".into());
+        assert!(matches!(
+            decode_request(&serde_json::to_vec(&forged).unwrap()),
+            Err(DecodeError::InvalidJson(message)) if message.contains("unknown field")
+        ));
+
+        let cancel_request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraCancelCommand(OrchestraCancelCommandRequest {
+                principal: principal.clone(),
+                capabilities: capabilities.clone(),
+                command_id: CommandId::new("orchestra-cancel-0001").unwrap(),
+                runtime_id: runtime_id.clone(),
+                run_id: "orun-orchestra-run-0001".into(),
+                confirmed: true,
+            }),
+        };
+        assert_eq!(
+            decode_request(&encode_request(&cancel_request).unwrap()).unwrap(),
+            cancel_request
+        );
+
+        let retry_request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraRetryCommand(OrchestraRetryCommandRequest {
+                principal,
+                capabilities,
+                command_id: CommandId::new("orchestra-retry-0001").unwrap(),
+                runtime_id: runtime_id.clone(),
+                run_id: "orun-orchestra-run-0001".into(),
+                expected_plan_revision: "orchestra-v1-8-runtime_triage".into(),
+                confirmed: true,
+                approved_by: None,
+                approval_note: None,
+            }),
+        };
+        assert_eq!(
+            decode_request(&encode_request(&retry_request).unwrap()).unwrap(),
+            retry_request
+        );
+
+        let response = ResponseEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            response: ProtocolResponse::OrchestraRunReceipt(OrchestraRunReceiptResponse {
+                command_id: CommandId::new("orchestra-run-0001").unwrap(),
+                operation: OrchestraControlOperation::Run,
+                run: compatibility_v1::LegacyOrchestraRun {
+                    run_id: "orun-orchestra-run-0001".into(),
+                    runtime_id: runtime_id.as_str().into(),
+                    plan_id: "runtime_triage".into(),
+                    outcome: "queued".into(),
+                    executed_at: "2026-08-26T08:00:00Z".into(),
+                    steps: Vec::new(),
+                    completed_at: None,
+                    attempt: 1,
+                    retried_from_run_id: None,
+                    approved_by: Some("operator-a".into()),
+                    approval_note: Some("reviewed".into()),
+                    plan_revision: Some("orchestra-v1-7-runtime_triage".into()),
+                    request_id: Some("orchestra-run-0001".into()),
+                },
+                replayed: false,
+            }),
+        };
+        assert_eq!(
+            decode_response(&encode_response(&response).unwrap()).unwrap(),
+            response
         );
     }
 

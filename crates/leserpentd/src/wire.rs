@@ -22,6 +22,8 @@ use leserpent_runtime::{
     RuntimeUnregisterTarget as RuntimeTarget,
 };
 
+use crate::orchestra;
+
 pub(crate) const MAX_AUTH_TOKEN_BYTES: usize = 256;
 
 pub trait BootstrapSessionVerifier: Send + Sync {
@@ -220,12 +222,48 @@ pub(crate) fn execute_request(
                 }
             };
         }
+        ProtocolRequest::OrchestraPlanCatalog(request) => {
+            return match orchestra::plan_catalog(runtime, &request) {
+                Ok(catalog) => response(ProtocolResponse::OrchestraPlanCatalog(catalog)),
+                Err(error) => orchestra_authority_error(error),
+            };
+        }
+        ProtocolRequest::OrchestraRunCommand(request) => {
+            return match orchestra::run_command(runtime, request) {
+                Ok(receipt) => response(ProtocolResponse::OrchestraRunReceipt(receipt)),
+                Err(error) => orchestra_authority_error(error),
+            };
+        }
+        ProtocolRequest::OrchestraCancelCommand(request) => {
+            return match orchestra::cancel_command(runtime, request) {
+                Ok(receipt) => response(ProtocolResponse::OrchestraRunReceipt(receipt)),
+                Err(error) => orchestra_authority_error(error),
+            };
+        }
+        ProtocolRequest::OrchestraRetryCommand(request) => {
+            return match orchestra::retry_command(runtime, request) {
+                Ok(receipt) => response(ProtocolResponse::OrchestraRunReceipt(receipt)),
+                Err(error) => orchestra_authority_error(error),
+            };
+        }
         ProtocolRequest::OrchestraHistory(request) => {
             if request.principal.id.trim().is_empty() {
                 return error_response("invalid_principal", "principal must not be blank");
             }
             if !request.capabilities.contains(CAPABILITY_ORCHESTRA_WRITE) {
                 return error_response("capability_denied", "missing capability 'orchestra.write'");
+            }
+            if orchestra::reconcile_scope(
+                runtime,
+                request.runtime_id.as_deref(),
+                request.run_id.as_deref(),
+            )
+            .is_err()
+            {
+                return error_response(
+                    "orchestra_history_failed",
+                    "Orchestra history query failed",
+                );
             }
             let history = match runtime.load_orchestra_history(
                 request.runtime_id.as_deref(),
@@ -519,6 +557,10 @@ pub(crate) fn execute_request(
         ProtocolRequest::Health(_)
         | ProtocolRequest::DeploymentReceipt(_)
         | ProtocolRequest::OrchestraPersist(_)
+        | ProtocolRequest::OrchestraPlanCatalog(_)
+        | ProtocolRequest::OrchestraRunCommand(_)
+        | ProtocolRequest::OrchestraCancelCommand(_)
+        | ProtocolRequest::OrchestraRetryCommand(_)
         | ProtocolRequest::OrchestraHistory(_)
         | ProtocolRequest::OrchestraDelete(_)
         | ProtocolRequest::OrchestraDeleteCommand(_)
@@ -536,6 +578,10 @@ pub(crate) fn execute_request(
         ProtocolRequest::Health(_)
         | ProtocolRequest::DeploymentReceipt(_)
         | ProtocolRequest::OrchestraPersist(_)
+        | ProtocolRequest::OrchestraPlanCatalog(_)
+        | ProtocolRequest::OrchestraRunCommand(_)
+        | ProtocolRequest::OrchestraCancelCommand(_)
+        | ProtocolRequest::OrchestraRetryCommand(_)
         | ProtocolRequest::OrchestraHistory(_)
         | ProtocolRequest::OrchestraDelete(_)
         | ProtocolRequest::OrchestraDeleteCommand(_)
@@ -576,6 +622,9 @@ fn requires_authority_writer_fence(request: &ProtocolRequest) -> bool {
             Command::DebuggerCancel { .. } => false,
         },
         ProtocolRequest::OrchestraPersist(_)
+        | ProtocolRequest::OrchestraRunCommand(_)
+        | ProtocolRequest::OrchestraCancelCommand(_)
+        | ProtocolRequest::OrchestraRetryCommand(_)
         | ProtocolRequest::OrchestraDelete(_)
         | ProtocolRequest::OrchestraDeleteCommand(_)
         | ProtocolRequest::OrchestraDeleteReplayCheckpoint(_)
@@ -584,6 +633,7 @@ fn requires_authority_writer_fence(request: &ProtocolRequest) -> bool {
         ProtocolRequest::Query(_)
         | ProtocolRequest::Health(_)
         | ProtocolRequest::DeploymentReceipt(_)
+        | ProtocolRequest::OrchestraPlanCatalog(_)
         | ProtocolRequest::OrchestraHistory(_)
         | ProtocolRequest::OrchestraDeleteReplayHorizon(_)
         | ProtocolRequest::RuntimeUnregistrationReceipt(_)
@@ -595,6 +645,10 @@ fn requires_authority_writer_fence(request: &ProtocolRequest) -> bool {
 fn authority_writer_fence_error(error: RuntimeError) -> ResponseEnvelope {
     let (code, message) = authority_writer_fence_error_details(&error);
     error_response(code, message)
+}
+
+fn orchestra_authority_error(error: orchestra::OrchestraAuthorityError) -> ResponseEnvelope {
+    error_response(error.code(), error.message())
 }
 
 pub(crate) fn authority_writer_fence_error_details(
@@ -735,7 +789,8 @@ mod tests {
     };
     use leserpent_protocol::{
         AuthorityWriterClaimRequest, BootstrapHandoffRequest, BootstrapSessionBindRequest,
-        CAPABILITY_AUTHORITY_WRITER, ProtocolRequest,
+        CAPABILITY_AUTHORITY_WRITER, OrchestraCancelCommandRequest, OrchestraPlanCatalogRequest,
+        OrchestraRunCommandRequest, ProtocolRequest,
     };
 
     use super::*;
@@ -931,6 +986,120 @@ mod tests {
                 session_id: "debugger-session-1".into(),
             }
         )));
+        let principal = Principal {
+            id: "operator-a".into(),
+        };
+        let orchestra_capabilities = CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]);
+        assert!(!requires_authority_writer_fence(
+            &ProtocolRequest::OrchestraPlanCatalog(OrchestraPlanCatalogRequest {
+                principal: principal.clone(),
+                capabilities: orchestra_capabilities.clone(),
+                runtime_id: RuntimeId::new("runtime-a").unwrap(),
+            })
+        ));
+        assert!(requires_authority_writer_fence(
+            &ProtocolRequest::OrchestraRunCommand(OrchestraRunCommandRequest {
+                principal: principal.clone(),
+                capabilities: orchestra_capabilities.clone(),
+                command_id: CommandId::new("orchestra-run-0001").unwrap(),
+                runtime_id: RuntimeId::new("runtime-a").unwrap(),
+                plan_id: "runtime_triage".into(),
+                expected_plan_revision: "orchestra-v1-1-runtime_triage".into(),
+                confirmed: true,
+                approved_by: None,
+                approval_note: None,
+            })
+        ));
+        assert!(requires_authority_writer_fence(
+            &ProtocolRequest::OrchestraCancelCommand(OrchestraCancelCommandRequest {
+                principal,
+                capabilities: orchestra_capabilities,
+                command_id: CommandId::new("orchestra-cancel-0001").unwrap(),
+                runtime_id: RuntimeId::new("runtime-a").unwrap(),
+                run_id: "orun-orchestra-run-0001".into(),
+                confirmed: true,
+            })
+        ));
+    }
+
+    #[test]
+    fn wire_orchestra_plan_and_run_use_rust_authority_and_writer_fence() {
+        let path = temp_database();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let runtime_id = RuntimeId::new("runtime-a").unwrap();
+        runtime
+            .register_runtime(runtime_id.clone(), "Runtime A", "https://runtime-a.invalid")
+            .unwrap();
+        let principal = Principal {
+            id: "operator-a".into(),
+        };
+        let capabilities = CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]);
+        let plan = execute_request(
+            &mut runtime,
+            RequestEnvelope {
+                schema_version: PROTOCOL_SCHEMA_VERSION,
+                request: ProtocolRequest::OrchestraPlanCatalog(OrchestraPlanCatalogRequest {
+                    principal: principal.clone(),
+                    capabilities: capabilities.clone(),
+                    runtime_id: runtime_id.clone(),
+                }),
+            },
+            None,
+            None,
+            false,
+        );
+        let ProtocolResponse::OrchestraPlanCatalog(catalog) = plan.response else {
+            panic!("Rust Orchestra plan catalog was not returned");
+        };
+        let revision = catalog
+            .plans
+            .iter()
+            .find(|plan| plan.plan_id == "runtime_triage")
+            .unwrap()
+            .revision
+            .clone();
+
+        let writer_id = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let writer = runtime.claim_authority_writer(writer_id).unwrap();
+        let request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraRunCommand(OrchestraRunCommandRequest {
+                principal,
+                capabilities,
+                command_id: CommandId::new("orchestra-run-wire-0001").unwrap(),
+                runtime_id,
+                plan_id: "runtime_triage".into(),
+                expected_plan_revision: revision,
+                confirmed: true,
+                approved_by: None,
+                approval_note: None,
+            }),
+        };
+        let unfenced = execute_request(&mut runtime, request.clone(), None, None, false);
+        assert!(matches!(
+            unfenced.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "authority_writer_fence_required"
+        ));
+        let fenced = execute_request(
+            &mut runtime,
+            request,
+            None,
+            Some(&AuthorityWriterFence {
+                generation: writer.generation,
+                writer_id: writer.writer_id,
+            }),
+            false,
+        );
+        assert!(matches!(
+            fenced.response,
+            ProtocolResponse::OrchestraRunReceipt(ref receipt)
+                if receipt.operation == leserpent_protocol::OrchestraControlOperation::Run
+                    && receipt.run.outcome == "queued"
+                    && !receipt.replayed
+        ));
+        drop(runtime);
+        fs::remove_file(path).unwrap();
     }
 
     #[test]

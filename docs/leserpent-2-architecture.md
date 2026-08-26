@@ -230,12 +230,12 @@ speaker review. Thirteen specialist domains share this boundary: connection/forg
 reverse deployment, gewyvern provisioning/retirement, daemon retirement,
 startup recovery, account presentation, the remote daemon shell, and remote
 operation/Leselang controls, plus the runtime child workspace, Orchestra
-history/cleanup workspace, Hub dynamic cards, and Learning Center, contribute
+plan/control/history workspace, Hub dynamic cards, and Learning Center, contribute
 exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 36-key, 56-key, 57-key,
-78-key, 41-key, 69-key, and 61-key catalogs without
+78-key, 72-key, 69-key, and 61-key catalogs without
 overlapping the frozen core set. `DesktopDomainCatalogContract` gives these domains one exact-key,
 bounded-value, and format-placeholder validator; the full non-English built-in
-semantic set is therefore 637 keys. All eight built-in
+semantic set is therefore 668 keys. All eight built-in
 locale trees are measured inside their native dialog envelopes, and open
 controls, accessible names, controlled phases, status, and flow direction
 reproject on language change while operation identities, operator values, and
@@ -2629,6 +2629,29 @@ the journal file or request an unbounded snapshot.
 unique runtime IDs, deletes runs and cascading events in one owner-fenced
 transaction, and returns actual affected counts. The same schema enforces one
 request ID per runtime and retains at most 32 current runs per runtime.
+
+Rust now also owns the executable Orchestra boundary. `orchestra_plan_catalog`
+derives revision-bound plans from the current runtime projection; automatic
+`runtime_triage` and `analysis_recovery` plans lower only into ordinary
+`CommandPlan` refresh effects, while sidecar coordination and session
+preparation remain explicitly guided. Run admission first commits a canonical
+queued run and audit event, then schedules a deterministic effect ID. A crash in
+that narrow interval cannot create an unaudited action: bounded daemon
+reconciliation re-enters the same command ID and converges the queue. Only one
+active run per runtime is admitted. Cancellation affects ready effects only,
+never claims to preempt leased adapter I/O, and settles a cancelled status
+refresh out of `Pending` with a restart-stable domain snapshot. Retry creates a
+new run ID and attempt while retaining parent lineage, current plan revision,
+approver, and note. Plan reads are capability-gated; run, cancel, and retry also
+require the process-wide authority-writer fence.
+
+Avalonia consumes these operations through source-generated strict contracts.
+Its Orchestra workspace renders native plans beside durable runs and events,
+keeps guided plans read-only, requires the bounded audit note for
+`operator_confirmation`, disables cleanup while a retained run is active, and
+cancels stale plan/event requests when selection changes. Response identity,
+revision, operation, deterministic run ID, and retry lineage are validated
+before any control is reprojected.
 
 ## Security Boundary
 

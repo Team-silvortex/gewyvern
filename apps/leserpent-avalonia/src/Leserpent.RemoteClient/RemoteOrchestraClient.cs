@@ -8,6 +8,20 @@ public sealed class RemoteOrchestraClient : IDisposable
     public const ushort MaxPageSize = 64;
     public const uint MaxOffset = 10_000;
     private const string OrchestraCapability = "orchestra.write";
+    private static readonly HashSet<string> AttentionSeverities =
+        ["healthy", "warning", "critical"];
+    private static readonly HashSet<string> RiskLevels =
+        ["low", "medium", "high"];
+    private static readonly HashSet<string> ExecutionReadiness =
+        ["ready_now", "review_first"];
+    private static readonly HashSet<string> ExecutionModes =
+        ["automatic", "guided"];
+    private static readonly HashSet<string> ApprovalModes =
+        ["none", "operator_confirmation"];
+    private static readonly HashSet<string> StepKinds =
+        ["refresh", "review"];
+    private static readonly HashSet<string> ControlOperations =
+        ["run", "cancel", "retry"];
     private static readonly HashSet<string> Outcomes =
     [
         "queued",
@@ -24,6 +38,128 @@ public sealed class RemoteOrchestraClient : IDisposable
     public RemoteOrchestraClient(RemoteClientOptions options)
     {
         transport = new RemoteWireTransport(options);
+    }
+
+    public async Task<RemoteOrchestraPlanCatalog> LoadPlansAsync(
+        string runtimeId,
+        string principal,
+        CancellationToken cancellationToken = default)
+    {
+        RequireIdentifier(runtimeId, "runtime ID");
+        RequireIdentifier(principal, "principal");
+        var payload = EncodePlanCatalogRequest(runtimeId, principal);
+        var response = await transport.PostAsync(
+            payload,
+            "Orchestra plan catalog",
+            cancellationToken).ConfigureAwait(false);
+        return DecodePlanCatalogResponse(response, runtimeId);
+    }
+
+    public async Task<RemoteOrchestraRunReceipt> RunPlanAsync(
+        string runtimeId,
+        RemoteOrchestraPlan plan,
+        string principal,
+        string? approvedBy,
+        string? approvalNote,
+        CancellationToken cancellationToken = default)
+    {
+        RequireIdentifier(runtimeId, "runtime ID");
+        RequireIdentifier(principal, "principal");
+        ValidatePlan(plan);
+        RequireExecutablePlan(plan);
+        ValidateApproval(plan, approvedBy, approvalNote);
+        var commandId = NewCommandId("run");
+        var payload = EncodeRunRequest(
+            runtimeId,
+            plan,
+            principal,
+            approvedBy,
+            approvalNote,
+            commandId);
+        var response = await transport.PostAsync(
+            payload,
+            "Orchestra plan execution",
+            cancellationToken).ConfigureAwait(false);
+        return DecodeRunReceipt(
+            response,
+            "run",
+            commandId,
+            runtimeId,
+            plan.PlanId,
+            plan.Revision,
+            null,
+            null);
+    }
+
+    public async Task<RemoteOrchestraRunReceipt> CancelRunAsync(
+        RemoteOrchestraRun run,
+        string principal,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateRun(run);
+        RequireIdentifier(principal, "principal");
+        if (run.Outcome is not ("queued" or "running"))
+        {
+            throw new InvalidOperationException("only active Orchestra runs can be cancelled");
+        }
+        var commandId = NewCommandId("cancel");
+        var payload = EncodeCancelRequest(run, principal, commandId);
+        var response = await transport.PostAsync(
+            payload,
+            "Orchestra run cancellation",
+            cancellationToken).ConfigureAwait(false);
+        return DecodeRunReceipt(
+            response,
+            "cancel",
+            commandId,
+            run.RuntimeId,
+            run.PlanId,
+            run.PlanRevision,
+            run.RunId,
+            run.Attempt);
+    }
+
+    public async Task<RemoteOrchestraRunReceipt> RetryRunAsync(
+        RemoteOrchestraRun run,
+        RemoteOrchestraPlan plan,
+        string principal,
+        string? approvedBy,
+        string? approvalNote,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateRun(run);
+        ValidatePlan(plan);
+        RequireIdentifier(principal, "principal");
+        RequireExecutablePlan(plan);
+        ValidateApproval(plan, approvedBy, approvalNote);
+        if (run.Outcome is "queued" or "running"
+            || run.RuntimeId.Length == 0
+            || run.PlanId != plan.PlanId)
+        {
+            throw new InvalidOperationException(
+                "only a terminal run with a matching current plan can be retried");
+        }
+        var commandId = NewCommandId("retry");
+        var payload = EncodeRetryRequest(
+            run,
+            plan,
+            principal,
+            approvedBy,
+            approvalNote,
+            commandId);
+        var response = await transport.PostAsync(
+            payload,
+            "Orchestra run retry",
+            cancellationToken).ConfigureAwait(false);
+        return DecodeRunReceipt(
+            response,
+            "retry",
+            commandId,
+            run.RuntimeId,
+            plan.PlanId,
+            plan.Revision,
+            run.RunId,
+            run.Attempt);
     }
 
     public async Task<RemoteOrchestraHistoryPage> LoadRunsAsync(
@@ -84,6 +220,118 @@ public sealed class RemoteOrchestraClient : IDisposable
 
     public static void VerifyContract()
     {
+        var planRequest = EncodePlanCatalogRequest(
+            "runtime-alpha",
+            "operator-a");
+        using (var document = JsonDocument.Parse(planRequest))
+        {
+            var request = document.RootElement.GetProperty("request");
+            var payload = request.GetProperty("payload");
+            if (request.GetProperty("kind").GetString()
+                    != "orchestra_plan_catalog"
+                || payload.GetProperty("runtime_id").GetString()
+                    != "runtime-alpha"
+                || payload.GetProperty("capabilities")[0].GetString()
+                    != OrchestraCapability)
+            {
+                throw new InvalidDataException(
+                    "Orchestra plan request contract drifted");
+            }
+        }
+        var catalog = DecodePlanCatalogResponse(
+            Encoding.UTF8.GetBytes(
+                """
+                {"schema_version":1,"response":{"kind":"orchestra_plan_catalog","payload":{"runtime_id":"runtime-alpha","runtime_name":"Alpha runtime","runtime_revision":7,"status_source":"gewyvern-api","attention_severity":"warning","needs_attention":true,"attention_reasons":["no_analysis_json"],"plans":[{"plan_id":"runtime_triage","intent":"triage","title":"Refresh and verify runtime posture","summary":"Refresh authoritative status.","risk_level":"low","execution_readiness":"ready_now","execution_mode":"automatic","approval_mode":"none","revision":"orchestra-v1-7-runtime_triage","reasons":["no_analysis_json"],"required_capabilities":[],"steps":[{"key":"refresh_status","title":"Refresh runtime status","detail":"Run the bounded native adapter.","kind":"refresh"}]},{"plan_id":"session_preparation","intent":"prepare_session","title":"Prepare a session handoff","summary":"Review the handoff.","risk_level":"medium","execution_readiness":"review_first","execution_mode":"guided","approval_mode":"operator_confirmation","revision":"orchestra-v1-7-session_preparation","reasons":[],"required_capabilities":[],"steps":[{"key":"review_session","title":"Review session requirements","detail":"Review without execution authority.","kind":"review"}]}]}}}
+                """),
+            "runtime-alpha");
+        if (catalog.RuntimeRevision != 7
+            || catalog.Plans is not
+                [{ PlanId: "runtime_triage" }, { PlanId: "session_preparation" }])
+        {
+            throw new InvalidDataException(
+                "Orchestra plan response contract drifted");
+        }
+
+        var runRequest = EncodeRunRequest(
+            "runtime-alpha",
+            catalog.Plans[0],
+            "operator-a",
+            null,
+            null,
+            "gui-orchestra-run-contract");
+        using (var document = JsonDocument.Parse(runRequest))
+        {
+            var request = document.RootElement.GetProperty("request");
+            var payload = request.GetProperty("payload");
+            if (request.GetProperty("kind").GetString()
+                    != "orchestra_run_command"
+                || payload.GetProperty("expected_plan_revision").GetString()
+                    != catalog.Plans[0].Revision
+                || !payload.GetProperty("confirmed").GetBoolean()
+                || payload.TryGetProperty("approval_note", out _))
+            {
+                throw new InvalidDataException(
+                    "Orchestra run request contract drifted");
+            }
+        }
+        var runReceipt = DecodeRunReceipt(
+            Encoding.UTF8.GetBytes(
+                """
+                {"schema_version":1,"response":{"kind":"orchestra_run_receipt","payload":{"command_id":"gui-orchestra-run-contract","operation":"run","run":{"runId":"orun-gui-orchestra-run-contract","runtimeId":"runtime-alpha","planId":"runtime_triage","outcome":"queued","executedAt":"2026-08-26T08:00:00Z","steps":[],"completedAt":null,"attempt":1,"retriedFromRunId":null,"approvedBy":null,"approvalNote":null,"planRevision":"orchestra-v1-7-runtime_triage","requestId":"gui-orchestra-run-contract"},"replayed":false}}}
+                """),
+            "run",
+            "gui-orchestra-run-contract",
+            "runtime-alpha",
+            "runtime_triage",
+            "orchestra-v1-7-runtime_triage",
+            null,
+            null);
+        if (runReceipt.Run.RunId != "orun-gui-orchestra-run-contract"
+            || runReceipt.Replayed)
+        {
+            throw new InvalidDataException(
+                "Orchestra run receipt contract drifted");
+        }
+
+        var cancelRequest = EncodeCancelRequest(
+            runReceipt.Run,
+            "operator-a",
+            "gui-orchestra-cancel-contract");
+        var retrySource = new RemoteOrchestraRun
+        {
+            RunId = runReceipt.Run.RunId,
+            RuntimeId = runReceipt.Run.RuntimeId,
+            PlanId = runReceipt.Run.PlanId,
+            Outcome = "cancelled",
+            ExecutedAt = runReceipt.Run.ExecutedAt,
+            CompletedAt = "2026-08-26T08:00:01Z",
+            Steps = [],
+            Attempt = 1,
+            PlanRevision = runReceipt.Run.PlanRevision,
+            RequestId = runReceipt.Run.RequestId,
+        };
+        var retryRequest = EncodeRetryRequest(
+            retrySource,
+            catalog.Plans[0],
+            "operator-a",
+            null,
+            null,
+            "gui-orchestra-retry-contract");
+        using (var cancelDocument = JsonDocument.Parse(cancelRequest))
+        using (var retryDocument = JsonDocument.Parse(retryRequest))
+        {
+            if (cancelDocument.RootElement.GetProperty("request")
+                    .GetProperty("kind").GetString()
+                    != "orchestra_cancel_command"
+                || retryDocument.RootElement.GetProperty("request")
+                    .GetProperty("kind").GetString()
+                    != "orchestra_retry_command")
+            {
+                throw new InvalidDataException(
+                    "Orchestra control request contract drifted");
+            }
+        }
+
         var history = EncodeHistoryRequest(
             "runtime-alpha",
             "orun-alpha",
@@ -194,6 +442,132 @@ public sealed class RemoteOrchestraClient : IDisposable
                 """),
             "runtime-alpha",
             "gui-orchestra-command"));
+        ExpectInvalid(() => DecodePlanCatalogResponse(
+            Encoding.UTF8.GetBytes(
+                """
+                {"schema_version":1,"response":{"kind":"orchestra_plan_catalog","payload":{"runtime_id":"runtime-alpha","runtime_name":"Alpha runtime","runtime_revision":7,"status_source":"gewyvern-api","attention_severity":"healthy","needs_attention":false,"attention_reasons":[],"plans":[],"forged":true}}}
+                """),
+            "runtime-alpha"));
+        ExpectInvalid(() => DecodeRunReceipt(
+            Encoding.UTF8.GetBytes(
+                """
+                {"schema_version":1,"response":{"kind":"orchestra_run_receipt","payload":{"command_id":"other-command","operation":"run","run":{"runId":"orun-other-command","runtimeId":"runtime-alpha","planId":"runtime_triage","outcome":"queued","executedAt":"2026-08-26T08:00:00Z","steps":[],"completedAt":null,"attempt":1,"retriedFromRunId":null,"approvedBy":null,"approvalNote":null,"planRevision":"orchestra-v1-7-runtime_triage","requestId":"other-command"},"replayed":false}}}
+                """),
+            "run",
+            "gui-orchestra-run-contract",
+            "runtime-alpha",
+            "runtime_triage",
+            "orchestra-v1-7-runtime_triage",
+            null,
+            null));
+    }
+
+    private static byte[] EncodePlanCatalogRequest(
+        string runtimeId,
+        string principal)
+    {
+        var envelope = new OrchestraPlanCatalogRequestEnvelope
+        {
+            Request = new OrchestraPlanCatalogRequest
+            {
+                Payload = new OrchestraPlanCatalogRequestPayload
+                {
+                    Principal = new RemotePrincipal { Id = principal },
+                    Capabilities = [OrchestraCapability],
+                    RuntimeId = runtimeId,
+                },
+            },
+        };
+        return JsonSerializer.SerializeToUtf8Bytes(
+            envelope,
+            RemoteOrchestraJsonContext.Default.OrchestraPlanCatalogRequestEnvelope);
+    }
+
+    private static byte[] EncodeRunRequest(
+        string runtimeId,
+        RemoteOrchestraPlan plan,
+        string principal,
+        string? approvedBy,
+        string? approvalNote,
+        string commandId)
+    {
+        var envelope = new OrchestraRunCommandRequestEnvelope
+        {
+            Request = new OrchestraRunCommandRequest
+            {
+                Payload = new OrchestraRunCommandRequestPayload
+                {
+                    Principal = new RemotePrincipal { Id = principal },
+                    Capabilities = [OrchestraCapability],
+                    CommandId = commandId,
+                    RuntimeId = runtimeId,
+                    PlanId = plan.PlanId,
+                    ExpectedPlanRevision = plan.Revision,
+                    Confirmed = true,
+                    ApprovedBy = approvedBy,
+                    ApprovalNote = approvalNote,
+                },
+            },
+        };
+        return JsonSerializer.SerializeToUtf8Bytes(
+            envelope,
+            RemoteOrchestraJsonContext.Default.OrchestraRunCommandRequestEnvelope);
+    }
+
+    private static byte[] EncodeCancelRequest(
+        RemoteOrchestraRun run,
+        string principal,
+        string commandId)
+    {
+        var envelope = new OrchestraCancelCommandRequestEnvelope
+        {
+            Request = new OrchestraCancelCommandRequest
+            {
+                Payload = new OrchestraCancelCommandRequestPayload
+                {
+                    Principal = new RemotePrincipal { Id = principal },
+                    Capabilities = [OrchestraCapability],
+                    CommandId = commandId,
+                    RuntimeId = run.RuntimeId,
+                    RunId = run.RunId,
+                    Confirmed = true,
+                },
+            },
+        };
+        return JsonSerializer.SerializeToUtf8Bytes(
+            envelope,
+            RemoteOrchestraJsonContext.Default.OrchestraCancelCommandRequestEnvelope);
+    }
+
+    private static byte[] EncodeRetryRequest(
+        RemoteOrchestraRun run,
+        RemoteOrchestraPlan plan,
+        string principal,
+        string? approvedBy,
+        string? approvalNote,
+        string commandId)
+    {
+        var envelope = new OrchestraRetryCommandRequestEnvelope
+        {
+            Request = new OrchestraRetryCommandRequest
+            {
+                Payload = new OrchestraRetryCommandRequestPayload
+                {
+                    Principal = new RemotePrincipal { Id = principal },
+                    Capabilities = [OrchestraCapability],
+                    CommandId = commandId,
+                    RuntimeId = run.RuntimeId,
+                    RunId = run.RunId,
+                    ExpectedPlanRevision = plan.Revision,
+                    Confirmed = true,
+                    ApprovedBy = approvedBy,
+                    ApprovalNote = approvalNote,
+                },
+            },
+        };
+        return JsonSerializer.SerializeToUtf8Bytes(
+            envelope,
+            RemoteOrchestraJsonContext.Default.OrchestraRetryCommandRequestEnvelope);
     }
 
     private static byte[] EncodeHistoryRequest(
@@ -244,6 +618,90 @@ public sealed class RemoteOrchestraClient : IDisposable
         return JsonSerializer.SerializeToUtf8Bytes(
             envelope,
             RemoteOrchestraJsonContext.Default.OrchestraDeleteRequestEnvelope);
+    }
+
+    private static RemoteOrchestraPlanCatalog DecodePlanCatalogResponse(
+        ReadOnlySpan<byte> payload,
+        string runtimeId)
+    {
+        var response = DecodeEnvelope(payload, "orchestra_plan_catalog");
+        try
+        {
+            var catalog = response.Deserialize(
+                RemoteOrchestraJsonContext.Default.RemoteOrchestraPlanCatalog)
+                ?? throw new InvalidDataException(
+                    "Orchestra plan catalog response is empty");
+            ValidatePlanCatalog(catalog, runtimeId);
+            return catalog;
+        }
+        catch (JsonException error)
+        {
+            throw new InvalidDataException(
+                "Orchestra plan catalog response JSON is invalid",
+                error);
+        }
+    }
+
+    private static RemoteOrchestraRunReceipt DecodeRunReceipt(
+        ReadOnlySpan<byte> payload,
+        string expectedOperation,
+        string commandId,
+        string runtimeId,
+        string planId,
+        string? planRevision,
+        string? sourceRunId,
+        uint? sourceAttempt)
+    {
+        var response = DecodeEnvelope(payload, "orchestra_run_receipt");
+        try
+        {
+            var receipt = response.Deserialize(
+                RemoteOrchestraJsonContext.Default.RemoteOrchestraRunReceipt)
+                ?? throw new InvalidDataException(
+                    "Orchestra control response is empty");
+            ValidateRun(receipt.Run);
+            RequireIdentifier(receipt.CommandId, "command ID");
+            RequireBoundedText(receipt.Operation, 16, false, "control operation");
+            var terminal = receipt.Run.Outcome is not ("queued" or "running");
+            if (!ControlOperations.Contains(receipt.Operation)
+                || receipt.Operation != expectedOperation
+                || receipt.CommandId != commandId
+                || receipt.Run.RuntimeId != runtimeId
+                || receipt.Run.PlanId != planId
+                || (terminal && receipt.Run.CompletedAt is null)
+                || (!terminal && receipt.Run.CompletedAt is not null))
+            {
+                throw new InvalidDataException(
+                    "Orchestra control response identity is invalid");
+            }
+
+            switch (expectedOperation)
+            {
+                case "run" when receipt.Run.RunId != $"orun-{commandId}"
+                    || receipt.Run.RequestId != commandId
+                    || receipt.Run.PlanRevision != planRevision
+                    || receipt.Run.Attempt != 1
+                    || receipt.Run.RetriedFromRunId is not null:
+                case "cancel" when receipt.Run.RunId != sourceRunId
+                    || receipt.Run.Outcome != "cancelled"
+                    || receipt.Run.Attempt != sourceAttempt:
+                case "retry" when receipt.Run.RunId != $"orun-{commandId}"
+                    || receipt.Run.RequestId != commandId
+                    || receipt.Run.RetriedFromRunId != sourceRunId
+                    || receipt.Run.PlanRevision != planRevision
+                    || sourceAttempt is null
+                    || receipt.Run.Attempt != checked(sourceAttempt.Value + 1):
+                    throw new InvalidDataException(
+                        "Orchestra control response lineage is invalid");
+            }
+            return receipt;
+        }
+        catch (JsonException error)
+        {
+            throw new InvalidDataException(
+                "Orchestra control response JSON is invalid",
+                error);
+        }
     }
 
     private static RemoteOrchestraHistoryPage DecodeHistoryResponse(
@@ -335,6 +793,124 @@ public sealed class RemoteOrchestraClient : IDisposable
         catch (InvalidOperationException error)
         {
             throw new InvalidDataException("Orchestra response has an invalid field type", error);
+        }
+    }
+
+    private static void ValidatePlanCatalog(
+        RemoteOrchestraPlanCatalog catalog,
+        string runtimeId)
+    {
+        RequireIdentifier(catalog.RuntimeId, "runtime ID");
+        RequireBoundedText(catalog.RuntimeName, 256, false, "runtime name");
+        RequireBoundedText(catalog.StatusSource, 128, false, "status source");
+        if (catalog.RuntimeId != runtimeId
+            || catalog.RuntimeRevision == 0
+            || !AttentionSeverities.Contains(catalog.AttentionSeverity)
+            || catalog.AttentionReasons is null
+            || catalog.Plans is null
+            || catalog.AttentionReasons.Any(reason => reason is null)
+            || catalog.Plans.Any(plan => plan is null)
+            || catalog.AttentionReasons.Count > 16
+            || catalog.Plans.Count is < 1 or > 16
+            || (catalog.AttentionSeverity == "healthy"
+                && (catalog.NeedsAttention || catalog.AttentionReasons.Count != 0))
+            || (catalog.AttentionSeverity != "healthy"
+                && (!catalog.NeedsAttention || catalog.AttentionReasons.Count == 0)))
+        {
+            throw new InvalidDataException(
+                "Orchestra plan catalog shape is invalid");
+        }
+        foreach (var reason in catalog.AttentionReasons)
+        {
+            RequireBoundedText(reason, 128, false, "attention reason");
+        }
+        var planIds = new HashSet<string>(StringComparer.Ordinal);
+        var revisions = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var plan in catalog.Plans)
+        {
+            ValidatePlan(plan);
+            if (!planIds.Add(plan.PlanId) || !revisions.Add(plan.Revision))
+            {
+                throw new InvalidDataException(
+                    "Orchestra plan catalog identity is invalid");
+            }
+        }
+    }
+
+    private static void ValidatePlan(RemoteOrchestraPlan plan)
+    {
+        RequireIdentifier(plan.PlanId, "plan ID");
+        RequireIdentifier(plan.Intent, "plan intent");
+        RequireBoundedText(plan.Title, 256, false, "plan title");
+        RequireBoundedText(plan.Summary, 1024, false, "plan summary");
+        RequireBoundedText(plan.Revision, 128, false, "plan revision");
+        if (!RiskLevels.Contains(plan.RiskLevel)
+            || !ExecutionReadiness.Contains(plan.ExecutionReadiness)
+            || !ExecutionModes.Contains(plan.ExecutionMode)
+            || !ApprovalModes.Contains(plan.ApprovalMode)
+            || plan.Reasons is null
+            || plan.RequiredCapabilities is null
+            || plan.Steps is null
+            || plan.Reasons.Any(reason => reason is null)
+            || plan.RequiredCapabilities.Any(capability => capability is null)
+            || plan.Steps.Any(step => step is null)
+            || plan.Reasons.Count > 16
+            || plan.RequiredCapabilities.Count > 16
+            || plan.Steps.Count is < 1 or > 32
+            || !plan.Revision.EndsWith(
+                $"-{plan.PlanId}",
+                StringComparison.Ordinal)
+            || (plan.ExecutionMode == "automatic"
+                && plan.ExecutionReadiness != "ready_now")
+            || (plan.ExecutionMode == "guided"
+                && plan.ExecutionReadiness != "review_first"))
+        {
+            throw new InvalidDataException("Orchestra plan shape is invalid");
+        }
+        foreach (var reason in plan.Reasons)
+        {
+            RequireBoundedText(reason, 128, false, "plan reason");
+        }
+        foreach (var capability in plan.RequiredCapabilities)
+        {
+            RequireIdentifier(capability, "required capability");
+        }
+        var stepKeys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var step in plan.Steps)
+        {
+            RequireIdentifier(step.Key, "plan step key");
+            RequireBoundedText(step.Title, 256, false, "plan step title");
+            RequireBoundedText(step.Detail, 1024, false, "plan step detail");
+            if (!StepKinds.Contains(step.Kind) || !stepKeys.Add(step.Key))
+            {
+                throw new InvalidDataException(
+                    "Orchestra plan step shape is invalid");
+            }
+        }
+    }
+
+    private static void RequireExecutablePlan(RemoteOrchestraPlan plan)
+    {
+        if (plan.ExecutionMode != "automatic"
+            || plan.ExecutionReadiness != "ready_now")
+        {
+            throw new InvalidOperationException(
+                "guided Orchestra plans are not executable by this client");
+        }
+    }
+
+    private static void ValidateApproval(
+        RemoteOrchestraPlan plan,
+        string? approvedBy,
+        string? approvalNote)
+    {
+        RequireOptionalBoundedArgument(approvedBy, 80, "approver");
+        RequireOptionalBoundedArgument(approvalNote, 500, "approval note");
+        if (plan.ApprovalMode == "operator_confirmation"
+            && (approvedBy is null || approvalNote is null))
+        {
+            throw new ArgumentException(
+                "this Orchestra plan requires an approver and approval note");
         }
     }
 
@@ -463,9 +1039,10 @@ public sealed class RemoteOrchestraClient : IDisposable
         }
     }
 
-    private static void RequireIdentifier(string value, string label)
+    private static void RequireIdentifier(string? value, string label)
     {
-        if (value.Length is < 1 or > 128
+        if (value is null
+            || value.Length is < 1 or > 128
             || !value.All(character => char.IsAsciiLetterOrDigit(character)
                 || character is '-' or '_' or '.' or ':'))
         {
@@ -482,12 +1059,13 @@ public sealed class RemoteOrchestraClient : IDisposable
     }
 
     private static void RequireBoundedText(
-        string value,
+        string? value,
         int maximum,
         bool allowEmpty,
         string label)
     {
-        if (Encoding.UTF8.GetByteCount(value) > maximum
+        if (value is null
+            || Encoding.UTF8.GetByteCount(value) > maximum
             || (!allowEmpty && value.Length == 0)
             || value != value.Trim()
             || value.Any(char.IsControl))
@@ -524,6 +1102,28 @@ public sealed class RemoteOrchestraClient : IDisposable
             throw new InvalidDataException($"invalid {label}");
         }
     }
+
+    private static void RequireOptionalBoundedArgument(
+        string? value,
+        int maximum,
+        string label)
+    {
+        if (value is null)
+        {
+            return;
+        }
+        try
+        {
+            RequireBoundedText(value, maximum, false, label);
+        }
+        catch (InvalidDataException error)
+        {
+            throw new ArgumentException(error.Message, label, error);
+        }
+    }
+
+    private static string NewCommandId(string operation) =>
+        $"gui-orchestra-{operation}-{Guid.NewGuid():N}";
 
     private static void ExpectInvalid(Action action)
     {

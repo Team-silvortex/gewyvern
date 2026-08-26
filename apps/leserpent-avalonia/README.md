@@ -262,11 +262,11 @@ verify both visible and accessible text. All eight built-ins also cover the
 complete six-step tutorial. Connection/forget, reverse deployment,
 gewyvern provisioning/retirement, daemon retirement, startup recovery, the Team
 Silvortex account card, the remote daemon shell, and remote operation/Leselang
-controls, plus the runtime child workspace, Orchestra history/cleanup workspace,
+controls, plus the runtime child workspace, Orchestra plan/control/history workspace,
 Hub dynamic cards, and Learning Center, are complete specialist domains.
 Their exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 36-key, 56-key,
-57-key, 78-key, 41-key, 69-key, and 61-key catalogs bring the non-English built-in
-semantic set to 637 keys. One shared strict validator
+57-key, 78-key, 72-key, 69-key, and 61-key catalogs bring the non-English built-in
+semantic set to 668 keys. One shared strict validator
 rejects missing/extra keys, malformed placeholders, controls, or oversized
 values. Native controls have eight-locale layout probes, and live language
 changes reproject labels, controlled phases, status, accessibility, and flow
@@ -901,15 +901,14 @@ through this policy; no live/idle shortcut may overwrite an unresolved fence.
 Authority health and queue-saturation presentation also come from RemoteClient,
 leaving Avalonia responsible only for color and live-region behavior.
 Each daemon window also owns one native Orchestra workspace. It queries the
-Rust `/v1/wire` authority for bounded persisted runs and per-run events, and its
-explicitly confirmed runtime-scoped cleanup uses the idempotent delete-command
-receipt rather than the legacy receipt-free delete. The workspace never exposes
-the endpoint or bearer token, rejects unknown response fields and mismatched
-runtime/run/command identities, and disables overlapping loads and cleanup.
-Plan execution, cancellation, and retry are intentionally labelled unavailable
-until those authorities move out of the ASP.NET compatibility host and into
-Rust; the current workspace is history/cleanup parity, not a false full-parity
-claim. Run `--verify-orchestra-client` for the strict wire contract and
+Rust `/v1/wire` authority for revision-fenced plans, durable runs, and per-run
+events. Automatic plans execute through Rust `CommandPlan` effects; guided plans
+remain review-only. Cancellation is explicitly confirmed and succeeds only
+while work is still queued, retry creates a new lineage-bound attempt, and
+runtime-scoped cleanup is blocked while a retained run is active. The workspace
+never exposes the endpoint or bearer token, rejects unknown response fields and
+mismatched runtime/run/command identities, and cancels stale plan or event loads
+when selection changes. Run `--verify-orchestra-client` for the strict wire contract and
 `--verify-remote-shell-controls` for all eight built-in locale, accessibility,
 compact/wide layout, and destructive-confirmation probes without network I/O.
 The semantic workspace projection can be checked separately with

@@ -53,6 +53,7 @@ mod remote;
 pub use remote::{RemoteServer, load_remote_token_file};
 mod events;
 mod language_packs;
+mod orchestra;
 mod wire;
 pub use wire::BootstrapSessionVerifier;
 
@@ -515,6 +516,14 @@ impl DaemonHost {
 
     fn prepare_tick(&mut self) -> Result<(), RuntimeError> {
         self.runtime.heartbeat()?;
+        if self.runtime.persistence_enabled() {
+            orchestra::reconcile_scope(&mut self.runtime, None, None).map_err(|error| {
+                RuntimeError::Storage(format!(
+                    "Orchestra execution reconciliation failed: {}",
+                    error.code()
+                ))
+            })?;
+        }
         self.stats.heartbeats += 1;
         if self
             .stats

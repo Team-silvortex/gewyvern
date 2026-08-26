@@ -19,7 +19,7 @@ use leserpent_domain::{
     DOMAIN_SNAPSHOT_SCHEMA_VERSION, DomainError, DomainEvent, DomainSnapshot, DomainSnapshotError,
     InMemoryControlPlane, MAX_RUNTIME_LOG_MESSAGE_BYTES, MAX_RUNTIME_LOG_QUERY_ENTRIES,
     PlannedOperation, Query, QueryEnvelope, QueryResult, RUNTIME_CAPABILITY_DISCOVERY_EFFECT_KIND,
-    RUNTIME_DEPLOYMENT_EFFECT_KIND, RUNTIME_STATUS_REFRESH_EFFECT_KIND, Revision,
+    RUNTIME_DEPLOYMENT_EFFECT_KIND, RUNTIME_STATUS_REFRESH_EFFECT_KIND, RefreshStatus, Revision,
     RuntimeCapabilityObservation, RuntimeCapabilityRefreshRequest, RuntimeDeploymentOutcome,
     RuntimeDeploymentRequest, RuntimeId, RuntimeLogLevel, RuntimeLogRecord, RuntimeProjection,
     RuntimeStatusObservation, RuntimeStatusRefreshRequest,
@@ -33,7 +33,8 @@ use std::time::Duration;
 mod persistence;
 
 pub use persistence::{
-    EffectLease, OrchestraDeleteRecord, OrchestraHistoryRecord, OrchestraPersistenceRecord,
+    EffectLease, OrchestraDeleteRecord, OrchestraEffectCancellationRecord,
+    OrchestraEffectStatusRecord, OrchestraHistoryRecord, OrchestraPersistenceRecord,
 };
 use persistence::{
     EffectRecord, Journal, JournalEntryKind, ORCHESTRA_DELETE_REPLAY_HORIZON_PINNED_ERROR,
@@ -444,6 +445,10 @@ struct RuntimeUnregistration {
 }
 
 impl ControlRuntime {
+    pub fn persistence_enabled(&self) -> bool {
+        self.journal.is_some()
+    }
+
     pub fn claim_authority_writer(
         &mut self,
         writer_id: &str,
@@ -953,6 +958,129 @@ impl ControlRuntime {
                 event,
             )
             .map_err(RuntimeError::Storage)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn persist_orchestra_run_event_start(
+        &mut self,
+        run_id: &str,
+        runtime_id: &str,
+        request_id: &str,
+        event_type: &str,
+        to_outcome: &str,
+        recorded_at: &str,
+        run: &[u8],
+        event: &[u8],
+    ) -> Result<OrchestraPersistenceRecord, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "Orchestra execution requires persistent storage".into(),
+            ));
+        };
+        journal
+            .persist_orchestra_run_event_start(
+                run_id,
+                runtime_id,
+                request_id,
+                event_type,
+                to_outcome,
+                recorded_at,
+                run,
+                event,
+            )
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn orchestra_effect_status(
+        &mut self,
+        effect_id: &str,
+    ) -> Result<Option<OrchestraEffectStatusRecord>, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "Orchestra execution requires persistent storage".into(),
+            ));
+        };
+        journal
+            .orchestra_effect_status(effect_id)
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn cancel_ready_orchestra_effects(
+        &mut self,
+        run_id: &str,
+        command_id: &str,
+        effect_ids: &[String],
+    ) -> Result<OrchestraEffectCancellationRecord, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "Orchestra cancellation requires persistent storage".into(),
+            ));
+        };
+        journal
+            .cancel_ready_orchestra_effects(run_id, command_id, effect_ids)
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn settle_cancelled_orchestra_status_effect(
+        &mut self,
+        effect_id: &str,
+        cancellation_command_id: &str,
+    ) -> Result<bool, RuntimeError> {
+        let Some(effect) = self.orchestra_effect_status(effect_id)? else {
+            return Ok(false);
+        };
+        let cancellation_error = format!("orchestra_cancelled:{cancellation_command_id}");
+        if effect.kind != RUNTIME_STATUS_REFRESH_EFFECT_KIND
+            || effect.state != "failed"
+            || effect.last_error.as_deref() != Some(cancellation_error.as_str())
+        {
+            return Ok(false);
+        }
+        let request: RuntimeStatusRefreshRequest = serde_json::from_slice(&effect.payload)
+            .map_err(|_| {
+                RuntimeError::Storage("cancelled status effect payload is invalid".into())
+            })?;
+        let runtime_id = RuntimeId::new(request.runtime_id).map_err(RuntimeError::Domain)?;
+        let current = self
+            .control
+            .runtime_projection(&runtime_id)
+            .ok_or_else(|| {
+                RuntimeError::Domain(DomainError::RuntimeNotFound {
+                    runtime_id: runtime_id.as_str().to_string(),
+                })
+            })?;
+        if current.revision != request.expected_revision {
+            if current.refresh_status == RefreshStatus::Pending {
+                return Err(RuntimeError::Storage(
+                    "cancelled status effect no longer owns the pending revision".into(),
+                ));
+            }
+            return Ok(false);
+        }
+        if current.refresh_status != RefreshStatus::Pending {
+            return Ok(false);
+        }
+
+        let timestamp = persistence::unix_time_ms().map_err(RuntimeError::Storage)?;
+        let mut staged = self.control.clone();
+        staged
+            .cancel_runtime_status_refresh(&runtime_id, request.expected_revision)
+            .map_err(RuntimeError::Domain)?;
+        stamp_runtime(&mut staged, &runtime_id, false, timestamp)?;
+        let snapshot = staged.snapshot();
+        snapshot.validate().map_err(RuntimeError::InvalidSnapshot)?;
+        let payload = serde_json::to_vec(&snapshot)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "Orchestra status cancellation requires persistent storage".into(),
+            ));
+        };
+        journal
+            .save_snapshot(DOMAIN_SNAPSHOT_SCHEMA_VERSION, &payload)
+            .map_err(RuntimeError::Storage)?;
+        self.control = staged;
+        Ok(true)
     }
 
     pub fn load_orchestra_history(

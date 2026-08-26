@@ -1513,6 +1513,63 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
         ProtocolResponse::OrchestraPersisted(_) => Err(CliError::Protocol(
             "unexpected Orchestra persistence response".into(),
         )),
+        ProtocolResponse::OrchestraPlanCatalog(catalog) => {
+            let reasons = if catalog.attention_reasons.is_empty() {
+                "none".to_string()
+            } else {
+                catalog
+                    .attention_reasons
+                    .iter()
+                    .map(|reason| safe_cell(reason))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            };
+            let mut output = format!(
+                "runtime={} name={} revision={} source={} attention={} needs_attention={} reasons={} plans={}\n",
+                safe_cell(catalog.runtime_id.as_str()),
+                safe_cell(&catalog.runtime_name),
+                catalog.runtime_revision.0,
+                safe_cell(&catalog.status_source),
+                safe_cell(&catalog.attention_severity),
+                catalog.needs_attention,
+                reasons,
+                catalog.plans.len(),
+            );
+            output.push_str("PLAN\tINTENT\tMODE\tREADINESS\tRISK\tAPPROVAL\tREVISION\tSTEPS\n");
+            for plan in &catalog.plans {
+                output.push_str(&format!(
+                    "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                    safe_cell(&plan.plan_id),
+                    safe_cell(&plan.intent),
+                    safe_cell(&plan.execution_mode),
+                    safe_cell(&plan.execution_readiness),
+                    safe_cell(&plan.risk_level),
+                    safe_cell(&plan.approval_mode),
+                    safe_cell(&plan.revision),
+                    plan.steps.len(),
+                ));
+            }
+            Ok(output.trim_end().to_string())
+        }
+        ProtocolResponse::OrchestraRunReceipt(receipt) => Ok(format!(
+            "command={} operation={} run={} runtime={} plan={} outcome={} attempt={} retried_from={} plan_revision={} approval_recorded={} completed={} replayed={}",
+            safe_cell(receipt.command_id.as_str()),
+            match receipt.operation {
+                leserpent_protocol::OrchestraControlOperation::Run => "run",
+                leserpent_protocol::OrchestraControlOperation::Cancel => "cancel",
+                leserpent_protocol::OrchestraControlOperation::Retry => "retry",
+            },
+            safe_cell(&receipt.run.run_id),
+            safe_cell(&receipt.run.runtime_id),
+            safe_cell(&receipt.run.plan_id),
+            safe_cell(&receipt.run.outcome),
+            receipt.run.attempt,
+            safe_cell(receipt.run.retried_from_run_id.as_deref().unwrap_or("none")),
+            safe_cell(receipt.run.plan_revision.as_deref().unwrap_or("none")),
+            receipt.run.approved_by.is_some() || receipt.run.approval_note.is_some(),
+            receipt.run.completed_at.is_some(),
+            receipt.replayed,
+        )),
         ProtocolResponse::OrchestraHistory(_) => Err(CliError::Protocol(
             "unexpected Orchestra history response".into(),
         )),
@@ -2968,6 +3025,96 @@ mod tests {
         assert!(rendered.contains("admission=blocked_by_reconciliation_audit"));
         assert!(rendered.contains("pressure=blocked"));
         assert!(rendered.contains("orchestra_cleanup_action=persist_audit_and_advance_checkpoint"));
+    }
+
+    #[test]
+    fn orchestra_plan_catalog_renders_bounded_operator_fields() {
+        let rendered = render_response(
+            &ResponseEnvelope {
+                schema_version: PROTOCOL_SCHEMA_VERSION,
+                response: ProtocolResponse::OrchestraPlanCatalog(
+                    leserpent_protocol::OrchestraPlanCatalogResponse {
+                        runtime_id: RuntimeId::new("runtime-a").unwrap(),
+                        runtime_name: "Runtime\nA".into(),
+                        runtime_revision: Revision(7),
+                        status_source: "gewyvern-api".into(),
+                        attention_severity: "warning".into(),
+                        needs_attention: true,
+                        attention_reasons: vec!["no_latest_snapshot".into()],
+                        plans: vec![leserpent_protocol::OrchestraPlan {
+                            plan_id: "runtime_triage".into(),
+                            intent: "triage".into(),
+                            title: "Refresh runtime posture".into(),
+                            summary: "Bounded native refresh".into(),
+                            risk_level: "low".into(),
+                            execution_readiness: "ready_now".into(),
+                            execution_mode: "automatic".into(),
+                            approval_mode: "none".into(),
+                            revision: "orchestra-v1-7-runtime_triage".into(),
+                            reasons: vec!["no_latest_snapshot".into()],
+                            required_capabilities: Vec::new(),
+                            steps: vec![leserpent_protocol::OrchestraPlanStep {
+                                key: "refresh_status".into(),
+                                title: "Refresh status".into(),
+                                detail: "Use the native adapter".into(),
+                                kind: "refresh".into(),
+                            }],
+                        }],
+                    },
+                ),
+            },
+            false,
+        )
+        .unwrap();
+
+        let expected = format!(
+            "runtime=runtime-a name=Runtime{}A revision=7 source=gewyvern-api attention=warning needs_attention=true reasons=no_latest_snapshot plans=1",
+            '\u{fffd}'
+        );
+        assert!(rendered.starts_with(&expected));
+        assert!(rendered.contains(
+            "runtime_triage\ttriage\tautomatic\tready_now\tlow\tnone\torchestra-v1-7-runtime_triage\t1"
+        ));
+    }
+
+    #[test]
+    fn orchestra_run_receipt_renders_lineage_without_approval_text() {
+        let rendered = render_response(
+            &ResponseEnvelope {
+                schema_version: PROTOCOL_SCHEMA_VERSION,
+                response: ProtocolResponse::OrchestraRunReceipt(
+                    leserpent_protocol::OrchestraRunReceiptResponse {
+                        command_id: CommandId::new("orchestra-retry-0001").unwrap(),
+                        operation: leserpent_protocol::OrchestraControlOperation::Retry,
+                        run: leserpent_protocol::compatibility_v1::LegacyOrchestraRun {
+                            run_id: "orchestra-run-retry-0001".into(),
+                            runtime_id: "runtime-a".into(),
+                            plan_id: "runtime_triage".into(),
+                            outcome: "queued".into(),
+                            executed_at: "2026-08-26T00:00:00Z".into(),
+                            steps: Vec::new(),
+                            completed_at: None,
+                            attempt: 2,
+                            retried_from_run_id: Some("orchestra-run-original".into()),
+                            approved_by: Some("operator-private".into()),
+                            approval_note: Some("must-not-reach-terminal-output".into()),
+                            plan_revision: Some("orchestra-v1-7-runtime_triage".into()),
+                            request_id: Some("orchestra-retry-0001".into()),
+                        },
+                        replayed: false,
+                    },
+                ),
+            },
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(
+            rendered,
+            "command=orchestra-retry-0001 operation=retry run=orchestra-run-retry-0001 runtime=runtime-a plan=runtime_triage outcome=queued attempt=2 retried_from=orchestra-run-original plan_revision=orchestra-v1-7-runtime_triage approval_recorded=true completed=false replayed=false"
+        );
+        assert!(!rendered.contains("operator-private"));
+        assert!(!rendered.contains("must-not-reach-terminal-output"));
     }
 
     #[test]

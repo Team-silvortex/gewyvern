@@ -1531,6 +1531,38 @@ impl InMemoryControlPlane {
         Ok(next)
     }
 
+    pub fn cancel_runtime_status_refresh(
+        &mut self,
+        runtime_id: &RuntimeId,
+        expected_revision: Revision,
+    ) -> Result<RuntimeProjection, DomainError> {
+        let current =
+            self.runtimes
+                .get(runtime_id)
+                .cloned()
+                .ok_or_else(|| DomainError::RuntimeNotFound {
+                    runtime_id: runtime_id.as_str().to_string(),
+                })?;
+        if current.revision != expected_revision {
+            return Err(DomainError::RevisionConflict {
+                expected: expected_revision,
+                actual: current.revision,
+            });
+        }
+        if current.refresh_status != RefreshStatus::Pending {
+            return Err(DomainError::InvalidQuery {
+                reason: "runtime status refresh is not pending",
+            });
+        }
+
+        self.revision += 1;
+        let mut next = current;
+        next.revision = Revision(self.revision);
+        next.refresh_status = RefreshStatus::Failed;
+        self.runtimes.insert(runtime_id.clone(), next.clone());
+        Ok(next)
+    }
+
     pub fn complete_runtime_capability_refresh(
         &mut self,
         runtime_id: &RuntimeId,
@@ -2989,6 +3021,37 @@ mod tests {
             control.complete_runtime_status_refresh(&runtime_id, Revision(3), raw_failure),
             Err(DomainError::InvalidQuery {
                 reason: "runtime status observation is invalid"
+            })
+        ));
+    }
+
+    #[test]
+    fn status_refresh_cancellation_settles_only_the_exact_pending_revision() {
+        let mut control = InMemoryControlPlane::default();
+        let runtime_id = RuntimeId::new("runtime-a").unwrap();
+        control.register_runtime(runtime_id.clone(), "A", "http://a");
+        let requested = control
+            .execute(refresh_envelope(
+                runtime_id.clone(),
+                "command-cancel",
+                "refresh-cancel",
+            ))
+            .unwrap();
+        assert_eq!(requested.runtime.revision, Revision(2));
+        assert!(matches!(
+            control.cancel_runtime_status_refresh(&runtime_id, Revision(1)),
+            Err(DomainError::RevisionConflict { .. })
+        ));
+
+        let cancelled = control
+            .cancel_runtime_status_refresh(&runtime_id, Revision(2))
+            .unwrap();
+        assert_eq!(cancelled.refresh_status, RefreshStatus::Failed);
+        assert_eq!(cancelled.revision, Revision(3));
+        assert!(matches!(
+            control.cancel_runtime_status_refresh(&runtime_id, Revision(3)),
+            Err(DomainError::InvalidQuery {
+                reason: "runtime status refresh is not pending"
             })
         ));
     }

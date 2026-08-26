@@ -17,6 +17,10 @@ fn orchestra_remote_client_is_strict_bounded_and_receipt_driven() {
     assert!(contracts.contains("JsonUnmappedMemberHandling.Disallow"));
     assert!(contracts.contains("public string Kind { get; set; } = \"orchestra_history\""));
     assert!(contracts.contains("public string Kind { get; set; } = \"orchestra_delete_command\""));
+    assert!(contracts.contains("public string Kind { get; set; } = \"orchestra_plan_catalog\""));
+    assert!(contracts.contains("public string Kind { get; set; } = \"orchestra_run_command\""));
+    assert!(contracts.contains("public string Kind { get; set; } = \"orchestra_cancel_command\""));
+    assert!(contracts.contains("public string Kind { get; set; } = \"orchestra_retry_command\""));
     assert!(contracts.contains("RemoteOrchestraJsonContext : JsonSerializerContext"));
     assert!(contracts.contains("RemoteOrchestraDeleteReceipt"));
     assert!(client.contains("private const string OrchestraCapability = \"orchestra.write\""));
@@ -25,6 +29,10 @@ fn orchestra_remote_client_is_strict_bounded_and_receipt_driven() {
     assert!(client.contains("transport.PostAsync("));
     assert!(client.contains("DecodeHistoryResponse(response, runtimeId, runId, offset, limit)"));
     assert!(client.contains("DecodeDeleteResponse(response, runtimeId, commandId)"));
+    assert!(client.contains("public async Task<RemoteOrchestraPlanCatalog> LoadPlansAsync("));
+    assert!(client.contains("public async Task<RemoteOrchestraRunReceipt> RunPlanAsync("));
+    assert!(client.contains("public async Task<RemoteOrchestraRunReceipt> CancelRunAsync("));
+    assert!(client.contains("public async Task<RemoteOrchestraRunReceipt> RetryRunAsync("));
     assert!(client.contains("receipt.CommandId != commandId"));
     assert!(client.contains("orchestraEvent.RuntimeId != runtimeId"));
     assert!(client.contains("orchestraEvent.RunId != runId"));
@@ -34,10 +42,13 @@ fn orchestra_remote_client_is_strict_bounded_and_receipt_driven() {
     assert!(!client.contains("HttpClient"));
     assert!(program.contains("--verify-orchestra-client"));
     assert!(program.contains("idempotent_cleanup=true"));
+    assert!(program.contains("native_plans=true"));
+    assert!(program.contains("queued_cancel=true"));
+    assert!(program.contains("retry_lineage=true"));
 }
 
 #[test]
-fn daemon_window_owns_one_localized_orchestra_history_workspace() {
+fn daemon_window_owns_one_localized_orchestra_control_workspace() {
     let main = source("apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteMainWindow.cs");
     let workspace =
         source("apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteOrchestraWorkspaceWindow.cs");
@@ -55,10 +66,14 @@ fn daemon_window_owns_one_localized_orchestra_history_workspace() {
     assert!(main.contains("remote-orchestra-open"));
     assert!(workspace.contains("client.LoadRunsAsync("));
     assert!(workspace.contains("client.LoadEventsAsync("));
+    assert!(workspace.contains("client.LoadPlansAsync("));
+    assert!(workspace.contains("client.RunPlanAsync("));
+    assert!(workspace.contains("client.CancelRunAsync("));
+    assert!(workspace.contains("client.RetryRunAsync("));
     assert!(workspace.contains("client.DeleteRuntimeHistoryAsync("));
     assert!(workspace.contains("ShowDialog<bool>(this)"));
     assert!(workspace.contains("status.cleanup_completed"));
-    assert!(workspace.contains("CompactBreakpoint = 840"));
+    assert!(workspace.contains("CompactBreakpoint = 1060"));
     assert!(workspace.contains("MaxRetainedRuns = 256"));
     assert!(workspace.contains("MaxRetainedEvents = 256"));
     assert!(workspace.contains("when (lifetime.IsCancellationRequested)"));
@@ -67,8 +82,8 @@ fn daemon_window_owns_one_localized_orchestra_history_workspace() {
     assert!(workspace.contains("public void ProbeProjection()"));
     assert!(workspace.contains("startLoading: false") || app.contains("startLoading: false"));
     assert!(!workspace.contains("options.Token"));
-    assert_eq!(catalog.matches("new(\"").count(), 41);
-    assert!(catalog.contains("public const int KeyCount = 41"));
+    assert_eq!(catalog.matches("new(\"").count(), 72);
+    assert!(catalog.contains("public const int KeyCount = 72"));
     for locale in [
         "SimplifiedChinese",
         "TraditionalChinese",
@@ -86,23 +101,24 @@ fn daemon_window_owns_one_localized_orchestra_history_workspace() {
     }
     assert!(localization.contains("DesktopOrchestraCatalogs.VerifyContract();"));
     assert!(app.contains("localized_orchestra_layouts=8"));
-    assert!(app.contains("localized_dialog_layouts=24"));
+    assert!(app.contains("localized_dialog_layouts=32"));
     assert!(app.contains("network_started=false"));
 }
 
 #[test]
-fn function_chain_claims_only_the_orchestra_slice_that_exists() {
+fn function_chain_closes_the_native_orchestra_control_slice() {
     let matrix = source("project/release/leserpent-gui-function-chain.json");
     let docs = source("docs/leserpent-gui-function-chains.md");
 
     assert!(matrix.contains("\"id\": \"orchestra-control\""));
-    assert!(
-        matrix.contains("\"surface\": \"avalonia-desktop\",\n          \"state\": \"partial\"")
-    );
-    assert!(matrix.contains("authenticated persisted run history"));
-    assert!(matrix.contains("Plan execution, cancellation, and retry remain"));
+    assert!(matrix.contains("\"surface\": \"avalonia-desktop\",\n          \"state\": \"closed\""));
+    assert!(matrix.contains("orchestra-plan-catalog"));
+    assert!(matrix.contains("orchestra-run"));
+    assert!(matrix.contains("orchestra-cancel"));
+    assert!(matrix.contains("orchestra-retry"));
     assert!(matrix.contains("RemoteOrchestraWorkspaceWindow.cs"));
-    assert!(docs.contains("| Avalonia desktop | target | 75 | 5 | 3 | 1 | 0 |"));
-    assert!(docs.contains("The combined target score is 68"));
-    assert!(docs.contains("Rust-authoritative Orchestra plan execution"));
+    assert!(docs.contains("| Avalonia desktop | target | 81 | 6 | 2 | 1 | 0 |"));
+    assert!(docs.contains("The combined target score is 73"));
+    assert!(docs.contains("Rust-authoritative Orchestra control"));
+    assert!(docs.contains("queued-only cancellation"));
 }

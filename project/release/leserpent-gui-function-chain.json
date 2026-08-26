@@ -103,6 +103,30 @@
       "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "OrchestraPersist(OrchestraPersistenceRequest)" }
     },
     {
+      "id": "orchestra-plan-catalog",
+      "owner": "protocol",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "OrchestraPlanCatalog(OrchestraPlanCatalogRequest)" }
+    },
+    {
+      "id": "orchestra-run",
+      "owner": "protocol",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "OrchestraRunCommand(OrchestraRunCommandRequest)" }
+    },
+    {
+      "id": "orchestra-cancel",
+      "owner": "protocol",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "OrchestraCancelCommand(OrchestraCancelCommandRequest)" }
+    },
+    {
+      "id": "orchestra-retry",
+      "owner": "protocol",
+      "audience": "operator",
+      "definition": { "path": "crates/leserpent-protocol/src/lib.rs", "contains": "OrchestraRetryCommand(OrchestraRetryCommandRequest)" }
+    },
+    {
       "id": "orchestra-history",
       "owner": "protocol",
       "audience": "operator",
@@ -356,22 +380,21 @@
       "id": "orchestra-control",
       "label": "Orchestra plan, run, history, cancellation, retry, and cleanup",
       "release_required": true,
-      "operations": ["orchestra-history", "orchestra-delete"],
+      "operations": ["orchestra-plan-catalog", "orchestra-run", "orchestra-cancel", "orchestra-retry", "orchestra-history", "orchestra-delete"],
       "required_stages": ["entry", "semantic", "transport", "authority", "persistence", "projection", "feedback"],
       "required_surfaces": ["avalonia-desktop", "web-1x"],
       "coverage": [
         {
           "surface": "avalonia-desktop",
-          "state": "partial",
-          "gap": "The desktop product now closes authenticated persisted run history, event drilldown, and idempotent runtime-scoped cleanup. Plan execution, cancellation, and retry remain compatibility-host authority and have no Rust-authoritative desktop controls.",
+          "state": "closed",
           "evidence": [
-            { "stage": "entry", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteMainWindow.cs", "contains": "private void OpenOrchestraWorkspace()" },
-            { "stage": "semantic", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteOrchestraContracts.cs", "contains": "public sealed class OrchestraHistoryRequest" },
-            { "stage": "transport", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteOrchestraClient.cs", "contains": "public async Task<RemoteOrchestraHistoryPage> LoadRunsAsync(" },
-            { "stage": "authority", "path": "crates/leserpentd/src/wire.rs", "contains": "ProtocolRequest::OrchestraHistory(request)" },
-            { "stage": "persistence", "path": "crates/leserpent-runtime/src/persistence.rs", "contains": "pub fn load_orchestra_history(" },
-            { "stage": "projection", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteOrchestraWorkspaceWindow.cs", "contains": "private void RefreshRunProjection(" },
-            { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteOrchestraWorkspaceWindow.cs", "contains": "private void SetStatus(" }
+            { "stage": "entry", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteOrchestraWorkspaceWindow.cs", "contains": "runPlanButton.Click" },
+            { "stage": "semantic", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteOrchestraContracts.cs", "contains": "public sealed class OrchestraRunCommandRequest" },
+            { "stage": "transport", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteOrchestraClient.cs", "contains": "public async Task<RemoteOrchestraRunReceipt> RunPlanAsync(" },
+            { "stage": "authority", "path": "crates/leserpentd/src/orchestra.rs", "contains": "pub(crate) fn run_command(" },
+            { "stage": "persistence", "path": "crates/leserpent-runtime/src/lib.rs", "contains": "pub fn persist_orchestra_run_event_start(" },
+            { "stage": "projection", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteOrchestraWorkspaceWindow.cs", "contains": "private void RefreshPlanProjection(" },
+            { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteOrchestraWorkspaceWindow.cs", "contains": "status.run_queued" }
           ]
         },
         {
