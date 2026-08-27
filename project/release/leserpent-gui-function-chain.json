@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "release_line": "2.0",
-  "as_of": "2026-08-26",
+  "as_of": "2026-08-27",
   "stages": [
     { "id": "entry", "label": "User-reachable GUI entry" },
     { "id": "semantic", "label": "Typed semantic intent" },
@@ -506,7 +506,7 @@
         {
           "surface": "rust-web",
           "state": "partial",
-          "gap": "leserpentd now serves the shared TypeScript package, authenticated first-screen projections, daemon-owned fleet refresh, and revision-fenced single-runtime deletion directly; registration execution still waits for atomic secret-store writes, while bulk cleanup, persistence import/export, and Orchestra compatibility APIs still depend on the ASP.NET bridge.",
+          "gap": "leserpentd now serves the shared TypeScript package, authenticated first-screen projections, daemon-owned fleet refresh, revision-fenced single-runtime deletion, and plan-fenced atomic bulk cleanup directly; registration execution still waits for atomic secret-store writes, while persistence import/export and Orchestra compatibility APIs still depend on the ASP.NET bridge.",
           "evidence": [
             { "stage": "entry", "path": "crates/leserpentd/src/web_console.rs", "contains": "pub(crate) fn find_asset(" },
             { "stage": "transport", "path": "crates/leserpentd/src/remote.rs", "contains": "HttpRoute::ConsoleApi(route)" },

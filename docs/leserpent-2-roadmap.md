@@ -212,7 +212,7 @@ That statement covers adapter and renderer conformance, not product reachability
 The machine-validated [GUI function-chain matrix](leserpent-gui-function-chains.md)
 now audits entry, semantic lowering, transport, authority, persistence,
 projection, operator feedback, and Leselang equivalence separately. Its
-2026-08-26 baseline scores the Avalonia product at 100, the Rust-hosted Web target
+2026-08-27 baseline scores the Avalonia product at 100, the Rust-hosted Web target
 at 50, and the supported ASP.NET Web bridge at 100, for a combined target score
 of 95. The Rust daemon now serves the shared packaged TypeScript console and its
 Bearer-authenticated first-screen read projections directly; registration,
@@ -236,9 +236,10 @@ presentation operations from the daemon-owned Rust VM, applies them to the
 current product window, and returns revision- and effect-bound outcomes for
 durable VM re-entry. Continuations and source never cross the acknowledgement
 boundary, rejections become visible terminal failures, and the desktop caps one
-run at 64 effects. The per-daemon Rust Web console now owns its first typed
-mutation slice; registration secrets, bulk cleanup, persistence, and Orchestra
-remain the explicit closure work. Expired effects converge to a terminal revision and release the
+run at 64 effects. The per-daemon Rust Web console now owns typed refresh,
+single-delete, and plan-fenced atomic bulk-cleanup mutations; registration
+secrets, persistence, and Orchestra remain the explicit closure work. Expired
+effects converge to a terminal revision and release the
 32-session daemon registry; cancellation audit remains restart-durable inside a
 bounded 64-journal retention horizon. Active debugger sessions remain
 process-bound, so reconstruction is tracked as later VM-host resilience rather
@@ -2615,9 +2616,11 @@ uses durable revision-fenced unregistration. Every daemon start generates a
 fresh CSPRNG writer identity and keeps its ticket inside the daemon; another
 writer claim moves Web mutations to standby rather than
 sharing authority. Registration is visibly blocked until pairing credentials
-can be committed through an atomic platform secret-store contract. Bulk cleanup,
-persistence import/export, and Orchestra controls still use Avalonia, the native
-CLI, or the compatibility bridge while their Rust routes migrate.
+can be committed through an atomic platform secret-store contract. Cleanup now
+uses canonical reviewed plan tokens, a whole-slice challenge, atomic bounded
+unregistration, and durable lost-response replay. Persistence import/export and
+Orchestra controls still use Avalonia, the native CLI, or the compatibility
+bridge while their Rust routes migrate.
 
 The native CLI uses the same endpoint without changing command syntax:
 

@@ -2167,14 +2167,20 @@ authority generation under a fresh CSPRNG writer identity. The browser never
 receives that ticket: same-origin POSTs must carry the mutation-intent header,
 fleet refresh lowers to the existing typed
 status/capability commands, and single-runtime deletion enters the durable
-revision-fenced unregistration transaction. If another process claims the writer
-generation, mutation calls fail closed as standby and capabilities immediately
-report the loss of write availability. Registration planning validates only
-secret-free coordinates and remains rejected until a platform secret-store API
-can atomically commit the pairing credential. The surface remains partial until
-registration execution, bulk cleanup, persistence import/export, and Orchestra
-compatibility routes move to Rust. No TypeScript handler owns authority during
-that migration.
+revision-fenced unregistration transaction. Bulk cleanup uses the same live Rust
+projection for its preview and commit: canonical v2 tokens bind the cleanup kind,
+filter, and ordered runtime identities, whole-slice deletion requires `CLEAR N`,
+and one durable transaction either removes all revision-fenced targets or none.
+The 128-target authority limit rejects oversized plans without partial progress;
+retained receipts make a lost-response retry idempotent across restart, and the
+shared frontend fences its cleanup controls on the daemon capability. If
+another process claims the writer generation, mutation calls fail closed as
+standby and capabilities immediately report the loss of write availability.
+Registration planning validates only secret-free coordinates and remains
+rejected until a platform secret-store API can atomically commit the pairing
+credential. The surface remains partial until registration execution,
+persistence import/export, and Orchestra compatibility routes move to Rust. No
+TypeScript handler owns authority during that migration.
 
 Existing-runtime registration now has a native Avalonia product path independent
 from managed SSH provisioning. `RemoteRegistrationClient` first reads the

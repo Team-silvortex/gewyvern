@@ -209,6 +209,23 @@ fn runtime_registration_is_progressive_secret_safe_and_error_recoverable() {
 }
 
 #[test]
+fn cleanup_controls_follow_daemon_mutation_capability() {
+    let workflows = source("apps/leserpent/src/Leserpent/frontend/50-dashboard-workflows.ts");
+    for contract in [
+        "function cleanupMutationAvailable()",
+        "webConsole?.cleanupAvailable !== false",
+        "const cleanupUnavailable = !cleanupMutationAvailable();",
+        "if (!cleanupMutationAvailable() || !count",
+        "if (!cleanupMutationAvailable() || !plan?.runtimeCount",
+    ] {
+        assert!(
+            workflows.contains(contract),
+            "missing cleanup capability fence {contract}"
+        );
+    }
+}
+
+#[test]
 fn runtime_detail_is_operator_first_localized_and_actionable() {
     let html = source("apps/leserpent/src/Leserpent/wwwroot/index.html");
     let styles = source("apps/leserpent/src/Leserpent/wwwroot/styles.css");

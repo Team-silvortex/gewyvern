@@ -1,17 +1,20 @@
 use std::collections::BTreeMap;
 
 use leserpent_domain::{
-    RuntimeCapabilitySnapshot, RuntimeId, RuntimeListFilter, RuntimeProjection,
+    Revision, RuntimeCapabilitySnapshot, RuntimeId, RuntimeListFilter, RuntimeProjection,
     RuntimeSidecarStatusSnapshot, RuntimeStatusSnapshot,
 };
 use leserpent_protocol::MAX_PROTOCOL_MESSAGE_BYTES;
 use leserpent_runtime::ControlRuntime;
+use ring::digest;
 use serde_json::{Value, json};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
 const MAX_FILTER_VALUE_BYTES: usize = 128;
 pub(crate) const MAX_REGISTRATION_PLAN_BYTES: usize = 8 * 1024;
+pub(crate) const MAX_CLEANUP_REQUEST_BYTES: usize = 1024;
+pub(crate) const MAX_ATOMIC_CLEANUP_TARGETS: usize = 128;
 const FALLBACK_TIMESTAMP: &str = "1970-01-01T00:00:00Z";
 
 macro_rules! asset {
@@ -97,8 +100,26 @@ pub(crate) enum ConsoleApiRoute {
     Runtimes(RuntimeListFilter),
     Sessions,
     CleanupPlan(RuntimeListFilter),
+    RuntimeCleanup(CleanupKind, RuntimeListFilter),
     RegistrationPlan,
     RuntimeDelete(RuntimeId),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CleanupKind {
+    Failed,
+    Unobserved,
+    Slice,
+}
+
+impl CleanupKind {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Failed => "failed",
+            Self::Unobserved => "unobserved",
+            Self::Slice => "slice",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -122,7 +143,15 @@ impl ConsoleApiRoute {
             | Self::FleetRefreshCapabilities(_)
             | Self::FleetRefreshStatus(_)
             | Self::RuntimeDelete(_) => ConsoleApiMethod::PostEmpty,
-            Self::RegistrationPlan => ConsoleApiMethod::PostJson,
+            Self::RuntimeCleanup(_, _) | Self::RegistrationPlan => ConsoleApiMethod::PostJson,
+        }
+    }
+
+    pub(crate) fn max_json_body_bytes(&self) -> Option<usize> {
+        match self {
+            Self::RegistrationPlan => Some(MAX_REGISTRATION_PLAN_BYTES),
+            Self::RuntimeCleanup(_, _) => Some(MAX_CLEANUP_REQUEST_BYTES),
+            _ => None,
         }
     }
 }
@@ -160,7 +189,10 @@ pub(crate) fn parse_api_route(target: &str) -> Result<Option<ConsoleApiRoute>, C
         | "/v1/fleet/refresh-capabilities"
         | "/v1/fleet/refresh-status"
         | "/v1/runtimes"
-        | "/v1/runtimes/cleanup-plan" => Some(parse_filter(query)?),
+        | "/v1/runtimes/cleanup-plan"
+        | "/v1/runtimes/delete-failed"
+        | "/v1/runtimes/delete-unobserved"
+        | "/v1/runtimes/delete-slice" => Some(parse_filter(query)?),
         "/v1/capabilities" | "/v1/sessions" | "/v1/runtimes/registration-plan"
             if query.is_some() =>
         {
@@ -193,6 +225,18 @@ pub(crate) fn parse_api_route(target: &str) -> Result<Option<ConsoleApiRoute>, C
         )),
         "/v1/sessions" => Some(ConsoleApiRoute::Sessions),
         "/v1/runtimes/cleanup-plan" => Some(ConsoleApiRoute::CleanupPlan(
+            filtered.expect("filtered route has a filter"),
+        )),
+        "/v1/runtimes/delete-failed" => Some(ConsoleApiRoute::RuntimeCleanup(
+            CleanupKind::Failed,
+            filtered.expect("filtered route has a filter"),
+        )),
+        "/v1/runtimes/delete-unobserved" => Some(ConsoleApiRoute::RuntimeCleanup(
+            CleanupKind::Unobserved,
+            filtered.expect("filtered route has a filter"),
+        )),
+        "/v1/runtimes/delete-slice" => Some(ConsoleApiRoute::RuntimeCleanup(
+            CleanupKind::Slice,
             filtered.expect("filtered route has a filter"),
         )),
         "/v1/runtimes/registration-plan" => Some(ConsoleApiRoute::RegistrationPlan),
@@ -365,10 +409,11 @@ pub(crate) fn render_api(
                 .collect::<Vec<_>>();
             json!({ "filter": filter_value(filter), "runtimes": runtimes })
         }
-        ConsoleApiRoute::CleanupPlan(filter) => cleanup_plan_value(filter),
+        ConsoleApiRoute::CleanupPlan(filter) => cleanup_plan_value(filter, &all_runtimes),
         ConsoleApiRoute::FleetRefreshAll(_)
         | ConsoleApiRoute::FleetRefreshCapabilities(_)
         | ConsoleApiRoute::FleetRefreshStatus(_)
+        | ConsoleApiRoute::RuntimeCleanup(_, _)
         | ConsoleApiRoute::RegistrationPlan
         | ConsoleApiRoute::RuntimeDelete(_) => {
             return Err("Rust Web mutation route cannot be rendered as a read projection".into());
@@ -394,6 +439,9 @@ fn capabilities_value(persistence_enabled: bool, writer_enabled: bool) -> Value 
             "/v1/runtimes",
             "/v1/sessions",
             "/v1/runtimes/cleanup-plan",
+            "/v1/runtimes/delete-failed",
+            "/v1/runtimes/delete-unobserved",
+            "/v1/runtimes/delete-slice",
             "/v1/runtimes/registration-plan",
             "/v1/fleet/refresh-all",
             "/v1/fleet/refresh-capabilities",
@@ -423,6 +471,8 @@ fn capabilities_value(persistence_enabled: bool, writer_enabled: bool) -> Value 
         "webConsole": {
             "writerMode": if writer_enabled { "daemon_owned" } else { "disabled" },
             "mutationAvailable": writer_enabled && persistence_enabled,
+            "cleanupAvailable": writer_enabled && persistence_enabled,
+            "cleanupAtomicTargetLimit": MAX_ATOMIC_CLEANUP_TARGETS,
             "registrationAvailable": false,
             "registrationBlocker": "atomic_platform_secret_store_write_contract"
         },
@@ -684,7 +734,55 @@ fn attention_value(runtime: &RuntimeProjection) -> Option<Value> {
     }))
 }
 
-fn cleanup_plan_value(filter: &RuntimeListFilter) -> Value {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ConsoleCleanupTarget {
+    pub(crate) runtime_id: RuntimeId,
+    pub(crate) name: String,
+    pub(crate) revision: Revision,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ConsoleCleanupAction {
+    pub(crate) kind: CleanupKind,
+    pub(crate) targets: Vec<ConsoleCleanupTarget>,
+    pub(crate) plan_token: String,
+    pub(crate) challenge: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ConsoleCleanupPlan {
+    filter: RuntimeListFilter,
+    risk_level: &'static str,
+    failed: ConsoleCleanupAction,
+    unobserved: ConsoleCleanupAction,
+    slice: ConsoleCleanupAction,
+}
+
+impl ConsoleCleanupPlan {
+    pub(crate) fn action(&self, kind: CleanupKind) -> &ConsoleCleanupAction {
+        match kind {
+            CleanupKind::Failed => &self.failed,
+            CleanupKind::Unobserved => &self.unobserved,
+            CleanupKind::Slice => &self.slice,
+        }
+    }
+
+    fn value(&self) -> Value {
+        json!({
+            "filter": filter_value(&self.filter),
+            "riskLevel": self.risk_level,
+            "failed": cleanup_action_value(&self.failed),
+            "unobserved": cleanup_action_value(&self.unobserved),
+            "slice": cleanup_action_value(&self.slice),
+        })
+    }
+}
+
+pub(crate) fn build_cleanup_plan(
+    filter: &RuntimeListFilter,
+    all_runtimes: &[RuntimeProjection],
+) -> ConsoleCleanupPlan {
+    let runtimes = filtered_runtimes(all_runtimes, filter);
     let risk_level = if [
         filter.environment.as_deref(),
         filter.cluster.as_deref(),
@@ -699,23 +797,137 @@ fn cleanup_plan_value(filter: &RuntimeListFilter) -> Value {
     } else {
         "normal"
     };
-    let action = |kind: &str| {
-        json!({
-            "kind": kind,
-            "runtimeCount": 0,
-            "sessionCount": 0,
-            "targets": [],
-            "planToken": "rust-web-read-only",
-            "challenge": Value::Null,
+    ConsoleCleanupPlan {
+        filter: filter.clone(),
+        risk_level,
+        failed: build_cleanup_action(CleanupKind::Failed, filter, &runtimes),
+        unobserved: build_cleanup_action(CleanupKind::Unobserved, filter, &runtimes),
+        slice: build_cleanup_action(CleanupKind::Slice, filter, &runtimes),
+    }
+}
+
+fn cleanup_plan_value(filter: &RuntimeListFilter, runtimes: &[RuntimeProjection]) -> Value {
+    build_cleanup_plan(filter, runtimes).value()
+}
+
+fn build_cleanup_action(
+    kind: CleanupKind,
+    filter: &RuntimeListFilter,
+    runtimes: &[&RuntimeProjection],
+) -> ConsoleCleanupAction {
+    let mut targets = runtimes
+        .iter()
+        .filter(|runtime| cleanup_matches(kind, runtime))
+        .map(|runtime| ConsoleCleanupTarget {
+            runtime_id: runtime.id.clone(),
+            name: runtime.name.clone(),
+            revision: runtime.revision,
         })
-    };
+        .collect::<Vec<_>>();
+    targets.sort_by(|left, right| {
+        left.runtime_id
+            .as_str()
+            .to_ascii_lowercase()
+            .cmp(&right.runtime_id.as_str().to_ascii_lowercase())
+            .then_with(|| left.runtime_id.cmp(&right.runtime_id))
+    });
+    let plan_token = cleanup_plan_token(kind, filter, &targets);
+    let challenge = (kind == CleanupKind::Slice).then(|| format!("CLEAR {}", targets.len()));
+    ConsoleCleanupAction {
+        kind,
+        targets,
+        plan_token,
+        challenge,
+    }
+}
+
+fn cleanup_matches(kind: CleanupKind, runtime: &RuntimeProjection) -> bool {
+    match kind {
+        CleanupKind::Failed => runtime
+            .status
+            .status_source
+            .eq_ignore_ascii_case("fetch_failed"),
+        CleanupKind::Unobserved => {
+            runtime
+                .status
+                .status_source
+                .eq_ignore_ascii_case("unobserved")
+                && (runtime.status.resilience_degraded
+                    || !runtime
+                        .status
+                        .resilience_status
+                        .as_deref()
+                        .is_some_and(|status| status.eq_ignore_ascii_case("idle_ready")))
+        }
+        CleanupKind::Slice => true,
+    }
+}
+
+fn cleanup_plan_token(
+    kind: CleanupKind,
+    filter: &RuntimeListFilter,
+    targets: &[ConsoleCleanupTarget],
+) -> String {
+    let mut canonical = vec![
+        "runtime-cleanup-plan-v2".to_string(),
+        kind.as_str().to_string(),
+        filter
+            .environment
+            .as_deref()
+            .unwrap_or_default()
+            .trim()
+            .to_string(),
+        filter
+            .cluster
+            .as_deref()
+            .unwrap_or_default()
+            .trim()
+            .to_string(),
+        filter
+            .role
+            .as_deref()
+            .unwrap_or_default()
+            .trim()
+            .to_string(),
+    ];
+    canonical.extend(targets.iter().map(|target| {
+        format!(
+            "runtime:{}",
+            target.runtime_id.as_str().to_ascii_lowercase()
+        )
+    }));
+    sha256_hex(canonical.join("\n").as_bytes())
+}
+
+fn cleanup_action_value(action: &ConsoleCleanupAction) -> Value {
+    let targets = action
+        .targets
+        .iter()
+        .map(|target| {
+            json!({
+                "runtimeId": target.runtime_id.as_str(),
+                "name": target.name,
+            })
+        })
+        .collect::<Vec<_>>();
     json!({
-        "filter": filter_value(filter),
-        "riskLevel": risk_level,
-        "failed": action("failed"),
-        "unobserved": action("unobserved"),
-        "slice": action("slice"),
+        "kind": action.kind.as_str(),
+        "runtimeCount": action.targets.len(),
+        "sessionCount": 0,
+        "targets": targets,
+        "planToken": action.plan_token,
+        "challenge": action.challenge,
     })
+}
+
+pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
+    let digest = digest::digest(&digest::SHA256, bytes);
+    let mut encoded = String::with_capacity(digest.as_ref().len() * 2);
+    for byte in digest.as_ref() {
+        use std::fmt::Write as _;
+        write!(&mut encoded, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    encoded
 }
 
 #[cfg(test)]
@@ -778,6 +990,17 @@ mod tests {
             );
         }
         assert_eq!(parse_api_route("/v1/not-present").unwrap(), None);
+        assert_eq!(
+            parse_api_route("/v1/runtimes/delete-failed?role=edge").unwrap(),
+            Some(ConsoleApiRoute::RuntimeCleanup(
+                CleanupKind::Failed,
+                RuntimeListFilter {
+                    environment: None,
+                    cluster: None,
+                    role: Some("edge".into()),
+                }
+            ))
+        );
     }
 
     #[test]
@@ -811,5 +1034,25 @@ mod tests {
         let value: Value =
             serde_json::from_slice(&render_api(&filtered, &runtime, false).unwrap()).unwrap();
         assert!(value["runtimes"].as_array().unwrap().is_empty());
+
+        let cleanup = ConsoleApiRoute::CleanupPlan(RuntimeListFilter::default());
+        let value: Value =
+            serde_json::from_slice(&render_api(&cleanup, &runtime, false).unwrap()).unwrap();
+        assert_eq!(value["riskLevel"], "normal");
+        assert_eq!(value["failed"]["runtimeCount"], 0);
+        assert_eq!(value["unobserved"]["runtimeCount"], 1);
+        assert_eq!(
+            value["unobserved"]["targets"][0]["runtimeId"],
+            "runtime-web"
+        );
+        assert_eq!(
+            value["unobserved"]["planToken"],
+            "f7095175a32e7757fb0f7ba036dcb7955e1bd68caecde1d2b7c250788489f095"
+        );
+        assert_eq!(value["slice"]["challenge"], "CLEAR 1");
+        assert_eq!(
+            value["slice"]["planToken"],
+            "63551f58c0483ef9559dce5a9366f3244578b92d81be41b5078740f882e33c1e"
+        );
     }
 }

@@ -8,11 +8,13 @@ use leserpent_protocol::{AuthorityWriterFence, MAX_PROTOCOL_MESSAGE_BYTES};
 use leserpent_runtime::{
     AuthorityWriterFenceError, ControlRuntime, PlanResult, RuntimeError, RuntimeUnregisterTarget,
 };
-use ring::digest;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::web_console::{ConsoleApiRoute, MAX_REGISTRATION_PLAN_BYTES};
+use crate::web_console::{
+    CleanupKind, ConsoleApiRoute, MAX_ATOMIC_CLEANUP_TARGETS, MAX_CLEANUP_REQUEST_BYTES,
+    MAX_REGISTRATION_PLAN_BYTES, build_cleanup_plan, sha256_hex,
+};
 
 const REGISTRATION_SECRET_STORE_REASON: &str = "rust_web_registration_secret_store_unavailable";
 
@@ -58,6 +60,14 @@ struct RegistrationPlanRequest {
     sidecar_endpoint: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CleanupRequest {
+    plan_token: String,
+    #[serde(default)]
+    challenge: Option<String>,
+}
+
 pub(crate) fn execute(
     route: &ConsoleApiRoute,
     body: &[u8],
@@ -74,6 +84,9 @@ pub(crate) fn execute(
         }
         ConsoleApiRoute::FleetRefreshStatus(filter) => {
             refresh_fleet(runtime, writer_fence, filter, RefreshKind::Status)?
+        }
+        ConsoleApiRoute::RuntimeCleanup(kind, filter) => {
+            cleanup_runtimes(runtime, writer_fence, *kind, filter, body)?
         }
         ConsoleApiRoute::RuntimeDelete(runtime_id) => {
             delete_runtime(runtime, writer_fence, runtime_id)?
@@ -217,7 +230,7 @@ fn normalize_http_endpoint(value: &str) -> Option<String> {
 
 fn proposed_runtime_id(name: &str, endpoint: &str) -> String {
     let input = format!("{}\0{}", name.to_ascii_lowercase(), endpoint);
-    hex_digest(input.as_bytes())[..32].to_string()
+    sha256_hex(input.as_bytes())[..32].to_string()
 }
 
 fn registration_plan_token(
@@ -237,7 +250,7 @@ fn registration_plan_token(
         expected_revision.map_or_else(String::new, |revision| revision.to_string()),
         reason,
     );
-    hex_digest(input.as_bytes())
+    sha256_hex(input.as_bytes())
 }
 
 fn refresh_fleet(
@@ -343,6 +356,159 @@ fn execute_refresh(
     }
 }
 
+fn cleanup_runtimes(
+    runtime: &mut ControlRuntime,
+    writer_fence: Option<&AuthorityWriterFence>,
+    kind: CleanupKind,
+    filter: &RuntimeListFilter,
+    body: &[u8],
+) -> Result<Value, ConsoleWriteError> {
+    require_writer(runtime, writer_fence)?;
+    if body.is_empty() || body.len() > MAX_CLEANUP_REQUEST_BYTES {
+        return Err(invalid_cleanup_request());
+    }
+    let request: CleanupRequest =
+        serde_json::from_slice(body).map_err(|_| invalid_cleanup_request())?;
+    if request.plan_token.len() != 64
+        || !request
+            .plan_token
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+    {
+        return Err(invalid_cleanup_request());
+    }
+    let command_id =
+        CommandId::new(format!("web-cleanup-{}", &request.plan_token)).map_err(map_domain_error)?;
+
+    let lookup = runtime
+        .runtime_unregistration_receipt(command_id.clone())
+        .map_err(map_runtime_error)?;
+    if let Some(receipt) = lookup.receipt {
+        validate_cleanup_challenge(kind, request.challenge.as_deref(), receipt.removed.len())?;
+        let removed_runtime_ids = receipt
+            .removed
+            .iter()
+            .map(|target| target.runtime_id.as_str())
+            .collect::<Vec<_>>();
+        return Ok(json!({
+            "deleted": true,
+            "filter": filter_value(filter),
+            "removedRuntimeCount": receipt.removed.len(),
+            "removedSessionCount": 0,
+            "removedRuntimeNames": [],
+            "removedRuntimeIds": removed_runtime_ids,
+            "operationGeneration": receipt.operation_generation,
+            "removedAtUnixMs": receipt.removed_at_unix_ms,
+            "replayed": true,
+            "deletedOrchestraRuntimeCount": receipt.deleted_orchestra_runtime_count,
+            "deletedOrchestraRunCount": receipt.deleted_orchestra_run_count,
+            "deletedOrchestraEventCount": receipt.deleted_orchestra_event_count,
+        }));
+    }
+
+    let (_, runtimes) = runtime.runtime_event_state();
+    let plan = build_cleanup_plan(filter, &runtimes);
+    let action = plan.action(kind);
+    if request.plan_token != action.plan_token {
+        return Err(cleanup_plan_changed(
+            "runtime cleanup plan changed; review the current targets before retrying",
+        ));
+    }
+    validate_cleanup_challenge(kind, request.challenge.as_deref(), action.targets.len())?;
+    if action.targets.len() > MAX_ATOMIC_CLEANUP_TARGETS {
+        return Err(ConsoleWriteError {
+            status: ConsoleWriteStatus::Conflict,
+            code: "runtime_cleanup_atomic_limit",
+            reason: "runtime cleanup exceeds the 128-target atomic transaction limit",
+        });
+    }
+    if action.targets.is_empty() {
+        return Ok(json!({
+            "deleted": true,
+            "filter": filter_value(filter),
+            "removedRuntimeCount": 0,
+            "removedSessionCount": 0,
+            "removedRuntimeNames": [],
+            "removedRuntimeIds": [],
+            "operationGeneration": Value::Null,
+            "removedAtUnixMs": Value::Null,
+            "replayed": false,
+            "deletedOrchestraRuntimeCount": 0,
+            "deletedOrchestraRunCount": 0,
+            "deletedOrchestraEventCount": 0,
+        }));
+    }
+
+    let removed_runtime_names = action
+        .targets
+        .iter()
+        .map(|target| target.name.as_str())
+        .collect::<Vec<_>>();
+    let targets = action
+        .targets
+        .iter()
+        .map(|target| RuntimeUnregisterTarget {
+            runtime_id: target.runtime_id.clone(),
+            expected_revision: target.revision,
+        })
+        .collect::<Vec<_>>();
+    let result = runtime
+        .unregister_runtimes(command_id, targets)
+        .map_err(map_runtime_error)?;
+    let removed_runtime_ids = result
+        .removed
+        .iter()
+        .map(|target| target.runtime_id.as_str())
+        .collect::<Vec<_>>();
+    Ok(json!({
+        "deleted": true,
+        "filter": filter_value(filter),
+        "removedRuntimeCount": result.removed.len(),
+        "removedSessionCount": 0,
+        "removedRuntimeNames": removed_runtime_names,
+        "removedRuntimeIds": removed_runtime_ids,
+        "operationGeneration": result.operation_generation,
+        "removedAtUnixMs": result.removed_at_unix_ms,
+        "replayed": result.replayed,
+        "deletedOrchestraRuntimeCount": result.deleted_orchestra_runtime_count,
+        "deletedOrchestraRunCount": result.deleted_orchestra_run_count,
+        "deletedOrchestraEventCount": result.deleted_orchestra_event_count,
+    }))
+}
+
+fn invalid_cleanup_request() -> ConsoleWriteError {
+    ConsoleWriteError {
+        status: ConsoleWriteStatus::BadRequest,
+        code: "invalid_runtime_cleanup_request",
+        reason: "runtime cleanup requires one lowercase SHA-256 plan token",
+    }
+}
+
+fn cleanup_plan_changed(reason: &'static str) -> ConsoleWriteError {
+    ConsoleWriteError {
+        status: ConsoleWriteStatus::Conflict,
+        code: "runtime_cleanup_plan_changed",
+        reason,
+    }
+}
+
+fn validate_cleanup_challenge(
+    kind: CleanupKind,
+    supplied: Option<&str>,
+    runtime_count: usize,
+) -> Result<(), ConsoleWriteError> {
+    if kind != CleanupKind::Slice {
+        return Ok(());
+    }
+    let expected = format!("CLEAR {runtime_count}");
+    if supplied.map(str::trim) != Some(expected.as_str()) {
+        return Err(cleanup_plan_changed(
+            "runtime cleanup challenge does not match the current plan",
+        ));
+    }
+    Ok(())
+}
+
 fn delete_runtime(
     runtime: &mut ControlRuntime,
     writer_fence: Option<&AuthorityWriterFence>,
@@ -422,17 +588,7 @@ fn stable_identifier(prefix: &str, runtime: &RuntimeProjection, operation: &str)
         runtime.revision.0,
         operation
     );
-    format!("{prefix}-{}", &hex_digest(input.as_bytes())[..32])
-}
-
-fn hex_digest(bytes: &[u8]) -> String {
-    let digest = digest::digest(&digest::SHA256, bytes);
-    let mut encoded = String::with_capacity(digest.as_ref().len() * 2);
-    for byte in digest.as_ref() {
-        use std::fmt::Write as _;
-        write!(&mut encoded, "{byte:02x}").expect("writing to a String cannot fail");
-    }
-    encoded
+    format!("{prefix}-{}", &sha256_hex(input.as_bytes())[..32])
 }
 
 fn runtime_matches(runtime: &RuntimeProjection, filter: &RuntimeListFilter) -> bool {
@@ -626,6 +782,119 @@ mod tests {
         drop(runtime);
         let recovered = ControlRuntime::open(&path).unwrap();
         assert!(recovered.runtime_projection(&runtime_id).is_none());
+        drop(recovered);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn cleanup_is_plan_fenced_challenged_atomic_and_restart_replayable() {
+        let path = temp_database("cleanup");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        for suffix in ["a", "b"] {
+            runtime
+                .register_runtime(
+                    RuntimeId::new(format!("runtime-cleanup-{suffix}")).unwrap(),
+                    format!("Cleanup {suffix}"),
+                    format!("https://cleanup-{suffix}.invalid"),
+                )
+                .unwrap();
+        }
+        let writer_a = "11111111111111111111111111111111";
+        let generation = runtime.claim_authority_writer(writer_a).unwrap().generation;
+        let fence = AuthorityWriterFence {
+            generation,
+            writer_id: writer_a.into(),
+        };
+        let filter = RuntimeListFilter::default();
+        let invalid = execute(
+            &ConsoleApiRoute::RuntimeCleanup(CleanupKind::Unobserved, filter.clone()),
+            br#"{"planToken":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","unexpected":true}"#,
+            &mut runtime,
+            Some(&fence),
+        )
+        .unwrap_err();
+        assert_eq!(invalid.status, ConsoleWriteStatus::BadRequest);
+        let (_, initial_runtimes) = runtime.runtime_event_state();
+        let initial_plan = build_cleanup_plan(&filter, &initial_runtimes);
+        let stale_token = initial_plan
+            .action(CleanupKind::Unobserved)
+            .plan_token
+            .clone();
+
+        runtime
+            .register_runtime(
+                RuntimeId::new("runtime-cleanup-c").unwrap(),
+                "Cleanup c",
+                "https://cleanup-c.invalid",
+            )
+            .unwrap();
+        let stale_body = serde_json::to_vec(&json!({ "planToken": stale_token })).unwrap();
+        let stale = execute(
+            &ConsoleApiRoute::RuntimeCleanup(CleanupKind::Unobserved, filter.clone()),
+            &stale_body,
+            &mut runtime,
+            Some(&fence),
+        )
+        .unwrap_err();
+        assert_eq!(stale.code, "runtime_cleanup_plan_changed");
+        assert_eq!(runtime.runtime_event_state().1.len(), 3);
+
+        let (_, current_runtimes) = runtime.runtime_event_state();
+        let current_plan = build_cleanup_plan(&filter, &current_runtimes);
+        let slice = current_plan.action(CleanupKind::Slice);
+        let missing_challenge = serde_json::to_vec(&json!({
+            "planToken": slice.plan_token,
+        }))
+        .unwrap();
+        let rejected = execute(
+            &ConsoleApiRoute::RuntimeCleanup(CleanupKind::Slice, filter.clone()),
+            &missing_challenge,
+            &mut runtime,
+            Some(&fence),
+        )
+        .unwrap_err();
+        assert_eq!(rejected.code, "runtime_cleanup_plan_changed");
+        assert_eq!(runtime.runtime_event_state().1.len(), 3);
+
+        let cleanup = current_plan.action(CleanupKind::Unobserved);
+        let cleanup_body = serde_json::to_vec(&json!({
+            "planToken": cleanup.plan_token,
+        }))
+        .unwrap();
+        let response = execute(
+            &ConsoleApiRoute::RuntimeCleanup(CleanupKind::Unobserved, filter.clone()),
+            &cleanup_body,
+            &mut runtime,
+            Some(&fence),
+        )
+        .unwrap();
+        let response: Value = serde_json::from_slice(&response).unwrap();
+        assert_eq!(response["removedRuntimeCount"], 3);
+        assert_eq!(response["replayed"], false);
+        assert!(runtime.runtime_event_state().1.is_empty());
+
+        drop(runtime);
+        let mut recovered = ControlRuntime::open(&path).unwrap();
+        let writer_b = "22222222222222222222222222222222";
+        let generation = recovered
+            .claim_authority_writer(writer_b)
+            .unwrap()
+            .generation;
+        let recovered_fence = AuthorityWriterFence {
+            generation,
+            writer_id: writer_b.into(),
+        };
+        let replay = execute(
+            &ConsoleApiRoute::RuntimeCleanup(CleanupKind::Unobserved, filter),
+            &cleanup_body,
+            &mut recovered,
+            Some(&recovered_fence),
+        )
+        .unwrap();
+        let replay: Value = serde_json::from_slice(&replay).unwrap();
+        assert_eq!(replay["removedRuntimeCount"], 3);
+        assert_eq!(replay["replayed"], true);
+        assert!(recovered.runtime_event_state().1.is_empty());
         drop(recovered);
         fs::remove_file(path).unwrap();
     }

@@ -134,7 +134,7 @@ fn project_status_catalog_is_protocolized_and_valid() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     catalog.validate(&root).expect("catalog must validate");
     assert_eq!(catalog.calibration.model, STATUS_CALIBRATION_MODEL);
-    assert_eq!(catalog.calibration.as_of, "2026-08-26");
+    assert_eq!(catalog.calibration.as_of, "2026-08-27");
     assert!(catalog.dimensions.architectures.len() >= 6);
     assert!(catalog.dimensions.modules.len() >= 21);
     assert!(catalog.dimensions.features.len() >= 23);
@@ -5250,9 +5250,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .expect("product GUI function-chain cell must exist");
     assert_eq!(frontend_parity.maturity, Maturity::Developing);
     assert_eq!(frontend_parity.priority, Priority::Critical);
-    assert_eq!(frontend_parity.completion, 97);
+    assert_eq!(frontend_parity.completion, 98);
     assert_eq!(frontend_parity.contract.stability, ContractStability::Draft);
-    assert_eq!(frontend_parity.contract.version, "0.8.0-draft");
+    assert_eq!(frontend_parity.contract.version, "0.9.0-draft");
     for surface in [
         "avalonia-orchestra-native-plan-run-control-closure",
         "strict-dotnet-orchestra-control-codec",
@@ -5276,6 +5276,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "same-origin-web-mutation-intent-fence",
         "typed-rust-web-fleet-refresh",
         "revision-fenced-rust-web-runtime-delete",
+        "canonical-rust-web-cleanup-plan",
+        "plan-token-fenced-rust-web-cleanup",
+        "challenged-rust-web-slice-cleanup",
+        "atomic-rust-web-bulk-unregistration",
+        "durable-rust-web-cleanup-receipt-replay",
+        "bounded-rust-web-cleanup-request",
+        "cleanup-capability-ui-fence",
         "writer-takeover-web-standby",
         "secret-store-registration-fail-closed",
         "real-tls-rust-web-mutation-proof",
@@ -8698,7 +8705,7 @@ fn native_status_cli_exposes_human_and_machine_views() {
         serde_json::from_slice(&summary.stdout).expect("summary must be JSON");
     assert_eq!(payload["schema_version"], STATUS_SCHEMA_VERSION);
     assert_eq!(payload["calibration"]["model"], STATUS_CALIBRATION_MODEL);
-    assert_eq!(payload["calibration"]["as_of"], "2026-08-26");
+    assert_eq!(payload["calibration"]["as_of"], "2026-08-27");
     assert_eq!(payload["deferred_cell_count"], 1);
     assert!(payload["overall_score"].is_u64());
     assert!(payload["portfolio_score"].is_u64());

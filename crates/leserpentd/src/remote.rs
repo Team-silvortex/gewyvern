@@ -1042,7 +1042,10 @@ fn read_http_request(
                 if content_length == 0 {
                     return Err(HttpError::bad_request());
                 }
-                if content_length > web_console::MAX_REGISTRATION_PLAN_BYTES {
+                let maximum = route
+                    .max_json_body_bytes()
+                    .expect("Rust Web JSON routes declare a body limit");
+                if content_length > maximum {
                     return Err(HttpError {
                         status: HttpStatus::PayloadTooLarge,
                         code: "payload_too_large",
@@ -2213,6 +2216,47 @@ mod tests {
         );
         assert_eq!(registration_plan.body, plan_body);
 
+        let cleanup_body =
+            br#"{"planToken":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}"#;
+        let cleanup = read_http_request(
+            &mut Cursor::new(console_post_request(
+                "/v1/runtimes/delete-unobserved?cluster=edge",
+                cleanup_body,
+                Some(TOKEN),
+                Some(TOKEN),
+                Some("mutate"),
+                true,
+            )),
+            TOKEN.as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(
+            cleanup.route,
+            HttpRoute::ConsoleApi(ConsoleApiRoute::RuntimeCleanup(
+                web_console::CleanupKind::Unobserved,
+                leserpent_domain::RuntimeListFilter {
+                    environment: None,
+                    cluster: Some("edge".into()),
+                    role: None,
+                }
+            ))
+        );
+        assert_eq!(cleanup.body, cleanup_body);
+        let oversized_cleanup = console_post_request(
+            "/v1/runtimes/delete-unobserved",
+            &vec![b'x'; web_console::MAX_CLEANUP_REQUEST_BYTES + 1],
+            Some(TOKEN),
+            Some(TOKEN),
+            Some("mutate"),
+            true,
+        );
+        assert!(matches!(
+            read_http_request(&mut Cursor::new(oversized_cleanup), TOKEN.as_bytes())
+                .unwrap_err()
+                .status,
+            HttpStatus::PayloadTooLarge
+        ));
+
         let refresh = read_http_request(
             &mut Cursor::new(console_post_request(
                 "/v1/fleet/refresh-status?role=edge",
@@ -2478,6 +2522,8 @@ mod tests {
             serde_json::from_slice(&capabilities[find_header_end(&capabilities).unwrap()..])
                 .unwrap();
         assert_eq!(capabilities["webConsole"]["mutationAvailable"], true);
+        assert_eq!(capabilities["webConsole"]["cleanupAvailable"], true);
+        assert_eq!(capabilities["webConsole"]["cleanupAtomicTargetLimit"], 128);
 
         let plan = complete_tls_request(
             &mut server,
@@ -2526,6 +2572,27 @@ mod tests {
             1
         );
 
+        let stale_cleanup_plan = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_get_client(
+                address,
+                cert.der().clone(),
+                "/v1/runtimes/cleanup-plan",
+                Some(TOKEN),
+                Some(TOKEN),
+            ),
+        );
+        let stale_cleanup_plan: serde_json::Value = serde_json::from_slice(
+            &stale_cleanup_plan[find_header_end(&stale_cleanup_plan).unwrap()..],
+        )
+        .unwrap();
+        assert_eq!(stale_cleanup_plan["unobserved"]["runtimeCount"], 2);
+        let stale_cleanup_token = stale_cleanup_plan["unobserved"]["planToken"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
         let deleted = complete_tls_request(
             &mut server,
             &mut runtime,
@@ -2547,6 +2614,84 @@ mod tests {
                 .unwrap()
                 .contains(writer_a)
         );
+
+        let stale_cleanup = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/runtimes/delete-unobserved",
+                serde_json::to_vec(&serde_json::json!({
+                    "planToken": stale_cleanup_token,
+                }))
+                .unwrap(),
+                true,
+            ),
+        );
+        assert!(stale_cleanup.starts_with(b"HTTP/1.1 409 Conflict\r\n"));
+        let stale_cleanup: serde_json::Value =
+            serde_json::from_slice(&stale_cleanup[find_header_end(&stale_cleanup).unwrap()..])
+                .unwrap();
+        assert_eq!(stale_cleanup["error"], "runtime_cleanup_plan_changed");
+        assert!(runtime.runtime_projection(&runtime_b).is_some());
+
+        let current_cleanup_plan = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_get_client(
+                address,
+                cert.der().clone(),
+                "/v1/runtimes/cleanup-plan",
+                Some(TOKEN),
+                Some(TOKEN),
+            ),
+        );
+        let current_cleanup_plan: serde_json::Value = serde_json::from_slice(
+            &current_cleanup_plan[find_header_end(&current_cleanup_plan).unwrap()..],
+        )
+        .unwrap();
+        assert_eq!(current_cleanup_plan["unobserved"]["runtimeCount"], 1);
+        let current_cleanup_body = serde_json::to_vec(&serde_json::json!({
+            "planToken": current_cleanup_plan["unobserved"]["planToken"],
+        }))
+        .unwrap();
+        let cleaned = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/runtimes/delete-unobserved",
+                current_cleanup_body.clone(),
+                true,
+            ),
+        );
+        assert!(cleaned.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let cleaned: serde_json::Value =
+            serde_json::from_slice(&cleaned[find_header_end(&cleaned).unwrap()..]).unwrap();
+        assert_eq!(cleaned["removedRuntimeCount"], 1);
+        assert_eq!(cleaned["replayed"], false);
+        assert!(runtime.runtime_projection(&runtime_b).is_none());
+
+        let replayed_cleanup = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/runtimes/delete-unobserved",
+                current_cleanup_body,
+                true,
+            ),
+        );
+        assert!(replayed_cleanup.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let replayed_cleanup: serde_json::Value = serde_json::from_slice(
+            &replayed_cleanup[find_header_end(&replayed_cleanup).unwrap()..],
+        )
+        .unwrap();
+        assert_eq!(replayed_cleanup["removedRuntimeCount"], 1);
+        assert_eq!(replayed_cleanup["replayed"], true);
 
         assert_eq!(
             runtime.claim_authority_writer(writer_b).unwrap().generation,

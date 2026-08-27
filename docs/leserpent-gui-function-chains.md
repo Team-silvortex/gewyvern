@@ -38,7 +38,7 @@ Target and bridge surfaces are reported separately. A closed 1.x Web bridge is
 valuable compatibility evidence, but it does not make the Rust-hosted 2.0 Web
 surface complete.
 
-## 2026-08-26 Baseline
+## 2026-08-27 Baseline
 
 | Surface | Lifecycle | Score | Closed | Partial | Conformance only | Absent |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -61,8 +61,8 @@ identity without sending deployment credentials or service secrets. The
 remaining target gap is:
 
 - atomic platform secret-store writes for native registration, plus Rust-owned
-  bulk cleanup, persistence import/export, and Orchestra compatibility routes,
-  after which the ASP.NET bridge can retire.
+  persistence import/export and Orchestra compatibility routes, after which the
+  ASP.NET bridge can retire.
 
 `leserpentd` now serves the exact packaged TypeScript console from its existing
 authenticated HTTPS listener. Public HTML, JavaScript, CSS, branding, and
@@ -75,11 +75,17 @@ refresh enters the existing typed effect queue and single-runtime deletion uses
 the durable revision-fenced unregistration transaction. Each daemon start uses
 a fresh CSPRNG writer identity, and the resulting ticket stays inside
 `leserpentd`; same-origin mutation intent is mandatory, and a later bridge writer
-claim moves Rust Web to visible `409` standby. Registration planning is
-strict and secret-free but rejects execution until the platform secret store can
-commit credentials atomically. Real TLS tests prove these boundaries. The path
-remains `partial` while registration execution, bulk cleanup, persistence, and
-Orchestra still depend on the 1.x bridge.
+claim moves Rust Web to visible `409` standby. Cleanup previews now classify the
+live failed, unobserved, and filtered-slice targets into canonical v2 plan tokens;
+execution recomputes that plan, requires `CLEAR N` for a whole slice, commits at
+most 128 revision-fenced targets atomically, and replays a durable receipt after
+a lost response. The shared UI disables cleanup controls whenever the daemon
+reports that this writer capability is unavailable. Registration planning is
+strict and secret-free but rejects
+execution until the platform secret store can commit credentials atomically.
+Real TLS tests prove these boundaries. The path remains `partial` while
+registration execution, persistence, and Orchestra still depend on the 1.x
+bridge.
 
 The debugger workspace starts a bounded daemon-owned VM only to its first
 effect, mounts the Rust-authored `UiDocument`, and routes its session-bound

@@ -4,7 +4,7 @@
   "checkpoint": "v1.17.4-to-v2.0.0-roadmap",
   "calibration": {
     "model": "priority-weighted-strength-v1",
-    "as_of": "2026-08-26"
+    "as_of": "2026-08-27"
   },
   "dimensions": {
     "architectures": [
@@ -2538,12 +2538,12 @@
       "lifecycle": "target",
       "priority": "critical",
       "maturity": "developing",
-      "completion": 97,
+      "completion": 98,
       "confidence": "high",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-gui-function-chain",
-        "version": "0.8.0-draft",
+        "version": "0.9.0-draft",
         "stability": "draft",
         "surfaces": [
           "machine-readable-operation-inventory",
@@ -2594,6 +2594,13 @@
           "same-origin-web-mutation-intent-fence",
           "typed-rust-web-fleet-refresh",
           "revision-fenced-rust-web-runtime-delete",
+          "canonical-rust-web-cleanup-plan",
+          "plan-token-fenced-rust-web-cleanup",
+          "challenged-rust-web-slice-cleanup",
+          "atomic-rust-web-bulk-unregistration",
+          "durable-rust-web-cleanup-receipt-replay",
+          "bounded-rust-web-cleanup-request",
+          "cleanup-capability-ui-fence",
           "writer-takeover-web-standby",
           "secret-store-registration-fail-closed",
           "real-tls-rust-web-mutation-proof",
@@ -2611,7 +2618,7 @@
       "blockers": [
         {
           "id": "rust-web-self-host",
-          "summary": "leserpentd now owns first-screen reads, daemon-owned fleet refresh, and revision-fenced single-runtime deletion; registration execution, bulk cleanup, persistence import/export, and Orchestra compatibility routes remain before the ASP.NET bridge can retire."
+          "summary": "leserpentd now owns first-screen reads, daemon-owned fleet refresh, revision-fenced single-runtime deletion, and plan-fenced atomic bulk cleanup; registration execution, persistence import/export, and Orchestra compatibility routes remain before the ASP.NET bridge can retire."
         }
       ],
       "consumers": ["release-gates", "desktop-operators", "web-operators", "model-automation"],
@@ -2646,7 +2653,7 @@
         { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" }
       ],
-      "next_gate": "Add an atomic platform secret-store write contract for registration, then move bulk cleanup, persistence import/export, and Orchestra compatibility routes behind Rust authority before retiring the ASP.NET bridge."
+      "next_gate": "Add an atomic platform secret-store write contract for registration, then move persistence import/export and Orchestra compatibility routes behind Rust authority before retiring the ASP.NET bridge."
     },
     {
       "id": "leserpent-2/ui-renderers/desktop-localization",

@@ -108,6 +108,10 @@ function currentSliceRiskLevel() {
   return state.cache.cleanupPlan?.riskLevel === "protected";
 }
 
+function cleanupMutationAvailable() {
+  return state.cache.capabilities?.webConsole?.cleanupAvailable !== false;
+}
+
 function currentSliceRiskWarning() {
   return currentSliceRiskLevel() ? `\n\n${t("notifications.runtimeCleanupProtectedWarning")}` : "";
 }
@@ -203,16 +207,17 @@ function syncCleanupMenuState() {
     });
   }
   const cleanupBusy = state.uiActions.has("runtime-cleanup");
+  const cleanupUnavailable = !cleanupMutationAvailable();
   if (nodes.runtimeDeleteFailed) {
-    nodes.runtimeDeleteFailed.disabled = cleanupBusy || currentFailedRuntimeCount() === 0;
+    nodes.runtimeDeleteFailed.disabled = cleanupUnavailable || cleanupBusy || currentFailedRuntimeCount() === 0;
     nodes.runtimeDeleteFailed.toggleAttribute("aria-busy", cleanupBusy);
   }
   if (nodes.runtimeDeleteUnobserved) {
-    nodes.runtimeDeleteUnobserved.disabled = cleanupBusy || currentUnobservedRuntimeCount() === 0;
+    nodes.runtimeDeleteUnobserved.disabled = cleanupUnavailable || cleanupBusy || currentUnobservedRuntimeCount() === 0;
     nodes.runtimeDeleteUnobserved.toggleAttribute("aria-busy", cleanupBusy);
   }
   if (nodes.runtimeClearSlice) {
-    nodes.runtimeClearSlice.disabled = cleanupBusy || currentSliceCount() === 0;
+    nodes.runtimeClearSlice.disabled = cleanupUnavailable || cleanupBusy || currentSliceCount() === 0;
     nodes.runtimeClearSlice.toggleAttribute("aria-busy", cleanupBusy);
   }
 }
@@ -415,7 +420,7 @@ async function deleteFailedRuntimes() {
   const plan = cleanupAction("failed");
   const targets = plan?.targets || [];
   const count = plan?.runtimeCount ?? 0;
-  if (!count || state.uiActions.has("runtime-cleanup")) {
+  if (!cleanupMutationAvailable() || !count || state.uiActions.has("runtime-cleanup")) {
     syncCleanupMenuState();
     return;
   }
@@ -454,7 +459,7 @@ async function deleteUnobservedRuntimes() {
   const plan = cleanupAction("unobserved");
   const targets = plan?.targets || [];
   const count = plan?.runtimeCount ?? 0;
-  if (!count || state.uiActions.has("runtime-cleanup")) {
+  if (!cleanupMutationAvailable() || !count || state.uiActions.has("runtime-cleanup")) {
     syncCleanupMenuState();
     return;
   }
@@ -492,7 +497,7 @@ async function clearRuntimeSlice() {
   const slice = currentSliceLabel();
   const plan = cleanupAction("slice");
   const targets = plan?.targets || [];
-  if (!plan?.runtimeCount || state.uiActions.has("runtime-cleanup")) {
+  if (!cleanupMutationAvailable() || !plan?.runtimeCount || state.uiActions.has("runtime-cleanup")) {
     syncCleanupMenuState();
     return;
   }

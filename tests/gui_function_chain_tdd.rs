@@ -87,7 +87,7 @@ fn gui_function_chain_catalog_is_complete_and_source_anchored() {
 
     assert_eq!(catalog.schema_version, GUI_FUNCTION_CHAIN_SCHEMA_VERSION);
     assert_eq!(catalog.release_line, "2.0");
-    assert_eq!(catalog.as_of, "2026-08-26");
+    assert_eq!(catalog.as_of, "2026-08-27");
     assert_eq!(catalog.operations.len(), 35);
     assert_eq!(catalog.chains.len(), 11);
 
