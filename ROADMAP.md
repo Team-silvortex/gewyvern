@@ -1,7 +1,7 @@
 # gewyvern Roadmap
 
-This roadmap treats `v1.17.x` as the active post-1.0 stable line, with
-`v1.17.4` as the current shared release.
+This roadmap treats `v1.20.x` as the active post-1.0 stable line, with
+`v1.20.0` as the current shared release.
 
 `gewyvern` is no longer on the road to `1.0.0`; it has crossed that line.
 The current question is how to preserve the sealed Gewyvern core while
@@ -12,8 +12,8 @@ defined for `2.0.0`.
 
 - last fully documented historical validation baseline: `v0.10.0`
 - sealed stable baseline: `v1.0.0`
-- current documented checkpoint: `v1.17.4`
-- active line: `v1.17.x` reliability work and Rust control-plane delivery
+- current documented checkpoint: `v1.20.0`
+- active line: `v1.20.x` reliability work and Rust control-plane delivery
 - target next major: `v2.0.0`, centered on the Rust Leserpent runtime and
   replaceable Leselang, CLI, and GUI frontends
 - active next-major architecture:
@@ -28,9 +28,9 @@ For the explicit `0.15.x -> 0.20.x -> 1.0.0` spine, see
 Machine-readable current progress is tracked by the
 [project status tensor](docs/project-status-system.md), not duplicated here.
 
-## What `v1.17.x` Means Right Now
+## What `v1.20.x` Means Right Now
 
-At the current `v1.17.4` checkpoint, the active line should be interpreted as:
+At the current `v1.20.0` checkpoint, the active line should be interpreted as:
 
 - a usable standalone Linux-oriented debugger/runtime with a sealed core
 - a stable `gewylang` and `gewyc` surface for real package authoring
@@ -50,7 +50,7 @@ It should not be interpreted as:
 
 ## Current Priorities
 
-### 1. `v1.17.x`: Reliability And Operating Confidence
+### 1. `v1.20.x`: Reliability And Operating Confidence
 
 - keep release-gate, remote-Linux, and target-lab validation paths easy to rerun
 - keep startup, stop, logs, persistence, and cleanup predictable under failed
@@ -59,6 +59,15 @@ It should not be interpreted as:
   reopening machine-contract drift
 - improve performance and UX where the stable core is already proven
 - keep adjacent apps aligned to the same mainline version and stable boundaries
+
+This is the final ten-slot `v1.20.0` through `v1.20.9` seal window. It is
+closure-only: existing-capability polish, reliability, security, performance,
+conformance, packaging/deployment/recovery, documentation, and simplification
+may advance, while new core capability families remain frozen. Existing proof
+shelves stay mandatory; expanded platform/device testing and production
+signing/notarization move to post-2.0 work. The detailed and machine-validated
+sequence lives in [docs/leserpent-2-roadmap.md](docs/leserpent-2-roadmap.md) and
+[project/release/leserpent-2-patch-seal.json](project/release/leserpent-2-patch-seal.json).
 
 Execution shelf:
 

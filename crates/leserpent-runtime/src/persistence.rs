@@ -442,11 +442,12 @@ impl Journal {
         writer_id: &str,
     ) -> Result<AuthorityWriterClaimRecord, String> {
         validate_authority_writer_id(writer_id)?;
-        self.ensure_owner()?;
+        let owner_token = self.owner_token.clone();
         let transaction = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| error.to_string())?;
+        require_owner(&transaction, &owner_token)?;
         let current: Option<(i64, String)> = transaction
             .query_row(
                 "SELECT generation, writer_id
@@ -461,6 +462,7 @@ impl Journal {
         {
             let generation = u64::try_from(*generation)
                 .map_err(|_| "authority writer generation is invalid".to_string())?;
+            renew_owner(&transaction, &owner_token)?;
             transaction.commit().map_err(|error| error.to_string())?;
             return Ok(AuthorityWriterClaimRecord {
                 generation,
@@ -484,6 +486,8 @@ impl Journal {
                 params![generation, writer_id],
             )
             .map_err(|error| error.to_string())?;
+        // Renew after the fence write so crash injection cannot stop on a lease-only journal.
+        renew_owner(&transaction, &owner_token)?;
         transaction.commit().map_err(|error| error.to_string())?;
         Ok(AuthorityWriterClaimRecord {
             generation: u64::try_from(generation)
@@ -3429,21 +3433,7 @@ impl Journal {
     }
 
     pub fn ensure_owner(&mut self) -> Result<(), String> {
-        let expires_at = unix_time_ms()?
-            .checked_add(OWNER_LEASE_DURATION_MS)
-            .ok_or_else(|| "runtime owner lease timestamp overflow".to_string())?;
-        let changed = self
-            .connection
-            .execute(
-                "UPDATE runtime_owner SET lease_expires_at_unix_ms = ?1
-                 WHERE id = 1 AND owner_token = ?2",
-                params![expires_at, self.owner_token],
-            )
-            .map_err(|error| error.to_string())?;
-        if changed != 1 {
-            return Err("runtime journal ownership lease was lost".into());
-        }
-        Ok(())
+        renew_owner(&self.connection, &self.owner_token)
     }
 }
 
@@ -6265,6 +6255,39 @@ fn acquire_owner(connection: &mut Connection, owner_token: &str) -> Result<(), S
         return Err("runtime journal is owned by another live process".into());
     }
     transaction.commit().map_err(|error| error.to_string())
+}
+
+fn renew_owner(connection: &Connection, owner_token: &str) -> Result<(), String> {
+    let expires_at = unix_time_ms()?
+        .checked_add(OWNER_LEASE_DURATION_MS)
+        .ok_or_else(|| "runtime owner lease timestamp overflow".to_string())?;
+    let changed = connection
+        .execute(
+            "UPDATE runtime_owner SET lease_expires_at_unix_ms = ?1
+             WHERE id = 1 AND owner_token = ?2",
+            params![expires_at, owner_token],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed != 1 {
+        return Err("runtime journal ownership lease was lost".into());
+    }
+    Ok(())
+}
+
+fn require_owner(connection: &Connection, owner_token: &str) -> Result<(), String> {
+    let owned = connection
+        .query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM runtime_owner WHERE id = 1 AND owner_token = ?1
+             )",
+            [owner_token],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|error| error.to_string())?;
+    if !owned {
+        return Err("runtime journal ownership lease was lost".into());
+    }
+    Ok(())
 }
 
 fn new_owner_token() -> Result<String, String> {

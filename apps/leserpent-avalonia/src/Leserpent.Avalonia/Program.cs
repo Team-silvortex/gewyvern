@@ -239,7 +239,7 @@ internal static class Program
         {
             SilvortexAccountSession.VerifyContract();
             Console.WriteLine(
-                "Silvortex desktop account valid: reviewed_application=leserpent, reviewed_profile=leserpent_desktop, default_client_id=true, native_client=true, system_browser=true, pkce_s256=true, state=true, nonce=true, response_issuer=true, strict_loopback_http=true, rs256_jwks=true, mfa=true, rotating_vault=true, duplicate_parameters=false, client_secret=false, offline_mode=true, packaged_issuer=true, environment_override=false");
+                "Silvortex desktop account valid: reviewed_application=leserpent, reviewed_profile=leserpent_desktop, default_client_id=true, native_client=true, system_browser=true, pkce_s256=true, state=true, nonce=true, response_issuer=true, strict_loopback_http=true, rs256_jwks=true, mfa=true, rotating_vault=true, duplicate_parameters=false, client_secret=false, offline_mode=true, packaged_issuer=true, environment_override=false, cancellation_safe_disposal=true");
             return 0;
         }
         if (args is ["--verify-silvortex-account-proof"])

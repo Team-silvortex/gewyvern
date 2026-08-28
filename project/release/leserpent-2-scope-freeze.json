@@ -94,7 +94,8 @@
     "bug-fixes",
     "cross-language-conformance",
     "documentation",
-    "packaging-signing-notarization",
+    "existing-capability-polish",
+    "packaging-deployment-recovery",
     "performance-benchmarks",
     "reliability-hardening",
     "security-audits",
@@ -104,7 +105,9 @@
     "additional-runtime-languages",
     "automatic-gui-framework-compatibility",
     "etragon-release-authority",
+    "expanded-host-device-test-matrix",
     "full-mobile-device-parity",
+    "production-signing-notarization",
     "second-gui-control-dsl",
     "windows-native-parity"
   ]

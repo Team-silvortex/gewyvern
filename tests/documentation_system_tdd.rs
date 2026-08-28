@@ -173,22 +173,23 @@ fn leserpent_next_major_has_one_architecture_and_one_delivery_roadmap() {
             "2.0 roadmap must preserve delivery gate {gate}"
         );
     }
+    let normalized_roadmap = roadmap.split_whitespace().collect::<Vec<_>>().join(" ");
     for freeze_rule in [
         "## 2.0 Scope Freeze",
         "The core 2.0 capability set is closed",
         "No new core capability family may enter",
-        "Remaining minor versions are allowed to\nfinish only the already-declared",
+        "Remaining minor versions are allowed to finish only the already-declared",
         "Accepted work after the freeze is closure work",
         "Rejected work is scope expansion",
-        "moving\nEtragon into the release gate",
+        "moving Etragon into the release gate",
         "claiming Windows native parity",
-        "making GUI frameworks\nautomatically compatible",
+        "making GUI frameworks automatically compatible",
         "WinRM is explicitly outside the 2.0 evidence gate",
         "physical device release parity is deferred",
         "full mobile device release parity beyond the declared entry/lifecycle contract",
     ] {
         assert!(
-            roadmap.contains(freeze_rule),
+            normalized_roadmap.contains(freeze_rule),
             "2.0 roadmap must preserve scope-freeze rule: {freeze_rule}"
         );
     }

@@ -7,7 +7,7 @@ Use this page when you want a compact, structured mapping from:
 - suspicious transition
 - expected diagnosis labels
 
-This is the maintenance table for the current `1.17.x` management-UDP shelf.
+This is the maintenance table for the current `1.20.x` management-UDP shelf.
 
 Read alongside:
 

@@ -1,4 +1,4 @@
-# gewyvern v1.17.x
+# gewyvern v1.20.x
 
 <p align="center">
   <img src="docs/assets/branding/gewyvern-logo-v1.svg" alt="gewyvern logo" width="240">
@@ -85,7 +85,7 @@ session data.
 
 ## Status
 
-- project version: `1.17.x`
+- project version: `1.20.x`
 - stage: post-1.0 stable development, preserving the sealed debugger core while
   hardening reliability and advancing the Rust Leserpent/Leselang control plane
 - transport support: TCP + UDP
@@ -116,12 +116,17 @@ session data.
 `gewyvern` is no longer just a convergence story. The current line is:
 
 - historical validation baseline: `v0.10.0`
-- current release line: `v1.17.x`, with `v1.17.4` as the current shared release
-- current focus: keep the broad protocol catalog behaving like one integrated
-  local network debugger with stable startup, stop, logs, recovery,
-  persistence, cross-validation, and Linux-host execution paths
+- current release line: `v1.20.x`, with `v1.20.0` as the current shared release
+- current focus: close the ten-slot `v1.20.0` through `v1.20.9` stabilization
+  window without widening scope, while keeping the broad protocol catalog
+  behaving like one integrated local network debugger with stable startup,
+  stop, logs, recovery, persistence, cross-validation, and Linux-host paths
 
-The `1.0.0` seal established the trust baseline. The `1.17.x` line preserves
+The 2.0 seal prioritizes completing and polishing the declared function chain.
+Existing regression and security gates remain required; broader host/device
+matrices and production signing/notarization evidence begin after `2.0.0`.
+
+The `1.0.0` seal established the trust baseline. The `1.20.x` line preserves
 that baseline while extending the surrounding system: stable CLI/runtime and
 DSL/compiler boundaries, reliable HTML/JSON/API reporting, predictable
 operational performance, clean lifecycle behavior, and a contract-driven path
@@ -130,6 +135,7 @@ toward the Rust Leserpent and Leselang architecture.
 Primary release-line shelves:
 
 - [ROADMAP.md](ROADMAP.md)
+- [project/release/leserpent-2-patch-seal.json](project/release/leserpent-2-patch-seal.json)
 - [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md)
 - [docs/v0.14-posture.md](docs/v0.14-posture.md)
 - [docs/history/index.md](docs/history/index.md)

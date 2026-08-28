@@ -158,7 +158,7 @@ internal sealed class SilvortexAccountSession : IDisposable
     private OidcMetadata? metadata;
     private Task? restoreTask;
     private string? accessToken;
-    private bool disposed;
+    private int disposeState;
 
     private SilvortexAccountSnapshot snapshot;
 
@@ -194,6 +194,8 @@ internal sealed class SilvortexAccountSession : IDisposable
 
     public SilvortexAccountSnapshot Snapshot => snapshot;
 
+    private bool IsDisposed => Volatile.Read(ref disposeState) != 0;
+
     internal bool SystemBrowserLaunched { get; private set; }
 
     internal bool AccessTokenRevocationAttempted { get; private set; }
@@ -228,7 +230,7 @@ internal sealed class SilvortexAccountSession : IDisposable
 
     internal Task RestoreForProofAsync()
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
         if (options is null)
         {
             throw new InvalidOperationException(
@@ -239,8 +241,8 @@ internal sealed class SilvortexAccountSession : IDisposable
 
     public async Task SignInAsync()
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
-        if (options is null || !await operationGate.WaitAsync(0, lifetime.Token))
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        if (options is null || !await TryEnterOperationAsync())
         {
             return;
         }
@@ -284,8 +286,8 @@ internal sealed class SilvortexAccountSession : IDisposable
 
     public async Task SignOutAsync()
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
-        if (options is null || !await operationGate.WaitAsync(0, lifetime.Token))
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        if (options is null || !await TryEnterOperationAsync())
         {
             return;
         }
@@ -332,16 +334,16 @@ internal sealed class SilvortexAccountSession : IDisposable
 
     public void Dispose()
     {
-        if (disposed)
+        if (Interlocked.Exchange(ref disposeState, 1) != 0)
         {
             return;
         }
-        disposed = true;
         accessToken = null;
+        SnapshotChanged = null;
         lifetime.Cancel();
         http.Dispose();
-        operationGate.Dispose();
-        lifetime.Dispose();
+        // In-flight UI operations still release/read these after cancellation.
+        // Let their managed owners be collected instead of racing continuations.
     }
 
     public static void VerifyContract()
@@ -442,6 +444,7 @@ internal sealed class SilvortexAccountSession : IDisposable
         SilvortexAccountConfigurationLoader.VerifyContract();
         ExpectInvalidPresentationStatus();
         VerifyCryptographicContractAsync(options, metadata).GetAwaiter().GetResult();
+        VerifyDisposalContractAsync(options).GetAwaiter().GetResult();
     }
 
     internal static bool HasStoredRefreshToken(SilvortexAccountOptions configured) =>
@@ -470,7 +473,7 @@ internal sealed class SilvortexAccountSession : IDisposable
     {
         lock (restoreSync)
         {
-            if (options is null || disposed)
+            if (options is null || IsDisposed)
             {
                 return Task.CompletedTask;
             }
@@ -484,9 +487,11 @@ internal sealed class SilvortexAccountSession : IDisposable
         {
             return;
         }
-        await operationGate.WaitAsync(lifetime.Token);
+        var entered = false;
         try
         {
+            await operationGate.WaitAsync(lifetime.Token);
+            entered = true;
             var refreshToken = LoadRefreshToken(options);
             if (refreshToken is null)
             {
@@ -518,7 +523,26 @@ internal sealed class SilvortexAccountSession : IDisposable
         }
         finally
         {
-            operationGate.Release();
+            if (entered)
+            {
+                operationGate.Release();
+            }
+        }
+    }
+
+    private async Task<bool> TryEnterOperationAsync()
+    {
+        if (IsDisposed)
+        {
+            return false;
+        }
+        try
+        {
+            return await operationGate.WaitAsync(0, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            return false;
         }
     }
 
@@ -1279,9 +1303,51 @@ internal sealed class SilvortexAccountSession : IDisposable
         throw new InvalidDataException("Silvortex ID token accepted a modified signature.");
     }
 
+    private static async Task VerifyDisposalContractAsync(SilvortexAccountOptions options)
+    {
+        var handler = new CancellationProbeHandler();
+        var session = new SilvortexAccountSession(
+            options,
+            "disposal verification",
+            SilvortexAccountStatus.Raw,
+            null,
+            handler);
+        var notificationCount = 0;
+        session.SnapshotChanged += _ => notificationCount++;
+        var inFlight = session.SignInAsync();
+        await handler.RequestStarted.WaitAsync(RequestTimeout);
+        var notificationsAtDisposal = notificationCount;
+        session.Dispose();
+        session.Dispose();
+        await inFlight.WaitAsync(RequestTimeout);
+        if (notificationCount != notificationsAtDisposal)
+        {
+            throw new InvalidDataException(
+                "Silvortex account disposal published a stale operation result.");
+        }
+        try
+        {
+            await session.SignInAsync();
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
+        throw new InvalidDataException(
+            "Silvortex account disposal accepted a new operation.");
+    }
+
     private void SetSnapshot(SilvortexAccountSnapshot value)
     {
+        if (IsDisposed)
+        {
+            return;
+        }
         ValidateSnapshot(value);
+        if (IsDisposed)
+        {
+            return;
+        }
         snapshot = value;
         SnapshotChanged?.Invoke(value);
     }
@@ -1422,6 +1488,24 @@ internal sealed class SilvortexAccountSession : IDisposable
                 RequestMessage = request,
                 Content = new StringContent(jwks, Encoding.UTF8, "application/json"),
             });
+    }
+
+    private sealed class CancellationProbeHandler : HttpMessageHandler
+    {
+        private readonly TaskCompletionSource requestStarted = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task RequestStarted => requestStarted.Task;
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            requestStarted.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException(
+                "Silvortex cancellation probe resumed without cancellation.");
+        }
     }
 
     private sealed class LoopbackCallbackServer(SilvortexAccountOptions options) : IDisposable

@@ -4833,11 +4833,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "gewyvern-core/linux-ebpf/linux-attach")
         .expect("Gewyvern Linux attach cell must exist");
-    assert_eq!(linux_attach.maturity, Maturity::Stabilizing);
-    assert_eq!(linux_attach.priority, Priority::Critical);
-    assert_eq!(linux_attach.completion, 90);
-    assert_eq!(linux_attach.contract.version, "1.8.0");
-    assert_eq!(linux_attach.blockers.len(), 1);
+    assert_eq!(linux_attach.maturity, Maturity::Mature);
+    assert_eq!(linux_attach.priority, Priority::Maintenance);
+    assert_eq!(linux_attach.completion, 100);
+    assert_eq!(linux_attach.contract.version, "1.9.0");
+    assert_eq!(linux_attach.contract.stability, ContractStability::Stable);
+    assert!(linux_attach.blockers.is_empty());
+    assert!(linux_attach.next_gate.contains("after 2.0"));
     for surface in [
         "dedicated-project-ssh-alias",
         "project-owned-remote-workspace-root",
@@ -4940,7 +4942,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.priority, Priority::Critical);
     assert_eq!(avalonia.completion, 97);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.109.0");
+    assert_eq!(avalonia.contract.version, "1.110.0");
     assert!(
         avalonia
             .blockers
@@ -5060,6 +5062,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "reviewed-account-proof-configuration-fence",
         "preexisting-account-credential-refusal",
         "fresh-session-vault-refresh-proof",
+        "cancellation-safe-account-session-disposal",
         "refresh-credential-rotation-proof",
         "revocation-attempt-observation",
         "private-atomic-account-proof-evidence",
@@ -5274,7 +5277,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(avalonia.next_gate.contains("system-browser"));
     assert!(avalonia.next_gate.contains("credential-vault"));
     assert!(avalonia.next_gate.contains("local logout"));
-    assert!(avalonia.next_gate.contains("Linux Secret Service"));
+    assert!(
+        avalonia
+            .next_gate
+            .contains("broaden packaged host evidence after 2.0")
+    );
     assert_eq!(avalonia.blockers.len(), 1);
     assert_eq!(avalonia.blockers[0].id, "desktop-production-account-proof");
 
@@ -7157,13 +7164,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
                 .contains("18-key core-ui v1 compatibility floor")
             && blocker.summary.contains("22 current official v1.2.0")
             && blocker.summary.contains("exact 42-key set")
-            && blocker.summary.contains("credential-free")
-            && blocker.summary.contains("digest-bound")
-            && blocker.summary.contains("packaged macOS arm64")
-            && blocker.summary.contains("physical Linux x86_64")
             && blocker
                 .summary
-                .contains("v1.1.0/30-key historical evidence")
+                .contains("Packaged multi-host refresh evidence is explicitly post-2.0")
             && blocker.summary.contains("intentionally partial")
             && blocker
                 .summary
@@ -7233,7 +7236,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         desktop_localization
             .next_gate
-            .contains("refresh packaged macOS arm64 and physical Linux x86_64 evidence")
+            .contains("refresh packaged multi-host evidence after 2.0")
     );
     assert!(desktop_localization.evidence.iter().any(|evidence| {
         evidence.path
@@ -7290,14 +7293,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/remote-console/remote-mobile-console")
         .expect("remote/mobile console contract must remain tracked");
-    assert_eq!(remote_console.maturity, Maturity::Stabilizing);
-    assert_eq!(remote_console.priority, Priority::Active);
-    assert_eq!(remote_console.completion, 86);
-    assert_eq!(remote_console.contract.version, "0.69.0");
-    assert_eq!(
-        remote_console.contract.stability,
-        ContractStability::Evolving
-    );
+    assert_eq!(remote_console.maturity, Maturity::Mature);
+    assert_eq!(remote_console.priority, Priority::Maintenance);
+    assert_eq!(remote_console.completion, 100);
+    assert_eq!(remote_console.contract.version, "1.0.0");
+    assert_eq!(remote_console.contract.stability, ContractStability::Stable);
+    assert!(remote_console.blockers.is_empty());
+    assert!(remote_console.next_gate.contains("after 2.0"));
     for surface in [
         "renderer-neutral-runtime-search",
         "cross-authority-topology-search",
@@ -7470,7 +7472,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(two_zero_seal.completion, 64);
     assert_eq!(two_zero_seal.maturity, Maturity::Developing);
     assert_eq!(two_zero_seal.priority, Priority::Critical);
-    assert_eq!(two_zero_seal.contract.version, "0.17.0-draft");
+    assert_eq!(two_zero_seal.contract.version, "0.19.0-draft");
     assert!(
         two_zero_seal
             .contract
@@ -7485,6 +7487,22 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .iter()
             .any(|surface| surface == "machine-validated-scope-freeze-manifest")
     );
+    for surface in [
+        "ten-slot-patch-seal-plan",
+        "patch-seal-closure-whitelist",
+        "existing-proof-shelves-required",
+        "expanded-host-device-test-matrix-post-two-zero",
+        "production-signing-notarization-post-two-zero",
+    ] {
+        assert!(
+            two_zero_seal
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing 2.0 patch-seal surface {surface}"
+        );
+    }
     assert!(
         two_zero_seal
             .contract
@@ -7519,6 +7537,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && evidence.state == EvidenceState::Present
     }));
     assert!(two_zero_seal.evidence.iter().any(|evidence| {
+        evidence.path == "project/release/leserpent-2-patch-seal.json"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(two_zero_seal.evidence.iter().any(|evidence| {
         evidence.path == "src/validation_harness/release_gate.rs"
             && evidence.state == EvidenceState::Present
     }));
@@ -7537,9 +7559,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         blocker.id == "prior-gates-open"
             && blocker
                 .summary
-                .contains("unified current-run parity/schema release stage")
-            && blocker.summary.contains("Apple-backed release evidence")
-            && !blocker.summary.contains("desktop/remote conformance")
+                .contains("v1 schema and compatibility baselines")
+            && blocker.summary.contains("Avalonia production-account flow")
+            && blocker.summary.contains("desktop language review")
+            && blocker
+                .summary
+                .contains("production signing/notarization are post-2.0 tracks")
     }));
 
     let continuous_proof = catalog
@@ -7547,14 +7572,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/release-assurance/continuous-proof")
         .expect("continuous proof contract must remain tracked");
-    assert_eq!(continuous_proof.maturity, Maturity::Stabilizing);
-    assert_eq!(continuous_proof.priority, Priority::Critical);
-    assert_eq!(continuous_proof.completion, 92);
-    assert_eq!(continuous_proof.contract.version, "0.79.0");
+    assert_eq!(continuous_proof.maturity, Maturity::Mature);
+    assert_eq!(continuous_proof.priority, Priority::Maintenance);
+    assert_eq!(continuous_proof.completion, 100);
+    assert_eq!(continuous_proof.contract.version, "1.0.0");
     assert_eq!(
         continuous_proof.contract.stability,
-        ContractStability::Evolving
+        ContractStability::Stable
     );
+    assert!(continuous_proof.blockers.is_empty());
+    assert!(continuous_proof.next_gate.contains("after 2.0"));
     assert!(
         continuous_proof
             .contract

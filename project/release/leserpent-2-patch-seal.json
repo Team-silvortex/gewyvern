@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "release_line": "1.20.x",
+  "target_release": "2.0.0",
+  "policy": "closure-only",
+  "scope_freeze_manifest": "project/release/leserpent-2-scope-freeze.json",
+  "patch_slots": [
+    {
+      "version": "1.20.0",
+      "focus": "release-line-lock",
+      "closure_work": [
+        "documentation",
+        "status-tensor-alignment",
+        "accidental-complexity-reduction"
+      ],
+      "exit_gate": "All product version surfaces, active-line documents, scope metadata, and status checkpoints agree on 1.20.0."
+    },
+    {
+      "version": "1.20.1",
+      "focus": "reliability-baseline",
+      "closure_work": [
+        "bug-fixes",
+        "reliability-hardening"
+      ],
+      "exit_gate": "Lifecycle, crash, restart, cancellation, and deterministic recovery regressions are closed with retained evidence."
+    },
+    {
+      "version": "1.20.2",
+      "focus": "security-closure",
+      "closure_work": [
+        "security-audits",
+        "bug-fixes"
+      ],
+      "exit_gate": "Authentication, authorization, secret handling, fuzzing, dependency, and hostile-input shelves are green or explicitly blocked."
+    },
+    {
+      "version": "1.20.3",
+      "focus": "performance-closure",
+      "closure_work": [
+        "performance-benchmarks",
+        "accidental-complexity-reduction"
+      ],
+      "exit_gate": "Runtime, persistence, transport, UI IR, frontend refresh, artifact size, and cold-start budgets have reproducible comparisons."
+    },
+    {
+      "version": "1.20.4",
+      "focus": "frontend-conformance",
+      "closure_work": [
+        "cross-language-conformance",
+        "bug-fixes",
+        "documentation"
+      ],
+      "exit_gate": "Avalonia, web, CLI, mobile minimum entry, and Leselang expose the frozen function chain without frontend-owned control semantics."
+    },
+    {
+      "version": "1.20.5",
+      "focus": "linux-runtime-polish",
+      "closure_work": [
+        "existing-capability-polish",
+        "reliability-hardening",
+        "performance-benchmarks"
+      ],
+      "exit_gate": "Linux runtime, eBPF attach, package, control-plane, recovery, and operator workflows are robust against the retained supported-host baseline."
+    },
+    {
+      "version": "1.20.6",
+      "focus": "deployment-recovery",
+      "closure_work": [
+        "packaging-deployment-recovery",
+        "reliability-hardening",
+        "bug-fixes"
+      ],
+      "exit_gate": "Local and reverse deployment, upgrade, rollback, state preservation, and failed-install recovery pass on supported hosts."
+    },
+    {
+      "version": "1.20.7",
+      "focus": "desktop-capability-polish",
+      "closure_work": [
+        "existing-capability-polish",
+        "cross-language-conformance",
+        "security-audits"
+      ],
+      "exit_gate": "The Avalonia Hub, account, daemon, workspace, localization, and recovery flows are complete, safe, and equivalent to their protocol operations on supported desktop hosts."
+    },
+    {
+      "version": "1.20.8",
+      "focus": "migration-documentation",
+      "closure_work": [
+        "documentation",
+        "cross-language-conformance",
+        "status-tensor-alignment"
+      ],
+      "exit_gate": "Operator, developer, model, migration, compatibility, deployment, and recovery documentation matches tested behavior."
+    },
+    {
+      "version": "1.20.9",
+      "focus": "release-candidate-seal",
+      "closure_work": [
+        "security-audits",
+        "performance-benchmarks",
+        "packaging-deployment-recovery",
+        "status-tensor-alignment",
+        "documentation"
+      ],
+      "exit_gate": "The existing 2.0 release gate is reproducible, v1 compatibility is frozen, every in-scope status cell is evidenced, and no unreviewed feature change remains."
+    }
+  ]
+}

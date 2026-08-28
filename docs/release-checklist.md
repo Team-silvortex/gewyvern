@@ -1,12 +1,12 @@
 # Release Checklist
 
 This page is the shortest practical release checklist for the active
-`1.17.x` line.
+`1.20.x` line.
 
 Use it when the question is not "how does packaging work?" or "what does field
 validation mean?", but simply:
 
-- can we still ship `1.17.x` with confidence?
+- can we still ship `1.20.x` with confidence?
 - did we exercise the real packaged artifacts?
 - did standalone and multi-project paths both survive?
 
@@ -16,6 +16,7 @@ For deeper background, see:
 - [docs/field-findings.md](docs/field-findings.md)
 - [docs/packaging.md](docs/packaging.md)
 - [docs/script-entrypoints.md](docs/script-entrypoints.md)
+- [project/release/leserpent-2-patch-seal.json](../project/release/leserpent-2-patch-seal.json)
 - [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
 - [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 - [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
@@ -56,9 +57,9 @@ For those, use:
   for the protocol-breadth and physical-host validation baseline that this line
   inherits
 
-## Current `1.17.x` Gate
+## Current `1.20.x` Gate
 
-Treat `1.17.x` as release-ready only when all of the following stay true:
+Treat `1.20.x` as release-ready only when all of the following stay true:
 
 1. current native artifacts are rebuilt from the current source tree
 2. packaged `deb` and `rpm` install smoke both pass
@@ -113,7 +114,7 @@ Expected outputs:
 
 The `<version>` value is read from the root `gewyvern` package metadata in
 `Cargo.toml`. Always use that exact semantic version in concrete artifact
-names; `1.17.x` identifies the active minor line and is never itself a package
+names; `1.20.x` identifies the active minor line and is never itself a package
 version.
 
 The package smoke must always verify the artifacts that the tree actually
@@ -475,7 +476,7 @@ Use this triage order:
 
 ## Ship Read
 
-For the active `1.17.x` line, a good practical ship read is:
+For the active `1.20.x` line, a good practical ship read is:
 
 - current artifacts rebuilt
 - `release_gate.sh` green, or the equivalent build + packaged release check +

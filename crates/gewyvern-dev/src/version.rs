@@ -273,6 +273,10 @@ fn check_surfaces(root: &Path, version: &ProductVersion) -> Result<(), String> {
             format!("\"checkpoint\": \"v{exact}-to-v2.0.0-roadmap\""),
         ),
         (
+            "docs/development.md",
+            format!("cargo dev version set {exact} --dry-run"),
+        ),
+        (
             "docs/fixtures/leserpent_macos_release_preflight.json",
             format!("\"version\": \"{exact}\""),
         ),
@@ -511,6 +515,11 @@ fn plan_update(
         "project/status/catalog.json",
         &format!("\"checkpoint\": \"v{current}-to-v2.0.0-roadmap\""),
         &format!("\"checkpoint\": \"v{target}-to-v2.0.0-roadmap\""),
+    )?;
+    updates.replace_once(
+        "docs/development.md",
+        &format!("cargo dev version set {current} --dry-run"),
+        &format!("cargo dev version set {target} --dry-run"),
     )?;
     updates.replace_once(
         "docs/fixtures/leserpent_macos_release_preflight.json",

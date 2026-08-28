@@ -822,6 +822,13 @@ or a stale status reference fails closed. This manifest contains no executable
 arguments and reports `scope_freeze_ready=true` independently of the still
 candidate version-1 schema inventory.
 
+The companion `project/release/leserpent-2-patch-seal.json` protocolizes the
+ten contiguous `1.20.0` through `1.20.9` closure slots before `2.0.0`. The same
+native shelf rejects reordered or missing versions, duplicate focus IDs, work
+outside the scope-freeze whitelist, incomplete closure-family coverage, and a
+product version outside the frozen release window. The retained summary embeds
+the validated plan, current inferred slot, and exact slot count.
+
 Five fixed Rust suites plus one locked, filtered xUnit suite require at least 65
 non-vacuous tests and retain the actual observed count in their logs,
 `schema-freeze-summary.json`, and

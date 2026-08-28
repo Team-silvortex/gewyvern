@@ -5,7 +5,7 @@ This document is the authoritative target architecture for the
 current 1.x implementation. Delivery order and exit gates live in the
 [Leserpent 2.0 roadmap](leserpent-2-roadmap.md).
 
-The current implementation checkpoint is the shared `v1.17.4` release. This
+The current implementation checkpoint is the shared `v1.20.0` release. This
 document remains the `2.0.0` target contract rather than a claim that every
 target capability is already complete.
 
@@ -35,13 +35,17 @@ and migration bridge. It is not the semantic center of the 2.0 system.
 The 2.0 target scope is frozen. The release may complete the declared
 Leserpent/Gewyvern/Leselang/Avalonia control loop, but it may not add new core
 capability families before `2.0.0`. Finishing work is limited to closure,
-reliability, performance, security, conformance, packaging, release evidence,
-and documentation for the already-declared architecture.
+reliability, performance, security, conformance, existing-capability polish,
+packaging/deployment/recovery, current release evidence, and documentation for
+the already-declared architecture.
 
 This boundary keeps Etragon advisory, Windows native parity, additional runtime
-languages, automatic GUI framework compatibility, and full mobile parity outside
-the 2.0 release gate. Those can evolve later only as independent post-2.0
-tracks, not as prerequisites for the 2.0 seal.
+languages, automatic GUI framework compatibility, full mobile parity, expanded
+host/device test matrices, and production signing/notarization outside the 2.0
+release gate. Those can evolve later only as independent post-2.0 tracks, not as
+prerequisites for the 2.0 seal. Existing regression, security, compatibility,
+AOT, and performance shelves remain mandatory and cannot be weakened to satisfy
+the seal.
 
 Leselang is not a general-purpose VM, application runtime, or DartVM-style
 language platform. Its target is a protocolized GUI/control automation runtime:
@@ -2425,9 +2429,10 @@ client overrides explicit. The provider contract has physical Linux evidence
 for migration, authorization code with PKCE S256, RS256/MFA/UserInfo binding,
 rotating refresh tokens, replay containment, and consent revocation. That
 shadow proof does not claim native system-browser or platform credential-vault
-execution; those remain release-facing per-host proofs. In every case, Team
-Silvortex account identity cannot replace endpoint-bound `leserpentd`
-credentials or authorize daemon mutations by itself.
+execution. One configured desktop execution remains the functional account
+closure; repeating it across packaged hosts is post-2.0 proof expansion. In
+every case, Team Silvortex account identity cannot replace endpoint-bound
+`leserpentd` credentials or authorize daemon mutations by itself.
 
 Release-facing account evidence is produced only by the packaged NativeAOT
 desktop through `--prove-silvortex-account`. The runner rejects non-reviewed
@@ -2439,8 +2444,16 @@ refresh rotation without retaining the credential digest, and invokes the
 normal local logout path. Passing evidence is a bounded private atomic JSON
 record containing the binary hash and boolean lifecycle observations, with no
 provider origin, account identity, credential value, or daemon authority. The
-runner is proof plumbing, not the proof itself; the status gate closes only
-after a packaged host executes it against the reviewed provider.
+runner is proof plumbing, not the proof itself; the functional status gate
+closes after the macOS NativeAOT application executes it against the reviewed
+provider, while additional packaged-host evidence remains post-2.0.
+
+Account operations are process-lifetime asynchronous but disposal is a strict
+generation fence. Dispose atomically rejects new work, cancels discovery or
+callback waits, suppresses stale snapshots, and leaves the gate/cancellation
+owners alive until in-flight continuations finish rather than destroying them
+under a fire-and-forget UI task. A deterministic cancellation probe exercises
+that quit/reopen boundary without opening a browser or touching the vault.
 
 The macOS account issuer is bundle-owned public metadata rather than an ambient
 launcher variable. The native Rust bundler accepts one canonical HTTPS origin
@@ -2896,12 +2909,13 @@ Sandboxed. Notarization accepts only a pre-stored Keychain profile, packages
 with `ditto --keepParent`, waits for explicit acceptance, removes the temporary
 archive, staples and validates the ticket, and performs a final Gatekeeper
 assessment. Ad-hoc verification is a separately labelled local-only mode and
-cannot satisfy the formal release gate. Hardened ad-hoc code has no Team ID, so
-individually signed native libraries cannot pass runtime library validation;
-the verifier explicitly withholds a runtime-launch claim. Local UI smoke uses
-an ordinary ad-hoc bundle, while formal Hardened Runtime launch requires one
-Developer ID identity across the main executable, `leserpentd`, and all nested
-dylibs.
+cannot make a production-distribution identity claim. Hardened ad-hoc code has
+no Team ID, so individually signed native libraries cannot pass runtime library
+validation; the verifier explicitly withholds that claim. Local UI smoke uses
+an ordinary ad-hoc bundle, while formal Hardened Runtime distribution requires
+one Developer ID identity across the main executable, `leserpentd`, and all
+nested dylibs. The production identity/notarization proof is retained as a
+post-2.0 distribution track and does not block the functional 2.0 seal.
 
 Packaged desktop startup is not a second composition path. Both normal
 no-argument launch and its release probe call `DesktopProductStartup`, which

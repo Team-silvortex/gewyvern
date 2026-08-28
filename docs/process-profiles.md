@@ -18,7 +18,7 @@ That view is the best current compression layer for process-oriented debugging.
 
 ## Current Boundary
 
-The active `1.17.x` CLI does not yet support direct live-process inspection via
+The active `1.20.x` CLI does not yet support direct live-process inspection via
 `--pid`.
 
 Today, `--pid` is not a usable operator path because:

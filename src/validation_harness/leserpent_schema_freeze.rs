@@ -17,6 +17,7 @@ const INVENTORY_PATH: &str = "project/release/leserpent-v1-schema-inventory.json
 const COMPATIBILITY_BASELINE_PATH: &str =
     "project/release/leserpent-v1-compatibility-baseline.json";
 const SCOPE_FREEZE_PATH: &str = "project/release/leserpent-2-scope-freeze.json";
+const PATCH_SEAL_PATH: &str = "project/release/leserpent-2-patch-seal.json";
 const EXPECTED_FAMILIES: &[&str] = &["command", "effect", "query", "ui", "wire"];
 const EXPECTED_FIXTURE_FAMILIES: &[&str] = &["legacy-wire", "ui", "wire"];
 const EXPECTED_COMPATIBILITY_FIXTURES: usize = 11;
@@ -37,7 +38,8 @@ const EXPECTED_CLOSURE_WORK: &[&str] = &[
     "bug-fixes",
     "cross-language-conformance",
     "documentation",
-    "packaging-signing-notarization",
+    "existing-capability-polish",
+    "packaging-deployment-recovery",
     "performance-benchmarks",
     "reliability-hardening",
     "security-audits",
@@ -47,7 +49,9 @@ const EXPECTED_DEFERRED_CAPABILITIES: &[&str] = &[
     "additional-runtime-languages",
     "automatic-gui-framework-compatibility",
     "etragon-release-authority",
+    "expanded-host-device-test-matrix",
     "full-mobile-device-parity",
+    "production-signing-notarization",
     "second-gui-control-dsl",
     "windows-native-parity",
 ];
@@ -219,6 +223,26 @@ struct ScopeCapability {
     status_cells: Vec<String>,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PatchSeal {
+    schema_version: u32,
+    release_line: String,
+    target_release: String,
+    policy: String,
+    scope_freeze_manifest: String,
+    patch_slots: Vec<PatchSlot>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PatchSlot {
+    version: String,
+    focus: String,
+    closure_work: Vec<String>,
+    exit_gate: String,
+}
+
 pub fn run_leserpent_schema_freeze_validation(
     out_dir: Option<PathBuf>,
 ) -> Result<ValidationReport, ValidationError> {
@@ -227,6 +251,7 @@ pub fn run_leserpent_schema_freeze_validation(
     let compatibility =
         load_and_validate_compatibility_baseline(&root.join(COMPATIBILITY_BASELINE_PATH), &root)?;
     let scope_freeze = load_and_validate_scope_freeze(&root.join(SCOPE_FREEZE_PATH), &root)?;
+    let patch_seal = load_and_validate_patch_seal(&root.join(PATCH_SEAL_PATH), &scope_freeze)?;
     let out_dir = out_dir.unwrap_or_else(|| default_out_dir("leserpent-schema-freeze"));
     fs::create_dir_all(&out_dir)?;
     clear_previous_evidence(&out_dir)?;
@@ -332,6 +357,17 @@ pub fn run_leserpent_schema_freeze_validation(
             .iter()
             .map(|capability| format!("{capability}-scope-deferred")),
     );
+    checks.extend(
+        patch_seal
+            .patch_slots
+            .iter()
+            .map(|slot| format!("{}-patch-seal", slot.focus)),
+    );
+    let current_patch_slot = patch_seal
+        .patch_slots
+        .iter()
+        .find(|slot| slot.version == env!("CARGO_PKG_VERSION"))
+        .map(|slot| slot.focus.as_str());
     let summary_name = "schema-freeze-summary.json";
     fs::write(
         out_dir.join(summary_name),
@@ -341,6 +377,7 @@ pub fn run_leserpent_schema_freeze_validation(
             "inventory": INVENTORY_PATH,
             "compatibility_baseline": COMPATIBILITY_BASELINE_PATH,
             "scope_freeze_manifest": SCOPE_FREEZE_PATH,
+            "patch_seal_manifest": PATCH_SEAL_PATH,
             "freeze_state": inventory.freeze_state,
             "freeze_ready": freeze_ready,
             "scope_freeze_state": scope_freeze.freeze_state,
@@ -350,11 +387,14 @@ pub fn run_leserpent_schema_freeze_validation(
             "scope_capability_count": scope_freeze.core_capabilities.len(),
             "accepted_closure_work_count": scope_freeze.accepted_closure_work.len(),
             "deferred_capability_count": scope_freeze.deferred_capabilities.len(),
+            "patch_slot_count": patch_seal.patch_slots.len(),
+            "current_patch_slot": current_patch_slot,
             "proof_count": proof_summaries.len(),
             "test_count": total_test_count,
             "contracts": inventory.contracts,
             "compatibility_fixtures": compatibility.fixtures,
             "scope_freeze": scope_freeze,
+            "patch_seal": patch_seal,
             "proofs": proof_summaries,
             "remaining_gate": if freeze_ready {
                 serde_json::Value::Null
@@ -452,6 +492,112 @@ fn load_and_validate_scope_freeze(
     }
 
     Ok(scope)
+}
+
+fn load_and_validate_patch_seal(
+    path: &Path,
+    scope: &ScopeFreeze,
+) -> Result<PatchSeal, ValidationError> {
+    let value = read_bounded_json_file(path, "Leserpent 2.0 patch seal", 64 * 1024)?;
+    let seal: PatchSeal = serde_json::from_value(value).map_err(|error| {
+        ValidationError::new(format!("invalid Leserpent 2.0 patch seal: {error}"))
+    })?;
+    if seal.schema_version != 1
+        || seal.release_line != "1.20.x"
+        || seal.target_release != "2.0.0"
+        || seal.policy != "closure-only"
+        || seal.scope_freeze_manifest != SCOPE_FREEZE_PATH
+    {
+        return Err(ValidationError::new(
+            "Leserpent patch seal must define the closure-only 1.20.x to 2.0.0 window",
+        ));
+    }
+    if seal.patch_slots.len() != 10 {
+        return Err(ValidationError::new(
+            "Leserpent patch seal must contain exactly ten patch slots",
+        ));
+    }
+
+    let allowed_work = scope
+        .accepted_closure_work
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let mut covered_work = BTreeSet::new();
+    let mut focuses = BTreeSet::new();
+    for (patch, slot) in seal.patch_slots.iter().enumerate() {
+        let expected_version = format!("1.20.{patch}");
+        if slot.version != expected_version {
+            return Err(ValidationError::new(format!(
+                "Leserpent patch slot {patch} must be {expected_version}, observed {}",
+                slot.version
+            )));
+        }
+        if !is_normalized_identifier(&slot.focus) || !focuses.insert(slot.focus.as_str()) {
+            return Err(ValidationError::new(format!(
+                "Leserpent patch slot {} must have a unique normalized focus",
+                slot.version
+            )));
+        }
+        if slot.closure_work.is_empty() {
+            return Err(ValidationError::new(format!(
+                "Leserpent patch slot {} must declare closure work",
+                slot.version
+            )));
+        }
+        let mut slot_work = BTreeSet::new();
+        for item in &slot.closure_work {
+            if !slot_work.insert(item.as_str()) {
+                return Err(ValidationError::new(format!(
+                    "Leserpent patch slot {} repeats closure work {item}",
+                    slot.version
+                )));
+            }
+            if !allowed_work.contains(item.as_str()) {
+                return Err(ValidationError::new(format!(
+                    "Leserpent patch slot {} contains work outside the frozen closure: {item}",
+                    slot.version
+                )));
+            }
+            covered_work.insert(item.as_str());
+        }
+        if slot.exit_gate.trim().is_empty() || slot.exit_gate.len() > 512 {
+            return Err(ValidationError::new(format!(
+                "Leserpent patch slot {} must have a bounded non-empty exit gate",
+                slot.version
+            )));
+        }
+    }
+    if covered_work != allowed_work {
+        return Err(ValidationError::new(
+            "Leserpent patch seal does not cover every accepted closure-work family",
+        ));
+    }
+
+    let current = env!("CARGO_PKG_VERSION");
+    let target_prerelease = format!("{}-", seal.target_release);
+    let target_build = format!("{}+", seal.target_release);
+    if current != seal.target_release
+        && !current.starts_with(&target_prerelease)
+        && !current.starts_with(&target_build)
+        && !seal.patch_slots.iter().any(|slot| slot.version == current)
+    {
+        return Err(ValidationError::new(format!(
+            "current product version {current} is outside the frozen patch-seal window"
+        )));
+    }
+
+    Ok(seal)
+}
+
+fn is_normalized_identifier(value: &str) -> bool {
+    !value.is_empty()
+        && !value.starts_with('-')
+        && !value.ends_with('-')
+        && !value.contains("--")
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
 }
 
 fn validate_scope_sources(sources: &[ScopeSource], root: &Path) -> Result<(), ValidationError> {
@@ -864,6 +1010,38 @@ mod tests {
             scope.deferred_capabilities.len(),
             EXPECTED_DEFERRED_CAPABILITIES.len()
         );
+    }
+
+    #[test]
+    fn production_patch_seal_is_contiguous_and_closure_only() {
+        let root = repo_root();
+        let scope = load_and_validate_scope_freeze(&root.join(SCOPE_FREEZE_PATH), &root).unwrap();
+        let seal = load_and_validate_patch_seal(&root.join(PATCH_SEAL_PATH), &scope).unwrap();
+        assert_eq!(seal.patch_slots.len(), 10);
+        assert_eq!(seal.patch_slots[0].version, "1.20.0");
+        assert_eq!(seal.patch_slots[9].version, "1.20.9");
+        assert_eq!(seal.target_release, "2.0.0");
+    }
+
+    #[test]
+    fn patch_seal_rejects_work_outside_the_scope_freeze() {
+        let root = repo_root();
+        let scope = load_and_validate_scope_freeze(&root.join(SCOPE_FREEZE_PATH), &root).unwrap();
+        let mut seal = load_and_validate_patch_seal(&root.join(PATCH_SEAL_PATH), &scope).unwrap();
+        seal.patch_slots[0]
+            .closure_work
+            .push("additional-runtime-languages".to_string());
+        let path = std::env::temp_dir().join(format!(
+            "gewyvern-patch-seal-scope-expansion-{}.json",
+            std::process::id()
+        ));
+        fs::write(&path, serde_json::to_vec(&seal).unwrap()).unwrap();
+
+        let error = load_and_validate_patch_seal(&path, &scope)
+            .expect_err("patch-seal scope expansion must fail closed")
+            .to_string();
+        assert!(error.contains("outside the frozen closure"));
+        fs::remove_file(path).unwrap();
     }
 
     #[test]

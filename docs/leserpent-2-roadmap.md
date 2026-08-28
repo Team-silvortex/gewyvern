@@ -7,7 +7,7 @@ defines the invariant destination; this page defines ordered delivery gates.
 The roadmap is capability-gated, not date-gated. A later gate may be prototyped
 early, but it cannot become authoritative before its prerequisites are green.
 
-Current implementation checkpoint: shared release `v1.17.4`. The
+Current implementation checkpoint: shared release `v1.20.0`. The
 [project status tensor](project-status-system.md) remains authoritative for
 per-feature maturity, evidence, dependencies, and next gates.
 
@@ -22,13 +22,20 @@ authenticated remote control, persistence and recovery, security, performance,
 packaging, documentation, and release evidence.
 
 Accepted work after the freeze is closure work: bug fixes, reliability hardening,
-security checks, benchmark improvements, packaging/signing/notarization proof,
-cross-language conformance, status-tensor alignment, documentation, and removing
-or simplifying accidental complexity. Rejected work is scope expansion: moving
-Etragon into the release gate, claiming Windows native parity, adding another
-runtime language, inventing a second GUI/control DSL, making GUI frameworks
-automatically compatible, or requiring complete mobile parity beyond the already
-declared minimum remote/mobile entry contract.
+security checks, benchmark improvements, existing-capability polish,
+packaging/deployment/recovery, cross-language conformance, status-tensor
+alignment, documentation, and removing or simplifying accidental complexity.
+Rejected work is scope expansion: moving Etragon into the release gate, claiming
+Windows native parity, adding another runtime language, inventing a second
+GUI/control DSL, making GUI frameworks automatically compatible, or requiring
+complete mobile parity beyond the already declared minimum remote/mobile entry
+contract.
+
+The existing regression, security, compatibility, AOT, and performance shelves
+remain mandatory for every release candidate. Expanding the host, kernel,
+physical-device, or platform test matrix and retaining production
+signing/notarization evidence are post-`2.0.0` tracks; neither may substitute for
+closing an existing functional gap or block the functional 2.0 seal.
 
 Implementation stack rule:
 
@@ -43,6 +50,33 @@ Implementation stack rule:
 - the browser/operator web client remains TypeScript-only.
 - no additional UI/runtime language is allowed to own canonical control-plane
   semantics (Node.js, Python, shell scripts, etc. are explicitly excluded).
+
+## 1.20.x Final Seal Window
+
+`1.20.x` is the final ten-slot stabilization window before `2.0.0`. The slots
+are ordered release gates, not invitations to add ten more feature batches.
+Every change must fit the accepted closure-work set in the scope freeze, and a
+patch may absorb work from a later slot when evidence is ready without widening
+the frozen capability set.
+
+| Version | Primary focus | Exit emphasis |
+| --- | --- | --- |
+| `1.20.0` | release-line lock | align product versions, active docs, scope metadata, and the status checkpoint |
+| `1.20.1` | reliability baseline | close lifecycle, crash, restart, cancellation, and recovery regressions |
+| `1.20.2` | security closure | audit trust boundaries, secrets, dependencies, fuzzing, and hostile inputs |
+| `1.20.3` | performance closure | retain comparable runtime, persistence, transport, UI, size, and startup budgets |
+| `1.20.4` | frontend conformance | prove Avalonia, web, CLI, mobile entry, and Leselang share the frozen function chain |
+| `1.20.5` | Linux runtime polish | harden Linux, eBPF, package, recovery, performance, and operator workflows against the retained baseline |
+| `1.20.6` | deployment recovery | prove deployment, upgrade, rollback, state preservation, and failed-install recovery |
+| `1.20.7` | desktop capability polish | close Avalonia Hub, account, daemon, workspace, localization, and recovery gaps |
+| `1.20.8` | migration documentation | align operator, developer, model, compatibility, deployment, and recovery guidance |
+| `1.20.9` | release-candidate seal | run the existing gate, freeze v1 compatibility, and admit no unreviewed feature change |
+
+The authoritative machine-readable schedule is
+[`project/release/leserpent-2-patch-seal.json`](../project/release/leserpent-2-patch-seal.json).
+`gewyvern_validate leserpent-schema-freeze` rejects missing or reordered slots,
+unknown closure work, duplicate focus areas, incomplete closure-family coverage,
+and product versions outside the `1.20.x -> 2.0.0` window.
 
 ## Baseline: 1.x Bridge
 
@@ -565,8 +599,9 @@ x86_64 disposable-provider run applies the real migration and passes the full
 RS256 ID-token verification, MFA assurance, UserInfo subject binding, refresh
 rotation/replay containment, and consent revocation. The retained proof is
 `docs/fixtures/leserpent_silvortex_oidc_provider_shadow_linux_x86_64_20260810.json`.
-Gate 4 still requires a release-facing desktop run through the system browser
-and platform credential vault; account identity remains separate from every
+Gate 4 still requires one real configured desktop run through the system
+browser and platform credential vault; broader packaged-host repetition is a
+post-2.0 proof track. Account identity remains separate from every
 endpoint-bound `leserpentd` authority.
 
 The desktop now provides a fail-closed
@@ -578,8 +613,15 @@ restore, refresh rotation, and local logout paths, then atomically writes a
 private identity-free result. `--verify-silvortex-account-proof` exercises the
 writer, ordering, overwrite, linked-directory, and incomplete-proof fences
 without contacting an identity provider. The next step is execution against
-the provisioned Team Silvortex issuer on packaged macOS, followed by Linux
-Secret Service parity, rather than another simulated provider claim.
+the provisioned Team Silvortex issuer on the macOS NativeAOT application rather
+than another simulated provider claim. Linux Secret Service and additional-host
+parity evidence follow after 2.0.
+
+Session shutdown now has its own deterministic contract proof. Disposing while
+OIDC discovery is in flight atomically rejects new operations, cancels the
+request, suppresses stale presentation updates, and lets the operation release
+its gate without racing disposal of the cancellation/gate primitives. This
+keeps App quit and reopen paths free of unobserved account-task failures.
 
 The remaining macOS proof is now operational from Finder/Dock packaging rather
 than depending on a shell launcher. `gewyvern_leserpent_bundle` embeds the
@@ -1993,7 +2035,8 @@ Developer ID Application identities, and optionally verifies a named notary
 Keychain profile without exposing credentials. The current retained preflight
 records all tools ready but zero identities and no requested profile, so
 `release_ready=false`; executing and retaining the formal Apple-backed proof
-remains the only macOS release gate.
+remains the next production-distribution proof, scheduled after the functional
+2.0 seal.
 The native `cargo dev package desktop` path now accepts an identity and notary
 profile only as a pair, runs that preflight in strict mode, and keeps signing,
 notarization, stapling, and Gatekeeper assessment behind the pending-bundle
@@ -2456,9 +2499,11 @@ expansion, missing deferrals, stale status references, or authority drift before
 running semantic proof suites. It enforces a 65-test non-vacuity floor across
 domain, UI, wire, runtime migration, legacy-wire migration, and managed
 control-plane migration proof suites while emitting the actual observed count;
-promotion to `frozen`
-remains forbidden until the rest of Gate 7 and Apple-backed release evidence are
-reproducible. Scope closure is reported independently as `scope_freeze_ready=true`.
+promotion to `frozen` remains forbidden until the in-scope Gate 7 functional,
+compatibility, security, performance, migration, packaging, and rollback
+criteria are reproducible. Scope closure is reported independently as
+`scope_freeze_ready=true`. Production Apple distribution evidence remains a
+separately labelled post-2.0 proof track.
 Its companion candidate baseline pins SHA-256 fingerprints for five wire and
 legacy-wire fixtures plus four renderer fixtures. This makes accidental exact
 format drift fail before the semantic proof suites without pretending that the
@@ -2490,7 +2535,8 @@ stable launcher, rejects escaping or unmanaged links, preserves external user
 state, and proves `1.4.0 -> 1.4.1 -> 1.4.0` with a live rolled-back control
 fixture. The retained evidence deliberately identifies its signature as ad-hoc
 with no Team ID. Provisioned Developer ID signing, notarization, stapling, and
-Gatekeeper evidence remain the platform-release gap.
+Gatekeeper evidence remain a post-2.0 production-distribution track rather than
+a blocker for the functional 2.0 seal.
 
 ## Continuous Proof Shelves
 

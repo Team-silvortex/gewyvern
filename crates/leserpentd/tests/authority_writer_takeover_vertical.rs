@@ -45,7 +45,9 @@ const CRASH_WORKER_DATABASE: &str = "LESERPENT_TEST_AUTHORITY_WRITER_DATABASE";
 const CRASH_WORKER_ID: &str = "LESERPENT_TEST_AUTHORITY_WRITER_ID";
 const LONGEST_TEST_SOCKET_FILE_NAME: &str = "post-recovery-duplicate-retry.sock";
 const MAX_PARALLEL_AUTHORITY_SCENARIOS: usize = 4;
-const ROLLBACK_JOURNAL_OBSERVATION_BUDGET: Duration = Duration::from_secs(4);
+// This bounds process orchestration, not atomicity; leave headroom above SQLite's 5s busy timeout.
+const ROLLBACK_JOURNAL_OBSERVATION_BUDGET: Duration = Duration::from_secs(15);
+const ROLLBACK_JOURNAL_POLL_INTERVAL: Duration = Duration::from_millis(5);
 const CRASH_WORKER_PAUSE_AT_JOURNAL: u8 = b'P';
 const CRASH_WORKER_COMMIT: u8 = b'C';
 const CRASH_WORKER_JOURNAL_MARKER: &str = "authority-writer-worker-journal-ready";
@@ -892,12 +894,16 @@ fn authority_writer_claim_crash_worker() {
                     return;
                 }
                 if Instant::now() >= deadline {
+                    let journal_state = fs::metadata(&rollback_journal)
+                        .map(|metadata| format!("present with {} bytes", metadata.len()))
+                        .unwrap_or_else(|error| format!("unavailable: {error}"));
                     eprintln!(
-                        "claim worker did not observe a rollback journal within {ROLLBACK_JOURNAL_OBSERVATION_BUDGET:?}"
+                        "claim worker did not observe a non-empty rollback journal within \
+                         {ROLLBACK_JOURNAL_OBSERVATION_BUDGET:?}; final state: {journal_state}"
                     );
                     std::process::exit(3);
                 }
-                thread::sleep(Duration::from_millis(1));
+                thread::sleep(ROLLBACK_JOURNAL_POLL_INTERVAL);
             }
         });
         ready_rx.recv().unwrap();

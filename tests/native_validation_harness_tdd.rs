@@ -490,6 +490,7 @@ fn leserpent_schema_freeze_inventory_is_bounded_non_vacuous_and_candidate_only()
     let inventory = read_repo_file("project/release/leserpent-v1-schema-inventory.json");
     let compatibility = read_repo_file("project/release/leserpent-v1-compatibility-baseline.json");
     let scope_freeze = read_repo_file("project/release/leserpent-2-scope-freeze.json");
+    let patch_seal = read_repo_file("project/release/leserpent-2-patch-seal.json");
     let docs = read_repo_file("docs/script-entrypoints.md");
 
     assert!(harness.contains("EXPECTED_FAMILIES"));
@@ -514,8 +515,10 @@ fn leserpent_schema_freeze_inventory_is_bounded_non_vacuous_and_candidate_only()
     assert!(harness.contains("clear_previous_evidence"));
     assert!(harness.contains("load_and_validate_compatibility_baseline"));
     assert!(harness.contains("load_and_validate_scope_freeze"));
+    assert!(harness.contains("load_and_validate_patch_seal"));
     assert!(harness.contains("EXPECTED_SCOPE_CAPABILITIES"));
     assert!(harness.contains("scope_freeze_ready"));
+    assert!(harness.contains("patch_slot_count"));
     assert!(harness.contains("unavailable core status cell"));
     assert!(harness.contains("ring::digest::SHA256"));
     assert!(harness.contains("differs from its reviewed v1 baseline"));
@@ -537,8 +540,15 @@ fn leserpent_schema_freeze_inventory_is_bounded_non_vacuous_and_candidate_only()
     assert!(scope_freeze.contains("windows-native-parity"));
     assert!(scope_freeze.contains("full-mobile-device-parity"));
     assert!(!scope_freeze.contains("target_args"));
+    assert!(patch_seal.contains("\"release_line\": \"1.20.x\""));
+    assert!(patch_seal.contains("\"target_release\": \"2.0.0\""));
+    assert!(patch_seal.contains("\"version\": \"1.20.0\""));
+    assert!(patch_seal.contains("\"version\": \"1.20.9\""));
+    assert!(patch_seal.contains("\"policy\": \"closure-only\""));
+    assert!(!patch_seal.contains("target_args"));
     assert!(docs.contains("leserpent-schema-freeze"));
     assert!(docs.contains("leserpent-2-scope-freeze.json"));
+    assert!(docs.contains("leserpent-2-patch-seal.json"));
 }
 
 #[test]

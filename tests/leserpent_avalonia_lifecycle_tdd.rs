@@ -2358,6 +2358,12 @@ fn silvortex_account_is_native_pkce_bound_and_offline_optional() {
     assert!(account.contains("internal enum SilvortexAccountStatus"));
     assert!(account.contains("Status: SilvortexAccountStatus.SignInFailed"));
     assert!(account.contains("Status: SilvortexAccountStatus.RestoreFailed"));
+    assert!(account.contains("VerifyDisposalContractAsync(options)"));
+    assert!(account.contains("await inFlight.WaitAsync(RequestTimeout)"));
+    assert!(account.contains("Interlocked.Exchange(ref disposeState, 1)"));
+    assert!(account.contains("private async Task<bool> TryEnterOperationAsync()"));
+    assert!(!account.contains("operationGate.Dispose();"));
+    assert!(!account.contains("lifetime.Dispose();"));
     assert!(account.contains("private static void ValidateSnapshot("));
     assert!(account.contains("ExpectInvalidPresentationStatus();"));
     assert!(account.contains("Team Silvortex accepted an incompatible presentation status"));
