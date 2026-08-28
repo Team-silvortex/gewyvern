@@ -8629,7 +8629,13 @@ async function importPersistenceState(file) {
             || !Array.isArray(parsed.runtimes) || !Array.isArray(parsed.sessions)) {
             throw new Error(t("persistence.invalidStructure"));
         }
-        if (parsed.schemaVersion !== 1) {
+        const advertisedSchema = state.cache.capabilities?.persistence?.schemaVersion;
+        const maximumSchema = Number.isInteger(advertisedSchema) && advertisedSchema > 0
+            ? advertisedSchema
+            : 1;
+        if (!Number.isInteger(parsed.schemaVersion)
+            || parsed.schemaVersion < 1
+            || parsed.schemaVersion > maximumSchema) {
             throw new Error(t("persistence.incompatibleSchema", { schema: parsed.schemaVersion ?? "?" }));
         }
         const confirmed = window.confirm(t("persistence.importConfirm", {

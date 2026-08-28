@@ -595,6 +595,32 @@ the new secret, while storage-ambiguous failures retain recovery state. Pairing
 credentials remain absent from journals, projections, responses, and diagnostics;
 the inbound request buffer, detached body, and read remainder are zeroized.
 
+Contract `1.26.0` moves the stable persistence checkpoint and portable export
+surface into the daemon-owned Rust Web host without changing the wire envelope.
+`POST /v1/persistence/save` requires the daemon's private writer generation and
+commits the existing checksum-bound snapshot only after a fully terminal journal.
+`GET /v1/persistence/export` requires Bearer authentication, emits the compatible
+schema-1 control-plane shape as a `no-store` attachment, and pages every retained
+Orchestra run through the validated SQLite reader. Pending target-registration
+recovery blocks export; credentials, native secret aliases, recovery intents, and
+authority tickets are never serialized. At that contract revision, atomic import
+and Orchestra operation routes remained explicit bridge-retirement work.
+
+Contract `1.27.0` adds atomic portable persistence import to the daemon-owned
+Rust Web host without changing the wire envelope or portable schema version.
+`POST /v1/persistence/import` requires Bearer authentication, same-origin mutation
+intent, and the daemon-private writer generation; request bodies remain bounded to
+the 1 MiB protocol limit and reject unknown fields. Schema-1 runtime projections
+receive a fresh monotonic revision epoch, terminal legacy Orchestra runs receive
+one validated import event, and one SQLite transaction replaces both projections
+while clearing non-portable runtime logs. Active effects, incomplete lifecycle
+checkpoints, pending recovery metadata, sessions, and active Orchestra runs fail
+closed before commit. Two checksum-valid copies establish the new recovery epoch.
+Dynamic credential bindings must retain their exact secret-free descriptor, and
+every static or dynamic hot-catalog target must retain canonical runtime/origin
+identity; import never creates, rotates, removes, or serializes a credential.
+Orchestra operation compatibility routes remain explicit bridge-retirement work.
+
 ## Reproducible Proof
 
 Prove that the configured C# host consumes the canonical envelope returned by

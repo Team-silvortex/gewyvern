@@ -2223,7 +2223,26 @@ daemon owns intent persistence, native secret storage, command replay, catalog
 activation, binding commit, compensation, and startup recovery. The browser never
 receives a secret alias or authority ticket. Only strict loopback Gewyvern origins
 are accepted until explicit CA trust can be persisted for remote HTTPS targets.
-The surface remains partial until persistence import/export and Orchestra
+Explicit save now enters the same private writer fence and commits a checksum-bound
+domain snapshot only after the journal is terminal; persistence health reads the
+latest checksum-valid generation for `lastSavedAt`. Export is a Bearer-authenticated
+read assembled inside `leserpentd`: live runtime projections and every retained
+Orchestra run are decoded through bounded SQLite pagination into the compatible
+schema-1 document, pending registration recovery blocks the operation, and the
+`no-store` attachment contains no credential or secret-store handle. The shared
+TypeScript importer accepts schema versions from 1 through the backend-advertised
+maximum, fixing the former exact-schema-1 rejection against the current bridge.
+`POST /v1/persistence/import` is now owned by the same private writer generation.
+It strictly accepts the portable schema-1 subset, rejects session state, pending
+recovery metadata, active Orchestra runs, active effects, and incomplete lifecycle
+checkpoints, then assigns a fresh monotonic revision epoch. One SQLite transaction
+clears runtime logs and replaces both the domain snapshot and one-event legacy
+Orchestra histories; two identical checksum-bound snapshot generations prevent a
+corrupt newest generation from crossing back into pre-import authority. Dynamic
+credential bindings must retain their exact descriptor, while all static and
+dynamic hot-catalog entries must retain canonical runtime/origin identity. Any
+failure leaves both memory and storage unchanged, and restart plus real TLS tests
+exercise the boundary. The surface remains partial only until Orchestra operation
 compatibility routes move to Rust. No TypeScript handler owns authority during
 that migration.
 

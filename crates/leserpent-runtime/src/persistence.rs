@@ -97,6 +97,7 @@ pub struct JournalSnapshot {
     pub schema_version: u32,
     pub through_sequence: i64,
     pub payload: Vec<u8>,
+    pub created_at_unix_ms: i64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -137,6 +138,24 @@ pub struct OrchestraPersistenceRecord {
     pub run: Vec<u8>,
     pub event: Vec<u8>,
     pub event_count: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OrchestraImportRecord {
+    pub run_id: String,
+    pub runtime_id: String,
+    pub request_id: Option<String>,
+    pub event_type: String,
+    pub outcome: String,
+    pub recorded_at: String,
+    pub run: Vec<u8>,
+    pub event: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ControlPlaneImportRecord {
+    pub through_sequence: i64,
+    pub saved_at_unix_ms: i64,
 }
 
 pub struct OrchestraHistoryRecord {
@@ -983,7 +1002,8 @@ impl Journal {
         let mut statement = self
             .connection
             .prepare(
-                "SELECT generation, domain_schema, through_sequence, payload, checksum
+                "SELECT generation, domain_schema, through_sequence, payload, checksum,
+                        created_at_unix_ms
                  FROM runtime_snapshots ORDER BY generation DESC LIMIT 2",
             )
             .map_err(|error| error.to_string())?;
@@ -995,6 +1015,7 @@ impl Journal {
                     row.get::<_, i64>(2)?,
                     row.get::<_, Vec<u8>>(3)?,
                     row.get::<_, String>(4)?,
+                    row.get::<_, i64>(5)?,
                 ))
             })
             .map_err(|error| error.to_string())?;
@@ -1002,8 +1023,14 @@ impl Journal {
         let mut found = 0;
         for row in rows {
             found += 1;
-            let (generation, schema_version, through_sequence, payload, checksum) =
-                row.map_err(|error| error.to_string())?;
+            let (
+                generation,
+                schema_version,
+                through_sequence,
+                payload,
+                checksum,
+                created_at_unix_ms,
+            ) = row.map_err(|error| error.to_string())?;
             if validate_snapshot_blob(&payload).is_err()
                 || checksum != snapshot_checksum(schema_version, through_sequence, &payload)
             {
@@ -1014,6 +1041,7 @@ impl Journal {
                 schema_version,
                 through_sequence,
                 payload,
+                created_at_unix_ms,
             });
         }
         if found != 0 && snapshots.is_empty() {
@@ -1096,6 +1124,212 @@ impl Journal {
         }
         transaction.commit().map_err(|error| error.to_string())?;
         Ok(through_sequence)
+    }
+
+    pub fn replace_control_plane_state(
+        &mut self,
+        domain_schema: u32,
+        payload: &[u8],
+        orchestra_runs: &[OrchestraImportRecord],
+        protected_binding_runtime_ids: &[String],
+    ) -> Result<ControlPlaneImportRecord, String> {
+        self.ensure_owner()?;
+        validate_snapshot_blob(payload)?;
+        validate_control_plane_import(orchestra_runs, protected_binding_runtime_ids)?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        evict_runtime_unregistration_replay_horizon(&transaction, 0)?;
+
+        let pending_journal: i64 = transaction
+            .query_row(
+                "SELECT COUNT(*) FROM runtime_journal
+                 WHERE outcome IS NULL AND terminal_error IS NULL AND kind = 'command_plan'",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if pending_journal != 0 {
+            return Err("control-plane import requires a fully terminal journal".into());
+        }
+        let pending_registrations: i64 = transaction
+            .query_row(
+                "SELECT COUNT(*) FROM runtime_target_registration_intents",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if pending_registrations != 0 {
+            return Err("control-plane import is blocked by registration recovery".into());
+        }
+        let active_effects: i64 = transaction
+            .query_row(
+                "SELECT COUNT(*) FROM runtime_effect_tasks WHERE state IN ('ready', 'leased')",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if active_effects != 0 {
+            return Err("control-plane import is blocked by active side effects".into());
+        }
+        let incomplete_authority: i64 = transaction
+            .query_row(
+                "SELECT COUNT(*) FROM authority_checkpoints
+                 WHERE NOT (
+                     (operation_kind = 'daemon_bootstrap' AND phase IN ('session_bound', 'failed')) OR
+                     (operation_kind = 'daemon_retirement' AND phase IN ('service_retired', 'failed')) OR
+                     (operation_kind = 'gewyvern_provisioning' AND phase IN ('runtime_registered', 'failed')) OR
+                     (operation_kind = 'gewyvern_retirement' AND phase IN ('runtime_unregistered', 'failed'))
+                 )",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if incomplete_authority != 0 {
+            return Err(
+                "control-plane import is blocked by incomplete authority operations".into(),
+            );
+        }
+
+        let persisted_binding_runtime_ids = {
+            let mut statement = transaction
+                .prepare("SELECT runtime_id FROM runtime_target_bindings ORDER BY runtime_id")
+                .map_err(|error| error.to_string())?;
+            statement
+                .query_map([], |row| row.get::<_, String>(0))
+                .map_err(|error| error.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| error.to_string())?
+        };
+        if persisted_binding_runtime_ids != protected_binding_runtime_ids {
+            return Err("control-plane import would alter credential-bound runtime targets".into());
+        }
+
+        let through_sequence: i64 = transaction
+            .query_row(
+                "SELECT COALESCE(MAX(sequence), 0) FROM runtime_journal",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        let previous_generation: i64 = transaction
+            .query_row(
+                "SELECT COALESCE(MAX(generation), 0) FROM runtime_snapshots",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        let first_generation = previous_generation
+            .checked_add(1)
+            .ok_or_else(|| "runtime snapshot generation is exhausted".to_string())?;
+        let second_generation = first_generation
+            .checked_add(1)
+            .ok_or_else(|| "runtime snapshot generation is exhausted".to_string())?;
+        let saved_at_unix_ms = unix_time_ms()?;
+
+        let previous_orchestra_generation: Option<i64> = transaction
+            .query_row(
+                "SELECT MAX(updated_at_unix_ms) FROM orchestra_runs",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        let orchestra_generation = match previous_orchestra_generation {
+            Some(generation) => generation
+                .checked_add(1)
+                .ok_or_else(|| "Orchestra import generation is exhausted".to_string())?
+                .max(saved_at_unix_ms),
+            None => saved_at_unix_ms,
+        };
+        transaction
+            .execute("DELETE FROM orchestra_runs", [])
+            .map_err(|error| error.to_string())?;
+        transaction
+            .execute("DELETE FROM runtime_logs", [])
+            .map_err(|error| error.to_string())?;
+        for (index, imported) in orchestra_runs.iter().enumerate() {
+            let generation = orchestra_generation
+                .checked_add(
+                    i64::try_from(index)
+                        .map_err(|_| "Orchestra import generation is out of range".to_string())?,
+                )
+                .ok_or_else(|| "Orchestra import generation is exhausted".to_string())?;
+            transaction
+                .execute(
+                    "INSERT INTO orchestra_runs
+                         (run_id, runtime_id, request_id, envelope, updated_at_unix_ms)
+                     VALUES (?1, ?2, ?3, ?4, ?5)",
+                    params![
+                        imported.run_id,
+                        imported.runtime_id,
+                        imported.request_id,
+                        imported.run,
+                        generation
+                    ],
+                )
+                .map_err(|error| error.to_string())?;
+            transaction
+                .execute(
+                    "INSERT INTO orchestra_events
+                         (run_id, runtime_id, event_type, to_outcome, recorded_at,
+                          envelope, created_at_unix_ms)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![
+                        imported.run_id,
+                        imported.runtime_id,
+                        imported.event_type,
+                        imported.outcome,
+                        imported.recorded_at,
+                        imported.event,
+                        generation
+                    ],
+                )
+                .map_err(|error| error.to_string())?;
+        }
+        let (stored_runs, stored_events): (i64, i64) = transaction
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM orchestra_runs),
+                     (SELECT COUNT(*) FROM orchestra_events)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|error| error.to_string())?;
+        let imported_count = i64::try_from(orchestra_runs.len())
+            .map_err(|_| "Orchestra import count is out of range".to_string())?;
+        if stored_runs != imported_count || stored_events != imported_count {
+            return Err("control-plane import Orchestra replacement is inconsistent".into());
+        }
+
+        transaction
+            .execute("DELETE FROM runtime_snapshots", [])
+            .map_err(|error| error.to_string())?;
+        for generation in [first_generation, second_generation] {
+            transaction
+                .execute(
+                    "INSERT INTO runtime_snapshots
+                         (generation, domain_schema, through_sequence, payload, checksum,
+                          created_at_unix_ms)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![
+                        generation,
+                        i64::from(domain_schema),
+                        through_sequence,
+                        payload,
+                        snapshot_checksum(domain_schema, through_sequence, payload),
+                        saved_at_unix_ms
+                    ],
+                )
+                .map_err(|error| error.to_string())?;
+        }
+        let protected_sequences = retained_runtime_unregistration_journal_sequences(&transaction)?;
+        compact_runtime_journal(&transaction, through_sequence, &protected_sequences)?;
+        transaction.commit().map_err(|error| error.to_string())?;
+        Ok(ControlPlaneImportRecord {
+            through_sequence,
+            saved_at_unix_ms,
+        })
     }
 
     pub fn enqueue_effect(
@@ -5614,6 +5848,85 @@ fn validate_orchestra_blob(label: &str, bytes: &[u8]) -> Result<(), String> {
         return Err(format!(
             "Orchestra {label} must contain between 1 and {MAX_ORCHESTRA_ENVELOPE_BYTES} bytes"
         ));
+    }
+    Ok(())
+}
+
+fn validate_control_plane_import(
+    orchestra_runs: &[OrchestraImportRecord],
+    protected_binding_runtime_ids: &[String],
+) -> Result<(), String> {
+    if orchestra_runs.len() > usize::try_from(MAX_RUNTIME_TARGET_BINDINGS).unwrap_or(usize::MAX) {
+        return Err("control-plane import exceeds the Orchestra retention bound".into());
+    }
+    if protected_binding_runtime_ids
+        .windows(2)
+        .any(|pair| pair[0] >= pair[1])
+    {
+        return Err("control-plane import binding identities are not canonical".into());
+    }
+    for runtime_id in protected_binding_runtime_ids {
+        RuntimeId::new(runtime_id.clone())
+            .map_err(|_| "control-plane import binding identity is invalid".to_string())?;
+    }
+
+    let mut run_ids = HashSet::with_capacity(orchestra_runs.len());
+    let mut folded_run_ids = HashSet::with_capacity(orchestra_runs.len());
+    let mut runtime_counts = BTreeMap::<&str, usize>::new();
+    let mut request_ids = HashSet::<(&str, &str)>::new();
+    let future_limit = i128::from(unix_time_ms()?)
+        .checked_mul(1_000_000)
+        .and_then(|value| value.checked_add(5 * 60 * 1_000_000_000))
+        .ok_or_else(|| "control-plane import timestamp bound is invalid".to_string())?;
+    for imported in orchestra_runs {
+        if !run_ids.insert(imported.run_id.as_str())
+            || !folded_run_ids.insert(imported.run_id.to_ascii_lowercase())
+        {
+            return Err("control-plane import contains duplicate Orchestra run identities".into());
+        }
+        let runtime_count = runtime_counts
+            .entry(imported.runtime_id.as_str())
+            .or_default();
+        *runtime_count = runtime_count
+            .checked_add(1)
+            .ok_or_else(|| "control-plane import Orchestra count overflow".to_string())?;
+        if *runtime_count > MAX_ORCHESTRA_RUNS_PER_RUNTIME {
+            return Err("control-plane import exceeds per-runtime Orchestra retention".into());
+        }
+        if let Some(request_id) = imported.request_id.as_deref()
+            && !request_ids.insert((imported.runtime_id.as_str(), request_id))
+        {
+            return Err(
+                "control-plane import contains duplicate Orchestra request identities".into(),
+            );
+        }
+        if imported.event_type != "legacy_import" || is_active_orchestra_outcome(&imported.outcome)
+        {
+            return Err("control-plane import contains a non-terminal Orchestra run".into());
+        }
+        validate_orchestra_append_envelopes(
+            &imported.run_id,
+            &imported.runtime_id,
+            imported.request_id.as_deref(),
+            &imported.event_type,
+            None,
+            &imported.outcome,
+            &imported.outcome,
+            &imported.recorded_at,
+            &imported.run,
+            &imported.event,
+        )?;
+        let run =
+            validate_orchestra_run_row(&imported.run_id, &imported.runtime_id, &imported.run)?;
+        let recorded_at = validate_orchestra_recorded_at(&imported.recorded_at)?;
+        if run.executed_at.unix_timestamp_nanos() > future_limit
+            || run
+                .completed_at
+                .is_some_and(|timestamp| timestamp.unix_timestamp_nanos() > future_limit)
+            || recorded_at.unix_timestamp_nanos() > future_limit
+        {
+            return Err("control-plane import contains a future Orchestra timestamp".into());
+        }
     }
     Ok(())
 }

@@ -16,6 +16,8 @@ pub(crate) const MAX_REGISTRATION_PLAN_BYTES: usize = 8 * 1024;
 pub(crate) const MAX_REGISTRATION_REQUEST_BYTES: usize = 16 * 1024;
 pub(crate) const MAX_CLEANUP_REQUEST_BYTES: usize = 1024;
 pub(crate) const MAX_ATOMIC_CLEANUP_TARGETS: usize = 128;
+pub(crate) const PERSISTENCE_EXPORT_SCHEMA_VERSION: u32 = 1;
+const MAX_EXPORTED_ORCHESTRA_RUNS: usize = 4_096;
 const FALLBACK_TIMESTAMP: &str = "1970-01-01T00:00:00Z";
 
 macro_rules! asset {
@@ -100,6 +102,9 @@ pub(crate) enum ConsoleApiRoute {
     FleetRefreshStatus(RuntimeListFilter),
     Runtimes(RuntimeListFilter),
     Sessions,
+    PersistenceExport,
+    PersistenceImport,
+    PersistenceSave,
     CleanupPlan(RuntimeListFilter),
     RuntimeCleanup(CleanupKind, RuntimeListFilter),
     RegistrationPlan,
@@ -140,14 +145,17 @@ impl ConsoleApiRoute {
             | Self::FleetAttentionList(_)
             | Self::Runtimes(_)
             | Self::Sessions
+            | Self::PersistenceExport
             | Self::CleanupPlan(_) => ConsoleApiMethod::Get,
             Self::FleetRefreshAll(_)
             | Self::FleetRefreshCapabilities(_)
             | Self::FleetRefreshStatus(_)
-            | Self::RuntimeDelete(_) => ConsoleApiMethod::PostEmpty,
-            Self::RuntimeCleanup(_, _) | Self::RegistrationPlan | Self::Registration => {
-                ConsoleApiMethod::PostJson
-            }
+            | Self::RuntimeDelete(_)
+            | Self::PersistenceSave => ConsoleApiMethod::PostEmpty,
+            Self::RuntimeCleanup(_, _)
+            | Self::RegistrationPlan
+            | Self::Registration
+            | Self::PersistenceImport => ConsoleApiMethod::PostJson,
         }
     }
 
@@ -156,6 +164,7 @@ impl ConsoleApiRoute {
             Self::RegistrationPlan => Some(MAX_REGISTRATION_PLAN_BYTES),
             Self::Registration => Some(MAX_REGISTRATION_REQUEST_BYTES),
             Self::RuntimeCleanup(_, _) => Some(MAX_CLEANUP_REQUEST_BYTES),
+            Self::PersistenceImport => Some(MAX_PROTOCOL_MESSAGE_BYTES),
             _ => None,
         }
     }
@@ -200,6 +209,9 @@ pub(crate) fn parse_api_route(target: &str) -> Result<Option<ConsoleApiRoute>, C
         | "/v1/runtimes/delete-slice" => Some(parse_filter(query)?),
         "/v1/capabilities"
         | "/v1/sessions"
+        | "/v1/persistence/export"
+        | "/v1/persistence/import"
+        | "/v1/persistence/save"
         | "/v1/runtimes/registration-plan"
         | "/v1/runtimes/register"
             if query.is_some() =>
@@ -232,6 +244,9 @@ pub(crate) fn parse_api_route(target: &str) -> Result<Option<ConsoleApiRoute>, C
             filtered.expect("filtered route has a filter"),
         )),
         "/v1/sessions" => Some(ConsoleApiRoute::Sessions),
+        "/v1/persistence/export" => Some(ConsoleApiRoute::PersistenceExport),
+        "/v1/persistence/import" => Some(ConsoleApiRoute::PersistenceImport),
+        "/v1/persistence/save" => Some(ConsoleApiRoute::PersistenceSave),
         "/v1/runtimes/cleanup-plan" => Some(ConsoleApiRoute::CleanupPlan(
             filtered.expect("filtered route has a filter"),
         )),
@@ -360,7 +375,7 @@ fn hex(byte: u8) -> Option<u8> {
 #[cfg(test)]
 pub(crate) fn render_api(
     route: &ConsoleApiRoute,
-    runtime: &ControlRuntime,
+    runtime: &mut ControlRuntime,
     writer_enabled: bool,
 ) -> Result<Vec<u8>, String> {
     render_api_with_registration(route, runtime, writer_enabled, false)
@@ -368,7 +383,7 @@ pub(crate) fn render_api(
 
 pub(crate) fn render_api_with_registration(
     route: &ConsoleApiRoute,
-    runtime: &ControlRuntime,
+    runtime: &mut ControlRuntime,
     writer_enabled: bool,
     registration_enabled: bool,
 ) -> Result<Vec<u8>, String> {
@@ -376,10 +391,14 @@ pub(crate) fn render_api_with_registration(
     let value = match route {
         ConsoleApiRoute::Capabilities => capabilities_value(
             runtime.persistence_enabled(),
+            runtime
+                .latest_snapshot_created_at_unix_ms()
+                .map_err(|_| "Rust Web persistence status projection failed")?,
             writer_enabled,
             registration_enabled,
         ),
         ConsoleApiRoute::Sessions => json!({ "sessions": [] }),
+        ConsoleApiRoute::PersistenceExport => persistence_export_value(runtime)?,
         ConsoleApiRoute::FleetSummary(filter) => {
             let runtimes = filtered_runtimes(&all_runtimes, filter);
             json!({
@@ -437,6 +456,8 @@ pub(crate) fn render_api_with_registration(
         | ConsoleApiRoute::RuntimeCleanup(_, _)
         | ConsoleApiRoute::RegistrationPlan
         | ConsoleApiRoute::Registration
+        | ConsoleApiRoute::PersistenceImport
+        | ConsoleApiRoute::PersistenceSave
         | ConsoleApiRoute::RuntimeDelete(_) => {
             return Err("Rust Web mutation route cannot be rendered as a read projection".into());
         }
@@ -450,6 +471,7 @@ pub(crate) fn render_api_with_registration(
 
 fn capabilities_value(
     persistence_enabled: bool,
+    last_saved_at_unix_ms: Option<u64>,
     writer_enabled: bool,
     registration_enabled: bool,
 ) -> Value {
@@ -465,6 +487,9 @@ fn capabilities_value(
             "/v1/fleet/runtimes-needing-attention",
             "/v1/runtimes",
             "/v1/sessions",
+            "/v1/persistence/save",
+            "/v1/persistence/export",
+            "/v1/persistence/import",
             "/v1/runtimes/cleanup-plan",
             "/v1/runtimes/delete-failed",
             "/v1/runtimes/delete-unobserved",
@@ -482,7 +507,7 @@ fn capabilities_value(
         "persistence": {
             "statePath": null,
             "backupStatePath": null,
-            "lastSavedAt": null,
+            "lastSavedAt": last_saved_at_unix_ms.map(|value| timestamp(Some(value))),
             "enabled": persistence_enabled,
             "schemaVersion": 1,
             "isDirty": false,
@@ -515,6 +540,67 @@ fn capabilities_value(
             "optionalAdapters": []
         }
     })
+}
+
+fn persistence_export_value(runtime: &mut ControlRuntime) -> Result<Value, String> {
+    if runtime.persistence_enabled()
+        && !runtime
+            .pending_runtime_target_registrations()
+            .map_err(|_| "Rust Web persistence export could not inspect registration recovery")?
+            .is_empty()
+    {
+        return Err("Rust Web persistence export is blocked by registration recovery".into());
+    }
+    let (_, runtimes) = runtime.runtime_event_state();
+    let orchestra_runs = exported_orchestra_runs(runtime)?;
+    Ok(json!({
+        "schemaVersion": PERSISTENCE_EXPORT_SCHEMA_VERSION,
+        "savedAt": OffsetDateTime::now_utc()
+            .format(&Rfc3339)
+            .unwrap_or_else(|_| FALLBACK_TIMESTAMP.to_string()),
+        "runtimes": runtimes
+            .iter()
+            .map(persistence_runtime_value)
+            .collect::<Vec<_>>(),
+        "sessions": [],
+        "orchestraRuns": orchestra_runs,
+        "pendingRuntimeDeletions": [],
+        "runtimeDeletionRetryAudit": [],
+        "runtimeDeletionReconciliationAudit": [],
+        "orchestraDeleteCheckpointMonitor": Value::Null,
+        "orchestraDeleteCheckpointAlertOutbox": [],
+        "pendingRuntimeRegistrations": [],
+    }))
+}
+
+fn exported_orchestra_runs(runtime: &mut ControlRuntime) -> Result<Vec<Value>, String> {
+    if !runtime.persistence_enabled() {
+        return Ok(Vec::new());
+    }
+    let mut offset = 0_u32;
+    let mut runs = Vec::new();
+    loop {
+        let page = runtime
+            .load_orchestra_history(None, None, offset, 64)
+            .map_err(|_| "Rust Web persistence export could not read Orchestra history")?;
+        for envelope in page.runs {
+            let run = serde_json::from_slice(&envelope)
+                .map_err(|_| "Rust Web persistence export found invalid Orchestra history")?;
+            runs.push(run);
+            if runs.len() > MAX_EXPORTED_ORCHESTRA_RUNS {
+                return Err(
+                    "Rust Web persistence export exceeded Orchestra retention bounds".into(),
+                );
+            }
+        }
+        let Some(next_offset) = page.next_offset else {
+            return Ok(runs);
+        };
+        if next_offset <= offset {
+            return Err("Rust Web persistence export pagination did not advance".into());
+        }
+        offset = next_offset;
+    }
 }
 
 fn filtered_runtimes<'a>(
@@ -563,6 +649,27 @@ pub(crate) fn runtime_value(runtime: &RuntimeProjection) -> Value {
         "status": status_value(&runtime.status),
         "sidecarStatus": runtime.sidecar_status.as_ref().map(sidecar_status_value),
         "hasRuntimeAdminToken": false,
+    })
+}
+
+fn persistence_runtime_value(runtime: &RuntimeProjection) -> Value {
+    json!({
+        "runtimeId": runtime.id.as_str(),
+        "name": runtime.name,
+        "endpoint": runtime.endpoint,
+        "sidecarEndpoint": runtime.sidecar_endpoint,
+        "registeredAt": timestamp(runtime.registered_at_unix_ms),
+        "updatedAt": timestamp(runtime.updated_at_unix_ms),
+        "capabilities": capability_values(&runtime.capabilities),
+        "capabilitySource": "manual",
+        "capabilityFetchedAt": Value::Null,
+        "capabilityFetchError": Value::Null,
+        "tags": tags_value(runtime),
+        "status": status_value(&runtime.status),
+        "sidecarStatus": runtime
+            .sidecar_status
+            .as_ref()
+            .map(persistence_sidecar_status_value),
     })
 }
 
@@ -635,6 +742,40 @@ fn sidecar_status_value(status: &RuntimeSidecarStatusSnapshot) -> Value {
     })
 }
 
+fn persistence_sidecar_status_value(status: &RuntimeSidecarStatusSnapshot) -> Value {
+    json!({
+        "statusSource": status.status_source,
+        "statusFetchedAt": status.status_fetched_at,
+        "statusFetchError": status.status_fetch_error,
+        "healthy": status.healthy,
+        "daemonStatus": status.daemon_status,
+        "targetCount": status.target_count,
+        "learningActive": status.learning_active,
+        "learnedRoutes": status.learned_routes,
+        "hasEvidenceChainEnrichment": status.has_evidence_chain_enrichment,
+        "hasDiagnosticOpinion": status.has_diagnostic_opinion,
+        "lastError": status.last_error,
+        "memory": status.memory.as_ref().map(|memory| json!({
+            "versionsSupported": memory.versions_supported,
+            "slotCount": memory.slot_count,
+            "historyCount": memory.history_count,
+            "latestSlot": memory.latest_slot,
+            "latestLabel": memory.latest_label,
+            "latestSource": memory.latest_source,
+            "slots": memory.slots.iter().map(|slot| json!({
+                "slot": slot.slot,
+                "label": slot.label,
+                "note": slot.note,
+                "source": slot.source,
+                "savedAt": slot.saved_at,
+                "patternCount": slot.pattern_count,
+                "labelCount": slot.label_count,
+            })).collect::<Vec<_>>(),
+            "fetchError": memory.fetch_error,
+        })),
+    })
+}
+
 fn capability_values(capabilities: &RuntimeCapabilitySnapshot) -> Vec<Value> {
     let mut values = BTreeMap::<String, bool>::new();
     values.insert("latest_snapshot".into(), capabilities.latest_snapshot);
@@ -658,7 +799,7 @@ fn capability_values(capabilities: &RuntimeCapabilitySnapshot) -> Vec<Value> {
         .map(|(key, supported)| {
             json!({
                 "key": key,
-                "support": if supported { "fully_supported" } else { "unsupported" },
+                "support": if supported { "fully_supported" } else { "not_supported" },
                 "description": "daemon-authoritative capability projection",
             })
         })
@@ -964,6 +1105,9 @@ pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use leserpent_domain::RuntimeId;
 
     use super::*;
@@ -1023,6 +1167,34 @@ mod tests {
         }
         assert_eq!(parse_api_route("/v1/not-present").unwrap(), None);
         assert_eq!(
+            parse_api_route("/v1/persistence/export").unwrap(),
+            Some(ConsoleApiRoute::PersistenceExport)
+        );
+        assert_eq!(
+            parse_api_route("/v1/persistence/save").unwrap(),
+            Some(ConsoleApiRoute::PersistenceSave)
+        );
+        assert_eq!(
+            parse_api_route("/v1/persistence/import").unwrap(),
+            Some(ConsoleApiRoute::PersistenceImport)
+        );
+        assert_eq!(
+            ConsoleApiRoute::PersistenceExport.method(),
+            ConsoleApiMethod::Get
+        );
+        assert_eq!(
+            ConsoleApiRoute::PersistenceSave.method(),
+            ConsoleApiMethod::PostEmpty
+        );
+        assert_eq!(
+            ConsoleApiRoute::PersistenceImport.method(),
+            ConsoleApiMethod::PostJson
+        );
+        assert_eq!(
+            ConsoleApiRoute::PersistenceImport.max_json_body_bytes(),
+            Some(MAX_PROTOCOL_MESSAGE_BYTES)
+        );
+        assert_eq!(
             parse_api_route("/v1/runtimes/delete-failed?role=edge").unwrap(),
             Some(ConsoleApiRoute::RuntimeCleanup(
                 CleanupKind::Failed,
@@ -1046,7 +1218,7 @@ mod tests {
             )
             .unwrap();
         let route = ConsoleApiRoute::Runtimes(RuntimeListFilter::default());
-        let body = render_api(&route, &runtime, false).unwrap();
+        let body = render_api(&route, &mut runtime, false).unwrap();
         let value: Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(value["runtimes"][0]["runtimeId"], "runtime-web");
         assert_eq!(value["runtimes"][0]["name"], "Web runtime");
@@ -1064,12 +1236,12 @@ mod tests {
             ..RuntimeListFilter::default()
         });
         let value: Value =
-            serde_json::from_slice(&render_api(&filtered, &runtime, false).unwrap()).unwrap();
+            serde_json::from_slice(&render_api(&filtered, &mut runtime, false).unwrap()).unwrap();
         assert!(value["runtimes"].as_array().unwrap().is_empty());
 
         let cleanup = ConsoleApiRoute::CleanupPlan(RuntimeListFilter::default());
         let value: Value =
-            serde_json::from_slice(&render_api(&cleanup, &runtime, false).unwrap()).unwrap();
+            serde_json::from_slice(&render_api(&cleanup, &mut runtime, false).unwrap()).unwrap();
         assert_eq!(value["riskLevel"], "normal");
         assert_eq!(value["failed"]["runtimeCount"], 0);
         assert_eq!(value["unobserved"]["runtimeCount"], 1);
@@ -1086,5 +1258,70 @@ mod tests {
             value["slice"]["planToken"],
             "63551f58c0483ef9559dce5a9366f3244578b92d81be41b5078740f882e33c1e"
         );
+    }
+
+    #[test]
+    fn persistence_export_is_legacy_compatible_bounded_and_secret_free() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "leserpent-web-export-{}-{nonce}.sqlite",
+            std::process::id()
+        ));
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        runtime
+            .register_runtime(
+                RuntimeId::new("runtime-export").unwrap(),
+                "Export runtime",
+                "https://runtime.invalid",
+            )
+            .unwrap();
+        let run = br#"{"runId":"orun-export","runtimeId":"runtime-export","planId":"plan-export","outcome":"queued","executedAt":"2026-08-28T00:00:00Z","completedAt":null,"requestId":"request-export"}"#;
+        let event = br#"{"eventId":0,"runId":"orun-export","runtimeId":"runtime-export","eventType":"run_queued","fromOutcome":null,"toOutcome":"queued","summary":"queued","recordedAt":"2026-08-28T00:00:00Z"}"#;
+        runtime
+            .persist_orchestra_run_event_start(
+                "orun-export",
+                "runtime-export",
+                "request-export",
+                "run_queued",
+                "queued",
+                "2026-08-28T00:00:00Z",
+                run,
+                event,
+            )
+            .unwrap();
+        let body = render_api(&ConsoleApiRoute::PersistenceExport, &mut runtime, false).unwrap();
+        let value: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["schemaVersion"], PERSISTENCE_EXPORT_SCHEMA_VERSION);
+        assert_eq!(value["runtimes"][0]["runtimeId"], "runtime-export");
+        assert_eq!(value["sessions"], json!([]));
+        assert_eq!(value["orchestraRuns"][0]["runId"], "orun-export");
+        assert_eq!(value["pendingRuntimeRegistrations"], json!([]));
+        assert!(
+            value["savedAt"]
+                .as_str()
+                .is_some_and(|value| value.ends_with('Z'))
+        );
+        let encoded = String::from_utf8(body).unwrap();
+        for forbidden in ["pairingToken", "adminToken", "continuation", "secret"] {
+            assert!(!encoded.contains(forbidden), "export leaked {forbidden}");
+        }
+        runtime
+            .begin_runtime_target_registration(
+                "operation-export-pending",
+                &RuntimeId::new("runtime-export").unwrap(),
+                "secret-export-pending",
+                b"{}",
+            )
+            .unwrap();
+        assert!(
+            render_api(&ConsoleApiRoute::PersistenceExport, &mut runtime, false)
+                .unwrap_err()
+                .contains("registration recovery")
+        );
+        drop(runtime);
+        fs::remove_file(path).unwrap();
     }
 }

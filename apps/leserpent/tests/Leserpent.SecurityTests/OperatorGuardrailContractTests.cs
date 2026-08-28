@@ -31,6 +31,9 @@ public sealed class OperatorGuardrailContractTests
 
         Assert.Contains("file.size > 1_048_576", app, StringComparison.Ordinal);
         Assert.Contains("persistence.importConfirm", app, StringComparison.Ordinal);
+        Assert.Contains("state.cache.capabilities?.persistence?.schemaVersion", app, StringComparison.Ordinal);
+        Assert.Contains("parsed.schemaVersion > maximumSchema", app, StringComparison.Ordinal);
+        Assert.DoesNotContain("parsed.schemaVersion !== 1", app, StringComparison.Ordinal);
         Assert.Contains("state.uiActions.has(\"register-runtime\")", app, StringComparison.Ordinal);
         Assert.Contains("/v1/runtimes/registration-plan", app, StringComparison.Ordinal);
         Assert.Contains("registrationPlanToken: registrationPlan.planToken", app, StringComparison.Ordinal);

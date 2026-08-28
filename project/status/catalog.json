@@ -2539,12 +2539,12 @@
       "lifecycle": "target",
       "priority": "critical",
       "maturity": "developing",
-      "completion": 98,
+      "completion": 99,
       "confidence": "high",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-gui-function-chain",
-        "version": "0.9.3-draft",
+        "version": "0.9.5-draft",
         "stability": "draft",
         "surfaces": [
           "machine-readable-operation-inventory",
@@ -2614,7 +2614,25 @@
           "real-tls-rust-web-registration-proof",
           "zeroized-rust-web-registration-body",
           "real-tls-rust-web-mutation-proof",
-          "explicit-rust-web-remaining-mutation-gap"
+          "writer-fenced-rust-web-persistence-save",
+          "restart-recoverable-rust-web-snapshot",
+          "validated-rust-web-last-save-projection",
+          "secret-free-rust-web-persistence-export",
+          "validated-rust-web-orchestra-history-export",
+          "bounded-rust-web-export-pagination",
+          "no-store-rust-web-download-response",
+          "advertised-persistence-schema-range-import",
+          "real-tls-rust-web-persistence-proof",
+          "strict-rust-web-portable-import-schema",
+          "monotonic-import-revision-rebase",
+          "atomic-domain-orchestra-import",
+          "dual-generation-import-recovery",
+          "quiescent-import-authority-fence",
+          "credential-bound-import-target-preservation",
+          "static-catalog-import-target-preservation",
+          "import-log-authority-epoch-reset",
+          "real-tls-rust-web-import-proof",
+          "explicit-rust-web-orchestra-remaining-gap"
         ]
       },
       "depends_on": [
@@ -2628,7 +2646,7 @@
       "blockers": [
         {
           "id": "rust-web-self-host",
-          "summary": "leserpentd now owns first-screen reads, daemon-owned fleet refresh, revision-fenced single-runtime deletion, plan-fenced atomic bulk cleanup, and schema-v21 crash-recoverable registration for strict loopback Gewyvern targets; persistence import/export and Orchestra compatibility routes remain before the ASP.NET bridge can retire."
+          "summary": "leserpentd now owns first-screen reads, daemon-owned fleet refresh, revision-fenced single-runtime deletion, plan-fenced atomic bulk cleanup, schema-v21 crash-recoverable registration for strict loopback Gewyvern targets, writer-fenced snapshots, secret-free exports, and quiescence-fenced atomic schema-1 import with dual-generation recovery and static/dynamic target identity preservation; only Orchestra operation compatibility routes remain before the ASP.NET bridge can retire."
         }
       ],
       "consumers": ["release-gates", "desktop-operators", "web-operators", "model-automation"],
@@ -2648,6 +2666,7 @@
         { "kind": "source", "path": "crates/leserpent-adapters/src/gewyvern.rs", "state": "present" },
         { "kind": "source", "path": "crates/leselang-vm/src/lib.rs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent/src/Leserpent/frontend/20-security-transport.ts", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent/src/Leserpent/frontend/50-dashboard-workflows.ts", "state": "present" },
         { "kind": "release", "path": "apps/leserpent/frontend-package-manifest.json", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteOrchestraClient.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteOrchestraWorkspaceWindow.cs", "state": "present" },
@@ -2665,7 +2684,7 @@
         { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" }
       ],
-      "next_gate": "Move persistence import/export and Orchestra compatibility routes behind Rust authority before retiring the ASP.NET bridge; keep remote dynamic Gewyvern registration closed until explicit CA trust can be persisted."
+      "next_gate": "Move Orchestra operation compatibility routes behind Rust authority before retiring the ASP.NET bridge; keep remote dynamic Gewyvern registration closed until explicit CA trust can be persisted."
     },
     {
       "id": "leserpent-2/ui-renderers/desktop-localization",

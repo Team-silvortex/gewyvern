@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -9,7 +10,7 @@ use leserpent_domain::{
     CAPABILITY_RUNTIME_REGISTER, COMMAND_PLAN_SCHEMA_VERSION, CapabilitySet, Command,
     CommandEnvelope, CommandId, CommandOrigin, CommandPlan, Confirmation, IdempotencyKey,
     PlannedOperation, Principal, Revision, RuntimeId, RuntimeProjection, RuntimeTags,
-    validate_registration_intent,
+    canonical_runtime_endpoint_identity, validate_registration_intent,
 };
 use leserpent_runtime::{
     ControlRuntime, PlanResult, RuntimeError, RuntimeTargetRegistrationAdmission,
@@ -169,6 +170,66 @@ pub struct RuntimeTargetRegistrationAuthority {
 impl RuntimeTargetRegistrationAuthority {
     pub fn new(targets: GewyvernTargetCatalog, secrets: Arc<dyn MutableSecretStore>) -> Self {
         Self { targets, secrets }
+    }
+
+    pub(crate) fn validate_import_bindings(
+        &self,
+        runtime: &mut ControlRuntime,
+        projections: &[RuntimeProjection],
+    ) -> Result<Vec<String>, RuntimeTargetRegistrationError> {
+        let projections = projections
+            .iter()
+            .map(|projection| (projection.id.as_str(), projection))
+            .collect::<BTreeMap<_, _>>();
+        for (runtime_id, endpoint) in self
+            .targets
+            .endpoint_origins()
+            .map_err(|_| RuntimeTargetRegistrationError::unavailable())?
+        {
+            let projection = projections
+                .get(runtime_id.as_str())
+                .ok_or_else(RuntimeTargetRegistrationError::conflict)?;
+            if canonical_runtime_endpoint_identity(&projection.endpoint)
+                != canonical_runtime_endpoint_identity(&endpoint)
+            {
+                return Err(RuntimeTargetRegistrationError::conflict());
+            }
+        }
+        let mut runtime_ids = Vec::new();
+        for binding in runtime
+            .runtime_target_bindings()
+            .map_err(map_runtime_error)?
+        {
+            let intent = parse_payload(&binding.payload)?;
+            validate_record_identity(
+                &intent,
+                &binding.operation_id,
+                &binding.runtime_id,
+                &binding.secret_key,
+            )?;
+            let projection = projections
+                .get(binding.runtime_id.as_str())
+                .ok_or_else(RuntimeTargetRegistrationError::conflict)?;
+            if !intent.matches_projection(projection) {
+                return Err(RuntimeTargetRegistrationError::conflict());
+            }
+            let secret_key = intent.secret_key()?;
+            if self
+                .secrets
+                .load(&secret_key)
+                .map_err(map_secret_error)?
+                .is_none()
+                || !self
+                    .targets
+                    .contains(&binding.runtime_id)
+                    .map_err(|_| RuntimeTargetRegistrationError::unavailable())?
+            {
+                return Err(RuntimeTargetRegistrationError::unavailable());
+            }
+            runtime_ids.push(binding.runtime_id);
+        }
+        runtime_ids.sort();
+        Ok(runtime_ids)
     }
 
     pub(crate) fn persisted_intent(

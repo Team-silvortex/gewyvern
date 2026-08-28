@@ -216,9 +216,10 @@ projection, operator feedback, and Leselang equivalence separately. Its
 at 50, and the supported ASP.NET Web bridge at 100, for a combined target score
 of 95. The Rust daemon now serves the shared packaged TypeScript console and its
 Bearer-authenticated first-screen read projections directly. Refresh, deletion,
-and strict-loopback Gewyvern registration are Rust-owned; persistence
-import/export and Orchestra compatibility APIs remain the explicit
-bridge-retirement gap. Avalonia now closes a daemon-owned native Orchestra workspace for strict,
+strict-loopback Gewyvern registration, writer-fenced snapshots, bounded
+secret-free state export, and atomic portable state import are Rust-owned;
+Orchestra operation compatibility APIs remain the explicit bridge-retirement
+gap. Avalonia now closes a daemon-owned native Orchestra workspace for strict,
 revision-fenced plan discovery, Rust-authoritative automatic execution,
 queued-only cancellation, lineage-bound retry, persisted run/event drilldown,
 and idempotent runtime-scoped cleanup. Guided plans remain review-only rather
@@ -239,8 +240,13 @@ durable VM re-entry. Continuations and source never cross the acknowledgement
 boundary, rejections become visible terminal failures, and the desktop caps one
 run at 64 effects. The per-daemon Rust Web console now owns typed refresh,
 single-delete, plan-fenced atomic bulk-cleanup, and crash-recoverable loopback
-Gewyvern registration mutations; persistence and Orchestra compatibility remain
-the explicit closure work. Expired
+Gewyvern registration mutations. It also owns explicit persistence checkpointing
+and a schema-1 portable export assembled from live runtime projections and bounded,
+validated Orchestra history without credentials. Its schema-1 importer is now
+writer-fenced, revision-rebased, quiescence-gated, and atomic across the domain
+snapshot and Orchestra history, with dual-generation recovery and static/dynamic
+target identity preservation. Orchestra operation compatibility remains the
+explicit closure work. Expired
 effects converge to a terminal revision and release the
 32-session daemon registry; cancellation audit remains restart-durable inside a
 bounded 64-journal retention horizon. Active debugger sessions remain
@@ -2632,11 +2638,11 @@ copy-on-write platform credential, applies the idempotent runtime command,
 activates the shared target catalog, and commits a durable binding. Restart
 recovery resumes intermediate states, deterministic conflicts compensate the
 new secret, and exact lost-response retries replay without exposing credentials.
-Cleanup now
-uses canonical reviewed plan tokens, a whole-slice challenge, atomic bounded
-unregistration, and durable lost-response replay. Persistence import/export and
-Orchestra controls still use Avalonia, the native CLI, or the compatibility
-bridge while their Rust routes migrate.
+Cleanup now uses canonical reviewed plan tokens, a whole-slice challenge, atomic
+bounded unregistration, and durable lost-response replay. Persistence checkpoint,
+export, and import now execute in the Rust host; Orchestra controls still use
+Avalonia, the native CLI, or the compatibility bridge while their Rust routes
+migrate.
 
 The native CLI uses the same endpoint without changing command syntax:
 

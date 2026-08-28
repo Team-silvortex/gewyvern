@@ -5272,9 +5272,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .expect("product GUI function-chain cell must exist");
     assert_eq!(frontend_parity.maturity, Maturity::Developing);
     assert_eq!(frontend_parity.priority, Priority::Critical);
-    assert_eq!(frontend_parity.completion, 98);
+    assert_eq!(frontend_parity.completion, 99);
     assert_eq!(frontend_parity.contract.stability, ContractStability::Draft);
-    assert_eq!(frontend_parity.contract.version, "0.9.3-draft");
+    assert_eq!(frontend_parity.contract.version, "0.9.5-draft");
     for surface in [
         "avalonia-orchestra-native-plan-run-control-closure",
         "strict-dotnet-orchestra-control-codec",
@@ -5317,7 +5317,25 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "real-tls-rust-web-registration-proof",
         "zeroized-rust-web-registration-body",
         "real-tls-rust-web-mutation-proof",
-        "explicit-rust-web-remaining-mutation-gap",
+        "writer-fenced-rust-web-persistence-save",
+        "restart-recoverable-rust-web-snapshot",
+        "validated-rust-web-last-save-projection",
+        "secret-free-rust-web-persistence-export",
+        "validated-rust-web-orchestra-history-export",
+        "bounded-rust-web-export-pagination",
+        "no-store-rust-web-download-response",
+        "advertised-persistence-schema-range-import",
+        "real-tls-rust-web-persistence-proof",
+        "strict-rust-web-portable-import-schema",
+        "monotonic-import-revision-rebase",
+        "atomic-domain-orchestra-import",
+        "dual-generation-import-recovery",
+        "quiescent-import-authority-fence",
+        "credential-bound-import-target-preservation",
+        "static-catalog-import-target-preservation",
+        "import-log-authority-epoch-reset",
+        "real-tls-rust-web-import-proof",
+        "explicit-rust-web-orchestra-remaining-gap",
     ] {
         assert!(
             frontend_parity
@@ -5393,6 +5411,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "crates/leserpentd/src/remote.rs",
         "crates/leserpentd/src/runtime_target_registration.rs",
         "apps/leserpent/src/Leserpent/frontend/20-security-transport.ts",
+        "apps/leserpent/src/Leserpent/frontend/50-dashboard-workflows.ts",
     ] {
         assert!(frontend_parity.evidence.iter().any(|item| {
             item.kind == EvidenceKind::Source

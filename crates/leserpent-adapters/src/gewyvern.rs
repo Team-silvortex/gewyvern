@@ -93,6 +93,16 @@ impl GewyvernTargetCatalog {
         self.len().map(|len| len == 0)
     }
 
+    pub fn endpoint_origins(&self) -> Result<Vec<(String, String)>, String> {
+        Ok(self
+            .targets
+            .read()
+            .map_err(|_| "Gewyvern target catalog is unavailable".to_string())?
+            .iter()
+            .map(|(runtime_id, target)| (runtime_id.clone(), target.origin()))
+            .collect())
+    }
+
     pub(crate) fn target(&self, runtime_id: &str) -> Result<Option<GewyvernTarget>, String> {
         Ok(self
             .targets
@@ -163,6 +173,15 @@ impl GewyvernTarget {
 
     pub(crate) fn is_authenticated(&self) -> bool {
         self.admin_secret.is_some()
+    }
+
+    fn origin(&self) -> String {
+        match &self.transport {
+            GewyvernTransport::Loopback(address) => format!("http://{address}"),
+            GewyvernTransport::Https { endpoint, .. } => {
+                format!("https://{}", endpoint.authority)
+            }
+        }
     }
 }
 

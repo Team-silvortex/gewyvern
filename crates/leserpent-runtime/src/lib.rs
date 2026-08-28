@@ -33,9 +33,10 @@ use std::time::Duration;
 mod persistence;
 
 pub use persistence::{
-    EffectLease, OrchestraDeleteRecord, OrchestraEffectCancellationRecord,
-    OrchestraEffectStatusRecord, OrchestraHistoryRecord, OrchestraPersistenceRecord,
-    RuntimeTargetBindingCommit, RuntimeTargetBindingRecord, RuntimeTargetRegistrationAdmission,
+    ControlPlaneImportRecord, EffectLease, OrchestraDeleteRecord,
+    OrchestraEffectCancellationRecord, OrchestraEffectStatusRecord, OrchestraHistoryRecord,
+    OrchestraImportRecord, OrchestraPersistenceRecord, RuntimeTargetBindingCommit,
+    RuntimeTargetBindingRecord, RuntimeTargetRegistrationAdmission,
     RuntimeTargetRegistrationRecord,
 };
 use persistence::{
@@ -865,6 +866,51 @@ impl ControlRuntime {
         journal
             .save_snapshot(DOMAIN_SNAPSHOT_SCHEMA_VERSION, &payload)
             .map_err(RuntimeError::Storage)
+    }
+
+    pub fn import_control_plane_state(
+        &mut self,
+        snapshot: DomainSnapshot,
+        orchestra_runs: &[OrchestraImportRecord],
+        protected_binding_runtime_ids: &[String],
+    ) -> Result<ControlPlaneImportRecord, RuntimeError> {
+        snapshot.validate().map_err(RuntimeError::InvalidSnapshot)?;
+        let staged = InMemoryControlPlane::from_snapshot(snapshot.clone())
+            .map_err(RuntimeError::InvalidSnapshot)?;
+        let payload = serde_json::to_vec(&snapshot)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "control-plane import requires persistent storage".into(),
+            ));
+        };
+        let imported = journal
+            .replace_control_plane_state(
+                DOMAIN_SNAPSHOT_SCHEMA_VERSION,
+                &payload,
+                orchestra_runs,
+                protected_binding_runtime_ids,
+            )
+            .map_err(RuntimeError::Storage)?;
+        self.control = staged;
+        self.ephemeral_logs.clear();
+        Ok(imported)
+    }
+
+    pub fn latest_snapshot_created_at_unix_ms(&self) -> Result<Option<u64>, RuntimeError> {
+        let Some(journal) = &self.journal else {
+            return Ok(None);
+        };
+        journal
+            .load_snapshots()
+            .map_err(RuntimeError::Storage)?
+            .first()
+            .map(|snapshot| {
+                u64::try_from(snapshot.created_at_unix_ms).map_err(|_| {
+                    RuntimeError::Storage("runtime snapshot timestamp is invalid".into())
+                })
+            })
+            .transpose()
     }
 
     pub fn heartbeat(&mut self) -> Result<(), RuntimeError> {

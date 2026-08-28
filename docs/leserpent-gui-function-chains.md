@@ -58,8 +58,8 @@ registration editor separately closes already-running runtime intake and
 revision-fenced metadata updates: the daemon produces a side-effect-free plan,
 field edits invalidate it, and an explicit confirmation applies the same command
 identity without sending deployment credentials or service secrets. The
-remaining target gap is Rust-owned persistence import/export and Orchestra
-compatibility routes, after which the ASP.NET bridge can retire.
+remaining target gap is Rust-owned Orchestra operation compatibility routes,
+after which the ASP.NET bridge can retire.
 
 `leserpentd` now serves the exact packaged TypeScript console from its existing
 authenticated HTTPS listener. Public HTML, JavaScript, CSS, branding, and
@@ -91,9 +91,29 @@ deliberately accepts only root `http://127.0.0.1:PORT/` and
 `http://[::1]:PORT/` Gewyvern origins; remote HTTPS registration still fails
 closed until a registration request can carry reviewed CA trust without turning
 ambient PKI into authority. Real TLS tests prove the browser-to-daemon boundary
-and the registration replay path. The Rust Web surface remains `partial` only
-while persistence import/export and Orchestra compatibility depend on the 1.x
-bridge.
+and the registration replay path.
+
+Persistence checkpoint and export no longer cross the bridge. Writer mode gates
+`POST /v1/persistence/save`, which commits the runtime's checksum-bound snapshot
+only after its journal is terminal and is restart-recovered by the same SQLite
+authority. Capabilities derives `lastSavedAt` from the newest checksum-valid
+snapshot instead of maintaining a second status cache. Authenticated
+`GET /v1/persistence/export` emits the legacy-compatible
+schema-1 control-plane document directly from live runtime projections, walks all
+retained Orchestra runs through bounded validated pagination, rejects export while
+registration recovery is pending, and never serializes target credentials or
+internal secret handles. The response is a `no-store` attachment and remains under
+the protocol response bound. The shared importer now accepts the backend's
+advertised compatible schema range instead of incorrectly requiring exactly
+schema 1. Writer-fenced `POST /v1/persistence/import` now strictly decodes that
+portable schema, rejects sessions, unresolved recovery metadata, non-terminal
+Orchestra runs, active effects, and incomplete authority checkpoints, then
+atomically replaces the revision-rebased domain snapshot and validated Orchestra
+history. Two checksum-bound copies define the new recovery epoch, runtime logs
+are cleared, and both static catalog targets and dynamic credential bindings must
+retain their canonical runtime/origin identity. Unit, restart, and real TLS tests
+cover success, rollback, and conflict paths. The Rust Web surface remains
+`partial` only while Orchestra operation compatibility depends on the 1.x bridge.
 
 The debugger workspace starts a bounded daemon-owned VM only to its first
 effect, mounts the Rust-authored `UiDocument`, and routes its session-bound

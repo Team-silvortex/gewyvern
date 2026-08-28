@@ -415,6 +415,7 @@ impl RemoteServer {
                         content_type: asset.content_type,
                         cache_control: asset.cache_control,
                         document: asset.document,
+                        content_disposition: None,
                     },
                 ),
                 Ok(HttpRequest {
@@ -430,6 +431,7 @@ impl RemoteServer {
                     body,
                     ..
                 }) => {
+                    let persistence_export = route == ConsoleApiRoute::PersistenceExport;
                     let writer_available =
                         web_console_writer_available(runtime, self.web_console_writer.as_ref());
                     let registration = writer_available
@@ -462,7 +464,11 @@ impl RemoteServer {
                         Ok(body) => (
                             HttpStatus::Ok,
                             Cow::Owned(body),
-                            HttpResponsePolicy::private_json(),
+                            if persistence_export {
+                                HttpResponsePolicy::private_json_download()
+                            } else {
+                                HttpResponsePolicy::private_json()
+                            },
                         ),
                         Err(error) => (
                             console_write_http_status(error.status),
@@ -1247,6 +1253,7 @@ struct HttpResponsePolicy {
     content_type: &'static str,
     cache_control: &'static str,
     document: bool,
+    content_disposition: Option<&'static str>,
 }
 
 impl HttpResponsePolicy {
@@ -1255,6 +1262,18 @@ impl HttpResponsePolicy {
             content_type: "application/json",
             cache_control: "no-store",
             document: false,
+            content_disposition: None,
+        }
+    }
+
+    fn private_json_download() -> Self {
+        Self {
+            content_type: "application/json",
+            cache_control: "no-store",
+            document: false,
+            content_disposition: Some(
+                "attachment; filename=\"leserpent-control-plane-state.json\"",
+            ),
         }
     }
 
@@ -1263,6 +1282,7 @@ impl HttpResponsePolicy {
             content_type: "application/json",
             cache_control: "no-cache",
             document: false,
+            content_disposition: None,
         }
     }
 }
@@ -1283,13 +1303,17 @@ fn write_http_response(
     } else {
         ""
     };
+    let content_disposition = policy.content_disposition.map_or(String::new(), |value| {
+        format!("Content-Disposition: {value}\r\n")
+    });
     let header = format!(
-        "HTTP/1.1 {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: {}\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nReferrer-Policy: no-referrer\r\nPermissions-Policy: camera=(), microphone=(), geolocation=()\r\nCross-Origin-Opener-Policy: same-origin\r\n{}{}Connection: close\r\n\r\n",
+        "HTTP/1.1 {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: {}\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nReferrer-Policy: no-referrer\r\nPermissions-Policy: camera=(), microphone=(), geolocation=()\r\nCross-Origin-Opener-Policy: same-origin\r\n{}{}{}Connection: close\r\n\r\n",
         status.line(),
         policy.content_type,
         body.len(),
         policy.cache_control,
         content_security_policy,
+        content_disposition,
         challenge,
     );
     stream
@@ -2272,6 +2296,37 @@ mod tests {
         assert!(runtimes.body.is_empty());
         assert!(runtimes.writer_fence.is_none());
 
+        let export = read_http_request(
+            &mut Cursor::new(console_get_request(
+                "/v1/persistence/export",
+                Some(TOKEN),
+                Some(TOKEN),
+            )),
+            TOKEN.as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(
+            export.route,
+            HttpRoute::ConsoleApi(ConsoleApiRoute::PersistenceExport)
+        );
+
+        let save = read_http_request(
+            &mut Cursor::new(console_post_request(
+                "/v1/persistence/save",
+                &[],
+                Some(TOKEN),
+                Some(TOKEN),
+                Some("mutate"),
+                false,
+            )),
+            TOKEN.as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(
+            save.route,
+            HttpRoute::ConsoleApi(ConsoleApiRoute::PersistenceSave)
+        );
+
         let plan_body = br#"{"name":"Runtime A","endpoint":"https://runtime.invalid"}"#;
         let registration_plan = read_http_request(
             &mut Cursor::new(console_post_request(
@@ -2531,6 +2586,29 @@ mod tests {
             );
         }
 
+        let export = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_get_client(
+                address,
+                cert.der().clone(),
+                "/v1/persistence/export",
+                Some(TOKEN),
+                Some(TOKEN),
+            ),
+        );
+        assert!(export.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let export_head =
+            std::str::from_utf8(&export[..find_header_end(&export).unwrap()]).unwrap();
+        assert!(export_head.contains("Cache-Control: no-store\r\n"));
+        assert!(export_head.contains(
+            "Content-Disposition: attachment; filename=\"leserpent-control-plane-state.json\"\r\n"
+        ));
+        let exported: serde_json::Value =
+            serde_json::from_slice(&export[find_header_end(&export).unwrap()..]).unwrap();
+        assert_eq!(exported["schemaVersion"], 1);
+        assert_eq!(exported["runtimes"][0]["runtimeId"], "runtime-rust-web");
+
         drop(runtime);
         fs::remove_file(certificate_path).unwrap();
         fs::remove_file(key_path).unwrap();
@@ -2599,6 +2677,19 @@ mod tests {
             serde_json::from_slice(&disabled[find_header_end(&disabled).unwrap()..]).unwrap();
         assert_eq!(disabled_body["error"], "web_console_writer_disabled");
 
+        let save_disabled = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/persistence/save",
+                Vec::new(),
+                false,
+            ),
+        );
+        assert!(save_disabled.starts_with(b"HTTP/1.1 503 Service Unavailable\r\n"));
+
         server.web_console_writer = Some(writer_fence.clone());
         let capabilities = complete_tls_request(
             &mut server,
@@ -2622,6 +2713,72 @@ mod tests {
             capabilities["webConsole"]["registrationBlocker"],
             "crash_recoverable_registration_transaction"
         );
+
+        let saved = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/persistence/save",
+                Vec::new(),
+                false,
+            ),
+        );
+        assert!(saved.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let saved: serde_json::Value =
+            serde_json::from_slice(&saved[find_header_end(&saved).unwrap()..]).unwrap();
+        assert_eq!(saved["ok"], true);
+        assert!(saved["throughSequence"].as_i64().is_some());
+        let capabilities_after_save = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_get_client(
+                address,
+                cert.der().clone(),
+                "/v1/capabilities",
+                Some(TOKEN),
+                Some(TOKEN),
+            ),
+        );
+        let capabilities_after_save: serde_json::Value = serde_json::from_slice(
+            &capabilities_after_save[find_header_end(&capabilities_after_save).unwrap()..],
+        )
+        .unwrap();
+        assert!(
+            capabilities_after_save["persistence"]["lastSavedAt"]
+                .as_str()
+                .is_some_and(|value| value.ends_with('Z'))
+        );
+
+        let exported = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_get_client(
+                address,
+                cert.der().clone(),
+                "/v1/persistence/export",
+                Some(TOKEN),
+                Some(TOKEN),
+            ),
+        );
+        assert!(exported.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let imported = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/persistence/import",
+                exported[find_header_end(&exported).unwrap()..].to_vec(),
+                true,
+            ),
+        );
+        assert!(imported.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let imported: serde_json::Value =
+            serde_json::from_slice(&imported[find_header_end(&imported).unwrap()..]).unwrap();
+        assert_eq!(imported["importedRuntimeCount"], 2);
+        assert_eq!(imported["importedSessionCount"], 0);
 
         let plan = complete_tls_request(
             &mut server,
