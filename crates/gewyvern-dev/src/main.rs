@@ -13,6 +13,7 @@ const USAGE: &str = r#"Usage:
   cargo dev doctor
   cargo dev version check
   cargo dev version set VERSION [--dry-run]
+  cargo dev check [--scope core|control|desktop|all] [--restore] [--dry-run]
   cargo dev build [--scope core|control|desktop|all] [--release] [--restore] [--dry-run]
   cargo dev package linux [--format layout|deb|rpm|all] [--skip-build] [--out-dir PATH] [--dry-run]
   cargo dev package desktop [--output APP] [--silvortex-issuer URL] [--identity ID --notary-profile PROFILE] [--dry-run]
@@ -140,6 +141,7 @@ struct DesktopOptions {
 enum Workflow {
     Doctor,
     Version(version::VersionAction),
+    Check(BuildOptions),
     Build(BuildOptions),
     PackageLinux(LinuxPackageOptions),
     Desktop(DesktopOptions),
@@ -154,6 +156,7 @@ impl Workflow {
                 Ok(Self::Doctor)
             }
             Some("version") => version::VersionAction::parse(arguments).map(Self::Version),
+            Some("check") => parse_check(arguments).map(Self::Check),
             Some("build") => parse_build(arguments).map(Self::Build),
             Some("package") => match arguments.next().as_deref() {
                 Some("linux") => parse_linux_package(arguments).map(Self::PackageLinux),
@@ -170,6 +173,14 @@ impl Workflow {
             None => Err(USAGE.to_string()),
         }
     }
+}
+
+fn parse_check(arguments: impl Iterator<Item = String>) -> Result<BuildOptions, String> {
+    let options = parse_build(arguments)?;
+    if options.release {
+        return Err("check does not accept --release; use build --release".to_string());
+    }
+    Ok(options)
 }
 
 fn parse_build(arguments: impl Iterator<Item = String>) -> Result<BuildOptions, String> {
@@ -352,6 +363,13 @@ fn execute(workflow: Workflow, root: PathBuf) -> Result<WorkflowOutcome, String>
                 artifact: None,
             })
         }
+        Workflow::Check(options) => {
+            run_parallel(check_specs(&root, &options), options.dry_run)?;
+            Ok(WorkflowOutcome {
+                action: "check",
+                artifact: None,
+            })
+        }
         Workflow::Build(options) => {
             run_parallel(build_specs(&root, &options), options.dry_run)?;
             Ok(WorkflowOutcome {
@@ -433,18 +451,39 @@ impl ProcessSpec {
 }
 
 fn build_specs(root: &Path, options: &BuildOptions) -> Vec<ProcessSpec> {
+    compile_specs(root, options, false)
+}
+
+fn check_specs(root: &Path, options: &BuildOptions) -> Vec<ProcessSpec> {
+    compile_specs(root, options, true)
+}
+
+fn compile_specs(root: &Path, options: &BuildOptions, check_only: bool) -> Vec<ProcessSpec> {
     let mut specs = Vec::new();
     if matches!(options.scope, BuildScope::Core | BuildScope::All) {
-        let mut arguments = vec!["build", "--locked", "--workspace"];
+        let mut arguments = vec![
+            if check_only { "check" } else { "build" },
+            "--locked",
+            "--workspace",
+        ];
         if options.release {
             arguments.push("--release");
         }
-        specs.push(ProcessSpec::new("rust-workspace", "cargo", arguments, root));
+        specs.push(ProcessSpec::new(
+            if check_only {
+                "rust-workspace-check"
+            } else {
+                "rust-workspace"
+            },
+            "cargo",
+            arguments,
+            root,
+        ));
     }
     if matches!(options.scope, BuildScope::Control | BuildScope::All) {
         let mut arguments = vec![
             "build",
-            "apps/leserpent/leserpent.slnx",
+            "apps/leserpent/src/Leserpent/Leserpent.csproj",
             "--nologo",
             "--verbosity",
             "minimal",
@@ -452,11 +491,7 @@ fn build_specs(root: &Path, options: &BuildOptions) -> Vec<ProcessSpec> {
         add_dotnet_restore_mode(
             &mut arguments,
             root,
-            &[
-                "apps/leserpent/src/Leserpent/Leserpent.csproj",
-                "apps/leserpent/tests/Leserpent.RuntimeDeletionCrashHarness/Leserpent.RuntimeDeletionCrashHarness.csproj",
-                "apps/leserpent/tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj",
-            ],
+            &["apps/leserpent/src/Leserpent/Leserpent.csproj"],
             options.restore,
         );
         if options.release {
@@ -1247,8 +1282,34 @@ mod tests {
                 .rendered()
                 .contains("cargo build --locked --workspace")
         );
+        assert!(
+            specs[1]
+                .rendered()
+                .contains("apps/leserpent/src/Leserpent/Leserpent.csproj")
+        );
+        assert!(!specs[1].rendered().contains("Leserpent.SecurityTests"));
         assert!(specs[1].rendered().contains("RestoreLockedMode=true"));
         assert!(specs[2].rendered().contains("Leserpent.Avalonia.csproj"));
+    }
+
+    #[test]
+    fn check_defaults_to_unlinked_parallel_workflow() {
+        let Workflow::Check(options) = Workflow::parse(vec!["check".into()]).unwrap() else {
+            panic!("expected check workflow");
+        };
+        assert_eq!(options.scope, BuildScope::All);
+        assert!(!options.release);
+        assert!(!options.restore);
+        let specs = check_specs(Path::new("/repo"), &options);
+        assert_eq!(specs.len(), 3);
+        assert!(
+            specs[0]
+                .rendered()
+                .contains("cargo check --locked --workspace")
+        );
+        assert!(specs[1].rendered().starts_with("dotnet build"));
+        assert!(specs[2].rendered().starts_with("dotnet build"));
+        assert!(Workflow::parse(vec!["check".into(), "--release".into()]).is_err());
     }
 
     #[test]

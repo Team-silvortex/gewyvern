@@ -90,19 +90,31 @@ cargo dev version set 1.20.0 --dry-run
 Removing `--dry-run` applies the update transactionally. It does not create a
 Git tag or rewrite retained historical evidence.
 
-Build the Rust workspace, Leserpent control solution, and Avalonia desktop in
-parallel:
+Type-check the Rust workspace without code generation while incrementally
+building the managed stacks in parallel:
+
+```bash
+cargo dev check
+```
+
+Use this as the normal edit loop. Build runnable Rust binaries, the Leserpent
+control service, and Avalonia desktop in parallel when an executable is
+needed:
 
 ```bash
 cargo dev build
 ```
 
-The native workflow always uses Cargo's lock file. It reuses a fresh .NET
+The native workflow always uses Cargo's lock file. Development and test
+profiles retain line tables for backtraces while omitting variable-level debug
+information, reducing Rust code generation, link time, and cache size. Set
+`CARGO_PROFILE_DEV_DEBUG=2` or `CARGO_PROFILE_TEST_DEBUG=2` temporarily when a
+full debugger session needs local variables. The workflow reuses a fresh .NET
 assets graph with `--no-restore`, performs a locked restore when project or
 lock inputs changed, and reports each stage's elapsed time. Narrow an iteration
-with `--scope core`, `--scope control`, or `--scope desktop`; add `--release`
-for optimized output, `--restore` to force dependency verification, or
-`--dry-run` to inspect the exact commands.
+with `--scope core`, `--scope control`, or `--scope desktop`; both `check` and
+`build` accept `--restore` or `--dry-run`, while only `build` accepts
+`--release` for optimized output.
 
 Package or install the macOS arm64 desktop app through the same native entry:
 

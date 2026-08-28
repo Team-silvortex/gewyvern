@@ -42,6 +42,7 @@ If you want the shortest path into the current system:
 # Check and build the Rust, control, and desktop stacks
 cargo dev doctor
 cargo dev version check
+cargo dev check
 cargo dev build
 
 # Confirm the installed release
@@ -246,8 +247,9 @@ use [docs/script-entrypoints.md](docs/script-entrypoints.md).
 
 Core CLI and test entrypoints:
 
-- `cargo dev doctor` / `cargo dev build`
-  Check the local toolchain and run the locked cross-stack build in parallel.
+- `cargo dev doctor` / `cargo dev check` / `cargo dev build`
+  Check the local toolchain, run the fast unlinked edit loop, or produce the
+  locked cross-stack outputs in parallel.
 - `cargo run -- ...`
   Start the main `gewyvern` runtime CLI.
 - `cargo run -p gewyc -- ...`

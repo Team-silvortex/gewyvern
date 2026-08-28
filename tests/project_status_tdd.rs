@@ -7575,7 +7575,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(continuous_proof.maturity, Maturity::Mature);
     assert_eq!(continuous_proof.priority, Priority::Maintenance);
     assert_eq!(continuous_proof.completion, 100);
-    assert_eq!(continuous_proof.contract.version, "1.0.0");
+    assert_eq!(continuous_proof.contract.version, "1.1.0");
     assert_eq!(
         continuous_proof.contract.stability,
         ContractStability::Stable
@@ -7661,6 +7661,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "native-developer-workflow",
         "parallel-cross-stack-build",
         "smart-locked-dotnet-restore",
+        "line-table-development-profile",
+        "unlinked-cross-stack-check",
         "portable-package-build-lock",
         "reusable-release-binary-packaging",
         "one-command-macos-aot-bundle-install",
@@ -7680,6 +7682,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }
     assert!(continuous_proof.evidence.iter().any(|evidence| {
         evidence.path == "src/validation_harness/command.rs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(continuous_proof.evidence.iter().any(|evidence| {
+        evidence.path == "Cargo.toml" && evidence.state == EvidenceState::Present
+    }));
+    assert!(continuous_proof.evidence.iter().any(|evidence| {
+        evidence.path == "docs/performance-baselines.md"
+            && evidence.kind == EvidenceKind::Benchmark
             && evidence.state == EvidenceState::Present
     }));
     assert!(continuous_proof.evidence.iter().any(|evidence| {

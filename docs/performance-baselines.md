@@ -13,6 +13,35 @@ numbers.
 They are the agreed local reference point for deciding whether a change keeps
 `gewyvern` within its currently accepted operational envelope.
 
+## Native Build Workflow Baseline
+
+The `2026-08-28` macOS arm64 calibration used an 8-logical-CPU, 16 GiB host,
+Rust `1.94.1`, locked dependencies, fresh target directories, and
+`CARGO_INCREMENTAL=0`. This isolates compiler work from a preheated incremental
+cache; day-to-day rebuilds should be faster.
+
+| Rust path | Wall time | User CPU | Target allocation |
+| --- | ---: | ---: | ---: |
+| Full-debug workspace build | `35.89 s` | `138.45 s` | `1.2 GiB` |
+| Line-table workspace build | `35.08 s` | `108.92 s` | `942 MiB` |
+| Line-table workspace check | `15.59 s` | `44.93 s` | not comparable to linked output |
+
+The lighter profile reduced compiler CPU by `21.3%` and physical target usage
+by roughly one fifth; parallel critical-path work limited the cold wall-time
+change to `2.3%`. Skipping Rust code generation and linking through
+`cargo dev check` reduced cold wall time by `56.6%`. A separately cleaned .NET
+comparison reduced the control stage from `5.86 s` for the solution, which also
+compiled test projects, to `4.69 s` for the production control project
+(`20.0%`). Full `cargo dev build`, workspace tests, and release gates remain the
+required paths whenever runnable artifacts or release evidence are needed.
+
+The complete cross-stack command took `22.619 s` when the control project first
+needed a locked restore (`17.25 s` of that stage). Its immediate warm rerun
+correctly selected `--no-restore`: Rust check, control, and desktop finished in
+`0.184 / 0.757 / 1.102 s`, with `1.106 s` total parallel wall time.
+After the runnable Rust artifacts were populated, the corresponding no-change
+`cargo dev build` reused all three stacks in `1.065 s`.
+
 ## Leserpent 2 Named Benchmark Shelf
 
 Run `gewyvern_validate leserpent-benchmark` to measure the bounded

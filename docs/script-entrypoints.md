@@ -20,6 +20,7 @@ to compose the lower-level entrypoints by hand:
 ```bash
 cargo dev doctor
 cargo dev version check
+cargo dev check
 cargo dev build
 cargo dev package linux --format layout
 cargo dev package desktop
@@ -29,12 +30,16 @@ cargo dev deploy desktop --launch
 `cargo dev version check` verifies the shared Cargo/.NET/lockfile/documentation
 release identity. `cargo dev version set VERSION [--dry-run]` updates those
 current-version surfaces transactionally while leaving historical evidence and
-Git tags untouched. `cargo dev build` runs the Rust, Leserpent control, and
-Avalonia builds in parallel with locked dependency behavior. The package and
-deploy commands keep atomic output boundaries and report their final artifact.
-Use the scripts and specialized Rust binaries below when debugging an
-individual stage. Formal macOS release packaging uses the same desktop command
-with the paired `--identity` and `--notary-profile` options.
+Git tags untouched. `cargo dev check` skips Rust code generation and linking
+while retaining incremental managed builds; `cargo dev build` produces the
+Rust, Leserpent control service, and Avalonia outputs. Test projects remain on
+the explicit regression/release gates instead of the routine output build.
+Both run their selected stacks in parallel with locked dependency behavior and
+support narrow `--scope` values.
+The package and deploy commands keep atomic output boundaries and report their
+final artifact. Use the scripts and specialized Rust binaries below when
+debugging an individual stage. Formal macOS release packaging uses the same
+desktop command with the paired `--identity` and `--notary-profile` options.
 
 ## JSON Mode
 

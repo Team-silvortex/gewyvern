@@ -83,6 +83,7 @@ fn native_developer_workflow_owns_locked_build_package_and_desktop_deploy_routes
         "cargo dev doctor",
         "cargo dev version check",
         "cargo dev version set",
+        "cargo dev check",
         "cargo dev build",
         "cargo dev package linux",
         "cargo dev package desktop",
@@ -93,10 +94,19 @@ fn native_developer_workflow_owns_locked_build_package_and_desktop_deploy_routes
             "missing workflow route: {command}"
         );
     }
-    assert!(workflow.contains("vec![\"build\", \"--locked\", \"--workspace\"]"));
+    assert!(workflow.contains("fn compile_specs"));
+    assert!(workflow.contains("if check_only { \"check\" } else { \"build\" }"));
+    assert!(workflow.contains("\"--locked\""));
+    assert!(workflow.contains("\"--workspace\""));
+    assert!(workflow.contains("apps/leserpent/src/Leserpent/Leserpent.csproj"));
+    assert!(!workflow.contains("apps/leserpent/leserpent.slnx"));
     assert!(workflow.contains("arguments.push(\"--no-restore\")"));
     assert!(workflow.contains("RestoreLockedMode=true"));
     assert!(workflow.contains("desktop-signature-verify"));
+    assert!(workspace.contains("[profile.dev]"));
+    assert!(workspace.contains("[profile.test]"));
+    assert!(workspace.matches("debug = \"line-tables-only\"").count() >= 2);
+    assert!(development.contains("cargo dev check"));
     assert!(development.contains("cargo dev build"));
     assert!(packaging.contains("cargo dev package linux --format layout --skip-build"));
     assert!(entrypoints.contains("cargo dev deploy desktop --launch"));

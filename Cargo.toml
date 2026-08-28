@@ -59,3 +59,9 @@ leselang-hir = { path = "crates/leselang-hir" }
 leselang-syntax = { path = "crates/leselang-syntax" }
 leselang-vm = { path = "crates/leselang-vm" }
 leserpent-domain = { path = "crates/leserpent-domain" }
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.test]
+debug = "line-tables-only"
