@@ -49,8 +49,10 @@ pub use debugger::{DebuggerAuthority, SharedDebuggerAuthority};
 mod ipc;
 mod provisioning_submission;
 mod retirement_submission;
+mod runtime_target_registration;
 #[cfg(unix)]
 pub use ipc::{IpcServer, MAX_IPC_SOCKET_PATH_BYTES};
+pub use runtime_target_registration::RuntimeTargetRegistrationAuthority;
 mod remote;
 pub use remote::{RemoteServer, load_remote_token_file};
 mod events;

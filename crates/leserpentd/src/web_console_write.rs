@@ -1,8 +1,9 @@
+use leserpent_adapters::{MAX_SECRET_BYTES, SecretValue};
 use leserpent_domain::{
     CAPABILITY_RUNTIME_REFRESH, COMMAND_PLAN_SCHEMA_VERSION, CapabilitySet, Command,
     CommandEnvelope, CommandId, CommandOrigin, CommandPlan, Confirmation, DomainError,
-    IdempotencyKey, PlannedOperation, Principal, RuntimeId, RuntimeListFilter, RuntimeProjection,
-    RuntimeTags, validate_registration_intent,
+    IdempotencyKey, PlannedOperation, Principal, Revision, RuntimeId, RuntimeListFilter,
+    RuntimeProjection, RuntimeTags, validate_registration_intent,
 };
 use leserpent_protocol::{AuthorityWriterFence, MAX_PROTOCOL_MESSAGE_BYTES};
 use leserpent_runtime::{
@@ -11,12 +12,19 @@ use leserpent_runtime::{
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use crate::runtime_target_registration::{
+    RuntimeTargetDescriptor, RuntimeTargetRegistrationAction, RuntimeTargetRegistrationAuthority,
+    RuntimeTargetRegistrationError, RuntimeTargetRegistrationErrorKind,
+    RuntimeTargetRegistrationIntent, loopback_address,
+};
 use crate::web_console::{
     CleanupKind, ConsoleApiRoute, MAX_ATOMIC_CLEANUP_TARGETS, MAX_CLEANUP_REQUEST_BYTES,
-    MAX_REGISTRATION_PLAN_BYTES, build_cleanup_plan, sha256_hex,
+    MAX_REGISTRATION_PLAN_BYTES, MAX_REGISTRATION_REQUEST_BYTES, build_cleanup_plan, runtime_value,
+    sha256_hex,
 };
 
-const REGISTRATION_SECRET_STORE_REASON: &str = "rust_web_registration_secret_store_unavailable";
+const REGISTRATION_TRANSACTION_REASON: &str = "rust_web_registration_transaction_unavailable";
+const REGISTRATION_LOOPBACK_REASON: &str = "loopback_gewyvern_target_required";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ConsoleWriteStatus {
@@ -60,6 +68,69 @@ struct RegistrationPlanRequest {
     sidecar_endpoint: Option<String>,
 }
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RegistrationTagsRequest {
+    #[serde(default)]
+    environment: Option<String>,
+    #[serde(default)]
+    cluster: Option<String>,
+    #[serde(default)]
+    role: Option<String>,
+}
+
+impl From<RegistrationTagsRequest> for RuntimeTags {
+    fn from(value: RegistrationTagsRequest) -> Self {
+        Self {
+            environment: value.environment,
+            cluster: value.cluster,
+            role: value.role,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RegistrationRequest {
+    name: String,
+    endpoint: String,
+    pairing_token: String,
+    #[serde(default)]
+    capabilities: Vec<Value>,
+    #[serde(default)]
+    tags: RegistrationTagsRequest,
+    #[serde(default)]
+    fetch_capabilities: bool,
+    #[serde(default)]
+    capability_endpoint: Option<String>,
+    #[serde(default)]
+    status_endpoint: Option<String>,
+    #[serde(default)]
+    sidecar_endpoint: Option<String>,
+    #[serde(default)]
+    sidecar_status_endpoint: Option<String>,
+    #[serde(default)]
+    sidecar_admin_token: Option<String>,
+    registration_plan_token: String,
+}
+
+#[derive(Clone, Debug)]
+struct RegistrationCoordinates {
+    name: String,
+    endpoint: String,
+    sidecar_endpoint: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct RegistrationDecision {
+    action: Option<RuntimeTargetRegistrationAction>,
+    reason: Option<&'static str>,
+    existing: Option<RuntimeProjection>,
+    planned_runtime_id: RuntimeId,
+    expected_revision: Option<Revision>,
+    plan_token: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct CleanupRequest {
@@ -68,14 +139,33 @@ struct CleanupRequest {
     challenge: Option<String>,
 }
 
+#[cfg(test)]
 pub(crate) fn execute(
     route: &ConsoleApiRoute,
     body: &[u8],
     runtime: &mut ControlRuntime,
     writer_fence: Option<&AuthorityWriterFence>,
 ) -> Result<Vec<u8>, ConsoleWriteError> {
+    execute_with_registration(route, body, runtime, writer_fence, None)
+}
+
+pub(crate) fn execute_with_registration(
+    route: &ConsoleApiRoute,
+    body: &[u8],
+    runtime: &mut ControlRuntime,
+    writer_fence: Option<&AuthorityWriterFence>,
+    registration: Option<&RuntimeTargetRegistrationAuthority>,
+) -> Result<Vec<u8>, ConsoleWriteError> {
     let value = match route {
-        ConsoleApiRoute::RegistrationPlan => registration_plan(body, runtime)?,
+        ConsoleApiRoute::RegistrationPlan => {
+            registration_plan(body, runtime, registration.is_some())?
+        }
+        ConsoleApiRoute::Registration => register_runtime(
+            body,
+            runtime,
+            writer_fence,
+            registration.ok_or_else(registration_unavailable)?,
+        )?,
         ConsoleApiRoute::FleetRefreshAll(filter) => {
             refresh_fleet(runtime, writer_fence, filter, RefreshKind::All)?
         }
@@ -86,10 +176,10 @@ pub(crate) fn execute(
             refresh_fleet(runtime, writer_fence, filter, RefreshKind::Status)?
         }
         ConsoleApiRoute::RuntimeCleanup(kind, filter) => {
-            cleanup_runtimes(runtime, writer_fence, *kind, filter, body)?
+            cleanup_runtimes(runtime, writer_fence, registration, *kind, filter, body)?
         }
         ConsoleApiRoute::RuntimeDelete(runtime_id) => {
-            delete_runtime(runtime, writer_fence, runtime_id)?
+            delete_runtime(runtime, writer_fence, registration, runtime_id)?
         }
         _ => {
             return Err(ConsoleWriteError {
@@ -114,35 +204,65 @@ pub(crate) fn execute(
     Ok(body)
 }
 
-fn registration_plan(body: &[u8], runtime: &ControlRuntime) -> Result<Value, ConsoleWriteError> {
+fn registration_plan(
+    body: &[u8],
+    runtime: &ControlRuntime,
+    registration_available: bool,
+) -> Result<Value, ConsoleWriteError> {
     if body.is_empty() || body.len() > MAX_REGISTRATION_PLAN_BYTES {
         return Err(invalid_registration_plan());
     }
     let request: RegistrationPlanRequest =
         serde_json::from_slice(body).map_err(|_| invalid_registration_plan())?;
-    let name = request.name.trim().to_string();
-    let endpoint =
-        normalize_http_endpoint(&request.endpoint).ok_or_else(invalid_registration_plan)?;
-    let sidecar_endpoint = match request.sidecar_endpoint.as_deref() {
-        Some(endpoint) => {
-            Some(normalize_http_endpoint(endpoint).ok_or_else(invalid_registration_plan)?)
-        }
-        None => None,
-    };
-    validate_registration_intent(
-        &name,
-        &endpoint,
-        sidecar_endpoint.as_deref(),
+    let coordinates = normalize_registration_coordinates(
+        request.name,
+        request.endpoint,
+        request.sidecar_endpoint,
         &RuntimeTags::default(),
-    )
-    .map_err(|_| invalid_registration_plan())?;
+    )?;
+    let decision = registration_decision(runtime, &coordinates, registration_available)?;
+    let action = decision
+        .action
+        .map(registration_action_label)
+        .unwrap_or("reject");
+    let reason_message = match decision.reason {
+        Some("endpoint_conflict") => "runtime endpoint is already registered to another runtime",
+        Some(REGISTRATION_LOOPBACK_REASON) => {
+            "native Rust registration currently accepts an explicit loopback HTTP Gewyvern origin"
+        }
+        Some(REGISTRATION_TRANSACTION_REASON) => {
+            "native Rust registration requires daemon-owned durable credential authority"
+        }
+        Some(_) => "runtime registration is unavailable",
+        None => "runtime registration plan is ready",
+    };
+    Ok(json!({
+        "allowed": decision.action.is_some(),
+        "action": action,
+        "reason": decision.reason,
+        "reasonMessage": reason_message,
+        "existingRuntimeId": decision.existing.as_ref().map(|runtime| runtime.id.as_str()),
+        "existingRuntimeName": decision.existing.as_ref().map(|runtime| runtime.name.as_str()),
+        "existingRuntimeEndpoint": decision.existing.as_ref().map(|runtime| runtime.endpoint.as_str()),
+        "plannedRuntimeId": decision.planned_runtime_id.as_str(),
+        "expectedRevision": decision.expected_revision.map(|revision| revision.0),
+        "authorityBound": true,
+        "planToken": decision.plan_token,
+    }))
+}
 
+fn registration_decision(
+    runtime: &ControlRuntime,
+    coordinates: &RegistrationCoordinates,
+    registration_available: bool,
+) -> Result<RegistrationDecision, ConsoleWriteError> {
     let (_, runtimes) = runtime.runtime_event_state();
     let same_name = runtimes
         .iter()
-        .find(|runtime| runtime.name.eq_ignore_ascii_case(&name));
+        .find(|runtime| runtime.name.eq_ignore_ascii_case(&coordinates.name));
     let same_endpoint = runtimes.iter().find(|runtime| {
-        normalize_http_endpoint(&runtime.endpoint).is_some_and(|candidate| candidate == endpoint)
+        normalize_http_endpoint(&runtime.endpoint)
+            .is_some_and(|candidate| candidate == coordinates.endpoint)
     });
     let endpoint_conflict = same_endpoint.is_some_and(|endpoint_owner| {
         same_name.is_none_or(|name_owner| endpoint_owner.id != name_owner.id)
@@ -151,41 +271,169 @@ fn registration_plan(body: &[u8], runtime: &ControlRuntime) -> Result<Value, Con
         same_endpoint
     } else {
         same_name
+    }
+    .cloned();
+    let planned_runtime_id = match &existing {
+        Some(runtime) => runtime.id.clone(),
+        None => RuntimeId::new(proposed_runtime_id(
+            &coordinates.name,
+            &coordinates.endpoint,
+        ))
+        .map_err(map_domain_error)?,
     };
-    let planned_runtime_id = existing
-        .map(|runtime| runtime.id.as_str().to_string())
-        .unwrap_or_else(|| proposed_runtime_id(&name, &endpoint));
-    let expected_revision = existing.map(|runtime| runtime.revision.0);
-    let reason = if endpoint_conflict {
-        "endpoint_conflict"
+    let expected_revision = existing.as_ref().map(|runtime| runtime.revision);
+    let (action, reason) = if endpoint_conflict {
+        (None, Some("endpoint_conflict"))
+    } else if !registration_available {
+        (None, Some(REGISTRATION_TRANSACTION_REASON))
+    } else if loopback_address(&coordinates.endpoint).is_err() {
+        (None, Some(REGISTRATION_LOOPBACK_REASON))
+    } else if existing.is_some() {
+        (Some(RuntimeTargetRegistrationAction::Update), None)
     } else {
-        REGISTRATION_SECRET_STORE_REASON
+        (Some(RuntimeTargetRegistrationAction::Create), None)
     };
     let plan_token = registration_plan_token(
-        &name,
-        &endpoint,
-        sidecar_endpoint.as_deref(),
+        &coordinates.name,
+        &coordinates.endpoint,
+        coordinates.sidecar_endpoint.as_deref(),
         &planned_runtime_id,
         expected_revision,
-        reason,
+        action.map(registration_action_label).unwrap_or("reject"),
     );
-    Ok(json!({
-        "allowed": false,
-        "action": "reject",
-        "reason": reason,
-        "reasonMessage": if endpoint_conflict {
-            "runtime endpoint is already registered to another runtime"
-        } else {
-            "native Rust registration is waiting for an atomic platform secret-store write contract"
-        },
-        "existingRuntimeId": existing.map(|runtime| runtime.id.as_str()),
-        "existingRuntimeName": existing.map(|runtime| runtime.name.as_str()),
-        "existingRuntimeEndpoint": existing.map(|runtime| runtime.endpoint.as_str()),
-        "plannedRuntimeId": planned_runtime_id,
-        "expectedRevision": expected_revision,
-        "authorityBound": true,
-        "planToken": plan_token,
-    }))
+    Ok(RegistrationDecision {
+        action,
+        reason,
+        existing,
+        planned_runtime_id,
+        expected_revision,
+        plan_token,
+    })
+}
+
+fn register_runtime(
+    body: &[u8],
+    runtime: &mut ControlRuntime,
+    writer_fence: Option<&AuthorityWriterFence>,
+    registration: &RuntimeTargetRegistrationAuthority,
+) -> Result<Value, ConsoleWriteError> {
+    require_writer(runtime, writer_fence)?;
+    if body.is_empty() || body.len() > MAX_REGISTRATION_REQUEST_BYTES {
+        return Err(invalid_registration_request());
+    }
+    let request: RegistrationRequest =
+        serde_json::from_slice(body).map_err(|_| invalid_registration_request())?;
+    if !request.capabilities.is_empty()
+        || nonempty(&request.capability_endpoint)
+        || nonempty(&request.status_endpoint)
+        || nonempty(&request.sidecar_status_endpoint)
+        || nonempty(&request.sidecar_admin_token)
+    {
+        return Err(invalid_registration_request());
+    }
+    let tags = RuntimeTags::from(request.tags);
+    let coordinates = normalize_registration_coordinates(
+        request.name,
+        request.endpoint,
+        request.sidecar_endpoint,
+        &tags,
+    )?;
+    if request.registration_plan_token.len() != 64
+        || !request
+            .registration_plan_token
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+        || request.pairing_token.len() > MAX_SECRET_BYTES
+    {
+        return Err(invalid_registration_request());
+    }
+    let secret =
+        SecretValue::new(request.pairing_token).map_err(|_| invalid_registration_request())?;
+    let operation_id = format!("web-register-{}", request.registration_plan_token);
+    let persisted = registration
+        .persisted_intent(runtime, &operation_id)
+        .map_err(map_registration_error)?;
+    let intent = match persisted {
+        Some(intent) => {
+            if intent.plan_token != request.registration_plan_token
+                || intent.name != coordinates.name
+                || intent.endpoint != coordinates.endpoint
+                || intent.sidecar_endpoint != coordinates.sidecar_endpoint
+                || intent.tags != tags
+            {
+                return Err(registration_conflict());
+            }
+            intent
+        }
+        None => {
+            let decision = registration_decision(runtime, &coordinates, true)?;
+            if decision.plan_token != request.registration_plan_token {
+                return Err(registration_conflict());
+            }
+            let action = decision.action.ok_or_else(registration_conflict)?;
+            RuntimeTargetRegistrationIntent::new(
+                action,
+                RuntimeTargetDescriptor {
+                    runtime_id: decision.planned_runtime_id,
+                    name: coordinates.name,
+                    endpoint: coordinates.endpoint,
+                    sidecar_endpoint: coordinates.sidecar_endpoint,
+                    tags,
+                },
+                decision.expected_revision,
+                request.registration_plan_token,
+            )
+            .map_err(map_registration_error)?
+        }
+    };
+    let outcome = registration
+        .execute(runtime, &intent, &secret)
+        .map_err(map_registration_error)?;
+    let refresh = if request.fetch_capabilities {
+        match execute_registration_capability_refresh(
+            runtime,
+            &intent,
+            outcome.registration_revision,
+        ) {
+            Ok(_) => json!({ "requested": true, "scheduled": true, "error": Value::Null }),
+            Err(_) => json!({
+                "requested": true,
+                "scheduled": false,
+                "error": "capability_refresh_not_scheduled"
+            }),
+        }
+    } else {
+        json!({ "requested": false, "scheduled": false, "error": Value::Null })
+    };
+    let projection = runtime
+        .runtime_projection(&intent.runtime_id)
+        .cloned()
+        .unwrap_or(outcome.projection);
+    let mut value = runtime_value(&projection);
+    value["registrationReplayed"] = Value::Bool(outcome.replayed);
+    value["capabilityRefresh"] = refresh;
+    Ok(value)
+}
+
+fn normalize_registration_coordinates(
+    name: String,
+    endpoint: String,
+    sidecar_endpoint: Option<String>,
+    tags: &RuntimeTags,
+) -> Result<RegistrationCoordinates, ConsoleWriteError> {
+    let name = name.trim().to_string();
+    let endpoint = normalize_http_endpoint(&endpoint).ok_or_else(invalid_registration_plan)?;
+    let sidecar_endpoint = sidecar_endpoint
+        .filter(|endpoint| !endpoint.trim().is_empty())
+        .map(|endpoint| normalize_http_endpoint(&endpoint).ok_or_else(invalid_registration_plan))
+        .transpose()?;
+    validate_registration_intent(&name, &endpoint, sidecar_endpoint.as_deref(), tags)
+        .map_err(|_| invalid_registration_plan())?;
+    Ok(RegistrationCoordinates {
+        name,
+        endpoint,
+        sidecar_endpoint,
+    })
 }
 
 fn invalid_registration_plan() -> ConsoleWriteError {
@@ -194,6 +442,47 @@ fn invalid_registration_plan() -> ConsoleWriteError {
         code: "invalid_runtime_registration_plan",
         reason: "registration plan requires bounded name and HTTP(S) endpoint fields",
     }
+}
+
+fn invalid_registration_request() -> ConsoleWriteError {
+    ConsoleWriteError {
+        status: ConsoleWriteStatus::BadRequest,
+        code: "invalid_runtime_registration",
+        reason: "runtime registration request is invalid or contains unsupported credential fields",
+    }
+}
+
+fn registration_unavailable() -> ConsoleWriteError {
+    ConsoleWriteError {
+        status: ConsoleWriteStatus::ServiceUnavailable,
+        code: "runtime_registration_unavailable",
+        reason: "durable runtime target registration authority is unavailable",
+    }
+}
+
+fn registration_conflict() -> ConsoleWriteError {
+    ConsoleWriteError {
+        status: ConsoleWriteStatus::Conflict,
+        code: "runtime_registration_plan_changed",
+        reason: "runtime registration authority changed after the plan was reviewed",
+    }
+}
+
+fn map_registration_error(error: RuntimeTargetRegistrationError) -> ConsoleWriteError {
+    match error.kind {
+        RuntimeTargetRegistrationErrorKind::Invalid => invalid_registration_request(),
+        RuntimeTargetRegistrationErrorKind::Conflict => registration_conflict(),
+        RuntimeTargetRegistrationErrorKind::Unavailable => registration_unavailable(),
+        RuntimeTargetRegistrationErrorKind::Internal => ConsoleWriteError {
+            status: ConsoleWriteStatus::InternalServerError,
+            code: "runtime_registration_failed",
+            reason: "runtime registration authority failed closed",
+        },
+    }
+}
+
+fn nonempty(value: &Option<String>) -> bool {
+    value.as_ref().is_some_and(|value| !value.trim().is_empty())
 }
 
 fn normalize_http_endpoint(value: &str) -> Option<String> {
@@ -237,20 +526,27 @@ fn registration_plan_token(
     name: &str,
     endpoint: &str,
     sidecar_endpoint: Option<&str>,
-    planned_runtime_id: &str,
-    expected_revision: Option<u64>,
-    reason: &str,
+    planned_runtime_id: &RuntimeId,
+    expected_revision: Option<Revision>,
+    action: &str,
 ) -> String {
     let input = format!(
-        "runtime-registration-plan-rust-v1\n{}\n{}\n{}\ndaemon\nreject\n{}\n{}\n{}",
+        "runtime-registration-plan-v2\n{}\n{}\n{}\ndaemon\n{}\n{}\n{}",
         name.to_ascii_lowercase(),
         endpoint,
         sidecar_endpoint.unwrap_or_default(),
-        planned_runtime_id.to_ascii_lowercase(),
-        expected_revision.map_or_else(String::new, |revision| revision.to_string()),
-        reason,
+        action,
+        planned_runtime_id.as_str().to_ascii_lowercase(),
+        expected_revision.map_or_else(String::new, |revision| revision.0.to_string()),
     );
     sha256_hex(input.as_bytes())
+}
+
+fn registration_action_label(action: RuntimeTargetRegistrationAction) -> &'static str {
+    match action {
+        RuntimeTargetRegistrationAction::Create => "create",
+        RuntimeTargetRegistrationAction::Update => "update",
+    }
 }
 
 fn refresh_fleet(
@@ -356,9 +652,47 @@ fn execute_refresh(
     }
 }
 
+fn execute_registration_capability_refresh(
+    runtime: &mut ControlRuntime,
+    intent: &RuntimeTargetRegistrationIntent,
+    expected_revision: Revision,
+) -> Result<RuntimeProjection, ConsoleWriteError> {
+    let identity = format!("web-registration-refresh-{}", intent.plan_token);
+    let envelope = CommandEnvelope {
+        schema_version: leserpent_domain::DOMAIN_SCHEMA_VERSION,
+        command_id: CommandId::new(identity.clone()).map_err(map_domain_error)?,
+        idempotency_key: IdempotencyKey::new(identity).map_err(map_domain_error)?,
+        expected_revision: Some(expected_revision),
+        principal: Principal {
+            id: "rust-web-console".into(),
+        },
+        capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REFRESH]),
+        origin: CommandOrigin::CompatibilityAdapter,
+        confirmation: Confirmation::Confirmed,
+        dry_run: false,
+        command: Command::RuntimeCapabilitiesRefresh {
+            runtime_id: intent.runtime_id.clone(),
+        },
+    };
+    match runtime.execute_plan(CommandPlan {
+        schema_version: COMMAND_PLAN_SCHEMA_VERSION,
+        required_capability: CAPABILITY_RUNTIME_REFRESH.into(),
+        operation: PlannedOperation::Command(envelope),
+    }) {
+        Ok(PlanResult::Command(result)) => Ok(result.runtime),
+        Ok(PlanResult::Query(_)) => Err(ConsoleWriteError {
+            status: ConsoleWriteStatus::InternalServerError,
+            code: "runtime_refresh_confused",
+            reason: "runtime refresh returned a query result",
+        }),
+        Err(error) => Err(map_runtime_error(error)),
+    }
+}
+
 fn cleanup_runtimes(
     runtime: &mut ControlRuntime,
     writer_fence: Option<&AuthorityWriterFence>,
+    registration: Option<&RuntimeTargetRegistrationAuthority>,
     kind: CleanupKind,
     filter: &RuntimeListFilter,
     body: &[u8],
@@ -385,6 +719,11 @@ fn cleanup_runtimes(
         .map_err(map_runtime_error)?;
     if let Some(receipt) = lookup.receipt {
         validate_cleanup_challenge(kind, request.challenge.as_deref(), receipt.removed.len())?;
+        retire_runtime_targets(
+            runtime,
+            registration,
+            receipt.removed.iter().map(|target| &target.runtime_id),
+        )?;
         let removed_runtime_ids = receipt
             .removed
             .iter()
@@ -455,6 +794,11 @@ fn cleanup_runtimes(
     let result = runtime
         .unregister_runtimes(command_id, targets)
         .map_err(map_runtime_error)?;
+    retire_runtime_targets(
+        runtime,
+        registration,
+        result.removed.iter().map(|target| &target.runtime_id),
+    )?;
     let removed_runtime_ids = result
         .removed
         .iter()
@@ -512,6 +856,7 @@ fn validate_cleanup_challenge(
 fn delete_runtime(
     runtime: &mut ControlRuntime,
     writer_fence: Option<&AuthorityWriterFence>,
+    registration: Option<&RuntimeTargetRegistrationAuthority>,
     runtime_id: &RuntimeId,
 ) -> Result<Value, ConsoleWriteError> {
     require_writer(runtime, writer_fence)?;
@@ -534,6 +879,7 @@ fn delete_runtime(
             }],
         )
         .map_err(map_runtime_error)?;
+    retire_runtime_targets(runtime, registration, std::iter::once(runtime_id))?;
     Ok(json!({
         "deleted": true,
         "runtimeId": projection.id.as_str(),
@@ -547,6 +893,22 @@ fn delete_runtime(
         "deletedOrchestraRunCount": result.deleted_orchestra_run_count,
         "deletedOrchestraEventCount": result.deleted_orchestra_event_count,
     }))
+}
+
+fn retire_runtime_targets<'a>(
+    runtime: &mut ControlRuntime,
+    registration: Option<&RuntimeTargetRegistrationAuthority>,
+    runtime_ids: impl IntoIterator<Item = &'a RuntimeId>,
+) -> Result<(), ConsoleWriteError> {
+    let Some(registration) = registration else {
+        return Ok(());
+    };
+    for runtime_id in runtime_ids {
+        registration
+            .retire(runtime, runtime_id)
+            .map_err(map_registration_error)?;
+    }
+    Ok(())
 }
 
 fn require_writer(
@@ -662,11 +1024,62 @@ fn map_runtime_error(error: RuntimeError) -> ConsoleWriteError {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use std::fs;
     use std::path::PathBuf;
+    use std::sync::{Arc, Mutex};
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use leserpent_adapters::{
+        GewyvernTargetCatalog, MutableSecretStore, SecretKey, SecretStore, SecretStoreError,
+    };
+
     use super::*;
+
+    #[derive(Default)]
+    struct TestSecretStore {
+        values: Mutex<BTreeMap<String, String>>,
+    }
+
+    impl TestSecretStore {
+        fn keys(&self) -> Vec<String> {
+            self.values.lock().unwrap().keys().cloned().collect()
+        }
+    }
+
+    impl SecretStore for TestSecretStore {
+        fn load(&self, key: &SecretKey) -> Result<Option<SecretValue>, SecretStoreError> {
+            self.values
+                .lock()
+                .map_err(|_| SecretStoreError::Unavailable)?
+                .get(key.as_str())
+                .map(|value| SecretValue::new(value.clone()))
+                .transpose()
+        }
+    }
+
+    impl MutableSecretStore for TestSecretStore {
+        fn store_atomic(
+            &self,
+            key: &SecretKey,
+            value: &SecretValue,
+        ) -> Result<(), SecretStoreError> {
+            self.values
+                .lock()
+                .map_err(|_| SecretStoreError::Unavailable)?
+                .insert(key.as_str().to_string(), value.expose_secret().to_string());
+            Ok(())
+        }
+
+        fn remove(&self, key: &SecretKey) -> Result<bool, SecretStoreError> {
+            Ok(self
+                .values
+                .lock()
+                .map_err(|_| SecretStoreError::Unavailable)?
+                .remove(key.as_str())
+                .is_some())
+        }
+    }
 
     fn temp_database(label: &str) -> PathBuf {
         let nonce = SystemTime::now()
@@ -680,7 +1093,7 @@ mod tests {
     }
 
     #[test]
-    fn registration_plan_is_strict_secret_free_and_honestly_blocked() {
+    fn registration_plan_is_strict_secret_free_and_honestly_transaction_blocked() {
         let body = br#"{
             "name":"Runtime A",
             "endpoint":"HTTPS://Example.INVALID",
@@ -695,7 +1108,7 @@ mod tests {
         .unwrap();
         let value: Value = serde_json::from_slice(&response).unwrap();
         assert_eq!(value["allowed"], false);
-        assert_eq!(value["reason"], REGISTRATION_SECRET_STORE_REASON);
+        assert_eq!(value["reason"], REGISTRATION_TRANSACTION_REASON);
         assert_eq!(value["authorityBound"], true);
         assert_eq!(value["plannedRuntimeId"].as_str().unwrap().len(), 32);
         let encoded = String::from_utf8(response).unwrap();
@@ -718,6 +1131,159 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(fragment.status, ConsoleWriteStatus::BadRequest);
+    }
+
+    #[test]
+    fn writer_registration_plans_commits_rotates_replays_and_retires_without_secret_leakage() {
+        let path = temp_database("registration");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let writer_id = "abababababababababababababababab";
+        let generation = runtime
+            .claim_authority_writer(writer_id)
+            .unwrap()
+            .generation;
+        let fence = AuthorityWriterFence {
+            generation,
+            writer_id: writer_id.into(),
+        };
+        let targets = GewyvernTargetCatalog::default();
+        let secrets = Arc::new(TestSecretStore::default());
+        let mutable_secrets: Arc<dyn MutableSecretStore> = secrets.clone();
+        let authority = RuntimeTargetRegistrationAuthority::new(targets.clone(), mutable_secrets);
+
+        let plan = execute_with_registration(
+            &ConsoleApiRoute::RegistrationPlan,
+            br#"{"name":"Runtime A","endpoint":"http://127.0.0.1:9411","sidecarEndpoint":null}"#,
+            &mut runtime,
+            Some(&fence),
+            Some(&authority),
+        )
+        .unwrap();
+        let plan: Value = serde_json::from_slice(&plan).unwrap();
+        assert_eq!(plan["allowed"], true);
+        assert_eq!(plan["action"], "create");
+        assert!(plan["reason"].is_null());
+        let plan_token = plan["planToken"].as_str().unwrap().to_string();
+        let registration_body = serde_json::to_vec(&json!({
+            "name": "Runtime A",
+            "endpoint": "http://127.0.0.1:9411",
+            "pairingToken": "first-pairing-secret",
+            "capabilities": [],
+            "tags": { "environment": "test", "cluster": null, "role": null },
+            "fetchCapabilities": false,
+            "sidecarEndpoint": null,
+            "sidecarAdminToken": null,
+            "registrationPlanToken": plan_token,
+        }))
+        .unwrap();
+        let registered = execute_with_registration(
+            &ConsoleApiRoute::Registration,
+            &registration_body,
+            &mut runtime,
+            Some(&fence),
+            Some(&authority),
+        )
+        .unwrap();
+        let registered_value: Value = serde_json::from_slice(&registered).unwrap();
+        assert_eq!(registered_value["registrationReplayed"], false);
+        let runtime_id = RuntimeId::new(registered_value["runtimeId"].as_str().unwrap()).unwrap();
+        assert!(targets.contains(runtime_id.as_str()).unwrap());
+        assert_eq!(secrets.keys().len(), 1);
+        let registered_text = String::from_utf8(registered).unwrap();
+        assert!(!registered_text.contains("first-pairing-secret"));
+        let binding = runtime.runtime_target_bindings().unwrap().pop().unwrap();
+        assert!(
+            !binding
+                .payload
+                .windows("first-pairing-secret".len())
+                .any(|window| window == b"first-pairing-secret")
+        );
+
+        let replay = execute_with_registration(
+            &ConsoleApiRoute::Registration,
+            &registration_body,
+            &mut runtime,
+            Some(&fence),
+            Some(&authority),
+        )
+        .unwrap();
+        let replay: Value = serde_json::from_slice(&replay).unwrap();
+        assert_eq!(replay["registrationReplayed"], true);
+        let wrong_secret_body = serde_json::to_vec(&json!({
+            "name": "Runtime A",
+            "endpoint": "http://127.0.0.1:9411",
+            "pairingToken": "wrong-pairing-secret",
+            "capabilities": [],
+            "tags": { "environment": "test", "cluster": null, "role": null },
+            "fetchCapabilities": false,
+            "sidecarEndpoint": null,
+            "sidecarAdminToken": null,
+            "registrationPlanToken": plan_token,
+        }))
+        .unwrap();
+        assert_eq!(
+            execute_with_registration(
+                &ConsoleApiRoute::Registration,
+                &wrong_secret_body,
+                &mut runtime,
+                Some(&fence),
+                Some(&authority),
+            )
+            .unwrap_err()
+            .status,
+            ConsoleWriteStatus::Conflict
+        );
+
+        let update_plan = execute_with_registration(
+            &ConsoleApiRoute::RegistrationPlan,
+            br#"{"name":"Runtime A","endpoint":"http://127.0.0.1:9412","sidecarEndpoint":null}"#,
+            &mut runtime,
+            Some(&fence),
+            Some(&authority),
+        )
+        .unwrap();
+        let update_plan: Value = serde_json::from_slice(&update_plan).unwrap();
+        assert_eq!(update_plan["action"], "update");
+        let update_body = serde_json::to_vec(&json!({
+            "name": "Runtime A",
+            "endpoint": "http://127.0.0.1:9412",
+            "pairingToken": "rotated-pairing-secret",
+            "capabilities": [],
+            "tags": { "environment": "test", "cluster": null, "role": null },
+            "fetchCapabilities": false,
+            "sidecarEndpoint": null,
+            "sidecarAdminToken": null,
+            "registrationPlanToken": update_plan["planToken"],
+        }))
+        .unwrap();
+        execute_with_registration(
+            &ConsoleApiRoute::Registration,
+            &update_body,
+            &mut runtime,
+            Some(&fence),
+            Some(&authority),
+        )
+        .unwrap();
+        assert_eq!(secrets.keys().len(), 1);
+        assert_eq!(runtime.runtime_target_bindings().unwrap().len(), 1);
+        assert_eq!(
+            runtime.runtime_projection(&runtime_id).unwrap().endpoint,
+            "http://127.0.0.1:9412/"
+        );
+
+        execute_with_registration(
+            &ConsoleApiRoute::RuntimeDelete(runtime_id.clone()),
+            &[],
+            &mut runtime,
+            Some(&fence),
+            Some(&authority),
+        )
+        .unwrap();
+        assert!(!targets.contains(runtime_id.as_str()).unwrap());
+        assert!(secrets.keys().is_empty());
+        assert!(runtime.runtime_target_bindings().unwrap().is_empty());
+        drop(runtime);
+        fs::remove_file(path).unwrap();
     }
 
     #[test]

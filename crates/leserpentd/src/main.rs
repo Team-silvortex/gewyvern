@@ -11,15 +11,16 @@ use leserpent_adapters::{
 };
 use leserpent_adapters::{
     EnvironmentSecretStore, GewyvernDeploymentAdapter, GewyvernDiscoveryAdapter,
-    GewyvernHealthAdapter, GewyvernStatusRefreshAdapter, GewyvernTarget, PlatformSecretStore,
-    SecretKey, SecretStore,
+    GewyvernHealthAdapter, GewyvernStatusRefreshAdapter, GewyvernTarget, GewyvernTargetCatalog,
+    MutableSecretStore, PlatformSecretStore, SecretKey, SecretStore, SecretStoreError, SecretValue,
 };
 use leserpent_domain::RuntimeId;
 use leserpent_protocol::AuthorityWriterFence;
 use leserpent_runtime::ControlRuntime;
 use leserpentd::{
     AdapterRegistry, BootstrapSessionVerifier, DaemonConfig, DaemonHost, DebuggerAuthority,
-    NativeBootstrapSessionVerifier, RemoteServer, load_remote_token_file,
+    NativeBootstrapSessionVerifier, RemoteServer, RuntimeTargetRegistrationAuthority,
+    load_remote_token_file,
 };
 #[cfg(feature = "native-ssh")]
 use leserpentd::{BootstrapOriginConfig, GewyvernOriginConfig};
@@ -39,6 +40,21 @@ fn main() {
 #[derive(Default)]
 struct TransportScheduler {
     remote_first: bool,
+}
+
+struct LayeredSecretStore {
+    primary: Arc<dyn SecretStore>,
+    fallback: Arc<dyn SecretStore>,
+}
+
+impl SecretStore for LayeredSecretStore {
+    fn load(&self, key: &SecretKey) -> Result<Option<SecretValue>, SecretStoreError> {
+        match self.primary.load(key) {
+            Ok(Some(value)) => Ok(Some(value)),
+            Ok(None) | Err(SecretStoreError::Unavailable) => self.fallback.load(key),
+            Err(error) => Err(error),
+        }
+    }
 }
 
 impl TransportScheduler {
@@ -301,9 +317,17 @@ fn run() -> Result<(), String> {
     } else {
         None
     };
+    let dynamic_secrets = web_console_writer
+        .then(|| {
+            PlatformSecretStore::new("org.gewyvern.leserpent.adapters")
+                .map(Arc::new)
+                .map_err(|error| format!("cannot open runtime target secret store: {error:?}"))
+        })
+        .transpose()?;
+    let mut runtime_target_registration = None;
     let mut registry = AdapterRegistry::default();
     if !gewyvern_targets.is_empty() || !gewyvern_https_targets.is_empty() {
-        let (configured_admin_secret, secrets): (Option<SecretKey>, Arc<dyn SecretStore>) =
+        let (configured_admin_secret, static_secrets): (Option<SecretKey>, Arc<dyn SecretStore>) =
             if let Some(admin_secret) = gewyvern_admin_secret {
                 (
                     Some(admin_secret),
@@ -360,23 +384,20 @@ fn run() -> Result<(), String> {
                 GewyvernTarget::https(&origin, ca_path, admin_secret)?,
             ));
         }
-        registry.register(GewyvernHealthAdapter::with_secret_store(
-            targets.clone(),
-            secrets.clone(),
-        )?)?;
-        registry.register(GewyvernDiscoveryAdapter::with_secret_store(
-            targets.clone(),
-            secrets.clone(),
-        )?)?;
-        if configured_admin_secret.is_some() {
-            registry.register(GewyvernDeploymentAdapter::with_secret_store(
-                targets.clone(),
-                secrets.clone(),
-            )?)?;
-        }
-        registry.register(GewyvernStatusRefreshAdapter::with_secret_store(
-            targets, secrets,
-        )?)?;
+        let target_catalog = GewyvernTargetCatalog::new(targets)?;
+        let adapter_secrets: Arc<dyn SecretStore> = match &dynamic_secrets {
+            Some(dynamic) => Arc::new(LayeredSecretStore {
+                primary: dynamic.clone(),
+                fallback: static_secrets,
+            }),
+            None => static_secrets,
+        };
+        register_gewyvern_adapter_suite(
+            &mut registry,
+            target_catalog.clone(),
+            adapter_secrets,
+            configured_admin_secret.is_some() || dynamic_secrets.is_some(),
+        )?;
         for (runtime_id, endpoint) in registrations {
             let id = RuntimeId::new(runtime_id.clone())
                 .map_err(|_| format!("configured runtime ID '{runtime_id}' is invalid"))?;
@@ -384,6 +405,21 @@ fn run() -> Result<(), String> {
                 .ensure_runtime_registered(id, runtime_id, endpoint)
                 .map_err(|error| error.to_string())?;
         }
+        if let Some(dynamic) = dynamic_secrets {
+            let mutable_secrets: Arc<dyn MutableSecretStore> = dynamic;
+            let authority =
+                RuntimeTargetRegistrationAuthority::new(target_catalog, mutable_secrets);
+            authority.recover(&mut runtime)?;
+            runtime_target_registration = Some(authority);
+        }
+    } else if let Some(dynamic) = dynamic_secrets {
+        let target_catalog = GewyvernTargetCatalog::default();
+        let secrets: Arc<dyn SecretStore> = dynamic.clone();
+        register_gewyvern_adapter_suite(&mut registry, target_catalog.clone(), secrets, true)?;
+        let mutable_secrets: Arc<dyn MutableSecretStore> = dynamic;
+        let authority = RuntimeTargetRegistrationAuthority::new(target_catalog, mutable_secrets);
+        authority.recover(&mut runtime)?;
+        runtime_target_registration = Some(authority);
     }
     #[cfg(feature = "native-ssh")]
     let bootstrap_secret_service = bootstrap_origin
@@ -520,6 +556,10 @@ fn run() -> Result<(), String> {
                 Some(writer_fence) => server.with_web_console_writer(writer_fence.clone()),
                 None => server,
             };
+            let server = match &runtime_target_registration {
+                Some(authority) => server.with_runtime_target_registration(authority.clone()),
+                None => server,
+            };
             let server = server.with_debugger_authority(Arc::clone(&debugger_authority));
             let server = match &bootstrap_verifier {
                 Some(verifier) => server.with_bootstrap_verifier(Arc::clone(verifier)),
@@ -602,6 +642,32 @@ fn new_authority_writer_id() -> Result<String, String> {
     Ok(writer_id)
 }
 
+fn register_gewyvern_adapter_suite(
+    registry: &mut AdapterRegistry,
+    targets: GewyvernTargetCatalog,
+    secrets: Arc<dyn SecretStore>,
+    deployment_enabled: bool,
+) -> Result<(), String> {
+    registry.register(GewyvernHealthAdapter::with_target_catalog(
+        targets.clone(),
+        secrets.clone(),
+    )?)?;
+    registry.register(GewyvernDiscoveryAdapter::with_target_catalog(
+        targets.clone(),
+        secrets.clone(),
+    )?)?;
+    if deployment_enabled {
+        registry.register(GewyvernDeploymentAdapter::with_target_catalog(
+            targets.clone(),
+            secrets.clone(),
+        )?)?;
+    }
+    registry.register(GewyvernStatusRefreshAdapter::with_target_catalog(
+        targets, secrets,
+    )?)?;
+    Ok(())
+}
+
 fn parse_gewyvern_target(value: &str) -> Result<(String, SocketAddr), String> {
     let (runtime_id, address) = value
         .split_once('=')
@@ -676,5 +742,21 @@ mod tests {
         assert_eq!(first.len(), 32);
         assert!(first.bytes().all(|byte| byte.is_ascii_hexdigit()));
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn web_writer_empty_target_suite_installs_all_adapter_kinds() {
+        let targets = GewyvernTargetCatalog::default();
+        let mut registry = AdapterRegistry::default();
+        register_gewyvern_adapter_suite(
+            &mut registry,
+            targets.clone(),
+            Arc::new(leserpent_adapters::EmptySecretStore),
+            true,
+        )
+        .unwrap();
+
+        assert_eq!(registry.len(), 4);
+        assert!(targets.is_empty().unwrap());
     }
 }

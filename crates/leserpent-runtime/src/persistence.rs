@@ -24,7 +24,7 @@ use crate::{
 pub(super) const ORCHESTRA_DELETE_REPLAY_HORIZON_PINNED_ERROR: &str =
     "Orchestra delete replay horizon is pinned by reconciliation audit";
 
-const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 20;
+const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 21;
 pub const AUTHORITY_KIND_DAEMON_BOOTSTRAP: &str = "daemon_bootstrap";
 pub const AUTHORITY_KIND_DAEMON_RETIREMENT: &str = "daemon_retirement";
 pub const AUTHORITY_KIND_GEWYVERN_PROVISIONING: &str = "gewyvern_provisioning";
@@ -39,6 +39,10 @@ const MAX_EFFECT_LEASE_MS: i64 = 5 * 60 * 1_000;
 const MAX_ORCHESTRA_ENVELOPE_BYTES: usize = 1024 * 1024;
 const MAX_ORCHESTRA_EVENTS_PER_RUN: usize = 3;
 const MAX_ORCHESTRA_RUNS_PER_RUNTIME: usize = 32;
+const MAX_RUNTIME_TARGET_BINDINGS: i64 = 4_096;
+const MAX_RUNTIME_TARGET_REGISTRATION_INTENTS: i64 = 128;
+const MAX_RUNTIME_TARGET_REGISTRATION_PAYLOAD_BYTES: usize = 16 * 1024;
+const MAX_RUNTIME_TARGET_SECRET_GC_BATCH: usize = 128;
 pub const MAX_PERSISTED_RUNTIME_LOG_ENTRIES: i64 = 4_096;
 static OWNER_TOKEN_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -243,6 +247,37 @@ pub struct AuthorityWriterClaimRecord {
     pub replayed: bool,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RuntimeTargetRegistrationAdmission {
+    Prepared,
+    PendingReplay,
+    CommittedReplay,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RuntimeTargetRegistrationRecord {
+    pub operation_id: String,
+    pub runtime_id: String,
+    pub secret_key: String,
+    pub payload: Vec<u8>,
+    pub recorded_at_unix_ms: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RuntimeTargetBindingRecord {
+    pub operation_id: String,
+    pub runtime_id: String,
+    pub secret_key: String,
+    pub payload: Vec<u8>,
+    pub updated_at_unix_ms: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RuntimeTargetBindingCommit {
+    pub binding: RuntimeTargetBindingRecord,
+    pub replayed: bool,
+}
+
 pub struct Journal {
     connection: Connection,
     owner_token: String,
@@ -433,6 +468,329 @@ impl Journal {
                 ))
             })
             .transpose()
+    }
+
+    pub fn begin_runtime_target_registration(
+        &mut self,
+        operation_id: &str,
+        runtime_id: &str,
+        secret_key: &str,
+        payload: &[u8],
+    ) -> Result<RuntimeTargetRegistrationAdmission, String> {
+        validate_runtime_target_registration(operation_id, runtime_id, secret_key, payload)?;
+        self.ensure_owner()?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+
+        if let Some(existing) = load_runtime_target_registration_by_operation(
+            &transaction,
+            "runtime_target_registration_intents",
+            operation_id,
+        )? {
+            require_runtime_target_registration_match(
+                &existing,
+                operation_id,
+                runtime_id,
+                secret_key,
+                payload,
+            )?;
+            transaction.commit().map_err(|error| error.to_string())?;
+            return Ok(RuntimeTargetRegistrationAdmission::PendingReplay);
+        }
+        if let Some(existing) = load_runtime_target_registration_by_operation(
+            &transaction,
+            "runtime_target_bindings",
+            operation_id,
+        )? {
+            require_runtime_target_registration_match(
+                &existing,
+                operation_id,
+                runtime_id,
+                secret_key,
+                payload,
+            )?;
+            transaction.commit().map_err(|error| error.to_string())?;
+            return Ok(RuntimeTargetRegistrationAdmission::CommittedReplay);
+        }
+        let secret_key_references: i64 = transaction
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM runtime_target_registration_intents
+                      WHERE secret_key = ?1) +
+                     (SELECT COUNT(*) FROM runtime_target_bindings
+                      WHERE secret_key = ?1) +
+                     (SELECT COUNT(*) FROM runtime_target_secret_gc
+                      WHERE secret_key = ?1)",
+                [secret_key],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if secret_key_references != 0 {
+            return Err("runtime target secret key is already reserved".into());
+        }
+        let runtime_pending: i64 = transaction
+            .query_row(
+                "SELECT COUNT(*) FROM runtime_target_registration_intents
+                 WHERE runtime_id = ?1",
+                [runtime_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if runtime_pending != 0 {
+            return Err("runtime target registration is already pending".into());
+        }
+        let pending_count: i64 = transaction
+            .query_row(
+                "SELECT COUNT(*) FROM runtime_target_registration_intents",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if pending_count >= MAX_RUNTIME_TARGET_REGISTRATION_INTENTS {
+            return Err("runtime target registration intent capacity reached".into());
+        }
+        let now = unix_time_ms()?;
+        transaction
+            .execute(
+                "INSERT INTO runtime_target_registration_intents
+                     (operation_id, runtime_id, secret_key, payload, created_at_unix_ms)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![operation_id, runtime_id, secret_key, payload, now],
+            )
+            .map_err(|error| error.to_string())?;
+        transaction.commit().map_err(|error| error.to_string())?;
+        Ok(RuntimeTargetRegistrationAdmission::Prepared)
+    }
+
+    pub fn pending_runtime_target_registrations(
+        &mut self,
+    ) -> Result<Vec<RuntimeTargetRegistrationRecord>, String> {
+        self.ensure_owner()?;
+        load_runtime_target_registrations(
+            &self.connection,
+            "runtime_target_registration_intents",
+            "created_at_unix_ms",
+        )
+    }
+
+    pub fn runtime_target_bindings(&mut self) -> Result<Vec<RuntimeTargetBindingRecord>, String> {
+        self.ensure_owner()?;
+        load_runtime_target_registrations(
+            &self.connection,
+            "runtime_target_bindings",
+            "updated_at_unix_ms",
+        )
+        .map(|records| {
+            records
+                .into_iter()
+                .map(|record| RuntimeTargetBindingRecord {
+                    operation_id: record.operation_id,
+                    runtime_id: record.runtime_id,
+                    secret_key: record.secret_key,
+                    payload: record.payload,
+                    updated_at_unix_ms: record.recorded_at_unix_ms,
+                })
+                .collect()
+        })
+    }
+
+    pub fn commit_runtime_target_registration(
+        &mut self,
+        operation_id: &str,
+    ) -> Result<RuntimeTargetBindingCommit, String> {
+        validate_scheduler_id("runtime target registration operation ID", operation_id)?;
+        self.ensure_owner()?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let Some(intent) = load_runtime_target_registration_by_operation(
+            &transaction,
+            "runtime_target_registration_intents",
+            operation_id,
+        )?
+        else {
+            let binding = load_runtime_target_registration_by_operation(
+                &transaction,
+                "runtime_target_bindings",
+                operation_id,
+            )?
+            .ok_or_else(|| "runtime target registration intent is missing".to_string())?;
+            transaction.commit().map_err(|error| error.to_string())?;
+            return Ok(RuntimeTargetBindingCommit {
+                binding: RuntimeTargetBindingRecord {
+                    operation_id: binding.operation_id,
+                    runtime_id: binding.runtime_id,
+                    secret_key: binding.secret_key,
+                    payload: binding.payload,
+                    updated_at_unix_ms: binding.recorded_at_unix_ms,
+                },
+                replayed: true,
+            });
+        };
+        let existing_binding = load_runtime_target_registration_by_runtime(
+            &transaction,
+            "runtime_target_bindings",
+            &intent.runtime_id,
+        )?;
+        if existing_binding.is_none() {
+            let binding_count: i64 = transaction
+                .query_row("SELECT COUNT(*) FROM runtime_target_bindings", [], |row| {
+                    row.get(0)
+                })
+                .map_err(|error| error.to_string())?;
+            if binding_count >= MAX_RUNTIME_TARGET_BINDINGS {
+                return Err("runtime target binding capacity reached".into());
+            }
+        }
+        let now = unix_time_ms()?;
+        transaction
+            .execute(
+                "INSERT INTO runtime_target_bindings
+                     (runtime_id, operation_id, secret_key, payload, updated_at_unix_ms)
+                 VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT(runtime_id) DO UPDATE SET
+                     operation_id = excluded.operation_id,
+                     secret_key = excluded.secret_key,
+                     payload = excluded.payload,
+                     updated_at_unix_ms = excluded.updated_at_unix_ms",
+                params![
+                    intent.runtime_id,
+                    intent.operation_id,
+                    intent.secret_key,
+                    intent.payload,
+                    now
+                ],
+            )
+            .map_err(|error| error.to_string())?;
+        let deleted = transaction
+            .execute(
+                "DELETE FROM runtime_target_registration_intents WHERE operation_id = ?1",
+                [operation_id],
+            )
+            .map_err(|error| error.to_string())?;
+        if deleted != 1 {
+            return Err("runtime target registration intent changed during commit".into());
+        }
+        if let Some(previous) = existing_binding
+            && previous.secret_key != intent.secret_key
+        {
+            queue_runtime_target_secret_gc(&transaction, &previous.secret_key, now)?;
+        }
+        transaction.commit().map_err(|error| error.to_string())?;
+        Ok(RuntimeTargetBindingCommit {
+            binding: RuntimeTargetBindingRecord {
+                operation_id: intent.operation_id,
+                runtime_id: intent.runtime_id,
+                secret_key: intent.secret_key,
+                payload: intent.payload,
+                updated_at_unix_ms: now,
+            },
+            replayed: false,
+        })
+    }
+
+    pub fn abort_runtime_target_registration(
+        &mut self,
+        operation_id: &str,
+    ) -> Result<bool, String> {
+        validate_scheduler_id("runtime target registration operation ID", operation_id)?;
+        self.ensure_owner()?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let Some(intent) = load_runtime_target_registration_by_operation(
+            &transaction,
+            "runtime_target_registration_intents",
+            operation_id,
+        )?
+        else {
+            transaction.commit().map_err(|error| error.to_string())?;
+            return Ok(false);
+        };
+        let deleted = transaction
+            .execute(
+                "DELETE FROM runtime_target_registration_intents WHERE operation_id = ?1",
+                [operation_id],
+            )
+            .map_err(|error| error.to_string())?;
+        if deleted != 1 {
+            return Err("runtime target registration intent changed during abort".into());
+        }
+        queue_runtime_target_secret_gc(&transaction, &intent.secret_key, unix_time_ms()?)?;
+        transaction.commit().map_err(|error| error.to_string())?;
+        Ok(true)
+    }
+
+    pub fn retire_runtime_target_binding(&mut self, runtime_id: &str) -> Result<bool, String> {
+        validate_scheduler_id("runtime target binding runtime ID", runtime_id)?;
+        self.ensure_owner()?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let Some(binding) = load_runtime_target_registration_by_runtime(
+            &transaction,
+            "runtime_target_bindings",
+            runtime_id,
+        )?
+        else {
+            transaction.commit().map_err(|error| error.to_string())?;
+            return Ok(false);
+        };
+        let deleted = transaction
+            .execute(
+                "DELETE FROM runtime_target_bindings WHERE runtime_id = ?1",
+                [runtime_id],
+            )
+            .map_err(|error| error.to_string())?;
+        if deleted != 1 {
+            return Err("runtime target binding changed during retirement".into());
+        }
+        queue_runtime_target_secret_gc(&transaction, &binding.secret_key, unix_time_ms()?)?;
+        transaction.commit().map_err(|error| error.to_string())?;
+        Ok(true)
+    }
+
+    pub fn runtime_target_secret_gc_batch(&mut self) -> Result<Vec<String>, String> {
+        self.ensure_owner()?;
+        let mut statement = self
+            .connection
+            .prepare(
+                "SELECT secret_key FROM runtime_target_secret_gc
+                 ORDER BY queued_at_unix_ms, secret_key LIMIT ?1",
+            )
+            .map_err(|error| error.to_string())?;
+        let rows = statement
+            .query_map([MAX_RUNTIME_TARGET_SECRET_GC_BATCH as i64], |row| {
+                row.get::<_, String>(0)
+            })
+            .map_err(|error| error.to_string())?;
+        let keys = rows
+            .map(|row| row.map_err(|error| error.to_string()))
+            .collect::<Result<Vec<_>, _>>()?;
+        for key in &keys {
+            validate_scheduler_id("runtime target secret key", key)?;
+        }
+        Ok(keys)
+    }
+
+    pub fn acknowledge_runtime_target_secret_gc(
+        &mut self,
+        secret_key: &str,
+    ) -> Result<bool, String> {
+        validate_scheduler_id("runtime target secret key", secret_key)?;
+        self.ensure_owner()?;
+        self.connection
+            .execute(
+                "DELETE FROM runtime_target_secret_gc WHERE secret_key = ?1",
+                [secret_key],
+            )
+            .map(|changed| changed == 1)
+            .map_err(|error| error.to_string())
     }
 
     pub fn complete(&mut self, sequence: i64, outcome: &[u8]) -> Result<(), String> {
@@ -3753,6 +4111,168 @@ fn validate_authority_phase(operation_kind: &str, phase: &str) -> Result<(), Str
         .ok_or_else(|| "authority checkpoint kind or phase is invalid".to_string())
 }
 
+fn validate_runtime_target_registration(
+    operation_id: &str,
+    runtime_id: &str,
+    secret_key: &str,
+    payload: &[u8],
+) -> Result<(), String> {
+    validate_scheduler_id("runtime target registration operation ID", operation_id)?;
+    RuntimeId::new(runtime_id.to_string())
+        .map_err(|_| "runtime target registration runtime ID is invalid".to_string())?;
+    validate_scheduler_id("runtime target secret key", secret_key)?;
+    if payload.is_empty() || payload.len() > MAX_RUNTIME_TARGET_REGISTRATION_PAYLOAD_BYTES {
+        return Err("runtime target registration payload is invalid".into());
+    }
+    Ok(())
+}
+
+fn runtime_target_registration_timestamp_column(table: &str) -> Result<&'static str, String> {
+    match table {
+        "runtime_target_registration_intents" => Ok("created_at_unix_ms"),
+        "runtime_target_bindings" => Ok("updated_at_unix_ms"),
+        _ => Err("runtime target registration table is invalid".into()),
+    }
+}
+
+fn map_runtime_target_registration(
+    row: &Row<'_>,
+) -> rusqlite::Result<RuntimeTargetRegistrationRecord> {
+    Ok(RuntimeTargetRegistrationRecord {
+        operation_id: row.get(0)?,
+        runtime_id: row.get(1)?,
+        secret_key: row.get(2)?,
+        payload: row.get(3)?,
+        recorded_at_unix_ms: row.get(4)?,
+    })
+}
+
+fn validate_runtime_target_registration_record(
+    record: RuntimeTargetRegistrationRecord,
+) -> Result<RuntimeTargetRegistrationRecord, String> {
+    validate_runtime_target_registration(
+        &record.operation_id,
+        &record.runtime_id,
+        &record.secret_key,
+        &record.payload,
+    )?;
+    if record.recorded_at_unix_ms < 0 {
+        return Err("runtime target registration timestamp is invalid".into());
+    }
+    Ok(record)
+}
+
+fn load_runtime_target_registration(
+    connection: &Connection,
+    table: &str,
+    predicate: &str,
+    value: &str,
+) -> Result<Option<RuntimeTargetRegistrationRecord>, String> {
+    let timestamp = runtime_target_registration_timestamp_column(table)?;
+    if !matches!(predicate, "operation_id" | "runtime_id") {
+        return Err("runtime target registration predicate is invalid".into());
+    }
+    let query = format!(
+        "SELECT operation_id, runtime_id, secret_key, payload, {timestamp}
+         FROM {table} WHERE {predicate} = ?1"
+    );
+    connection
+        .query_row(&query, [value], map_runtime_target_registration)
+        .optional()
+        .map_err(|error| error.to_string())?
+        .map(validate_runtime_target_registration_record)
+        .transpose()
+}
+
+fn load_runtime_target_registration_by_operation(
+    connection: &Connection,
+    table: &str,
+    operation_id: &str,
+) -> Result<Option<RuntimeTargetRegistrationRecord>, String> {
+    load_runtime_target_registration(connection, table, "operation_id", operation_id)
+}
+
+fn load_runtime_target_registration_by_runtime(
+    connection: &Connection,
+    table: &str,
+    runtime_id: &str,
+) -> Result<Option<RuntimeTargetRegistrationRecord>, String> {
+    load_runtime_target_registration(connection, table, "runtime_id", runtime_id)
+}
+
+fn load_runtime_target_registrations(
+    connection: &Connection,
+    table: &str,
+    timestamp_column: &str,
+) -> Result<Vec<RuntimeTargetRegistrationRecord>, String> {
+    let expected_timestamp = runtime_target_registration_timestamp_column(table)?;
+    if timestamp_column != expected_timestamp {
+        return Err("runtime target registration timestamp column is invalid".into());
+    }
+    let query = format!(
+        "SELECT operation_id, runtime_id, secret_key, payload, {timestamp_column}
+         FROM {table} ORDER BY {timestamp_column}, runtime_id"
+    );
+    let mut statement = connection
+        .prepare(&query)
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map([], map_runtime_target_registration)
+        .map_err(|error| error.to_string())?;
+    rows.map(|row| {
+        row.map_err(|error| error.to_string())
+            .and_then(validate_runtime_target_registration_record)
+    })
+    .collect()
+}
+
+fn require_runtime_target_registration_match(
+    record: &RuntimeTargetRegistrationRecord,
+    operation_id: &str,
+    runtime_id: &str,
+    secret_key: &str,
+    payload: &[u8],
+) -> Result<(), String> {
+    if record.operation_id != operation_id
+        || record.runtime_id != runtime_id
+        || record.secret_key != secret_key
+        || record.payload != payload
+    {
+        return Err("runtime target registration operation identity conflicts".into());
+    }
+    Ok(())
+}
+
+fn queue_runtime_target_secret_gc(
+    connection: &Connection,
+    secret_key: &str,
+    queued_at_unix_ms: i64,
+) -> Result<(), String> {
+    validate_scheduler_id("runtime target secret key", secret_key)?;
+    let live_references: i64 = connection
+        .query_row(
+            "SELECT
+                 (SELECT COUNT(*) FROM runtime_target_registration_intents
+                  WHERE secret_key = ?1) +
+                 (SELECT COUNT(*) FROM runtime_target_bindings
+                  WHERE secret_key = ?1)",
+            [secret_key],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    if live_references != 0 {
+        return Err("runtime target secret is still referenced".into());
+    }
+    connection
+        .execute(
+            "INSERT INTO runtime_target_secret_gc (secret_key, queued_at_unix_ms)
+             VALUES (?1, ?2) ON CONFLICT(secret_key) DO NOTHING",
+            params![secret_key, queued_at_unix_ms],
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
 fn migrate_schema(connection: &mut Connection, from: i64) -> Result<i64, String> {
     match from {
         1 => migrate_schema_1_to_2(connection),
@@ -3774,10 +4294,79 @@ fn migrate_schema(connection: &mut Connection, from: i64) -> Result<i64, String>
         17 => migrate_schema_17_to_18(connection),
         18 => migrate_schema_18_to_19(connection),
         19 => migrate_schema_19_to_20(connection),
+        20 => migrate_schema_20_to_21(connection),
         version => Err(format!(
             "no runtime journal migration from schema {version}"
         )),
     }
+}
+
+fn migrate_schema_20_to_21(connection: &mut Connection) -> Result<i64, String> {
+    let applied_at = unix_time_ms()?;
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute_batch(
+            "CREATE TABLE runtime_target_registration_intents (
+                 operation_id TEXT PRIMARY KEY CHECK (
+                     length(operation_id) BETWEEN 1 AND 128
+                 ),
+                 runtime_id TEXT NOT NULL UNIQUE CHECK (
+                     length(runtime_id) BETWEEN 1 AND 128
+                 ),
+                 secret_key TEXT NOT NULL CHECK (
+                     length(secret_key) BETWEEN 1 AND 128
+                 ),
+                 payload BLOB NOT NULL CHECK (
+                     length(payload) BETWEEN 1 AND 16384
+                 ),
+                 created_at_unix_ms INTEGER NOT NULL CHECK (created_at_unix_ms >= 0)
+             ) STRICT;
+             CREATE UNIQUE INDEX runtime_target_registration_intents_secret_key
+                 ON runtime_target_registration_intents (secret_key);
+             CREATE TABLE runtime_target_bindings (
+                 runtime_id TEXT PRIMARY KEY CHECK (
+                     length(runtime_id) BETWEEN 1 AND 128
+                 ),
+                 operation_id TEXT NOT NULL UNIQUE CHECK (
+                     length(operation_id) BETWEEN 1 AND 128
+                 ),
+                 secret_key TEXT NOT NULL CHECK (
+                     length(secret_key) BETWEEN 1 AND 128
+                 ),
+                 payload BLOB NOT NULL CHECK (
+                     length(payload) BETWEEN 1 AND 16384
+                 ),
+                 updated_at_unix_ms INTEGER NOT NULL CHECK (updated_at_unix_ms >= 0)
+             ) STRICT;
+             CREATE UNIQUE INDEX runtime_target_bindings_secret_key
+                 ON runtime_target_bindings (secret_key);
+             CREATE TABLE runtime_target_secret_gc (
+                 secret_key TEXT PRIMARY KEY CHECK (
+                     length(secret_key) BETWEEN 1 AND 128
+                 ),
+                 queued_at_unix_ms INTEGER NOT NULL CHECK (queued_at_unix_ms >= 0)
+             ) STRICT;",
+        )
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute(
+            "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms) VALUES (21, ?1)",
+            [applied_at],
+        )
+        .map_err(|error| error.to_string())?;
+    let changed = transaction
+        .execute(
+            "UPDATE runtime_metadata SET value = 21 WHERE key = 'schema_version' AND value = 20",
+            [],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed != 1 {
+        return Err("runtime journal schema changed during migration".into());
+    }
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(21)
 }
 
 fn migrate_schema_19_to_20(connection: &mut Connection) -> Result<i64, String> {
@@ -4595,9 +5184,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
-    if (migration_count, first_migration, last_migration) != (20, 1, 20) {
-        return Err("invalid runtime journal schema 20 migration history".into());
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
+    if (migration_count, first_migration, last_migration) != (21, 1, 21) {
+        return Err("invalid runtime journal schema 21 migration history".into());
     }
     let timestamp_column: i64 = connection
         .query_row(
@@ -4607,23 +5196,23 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
         )
         .map_err(|error| error.to_string())?;
     if timestamp_column != 1 {
-        return Err("invalid runtime journal schema 20 timestamp column".into());
+        return Err("invalid runtime journal schema 21 timestamp column".into());
     }
     connection
         .query_row("SELECT COUNT(*) FROM runtime_snapshots", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_owner", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_effect_tasks", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     let effect_columns: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM pragma_table_info('runtime_effect_tasks')
@@ -4635,9 +5224,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     if effect_columns != 13 {
-        return Err("invalid runtime journal schema 20 effect columns".into());
+        return Err("invalid runtime journal schema 21 effect columns".into());
     }
     let claim_index: i64 = connection
         .query_row(
@@ -4647,9 +5236,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     if claim_index != 1 {
-        return Err("invalid runtime journal schema 20 effect claim index".into());
+        return Err("invalid runtime journal schema 21 effect claim index".into());
     }
     let unknown_journal_kinds: i64 = connection
         .query_row(
@@ -4661,9 +5250,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     if unknown_journal_kinds != 0 {
-        return Err("invalid runtime journal schema 20 journal kind".into());
+        return Err("invalid runtime journal schema 21 journal kind".into());
     }
     let log_columns: i64 = connection
         .query_row(
@@ -4672,9 +5261,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     if log_columns != 5 {
-        return Err("invalid runtime journal schema 20 log columns".into());
+        return Err("invalid runtime journal schema 21 log columns".into());
     }
     let log_index: i64 = connection
         .query_row(
@@ -4684,9 +5273,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     if log_index != 1 {
-        return Err("invalid runtime journal schema 20 log index".into());
+        return Err("invalid runtime journal schema 21 log index".into());
     }
     let orchestra_tables: i64 = connection
         .query_row(
@@ -4695,9 +5284,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     if orchestra_tables != 2 {
-        return Err("invalid runtime journal schema 20 Orchestra tables".into());
+        return Err("invalid runtime journal schema 21 Orchestra tables".into());
     }
     let orchestra_indexes: i64 = connection
         .query_row(
@@ -4709,9 +5298,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     if orchestra_indexes != 3 {
-        return Err("invalid runtime journal schema 20 Orchestra indexes".into());
+        return Err("invalid runtime journal schema 21 Orchestra indexes".into());
     }
     let authority_columns: i64 = connection
         .query_row(
@@ -4723,9 +5312,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     if authority_columns != 6 {
-        return Err("invalid runtime journal schema 20 authority checkpoint columns".into());
+        return Err("invalid runtime journal schema 21 authority checkpoint columns".into());
     }
     let authority_index: i64 = connection
         .query_row(
@@ -4735,9 +5324,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     if authority_index != 1 {
-        return Err("invalid runtime journal schema 20 authority checkpoint index".into());
+        return Err("invalid runtime journal schema 21 authority checkpoint index".into());
     }
     let daemon_retirement_constraint: i64 = connection
         .query_row(
@@ -4748,10 +5337,10 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     if daemon_retirement_constraint != 1 {
         return Err(
-            "invalid runtime journal schema 20 daemon retirement authority constraint".into(),
+            "invalid runtime journal schema 21 daemon retirement authority constraint".into(),
         );
     }
     let unregistration_columns: i64 = connection
@@ -4764,9 +5353,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     if unregistration_columns != 7 {
-        return Err("invalid runtime journal schema 20 unregistration columns".into());
+        return Err("invalid runtime journal schema 21 unregistration columns".into());
     }
     let unregistration_generation_index: i64 = connection
         .query_row(
@@ -4777,12 +5366,12 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     if unregistration_generation_index != 1 {
-        return Err("invalid runtime journal schema 20 unregistration generation index".into());
+        return Err("invalid runtime journal schema 21 unregistration generation index".into());
     }
     load_runtime_unregistration_replay_horizon(connection)
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     let orchestra_delete_columns: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM pragma_table_info('orchestra_delete_operations')
@@ -4793,9 +5382,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     if orchestra_delete_columns != 7 {
-        return Err("invalid runtime journal schema 20 Orchestra delete columns".into());
+        return Err("invalid runtime journal schema 21 Orchestra delete columns".into());
     }
     let orchestra_delete_generation_rows: i64 = connection
         .query_row(
@@ -4804,12 +5393,12 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     if orchestra_delete_generation_rows != 1 {
-        return Err("invalid runtime journal schema 20 Orchestra delete generation".into());
+        return Err("invalid runtime journal schema 21 Orchestra delete generation".into());
     }
     load_orchestra_delete_replay_horizon(connection)
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     let authority_writer_columns: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM pragma_table_info('authority_writer_fence')
@@ -4817,9 +5406,87 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 20: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
     if authority_writer_columns != 3 {
-        return Err("invalid runtime journal schema 20 authority writer fence".into());
+        return Err("invalid runtime journal schema 21 authority writer fence".into());
+    }
+    let target_registration_tables: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'table' AND name IN (
+                 'runtime_target_registration_intents',
+                 'runtime_target_bindings',
+                 'runtime_target_secret_gc'
+             )",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
+    if target_registration_tables != 3 {
+        return Err("invalid runtime journal schema 21 target registration tables".into());
+    }
+    let intent_columns: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('runtime_target_registration_intents')
+             WHERE name IN (
+                 'operation_id', 'runtime_id', 'secret_key', 'payload', 'created_at_unix_ms'
+             )",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
+    let binding_columns: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('runtime_target_bindings')
+             WHERE name IN (
+                 'runtime_id', 'operation_id', 'secret_key', 'payload', 'updated_at_unix_ms'
+             )",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
+    let secret_gc_columns: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('runtime_target_secret_gc')
+             WHERE name IN ('secret_key', 'queued_at_unix_ms')",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
+    if intent_columns != 5 || binding_columns != 5 || secret_gc_columns != 2 {
+        return Err("invalid runtime journal schema 21 target registration columns".into());
+    }
+    let target_secret_indexes: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'index' AND name IN (
+                 'runtime_target_registration_intents_secret_key',
+                 'runtime_target_bindings_secret_key'
+             )",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
+    if target_secret_indexes != 2 {
+        return Err("invalid runtime journal schema 21 target secret indexes".into());
+    }
+    let target_secret_conflicts: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM (
+                 SELECT secret_key FROM (
+                     SELECT secret_key FROM runtime_target_registration_intents
+                     UNION ALL
+                     SELECT secret_key FROM runtime_target_bindings
+                     UNION ALL
+                     SELECT secret_key FROM runtime_target_secret_gc
+                 ) GROUP BY secret_key HAVING COUNT(*) > 1
+             )",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("invalid runtime journal schema 21: {error}"))?;
+    if target_secret_conflicts != 0 {
+        return Err("invalid runtime journal schema 21 target secret ownership".into());
     }
     Ok(())
 }

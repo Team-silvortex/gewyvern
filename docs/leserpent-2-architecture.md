@@ -1974,10 +1974,10 @@ schema is no longer compatible.
 Rust effect targets carry validated `SecretKey` aliases, never secret values.
 `SecretStore` resolves an alias immediately before network execution; missing,
 invalid, or unavailable values fail before a connection is opened. Temporary
-`SecretValue` instances redact `Debug` output, reject line breaks and oversized
-values, and zeroize their allocation on drop. Adapter request buffers containing
-authorization headers are also zeroized immediately after the socket write,
-including write-failure paths.
+`SecretValue` instances redact `Debug` output, reject NUL bytes, line breaks,
+and oversized values, and zeroize their allocation on drop. Adapter request
+buffers containing authorization headers are also zeroized immediately after
+the socket write, including write-failure paths.
 
 The daemon supplies an allowlisted environment-backed store for the optional
 Gewyvern admin token. An explicit secret alias instead resolves through the
@@ -1988,6 +1988,46 @@ need development packages or helper subprocesses. Configured in-memory storage
 exists only as a provider and test boundary. Platform providers preserve target
 and adapter semantics without adding platform code to the scheduler or domain
 model.
+
+`MutableSecretStore` is a separate capability implemented only by the native
+platform provider. Its single-item operation atomically creates or replaces a
+credential and exposes explicit removal; read-only configured and environment
+providers cannot be mutated. macOS updates an existing generic-password item in
+place and handles a concurrent create race, while Linux uses libsecret's matching
+attribute replacement. The Linux function table remains loaded for the process
+lifetime so GLib's registered global types are never unloaded and recreated.
+
+Health, status, discovery, and deployment adapters can now share one
+`GewyvernTargetCatalog`. The catalog admits an explicitly empty startup state,
+clones target descriptors under a short read lock, and atomically inserts,
+replaces, or removes one validated runtime target under a write lock. A poisoned
+catalog fails closed. Legacy constructors still require at least one configured
+target, while `leserpentd` injects one catalog into every configured Gewyvern
+adapter so a later registration transaction can make a target visible to all
+four capabilities without rebuilding the registry or restarting the daemon.
+
+SQLite schema 21 completes the crash-recoverable registration boundary with
+separate pending-intent, active-binding, and secret-GC tables. The daemon first
+persists a schema-versioned, secret-free intent; it then writes a copy-on-write
+native credential, applies the idempotent registration or update command,
+hot-activates the shared catalog, and commits the active binding. Rotation and
+retirement queue the previous alias for durable garbage collection. Secret aliases
+are unique across pending, active, and GC states, exact retries verify the supplied
+credential in constant time, and startup either restores a matching binding,
+resumes a prepared operation, or compensates a deterministic conflict. GC drains
+all bounded batches rather than only the first one. Pairing credentials are also
+validated as at most 256 visible ASCII bytes before persistence because the
+Gewyvern transport carries them in a dedicated HTTP header. The inbound HTTPS
+parser keeps both its complete request buffer and detached JSON body in
+zeroizing allocations, clears temporary read fragments, and renders only the
+body length in `HttpRequest` diagnostics.
+
+Dynamic trust remains explicit rather than ambient. The current Web coordinator
+admits only root loopback HTTP origins with an explicit port and rejects paths,
+queries, credentials, remote addresses, and HTTPS targets without reviewed CA
+material. Configured remote HTTPS targets remain available through the existing
+CA-pinned adapter constructor; extending dynamic registration to them requires a
+durable CA-binding contract, not a fallback to system trust.
 
 Gewyvern targets expose two explicit transports. The existing HTTP constructor
 accepts loopback socket addresses only. Remote targets require an
@@ -2176,11 +2216,16 @@ retained receipts make a lost-response retry idempotent across restart, and the
 shared frontend fences its cleanup controls on the daemon capability. If
 another process claims the writer generation, mutation calls fail closed as
 standby and capabilities immediately report the loss of write availability.
-Registration planning validates only secret-free coordinates and remains
-rejected until a platform secret-store API can atomically commit the pairing
-credential. The surface remains partial until registration execution,
-persistence import/export, and Orchestra compatibility routes move to Rust. No
-TypeScript handler owns authority during that migration.
+Registration planning validates only secret-free coordinates. In writer mode,
+the matching execution route now enters the schema-v21 registration coordinator:
+the browser supplies the reviewed plan and pairing credential once, while the
+daemon owns intent persistence, native secret storage, command replay, catalog
+activation, binding commit, compensation, and startup recovery. The browser never
+receives a secret alias or authority ticket. Only strict loopback Gewyvern origins
+are accepted until explicit CA trust can be persisted for remote HTTPS targets.
+The surface remains partial until persistence import/export and Orchestra
+compatibility routes move to Rust. No TypeScript handler owns authority during
+that migration.
 
 Existing-runtime registration now has a native Avalonia product path independent
 from managed SSH provisioning. `RemoteRegistrationClient` first reads the

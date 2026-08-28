@@ -10,7 +10,7 @@ use leserpent_runtime::EffectExecution;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::gewyvern::{GewyvernTarget, get_json, normalize_targets};
+use crate::gewyvern::{GewyvernTarget, GewyvernTargetCatalog, get_json};
 use crate::{EffectAdapter, EmptySecretStore, SecretStore, validate_id};
 
 pub const GEWYVERN_DISCOVERY_EFFECT_KIND: &str = RUNTIME_CAPABILITY_DISCOVERY_EFFECT_KIND;
@@ -36,7 +36,7 @@ struct CapabilityDocument {
 }
 
 pub struct GewyvernDiscoveryAdapter {
-    targets: BTreeMap<String, GewyvernTarget>,
+    targets: GewyvernTargetCatalog,
     secrets: Arc<dyn SecretStore>,
     timeout: Duration,
 }
@@ -52,8 +52,15 @@ impl GewyvernDiscoveryAdapter {
         targets: impl IntoIterator<Item = (String, GewyvernTarget)>,
         secrets: Arc<dyn SecretStore>,
     ) -> Result<Self, String> {
+        Self::with_target_catalog(GewyvernTargetCatalog::new(targets)?, secrets)
+    }
+
+    pub fn with_target_catalog(
+        targets: GewyvernTargetCatalog,
+        secrets: Arc<dyn SecretStore>,
+    ) -> Result<Self, String> {
         Ok(Self {
-            targets: normalize_targets(targets)?,
+            targets,
             secrets,
             timeout: Duration::from_secs(3),
         })
@@ -73,11 +80,13 @@ impl EffectAdapter for GewyvernDiscoveryAdapter {
         if validate_id("runtime_id", &request.runtime_id).is_err() {
             return reject("invalid Gewyvern discovery runtime_id");
         }
-        let Some(target) = self.targets.get(&request.runtime_id) else {
-            return reject("Gewyvern discovery runtime is not configured");
+        let target = match self.targets.target(&request.runtime_id) {
+            Ok(Some(target)) => target,
+            Ok(None) => return reject("Gewyvern discovery runtime is not configured"),
+            Err(error) => return reject(&error),
         };
         let response = match get_json(
-            target,
+            &target,
             self.secrets.as_ref(),
             "/v1/capabilities",
             self.timeout,

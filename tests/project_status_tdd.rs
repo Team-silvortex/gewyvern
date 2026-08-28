@@ -134,7 +134,7 @@ fn project_status_catalog_is_protocolized_and_valid() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     catalog.validate(&root).expect("catalog must validate");
     assert_eq!(catalog.calibration.model, STATUS_CALIBRATION_MODEL);
-    assert_eq!(catalog.calibration.as_of, "2026-08-27");
+    assert_eq!(catalog.calibration.as_of, "2026-08-28");
     assert!(catalog.dimensions.architectures.len() >= 6);
     assert!(catalog.dimensions.modules.len() >= 21);
     assert!(catalog.dimensions.features.len() >= 23);
@@ -242,7 +242,7 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
         .expect("control-plane mutation inventory must exist"),
     )
     .expect("control-plane mutation inventory must decode");
-    assert_eq!(inventory["version"], "1.24.0");
+    assert_eq!(inventory["version"], "1.25.0");
     let mut expected_csharp_routes = json_string_set(&inventory, "mutation_routes");
     expected_csharp_routes.extend(json_string_set(&inventory, "read_only_post_allowlist"));
     assert_eq!(
@@ -251,6 +251,7 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
         "every C# non-read /v1 endpoint must be inventoried"
     );
     let writer_fence = &inventory["rust_authority_writer_fence"];
+    assert_eq!(writer_fence["journal_schema"], 21);
     let covered = writer_fence["covered_ipc_mutations"]
         .as_array()
         .expect("covered IPC mutations must be an array");
@@ -302,6 +303,27 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
     assert_eq!(
         writer_fence["remote_headers"]["generation"],
         "X-Leserpent-Authority-Writer-Generation"
+    );
+    let registration = &inventory["rust_web_registration"];
+    assert_eq!(registration["route"], "/v1/runtimes/register");
+    assert_eq!(registration["journal_schema"], 21);
+    assert_eq!(
+        registration["target_trust"],
+        "root-loopback-http-origin-with-explicit-port-only"
+    );
+    assert!(
+        registration["transaction"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|value| value == "copy-on-write-platform-secret")
+    );
+    assert!(
+        registration["transport_memory"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|value| value == "zeroized-detached-json-body")
     );
     assert_eq!(
         writer_fence["claim_crash_proof"]["physical_linux_evidence"],
@@ -5252,7 +5274,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(frontend_parity.priority, Priority::Critical);
     assert_eq!(frontend_parity.completion, 98);
     assert_eq!(frontend_parity.contract.stability, ContractStability::Draft);
-    assert_eq!(frontend_parity.contract.version, "0.9.0-draft");
+    assert_eq!(frontend_parity.contract.version, "0.9.3-draft");
     for surface in [
         "avalonia-orchestra-native-plan-run-control-closure",
         "strict-dotnet-orchestra-control-codec",
@@ -5285,6 +5307,15 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "cleanup-capability-ui-fence",
         "writer-takeover-web-standby",
         "secret-store-registration-fail-closed",
+        "atomic-platform-secret-store-contract",
+        "rust-web-shared-hot-target-catalog",
+        "rust-web-crash-recoverable-registration",
+        "rust-web-loopback-trust-binding",
+        "rust-web-platform-secret-cow",
+        "rust-web-registration-restart-recovery",
+        "runtime-target-secret-gc",
+        "real-tls-rust-web-registration-proof",
+        "zeroized-rust-web-registration-body",
         "real-tls-rust-web-mutation-proof",
         "explicit-rust-web-remaining-mutation-gap",
     ] {
@@ -5360,6 +5391,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     for path in [
         "crates/leserpentd/src/web_console.rs",
         "crates/leserpentd/src/remote.rs",
+        "crates/leserpentd/src/runtime_target_registration.rs",
         "apps/leserpent/src/Leserpent/frontend/20-security-transport.ts",
     ] {
         assert!(frontend_parity.evidence.iter().any(|item| {
@@ -5470,7 +5502,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(runtime.maturity, Maturity::Mature);
     assert_eq!(runtime.completion, 100);
     assert_eq!(runtime.contract.stability, ContractStability::Stable);
-    assert_eq!(runtime.contract.version, "1.17.0");
+    assert_eq!(runtime.contract.version, "1.18.0");
     for surface in [
         "durable-sidecar-endpoint",
         "atomic-sidecar-registration-update",
@@ -5500,6 +5532,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "atomic-unregistration-orchestra-cleanup",
         "durable-unregistration-idempotency",
         "restart-safe-unregistration-replay",
+        "sqlite-v21-runtime-target-registration",
+        "durable-runtime-target-intent",
+        "durable-runtime-target-binding",
+        "copy-on-write-secret-alias",
+        "runtime-target-secret-gc",
+        "restart-safe-target-registration",
+        "target-registration-operation-replay",
+        "cross-state-secret-alias-uniqueness",
         "atomic-authority-writer-claim-transaction",
         "deterministic-claim-precommit-crash-rollback",
         "postcommit-claim-durability",
@@ -5713,7 +5753,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/daemon-host/daemon-lifecycle")
         .expect("Leserpent daemon lifecycle cell must exist");
-    assert_eq!(daemon_lifecycle.contract.version, "1.22.0");
+    assert_eq!(daemon_lifecycle.contract.version, "1.23.0");
     assert_eq!(
         daemon_lifecycle.contract.stability,
         ContractStability::Stable
@@ -5804,6 +5844,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "three-run-physical-phase-stability",
         "post-read-deadline-immediate-http-error",
         "collision-free-parallel-lifecycle-fixtures",
+        "rust-web-runtime-registration-route",
+        "daemon-owned-registration-authority",
+        "strict-loopback-registration-trust",
+        "platform-secret-registration-write",
+        "hot-catalog-registration-activation",
+        "restart-registration-recovery",
+        "deterministic-registration-compensation",
+        "real-tls-rust-web-registration-proof",
+        "zeroized-http-request-body",
+        "redacted-http-request-debug",
     ] {
         assert!(
             daemon_lifecycle
@@ -5816,6 +5866,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }
     assert!(daemon_lifecycle.evidence.iter().any(|item| {
         item.path == "crates/leserpentd/src/ipc.rs" && item.state == EvidenceState::Present
+    }));
+    assert!(daemon_lifecycle.evidence.iter().any(|item| {
+        item.path == "crates/leserpentd/src/runtime_target_registration.rs"
+            && item.state == EvidenceState::Present
     }));
     assert!(daemon_lifecycle.evidence.iter().any(|item| {
         item.path
@@ -8705,7 +8759,7 @@ fn native_status_cli_exposes_human_and_machine_views() {
         serde_json::from_slice(&summary.stdout).expect("summary must be JSON");
     assert_eq!(payload["schema_version"], STATUS_SCHEMA_VERSION);
     assert_eq!(payload["calibration"]["model"], STATUS_CALIBRATION_MODEL);
-    assert_eq!(payload["calibration"]["as_of"], "2026-08-27");
+    assert_eq!(payload["calibration"]["as_of"], "2026-08-28");
     assert_eq!(payload["deferred_cell_count"], 1);
     assert!(payload["overall_score"].is_u64());
     assert!(payload["portfolio_score"].is_u64());

@@ -133,11 +133,17 @@ fn function_chain_closes_existing_runtime_registration_without_hiding_other_gaps
             "registration chain lacks {stage} evidence"
         );
     }
-    assert!(docs.contains("| Avalonia desktop | target | 86 | 7 | 1 | 1 | 0 |"));
-    assert!(docs.contains("The combined target score is 78"));
+    assert!(docs.contains("| Avalonia desktop | target | 100 | 9 | 0 | 0 | 0 |"));
+    assert!(docs.contains("| Rust-hosted Web | target | 50 | 0 | 1 | 0 | 0 |"));
+    assert!(docs.contains("The combined target score is 95"));
     assert!(docs.contains("field edits invalidate it"));
+    assert!(docs.contains("`/v1/runtimes/register`"));
+    assert!(docs.contains("schema-v21 intent"));
+    assert!(docs.contains("remote HTTPS registration still fails"));
     assert!(!status.contains("\"id\": \"avalonia-runtime-registration-editor\""));
-    assert!(status.contains("\"id\": \"product-debugger-session-bridge\""));
-    assert!(status.contains("\"id\": \"product-leselang-execution-host\""));
+    assert!(!status.contains("\"id\": \"product-debugger-session-bridge\""));
+    assert!(!status.contains("\"id\": \"product-leselang-execution-host\""));
     assert!(status.contains("\"id\": \"rust-web-self-host\""));
+    assert!(status.contains("\"atomic-platform-secret-store-contract\""));
+    assert!(status.contains("\"rust-web-crash-recoverable-registration\""));
 }

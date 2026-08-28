@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "release_line": "2.0",
-  "as_of": "2026-08-27",
+  "as_of": "2026-08-28",
   "stages": [
     { "id": "entry", "label": "User-reachable GUI entry" },
     { "id": "semantic", "label": "Typed semantic intent" },
@@ -506,11 +506,11 @@
         {
           "surface": "rust-web",
           "state": "partial",
-          "gap": "leserpentd now serves the shared TypeScript package, authenticated first-screen projections, daemon-owned fleet refresh, revision-fenced single-runtime deletion, and plan-fenced atomic bulk cleanup directly; registration execution still waits for atomic secret-store writes, while persistence import/export and Orchestra compatibility APIs still depend on the ASP.NET bridge.",
+          "gap": "leserpentd now serves the shared TypeScript package, authenticated first-screen projections, daemon-owned fleet refresh, revision-fenced single-runtime deletion, plan-fenced atomic bulk cleanup, and schema-v21 crash-recoverable registration for strict loopback Gewyvern targets directly; only persistence import/export and Orchestra compatibility APIs still depend on the ASP.NET bridge.",
           "evidence": [
             { "stage": "entry", "path": "crates/leserpentd/src/web_console.rs", "contains": "pub(crate) fn find_asset(" },
             { "stage": "transport", "path": "crates/leserpentd/src/remote.rs", "contains": "HttpRoute::ConsoleApi(route)" },
-            { "stage": "authority", "path": "crates/leserpentd/src/web_console_write.rs", "contains": "fn require_writer(" },
+            { "stage": "authority", "path": "crates/leserpentd/src/runtime_target_registration.rs", "contains": "pub struct RuntimeTargetRegistrationAuthority" },
             { "stage": "projection", "path": "crates/leserpentd/src/web_console.rs", "contains": "pub(crate) fn render_api(" },
             { "stage": "feedback", "path": "apps/leserpent/src/Leserpent/frontend/50-dashboard-workflows.ts", "contains": "function renderDashboardFromCache()" }
           ]

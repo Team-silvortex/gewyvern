@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::io::{BufReader, Read, Write};
 use std::net::SocketAddr;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use leserpent_domain::{
@@ -26,6 +26,7 @@ pub const GEWYVERN_STATUS_REFRESH_EFFECT_KIND: &str = RUNTIME_STATUS_REFRESH_EFF
 const MAX_HTTP_BODY_BYTES: usize = 64 * 1024;
 const MAX_HTTP_REQUEST_BODY_BYTES: usize = 16 * 1024;
 const MAX_CA_FILE_BYTES: u64 = 1024 * 1024;
+const MAX_GEWYVERN_ADMIN_SECRET_BYTES: usize = 256;
 
 pub(crate) struct HttpJsonResponse {
     pub status: u16,
@@ -36,6 +37,70 @@ pub(crate) struct HttpJsonResponse {
 pub struct GewyvernTarget {
     transport: GewyvernTransport,
     admin_secret: Option<SecretKey>,
+}
+
+#[derive(Clone, Default)]
+pub struct GewyvernTargetCatalog {
+    targets: Arc<RwLock<BTreeMap<String, GewyvernTarget>>>,
+}
+
+impl GewyvernTargetCatalog {
+    pub fn new(
+        targets: impl IntoIterator<Item = (String, GewyvernTarget)>,
+    ) -> Result<Self, String> {
+        Ok(Self {
+            targets: Arc::new(RwLock::new(normalize_targets(targets)?)),
+        })
+    }
+
+    pub fn upsert(&self, runtime_id: String, target: GewyvernTarget) -> Result<(), String> {
+        validate_id("runtime_id", &runtime_id)?;
+        self.targets
+            .write()
+            .map_err(|_| "Gewyvern target catalog is unavailable".to_string())?
+            .insert(runtime_id, target);
+        Ok(())
+    }
+
+    pub fn remove(&self, runtime_id: &str) -> Result<bool, String> {
+        validate_id("runtime_id", runtime_id)?;
+        Ok(self
+            .targets
+            .write()
+            .map_err(|_| "Gewyvern target catalog is unavailable".to_string())?
+            .remove(runtime_id)
+            .is_some())
+    }
+
+    pub fn contains(&self, runtime_id: &str) -> Result<bool, String> {
+        validate_id("runtime_id", runtime_id)?;
+        Ok(self
+            .targets
+            .read()
+            .map_err(|_| "Gewyvern target catalog is unavailable".to_string())?
+            .contains_key(runtime_id))
+    }
+
+    pub fn len(&self) -> Result<usize, String> {
+        Ok(self
+            .targets
+            .read()
+            .map_err(|_| "Gewyvern target catalog is unavailable".to_string())?
+            .len())
+    }
+
+    pub fn is_empty(&self) -> Result<bool, String> {
+        self.len().map(|len| len == 0)
+    }
+
+    pub(crate) fn target(&self, runtime_id: &str) -> Result<Option<GewyvernTarget>, String> {
+        Ok(self
+            .targets
+            .read()
+            .map_err(|_| "Gewyvern target catalog is unavailable".to_string())?
+            .get(runtime_id)
+            .cloned())
+    }
 }
 
 #[derive(Clone)]
@@ -99,6 +164,16 @@ impl GewyvernTarget {
     pub(crate) fn is_authenticated(&self) -> bool {
         self.admin_secret.is_some()
     }
+}
+
+pub fn validate_gewyvern_admin_secret(secret: &crate::SecretValue) -> Result<(), String> {
+    let value = secret.expose_secret();
+    if value.len() > MAX_GEWYVERN_ADMIN_SECRET_BYTES
+        || !value.bytes().all(|byte| byte.is_ascii_graphic())
+    {
+        return Err("Gewyvern admin secret is invalid".into());
+    }
+    Ok(())
 }
 
 impl HttpsEndpoint {
@@ -193,13 +268,13 @@ fn open_ca_file(ca_path: &Path) -> Result<BoundedFile, String> {
 }
 
 pub struct GewyvernHealthAdapter {
-    targets: BTreeMap<String, GewyvernTarget>,
+    targets: GewyvernTargetCatalog,
     secrets: Arc<dyn SecretStore>,
     timeout: Duration,
 }
 
 pub struct GewyvernStatusRefreshAdapter {
-    targets: BTreeMap<String, GewyvernTarget>,
+    targets: GewyvernTargetCatalog,
     secrets: Arc<dyn SecretStore>,
     timeout: Duration,
 }
@@ -219,8 +294,15 @@ impl GewyvernHealthAdapter {
         targets: impl IntoIterator<Item = (String, GewyvernTarget)>,
         secrets: Arc<dyn SecretStore>,
     ) -> Result<Self, String> {
+        Self::with_target_catalog(GewyvernTargetCatalog::new(targets)?, secrets)
+    }
+
+    pub fn with_target_catalog(
+        targets: GewyvernTargetCatalog,
+        secrets: Arc<dyn SecretStore>,
+    ) -> Result<Self, String> {
         Ok(Self {
-            targets: normalize_targets(targets)?,
+            targets,
             secrets,
             timeout: Duration::from_secs(3),
         })
@@ -238,8 +320,15 @@ impl GewyvernStatusRefreshAdapter {
         targets: impl IntoIterator<Item = (String, GewyvernTarget)>,
         secrets: Arc<dyn SecretStore>,
     ) -> Result<Self, String> {
+        Self::with_target_catalog(GewyvernTargetCatalog::new(targets)?, secrets)
+    }
+
+    pub fn with_target_catalog(
+        targets: GewyvernTargetCatalog,
+        secrets: Arc<dyn SecretStore>,
+    ) -> Result<Self, String> {
         Ok(Self {
-            targets: normalize_targets(targets)?,
+            targets,
             secrets,
             timeout: Duration::from_secs(3),
         })
@@ -265,10 +354,12 @@ impl EffectAdapter for GewyvernHealthAdapter {
         if validate_id("runtime_id", &request.runtime_id).is_err() {
             return reject("invalid Gewyvern runtime_id");
         }
-        let Some(target) = self.targets.get(&request.runtime_id) else {
-            return reject("Gewyvern runtime is not configured");
+        let target = match self.targets.target(&request.runtime_id) {
+            Ok(Some(target)) => target,
+            Ok(None) => return reject("Gewyvern runtime is not configured"),
+            Err(error) => return reject(&error),
         };
-        match fetch_health(target, self.secrets.as_ref(), self.timeout) {
+        match fetch_health(&target, self.secrets.as_ref(), self.timeout) {
             Ok(body) => EffectExecution::Complete(body),
             Err(error) => EffectExecution::Retry {
                 error,
@@ -291,10 +382,12 @@ impl EffectAdapter for GewyvernStatusRefreshAdapter {
         if validate_id("runtime_id", &request.runtime_id).is_err() {
             return reject("invalid Gewyvern runtime_id");
         }
-        let Some(target) = self.targets.get(&request.runtime_id) else {
-            return reject("Gewyvern runtime is not configured");
+        let target = match self.targets.target(&request.runtime_id) {
+            Ok(Some(target)) => target,
+            Ok(None) => return reject("Gewyvern runtime is not configured"),
+            Err(error) => return reject(&error),
         };
-        match fetch_status(target, self.secrets.as_ref(), self.timeout, &request) {
+        match fetch_status(&target, self.secrets.as_ref(), self.timeout, &request) {
             Ok(observation) => match serde_json::to_vec(&observation) {
                 Ok(encoded) => EffectExecution::Complete(encoded),
                 Err(_) => reject("Gewyvern status observation cannot be encoded"),
@@ -471,11 +564,8 @@ fn request_json(
                 .ok_or_else(|| "Gewyvern admin secret is missing".to_string())
         })
         .transpose()?;
-    if admin_token
-        .as_ref()
-        .is_some_and(|token| token.expose_secret().len() > 256)
-    {
-        return Err("Gewyvern admin secret is invalid".into());
+    if let Some(token) = admin_token.as_ref() {
+        validate_gewyvern_admin_secret(token)?;
     }
     match &target.transport {
         GewyvernTransport::Loopback(address) => {
@@ -662,7 +752,9 @@ mod tests {
     use rustls::{ServerConfig, ServerConnection};
 
     use super::*;
-    use crate::{ConfiguredSecretStore, SecretValue};
+    use crate::{
+        ConfiguredSecretStore, GewyvernDeploymentAdapter, GewyvernDiscoveryAdapter, SecretValue,
+    };
 
     struct CompleteResponseWithoutEof {
         response: Option<Vec<u8>>,
@@ -733,6 +825,84 @@ mod tests {
             true
         );
         server.join().unwrap();
+    }
+
+    #[test]
+    fn admin_secret_rejects_unsafe_http_header_values() {
+        assert!(
+            validate_gewyvern_admin_secret(&SecretValue::new("safe-token_+/=").unwrap()).is_ok()
+        );
+        for value in ["token with space", "token\tvalue", "token-é"] {
+            assert!(
+                validate_gewyvern_admin_secret(&SecretValue::new(value).unwrap()).is_err(),
+                "unsafe token was accepted: {value:?}"
+            );
+        }
+        assert!(
+            validate_gewyvern_admin_secret(&SecretValue::new("x".repeat(257)).unwrap()).is_err()
+        );
+    }
+
+    #[test]
+    fn empty_shared_catalog_hot_activates_and_removes_a_runtime() {
+        let catalog = GewyvernTargetCatalog::default();
+        let mut adapter =
+            GewyvernHealthAdapter::with_target_catalog(catalog.clone(), Arc::new(EmptySecretStore))
+                .unwrap();
+        assert!(catalog.is_empty().unwrap());
+        assert!(matches!(
+            adapter.execute(br#"{"runtime_id":"runtime-a"}"#),
+            EffectExecution::Reject { error } if error == "Gewyvern runtime is not configured"
+        ));
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 4096];
+            let read = stream.read(&mut request).unwrap();
+            assert!(
+                std::str::from_utf8(&request[..read])
+                    .unwrap()
+                    .starts_with("GET /health HTTP/1.1\r\n")
+            );
+            serve_json(&mut stream, br#"{"ok":true,"has_snapshot":false}"#);
+        });
+        catalog
+            .upsert(
+                "runtime-a".to_string(),
+                GewyvernTarget::loopback(address, None).unwrap(),
+            )
+            .unwrap();
+        assert_eq!(catalog.len().unwrap(), 1);
+        assert!(catalog.contains("runtime-a").unwrap());
+        assert!(matches!(
+            adapter.execute(br#"{"runtime_id":"runtime-a"}"#),
+            EffectExecution::Complete(_)
+        ));
+        server.join().unwrap();
+
+        assert!(catalog.remove("runtime-a").unwrap());
+        assert!(!catalog.remove("runtime-a").unwrap());
+        assert!(catalog.is_empty().unwrap());
+        assert!(matches!(
+            adapter.execute(br#"{"runtime_id":"runtime-a"}"#),
+            EffectExecution::Reject { error } if error == "Gewyvern runtime is not configured"
+        ));
+    }
+
+    #[test]
+    fn one_empty_catalog_boots_all_gewyvern_adapter_kinds() {
+        let catalog = GewyvernTargetCatalog::default();
+        let secrets: Arc<dyn SecretStore> = Arc::new(EmptySecretStore);
+
+        GewyvernHealthAdapter::with_target_catalog(catalog.clone(), secrets.clone()).unwrap();
+        GewyvernStatusRefreshAdapter::with_target_catalog(catalog.clone(), secrets.clone())
+            .unwrap();
+        GewyvernDiscoveryAdapter::with_target_catalog(catalog.clone(), secrets.clone()).unwrap();
+        GewyvernDeploymentAdapter::with_target_catalog(catalog.clone(), secrets).unwrap();
+
+        assert!(catalog.is_empty().unwrap());
     }
 
     #[test]

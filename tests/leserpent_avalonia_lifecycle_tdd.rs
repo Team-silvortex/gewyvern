@@ -1371,7 +1371,7 @@ fn remote_desktop_shell_is_strictly_localized_typed_and_layout_probed() {
     assert!(localization.contains("DesktopOrchestraCatalogs.VerifyContract();"));
     assert!(app.contains("--verify-remote-shell-controls"));
     assert!(app.contains("startRemoteClients: false"));
-    assert!(app.contains("localized_dialog_layouts=32"));
+    assert!(app.contains("localized_dialog_layouts=40"));
     assert!(app.contains("localized_workspace_layouts=8"));
     assert!(app.contains("localized_orchestra_layouts=8"));
     assert!(app.contains("workspace_instances=1"));

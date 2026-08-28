@@ -44,6 +44,7 @@ use crate::provisioning_submission::{
 use crate::retirement_submission::{
     decode_and_submit as decode_and_submit_retirement, error as retirement_error,
 };
+use crate::runtime_target_registration::RuntimeTargetRegistrationAuthority;
 use crate::web_console::{self, ConsoleApiMethod, ConsoleApiRoute, ConsoleAsset};
 use crate::web_console_write::{self, ConsoleWriteStatus};
 use crate::wire::{
@@ -195,6 +196,7 @@ pub struct RemoteServer {
     retirement_submission_enabled: bool,
     daemon_retirement_submission_enabled: bool,
     web_console_writer: Option<AuthorityWriterFence>,
+    runtime_target_registration: Option<RuntimeTargetRegistrationAuthority>,
 }
 
 impl RemoteServer {
@@ -250,6 +252,7 @@ impl RemoteServer {
             retirement_submission_enabled: false,
             daemon_retirement_submission_enabled: false,
             web_console_writer: None,
+            runtime_target_registration: None,
         })
     }
 
@@ -285,6 +288,14 @@ impl RemoteServer {
 
     pub fn with_web_console_writer(mut self, writer_fence: AuthorityWriterFence) -> Self {
         self.web_console_writer = Some(writer_fence);
+        self
+    }
+
+    pub fn with_runtime_target_registration(
+        mut self,
+        authority: RuntimeTargetRegistrationAuthority,
+    ) -> Self {
+        self.runtime_target_registration = Some(authority);
         self
     }
 
@@ -419,10 +430,19 @@ impl RemoteServer {
                     body,
                     ..
                 }) => {
+                    let writer_available =
+                        web_console_writer_available(runtime, self.web_console_writer.as_ref());
+                    let registration = writer_available
+                        .then_some(self.runtime_target_registration.as_ref())
+                        .flatten();
                     let response = if route.method() == ConsoleApiMethod::Get {
-                        let writer_available =
-                            web_console_writer_available(runtime, self.web_console_writer.as_ref());
-                        web_console::render_api(&route, runtime, writer_available).map_err(|_| {
+                        web_console::render_api_with_registration(
+                            &route,
+                            runtime,
+                            writer_available,
+                            registration.is_some(),
+                        )
+                        .map_err(|_| {
                             web_console_write::ConsoleWriteError {
                                 status: ConsoleWriteStatus::InternalServerError,
                                 code: "web_projection_failed",
@@ -430,11 +450,12 @@ impl RemoteServer {
                             }
                         })
                     } else {
-                        web_console_write::execute(
+                        web_console_write::execute_with_registration(
                             &route,
                             &body,
                             runtime,
                             self.web_console_writer.as_ref(),
+                            registration,
                         )
                     };
                     match response {
@@ -774,11 +795,21 @@ enum HttpRoute {
     LeselangExport,
 }
 
-#[derive(Debug)]
 struct HttpRequest {
     route: HttpRoute,
-    body: Vec<u8>,
+    body: Zeroizing<Vec<u8>>,
     writer_fence: Option<AuthorityWriterFence>,
+}
+
+impl std::fmt::Debug for HttpRequest {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("HttpRequest")
+            .field("route", &self.route)
+            .field("body_len", &self.body.len())
+            .field("writer_fence", &self.writer_fence)
+            .finish()
+    }
 }
 
 impl HttpError {
@@ -822,9 +853,9 @@ fn read_http_request(
                 message: "HTTPS request headers are too large",
             });
         }
-        let mut chunk = [0_u8; 1024];
+        let mut chunk = Zeroizing::new([0_u8; 1024]);
         let read = stream
-            .read(&mut chunk)
+            .read(&mut *chunk)
             .map_err(|_| HttpError::bad_request())?;
         if read == 0 {
             return Err(HttpError::bad_request());
@@ -917,7 +948,7 @@ fn read_http_request(
         }
         return Ok(HttpRequest {
             route: HttpRoute::ConsoleAsset(asset),
-            body: Vec::new(),
+            body: Zeroizing::new(Vec::new()),
             writer_fence: None,
         });
     }
@@ -953,7 +984,7 @@ fn read_http_request(
         })?;
         return Ok(HttpRequest {
             route: HttpRoute::LanguagePack(asset),
-            body: Vec::new(),
+            body: Zeroizing::new(Vec::new()),
             writer_fence: None,
         });
     }
@@ -1008,7 +1039,7 @@ fn read_http_request(
                 {
                     return Err(HttpError::bad_request());
                 }
-                Vec::new()
+                Zeroizing::new(Vec::new())
             }
             ConsoleApiMethod::PostEmpty => {
                 if intent != Some("mutate")
@@ -1018,7 +1049,7 @@ fn read_http_request(
                 {
                     return Err(HttpError::bad_request());
                 }
-                Vec::new()
+                Zeroizing::new(Vec::new())
             }
             ConsoleApiMethod::PostJson => {
                 if intent != Some("mutate") {
@@ -1052,13 +1083,13 @@ fn read_http_request(
                         message: "Rust Web request is too large",
                     });
                 }
-                let mut body = bytes.split_off(header_end);
+                let mut body = Zeroizing::new(bytes.split_off(header_end));
                 if body.len() > content_length {
                     return Err(HttpError::bad_request());
                 }
                 if body.len() < content_length {
                     let missing = content_length - body.len();
-                    let mut remainder = vec![0_u8; missing];
+                    let mut remainder = Zeroizing::new(vec![0_u8; missing]);
                     stream
                         .read_exact(&mut remainder)
                         .map_err(|_| HttpError::bad_request())?;
@@ -1131,13 +1162,13 @@ fn read_http_request(
         });
     }
 
-    let mut body = bytes.split_off(header_end);
+    let mut body = Zeroizing::new(bytes.split_off(header_end));
     if body.len() > content_length {
         return Err(HttpError::bad_request());
     }
     if body.len() < content_length {
         let missing = content_length - body.len();
-        let mut remainder = vec![0_u8; missing];
+        let mut remainder = Zeroizing::new(vec![0_u8; missing]);
         stream
             .read_exact(&mut remainder)
             .map_err(|_| HttpError::bad_request())?;
@@ -1291,6 +1322,7 @@ fn open_private_key_file(path: &Path) -> Result<BoundedFile, String> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use std::fs;
     use std::io::{Cursor, Read, Write};
     use std::net::TcpStream;
@@ -1303,6 +1335,10 @@ mod tests {
 
     use leselang_hir::CAPABILITY_UI_PRESENTATION;
     use leselang_vm::PresentationOperation;
+    use leserpent_adapters::{
+        GewyvernTargetCatalog, MutableSecretStore, SecretKey, SecretStore, SecretStoreError,
+        SecretValue,
+    };
     use leserpent_domain::{
         CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CapabilitySet, Command,
         CommandEnvelope, CommandId, CommandOrigin, CommandStatus, Confirmation,
@@ -1324,6 +1360,45 @@ mod tests {
     use super::*;
 
     const TOKEN: &str = "0123456789abcdef0123456789abcdef";
+
+    #[derive(Default)]
+    struct RemoteTestSecretStore {
+        values: Mutex<BTreeMap<String, String>>,
+    }
+
+    impl SecretStore for RemoteTestSecretStore {
+        fn load(&self, key: &SecretKey) -> Result<Option<SecretValue>, SecretStoreError> {
+            self.values
+                .lock()
+                .map_err(|_| SecretStoreError::Unavailable)?
+                .get(key.as_str())
+                .map(|value| SecretValue::new(value.clone()))
+                .transpose()
+        }
+    }
+
+    impl MutableSecretStore for RemoteTestSecretStore {
+        fn store_atomic(
+            &self,
+            key: &SecretKey,
+            value: &SecretValue,
+        ) -> Result<(), SecretStoreError> {
+            self.values
+                .lock()
+                .map_err(|_| SecretStoreError::Unavailable)?
+                .insert(key.as_str().to_string(), value.expose_secret().to_string());
+            Ok(())
+        }
+
+        fn remove(&self, key: &SecretKey) -> Result<bool, SecretStoreError> {
+            Ok(self
+                .values
+                .lock()
+                .map_err(|_| SecretStoreError::Unavailable)?
+                .remove(key.as_str())
+                .is_some())
+        }
+    }
 
     fn temp_path(label: &str, extension: &str) -> PathBuf {
         let unique = SystemTime::now()
@@ -1887,7 +1962,7 @@ mod tests {
         let parsed =
             read_http_request(&mut Cursor::new(request(TOKEN, &body)), TOKEN.as_bytes()).unwrap();
         assert_eq!(parsed.route, HttpRoute::Wire);
-        assert_eq!(parsed.body, body);
+        assert_eq!(parsed.body.as_slice(), body.as_slice());
         assert_eq!(parsed.writer_fence, None);
         let writer_fence = AuthorityWriterFence {
             generation: 42,
@@ -1910,35 +1985,35 @@ mod tests {
         )
         .unwrap();
         assert_eq!(bootstrap.route, HttpRoute::Bootstrap);
-        assert_eq!(bootstrap.body, b"{}");
+        assert_eq!(bootstrap.body.as_slice(), b"{}");
         let provisioning = read_http_request(
             &mut Cursor::new(request_at(TOKEN, "/v1/provisioning", b"{}")),
             TOKEN.as_bytes(),
         )
         .unwrap();
         assert_eq!(provisioning.route, HttpRoute::Provisioning);
-        assert_eq!(provisioning.body, b"{}");
+        assert_eq!(provisioning.body.as_slice(), b"{}");
         let retirement = read_http_request(
             &mut Cursor::new(request_at(TOKEN, "/v1/retirement", b"{}")),
             TOKEN.as_bytes(),
         )
         .unwrap();
         assert_eq!(retirement.route, HttpRoute::Retirement);
-        assert_eq!(retirement.body, b"{}");
+        assert_eq!(retirement.body.as_slice(), b"{}");
         let daemon_retirement = read_http_request(
             &mut Cursor::new(request_at(TOKEN, "/v1/daemon-retirement", b"{}")),
             TOKEN.as_bytes(),
         )
         .unwrap();
         assert_eq!(daemon_retirement.route, HttpRoute::DaemonRetirement);
-        assert_eq!(daemon_retirement.body, b"{}");
+        assert_eq!(daemon_retirement.body.as_slice(), b"{}");
         let leselang_export = read_http_request(
             &mut Cursor::new(request_at(TOKEN, "/v1/leselang-export", b"{}")),
             TOKEN.as_bytes(),
         )
         .unwrap();
         assert_eq!(leselang_export.route, HttpRoute::LeselangExport);
-        assert_eq!(leselang_export.body, b"{}");
+        assert_eq!(leselang_export.body.as_slice(), b"{}");
 
         let wrong_token = read_http_request(
             &mut Cursor::new(request("fedcba9876543210fedcba9876543210", &health_body())),
@@ -2214,7 +2289,25 @@ mod tests {
             registration_plan.route,
             HttpRoute::ConsoleApi(ConsoleApiRoute::RegistrationPlan)
         );
-        assert_eq!(registration_plan.body, plan_body);
+        assert_eq!(registration_plan.body.as_slice(), plan_body);
+
+        let secret_body = br#"{"pairingToken":"debug-redaction-secret"}"#;
+        let registration = read_http_request(
+            &mut Cursor::new(console_post_request(
+                "/v1/runtimes/register",
+                secret_body,
+                Some(TOKEN),
+                Some(TOKEN),
+                Some("mutate"),
+                true,
+            )),
+            TOKEN.as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(registration.body.as_slice(), secret_body);
+        let debug = format!("{registration:?}");
+        assert!(debug.contains("body_len"));
+        assert!(!debug.contains("debug-redaction-secret"));
 
         let cleanup_body =
             br#"{"planToken":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}"#;
@@ -2241,7 +2334,7 @@ mod tests {
                 }
             ))
         );
-        assert_eq!(cleanup.body, cleanup_body);
+        assert_eq!(cleanup.body.as_slice(), cleanup_body);
         let oversized_cleanup = console_post_request(
             "/v1/runtimes/delete-unobserved",
             &vec![b'x'; web_console::MAX_CLEANUP_REQUEST_BYTES + 1],
@@ -2524,6 +2617,11 @@ mod tests {
         assert_eq!(capabilities["webConsole"]["mutationAvailable"], true);
         assert_eq!(capabilities["webConsole"]["cleanupAvailable"], true);
         assert_eq!(capabilities["webConsole"]["cleanupAtomicTargetLimit"], 128);
+        assert_eq!(capabilities["webConsole"]["registrationAvailable"], false);
+        assert_eq!(
+            capabilities["webConsole"]["registrationBlocker"],
+            "crash_recoverable_registration_transaction"
+        );
 
         let plan = complete_tls_request(
             &mut server,
@@ -2542,7 +2640,7 @@ mod tests {
         assert_eq!(plan["allowed"], false);
         assert_eq!(
             plan["reason"],
-            "rust_web_registration_secret_store_unavailable"
+            "rust_web_registration_transaction_unavailable"
         );
 
         let refreshed = complete_tls_request(
@@ -2732,6 +2830,136 @@ mod tests {
             standby_capabilities["webConsole"]["mutationAvailable"],
             false
         );
+
+        drop(runtime);
+        fs::remove_file(certificate_path).unwrap();
+        fs::remove_file(key_path).unwrap();
+        fs::remove_file(database_path).unwrap();
+    }
+
+    #[test]
+    fn rust_web_registration_crosses_real_tls_without_persisting_or_returning_the_secret() {
+        let CertifiedKey { cert, signing_key } =
+            generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+        let certificate_path = temp_path("rust-web-registration", "crt");
+        let key_path = temp_path("rust-web-registration", "key");
+        let database_path = temp_path("rust-web-registration", "sqlite");
+        fs::write(&certificate_path, cert.pem()).unwrap();
+        fs::write(&key_path, signing_key.serialize_pem()).unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600)).unwrap();
+
+        let mut runtime = ControlRuntime::open(&database_path).unwrap();
+        let writer_id = "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd";
+        let generation = runtime
+            .claim_authority_writer(writer_id)
+            .unwrap()
+            .generation;
+        let writer_fence = AuthorityWriterFence {
+            generation,
+            writer_id: writer_id.into(),
+        };
+        let targets = GewyvernTargetCatalog::default();
+        let secrets = Arc::new(RemoteTestSecretStore::default());
+        let mutable_secrets: Arc<dyn MutableSecretStore> = secrets;
+        let registration =
+            RuntimeTargetRegistrationAuthority::new(targets.clone(), mutable_secrets);
+        let mut server = RemoteServer::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            &certificate_path,
+            &key_path,
+            TOKEN,
+        )
+        .unwrap()
+        .with_web_console_writer(writer_fence)
+        .with_runtime_target_registration(registration);
+        let address = server.local_addr().unwrap();
+
+        let capabilities = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_get_client(
+                address,
+                cert.der().clone(),
+                "/v1/capabilities",
+                Some(TOKEN),
+                Some(TOKEN),
+            ),
+        );
+        let capabilities: serde_json::Value =
+            serde_json::from_slice(&capabilities[find_header_end(&capabilities).unwrap()..])
+                .unwrap();
+        assert_eq!(capabilities["webConsole"]["registrationAvailable"], true);
+        assert!(capabilities["webConsole"]["registrationBlocker"].is_null());
+
+        let plan = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/runtimes/registration-plan",
+                br#"{"name":"TLS Runtime","endpoint":"http://127.0.0.1:19411"}"#.to_vec(),
+                true,
+            ),
+        );
+        assert!(plan.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let plan: serde_json::Value =
+            serde_json::from_slice(&plan[find_header_end(&plan).unwrap()..]).unwrap();
+        assert_eq!(plan["allowed"], true);
+        assert_eq!(plan["action"], "create");
+        let registration_body = serde_json::to_vec(&serde_json::json!({
+            "name": "TLS Runtime",
+            "endpoint": "http://127.0.0.1:19411",
+            "pairingToken": "tls-registration-pairing-secret",
+            "capabilities": [],
+            "tags": { "environment": null, "cluster": null, "role": null },
+            "fetchCapabilities": false,
+            "sidecarEndpoint": null,
+            "sidecarAdminToken": null,
+            "registrationPlanToken": plan["planToken"],
+        }))
+        .unwrap();
+        let registered = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/runtimes/register",
+                registration_body.clone(),
+                true,
+            ),
+        );
+        assert!(registered.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let response_body = &registered[find_header_end(&registered).unwrap()..];
+        let registered_value: serde_json::Value = serde_json::from_slice(response_body).unwrap();
+        assert_eq!(registered_value["registrationReplayed"], false);
+        assert!(
+            !std::str::from_utf8(response_body)
+                .unwrap()
+                .contains("tls-registration-pairing-secret")
+        );
+        assert!(
+            targets
+                .contains(registered_value["runtimeId"].as_str().unwrap())
+                .unwrap()
+        );
+
+        let replay = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/runtimes/register",
+                registration_body,
+                true,
+            ),
+        );
+        let replay: serde_json::Value =
+            serde_json::from_slice(&replay[find_header_end(&replay).unwrap()..]).unwrap();
+        assert_eq!(replay["registrationReplayed"], true);
 
         drop(runtime);
         fs::remove_file(certificate_path).unwrap();

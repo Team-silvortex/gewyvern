@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -11,11 +10,11 @@ pub use leserpent_domain::{
 use leserpent_runtime::EffectExecution;
 use serde::Serialize;
 
-use crate::gewyvern::{GewyvernTarget, HttpJsonResponse, normalize_targets, post_json};
+use crate::gewyvern::{GewyvernTarget, GewyvernTargetCatalog, HttpJsonResponse, post_json};
 use crate::{EffectAdapter, EmptySecretStore, SecretStore, validate_id};
 
 pub struct GewyvernDeploymentAdapter {
-    targets: BTreeMap<String, GewyvernTarget>,
+    targets: GewyvernTargetCatalog,
     secrets: Arc<dyn SecretStore>,
     timeout: Duration,
 }
@@ -31,8 +30,15 @@ impl GewyvernDeploymentAdapter {
         targets: impl IntoIterator<Item = (String, GewyvernTarget)>,
         secrets: Arc<dyn SecretStore>,
     ) -> Result<Self, String> {
+        Self::with_target_catalog(GewyvernTargetCatalog::new(targets)?, secrets)
+    }
+
+    pub fn with_target_catalog(
+        targets: GewyvernTargetCatalog,
+        secrets: Arc<dyn SecretStore>,
+    ) -> Result<Self, String> {
         Ok(Self {
-            targets: normalize_targets(targets)?,
+            targets,
             secrets,
             timeout: Duration::from_secs(3),
         })
@@ -52,8 +58,10 @@ impl EffectAdapter for GewyvernDeploymentAdapter {
         if validate_request(&request).is_err() {
             return reject("invalid Gewyvern deployment payload");
         }
-        let Some(target) = self.targets.get(&request.runtime_id) else {
-            return reject("Gewyvern deployment runtime is not configured");
+        let target = match self.targets.target(&request.runtime_id) {
+            Ok(Some(target)) => target,
+            Ok(None) => return reject("Gewyvern deployment runtime is not configured"),
+            Err(error) => return reject(&error),
         };
         if !target.is_authenticated() {
             return reject("Gewyvern deployment target is not authenticated");
@@ -63,7 +71,7 @@ impl EffectAdapter for GewyvernDeploymentAdapter {
             Err(error) => return reject(error),
         };
         let response = match post_json(
-            target,
+            &target,
             self.secrets.as_ref(),
             "/v1/deployments",
             &body,

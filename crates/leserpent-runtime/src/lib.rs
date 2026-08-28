@@ -35,6 +35,8 @@ mod persistence;
 pub use persistence::{
     EffectLease, OrchestraDeleteRecord, OrchestraEffectCancellationRecord,
     OrchestraEffectStatusRecord, OrchestraHistoryRecord, OrchestraPersistenceRecord,
+    RuntimeTargetBindingCommit, RuntimeTargetBindingRecord, RuntimeTargetRegistrationAdmission,
+    RuntimeTargetRegistrationRecord,
 };
 use persistence::{
     EffectRecord, Journal, JournalEntryKind, ORCHESTRA_DELETE_REPLAY_HORIZON_PINNED_ERROR,
@@ -507,6 +509,125 @@ impl ControlRuntime {
                 AuthorityWriterFenceError::Rejected,
             )),
         }
+    }
+
+    pub fn begin_runtime_target_registration(
+        &mut self,
+        operation_id: &str,
+        runtime_id: &RuntimeId,
+        secret_key: &str,
+        payload: &[u8],
+    ) -> Result<RuntimeTargetRegistrationAdmission, RuntimeError> {
+        self.journal
+            .as_mut()
+            .ok_or_else(|| {
+                RuntimeError::Storage(
+                    "runtime target registration requires persistent storage".into(),
+                )
+            })?
+            .begin_runtime_target_registration(
+                operation_id,
+                runtime_id.as_str(),
+                secret_key,
+                payload,
+            )
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn pending_runtime_target_registrations(
+        &mut self,
+    ) -> Result<Vec<RuntimeTargetRegistrationRecord>, RuntimeError> {
+        self.journal
+            .as_mut()
+            .ok_or_else(|| {
+                RuntimeError::Storage(
+                    "runtime target registration requires persistent storage".into(),
+                )
+            })?
+            .pending_runtime_target_registrations()
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn runtime_target_bindings(
+        &mut self,
+    ) -> Result<Vec<RuntimeTargetBindingRecord>, RuntimeError> {
+        self.journal
+            .as_mut()
+            .ok_or_else(|| {
+                RuntimeError::Storage("runtime target bindings require persistent storage".into())
+            })?
+            .runtime_target_bindings()
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn commit_runtime_target_registration(
+        &mut self,
+        operation_id: &str,
+    ) -> Result<RuntimeTargetBindingCommit, RuntimeError> {
+        self.journal
+            .as_mut()
+            .ok_or_else(|| {
+                RuntimeError::Storage(
+                    "runtime target registration requires persistent storage".into(),
+                )
+            })?
+            .commit_runtime_target_registration(operation_id)
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn abort_runtime_target_registration(
+        &mut self,
+        operation_id: &str,
+    ) -> Result<bool, RuntimeError> {
+        self.journal
+            .as_mut()
+            .ok_or_else(|| {
+                RuntimeError::Storage(
+                    "runtime target registration requires persistent storage".into(),
+                )
+            })?
+            .abort_runtime_target_registration(operation_id)
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn retire_runtime_target_binding(
+        &mut self,
+        runtime_id: &RuntimeId,
+    ) -> Result<bool, RuntimeError> {
+        self.journal
+            .as_mut()
+            .ok_or_else(|| {
+                RuntimeError::Storage("runtime target bindings require persistent storage".into())
+            })?
+            .retire_runtime_target_binding(runtime_id.as_str())
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn runtime_target_secret_gc_batch(&mut self) -> Result<Vec<String>, RuntimeError> {
+        self.journal
+            .as_mut()
+            .ok_or_else(|| {
+                RuntimeError::Storage(
+                    "runtime target secret cleanup requires persistent storage".into(),
+                )
+            })?
+            .runtime_target_secret_gc_batch()
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn acknowledge_runtime_target_secret_gc(
+        &mut self,
+        secret_key: &str,
+    ) -> Result<bool, RuntimeError> {
+        self.journal
+            .as_mut()
+            .ok_or_else(|| {
+                RuntimeError::Storage(
+                    "runtime target secret cleanup requires persistent storage".into(),
+                )
+            })?
+            .acknowledge_runtime_target_secret_gc(secret_key)
+            .map_err(RuntimeError::Storage)
     }
 
     pub fn open(path: impl AsRef<Path>) -> Result<Self, RuntimeError> {
@@ -2826,6 +2947,263 @@ mod tests {
     }
 
     #[test]
+    fn runtime_target_registration_is_restart_safe_idempotent_and_conflict_fenced() {
+        let path = temp_journal("target-registration-transaction");
+        let runtime_id = RuntimeId::new("runtime-target-a").unwrap();
+        let payload = br#"{"endpoint":"http://127.0.0.1:9411"}"#;
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+
+        assert_eq!(
+            runtime
+                .begin_runtime_target_registration(
+                    "register-target-a-1",
+                    &runtime_id,
+                    "target-secret-a-1",
+                    payload,
+                )
+                .unwrap(),
+            RuntimeTargetRegistrationAdmission::Prepared
+        );
+        assert_eq!(
+            runtime
+                .begin_runtime_target_registration(
+                    "register-target-a-1",
+                    &runtime_id,
+                    "target-secret-a-1",
+                    payload,
+                )
+                .unwrap(),
+            RuntimeTargetRegistrationAdmission::PendingReplay
+        );
+        assert!(
+            runtime
+                .begin_runtime_target_registration(
+                    "register-target-a-1",
+                    &runtime_id,
+                    "target-secret-a-1",
+                    b"drift",
+                )
+                .is_err()
+        );
+        assert!(
+            runtime
+                .begin_runtime_target_registration(
+                    "register-target-a-2",
+                    &runtime_id,
+                    "target-secret-a-2",
+                    payload,
+                )
+                .is_err()
+        );
+        let pending = runtime.pending_runtime_target_registrations().unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].operation_id, "register-target-a-1");
+        assert_eq!(pending[0].runtime_id, runtime_id.as_str());
+        assert_eq!(pending[0].secret_key, "target-secret-a-1");
+        assert_eq!(pending[0].payload, payload);
+        drop(runtime);
+
+        let mut recovered = ControlRuntime::open(&path).unwrap();
+        assert_eq!(
+            recovered.pending_runtime_target_registrations().unwrap(),
+            pending
+        );
+        let committed = recovered
+            .commit_runtime_target_registration("register-target-a-1")
+            .unwrap();
+        assert!(!committed.replayed);
+        assert_eq!(committed.binding.runtime_id, runtime_id.as_str());
+        assert_eq!(committed.binding.secret_key, "target-secret-a-1");
+        assert_eq!(committed.binding.payload, payload);
+        assert!(
+            recovered
+                .pending_runtime_target_registrations()
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(recovered.runtime_target_bindings().unwrap().len(), 1);
+        assert_eq!(
+            recovered
+                .begin_runtime_target_registration(
+                    "register-target-a-1",
+                    &runtime_id,
+                    "target-secret-a-1",
+                    payload,
+                )
+                .unwrap(),
+            RuntimeTargetRegistrationAdmission::CommittedReplay
+        );
+        assert!(
+            recovered
+                .begin_runtime_target_registration(
+                    "register-target-b-1",
+                    &RuntimeId::new("runtime-target-b").unwrap(),
+                    "target-secret-a-1",
+                    payload,
+                )
+                .is_err()
+        );
+        let replay = recovered
+            .commit_runtime_target_registration("register-target-a-1")
+            .unwrap();
+        assert!(replay.replayed);
+        assert_eq!(replay.binding, committed.binding);
+        drop(recovered);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn runtime_target_secret_rotation_abort_and_retirement_survive_restart() {
+        let path = temp_journal("target-registration-secret-lifecycle");
+        let runtime_id = RuntimeId::new("runtime-target-a").unwrap();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        runtime
+            .begin_runtime_target_registration(
+                "register-target-a-1",
+                &runtime_id,
+                "target-secret-a-1",
+                b"binding-v1",
+            )
+            .unwrap();
+        runtime
+            .commit_runtime_target_registration("register-target-a-1")
+            .unwrap();
+        runtime
+            .begin_runtime_target_registration(
+                "register-target-a-2",
+                &runtime_id,
+                "target-secret-a-2",
+                b"binding-v2",
+            )
+            .unwrap();
+        assert_eq!(
+            runtime.runtime_target_bindings().unwrap()[0].secret_key,
+            "target-secret-a-1"
+        );
+        let rotated = runtime
+            .commit_runtime_target_registration("register-target-a-2")
+            .unwrap();
+        assert_eq!(rotated.binding.secret_key, "target-secret-a-2");
+        assert_eq!(
+            runtime.runtime_target_secret_gc_batch().unwrap(),
+            vec!["target-secret-a-1"]
+        );
+        drop(runtime);
+
+        let mut recovered = ControlRuntime::open(&path).unwrap();
+        assert_eq!(
+            recovered.runtime_target_secret_gc_batch().unwrap(),
+            vec!["target-secret-a-1"]
+        );
+        assert!(
+            recovered
+                .acknowledge_runtime_target_secret_gc("target-secret-a-1")
+                .unwrap()
+        );
+        assert!(
+            !recovered
+                .acknowledge_runtime_target_secret_gc("target-secret-a-1")
+                .unwrap()
+        );
+        recovered
+            .begin_runtime_target_registration(
+                "register-target-b-1",
+                &RuntimeId::new("runtime-target-b").unwrap(),
+                "target-secret-b-1",
+                b"binding-b",
+            )
+            .unwrap();
+        assert!(
+            recovered
+                .abort_runtime_target_registration("register-target-b-1")
+                .unwrap()
+        );
+        assert!(
+            !recovered
+                .abort_runtime_target_registration("register-target-b-1")
+                .unwrap()
+        );
+        assert_eq!(
+            recovered.runtime_target_secret_gc_batch().unwrap(),
+            vec!["target-secret-b-1"]
+        );
+        assert!(
+            recovered
+                .acknowledge_runtime_target_secret_gc("target-secret-b-1")
+                .unwrap()
+        );
+        assert!(
+            recovered
+                .retire_runtime_target_binding(&runtime_id)
+                .unwrap()
+        );
+        assert!(
+            !recovered
+                .retire_runtime_target_binding(&runtime_id)
+                .unwrap()
+        );
+        assert!(recovered.runtime_target_bindings().unwrap().is_empty());
+        drop(recovered);
+
+        let mut retired = ControlRuntime::open(&path).unwrap();
+        assert_eq!(
+            retired.runtime_target_secret_gc_batch().unwrap(),
+            vec!["target-secret-a-2"]
+        );
+        assert!(
+            retired
+                .acknowledge_runtime_target_secret_gc("target-secret-a-2")
+                .unwrap()
+        );
+        assert!(retired.runtime_target_secret_gc_batch().unwrap().is_empty());
+        drop(retired);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn schema_20_gains_empty_crash_recoverable_target_registration_storage() {
+        let path = temp_journal("v20-target-registration-migration");
+        drop(ControlRuntime::open(&path).unwrap());
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "DROP TABLE runtime_target_registration_intents;
+                 DROP TABLE runtime_target_bindings;
+                 DROP TABLE runtime_target_secret_gc;
+                 DELETE FROM runtime_schema_migrations WHERE version = 21;
+                 UPDATE runtime_metadata SET value = 20 WHERE key = 'schema_version';",
+            )
+            .unwrap();
+        drop(connection);
+
+        drop(ControlRuntime::open(&path).unwrap());
+        let connection = Connection::open(&path).unwrap();
+        let state: (i64, i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT value FROM runtime_metadata WHERE key = 'schema_version'),
+                     (SELECT COUNT(*) FROM runtime_schema_migrations WHERE version = 21),
+                     (SELECT COUNT(*) FROM runtime_target_registration_intents),
+                     (SELECT COUNT(*) FROM runtime_target_bindings),
+                     (SELECT COUNT(*) FROM runtime_target_secret_gc)",
+                [],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(state, (21, 1, 0, 0, 0));
+        drop(connection);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn source_to_plan_to_runtime_query_is_one_vertical_slice() {
         let program = lower(&parse("fn main() = runtime.list(role: none)")).unwrap();
         let plan = lower_effect(&program.function.effect, &context()).unwrap();
@@ -3310,8 +3688,8 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 20);
-        assert_eq!(migration_count, 20);
+        assert_eq!(schema, 21);
+        assert_eq!(migration_count, 21);
         assert_eq!(legacy_timestamp, 0);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -3384,8 +3762,11 @@ mod tests {
                  DROP TABLE orchestra_delete_generation;
                  DROP TABLE orchestra_delete_operations;
                  DROP TABLE authority_writer_fence;
+                 DROP TABLE runtime_target_registration_intents;
+                 DROP TABLE runtime_target_bindings;
+                 DROP TABLE runtime_target_secret_gc;
                  DELETE FROM runtime_schema_migrations
-                 WHERE version IN (12, 13, 14, 15, 16, 17, 18, 19, 20);
+                 WHERE version IN (12, 13, 14, 15, 16, 17, 18, 19, 20, 21);
                  UPDATE runtime_metadata SET value = 11 WHERE key = 'schema_version';",
             )
             .unwrap();
@@ -3413,7 +3794,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        assert_eq!((schema, bootstrap_rows, provisioning_rows), (20, 1, 0));
+        assert_eq!((schema, bootstrap_rows, provisioning_rows), (21, 1, 0));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -3462,8 +3843,15 @@ mod tests {
         let connection = Connection::open(&path).unwrap();
         connection
             .execute(
-                "DELETE FROM runtime_schema_migrations WHERE version = 20",
+                "DELETE FROM runtime_schema_migrations WHERE version IN (20, 21)",
                 [],
+            )
+            .unwrap();
+        connection
+            .execute_batch(
+                "DROP TABLE runtime_target_registration_intents;
+                 DROP TABLE runtime_target_bindings;
+                 DROP TABLE runtime_target_secret_gc;",
             )
             .unwrap();
         connection
@@ -3492,7 +3880,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        assert_eq!(state, (20, 1, 1));
+        assert_eq!(state, (21, 1, 1));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -3547,7 +3935,10 @@ mod tests {
                  DROP TABLE orchestra_delete_generation;
                  DROP TABLE orchestra_delete_operations;
                  DROP TABLE authority_writer_fence;
-                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18, 19, 20);
+                 DROP TABLE runtime_target_registration_intents;
+                 DROP TABLE runtime_target_bindings;
+                 DROP TABLE runtime_target_secret_gc;
+                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18, 19, 20, 21);
                  DELETE FROM runtime_schema_migrations WHERE version = 16;
                  DELETE FROM runtime_schema_migrations WHERE version = 15;
                  UPDATE runtime_metadata SET value = 14 WHERE key = 'schema_version';",
@@ -3600,6 +3991,10 @@ mod tests {
                  DROP TABLE orchestra_delete_generation;
                  DROP TABLE orchestra_delete_operations;
                  DROP TABLE authority_writer_fence;
+                 DROP TABLE runtime_target_registration_intents;
+                 DROP TABLE runtime_target_bindings;
+                 DROP TABLE runtime_target_secret_gc;
+                 DELETE FROM runtime_schema_migrations WHERE version = 21;
                  DELETE FROM runtime_schema_migrations WHERE version = 20;
                  DELETE FROM runtime_schema_migrations WHERE version = 19;
                  DELETE FROM runtime_schema_migrations WHERE version = 18;
@@ -3627,7 +4022,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .unwrap();
-        assert_eq!(state, (20, 1, 0, 1));
+        assert_eq!(state, (21, 1, 0, 1));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -3649,7 +4044,10 @@ mod tests {
             .execute_batch(
                 "DROP TABLE orchestra_delete_replay_horizon;
                  DROP TABLE authority_writer_fence;
-                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18, 19, 20);
+                 DROP TABLE runtime_target_registration_intents;
+                 DROP TABLE runtime_target_bindings;
+                 DROP TABLE runtime_target_secret_gc;
+                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18, 19, 20, 21);
                  UPDATE runtime_metadata SET value = 16
                  WHERE key = 'schema_version';",
             )
@@ -3684,7 +4082,7 @@ mod tests {
 
     #[test]
     fn sqlite_journal_rejects_incomplete_current_schema() {
-        let path = temp_journal("incomplete-v20");
+        let path = temp_journal("incomplete-v21");
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
@@ -3699,14 +4097,14 @@ mod tests {
                      outcome BLOB,
                      terminal_error TEXT
                  ) STRICT;
-                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 20);",
+                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 21);",
             )
             .unwrap();
         drop(connection);
 
         assert!(matches!(
             ControlRuntime::open(&path),
-            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 20")
+            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 21")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -3790,6 +4188,12 @@ mod tests {
             .unwrap();
         connection
             .execute(
+                "DELETE FROM runtime_schema_migrations WHERE version = 21",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
                 "DELETE FROM runtime_schema_migrations WHERE version = 20",
                 [],
             )
@@ -3802,6 +4206,15 @@ mod tests {
             .unwrap();
         connection
             .execute("DROP TABLE authority_writer_fence", [])
+            .unwrap();
+        connection
+            .execute("DROP TABLE runtime_target_registration_intents", [])
+            .unwrap();
+        connection
+            .execute("DROP TABLE runtime_target_bindings", [])
+            .unwrap();
+        connection
+            .execute("DROP TABLE runtime_target_secret_gc", [])
             .unwrap();
         connection
             .execute("DROP TABLE orchestra_delete_replay_horizon", [])
@@ -3850,7 +4263,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 20);
+        assert_eq!(schema, 21);
         assert_eq!(migration, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -3871,7 +4284,7 @@ mod tests {
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 20 journal kind")
+                if error.contains("invalid runtime journal schema 21 journal kind")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -3884,14 +4297,14 @@ mod tests {
             .unwrap()
             .execute(
                 "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms)
-                 VALUES (21, 0)",
+                 VALUES (22, 0)",
                 [],
             )
             .unwrap();
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 20 migration history")
+                if error.contains("invalid runtime journal schema 21 migration history")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -4177,6 +4590,9 @@ mod tests {
                  DROP TABLE orchestra_delete_generation;
                  DROP TABLE orchestra_delete_operations;
                  DROP TABLE authority_writer_fence;
+                 DROP TABLE runtime_target_registration_intents;
+                 DROP TABLE runtime_target_bindings;
+                 DROP TABLE runtime_target_secret_gc;
                  DELETE FROM runtime_schema_migrations WHERE version >= 4;
                  UPDATE runtime_metadata SET value = 3 WHERE key = 'schema_version';",
             )
@@ -4203,7 +4619,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(schema, 20);
+        assert_eq!(schema, 21);
         assert_eq!(generation, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -4961,7 +5377,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 20);
+        assert_eq!(schema, 21);
         drop(connection);
         fs::remove_file(path).unwrap();
     }

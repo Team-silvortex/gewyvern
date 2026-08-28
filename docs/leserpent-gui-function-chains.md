@@ -38,7 +38,7 @@ Target and bridge surfaces are reported separately. A closed 1.x Web bridge is
 valuable compatibility evidence, but it does not make the Rust-hosted 2.0 Web
 surface complete.
 
-## 2026-08-27 Baseline
+## 2026-08-28 Baseline
 
 | Surface | Lifecycle | Score | Closed | Partial | Conformance only | Absent |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -58,11 +58,8 @@ registration editor separately closes already-running runtime intake and
 revision-fenced metadata updates: the daemon produces a side-effect-free plan,
 field edits invalidate it, and an explicit confirmation applies the same command
 identity without sending deployment credentials or service secrets. The
-remaining target gap is:
-
-- atomic platform secret-store writes for native registration, plus Rust-owned
-  persistence import/export and Orchestra compatibility routes, after which the
-  ASP.NET bridge can retire.
+remaining target gap is Rust-owned persistence import/export and Orchestra
+compatibility routes, after which the ASP.NET bridge can retire.
 
 `leserpentd` now serves the exact packaged TypeScript console from its existing
 authenticated HTTPS listener. Public HTML, JavaScript, CSS, branding, and
@@ -80,11 +77,22 @@ live failed, unobserved, and filtered-slice targets into canonical v2 plan token
 execution recomputes that plan, requires `CLEAR N` for a whole slice, commits at
 most 128 revision-fenced targets atomically, and replays a durable receipt after
 a lost response. The shared UI disables cleanup controls whenever the daemon
-reports that this writer capability is unavailable. Registration planning is
-strict and secret-free but rejects
-execution until the platform secret store can commit credentials atomically.
-Real TLS tests prove these boundaries. The path remains `partial` while
-registration execution, persistence, and Orchestra still depend on the 1.x
+reports that this writer capability is unavailable. The adapter layer now
+atomically creates, replaces, and removes native Keychain or Secret Service
+items. Health, status, discovery, and deployment share an atomically replaceable
+target catalog, so a committed target becomes visible to every adapter without
+restart. Registration planning remains strict and secret-free. The writer-only
+`/v1/runtimes/register` path now persists a schema-v21 intent before writing the
+credential, applies an idempotent runtime command, hot-activates the target, and
+then commits a durable binding. Exact retries replay the same operation, startup
+recovers every pre-commit window, and copy-on-write secret aliases are drained by
+durable garbage collection after rotation, conflict, or deletion. The coordinator
+deliberately accepts only root `http://127.0.0.1:PORT/` and
+`http://[::1]:PORT/` Gewyvern origins; remote HTTPS registration still fails
+closed until a registration request can carry reviewed CA trust without turning
+ambient PKI into authority. Real TLS tests prove the browser-to-daemon boundary
+and the registration replay path. The Rust Web surface remains `partial` only
+while persistence import/export and Orchestra compatibility depend on the 1.x
 bridge.
 
 The debugger workspace starts a bounded daemon-owned VM only to its first

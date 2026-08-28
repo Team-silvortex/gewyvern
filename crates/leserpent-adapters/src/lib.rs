@@ -39,7 +39,7 @@ pub use discovery::{
 pub use gewyvern::{
     GEWYVERN_HEALTH_EFFECT_KIND, GEWYVERN_STATUS_REFRESH_EFFECT_KIND, GewyvernHealthAdapter,
     GewyvernStatusObservation, GewyvernStatusRefreshAdapter, GewyvernStatusRefreshRequest,
-    GewyvernTarget,
+    GewyvernTarget, GewyvernTargetCatalog, validate_gewyvern_admin_secret,
 };
 #[cfg(feature = "native-ssh")]
 pub use provisioning::NativeSshGewyvernProvisioningTransport;
@@ -56,7 +56,7 @@ pub use retirement::{
 };
 pub use secret::{
     ConfiguredSecretStore, EmptySecretStore, EnvironmentSecretStore, MAX_SECRET_BYTES,
-    PlatformSecretStore, SecretKey, SecretStore, SecretStoreError, SecretValue,
+    MutableSecretStore, PlatformSecretStore, SecretKey, SecretStore, SecretStoreError, SecretValue,
 };
 
 pub trait EffectAdapter: Send {

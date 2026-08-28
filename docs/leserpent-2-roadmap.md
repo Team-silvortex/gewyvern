@@ -212,11 +212,12 @@ That statement covers adapter and renderer conformance, not product reachability
 The machine-validated [GUI function-chain matrix](leserpent-gui-function-chains.md)
 now audits entry, semantic lowering, transport, authority, persistence,
 projection, operator feedback, and Leselang equivalence separately. Its
-2026-08-27 baseline scores the Avalonia product at 100, the Rust-hosted Web target
+2026-08-28 baseline scores the Avalonia product at 100, the Rust-hosted Web target
 at 50, and the supported ASP.NET Web bridge at 100, for a combined target score
 of 95. The Rust daemon now serves the shared packaged TypeScript console and its
-Bearer-authenticated first-screen read projections directly; registration,
-refresh, deletion, persistence, and Orchestra mutations remain the explicit
+Bearer-authenticated first-screen read projections directly. Refresh, deletion,
+and strict-loopback Gewyvern registration are Rust-owned; persistence
+import/export and Orchestra compatibility APIs remain the explicit
 bridge-retirement gap. Avalonia now closes a daemon-owned native Orchestra workspace for strict,
 revision-fenced plan discovery, Rust-authoritative automatic execution,
 queued-only cancellation, lineage-bound retry, persisted run/event drilldown,
@@ -237,8 +238,9 @@ current product window, and returns revision- and effect-bound outcomes for
 durable VM re-entry. Continuations and source never cross the acknowledgement
 boundary, rejections become visible terminal failures, and the desktop caps one
 run at 64 effects. The per-daemon Rust Web console now owns typed refresh,
-single-delete, and plan-fenced atomic bulk-cleanup mutations; registration
-secrets, persistence, and Orchestra remain the explicit closure work. Expired
+single-delete, plan-fenced atomic bulk-cleanup, and crash-recoverable loopback
+Gewyvern registration mutations; persistence and Orchestra compatibility remain
+the explicit closure work. Expired
 effects converge to a terminal revision and release the
 32-session daemon registry; cancellation audit remains restart-durable inside a
 bounded 64-journal retention horizon. Active debugger sessions remain
@@ -1912,7 +1914,15 @@ provider dynamically resolves libsecret/glib without development packages and
 has physical Ubuntu 24.04 x86_64 evidence: ordinary SSH fails closed without a
 session bus, while an isolated D-Bus plus gnome-keyring session returns a strict
 clean miss. Real TLS tests cover authenticated adapter traffic and ambiguous
-HTTP framing rejection. Bounded capability discovery now queries only explicitly
+HTTP framing rejection. All four target-scoped Gewyvern adapters now receive one
+shared, lock-bounded target catalog. Tests prove that the daemon can boot those
+adapter kinds with an empty catalog and that a target inserted through another
+catalog handle becomes usable immediately, then disappears immediately after
+removal. Schema-v21 durable intents and bindings now coordinate that catalog with
+native credential writes, command replay, restart recovery, copy-on-write secret
+rotation, and durable garbage collection. Rust Web registration is enabled for
+strict root loopback HTTP origins; explicit CA material remains mandatory before
+remote HTTPS targets can join the same transaction. Bounded capability discovery now queries only explicitly
 configured targets, canonicalizes endpoint claims, accepts safe boolean schema
 extensions, and rejects scan-like payload fields or inconsistent deployment
 advertisements. SQLite schema 9 adds the revision-bound capability observation
@@ -2615,8 +2625,14 @@ fleet refresh uses the typed runtime effect queue and single-runtime deletion
 uses durable revision-fenced unregistration. Every daemon start generates a
 fresh CSPRNG writer identity and keeps its ticket inside the daemon; another
 writer claim moves Web mutations to standby rather than
-sharing authority. Registration is visibly blocked until pairing credentials
-can be committed through an atomic platform secret-store contract. Cleanup now
+sharing authority. Native Keychain and Secret Service providers atomically
+replace and remove validated credentials. The Rust Web registration coordinator
+persists a secret-free intent, validates a header-safe pairing token, writes a
+copy-on-write platform credential, applies the idempotent runtime command,
+activates the shared target catalog, and commits a durable binding. Restart
+recovery resumes intermediate states, deterministic conflicts compensate the
+new secret, and exact lost-response retries replay without exposing credentials.
+Cleanup now
 uses canonical reviewed plan tokens, a whole-slice challenge, atomic bounded
 unregistration, and durable lost-response replay. Persistence import/export and
 Orchestra controls still use Avalonia, the native CLI, or the compatibility

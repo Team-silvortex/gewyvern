@@ -13,6 +13,7 @@ use time::format_description::well_known::Rfc3339;
 
 const MAX_FILTER_VALUE_BYTES: usize = 128;
 pub(crate) const MAX_REGISTRATION_PLAN_BYTES: usize = 8 * 1024;
+pub(crate) const MAX_REGISTRATION_REQUEST_BYTES: usize = 16 * 1024;
 pub(crate) const MAX_CLEANUP_REQUEST_BYTES: usize = 1024;
 pub(crate) const MAX_ATOMIC_CLEANUP_TARGETS: usize = 128;
 const FALLBACK_TIMESTAMP: &str = "1970-01-01T00:00:00Z";
@@ -102,6 +103,7 @@ pub(crate) enum ConsoleApiRoute {
     CleanupPlan(RuntimeListFilter),
     RuntimeCleanup(CleanupKind, RuntimeListFilter),
     RegistrationPlan,
+    Registration,
     RuntimeDelete(RuntimeId),
 }
 
@@ -143,13 +145,16 @@ impl ConsoleApiRoute {
             | Self::FleetRefreshCapabilities(_)
             | Self::FleetRefreshStatus(_)
             | Self::RuntimeDelete(_) => ConsoleApiMethod::PostEmpty,
-            Self::RuntimeCleanup(_, _) | Self::RegistrationPlan => ConsoleApiMethod::PostJson,
+            Self::RuntimeCleanup(_, _) | Self::RegistrationPlan | Self::Registration => {
+                ConsoleApiMethod::PostJson
+            }
         }
     }
 
     pub(crate) fn max_json_body_bytes(&self) -> Option<usize> {
         match self {
             Self::RegistrationPlan => Some(MAX_REGISTRATION_PLAN_BYTES),
+            Self::Registration => Some(MAX_REGISTRATION_REQUEST_BYTES),
             Self::RuntimeCleanup(_, _) => Some(MAX_CLEANUP_REQUEST_BYTES),
             _ => None,
         }
@@ -193,7 +198,10 @@ pub(crate) fn parse_api_route(target: &str) -> Result<Option<ConsoleApiRoute>, C
         | "/v1/runtimes/delete-failed"
         | "/v1/runtimes/delete-unobserved"
         | "/v1/runtimes/delete-slice" => Some(parse_filter(query)?),
-        "/v1/capabilities" | "/v1/sessions" | "/v1/runtimes/registration-plan"
+        "/v1/capabilities"
+        | "/v1/sessions"
+        | "/v1/runtimes/registration-plan"
+        | "/v1/runtimes/register"
             if query.is_some() =>
         {
             return Err(ConsoleRouteError::InvalidQuery);
@@ -240,6 +248,7 @@ pub(crate) fn parse_api_route(target: &str) -> Result<Option<ConsoleApiRoute>, C
             filtered.expect("filtered route has a filter"),
         )),
         "/v1/runtimes/registration-plan" => Some(ConsoleApiRoute::RegistrationPlan),
+        "/v1/runtimes/register" => Some(ConsoleApiRoute::Registration),
         _ => None,
     })
 }
@@ -348,16 +357,28 @@ fn hex(byte: u8) -> Option<u8> {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn render_api(
     route: &ConsoleApiRoute,
     runtime: &ControlRuntime,
     writer_enabled: bool,
 ) -> Result<Vec<u8>, String> {
+    render_api_with_registration(route, runtime, writer_enabled, false)
+}
+
+pub(crate) fn render_api_with_registration(
+    route: &ConsoleApiRoute,
+    runtime: &ControlRuntime,
+    writer_enabled: bool,
+    registration_enabled: bool,
+) -> Result<Vec<u8>, String> {
     let (_, all_runtimes) = runtime.runtime_event_state();
     let value = match route {
-        ConsoleApiRoute::Capabilities => {
-            capabilities_value(runtime.persistence_enabled(), writer_enabled)
-        }
+        ConsoleApiRoute::Capabilities => capabilities_value(
+            runtime.persistence_enabled(),
+            writer_enabled,
+            registration_enabled,
+        ),
         ConsoleApiRoute::Sessions => json!({ "sessions": [] }),
         ConsoleApiRoute::FleetSummary(filter) => {
             let runtimes = filtered_runtimes(&all_runtimes, filter);
@@ -415,6 +436,7 @@ pub(crate) fn render_api(
         | ConsoleApiRoute::FleetRefreshStatus(_)
         | ConsoleApiRoute::RuntimeCleanup(_, _)
         | ConsoleApiRoute::RegistrationPlan
+        | ConsoleApiRoute::Registration
         | ConsoleApiRoute::RuntimeDelete(_) => {
             return Err("Rust Web mutation route cannot be rendered as a read projection".into());
         }
@@ -426,7 +448,12 @@ pub(crate) fn render_api(
     Ok(bytes)
 }
 
-fn capabilities_value(persistence_enabled: bool, writer_enabled: bool) -> Value {
+fn capabilities_value(
+    persistence_enabled: bool,
+    writer_enabled: bool,
+    registration_enabled: bool,
+) -> Value {
+    let registration_available = writer_enabled && persistence_enabled && registration_enabled;
     json!({
         "service": "leserpentd",
         "version": env!("CARGO_PKG_VERSION"),
@@ -443,6 +470,7 @@ fn capabilities_value(persistence_enabled: bool, writer_enabled: bool) -> Value 
             "/v1/runtimes/delete-unobserved",
             "/v1/runtimes/delete-slice",
             "/v1/runtimes/registration-plan",
+            "/v1/runtimes/register",
             "/v1/fleet/refresh-all",
             "/v1/fleet/refresh-capabilities",
             "/v1/fleet/refresh-status",
@@ -473,8 +501,12 @@ fn capabilities_value(persistence_enabled: bool, writer_enabled: bool) -> Value 
             "mutationAvailable": writer_enabled && persistence_enabled,
             "cleanupAvailable": writer_enabled && persistence_enabled,
             "cleanupAtomicTargetLimit": MAX_ATOMIC_CLEANUP_TARGETS,
-            "registrationAvailable": false,
-            "registrationBlocker": "atomic_platform_secret_store_write_contract"
+            "registrationAvailable": registration_available,
+            "registrationBlocker": if registration_available {
+                Value::Null
+            } else {
+                Value::String("crash_recoverable_registration_transaction".into())
+            }
         },
         "runtimePosture": {
             "coreReady": true,
@@ -514,7 +546,7 @@ fn filter_value(filter: &RuntimeListFilter) -> Value {
     })
 }
 
-fn runtime_value(runtime: &RuntimeProjection) -> Value {
+pub(crate) fn runtime_value(runtime: &RuntimeProjection) -> Value {
     json!({
         "runtimeId": runtime.id.as_str(),
         "name": runtime.name,

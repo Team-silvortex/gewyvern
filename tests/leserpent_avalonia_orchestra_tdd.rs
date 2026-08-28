@@ -101,7 +101,7 @@ fn daemon_window_owns_one_localized_orchestra_control_workspace() {
     }
     assert!(localization.contains("DesktopOrchestraCatalogs.VerifyContract();"));
     assert!(app.contains("localized_orchestra_layouts=8"));
-    assert!(app.contains("localized_dialog_layouts=32"));
+    assert!(app.contains("localized_dialog_layouts=40"));
     assert!(app.contains("network_started=false"));
 }
 
@@ -117,8 +117,9 @@ fn function_chain_closes_the_native_orchestra_control_slice() {
     assert!(matrix.contains("orchestra-cancel"));
     assert!(matrix.contains("orchestra-retry"));
     assert!(matrix.contains("RemoteOrchestraWorkspaceWindow.cs"));
-    assert!(docs.contains("| Avalonia desktop | target | 86 | 7 | 1 | 1 | 0 |"));
-    assert!(docs.contains("The combined target score is 78"));
+    assert!(docs.contains("| Avalonia desktop | target | 100 | 9 | 0 | 0 | 0 |"));
+    assert!(docs.contains("| Rust-hosted Web | target | 50 | 0 | 1 | 0 | 0 |"));
+    assert!(docs.contains("The combined target score is 95"));
     assert!(docs.contains("Rust-authoritative Orchestra control"));
     assert!(docs.contains("queued-only cancellation"));
 }

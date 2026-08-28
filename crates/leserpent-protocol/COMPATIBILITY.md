@@ -584,6 +584,17 @@ cannot fit, only the slow session is dropped. The same database then shuts down
 within one second and restarts with writer generation 1 replayed. Exact slow-FD
 reclamation remains a physical Linux evidence gate; no wire shape changes.
 
+Contract `1.25.0` adds the daemon-owned Rust Web registration transaction without
+changing the shared wire envelope. SQLite schema 21 persists secret-free target
+intents, active bindings, and bounded secret-GC records. The HTTPS console route
+uses the daemon's private writer generation, accepts only strict root loopback
+Gewyvern origins, stores pairing credentials through the native mutable secret
+provider, and hot-activates the shared adapter catalog. Exact retries and startup
+recovery cover each pre-commit window; deterministic command conflicts compensate
+the new secret, while storage-ambiguous failures retain recovery state. Pairing
+credentials remain absent from journals, projections, responses, and diagnostics;
+the inbound request buffer, detached body, and read remainder are zeroized.
+
 ## Reproducible Proof
 
 Prove that the configured C# host consumes the canonical envelope returned by

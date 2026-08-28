@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "contract": "leserpent-control-plane-mutations",
-  "version": "1.24.0",
+  "version": "1.25.0",
   "scope": "/v1",
   "default_policy": "non-read-method-requires-process-writer",
   "read_methods": ["GET", "HEAD", "OPTIONS"],
@@ -66,7 +66,7 @@
     "rust-authenticated-https-header-generation-fence"
   ],
   "rust_authority_writer_fence": {
-    "journal_schema": 19,
+    "journal_schema": 21,
     "claim": "authenticated-idempotent-random-writer-id-private-local-ipc-only",
     "generation": "rust-issued-monotonic",
     "covered_ipc_mutations": [
@@ -395,6 +395,41 @@
       "remaining_physical_proof": "retain-bounded-slow-session-eviction-healthy-fanout-and-exact-fd-task-baselines-on-physical-linux-x86-64"
     },
     "remaining_routes": []
+  },
+  "rust_web_registration": {
+    "route": "/v1/runtimes/register",
+    "availability": "explicit-web-console-writer-with-persistent-runtime-and-native-mutable-secret-store",
+    "authority": "daemon-owned-writer-generation-never-exposed-to-browser",
+    "target_trust": "root-loopback-http-origin-with-explicit-port-only",
+    "journal_schema": 21,
+    "transaction": [
+      "durable-secret-free-intent",
+      "copy-on-write-platform-secret",
+      "idempotent-runtime-registration-command",
+      "shared-target-catalog-activation",
+      "durable-active-binding",
+      "bounded-batch-secret-garbage-collection"
+    ],
+    "recovery": [
+      "exact-operation-replay",
+      "pre-secret-intent-retry",
+      "post-secret-command-resume",
+      "active-binding-hot-catalog-restore",
+      "deterministic-conflict-compensation",
+      "orphan-binding-retirement"
+    ],
+    "secret_policy": "visible-ascii-at-most-256-bytes-never-in-journal-projection-response-or-debug-output",
+    "transport_memory": [
+      "zeroized-complete-request-buffer",
+      "zeroized-detached-json-body",
+      "zeroized-read-remainder",
+      "redacted-http-request-debug"
+    ],
+    "local_evidence": [
+      "crates/leserpentd/src/runtime_target_registration.rs",
+      "crates/leserpentd/src/remote.rs",
+      "crates/leserpent-runtime/src/persistence.rs"
+    ]
   },
   "standby_contract": {
     "reads_allowed": true,
