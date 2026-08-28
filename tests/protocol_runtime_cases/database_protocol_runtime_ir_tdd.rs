@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 use gewyvern::dsl::compile_file;
 use gewyvern::export::ExportBundle;

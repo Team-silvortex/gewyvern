@@ -42,6 +42,20 @@ correctly selected `--no-restore`: Rust check, control, and desktop finished in
 After the runnable Rust artifacts were populated, the corresponding no-change
 `cargo dev build` reused all three stacks in `1.065 s`.
 
+The same calibration compared the 167 protocol runtime IR cases as 24
+standalone Cargo integration crates and as one module-based integration crate.
+Both cold measurements used a fresh target directory and `CARGO_INCREMENTAL=0`.
+
+| Protocol runtime test layout | Cold no-run wall | User CPU | Target footprint | Linked test payload |
+| --- | ---: | ---: | ---: | ---: |
+| 24 standalone targets | `24.27 s` | `78.67 s` | `741 MiB` | `~196 MiB` |
+| 1 consolidated target | `21.28 s` | `72.89 s` | `550 MiB` | `~9 MiB` |
+
+Consolidation reduced cold wall time by `12.3%`, isolated target usage by
+`25.8%`, and linked test payload by roughly `95.4%`. The test body files remain
+separate under `tests/protocol_runtime_cases/`, so narrow runs use the original
+family name as a module filter rather than paying for a separate executable.
+
 ## Leserpent 2 Named Benchmark Shelf
 
 Run `gewyvern_validate leserpent-benchmark` to measure the bounded

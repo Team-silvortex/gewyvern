@@ -1,7 +1,7 @@
 // Expanded byte fixtures make protocol offsets explicit in these tests.
 #![allow(clippy::byte_char_slices)]
 
-mod support;
+use crate::support;
 
 use gewyvern::dsl::compile_file;
 use gewyvern::export::{ExportBundle, ProtocolIr};

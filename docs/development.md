@@ -116,6 +116,18 @@ with `--scope core`, `--scope control`, or `--scope desktop`; both `check` and
 `build` accept `--restore` or `--dry-run`, while only `build` accepts
 `--release` for optimized output.
 
+Protocol runtime IR coverage intentionally uses one Cargo integration target.
+Add cases under `tests/protocol_runtime_cases/`, register the module in
+`tests/protocol_runtime_ir_tdd.rs`, and run one family with a module filter:
+
+```bash
+cargo test --test protocol_runtime_ir_tdd syslog_protocol_runtime_ir_tdd::
+```
+
+Do not place another `*_protocol_runtime_ir_tdd.rs` file directly under
+`tests/`: Cargo would treat it as another crate and repeat code generation,
+fixture compilation, and linking.
+
 Package or install the macOS arm64 desktop app through the same native entry:
 
 ```bash

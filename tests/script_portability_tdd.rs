@@ -112,6 +112,43 @@ fn native_developer_workflow_owns_locked_build_package_and_desktop_deploy_routes
     assert!(entrypoints.contains("cargo dev deploy desktop --launch"));
 }
 
+#[test]
+fn protocol_runtime_ir_cases_share_one_cargo_integration_target() {
+    let tests = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let mut targets = fs::read_dir(&tests)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.is_file())
+        .filter_map(|path| {
+            let name = path.file_name()?.to_str()?;
+            name.ends_with("protocol_runtime_ir_tdd.rs")
+                .then(|| name.to_string())
+        })
+        .collect::<Vec<_>>();
+    targets.sort();
+    assert_eq!(targets, ["protocol_runtime_ir_tdd.rs"]);
+
+    let harness = read_repo_file("tests/protocol_runtime_ir_tdd.rs");
+    let cases = tests.join("protocol_runtime_cases");
+    let mut case_count = 0;
+    for entry in fs::read_dir(cases).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
+            continue;
+        }
+        case_count += 1;
+        let stem = path.file_stem().unwrap().to_str().unwrap();
+        let source = fs::read_to_string(&path).unwrap();
+        assert!(harness.contains(&format!("mod {stem};")));
+        assert!(source.contains("use crate::support;"));
+        assert!(!source.contains("mod support;"));
+    }
+    assert!(
+        case_count >= 24,
+        "protocol runtime case shelf became vacuous"
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn documented_shell_entrypoints_are_executable() {

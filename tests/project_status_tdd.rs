@@ -7575,7 +7575,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(continuous_proof.maturity, Maturity::Mature);
     assert_eq!(continuous_proof.priority, Priority::Maintenance);
     assert_eq!(continuous_proof.completion, 100);
-    assert_eq!(continuous_proof.contract.version, "1.1.0");
+    assert_eq!(continuous_proof.contract.version, "1.2.0");
     assert_eq!(
         continuous_proof.contract.stability,
         ContractStability::Stable
@@ -7663,6 +7663,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "smart-locked-dotnet-restore",
         "line-table-development-profile",
         "unlinked-cross-stack-check",
+        "consolidated-protocol-runtime-test-target",
         "portable-package-build-lock",
         "reusable-release-binary-packaging",
         "one-command-macos-aot-bundle-install",
@@ -7686,6 +7687,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }));
     assert!(continuous_proof.evidence.iter().any(|evidence| {
         evidence.path == "Cargo.toml" && evidence.state == EvidenceState::Present
+    }));
+    assert!(continuous_proof.evidence.iter().any(|evidence| {
+        evidence.path == "tests/protocol_runtime_ir_tdd.rs"
+            && evidence.kind == EvidenceKind::Test
+            && evidence.state == EvidenceState::Present
     }));
     assert!(continuous_proof.evidence.iter().any(|evidence| {
         evidence.path == "docs/performance-baselines.md"
