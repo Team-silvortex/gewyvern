@@ -5274,7 +5274,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(frontend_parity.priority, Priority::Critical);
     assert_eq!(frontend_parity.completion, 99);
     assert_eq!(frontend_parity.contract.stability, ContractStability::Draft);
-    assert_eq!(frontend_parity.contract.version, "0.9.5-draft");
+    assert_eq!(frontend_parity.contract.version, "0.9.6-draft");
     for surface in [
         "avalonia-orchestra-native-plan-run-control-closure",
         "strict-dotnet-orchestra-control-codec",
@@ -5335,7 +5335,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "static-catalog-import-target-preservation",
         "import-log-authority-epoch-reset",
         "real-tls-rust-web-import-proof",
-        "explicit-rust-web-orchestra-remaining-gap",
+        "strict-rust-web-orchestra-route-parser",
+        "rust-web-orchestra-compatibility-projections",
+        "bounded-rust-web-orchestra-pagination",
+        "writer-fenced-rust-web-orchestra-control",
+        "idempotent-rust-web-orchestra-replay",
+        "accepted-rust-web-orchestra-http-semantics",
+        "real-tls-rust-web-orchestra-proof",
+        "capability-fenced-rust-web-orchestra-mutations",
+        "capability-fenced-rust-web-session-handoff",
+        "explicit-rust-session-handoff-remaining-gap",
     ] {
         assert!(
             frontend_parity

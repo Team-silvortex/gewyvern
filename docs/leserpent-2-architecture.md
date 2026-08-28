@@ -2767,6 +2767,15 @@ new run ID and attempt while retaining parent lineage, current plan revision,
 approver, and note. Plan reads are capability-gated; run, cancel, and retry also
 require the process-wide authority-writer fence.
 
+The daemon-owned Web host adapts this same authority rather than implementing a
+second planner. Strict dynamic routes expose the plan catalog, per-runtime runs,
+validated event timelines, and a bounded fleet board in the shared camel-case
+contract. Execute, cancel, and retry require the daemon-private Web writer ticket,
+retain request/revision/approval/lineage identity, and return `202 Accepted`.
+Generic session handoff remains review-only on this host because the v2 domain
+snapshot has no such session aggregate; capabilities make that absence explicit
+and the shared UI removes the creation control.
+
 Avalonia consumes these operations through source-generated strict contracts.
 Its Orchestra workspace renders native plans beside durable runs and events,
 keeps guided plans read-only, requires the bounded audit note for

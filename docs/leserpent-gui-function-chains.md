@@ -58,8 +58,11 @@ registration editor separately closes already-running runtime intake and
 revision-fenced metadata updates: the daemon produces a side-effect-free plan,
 field edits invalidate it, and an explicit confirmation applies the same command
 identity without sending deployment credentials or service secrets. The
-remaining target gap is Rust-owned Orchestra operation compatibility routes,
-after which the ASP.NET bridge can retire.
+Rust-hosted console now maps plan discovery, run and event history, the fleet
+board, execute, cancel, and retry directly onto that same authority. The
+remaining target gap is the legacy generic session handoff, which still has no
+Rust domain model; it must be modeled durably or formally retired before the
+ASP.NET bridge can retire.
 
 `leserpentd` now serves the exact packaged TypeScript console from its existing
 authenticated HTTPS listener. Public HTML, JavaScript, CSS, branding, and
@@ -112,8 +115,17 @@ atomically replaces the revision-rebased domain snapshot and validated Orchestra
 history. Two checksum-bound copies define the new recovery epoch, runtime logs
 are cleared, and both static catalog targets and dynamic credential bindings must
 retain their canonical runtime/origin identity. Unit, restart, and real TLS tests
-cover success, rollback, and conflict paths. The Rust Web surface remains
-`partial` only while Orchestra operation compatibility depends on the 1.x bridge.
+cover success, rollback, and conflict paths.
+
+The same authenticated host now exposes strict dynamic Orchestra routes. Plan
+responses adapt the Rust catalog to the shared camel-case UI contract; bounded
+history/event readers and a 256-item fleet projection consume only validated
+SQLite envelopes. Execute, cancel, and retry require daemon-owned writer mode,
+retain command replay and plan-revision fences, and return `202 Accepted`. The
+shared UI checks `orchestraSessionHandoffAvailable`, so the Rust host keeps the
+guided generic-session plan review-only instead of presenting a guaranteed-fail
+control. The Rust Web surface remains `partial` only for that explicitly retained
+1.x session-handoff capability.
 
 The debugger workspace starts a bounded daemon-owned VM only to its first
 effect, mounts the Rust-authored `UiDocument`, and routes its session-bound

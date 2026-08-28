@@ -619,7 +619,20 @@ closed before commit. Two checksum-valid copies establish the new recovery epoch
 Dynamic credential bindings must retain their exact secret-free descriptor, and
 every static or dynamic hot-catalog target must retain canonical runtime/origin
 identity; import never creates, rotates, removes, or serializes a credential.
-Orchestra operation compatibility routes remain explicit bridge-retirement work.
+Orchestra operation compatibility routes remained explicit bridge-retirement work
+at that contract revision.
+
+Contract `1.28.0` exposes the existing Rust Orchestra authority through the
+daemon-owned Web compatibility surface. Strict dynamic routes provide plan
+catalogs, runtime runs, validated event timelines, and a bounded fleet board;
+writer-fenced execute, cancel, and retry preserve plan revisions, approval
+metadata, deterministic cancellation identity, request replay, and retry lineage.
+Successful controls retain the legacy `202 Accepted` semantics, while malformed
+paths and request bodies fail before authority entry. A real TLS lifecycle proves
+Bearer authentication, writer ownership, execution, history, cancellation, and
+retry over the shared TypeScript contract. Generic session handoff remains
+explicitly unavailable because it has no Rust domain model; capabilities keep the
+shared UI review-only instead of fabricating a session.
 
 ## Reproducible Proof
 

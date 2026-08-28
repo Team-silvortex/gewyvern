@@ -506,14 +506,14 @@
         {
           "surface": "rust-web",
           "state": "partial",
-          "gap": "leserpentd now serves the shared TypeScript package, authenticated first-screen projections, daemon-owned fleet refresh, revision-fenced single-runtime deletion, plan-fenced atomic bulk cleanup, schema-v21 crash-recoverable registration for strict loopback Gewyvern targets, writer-fenced snapshots, secret-free portable exports, and quiescence-fenced atomic schema-1 imports with target-identity preservation directly; only Orchestra operation compatibility APIs still depend on the ASP.NET bridge.",
+          "gap": "leserpentd now serves the shared TypeScript package and owns its plan, run, event, fleet-board, execute, cancel, and retry Orchestra compatibility routes through the existing Rust authority, alongside native fleet, cleanup, registration, and persistence operations. Only legacy generic session handoff still lacks a Rust domain model and depends on the ASP.NET bridge.",
           "evidence": [
             { "stage": "entry", "path": "crates/leserpentd/src/web_console.rs", "contains": "pub(crate) fn find_asset(" },
             { "stage": "transport", "path": "crates/leserpentd/src/remote.rs", "contains": "HttpRoute::ConsoleApi(route)" },
-            { "stage": "authority", "path": "crates/leserpentd/src/runtime_target_registration.rs", "contains": "pub struct RuntimeTargetRegistrationAuthority" },
+            { "stage": "authority", "path": "crates/leserpentd/src/web_console_orchestra.rs", "contains": "pub(crate) fn execute_plan(" },
             { "stage": "persistence", "path": "crates/leserpent-runtime/src/lib.rs", "contains": "pub fn import_control_plane_state(" },
             { "stage": "projection", "path": "crates/leserpentd/src/web_console.rs", "contains": "pub(crate) fn render_api(" },
-            { "stage": "feedback", "path": "apps/leserpent/src/Leserpent/frontend/50-dashboard-workflows.ts", "contains": "function renderDashboardFromCache()" }
+            { "stage": "feedback", "path": "apps/leserpent/src/Leserpent/frontend/48-orchestra-renderer.ts", "contains": "function orchestraMutationAvailable()" }
           ]
         }
       ]

@@ -432,6 +432,7 @@ impl RemoteServer {
                     ..
                 }) => {
                     let persistence_export = route == ConsoleApiRoute::PersistenceExport;
+                    let accepted_response = route.accepted_response();
                     let writer_available =
                         web_console_writer_available(runtime, self.web_console_writer.as_ref());
                     let registration = writer_available
@@ -444,13 +445,6 @@ impl RemoteServer {
                             writer_available,
                             registration.is_some(),
                         )
-                        .map_err(|_| {
-                            web_console_write::ConsoleWriteError {
-                                status: ConsoleWriteStatus::InternalServerError,
-                                code: "web_projection_failed",
-                                reason: "Rust Web compatibility projection failed",
-                            }
-                        })
                     } else {
                         web_console_write::execute_with_registration(
                             &route,
@@ -462,7 +456,11 @@ impl RemoteServer {
                     };
                     match response {
                         Ok(body) => (
-                            HttpStatus::Ok,
+                            if accepted_response {
+                                HttpStatus::Accepted
+                            } else {
+                                HttpStatus::Ok
+                            },
                             Cow::Owned(body),
                             if persistence_export {
                                 HttpResponsePolicy::private_json_download()
@@ -743,6 +741,7 @@ pub fn load_remote_token_file(path: impl AsRef<Path>) -> Result<Zeroizing<String
 #[derive(Clone, Copy, Debug)]
 enum HttpStatus {
     Ok,
+    Accepted,
     BadRequest,
     Unauthorized,
     NotFound,
@@ -758,6 +757,7 @@ impl HttpStatus {
     fn line(self) -> &'static str {
         match self {
             Self::Ok => "200 OK",
+            Self::Accepted => "202 Accepted",
             Self::BadRequest => "400 Bad Request",
             Self::Unauthorized => "401 Unauthorized",
             Self::NotFound => "404 Not Found",
@@ -1762,10 +1762,11 @@ mod tests {
     fn tls_get_client(
         address: SocketAddr,
         certificate: rustls::pki_types::CertificateDer<'static>,
-        path: &'static str,
+        path: impl Into<String>,
         token: Option<&'static str>,
         admin_token: Option<&'static str>,
     ) -> thread::JoinHandle<Vec<u8>> {
+        let path = path.into();
         thread::spawn(move || {
             let mut roots = RootCertStore::empty();
             roots.add(certificate).unwrap();
@@ -1783,7 +1784,7 @@ mod tests {
             socket.set_read_timeout(Some(CONNECTION_TIMEOUT)).unwrap();
             let mut stream = StreamOwned::new(connection, socket);
             stream
-                .write_all(&console_get_request(path, token, admin_token))
+                .write_all(&console_get_request(&path, token, admin_token))
                 .unwrap();
             read_response(&mut stream)
         })
@@ -1792,10 +1793,11 @@ mod tests {
     fn tls_console_post_client(
         address: SocketAddr,
         certificate: rustls::pki_types::CertificateDer<'static>,
-        path: &'static str,
+        path: impl Into<String>,
         body: Vec<u8>,
         json: bool,
     ) -> thread::JoinHandle<Vec<u8>> {
+        let path = path.into();
         thread::spawn(move || {
             let mut roots = RootCertStore::empty();
             roots.add(certificate).unwrap();
@@ -1814,7 +1816,7 @@ mod tests {
             let mut stream = StreamOwned::new(connection, socket);
             stream
                 .write_all(&console_post_request(
-                    path,
+                    &path,
                     &body,
                     Some(TOKEN),
                     Some(TOKEN),
@@ -2709,6 +2711,22 @@ mod tests {
         assert_eq!(capabilities["webConsole"]["cleanupAvailable"], true);
         assert_eq!(capabilities["webConsole"]["cleanupAtomicTargetLimit"], 128);
         assert_eq!(capabilities["webConsole"]["registrationAvailable"], false);
+        assert_eq!(capabilities["webConsole"]["orchestraAvailable"], true);
+        assert_eq!(
+            capabilities["webConsole"]["orchestraMutationAvailable"],
+            true
+        );
+        assert_eq!(
+            capabilities["webConsole"]["orchestraSessionHandoffAvailable"],
+            false
+        );
+        assert!(
+            capabilities["routes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|route| route == "/v1/orchestra/plans/{id}/{planId}/execute")
+        );
         assert_eq!(
             capabilities["webConsole"]["registrationBlocker"],
             "crash_recoverable_registration_transaction"
@@ -2780,6 +2798,159 @@ mod tests {
         assert_eq!(imported["importedRuntimeCount"], 2);
         assert_eq!(imported["importedSessionCount"], 0);
 
+        let orchestra_plan = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_get_client(
+                address,
+                cert.der().clone(),
+                "/v1/orchestra/plans/runtime-web-write-a",
+                Some(TOKEN),
+                Some(TOKEN),
+            ),
+        );
+        assert!(orchestra_plan.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let orchestra_plan: serde_json::Value =
+            serde_json::from_slice(&orchestra_plan[find_header_end(&orchestra_plan).unwrap()..])
+                .unwrap();
+        let triage_revision = orchestra_plan["plans"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|plan| plan["planId"] == "runtime_triage")
+            .unwrap()["revision"]
+            .as_str()
+            .unwrap();
+        let orchestra_execute = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/orchestra/plans/runtime-web-write-a/runtime_triage/execute",
+                serde_json::to_vec(&serde_json::json!({
+                    "confirmed": true,
+                    "expectedRevision": triage_revision,
+                    "approvedBy": "automatic",
+                    "approvalNote": null,
+                    "requestId": "request-tls-orchestra-0001",
+                }))
+                .unwrap(),
+                true,
+            ),
+        );
+        assert!(orchestra_execute.starts_with(b"HTTP/1.1 202 Accepted\r\n"));
+        let orchestra_execute: serde_json::Value = serde_json::from_slice(
+            &orchestra_execute[find_header_end(&orchestra_execute).unwrap()..],
+        )
+        .unwrap();
+        let orchestra_run_id = orchestra_execute["run"]["runId"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        let orchestra_history = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_get_client(
+                address,
+                cert.der().clone(),
+                "/v1/orchestra/runtimes/runtime-web-write-a/runs",
+                Some(TOKEN),
+                Some(TOKEN),
+            ),
+        );
+        assert!(orchestra_history.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let orchestra_history: serde_json::Value = serde_json::from_slice(
+            &orchestra_history[find_header_end(&orchestra_history).unwrap()..],
+        )
+        .unwrap();
+        assert_eq!(orchestra_history["runs"][0]["runId"], orchestra_run_id);
+
+        let event_path =
+            format!("/v1/orchestra/runtimes/runtime-web-write-a/runs/{orchestra_run_id}/events");
+        let orchestra_events = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_get_client(
+                address,
+                cert.der().clone(),
+                event_path,
+                Some(TOKEN),
+                Some(TOKEN),
+            ),
+        );
+        let orchestra_events: serde_json::Value = serde_json::from_slice(
+            &orchestra_events[find_header_end(&orchestra_events).unwrap()..],
+        )
+        .unwrap();
+        assert_eq!(orchestra_events["events"][0]["eventType"], "run_queued");
+
+        let cancel_path =
+            format!("/v1/orchestra/runtimes/runtime-web-write-a/runs/{orchestra_run_id}/cancel");
+        let orchestra_cancel = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(address, cert.der().clone(), cancel_path, Vec::new(), false),
+        );
+        assert!(orchestra_cancel.starts_with(b"HTTP/1.1 202 Accepted\r\n"));
+
+        let retry_path =
+            format!("/v1/orchestra/runtimes/runtime-web-write-a/runs/{orchestra_run_id}/retry");
+        let orchestra_retry = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                retry_path,
+                br#"{"confirmed":true,"approvedBy":"automatic","approvalNote":null,"requestId":"request-tls-orchestra-retry-0001"}"#.to_vec(),
+                true,
+            ),
+        );
+        assert!(orchestra_retry.starts_with(b"HTTP/1.1 202 Accepted\r\n"));
+        let orchestra_retry: serde_json::Value =
+            serde_json::from_slice(&orchestra_retry[find_header_end(&orchestra_retry).unwrap()..])
+                .unwrap();
+        assert_eq!(orchestra_retry["run"]["retriedFromRunId"], orchestra_run_id);
+
+        let orchestra_fleet = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_get_client(
+                address,
+                cert.der().clone(),
+                "/v1/orchestra/runs",
+                Some(TOKEN),
+                Some(TOKEN),
+            ),
+        );
+        let orchestra_fleet: serde_json::Value =
+            serde_json::from_slice(&orchestra_fleet[find_header_end(&orchestra_fleet).unwrap()..])
+                .unwrap();
+        assert_eq!(orchestra_fleet["runCount"], 2);
+
+        let orchestra_session = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/orchestra/plans/runtime-web-write-a/session",
+                br#"{"pipelineKind":"diagnostic","requestedBy":"operator"}"#.to_vec(),
+                true,
+            ),
+        );
+        assert!(orchestra_session.starts_with(b"HTTP/1.1 409 Conflict\r\n"));
+        let orchestra_session: serde_json::Value = serde_json::from_slice(
+            &orchestra_session[find_header_end(&orchestra_session).unwrap()..],
+        )
+        .unwrap();
+        assert_eq!(
+            orchestra_session["error"],
+            "orchestra_session_authority_unavailable"
+        );
+
         let plan = complete_tls_request(
             &mut server,
             &mut runtime,
@@ -2800,6 +2971,14 @@ mod tests {
             "rust_web_registration_transaction_unavailable"
         );
 
+        let runtime_a_refresh_count = runtime
+            .runtime_projection(&runtime_a)
+            .unwrap()
+            .refresh_count;
+        let runtime_b_refresh_count = runtime
+            .runtime_projection(&runtime_b)
+            .unwrap()
+            .refresh_count;
         let refreshed = complete_tls_request(
             &mut server,
             &mut runtime,
@@ -2817,14 +2996,14 @@ mod tests {
                 .runtime_projection(&runtime_a)
                 .unwrap()
                 .refresh_count,
-            1
+            runtime_a_refresh_count + 1
         );
         assert_eq!(
             runtime
                 .runtime_projection(&runtime_b)
                 .unwrap()
                 .refresh_count,
-            1
+            runtime_b_refresh_count + 1
         );
 
         let stale_cleanup_plan = complete_tls_request(
@@ -2985,6 +3164,10 @@ mod tests {
         .unwrap();
         assert_eq!(
             standby_capabilities["webConsole"]["mutationAvailable"],
+            false
+        );
+        assert_eq!(
+            standby_capabilities["webConsole"]["orchestraMutationAvailable"],
             false
         );
 

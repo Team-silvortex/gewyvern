@@ -226,6 +226,35 @@ fn cleanup_controls_follow_daemon_mutation_capability() {
 }
 
 #[test]
+fn orchestra_session_handoff_follows_host_capability_without_fake_success() {
+    let renderer = source("apps/leserpent/src/Leserpent/frontend/48-orchestra-renderer.ts");
+    let rust_host = source("crates/leserpentd/src/web_console.rs");
+    let bridge = source("apps/leserpent/src/Leserpent/ProgramHealthEndpoints.cs");
+    for contract in [
+        "function orchestraSessionHandoffAvailable()",
+        "webConsole?.orchestraSessionHandoffAvailable",
+        "capabilities.routes.includes(\"/v1/orchestra/plans/{id}/session\")",
+        "function orchestraMutationAvailable()",
+        "webConsole?.orchestraMutationAvailable",
+        "JSON.stringify([payload, sessionHandoffAvailable, mutationAvailable])",
+        "JSON.stringify([normalized, mutationAvailable])",
+        "plan.executionMode === \"automatic\" && mutationAvailable",
+        "mutationAvailable && [\"queued\", \"running\"].includes(run.outcome)",
+        "Generic session handoff is a 1.x bridge-only capability",
+    ] {
+        assert!(
+            renderer.contains(contract),
+            "missing Orchestra session capability fence {contract}"
+        );
+    }
+    assert!(rust_host.contains("\"orchestraSessionHandoffAvailable\": false"));
+    assert!(
+        rust_host.contains("\"orchestraMutationAvailable\": writer_enabled && persistence_enabled")
+    );
+    assert!(bridge.contains("\"/v1/orchestra/plans/{id}/session\""));
+}
+
+#[test]
 fn runtime_detail_is_operator_first_localized_and_actionable() {
     let html = source("apps/leserpent/src/Leserpent/wwwroot/index.html");
     let styles = source("apps/leserpent/src/Leserpent/wwwroot/styles.css");

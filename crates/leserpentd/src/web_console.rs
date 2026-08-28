@@ -11,10 +11,14 @@ use serde_json::{Value, json};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
+use crate::web_console_error::{ConsoleWriteError, ConsoleWriteStatus};
+use crate::web_console_orchestra;
+
 const MAX_FILTER_VALUE_BYTES: usize = 128;
 pub(crate) const MAX_REGISTRATION_PLAN_BYTES: usize = 8 * 1024;
 pub(crate) const MAX_REGISTRATION_REQUEST_BYTES: usize = 16 * 1024;
 pub(crate) const MAX_CLEANUP_REQUEST_BYTES: usize = 1024;
+pub(crate) const MAX_ORCHESTRA_COMMAND_BYTES: usize = 4 * 1024;
 pub(crate) const MAX_ATOMIC_CLEANUP_TARGETS: usize = 128;
 pub(crate) const PERSISTENCE_EXPORT_SCHEMA_VERSION: u32 = 1;
 const MAX_EXPORTED_ORCHESTRA_RUNS: usize = 4_096;
@@ -105,6 +109,26 @@ pub(crate) enum ConsoleApiRoute {
     PersistenceExport,
     PersistenceImport,
     PersistenceSave,
+    OrchestraPlan(RuntimeId),
+    OrchestraRuns(RuntimeId),
+    OrchestraRunEvents {
+        runtime_id: RuntimeId,
+        run_id: String,
+    },
+    OrchestraFleetRuns,
+    OrchestraExecute {
+        runtime_id: RuntimeId,
+        plan_id: String,
+    },
+    OrchestraCancel {
+        runtime_id: RuntimeId,
+        run_id: String,
+    },
+    OrchestraRetry {
+        runtime_id: RuntimeId,
+        run_id: String,
+    },
+    OrchestraSession(RuntimeId),
     CleanupPlan(RuntimeListFilter),
     RuntimeCleanup(CleanupKind, RuntimeListFilter),
     RegistrationPlan,
@@ -146,16 +170,24 @@ impl ConsoleApiRoute {
             | Self::Runtimes(_)
             | Self::Sessions
             | Self::PersistenceExport
+            | Self::OrchestraPlan(_)
+            | Self::OrchestraRuns(_)
+            | Self::OrchestraRunEvents { .. }
+            | Self::OrchestraFleetRuns
             | Self::CleanupPlan(_) => ConsoleApiMethod::Get,
             Self::FleetRefreshAll(_)
             | Self::FleetRefreshCapabilities(_)
             | Self::FleetRefreshStatus(_)
             | Self::RuntimeDelete(_)
-            | Self::PersistenceSave => ConsoleApiMethod::PostEmpty,
+            | Self::PersistenceSave
+            | Self::OrchestraCancel { .. } => ConsoleApiMethod::PostEmpty,
             Self::RuntimeCleanup(_, _)
             | Self::RegistrationPlan
             | Self::Registration
-            | Self::PersistenceImport => ConsoleApiMethod::PostJson,
+            | Self::PersistenceImport
+            | Self::OrchestraExecute { .. }
+            | Self::OrchestraRetry { .. }
+            | Self::OrchestraSession(_) => ConsoleApiMethod::PostJson,
         }
     }
 
@@ -165,8 +197,20 @@ impl ConsoleApiRoute {
             Self::Registration => Some(MAX_REGISTRATION_REQUEST_BYTES),
             Self::RuntimeCleanup(_, _) => Some(MAX_CLEANUP_REQUEST_BYTES),
             Self::PersistenceImport => Some(MAX_PROTOCOL_MESSAGE_BYTES),
+            Self::OrchestraExecute { .. }
+            | Self::OrchestraRetry { .. }
+            | Self::OrchestraSession(_) => Some(MAX_ORCHESTRA_COMMAND_BYTES),
             _ => None,
         }
+    }
+
+    pub(crate) fn accepted_response(&self) -> bool {
+        matches!(
+            self,
+            Self::OrchestraExecute { .. }
+                | Self::OrchestraCancel { .. }
+                | Self::OrchestraRetry { .. }
+        )
     }
 }
 
@@ -183,6 +227,9 @@ pub(crate) fn parse_api_route(target: &str) -> Result<Option<ConsoleApiRoute>, C
     let (path, query) = target
         .split_once('?')
         .map_or((target, None), |(path, query)| (path, Some(query)));
+    if let Some(route) = parse_orchestra_route(path, query)? {
+        return Ok(Some(route));
+    }
     if let Some(runtime_id) = path
         .strip_prefix("/v1/runtimes/")
         .and_then(|path| path.strip_suffix("/delete"))
@@ -266,6 +313,67 @@ pub(crate) fn parse_api_route(target: &str) -> Result<Option<ConsoleApiRoute>, C
         "/v1/runtimes/register" => Some(ConsoleApiRoute::Registration),
         _ => None,
     })
+}
+
+fn parse_orchestra_route(
+    path: &str,
+    query: Option<&str>,
+) -> Result<Option<ConsoleApiRoute>, ConsoleRouteError> {
+    let Some(path) = path.strip_prefix("/v1/orchestra/") else {
+        return Ok(None);
+    };
+    if query.is_some() {
+        return Err(ConsoleRouteError::InvalidQuery);
+    }
+    let segments = path.split('/').collect::<Vec<_>>();
+    if segments.iter().any(|segment| segment.is_empty()) {
+        return Err(ConsoleRouteError::InvalidTarget);
+    }
+    let route = match segments.as_slice() {
+        ["runs"] => ConsoleApiRoute::OrchestraFleetRuns,
+        ["plans", runtime_id] => ConsoleApiRoute::OrchestraPlan(parse_runtime_path_id(runtime_id)?),
+        ["plans", runtime_id, "session"] => {
+            ConsoleApiRoute::OrchestraSession(parse_runtime_path_id(runtime_id)?)
+        }
+        ["plans", runtime_id, plan_id, "execute"] => ConsoleApiRoute::OrchestraExecute {
+            runtime_id: parse_runtime_path_id(runtime_id)?,
+            plan_id: parse_orchestra_path_id(plan_id)?,
+        },
+        ["runtimes", runtime_id, "runs"] => {
+            ConsoleApiRoute::OrchestraRuns(parse_runtime_path_id(runtime_id)?)
+        }
+        ["runtimes", runtime_id, "runs", run_id, "events"] => ConsoleApiRoute::OrchestraRunEvents {
+            runtime_id: parse_runtime_path_id(runtime_id)?,
+            run_id: parse_orchestra_path_id(run_id)?,
+        },
+        ["runtimes", runtime_id, "runs", run_id, "cancel"] => ConsoleApiRoute::OrchestraCancel {
+            runtime_id: parse_runtime_path_id(runtime_id)?,
+            run_id: parse_orchestra_path_id(run_id)?,
+        },
+        ["runtimes", runtime_id, "runs", run_id, "retry"] => ConsoleApiRoute::OrchestraRetry {
+            runtime_id: parse_runtime_path_id(runtime_id)?,
+            run_id: parse_orchestra_path_id(run_id)?,
+        },
+        _ => return Ok(None),
+    };
+    Ok(Some(route))
+}
+
+fn parse_runtime_path_id(value: &str) -> Result<RuntimeId, ConsoleRouteError> {
+    RuntimeId::new(decode_path_component(value)?).map_err(|_| ConsoleRouteError::InvalidTarget)
+}
+
+fn parse_orchestra_path_id(value: &str) -> Result<String, ConsoleRouteError> {
+    let value = decode_path_component(value)?;
+    if value.is_empty()
+        || value.len() > MAX_FILTER_VALUE_BYTES
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b':' | b'.'))
+    {
+        return Err(ConsoleRouteError::InvalidTarget);
+    }
+    Ok(value)
 }
 
 fn decode_path_component(value: &str) -> Result<String, ConsoleRouteError> {
@@ -377,7 +485,7 @@ pub(crate) fn render_api(
     route: &ConsoleApiRoute,
     runtime: &mut ControlRuntime,
     writer_enabled: bool,
-) -> Result<Vec<u8>, String> {
+) -> Result<Vec<u8>, ConsoleWriteError> {
     render_api_with_registration(route, runtime, writer_enabled, false)
 }
 
@@ -386,7 +494,7 @@ pub(crate) fn render_api_with_registration(
     runtime: &mut ControlRuntime,
     writer_enabled: bool,
     registration_enabled: bool,
-) -> Result<Vec<u8>, String> {
+) -> Result<Vec<u8>, ConsoleWriteError> {
     let (_, all_runtimes) = runtime.runtime_event_state();
     let value = match route {
         ConsoleApiRoute::Capabilities => capabilities_value(
@@ -398,7 +506,29 @@ pub(crate) fn render_api_with_registration(
             registration_enabled,
         ),
         ConsoleApiRoute::Sessions => json!({ "sessions": [] }),
-        ConsoleApiRoute::PersistenceExport => persistence_export_value(runtime)?,
+        ConsoleApiRoute::PersistenceExport => {
+            persistence_export_value(runtime).map_err(|error| {
+                if error.contains("registration recovery") {
+                    ConsoleWriteError::new(
+                        ConsoleWriteStatus::Conflict,
+                        "persistence_export_not_quiescent",
+                        "Rust Web persistence export is blocked by registration recovery",
+                    )
+                } else {
+                    ConsoleWriteError::projection_failed()
+                }
+            })?
+        }
+        ConsoleApiRoute::OrchestraPlan(runtime_id) => {
+            web_console_orchestra::plan_value(runtime, runtime_id)?
+        }
+        ConsoleApiRoute::OrchestraRuns(runtime_id) => {
+            web_console_orchestra::runtime_runs_value(runtime, runtime_id)?
+        }
+        ConsoleApiRoute::OrchestraRunEvents { runtime_id, run_id } => {
+            web_console_orchestra::run_events_value(runtime, runtime_id, run_id)?
+        }
+        ConsoleApiRoute::OrchestraFleetRuns => web_console_orchestra::fleet_runs_value(runtime)?,
         ConsoleApiRoute::FleetSummary(filter) => {
             let runtimes = filtered_runtimes(&all_runtimes, filter);
             json!({
@@ -458,13 +588,21 @@ pub(crate) fn render_api_with_registration(
         | ConsoleApiRoute::Registration
         | ConsoleApiRoute::PersistenceImport
         | ConsoleApiRoute::PersistenceSave
+        | ConsoleApiRoute::OrchestraExecute { .. }
+        | ConsoleApiRoute::OrchestraCancel { .. }
+        | ConsoleApiRoute::OrchestraRetry { .. }
+        | ConsoleApiRoute::OrchestraSession(_)
         | ConsoleApiRoute::RuntimeDelete(_) => {
-            return Err("Rust Web mutation route cannot be rendered as a read projection".into());
+            return Err(ConsoleWriteError::projection_failed());
         }
     };
-    let bytes = serde_json::to_vec(&value).map_err(|error| error.to_string())?;
+    let bytes = serde_json::to_vec(&value).map_err(|_| ConsoleWriteError::projection_failed())?;
     if bytes.len() > MAX_PROTOCOL_MESSAGE_BYTES {
-        return Err("Rust Web compatibility projection exceeds the protocol response limit".into());
+        return Err(ConsoleWriteError::new(
+            ConsoleWriteStatus::InternalServerError,
+            "web_response_too_large",
+            "Rust Web response exceeded the protocol limit",
+        ));
     }
     Ok(bytes)
 }
@@ -490,6 +628,14 @@ fn capabilities_value(
             "/v1/persistence/save",
             "/v1/persistence/export",
             "/v1/persistence/import",
+            "/v1/orchestra/plans/{id}",
+            "/v1/orchestra/plans/{id}/{planId}/execute",
+            "/v1/orchestra/runtimes/{id}/runs",
+            "/v1/orchestra/runtimes/{id}/runs/{runId}/events",
+            "/v1/orchestra/runs",
+            "/v1/orchestra/runtimes/{id}/runs/{runId}/cancel",
+            "/v1/orchestra/runtimes/{id}/runs/{runId}/retry",
+            "/v1/orchestra/plans/{id}/session",
             "/v1/runtimes/cleanup-plan",
             "/v1/runtimes/delete-failed",
             "/v1/runtimes/delete-unobserved",
@@ -527,6 +673,9 @@ fn capabilities_value(
             "cleanupAvailable": writer_enabled && persistence_enabled,
             "cleanupAtomicTargetLimit": MAX_ATOMIC_CLEANUP_TARGETS,
             "registrationAvailable": registration_available,
+            "orchestraAvailable": persistence_enabled,
+            "orchestraMutationAvailable": writer_enabled && persistence_enabled,
+            "orchestraSessionHandoffAvailable": false,
             "registrationBlocker": if registration_available {
                 Value::Null
             } else {
@@ -1195,6 +1344,57 @@ mod tests {
             Some(MAX_PROTOCOL_MESSAGE_BYTES)
         );
         assert_eq!(
+            parse_api_route("/v1/orchestra/plans/runtime%3Aedge").unwrap(),
+            Some(ConsoleApiRoute::OrchestraPlan(
+                RuntimeId::new("runtime:edge").unwrap()
+            ))
+        );
+        assert_eq!(
+            parse_api_route("/v1/orchestra/plans/runtime-a/runtime_triage/execute").unwrap(),
+            Some(ConsoleApiRoute::OrchestraExecute {
+                runtime_id: RuntimeId::new("runtime-a").unwrap(),
+                plan_id: "runtime_triage".into(),
+            })
+        );
+        assert_eq!(
+            parse_api_route("/v1/orchestra/runtimes/runtime-a/runs/orun%3A1/events").unwrap(),
+            Some(ConsoleApiRoute::OrchestraRunEvents {
+                runtime_id: RuntimeId::new("runtime-a").unwrap(),
+                run_id: "orun:1".into(),
+            })
+        );
+        assert_eq!(
+            parse_api_route("/v1/orchestra/runtimes/runtime-a/runs/orun-1/cancel")
+                .unwrap()
+                .unwrap()
+                .method(),
+            ConsoleApiMethod::PostEmpty
+        );
+        assert!(
+            parse_api_route("/v1/orchestra/runtimes/runtime-a/runs/orun-1/cancel")
+                .unwrap()
+                .unwrap()
+                .accepted_response()
+        );
+        assert_eq!(
+            parse_api_route("/v1/orchestra/runtimes/runtime-a/runs/orun-1/retry")
+                .unwrap()
+                .unwrap()
+                .max_json_body_bytes(),
+            Some(MAX_ORCHESTRA_COMMAND_BYTES)
+        );
+        for target in [
+            "/v1/orchestra/plans/runtime-a?verbose=true",
+            "/v1/orchestra/plans/runtime%2Fa",
+            "/v1/orchestra/runtimes/runtime-a/runs/orun%2F1/events",
+            "/v1/orchestra/runtimes//runs",
+        ] {
+            assert!(
+                parse_api_route(target).is_err(),
+                "unexpected Orchestra route {target}"
+            );
+        }
+        assert_eq!(
             parse_api_route("/v1/runtimes/delete-failed?role=edge").unwrap(),
             Some(ConsoleApiRoute::RuntimeCleanup(
                 CleanupKind::Failed,
@@ -1316,10 +1516,11 @@ mod tests {
                 b"{}",
             )
             .unwrap();
-        assert!(
+        assert_eq!(
             render_api(&ConsoleApiRoute::PersistenceExport, &mut runtime, false)
                 .unwrap_err()
-                .contains("registration recovery")
+                .code,
+            "persistence_export_not_quiescent"
         );
         drop(runtime);
         fs::remove_file(path).unwrap();

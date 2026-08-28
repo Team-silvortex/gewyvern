@@ -217,9 +217,10 @@ at 50, and the supported ASP.NET Web bridge at 100, for a combined target score
 of 95. The Rust daemon now serves the shared packaged TypeScript console and its
 Bearer-authenticated first-screen read projections directly. Refresh, deletion,
 strict-loopback Gewyvern registration, writer-fenced snapshots, bounded
-secret-free state export, and atomic portable state import are Rust-owned;
-Orchestra operation compatibility APIs remain the explicit bridge-retirement
-gap. Avalonia now closes a daemon-owned native Orchestra workspace for strict,
+secret-free state export, atomic portable state import, and the core Orchestra
+plan/run/event/fleet/execute/cancel/retry routes are Rust-owned. The legacy generic
+session handoff remains the explicit bridge-retirement gap. Avalonia now closes a
+daemon-owned native Orchestra workspace for strict,
 revision-fenced plan discovery, Rust-authoritative automatic execution,
 queued-only cancellation, lineage-bound retry, persisted run/event drilldown,
 and idempotent runtime-scoped cleanup. Guided plans remain review-only rather
@@ -245,8 +246,11 @@ and a schema-1 portable export assembled from live runtime projections and bound
 validated Orchestra history without credentials. Its schema-1 importer is now
 writer-fenced, revision-rebased, quiescence-gated, and atomic across the domain
 snapshot and Orchestra history, with dual-generation recovery and static/dynamic
-target identity preservation. Orchestra operation compatibility remains the
-explicit closure work. Expired
+target identity preservation. Its strict dynamic Orchestra adapter now preserves
+request replay, current plan revision, approval metadata, retry lineage, and
+legacy `202 Accepted` semantics over real TLS. The shared UI hides the generic
+session creation control when the Rust host reports that its domain authority is
+unavailable rather than fabricating success. Expired
 effects converge to a terminal revision and release the
 32-session daemon registry; cancellation audit remains restart-durable inside a
 bounded 64-journal retention horizon. Active debugger sessions remain

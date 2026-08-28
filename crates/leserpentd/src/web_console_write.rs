@@ -29,35 +29,11 @@ use crate::web_console::{
     MAX_REGISTRATION_PLAN_BYTES, MAX_REGISTRATION_REQUEST_BYTES, PERSISTENCE_EXPORT_SCHEMA_VERSION,
     build_cleanup_plan, runtime_value, sha256_hex,
 };
+pub(crate) use crate::web_console_error::{ConsoleWriteError, ConsoleWriteStatus};
+use crate::web_console_orchestra;
 
 const REGISTRATION_TRANSACTION_REASON: &str = "rust_web_registration_transaction_unavailable";
 const REGISTRATION_LOOPBACK_REASON: &str = "loopback_gewyvern_target_required";
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ConsoleWriteStatus {
-    BadRequest,
-    NotFound,
-    Conflict,
-    ServiceUnavailable,
-    InternalServerError,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct ConsoleWriteError {
-    pub(crate) status: ConsoleWriteStatus,
-    pub(crate) code: &'static str,
-    pub(crate) reason: &'static str,
-}
-
-impl ConsoleWriteError {
-    pub(crate) fn body(&self) -> Vec<u8> {
-        serde_json::to_vec(&json!({
-            "error": self.code,
-            "reason": self.reason,
-        }))
-        .expect("fixed Rust Web error response must serialize")
-    }
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RefreshKind {
@@ -377,6 +353,25 @@ pub(crate) fn execute_with_registration(
             import_persistence(body, runtime, writer_fence, registration)?
         }
         ConsoleApiRoute::PersistenceSave => save_persistence(runtime, writer_fence)?,
+        ConsoleApiRoute::OrchestraExecute {
+            runtime_id,
+            plan_id,
+        } => {
+            require_writer(runtime, writer_fence)?;
+            web_console_orchestra::execute_plan(runtime, runtime_id, plan_id, body)?
+        }
+        ConsoleApiRoute::OrchestraCancel { runtime_id, run_id } => {
+            require_writer(runtime, writer_fence)?;
+            web_console_orchestra::cancel_run(runtime, runtime_id, run_id)?
+        }
+        ConsoleApiRoute::OrchestraRetry { runtime_id, run_id } => {
+            require_writer(runtime, writer_fence)?;
+            web_console_orchestra::retry_run(runtime, runtime_id, run_id, body)?
+        }
+        ConsoleApiRoute::OrchestraSession(_) => {
+            require_writer(runtime, writer_fence)?;
+            web_console_orchestra::reject_session_handoff(body)?
+        }
         _ => {
             return Err(ConsoleWriteError {
                 status: ConsoleWriteStatus::InternalServerError,
@@ -2056,6 +2051,116 @@ mod tests {
             "Saved runtime"
         );
         drop(recovered);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn orchestra_compatibility_mutations_are_writer_fenced_and_replay_safe() {
+        let path = temp_database("orchestra-compatibility");
+        let runtime_id = RuntimeId::new("runtime-orchestra-web").unwrap();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        runtime
+            .register_runtime(
+                runtime_id.clone(),
+                "Orchestra Web runtime",
+                "https://runtime.invalid",
+            )
+            .unwrap();
+        let plan: Value = serde_json::from_slice(
+            &crate::web_console::render_api(
+                &ConsoleApiRoute::OrchestraPlan(runtime_id.clone()),
+                &mut runtime,
+                false,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let revision = plan["plans"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|plan| plan["planId"] == "runtime_triage")
+            .unwrap()["revision"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let route = ConsoleApiRoute::OrchestraExecute {
+            runtime_id: runtime_id.clone(),
+            plan_id: "runtime_triage".into(),
+        };
+        let body = serde_json::to_vec(&json!({
+            "confirmed": true,
+            "expectedRevision": revision,
+            "approvedBy": "automatic",
+            "approvalNote": null,
+            "requestId": "request-web-run-0001",
+        }))
+        .unwrap();
+        assert_eq!(
+            execute(&route, &body, &mut runtime, None).unwrap_err().code,
+            "web_console_writer_disabled"
+        );
+
+        let writer_id = "bcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc";
+        let fence = AuthorityWriterFence {
+            generation: runtime
+                .claim_authority_writer(writer_id)
+                .unwrap()
+                .generation,
+            writer_id: writer_id.into(),
+        };
+        let started: Value =
+            serde_json::from_slice(&execute(&route, &body, &mut runtime, Some(&fence)).unwrap())
+                .unwrap();
+        let run_id = started["run"]["runId"].as_str().unwrap().to_string();
+        assert_eq!(started["replayed"], false);
+        let replay: Value =
+            serde_json::from_slice(&execute(&route, &body, &mut runtime, Some(&fence)).unwrap())
+                .unwrap();
+        assert_eq!(replay["replayed"], true);
+
+        let cancelled: Value = serde_json::from_slice(
+            &execute(
+                &ConsoleApiRoute::OrchestraCancel {
+                    runtime_id: runtime_id.clone(),
+                    run_id: run_id.clone(),
+                },
+                &[],
+                &mut runtime,
+                Some(&fence),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(cancelled["run"]["outcome"], "cancelled");
+        let retried: Value = serde_json::from_slice(
+            &execute(
+                &ConsoleApiRoute::OrchestraRetry {
+                    runtime_id: runtime_id.clone(),
+                    run_id,
+                },
+                br#"{"confirmed":true,"approvedBy":"automatic","approvalNote":null,"requestId":"request-web-retry-0001"}"#,
+                &mut runtime,
+                Some(&fence),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(retried["run"]["attempt"], 2);
+
+        let session_error = execute(
+            &ConsoleApiRoute::OrchestraSession(runtime_id),
+            br#"{"pipelineKind":"diagnostic","requestedBy":"operator"}"#,
+            &mut runtime,
+            Some(&fence),
+        )
+        .unwrap_err();
+        assert_eq!(session_error.status, ConsoleWriteStatus::Conflict);
+        assert_eq!(
+            session_error.code,
+            "orchestra_session_authority_unavailable"
+        );
+        drop(runtime);
         fs::remove_file(path).unwrap();
     }
 

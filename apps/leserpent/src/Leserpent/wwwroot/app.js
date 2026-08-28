@@ -7604,6 +7604,24 @@ function orchestraRequestId(key) {
     }
     return state.orchestraRequestIds[key];
 }
+function orchestraSessionHandoffAvailable() {
+    const capabilities = state.cache?.capabilities;
+    const explicit = capabilities?.webConsole?.orchestraSessionHandoffAvailable;
+    if (typeof explicit === "boolean") {
+        return explicit;
+    }
+    return Array.isArray(capabilities?.routes)
+        && capabilities.routes.includes("/v1/orchestra/plans/{id}/session");
+}
+function orchestraMutationAvailable() {
+    const capabilities = state.cache?.capabilities;
+    const explicit = capabilities?.webConsole?.orchestraMutationAvailable;
+    if (typeof explicit === "boolean") {
+        return explicit;
+    }
+    return Array.isArray(capabilities?.routes)
+        && capabilities.routes.includes("/v1/orchestra/plans/{id}/{planId}/execute");
+}
 function renderOrchestraPlan(payload) {
     state.orchestraPlan = payload;
     if (!payload) {
@@ -7617,7 +7635,9 @@ function renderOrchestraPlan(payload) {
     `;
         return;
     }
-    const signature = JSON.stringify(payload);
+    const sessionHandoffAvailable = orchestraSessionHandoffAvailable();
+    const mutationAvailable = orchestraMutationAvailable();
+    const signature = JSON.stringify([payload, sessionHandoffAvailable, mutationAvailable]);
     if (state.renderSignatures.orchestraPanel === signature) {
         return;
     }
@@ -7652,7 +7672,7 @@ function renderOrchestraPlan(payload) {
           </li>
         `).join("")}
       </ol>
-      ${plan.executionMode === "automatic" && plan.approvalMode === "operator_confirmation" ? `
+      ${plan.executionMode === "automatic" && plan.approvalMode === "operator_confirmation" && mutationAvailable ? `
         <div class="orchestra-approval-form" data-orchestra-approval-form>
           <label>
             <span>Approved by <small>operator-provided attribution</small></span>
@@ -7664,22 +7684,25 @@ function renderOrchestraPlan(payload) {
           </label>
         </div>
       ` : ""}
-      ${plan.executionMode === "guided" && plan.planId === "session_preparation" ? `
-        <div class="orchestra-guided-form" data-orchestra-session-form>
-          <label>
-            <span>Pipeline kind</span>
-            <input type="text" data-orchestra-pipeline-kind value="diagnostic" maxlength="128" autocomplete="off" />
-          </label>
-          <label>
-            <span>Requested by</span>
-            <input type="text" data-orchestra-requested-by value="leserpent-operator" maxlength="80" autocomplete="off" />
-          </label>
-          <button type="button" data-orchestra-create-session>Create session</button>
-        </div>
-      ` : ""}
+      ${plan.executionMode === "guided" && plan.planId === "session_preparation"
+        ? sessionHandoffAvailable ? `
+          <div class="orchestra-guided-form" data-orchestra-session-form>
+            <label>
+              <span>Pipeline kind</span>
+              <input type="text" data-orchestra-pipeline-kind value="diagnostic" maxlength="128" autocomplete="off" />
+            </label>
+            <label>
+              <span>Requested by</span>
+              <input type="text" data-orchestra-requested-by value="leserpent-operator" maxlength="80" autocomplete="off" />
+            </label>
+            <button type="button" data-orchestra-create-session>Create session</button>
+          </div>
+        ` : `
+          <div class="hint-line">Generic session handoff is a 1.x bridge-only capability; this Rust-hosted console keeps the guided plan review-only.</div>
+        ` : ""}
       ${(plan.suggestedSurfaces || []).length ? `
         <div class="runtime-inline-actions orchestra-surface-links">
-          ${plan.executionMode === "automatic" ? `
+          ${plan.executionMode === "automatic" && mutationAvailable ? `
             <button type="button"
               data-orchestra-execute="${escapeHtml(plan.planId)}"
               data-orchestra-revision="${escapeHtml(plan.revision)}"
@@ -7690,12 +7713,16 @@ function renderOrchestraPlan(payload) {
           `).join("")}
         </div>
       ` : ""}
+      ${plan.executionMode === "automatic" && !mutationAvailable ? `
+        <div class="hint-line">This console is currently read-only; acquire daemon-owned writer mode to run the plan.</div>
+      ` : ""}
     </article>
   `).join("");
 }
 function renderOrchestraHistory(runs) {
     const normalized = Array.isArray(runs) ? runs : [];
-    const signature = JSON.stringify(normalized);
+    const mutationAvailable = orchestraMutationAvailable();
+    const signature = JSON.stringify([normalized, mutationAvailable]);
     if (state.renderSignatures.orchestraHistory === signature) {
         return;
     }
@@ -7725,10 +7752,10 @@ function renderOrchestraHistory(runs) {
         </div>
         <div class="runtime-inline-actions orchestra-run-actions">
           <button type="button" class="quiet" data-orchestra-load-events="${escapeHtml(run.runId)}">Timeline</button>
-          ${["queued", "running"].includes(run.outcome) ? `
+          ${mutationAvailable && ["queued", "running"].includes(run.outcome) ? `
             <button type="button" class="quiet" data-orchestra-cancel-run="${escapeHtml(run.runId)}">Cancel</button>
           ` : ""}
-          ${!["queued", "running"].includes(run.outcome) && run.planId !== "session_preparation" ? `
+          ${mutationAvailable && !["queued", "running"].includes(run.outcome) && run.planId !== "session_preparation" ? `
             <button type="button" class="quiet" data-orchestra-retry-run="${escapeHtml(run.runId)}">Retry</button>
           ` : ""}
         </div>
