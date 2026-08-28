@@ -630,9 +630,20 @@ metadata, deterministic cancellation identity, request replay, and retry lineage
 Successful controls retain the legacy `202 Accepted` semantics, while malformed
 paths and request bodies fail before authority entry. A real TLS lifecycle proves
 Bearer authentication, writer ownership, execution, history, cancellation, and
-retry over the shared TypeScript contract. Generic session handoff remains
-explicitly unavailable because it has no Rust domain model; capabilities keep the
-shared UI review-only instead of fabricating a session.
+retry over the shared TypeScript contract. Generic session handoff remained the
+only explicit Rust Web bridge-retirement gap at that contract revision.
+
+Contract `1.29.0` closes that gap without changing the shared wire envelope or
+portable schema version. SQLite schema 22 adds a bounded control-session
+aggregate with unique session and request identities, runtime ownership,
+capability requirements, running/stopped state, and timestamps. Generic create,
+list, detail, and stop routes and the guided Orchestra handoff share this
+authority. Exact requests replay the same session and terminal handoff run;
+conflicting reuse fails closed. Runtime unregistration removes owned sessions in
+the same transaction and replays the persisted count. Portable export/import
+round-trips sessions atomically beside domain and Orchestra state. A real TLS
+lifecycle proves create, replay, lookup, stop, and direct creation through the
+shared TypeScript contract.
 
 ## Reproducible Proof
 

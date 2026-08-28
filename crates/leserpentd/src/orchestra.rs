@@ -694,7 +694,7 @@ fn build_plan_catalog(runtime: &RuntimeProjection) -> OrchestraPlanCatalogRespon
         "session_preparation",
         "prepare_session",
         "Prepare a session handoff",
-        "Session creation remains guided until its Rust command authority is sealed.",
+        "Session creation is guided and committed by the durable Rust session authority.",
         "medium",
         "review_first",
         "guided",
@@ -704,7 +704,9 @@ fn build_plan_catalog(runtime: &RuntimeProjection) -> OrchestraPlanCatalogRespon
         vec![OrchestraPlanStep {
             key: "review_session".into(),
             title: "Review session requirements".into(),
-            detail: "Use the session surface without claiming an executable native plan.".into(),
+            detail:
+                "Review the pipeline and requester before committing the native session handoff."
+                    .into(),
             kind: "review".into(),
         }],
     ));

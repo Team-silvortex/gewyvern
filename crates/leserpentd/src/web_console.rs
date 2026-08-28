@@ -1,11 +1,11 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use leserpent_domain::{
     Revision, RuntimeCapabilitySnapshot, RuntimeId, RuntimeListFilter, RuntimeProjection,
     RuntimeSidecarStatusSnapshot, RuntimeStatusSnapshot,
 };
 use leserpent_protocol::MAX_PROTOCOL_MESSAGE_BYTES;
-use leserpent_runtime::ControlRuntime;
+use leserpent_runtime::{ControlRuntime, ControlSession};
 use ring::digest;
 use serde_json::{Value, json};
 use time::OffsetDateTime;
@@ -106,6 +106,9 @@ pub(crate) enum ConsoleApiRoute {
     FleetRefreshStatus(RuntimeListFilter),
     Runtimes(RuntimeListFilter),
     Sessions,
+    Session(String),
+    SessionCreate,
+    SessionStop(String),
     PersistenceExport,
     PersistenceImport,
     PersistenceSave,
@@ -169,6 +172,7 @@ impl ConsoleApiRoute {
             | Self::FleetAttentionList(_)
             | Self::Runtimes(_)
             | Self::Sessions
+            | Self::Session(_)
             | Self::PersistenceExport
             | Self::OrchestraPlan(_)
             | Self::OrchestraRuns(_)
@@ -185,6 +189,8 @@ impl ConsoleApiRoute {
             | Self::RegistrationPlan
             | Self::Registration
             | Self::PersistenceImport
+            | Self::SessionCreate
+            | Self::SessionStop(_)
             | Self::OrchestraExecute { .. }
             | Self::OrchestraRetry { .. }
             | Self::OrchestraSession(_) => ConsoleApiMethod::PostJson,
@@ -197,6 +203,7 @@ impl ConsoleApiRoute {
             Self::Registration => Some(MAX_REGISTRATION_REQUEST_BYTES),
             Self::RuntimeCleanup(_, _) => Some(MAX_CLEANUP_REQUEST_BYTES),
             Self::PersistenceImport => Some(MAX_PROTOCOL_MESSAGE_BYTES),
+            Self::SessionCreate | Self::SessionStop(_) => Some(MAX_ORCHESTRA_COMMAND_BYTES),
             Self::OrchestraExecute { .. }
             | Self::OrchestraRetry { .. }
             | Self::OrchestraSession(_) => Some(MAX_ORCHESTRA_COMMAND_BYTES),
@@ -220,7 +227,15 @@ pub(crate) enum ConsoleRouteError {
     InvalidQuery,
 }
 
+#[cfg(test)]
 pub(crate) fn parse_api_route(target: &str) -> Result<Option<ConsoleApiRoute>, ConsoleRouteError> {
+    parse_api_route_for_method("GET", target)
+}
+
+pub(crate) fn parse_api_route_for_method(
+    method: &str,
+    target: &str,
+) -> Result<Option<ConsoleApiRoute>, ConsoleRouteError> {
     if target.contains('#') || !target.starts_with('/') {
         return Err(ConsoleRouteError::InvalidTarget);
     }
@@ -241,6 +256,22 @@ pub(crate) fn parse_api_route(target: &str) -> Result<Option<ConsoleApiRoute>, C
         let runtime_id =
             RuntimeId::new(runtime_id).map_err(|_| ConsoleRouteError::InvalidTarget)?;
         return Ok(Some(ConsoleApiRoute::RuntimeDelete(runtime_id)));
+    }
+    if let Some(session_path) = path.strip_prefix("/v1/sessions/") {
+        if query.is_some() {
+            return Err(ConsoleRouteError::InvalidQuery);
+        }
+        let segments = session_path.split('/').collect::<Vec<_>>();
+        let route = match segments.as_slice() {
+            [session_id] if !session_id.is_empty() => {
+                ConsoleApiRoute::Session(parse_orchestra_path_id(session_id)?)
+            }
+            [session_id, "stop"] if !session_id.is_empty() => {
+                ConsoleApiRoute::SessionStop(parse_orchestra_path_id(session_id)?)
+            }
+            _ => return Ok(None),
+        };
+        return Ok(Some(route));
     }
     let filtered = match path {
         "/v1/fleet/summary"
@@ -290,6 +321,7 @@ pub(crate) fn parse_api_route(target: &str) -> Result<Option<ConsoleApiRoute>, C
         "/v1/runtimes" => Some(ConsoleApiRoute::Runtimes(
             filtered.expect("filtered route has a filter"),
         )),
+        "/v1/sessions" if method == "POST" => Some(ConsoleApiRoute::SessionCreate),
         "/v1/sessions" => Some(ConsoleApiRoute::Sessions),
         "/v1/persistence/export" => Some(ConsoleApiRoute::PersistenceExport),
         "/v1/persistence/import" => Some(ConsoleApiRoute::PersistenceImport),
@@ -505,7 +537,27 @@ pub(crate) fn render_api_with_registration(
             writer_enabled,
             registration_enabled,
         ),
-        ConsoleApiRoute::Sessions => json!({ "sessions": [] }),
+        ConsoleApiRoute::Sessions => json!({
+            "sessions": runtime
+                .list_control_sessions()
+                .map_err(|_| ConsoleWriteError::projection_failed())?
+                .iter()
+                .map(control_session_value)
+                .collect::<Vec<_>>()
+        }),
+        ConsoleApiRoute::Session(session_id) => {
+            let session = runtime
+                .control_session(session_id)
+                .map_err(|_| ConsoleWriteError::projection_failed())?
+                .ok_or_else(|| {
+                    ConsoleWriteError::new(
+                        ConsoleWriteStatus::NotFound,
+                        "session_not_found",
+                        "control session was not found",
+                    )
+                })?;
+            control_session_value(&session)
+        }
         ConsoleApiRoute::PersistenceExport => {
             persistence_export_value(runtime).map_err(|error| {
                 if error.contains("registration recovery") {
@@ -579,7 +631,13 @@ pub(crate) fn render_api_with_registration(
                 .collect::<Vec<_>>();
             json!({ "filter": filter_value(filter), "runtimes": runtimes })
         }
-        ConsoleApiRoute::CleanupPlan(filter) => cleanup_plan_value(filter, &all_runtimes),
+        ConsoleApiRoute::CleanupPlan(filter) => cleanup_plan_value(
+            filter,
+            &all_runtimes,
+            &runtime
+                .list_control_sessions()
+                .map_err(|_| ConsoleWriteError::projection_failed())?,
+        ),
         ConsoleApiRoute::FleetRefreshAll(_)
         | ConsoleApiRoute::FleetRefreshCapabilities(_)
         | ConsoleApiRoute::FleetRefreshStatus(_)
@@ -588,6 +646,8 @@ pub(crate) fn render_api_with_registration(
         | ConsoleApiRoute::Registration
         | ConsoleApiRoute::PersistenceImport
         | ConsoleApiRoute::PersistenceSave
+        | ConsoleApiRoute::SessionCreate
+        | ConsoleApiRoute::SessionStop(_)
         | ConsoleApiRoute::OrchestraExecute { .. }
         | ConsoleApiRoute::OrchestraCancel { .. }
         | ConsoleApiRoute::OrchestraRetry { .. }
@@ -625,6 +685,8 @@ fn capabilities_value(
             "/v1/fleet/runtimes-needing-attention",
             "/v1/runtimes",
             "/v1/sessions",
+            "/v1/sessions/{id}",
+            "/v1/sessions/{id}/stop",
             "/v1/persistence/save",
             "/v1/persistence/export",
             "/v1/persistence/import",
@@ -675,7 +737,7 @@ fn capabilities_value(
             "registrationAvailable": registration_available,
             "orchestraAvailable": persistence_enabled,
             "orchestraMutationAvailable": writer_enabled && persistence_enabled,
-            "orchestraSessionHandoffAvailable": false,
+            "orchestraSessionHandoffAvailable": writer_enabled && persistence_enabled,
             "registrationBlocker": if registration_available {
                 Value::Null
             } else {
@@ -702,6 +764,9 @@ fn persistence_export_value(runtime: &mut ControlRuntime) -> Result<Value, Strin
     }
     let (_, runtimes) = runtime.runtime_event_state();
     let orchestra_runs = exported_orchestra_runs(runtime)?;
+    let sessions = runtime
+        .list_control_sessions()
+        .map_err(|_| "Rust Web persistence export could not read control sessions")?;
     Ok(json!({
         "schemaVersion": PERSISTENCE_EXPORT_SCHEMA_VERSION,
         "savedAt": OffsetDateTime::now_utc()
@@ -711,7 +776,7 @@ fn persistence_export_value(runtime: &mut ControlRuntime) -> Result<Value, Strin
             .iter()
             .map(persistence_runtime_value)
             .collect::<Vec<_>>(),
-        "sessions": [],
+        "sessions": sessions.iter().map(control_session_value).collect::<Vec<_>>(),
         "orchestraRuns": orchestra_runs,
         "pendingRuntimeDeletions": [],
         "runtimeDeletionRetryAudit": [],
@@ -798,6 +863,19 @@ pub(crate) fn runtime_value(runtime: &RuntimeProjection) -> Value {
         "status": status_value(&runtime.status),
         "sidecarStatus": runtime.sidecar_status.as_ref().map(sidecar_status_value),
         "hasRuntimeAdminToken": false,
+    })
+}
+
+pub(crate) fn control_session_value(session: &ControlSession) -> Value {
+    json!({
+        "sessionId": session.session_id,
+        "runtimeId": session.runtime_id.as_str(),
+        "pipelineKind": session.pipeline_kind,
+        "requestedBy": session.requested_by,
+        "status": session.status,
+        "createdAt": timestamp(Some(session.created_at_unix_ms)),
+        "updatedAt": timestamp(Some(session.updated_at_unix_ms)),
+        "requirements": session.requirements,
     })
 }
 
@@ -1069,6 +1147,7 @@ pub(crate) struct ConsoleCleanupAction {
     pub(crate) targets: Vec<ConsoleCleanupTarget>,
     pub(crate) plan_token: String,
     pub(crate) challenge: Option<String>,
+    pub(crate) affected_session_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1100,9 +1179,10 @@ impl ConsoleCleanupPlan {
     }
 }
 
-pub(crate) fn build_cleanup_plan(
+pub(crate) fn build_cleanup_plan_with_sessions(
     filter: &RuntimeListFilter,
     all_runtimes: &[RuntimeProjection],
+    sessions: &[ControlSession],
 ) -> ConsoleCleanupPlan {
     let runtimes = filtered_runtimes(all_runtimes, filter);
     let risk_level = if [
@@ -1122,20 +1202,25 @@ pub(crate) fn build_cleanup_plan(
     ConsoleCleanupPlan {
         filter: filter.clone(),
         risk_level,
-        failed: build_cleanup_action(CleanupKind::Failed, filter, &runtimes),
-        unobserved: build_cleanup_action(CleanupKind::Unobserved, filter, &runtimes),
-        slice: build_cleanup_action(CleanupKind::Slice, filter, &runtimes),
+        failed: build_cleanup_action(CleanupKind::Failed, filter, &runtimes, sessions),
+        unobserved: build_cleanup_action(CleanupKind::Unobserved, filter, &runtimes, sessions),
+        slice: build_cleanup_action(CleanupKind::Slice, filter, &runtimes, sessions),
     }
 }
 
-fn cleanup_plan_value(filter: &RuntimeListFilter, runtimes: &[RuntimeProjection]) -> Value {
-    build_cleanup_plan(filter, runtimes).value()
+fn cleanup_plan_value(
+    filter: &RuntimeListFilter,
+    runtimes: &[RuntimeProjection],
+    sessions: &[ControlSession],
+) -> Value {
+    build_cleanup_plan_with_sessions(filter, runtimes, sessions).value()
 }
 
 fn build_cleanup_action(
     kind: CleanupKind,
     filter: &RuntimeListFilter,
     runtimes: &[&RuntimeProjection],
+    sessions: &[ControlSession],
 ) -> ConsoleCleanupAction {
     let mut targets = runtimes
         .iter()
@@ -1153,13 +1238,24 @@ fn build_cleanup_action(
             .cmp(&right.runtime_id.as_str().to_ascii_lowercase())
             .then_with(|| left.runtime_id.cmp(&right.runtime_id))
     });
-    let plan_token = cleanup_plan_token(kind, filter, &targets);
+    let target_ids = targets
+        .iter()
+        .map(|target| target.runtime_id.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut affected_session_ids = sessions
+        .iter()
+        .filter(|session| target_ids.contains(session.runtime_id.as_str()))
+        .map(|session| session.session_id.clone())
+        .collect::<Vec<_>>();
+    affected_session_ids.sort();
+    let plan_token = cleanup_plan_token(kind, filter, &targets, &affected_session_ids);
     let challenge = (kind == CleanupKind::Slice).then(|| format!("CLEAR {}", targets.len()));
     ConsoleCleanupAction {
         kind,
         targets,
         plan_token,
         challenge,
+        affected_session_ids,
     }
 }
 
@@ -1189,6 +1285,7 @@ fn cleanup_plan_token(
     kind: CleanupKind,
     filter: &RuntimeListFilter,
     targets: &[ConsoleCleanupTarget],
+    affected_session_ids: &[String],
 ) -> String {
     let mut canonical = vec![
         "runtime-cleanup-plan-v2".to_string(),
@@ -1218,6 +1315,11 @@ fn cleanup_plan_token(
             target.runtime_id.as_str().to_ascii_lowercase()
         )
     }));
+    canonical.extend(
+        affected_session_ids
+            .iter()
+            .map(|session_id| format!("session:{}", session_id.to_ascii_lowercase())),
+    );
     sha256_hex(canonical.join("\n").as_bytes())
 }
 
@@ -1235,7 +1337,7 @@ fn cleanup_action_value(action: &ConsoleCleanupAction) -> Value {
     json!({
         "kind": action.kind.as_str(),
         "runtimeCount": action.targets.len(),
-        "sessionCount": 0,
+        "sessionCount": action.affected_session_ids.len(),
         "targets": targets,
         "planToken": action.plan_token,
         "challenge": action.challenge,
@@ -1342,6 +1444,25 @@ mod tests {
         assert_eq!(
             ConsoleApiRoute::PersistenceImport.max_json_body_bytes(),
             Some(MAX_PROTOCOL_MESSAGE_BYTES)
+        );
+        assert_eq!(
+            parse_api_route_for_method("GET", "/v1/sessions").unwrap(),
+            Some(ConsoleApiRoute::Sessions)
+        );
+        assert_eq!(
+            parse_api_route_for_method("POST", "/v1/sessions").unwrap(),
+            Some(ConsoleApiRoute::SessionCreate)
+        );
+        assert_eq!(
+            parse_api_route_for_method("GET", "/v1/sessions/session%3Aedge").unwrap(),
+            Some(ConsoleApiRoute::Session("session:edge".into()))
+        );
+        assert_eq!(
+            parse_api_route_for_method("POST", "/v1/sessions/session-edge/stop")
+                .unwrap()
+                .unwrap()
+                .method(),
+            ConsoleApiMethod::PostJson
         );
         assert_eq!(
             parse_api_route("/v1/orchestra/plans/runtime%3Aedge").unwrap(),

@@ -1016,11 +1016,12 @@ fn read_http_request(
         return Err(HttpError::invalid_authority_writer_fence());
     }
     let writer_fence = parse_authority_writer_fence(writer_id, writer_generation)?;
-    let console_api = web_console::parse_api_route(parts[1]).map_err(|_| HttpError {
-        status: HttpStatus::BadRequest,
-        code: "invalid_console_query",
-        message: "Rust Web compatibility query is invalid",
-    })?;
+    let console_api =
+        web_console::parse_api_route_for_method(parts[0], parts[1]).map_err(|_| HttpError {
+            status: HttpStatus::BadRequest,
+            code: "invalid_console_query",
+            message: "Rust Web compatibility query is invalid",
+        })?;
     if let Some(route) = console_api {
         if writer_fence.is_some() {
             return Err(HttpError::invalid_authority_writer_fence());
@@ -2718,7 +2719,7 @@ mod tests {
         );
         assert_eq!(
             capabilities["webConsole"]["orchestraSessionHandoffAvailable"],
-            false
+            true
         );
         assert!(
             capabilities["routes"]
@@ -2937,19 +2938,109 @@ mod tests {
                 address,
                 cert.der().clone(),
                 "/v1/orchestra/plans/runtime-web-write-a/session",
-                br#"{"pipelineKind":"diagnostic","requestedBy":"operator"}"#.to_vec(),
+                br#"{"pipelineKind":"diagnostic","requestedBy":"operator","requestId":"request-tls-session-0001"}"#.to_vec(),
                 true,
             ),
         );
-        assert!(orchestra_session.starts_with(b"HTTP/1.1 409 Conflict\r\n"));
+        assert!(orchestra_session.starts_with(b"HTTP/1.1 200 OK\r\n"));
         let orchestra_session: serde_json::Value = serde_json::from_slice(
             &orchestra_session[find_header_end(&orchestra_session).unwrap()..],
         )
         .unwrap();
-        assert_eq!(
-            orchestra_session["error"],
-            "orchestra_session_authority_unavailable"
+        assert_eq!(orchestra_session["session"]["status"], "running");
+        assert_eq!(orchestra_session["run"]["planId"], "session_preparation");
+        assert_eq!(orchestra_session["replayed"], false);
+        let orchestra_session_id = orchestra_session["session"]["sessionId"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        let orchestra_session_replay = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/orchestra/plans/runtime-web-write-a/session",
+                br#"{"pipelineKind":"diagnostic","requestedBy":"operator","requestId":"request-tls-session-0001"}"#.to_vec(),
+                true,
+            ),
         );
+        let orchestra_session_replay: serde_json::Value = serde_json::from_slice(
+            &orchestra_session_replay[find_header_end(&orchestra_session_replay).unwrap()..],
+        )
+        .unwrap();
+        assert_eq!(orchestra_session_replay["replayed"], true);
+        assert_eq!(
+            orchestra_session_replay["session"]["sessionId"],
+            orchestra_session_id
+        );
+
+        let session_detail = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_get_client(
+                address,
+                cert.der().clone(),
+                format!("/v1/sessions/{orchestra_session_id}"),
+                Some(TOKEN),
+                Some(TOKEN),
+            ),
+        );
+        let session_detail: serde_json::Value =
+            serde_json::from_slice(&session_detail[find_header_end(&session_detail).unwrap()..])
+                .unwrap();
+        assert_eq!(session_detail["status"], "running");
+
+        let stopped_session = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                format!("/v1/sessions/{orchestra_session_id}/stop"),
+                br#"{"requestedBy":"operator","reason":"TLS lifecycle proof complete"}"#.to_vec(),
+                true,
+            ),
+        );
+        assert!(stopped_session.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let stopped_session: serde_json::Value =
+            serde_json::from_slice(&stopped_session[find_header_end(&stopped_session).unwrap()..])
+                .unwrap();
+        assert_eq!(stopped_session["status"], "stopped");
+
+        let direct_session = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_console_post_client(
+                address,
+                cert.der().clone(),
+                "/v1/sessions",
+                br#"{"runtimeId":"runtime-web-write-b","pipelineKind":"inspection","requestedBy":"operator","requirements":[],"requestId":"request-tls-session-0002"}"#.to_vec(),
+                true,
+            ),
+        );
+        assert!(direct_session.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let direct_session: serde_json::Value =
+            serde_json::from_slice(&direct_session[find_header_end(&direct_session).unwrap()..])
+                .unwrap();
+        assert_eq!(direct_session["runtimeId"], "runtime-web-write-b");
+        assert_eq!(direct_session["status"], "running");
+
+        let sessions = complete_tls_request(
+            &mut server,
+            &mut runtime,
+            tls_get_client(
+                address,
+                cert.der().clone(),
+                "/v1/sessions",
+                Some(TOKEN),
+                Some(TOKEN),
+            ),
+        );
+        let sessions: serde_json::Value =
+            serde_json::from_slice(&sessions[find_header_end(&sessions).unwrap()..]).unwrap();
+        assert_eq!(sessions["sessions"].as_array().unwrap().len(), 2);
 
         let plan = complete_tls_request(
             &mut server,

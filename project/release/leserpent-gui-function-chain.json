@@ -505,15 +505,14 @@
       "coverage": [
         {
           "surface": "rust-web",
-          "state": "partial",
-          "gap": "leserpentd now serves the shared TypeScript package and owns its plan, run, event, fleet-board, execute, cancel, and retry Orchestra compatibility routes through the existing Rust authority, alongside native fleet, cleanup, registration, and persistence operations. Only legacy generic session handoff still lacks a Rust domain model and depends on the ASP.NET bridge.",
+          "state": "closed",
           "evidence": [
-            { "stage": "entry", "path": "crates/leserpentd/src/web_console.rs", "contains": "pub(crate) fn find_asset(" },
+            { "stage": "entry", "path": "apps/leserpent/src/Leserpent/frontend/48-orchestra-renderer.ts", "contains": "data-orchestra-create-session" },
             { "stage": "transport", "path": "crates/leserpentd/src/remote.rs", "contains": "HttpRoute::ConsoleApi(route)" },
-            { "stage": "authority", "path": "crates/leserpentd/src/web_console_orchestra.rs", "contains": "pub(crate) fn execute_plan(" },
-            { "stage": "persistence", "path": "crates/leserpent-runtime/src/lib.rs", "contains": "pub fn import_control_plane_state(" },
-            { "stage": "projection", "path": "crates/leserpentd/src/web_console.rs", "contains": "pub(crate) fn render_api(" },
-            { "stage": "feedback", "path": "apps/leserpent/src/Leserpent/frontend/48-orchestra-renderer.ts", "contains": "function orchestraMutationAvailable()" }
+            { "stage": "authority", "path": "crates/leserpentd/src/web_console_orchestra.rs", "contains": "pub(crate) fn create_session_handoff(" },
+            { "stage": "persistence", "path": "crates/leserpent-runtime/src/lib.rs", "contains": "pub fn create_control_session(" },
+            { "stage": "projection", "path": "crates/leserpentd/src/web_console.rs", "contains": "pub(crate) fn control_session_value(" },
+            { "stage": "feedback", "path": "apps/leserpent/src/Leserpent/frontend/48-orchestra-renderer.ts", "contains": "created through Orchestra." }
           ]
         }
       ]

@@ -2538,14 +2538,14 @@
       "feature": "frontend-functional-parity",
       "lifecycle": "target",
       "priority": "critical",
-      "maturity": "developing",
-      "completion": 99,
+      "maturity": "stabilizing",
+      "completion": 100,
       "confidence": "high",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-gui-function-chain",
-        "version": "0.9.6-draft",
-        "stability": "draft",
+        "version": "1.0.0",
+        "stability": "stable",
         "surfaces": [
           "machine-readable-operation-inventory",
           "source-anchored-stage-evidence",
@@ -2641,7 +2641,12 @@
           "real-tls-rust-web-orchestra-proof",
           "capability-fenced-rust-web-orchestra-mutations",
           "capability-fenced-rust-web-session-handoff",
-          "explicit-rust-session-handoff-remaining-gap"
+          "durable-rust-session-authority",
+          "idempotent-rust-session-handoff",
+          "restart-recoverable-rust-session-lifecycle",
+          "session-bound-runtime-cleanup",
+          "portable-session-import-export",
+          "real-tls-rust-session-proof"
         ]
       },
       "depends_on": [
@@ -2652,12 +2657,7 @@
         "leserpent-2/control-runtime/durable-authority",
         "leserpent-2/daemon-host/daemon-lifecycle"
       ],
-      "blockers": [
-        {
-          "id": "rust-web-self-host",
-          "summary": "leserpentd now owns the shared console's plan, run, event, fleet-board, execute, cancel, and retry Orchestra routes through the existing Rust authority, in addition to its native fleet, cleanup, registration, and persistence surfaces. Only the legacy generic session handoff still lacks a Rust domain model before the ASP.NET bridge can retire."
-        }
-      ],
+      "blockers": [],
       "consumers": ["release-gates", "desktop-operators", "web-operators", "model-automation"],
       "evidence": [
         { "kind": "release", "path": "project/release/leserpent-gui-function-chain.json", "state": "present" },
@@ -2696,7 +2696,7 @@
         { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" }
       ],
-      "next_gate": "Either model generic session handoff as a durable Rust domain capability or formally retire that bridge-only workflow before removing ASP.NET; keep remote dynamic Gewyvern registration closed until explicit CA trust can be persisted."
+      "next_gate": "Keep the closed GUI function chain under real-TLS, restart, import/export, and cleanup regression while designing explicit persisted CA trust before enabling non-loopback dynamic Gewyvern registration."
     },
     {
       "id": "leserpent-2/ui-renderers/desktop-localization",

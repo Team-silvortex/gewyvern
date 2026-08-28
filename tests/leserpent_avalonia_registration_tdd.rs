@@ -105,7 +105,7 @@ fn native_registration_editor_has_reachable_create_and_update_workflows() {
 }
 
 #[test]
-fn function_chain_closes_existing_runtime_registration_without_hiding_other_gaps() {
+fn function_chain_closes_existing_runtime_registration_and_rust_web_target() {
     let matrix = source("project/release/leserpent-gui-function-chain.json");
     let docs = source("docs/leserpent-gui-function-chains.md");
     let status = source("project/status/catalog.json");
@@ -134,8 +134,8 @@ fn function_chain_closes_existing_runtime_registration_without_hiding_other_gaps
         );
     }
     assert!(docs.contains("| Avalonia desktop | target | 100 | 9 | 0 | 0 | 0 |"));
-    assert!(docs.contains("| Rust-hosted Web | target | 50 | 0 | 1 | 0 | 0 |"));
-    assert!(docs.contains("The combined target score is 95"));
+    assert!(docs.contains("| Rust-hosted Web | target | 100 | 1 | 0 | 0 | 0 |"));
+    assert!(docs.contains("The combined target score is 100"));
     assert!(docs.contains("field edits invalidate it"));
     assert!(docs.contains("`/v1/runtimes/register`"));
     assert!(docs.contains("schema-v21 intent"));
@@ -143,7 +143,7 @@ fn function_chain_closes_existing_runtime_registration_without_hiding_other_gaps
     assert!(!status.contains("\"id\": \"avalonia-runtime-registration-editor\""));
     assert!(!status.contains("\"id\": \"product-debugger-session-bridge\""));
     assert!(!status.contains("\"id\": \"product-leselang-execution-host\""));
-    assert!(status.contains("\"id\": \"rust-web-self-host\""));
+    assert!(!status.contains("\"id\": \"rust-web-self-host\""));
     assert!(status.contains("\"atomic-platform-secret-store-contract\""));
     assert!(status.contains("\"rust-web-crash-recoverable-registration\""));
 }

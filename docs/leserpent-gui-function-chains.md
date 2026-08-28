@@ -43,26 +43,27 @@ surface complete.
 | Surface | Lifecycle | Score | Closed | Partial | Conformance only | Absent |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | Avalonia desktop | target | 100 | 9 | 0 | 0 | 0 |
-| Rust-hosted Web | target | 50 | 0 | 1 | 0 | 0 |
+| Rust-hosted Web | target | 100 | 1 | 0 | 0 | 0 |
 | ASP.NET Web | bridge | 100 | 5 | 0 | 0 | 0 |
 
-The combined target score is 95. The closed Avalonia families are fleet
+The combined target score is 100. The closed Avalonia families are fleet
 observation, runtime control, existing-runtime registration, daemon lifecycle,
 Gewyvern lifecycle, authority health, Rust-authoritative Orchestra control, and
 the suspended Leselang debugger workflow, plus live product Leselang
 presentation automation. The native
 Orchestra workspace now closes revision-fenced plan discovery, automatic run,
 queued-only cancellation, lineage-bound retry, authenticated history/event
-drilldown, and idempotent cleanup. Guided plans stay visibly review-only. The
+drilldown, and idempotent cleanup. Guided plans stay visibly review-first. The
 registration editor separately closes already-running runtime intake and
 revision-fenced metadata updates: the daemon produces a side-effect-free plan,
 field edits invalidate it, and an explicit confirmation applies the same command
 identity without sending deployment credentials or service secrets. The
 Rust-hosted console now maps plan discovery, run and event history, the fleet
-board, execute, cancel, and retry directly onto that same authority. The
-remaining target gap is the legacy generic session handoff, which still has no
-Rust domain model; it must be modeled durably or formally retired before the
-ASP.NET bridge can retire.
+board, execute, cancel, retry, and generic session handoff directly onto native
+Rust authorities. The session aggregate is bounded, request-idempotent,
+restart-recoverable, portable across export/import, and removed transactionally
+with its owning runtime. This closes the last target GUI function-chain gap
+without moving authority back into the ASP.NET bridge.
 
 `leserpentd` now serves the exact packaged TypeScript console from its existing
 authenticated HTTPS listener. Public HTML, JavaScript, CSS, branding, and
@@ -109,23 +110,26 @@ internal secret handles. The response is a `no-store` attachment and remains und
 the protocol response bound. The shared importer now accepts the backend's
 advertised compatible schema range instead of incorrectly requiring exactly
 schema 1. Writer-fenced `POST /v1/persistence/import` now strictly decodes that
-portable schema, rejects sessions, unresolved recovery metadata, non-terminal
-Orchestra runs, active effects, and incomplete authority checkpoints, then
-atomically replaces the revision-rebased domain snapshot and validated Orchestra
-history. Two checksum-bound copies define the new recovery epoch, runtime logs
-are cleared, and both static catalog targets and dynamic credential bindings must
-retain their canonical runtime/origin identity. Unit, restart, and real TLS tests
-cover success, rollback, and conflict paths.
+portable schema, validates and imports bounded sessions, rejects unresolved
+recovery metadata, non-terminal Orchestra runs, active effects, and incomplete
+authority checkpoints, then atomically replaces the revision-rebased domain
+snapshot, validated Orchestra history, and session aggregate. Two checksum-bound
+copies define the new recovery epoch, runtime logs are cleared, and both static
+catalog targets and dynamic credential bindings must retain their canonical
+runtime/origin identity. Unit, restart, and real TLS tests cover success,
+rollback, and conflict paths.
 
 The same authenticated host now exposes strict dynamic Orchestra routes. Plan
 responses adapt the Rust catalog to the shared camel-case UI contract; bounded
 history/event readers and a 256-item fleet projection consume only validated
 SQLite envelopes. Execute, cancel, and retry require daemon-owned writer mode,
 retain command replay and plan-revision fences, and return `202 Accepted`. The
-shared UI checks `orchestraSessionHandoffAvailable`, so the Rust host keeps the
-guided generic-session plan review-only instead of presenting a guaranteed-fail
-control. The Rust Web surface remains `partial` only for that explicitly retained
-1.x session-handoff capability.
+guided session plan uses the same writer fence and exposes its control only when
+`orchestraSessionHandoffAvailable` is true. SQLite schema 22 persists the
+request-idempotent session and its terminal handoff run, while strict list,
+detail, create, and stop routes expose the bounded projection. Real TLS tests
+prove create, replay, lookup, stop, and direct session creation over the shared
+TypeScript contract. The Rust Web target is therefore closed.
 
 The debugger workspace starts a bounded daemon-owned VM only to its first
 effect, mounts the Rust-authored `UiDocument`, and routes its session-bound

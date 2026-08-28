@@ -41,6 +41,7 @@ pub use persistence::{
 };
 use persistence::{
     EffectRecord, Journal, JournalEntryKind, ORCHESTRA_DELETE_REPLAY_HORIZON_PINNED_ERROR,
+    SessionPersistenceRecord,
 };
 
 pub const EFFECT_QUEUE_CAPACITY: u64 = 10_000;
@@ -52,6 +53,40 @@ pub const ORCHESTRA_DELETE_REPLAY_WARNING_AVAILABLE_CAPACITY: u64 = 512;
 pub const ORCHESTRA_DELETE_REPLAY_CRITICAL_AVAILABLE_CAPACITY: u64 = 128;
 pub const ORCHESTRA_DELETE_REPLAY_WARNING_RECOVERY_AVAILABLE_CAPACITY: u64 = 768;
 pub const ORCHESTRA_DELETE_REPLAY_CRITICAL_RECOVERY_AVAILABLE_CAPACITY: u64 = 256;
+pub const MAX_CONTROL_SESSIONS: usize = 4_096;
+pub const MAX_SESSION_REQUIREMENTS: usize = 256;
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionCapabilityRequirement {
+    pub key: String,
+    pub minimum_support: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ControlSession {
+    pub session_id: String,
+    pub runtime_id: RuntimeId,
+    pub pipeline_kind: String,
+    pub requested_by: String,
+    pub status: String,
+    pub created_at_unix_ms: u64,
+    pub updated_at_unix_ms: u64,
+    pub requirements: Vec<SessionCapabilityRequirement>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SessionCreateResult {
+    pub session: ControlSession,
+    pub replayed: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SessionImportRecord {
+    pub request_id: String,
+    pub session: ControlSession,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OrchestraDeleteReplayAdmissionPressure {
@@ -172,6 +207,7 @@ pub struct RuntimeUnregisterResult {
     pub deleted_orchestra_runtime_count: u32,
     pub deleted_orchestra_run_count: u64,
     pub deleted_orchestra_event_count: u64,
+    pub deleted_session_count: u32,
     pub removed_at_unix_ms: i64,
     pub replayed: bool,
 }
@@ -195,6 +231,7 @@ pub struct RuntimeUnregistrationReceipt {
     pub deleted_orchestra_runtime_count: u32,
     pub deleted_orchestra_run_count: u64,
     pub deleted_orchestra_event_count: u64,
+    pub deleted_session_count: u32,
     pub removed_at_unix_ms: i64,
 }
 
@@ -447,6 +484,83 @@ struct RuntimeUnregistration {
     runtime_id: String,
 }
 
+fn validate_session_input(
+    request_id: &str,
+    session_id: &str,
+    pipeline_kind: &str,
+    requested_by: &str,
+    requirements: &[SessionCapabilityRequirement],
+) -> Result<(), RuntimeError> {
+    if !valid_session_identity(request_id)
+        || !valid_session_identity(session_id)
+        || !valid_session_text(pipeline_kind, 128)
+        || !valid_session_text(requested_by, 256)
+        || requirements.len() > MAX_SESSION_REQUIREMENTS
+    {
+        return Err(RuntimeError::Domain(DomainError::InvalidQuery {
+            reason: "invalid control session request",
+        }));
+    }
+    let mut keys = BTreeSet::new();
+    for requirement in requirements {
+        if !valid_session_text(&requirement.key, 128)
+            || !keys.insert(requirement.key.to_ascii_lowercase())
+            || !matches!(
+                requirement.minimum_support.as_str(),
+                "fully_supported" | "risky" | "not_supported"
+            )
+        {
+            return Err(RuntimeError::Domain(DomainError::InvalidQuery {
+                reason: "invalid control session requirement",
+            }));
+        }
+    }
+    Ok(())
+}
+
+fn valid_session_identity(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b':' | b'.'))
+}
+
+fn valid_session_text(value: &str, maximum: usize) -> bool {
+    !value.is_empty()
+        && value.len() <= maximum
+        && value == value.trim()
+        && !value.chars().any(char::is_control)
+}
+
+fn map_session_storage_error(error: String) -> RuntimeError {
+    if error == "session request idempotency conflict" {
+        RuntimeError::Domain(DomainError::IdempotencyConflict {
+            key: "control-session".into(),
+        })
+    } else {
+        RuntimeError::Storage(error)
+    }
+}
+
+fn control_session_from_persistence(
+    session: SessionPersistenceRecord,
+) -> Result<ControlSession, RuntimeError> {
+    Ok(ControlSession {
+        session_id: session.session_id,
+        runtime_id: RuntimeId::new(session.runtime_id).map_err(RuntimeError::Domain)?,
+        pipeline_kind: session.pipeline_kind,
+        requested_by: session.requested_by,
+        status: session.status,
+        created_at_unix_ms: u64::try_from(session.created_at_unix_ms)
+            .map_err(|_| RuntimeError::Storage("control session timestamp is invalid".into()))?,
+        updated_at_unix_ms: u64::try_from(session.updated_at_unix_ms)
+            .map_err(|_| RuntimeError::Storage("control session timestamp is invalid".into()))?,
+        requirements: serde_json::from_slice(&session.requirements)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?,
+    })
+}
+
 impl ControlRuntime {
     pub fn persistence_enabled(&self) -> bool {
         self.journal.is_some()
@@ -629,6 +743,111 @@ impl ControlRuntime {
             })?
             .acknowledge_runtime_target_secret_gc(secret_key)
             .map_err(RuntimeError::Storage)
+    }
+
+    pub fn create_control_session(
+        &mut self,
+        request_id: &str,
+        session_id: &str,
+        runtime_id: &RuntimeId,
+        pipeline_kind: &str,
+        requested_by: &str,
+        requirements: Vec<SessionCapabilityRequirement>,
+    ) -> Result<SessionCreateResult, RuntimeError> {
+        let mut requirements = requirements;
+        requirements.sort_by(|left, right| {
+            left.key
+                .to_ascii_lowercase()
+                .cmp(&right.key.to_ascii_lowercase())
+        });
+        if self.control.runtime_projection(runtime_id).is_none() {
+            return Err(RuntimeError::Domain(DomainError::RuntimeNotFound {
+                runtime_id: runtime_id.as_str().to_string(),
+            }));
+        }
+        validate_session_input(
+            request_id,
+            session_id,
+            pipeline_kind,
+            requested_by,
+            &requirements,
+        )?;
+        let now = persistence::unix_time_ms().map_err(RuntimeError::Storage)?;
+        let persisted = SessionPersistenceRecord {
+            session_id: session_id.to_string(),
+            request_id: request_id.to_string(),
+            runtime_id: runtime_id.as_str().to_string(),
+            pipeline_kind: pipeline_kind.to_string(),
+            requested_by: requested_by.to_string(),
+            status: "running".into(),
+            created_at_unix_ms: now,
+            updated_at_unix_ms: now,
+            requirements: serde_json::to_vec(&requirements)
+                .map_err(|error| RuntimeError::Storage(error.to_string()))?,
+        };
+        let created = self
+            .journal
+            .as_mut()
+            .ok_or_else(|| {
+                RuntimeError::Storage("control sessions require persistent storage".into())
+            })?
+            .create_control_session(&persisted)
+            .map_err(map_session_storage_error)?;
+        Ok(SessionCreateResult {
+            session: control_session_from_persistence(created.session)?,
+            replayed: created.replayed,
+        })
+    }
+
+    pub fn list_control_sessions(&mut self) -> Result<Vec<ControlSession>, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Ok(Vec::new());
+        };
+        let sessions = journal
+            .load_control_sessions()
+            .map_err(RuntimeError::Storage)?
+            .into_iter()
+            .map(control_session_from_persistence)
+            .collect::<Result<Vec<_>, _>>()?;
+        if sessions.iter().any(|session| {
+            self.control
+                .runtime_projection(&session.runtime_id)
+                .is_none()
+        }) {
+            return Err(RuntimeError::Storage(
+                "control session references an unknown runtime".into(),
+            ));
+        }
+        Ok(sessions)
+    }
+
+    pub fn control_session(
+        &mut self,
+        session_id: &str,
+    ) -> Result<Option<ControlSession>, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Ok(None);
+        };
+        journal
+            .load_control_session(session_id)
+            .map_err(RuntimeError::Storage)?
+            .map(control_session_from_persistence)
+            .transpose()
+    }
+
+    pub fn stop_control_session(
+        &mut self,
+        session_id: &str,
+    ) -> Result<Option<ControlSession>, RuntimeError> {
+        self.journal
+            .as_mut()
+            .ok_or_else(|| {
+                RuntimeError::Storage("control sessions require persistent storage".into())
+            })?
+            .stop_control_session(session_id)
+            .map_err(RuntimeError::Storage)?
+            .map(control_session_from_persistence)
+            .transpose()
     }
 
     pub fn open(path: impl AsRef<Path>) -> Result<Self, RuntimeError> {
@@ -872,6 +1091,7 @@ impl ControlRuntime {
         &mut self,
         snapshot: DomainSnapshot,
         orchestra_runs: &[OrchestraImportRecord],
+        sessions: &[SessionImportRecord],
         protected_binding_runtime_ids: &[String],
     ) -> Result<ControlPlaneImportRecord, RuntimeError> {
         snapshot.validate().map_err(RuntimeError::InvalidSnapshot)?;
@@ -879,6 +1099,54 @@ impl ControlRuntime {
             .map_err(RuntimeError::InvalidSnapshot)?;
         let payload = serde_json::to_vec(&snapshot)
             .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        if sessions.len() > MAX_CONTROL_SESSIONS {
+            return Err(RuntimeError::Domain(DomainError::InvalidQuery {
+                reason: "control session import exceeds its retention bound",
+            }));
+        }
+        let mut session_ids = BTreeSet::new();
+        let mut request_ids = BTreeSet::new();
+        let mut persisted_sessions = Vec::with_capacity(sessions.len());
+        for imported in sessions {
+            let session = &imported.session;
+            validate_session_input(
+                &imported.request_id,
+                &session.session_id,
+                &session.pipeline_kind,
+                &session.requested_by,
+                &session.requirements,
+            )?;
+            if !matches!(session.status.as_str(), "running" | "stopped")
+                || session.created_at_unix_ms > session.updated_at_unix_ms
+                || staged.runtime_projection(&session.runtime_id).is_none()
+                || !session_ids.insert(session.session_id.to_ascii_lowercase())
+                || !request_ids.insert(imported.request_id.to_ascii_lowercase())
+            {
+                return Err(RuntimeError::Domain(DomainError::InvalidQuery {
+                    reason: "invalid control session import",
+                }));
+            }
+            persisted_sessions.push(SessionPersistenceRecord {
+                session_id: session.session_id.clone(),
+                request_id: imported.request_id.clone(),
+                runtime_id: session.runtime_id.as_str().to_string(),
+                pipeline_kind: session.pipeline_kind.clone(),
+                requested_by: session.requested_by.clone(),
+                status: session.status.clone(),
+                created_at_unix_ms: i64::try_from(session.created_at_unix_ms).map_err(|_| {
+                    RuntimeError::Domain(DomainError::InvalidQuery {
+                        reason: "invalid control session import timestamp",
+                    })
+                })?,
+                updated_at_unix_ms: i64::try_from(session.updated_at_unix_ms).map_err(|_| {
+                    RuntimeError::Domain(DomainError::InvalidQuery {
+                        reason: "invalid control session import timestamp",
+                    })
+                })?,
+                requirements: serde_json::to_vec(&session.requirements)
+                    .map_err(|error| RuntimeError::Storage(error.to_string()))?,
+            });
+        }
         let Some(journal) = &mut self.journal else {
             return Err(RuntimeError::Storage(
                 "control-plane import requires persistent storage".into(),
@@ -889,6 +1157,7 @@ impl ControlRuntime {
                 DOMAIN_SNAPSHOT_SCHEMA_VERSION,
                 &payload,
                 orchestra_runs,
+                &persisted_sessions,
                 protected_binding_runtime_ids,
             )
             .map_err(RuntimeError::Storage)?;
@@ -1062,6 +1331,7 @@ impl ControlRuntime {
                     deleted_orchestra_runtime_count: record.deleted_runtime_count,
                     deleted_orchestra_run_count: record.deleted_run_count,
                     deleted_orchestra_event_count: record.deleted_event_count,
+                    deleted_session_count: record.deleted_session_count,
                     removed_at_unix_ms: record.removed_at_unix_ms,
                 })
             })
@@ -1407,6 +1677,7 @@ impl ControlRuntime {
                 deleted_orchestra_runtime_count: record.deleted_runtime_count,
                 deleted_orchestra_run_count: record.deleted_run_count,
                 deleted_orchestra_event_count: record.deleted_event_count,
+                deleted_session_count: record.deleted_session_count,
                 removed_at_unix_ms: record.removed_at_unix_ms,
                 replayed: true,
             });
@@ -1459,6 +1730,7 @@ impl ControlRuntime {
             deleted_orchestra_runtime_count: record.deleted_runtime_count,
             deleted_orchestra_run_count: record.deleted_run_count,
             deleted_orchestra_event_count: record.deleted_event_count,
+            deleted_session_count: record.deleted_session_count,
             removed_at_unix_ms: record.removed_at_unix_ms,
             replayed: false,
         })
@@ -3216,7 +3488,7 @@ mod tests {
                 "DROP TABLE runtime_target_registration_intents;
                  DROP TABLE runtime_target_bindings;
                  DROP TABLE runtime_target_secret_gc;
-                 DELETE FROM runtime_schema_migrations WHERE version = 21;
+                 DELETE FROM runtime_schema_migrations WHERE version IN (21, 22);
                  UPDATE runtime_metadata SET value = 20 WHERE key = 'schema_version';",
             )
             .unwrap();
@@ -3244,7 +3516,7 @@ mod tests {
                 },
             )
             .unwrap();
-        assert_eq!(state, (21, 1, 0, 0, 0));
+        assert_eq!(state, (22, 1, 0, 0, 0));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -3734,8 +4006,8 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 21);
-        assert_eq!(migration_count, 21);
+        assert_eq!(schema, 22);
+        assert_eq!(migration_count, 22);
         assert_eq!(legacy_timestamp, 0);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -3812,7 +4084,7 @@ mod tests {
                  DROP TABLE runtime_target_bindings;
                  DROP TABLE runtime_target_secret_gc;
                  DELETE FROM runtime_schema_migrations
-                 WHERE version IN (12, 13, 14, 15, 16, 17, 18, 19, 20, 21);
+                 WHERE version IN (12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22);
                  UPDATE runtime_metadata SET value = 11 WHERE key = 'schema_version';",
             )
             .unwrap();
@@ -3840,7 +4112,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        assert_eq!((schema, bootstrap_rows, provisioning_rows), (21, 1, 0));
+        assert_eq!((schema, bootstrap_rows, provisioning_rows), (22, 1, 0));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -3889,7 +4161,7 @@ mod tests {
         let connection = Connection::open(&path).unwrap();
         connection
             .execute(
-                "DELETE FROM runtime_schema_migrations WHERE version IN (20, 21)",
+                "DELETE FROM runtime_schema_migrations WHERE version IN (20, 21, 22)",
                 [],
             )
             .unwrap();
@@ -3926,7 +4198,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        assert_eq!(state, (21, 1, 1));
+        assert_eq!(state, (22, 1, 1));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -3984,7 +4256,7 @@ mod tests {
                  DROP TABLE runtime_target_registration_intents;
                  DROP TABLE runtime_target_bindings;
                  DROP TABLE runtime_target_secret_gc;
-                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18, 19, 20, 21);
+                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18, 19, 20, 21, 22);
                  DELETE FROM runtime_schema_migrations WHERE version = 16;
                  DELETE FROM runtime_schema_migrations WHERE version = 15;
                  UPDATE runtime_metadata SET value = 14 WHERE key = 'schema_version';",
@@ -4040,6 +4312,7 @@ mod tests {
                  DROP TABLE runtime_target_registration_intents;
                  DROP TABLE runtime_target_bindings;
                  DROP TABLE runtime_target_secret_gc;
+                 DELETE FROM runtime_schema_migrations WHERE version = 22;
                  DELETE FROM runtime_schema_migrations WHERE version = 21;
                  DELETE FROM runtime_schema_migrations WHERE version = 20;
                  DELETE FROM runtime_schema_migrations WHERE version = 19;
@@ -4068,7 +4341,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .unwrap();
-        assert_eq!(state, (21, 1, 0, 1));
+        assert_eq!(state, (22, 1, 0, 1));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -4093,7 +4366,7 @@ mod tests {
                  DROP TABLE runtime_target_registration_intents;
                  DROP TABLE runtime_target_bindings;
                  DROP TABLE runtime_target_secret_gc;
-                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18, 19, 20, 21);
+                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18, 19, 20, 21, 22);
                  UPDATE runtime_metadata SET value = 16
                  WHERE key = 'schema_version';",
             )
@@ -4128,7 +4401,7 @@ mod tests {
 
     #[test]
     fn sqlite_journal_rejects_incomplete_current_schema() {
-        let path = temp_journal("incomplete-v21");
+        let path = temp_journal("incomplete-v22");
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
@@ -4143,14 +4416,14 @@ mod tests {
                      outcome BLOB,
                      terminal_error TEXT
                  ) STRICT;
-                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 21);",
+                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 22);",
             )
             .unwrap();
         drop(connection);
 
         assert!(matches!(
             ControlRuntime::open(&path),
-            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 21")
+            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -4234,6 +4507,12 @@ mod tests {
             .unwrap();
         connection
             .execute(
+                "DELETE FROM runtime_schema_migrations WHERE version = 22",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
                 "DELETE FROM runtime_schema_migrations WHERE version = 21",
                 [],
             )
@@ -4309,7 +4588,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 21);
+        assert_eq!(schema, 22);
         assert_eq!(migration, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -4330,7 +4609,7 @@ mod tests {
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 21 journal kind")
+                if error.contains("invalid runtime journal schema 22 journal kind")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -4343,14 +4622,14 @@ mod tests {
             .unwrap()
             .execute(
                 "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms)
-                 VALUES (22, 0)",
+                 VALUES (23, 0)",
                 [],
             )
             .unwrap();
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 21 migration history")
+                if error.contains("invalid runtime journal schema 22 migration history")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -4665,7 +4944,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(schema, 21);
+        assert_eq!(schema, 22);
         assert_eq!(generation, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -5423,7 +5702,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 21);
+        assert_eq!(schema, 22);
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -6492,6 +6771,101 @@ mod tests {
         );
         drop(connection);
         drop(runtime);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn control_sessions_are_idempotent_durable_stoppable_and_runtime_owned() {
+        let path = temp_journal("control-sessions");
+        let runtime_id = RuntimeId::new("runtime-session-owner").unwrap();
+        let projection = {
+            let mut runtime = ControlRuntime::open(&path).unwrap();
+            let projection = runtime
+                .register_runtime(
+                    runtime_id.clone(),
+                    "Session owner",
+                    "https://runtime-session-owner.invalid",
+                )
+                .unwrap();
+            let requirements = vec![SessionCapabilityRequirement {
+                key: "latest_snapshot".into(),
+                minimum_support: "fully_supported".into(),
+            }];
+            let created = runtime
+                .create_control_session(
+                    "request-session-owner-1",
+                    "session-owner-1",
+                    &runtime_id,
+                    "diagnostic",
+                    "operator",
+                    requirements.clone(),
+                )
+                .unwrap();
+            assert!(!created.replayed);
+            assert_eq!(created.session.status, "running");
+            let replay = runtime
+                .create_control_session(
+                    "request-session-owner-1",
+                    "session-owner-1",
+                    &runtime_id,
+                    "diagnostic",
+                    "operator",
+                    requirements,
+                )
+                .unwrap();
+            assert!(replay.replayed);
+            assert_eq!(replay.session, created.session);
+            assert!(matches!(
+                runtime.create_control_session(
+                    "request-session-owner-1",
+                    "session-owner-1",
+                    &runtime_id,
+                    "different",
+                    "operator",
+                    Vec::new(),
+                ),
+                Err(RuntimeError::Domain(
+                    DomainError::IdempotencyConflict { .. }
+                ))
+            ));
+            let stopped = runtime
+                .stop_control_session("session-owner-1")
+                .unwrap()
+                .unwrap();
+            assert_eq!(stopped.status, "stopped");
+            assert_eq!(
+                runtime
+                    .stop_control_session("session-owner-1")
+                    .unwrap()
+                    .unwrap(),
+                stopped
+            );
+            projection
+        };
+
+        let mut restarted = ControlRuntime::open(&path).unwrap();
+        let restored = restarted.list_control_sessions().unwrap();
+        assert_eq!(restored.len(), 1);
+        assert_eq!(restored[0].status, "stopped");
+        let command_id = CommandId::new("unregister-session-owner").unwrap();
+        let result = restarted
+            .unregister_runtimes(
+                command_id.clone(),
+                vec![RuntimeUnregisterTarget {
+                    runtime_id: runtime_id.clone(),
+                    expected_revision: projection.revision,
+                }],
+            )
+            .unwrap();
+        assert_eq!(result.deleted_session_count, 1);
+        assert!(restarted.list_control_sessions().unwrap().is_empty());
+        let receipt = restarted
+            .runtime_unregistration_receipt(command_id)
+            .unwrap()
+            .receipt
+            .unwrap();
+        assert_eq!(receipt.deleted_session_count, 1);
+        drop(restarted);
         fs::remove_file(path).unwrap();
     }
 

@@ -213,18 +213,20 @@ The machine-validated [GUI function-chain matrix](leserpent-gui-function-chains.
 now audits entry, semantic lowering, transport, authority, persistence,
 projection, operator feedback, and Leselang equivalence separately. Its
 2026-08-28 baseline scores the Avalonia product at 100, the Rust-hosted Web target
-at 50, and the supported ASP.NET Web bridge at 100, for a combined target score
-of 95. The Rust daemon now serves the shared packaged TypeScript console and its
+at 100, and the supported ASP.NET Web bridge at 100, for a combined target score
+of 100. The Rust daemon now serves the shared packaged TypeScript console and its
 Bearer-authenticated first-screen read projections directly. Refresh, deletion,
 strict-loopback Gewyvern registration, writer-fenced snapshots, bounded
 secret-free state export, atomic portable state import, and the core Orchestra
-plan/run/event/fleet/execute/cancel/retry routes are Rust-owned. The legacy generic
-session handoff remains the explicit bridge-retirement gap. Avalonia now closes a
+plan/run/event/fleet/execute/cancel/retry/session routes are Rust-owned. Generic
+session handoff now uses a bounded, idempotent, restart-recoverable SQLite
+authority and participates in portable import/export and runtime cleanup,
+closing the last Rust Web GUI function-chain gap. Avalonia now closes a
 daemon-owned native Orchestra workspace for strict,
 revision-fenced plan discovery, Rust-authoritative automatic execution,
 queued-only cancellation, lineage-bound retry, persisted run/event drilldown,
-and idempotent runtime-scoped cleanup. Guided plans remain review-only rather
-than claiming missing sidecar or session authority. The desktop also closes
+and idempotent runtime-scoped cleanup. Guided plans remain review-first and only
+surface controls backed by native authority. The desktop also closes
 existing-runtime registration and registration updates through strict daemon
 inspection, side-effect-free plans, field-change invalidation, explicit
 confirmation, and target-runtime revision fences. The live debugger session

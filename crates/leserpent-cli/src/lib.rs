@@ -1670,6 +1670,7 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
         )),
         ProtocolResponse::DebuggerSessions(_)
         | ProtocolResponse::DebuggerSessionStarted(_)
+        | ProtocolResponse::DebuggerPresentationAdvanced(_)
         | ProtocolResponse::DebuggerCancelled(_) => Err(CliError::Protocol(
             "unexpected debugger response without a typed CLI operation".into(),
         )),

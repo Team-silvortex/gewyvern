@@ -240,14 +240,18 @@ fn orchestra_session_handoff_follows_host_capability_without_fake_success() {
         "JSON.stringify([normalized, mutationAvailable])",
         "plan.executionMode === \"automatic\" && mutationAvailable",
         "mutationAvailable && [\"queued\", \"running\"].includes(run.outcome)",
-        "Generic session handoff is a 1.x bridge-only capability",
+        "Session handoff requires durable Rust writer authority",
     ] {
         assert!(
             renderer.contains(contract),
             "missing Orchestra session capability fence {contract}"
         );
     }
-    assert!(rust_host.contains("\"orchestraSessionHandoffAvailable\": false"));
+    assert!(
+        rust_host.contains(
+            "\"orchestraSessionHandoffAvailable\": writer_enabled && persistence_enabled"
+        )
+    );
     assert!(
         rust_host.contains("\"orchestraMutationAvailable\": writer_enabled && persistence_enabled")
     );

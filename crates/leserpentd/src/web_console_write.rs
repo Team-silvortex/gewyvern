@@ -12,9 +12,11 @@ use leserpent_domain::{
 };
 use leserpent_protocol::{AuthorityWriterFence, MAX_PROTOCOL_MESSAGE_BYTES};
 use leserpent_runtime::{
-    AuthorityWriterFenceError, ControlRuntime, OrchestraImportRecord, PlanResult, RuntimeError,
-    RuntimeUnregisterTarget,
+    AuthorityWriterFenceError, ControlRuntime, ControlSession, OrchestraImportRecord, PlanResult,
+    RuntimeError, RuntimeUnregisterTarget, SessionCapabilityRequirement, SessionImportRecord,
 };
+use ring::digest;
+use ring::rand::{SecureRandom, SystemRandom};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use time::{Duration as TimeDuration, OffsetDateTime, format_description::well_known::Rfc3339};
@@ -26,8 +28,9 @@ use crate::runtime_target_registration::{
 };
 use crate::web_console::{
     CleanupKind, ConsoleApiRoute, MAX_ATOMIC_CLEANUP_TARGETS, MAX_CLEANUP_REQUEST_BYTES,
-    MAX_REGISTRATION_PLAN_BYTES, MAX_REGISTRATION_REQUEST_BYTES, PERSISTENCE_EXPORT_SCHEMA_VERSION,
-    build_cleanup_plan, runtime_value, sha256_hex,
+    MAX_ORCHESTRA_COMMAND_BYTES, MAX_REGISTRATION_PLAN_BYTES, MAX_REGISTRATION_REQUEST_BYTES,
+    PERSISTENCE_EXPORT_SCHEMA_VERSION, build_cleanup_plan_with_sessions, control_session_value,
+    runtime_value, sha256_hex,
 };
 pub(crate) use crate::web_console_error::{ConsoleWriteError, ConsoleWriteStatus};
 use crate::web_console_orchestra;
@@ -124,11 +127,30 @@ struct CleanupRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SessionCreateRequest {
+    runtime_id: String,
+    pipeline_kind: String,
+    requested_by: String,
+    #[serde(default)]
+    requirements: Vec<SessionCapabilityRequirement>,
+    #[serde(default)]
+    request_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SessionStopRequest {
+    requested_by: String,
+    reason: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PersistenceImportRequest {
     schema_version: u32,
     saved_at: String,
     runtimes: Vec<PersistenceRuntime>,
-    sessions: Vec<Value>,
+    sessions: Vec<PersistenceSession>,
     #[serde(default)]
     orchestra_runs: Option<Vec<PersistenceOrchestraRun>>,
     #[serde(default)]
@@ -143,6 +165,19 @@ struct PersistenceImportRequest {
     orchestra_delete_checkpoint_alert_outbox: Option<Vec<Value>>,
     #[serde(default)]
     pending_runtime_registrations: Option<Vec<Value>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PersistenceSession {
+    session_id: String,
+    runtime_id: String,
+    pipeline_kind: String,
+    requested_by: String,
+    status: String,
+    created_at: String,
+    updated_at: String,
+    requirements: Vec<SessionCapabilityRequirement>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -353,6 +388,10 @@ pub(crate) fn execute_with_registration(
             import_persistence(body, runtime, writer_fence, registration)?
         }
         ConsoleApiRoute::PersistenceSave => save_persistence(runtime, writer_fence)?,
+        ConsoleApiRoute::SessionCreate => create_control_session(body, runtime, writer_fence)?,
+        ConsoleApiRoute::SessionStop(session_id) => {
+            stop_control_session(session_id, body, runtime, writer_fence)?
+        }
         ConsoleApiRoute::OrchestraExecute {
             runtime_id,
             plan_id,
@@ -368,9 +407,9 @@ pub(crate) fn execute_with_registration(
             require_writer(runtime, writer_fence)?;
             web_console_orchestra::retry_run(runtime, runtime_id, run_id, body)?
         }
-        ConsoleApiRoute::OrchestraSession(_) => {
+        ConsoleApiRoute::OrchestraSession(runtime_id) => {
             require_writer(runtime, writer_fence)?;
-            web_console_orchestra::reject_session_handoff(body)?
+            web_console_orchestra::create_session_handoff(runtime, runtime_id, body)?
         }
         _ => {
             return Err(ConsoleWriteError {
@@ -415,6 +454,174 @@ fn save_persistence(
     }))
 }
 
+fn create_control_session(
+    body: &[u8],
+    runtime: &mut ControlRuntime,
+    writer_fence: Option<&AuthorityWriterFence>,
+) -> Result<Value, ConsoleWriteError> {
+    require_writer(runtime, writer_fence)?;
+    if body.is_empty() || body.len() > MAX_ORCHESTRA_COMMAND_BYTES {
+        return Err(invalid_session_request());
+    }
+    let mut request: SessionCreateRequest =
+        serde_json::from_slice(body).map_err(|_| invalid_session_request())?;
+    let runtime_id =
+        RuntimeId::new(request.runtime_id.clone()).map_err(|_| invalid_session_request())?;
+    if !valid_import_text(&request.pipeline_kind, 128, false)
+        || !valid_import_text(&request.requested_by, 256, false)
+        || request.requirements.len() > leserpent_runtime::MAX_SESSION_REQUIREMENTS
+    {
+        return Err(invalid_session_request());
+    }
+    let mut requirement_keys = HashSet::with_capacity(request.requirements.len());
+    request.requirements.sort_by(|left, right| {
+        left.key
+            .to_ascii_lowercase()
+            .cmp(&right.key.to_ascii_lowercase())
+    });
+    for requirement in &request.requirements {
+        if !valid_import_text(&requirement.key, 128, false)
+            || !requirement_keys.insert(requirement.key.to_ascii_lowercase())
+            || !matches!(
+                requirement.minimum_support.as_str(),
+                "fully_supported" | "risky" | "not_supported"
+            )
+        {
+            return Err(invalid_session_request());
+        }
+    }
+    let projection = runtime
+        .runtime_projection(&runtime_id)
+        .cloned()
+        .ok_or_else(|| {
+            map_domain_error(DomainError::RuntimeNotFound {
+                runtime_id: runtime_id.as_str().to_string(),
+            })
+        })?;
+    if request
+        .requirements
+        .iter()
+        .any(|requirement| !runtime_supports_requirement(&projection, &requirement.key))
+    {
+        return Err(ConsoleWriteError::new(
+            ConsoleWriteStatus::BadRequest,
+            "capability_requirements_not_satisfied",
+            "runtime does not satisfy the requested session capabilities",
+        ));
+    }
+    let request_id = match request.request_id.as_deref() {
+        Some(value) => validate_session_request_id(value)?.to_string(),
+        None => new_session_request_id()?,
+    };
+    let session_id = deterministic_session_id(&request_id, &runtime_id);
+    let created = runtime
+        .create_control_session(
+            &request_id,
+            &session_id,
+            &runtime_id,
+            &request.pipeline_kind,
+            &request.requested_by,
+            request.requirements,
+        )
+        .map_err(map_runtime_error)?;
+    Ok(control_session_value(&created.session))
+}
+
+fn stop_control_session(
+    session_id: &str,
+    body: &[u8],
+    runtime: &mut ControlRuntime,
+    writer_fence: Option<&AuthorityWriterFence>,
+) -> Result<Value, ConsoleWriteError> {
+    require_writer(runtime, writer_fence)?;
+    if body.is_empty() || body.len() > MAX_ORCHESTRA_COMMAND_BYTES {
+        return Err(invalid_session_request());
+    }
+    let request: SessionStopRequest =
+        serde_json::from_slice(body).map_err(|_| invalid_session_request())?;
+    if !valid_import_text(&request.requested_by, 256, false)
+        || !valid_import_text(&request.reason, 1_024, true)
+    {
+        return Err(invalid_session_request());
+    }
+    let stopped = runtime
+        .stop_control_session(session_id)
+        .map_err(map_runtime_error)?
+        .ok_or_else(|| {
+            ConsoleWriteError::new(
+                ConsoleWriteStatus::NotFound,
+                "session_not_found",
+                "control session was not found",
+            )
+        })?;
+    Ok(control_session_value(&stopped))
+}
+
+fn invalid_session_request() -> ConsoleWriteError {
+    ConsoleWriteError::new(
+        ConsoleWriteStatus::BadRequest,
+        "invalid_session_request",
+        "control session request failed validation",
+    )
+}
+
+fn validate_session_request_id(value: &str) -> Result<&str, ConsoleWriteError> {
+    if value.len() < 8
+        || value.len() > 128
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b':' | b'.'))
+    {
+        return Err(invalid_session_request());
+    }
+    Ok(value)
+}
+
+fn new_session_request_id() -> Result<String, ConsoleWriteError> {
+    let mut bytes = [0_u8; 16];
+    SystemRandom::new().fill(&mut bytes).map_err(|_| {
+        ConsoleWriteError::new(
+            ConsoleWriteStatus::InternalServerError,
+            "session_identity_unavailable",
+            "control session identity generation failed",
+        )
+    })?;
+    Ok(format!("web-session:{}", hex_prefix(&bytes)))
+}
+
+fn deterministic_session_id(request_id: &str, runtime_id: &RuntimeId) -> String {
+    let input = format!(
+        "leserpent-session-v1\0{request_id}\0{}",
+        runtime_id.as_str()
+    );
+    let digest = digest::digest(&digest::SHA256, input.as_bytes());
+    format!("session-{}", hex_prefix(&digest.as_ref()[..16]))
+}
+
+fn hex_prefix(bytes: &[u8]) -> String {
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        use std::fmt::Write as _;
+        write!(&mut encoded, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    encoded
+}
+
+fn runtime_supports_requirement(runtime: &RuntimeProjection, key: &str) -> bool {
+    match key {
+        "latest_snapshot" => runtime.capabilities.latest_snapshot,
+        "authenticated_deployment" => runtime.capabilities.authenticated_deployment,
+        "serve_required" => runtime.capabilities.serve_required,
+        "external_sidecar_context" => runtime.capabilities.external_sidecar_context,
+        key => runtime
+            .capabilities
+            .extensions
+            .get(key)
+            .copied()
+            .unwrap_or(false),
+    }
+}
+
 fn import_persistence(
     body: &[u8],
     runtime: &mut ControlRuntime,
@@ -429,7 +636,7 @@ fn import_persistence(
         serde_json::from_slice(body).map_err(|_| invalid_persistence_import())?;
     let imported_from_saved_at = validate_import_timestamp(&request.saved_at)?;
     if request.schema_version != PERSISTENCE_EXPORT_SCHEMA_VERSION
-        || !request.sessions.is_empty()
+        || request.sessions.len() > leserpent_runtime::MAX_CONTROL_SESSIONS
         || request
             .orchestra_runs
             .as_ref()
@@ -444,7 +651,7 @@ fn import_persistence(
         return Err(invalid_persistence_import());
     }
     let current_revision = runtime.runtime_event_state().0;
-    let (snapshot, orchestra_runs) = build_import_snapshot(&request, current_revision)?;
+    let (snapshot, orchestra_runs, sessions) = build_import_snapshot(&request, current_revision)?;
     let protected_binding_runtime_ids = match registration {
         Some(registration) => registration
             .validate_import_bindings(runtime, &snapshot.runtimes)
@@ -464,8 +671,14 @@ fn import_persistence(
         }
     };
     let imported_runtime_count = snapshot.runtimes.len();
+    let imported_session_count = sessions.len();
     let imported = runtime
-        .import_control_plane_state(snapshot, &orchestra_runs, &protected_binding_runtime_ids)
+        .import_control_plane_state(
+            snapshot,
+            &orchestra_runs,
+            &sessions,
+            &protected_binding_runtime_ids,
+        )
         .map_err(map_persistence_import_runtime_error)?;
     let saved_at = OffsetDateTime::from_unix_timestamp_nanos(
         i128::from(imported.saved_at_unix_ms) * 1_000_000,
@@ -484,7 +697,7 @@ fn import_persistence(
     Ok(json!({
         "ok": true,
         "importedRuntimeCount": imported_runtime_count,
-        "importedSessionCount": 0,
+        "importedSessionCount": imported_session_count,
         "savedAt": saved_at,
         "importedFromSavedAt": imported_from_saved_at
             .format(&Rfc3339)
@@ -496,7 +709,14 @@ fn import_persistence(
 fn build_import_snapshot(
     request: &PersistenceImportRequest,
     current_revision: Revision,
-) -> Result<(DomainSnapshot, Vec<OrchestraImportRecord>), ConsoleWriteError> {
+) -> Result<
+    (
+        DomainSnapshot,
+        Vec<OrchestraImportRecord>,
+        Vec<SessionImportRecord>,
+    ),
+    ConsoleWriteError,
+> {
     if request.runtimes.len() > 4_096 {
         return Err(invalid_persistence_import());
     }
@@ -575,6 +795,7 @@ fn build_import_snapshot(
         request.orchestra_runs.as_deref().unwrap_or_default(),
         &runtime_ids,
     )?;
+    let sessions = import_sessions(&request.sessions, &runtime_ids)?;
     let snapshot = DomainSnapshot {
         schema_version: DOMAIN_SNAPSHOT_SCHEMA_VERSION,
         revision: Revision(next_revision),
@@ -584,7 +805,65 @@ fn build_import_snapshot(
     snapshot
         .validate()
         .map_err(|_| invalid_persistence_import())?;
-    Ok((snapshot, orchestra_runs))
+    Ok((snapshot, orchestra_runs, sessions))
+}
+
+fn import_sessions(
+    imported: &[PersistenceSession],
+    runtime_ids: &HashSet<String>,
+) -> Result<Vec<SessionImportRecord>, ConsoleWriteError> {
+    let mut session_ids = HashSet::with_capacity(imported.len());
+    let mut sessions = Vec::with_capacity(imported.len());
+    for imported in imported {
+        validate_import_identity(&imported.session_id)?;
+        validate_import_identity(&imported.runtime_id)?;
+        if !runtime_ids.contains(&imported.runtime_id)
+            || !session_ids.insert(imported.session_id.to_ascii_lowercase())
+            || !valid_import_text(&imported.pipeline_kind, 128, false)
+            || !valid_import_text(&imported.requested_by, 256, false)
+            || !matches!(imported.status.as_str(), "running" | "stopped")
+            || imported.requirements.len() > leserpent_runtime::MAX_SESSION_REQUIREMENTS
+        {
+            return Err(invalid_persistence_import());
+        }
+        let mut requirement_keys = HashSet::with_capacity(imported.requirements.len());
+        for requirement in &imported.requirements {
+            if !valid_import_text(&requirement.key, 128, false)
+                || !requirement_keys.insert(requirement.key.to_ascii_lowercase())
+                || !matches!(
+                    requirement.minimum_support.as_str(),
+                    "fully_supported" | "risky" | "not_supported"
+                )
+            {
+                return Err(invalid_persistence_import());
+            }
+        }
+        let created_at_unix_ms = import_timestamp_unix_ms(&imported.created_at)?;
+        let updated_at_unix_ms = import_timestamp_unix_ms(&imported.updated_at)?;
+        if created_at_unix_ms > updated_at_unix_ms {
+            return Err(invalid_persistence_import());
+        }
+        let runtime_id = RuntimeId::new(imported.runtime_id.clone())
+            .map_err(|_| invalid_persistence_import())?;
+        sessions.push(SessionImportRecord {
+            request_id: format!(
+                "import-session-{}",
+                &sha256_hex(imported.session_id.as_bytes())[..32]
+            ),
+            session: ControlSession {
+                session_id: imported.session_id.clone(),
+                runtime_id,
+                pipeline_kind: imported.pipeline_kind.clone(),
+                requested_by: imported.requested_by.clone(),
+                status: imported.status.clone(),
+                created_at_unix_ms,
+                updated_at_unix_ms,
+                requirements: imported.requirements.clone(),
+            },
+        });
+    }
+    sessions.sort_by(|left, right| left.session.session_id.cmp(&right.session.session_id));
+    Ok(sessions)
 }
 
 fn import_has_items(items: &Option<Vec<Value>>) -> bool {
@@ -1601,7 +1880,7 @@ fn cleanup_runtimes(
             "deleted": true,
             "filter": filter_value(filter),
             "removedRuntimeCount": receipt.removed.len(),
-            "removedSessionCount": 0,
+            "removedSessionCount": receipt.deleted_session_count,
             "removedRuntimeNames": [],
             "removedRuntimeIds": removed_runtime_ids,
             "operationGeneration": receipt.operation_generation,
@@ -1614,7 +1893,8 @@ fn cleanup_runtimes(
     }
 
     let (_, runtimes) = runtime.runtime_event_state();
-    let plan = build_cleanup_plan(filter, &runtimes);
+    let sessions = runtime.list_control_sessions().map_err(map_runtime_error)?;
+    let plan = build_cleanup_plan_with_sessions(filter, &runtimes, &sessions);
     let action = plan.action(kind);
     if request.plan_token != action.plan_token {
         return Err(cleanup_plan_changed(
@@ -1676,7 +1956,7 @@ fn cleanup_runtimes(
         "deleted": true,
         "filter": filter_value(filter),
         "removedRuntimeCount": result.removed.len(),
-        "removedSessionCount": 0,
+        "removedSessionCount": result.deleted_session_count,
         "removedRuntimeNames": removed_runtime_names,
         "removedRuntimeIds": removed_runtime_ids,
         "operationGeneration": result.operation_generation,
@@ -1753,7 +2033,7 @@ fn delete_runtime(
         "runtimeId": projection.id.as_str(),
         "name": projection.name,
         "endpoint": projection.endpoint,
-        "removedSessionCount": 0,
+        "removedSessionCount": result.deleted_session_count,
         "operationGeneration": result.operation_generation,
         "removedAtUnixMs": result.removed_at_unix_ms,
         "replayed": result.replayed,
@@ -2148,18 +2428,15 @@ mod tests {
         .unwrap();
         assert_eq!(retried["run"]["attempt"], 2);
 
-        let session_error = execute(
+        let session: Value = serde_json::from_slice(&execute(
             &ConsoleApiRoute::OrchestraSession(runtime_id),
-            br#"{"pipelineKind":"diagnostic","requestedBy":"operator"}"#,
+            br#"{"pipelineKind":"diagnostic","requestedBy":"operator","requestId":"request-web-session-0001"}"#,
             &mut runtime,
             Some(&fence),
         )
-        .unwrap_err();
-        assert_eq!(session_error.status, ConsoleWriteStatus::Conflict);
-        assert_eq!(
-            session_error.code,
-            "orchestra_session_authority_unavailable"
-        );
+        .unwrap()).unwrap();
+        assert_eq!(session["session"]["status"], "running");
+        assert_eq!(session["run"]["planId"], "session_preparation");
         drop(runtime);
         fs::remove_file(path).unwrap();
     }
@@ -2193,12 +2470,24 @@ mod tests {
                 event,
             )
             .unwrap();
+        runtime
+            .create_control_session(
+                "request-import-session",
+                "session-import",
+                &runtime_id,
+                "diagnostic",
+                "operator",
+                Vec::new(),
+            )
+            .unwrap();
         let previous_revision = runtime.runtime_event_state().0;
         let export =
             crate::web_console::render_api(&ConsoleApiRoute::PersistenceExport, &mut runtime, true)
                 .unwrap();
         let exported: Value = serde_json::from_slice(&export).unwrap();
         assert_eq!(exported["runtimes"][0]["capabilitySource"], "manual");
+        assert_eq!(exported["sessions"][0]["sessionId"], "session-import");
+        assert_eq!(exported["sessions"][0]["status"], "running");
         assert!(
             exported["runtimes"][0]
                 .get("hasRuntimeAdminToken")
@@ -2223,7 +2512,7 @@ mod tests {
         let response: Value = serde_json::from_slice(&response).unwrap();
         assert_eq!(response["ok"], true);
         assert_eq!(response["importedRuntimeCount"], 1);
-        assert_eq!(response["importedSessionCount"], 0);
+        assert_eq!(response["importedSessionCount"], 1);
         assert!(runtime.runtime_event_state().0 > previous_revision);
         let log_reader = rusqlite::Connection::open(&path).unwrap();
         assert_eq!(
@@ -2257,6 +2546,14 @@ mod tests {
                 .runs
                 .len(),
             1
+        );
+        assert_eq!(
+            recovered
+                .control_session("session-import")
+                .unwrap()
+                .unwrap()
+                .status,
+            "running"
         );
         drop(recovered);
         let connection = rusqlite::Connection::open(&path).unwrap();
@@ -2644,6 +2941,17 @@ mod tests {
                 )
                 .unwrap();
         }
+        let cleanup_runtime = RuntimeId::new("runtime-cleanup-a").unwrap();
+        runtime
+            .create_control_session(
+                "request-cleanup-session-0001",
+                "session-cleanup-a",
+                &cleanup_runtime,
+                "diagnostic",
+                "operator",
+                Vec::new(),
+            )
+            .unwrap();
         let writer_a = "11111111111111111111111111111111";
         let generation = runtime.claim_authority_writer(writer_a).unwrap().generation;
         let fence = AuthorityWriterFence {
@@ -2660,7 +2968,9 @@ mod tests {
         .unwrap_err();
         assert_eq!(invalid.status, ConsoleWriteStatus::BadRequest);
         let (_, initial_runtimes) = runtime.runtime_event_state();
-        let initial_plan = build_cleanup_plan(&filter, &initial_runtimes);
+        let initial_sessions = runtime.list_control_sessions().unwrap();
+        let initial_plan =
+            build_cleanup_plan_with_sessions(&filter, &initial_runtimes, &initial_sessions);
         let stale_token = initial_plan
             .action(CleanupKind::Unobserved)
             .plan_token
@@ -2685,8 +2995,11 @@ mod tests {
         assert_eq!(runtime.runtime_event_state().1.len(), 3);
 
         let (_, current_runtimes) = runtime.runtime_event_state();
-        let current_plan = build_cleanup_plan(&filter, &current_runtimes);
+        let current_sessions = runtime.list_control_sessions().unwrap();
+        let current_plan =
+            build_cleanup_plan_with_sessions(&filter, &current_runtimes, &current_sessions);
         let slice = current_plan.action(CleanupKind::Slice);
+        assert_eq!(slice.affected_session_ids, ["session-cleanup-a"]);
         let missing_challenge = serde_json::to_vec(&json!({
             "planToken": slice.plan_token,
         }))
@@ -2715,8 +3028,10 @@ mod tests {
         .unwrap();
         let response: Value = serde_json::from_slice(&response).unwrap();
         assert_eq!(response["removedRuntimeCount"], 3);
+        assert_eq!(response["removedSessionCount"], 1);
         assert_eq!(response["replayed"], false);
         assert!(runtime.runtime_event_state().1.is_empty());
+        assert!(runtime.list_control_sessions().unwrap().is_empty());
 
         drop(runtime);
         let mut recovered = ControlRuntime::open(&path).unwrap();
@@ -2738,8 +3053,10 @@ mod tests {
         .unwrap();
         let replay: Value = serde_json::from_slice(&replay).unwrap();
         assert_eq!(replay["removedRuntimeCount"], 3);
+        assert_eq!(replay["removedSessionCount"], 1);
         assert_eq!(replay["replayed"], true);
         assert!(recovered.runtime_event_state().1.is_empty());
+        assert!(recovered.list_control_sessions().unwrap().is_empty());
         drop(recovered);
         fs::remove_file(path).unwrap();
     }

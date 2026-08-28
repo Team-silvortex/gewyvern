@@ -127,7 +127,7 @@ function renderOrchestraPlan(payload) {
             <button type="button" data-orchestra-create-session>Create session</button>
           </div>
         ` : `
-          <div class="hint-line">Generic session handoff is a 1.x bridge-only capability; this Rust-hosted console keeps the guided plan review-only.</div>
+          <div class="hint-line">Session handoff requires durable Rust writer authority; this host is currently review-only.</div>
         ` : ""}
       ${(plan.suggestedSurfaces || []).length ? `
         <div class="runtime-inline-actions orchestra-surface-links">
@@ -477,14 +477,18 @@ async function createOrchestraSession(button) {
   button.textContent = "Creating...";
   nodes.statusLine.textContent = `Creating ${pipelineKind} session through Orchestra...`;
   try {
+    const requestKey = `${runtimeId}:session:${pipelineKind}:${requestedBy}`;
+    const requestId = orchestraRequestId(requestKey);
     const result = await postJsonBody(`/v1/orchestra/plans/${encodeURIComponent(runtimeId)}/session`, {
       pipelineKind,
       requestedBy,
+      requestId,
     });
     if (runtimeId !== state.selectedRuntimeId) {
       return;
     }
     renderOrchestraPlan(result.currentPlan);
+    delete state.orchestraRequestIds[requestKey];
     await loadDashboard();
     void loadOrchestraFleetBoard();
     nodes.statusLine.textContent = `Session ${result.session.sessionId} created through Orchestra.`;

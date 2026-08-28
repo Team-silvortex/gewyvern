@@ -2772,9 +2772,13 @@ second planner. Strict dynamic routes expose the plan catalog, per-runtime runs,
 validated event timelines, and a bounded fleet board in the shared camel-case
 contract. Execute, cancel, and retry require the daemon-private Web writer ticket,
 retain request/revision/approval/lineage identity, and return `202 Accepted`.
-Generic session handoff remains review-only on this host because the v2 domain
-snapshot has no such session aggregate; capabilities make that absence explicit
-and the shared UI removes the creation control.
+Generic session handoff now enters a separate bounded Rust aggregate in SQLite
+schema 22. Request IDs make creation replay-safe, runtime ownership binds cleanup,
+and portable import/export replaces sessions atomically beside the domain snapshot
+and Orchestra history. Capabilities expose the control only while durable writer
+authority is available; strict list, detail, create, and stop routes share the
+same projection. A real TLS lifecycle proves handoff, replay, lookup, stop, and
+direct creation without depending on the ASP.NET process.
 
 Avalonia consumes these operations through source-generated strict contracts.
 Its Orchestra workspace renders native plans beside durable runs and events,

@@ -5270,11 +5270,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/ui-renderers/frontend-functional-parity")
         .expect("product GUI function-chain cell must exist");
-    assert_eq!(frontend_parity.maturity, Maturity::Developing);
+    assert_eq!(frontend_parity.maturity, Maturity::Stabilizing);
     assert_eq!(frontend_parity.priority, Priority::Critical);
-    assert_eq!(frontend_parity.completion, 99);
-    assert_eq!(frontend_parity.contract.stability, ContractStability::Draft);
-    assert_eq!(frontend_parity.contract.version, "0.9.6-draft");
+    assert_eq!(frontend_parity.completion, 100);
+    assert_eq!(
+        frontend_parity.contract.stability,
+        ContractStability::Stable
+    );
+    assert_eq!(frontend_parity.contract.version, "1.0.0");
     for surface in [
         "avalonia-orchestra-native-plan-run-control-closure",
         "strict-dotnet-orchestra-control-codec",
@@ -5344,7 +5347,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "real-tls-rust-web-orchestra-proof",
         "capability-fenced-rust-web-orchestra-mutations",
         "capability-fenced-rust-web-session-handoff",
-        "explicit-rust-session-handoff-remaining-gap",
+        "durable-rust-session-authority",
+        "idempotent-rust-session-handoff",
+        "restart-recoverable-rust-session-lifecycle",
+        "session-bound-runtime-cleanup",
+        "portable-session-import-export",
+        "real-tls-rust-session-proof",
     ] {
         assert!(
             frontend_parity
@@ -5355,15 +5363,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "frontend parity must track Orchestra surface {surface}"
         );
     }
-    for blocker in ["rust-web-self-host"] {
-        assert!(
-            frontend_parity
-                .blockers
-                .iter()
-                .any(|candidate| candidate.id == blocker),
-            "frontend parity must retain blocker {blocker}"
-        );
-    }
+    assert!(frontend_parity.blockers.is_empty());
     assert!(
         !frontend_parity
             .blockers
