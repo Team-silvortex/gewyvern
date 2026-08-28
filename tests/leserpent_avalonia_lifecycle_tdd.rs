@@ -1079,15 +1079,18 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
         );
     }
     assert!(pack_generator.contains("const expandedCoreUiFieldCount = 12"));
-    assert!(pack_generator.contains("version: \"1.1.0\""));
+    assert!(pack_generator.contains("const expandedFleetUiFieldCount = 11"));
+    assert!(pack_generator.contains("version: \"1.2.0\""));
     assert!(pack_generator.contains("expanded core UI locale roster drifted"));
+    assert!(pack_generator.contains("expanded fleet UI locale roster drifted"));
     assert!(pack_coverage.contains("const officialPackKeys ="));
+    assert!(pack_coverage.contains("const fleetOfficialPackKeys ="));
     assert!(pack_coverage.contains("publishedKeys.length !== total"));
-    assert!(pack_coverage.contains("entry.version !== \"1.1.0\""));
-    assert!(pack_artifact_tests.contains("OfficialPackVersion = \"1.1.0\""));
-    assert!(pack_artifact_tests.contains("Assert.Equal(30, keys.Count)"));
+    assert!(pack_coverage.contains("entry.version !== \"1.2.0\""));
+    assert!(pack_artifact_tests.contains("OfficialPackVersion = \"1.2.0\""));
+    assert!(pack_artifact_tests.contains("Assert.Equal(42, keys.Count)"));
     assert!(pack_artifact_tests.contains("OfficialPackKeys.SetEquals(keys)"));
-    assert!(daemon_pack_assets.contains("string_leaf_count(&pack_json[\"translations\"]), 30"));
+    assert!(daemon_pack_assets.contains("string_leaf_count(&pack_json[\"translations\"]), 42"));
     assert!(renderer.contains("Func<LocalizedText, string>? localizedTextResolver"));
     assert!(renderer.contains("localizedTextResolver(text)"));
     assert!(!renderer.contains("node.Accessibility.Label?.Fallback"));
@@ -1110,8 +1113,8 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     for marker in [
         "leserpent.language-pack/v1",
         "public const int CoreUiKeyCount = 18",
-        "public const int OfficialPackKeyCount = 30",
-        "public const string OfficialPackVersion = \"1.1.0\"",
+        "public const int OfficialPackKeyCount = 42",
+        "public const string OfficialPackVersion = \"1.2.0\"",
         "InstallCatalogArtifact",
         "VerifyOfficialArtifact",
         "public const int MaxPackBytes = 256 * 1024",
@@ -1241,11 +1244,11 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(program.contains("semantic_keys=26"));
     assert!(program.contains("builtin_semantic_keys=750"));
     assert!(program.contains("language_pack_core_ui_keys=18"));
-    assert!(program.contains("language_pack_official_version=1.1.0"));
-    assert!(program.contains("language_pack_official_keys=30"));
+    assert!(program.contains("language_pack_official_version=1.2.0"));
+    assert!(program.contains("language_pack_official_keys=42"));
     assert!(program.contains("compatibility_keys=18"));
-    assert!(program.contains("official_version=1.1.0"));
-    assert!(program.contains("official_keys=30"));
+    assert!(program.contains("official_version=1.2.0"));
+    assert!(program.contains("official_keys=42"));
     assert!(program.contains("language_pack_sha256=true"));
     assert!(program.contains("language_pack_catalog_locale_binding=true"));
     assert!(program.contains("language_pack_catalog_version_binding=true"));
@@ -2242,6 +2245,9 @@ fn local_orchestra_is_a_bounded_rust_owned_desktop_session() {
     assert!(supervisor.contains("CryptographicOperations.ZeroMemory"));
     assert!(supervisor.contains("RemoteTokenSource.LocalProcess"));
     assert!(supervisor.contains("health.Status == \"ready\" && health.AuthorityOwned"));
+    assert!(supervisor.contains("for (var port = DaemonPortStart; port <= DaemonPortEnd; port++)"));
+    assert!(supervisor.contains("if (IsPortAvailable(port))"));
+    assert!(supervisor.contains("Retry only that race"));
     assert!(supervisor.contains("DesktopLanguagePackSource.FromLocal(plan)"));
     assert!(supervisor.contains("catalogClient.DownloadAsync(\"pt-BR\")"));
     assert!(supervisor.contains("download.Sha256"));
@@ -2257,8 +2263,8 @@ fn local_orchestra_is_a_bounded_rust_owned_desktop_session() {
     assert!(program.contains("credential_free_language_pack_download=true"));
     assert!(program.contains("language_pack_digest_binding=true"));
     assert!(program.contains("language_pack_private_roundtrip=true"));
-    assert!(program.contains("language_pack_official_version=1.1.0"));
-    assert!(program.contains("language_pack_official_keys=30"));
+    assert!(program.contains("language_pack_official_version=1.2.0"));
+    assert!(program.contains("language_pack_official_keys=42"));
     assert!(program.contains("private_files=true"));
     assert!(program.contains("minimal_child_environment=true"));
     assert!(program.contains("optional_bootstrap_origin=true"));
@@ -2314,8 +2320,8 @@ fn saved_daemon_language_packs_are_persisted_ca_bound_and_credential_free() {
     assert!(program.contains("bearer_sent=false"));
     assert!(program.contains("admin_token_sent=false"));
     assert!(program.contains("private_roundtrip=true"));
-    assert!(program.contains("language_pack_official_version=1.1.0"));
-    assert!(program.contains("language_pack_official_keys=30"));
+    assert!(program.contains("language_pack_official_version=1.2.0"));
+    assert!(program.contains("language_pack_official_keys=42"));
     assert!(program.contains("input_immutable=true"));
 }
 

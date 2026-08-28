@@ -3,7 +3,7 @@
   "locale": "vi",
   "name": "Vietnamese",
   "nativeName": "Tiếng Việt",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -26,7 +26,7 @@
       "catalogEmpty": "Hiện chưa có gói tải xuống nào được phát hành.",
       "noneInstalled": "Chưa cài đặt gói ngôn ngữ bổ sung.",
       "install": "Cài đặt",
-      "installedLabel": "Cài đặt",
+      "installedLabel": "Đã cài đặt",
       "download": "Tải xuống",
       "export": "Xuất",
       "remove": "Gỡ bỏ",
@@ -38,6 +38,16 @@
       "light": "Ban ngày",
       "dark": "Ban đêm"
     },
+    "actions": {
+      "refreshAll": "Làm mới toàn bộ đội",
+      "refreshStatus": "Làm mới trạng thái",
+      "refreshCapabilities": "Làm mới khả năng"
+    },
+    "filters": {
+      "title": "Bộ lọc đội",
+      "apply": "Áp dụng bộ lọc",
+      "clear": "Xóa"
+    },
     "tabs": {
       "overview": "Tổng quan",
       "runtimes": "Runtime",
@@ -46,14 +56,20 @@
       "sessions": "Phiên"
     },
     "runtimes": {
+      "title": "Runtime",
+      "quickSearch": "Tìm kiếm nhanh",
+      "sortBy": "Sắp xếp theo",
       "workspaceTabs": {
         "panel": "Bảng con"
       }
     },
     "runtimePanel": {
       "windows": {
+        "openSelected": "Mở mục đã chọn",
         "openAll": "Mở tất cả",
-        "closeAll": "Đóng tất cả"
+        "closeAll": "Đóng tất cả",
+        "close": "Đóng",
+        "activate": "Kích hoạt"
       }
     }
   }

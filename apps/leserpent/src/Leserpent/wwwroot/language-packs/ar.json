@@ -3,7 +3,7 @@
   "locale": "ar",
   "name": "Arabic",
   "nativeName": "العربية",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent maintainers",
   "direction": "rtl",
   "coverage": "core-ui",
@@ -26,7 +26,7 @@
       "catalogEmpty": "لا توجد حزم قابلة للتنزيل منشورة حاليًا.",
       "noneInstalled": "لا توجد حزم لغات إضافية مثبّتة.",
       "install": "تثبيت",
-      "installedLabel": "تثبيت",
+      "installedLabel": "المثبّتة",
       "download": "تنزيل",
       "export": "تصدير",
       "remove": "إزالة",
@@ -38,6 +38,16 @@
       "light": "نهاري",
       "dark": "ليلي"
     },
+    "actions": {
+      "refreshAll": "تحديث الأسطول بالكامل",
+      "refreshStatus": "تحديث الحالة",
+      "refreshCapabilities": "تحديث الإمكانات"
+    },
+    "filters": {
+      "title": "مرشحات الأسطول",
+      "apply": "تطبيق المرشحات",
+      "clear": "مسح"
+    },
     "tabs": {
       "overview": "نظرة عامة",
       "runtimes": "بيئات التشغيل",
@@ -46,14 +56,20 @@
       "sessions": "الجلسات"
     },
     "runtimes": {
+      "title": "بيئات التشغيل",
+      "quickSearch": "بحث سريع",
+      "sortBy": "ترتيب حسب",
       "workspaceTabs": {
         "panel": "اللوحة الفرعية"
       }
     },
     "runtimePanel": {
       "windows": {
+        "openSelected": "فتح المحدد",
         "openAll": "فتح الكل",
-        "closeAll": "إغلاق الكل"
+        "closeAll": "إغلاق الكل",
+        "close": "إغلاق",
+        "activate": "تنشيط"
       }
     }
   }

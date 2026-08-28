@@ -235,37 +235,57 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
         EnsureCertificateMaterial();
         var authorityPath = certificateStore.Import(caCertificatePath);
 
-        var port = SelectAvailablePort();
-        if (TryStartOnPort(daemon, authorityPath, port, out var startupFault, out var startedProcess))
+        string? contentionFault = null;
+        for (var port = DaemonPortStart; port <= DaemonPortEnd; port++)
         {
-            process = startedProcess;
-            remotePort = port;
-            return;
+            if (!IsPortAvailable(port))
+            {
+                continue;
+            }
+            if (TryStartOnPort(
+                    daemon,
+                    authorityPath,
+                    port,
+                    out var startupFault,
+                    out var startedProcess))
+            {
+                process = startedProcess;
+                remotePort = port;
+                return;
+            }
+
+            // A concurrent supervisor can claim the port between the probe and
+            // process bind. Retry only that race; fail immediately if the port
+            // is still free so a real daemon startup fault is never hidden.
+            if (IsPortAvailable(port))
+            {
+                process = null;
+                remotePort = 0;
+                throw new InvalidDataException(
+                    $"local orchestra service could not start on loopback port {port}: {startupFault}");
+            }
+            contentionFault = startupFault;
         }
 
         process = null;
         remotePort = 0;
-        throw new InvalidDataException(
-            $"local orchestra service could not start on loopback port {port}: {startupFault}");
+        throw new IOException(
+            $"no local orchestra port is available in {DaemonPortStart}..{DaemonPortEnd}"
+            + (contentionFault is null ? string.Empty : $": {contentionFault}"));
     }
 
-    private static int SelectAvailablePort()
+    private static bool IsPortAvailable(int port)
     {
-        for (var port = DaemonPortStart; port <= DaemonPortEnd; port++)
+        try
         {
-            try
-            {
-                using var probe = new TcpListener(IPAddress.Loopback, port);
-                probe.Start();
-                return port;
-            }
-            catch (SocketException)
-            {
-                // Try the next bounded product port.
-            }
+            using var probe = new TcpListener(IPAddress.Loopback, port);
+            probe.Start();
+            return true;
         }
-        throw new IOException(
-            $"no local orchestra port is available in {DaemonPortStart}..{DaemonPortEnd}");
+        catch (SocketException)
+        {
+            return false;
+        }
     }
 
     private bool TryStartOnPort(

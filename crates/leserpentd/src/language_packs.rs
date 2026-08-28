@@ -58,7 +58,7 @@ mod tests {
                 .as_array()
                 .unwrap()
                 .iter()
-                .all(|entry| entry["version"].as_str() == Some("1.1.0"))
+                .all(|entry| entry["version"].as_str() == Some("1.2.0"))
         );
 
         for locale in [
@@ -70,8 +70,8 @@ mod tests {
             assert!(pack.payload.starts_with(b"{"));
             assert!(pack.payload.ends_with(b"\n"));
             let pack_json: serde_json::Value = serde_json::from_slice(pack.payload).unwrap();
-            assert_eq!(pack_json["version"].as_str(), Some("1.1.0"));
-            assert_eq!(string_leaf_count(&pack_json["translations"]), 30);
+            assert_eq!(pack_json["version"].as_str(), Some("1.2.0"));
+            assert_eq!(string_leaf_count(&pack_json["translations"]), 42);
         }
         assert!(find("/language-packs/en.json").is_none());
         assert!(find("/language-packs/../catalog.json").is_none());

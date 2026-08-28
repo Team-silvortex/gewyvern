@@ -3,7 +3,7 @@
   "locale": "th",
   "name": "Thai",
   "nativeName": "ไทย",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -26,7 +26,7 @@
       "catalogEmpty": "ขณะนี้ยังไม่มีแพ็กที่เผยแพร่ให้ดาวน์โหลด",
       "noneInstalled": "ยังไม่ได้ติดตั้งแพ็กภาษาเพิ่มเติม",
       "install": "ติดตั้ง",
-      "installedLabel": "ติดตั้ง",
+      "installedLabel": "ติดตั้งแล้ว",
       "download": "ดาวน์โหลด",
       "export": "ส่งออก",
       "remove": "นำออก",
@@ -38,6 +38,16 @@
       "light": "กลางวัน",
       "dark": "กลางคืน"
     },
+    "actions": {
+      "refreshAll": "รีเฟรชทั้งฟลีต",
+      "refreshStatus": "รีเฟรชสถานะ",
+      "refreshCapabilities": "รีเฟรชความสามารถ"
+    },
+    "filters": {
+      "title": "ตัวกรองฟลีต",
+      "apply": "ใช้ตัวกรอง",
+      "clear": "ล้าง"
+    },
     "tabs": {
       "overview": "ภาพรวม",
       "runtimes": "รันไทม์",
@@ -46,14 +56,20 @@
       "sessions": "เซสชัน"
     },
     "runtimes": {
+      "title": "รันไทม์",
+      "quickSearch": "ค้นหาด่วน",
+      "sortBy": "เรียงตาม",
       "workspaceTabs": {
         "panel": "แผงย่อย"
       }
     },
     "runtimePanel": {
       "windows": {
+        "openSelected": "เปิดรายการที่เลือก",
         "openAll": "เปิดทั้งหมด",
-        "closeAll": "ปิดทั้งหมด"
+        "closeAll": "ปิดทั้งหมด",
+        "close": "ปิด",
+        "activate": "เปิดใช้งาน"
       }
     }
   }

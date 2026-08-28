@@ -56,7 +56,26 @@ const expandedOfficialPackKeys = [
   "theme.dark",
 ];
 
-const officialPackKeys = [...coreUiPackKeys, ...expandedOfficialPackKeys];
+const fleetOfficialPackKeys = [
+  "actions.refreshAll",
+  "actions.refreshStatus",
+  "actions.refreshCapabilities",
+  "filters.title",
+  "filters.apply",
+  "filters.clear",
+  "runtimes.title",
+  "runtimes.quickSearch",
+  "runtimes.sortBy",
+  "runtimePanel.windows.openSelected",
+  "runtimePanel.windows.close",
+  "runtimePanel.windows.activate",
+];
+
+const officialPackKeys = [
+  ...coreUiPackKeys,
+  ...expandedOfficialPackKeys,
+  ...fleetOfficialPackKeys,
+];
 
 function parseLocaleFile(path) {
   const text = readFileSync(path, "utf8");
@@ -240,7 +259,7 @@ for (const entry of catalog.packs) {
   const total = officialPackKeys.length;
   const covered = total - missingPackKeys.length;
   console.log(`- ${entry.locale}: ${covered}/${total}`);
-  if (entry.version !== "1.1.0" || pack.version !== entry.version) {
+  if (entry.version !== "1.2.0" || pack.version !== entry.version) {
     failures++;
     console.log(`  version: catalog=${entry.version}, pack=${pack.version}`);
   }

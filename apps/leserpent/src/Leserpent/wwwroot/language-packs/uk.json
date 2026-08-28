@@ -3,7 +3,7 @@
   "locale": "uk",
   "name": "Ukrainian",
   "nativeName": "Українська",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -26,7 +26,7 @@
       "catalogEmpty": "Наразі немає опублікованих пакетів для завантаження.",
       "noneInstalled": "Додаткові мовні пакети не встановлено.",
       "install": "Установити",
-      "installedLabel": "Установити",
+      "installedLabel": "Установлені",
       "download": "Завантажити",
       "export": "Експортувати",
       "remove": "Видалити",
@@ -38,6 +38,16 @@
       "light": "День",
       "dark": "Ніч"
     },
+    "actions": {
+      "refreshAll": "Оновити весь парк",
+      "refreshStatus": "Оновити стан",
+      "refreshCapabilities": "Оновити можливості"
+    },
+    "filters": {
+      "title": "Фільтри парку",
+      "apply": "Застосувати фільтри",
+      "clear": "Очистити"
+    },
     "tabs": {
       "overview": "Огляд",
       "runtimes": "Runtime",
@@ -46,14 +56,20 @@
       "sessions": "Сеанси"
     },
     "runtimes": {
+      "title": "Runtime",
+      "quickSearch": "Швидкий пошук",
+      "sortBy": "Сортувати за",
       "workspaceTabs": {
         "panel": "Дочірня панель"
       }
     },
     "runtimePanel": {
       "windows": {
+        "openSelected": "Відкрити вибране",
         "openAll": "Відкрити всі",
-        "closeAll": "Закрити всі"
+        "closeAll": "Закрити всі",
+        "close": "Закрити",
+        "activate": "Активувати"
       }
     }
   }

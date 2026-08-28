@@ -3,7 +3,7 @@
   "locale": "ru",
   "name": "Russian",
   "nativeName": "Русский",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -26,7 +26,7 @@
       "catalogEmpty": "Сейчас нет опубликованных пакетов для загрузки.",
       "noneInstalled": "Дополнительные языковые пакеты не установлены.",
       "install": "Установить",
-      "installedLabel": "Установить",
+      "installedLabel": "Установленные",
       "download": "Скачать",
       "export": "Экспортировать",
       "remove": "Удалить",
@@ -38,6 +38,16 @@
       "light": "День",
       "dark": "Ночь"
     },
+    "actions": {
+      "refreshAll": "Обновить весь парк",
+      "refreshStatus": "Обновить состояние",
+      "refreshCapabilities": "Обновить возможности"
+    },
+    "filters": {
+      "title": "Фильтры парка",
+      "apply": "Применить фильтры",
+      "clear": "Очистить"
+    },
     "tabs": {
       "overview": "Обзор",
       "runtimes": "Runtime",
@@ -46,14 +56,20 @@
       "sessions": "Сеансы"
     },
     "runtimes": {
+      "title": "Runtime",
+      "quickSearch": "Быстрый поиск",
+      "sortBy": "Сортировать по",
       "workspaceTabs": {
         "panel": "Дочерняя панель"
       }
     },
     "runtimePanel": {
       "windows": {
+        "openSelected": "Открыть выбранное",
         "openAll": "Открыть все",
-        "closeAll": "Закрыть все"
+        "closeAll": "Закрыть все",
+        "close": "Закрыть",
+        "activate": "Активировать"
       }
     }
   }

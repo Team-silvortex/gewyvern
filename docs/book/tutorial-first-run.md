@@ -40,8 +40,8 @@ one of the saved remote daemons. Desktop uses its saved TLS CA but does not send
 the daemon's management credential. For offline use, `Install JSON...` accepts
 a local `leserpent.language-pack/v1` file. Desktop accepts only the
 official downloadable locale roster and the shared 18-key compatibility
-contract. Official v1.1.0 downloads carry an exact 30-key language, pack-center,
-theme, and shell set; the client
+contract. Current official v1.2.0 downloads carry an exact 42-key language,
+pack-center, theme, fleet refresh/filter, and child-window control set; the client
 cannot replace a built-in language. Installed packs remain private to this user
 and can be removed from the same window. A malformed pack is rejected without
 changing the active language or other installed packs, and missing keys continue

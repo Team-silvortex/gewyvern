@@ -3,7 +3,7 @@
   "locale": "nl",
   "name": "Dutch",
   "nativeName": "Nederlands",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -26,7 +26,7 @@
       "catalogEmpty": "Er zijn momenteel geen downloadbare pakketten gepubliceerd.",
       "noneInstalled": "Er zijn geen extra taalpakketten geïnstalleerd.",
       "install": "Installeren",
-      "installedLabel": "Installeren",
+      "installedLabel": "Geïnstalleerd",
       "download": "Downloaden",
       "export": "Exporteren",
       "remove": "Verwijderen",
@@ -38,6 +38,16 @@
       "light": "Dag",
       "dark": "Nacht"
     },
+    "actions": {
+      "refreshAll": "Hele vloot vernieuwen",
+      "refreshStatus": "Status vernieuwen",
+      "refreshCapabilities": "Mogelijkheden vernieuwen"
+    },
+    "filters": {
+      "title": "Vlootfilters",
+      "apply": "Filters toepassen",
+      "clear": "Wissen"
+    },
     "tabs": {
       "overview": "Overzicht",
       "runtimes": "Runtimes",
@@ -46,14 +56,20 @@
       "sessions": "Sessies"
     },
     "runtimes": {
+      "title": "Runtimes",
+      "quickSearch": "Snel zoeken",
+      "sortBy": "Sorteren op",
       "workspaceTabs": {
         "panel": "Onderliggend paneel"
       }
     },
     "runtimePanel": {
       "windows": {
+        "openSelected": "Selectie openen",
         "openAll": "Alles openen",
-        "closeAll": "Alles sluiten"
+        "closeAll": "Alles sluiten",
+        "close": "Sluiten",
+        "activate": "Activeren"
       }
     }
   }

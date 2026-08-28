@@ -3,7 +3,7 @@
   "locale": "hi",
   "name": "Hindi",
   "nativeName": "हिन्दी",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -26,7 +26,7 @@
       "catalogEmpty": "फ़िलहाल कोई डाउनलोड करने योग्य पैक प्रकाशित नहीं है।",
       "noneInstalled": "कोई अतिरिक्त भाषा पैक इंस्टॉल नहीं है।",
       "install": "इंस्टॉल",
-      "installedLabel": "इंस्टॉल",
+      "installedLabel": "इंस्टॉल किए गए",
       "download": "डाउनलोड",
       "export": "निर्यात करें",
       "remove": "हटाएँ",
@@ -38,6 +38,16 @@
       "light": "दिन",
       "dark": "रात"
     },
+    "actions": {
+      "refreshAll": "पूरे फ़्लीट को रीफ़्रेश करें",
+      "refreshStatus": "स्थिति रीफ़्रेश करें",
+      "refreshCapabilities": "क्षमताएँ रीफ़्रेश करें"
+    },
+    "filters": {
+      "title": "फ़्लीट फ़िल्टर",
+      "apply": "फ़िल्टर लागू करें",
+      "clear": "साफ़ करें"
+    },
     "tabs": {
       "overview": "अवलोकन",
       "runtimes": "रनटाइम",
@@ -46,14 +56,20 @@
       "sessions": "सत्र"
     },
     "runtimes": {
+      "title": "रनटाइम",
+      "quickSearch": "त्वरित खोज",
+      "sortBy": "इसके अनुसार क्रमित करें",
       "workspaceTabs": {
         "panel": "चाइल्ड पैनल"
       }
     },
     "runtimePanel": {
       "windows": {
+        "openSelected": "चयनित खोलें",
         "openAll": "सभी खोलें",
-        "closeAll": "सभी बंद करें"
+        "closeAll": "सभी बंद करें",
+        "close": "बंद करें",
+        "activate": "सक्रिय करें"
       }
     }
   }

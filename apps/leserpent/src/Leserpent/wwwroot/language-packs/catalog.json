@@ -1,6 +1,6 @@
 {
   "schema": "leserpent.language-pack-catalog/v1",
-  "generatedAt": "2026-07-13T00:00:00Z",
+  "generatedAt": "2026-08-28T00:00:00Z",
   "officialLocaleCount": 30,
   "builtinLocaleCount": 8,
   "downloadableLocaleCount": 22,
@@ -9,221 +9,221 @@
       "locale": "pt-BR",
       "name": "Portuguese (Brazil)",
       "nativeName": "Português (Brasil)",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/pt-BR.json",
-      "sha256": "2d1e6f810b7836fb225c0e9ceca1eaa498ee82063068364527536ec71d0afaf1"
+      "sha256": "a6473048fddc02791304abf33abecb36fd13d8acb63923322a1a4363483c530c"
     },
     {
       "locale": "it",
       "name": "Italian",
       "nativeName": "Italiano",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/it.json",
-      "sha256": "3425d35be259b4d7d6bd1688f1132122c1a78d3cb767a4a02097d0c6395f78a8"
+      "sha256": "aef7de3cc0efa9983b397f7d969719054c9965a35d0f1689ce16623ec3722b20"
     },
     {
       "locale": "ru",
       "name": "Russian",
       "nativeName": "Русский",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/ru.json",
-      "sha256": "b1a34ca42f4a8d54fd9331bbf562076a94366c31f1ad07fe6c6aea5e5437b381"
+      "sha256": "e1d8fc929110aded7c3810fa2765c032167d9ff6837f76ced3d1856012c0aa68"
     },
     {
       "locale": "ar",
       "name": "Arabic",
       "nativeName": "العربية",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "rtl",
       "coverage": "core-ui",
       "url": "/language-packs/ar.json",
-      "sha256": "a32a66019fe13494c60de992c9ea215c8570c3005cb9c42fe5bee6c48e1efde2"
+      "sha256": "ed55856608142ea8af52bd131e1ea2317081e3b78928ad42337c38c827bba513"
     },
     {
       "locale": "hi",
       "name": "Hindi",
       "nativeName": "हिन्दी",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/hi.json",
-      "sha256": "176923f568e4b2f9ccb64961f83cde3da9378a1d6d75eeed0afa597cc926f252"
+      "sha256": "fa327b025bd3356ffd4252bf17342870156ab5d0922576ed4cabf9519550c72c"
     },
     {
       "locale": "bn",
       "name": "Bengali",
       "nativeName": "বাংলা",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/bn.json",
-      "sha256": "9725ec8a0f506bf0006036ef95a6cd07f8ffd2f00f00e985245f1e53e2deebf4"
+      "sha256": "eb4d35f7c714803cad9151a6a9050721aefcc311ec64cf3845f2971e6c06f5f6"
     },
     {
       "locale": "id",
       "name": "Indonesian",
       "nativeName": "Bahasa Indonesia",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/id.json",
-      "sha256": "bcd6fde6ae453fb4e31645bef3a599bda9ae510c5a1ba5e6db51242d7576f39d"
+      "sha256": "29abaa5539e5cce13ba58c89511b43a6a0d3a16d4e43e5befb1e9708aca7bbe1"
     },
     {
       "locale": "ms",
       "name": "Malay",
       "nativeName": "Bahasa Melayu",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/ms.json",
-      "sha256": "b6253a8579b1b52442990ee31d9fad7322e4c3a84b3f4d1d876c67066b37bbeb"
+      "sha256": "d1932c3311588d28c119f4a34a199ee29eae1f5b63526dfb0b6f3df2d394d3ac"
     },
     {
       "locale": "th",
       "name": "Thai",
       "nativeName": "ไทย",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/th.json",
-      "sha256": "77ef0d87a24e4e30fcbd06bb367ca5c72d5e902c5abb083dbe8b77d0753aa450"
+      "sha256": "90f6560faf9fc0bc841dda652ce52c97b439551b87dbd71439fcaf80be4cbc3f"
     },
     {
       "locale": "vi",
       "name": "Vietnamese",
       "nativeName": "Tiếng Việt",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/vi.json",
-      "sha256": "47cf40fc5dee3280bbf9819dcaf894a8ebf6cdf610b9fee0345ef182925ddf48"
+      "sha256": "02eebc919a5066b4049eb60c78a416e350ae5a677ba018fcb854b2e84b7fb150"
     },
     {
       "locale": "tr",
       "name": "Turkish",
       "nativeName": "Türkçe",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/tr.json",
-      "sha256": "66c865bcbe2426b368b65f9cfbfdf903686113077e946bf71875f9c1e9a286a6"
+      "sha256": "3315486781a53208162eb81da329fb62fd5176f5784f65ba3b90e4c483366406"
     },
     {
       "locale": "pl",
       "name": "Polish",
       "nativeName": "Polski",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/pl.json",
-      "sha256": "081eb3d2e276dc5e7c72cb44fc978b146d6a09de180ccb11bdc765ad2ebda4da"
+      "sha256": "12075b8e30de792d9ab71c087621c94f67b079cdc9de38b179123e37078e6d4e"
     },
     {
       "locale": "nl",
       "name": "Dutch",
       "nativeName": "Nederlands",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/nl.json",
-      "sha256": "7d0b006e9fd688dd40e284cfa420337a3cf58b776d76dee8a03f71abc572ce94"
+      "sha256": "3b8e2fe4088246ae3f6e8d3c5a23b1f6c0a4e21a8a4caa889dc8383fe9939f42"
     },
     {
       "locale": "uk",
       "name": "Ukrainian",
       "nativeName": "Українська",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/uk.json",
-      "sha256": "8c5fa1f41023f28220838be5c6e81dd79c7de176220f3a250e9a7f3d440bff5a"
+      "sha256": "c7ca955255d95a601e86dc9d13561f03fbe54c2fda4e0e7c4a5e0e1196b8e4ff"
     },
     {
       "locale": "cs",
       "name": "Czech",
       "nativeName": "Čeština",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/cs.json",
-      "sha256": "44bdf069469939dc2e6090296b6933aec436de41c51ade280f924110eeb7de68"
+      "sha256": "3e69f71a6aa294486dc3d2d6d8f76df1045bb10552814c76e74e12f094a4c9b5"
     },
     {
       "locale": "sv",
       "name": "Swedish",
       "nativeName": "Svenska",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/sv.json",
-      "sha256": "b089da3d9efce3a80f72a746e8e2406a22ddfc5d3ae264c7a0e64667c1de9fbf"
+      "sha256": "4be1116fefe77155913432c8c8c826d94c638741af2da2ae6ec19785760e7d95"
     },
     {
       "locale": "da",
       "name": "Danish",
       "nativeName": "Dansk",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/da.json",
-      "sha256": "8ba2261e45d43b9ddd44e7314a548382faae93e1ffb3c4cf22ba1f297ee9bf47"
+      "sha256": "00eba53388776e2acfb6d4ba4fc24cf3e5834b91cde922c680f6f6bf9079d2b9"
     },
     {
       "locale": "no",
       "name": "Norwegian",
       "nativeName": "Norsk",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/no.json",
-      "sha256": "32ecf5f850f4574419afff311065843ad119911083e7608f742b9df68e8119e2"
+      "sha256": "3c242475294eb591f0ac9a762aec3bdab6717c95803394f619836b8fdd320f5c"
     },
     {
       "locale": "fi",
       "name": "Finnish",
       "nativeName": "Suomi",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/fi.json",
-      "sha256": "6273f4d0c9a9d082a45b7eebd3026b6d27813968be1aec2a2787bbc8ab884f59"
+      "sha256": "cdef294649da16a06b9759809aa74ea3905abbc6b9ccac837c47b042261f9ccf"
     },
     {
       "locale": "el",
       "name": "Greek",
       "nativeName": "Ελληνικά",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/el.json",
-      "sha256": "6f1a18e6161169da8da4fe8f1bad90e33c58ebbe401ee54c6a093961b6e2dc62"
+      "sha256": "ef7361960a9642397248cfeed4157cde5df6469252457f0a21c2065c9cd81ede"
     },
     {
       "locale": "he",
       "name": "Hebrew",
       "nativeName": "עברית",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "rtl",
       "coverage": "core-ui",
       "url": "/language-packs/he.json",
-      "sha256": "fd62b7f2b4f715a34029f3cba6b76b4c1800fe476c9c4f9d6990b16b772cd977"
+      "sha256": "2f00ddbc5c2d5b89e64120fb3fdbab9cafde770d7ae0ffd615e9f66b8fc18690"
     },
     {
       "locale": "fa",
       "name": "Persian",
       "nativeName": "فارسی",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "rtl",
       "coverage": "core-ui",
       "url": "/language-packs/fa.json",
-      "sha256": "4fa099b0621b5971479a3b33c5470717802bc9e1392af59a8d4975b94fbd5050"
+      "sha256": "16a53d1cdaf5588fc02da3fa6dadb97b4adaf50c5e4b181b3e9fbfce74673f7a"
     }
   ]
 }

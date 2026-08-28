@@ -3,7 +3,7 @@
   "locale": "he",
   "name": "Hebrew",
   "nativeName": "עברית",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent maintainers",
   "direction": "rtl",
   "coverage": "core-ui",
@@ -26,7 +26,7 @@
       "catalogEmpty": "אין כרגע חבילות שפורסמו להורדה.",
       "noneInstalled": "לא מותקנות חבילות שפה נוספות.",
       "install": "התקנה",
-      "installedLabel": "התקנה",
+      "installedLabel": "מותקנות",
       "download": "הורדה",
       "export": "ייצוא",
       "remove": "הסרה",
@@ -38,6 +38,16 @@
       "light": "יום",
       "dark": "לילה"
     },
+    "actions": {
+      "refreshAll": "רענון כל הצי",
+      "refreshStatus": "רענון מצב",
+      "refreshCapabilities": "רענון יכולות"
+    },
+    "filters": {
+      "title": "מסנני צי",
+      "apply": "החלת מסננים",
+      "clear": "ניקוי"
+    },
     "tabs": {
       "overview": "סקירה",
       "runtimes": "סביבות ריצה",
@@ -46,14 +56,20 @@
       "sessions": "הפעלות"
     },
     "runtimes": {
+      "title": "סביבות ריצה",
+      "quickSearch": "חיפוש מהיר",
+      "sortBy": "מיון לפי",
       "workspaceTabs": {
         "panel": "לוח משנה"
       }
     },
     "runtimePanel": {
       "windows": {
+        "openSelected": "פתיחת הנבחר",
         "openAll": "פתיחת הכול",
-        "closeAll": "סגירת הכול"
+        "closeAll": "סגירת הכול",
+        "close": "סגירה",
+        "activate": "הפעלה"
       }
     }
   }

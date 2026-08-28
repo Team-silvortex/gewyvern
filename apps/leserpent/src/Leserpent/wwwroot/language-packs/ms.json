@@ -3,7 +3,7 @@
   "locale": "ms",
   "name": "Malay",
   "nativeName": "Bahasa Melayu",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -26,7 +26,7 @@
       "catalogEmpty": "Tiada pek boleh muat turun diterbitkan pada masa ini.",
       "noneInstalled": "Tiada pek bahasa tambahan dipasang.",
       "install": "Pasang",
-      "installedLabel": "Pasang",
+      "installedLabel": "Dipasang",
       "download": "Muat turun",
       "export": "Eksport",
       "remove": "Buang",
@@ -38,6 +38,16 @@
       "light": "Siang",
       "dark": "Malam"
     },
+    "actions": {
+      "refreshAll": "Segar semula seluruh armada",
+      "refreshStatus": "Segar semula status",
+      "refreshCapabilities": "Segar semula keupayaan"
+    },
+    "filters": {
+      "title": "Penapis armada",
+      "apply": "Gunakan penapis",
+      "clear": "Kosongkan"
+    },
     "tabs": {
       "overview": "Gambaran keseluruhan",
       "runtimes": "Runtime",
@@ -46,14 +56,20 @@
       "sessions": "Sesi"
     },
     "runtimes": {
+      "title": "Runtime",
+      "quickSearch": "Carian pantas",
+      "sortBy": "Isih mengikut",
       "workspaceTabs": {
         "panel": "Panel anak"
       }
     },
     "runtimePanel": {
       "windows": {
+        "openSelected": "Buka yang dipilih",
         "openAll": "Buka semua",
-        "closeAll": "Tutup semua"
+        "closeAll": "Tutup semua",
+        "close": "Tutup",
+        "activate": "Aktifkan"
       }
     }
   }

@@ -59,11 +59,44 @@ const expandedCoreUi = {
   fa: ["مطابق مرورگر", "بسته‌های تأییدشده از همان مبدأ را نصب کنید یا یک بسته JSON محلی وارد کنید.", "تازه‌سازی فهرست", "درون‌ریزی JSON", "نصب‌شده", "دریافت‌های موجود", "در حال حاضر هیچ بسته‌ای برای دریافت منتشر نشده است.", "هیچ بستهٔ زبان دیگری نصب نشده است.", "برون‌ریزی", "مطابق سیستم", "روز", "شب"],
 };
 
+// Candidate v1.2 fleet and child-window controls. These are deliberately
+// limited to static UI copy; runtime names, endpoints, diagnostics, and other
+// operator-controlled values remain opaque and continue to use English fallback.
+const expandedFleetUi = {
+  "pt-BR": ["Atualizar toda a frota", "Atualizar status", "Atualizar recursos", "Filtros da frota", "Aplicar filtros", "Limpar", "Busca rápida", "Ordenar por", "Abrir selecionado", "Fechar", "Ativar"],
+  it: ["Aggiorna tutta la flotta", "Aggiorna stato", "Aggiorna funzionalità", "Filtri flotta", "Applica filtri", "Cancella", "Ricerca rapida", "Ordina per", "Apri selezionato", "Chiudi", "Attiva"],
+  ru: ["Обновить весь парк", "Обновить состояние", "Обновить возможности", "Фильтры парка", "Применить фильтры", "Очистить", "Быстрый поиск", "Сортировать по", "Открыть выбранное", "Закрыть", "Активировать"],
+  ar: ["تحديث الأسطول بالكامل", "تحديث الحالة", "تحديث الإمكانات", "مرشحات الأسطول", "تطبيق المرشحات", "مسح", "بحث سريع", "ترتيب حسب", "فتح المحدد", "إغلاق", "تنشيط"],
+  hi: ["पूरे फ़्लीट को रीफ़्रेश करें", "स्थिति रीफ़्रेश करें", "क्षमताएँ रीफ़्रेश करें", "फ़्लीट फ़िल्टर", "फ़िल्टर लागू करें", "साफ़ करें", "त्वरित खोज", "इसके अनुसार क्रमित करें", "चयनित खोलें", "बंद करें", "सक्रिय करें"],
+  bn: ["সমস্ত ফ্লিট রিফ্রেশ করুন", "স্থিতি রিফ্রেশ করুন", "সক্ষমতা রিফ্রেশ করুন", "ফ্লিট ফিল্টার", "ফিল্টার প্রয়োগ করুন", "পরিষ্কার করুন", "দ্রুত অনুসন্ধান", "সাজান", "নির্বাচিতটি খুলুন", "বন্ধ করুন", "সক্রিয় করুন"],
+  id: ["Segarkan seluruh armada", "Segarkan status", "Segarkan kapabilitas", "Filter armada", "Terapkan filter", "Bersihkan", "Pencarian cepat", "Urutkan berdasarkan", "Buka yang dipilih", "Tutup", "Aktifkan"],
+  ms: ["Segar semula seluruh armada", "Segar semula status", "Segar semula keupayaan", "Penapis armada", "Gunakan penapis", "Kosongkan", "Carian pantas", "Isih mengikut", "Buka yang dipilih", "Tutup", "Aktifkan"],
+  th: ["รีเฟรชทั้งฟลีต", "รีเฟรชสถานะ", "รีเฟรชความสามารถ", "ตัวกรองฟลีต", "ใช้ตัวกรอง", "ล้าง", "ค้นหาด่วน", "เรียงตาม", "เปิดรายการที่เลือก", "ปิด", "เปิดใช้งาน"],
+  vi: ["Làm mới toàn bộ đội", "Làm mới trạng thái", "Làm mới khả năng", "Bộ lọc đội", "Áp dụng bộ lọc", "Xóa", "Tìm kiếm nhanh", "Sắp xếp theo", "Mở mục đã chọn", "Đóng", "Kích hoạt"],
+  tr: ["Tüm filoyu yenile", "Durumu yenile", "Yetenekleri yenile", "Filo filtreleri", "Filtreleri uygula", "Temizle", "Hızlı arama", "Sıralama ölçütü", "Seçileni aç", "Kapat", "Etkinleştir"],
+  pl: ["Odśwież całą flotę", "Odśwież stan", "Odśwież możliwości", "Filtry floty", "Zastosuj filtry", "Wyczyść", "Szybkie wyszukiwanie", "Sortuj według", "Otwórz wybrane", "Zamknij", "Aktywuj"],
+  nl: ["Hele vloot vernieuwen", "Status vernieuwen", "Mogelijkheden vernieuwen", "Vlootfilters", "Filters toepassen", "Wissen", "Snel zoeken", "Sorteren op", "Selectie openen", "Sluiten", "Activeren"],
+  uk: ["Оновити весь парк", "Оновити стан", "Оновити можливості", "Фільтри парку", "Застосувати фільтри", "Очистити", "Швидкий пошук", "Сортувати за", "Відкрити вибране", "Закрити", "Активувати"],
+  cs: ["Obnovit celou flotilu", "Obnovit stav", "Obnovit možnosti", "Filtry flotily", "Použít filtry", "Vymazat", "Rychlé hledání", "Seřadit podle", "Otevřít vybrané", "Zavřít", "Aktivovat"],
+  sv: ["Uppdatera hela flottan", "Uppdatera status", "Uppdatera funktioner", "Flottfilter", "Tillämpa filter", "Rensa", "Snabbsökning", "Sortera efter", "Öppna markerad", "Stäng", "Aktivera"],
+  da: ["Opdater hele flåden", "Opdater status", "Opdater funktioner", "Flådefiltre", "Anvend filtre", "Ryd", "Hurtig søgning", "Sortér efter", "Åbn valgte", "Luk", "Aktivér"],
+  no: ["Oppdater hele flåten", "Oppdater status", "Oppdater funksjoner", "Flåtefiltre", "Bruk filtre", "Tøm", "Hurtigsøk", "Sorter etter", "Åpne valgt", "Lukk", "Aktiver"],
+  fi: ["Päivitä koko kalusto", "Päivitä tila", "Päivitä ominaisuudet", "Kalustosuodattimet", "Käytä suodattimia", "Tyhjennä", "Pikahaku", "Lajittele", "Avaa valittu", "Sulje", "Aktivoi"],
+  el: ["Ανανέωση όλου του στόλου", "Ανανέωση κατάστασης", "Ανανέωση δυνατοτήτων", "Φίλτρα στόλου", "Εφαρμογή φίλτρων", "Εκκαθάριση", "Γρήγορη αναζήτηση", "Ταξινόμηση κατά", "Άνοιγμα επιλεγμένου", "Κλείσιμο", "Ενεργοποίηση"],
+  he: ["רענון כל הצי", "רענון מצב", "רענון יכולות", "מסנני צי", "החלת מסננים", "ניקוי", "חיפוש מהיר", "מיון לפי", "פתיחת הנבחר", "סגירה", "הפעלה"],
+  fa: ["تازه‌سازی کل ناوگان", "تازه‌سازی وضعیت", "تازه‌سازی قابلیت‌ها", "فیلترهای ناوگان", "اعمال فیلترها", "پاک کردن", "جست‌وجوی سریع", "مرتب‌سازی بر اساس", "باز کردن مورد انتخاب‌شده", "بستن", "فعال‌سازی"],
+};
+
 const expandedCoreUiFieldCount = 12;
+const expandedFleetUiFieldCount = 11;
 const definitionLocales = new Set(definitions.map(([locale]) => locale));
 if (Object.keys(expandedCoreUi).length !== definitions.length
     || !Object.keys(expandedCoreUi).every((locale) => definitionLocales.has(locale))) {
   throw new Error("expanded core UI locale roster drifted from official definitions");
+}
+if (Object.keys(expandedFleetUi).length !== definitions.length
+    || !Object.keys(expandedFleetUi).every((locale) => definitionLocales.has(locale))) {
+  throw new Error("expanded fleet UI locale roster drifted from official definitions");
 }
 
 function makePack(row) {
@@ -94,6 +127,10 @@ function makePack(row) {
   if (!expanded || expanded.length !== expandedCoreUiFieldCount) {
     throw new Error(`invalid expanded core UI definition for ${locale}`);
   }
+  const fleet = expandedFleetUi[locale];
+  if (!fleet || fleet.length !== expandedFleetUiFieldCount) {
+    throw new Error(`invalid expanded fleet UI definition for ${locale}`);
+  }
   const [
     languageAuto,
     packSubcopy,
@@ -108,12 +145,25 @@ function makePack(row) {
     themeLight,
     themeDark,
   ] = expanded;
+  const [
+    refreshAll,
+    refreshStatus,
+    refreshCapabilities,
+    filtersTitle,
+    filtersApply,
+    filtersClear,
+    quickSearch,
+    sortBy,
+    openSelected,
+    close,
+    activate,
+  ] = fleet;
   return {
     schema: "leserpent.language-pack/v1",
     locale,
     name,
     nativeName,
-    version: "1.1.0",
+    version: "1.2.0",
     author: "Leserpent maintainers",
     direction: rtlLocales.has(locale) ? "rtl" : "ltr",
     coverage: "core-ui",
@@ -130,16 +180,18 @@ function makePack(row) {
         catalogEmpty: packCatalogEmpty,
         noneInstalled: packNoneInstalled,
         install,
-        installedLabel: install,
+        installedLabel: packInstalledTitle,
         download,
         export: packExport,
         remove,
         coverageCore,
       },
       theme: { label: theme, auto: themeAuto, light: themeLight, dark: themeDark },
+      actions: { refreshAll, refreshStatus, refreshCapabilities },
+      filters: { title: filtersTitle, apply: filtersApply, clear: filtersClear },
       tabs: { overview, runtimes, register, persistence, sessions },
-      runtimes: { workspaceTabs: { panel } },
-      runtimePanel: { windows: { openAll, closeAll } },
+      runtimes: { title: runtimes, quickSearch, sortBy, workspaceTabs: { panel } },
+      runtimePanel: { windows: { openSelected, openAll, closeAll, close, activate } },
     },
   };
 }
@@ -172,7 +224,7 @@ for (const definition of definitions) {
 
 const catalog = {
   schema: "leserpent.language-pack-catalog/v1",
-  generatedAt: "2026-07-13T00:00:00Z",
+  generatedAt: "2026-08-28T00:00:00Z",
   officialLocaleCount: 30,
   builtinLocaleCount: 8,
   downloadableLocaleCount: packs.length,

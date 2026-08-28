@@ -302,9 +302,10 @@ routes that reject `Authorization` and `X-Leserpent-Admin-Token`; the managed
 Web host applies the same credential-domain fence. A successful native download
 therefore proves that no control-plane credential crossed into content fetches.
 Desktop consumes the same `leserpent.language-pack/v1` format and retains the
-exact 18-key `core-ui` compatibility baseline used by Web. The 22 official
-v1.1.0 artifacts carry an exact 30-key set that also localizes browser-following
-language selection, the pack center, and day/night/system theme controls. It rejects built-in-locale
+exact 18-key `core-ui` compatibility baseline used by Web. The 22 current
+official v1.2.0 artifacts carry an exact 42-key set that also localizes
+browser-following language selection, the pack center, day/night/system theme,
+fleet refresh/filter, and child-window controls. It rejects built-in-locale
 replacement, unofficial or mismatched metadata, duplicate JSON properties,
 arrays, oversized/deep key trees, and files over 256 KiB. Catalog downloads
 bind SHA-256, locale, and version before installation; picker streams are read asynchronously and
@@ -315,9 +316,9 @@ missing text continues to use the built-in English fallback. A file selected
 locally is structurally validated but is not represented as catalog-authenticated.
 Closing the language window cancels an active download, and a single-operation
 fence prevents import/download/remove races.
-The six candidate built-in translations and the new 12-key downloadable
-expansion remain pending native-speaker review, while the 22 packs stay
-intentionally partial beyond their exact 30-key official set. Run
+The six candidate built-in translations and both 12-key downloadable expansions
+remain pending native-speaker review, while the 22 packs stay intentionally
+partial beyond their exact 42-key official set. Run
 `--verify-desktop-localization` for the
 catalog/persistence contract and `--verify-desktop-language-controls` for the
 real 31-choice and import/download/remove control tree, all eight built-in selector
@@ -1084,7 +1085,9 @@ ephemeral local-process credential, starts the bundled Rust `leserpentd`, and
 exposes that authority as the Local Orchestra branch through the same remote
 client used for saved daemon profiles. Managed CA pruning retains the complete
 active remote catalog plus the local authority instead of treating trust as a
-single global slot.
+single global slot. Startup scans only the bounded `9443..9503` product range;
+if another supervisor claims a probed port first, it retries the next port, but
+it never classifies an ordinary daemon startup fault as port contention.
 The supervisor sends SIGTERM first so Rust releases its journal lease, then uses
 a bounded forced-shutdown fallback. Verify the complete start, health,
 credential-free language-pack download/install/remove roundtrip, shutdown, and

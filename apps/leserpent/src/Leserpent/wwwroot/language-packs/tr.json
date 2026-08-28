@@ -3,7 +3,7 @@
   "locale": "tr",
   "name": "Turkish",
   "nativeName": "Türkçe",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -26,7 +26,7 @@
       "catalogEmpty": "Şu anda yayımlanmış indirilebilir paket yok.",
       "noneInstalled": "Ek dil paketi yüklü değil.",
       "install": "Yükle",
-      "installedLabel": "Yükle",
+      "installedLabel": "Yüklü",
       "download": "İndir",
       "export": "Dışa aktar",
       "remove": "Kaldır",
@@ -38,6 +38,16 @@
       "light": "Gündüz",
       "dark": "Gece"
     },
+    "actions": {
+      "refreshAll": "Tüm filoyu yenile",
+      "refreshStatus": "Durumu yenile",
+      "refreshCapabilities": "Yetenekleri yenile"
+    },
+    "filters": {
+      "title": "Filo filtreleri",
+      "apply": "Filtreleri uygula",
+      "clear": "Temizle"
+    },
     "tabs": {
       "overview": "Genel bakış",
       "runtimes": "Çalışma zamanları",
@@ -46,14 +56,20 @@
       "sessions": "Oturumlar"
     },
     "runtimes": {
+      "title": "Çalışma zamanları",
+      "quickSearch": "Hızlı arama",
+      "sortBy": "Sıralama ölçütü",
       "workspaceTabs": {
         "panel": "Alt panel"
       }
     },
     "runtimePanel": {
       "windows": {
+        "openSelected": "Seçileni aç",
         "openAll": "Tümünü aç",
-        "closeAll": "Tümünü kapat"
+        "closeAll": "Tümünü kapat",
+        "close": "Kapat",
+        "activate": "Etkinleştir"
       }
     }
   }

@@ -4054,17 +4054,27 @@ fn retained_physical_linux_language_pack_proof_is_non_vacuous() {
     let language_pack_root = root.join("apps/leserpent/src/Leserpent/wwwroot/language-packs");
     assert_eq!(
         evidence["language_pack_assets"]["catalog_sha256"],
+        "35ee8f217e2cfdf2f3e91a02c7a8d82191a48fb002dd7ee7904b14acd3efdd84"
+    );
+    assert_eq!(
+        evidence["language_pack_assets"]["pt_br_sha256"],
+        "2d1e6f810b7836fb225c0e9ceca1eaa498ee82063068364527536ec71d0afaf1"
+    );
+    assert_ne!(
+        evidence["language_pack_assets"]["catalog_sha256"],
         sha256_hex(
             &std::fs::read(language_pack_root.join("catalog.json"))
                 .expect("current language-pack catalog must exist")
-        )
+        ),
+        "historical physical-host evidence must not masquerade as current assets"
     );
-    assert_eq!(
+    assert_ne!(
         evidence["language_pack_assets"]["pt_br_sha256"],
         sha256_hex(
             &std::fs::read(language_pack_root.join("pt-BR.json"))
                 .expect("current pt-BR language pack must exist")
-        )
+        ),
+        "historical physical-host pack must remain immutable after publication"
     );
 
     let roundtrip = &evidence["language_pack_roundtrip"];
@@ -4930,7 +4940,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.priority, Priority::Critical);
     assert_eq!(avalonia.completion, 97);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.108.0");
+    assert_eq!(avalonia.contract.version, "1.109.0");
     assert!(
         avalonia
             .blockers
@@ -4968,6 +4978,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "zero-avalonia-health-state-ownership",
         "authority-health-stop-generation-fence",
         "shared-health-failure-classification",
+        "bounded-local-orchestra-port-range",
+        "concurrent-local-orchestra-port-claim-retry",
+        "startup-fault-preserving-port-race-classification",
         "shared-event-lifecycle-consumer",
         "event-run-generation-handle",
         "event-disposal-single-flight",
@@ -6969,8 +6982,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .expect("desktop localization contract must remain tracked");
     assert_eq!(desktop_localization.maturity, Maturity::Stabilizing);
     assert_eq!(desktop_localization.priority, Priority::Active);
-    assert_eq!(desktop_localization.completion, 95);
-    assert_eq!(desktop_localization.contract.version, "0.23.0");
+    assert_eq!(desktop_localization.completion, 96);
+    assert_eq!(desktop_localization.contract.version, "0.24.0");
     assert_eq!(
         desktop_localization.contract.stability,
         ContractStability::Evolving
@@ -6981,10 +6994,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "shared-web-native-language-pack-v1",
         "eighteen-key-core-ui-pack-contract",
         "legacy-eighteen-key-pack-compatibility",
-        "official-pack-version-1-1-0",
-        "thirty-key-official-core-ui-pack-contract",
+        "official-pack-version-1-2-0",
+        "forty-two-key-official-core-ui-pack-contract",
         "official-pack-exact-key-set",
         "language-pack-center-theme-expansion",
+        "fleet-filter-window-action-expansion",
         "content-addressed-language-pack-publication",
         "official-downloadable-locale-fence",
         "built-in-locale-replacement-fence",
@@ -7141,14 +7155,19 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && blocker
                 .summary
                 .contains("18-key core-ui v1 compatibility floor")
-            && blocker.summary.contains("22 official v1.1.0")
-            && blocker.summary.contains("exact 30-key set")
+            && blocker.summary.contains("22 current official v1.2.0")
+            && blocker.summary.contains("exact 42-key set")
             && blocker.summary.contains("credential-free")
             && blocker.summary.contains("digest-bound")
             && blocker.summary.contains("packaged macOS arm64")
             && blocker.summary.contains("physical Linux x86_64")
+            && blocker
+                .summary
+                .contains("v1.1.0/30-key historical evidence")
             && blocker.summary.contains("intentionally partial")
-            && blocker.summary.contains("12-key downloadable expansion")
+            && blocker
+                .summary
+                .contains("both 12-key downloadable expansions")
             && blocker.summary.contains("native-speaker review")
     }));
     assert!(desktop_localization.evidence.iter().any(|evidence| {
@@ -7204,17 +7223,17 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         desktop_localization
             .next_gate
-            .contains("Review the six candidate built-in catalogs and the new")
+            .contains("Review the six candidate built-in catalogs and both")
     );
     assert!(
         desktop_localization
             .next_gate
-            .contains("new 12-key official-pack expansion with native speakers")
+            .contains("12-key official-pack expansions with native speakers")
     );
     assert!(
         desktop_localization
             .next_gate
-            .contains("beyond their exact 30-key")
+            .contains("refresh packaged macOS arm64 and physical Linux x86_64 evidence")
     );
     assert!(desktop_localization.evidence.iter().any(|evidence| {
         evidence.path

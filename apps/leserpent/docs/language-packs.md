@@ -7,7 +7,7 @@ Leserpent 支持在不重新构建控制面的情况下安装附加 UI 语言。
 - 8 个内置完整 catalog：English、简体中文、繁體中文、日本語、Español、Deutsch、Français、한국어
 - 22 个可下载 `core-ui` pack：Português (Brasil)、Italiano、Русский、العربية、हिन्दी、বাংলা、Bahasa Indonesia、Bahasa Melayu、ไทย、Tiếng Việt、Türkçe、Polski、Nederlands、Українська、Čeština、Svenska、Dansk、Norsk、Suomi、Ελληνικά、עברית、فارسی
 
-`core-ui` 表示主 shell、语言包中心、主题、顶层导航和 runtime 子窗口入口由官方维护。当前官方 `1.1.0` 产物拥有严格一致的 30 个键；Web 与 Desktop 仍接受旧的 18 键兼容基线，因此升级不会让既有 `1.0.0` 包失效。复杂诊断、协议细节和 Orchestra 长尾文案暂时回退 English。阿拉伯语、希伯来语和波斯语会启用 RTL document direction。
+`core-ui` 表示主 shell、语言包中心、主题、顶层导航、fleet 刷新/筛选和 runtime 子窗口基础动作由官方维护。当前官方 `1.2.0` 产物拥有严格一致的 42 个键；Web 与 Desktop 仍接受旧的 18 键兼容基线，因此升级不会让既有 `1.0.0` 包失效。复杂诊断、协议细节和 Orchestra 长尾文案暂时回退 English。阿拉伯语、希伯来语和波斯语会启用 RTL document direction。
 
 ## Web Workflow
 
@@ -35,7 +35,7 @@ Web 语言包仅保存在当前浏览器的 `localStorage`，不会上传到 Les
 
 Desktop 下载只复用连接配置中的 HTTPS origin 与已保存 CA，不解析或读取该 daemon 的管理 token，也不会发送 bearer 或 `X-Leserpent-Admin-Token`。Rust `leserpentd` 直接内嵌并提供同一份 catalog 与 22 个 pack；这些公开 GET 路由会反向拒绝任何 bearer/admin header，因此成功下载同时证明客户端没有把控制面凭证带入公开内容域。托管 Web host 对同一路径执行相同拒绝策略。catalog 限制为 128 KiB，pack 限制为 256 KiB；禁止重定向、跨源 URL、catalog 外 locale，以及 digest、locale、version 不一致。窗口关闭会取消请求，同一窗口一次只允许一个语言包操作。
 
-Desktop 将通过校验的 pack 原子写入当前用户的私有 `language-packs-v1` 目录。它不写入控制面状态，也不会在 daemon 间同步。catalog 下载拥有来源 CA、同源路径和 SHA-256 绑定，并在创建目录或替换文件前要求当前官方 `1.1.0` 精确 30 键契约；被该官方契约拒绝的首次安装不产生目录，被拒绝的升级保留原文件且不遗留临时文件。本地 JSON 导入则保留 18 键兼容基线，只拥有结构与资源边界校验，不宣称 catalog 身份。
+Desktop 将通过校验的 pack 原子写入当前用户的私有 `language-packs-v1` 目录。它不写入控制面状态，也不会在 daemon 间同步。catalog 下载拥有来源 CA、同源路径和 SHA-256 绑定，并在创建目录或替换文件前要求当前官方 `1.2.0` 精确 42 键契约；被该官方契约拒绝的首次安装不产生目录，被拒绝的升级保留原文件且不遗留临时文件。本地 JSON 导入则保留 18 键兼容基线，只拥有结构与资源边界校验，不宣称 catalog 身份。
 
 ## Pack Format
 
@@ -47,7 +47,7 @@ Desktop 将通过校验的 pack 原子写入当前用户的私有 `language-pack
   "locale": "pt-BR",
   "name": "Portuguese (Brazil)",
   "nativeName": "Português (Brasil)",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent community",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -59,7 +59,7 @@ Desktop 将通过校验的 pack 原子写入当前用户的私有 `language-pack
 }
 ```
 
-`locale` 使用 BCP 47 风格标签。语言包允许只包含部分翻译；缺失键会回退到内置 English catalog。兼容输入至少覆盖 18 个稳定 shell 键，官方 `1.1.0` 发布包则必须精确覆盖 30 个已声明键。
+`locale` 使用 BCP 47 风格标签。语言包允许只包含部分翻译；缺失键会回退到内置 English catalog。兼容输入至少覆盖 18 个稳定 shell 键，官方 `1.2.0` 发布包则必须精确覆盖 42 个已声明键。
 
 语言包不能覆盖内置 locale：
 
@@ -115,7 +115,7 @@ npm run verify:frontend-package
 
 1. 检查 locale、native name、direction 和翻译质量。
 2. 运行前端与 .NET 构建，并确认 `frontend-package-manifest.json` 绑定当前 pack 大小与摘要。
-3. 运行 `LanguagePackArtifactTests`，确认每个官方包都是 `1.1.0` 且精确覆盖 30 键。
+3. 运行 `LanguagePackArtifactTests`，确认每个官方包都是 `1.2.0` 且精确覆盖 42 键。
 4. 从实际发布服务下载文件并再次核对 digest。
 
 catalog 使用：
@@ -127,7 +127,7 @@ catalog 使用：
     {
       "locale": "pt-BR",
       "nativeName": "Português (Brasil)",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/pt-BR.json",
@@ -175,7 +175,7 @@ dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Av
   "$PWD/apps/leserpent/src/Leserpent/wwwroot/language-packs"
 ```
 
-该命令逐包执行 catalog SHA-256、locale/version、18 键兼容基线、写盘前官方 `1.1.0` 精确 30 键契约和 Desktop 私有存储 roundtrip，不发起网络请求。
+该命令逐包执行 catalog SHA-256、locale/version、18 键兼容基线、写盘前官方 `1.2.0` 精确 42 键契约和 Desktop 私有存储 roundtrip，不发起网络请求。
 
 本地 Orchestra 的真实 TLS 路径可用同一个桌面二进制验证：
 
@@ -193,9 +193,9 @@ dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Av
 重新加载并通过 `DesktopLanguagePackSource.FromConnection` 下载。它先要求一个
 错误 CA 在 TLS 阶段失败，再要求唯一选中 CA 成功，并验证 catalog、CA 摘要及
 私有语言包仓库在清理后保持预期状态。两条真实路径都要求下载到当前
-`1.1.0`/30 键官方产物，而不是只满足旧的 18 键最低基线。
+当前 `1.2.0`/42 键官方产物，而不是只满足旧的 18 键最低基线。
 
-2026-08-24 的 macOS arm64 发布验证进一步从 ad-hoc 签名的 `1.16.0` NativeAOT `.app` 内运行客户端与 daemon；机器可读证据保存在 `docs/fixtures/leserpent_language_pack_local_orchestra_native_aot_macos_arm64_20260824.json`。同日的 physical Linux x86_64 验证通过远程门禁执行锁定 NativeAOT 构建和两套真实往返，本地再严格复核文件清单、ELF/资产摘要、Local Orchestra 20 项断言、saved-daemon 12 项断言与凭证缺失；证据保存在 `docs/fixtures/leserpent_language_pack_local_orchestra_native_aot_linux_x86_64_20260824.json`。两平台的保存连接证明均已完成；当前剩余项是六个内置候选 catalog、新增 12 键下载包文案的母语审阅，以及 30 键之外的长尾扩展。
+2026-08-24 的 macOS arm64 发布验证进一步从 ad-hoc 签名的 `1.16.0` NativeAOT `.app` 内运行客户端与 daemon；机器可读证据保存在 `docs/fixtures/leserpent_language_pack_local_orchestra_native_aot_macos_arm64_20260824.json`。同日的 physical Linux x86_64 验证通过远程门禁执行锁定 NativeAOT 构建和两套真实往返，本地再严格复核文件清单、ELF/资产摘要、Local Orchestra 20 项断言、saved-daemon 12 项断言与凭证缺失；证据保存在 `docs/fixtures/leserpent_language_pack_local_orchestra_native_aot_linux_x86_64_20260824.json`。这两份 fixture 是当时 `1.1.0`/30 键产物的历史证据，不会被改写为新版本证明；当前剩余项是刷新 `1.2.0`/42 键的 packaged macOS 与 physical Linux 证据，以及六个内置候选 catalog 和两轮 12 键扩展的母语审阅。
 
 ## Validation Checklist
 
@@ -208,5 +208,5 @@ dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Av
 - catalog digest、locale 或 version 不匹配时安装失败。
 - 窄屏和暗色主题下弹层无重叠、文字可读。
 - 官方 roster 始终满足 8 built-in + 22 downloadable = 30 locales。
-- 22 个官方下载包保持 `1.1.0`、精确 30 键，旧的 18 键兼容输入仍可安装。
+- 22 个官方下载包保持 `1.2.0`、精确 42 键，旧的 18 键兼容输入仍可安装。
 - RTL pack 安装后 `document.dir=rtl`，卸载或切换 LTR 语言后恢复。

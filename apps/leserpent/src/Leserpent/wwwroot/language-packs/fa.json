@@ -3,7 +3,7 @@
   "locale": "fa",
   "name": "Persian",
   "nativeName": "فارسی",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent maintainers",
   "direction": "rtl",
   "coverage": "core-ui",
@@ -26,7 +26,7 @@
       "catalogEmpty": "در حال حاضر هیچ بسته‌ای برای دریافت منتشر نشده است.",
       "noneInstalled": "هیچ بستهٔ زبان دیگری نصب نشده است.",
       "install": "نصب",
-      "installedLabel": "نصب",
+      "installedLabel": "نصب‌شده",
       "download": "دانلود",
       "export": "برون‌ریزی",
       "remove": "حذف",
@@ -38,6 +38,16 @@
       "light": "روز",
       "dark": "شب"
     },
+    "actions": {
+      "refreshAll": "تازه‌سازی کل ناوگان",
+      "refreshStatus": "تازه‌سازی وضعیت",
+      "refreshCapabilities": "تازه‌سازی قابلیت‌ها"
+    },
+    "filters": {
+      "title": "فیلترهای ناوگان",
+      "apply": "اعمال فیلترها",
+      "clear": "پاک کردن"
+    },
     "tabs": {
       "overview": "نمای کلی",
       "runtimes": "محیط‌های اجرا",
@@ -46,14 +56,20 @@
       "sessions": "نشست‌ها"
     },
     "runtimes": {
+      "title": "محیط‌های اجرا",
+      "quickSearch": "جست‌وجوی سریع",
+      "sortBy": "مرتب‌سازی بر اساس",
       "workspaceTabs": {
         "panel": "پنل فرزند"
       }
     },
     "runtimePanel": {
       "windows": {
+        "openSelected": "باز کردن مورد انتخاب‌شده",
         "openAll": "باز کردن همه",
-        "closeAll": "بستن همه"
+        "closeAll": "بستن همه",
+        "close": "بستن",
+        "activate": "فعال‌سازی"
       }
     }
   }

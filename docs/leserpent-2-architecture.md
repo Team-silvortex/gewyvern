@@ -258,14 +258,15 @@ shells, refresh and deployment dialogs, the runtime-workspace envelope, and the
 Hub dynamic-card and all 48 Learning Center locale-step envelopes without
 starting a network client. Native Desktop and Web retain the same strict 18-key
 `leserpent.language-pack/v1` compatibility floor for the 22 official
-downloadable locales. Every official v1.1.0 artifact carries an exact 30-key
-set, adding language-selection, pack-center, and theme copy without changing the
+downloadable locales. Every current official v1.2.0 artifact carries an exact
+42-key set, adding language-selection, pack-center, theme, fleet refresh/filter,
+and child-window control copy without changing the
 legacy acceptance floor. The loader validates a bounded object tree and exact
 official metadata, prevents replacement of built-ins, can bind imported bytes
 to an expected SHA-256, bounds directory enumeration before sorting, and reads
 picker streams asynchronously. Manual imports retain the 18-key compatibility
 floor, while catalog installs must match the current official version and exact
-30-key set before the private directory is created or an existing package is
+42-key set before the private directory is created or an existing package is
 atomically replaced. When the current official artifact contract rejects a
 package, a first install creates no state and an upgrade preserves the previous
 package without leaving a temporary file.
@@ -288,16 +289,18 @@ Local Orchestra verifier now traverses real loopback TLS through the native
 catalog client, digest/locale/version-bound private installation, load, removal,
 and daemon restart rather than relying only on an injected HTTP handler.
 Retained 2026-08-24 packaged macOS arm64 and physical Linux x86_64 NativeAOT
-proofs execute that same package-owned client/daemon boundary. The Linux remote
+proofs execute that same package-owned client/daemon boundary against the then
+current v1.1.0/30-key artifacts. The Linux remote
 stage synchronizes only a fixed evidence inventory and then revalidates regular
 file types, exact index schema, verifier assertions, native payload hashes,
 current catalog/`pt-BR` hashes, and credential absence on the invoking host.
 The companion saved-daemon proof persists the live authority through the
 production connection catalog, imports exactly one managed CA, rejects a decoy
 CA at TLS, and completes the same private roundtrip without mutating its inputs.
-The six candidate built-in translations and the new 12-key downloadable
-expansion still need native-speaker review. All 22 packs remain intentionally
-partial beyond their exact 30-key official set.
+The six candidate built-in translations and both 12-key downloadable expansions
+still need native-speaker review. Current v1.2.0 packaged macOS and physical
+Linux proof refreshes also remain open. All 22 packs remain intentionally
+partial beyond their exact 42-key official set.
 Arabic, Hebrew, and Persian switch the inherited Avalonia flow direction to RTL.
 
 Cross-authority refresh admission is frontend-independent. The shared remote
@@ -420,7 +423,10 @@ same-attempt refresh. Terminal failure directs the operator to correct the cause
 and choose a new provisioning ID, preserving the failed identity for audit.
 Desktop Local Orchestra is offered as an owning authority only when the private
 `LESERPENT_GEWYVERN_PROVISIONING_CONFIG` path is present at app startup; otherwise
-only saved authenticated daemon authorities are listed.
+only saved authenticated daemon authorities are listed. Its desktop supervisor
+scans the bounded `9443..9503` product range and retries a different port only
+when a concurrent process wins the probe-to-bind race; an ordinary daemon
+startup failure while the attempted port remains free is surfaced immediately.
 Remote compensation/retirement for an already registered service remains to be
 productized. Its first independent contract now lives in
 `leserpent-domain::retirement` and `leserpent-protocol::retirement`; it does not

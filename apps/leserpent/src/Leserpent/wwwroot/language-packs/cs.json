@@ -3,7 +3,7 @@
   "locale": "cs",
   "name": "Czech",
   "nativeName": "Čeština",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -26,7 +26,7 @@
       "catalogEmpty": "Momentálně nejsou publikovány žádné balíčky ke stažení.",
       "noneInstalled": "Nejsou nainstalovány žádné další jazykové balíčky.",
       "install": "Nainstalovat",
-      "installedLabel": "Nainstalovat",
+      "installedLabel": "Nainstalované",
       "download": "Stáhnout",
       "export": "Exportovat",
       "remove": "Odebrat",
@@ -38,6 +38,16 @@
       "light": "Den",
       "dark": "Noc"
     },
+    "actions": {
+      "refreshAll": "Obnovit celou flotilu",
+      "refreshStatus": "Obnovit stav",
+      "refreshCapabilities": "Obnovit možnosti"
+    },
+    "filters": {
+      "title": "Filtry flotily",
+      "apply": "Použít filtry",
+      "clear": "Vymazat"
+    },
     "tabs": {
       "overview": "Přehled",
       "runtimes": "Runtime",
@@ -46,14 +56,20 @@
       "sessions": "Relace"
     },
     "runtimes": {
+      "title": "Runtime",
+      "quickSearch": "Rychlé hledání",
+      "sortBy": "Seřadit podle",
       "workspaceTabs": {
         "panel": "Podřízený panel"
       }
     },
     "runtimePanel": {
       "windows": {
+        "openSelected": "Otevřít vybrané",
         "openAll": "Otevřít vše",
-        "closeAll": "Zavřít vše"
+        "closeAll": "Zavřít vše",
+        "close": "Zavřít",
+        "activate": "Aktivovat"
       }
     }
   }

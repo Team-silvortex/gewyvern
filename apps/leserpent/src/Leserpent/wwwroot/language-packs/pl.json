@@ -3,7 +3,7 @@
   "locale": "pl",
   "name": "Polish",
   "nativeName": "Polski",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -26,7 +26,7 @@
       "catalogEmpty": "Obecnie nie opublikowano żadnych pakietów do pobrania.",
       "noneInstalled": "Nie zainstalowano dodatkowych pakietów językowych.",
       "install": "Zainstaluj",
-      "installedLabel": "Zainstaluj",
+      "installedLabel": "Zainstalowane",
       "download": "Pobierz",
       "export": "Eksportuj",
       "remove": "Usuń",
@@ -38,6 +38,16 @@
       "light": "Dzień",
       "dark": "Noc"
     },
+    "actions": {
+      "refreshAll": "Odśwież całą flotę",
+      "refreshStatus": "Odśwież stan",
+      "refreshCapabilities": "Odśwież możliwości"
+    },
+    "filters": {
+      "title": "Filtry floty",
+      "apply": "Zastosuj filtry",
+      "clear": "Wyczyść"
+    },
     "tabs": {
       "overview": "Przegląd",
       "runtimes": "Runtime",
@@ -46,14 +56,20 @@
       "sessions": "Sesje"
     },
     "runtimes": {
+      "title": "Runtime",
+      "quickSearch": "Szybkie wyszukiwanie",
+      "sortBy": "Sortuj według",
       "workspaceTabs": {
         "panel": "Panel podrzędny"
       }
     },
     "runtimePanel": {
       "windows": {
+        "openSelected": "Otwórz wybrane",
         "openAll": "Otwórz wszystkie",
-        "closeAll": "Zamknij wszystkie"
+        "closeAll": "Zamknij wszystkie",
+        "close": "Zamknij",
+        "activate": "Aktywuj"
       }
     }
   }

@@ -6,7 +6,7 @@ namespace Leserpent.SecurityTests;
 
 public sealed class LanguagePackArtifactTests
 {
-    private const string OfficialPackVersion = "1.1.0";
+    private const string OfficialPackVersion = "1.2.0";
 
     private static readonly HashSet<string> BuiltinLocales =
     [
@@ -51,6 +51,18 @@ public sealed class LanguagePackArtifactTests
         "runtimes.workspaceTabs.panel",
         "runtimePanel.windows.openAll",
         "runtimePanel.windows.closeAll",
+        "actions.refreshAll",
+        "actions.refreshStatus",
+        "actions.refreshCapabilities",
+        "filters.title",
+        "filters.apply",
+        "filters.clear",
+        "runtimes.title",
+        "runtimes.quickSearch",
+        "runtimes.sortBy",
+        "runtimePanel.windows.openSelected",
+        "runtimePanel.windows.close",
+        "runtimePanel.windows.activate",
     ];
 
     [Fact]
@@ -88,7 +100,7 @@ public sealed class LanguagePackArtifactTests
             Assert.Equal(entry.GetProperty("coverage").GetString(), pack.RootElement.GetProperty("coverage").GetString());
             Assert.Equal(JsonValueKind.Object, pack.RootElement.GetProperty("translations").ValueKind);
             var keys = FlattenTranslationKeys(pack.RootElement.GetProperty("translations"));
-            Assert.Equal(30, keys.Count);
+            Assert.Equal(42, keys.Count);
             Assert.True(OfficialPackKeys.SetEquals(keys));
         }
     }

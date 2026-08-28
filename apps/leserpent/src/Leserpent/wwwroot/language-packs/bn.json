@@ -3,7 +3,7 @@
   "locale": "bn",
   "name": "Bengali",
   "nativeName": "বাংলা",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -26,7 +26,7 @@
       "catalogEmpty": "বর্তমানে ডাউনলোডযোগ্য কোনো প্যাক প্রকাশিত নেই।",
       "noneInstalled": "কোনো অতিরিক্ত ভাষা প্যাক ইনস্টল করা নেই।",
       "install": "ইনস্টল",
-      "installedLabel": "ইনস্টল",
+      "installedLabel": "ইনস্টল করা",
       "download": "ডাউনলোড",
       "export": "রপ্তানি করুন",
       "remove": "সরান",
@@ -38,6 +38,16 @@
       "light": "দিন",
       "dark": "রাত"
     },
+    "actions": {
+      "refreshAll": "সমস্ত ফ্লিট রিফ্রেশ করুন",
+      "refreshStatus": "স্থিতি রিফ্রেশ করুন",
+      "refreshCapabilities": "সক্ষমতা রিফ্রেশ করুন"
+    },
+    "filters": {
+      "title": "ফ্লিট ফিল্টার",
+      "apply": "ফিল্টার প্রয়োগ করুন",
+      "clear": "পরিষ্কার করুন"
+    },
     "tabs": {
       "overview": "সারসংক্ষেপ",
       "runtimes": "রানটাইম",
@@ -46,14 +56,20 @@
       "sessions": "সেশন"
     },
     "runtimes": {
+      "title": "রানটাইম",
+      "quickSearch": "দ্রুত অনুসন্ধান",
+      "sortBy": "সাজান",
       "workspaceTabs": {
         "panel": "চাইল্ড প্যানেল"
       }
     },
     "runtimePanel": {
       "windows": {
+        "openSelected": "নির্বাচিতটি খুলুন",
         "openAll": "সব খুলুন",
-        "closeAll": "সব বন্ধ করুন"
+        "closeAll": "সব বন্ধ করুন",
+        "close": "বন্ধ করুন",
+        "activate": "সক্রিয় করুন"
       }
     }
   }

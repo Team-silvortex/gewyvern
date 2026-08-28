@@ -17,8 +17,8 @@ internal sealed class DesktopLanguagePackStore(string root)
 {
     public const string Schema = "leserpent.language-pack/v1";
     public const int CoreUiKeyCount = 18;
-    public const int OfficialPackKeyCount = 30;
-    public const string OfficialPackVersion = "1.1.0";
+    public const int OfficialPackKeyCount = 42;
+    public const string OfficialPackVersion = "1.2.0";
     public const int MaxPackBytes = 256 * 1024;
     private const int MaxDirectoryEntries = 64;
     private const int MaxDepth = 12;
@@ -60,6 +60,18 @@ internal sealed class DesktopLanguagePackStore(string root)
         "theme.auto",
         "theme.light",
         "theme.dark",
+        "actions.refreshAll",
+        "actions.refreshStatus",
+        "actions.refreshCapabilities",
+        "filters.title",
+        "filters.apply",
+        "filters.clear",
+        "runtimes.title",
+        "runtimes.quickSearch",
+        "runtimes.sortBy",
+        "runtimePanel.windows.openSelected",
+        "runtimePanel.windows.close",
+        "runtimePanel.windows.activate",
     ];
 
     public DesktopLanguagePackSnapshot LoadAll()

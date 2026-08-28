@@ -1,11 +1,11 @@
 {
   "schema": "leserpent.frontend-package/v1",
-  "inputsSha256": "3bbe735225bd4b3012580b56affc81a3f1a45deef558dd5498e348eba6c40563",
-  "assetsSha256": "82fb60350d0d3134e56c2a717688a770d4c8a6a74af9915ba8164934591ec93c",
+  "inputsSha256": "ce04def87bf6093b851b372d47c7832223968f3b34062f7dac57045ec2b86165",
+  "assetsSha256": "4457d134544b118bc0852f963f441b8aa1b260a6ded4ba87781ab31579dcd0a2",
   "inputFileCount": 28,
   "assetFileCount": 29,
-  "inputBytes": 441609,
-  "assetBytes": 736925,
+  "inputBytes": 449197,
+  "assetBytes": 749322,
   "assets": [
     {
       "path": "src/Leserpent/wwwroot/app.js",
@@ -29,118 +29,118 @@
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/ar.json",
-      "bytes": 1898,
-      "sha256": "a32a66019fe13494c60de992c9ea215c8570c3005cb9c42fe5bee6c48e1efde2"
+      "bytes": 2476,
+      "sha256": "ed55856608142ea8af52bd131e1ea2317081e3b78928ad42337c38c827bba513"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/bn.json",
-      "bytes": 2431,
-      "sha256": "9725ec8a0f506bf0006036ef95a6cd07f8ffd2f00f00e985245f1e53e2deebf4"
+      "bytes": 3257,
+      "sha256": "eb4d35f7c714803cad9151a6a9050721aefcc311ec64cf3845f2971e6c06f5f6"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/catalog.json",
       "bytes": 6798,
-      "sha256": "35ee8f217e2cfdf2f3e91a02c7a8d82191a48fb002dd7ee7904b14acd3efdd84"
+      "sha256": "1761e63413dc002936a2a18528dc1092851b89ec9ea3ce7e97a776c21fde4776"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/cs.json",
-      "bytes": 1698,
-      "sha256": "44bdf069469939dc2e6090296b6933aec436de41c51ade280f924110eeb7de68"
+      "bytes": 2183,
+      "sha256": "3e69f71a6aa294486dc3d2d6d8f76df1045bb10552814c76e74e12f094a4c9b5"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/da.json",
-      "bytes": 1637,
-      "sha256": "8ba2261e45d43b9ddd44e7314a548382faae93e1ffb3c4cf22ba1f297ee9bf47"
+      "bytes": 2102,
+      "sha256": "00eba53388776e2acfb6d4ba4fc24cf3e5834b91cde922c680f6f6bf9079d2b9"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/el.json",
-      "bytes": 2193,
-      "sha256": "6f1a18e6161169da8da4fe8f1bad90e33c58ebbe401ee54c6a093961b6e2dc62"
+      "bytes": 2864,
+      "sha256": "ef7361960a9642397248cfeed4157cde5df6469252457f0a21c2065c9cd81ede"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/fa.json",
-      "bytes": 1940,
-      "sha256": "4fa099b0621b5971479a3b33c5470717802bc9e1392af59a8d4975b94fbd5050"
+      "bytes": 2606,
+      "sha256": "16a53d1cdaf5588fc02da3fa6dadb97b4adaf50c5e4b181b3e9fbfce74673f7a"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/fi.json",
-      "bytes": 1673,
-      "sha256": "6273f4d0c9a9d082a45b7eebd3026b6d27813968be1aec2a2787bbc8ab884f59"
+      "bytes": 2160,
+      "sha256": "cdef294649da16a06b9759809aa74ea3905abbc6b9ccac837c47b042261f9ccf"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/he.json",
-      "bytes": 1792,
-      "sha256": "fd62b7f2b4f715a34029f3cba6b76b4c1800fe476c9c4f9d6990b16b772cd977"
+      "bytes": 2324,
+      "sha256": "2f00ddbc5c2d5b89e64120fb3fdbab9cafde770d7ae0ffd615e9f66b8fc18690"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/hi.json",
-      "bytes": 2372,
-      "sha256": "176923f568e4b2f9ccb64961f83cde3da9378a1d6d75eeed0afa597cc926f252"
+      "bytes": 3212,
+      "sha256": "fa327b025bd3356ffd4252bf17342870156ab5d0922576ed4cabf9519550c72c"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/id.json",
-      "bytes": 1612,
-      "sha256": "bcd6fde6ae453fb4e31645bef3a599bda9ae510c5a1ba5e6db51242d7576f39d"
+      "bytes": 2105,
+      "sha256": "29abaa5539e5cce13ba58c89511b43a6a0d3a16d4e43e5befb1e9708aca7bbe1"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/it.json",
-      "bytes": 1664,
-      "sha256": "3425d35be259b4d7d6bd1688f1132122c1a78d3cb767a4a02097d0c6395f78a8"
+      "bytes": 2144,
+      "sha256": "aef7de3cc0efa9983b397f7d969719054c9965a35d0f1689ce16623ec3722b20"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/ms.json",
-      "bytes": 1611,
-      "sha256": "b6253a8579b1b52442990ee31d9fad7322e4c3a84b3f4d1d876c67066b37bbeb"
+      "bytes": 2106,
+      "sha256": "d1932c3311588d28c119f4a34a199ee29eae1f5b63526dfb0b6f3df2d394d3ac"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/nl.json",
-      "bytes": 1707,
-      "sha256": "7d0b006e9fd688dd40e284cfa420337a3cf58b776d76dee8a03f71abc572ce94"
+      "bytes": 2192,
+      "sha256": "3b8e2fe4088246ae3f6e8d3c5a23b1f6c0a4e21a8a4caa889dc8383fe9939f42"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/no.json",
-      "bytes": 1646,
-      "sha256": "32ecf5f850f4574419afff311065843ad119911083e7608f742b9df68e8119e2"
+      "bytes": 2108,
+      "sha256": "3c242475294eb591f0ac9a762aec3bdab6717c95803394f619836b8fdd320f5c"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/pl.json",
-      "bytes": 1711,
-      "sha256": "081eb3d2e276dc5e7c72cb44fc978b146d6a09de180ccb11bdc765ad2ebda4da"
+      "bytes": 2203,
+      "sha256": "12075b8e30de792d9ab71c087621c94f67b079cdc9de38b179123e37078e6d4e"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/pt-BR.json",
-      "bytes": 1681,
-      "sha256": "2d1e6f810b7836fb225c0e9ceca1eaa498ee82063068364527536ec71d0afaf1"
+      "bytes": 2161,
+      "sha256": "a6473048fddc02791304abf33abecb36fd13d8acb63923322a1a4363483c530c"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/ru.json",
-      "bytes": 2145,
-      "sha256": "b1a34ca42f4a8d54fd9331bbf562076a94366c31f1ad07fe6c6aea5e5437b381"
+      "bytes": 2787,
+      "sha256": "e1d8fc929110aded7c3810fa2765c032167d9ff6837f76ced3d1856012c0aa68"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/sv.json",
-      "bytes": 1661,
-      "sha256": "b089da3d9efce3a80f72a746e8e2406a22ddfc5d3ae264c7a0e64667c1de9fbf"
+      "bytes": 2144,
+      "sha256": "4be1116fefe77155913432c8c8c826d94c638741af2da2ae6ec19785760e7d95"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/th.json",
-      "bytes": 2392,
-      "sha256": "77ef0d87a24e4e30fcbd06bb367ca5c72d5e902c5abb083dbe8b77d0753aa450"
+      "bytes": 3091,
+      "sha256": "90f6560faf9fc0bc841dda652ce52c97b439551b87dbd71439fcaf80be4cbc3f"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/tr.json",
-      "bytes": 1676,
-      "sha256": "66c865bcbe2426b368b65f9cfbfdf903686113077e946bf71875f9c1e9a286a6"
+      "bytes": 2173,
+      "sha256": "3315486781a53208162eb81da329fb62fd5176f5784f65ba3b90e4c483366406"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/uk.json",
-      "bytes": 2086,
-      "sha256": "8c5fa1f41023f28220838be5c6e81dd79c7de176220f3a250e9a7f3d440bff5a"
+      "bytes": 2700,
+      "sha256": "c7ca955255d95a601e86dc9d13561f03fbe54c2fda4e0e7c4a5e0e1196b8e4ff"
     },
     {
       "path": "src/Leserpent/wwwroot/language-packs/vi.json",
-      "bytes": 1777,
-      "sha256": "47cf40fc5dee3280bbf9819dcaf894a8ebf6cdf610b9fee0345ef182925ddf48"
+      "bytes": 2302,
+      "sha256": "02eebc919a5066b4049eb60c78a416e350ae5a677ba018fcb854b2e84b7fb150"
     },
     {
       "path": "src/Leserpent/wwwroot/protocol-reading.css",

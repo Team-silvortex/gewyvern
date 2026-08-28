@@ -3,7 +3,7 @@
   "locale": "el",
   "name": "Greek",
   "nativeName": "Ελληνικά",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -26,7 +26,7 @@
       "catalogEmpty": "Δεν υπάρχουν δημοσιευμένα πακέτα για λήψη αυτήν τη στιγμή.",
       "noneInstalled": "Δεν έχουν εγκατασταθεί πρόσθετα πακέτα γλώσσας.",
       "install": "Εγκατάσταση",
-      "installedLabel": "Εγκατάσταση",
+      "installedLabel": "Εγκατεστημένα",
       "download": "Λήψη",
       "export": "Εξαγωγή",
       "remove": "Κατάργηση",
@@ -38,6 +38,16 @@
       "light": "Ημέρα",
       "dark": "Νύχτα"
     },
+    "actions": {
+      "refreshAll": "Ανανέωση όλου του στόλου",
+      "refreshStatus": "Ανανέωση κατάστασης",
+      "refreshCapabilities": "Ανανέωση δυνατοτήτων"
+    },
+    "filters": {
+      "title": "Φίλτρα στόλου",
+      "apply": "Εφαρμογή φίλτρων",
+      "clear": "Εκκαθάριση"
+    },
     "tabs": {
       "overview": "Επισκόπηση",
       "runtimes": "Runtime",
@@ -46,14 +56,20 @@
       "sessions": "Συνεδρίες"
     },
     "runtimes": {
+      "title": "Runtime",
+      "quickSearch": "Γρήγορη αναζήτηση",
+      "sortBy": "Ταξινόμηση κατά",
       "workspaceTabs": {
         "panel": "Θυγατρικός πίνακας"
       }
     },
     "runtimePanel": {
       "windows": {
+        "openSelected": "Άνοιγμα επιλεγμένου",
         "openAll": "Άνοιγμα όλων",
-        "closeAll": "Κλείσιμο όλων"
+        "closeAll": "Κλείσιμο όλων",
+        "close": "Κλείσιμο",
+        "activate": "Ενεργοποίηση"
       }
     }
   }

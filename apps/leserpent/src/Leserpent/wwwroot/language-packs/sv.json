@@ -3,7 +3,7 @@
   "locale": "sv",
   "name": "Swedish",
   "nativeName": "Svenska",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -26,7 +26,7 @@
       "catalogEmpty": "Inga hämtningsbara paket är publicerade just nu.",
       "noneInstalled": "Inga ytterligare språkpaket är installerade.",
       "install": "Installera",
-      "installedLabel": "Installera",
+      "installedLabel": "Installerade",
       "download": "Hämta",
       "export": "Exportera",
       "remove": "Ta bort",
@@ -38,6 +38,16 @@
       "light": "Dag",
       "dark": "Natt"
     },
+    "actions": {
+      "refreshAll": "Uppdatera hela flottan",
+      "refreshStatus": "Uppdatera status",
+      "refreshCapabilities": "Uppdatera funktioner"
+    },
+    "filters": {
+      "title": "Flottfilter",
+      "apply": "Tillämpa filter",
+      "clear": "Rensa"
+    },
     "tabs": {
       "overview": "Översikt",
       "runtimes": "Körmiljöer",
@@ -46,14 +56,20 @@
       "sessions": "Sessioner"
     },
     "runtimes": {
+      "title": "Körmiljöer",
+      "quickSearch": "Snabbsökning",
+      "sortBy": "Sortera efter",
       "workspaceTabs": {
         "panel": "Underpanel"
       }
     },
     "runtimePanel": {
       "windows": {
+        "openSelected": "Öppna markerad",
         "openAll": "Öppna alla",
-        "closeAll": "Stäng alla"
+        "closeAll": "Stäng alla",
+        "close": "Stäng",
+        "activate": "Aktivera"
       }
     }
   }

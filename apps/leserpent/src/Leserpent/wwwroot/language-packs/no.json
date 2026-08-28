@@ -3,7 +3,7 @@
   "locale": "no",
   "name": "Norwegian",
   "nativeName": "Norsk",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Leserpent maintainers",
   "direction": "ltr",
   "coverage": "core-ui",
@@ -26,7 +26,7 @@
       "catalogEmpty": "Det er for øyeblikket ingen publiserte pakker for nedlasting.",
       "noneInstalled": "Ingen ekstra språkpakker er installert.",
       "install": "Installer",
-      "installedLabel": "Installer",
+      "installedLabel": "Installert",
       "download": "Last ned",
       "export": "Eksporter",
       "remove": "Fjern",
@@ -38,6 +38,16 @@
       "light": "Dag",
       "dark": "Natt"
     },
+    "actions": {
+      "refreshAll": "Oppdater hele flåten",
+      "refreshStatus": "Oppdater status",
+      "refreshCapabilities": "Oppdater funksjoner"
+    },
+    "filters": {
+      "title": "Flåtefiltre",
+      "apply": "Bruk filtre",
+      "clear": "Tøm"
+    },
     "tabs": {
       "overview": "Oversikt",
       "runtimes": "Kjøretider",
@@ -46,14 +56,20 @@
       "sessions": "Økter"
     },
     "runtimes": {
+      "title": "Kjøretider",
+      "quickSearch": "Hurtigsøk",
+      "sortBy": "Sorter etter",
       "workspaceTabs": {
         "panel": "Underpanel"
       }
     },
     "runtimePanel": {
       "windows": {
+        "openSelected": "Åpne valgt",
         "openAll": "Åpne alle",
-        "closeAll": "Lukk alle"
+        "closeAll": "Lukk alle",
+        "close": "Lukk",
+        "activate": "Aktiver"
       }
     }
   }
