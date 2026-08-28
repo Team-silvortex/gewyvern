@@ -22,6 +22,7 @@ the nearest real `.gewy` example.
 
 ## Compiler
 
+- [Language and IR contract](../gewylang-contract.md)
 - [GewyLang to IR](../book/explanation-gewylang-to-ir.md)
 - [Lightweight types](../book/explanation-gewylang-lightweight-types.md)
 - [IR lowering](../book/reference-ir-lowering.md)

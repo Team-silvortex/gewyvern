@@ -97,6 +97,7 @@ Instead:
 The current minimum fixture spine should stay green:
 
 - [docs/fixtures/gewyc_frontend_udp_process_debug.json](docs/fixtures/gewyc_frontend_udp_process_debug.json)
+- [docs/fixtures/gewyc_ir_udp_process_debug.json](docs/fixtures/gewyc_ir_udp_process_debug.json)
 - [docs/fixtures/gewyc_stages_udp_process_debug.json](docs/fixtures/gewyc_stages_udp_process_debug.json)
 - [docs/fixtures/gewyc_explain_validation_udp_process_debug.json](docs/fixtures/gewyc_explain_validation_udp_process_debug.json)
 - [docs/fixtures/gewyc_explain_parse_failure.json](docs/fixtures/gewyc_explain_parse_failure.json)

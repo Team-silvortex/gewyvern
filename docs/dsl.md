@@ -28,6 +28,7 @@ Use the companion shelves when the question becomes more exact:
 - compiler JSON and machine-facing report shapes:
   [docs/gewyc-json.md](gewyc-json.md)
 - lowering contract and IR-facing explanation:
+  [docs/gewylang-contract.md](gewylang-contract.md),
   [docs/book/reference-ir-lowering.md](book/reference-ir-lowering.md)
   and
   [docs/book/explanation-gewylang-to-ir.md](book/explanation-gewylang-to-ir.md)
@@ -39,7 +40,8 @@ If you want the reading order for the whole language shelf, start with
 
 The DSL does not compile into eBPF bytecode.
 
-Its compile target is `TemplateBinding`, which carries:
+Its semantic compile target is Binding IR v1, represented by
+`TemplateBinding`, which carries:
 
 - template identity
 - fragment selection
@@ -80,8 +82,9 @@ template :structured_udp_process_debug
 |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: :structured_udp_process_debug, phase: :bind
 ```
 
-The pipeline parser first merges files and function units into a single
-pipeline/front-end IR, then lowers that IR into the current compiler surface.
+The pipeline parser first merges files and function units into Expanded AST
+v1, then lowers that structure into Binding IR v1. Analysis IR v1 is the
+separate diagnostics-enriched inspection projection.
 
 Function units reference parameters and local bindings with `$name`, so
 parameterized pipelines stay concise without changing their lowering model.
@@ -160,6 +163,7 @@ Typical examples:
 ```bash
 cargo run -p gewyc -- explain dsl/udp_process_debug.gewy
 cargo run -p gewyc -- explain dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- ir dsl/udp_process_debug.gewy --json
 cargo run -p gewyc -- explain dsl/udp_process_debug.gewy --focus ir
 cargo run -p gewyc -- explain dsl/udp_process_debug.gewy --focus validation
 ```
@@ -168,6 +172,7 @@ Use these pages for the exact companion contract:
 
 - [docs/dsl-syntax.md](dsl-syntax.md)
 - [docs/dsl-reference.md](dsl-reference.md)
+- [docs/gewylang-contract.md](gewylang-contract.md)
 - [docs/gewyc-json.md](gewyc-json.md)
 - [docs/book/reference-ir-lowering.md](book/reference-ir-lowering.md)
 

@@ -15,6 +15,7 @@ Its job is to answer:
 Read this alongside:
 
 - [GewyLang module](modules/gewylang.md)
+- [GewyLang language and IR contract](gewylang-contract.md)
 - [docs/dsl.md](dsl.md)
 - [docs/book/explanation-gewylang-to-ir.md](book/explanation-gewylang-to-ir.md)
 - [docs/book/explanation-protocol-package-spine.md](book/explanation-protocol-package-spine.md)
@@ -47,9 +48,9 @@ The intended implementation chain is:
 
 ```mermaid
 flowchart LR
-    A["gewylang source"] --> B["package and frontend graph"]
-    B --> C["TemplateBinding boundary"]
-    C --> D["lowered IR models"]
+    A["Syntax v1"] --> B["Expanded AST v1"]
+    B --> C["Binding IR v1 / TemplateBinding"]
+    C --> D["Analysis IR v1 / IrReport"]
     D --> E["runtime evidence planning"]
     E --> F["diagnosis and export surfaces"]
 ```
@@ -78,7 +79,7 @@ It is not for:
 
 ## Layer Responsibilities
 
-### 1. Source Layer
+### 1. Source Syntax v1
 
 This is the human-authored `.gewy` surface.
 
@@ -102,7 +103,7 @@ Bad changes here:
 - widening the language faster than the compiler can explain
 - adding implicit behavior that does not show up cleanly later
 
-### 2. Frontend Layer
+### 2. Expanded AST v1
 
 This is the expanded package/module graph surface.
 
@@ -124,9 +125,10 @@ Bad changes here:
 
 - silently collapsing structure that reviewers still need to see
 
-### 3. TemplateBinding Boundary
+### 3. Binding IR v1
 
-This is the narrow compile target of the language.
+This is the narrow compile target of the language, represented by
+`TemplateBinding`.
 
 Its job is to freeze the essentials:
 
@@ -142,9 +144,10 @@ This boundary is important because it keeps the language honest.
 
 It prevents the source layer from pretending it owns runtime truth directly.
 
-### 4. Lowered IR Layer
+### 4. Analysis IR v1
 
-This is where package/frontend structure becomes explicit rule-bearing models.
+This is where Binding IR becomes a diagnostics-enriched, explicit
+rule-bearing analysis projection represented by `IrReport`.
 
 Its job is to make these things inspectable:
 
@@ -206,7 +209,7 @@ Bad changes here:
 
 - export surfaces that bury the source-to-runtime story
 
-## What v0.15.x Should Keep Improving
+## What 1.20.x Should Keep Improving
 
 For the current line, the best `gewylang`-adjacent work is:
 

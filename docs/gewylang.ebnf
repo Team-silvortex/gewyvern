@@ -1,8 +1,10 @@
-# GewyLang Canonical Grammar
+# GewyLang Canonical Grammar: Syntax v1
 
-This grammar defines canonical generated and repository-maintained source. The
-parser accepts additional migration input, but those forms are outside this
-grammar and documented only in [the migration guide](gewylang-migration.md).
+This grammar is normative for `language_contract.syntax_version = 1` and
+defines canonical generated and repository-maintained source. The parser
+accepts additional migration input, but those forms are outside this grammar
+and documented only in [the migration guide](gewylang-migration.md). Stage and
+version rules live in [the language and IR contract](gewylang-contract.md).
 
 ```ebnf
 pipeline_file       = spacing, { documentation | comment | function_decl | spacing },

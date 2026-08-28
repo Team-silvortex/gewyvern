@@ -3,6 +3,7 @@ use crate::template::TemplateBinding;
 use std::collections::BTreeMap;
 use std::fs;
 
+mod contract;
 mod diagnostics;
 mod entry;
 mod frontend;
@@ -13,6 +14,10 @@ mod parser;
 mod pipeline;
 mod predicate;
 
+pub use self::contract::{
+    GEWYLANG_ANALYSIS_IR_VERSION, GEWYLANG_BINDING_IR_VERSION, GEWYLANG_EXPANDED_AST_VERSION,
+    GEWYLANG_LANGUAGE_ID, GEWYLANG_SYNTAX_VERSION, GewyLangContractStamp, GewyLangStage,
+};
 pub use self::entry::{
     compile_file, parse_file_unvalidated, parse_file_with_frontend_unvalidated,
     parse_str_unvalidated, parse_str_with_frontend_unvalidated,

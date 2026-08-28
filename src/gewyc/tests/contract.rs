@@ -20,6 +20,9 @@ fn blessed_wrapper_fields_exist_for_binding_surface() {
     ));
     assert!(json.contains("\"contract_hint\":{\"stability\":\"candidate\",\"compatibility\":\"grouped_payload_preferred\",\"legacy_fields\":\"retained_in_payload\"}"));
     assert!(json.contains("\"payload\":{"));
+    assert!(json.contains(
+        "\"language_contract\":{\"language\":\"gewylang\",\"syntax_version\":1,\"stage\":\"binding_ir\",\"stage_version\":1}"
+    ));
     assert!(json.contains("\"template_id\":\"udp_process_debug\""));
     assert!(json.contains("\"window\":{\"id\":\"inline\""));
     assert!(json.contains("\"duration_ms\":5000"));
@@ -55,11 +58,30 @@ fn blessed_grouped_fields_exist_for_ir_history_surface() {
     assert_valid_json_document(&json);
     assert!(json.contains("\"surface_id\":\"gewyc.ir_history_snapshot\""));
     assert!(json.contains("\"payload\":{"));
+    assert!(json.contains(
+        "\"language_contract\":{\"language\":\"gewylang\",\"syntax_version\":1,\"stage\":\"analysis_ir\",\"stage_version\":1}"
+    ));
     assert!(json.contains("\"template_id\":\"amqp_basic_publish_path\""));
     assert!(json.contains("\"operation\":\"amqp_basic_publish\""));
     assert!(json.contains("\"program_model\":{"));
     assert!(json.contains("\"reason_model\":{"));
     assert!(json.contains("\"model_compare\":{"));
+}
+
+#[test]
+fn direct_ir_surface_has_a_distinct_analysis_contract() {
+    let report = compile_ir_report_file(&amqp_publish_path()).unwrap();
+    let json = render_ir_report(&report, RenderFormat::Json);
+    let text = render_ir_report(&report, RenderFormat::Text);
+
+    assert_valid_json_document(&json);
+    assert!(json.contains("\"surface_id\":\"gewyc.ir\""));
+    assert!(json.contains(
+        "\"language_contract\":{\"language\":\"gewylang\",\"syntax_version\":1,\"stage\":\"analysis_ir\",\"stage_version\":1}"
+    ));
+    assert!(text.starts_with(
+        "language_contract=gewylang syntax_version=1 stage=analysis_ir stage_version=1"
+    ));
 }
 
 #[test]

@@ -48,6 +48,21 @@ Choose samples in this order:
   You are wiring a frontend graph panel, package-review view, or authoring
   summary card.
 
+### Analysis IR Success
+
+- file:
+  [docs/fixtures/gewyc_ir_udp_process_debug.json](docs/fixtures/gewyc_ir_udp_process_debug.json)
+- command:
+  `cargo run -p gewyc -- ir dsl/udp_process_debug.gewy --json`
+- input:
+  [dsl/udp_process_debug.gewy](dsl/udp_process_debug.gewy)
+- meaning:
+  Direct Analysis IR v1 with its language contract stamp, explicit program and
+  reason models, supportability detail, and archival projection.
+- use this when:
+  You are wiring an IR inspector, model review, or version-aware compiler
+  consumer without the larger `explain` shell.
+
 ### Stages Success
 
 - file:
@@ -178,6 +193,7 @@ sample, and one healthy authoring/graph sample.
 Start with:
 
 - envelope success
+- analysis IR success
 - explain validation focus success
 - stages success
 - frontend success

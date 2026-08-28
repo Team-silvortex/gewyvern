@@ -35,7 +35,8 @@ When adding or reviewing a machine consumer:
 | `stages` | `payload.status`, `payload.counts` | [docs/fixtures/gewyc_stages_udp_process_debug.json](docs/fixtures/gewyc_stages_udp_process_debug.json) | phase gate, shell checks |
 | `envelope` | `payload.status`, `payload.surfaces.*` | envelope branch in `gewyc explain` style docs flow | umbrella routing |
 | `explain` | `payload.summary.stage_status`, `payload.summary.analysis`, `payload.summary.shape_notes`, `payload.summary.excerpts` | [docs/fixtures/gewyc_explain_validation_udp_process_debug.json](docs/fixtures/gewyc_explain_validation_udp_process_debug.json) | UI summary, operator panel |
-| `ir_history_snapshot` | `payload.analysis.model_compare`, `payload.analysis.history_snapshot` | IR-focused render path documented in [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md) | archival diff, IR evolution |
+| `ir` | `payload.language_contract`, `payload.status`, `payload.counts`, `payload.analysis` | [docs/fixtures/gewyc_ir_udp_process_debug.json](docs/fixtures/gewyc_ir_udp_process_debug.json) | direct model review, supportability inspection |
+| `ir_history_snapshot` | `payload.language_contract`, `payload.program_model`, `payload.reason_model`, `payload.model_compare` | IR snapshot path documented in [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md) | archival diff, IR evolution |
 
 ## Failure Matrix
 

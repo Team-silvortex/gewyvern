@@ -153,6 +153,19 @@ report median from `89.792` to `65.170 ms` (`27.4%`), explain from `44.422` to
 (`16.8%`). The frontend-only median remained effectively neutral at
 `44.746/44.425 ms`; package lockfile generation was not changed by this pass.
 
+The `2026-08-28` focused GewyLang frontend pass adds a 7,159-byte SMTP data-path
+workload containing 41 merged steps and 16 program rules. Across seven
+single-threaded release samples of 200 in-memory compilations, byte-oriented
+placeholder scans, borrowed rule field names, and borrowed unescaped literals
+reduced pure parse/lower from `126.975` to `71.449 ms` (`43.7%`) and the same
+path with frontend projection from `134.654` to `74.181 ms` (`44.9%`). The
+public owned binding/frontend contracts are unchanged; only temporary compiler
+values borrow source text. Reproduce both measurements with:
+
+```bash
+cargo test --release --locked -p gewyc benchmark_gewylang_ -- --ignored --nocapture --test-threads=1
+```
+
 The same date's runtime-ledger pass replaces the full stable sort after every
 accepted fact with an append fast path and a stable binary-insertion fallback
 for genuinely out-of-order IDs. Ten alternating same-host test-binary pairs on
@@ -276,6 +289,8 @@ For `gewylang` / `gewyc`, the first useful compiler-facing benchmark family is:
 - `benchmark_gewyc_explain_report_udp_process_debug`
 - `benchmark_gewyc_envelope_report_udp_process_debug`
 - `benchmark_gewyc_lockfile_protocol_publish_package`
+- `benchmark_gewylang_parse_lower_smtp_data_path`
+- `benchmark_gewylang_parse_lower_frontend_smtp_data_path`
 
 The expected workflow before calling a release candidate acceptable is:
 
@@ -304,6 +319,8 @@ Current baselines:
 | `benchmark_gewyc_explain_report_udp_process_debug` | `35.959` | 100 iterations, median of 10 optimized samples from alternating binary A/B |
 | `benchmark_gewyc_envelope_report_udp_process_debug` | `37.238` | 100 iterations, median of 10 optimized samples from alternating binary A/B |
 | `benchmark_gewyc_lockfile_protocol_publish_package` | `3.013` | 100 iterations, unchanged path retained as the current same-host observation |
+| `benchmark_gewylang_parse_lower_smtp_data_path` | `71.449` | 200 in-memory release compilations of 7,159 bytes, median of seven samples |
+| `benchmark_gewylang_parse_lower_frontend_smtp_data_path` | `74.181` | Same workload with frontend projection, median of seven samples |
 | `benchmark_runtime_ingest_ordered_8192_facts` | `0.795` | 8,192 ordered facts, median of 10 optimized samples from alternating binary A/B |
 | `benchmark_flow_reconstruction_8192_facts` | `119.015` | 50 reconstructions of 8,192 facts across 256 flows, median of 10 optimized samples from alternating binary A/B |
 | `benchmark_runtime_flow_snapshots_8192_facts` | `129.556` | 50 session snapshots of 8,192 materialized facts across 256 flows, median of 10 optimized samples from alternating binary A/B |
@@ -354,6 +371,7 @@ bash scripts/perf/benchmark_summary.sh 3 benchmark_scan_report_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_findings_json_large_protocol_flow_export
 bash scripts/perf/benchmark_summary.sh 3 benchmark_http_transactions_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_gewyc_
+cargo test --release --locked -p gewyc benchmark_gewylang_ -- --ignored --nocapture --test-threads=1
 bash scripts/perf/benchmark_summary.sh 3 benchmark_runtime_ingest_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_flow_reconstruction_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_runtime_flow_snapshots_

@@ -4913,16 +4913,42 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(gewylang.maturity, Maturity::Mature);
     assert_eq!(gewylang.completion, 100);
     assert_eq!(gewylang.contract.stability, ContractStability::Stable);
-    assert_eq!(gewylang.contract.version, "1.29.0");
-    assert!(
-        gewylang
-            .contract
-            .surfaces
-            .iter()
-            .any(|surface| surface == "standard-cli-help-and-version-exit-contract")
-    );
+    assert_eq!(gewylang.contract.version, "1.31.0");
+    for surface in [
+        "standard-cli-help-and-version-exit-contract",
+        "versioned-language-contract-stamp",
+        "syntax-v1",
+        "expanded-ast-v1",
+        "binding-ir-v1",
+        "analysis-ir-v1",
+        "direct-gewyc-binding-command",
+        "direct-gewyc-ir-command",
+        "language-contract-json-schema",
+        "allocation-bounded-placeholder-scanning",
+        "borrowed-rule-keyword-lowering",
+        "borrowed-unescaped-literal-lowering",
+        "focused-parser-lowering-benchmark",
+    ] {
+        assert!(
+            gewylang
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing GewyLang compiler surface {surface}"
+        );
+    }
     assert!(gewylang.evidence.iter().any(|item| {
         item.path == "crates/gewyc/tests/cli_information.rs" && item.state == EvidenceState::Present
+    }));
+    assert!(gewylang.evidence.iter().any(|item| {
+        item.path == "crates/gewyc/src/tests.rs" && item.state == EvidenceState::Present
+    }));
+    assert!(gewylang.evidence.iter().any(|item| {
+        item.path == "src/dsl/contract.rs" && item.state == EvidenceState::Present
+    }));
+    assert!(gewylang.evidence.iter().any(|item| {
+        item.path == "docs/gewylang-contract.md" && item.state == EvidenceState::Present
     }));
     assert!(gewylang.blockers.is_empty());
     assert!(

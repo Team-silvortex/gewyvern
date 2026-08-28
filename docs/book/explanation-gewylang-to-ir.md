@@ -3,15 +3,17 @@
 This chapter explains the middle of the `gewyvern` language pipeline:
 
 ```text
-.gewy source
-  -> package/frontend graph
-  -> TemplateBinding
-  -> lowered IR summary
-  -> archival IR snapshot
+.gewy source (Syntax v1)
+  -> Expanded AST v1
+  -> Binding IR v1 (TemplateBinding)
+  -> Analysis IR v1 (IrReport)
+  -> archival Analysis IR snapshot
 ```
 
 It sits between:
 
+- the normative stage contract in
+  [docs/gewylang-contract.md](../gewylang-contract.md)
 - the source-language guide in
   [docs/dsl.md](../dsl.md)
 - the source-shape companion in
@@ -78,9 +80,10 @@ That is why the current language posture stays narrow:
 - function-unit reuse
 - lightweight safety boundaries
 
-## Step 2: Expand Into A Frontend Graph
+## Step 2: Expand Into Expanded AST v1
 
-The first major compiler surface is the expanded frontend graph.
+The first public compiler projection is Expanded AST v1, rendered as the
+expanded frontend graph.
 
 This is what `gewyc frontend` is for.
 
@@ -120,10 +123,10 @@ That would make several things harder to review:
 
 The frontend graph acts as the “source truth you can still inspect”.
 
-## Step 3: Cross The TemplateBinding Boundary
+## Step 3: Cross Into Binding IR v1
 
-Once the frontend package is expanded, the compiler crosses the
-`TemplateBinding` boundary.
+Once the frontend package is expanded, the compiler crosses into Binding IR
+v1, represented by `TemplateBinding`.
 
 This is the first deliberate narrowing step.
 
@@ -144,10 +147,10 @@ That is intentional.
 The system needs to preserve author intent, but it also needs to become stable
 enough for runtime planning and diagnostics.
 
-## Step 4: Lower Into Explicit IR Models
+## Step 4: Project Analysis IR v1
 
-After the binding boundary, the compiler lowers into explicit IR model
-surfaces.
+After the binding boundary, the compiler projects explicit Analysis IR model
+surfaces and enriches them with supportability diagnostics.
 
 Today the important pair is:
 
@@ -246,8 +249,8 @@ When reviewing a package or compiler change, a strong inspection order is:
 
 1. `gewyc frontend`
    Check includes, function units, and graph edges.
-2. `gewyc explain --focus ir`
-   Check `program_model`, `reason_model`, and `ir_lowering_delta`.
+2. `gewyc ir`
+   Check the direct `program_model`, `reason_model`, and supportability shape.
 3. `gewyc_ir_snapshot`
    Check the durable archival shape you would be comfortable recording in
    history.
@@ -256,9 +259,12 @@ In command form:
 
 ```bash
 cargo run -p gewyc -- frontend dsl/http_request_path.gewy --focus graph
-cargo run -p gewyc -- explain dsl/http_request_path.gewy --focus ir --json
+cargo run -p gewyc -- ir dsl/http_request_path.gewy --json
 cargo run --bin gewyc_ir_snapshot -- dsl/http_request_path.gewy --json
 ```
+
+Use `gewyc explain --focus ir` instead of step 2 when the review also needs
+`ir_lowering_delta` and surrounding troubleshooting notes.
 
 This sequence moves from:
 
@@ -271,9 +277,9 @@ This sequence moves from:
 When a new `gewylang` feature is proposed, it should be reviewable at all
 three middle surfaces:
 
-1. frontend graph
-2. IR lowering delta
-3. history snapshot
+1. Expanded AST
+2. Binding IR
+3. Analysis IR and its history projection
 
 That means a feature is not really integrated yet if:
 

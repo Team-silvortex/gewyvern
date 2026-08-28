@@ -6,7 +6,10 @@ use crate::dsl::{
     DslError, PipelineCall, PipelineLetBinding, PipelineModule, PipelineParam, frontend,
     function_types::parse_pipeline_value_kind_name,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+};
 
 pub(crate) fn push_pipeline_function_call(
     module: &mut PipelineModule,
@@ -427,43 +430,39 @@ fn is_single_pipeline_string_literal(value: &str) -> bool {
 }
 
 fn pipeline_string_placeholder(value: &str) -> Option<(usize, String)> {
-    let chars = value.char_indices().collect::<Vec<_>>();
+    let bytes = value.as_bytes();
     let mut index = 1usize;
     let mut escaped = false;
-    while index + 1 < chars.len() {
-        let (byte_index, ch) = chars[index];
+    while index + 1 < bytes.len() {
+        let byte = bytes[index];
         if escaped {
             escaped = false;
             index += 1;
             continue;
         }
-        if ch == '\\' {
+        if byte == b'\\' {
             escaped = true;
             index += 1;
             continue;
         }
-        if ch != '$' {
+        if byte != b'$' {
             index += 1;
             continue;
         }
-        let Some((_, first)) = chars.get(index + 1).copied() else {
+        let Some(&first) = bytes.get(index + 1) else {
             break;
         };
-        if !(first.is_ascii_alphabetic() || first == '_') {
+        if !(first.is_ascii_alphabetic() || first == b'_') {
             index += 1;
             continue;
         }
         let mut end = index + 2;
-        while end < chars.len()
-            && (chars[end].1.is_ascii_alphanumeric() || matches!(chars[end].1, '_' | '-'))
+        while end < bytes.len()
+            && (bytes[end].is_ascii_alphanumeric() || matches!(bytes[end], b'_' | b'-'))
         {
             end += 1;
         }
-        let byte_end = chars
-            .get(end)
-            .map(|(position, _)| *position)
-            .unwrap_or(value.len());
-        return Some((byte_index + 1, value[byte_index..byte_end].to_string()));
+        return Some((index + 1, value[index..end].to_string()));
     }
     None
 }
@@ -647,6 +646,22 @@ mod tests {
     }
 
     #[test]
+    fn pipeline_literals_borrow_until_escape_decoding_requires_ownership() {
+        assert!(matches!(
+            parse_pipeline_literal_cow(":fragment-name.field_name"),
+            Ok(Cow::Borrowed("fragment-name.field_name"))
+        ));
+        assert!(matches!(
+            parse_pipeline_literal_cow(r#""plain text""#),
+            Ok(Cow::Borrowed("plain text"))
+        ));
+        assert!(matches!(
+            parse_pipeline_literal_cow(r#""escaped\ttext""#),
+            Ok(Cow::Owned(value)) if value == "escaped\ttext"
+        ));
+    }
+
+    #[test]
     fn pipeline_string_literals_reject_unknown_escapes() {
         let err = parse_pipeline_literal(r#""bad\qescape""#)
             .expect_err("unknown escapes must fail closed");
@@ -740,9 +755,20 @@ mod tests {
 }
 
 pub(crate) fn parse_pipeline_literal(value: &str) -> Result<String, DslError> {
+    parse_pipeline_literal_cow(value).map(Cow::into_owned)
+}
+
+pub(crate) fn parse_pipeline_literal_cow(value: &str) -> Result<Cow<'_, str>, DslError> {
     let value = value.trim();
     if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
-        decode_pipeline_string_literal(&value[1..value.len() - 1])
+        let inner = &value[1..value.len() - 1];
+        if !inner.as_bytes().contains(&b'\\') {
+            if let Some((index, ch)) = inner.char_indices().find(|(_, ch)| ch.is_control()) {
+                return Err(invalid_pipeline_string_character(ch, index + 2));
+            }
+            return Ok(Cow::Borrowed(inner));
+        }
+        decode_pipeline_string_literal(inner).map(Cow::Owned)
     } else if let Some(atom) = value.strip_prefix(':') {
         if !is_pipeline_atom_path(atom) {
             return Err(
@@ -750,9 +776,9 @@ pub(crate) fn parse_pipeline_literal(value: &str) -> Result<String, DslError> {
                     .at_line_column(0, Some(1)),
             );
         }
-        Ok(atom.to_string())
+        Ok(Cow::Borrowed(atom))
     } else {
-        Ok(value.to_string())
+        Ok(Cow::Borrowed(value))
     }
 }
 

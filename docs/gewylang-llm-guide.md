@@ -6,6 +6,8 @@ GewyLang (`.gewy`) source. Read this page before sampling arbitrary files from
 
 All generated source must follow the
 [GewyLang Canonical Style Standard](gewylang-style.md).
+Compiler stage names and versions are defined by the
+[GewyLang language and IR contract](gewylang-contract.md).
 
 ## Language Identity
 
@@ -16,8 +18,11 @@ eBPF bytecode and is not a general-purpose programming language.
 The compile boundary is:
 
 ```text
-.gewy source -> frontend module -> TemplateBinding -> validated runtime IR
+Syntax v1 -> Expanded AST v1 -> Binding IR v1 -> Analysis IR v1
 ```
+
+`TemplateBinding` is Binding IR. Analysis IR is the diagnostics-enriched
+program/reason projection. Neither stage is eBPF bytecode.
 
 ## Generation Contract
 
@@ -191,6 +196,7 @@ cargo run -p gewyc -- envelope path/to/main.gewy --json
 cargo run -p gewyc -- findings path/to/main.gewy --json
 cargo run -p gewyc -- frontend path/to/main.gewy --focus graph
 cargo run -p gewyc -- path/to/main.gewy --json
+cargo run -p gewyc -- ir path/to/main.gewy --json
 ```
 
 Interpretation:
@@ -198,7 +204,8 @@ Interpretation:
 1. `envelope` gives the shortest overall status and next step.
 2. `findings` gives stable machine-readable failures.
 3. `frontend --focus graph` verifies include and use composition.
-4. normal compile confirms the validated `TemplateBinding`.
+4. normal compile confirms the validated Binding IR (`TemplateBinding`).
+5. `ir` verifies the explicit Analysis IR and supportability projection.
 
 Never claim a generated file is valid only because it resembles another
 protocol file.

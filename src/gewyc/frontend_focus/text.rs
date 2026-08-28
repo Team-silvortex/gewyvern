@@ -4,7 +4,8 @@ use super::*;
 pub(super) fn frontend_text(frontend: Option<&FrontendReport>) -> String {
     match frontend {
         Some(frontend) => format!(
-            "kind={} module_doc={} template_doc={} functions={} function_nodes={} merged_steps={} include_sources={} use_edges={} expansions={} graph_nodes={} graph_edges={}",
+            "{} kind={} module_doc={} template_doc={} functions={} function_nodes={} merged_steps={} include_sources={} use_edges={} expansions={} graph_nodes={} graph_edges={}",
+            gewylang_contract_text(GewyLangStage::ExpandedAst),
             frontend.kind,
             frontend
                 .module_doc
@@ -85,6 +86,7 @@ pub(super) fn frontend_report_text(
     focus: Option<FrontendFocus>,
 ) -> String {
     let mut lines = vec![
+        gewylang_contract_text(GewyLangStage::ExpandedAst),
         format!("kind={}", report.kind),
         format!(
             "module_doc={}",
@@ -198,22 +200,25 @@ pub(super) fn frontend_report_text_compact(
     report: &FrontendReport,
     focus: Option<FrontendFocus>,
 ) -> String {
-    let mut lines = vec![format!(
-        "kind={} module_doc={} template_doc={} function_count={} merged_step_count={}",
-        report.kind,
-        report
-            .module_doc
-            .as_deref()
-            .unwrap_or("none")
-            .replace('\n', " / "),
-        report
-            .template_doc
-            .as_deref()
-            .unwrap_or("none")
-            .replace('\n', " / "),
-        report.function_count,
-        report.merged_step_count
-    )];
+    let mut lines = vec![
+        gewylang_contract_text(GewyLangStage::ExpandedAst),
+        format!(
+            "kind={} module_doc={} template_doc={} function_count={} merged_step_count={}",
+            report.kind,
+            report
+                .module_doc
+                .as_deref()
+                .unwrap_or("none")
+                .replace('\n', " / "),
+            report
+                .template_doc
+                .as_deref()
+                .unwrap_or("none")
+                .replace('\n', " / "),
+            report.function_count,
+            report.merged_step_count
+        ),
+    ];
     if let Some(focus) = focus {
         lines.push(format!("focus={}", frontend_focus_text(focus)));
         match focus {

@@ -11,6 +11,7 @@ This page answers:
 
 Use these nearby pages with it:
 
+- [docs/gewylang-contract.md](gewylang-contract.md)
 - [docs/gewyc-json.md](docs/gewyc-json.md)
 - [docs/gewyc-contract-matrix.md](docs/gewyc-contract-matrix.md)
 - [docs/gewyc-sample-index.md](docs/gewyc-sample-index.md)
@@ -78,12 +79,26 @@ These top-level wrapper fields are the current contract candidate for every
 | `contract_hint.legacy_fields` | `blessed` | `1.0.0+` | Legacy-payload presence hint. |
 | `payload` | `blessed` | `1.0.0+` | Container for surface-specific shape. |
 
+## Language Stage Contract
+
+The following fields are blessed on stage-bearing payloads. Their normative
+schema is
+[`docs/contracts/gewylang-language-contract-v1.schema.json`](contracts/gewylang-language-contract-v1.schema.json).
+
+| Field | Status | Earliest tightening | Notes |
+| --- | --- | --- | --- |
+| `payload.language_contract.language` | `blessed` | `1.20.x` | Exact language family, currently `gewylang`. |
+| `payload.language_contract.syntax_version` | `blessed` | `1.20.x` | Canonical source syntax version. |
+| `payload.language_contract.stage` | `blessed` | `1.20.x` | `expanded_ast`, `binding_ir`, or `analysis_ir`. |
+| `payload.language_contract.stage_version` | `blessed` | `1.20.x` | Independent version for the selected stage. |
+
 ## Frontend Surface
 
 Recommended first reads:
 
 | Field | Status | Earliest tightening | Notes |
 | --- | --- | --- | --- |
+| `payload.language_contract` | `blessed` | `1.20.x` | Expanded AST contract identity. |
 | `payload.report.status.present` | `blessed` | `1.0.0+` | Presence gate for the rendered frontend report. |
 | `payload.report.authoring` | `blessed` | `1.0.0+` | Preferred grouped authoring shelf. |
 | `payload.report.counts` | `blessed` | `1.0.0+` | Preferred grouped topology/count shelf. |
@@ -103,6 +118,7 @@ Recommended first reads:
 
 | Field | Status | Earliest tightening | Notes |
 | --- | --- | --- | --- |
+| `payload.language_contract` | `blessed` | `1.20.x` | Binding IR contract identity. |
 | `payload.status.has_window` | `blessed` | `1.0.0+` | Fast posture gate. |
 | `payload.status.has_reason_profile` | `blessed` | `1.0.0+` | Fast posture gate. |
 | `payload.status.has_program_model` | `blessed` | `1.0.0+` | Fast posture gate. |
@@ -216,12 +232,13 @@ Recommended first reads:
 | `payload.summary.validation_excerpt` | `compat` | `0.19.x` | Older flat summary field, still retained. |
 | `payload.summary.diagnostics_excerpt` | `compat` | `0.19.x` | Older flat summary field, still retained. |
 
-## IR History Snapshot Surface
+## Analysis IR Surface
 
-Recommended first reads:
+These reads apply to the direct `gewyc.ir` surface:
 
 | Field | Status | Earliest tightening | Notes |
 | --- | --- | --- | --- |
+| `payload.language_contract` | `blessed` | `1.20.x` | Analysis IR contract identity. |
 | `payload.status.has_program_model` | `blessed` | `1.0.0+` | Presence gate. |
 | `payload.status.has_reason_model` | `blessed` | `1.0.0+` | Presence gate. |
 | `payload.status.has_model_compare` | `blessed` | `1.0.0+` | Presence gate. |
@@ -234,6 +251,20 @@ Recommended first reads:
 | `payload.reason_model` | `compat` | `0.19.x` | Exact lowered model detail. |
 | `payload.model_compare` | `compat` | `0.19.x` | Exact comparison detail. |
 | `payload.history_snapshot` | `compat` | `0.19.x` | Exact archival detail. |
+
+## IR History Snapshot Surface
+
+The compact `gewyc.ir_history_snapshot` surface is a projection of Analysis IR,
+not a separate stage.
+
+| Field | Status | Earliest tightening | Notes |
+| --- | --- | --- | --- |
+| `payload.language_contract` | `blessed` | `1.20.x` | Same Analysis IR contract identity as the direct surface. |
+| `payload.template_id` | `blessed` | `1.20.x` | Archived binding identity. |
+| `payload.operation` | `blessed` | `1.20.x` | Archived program operation when present. |
+| `payload.program_model` | `blessed` | `1.20.x` | Compact program-model shape. |
+| `payload.reason_model` | `blessed` | `1.20.x` | Compact reason-model shape. |
+| `payload.model_compare` | `blessed` | `1.20.x` | Compact alignment summary when both models exist. |
 
 ## Reading Rule
 

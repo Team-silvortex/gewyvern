@@ -208,7 +208,8 @@ fn ir_json_surfaces_status_count_and_analysis_groups() {
     assert_eq!(report.template_id, "amqp_basic_publish_path");
     assert!(json.contains("\"status\":{\"present\":true}"));
     assert!(json.contains("\"analysis\":{\"ir_lowering_delta\":"));
-    assert!(json.contains("\"report\":{\"template_id\":\"amqp_basic_publish_path\""));
+    assert!(json.contains("\"report\":{\"language_contract\":"));
+    assert!(json.contains("\"template_id\":\"amqp_basic_publish_path\""));
     assert!(json.contains("\"counts\":{\"program_rules\":"));
     assert!(json.contains("\"analysis\":{\"model_compare\":"));
 }

@@ -6,6 +6,7 @@ use gewyvern::gewyc::{
     render_frontend_report, render_frontend_report_with_focus, render_frontend_report_with_options,
 };
 use std::fs;
+use std::hint::black_box;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 fn dsl_fixture_path(name: &str) -> String {
@@ -61,6 +62,23 @@ fn parse_cli_defaults_to_compile_command() {
 }
 
 #[test]
+fn parse_cli_accepts_binding_stage_command() {
+    let cli = parse_cli(
+        vec![
+            "gewyc".into(),
+            "binding".into(),
+            "dsl/udp_process_debug.gewy".into(),
+            "--json".into(),
+        ],
+        UiLocale::En,
+    )
+    .unwrap();
+    assert_eq!(cli.command, Command::Compile);
+    assert_eq!(cli.emit, EmitTarget::Binding);
+    assert_eq!(cli.output, OutputMode::Json);
+}
+
+#[test]
 fn parse_cli_accepts_diagnostics_json_mode() {
     let cli = parse_cli(
         vec![
@@ -92,6 +110,36 @@ fn parse_cli_accepts_frontend_command() {
     assert_eq!(cli.command, Command::Frontend);
     assert_eq!(cli.emit, EmitTarget::Frontend);
     assert_eq!(cli.output, OutputMode::Json);
+}
+
+#[test]
+fn parse_cli_accepts_ir_command_and_emit_target() {
+    let command = parse_cli(
+        vec![
+            "gewyc".into(),
+            "ir".into(),
+            "dsl/udp_process_debug.gewy".into(),
+            "--json".into(),
+        ],
+        UiLocale::En,
+    )
+    .unwrap();
+    assert_eq!(command.command, Command::Ir);
+    assert_eq!(command.emit, EmitTarget::Ir);
+    assert_eq!(command.output, OutputMode::Json);
+
+    let emit = parse_cli(
+        vec![
+            "gewyc".into(),
+            "dsl/udp_process_debug.gewy".into(),
+            "--emit".into(),
+            "ir".into(),
+        ],
+        UiLocale::En,
+    )
+    .unwrap();
+    assert_eq!(emit.command, Command::Compile);
+    assert_eq!(emit.emit, EmitTarget::Ir);
 }
 
 #[test]
@@ -640,6 +688,54 @@ fn benchmark_gewyc_lockfile_protocol_publish_package() {
     eprintln!(
         "benchmark_gewyc_lockfile_protocol_publish_package: iterations=100 total_len={} elapsed_ms={:.3}",
         total_len,
+        elapsed.as_secs_f64() * 1000.0
+    );
+}
+
+#[test]
+#[ignore = "benchmark"]
+fn benchmark_gewylang_parse_lower_smtp_data_path() {
+    let source = fs::read_to_string(dsl_fixture_path("smtp_data_path.gewy")).unwrap();
+    let start = Instant::now();
+    let mut total_rules = 0usize;
+    for _ in 0..200 {
+        let binding = gewyvern::dsl::parse_str_unvalidated(black_box(&source)).unwrap();
+        total_rules += binding
+            .template
+            .program_model
+            .as_ref()
+            .map(|model| model.rules.len())
+            .unwrap_or(0);
+        black_box(binding);
+    }
+    let elapsed = start.elapsed();
+    assert!(total_rules > 0);
+    eprintln!(
+        "benchmark_gewylang_parse_lower_smtp_data_path: iterations=200 source_bytes={} total_rules={} elapsed_ms={:.3}",
+        source.len(),
+        total_rules,
+        elapsed.as_secs_f64() * 1000.0
+    );
+}
+
+#[test]
+#[ignore = "benchmark"]
+fn benchmark_gewylang_parse_lower_frontend_smtp_data_path() {
+    let source = fs::read_to_string(dsl_fixture_path("smtp_data_path.gewy")).unwrap();
+    let start = Instant::now();
+    let mut total_steps = 0usize;
+    for _ in 0..200 {
+        let (binding, frontend) =
+            gewyvern::dsl::parse_str_with_frontend_unvalidated(black_box(&source)).unwrap();
+        total_steps += frontend.merged_step_count;
+        black_box((binding, frontend));
+    }
+    let elapsed = start.elapsed();
+    assert!(total_steps > 0);
+    eprintln!(
+        "benchmark_gewylang_parse_lower_frontend_smtp_data_path: iterations=200 source_bytes={} total_steps={} elapsed_ms={:.3}",
+        source.len(),
+        total_steps,
         elapsed.as_secs_f64() * 1000.0
     );
 }

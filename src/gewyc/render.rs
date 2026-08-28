@@ -44,6 +44,13 @@ pub fn render_frontend_report_with_options(
     }
 }
 
+pub fn render_ir_report(report: &IrReport, format: RenderFormat) -> String {
+    match format {
+        RenderFormat::Text => ir_text(report),
+        RenderFormat::Json => gewyc_surface_json("ir", ir_json(report)),
+    }
+}
+
 pub fn render_diagnostics(
     binding: &TemplateBinding,
     diagnostics: &BindingDiagnostics,

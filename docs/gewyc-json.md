@@ -13,6 +13,7 @@ Read this page when the question is:
 
 Read these companion pages beside it:
 
+- [docs/gewylang-contract.md](gewylang-contract.md)
 - [docs/dsl.md](docs/dsl.md)
 - [docs/dsl-syntax.md](docs/dsl-syntax.md)
 - [docs/gewyc-field-contract.md](docs/gewyc-field-contract.md)
@@ -26,6 +27,7 @@ Representative fixture snapshots for this page:
 - [docs/fixtures/gewyc_envelope_udp_process_debug.json](docs/fixtures/gewyc_envelope_udp_process_debug.json)
 - [docs/fixtures/gewyc_findings_parse_failure.json](docs/fixtures/gewyc_findings_parse_failure.json)
 - [docs/fixtures/gewyc_frontend_udp_process_debug.json](docs/fixtures/gewyc_frontend_udp_process_debug.json)
+- [docs/fixtures/gewyc_ir_udp_process_debug.json](docs/fixtures/gewyc_ir_udp_process_debug.json)
 - [docs/fixtures/gewyc_stages_udp_process_debug.json](docs/fixtures/gewyc_stages_udp_process_debug.json)
 - [docs/fixtures/gewyc_explain_validation_udp_process_debug.json](docs/fixtures/gewyc_explain_validation_udp_process_debug.json)
 - [docs/fixtures/gewyc_explain_parse_failure.json](docs/fixtures/gewyc_explain_parse_failure.json)
@@ -105,15 +107,43 @@ For most surfaces, read in this order:
 1. `surface_id`
 2. `schema_hint`
 3. `contract_hint`
-4. `payload.summary`
-5. `payload.status`
-6. `payload.counts`
-7. `payload.analysis`
-8. `payload.shape_notes`
-9. `payload.excerpts`
-10. `payload.report` or legacy flat fields
+4. `payload.language_contract` when the surface represents a language stage
+5. `payload.summary`
+6. `payload.status`
+7. `payload.counts`
+8. `payload.analysis`
+9. `payload.shape_notes`
+10. `payload.excerpts`
+11. `payload.report` or legacy flat fields
 
 This keeps scripts resilient even when detail payloads widen.
+
+## Language Stage Stamp
+
+Stage-bearing compiler payloads include `payload.language_contract`:
+
+```json
+{
+  "language": "gewylang",
+  "syntax_version": 1,
+  "stage": "binding_ir",
+  "stage_version": 1
+}
+```
+
+Current mappings are:
+
+| Surface | Stage |
+| --- | --- |
+| `gewyc.frontend` | `expanded_ast` |
+| `gewyc.binding` | `binding_ir` |
+| `gewyc.ir` | `analysis_ir` |
+| `gewyc.ir_history_snapshot` | `analysis_ir` |
+
+The stamp schema is
+[`docs/contracts/gewylang-language-contract-v1.schema.json`](contracts/gewylang-language-contract-v1.schema.json).
+It versions language semantics independently from the outer
+`schema_hint.schema_version` renderer envelope.
 
 ## Frontend Surface
 
@@ -139,6 +169,12 @@ Top-level shape:
     "schema_version": 1
   },
   "payload": {
+    "language_contract": {
+      "language": "gewylang",
+      "syntax_version": 1,
+      "stage": "expanded_ast",
+      "stage_version": 1
+    },
     "summary": {
       "kind": "pipeline",
       "module_doc": null,
@@ -183,6 +219,8 @@ Command example:
 ```bash
 cargo run -p gewyc -- binding dsl/udp_process_debug.gewy --json
 ```
+
+The payload carries `language_contract.stage = "binding_ir"`.
 
 Grouped fields to prefer:
 
@@ -349,8 +387,17 @@ When you only need one compact route before opening nested surfaces, read:
 Command example:
 
 ```bash
-cargo run -p gewyc -- explain dsl/udp_process_debug.gewy --json --focus ir
+cargo run -p gewyc -- ir dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- dsl/udp_process_debug.gewy --emit ir --json
 ```
+
+This direct surface carries `language_contract.stage = "analysis_ir"`.
+`gewyc explain --focus ir` embeds the same analysis stage with additional
+lowering-delta and troubleshooting context.
+
+Full fixture:
+
+- [docs/fixtures/gewyc_ir_udp_process_debug.json](docs/fixtures/gewyc_ir_udp_process_debug.json)
 
 Grouped fields to prefer:
 

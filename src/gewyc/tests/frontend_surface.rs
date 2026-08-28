@@ -118,6 +118,9 @@ template(:frontend_docs)
     assert!(json.contains(
         "\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"frontend\",\"schema_version\":1}"
     ));
+    assert!(json.contains(
+        "\"language_contract\":{\"language\":\"gewylang\",\"syntax_version\":1,\"stage\":\"expanded_ast\",\"stage_version\":1}"
+    ));
     assert!(json.contains("\"contract_hint\":{\"stability\":\"candidate\",\"compatibility\":\"grouped_payload_preferred\",\"legacy_fields\":\"retained_in_payload\"}"));
     assert!(json.contains("\"status\":{\"present\":true}"));
     assert!(json.contains("\"authoring\":{\"module_doc\":\"UDP demo module\""));

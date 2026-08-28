@@ -1,5 +1,27 @@
 use super::*;
 
+pub(super) fn gewylang_contract_text(stage: GewyLangStage) -> String {
+    let stamp = GewyLangContractStamp::for_stage(stage);
+    format!(
+        "language_contract={} syntax_version={} stage={} stage_version={}",
+        stamp.language,
+        stamp.syntax_version,
+        stamp.stage.id(),
+        stamp.stage_version
+    )
+}
+
+pub(super) fn gewylang_contract_json(stage: GewyLangStage) -> String {
+    let stamp = GewyLangContractStamp::for_stage(stage);
+    format!(
+        "{{\"language\":{},\"syntax_version\":{},\"stage\":{},\"stage_version\":{}}}",
+        json_string(stamp.language),
+        stamp.syntax_version,
+        json_string(stamp.stage.id()),
+        stamp.stage_version
+    )
+}
+
 pub(super) fn string_json_list(items: &[String]) -> String {
     items
         .iter()

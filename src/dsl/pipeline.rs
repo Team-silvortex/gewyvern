@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{borrow::Cow, collections::BTreeMap};
 
 mod lowering;
 mod parsing;
@@ -16,8 +16,8 @@ pub(super) struct PipelineUseCall {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct PipelineKeywordArg {
-    value: String,
+struct PipelineKeywordArg<'a> {
+    value: Cow<'a, str>,
     value_column: usize,
 }
 

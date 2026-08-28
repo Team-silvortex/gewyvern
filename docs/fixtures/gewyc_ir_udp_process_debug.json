@@ -1,0 +1,207 @@
+{
+  "surface_id": "gewyc.ir",
+  "schema_hint": {
+    "family": "gewyc",
+    "surface": "ir",
+    "schema_version": 1
+  },
+  "contract_hint": {
+    "stability": "candidate",
+    "compatibility": "grouped_payload_preferred",
+    "legacy_fields": "retained_in_payload"
+  },
+  "payload": {
+    "language_contract": {
+      "language": "gewylang",
+      "syntax_version": 1,
+      "stage": "analysis_ir",
+      "stage_version": 1
+    },
+    "template_id": "udp_process_debug",
+    "status": {
+      "has_program_model": true,
+      "has_reason_model": true,
+      "has_model_compare": true
+    },
+    "counts": {
+      "program_rules": 3,
+      "reason_rules": 0
+    },
+    "analysis": {
+      "model_compare": {
+        "program_rule_count": 3,
+        "reason_rule_count": 0,
+        "rule_count_delta": 3,
+        "program_supported_rule_count": 3,
+        "reason_supported_rule_count": 0,
+        "supported_rule_count_delta": 3,
+        "shared_modules": [],
+        "program_only_modules": [],
+        "reason_only_modules": [],
+        "shared_phases": [],
+        "program_only_phases": [],
+        "reason_only_phases": []
+      },
+      "history_snapshot": {
+        "language_contract": {
+          "language": "gewylang",
+          "syntax_version": 1,
+          "stage": "analysis_ir",
+          "stage_version": 1
+        },
+        "template_id": "udp_process_debug",
+        "operation": "datagram_exchange",
+        "program_model": {
+          "id": "udp_process_debug_dsl_model",
+          "kind": "program_model",
+          "rule_count": 3,
+          "supported_rule_count": 3,
+          "unsupported_rule_count": 0,
+          "modules": [],
+          "phases": []
+        },
+        "reason_model": {
+          "id": "udp_datagram_l1",
+          "kind": "builtin_reason_profile",
+          "rule_count": 0,
+          "supported_rule_count": 0,
+          "unsupported_rule_count": 0,
+          "modules": [],
+          "phases": []
+        },
+        "model_compare": {
+          "rule_count_delta": 3,
+          "supported_rule_count_delta": 3,
+          "shared_modules": [],
+          "program_only_modules": [],
+          "reason_only_modules": [],
+          "shared_phases": [],
+          "program_only_phases": [],
+          "reason_only_phases": []
+        }
+      }
+    },
+    "program_model": {
+      "kind": "program_model",
+      "id": "udp_process_debug_dsl_model",
+      "operation": "datagram_exchange",
+      "rules": [
+        {
+          "rule_index": 0,
+          "predicate": "process_bound",
+          "signal": "process_bound",
+          "narrative": "process_bound",
+          "dedupe": true,
+          "module": null,
+          "phase": null,
+          "phase_kind": null,
+          "required_facts": [
+            "sock_lineage"
+          ],
+          "supporting_fragments": [
+            "sock_lineage_fragment"
+          ],
+          "missing_facts": [],
+          "unsupported_payload_offsets": [],
+          "supported": true
+        },
+        {
+          "rule_index": 1,
+          "predicate": "datagram_observed(l4_proto=17,dir=none,local_port=none,remote_port=none,min_len=none,payload_offsets=[])",
+          "signal": "datagram_observed",
+          "narrative": "static:program emitted or received a UDP datagram",
+          "dedupe": true,
+          "module": null,
+          "phase": null,
+          "phase_kind": null,
+          "required_facts": [
+            "packet_meta"
+          ],
+          "supporting_fragments": [
+            "udp_packet_meta_fragment"
+          ],
+          "missing_facts": [],
+          "unsupported_payload_offsets": [],
+          "supported": true
+        },
+        {
+          "rule_index": 2,
+          "predicate": "route_resolved",
+          "signal": "route_resolved",
+          "narrative": "static:program resolved a route for this network flow",
+          "dedupe": true,
+          "module": null,
+          "phase": null,
+          "phase_kind": null,
+          "required_facts": [
+            "route_decision"
+          ],
+          "supporting_fragments": [
+            "route_meta_fragment"
+          ],
+          "missing_facts": [],
+          "unsupported_payload_offsets": [],
+          "supported": true
+        }
+      ]
+    },
+    "reason_model": {
+      "kind": "builtin_reason_profile",
+      "id": "udp_datagram_l1",
+      "operation": null,
+      "rules": []
+    },
+    "model_compare": {
+      "program_rule_count": 3,
+      "reason_rule_count": 0,
+      "rule_count_delta": 3,
+      "program_supported_rule_count": 3,
+      "reason_supported_rule_count": 0,
+      "supported_rule_count_delta": 3,
+      "shared_modules": [],
+      "program_only_modules": [],
+      "reason_only_modules": [],
+      "shared_phases": [],
+      "program_only_phases": [],
+      "reason_only_phases": []
+    },
+    "history_snapshot": {
+      "language_contract": {
+        "language": "gewylang",
+        "syntax_version": 1,
+        "stage": "analysis_ir",
+        "stage_version": 1
+      },
+      "template_id": "udp_process_debug",
+      "operation": "datagram_exchange",
+      "program_model": {
+        "id": "udp_process_debug_dsl_model",
+        "kind": "program_model",
+        "rule_count": 3,
+        "supported_rule_count": 3,
+        "unsupported_rule_count": 0,
+        "modules": [],
+        "phases": []
+      },
+      "reason_model": {
+        "id": "udp_datagram_l1",
+        "kind": "builtin_reason_profile",
+        "rule_count": 0,
+        "supported_rule_count": 0,
+        "unsupported_rule_count": 0,
+        "modules": [],
+        "phases": []
+      },
+      "model_compare": {
+        "rule_count_delta": 3,
+        "supported_rule_count_delta": 3,
+        "shared_modules": [],
+        "program_only_modules": [],
+        "reason_only_modules": [],
+        "shared_phases": [],
+        "program_only_phases": [],
+        "reason_only_phases": []
+      }
+    }
+  }
+}

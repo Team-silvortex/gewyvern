@@ -13,6 +13,7 @@ fn frontend_fixture_keeps_wrapper_and_grouped_frontend_fields() {
     assert!(json.contains("\"schema_version\": 1"));
     assert!(json.contains("\"compatibility\": \"grouped_payload_preferred\""));
     assert!(json.contains("\"payload\": {"));
+    assert!(json.contains("\"stage\": \"expanded_ast\""));
     assert!(json.contains("\"report\": {"));
     assert!(json.contains("\"authoring\": {"));
     assert!(json.contains("\"counts\": {"));
@@ -31,6 +32,8 @@ fn stages_fixture_keeps_grouped_status_and_counts_fields() {
     assert!(json.contains("\"diagnostics_ok\": true"));
     assert!(json.contains("\"counts\": {"));
     assert!(json.contains("\"validation_fragments\": 3"));
+    assert!(json.contains("\"stage\": \"expanded_ast\""));
+    assert!(json.contains("\"stage\": \"binding_ir\""));
 }
 
 #[test]
@@ -46,6 +49,22 @@ fn explain_success_fixture_keeps_summary_focus_shape() {
     assert!(json.contains("\"shape_notes\": {"));
     assert!(json.contains("\"excerpts\": {"));
     assert!(json.contains("\"focused_report\": {"));
+    assert!(json.contains("\"stage\": \"expanded_ast\""));
+    assert!(json.contains("\"stage\": \"binding_ir\""));
+}
+
+#[test]
+fn ir_fixture_keeps_the_versioned_analysis_ir_surface() {
+    let json = read_fixture("docs/fixtures/gewyc_ir_udp_process_debug.json");
+
+    assert_valid_json_document(&json);
+    assert!(json.contains("\"surface_id\": \"gewyc.ir\""));
+    assert!(json.contains("\"language\": \"gewylang\""));
+    assert!(json.contains("\"syntax_version\": 1"));
+    assert!(json.contains("\"stage\": \"analysis_ir\""));
+    assert!(json.contains("\"stage_version\": 1"));
+    assert!(json.contains("\"program_rules\": 3"));
+    assert!(json.contains("\"program_model\": {"));
 }
 
 #[test]
@@ -70,6 +89,8 @@ fn explain_validation_failure_fixture_keeps_validation_excerpt_shape() {
     assert!(json.contains("\"unsupported_payload_offsets\": ["));
     assert!(json.contains("\"rule_index\": 0"));
     assert!(json.contains("\"model\": \"broken_offsets_model\""));
+    assert!(json.contains("\"stage\": \"expanded_ast\""));
+    assert!(json.contains("\"stage\": \"binding_ir\""));
 }
 
 #[test]

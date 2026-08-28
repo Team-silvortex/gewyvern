@@ -11,6 +11,12 @@
     "legacy_fields": "retained_in_payload"
   },
   "payload": {
+    "language_contract": {
+      "language": "gewylang",
+      "syntax_version": 1,
+      "stage": "expanded_ast",
+      "stage_version": 1
+    },
     "summary": {
       "kind": "pipeline",
       "module_doc": null,
@@ -21,6 +27,12 @@
     },
     "focused_report": null,
     "report": {
+      "language_contract": {
+        "language": "gewylang",
+        "syntax_version": 1,
+        "stage": "expanded_ast",
+        "stage_version": 1
+      },
       "kind": "pipeline",
       "status": {
         "present": true
@@ -111,9 +123,9 @@
             "fragment(:route_meta_fragment)",
             "fragment(:sock_lineage_fragment)",
             "operation(:datagram_exchange)",
-            "program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)",
-            "program_rule(predicate: ${transport_predicate}, stage: :datagram_observed, narrative: \"static:program emitted or received a UDP datagram\", dedupe: true)",
-            "program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true)"
+            "program_rule(pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true)",
+            "program_rule(pred: $transport_predicate, stage: :datagram_observed, narr: \"static:program emitted or received a UDP datagram\", dedupe: true)",
+            "program_rule(pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true)"
           ],
           "use_targets": []
         }

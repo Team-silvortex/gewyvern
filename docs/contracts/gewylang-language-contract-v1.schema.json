@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gewyvern:gewylang:language-contract:v1",
+  "title": "GewyLang Language Contract Stamp v1",
+  "description": "Identifies the GewyLang source syntax and public compiler stage represented by a payload.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "language",
+    "syntax_version",
+    "stage",
+    "stage_version"
+  ],
+  "properties": {
+    "language": {
+      "const": "gewylang"
+    },
+    "syntax_version": {
+      "const": 1
+    },
+    "stage": {
+      "enum": [
+        "expanded_ast",
+        "binding_ir",
+        "analysis_ir"
+      ]
+    },
+    "stage_version": {
+      "const": 1
+    }
+  }
+}

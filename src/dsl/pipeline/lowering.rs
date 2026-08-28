@@ -1,6 +1,6 @@
 use super::parsing::{
-    is_pipeline_identifier, parse_pipeline_literal, parse_pipeline_single_arg,
-    parse_pipeline_use_call,
+    is_pipeline_identifier, parse_pipeline_literal, parse_pipeline_literal_cow,
+    parse_pipeline_single_arg, parse_pipeline_use_call,
 };
 use super::{PipelineKeywordArg, PipelineUseCall, looks_like_pipeline_keyword_arg};
 use crate::dsl::{
@@ -392,103 +392,96 @@ fn substitute_pipeline_arg_once(
     bindings: &BTreeMap<String, String>,
     context: &str,
 ) -> Result<(String, bool), DslError> {
-    let chars = arg.char_indices().collect::<Vec<_>>();
+    let bytes = arg.as_bytes();
     let mut output = String::with_capacity(arg.len());
     let mut index = 0usize;
+    let mut copy_start = 0usize;
     let mut changed = false;
     let mut in_string = false;
     let mut escaped = false;
 
-    while index < chars.len() {
-        let (byte_idx, ch) = chars[index];
+    while index < bytes.len() {
+        let byte = bytes[index];
         if in_string {
-            output.push(ch);
             if escaped {
                 escaped = false;
-            } else if ch == '\\' {
+            } else if byte == b'\\' {
                 escaped = true;
-            } else if ch == '"' {
+            } else if byte == b'"' {
                 in_string = false;
             }
             index += 1;
             continue;
         }
-        if ch == '"' {
+        if byte == b'"' {
             in_string = true;
-            output.push(ch);
             index += 1;
             continue;
         }
-        if ch != '$' {
-            output.push(ch);
+        if byte != b'$' {
             index += 1;
             continue;
         }
 
-        let Some((_, next_ch)) = chars.get(index + 1).copied() else {
-            output.push('$');
+        let next = index + 1;
+        let Some(&next_byte) = bytes.get(next) else {
             index += 1;
             continue;
         };
 
-        if next_ch == '{' {
-            let start_column = byte_idx + 1;
-            let mut end_index = index + 2;
-            while end_index < chars.len() && chars[end_index].1 != '}' {
-                end_index += 1;
-            }
-            if end_index == chars.len() {
+        if next_byte == b'{' {
+            let start_column = index + 1;
+            let name_start = next + 1;
+            let Some(close_offset) = bytes[name_start..].iter().position(|byte| *byte == b'}')
+            else {
                 return Err(DslError::InvalidValue(format!(
                     "unclosed pipeline placeholder in '{arg}'"
                 ))
                 .at_line_column(0, Some(start_column)));
-            }
-            let name_start = chars[index + 2].0;
-            let name_end = chars[end_index].0;
+            };
+            let name_end = name_start + close_offset;
             let key = arg[name_start..name_end].trim();
             let value = bindings.get(key).ok_or_else(|| {
                 let names = bindings.keys().cloned().collect::<Vec<_>>();
                 DslError::InvalidValue(pipeline_unknown_placeholder_message(context, key, &names))
                     .at_line_column(0, Some(start_column + 2))
             })?;
+            output.push_str(&arg[copy_start..index]);
             output.push_str(value);
             changed = true;
-            index = end_index + 1;
+            index = name_end + 1;
+            copy_start = index;
             continue;
         }
 
-        if is_pipeline_placeholder_char(next_ch) {
-            let start_index = index + 1;
-            let mut end_index = start_index + 1;
-            while end_index < chars.len() && is_pipeline_placeholder_char(chars[end_index].1) {
-                end_index += 1;
+        if is_pipeline_placeholder_byte(next_byte) {
+            let mut end = next + 1;
+            while end < bytes.len() && is_pipeline_placeholder_byte(bytes[end]) {
+                end += 1;
             }
-            let name_start = chars[start_index].0;
-            let name_end = chars
-                .get(end_index)
-                .map(|(pos, _)| *pos)
-                .unwrap_or_else(|| arg.len());
-            let key = &arg[name_start..name_end];
+            let key = &arg[next..end];
             let value = bindings.get(key).ok_or_else(|| {
                 let names = bindings.keys().cloned().collect::<Vec<_>>();
                 DslError::InvalidValue(pipeline_unknown_placeholder_message(context, key, &names))
-                    .at_line_column(0, Some(byte_idx + 2))
+                    .at_line_column(0, Some(index + 2))
             })?;
+            output.push_str(&arg[copy_start..index]);
             output.push_str(value);
             changed = true;
-            index = end_index;
+            index = end;
+            copy_start = index;
             continue;
         }
 
-        output.push('$');
         index += 1;
     }
 
+    output.push_str(&arg[copy_start..]);
     Ok((output, changed))
 }
 
-fn is_pipeline_placeholder_char(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')
+fn is_pipeline_placeholder_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-')
 }
 
 fn known_pipeline_params_message(function_name: &str, function: &PipelineFunction) -> String {
@@ -507,11 +500,11 @@ fn known_pipeline_params_message(function_name: &str, function: &PipelineFunctio
     pipeline_declared_params_message(&signature, &known)
 }
 
-fn parse_pipeline_keywords_with_columns(
-    args: &[String],
+fn parse_pipeline_keywords_with_columns<'a>(
+    args: &'a [String],
     arg_columns: &[usize],
     step: &str,
-) -> Result<BTreeMap<String, PipelineKeywordArg>, DslError> {
+) -> Result<BTreeMap<&'a str, PipelineKeywordArg<'a>>, DslError> {
     let mut keywords = BTreeMap::new();
     for (arg, arg_column) in args.iter().zip(arg_columns.iter()) {
         let (key, value) = arg.split_once(':').ok_or_else(|| {
@@ -538,9 +531,9 @@ fn parse_pipeline_keywords_with_columns(
         let value_trimmed = value.trim();
         let value_offset = value.find(value_trimmed).unwrap_or(0);
         keywords.insert(
-            key.to_string(),
+            key,
             PipelineKeywordArg {
-                value: parse_pipeline_literal(value)?,
+                value: parse_pipeline_literal_cow(value)?,
                 value_column: arg_column + key.len() + 1 + value_offset,
             },
         );
@@ -548,14 +541,14 @@ fn parse_pipeline_keywords_with_columns(
     Ok(keywords)
 }
 
-fn canonicalize_pipeline_rule_keywords(
-    keywords: BTreeMap<String, PipelineKeywordArg>,
+fn canonicalize_pipeline_rule_keywords<'a>(
+    keywords: BTreeMap<&str, PipelineKeywordArg<'a>>,
     reason_rule: bool,
     call_column: usize,
-) -> Result<BTreeMap<String, PipelineKeywordArg>, DslError> {
+) -> Result<BTreeMap<&'static str, PipelineKeywordArg<'a>>, DslError> {
     let mut canonical = BTreeMap::new();
     for (key, value) in keywords {
-        let normalized = match key.as_str() {
+        let normalized = match key {
             "predicate" | "pred" => "predicate",
             "stage" => "stage",
             "key_event" | "event" if reason_rule => "key_event",
@@ -570,7 +563,7 @@ fn canonicalize_pipeline_rule_keywords(
                 .at_line_column(0, Some(value.value_column)));
             }
         };
-        if canonical.insert(normalized.to_string(), value).is_some() {
+        if canonical.insert(normalized, value).is_some() {
             return Err(DslError::InvalidValue(format!(
                 "pipeline rule received duplicate field '{normalized}'"
             ))
@@ -580,12 +573,12 @@ fn canonicalize_pipeline_rule_keywords(
     Ok(canonical)
 }
 
-fn normalize_pipeline_rule_args(
-    args: &[String],
+fn normalize_pipeline_rule_args<'a>(
+    args: &'a [String],
     arg_columns: &[usize],
     reason_rule: bool,
     call_column: usize,
-) -> Result<BTreeMap<String, PipelineKeywordArg>, DslError> {
+) -> Result<BTreeMap<&'static str, PipelineKeywordArg<'a>>, DslError> {
     let signal_key = if reason_rule { "key_event" } else { "stage" };
     let step = if reason_rule {
         "reason_rule"
@@ -605,9 +598,9 @@ fn normalize_pipeline_rule_args(
         let fields = ["predicate", signal_key, "narrative", "dedupe"];
         for ((field, arg), arg_column) in fields.iter().zip(args.iter()).zip(arg_columns.iter()) {
             keywords.insert(
-                (*field).to_string(),
+                *field,
                 PipelineKeywordArg {
-                    value: parse_pipeline_literal(arg)?,
+                    value: parse_pipeline_literal_cow(arg)?,
                     value_column: *arg_column,
                 },
             );
@@ -644,9 +637,9 @@ fn normalize_pipeline_rule_args(
         .zip(arg_columns.iter().take(positional_count))
     {
         keywords.insert(
-            (*field).to_string(),
+            *field,
             PipelineKeywordArg {
-                value: parse_pipeline_literal(arg)?,
+                value: parse_pipeline_literal_cow(arg)?,
                 value_column: *arg_column,
             },
         );
@@ -675,7 +668,7 @@ pub(crate) fn lower_pipeline_window(
     output: &mut Vec<CanonicalAssignment>,
 ) -> Result<(), DslError> {
     if args.len() == 1 && !looks_like_pipeline_keyword_arg(&args[0]) {
-        let id = parse_pipeline_literal(&args[0])?;
+        let id = parse_pipeline_literal_cow(&args[0])?;
         let value_column = arg_columns.first().copied().unwrap_or(call_column);
         output.push(CanonicalAssignment::new(
             CanonicalAssignmentValue::Window(
@@ -689,7 +682,7 @@ pub(crate) fn lower_pipeline_window(
     let keywords = parse_pipeline_keywords_with_columns(args, arg_columns, "window")?;
     if let Some((field, value)) = keywords
         .iter()
-        .find(|(field, _)| !matches!(field.as_str(), "duration_ms" | "lateness_ms"))
+        .find(|(field, _)| !matches!(**field, "duration_ms" | "lateness_ms"))
     {
         return Err(DslError::InvalidValue(format!(
             "pipeline step 'window' received unknown field '{field}'"
@@ -713,7 +706,7 @@ pub(crate) fn lower_pipeline_window(
     Ok(())
 }
 
-fn parse_pipeline_u64(arg: &PipelineKeywordArg, field: &str) -> Result<u64, DslError> {
+fn parse_pipeline_u64(arg: &PipelineKeywordArg<'_>, field: &str) -> Result<u64, DslError> {
     arg.value.parse::<u64>().map_err(|_| {
         DslError::InvalidValue(format!("invalid u64 for '{field}': '{}'", arg.value))
             .at_line_column(0, Some(arg.value_column))
@@ -727,17 +720,17 @@ pub(crate) fn lower_pipeline_param(args: &[String]) -> Result<CanonicalAssignmen
         )
         .at_line_column(0, Some(1)));
     }
-    let target = parse_pipeline_literal(&args[0])?;
+    let target = parse_pipeline_literal_cow(&args[0])?;
     let (fragment_id, key) = target
         .split_once('.')
         .ok_or_else(|| DslError::InvalidValue(format!("invalid param target '{target}'")))?;
-    let value = parse_pipeline_literal(&args[1])?;
-    let value = if matches!(value.as_str(), "true" | "false") {
-        FragmentParamValue::Bool(crate::dsl::parse_bool(&value)?)
+    let value = parse_pipeline_literal_cow(&args[1])?;
+    let value = if matches!(value.as_ref(), "true" | "false") {
+        FragmentParamValue::Bool(crate::dsl::parse_bool(value.as_ref())?)
     } else if let Ok(value) = value.parse::<u64>() {
         FragmentParamValue::U64(value)
     } else {
-        FragmentParamValue::String(value)
+        FragmentParamValue::String(value.into_owned())
     };
     Ok(CanonicalAssignmentValue::FragmentParam {
         fragment_id: fragment_id.trim().to_string(),
@@ -755,12 +748,12 @@ pub(crate) fn lower_pipeline_evidence(
         )
         .at_line_column(0, Some(1)));
     }
-    let fact_kind_id = parse_pipeline_literal(&args[0])?;
-    let fact_kind = FactKindTag::from_str(&fact_kind_id).ok_or_else(|| {
+    let fact_kind_id = parse_pipeline_literal_cow(&args[0])?;
+    let fact_kind = FactKindTag::from_str(fact_kind_id.as_ref()).ok_or_else(|| {
         DslError::InvalidValue(format!("unknown evidence fact kind '{fact_kind_id}'"))
     })?;
-    let tier_id = parse_pipeline_literal(&args[1])?;
-    let tier = match tier_id.as_str() {
+    let tier_id = parse_pipeline_literal_cow(&args[1])?;
+    let tier = match tier_id.as_ref() {
         "core_requirement" => EvidenceTier::CoreRequirement,
         "optional_enhancement" => EvidenceTier::OptionalEnhancement,
         other => {
@@ -792,12 +785,12 @@ pub(crate) fn lower_pipeline_program_rule(
         .ok_or(DslError::MissingField("dedupe").at_line_column(0, Some(call_column)))?;
     let (module, phase) = lower_rule_scope(&keywords)?;
     Ok(ProgramRule {
-        predicate: crate::dsl::parse_flow_predicate(&predicate.value)
+        predicate: crate::dsl::parse_flow_predicate(predicate.value.as_ref())
             .map_err(|err| err.reanchor_line_column(0, predicate.value_column))?,
-        signal: legacy::parse_stage(&signal.value)
+        signal: legacy::parse_stage(signal.value.as_ref())
             .map_err(|err| err.reanchor_line_column(0, signal.value_column))?,
-        narrative: parse_narrative_template(&narrative.value),
-        dedupe: crate::dsl::parse_bool(&dedupe.value)
+        narrative: parse_narrative_template(narrative.value.as_ref()),
+        dedupe: crate::dsl::parse_bool(dedupe.value.as_ref())
             .map_err(|err| err.reanchor_line_column(0, dedupe.value_column))?,
         module,
         phase,
@@ -824,12 +817,12 @@ pub(crate) fn lower_pipeline_reason_rule(
         .ok_or(DslError::MissingField("dedupe").at_line_column(0, Some(call_column)))?;
     let (module, phase) = lower_rule_scope(&keywords)?;
     Ok(ReasonRule {
-        predicate: crate::dsl::parse_flow_predicate(&predicate.value)
+        predicate: crate::dsl::parse_flow_predicate(predicate.value.as_ref())
             .map_err(|err| err.reanchor_line_column(0, predicate.value_column))?,
-        signal: crate::dsl::parse_reason_key_event(&key_event.value)
+        signal: crate::dsl::parse_reason_key_event(key_event.value.as_ref())
             .map_err(|err| err.reanchor_line_column(0, key_event.value_column))?,
-        narrative: parse_reason_narrative(&narrative.value),
-        dedupe: crate::dsl::parse_bool(&dedupe.value)
+        narrative: parse_reason_narrative(narrative.value.as_ref()),
+        dedupe: crate::dsl::parse_bool(dedupe.value.as_ref())
             .map_err(|err| err.reanchor_line_column(0, dedupe.value_column))?,
         module,
         phase,
@@ -837,10 +830,14 @@ pub(crate) fn lower_pipeline_reason_rule(
 }
 
 fn lower_rule_scope(
-    keywords: &BTreeMap<String, PipelineKeywordArg>,
+    keywords: &BTreeMap<&'static str, PipelineKeywordArg<'_>>,
 ) -> Result<(Option<String>, Option<String>), DslError> {
-    let module = keywords.get("module").map(|value| value.value.clone());
-    let phase = keywords.get("phase").map(|value| value.value.clone());
+    let module = keywords
+        .get("module")
+        .map(|value| value.value.as_ref().to_string());
+    let phase = keywords
+        .get("phase")
+        .map(|value| value.value.as_ref().to_string());
     if module.is_none()
         && let Some(phase) = keywords.get("phase")
     {
@@ -885,5 +882,27 @@ mod tests {
             substitute_pipeline_arg("$name", &bindings, "test").unwrap(),
             "resolved"
         );
+        assert_eq!(
+            substitute_pipeline_arg("前-${name}-${ name }-后", &bindings, "test").unwrap(),
+            "前-resolved-resolved-后"
+        );
+    }
+
+    #[test]
+    fn rule_aliases_share_the_same_duplicate_slot() {
+        let args = vec![
+            "pred: :process_bound".to_string(),
+            "predicate: :process_bound".to_string(),
+            "stage: :process_bound".to_string(),
+            "narrative: :process_bound".to_string(),
+            "dedupe: true".to_string(),
+        ];
+        let err = lower_pipeline_program_rule(&args, &[1; 5], 1)
+            .expect_err("canonical aliases must still be rejected as duplicates");
+        assert!(matches!(
+            err.root(),
+            DslError::InvalidValue(message)
+                if message == "pipeline rule received duplicate field 'predicate'"
+        ));
     }
 }

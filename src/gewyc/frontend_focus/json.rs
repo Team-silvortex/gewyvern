@@ -12,7 +12,8 @@ pub(super) fn frontend_report_json(
         .map(|focus| frontend_focus_json(report, focus))
         .unwrap_or_else(|| "null".into());
     format!(
-        "{{\"summary\":{{\"kind\":\"{}\",\"module_doc\":{},\"template_doc\":{},\"function_count\":{},\"merged_step_count\":{},\"focus\":{}}},\"focused_report\":{},\"report\":{}}}",
+        "{{\"language_contract\":{},\"summary\":{{\"kind\":\"{}\",\"module_doc\":{},\"template_doc\":{},\"function_count\":{},\"merged_step_count\":{},\"focus\":{}}},\"focused_report\":{},\"report\":{}}}",
+        gewylang_contract_json(GewyLangStage::ExpandedAst),
         json_escape_string(&report.kind),
         report
             .module_doc
@@ -100,7 +101,8 @@ pub(super) fn frontend_focus_json(report: &FrontendReport, focus: FrontendFocus)
 pub(super) fn frontend_json(frontend: Option<&FrontendReport>) -> String {
     match frontend {
         Some(frontend) => format!(
-            "{{\"kind\":\"{}\",\"status\":{{\"present\":true}},\"authoring\":{{\"module_doc\":{},\"template_doc\":{},\"documented_functions\":[{}]}},\"counts\":{{\"functions\":{},\"merged_steps\":{},\"includes\":{},\"use_edges\":{},\"graph_nodes\":{},\"graph_edges\":{},\"expansion_previews\":{}}},\"module_doc\":{},\"template_doc\":{},\"function_count\":{},\"function_nodes\":[{}],\"merged_step_count\":{},\"include_sources\":[{}],\"use_edges\":[{}],\"graph_nodes\":[{}],\"graph_edges\":[{}],\"expansion_previews\":[{}]}}",
+            "{{\"language_contract\":{},\"kind\":\"{}\",\"status\":{{\"present\":true}},\"authoring\":{{\"module_doc\":{},\"template_doc\":{},\"documented_functions\":[{}]}},\"counts\":{{\"functions\":{},\"merged_steps\":{},\"includes\":{},\"use_edges\":{},\"graph_nodes\":{},\"graph_edges\":{},\"expansion_previews\":{}}},\"module_doc\":{},\"template_doc\":{},\"function_count\":{},\"function_nodes\":[{}],\"merged_step_count\":{},\"include_sources\":[{}],\"use_edges\":[{}],\"graph_nodes\":[{}],\"graph_edges\":[{}],\"expansion_previews\":[{}]}}",
+            gewylang_contract_json(GewyLangStage::ExpandedAst),
             json_escape_string(&frontend.kind),
             frontend
                 .module_doc

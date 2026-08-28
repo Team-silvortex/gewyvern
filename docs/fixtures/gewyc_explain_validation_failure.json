@@ -189,6 +189,12 @@
       }
     },
     "frontend": {
+      "language_contract": {
+        "language": "gewylang",
+        "syntax_version": 1,
+        "stage": "expanded_ast",
+        "stage_version": 1
+      },
       "kind": "pipeline",
       "status": {
         "present": true
@@ -241,6 +247,12 @@
       ]
     },
     "binding": {
+      "language_contract": {
+        "language": "gewylang",
+        "syntax_version": 1,
+        "stage": "binding_ir",
+        "stage_version": 1
+      },
       "template_id": "broken_offsets",
       "status": {
         "has_window": true,
@@ -345,6 +357,10 @@
       "reason_model": null
     },
     "findings": {
+      "summary": {
+        "finding_count": 1,
+        "next_step": "inspect fragment coverage, rule evidence, or payload offsets, then rerun"
+      },
       "findings": [
         {
           "stage": "validation",

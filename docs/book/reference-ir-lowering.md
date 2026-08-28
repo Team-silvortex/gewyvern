@@ -1,8 +1,8 @@
 # Reference: IR Lowering Contract
 
-Use this page when you need the current contract candidate for how `gewylang`
-input is lowered into `gewy` compiler IR, and how that lowered shape is
-reported by `gewyc explain --focus ir`.
+Use this page when you need the field-level contract for how GewyLang Binding
+IR is projected into Analysis IR, and how that shape is reported by `gewyc ir`
+or the embedded `gewyc explain --focus ir` view.
 
 This page is not a tutorial. It is the exact lookup shelf for:
 
@@ -13,6 +13,7 @@ This page is not a tutorial. It is the exact lookup shelf for:
 
 Read this alongside:
 
+- [GewyLang language and IR contract](../gewylang-contract.md)
 - [DSL overview](../dsl.md)
 - [`gewyc` JSON](../gewyc-json.md)
 - [Gewy to runtime](explanation-gewy-to-runtime.md)
@@ -25,11 +26,11 @@ function structure into explicit rule-bearing models.
 At a high level:
 
 ```text
-.gewy package
-  -> parse tree
-  -> expanded frontend module graph
-  -> TemplateBinding
-  -> lowered IR models
+.gewy package (Syntax v1)
+  -> private parse representation
+  -> Expanded AST v1
+  -> Binding IR v1 (TemplateBinding)
+  -> Analysis IR v1 (IrReport)
   -> diagnostics / runtime planning / export-facing behavior
 ```
 
@@ -65,9 +66,9 @@ decoded text. Replaying exports with custom fragment registries therefore does
 not require extending input lifetimes or leaking strings, while the export JSON
 shape remains unchanged.
 
-## Current Lowered Model Surfaces
+## Analysis IR Model Surfaces
 
-Today the focused IR report can expose two lowered model surfaces:
+Analysis IR v1 can expose two lowered model surfaces:
 
 ### `program_model`
 
@@ -119,19 +120,28 @@ The current lowering layer is expected to preserve these properties:
 The lowering layer is not expected to preserve every source-level spelling or
 editor-oriented formatting detail.
 
-## `gewyc explain --focus ir`
+## Direct And Embedded Inspection
 
-For exact inspection, use:
+For the direct Analysis IR surface, use:
 
 ```bash
-cargo run -p gewyc -- explain dsl/http_request_path.gewy --focus ir
+cargo run -p gewyc -- ir dsl/http_request_path.gewy
 ```
 
 For machine-facing inspection, use:
 
 ```bash
-cargo run -p gewyc -- explain dsl/http_request_path.gewy --focus ir --json
+cargo run -p gewyc -- ir dsl/http_request_path.gewy --json
 ```
+
+The equivalent emit form is:
+
+```bash
+cargo run -p gewyc -- dsl/http_request_path.gewy --emit ir --json
+```
+
+Use `gewyc explain --focus ir` when you also need the frontend lowering delta,
+shape notes, and troubleshooting context around the same Analysis IR.
 
 For the deliberately compact archival form, use:
 
@@ -139,7 +149,7 @@ For the deliberately compact archival form, use:
 cargo run --bin gewyc_ir_snapshot -- dsl/http_request_path.gewy --json
 ```
 
-The focused IR view is the preferred surface when you need:
+The direct IR view is the preferred surface when you need:
 
 - protocol review
 - IR evolution work
@@ -182,7 +192,7 @@ Where `<label>` is currently one of:
 
 The JSON form is the better choice for editor tooling and review automation.
 
-The focused IR report currently centers on:
+The Analysis IR report currently centers on:
 
 - `program_model`
 - `reason_model`
@@ -224,6 +234,9 @@ full rule list:
 Runtime export bundles now include a compact protocol-facing IR summary named
 `protocol_ir`.
 
+This is a downstream runtime/export projection, not a GewyLang compiler stage.
+It therefore does not replace or advance the `analysis_ir` contract version.
+
 This is derived from the lowered program flow operation and the current
 protocol-surface registry. It lets downstream tools ask "which protocol family
 did this lowered flow become?" without re-reading package manifests or
@@ -251,8 +264,9 @@ and release snapshots can consume the same protocol classification surface.
 
 ### `history_snapshot`
 
-`history_snapshot` is the deliberately compact archival form of the focused IR
-surface.
+`history_snapshot` is the deliberately compact archival projection of Analysis
+IR. It carries the same `analysis_ir` contract stamp and is not a separate
+compiler stage.
 
 It is meant for:
 

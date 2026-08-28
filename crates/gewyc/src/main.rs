@@ -1,9 +1,10 @@
 use gewyvern::dsl::build_lockfile;
 use gewyvern::gewyc::{
     CompilerEnvelope, ExplainFocus, FrontendFocus, RenderFormat, compile_envelope_file,
-    compile_explain_report_file, compile_frontend_report_file, render_binding_report,
-    render_diagnostics_report, render_envelope_report, render_explain_report_with_options,
-    render_findings_report, render_frontend_report_with_options, render_stages_report,
+    compile_explain_report_file, compile_frontend_report_file, compile_ir_report_file,
+    render_binding_report, render_diagnostics_report, render_envelope_report,
+    render_explain_report_with_options, render_findings_report,
+    render_frontend_report_with_options, render_ir_report, render_stages_report,
 };
 use std::env;
 use std::fs;
@@ -19,6 +20,7 @@ enum Command {
     Compile,
     Explain,
     Frontend,
+    Ir,
     Diagnostics,
     Findings,
     Stages,
@@ -32,6 +34,7 @@ enum EmitTarget {
     Binding,
     Explain,
     Frontend,
+    Ir,
     Diagnostics,
     Findings,
     Stages,
@@ -70,16 +73,16 @@ impl UiLocale {
     fn usage(self) -> &'static str {
         match self {
             Self::Zh => {
-                "用法: gewyc <compile|explain|frontend|diagnostics|findings|stages|envelope> <path.gewy> [--json] [--out path]\n\
+                "用法: gewyc <compile|binding|explain|frontend|ir|diagnostics|findings|stages|envelope> <path.gewy> [--json] [--out path]\n\
                  用法: gewyc lock [dir|gewy.pkg] [--out path]\n\
                  用法: gewyc init [dir]\n\
-                 用法: gewyc <path.gewy> [--json] [--emit binding|explain|frontend|diagnostics|findings|stages|envelope] [--out path]"
+                 用法: gewyc <path.gewy> [--json] [--emit binding|explain|frontend|ir|diagnostics|findings|stages|envelope] [--out path]"
             }
             Self::En => {
-                "usage: gewyc <compile|explain|frontend|diagnostics|findings|stages|envelope> <path.gewy> [--json] [--out path]\n\
+                "usage: gewyc <compile|binding|explain|frontend|ir|diagnostics|findings|stages|envelope> <path.gewy> [--json] [--out path]\n\
                  usage: gewyc lock [dir|gewy.pkg] [--out path]\n\
                  usage: gewyc init [dir]\n\
-                 usage: gewyc <path.gewy> [--json] [--emit binding|explain|frontend|diagnostics|findings|stages|envelope] [--out path]"
+                 usage: gewyc <path.gewy> [--json] [--emit binding|explain|frontend|ir|diagnostics|findings|stages|envelope] [--out path]"
             }
         }
     }
@@ -91,10 +94,11 @@ impl UiLocale {
             (Self::Zh, "compile_failed") => "DSL 编译失败",
             (Self::Zh, "explain_failed") => "解释摘要生成失败",
             (Self::Zh, "frontend_failed") => "前端摘要生成失败",
+            (Self::Zh, "ir_failed") => "IR 报告生成失败",
             (Self::Zh, "diagnostics_failed") => "binding 诊断失败",
             (Self::Zh, "stages_failed") => "compiler 阶段报告生成失败",
             (Self::Zh, "missing_emit") => {
-                "缺少 --emit 的值，期望 binding、explain、frontend、diagnostics、findings、stages 或 envelope"
+                "缺少 --emit 的值，期望 binding、explain、frontend、ir、diagnostics、findings、stages 或 envelope"
             }
             (Self::Zh, "missing_out") => "缺少 --out 的值，期望输出路径",
             (Self::Zh, "missing_focus") => "缺少 --focus 的值",
@@ -108,10 +112,11 @@ impl UiLocale {
             (_, "compile_failed") => "dsl compile failed",
             (_, "explain_failed") => "explain summary failed",
             (_, "frontend_failed") => "frontend summary failed",
+            (_, "ir_failed") => "ir report failed",
             (_, "diagnostics_failed") => "binding diagnostics failed",
             (_, "stages_failed") => "compiler stages report failed",
             (_, "missing_emit") => {
-                "missing value for --emit, expected binding, explain, frontend, diagnostics, findings, stages, or envelope"
+                "missing value for --emit, expected binding, explain, frontend, ir, diagnostics, findings, stages, or envelope"
             }
             (_, "missing_out") => "missing value for --out, expected an output path",
             (_, "missing_focus") => "missing value for --focus",
@@ -147,6 +152,7 @@ fn main() {
         EmitTarget::Binding => run_compile(cli, locale),
         EmitTarget::Explain => run_explain(cli, locale),
         EmitTarget::Frontend => run_frontend(cli, locale),
+        EmitTarget::Ir => run_ir(cli, locale),
         EmitTarget::Diagnostics => run_diagnostics(cli, locale),
         EmitTarget::Findings => run_findings(cli, locale),
         EmitTarget::Stages => run_stages(cli, locale),
@@ -194,6 +200,7 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
                     "binding" => EmitTarget::Binding,
                     "explain" => EmitTarget::Explain,
                     "frontend" => EmitTarget::Frontend,
+                    "ir" => EmitTarget::Ir,
                     "diagnostics" => EmitTarget::Diagnostics,
                     "findings" => EmitTarget::Findings,
                     "stages" => EmitTarget::Stages,
@@ -219,7 +226,7 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
                 })?;
                 focus = Some(value);
             }
-            "compile" if path.is_none() => {
+            "compile" | "binding" if path.is_none() => {
                 command = Command::Compile;
                 emit = EmitTarget::Binding;
             }
@@ -230,6 +237,10 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
             "frontend" if path.is_none() => {
                 command = Command::Frontend;
                 emit = EmitTarget::Frontend;
+            }
+            "ir" if path.is_none() => {
+                command = Command::Ir;
+                emit = EmitTarget::Ir;
             }
             "diagnostics" if path.is_none() => {
                 command = Command::Diagnostics;
@@ -363,6 +374,15 @@ fn run_frontend(cli: Cli, locale: UiLocale) {
     let focus = parse_frontend_focus(cli.focus.as_deref(), locale);
     let out =
         render_frontend_report_with_options(&report, render_format(cli.output), focus, cli.compact);
+    emit_output(&out, cli.out.as_deref(), locale);
+}
+
+fn run_ir(cli: Cli, locale: UiLocale) {
+    let report = compile_ir_report_file(&cli.path).unwrap_or_else(|err| {
+        eprintln!("{}: {err:?}", locale.msg("ir_failed"));
+        std::process::exit(1);
+    });
+    let out = render_ir_report(&report, render_format(cli.output));
     emit_output(&out, cli.out.as_deref(), locale);
 }
 

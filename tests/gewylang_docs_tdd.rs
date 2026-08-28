@@ -1,4 +1,8 @@
-use gewyvern::dsl::compile_str;
+use gewyvern::dsl::{
+    GEWYLANG_ANALYSIS_IR_VERSION, GEWYLANG_BINDING_IR_VERSION, GEWYLANG_EXPANDED_AST_VERSION,
+    GEWYLANG_LANGUAGE_ID, GEWYLANG_SYNTAX_VERSION, GewyLangContractStamp, GewyLangStage,
+    compile_str,
+};
 use gewyvern::fragment::builtin_registry;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -7,6 +11,7 @@ const AUTHORITATIVE_DOCS: &[&str] = &[
     "docs/gewylang-llm-guide.md",
     "docs/gewylang-style.md",
     "docs/gewylang-migration.md",
+    "docs/gewylang-contract.md",
     "docs/gewylang.ebnf",
     "docs/dsl.md",
     "docs/dsl-syntax.md",
@@ -19,6 +24,74 @@ const AUTHORITATIVE_DOCS: &[&str] = &[
     "docs/book/explanation-gewylang-lightweight-types.md",
     "docs/book/reference-ir-lowering.md",
 ];
+
+#[test]
+fn language_contract_schema_matches_the_rust_stage_contract() {
+    let root = repository_root();
+    let schema: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(root.join("docs/contracts/gewylang-language-contract-v1.schema.json"))
+            .expect("GewyLang contract schema must be readable"),
+    )
+    .expect("GewyLang contract schema must be valid JSON");
+
+    assert_eq!(
+        schema["$schema"],
+        "https://json-schema.org/draft/2020-12/schema"
+    );
+    assert_eq!(
+        schema["properties"]["language"]["const"],
+        GEWYLANG_LANGUAGE_ID
+    );
+    assert_eq!(
+        schema["properties"]["syntax_version"]["const"],
+        GEWYLANG_SYNTAX_VERSION
+    );
+    assert_eq!(schema["properties"]["stage_version"]["const"], 1);
+
+    let schema_stages = schema["properties"]["stage"]["enum"]
+        .as_array()
+        .expect("stage must be an enum")
+        .iter()
+        .map(|value| value.as_str().expect("stage ids must be strings"))
+        .collect::<Vec<_>>();
+    let schema_stage_version = schema["properties"]["stage_version"]["const"]
+        .as_u64()
+        .expect("stage version must be an unsigned integer");
+    assert_eq!(
+        schema_stages,
+        vec!["expanded_ast", "binding_ir", "analysis_ir"]
+    );
+
+    for (stage, version) in [
+        (GewyLangStage::ExpandedAst, GEWYLANG_EXPANDED_AST_VERSION),
+        (GewyLangStage::BindingIr, GEWYLANG_BINDING_IR_VERSION),
+        (GewyLangStage::AnalysisIr, GEWYLANG_ANALYSIS_IR_VERSION),
+    ] {
+        let stamp = GewyLangContractStamp::for_stage(stage);
+        assert_eq!(stamp.language, GEWYLANG_LANGUAGE_ID);
+        assert_eq!(stamp.syntax_version, GEWYLANG_SYNTAX_VERSION);
+        assert_eq!(stamp.stage_version, version);
+        assert_eq!(u64::from(version), schema_stage_version);
+        assert!(schema_stages.contains(&stamp.stage.id()));
+    }
+
+    let contract = fs::read_to_string(root.join("docs/gewylang-contract.md"))
+        .expect("GewyLang contract must be readable");
+    for required in [
+        "Source Syntax v1",
+        "Expanded AST v1",
+        "Binding IR v1",
+        "Analysis IR v1",
+        "cargo run -p gewyc -- ir",
+        "Runtime Projections Are Separate",
+        "schema_hint.schema_version",
+    ] {
+        assert!(
+            contract.contains(required),
+            "GewyLang contract is missing {required}"
+        );
+    }
+}
 
 #[test]
 fn dynamic_narrative_and_parameter_lowering_paths_do_not_leak_static_text() {

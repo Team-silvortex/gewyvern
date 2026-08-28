@@ -2,7 +2,10 @@ use super::*;
 use crate::gewyc::ir_focus::support::list_or_none;
 
 pub(super) fn ir_text(report: &IrReport) -> String {
-    let mut lines = vec![format!("template={}", report.template_id)];
+    let mut lines = vec![
+        gewylang_contract_text(GewyLangStage::AnalysisIr),
+        format!("template={}", report.template_id),
+    ];
     if let Some(model) = &report.program_model {
         lines.extend(ir_model_text_lines(model, "program_model"));
     } else {
@@ -31,7 +34,8 @@ pub(super) fn ir_json(report: &IrReport) -> String {
         .map(|model| model.rules.len())
         .unwrap_or(0);
     format!(
-        "{{\"template_id\":{},\"status\":{{\"has_program_model\":{},\"has_reason_model\":{},\"has_model_compare\":{}}},\"counts\":{{\"program_rules\":{},\"reason_rules\":{}}},\"analysis\":{{\"model_compare\":{},\"history_snapshot\":{}}},\"program_model\":{},\"reason_model\":{},\"model_compare\":{},\"history_snapshot\":{}}}",
+        "{{\"language_contract\":{},\"template_id\":{},\"status\":{{\"has_program_model\":{},\"has_reason_model\":{},\"has_model_compare\":{}}},\"counts\":{{\"program_rules\":{},\"reason_rules\":{}}},\"analysis\":{{\"model_compare\":{},\"history_snapshot\":{}}},\"program_model\":{},\"reason_model\":{},\"model_compare\":{},\"history_snapshot\":{}}}",
+        gewylang_contract_json(GewyLangStage::AnalysisIr),
         json_string(&report.template_id),
         report.program_model.is_some(),
         report.reason_model.is_some(),
@@ -245,7 +249,10 @@ fn ir_compare_json(compare: &IrModelCompareSummary) -> String {
 }
 
 pub(super) fn ir_history_snapshot_text(snapshot: &IrHistorySnapshot) -> String {
-    let mut lines = vec![format!("template={}", snapshot.template_id)];
+    let mut lines = vec![
+        gewylang_contract_text(GewyLangStage::AnalysisIr),
+        format!("template={}", snapshot.template_id),
+    ];
     lines.push(format!(
         "operation={}",
         snapshot.operation.as_deref().unwrap_or("none")
@@ -272,6 +279,7 @@ pub(super) fn ir_history_snapshot_json(snapshot: &IrHistorySnapshot) -> String {
     format!(
         concat!(
             "{{",
+            "\"language_contract\":{},",
             "\"template_id\":{},",
             "\"operation\":{},",
             "\"program_model\":{},",
@@ -279,6 +287,7 @@ pub(super) fn ir_history_snapshot_json(snapshot: &IrHistorySnapshot) -> String {
             "\"model_compare\":{}",
             "}}"
         ),
+        gewylang_contract_json(GewyLangStage::AnalysisIr),
         json_string(&snapshot.template_id),
         snapshot
             .operation

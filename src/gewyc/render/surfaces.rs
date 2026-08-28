@@ -3,6 +3,7 @@ use super::super::*;
 
 pub(super) fn binding_text(report: &BindingReport) -> String {
     let mut lines = vec![
+        gewylang_contract_text(GewyLangStage::BindingIr),
         format!("template={}", report.template_id),
         format!("fragments={}", report.fragments.join(",")),
     ];
@@ -87,6 +88,7 @@ pub(super) fn binding_json(report: &BindingReport) -> String {
     format!(
         concat!(
             "{{",
+            "\"language_contract\":{},",
             "\"template_id\":\"{}\",",
             "\"status\":{{\"has_window\":{},\"has_reason_profile\":{},\"has_program_model\":{}}},",
             "\"counts\":{{\"fragments\":{},\"fragment_params\":{},\"evidence_overrides\":{}}},",
@@ -98,6 +100,7 @@ pub(super) fn binding_json(report: &BindingReport) -> String {
             "\"evidence_overrides\":{{{}}}",
             "}}"
         ),
+        gewylang_contract_json(GewyLangStage::BindingIr),
         json_escape_string(&report.template_id),
         report.window.is_some(),
         report.reason_profile.is_some(),

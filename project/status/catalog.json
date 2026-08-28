@@ -705,12 +705,20 @@
       "independence": "reusable-library",
       "contract": {
         "id": "gewylang-frontend-contract",
-        "version": "1.29.0",
+        "version": "1.31.0",
         "stability": "stable",
         "surfaces": [
           "gewylang-source",
           "gewyc-cli",
           "standard-cli-help-and-version-exit-contract",
+          "versioned-language-contract-stamp",
+          "syntax-v1",
+          "expanded-ast-v1",
+          "binding-ir-v1",
+          "analysis-ir-v1",
+          "direct-gewyc-binding-command",
+          "direct-gewyc-ir-command",
+          "language-contract-json-schema",
           "frontend-json",
           "lowered-ir",
           "owned-dynamic-narratives",
@@ -744,6 +752,10 @@
           "declaration-topology-repair-codes",
           "package-graph-repair-codes",
           "bounded-placeholder-expansion",
+          "allocation-bounded-placeholder-scanning",
+          "borrowed-rule-keyword-lowering",
+          "borrowed-unescaped-literal-lowering",
+          "focused-parser-lowering-benchmark",
           "fail-closed-unresolved-placeholder-expansion",
           "placeholder-shape-repair-codes",
           "balanced-string-delimiters",
@@ -787,11 +799,18 @@
       "consumers": ["protocol-authors", "gewyvern-runtime", "model-tooling"],
       "evidence": [
         { "kind": "source", "path": "crates/gewyc/src/main.rs", "state": "present" },
+        { "kind": "source", "path": "src/dsl/contract.rs", "state": "present" },
+        { "kind": "source", "path": "src/dsl/function_types.rs", "state": "present" },
+        { "kind": "source", "path": "src/dsl/pipeline/lowering.rs", "state": "present" },
         { "kind": "test", "path": "crates/gewyc/tests/cli_information.rs", "state": "present" },
+        { "kind": "test", "path": "crates/gewyc/src/tests.rs", "state": "present" },
         { "kind": "test", "path": "tests/gewylang_docs_tdd.rs", "state": "present" },
-        { "kind": "documentation", "path": "docs/gewylang-system.md", "state": "present" }
+        { "kind": "documentation", "path": "docs/gewylang-contract.md", "state": "present" },
+        { "kind": "documentation", "path": "docs/contracts/gewylang-language-contract-v1.schema.json", "state": "present" },
+        { "kind": "documentation", "path": "docs/gewylang-system.md", "state": "present" },
+        { "kind": "documentation", "path": "docs/performance-baselines.md", "state": "present" }
       ],
-      "next_gate": "Preserve the stable owned-text frontend and export contract while extending diagnostics."
+      "next_gate": "Preserve Syntax v1 and the versioned Expanded AST, Binding IR, and Analysis IR contracts while extending diagnostics."
     },
     {
       "id": "gewylang/protocol-packages/protocol-catalog",

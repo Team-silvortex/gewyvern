@@ -17,6 +17,7 @@ older stable link without maintaining a second language map.
   [vocabulary reference](dsl-reference.md) +
   [EBNF](gewylang.ebnf)
 - Understand compilation:
+  [language and IR contract](gewylang-contract.md) ->
   [GewyLang to IR](book/explanation-gewylang-to-ir.md) ->
   [IR lowering](book/reference-ir-lowering.md) ->
   [`gewyc` JSON](gewyc-json.md)

@@ -260,16 +260,16 @@ pub(super) fn infer_pipeline_param_kinds(
             let Some(kind) = requirements.get(&binding.name).copied() else {
                 continue;
             };
-            for placeholder in placeholders_in(&binding.value) {
-                if !param_names.contains(&placeholder)
-                    && !local_binding_names.contains(&placeholder)
+            visit_placeholders(&binding.value, |placeholder| {
+                if !param_names.contains(placeholder) && !local_binding_names.contains(placeholder)
                 {
-                    continue;
+                    return Ok(());
                 }
-                if note_requirement(function_signature, &mut requirements, &placeholder, kind)? {
+                if note_requirement(function_signature, &mut requirements, placeholder, kind)? {
                     changed = true;
                 }
-            }
+                Ok(())
+            })?;
         }
     }
 
@@ -407,10 +407,12 @@ fn note_placeholders(
     value: &str,
     kind: PipelineValueKind,
 ) -> Result<(), DslError> {
-    for placeholder in placeholders_in(value) {
-        note_requirement(function_signature, output, &placeholder, kind)?;
+    if !value.as_bytes().contains(&b'$') {
+        return Ok(());
     }
-    Ok(())
+    visit_placeholders(value, |placeholder| {
+        note_requirement(function_signature, output, placeholder, kind).map(|_| ())
+    })
 }
 
 fn note_requirement(
@@ -436,62 +438,55 @@ fn note_requirement(
     }
 }
 
-fn placeholders_in(value: &str) -> Vec<String> {
-    let mut placeholders = Vec::new();
-    let chars = value.char_indices().collect::<Vec<_>>();
+fn visit_placeholders(
+    value: &str,
+    mut visit: impl FnMut(&str) -> Result<(), DslError>,
+) -> Result<(), DslError> {
+    let bytes = value.as_bytes();
     let mut index = 0usize;
 
-    while index < chars.len() {
-        if chars[index].1 != '$' {
-            index += 1;
-            continue;
-        }
-
-        let Some((_, next_ch)) = chars.get(index + 1).copied() else {
-            break;
+    while index < bytes.len() {
+        let Some(offset) = bytes[index..].iter().position(|byte| *byte == b'$') else {
+            return Ok(());
+        };
+        index += offset;
+        let next = index + 1;
+        let Some(&next_byte) = bytes.get(next) else {
+            return Ok(());
         };
 
-        if next_ch == '{' {
-            let mut end_index = index + 2;
-            while end_index < chars.len() && chars[end_index].1 != '}' {
-                end_index += 1;
-            }
-            if end_index == chars.len() {
-                break;
-            }
-            let name_start = chars[index + 2].0;
-            let name_end = chars[end_index].0;
+        if next_byte == b'{' {
+            let name_start = next + 1;
+            let Some(close_offset) = bytes[name_start..].iter().position(|byte| *byte == b'}')
+            else {
+                return Ok(());
+            };
+            let name_end = name_start + close_offset;
             let name = value[name_start..name_end].trim();
             if !name.is_empty() {
-                placeholders.push(name.to_string());
+                visit(name)?;
             }
-            index = end_index + 1;
+            index = name_end + 1;
             continue;
         }
 
-        if is_pipeline_placeholder_char(next_ch) {
-            let start_index = index + 1;
-            let mut end_index = start_index + 1;
-            while end_index < chars.len() && is_pipeline_placeholder_char(chars[end_index].1) {
-                end_index += 1;
+        if is_pipeline_placeholder_byte(next_byte) {
+            let mut end = next + 1;
+            while end < bytes.len() && is_pipeline_placeholder_byte(bytes[end]) {
+                end += 1;
             }
-            let name_start = chars[start_index].0;
-            let name_end = chars
-                .get(end_index)
-                .map(|(pos, _)| *pos)
-                .unwrap_or(value.len());
-            placeholders.push(value[name_start..name_end].to_string());
-            index = end_index;
+            visit(&value[next..end])?;
+            index = end;
             continue;
         }
 
         index += 1;
     }
-    placeholders
+    Ok(())
 }
 
-fn is_pipeline_placeholder_char(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')
+fn is_pipeline_placeholder_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-')
 }
 
 fn split_keyword_arg(arg: &str) -> Option<(&str, &str)> {
@@ -520,5 +515,33 @@ fn normalize_pipeline_value(raw: &str) -> String {
         atom.trim().to_string()
     } else {
         trimmed.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn placeholders(value: &str) -> Vec<String> {
+        let mut output = Vec::new();
+        visit_placeholders(value, |placeholder| {
+            output.push(placeholder.to_string());
+            Ok(())
+        })
+        .unwrap();
+        output
+    }
+
+    #[test]
+    fn placeholder_visitor_preserves_supported_forms_and_unicode_boundaries() {
+        assert_eq!(
+            placeholders("前缀 $first ${ second } $third-tail $9 $é"),
+            ["first", "second", "third-tail", "9"]
+        );
+    }
+
+    #[test]
+    fn unclosed_braced_placeholder_stops_inference_like_the_original_scanner() {
+        assert!(placeholders("${broken $later").is_empty());
     }
 }
