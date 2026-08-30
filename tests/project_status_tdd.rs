@@ -7989,7 +7989,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(continuous_proof.maturity, Maturity::Mature);
     assert_eq!(continuous_proof.priority, Priority::Maintenance);
     assert_eq!(continuous_proof.completion, 100);
-    assert_eq!(continuous_proof.contract.version, "1.8.0");
+    assert_eq!(continuous_proof.contract.version, "1.10.0");
     assert_eq!(
         continuous_proof.contract.stability,
         ContractStability::Stable
@@ -8010,6 +8010,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "late-lifecycle-completion-drop-proof",
         "post-close-polling-restart-rejection-proof",
         "settled-lifetime-disposal-proof",
+        "modular-tutorial-manifest-proof",
+        "tutorial-local-link-closure-proof",
+        "tutorial-command-surface-proof",
+        "destructive-tutorial-secret-boundary-proof",
+        "hub-getting-started-path-proof",
+        "recommended-local-authority-action-proof",
+        "advanced-lifecycle-disclosure-proof",
+        "guided-hub-action-help-proof",
     ] {
         assert!(
             continuous_proof

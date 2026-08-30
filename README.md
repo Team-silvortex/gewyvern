@@ -231,8 +231,9 @@ Use [docs/index.md](docs/index.md) as the single documentation entry. It routes
 by runtime, GewyLang, protocols, operations, or project maintenance without
 duplicating subject content.
 
-Fast paths: [first run](docs/book/tutorial-first-run.md),
-[CLI recipes](docs/cli-recipes.md),
+Fast paths: [tutorial shelf](docs/book/tutorials.md),
+[first real run](docs/book/tutorial-first-run.md),
+[first Leserpent Desktop session](docs/book/tutorial-leserpent-desktop.md),
 [security checklist](docs/book/how-to-security-checklist.md), and
 [development](docs/development.md).
 

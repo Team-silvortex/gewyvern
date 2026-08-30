@@ -10,48 +10,22 @@ It is intentionally narrow:
 - one report path
 - one reading strategy
 
-If you are starting from Leserpent Desktop instead of the CLI, open `Quick tour`
-from the Hub, press F1, or choose `Learning Center...` from the macOS application
-menu. The same six-step native tutorial is bundled offline and remains read-only:
-it explains the client -> daemon -> runtime model and the safe path to a first
-diagnosis without starting a connection, deployment, or command.
+If you are starting from the native Hub instead, use
+[Your first Leserpent Desktop session](tutorial-leserpent-desktop.md). Its
+offline Learning Center and this CLI tutorial teach the same conservative
+diagnosis boundary from different product surfaces.
 
-To change the desktop language, choose `Language...` beside `Quick tour` in the
-Hub or from the macOS application menu. `Follow System` is the default, and the
-same 30 official locale identifiers used by the Web console are available. The
-choice applies immediately and remains local to this device. Missing
-desktop-specific translations visibly fall back to English. All eight built-in
-languages include the native shell catalog, and all seven non-English built-ins
-also localize the 26 core UI-IR terms used by runtime lists, workspaces, logs,
-capabilities, history, and deployment forms. Every built-in language includes
-the complete six-step Learning Center, including navigation and accessibility
-text. Connection settings and the confirmation for
-forgetting an endpoint are also localized in every built-in language and update
-immediately if the language changes; endpoint and credential values themselves
-are never translated. Reverse daemon deployment has the same coverage for its
-labels, safety copy, phases, status, and accessibility text; changing language
-preserves the target host, opaque SSH credential handle, and raw remote errors.
-Gewyvern provisioning is also covered, including its bounded-observation and
-retry guidance; the provisioning ID, runtime ID, host, and vault handle remain
-unchanged when the interface language changes.
-For one of the 22 additional locales, select the locale and a `Daemon catalog
-source`, then choose `Download selected`. The source may be local Orchestra or
-one of the saved remote daemons. Desktop uses its saved TLS CA but does not send
-the daemon's management credential. For offline use, `Install JSON...` accepts
-a local `leserpent.language-pack/v1` file. Desktop accepts only the
-official downloadable locale roster and the shared 18-key compatibility
-contract. Current official v1.2.0 downloads carry an exact 42-key language,
-pack-center, theme, fleet refresh/filter, and child-window control set; the client
-cannot replace a built-in language. Installed packs remain private to this user
-and can be removed from the same window. A malformed pack is rejected without
-changing the active language or other installed packs, and missing keys continue
-to fall back to English. Local import validates the file but does not claim the
-catalog-authenticated status of a SHA-256-bound download.
-The six newest shell, semantic, and tutorial translations remain marked for native-speaker
-review rather than being presented as complete long-tail coverage.
+## Prerequisites
 
-If you want the lower-level compiler/runtime story, see
-[docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md).
+- the repository root as your working directory
+- a Rust toolchain accepted by the workspace lock
+- no root privileges, daemon, account, or network service
+
+Confirm the active product line before the first run:
+
+```bash
+cargo run --quiet -- --version
+```
 
 ## What You Will Do
 
@@ -79,6 +53,9 @@ This confirms two things up front:
 - `gewyvern` is registry-driven, not a pile of hard-coded demos
 - built-in protocol paths are concrete entries such as `request`, `session`,
   `query`, or `auth`
+
+**Checkpoint:** `quic` lists `initial` as its default entry and exposes its
+other bounded entry names.
 
 ## Step 2: Run One Focused Path
 
@@ -110,6 +87,9 @@ That is the current narrow diagnosis spine.
 - `confidence=low`
   means the runtime is intentionally avoiding overclaiming
 
+**Checkpoint:** the top-level result is `kind=single`, and the primary module is
+`database_query`.
+
 ## Step 3: Render The Same Target As HTML
 
 Now render the same kind of run as a report for a human reader:
@@ -126,6 +106,12 @@ This is useful when:
 
 The HTML report is not the narrowest machine-facing contract, but it is a good
 operator-facing surface.
+
+Confirm that the output is non-empty before sharing it:
+
+```bash
+test -s /tmp/http3-request.html
+```
 
 ## Step 4: Run A Full Sweep
 
@@ -156,6 +142,9 @@ If you already know the process you care about, narrow the sweep:
 ```bash
 cargo run -- --scan-all --pid 4242 --json --summary-only
 ```
+
+Replace `4242` with a process ID you are authorized to inspect. A missing or
+inaccessible process is a failed prerequisite, not evidence about that process.
 
 This is usually the right move when the question is:
 
@@ -224,7 +213,7 @@ Important boundary:
   proof of trust
 - process-scoped conclusions in this mode should be read as advisory
 
-## Step 8: What “Good Enough To Start Using” Means
+## Completion Checkpoint
 
 The current `v1.20.x` line keeps compatibility promises around its documented
 stable surfaces while leaving explicitly evolving extensions room to mature.
@@ -236,14 +225,20 @@ That means:
 - the diagnosis spine should be readable
 - the documentation should be enough to get another engineer moving
 
-For the broader release posture, see
-[docs/v0.14-posture.md](docs/v0.14-posture.md).
+You have completed the tutorial when you can choose a focused run or full sweep,
+locate the conservative diagnosis spine, and explain why confidence and input
+trust must be read together.
+
+For the broader ship/no-ship posture, see the
+[release checklist](../release-checklist.md).
 
 ## Where To Go Next
 
 - If you want to understand the runtime pipeline:
-  [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
+  [Gewy to runtime](explanation-gewy-to-runtime.md)
 - If you want the full runtime validation ladder:
-  [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
+  [Validate the runtime surface](how-to-validate-runtime-surface.md)
 - If you want to start authoring `gewylang`:
-  [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)
+  [Your first GewyLang package](tutorial-gewylang-package.md)
+- If you want the native multi-daemon client:
+  [Your first Leserpent Desktop session](tutorial-leserpent-desktop.md)

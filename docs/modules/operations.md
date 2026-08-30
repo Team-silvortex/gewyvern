@@ -6,8 +6,10 @@ and release gates.
 ## Start
 
 1. [First run](../book/tutorial-first-run.md)
-2. [CLI recipes](../cli-recipes.md)
-3. [Native validation commands](../script-entrypoints.md)
+2. [First Leserpent Desktop session](../book/tutorial-leserpent-desktop.md)
+3. [Remote deployment lab](../book/tutorial-remote-deployment-lab.md)
+4. [CLI recipes](../cli-recipes.md)
+5. [Native validation commands](../script-entrypoints.md)
 
 ## Operate
 

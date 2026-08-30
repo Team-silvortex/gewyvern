@@ -232,6 +232,14 @@ projection with
 `--verify-remote-topology`, the shared policy with `--verify-remote-filter`, and
 the real Hub control tree with `--verify-hub-topology`.
 
+The Hub opens with a visible `Choose where to begin` card instead of treating
+every lifecycle command as an equal first step. Desktop users get `Open Local
+Orchestra` as the recommended no-account path; `Quick tour`, `Add daemon`
+(connect an existing service), and `Deploy daemon` (install on another host)
+remain directly reachable. Provisioning and destructive retirement controls are
+grouped under the collapsed `Advanced lifecycle actions` disclosure. Opening the
+Hub itself performs no connection, deployment, authentication, or mutation.
+
 The visible `Quick tour` control, F1, and the macOS `Learning Center...`
 application-menu item open the same singleton native tutorial window. Its six
 offline steps explain the client/daemon/runtime topology, first authority,
@@ -239,7 +247,10 @@ runtime workspace, focused diagnosis, mutation fences, and Leselang equivalence.
 The tutorial is read-only: it never connects, deploys, or executes a command.
 Every selector and navigation control has a stable Automation ID, name, and help
 text; Left/Right, Home/End, and Escape provide a complete keyboard path. Verify
-the real control tree with `--verify-desktop-tutorial`.
+the real control tree with `--verify-desktop-tutorial`. The repository-level
+[Desktop tutorial](../../docs/book/tutorial-leserpent-desktop.md) continues from
+this offline orientation into Local Orchestra, topology, workspaces, and
+canonical Leselang without requiring an account.
 
 The Hub's visible `Language...` control and the macOS application menu open the
 same singleton native language settings window. The selector contains `Follow
@@ -267,8 +278,8 @@ workspace, debugger live execution, the existing-runtime registration editor,
 Hub dynamic cards, and Learning Center,
 are complete specialist domains.
 Their exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 37-key, 56-key,
-57-key, 78-key, 72-key, 33-key, 49-key, 69-key, and 61-key catalogs bring the
-non-English built-in semantic set to 751 keys. One shared strict validator
+57-key, 78-key, 72-key, 33-key, 49-key, 72-key, and 61-key catalogs bring the
+non-English built-in semantic set to 754 keys. One shared strict validator
 rejects missing/extra keys, malformed placeholders, controls, or oversized
 values. Native controls have eight-locale layout probes, and live language
 changes reproject labels, controlled phases, status, accessibility, and flow

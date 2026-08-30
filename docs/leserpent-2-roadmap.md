@@ -2418,6 +2418,13 @@ direct and sequential keyboard navigation, compact scroll-safe layout, and an
 explicit auxiliary-window classification so Dock reopen still targets the Hub.
 The native verification path drives the real controls, and the lifecycle probe
 checks the menu/content contract without requiring a network or daemon.
+The Hub now also starts with one explicit, side-effect-free onboarding card.
+Local Orchestra is the recommended desktop path, while Quick tour, connecting
+an existing daemon, and deploying a new daemon are named as distinct choices;
+provisioning and both destructive retirement actions remain collapsed under an
+advanced lifecycle disclosure. This path requires neither account state nor an
+automatic network operation, and its action hierarchy, help text, localization,
+layout, and routing are exercised by the real Hub product probe.
 The same shell now has a native language settings path from both the Hub and
 macOS application menu. It shares the Web roster of 8 built-in plus 22 official
 `core-ui` locales, persists only a bounded private locale preference, resolves
@@ -2441,8 +2448,8 @@ execution, Hub dynamic cards, the existing-runtime registration editor, and
 Learning Center, now establish the
 specialist-dialog pattern.
 Their exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 37-key, 56-key,
-57-key, 78-key, 72-key, 33-key, 49-key, 69-key, and 61-key catalogs bring every
-non-English built-in to 751 semantic keys without touching the frozen core set. They share one strict
+57-key, 78-key, 72-key, 33-key, 49-key, 72-key, and 61-key catalogs bring every
+non-English built-in to 754 semantic keys without touching the frozen core set. They share one strict
 key/value/placeholder validator. Eight-locale native layout probes cover each
 dialog and the account card at the minimum Hub envelope. The remote proof also
 covers compact and wide shells plus 32 refresh/deployment/cleanup/cancellation
@@ -2627,6 +2634,13 @@ retirement windows against cancellation-ignoring delayed successes. Closing a
 window now establishes a generation fence: late snapshots cannot reproject
 controls or restart polling, and the lifetime token source is released only
 after the active continuation settles.
+The `1.20.8` migration-documentation slice turns the tutorial shelf into five
+bounded outcome paths: first diagnosis, native Desktop, GewyLang package
+authoring, GUI/CLI/Leselang equivalence, and disposable remote deployment. Each
+path now declares prerequisites and an observed completion checkpoint. A
+documentation contract test binds every example to the current command source,
+keeps book links repository-relative, preserves runtime-before-daemon retirement
+order, and rejects raw-secret input flags from the destructive lab.
 Accessibility and NativeAOT now restore and build through proof-local .NET
 artifacts roots. A concurrent regression run proves both shelves can execute
 without contending for shared reference assemblies or PDBs, and successful

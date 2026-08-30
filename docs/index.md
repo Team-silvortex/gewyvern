@@ -5,10 +5,12 @@ that owns your question; do not scan the repository by filename.
 
 ## Start
 
-- New user: [first run](book/tutorial-first-run.md)
-- GewyLang author: [language module](modules/gewylang.md)
-- Leselang author: [automation language module](modules/leselang.md)
-- Operator: [operations module](modules/operations.md)
+- Choose a working outcome: [tutorial shelf](book/tutorials.md)
+- CLI operator: [first real run](book/tutorial-first-run.md)
+- Desktop operator: [first Leserpent session](book/tutorial-leserpent-desktop.md)
+- GewyLang author: [first package](book/tutorial-gewylang-package.md)
+- Leselang author: [first GUI automation](book/tutorial-leselang-gui-automation.md)
+- Remote operator: [disposable deployment lab](book/tutorial-remote-deployment-lab.md)
 - Contributor: [project module](modules/project.md)
 - Next major: [Leserpent 2.0 roadmap](leserpent-2-roadmap.md)
 - Sequential reading: [book](book/index.md)

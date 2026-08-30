@@ -73,6 +73,27 @@ internal sealed class HubWindow : Window
         HorizontalAlignment = HorizontalAlignment.Left,
         Padding = new Thickness(14, 7),
     };
+    private readonly TextBlock gettingStartedTitle = new()
+    {
+        Foreground = LeserpentTheme.Primary,
+        FontSize = 20,
+        FontWeight = FontWeight.Bold,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly TextBlock gettingStartedBody = new()
+    {
+        Foreground = LeserpentTheme.Body,
+        FontSize = 13,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly Expander advancedLifecycleActions = new()
+    {
+        IsExpanded = false,
+        HorizontalAlignment = HorizontalAlignment.Stretch,
+        HorizontalContentAlignment = HorizontalAlignment.Left,
+    };
+    private readonly Border gettingStartedCard;
+    private Button? localStartButton;
     private readonly TextBlock topologyFilterSummary = new()
     {
         Foreground = LeserpentTheme.Muted,
@@ -129,7 +150,7 @@ internal sealed class HubWindow : Window
         this.localization = localization;
         ProductAccessPolicy.RequireCompleteOpenSourceCore(HubOpenSourceCoreCapabilities);
         daemonCardCount = connections.Count + (localSupported ? 1 : 0);
-        expectedAuditedControlCount = 15 + connections.Count * 3 + (localSupported ? 2 : 0);
+        expectedAuditedControlCount = 17 + connections.Count * 3 + (localSupported ? 3 : 0);
         topologyFilterBox.PlaceholderText = localization.Text(DesktopTextKey.FindDaemonOrRuntime);
         clearTopologyFilterButton.Content = localization.Text(DesktopTextKey.Clear);
         refreshAllTopologyButton.Content = localization.Text(DesktopTextKey.RefreshAll);
@@ -153,14 +174,13 @@ internal sealed class HubWindow : Window
         var addButton = new Button
         {
             Content = localization.Text(DesktopTextKey.AddDaemon),
-            Background = LeserpentTheme.Accent,
-            Foreground = Brushes.Black,
-            FontWeight = FontWeight.SemiBold,
             Padding = new Thickness(17, 9),
+            Margin = new Thickness(0, 0, 8, 8),
             VerticalAlignment = VerticalAlignment.Center,
         };
         AutomationProperties.SetAutomationId(addButton, "hub-add-daemon");
         AutomationProperties.SetName(addButton, HubText("a11y.add_daemon"));
+        SetActionGuidance(addButton, HubText("a11y.add_daemon"));
         auditedControls.Add(addButton);
         addButton.Click += (_, _) => addConnection();
 
@@ -168,23 +188,30 @@ internal sealed class HubWindow : Window
         {
             Content = localization.Text(DesktopTextKey.DeployDaemon),
             Padding = new Thickness(17, 9),
+            Margin = new Thickness(0, 0, 8, 8),
             VerticalAlignment = VerticalAlignment.Center,
         };
         AutomationProperties.SetAutomationId(deployButton, "hub-deploy-daemon");
         AutomationProperties.SetName(deployButton, HubText("a11y.deploy_daemon"));
+        SetActionGuidance(deployButton, HubText("a11y.deploy_daemon"));
         auditedControls.Add(deployButton);
         deployButton.Click += (_, _) => deployDaemon();
 
         var retireDaemonButton = new Button
         {
             Content = localization.Text(DesktopTextKey.RetireDaemon),
+            Background = LeserpentTheme.Destructive,
+            Foreground = Brushes.White,
+            FontWeight = FontWeight.SemiBold,
             Padding = new Thickness(17, 9),
+            Margin = new Thickness(0, 0, 8, 8),
             VerticalAlignment = VerticalAlignment.Center,
         };
         AutomationProperties.SetAutomationId(retireDaemonButton, "hub-retire-daemon");
         AutomationProperties.SetName(
             retireDaemonButton,
             HubText("a11y.retire_daemon"));
+        SetActionGuidance(retireDaemonButton, HubText("a11y.retire_daemon"));
         auditedControls.Add(retireDaemonButton);
         retireDaemonButton.Click += (_, _) => retireDaemon();
 
@@ -192,23 +219,30 @@ internal sealed class HubWindow : Window
         {
             Content = localization.Text(DesktopTextKey.ProvisionGewyvern),
             Padding = new Thickness(17, 9),
+            Margin = new Thickness(0, 0, 8, 8),
             VerticalAlignment = VerticalAlignment.Center,
         };
         AutomationProperties.SetAutomationId(provisionButton, "hub-provision-gewyvern");
         AutomationProperties.SetName(provisionButton, HubText("a11y.provision_runtime"));
+        SetActionGuidance(provisionButton, HubText("a11y.provision_runtime"));
         auditedControls.Add(provisionButton);
         provisionButton.Click += (_, _) => provisionRuntime();
 
         var retireButton = new Button
         {
             Content = localization.Text(DesktopTextKey.RetireGewyvern),
+            Background = LeserpentTheme.Destructive,
+            Foreground = Brushes.White,
+            FontWeight = FontWeight.SemiBold,
             Padding = new Thickness(17, 9),
+            Margin = new Thickness(0, 0, 8, 8),
             VerticalAlignment = VerticalAlignment.Center,
         };
         AutomationProperties.SetAutomationId(retireButton, "hub-retire-gewyvern");
         AutomationProperties.SetName(
             retireButton,
             HubText("a11y.retire_runtime"));
+        SetActionGuidance(retireButton, HubText("a11y.retire_runtime"));
         auditedControls.Add(retireButton);
         retireButton.Click += (_, _) => retireRuntime();
 
@@ -218,6 +252,7 @@ internal sealed class HubWindow : Window
             tutorialButton,
             HubText("help.tutorial"));
         ToolTip.SetTip(tutorialButton, HubText("tooltip.tutorial"));
+        tutorialButton.Margin = new Thickness(0, 0, 8, 8);
         auditedControls.Add(tutorialButton);
         tutorialButton.Click += (_, _) => openTutorial();
 
@@ -231,28 +266,81 @@ internal sealed class HubWindow : Window
         auditedControls.Add(languageButton);
         languageButton.Click += (_, _) => openLanguage();
 
-        var headingActions = new StackPanel
+        var gettingStartedActions = new WrapPanel
         {
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Children =
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        if (localSupported)
+        {
+            var localName = localization.Text(DesktopTextKey.LocalOrchestra);
+            var startLocalButton = new Button
             {
-                new StackPanel
+                Content = $"{localization.Text(DesktopTextKey.Open)} {localName}",
+                Background = LeserpentTheme.Accent,
+                Foreground = Brushes.Black,
+                FontWeight = FontWeight.SemiBold,
+                Padding = new Thickness(17, 9),
+                Margin = new Thickness(0, 0, 8, 8),
+            };
+            localStartButton = startLocalButton;
+            AutomationProperties.SetAutomationId(
+                startLocalButton,
+                "hub-start-local-orchestra");
+            AutomationProperties.SetName(
+                startLocalButton,
+                HubFormat("a11y.open_daemon", Safe(localName)));
+            SetActionGuidance(startLocalButton, HubText("onboarding.body"));
+            auditedControls.Add(startLocalButton);
+            startLocalButton.Click += (_, _) => OpenDaemon(
+                openLocal,
+                startLocalButton,
+                localName);
+            gettingStartedActions.Children.Add(startLocalButton);
+        }
+        else
+        {
+            addButton.Background = LeserpentTheme.Accent;
+            addButton.Foreground = Brushes.Black;
+            addButton.FontWeight = FontWeight.SemiBold;
+        }
+        gettingStartedActions.Children.Add(tutorialButton);
+        gettingStartedActions.Children.Add(addButton);
+        gettingStartedActions.Children.Add(deployButton);
+
+        advancedLifecycleActions.Content = new WrapPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Children = { provisionButton, retireButton, retireDaemonButton },
+        };
+        AutomationProperties.SetAutomationId(
+            advancedLifecycleActions,
+            "hub-advanced-lifecycle");
+        auditedControls.Add(advancedLifecycleActions);
+
+        gettingStartedCard = new Border
+        {
+            Background = Brush.Parse("#2A2113"),
+            BorderBrush = LeserpentTheme.Accent,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(18, 15),
+            Child = new StackPanel
+            {
+                Spacing = 9,
+                Children =
                 {
-                    Orientation = Orientation.Horizontal,
-                    Spacing = 9,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    Children = { deployButton, retireDaemonButton },
-                },
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Spacing = 9,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    Children = { provisionButton, retireButton, addButton },
+                    gettingStartedTitle,
+                    gettingStartedBody,
+                    gettingStartedActions,
+                    advancedLifecycleActions,
                 },
             },
         };
+        AutomationProperties.SetAutomationId(gettingStartedCard, "hub-getting-started");
+        auditedControls.Add(gettingStartedCard);
+        ApplyGettingStartedLocalization();
 
         var heading = new Grid
         {
@@ -293,7 +381,7 @@ internal sealed class HubWindow : Window
                 {
                     Orientation = Orientation.Horizontal,
                     Spacing = 8,
-                    Children = { tutorialButton, languageButton },
+                    Children = { languageButton },
                 },
             },
         };
@@ -305,8 +393,8 @@ internal sealed class HubWindow : Window
         };
         Grid.SetColumn(accountControl, 1);
         heading.Children.Add(headingTop);
-        Grid.SetRow(headingActions, 1);
-        heading.Children.Add(headingActions);
+        Grid.SetRow(gettingStartedCard, 1);
+        heading.Children.Add(gettingStartedCard);
 
         topologyRoot.Children.Add(CreateClientRoot(connections.Count, localSupported));
 
@@ -483,6 +571,7 @@ internal sealed class HubWindow : Window
         RemoteTopologySnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        ApplyGettingStartedLocalization();
         foreach (var card in topologyCards)
         {
             card.State.Accept(snapshot);
@@ -808,6 +897,10 @@ internal sealed class HubWindow : Window
                 || !ids.Add(AutomationProperties.GetAutomationId(control)!))
             || !ids.Contains("hub-open-tutorial")
             || !ids.Contains("hub-open-language")
+            || !ids.Contains("hub-getting-started")
+            || !ids.Contains("hub-advanced-lifecycle")
+            || (localStartButton is not null
+                && !ids.Contains("hub-start-local-orchestra"))
             || ids.Contains("hub-open-remote"))
         {
             throw new InvalidDataException("Hub topology control contract drifted");
@@ -940,6 +1033,74 @@ internal sealed class HubWindow : Window
 
     public void ProbeLanguageEntry() =>
         languageButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+    public void ProbeGettingStartedEntry()
+    {
+        if (localStartButton is null
+            || localStartButton.Background != LeserpentTheme.Accent
+            || advancedLifecycleActions.IsExpanded
+            || advancedLifecycleActions.Content is not WrapPanel lifecycleActions
+            || lifecycleActions.Children.Count != 3)
+        {
+            throw new InvalidDataException(
+                "Hub getting-started hierarchy lost its recommended local path");
+        }
+        foreach (var automationId in new[]
+        {
+            "hub-start-local-orchestra",
+            "hub-open-tutorial",
+            "hub-add-daemon",
+            "hub-deploy-daemon",
+            "hub-provision-gewyvern",
+            "hub-retire-gewyvern",
+            "hub-retire-daemon",
+        })
+        {
+            var action = auditedControls.SingleOrDefault(control =>
+                AutomationProperties.GetAutomationId(control) == automationId);
+            if (action is null
+                || string.IsNullOrWhiteSpace(AutomationProperties.GetHelpText(action))
+                || ToolTip.GetTip(action) is not string { Length: > 0 })
+            {
+                throw new InvalidDataException(
+                    $"Hub getting-started action lacks guidance: {automationId}");
+            }
+        }
+        advancedLifecycleActions.IsExpanded = true;
+        try
+        {
+            VerifyLayoutEnvelope();
+        }
+        finally
+        {
+            advancedLifecycleActions.IsExpanded = false;
+        }
+        localStartButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    }
+
+    public void ProbeLocalizedGettingStartedPresentation()
+    {
+        ApplyGettingStartedLocalization();
+        if (gettingStartedTitle.Text != HubText("onboarding.title")
+            || gettingStartedBody.Text != HubText("onboarding.body")
+            || advancedLifecycleActions.Header as string
+                != HubText("onboarding.advanced")
+            || AutomationProperties.GetName(gettingStartedCard)
+                != HubText("onboarding.title"))
+        {
+            throw new InvalidDataException(
+                "Hub getting-started localization drifted");
+        }
+        advancedLifecycleActions.IsExpanded = true;
+        try
+        {
+            VerifyLayoutEnvelope();
+        }
+        finally
+        {
+            advancedLifecycleActions.IsExpanded = false;
+        }
+    }
 
     private Border CreateClientRoot(int remoteCount, bool localSupported)
     {
@@ -1522,6 +1683,30 @@ internal sealed class HubWindow : Window
         AutomationProperties.SetName(
             statusText,
             HubFormat("a11y.status_value", value));
+    }
+
+    private void ApplyGettingStartedLocalization()
+    {
+        var title = HubText("onboarding.title");
+        var body = HubText("onboarding.body");
+        var advanced = HubText("onboarding.advanced");
+        gettingStartedTitle.Text = title;
+        gettingStartedBody.Text = body;
+        advancedLifecycleActions.Header = advanced;
+        AutomationProperties.SetName(gettingStartedCard, title);
+        AutomationProperties.SetName(advancedLifecycleActions, advanced);
+        AutomationProperties.SetHelpText(advancedLifecycleActions, body);
+        ToolTip.SetTip(advancedLifecycleActions, body);
+        if (localStartButton is { } startLocalButton)
+        {
+            SetActionGuidance(startLocalButton, body);
+        }
+    }
+
+    private static void SetActionGuidance(Control control, string guidance)
+    {
+        AutomationProperties.SetHelpText(control, guidance);
+        ToolTip.SetTip(control, guidance);
     }
 
     private void OpenDaemon(Func<string?> open, Button button, string name)

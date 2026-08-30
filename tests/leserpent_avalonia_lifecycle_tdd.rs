@@ -899,6 +899,52 @@ fn hub_topology_filter_is_bounded_keyboard_accessible_and_renderer_neutral() {
 }
 
 #[test]
+fn hub_getting_started_path_is_visible_safe_and_actionable() {
+    let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
+    let catalog = avalonia_source("Leserpent.Avalonia/DesktopHubCatalogs.cs");
+    let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+
+    for automation_id in [
+        "hub-getting-started",
+        "hub-start-local-orchestra",
+        "hub-advanced-lifecycle",
+    ] {
+        assert!(
+            hub.contains(automation_id),
+            "missing getting-started control {automation_id}"
+        );
+    }
+    for marker in [
+        "gettingStartedActions.Children.Add(startLocalButton)",
+        "advancedLifecycleActions.IsExpanded = false",
+        "ProbeGettingStartedEntry()",
+        "ProbeLocalizedGettingStartedPresentation()",
+        "SetActionGuidance(",
+        "HubText(\"onboarding.body\")",
+        "lifecycleActions.Children.Count != 3",
+    ] {
+        assert!(hub.contains(marker), "Hub onboarding is missing {marker}");
+    }
+    for key in ["onboarding.title", "onboarding.body", "onboarding.advanced"] {
+        assert!(catalog.contains(key), "Hub catalog is missing {key}");
+    }
+    assert!(catalog.contains("public const int KeyCount = 72"));
+    for marker in [
+        "getting_started=true",
+        "recommended_local_action=true",
+        "guided_action_help=true",
+        "advanced_lifecycle_collapsed=true",
+        "onboarding_no_account=true",
+    ] {
+        assert!(
+            app.contains(marker),
+            "Hub product probe is missing {marker}"
+        );
+    }
+    assert!(app.contains("localOpenCount != 1"));
+}
+
+#[test]
 fn desktop_tutorial_is_offline_accessible_and_ui_reachable() {
     let tutorial = avalonia_source("Leserpent.Avalonia/DesktopTutorialWindow.cs");
     let tutorial_catalog = avalonia_source("Leserpent.Avalonia/DesktopTutorialCatalogs.cs");
@@ -908,6 +954,7 @@ fn desktop_tutorial_is_offline_accessible_and_ui_reachable() {
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
     let readme = repo_source("apps/leserpent-avalonia/README.md");
     let first_run = repo_source("docs/book/tutorial-first-run.md");
+    let desktop_tutorial = repo_source("docs/book/tutorial-leserpent-desktop.md");
 
     for automation_id in [
         "desktop-tutorial-progress",
@@ -977,10 +1024,16 @@ fn desktop_tutorial_is_offline_accessible_and_ui_reachable() {
     assert!(lifecycle.contains("window is not DesktopTutorialWindow"));
     assert!(program.contains("offline_tutorial=true"));
     assert!(program.contains("builtin_tutorial_catalogs=7"));
-    assert!(program.contains("builtin_semantic_keys=751"));
+    assert!(program.contains("builtin_semantic_keys=754"));
     assert!(program.contains("builtin_tutorial_complete=true"));
     assert!(readme.contains("`--verify-desktop-tutorial`"));
-    assert!(first_run.contains("`Learning Center...`"));
+    assert!(first_run.contains("(tutorial-leserpent-desktop.md)"));
+    for marker in ["`Quick tour`", "F1", "`Learning Center...`"] {
+        assert!(
+            desktop_tutorial.contains(marker),
+            "Desktop tutorial must route through {marker}"
+        );
+    }
 }
 
 #[test]
@@ -1267,7 +1320,7 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(program.contains("complete_builtin_locales=8"));
     assert!(program.contains("builtin_semantic_catalogs=7"));
     assert!(program.contains("semantic_keys=26"));
-    assert!(program.contains("builtin_semantic_keys=751"));
+    assert!(program.contains("builtin_semantic_keys=754"));
     assert!(program.contains("language_pack_core_ui_keys=18"));
     assert!(program.contains("language_pack_official_version=1.2.0"));
     assert!(program.contains("language_pack_official_keys=42"));
@@ -1295,7 +1348,7 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(program.contains("orchestra_semantic_keys=72"));
     assert!(program.contains("localized_orchestra=true"));
     assert!(program.contains("builtin_hub_catalogs=7"));
-    assert!(program.contains("hub_semantic_keys=69"));
+    assert!(program.contains("hub_semantic_keys=72"));
     assert!(program.contains("localized_hub=true"));
     assert!(program.contains("typed_hub_cards=true"));
     assert!(localization.contains("DesktopHubCatalogs.VerifyContract();"));
@@ -1420,8 +1473,8 @@ fn hub_topology_refresh_is_discoverable_observed_and_single_flight() {
 
     assert!(hub.contains("hub-refresh-all"));
     assert!(hub.contains("HubText(\"tooltip.refresh_all\")"));
-    assert!(hub_catalog.contains("public const int KeyCount = 69"));
-    assert_eq!(hub_catalog.matches("new(\"").count(), 69);
+    assert!(hub_catalog.contains("public const int KeyCount = 72"));
+    assert_eq!(hub_catalog.matches("new(\"").count(), 72);
     for marker in [
         "tooltip.refresh_all",
         "status.refresh_attention",
@@ -1467,7 +1520,7 @@ fn hub_topology_refresh_is_discoverable_observed_and_single_flight() {
     assert!(app.contains("refresh_busy_state=true"));
     assert!(app.contains("refresh_completion_status=true"));
     assert!(app.contains("localized_hub_catalogs=7"));
-    assert!(app.contains("hub_semantic_keys=69"));
+    assert!(app.contains("hub_semantic_keys=72"));
     assert!(app.contains("localized_hub_layouts=8"));
     assert!(app.contains("typed_hub_cards=true"));
     assert!(coordinator.contains("ReferenceEquals(alphaRefresh, alphaJoin)"));
@@ -1592,7 +1645,7 @@ fn gewyvern_provisioning_is_authority_scoped_identity_locked_and_bounded() {
     assert!(program.contains("--verify-provisioning-client"));
     assert!(program.contains("builtin_provisioning_catalogs=7"));
     assert!(program.contains("provisioning_semantic_keys=43"));
-    assert!(program.contains("builtin_semantic_keys=751"));
+    assert!(program.contains("builtin_semantic_keys=754"));
     assert!(program.contains("localized_gewyvern_provisioning=true"));
     assert!(promotion.contains("BootstrapPromotionJsonContext.Default"));
     assert!(!promotion.contains("JsonSerializer.Serialize(new\n"));
@@ -1660,7 +1713,7 @@ fn gewyvern_retirement_is_confirmed_provisioning_bound_and_failure_safe() {
     assert!(program.contains("--verify-retirement-client"));
     assert!(program.contains("builtin_retirement_catalogs=7"));
     assert!(program.contains("retirement_semantic_keys=45"));
-    assert!(program.contains("builtin_semantic_keys=751"));
+    assert!(program.contains("builtin_semantic_keys=754"));
     assert!(program.contains("localized_gewyvern_retirement=true"));
 }
 
@@ -2222,7 +2275,7 @@ fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
     assert!(app.contains("live_language_reprojection=true"));
     assert!(program.contains("builtin_connection_catalogs=7"));
     assert!(program.contains("connection_semantic_keys=33"));
-    assert!(program.contains("builtin_semantic_keys=751"));
+    assert!(program.contains("builtin_semantic_keys=754"));
     assert!(window.contains("if (operationInFlight || isClosed)"));
     assert!(health.contains("remote health did not prove a ready protocol-v1 authority"));
     assert!(health.contains("remote health queue counters are inconsistent"));
@@ -2295,7 +2348,7 @@ fn desktop_reverse_deployment_is_strictly_localized_and_operator_data_preserving
     assert!(app.contains("await window.ProbeWorkflowAsync(\"zh-CN\")"));
     assert!(program.contains("builtin_bootstrap_catalogs=7"));
     assert!(program.contains("bootstrap_semantic_keys=46"));
-    assert!(program.contains("builtin_semantic_keys=751"));
+    assert!(program.contains("builtin_semantic_keys=754"));
     assert!(program.contains("localized_reverse_deployment=true"));
 }
 
@@ -2487,7 +2540,7 @@ fn silvortex_account_is_native_pkce_bound_and_offline_optional() {
     assert!(program.contains("default_client_id=true"));
     assert!(program.contains("builtin_account_catalogs=7"));
     assert!(program.contains("account_semantic_keys=37"));
-    assert!(program.contains("builtin_semantic_keys=751"));
+    assert!(program.contains("builtin_semantic_keys=754"));
     assert!(program.contains("account_core_gate=false"));
     assert!(program.contains("open_source_core=true"));
     assert!(program.contains("core_license=MIT"));

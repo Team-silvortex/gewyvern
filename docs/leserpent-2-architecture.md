@@ -247,12 +247,12 @@ reverse deployment, gewyvern provisioning/retirement, daemon retirement,
 startup recovery, account presentation, the remote daemon shell, and remote
 operation/Leselang controls, plus the runtime child workspace, Orchestra
 plan/control/history workspace, debugger live execution, existing-runtime
-registration editor, Hub dynamic cards, and Learning Center, contribute
+registration editor, Hub dynamic cards/onboarding, and Learning Center, contribute
 exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 37-key, 56-key, 57-key,
-78-key, 72-key, 33-key, 49-key, 69-key, and 61-key catalogs without
+78-key, 72-key, 33-key, 49-key, 72-key, and 61-key catalogs without
 overlapping the frozen core set. `DesktopDomainCatalogContract` gives these domains one exact-key,
 bounded-value, and format-placeholder validator; the full non-English built-in
-semantic set is therefore 751 keys. All eight built-in
+semantic set is therefore 754 keys. All eight built-in
 locale trees are measured inside their native dialog envelopes, and open
 controls, accessible names, controlled phases, status, and flow direction
 reproject on language change while operation identities, operator values, and

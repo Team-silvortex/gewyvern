@@ -12,10 +12,11 @@ adapter or generated framework binding against the Leselang UI protocol. The
 
 ## Start
 
-1. [Current language contract](../leselang-language.md)
-2. [Renderer-neutral UI IR contract](../leselang-ui.md)
-3. [Leserpent 2.0 architecture](../leserpent-2-architecture.md)
-4. [Gate-based delivery roadmap](../leserpent-2-roadmap.md)
+1. [First GUI automation tutorial](../book/tutorial-leselang-gui-automation.md)
+2. [Current language contract](../leselang-language.md)
+3. [Renderer-neutral UI IR contract](../leselang-ui.md)
+4. [Leserpent 2.0 architecture](../leserpent-2-architecture.md)
+5. [Gate-based delivery roadmap](../leserpent-2-roadmap.md)
 
 ## Contracts
 

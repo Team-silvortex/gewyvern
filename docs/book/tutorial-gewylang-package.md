@@ -19,6 +19,12 @@ By the end of this tutorial, you will have:
 4. compiled it with `gewyc`
 5. inspected the frontend shape
 
+## Prerequisites
+
+- complete [First real run](tutorial-first-run.md)
+- work from the repository root
+- use a disposable output directory that does not already exist
+
 ## Step 1: Scaffold A Package
 
 Use the dedicated compiler CLI:
@@ -38,6 +44,9 @@ This is the current preferred package shape:
 - one package
 - one entry file
 - reusable behavior factored into function units and included modules
+
+**Checkpoint:** `/tmp/my_gewy_app` contains exactly `gewy.pkg`, `main.gewy`, and
+`module.gewy` before compilation.
 
 ## Step 2: Understand The Package Files
 
@@ -135,6 +144,9 @@ This is one of the best ways to confirm that:
 - function units were found
 - `use(...)` edges point where you think they do
 
+The compile succeeds when the command exits with code `0`; do not infer success
+only from the presence of an older output file.
+
 For the current `1.20.x`-line compiler surfaces, a practical read order is:
 
 1. check `envelope.payload.summary.finding_count`
@@ -205,6 +217,13 @@ as:
 That means many high-risk mistakes are rejected at the DSL/compiler layer,
 before they drift deeper into the runtime.
 
+## Completion Checkpoint
+
+You have completed the tutorial when the package compiles with exit code `0`,
+the frontend graph shows the expected include and `use(...)` edges, and you can
+explain why GewyLang composes protocol behavior rather than acting as a
+general-purpose runtime.
+
 ## Where To Go Next
 
 - For the full language guide:
@@ -212,4 +231,6 @@ before they drift deeper into the runtime.
 - For JSON output details:
   [docs/gewyc-json.md](../gewyc-json.md)
 - For the broader runtime story:
-  [docs/book/explanation-gewy-to-runtime.md](explanation-gewy-to-runtime.md)
+  [Gewy to runtime](explanation-gewy-to-runtime.md)
+- For the separate GUI/control automation language:
+  [First Leselang GUI automation](tutorial-leselang-gui-automation.md)

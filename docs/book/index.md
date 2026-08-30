@@ -17,12 +17,17 @@ use the [documentation modules](../index.md#modules) instead.
 For a compact end-to-end understanding:
 
 1. [First run](tutorial-first-run.md)
-2. [GewyLang package tutorial](tutorial-gewylang-package.md)
-3. [GewyLang to IR](explanation-gewylang-to-ir.md)
-4. [Gewy to runtime](explanation-gewy-to-runtime.md)
-5. [Protocol package spine](explanation-protocol-package-spine.md)
-6. [Dataflow topology](explanation-dataflow-topology.md)
-7. [Runtime validation](how-to-validate-runtime-surface.md)
+2. [First Leserpent Desktop session](tutorial-leserpent-desktop.md)
+3. Choose [GewyLang package authoring](tutorial-gewylang-package.md) or
+   [Leselang GUI automation](tutorial-leselang-gui-automation.md).
+4. [GewyLang to IR](explanation-gewylang-to-ir.md)
+5. [Gewy to runtime](explanation-gewy-to-runtime.md)
+6. [Protocol package spine](explanation-protocol-package-spine.md)
+7. [Dataflow topology](explanation-dataflow-topology.md)
+8. [Runtime validation](how-to-validate-runtime-surface.md)
+
+The [remote deployment lab](tutorial-remote-deployment-lab.md) is an advanced,
+destructive path and is deliberately outside the default storyline.
 
 Stop when your question is answered. The book is not a required linear read.
 

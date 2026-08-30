@@ -1,61 +1,62 @@
 # Tutorials
 
-This track is for readers who want to learn `gewyvern` and `gewylang` by
-walking through a path, not by skimming every reference page.
+Use this shelf when you want to learn by reaching a working end state. Each
+tutorial names its prerequisites, side effects, success checkpoint, and stop
+conditions. Reference pages explain every option; tutorials deliberately do
+not.
+
+## Start By Outcome
+
+| Outcome | Tutorial | Side effects |
+| --- | --- | --- |
+| Run Gewyvern and read one diagnosis | [First real run](tutorial-first-run.md) | Builds locally and writes optional reports under `/tmp` |
+| Learn the native Hub without an account | [First Leserpent Desktop session](tutorial-leserpent-desktop.md) | Starts an app-owned local daemon; remote mutation is optional |
+| Author and compile one `.gewy` package | [First GewyLang package](tutorial-gewylang-package.md) | Writes a disposable package under `/tmp` |
+| Prove GUI, CLI, and Leselang equivalence | [First Leselang GUI automation](tutorial-leselang-gui-automation.md) | Canonical export is local and non-executing |
+| Deploy a disposable remote stack | [Remote deployment lab](tutorial-remote-deployment-lab.md) | Installs and later retires remote services |
 
 ## Recommended Order
 
-1. [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
-   First operator path from repo checkout to a real run.
-2. [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)
-   First package-authoring path for `gewylang`.
-3. [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
-   One full `.gewy -> frontend -> lowered IR -> archival snapshot` flow.
-4. [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
-   One full `.gewy -> binding -> runtime -> export` flow.
-5. [docs/book/explanation-protocol-package-spine.md](docs/book/explanation-protocol-package-spine.md)
-   One full `protocol package -> registry -> gewylang -> IR -> runtime` system
-   view.
-6. [docs/dsl.md](docs/dsl.md)
-   The stable `gewylang` subset and package model.
-7. [docs/development.md](docs/development.md)
-   Day-to-day contributor workflow after the mental model is in place.
+1. Complete [First real run](tutorial-first-run.md).
+2. Open [First Leserpent Desktop session](tutorial-leserpent-desktop.md).
+3. Choose the language path that matches your work:
+   [GewyLang package](tutorial-gewylang-package.md) for protocol behavior, or
+   [Leselang GUI automation](tutorial-leselang-gui-automation.md) for control
+   and UI equivalence.
+4. Use the [remote deployment lab](tutorial-remote-deployment-lab.md) only on
+   disposable Linux targets with a prepared authority and opaque credential
+   handles.
 
-## Suggested Tutorial Paths
+The first four tutorials are safe on a developer workstation. The remote lab
+is intentionally separate because bootstrap, provisioning, and retirement are
+real infrastructure mutations.
 
-### Operator Path
+## Continue By Role
 
-- [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
-- [docs/field-validation.md](docs/field-validation.md)
-- [docs/field-findings.md](docs/field-findings.md)
+### Operator
 
-### gewylang Path
+- [First real run](tutorial-first-run.md)
+- [First Leserpent Desktop session](tutorial-leserpent-desktop.md)
+- [Remote deployment lab](tutorial-remote-deployment-lab.md)
+- [Field validation](../field-validation.md)
 
+### Language Author
+
+- [First GewyLang package](tutorial-gewylang-package.md)
+- [First Leselang GUI automation](tutorial-leselang-gui-automation.md)
 - [GewyLang module](../modules/gewylang.md)
-- [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)
-- [docs/dsl.md](docs/dsl.md)
-- [docs/dsl-syntax.md](docs/dsl-syntax.md)
-- [docs/dsl-reference.md](docs/dsl-reference.md)
-- [docs/gewylang-evolution.md](docs/gewylang-evolution.md)
-- [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
-- [docs/gewyc-json.md](docs/gewyc-json.md)
-- [docs/gewylang.ebnf](docs/gewylang.ebnf)
+- [Leselang module](../modules/leselang.md)
 
-### Runtime Internals Path
+### Runtime Contributor
 
-- [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
-- [docs/system.md](docs/system.md)
-- [docs/architecture-blueprint-modules.md](docs/architecture-blueprint-modules.md)
-- [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
-- [docs/architecture.md](docs/architecture.md)
+- [GewyLang to IR](explanation-gewylang-to-ir.md)
+- [Gewy to runtime](explanation-gewy-to-runtime.md)
+- [Protocol package spine](explanation-protocol-package-spine.md)
+- [Runtime validation](how-to-validate-runtime-surface.md)
 
-## Future Shape
+## Tutorial Contract
 
-This track should eventually host more explicit step-by-step tutorials, such
-as:
-
-- tracing one protocol family from DSL to report
-- running `--serve` with API and external analysis sidecars
-
-For now, the pages above are the current tutorial shelf, and the two book
-tutorials are the current primary onboarding chapters.
+A tutorial is complete only when the reader can state the final observed
+checkpoint. If a prerequisite is missing, stop at the named preparation step;
+do not replace endpoint trust, explicit confirmation, stable operation IDs, or
+opaque credential handles with an undocumented shortcut.

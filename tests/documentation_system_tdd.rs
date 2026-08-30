@@ -83,6 +83,137 @@ fn documentation_index_routes_to_each_small_domain_module() {
 }
 
 #[test]
+fn tutorial_shelf_covers_cli_desktop_languages_and_remote_lifecycle() {
+    let root = repository_root();
+    let shelf =
+        fs::read_to_string(root.join("docs/book/tutorials.md")).expect("tutorial shelf must exist");
+    let contracts: &[(&str, &[&str])] = &[
+        (
+            "tutorial-first-run.md",
+            &[
+                "--list-protocols",
+                "--list-entries quic",
+                "--protocol postgres --entry query",
+                "--scan-all",
+            ],
+        ),
+        (
+            "tutorial-leserpent-desktop.md",
+            &[
+                "Local Orchestra",
+                "+ Add daemon",
+                "Workspace Leselang",
+                "--verify-desktop-tutorial",
+            ],
+        ),
+        (
+            "tutorial-gewylang-package.md",
+            &["gewyc -- init", "gewy.pkg", "frontend", "use(...)"],
+        ),
+        (
+            "tutorial-leselang-gui-automation.md",
+            &[
+                "--export-leselang",
+                "--export-plan",
+                "opens no socket",
+                "ui.presentation",
+                "Run live",
+            ],
+        ),
+        (
+            "tutorial-remote-deployment-lab.md",
+            &[
+                "vault:ssh:*",
+                "bootstrap deploy",
+                "bootstrap bind",
+                "runtime provision",
+                "runtime retire",
+                "bootstrap retire",
+            ],
+        ),
+    ];
+
+    for (file, markers) in contracts {
+        assert!(
+            shelf.contains(&format!("({file})")),
+            "tutorial shelf must route to {file}"
+        );
+        let source = fs::read_to_string(root.join("docs/book").join(file))
+            .expect("tutorial page must exist");
+        assert!(source.starts_with("# Tutorial:"), "invalid title in {file}");
+        assert!(
+            source.contains("## Prerequisites"),
+            "tutorial must name prerequisites: {file}"
+        );
+        assert!(
+            source.contains("## Completion Checkpoint"),
+            "tutorial must name its observed finish: {file}"
+        );
+        assert!(
+            !source.contains("](docs/"),
+            "book tutorial must use local relative links: {file}"
+        );
+        for marker in *markers {
+            assert!(
+                source.contains(marker),
+                "{file} lacks contract marker {marker}"
+            );
+        }
+    }
+
+    let root_usage = fs::read_to_string(root.join("src/main/ui_locale/catalog.rs"))
+        .expect("Gewyvern usage catalog must exist");
+    for option in ["--list-protocols", "--list-entries", "--scan-all"] {
+        assert!(root_usage.contains(option), "Gewyvern CLI lacks {option}");
+    }
+
+    let gewyc_usage = fs::read_to_string(root.join("crates/gewyc/src/main.rs"))
+        .expect("gewyc CLI source must exist");
+    for command in ["gewyc init", "explain|frontend", "stages|envelope"] {
+        assert!(gewyc_usage.contains(command), "gewyc CLI lacks {command}");
+    }
+
+    let leserpent_usage = fs::read_to_string(root.join("crates/leserpent-cli/src/lib.rs"))
+        .expect("Leserpent CLI source must exist");
+    for command in [
+        "bootstrap deploy",
+        "bootstrap inspect",
+        "bootstrap bind",
+        "bootstrap retire",
+        "runtime provision",
+        "runtime inspect",
+        "runtime logs",
+        "runtime retire",
+        "--export-leselang",
+        "--export-plan",
+    ] {
+        assert!(
+            leserpent_usage.contains(command),
+            "Leserpent CLI lacks tutorial command {command}"
+        );
+    }
+
+    let remote = fs::read_to_string(root.join("docs/book/tutorial-remote-deployment-lab.md"))
+        .expect("remote tutorial must exist");
+    let runtime_retirement = remote
+        .find("runtime retire \"$RUNTIME_ID\"")
+        .expect("runtime retirement step must exist");
+    let daemon_retirement = remote
+        .find("bootstrap retire \"$BOOTSTRAP_ID\"")
+        .expect("daemon retirement step must exist");
+    assert!(
+        runtime_retirement < daemon_retirement,
+        "remote tutorial must retire the runtime before its daemon"
+    );
+    for forbidden in ["--password", "--private-key", "--sudo-password", "sshpass"] {
+        assert!(
+            !remote.contains(forbidden),
+            "remote tutorial must not introduce raw secret input {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn documentation_tree_has_no_dangling_local_links() {
     let root = repository_root();
     let mut documents = vec![root.join("README.md")];
