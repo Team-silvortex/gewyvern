@@ -7220,7 +7220,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(desktop_localization.maturity, Maturity::Mature);
     assert_eq!(desktop_localization.priority, Priority::Maintenance);
     assert_eq!(desktop_localization.completion, 100);
-    assert_eq!(desktop_localization.contract.version, "1.0.0");
+    assert_eq!(desktop_localization.contract.version, "1.1.0");
     assert_eq!(
         desktop_localization.contract.stability,
         ContractStability::Stable
@@ -7273,11 +7273,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "cancellable-single-flight-language-pack-download",
         "native-language-pack-remove-controls",
         "native-language-settings-window",
+        "ui-thread-localization-notification",
+        "background-localization-dispatch-probe",
         "ui-ir-localized-text-resolution",
         "deterministic-english-localization-fallback",
         "eight-complete-built-in-shell-catalogs",
         "eight-complete-built-in-desktop-surfaces",
         "built-in-shell-format-contract",
+        "eighty-two-key-native-shell-contract",
+        "localized-language-selection-failure",
+        "localized-language-preference-save-failure",
         "web-term-aligned-built-in-catalogs",
         "eight-built-in-language-selector-layout-envelopes",
         "seven-non-english-built-in-semantic-catalogs",
@@ -7323,6 +7328,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "eight-built-in-account-layout-envelopes",
         "live-account-language-reprojection",
         "minimum-hub-layout-envelope",
+        "bounded-hub-dynamic-identity-text",
         "seven-built-in-remote-shell-specialist-catalogs",
         "remote-shell-catalog-exact-key-set",
         "seven-built-in-remote-operation-specialist-catalogs",
@@ -7983,13 +7989,37 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(continuous_proof.maturity, Maturity::Mature);
     assert_eq!(continuous_proof.priority, Priority::Maintenance);
     assert_eq!(continuous_proof.completion, 100);
-    assert_eq!(continuous_proof.contract.version, "1.6.0");
+    assert_eq!(continuous_proof.contract.version, "1.8.0");
     assert_eq!(
         continuous_proof.contract.stability,
         ContractStability::Stable
     );
     assert!(continuous_proof.blockers.is_empty());
     assert!(continuous_proof.next_gate.contains("after 2.0"));
+    for surface in [
+        "named-gui-function-chain-proof",
+        "strict-product-probe-success-marker-proof",
+        "hub-product-chain-proof",
+        "remote-shell-product-chain-proof",
+        "daemon-bootstrap-product-chain-proof",
+        "gewyvern-provisioning-product-chain-proof",
+        "gewyvern-retirement-product-chain-proof",
+        "daemon-retirement-product-chain-proof",
+        "retained-gui-function-chain-evidence",
+        "desktop-lifecycle-close-generation-fence-proof",
+        "late-lifecycle-completion-drop-proof",
+        "post-close-polling-restart-rejection-proof",
+        "settled-lifetime-disposal-proof",
+    ] {
+        assert!(
+            continuous_proof
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "continuous proof contract lacks {surface}"
+        );
+    }
     assert!(
         continuous_proof
             .contract

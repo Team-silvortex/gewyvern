@@ -343,6 +343,12 @@ daemon path. `--verify-startup-error` measures the token-redacted recovery
 window in all eight built-ins, and `--verify-hub-topology` covers the localized
 account card and minimum Hub layout.
 
+All four lifecycle verifiers also inject a request that deliberately ignores
+cancellation, close its native window before the non-terminal success arrives,
+and prove that the late snapshot is dropped. The close fence prevents polling
+from restarting or controls from locking after teardown, while the cancellation
+source is disposed only after the in-flight continuation has settled.
+
 Opening a runtime child follows the same renderer-neutral boundary. The
 `RemoteWorkspaceLaunchCoordinator` validates runtime IDs, bounds active plus
 pending workspaces, coalesces repeated requests to the newest required
@@ -654,14 +660,18 @@ cargo run --quiet --bin gewyvern_validate -- leserpent-accessibility
 
 It requires unique stable Automation IDs, complete Automation Names, explicit
 labels on every action button, exact HelpText mapping, and a WCAG AA text
-contrast floor of 4.5. Evidence is retained under
-`target/validation/leserpent-accessibility/`. The current minimum is 4.723;
+contrast floor of 4.5. The same managed assembly then runs six product probes
+for Hub topology, the remote shell, daemon bootstrap, Gewyvern provisioning,
+Gewyvern retirement, and daemon retirement. Each must emit exactly one strict
+terminal marker. Evidence is retained under
+`target/validation/leserpent-accessibility/` as a schema-v2 summary plus
+separate fixture and product-probe logs. The current minimum contrast is 4.723;
 the destructive button uses `#C44D2D` with white text instead of the previous
 3.841-contrast color. This managed Release shelf restores the development lock
 graph; `leserpent-aot` independently runs the same four control fixtures
 against the native executable restored from the AOT lock graph. Both named
-shelves remove their known summary, index, and fixture evidence before a run;
-fixture output is written before exit-status validation so a failed run cannot
+shelves remove their known summary, index, fixture, and probe evidence before a
+run; output is written before exit-status validation so a failed run cannot
 inherit a stale success index and still retains the failing transcript.
 
 The smoke fixture mounts revision 3, then applies remove, update, move, and

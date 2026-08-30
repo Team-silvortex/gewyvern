@@ -558,6 +558,75 @@ internal sealed class HubWindow : Window
         }
     }
 
+    public void ProbeDynamicTextBounds(RemoteTopologySnapshot baseline)
+    {
+        ArgumentNullException.ThrowIfNull(baseline);
+        var longName = new string('W', 4096);
+        var longId = new string('r', 128);
+        var stress = new RemoteTopologySnapshot(
+            baseline.Revision,
+            [
+                new RemoteRuntimeProjection
+                {
+                    Id = longId,
+                    Name = longName,
+                    Revision = baseline.Revision,
+                    RefreshStatus = RefreshStatus.Ready,
+                    Tags = new RuntimeTags { Environment = "stress" },
+                    Status = new RuntimeStatusSnapshot { StatusSource = "gewyvern" },
+                },
+            ],
+            Health: baseline.Health);
+        try
+        {
+            foreach (var card in topologyCards)
+            {
+                card.State.Accept(stress);
+            }
+            ApplyTopologyFilter();
+            VerifyLayoutEnvelope();
+            foreach (var row in topologyCards.SelectMany(card =>
+                         card.RuntimeList.Children.OfType<Button>()))
+            {
+                if (row.Content is not Grid content
+                    || content.Children.OfType<StackPanel>().SingleOrDefault() is not
+                    { } identity
+                    || identity.Children.OfType<TextBlock>().ToArray() is not
+                        [var name, var id]
+                    || name.TextTrimming != TextTrimming.CharacterEllipsis
+                    || id.TextTrimming != TextTrimming.CharacterEllipsis
+                    || ToolTip.GetTip(name) as string != Safe(longName)
+                    || ToolTip.GetTip(id) as string != longId)
+                {
+                    throw new InvalidDataException(
+                        "Hub runtime identity text lost its bounded presentation");
+                }
+            }
+
+            var node = NodeText(longName, longName, longName);
+            node.Measure(new Size(360, 240));
+            var nodeText = node.Children.OfType<TextBlock>().ToArray();
+            if (nodeText is not [var title, var subtitle, var detail]
+                || title.TextTrimming != TextTrimming.CharacterEllipsis
+                || subtitle.TextWrapping != TextWrapping.Wrap
+                || detail.TextWrapping != TextWrapping.Wrap
+                || node.DesiredSize.Width > 360
+                || node.DesiredSize.Height > 240)
+            {
+                throw new InvalidDataException(
+                    "Hub daemon identity text exceeded its bounded presentation");
+            }
+        }
+        finally
+        {
+            foreach (var card in topologyCards)
+            {
+                card.State.Accept(baseline);
+            }
+            ApplyTopologyFilter();
+        }
+    }
+
     private void ConfigureTopologyFilter()
     {
         AutomationProperties.SetAutomationId(topologyFilterBox, "hub-topology-filter");
@@ -1344,6 +1413,8 @@ internal sealed class HubWindow : Window
         RemoteRuntimeProjection runtime,
         ulong topologyRevision)
     {
+        var runtimeName = Safe(runtime.Name);
+        var runtimeId = Safe(runtime.Id);
         var failed = runtime.Status.StatusFetchError is { Length: > 0 }
             || runtime.RefreshStatus == RefreshStatus.Failed;
         var state = DesktopHubPresentation.RuntimeStatus(runtime)
@@ -1361,26 +1432,28 @@ internal sealed class HubWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
         };
         Grid.SetColumn(status, 2);
+        var runtimeNameText = new TextBlock
+        {
+            Text = runtimeName,
+            Foreground = LeserpentTheme.Body,
+            FontSize = 12,
+            FontWeight = FontWeight.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        var runtimeIdText = new TextBlock
+        {
+            Text = runtimeId,
+            Foreground = LeserpentTheme.Muted,
+            FontFamily = new FontFamily("JetBrains Mono, Menlo, monospace"),
+            FontSize = 10,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        ToolTip.SetTip(runtimeNameText, runtimeName);
+        ToolTip.SetTip(runtimeIdText, runtimeId);
         var identity = new StackPanel
         {
             Spacing = 2,
-            Children =
-            {
-                new TextBlock
-                {
-                    Text = Safe(runtime.Name),
-                    Foreground = LeserpentTheme.Body,
-                    FontSize = 12,
-                    FontWeight = FontWeight.SemiBold,
-                },
-                new TextBlock
-                {
-                    Text = Safe(runtime.Id),
-                    Foreground = LeserpentTheme.Muted,
-                    FontFamily = new FontFamily("JetBrains Mono, Menlo, monospace"),
-                    FontSize = 10,
-                },
-            },
+            Children = { runtimeNameText, runtimeIdText },
         };
         Grid.SetColumn(identity, 1);
         var row = new Button
@@ -1407,8 +1480,8 @@ internal sealed class HubWindow : Window
             row,
             HubFormat(
                 "a11y.open_runtime",
-                Safe(runtime.Name),
-                Safe(runtime.Id),
+                runtimeName,
+                runtimeId,
                 state));
         AutomationProperties.SetHelpText(
             row,
@@ -1511,36 +1584,43 @@ internal sealed class HubWindow : Window
 
     private static StackPanel NodeText(string title, string subtitle, string? detail = null)
     {
+        var safeTitle = Safe(title);
+        var safeSubtitle = Safe(subtitle);
+        var titleText = new TextBlock
+        {
+            Text = safeTitle,
+            Foreground = LeserpentTheme.Body,
+            FontSize = 15,
+            FontWeight = FontWeight.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        var subtitleText = new TextBlock
+        {
+            Text = safeSubtitle,
+            Foreground = LeserpentTheme.Muted,
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        ToolTip.SetTip(titleText, safeTitle);
+        ToolTip.SetTip(subtitleText, safeSubtitle);
         var panel = new StackPanel
         {
             Spacing = 3,
             VerticalAlignment = VerticalAlignment.Center,
-            Children =
-            {
-                new TextBlock
-                {
-                    Text = Safe(title),
-                    Foreground = LeserpentTheme.Body,
-                    FontSize = 15,
-                    FontWeight = FontWeight.SemiBold,
-                },
-                new TextBlock
-                {
-                    Text = Safe(subtitle),
-                    Foreground = LeserpentTheme.Muted,
-                    FontSize = 12,
-                    TextWrapping = TextWrapping.Wrap,
-                },
-            },
+            Children = { titleText, subtitleText },
         };
         if (!string.IsNullOrWhiteSpace(detail))
         {
-            panel.Children.Add(new TextBlock
+            var safeDetail = Safe(detail);
+            var detailText = new TextBlock
             {
-                Text = Safe(detail),
+                Text = safeDetail,
                 Foreground = LeserpentTheme.Muted,
                 FontSize = 11,
-            });
+                TextWrapping = TextWrapping.Wrap,
+            };
+            ToolTip.SetTip(detailText, safeDetail);
+            panel.Children.Add(detailText);
         }
         Grid.SetColumn(panel, 1);
         return panel;

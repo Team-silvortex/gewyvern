@@ -105,6 +105,8 @@ internal sealed class BootstrapDeploymentWindow : Window
     private readonly DispatcherTimer polling = new() { Interval = TimeSpan.FromSeconds(2) };
     private RemoteBootstrapSnapshot? snapshot;
     private bool operationInFlight;
+    private bool isClosed;
+    private bool lifetimeDisposed;
     private bool promotionCompleted;
     private string phaseKey = "phase.not_submitted";
     private string? localizedStatusKey = "status.initial";
@@ -145,13 +147,7 @@ internal sealed class BootstrapDeploymentWindow : Window
                 Close();
             }
         };
-        Closed += (_, _) =>
-        {
-            polling.Stop();
-            localization.Changed -= OnLocalizationChanged;
-            lifetime.Cancel();
-            lifetime.Dispose();
-        };
+        Closed += OnClosed;
 
         Audit(authority, "bootstrap-authority");
         Audit(bootstrapId, "bootstrap-id");
@@ -343,9 +339,56 @@ internal sealed class BootstrapDeploymentWindow : Window
         }
     }
 
+    public static async Task ProbeLateCompletionCloseFenceAsync(
+        IReadOnlyList<BootstrapAuthorityOption> authorities)
+    {
+        RemoteBootstrapIntent? submitted = null;
+        var started = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var completion = new TaskCompletionSource<RemoteBootstrapSnapshot>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var window = new BootstrapDeploymentWindow(
+            authorities,
+            new BootstrapHubOperations(
+                (_, intent, _) =>
+                {
+                    submitted = intent;
+                    started.TrySetResult(true);
+                    return completion.Task;
+                },
+                static (_, _, _, _) => throw new InvalidOperationException(),
+                static (_, _, _, _) => throw new InvalidOperationException(),
+                static (_, _, _) => throw new InvalidOperationException()),
+            DesktopLocalization.ForVerification());
+        window.host.Text = "late.example";
+        window.credentialHandle.Text = "vault:ssh:late-example";
+        window.confirmation.IsChecked = true;
+
+        var pending = window.SubmitAsync();
+        await started.Task;
+        window.OnClosed(null, EventArgs.Empty);
+        var intent = submitted
+            ?? throw new InvalidDataException("bootstrap close-fence probe did not submit");
+        completion.SetResult(new RemoteBootstrapSnapshot(
+            intent.BootstrapId,
+            "planned",
+            "ssh",
+            intent.Host,
+            intent.Port,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            false));
+        await pending;
+        window.VerifyLateCompletionCloseFence();
+    }
+
     private async Task SubmitAsync()
     {
-        if (operationInFlight)
+        if (isClosed || operationInFlight)
         {
             return;
         }
@@ -375,6 +418,10 @@ internal sealed class BootstrapDeploymentWindow : Window
                 source.AuthorityId,
                 intent,
                 lifetime.Token));
+            if (isClosed)
+            {
+                return;
+            }
             LockIdentityFields();
             if (snapshot is { IsTerminal: false, CanBind: false })
             {
@@ -383,13 +430,16 @@ internal sealed class BootstrapDeploymentWindow : Window
         }
         catch (Exception error) when (IsExpected(error))
         {
-            ShowError(error);
+            if (!isClosed)
+            {
+                ShowError(error);
+            }
         }
     }
 
     private async Task RefreshAsync(bool background = false)
     {
-        if (operationInFlight || snapshot is null)
+        if (isClosed || operationInFlight || snapshot is null)
         {
             return;
         }
@@ -404,7 +454,7 @@ internal sealed class BootstrapDeploymentWindow : Window
         }
         catch (Exception error) when (IsExpected(error))
         {
-            if (!background)
+            if (!background && !isClosed)
             {
                 ShowError(error);
             }
@@ -413,7 +463,7 @@ internal sealed class BootstrapDeploymentWindow : Window
 
     private async Task BindAsync()
     {
-        if (operationInFlight || snapshot is not { CanBind: true })
+        if (isClosed || operationInFlight || snapshot is not { CanBind: true })
         {
             return;
         }
@@ -428,12 +478,19 @@ internal sealed class BootstrapDeploymentWindow : Window
         }
         catch (Exception error) when (IsExpected(error))
         {
-            ShowError(error);
+            if (!isClosed)
+            {
+                ShowError(error);
+            }
         }
     }
 
     private async Task PromoteAsync()
     {
+        if (isClosed)
+        {
+            return;
+        }
         if (SelectedAuthorityOrNull() is not { } source)
         {
             ShowLocalizedStatus("error.authority_required", LeserpentTheme.Destructive);
@@ -452,6 +509,10 @@ internal sealed class BootstrapDeploymentWindow : Window
         try
         {
             await operations.Promote(source.AuthorityId, state, lifetime.Token);
+            if (isClosed)
+            {
+                return;
+            }
             promotionCompleted = true;
             ShowLocalizedStatus(
                 "status.promoted",
@@ -460,12 +521,14 @@ internal sealed class BootstrapDeploymentWindow : Window
         }
         catch (Exception error) when (IsExpected(error))
         {
-            ShowError(error);
+            if (!isClosed)
+            {
+                ShowError(error);
+            }
         }
         finally
         {
-            operationInFlight = false;
-            UpdateActions();
+            FinishOperation();
         }
     }
 
@@ -473,6 +536,10 @@ internal sealed class BootstrapDeploymentWindow : Window
         Func<Task<RemoteBootstrapSnapshot>> operation,
         bool background = false)
     {
+        if (isClosed)
+        {
+            return;
+        }
         operationInFlight = true;
         UpdateActions();
         if (!background)
@@ -481,13 +548,63 @@ internal sealed class BootstrapDeploymentWindow : Window
         }
         try
         {
-            snapshot = await operation();
-            RenderSnapshot(snapshot);
+            var completed = await operation();
+            if (!isClosed)
+            {
+                snapshot = completed;
+                RenderSnapshot(completed);
+            }
         }
         finally
         {
-            operationInFlight = false;
+            FinishOperation();
+        }
+    }
+
+    private void FinishOperation()
+    {
+        operationInFlight = false;
+        if (!isClosed)
+        {
             UpdateActions();
+        }
+        DisposeLifetimeIfIdle();
+    }
+
+    private void OnClosed(object? sender, EventArgs eventArgs)
+    {
+        if (isClosed)
+        {
+            return;
+        }
+        isClosed = true;
+        polling.Stop();
+        localization.Changed -= OnLocalizationChanged;
+        lifetime.Cancel();
+        DisposeLifetimeIfIdle();
+    }
+
+    private void DisposeLifetimeIfIdle()
+    {
+        if (!isClosed || operationInFlight || lifetimeDisposed)
+        {
+            return;
+        }
+        lifetime.Dispose();
+        lifetimeDisposed = true;
+    }
+
+    private void VerifyLateCompletionCloseFence()
+    {
+        if (!isClosed
+            || snapshot is not null
+            || operationInFlight
+            || polling.IsEnabled
+            || !lifetimeDisposed
+            || host.IsReadOnly)
+        {
+            throw new InvalidDataException(
+                "bootstrap controls accepted a late completion after close");
         }
     }
 
@@ -578,8 +695,13 @@ internal sealed class BootstrapDeploymentWindow : Window
         status.Foreground = foreground;
     }
 
-    private void OnLocalizationChanged(object? sender, EventArgs eventArgs) =>
-        ApplyLocalization();
+    private void OnLocalizationChanged(object? sender, EventArgs eventArgs)
+    {
+        if (!isClosed)
+        {
+            ApplyLocalization();
+        }
+    }
 
     private void ApplyLocalization()
     {

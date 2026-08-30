@@ -38,6 +38,8 @@ internal static class DesktopBuiltInShellCatalogs
             [DesktopTextKey.LanguageSettingsHeading] = "選擇 Leserpent 的介面語言",
             [DesktopTextKey.LanguageSettingsBody] = "此偏好會套用至原生 shell、學習中心、輔助使用名稱和已本地化的 UI-IR 文字。缺少的詞條會確定性回退英文，動作識別碼不會改變。",
             [DesktopTextKey.LanguagePreference] = "語言偏好",
+            [DesktopTextKey.LanguageSelectionRequired] = "請先選擇一種官方語言。",
+            [DesktopTextKey.LanguagePreferenceSaveFailed] = "無法儲存語言偏好：{0}",
             [DesktopTextKey.DesktopCoverage] = "桌面端覆蓋範圍",
             [DesktopTextKey.CoverageComplete] = "完整桌面 shell 與學習中心",
             [DesktopTextKey.CoverageCore] = "核心桌面 shell；延伸畫面回退英文",
@@ -123,6 +125,8 @@ internal static class DesktopBuiltInShellCatalogs
             [DesktopTextKey.LanguageSettingsHeading] = "Leserpent の表示言語を選択",
             [DesktopTextKey.LanguageSettingsBody] = "この設定はネイティブ shell、ラーニングセンター、アクセシビリティ名、ローカライズ済み UI-IR テキストに適用されます。未翻訳のキーはアクション ID を変えずに英語へフォールバックします。",
             [DesktopTextKey.LanguagePreference] = "言語設定",
+            [DesktopTextKey.LanguageSelectionRequired] = "先に公式言語を選択してください。",
+            [DesktopTextKey.LanguagePreferenceSaveFailed] = "言語設定を保存できませんでした: {0}",
             [DesktopTextKey.DesktopCoverage] = "デスクトップ対応範囲",
             [DesktopTextKey.CoverageComplete] = "デスクトップ shell とラーニングセンターを完全対応",
             [DesktopTextKey.CoverageCore] = "主要デスクトップ shell に対応。拡張画面は英語へフォールバック",
@@ -208,6 +212,8 @@ internal static class DesktopBuiltInShellCatalogs
             [DesktopTextKey.LanguageSettingsHeading] = "Elige el idioma de Leserpent",
             [DesktopTextKey.LanguageSettingsBody] = "La preferencia se aplica al shell nativo, el Centro de aprendizaje, los nombres accesibles y el texto UI-IR localizado. Las claves ausentes vuelven al inglés sin cambiar las identidades de las acciones.",
             [DesktopTextKey.LanguagePreference] = "Preferencia de idioma",
+            [DesktopTextKey.LanguageSelectionRequired] = "Selecciona primero un idioma oficial.",
+            [DesktopTextKey.LanguagePreferenceSaveFailed] = "No se pudo guardar la preferencia de idioma: {0}",
             [DesktopTextKey.DesktopCoverage] = "Cobertura de escritorio",
             [DesktopTextKey.CoverageComplete] = "Shell de escritorio y Centro de aprendizaje completos",
             [DesktopTextKey.CoverageCore] = "Shell de escritorio principal; las vistas ampliadas vuelven al inglés",
@@ -293,6 +299,8 @@ internal static class DesktopBuiltInShellCatalogs
             [DesktopTextKey.LanguageSettingsHeading] = "Anzeigesprache für Leserpent wählen",
             [DesktopTextKey.LanguageSettingsBody] = "Die Einstellung gilt für die native Shell, das Lernzentrum, barrierefreie Namen und lokalisierte UI-IR-Texte. Fehlende Schlüssel fallen auf Englisch zurück, ohne Aktionsidentitäten zu verändern.",
             [DesktopTextKey.LanguagePreference] = "Spracheinstellung",
+            [DesktopTextKey.LanguageSelectionRequired] = "Wählen Sie zuerst eine offizielle Sprache aus.",
+            [DesktopTextKey.LanguagePreferenceSaveFailed] = "Die Spracheinstellung konnte nicht gespeichert werden: {0}",
             [DesktopTextKey.DesktopCoverage] = "Desktop-Abdeckung",
             [DesktopTextKey.CoverageComplete] = "Vollständige Desktop-Shell und vollständiges Lernzentrum",
             [DesktopTextKey.CoverageCore] = "Zentrale Desktop-Shell; erweiterte Ansichten fallen auf Englisch zurück",
@@ -378,6 +386,8 @@ internal static class DesktopBuiltInShellCatalogs
             [DesktopTextKey.LanguageSettingsHeading] = "Choisissez la langue de Leserpent",
             [DesktopTextKey.LanguageSettingsBody] = "La préférence s’applique au shell natif, au Centre d’apprentissage, aux noms accessibles et au texte UI-IR localisé. Les clés absentes reviennent à l’anglais sans modifier l’identité des actions.",
             [DesktopTextKey.LanguagePreference] = "Préférence linguistique",
+            [DesktopTextKey.LanguageSelectionRequired] = "Sélectionnez d’abord une langue officielle.",
+            [DesktopTextKey.LanguagePreferenceSaveFailed] = "La préférence de langue n’a pas pu être enregistrée : {0}",
             [DesktopTextKey.DesktopCoverage] = "Couverture du bureau",
             [DesktopTextKey.CoverageComplete] = "Shell de bureau et Centre d’apprentissage complets",
             [DesktopTextKey.CoverageCore] = "Shell de bureau principal ; les vues étendues reviennent à l’anglais",
@@ -463,6 +473,8 @@ internal static class DesktopBuiltInShellCatalogs
             [DesktopTextKey.LanguageSettingsHeading] = "Leserpent에서 사용할 언어 선택",
             [DesktopTextKey.LanguageSettingsBody] = "이 설정은 네이티브 shell, 학습 센터, 접근성 이름, 현지화된 UI-IR 텍스트에 적용됩니다. 누락된 키는 작업 ID를 변경하지 않고 영어로 대체됩니다.",
             [DesktopTextKey.LanguagePreference] = "언어 설정",
+            [DesktopTextKey.LanguageSelectionRequired] = "먼저 공식 언어를 선택하세요.",
+            [DesktopTextKey.LanguagePreferenceSaveFailed] = "언어 설정을 저장하지 못했습니다: {0}",
             [DesktopTextKey.DesktopCoverage] = "데스크톱 적용 범위",
             [DesktopTextKey.CoverageComplete] = "완전한 데스크톱 shell 및 학습 센터",
             [DesktopTextKey.CoverageCore] = "핵심 데스크톱 shell 지원. 확장 화면은 영어로 대체",
@@ -532,6 +544,7 @@ internal static class DesktopBuiltInShellCatalogs
                 "Daemon");
             VerifyFormat(catalog[DesktopTextKey.LanguagePackRemoveSucceeded], "Português");
             VerifyFormat(catalog[DesktopTextKey.LanguagePackOperationFailed], "fixture");
+            VerifyFormat(catalog[DesktopTextKey.LanguagePreferenceSaveFailed], "fixture");
         }
     }
 

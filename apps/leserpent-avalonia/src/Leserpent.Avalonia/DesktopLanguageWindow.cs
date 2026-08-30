@@ -139,7 +139,7 @@ internal sealed class DesktopLanguageWindow : Window
         ConfigureControl(
             statusText,
             "desktop-language-status",
-            "Language preference status");
+            localization.Text(DesktopTextKey.LanguagePreference));
         ConfigureControl(
             languagePackText,
             "desktop-language-pack-status",
@@ -366,6 +366,28 @@ internal sealed class DesktopLanguageWindow : Window
         {
             throw new InvalidDataException("desktop language selector did not apply immediately");
         }
+    }
+
+    public void ProbeLocalizedFailurePresentation()
+    {
+        var selected = languageBox.SelectedItem;
+        var saveFailure = localization.Format(
+            DesktopTextKey.LanguagePreferenceSaveFailed,
+            "fixture");
+        languageBox.SelectedItem = null;
+        ApplySelection();
+        if (statusText.Text != localization.Text(DesktopTextKey.LanguageSelectionRequired)
+            || !statusText.IsVisible
+            || AutomationProperties.GetName(statusText)
+                != localization.Text(DesktopTextKey.LanguagePreference)
+            || !saveFailure.Contains("fixture", StringComparison.Ordinal)
+            || saveFailure.Any(char.IsControl))
+        {
+            throw new InvalidDataException(
+                "desktop language failure presentation was not localized");
+        }
+        languageBox.SelectedItem = selected;
+        statusText.IsVisible = false;
     }
 
     public void ProbeLanguagePackContract(ReadOnlySpan<byte> payload)
@@ -716,7 +738,7 @@ internal sealed class DesktopLanguageWindow : Window
     {
         if (languageBox.SelectedItem is not DesktopLanguageChoice choice)
         {
-            statusText.Text = "Select an official language first.";
+            statusText.Text = localization.Text(DesktopTextKey.LanguageSelectionRequired);
             statusText.IsVisible = true;
             return;
         }
@@ -728,7 +750,9 @@ internal sealed class DesktopLanguageWindow : Window
         }
         catch (Exception error) when (StartupFailure.IsExpected(error))
         {
-            statusText.Text = $"Language preference was not saved: {error.Message}";
+            statusText.Text = localization.Format(
+                DesktopTextKey.LanguagePreferenceSaveFailed,
+                StartupFailure.Describe(error));
             statusText.IsVisible = true;
         }
     }

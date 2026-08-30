@@ -1,5 +1,6 @@
 using System.Globalization;
 using Avalonia.Media;
+using Avalonia.Threading;
 
 internal enum DesktopTextKey
 {
@@ -38,6 +39,8 @@ internal enum DesktopTextKey
     LanguageSettingsHeading,
     LanguageSettingsBody,
     LanguagePreference,
+    LanguageSelectionRequired,
+    LanguagePreferenceSaveFailed,
     DesktopCoverage,
     CoverageComplete,
     CoverageCore,
@@ -144,6 +147,8 @@ internal sealed class DesktopLocalization
             [DesktopTextKey.LanguageSettingsHeading] = "Choose how Leserpent speaks",
             [DesktopTextKey.LanguageSettingsBody] = "The preference applies to the native shell, Learning Center, accessible names, and localized UI-IR text. Missing keys fall back to English without changing action identities.",
             [DesktopTextKey.LanguagePreference] = "Language preference",
+            [DesktopTextKey.LanguageSelectionRequired] = "Select an official language first.",
+            [DesktopTextKey.LanguagePreferenceSaveFailed] = "Language preference was not saved: {0}",
             [DesktopTextKey.DesktopCoverage] = "Desktop coverage",
             [DesktopTextKey.CoverageComplete] = "Complete desktop shell and Learning Center",
             [DesktopTextKey.CoverageCore] = "Core desktop shell; extended views use English fallback",
@@ -229,6 +234,8 @@ internal sealed class DesktopLocalization
             [DesktopTextKey.LanguageSettingsHeading] = "选择 Leserpent 的界面语言",
             [DesktopTextKey.LanguageSettingsBody] = "该偏好会应用到原生外壳、学习中心、无障碍名称和已本地化的 UI-IR 文本。缺失词条会确定性回退英文，动作标识不会改变。",
             [DesktopTextKey.LanguagePreference] = "语言偏好",
+            [DesktopTextKey.LanguageSelectionRequired] = "请先选择一种官方语言。",
+            [DesktopTextKey.LanguagePreferenceSaveFailed] = "语言偏好未能保存：{0}",
             [DesktopTextKey.DesktopCoverage] = "桌面端覆盖度",
             [DesktopTextKey.CoverageComplete] = "完整桌面外壳与学习中心",
             [DesktopTextKey.CoverageCore] = "核心桌面外壳；扩展视图回退英文",
@@ -651,7 +658,7 @@ internal sealed class DesktopLocalization
         }
         Preference = canonical;
         Active = ResolveActive(canonical, systemLocale);
-        Changed?.Invoke(this, EventArgs.Empty);
+        NotifyChanged();
     }
 
     public DesktopInstalledLanguagePack InstallLanguagePack(Stream stream)
@@ -725,7 +732,7 @@ internal sealed class DesktopLocalization
         installedLanguagePacks = next;
         if (Active.Locale.Equals(locale, StringComparison.OrdinalIgnoreCase))
         {
-            Changed?.Invoke(this, EventArgs.Empty);
+            NotifyChanged();
         }
     }
 
@@ -763,8 +770,18 @@ internal sealed class DesktopLocalization
             installed.Manifest.Locale,
             StringComparison.OrdinalIgnoreCase))
         {
-            Changed?.Invoke(this, EventArgs.Empty);
+            NotifyChanged();
         }
+    }
+
+    private void NotifyChanged()
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+        Dispatcher.UIThread.Post(() => Changed?.Invoke(this, EventArgs.Empty));
     }
 
     public static void VerifyContract()
@@ -808,7 +825,7 @@ internal sealed class DesktopLocalization
             + DesktopHubCatalogs.KeyCount
             + DesktopTutorialCatalogs.KeyCount;
         if (Schema != "leserpent.desktop-localization/v1"
-            || desktopTextKeyCount != 80
+            || desktopTextKeyCount != 82
             || LocaleDefinitions.Length != 30
             || LocaleDefinitions.Count(locale => locale.BuiltIn) != 8
             || LocaleDefinitions.Count(locale => locale.BuiltIn

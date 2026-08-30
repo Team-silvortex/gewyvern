@@ -882,6 +882,9 @@ fn hub_topology_filter_is_bounded_keyboard_accessible_and_renderer_neutral() {
     assert!(hub.contains("eventArgs.Key == Key.F5"));
     assert!(hub.contains("VisibleAuthorityIds.Contains"));
     assert!(hub.contains("ProbeTopologyFilter"));
+    assert!(hub.contains("ProbeDynamicTextBounds"));
+    assert!(hub.contains("TextTrimming.CharacterEllipsis"));
+    assert!(hub.contains("ToolTip.SetTip(runtimeNameText, runtimeName)"));
     assert!(!hub.contains("runtime.Name.Contains("));
     assert!(search.contains("public const int MaxFilterLength = 128"));
     assert!(search.contains("AuthorityValues(authority)"));
@@ -892,6 +895,7 @@ fn hub_topology_filter_is_bounded_keyboard_accessible_and_renderer_neutral() {
     assert!(app.contains("cross_authority_runtime_filter=true"));
     assert!(app.contains("empty_filter_state=true"));
     assert!(app.contains("filter_focus_recovery=true"));
+    assert!(app.contains("bounded_dynamic_text=true"));
 }
 
 #[test]
@@ -1037,7 +1041,7 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
             "built-in catalog is missing {marker}"
         );
     }
-    assert_eq!(built_in.matches("[DesktopTextKey.").count(), 488);
+    assert_eq!(built_in.matches("[DesktopTextKey.").count(), 501);
     assert!(built_in.contains("[DesktopTextKey.ControlTopology] = \"控制拓撲\""));
     assert!(built_in.contains("[DesktopTextKey.Close] = \"閉じる\""));
     assert!(built_in.contains("[DesktopTextKey.FollowSystem] = \"Seguir el sistema\""));
@@ -1230,6 +1234,11 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(window.contains("ProbeLanguagePackContract"));
     assert!(window.contains("ProbeLanguagePackDownloadContractAsync"));
     assert!(window.contains("ProbeLanguagePackCancellationContractAsync"));
+    assert!(window.contains("ProbeLocalizedFailurePresentation"));
+    assert!(!window.contains("statusText.Text = \"Select an official language first.\""));
+    assert!(localization.contains("private void NotifyChanged()"));
+    assert!(localization.contains("Dispatcher.UIThread.CheckAccess()"));
+    assert!(localization.contains("Dispatcher.UIThread.Post("));
     assert!(window.contains("localization.InstallCatalogLanguagePack("));
     assert!(localization.contains("packStore.InstallCatalogArtifact("));
     assert!(window.contains("languagePackOperationInProgress"));
@@ -1245,6 +1254,8 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(app.contains("language_pack_install=true"));
     assert!(app.contains("language_pack_catalog_download=true"));
     assert!(app.contains("language_pack_close_cancellation=true"));
+    assert!(app.contains("ui_thread_notifications=true"));
+    assert!(app.contains("localized_failure_states=8"));
     assert!(app.contains("language_pack_applied_mutations=3"));
     assert!(app.contains("automation_ids=10"));
     assert!(app.contains("localized UI-IR did not reach its native control"));
@@ -1252,7 +1263,7 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(program.contains("--verify-desktop-language-pack-artifacts"));
     assert!(program.contains("native_store_roundtrip=true"));
     assert!(program.contains("builtin_shell_catalogs=8"));
-    assert!(program.contains("native_shell_keys=80"));
+    assert!(program.contains("native_shell_keys=82"));
     assert!(program.contains("complete_builtin_locales=8"));
     assert!(program.contains("builtin_semantic_catalogs=7"));
     assert!(program.contains("semantic_keys=26"));
@@ -1721,6 +1732,56 @@ fn daemon_retirement_is_bootstrap_bound_authority_omitting_and_runtime_independe
     assert!(program.contains("builtin_daemon_retirement_catalogs=7"));
     assert!(program.contains("daemon_retirement_semantic_keys=37"));
     assert!(program.contains("localized_daemon_retirement=true"));
+}
+
+#[test]
+fn lifecycle_windows_drop_late_completions_and_never_restart_polling_after_close() {
+    for source in [
+        "Leserpent.Avalonia/BootstrapDeploymentWindow.cs",
+        "Leserpent.Avalonia/GewyvernProvisioningWindow.cs",
+        "Leserpent.Avalonia/GewyvernRetirementWindow.cs",
+        "Leserpent.Avalonia/DaemonRetirementWindow.cs",
+    ] {
+        let window = avalonia_source(source);
+        for marker in [
+            "private bool isClosed;",
+            "private bool lifetimeDisposed;",
+            "Closed += OnClosed;",
+            "public static async Task ProbeLateCompletionCloseFenceAsync(",
+            "TaskCreationOptions.RunContinuationsAsynchronously",
+            "var completed = await operation();",
+            "if (!isClosed)",
+            "DisposeLifetimeIfIdle();",
+            "polling.IsEnabled",
+        ] {
+            assert!(
+                window.contains(marker),
+                "{source} lacks close fence {marker}"
+            );
+        }
+        let close_handler = window
+            .split("private void OnClosed")
+            .nth(1)
+            .expect("lifecycle window must have an explicit close handler")
+            .split("private void DisposeLifetimeIfIdle")
+            .next()
+            .expect("close handler must precede deferred disposal");
+        assert!(close_handler.contains("lifetime.Cancel();"));
+        assert!(!close_handler.contains("lifetime.Dispose();"));
+    }
+
+    let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+    for call in [
+        "BootstrapDeploymentWindow.ProbeLateCompletionCloseFenceAsync(authorities)",
+        "GewyvernProvisioningWindow.ProbeLateCompletionCloseFenceAsync(authorities)",
+        "GewyvernRetirementWindow.ProbeLateCompletionCloseFenceAsync(authorities)",
+        "DaemonRetirementWindow.ProbeLateCompletionCloseFenceAsync(authorities)",
+    ] {
+        assert!(app.contains(call), "product probe does not execute {call}");
+    }
+    assert_eq!(app.matches("late_completion_close_fence=true").count(), 4);
+    assert_eq!(app.matches("polling_restart_after_close=false").count(), 4);
+    assert_eq!(app.matches("settled_lifetime_disposal=true").count(), 4);
 }
 
 #[test]

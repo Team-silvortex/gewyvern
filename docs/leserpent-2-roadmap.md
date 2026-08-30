@@ -2613,11 +2613,20 @@ and fixed an escape-followed-by-multibyte-character lexer panic.
 
 The UI accessibility shelf now has the native entrypoint
 `gewyvern_validate leserpent-accessibility`. It audits real Avalonia controls
-across all four fixtures for stable unique Automation IDs, exact names and help
-text, explicit action labels, and a 4.5 WCAG AA text-contrast floor. Managed
-macOS and physical Linux/Xvfb proofs produce matching counts, while the macOS
+across all four renderer fixtures for stable unique Automation IDs, exact names
+and help text, explicit action labels, and a 4.5 WCAG AA text-contrast floor.
+The same freshly built assembly now executes six strict product-chain probes:
+Hub topology, the remote shell, daemon bootstrap, Gewyvern provisioning,
+Gewyvern retirement, and daemon retirement. Their terminal markers are checked
+exactly once and retained in separate logs plus the schema-v2 summary. Managed
+macOS and physical Linux/Xvfb proofs use the same matrix, while the macOS
 NativeAOT job requires the same accessibility marker and metrics. The first run
 raised destructive-button contrast from 3.841 to 4.723.
+The `1.20.7` desktop-polish slice additionally drives all four deployment and
+retirement windows against cancellation-ignoring delayed successes. Closing a
+window now establishes a generation fence: late snapshots cannot reproject
+controls or restart polling, and the lifetime token source is released only
+after the active continuation settles.
 Accessibility and NativeAOT now restore and build through proof-local .NET
 artifacts roots. A concurrent regression run proves both shelves can execute
 without contending for shared reference assemblies or PDBs, and successful

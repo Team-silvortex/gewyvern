@@ -644,13 +644,18 @@ fleet root and history section now own bounded viewports backed by active
 that defeats virtualization. Compiled-bound item view models now create direct
 virtualized leaves only when their XAML binding enters the realized viewport.
 
-`gewyvern_validate leserpent-accessibility` closes the renderer proof loop. It
-audits every realized semantic control for a unique stable AutomationId, the
-exact expected Automation Name and HelpText, and explicit labels on action
-buttons. The same job enforces a 4.5 WCAG AA text-contrast floor across theme
-pairs and retains one log per fixture plus a machine-readable summary. Managed
-macOS and physical Linux/Xvfb runs produce identical counts; the macOS
-NativeAOT shelf consumes the same audit parser.
+`gewyvern_validate leserpent-accessibility` closes the renderer and product
+control proof loops. It audits every realized semantic control for a unique
+stable AutomationId, the exact expected Automation Name and HelpText, and
+explicit labels on action buttons. After the four renderer fixtures, the same
+freshly built assembly runs six fail-closed product probes for Hub topology,
+the remote shell, daemon bootstrap, Gewyvern provisioning, Gewyvern retirement,
+and daemon retirement. Each probe must emit exactly one terminal success line
+with its required chain markers. The job also enforces a 4.5 WCAG AA
+text-contrast floor across theme pairs and retains separate logs plus a
+schema-v2 machine-readable summary. Managed macOS and physical Linux/Xvfb runs
+use the same probe matrix; the macOS NativeAOT shelf consumes the same audit
+parser.
 The long-history fixture proves off-screen items remain unconstructed.
 Heterogeneous container subtrees are likewise kept as stable-ID renderer models
 until realized, while patches against an unrealized parent mutate only that

@@ -85,6 +85,8 @@ internal sealed class DaemonRetirementWindow : Window
     private RemoteDaemonRetirementIntent? intent;
     private RemoteDaemonRetirementSnapshot? snapshot;
     private bool operationInFlight;
+    private bool isClosed;
+    private bool lifetimeDisposed;
     private int automaticObservations;
     private string phaseKey = "phase.not_submitted";
     private string? localizedStatusKey = "status.initial";
@@ -123,13 +125,7 @@ internal sealed class DaemonRetirementWindow : Window
                 Close();
             }
         };
-        Closed += (_, _) =>
-        {
-            polling.Stop();
-            localization.Changed -= OnLocalizationChanged;
-            lifetime.Cancel();
-            lifetime.Dispose();
-        };
+        Closed += OnClosed;
 
         Audit(authority, "daemon-retirement-authority");
         Audit(retirementId, "daemon-retirement-id");
@@ -317,9 +313,52 @@ internal sealed class DaemonRetirementWindow : Window
         }
     }
 
+    public static async Task ProbeLateCompletionCloseFenceAsync(
+        IReadOnlyList<BootstrapAuthorityOption> authorities)
+    {
+        RemoteDaemonRetirementIntent? submitted = null;
+        var started = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var completion = new TaskCompletionSource<RemoteDaemonRetirementSnapshot>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var window = new DaemonRetirementWindow(
+            authorities,
+            new DaemonRetirementHubOperations((_, intent, _) =>
+            {
+                submitted = intent;
+                started.TrySetResult(true);
+                return completion.Task;
+            }),
+            DesktopLocalization.ForVerification());
+        window.bootstrapId.Text = "bootstrap-late";
+        window.credentialHandle.Text = "vault:ssh:late-example";
+        window.confirmation.IsChecked = true;
+
+        var pending = window.SubmitAsync();
+        await started.Task;
+        window.OnClosed(null, EventArgs.Empty);
+        var intent = submitted
+            ?? throw new InvalidDataException("daemon retirement close-fence probe did not submit");
+        completion.SetResult(new RemoteDaemonRetirementSnapshot(
+            intent.RetirementId,
+            intent.BootstrapId,
+            "daemon-late",
+            "planned",
+            "ssh",
+            "late.example",
+            22,
+            new string('a', 64),
+            "system",
+            true,
+            false,
+            null));
+        await pending;
+        window.VerifyLateCompletionCloseFence();
+    }
+
     private async Task SubmitAsync()
     {
-        if (operationInFlight || snapshot is not null)
+        if (isClosed || operationInFlight || snapshot is not null)
         {
             return;
         }
@@ -345,6 +384,10 @@ internal sealed class DaemonRetirementWindow : Window
                 credentialHandle.Text ?? string.Empty,
                 Principal);
             await RunAsync(() => operations.Reconcile(source.AuthorityId, intent, lifetime.Token));
+            if (isClosed)
+            {
+                return;
+            }
             LockIdentityFields();
             if (snapshot is { IsTerminal: false })
             {
@@ -354,13 +397,16 @@ internal sealed class DaemonRetirementWindow : Window
         catch (Exception error) when (IsExpected(error))
         {
             intent = null;
-            ShowError(error);
+            if (!isClosed)
+            {
+                ShowError(error);
+            }
         }
     }
 
     private async Task ReconcileAsync(bool background)
     {
-        if (operationInFlight || intent is null || snapshot is null)
+        if (isClosed || operationInFlight || intent is null || snapshot is null)
         {
             return;
         }
@@ -383,7 +429,7 @@ internal sealed class DaemonRetirementWindow : Window
         }
         catch (Exception error) when (IsExpected(error))
         {
-            if (!background)
+            if (!background && !isClosed)
             {
                 ShowError(error);
             }
@@ -394,6 +440,10 @@ internal sealed class DaemonRetirementWindow : Window
         Func<Task<RemoteDaemonRetirementSnapshot>> operation,
         bool background = false)
     {
+        if (isClosed)
+        {
+            return;
+        }
         operationInFlight = true;
         UpdateActions();
         if (!background)
@@ -402,13 +452,63 @@ internal sealed class DaemonRetirementWindow : Window
         }
         try
         {
-            snapshot = await operation();
-            RenderSnapshot(snapshot);
+            var completed = await operation();
+            if (!isClosed)
+            {
+                snapshot = completed;
+                RenderSnapshot(completed);
+            }
         }
         finally
         {
-            operationInFlight = false;
+            FinishOperation();
+        }
+    }
+
+    private void FinishOperation()
+    {
+        operationInFlight = false;
+        if (!isClosed)
+        {
             UpdateActions();
+        }
+        DisposeLifetimeIfIdle();
+    }
+
+    private void OnClosed(object? sender, EventArgs eventArgs)
+    {
+        if (isClosed)
+        {
+            return;
+        }
+        isClosed = true;
+        polling.Stop();
+        localization.Changed -= OnLocalizationChanged;
+        lifetime.Cancel();
+        DisposeLifetimeIfIdle();
+    }
+
+    private void DisposeLifetimeIfIdle()
+    {
+        if (!isClosed || operationInFlight || lifetimeDisposed)
+        {
+            return;
+        }
+        lifetime.Dispose();
+        lifetimeDisposed = true;
+    }
+
+    private void VerifyLateCompletionCloseFence()
+    {
+        if (!isClosed
+            || snapshot is not null
+            || operationInFlight
+            || polling.IsEnabled
+            || !lifetimeDisposed
+            || bootstrapId.IsReadOnly)
+        {
+            throw new InvalidDataException(
+                "daemon retirement controls accepted a late completion after close");
         }
     }
 
@@ -493,8 +593,13 @@ internal sealed class DaemonRetirementWindow : Window
         status.Foreground = foreground;
     }
 
-    private void OnLocalizationChanged(object? sender, EventArgs eventArgs) =>
-        ApplyLocalization();
+    private void OnLocalizationChanged(object? sender, EventArgs eventArgs)
+    {
+        if (!isClosed)
+        {
+            ApplyLocalization();
+        }
+    }
 
     private void ApplyLocalization()
     {

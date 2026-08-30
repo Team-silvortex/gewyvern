@@ -1906,7 +1906,10 @@ fn print_leserpent_accessibility_help() {
     println!("Usage: gewyvern_validate leserpent-accessibility [--out-dir <path>]");
     println!();
     println!(
-        "Build the managed Avalonia shell and audit real controls across all fixtures for Automation metadata and WCAG AA text contrast."
+        "Build the managed Avalonia shell, audit all renderer fixtures, and run six product function-chain probes with strict terminal markers."
+    );
+    println!(
+        "Product probes cover Hub topology, the remote shell, daemon bootstrap, Gewyvern provisioning/retirement, and daemon retirement."
     );
     println!("Supported hosts: macOS arm64 and Linux x86_64; Linux requires xvfb-run and xauth.");
 }

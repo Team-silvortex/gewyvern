@@ -546,6 +546,7 @@ internal sealed class LeserpentApp : Application
                         localizedHubLayoutCount++;
                     }
                     localization.SetPreference("en");
+                    window.ProbeDynamicTextBounds(topology);
                     if (localizedAccountLayoutCount != 8
                         || localizedHubLayoutCount != 8)
                     {
@@ -574,7 +575,7 @@ internal sealed class LeserpentApp : Application
                             "Hub action routing did not preserve its runtime or tutorial target");
                     }
                     Console.WriteLine(
-                        "Hub topology valid: client_root=true, local_daemon=true, remote_daemons=2, live_topologies=3, authority_proofs=3, queue_health=true, runtime_children=6, runtime_actions=6, topology_filter=true, authority_filter=true, cross_authority_runtime_filter=true, empty_filter_state=true, filter_focus_recovery=true, refresh_all_control=true, refresh_all_single_flight=true, card_refresh_join=true, shared_refresh_policy=true, refresh_busy_state=true, refresh_completion_status=true, tutorial_entry=true, language_entry=true, daemon_route=true, authoritative_workspace_gate=true, shared_workspace_launch=true, retained_topology_state=true, revision_regression_fence=true, bounded_auto_refresh=true, bounded_preview=true, independent_actions=true, legacy_remote_button=false, automation=true, open_source_core=true, core_license=MIT, core_price=free, current_core_paywall=false, account_core_gate=false, daemon_credentials_independent=true, subscription_scope=future_hosted_services_only, subscription_requires_account=true, subscription_requires_entitlement=true, login_only_elevation=false, localized_account_catalogs=7, localized_account_layouts=8, localized_hub_catalogs=7, hub_semantic_keys=69, localized_hub_layouts=8, typed_hub_cards=true, opaque_operator_data=true, minimum_hub_layout=true, live_account_language_reprojection=true");
+                        "Hub topology valid: client_root=true, local_daemon=true, remote_daemons=2, live_topologies=3, authority_proofs=3, queue_health=true, runtime_children=6, runtime_actions=6, topology_filter=true, authority_filter=true, cross_authority_runtime_filter=true, empty_filter_state=true, filter_focus_recovery=true, refresh_all_control=true, refresh_all_single_flight=true, card_refresh_join=true, shared_refresh_policy=true, refresh_busy_state=true, refresh_completion_status=true, tutorial_entry=true, language_entry=true, daemon_route=true, authoritative_workspace_gate=true, shared_workspace_launch=true, retained_topology_state=true, revision_regression_fence=true, bounded_auto_refresh=true, bounded_preview=true, bounded_dynamic_text=true, independent_actions=true, legacy_remote_button=false, automation=true, open_source_core=true, core_license=MIT, core_price=free, current_core_paywall=false, account_core_gate=false, daemon_credentials_independent=true, subscription_scope=future_hosted_services_only, subscription_requires_account=true, subscription_requires_entitlement=true, login_only_elevation=false, localized_account_catalogs=7, localized_account_layouts=8, localized_hub_catalogs=7, hub_semantic_keys=69, localized_hub_layouts=8, typed_hub_cards=true, opaque_operator_data=true, minimum_hub_layout=true, live_account_language_reprojection=true");
                     window.Close();
                 }
                 catch (Exception error)
@@ -1165,6 +1166,26 @@ internal sealed class LeserpentApp : Application
                 {
                     window.VerifyAccessibility();
                     window.VerifyLayoutEnvelope();
+                    var localizationDispatch = new TaskCompletionSource<bool>(
+                        TaskCreationOptions.RunContinuationsAsynchronously);
+                    EventHandler dispatchProbe = (_, _) => localizationDispatch.TrySetResult(
+                        Dispatcher.UIThread.CheckAccess());
+                    localization.Changed += dispatchProbe;
+                    try
+                    {
+                        await Task.Run(() => localization.SetPreference("de"));
+                        if (!await localizationDispatch.Task.WaitAsync(
+                                TimeSpan.FromSeconds(2)))
+                        {
+                            throw new InvalidDataException(
+                                "desktop localization notified controls outside the UI thread");
+                        }
+                    }
+                    finally
+                    {
+                        localization.Changed -= dispatchProbe;
+                        localization.SetPreference(DesktopLocalization.SystemPreference);
+                    }
                     foreach (var locale in DesktopLocalization.OfficialLocales.Where(
                         locale => locale.BuiltIn))
                     {
@@ -1173,6 +1194,7 @@ internal sealed class LeserpentApp : Application
                             () => { });
                         localizedWindow.VerifyAccessibility();
                         localizedWindow.VerifyLayoutEnvelope();
+                        localizedWindow.ProbeLocalizedFailurePresentation();
                     }
                     var packRoot = Path.Combine(
                         Path.GetTempPath(),
@@ -1306,7 +1328,7 @@ internal sealed class LeserpentApp : Application
                             "desktop language controls did not apply their exact mutation count");
                     }
                     Console.WriteLine(
-                        "desktop language controls valid: official_locales=30, complete_builtin_locales=8, builtin_shell_catalogs=8, builtin_layouts=8, builtin_semantic_catalogs=7, builtin_ui_ir_controls=7, system_choice=true, persistent_preference=true, live_apply=true, language_pack_install=true, language_pack_catalog_download=true, language_pack_source_select=true, language_pack_close_cancellation=true, language_pack_remove=true, language_pack_status=true, language_pack_applied_mutations=3, english_fallback=true, zh_cn_core=true, zh_cn_tutorial_complete=true, builtin_tutorial_complete=true, rtl=true, automation_ids=10, automation_names=10, contrast=true");
+                        "desktop language controls valid: official_locales=30, complete_builtin_locales=8, builtin_shell_catalogs=8, builtin_layouts=8, builtin_semantic_catalogs=7, builtin_ui_ir_controls=7, system_choice=true, persistent_preference=true, live_apply=true, ui_thread_notifications=true, localized_failure_states=8, language_pack_install=true, language_pack_catalog_download=true, language_pack_source_select=true, language_pack_close_cancellation=true, language_pack_remove=true, language_pack_status=true, language_pack_applied_mutations=3, english_fallback=true, zh_cn_core=true, zh_cn_tutorial_complete=true, builtin_tutorial_complete=true, rtl=true, automation_ids=10, automation_names=10, contrast=true");
                 }
                 catch (Exception error)
                 {
@@ -1488,8 +1510,9 @@ internal sealed class LeserpentApp : Application
                 throw new InvalidDataException(
                     "bootstrap controls did not preserve the submit-inspect-bind-promote sequence");
             }
+            await BootstrapDeploymentWindow.ProbeLateCompletionCloseFenceAsync(authorities);
             Console.WriteLine(
-                "bootstrap controls valid: controls=12, authority_scoped=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, submit=true, inspect=true, bind=true, phase_gated=true, polling=true, mutation_authorized=true, local_promotion=true, automation=true, localized_bootstrap_catalogs=7, localized_layouts=8, live_language_reprojection=true");
+                "bootstrap controls valid: controls=12, authority_scoped=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, submit=true, inspect=true, bind=true, phase_gated=true, polling=true, mutation_authorized=true, local_promotion=true, automation=true, localized_bootstrap_catalogs=7, localized_layouts=8, live_language_reprojection=true, late_completion_close_fence=true, polling_restart_after_close=false, settled_lifetime_disposal=true");
             DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
@@ -1605,8 +1628,9 @@ internal sealed class LeserpentApp : Application
                 throw new InvalidDataException(
                     "provisioning controls did not preserve submit-observe identity");
             }
+            await GewyvernProvisioningWindow.ProbeLateCompletionCloseFenceAsync(authorities);
             Console.WriteLine(
-                "provisioning controls valid: controls=12, authority_scoped=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, stable_identity=true, bounded_polling=30, observation_limit_no_reconcile=true, terminal_state=true, retry_guidance=true, automation=true, localized_provisioning_catalogs=7, localized_layouts=8, live_language_reprojection=true");
+                "provisioning controls valid: controls=12, authority_scoped=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, stable_identity=true, bounded_polling=30, observation_limit_no_reconcile=true, terminal_state=true, retry_guidance=true, automation=true, localized_provisioning_catalogs=7, localized_layouts=8, live_language_reprojection=true, late_completion_close_fence=true, polling_restart_after_close=false, settled_lifetime_disposal=true");
             DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
@@ -1720,8 +1744,9 @@ internal sealed class LeserpentApp : Application
                 throw new InvalidDataException(
                     "retirement controls did not preserve submit-observe identity");
             }
+            await GewyvernRetirementWindow.ProbeLateCompletionCloseFenceAsync(authorities);
             Console.WriteLine(
-                "retirement controls valid: controls=13, authority_scoped=true, provisioning_bound=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, stable_identity=true, bounded_polling=30, observation_limit_no_reconcile=true, terminal_state=true, failure_preserves_registration=true, retry_guidance=true, automation=true, localized_retirement_catalogs=7, localized_layouts=8, live_language_reprojection=true");
+                "retirement controls valid: controls=13, authority_scoped=true, provisioning_bound=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, stable_identity=true, bounded_polling=30, observation_limit_no_reconcile=true, terminal_state=true, failure_preserves_registration=true, retry_guidance=true, automation=true, localized_retirement_catalogs=7, localized_layouts=8, live_language_reprojection=true, late_completion_close_fence=true, polling_restart_after_close=false, settled_lifetime_disposal=true");
             DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
@@ -1837,8 +1862,9 @@ internal sealed class LeserpentApp : Application
                 throw new InvalidDataException(
                     "daemon retirement controls did not preserve submit-observe identity");
             }
+            await DaemonRetirementWindow.ProbeLateCompletionCloseFenceAsync(authorities);
             Console.WriteLine(
-                "daemon retirement controls valid: controls=10, authority_scoped=true, bootstrap_bound=true, authority_omitting=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, stable_identity=true, bounded_polling=30, observation_limit_no_reconcile=true, terminal_state=true, retry_guidance=true, automation=true, localized_daemon_retirement_catalogs=7, localized_layouts=8, live_language_reprojection=true");
+                "daemon retirement controls valid: controls=10, authority_scoped=true, bootstrap_bound=true, authority_omitting=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, stable_identity=true, bounded_polling=30, observation_limit_no_reconcile=true, terminal_state=true, retry_guidance=true, automation=true, localized_daemon_retirement_catalogs=7, localized_layouts=8, live_language_reprojection=true, late_completion_close_fence=true, polling_restart_after_close=false, settled_lifetime_disposal=true");
             DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);

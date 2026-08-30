@@ -582,11 +582,15 @@ cargo run --quiet --bin gewyvern_validate -- leserpent-accessibility
 ```
 
 The command performs a locked managed build and opens all four Avalonia
-fixtures on the supported native host. It verifies unique Automation IDs,
-complete names, explicit action labels, HelpText mapping, and the 4.5 WCAG AA
-text-contrast floor. Linux uses `xvfb-run`; the validator never installs it or
-invokes `sudo`. The summary and per-fixture logs are retained under
-`target/validation/leserpent-accessibility/`.
+renderer fixtures plus six product function-chain probes on the supported
+native host. The product probes exercise Hub topology, the remote shell
+(including registration, Orchestra projection, and debugger re-entry), daemon
+bootstrap, Gewyvern provisioning, Gewyvern retirement, and daemon retirement.
+It verifies strict terminal success markers in addition to unique Automation
+IDs, complete names, explicit action labels, HelpText mapping, and the 4.5 WCAG
+AA text-contrast floor. Linux uses `xvfb-run`; the validator never installs it
+or invokes `sudo`. The schema-v2 summary and separate fixture/probe logs are
+retained under `target/validation/leserpent-accessibility/`.
 
 ### I want to prove the Leserpent native desktop artifact
 
