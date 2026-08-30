@@ -8,9 +8,9 @@ use std::os::unix::io::AsRawFd;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command as ProcessCommand, Stdio};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -52,6 +52,7 @@ type StalledRemoteAttempt = (Duration, std::io::Result<Vec<u8>>);
 type StalledRemoteTask = thread::JoinHandle<StalledRemoteAttempt>;
 type EventClient = WebSocket<StreamOwned<ClientConnection, TcpStream>>;
 static NEXT_TEMP_ROOT: AtomicU64 = AtomicU64::new(0);
+static DAEMON_PORT_BIND: Mutex<()> = Mutex::new(());
 
 #[derive(Clone, Copy, Debug)]
 enum RemoteReadPhase {
@@ -188,6 +189,23 @@ impl DaemonProcess {
             thread::sleep(Duration::from_millis(10));
         }
     }
+}
+
+fn spawn_daemon_on_available_port(
+    binary: &Path,
+    database: &Path,
+    socket: &Path,
+    certificate: &Path,
+    private_key: &Path,
+) -> (DaemonProcess, SocketAddr) {
+    let _bind_guard = DAEMON_PORT_BIND
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let reservation = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = reservation.local_addr().unwrap();
+    drop(reservation);
+    let daemon = DaemonProcess::spawn(binary, database, socket, address, certificate, private_key);
+    (daemon, address)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -960,16 +978,10 @@ fn https_and_maintenance_progress_across_repeated_saturated_ipc_waves() {
     fs::write(&certificate_path, cert.pem()).unwrap();
     fs::write(&private_key_path, signing_key.serialize_pem()).unwrap();
     fs::set_permissions(&private_key_path, fs::Permissions::from_mode(0o600)).unwrap();
-    let address = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap();
-
-    let daemon = DaemonProcess::spawn(
+    let (daemon, address) = spawn_daemon_on_available_port(
         &binary,
         &database,
         &socket,
-        address,
         &certificate_path,
         &private_key_path,
     );
@@ -1055,16 +1067,10 @@ fn ipc_and_maintenance_progress_across_repeated_authenticated_slow_https_waves()
     fs::write(&certificate_path, cert.pem()).unwrap();
     fs::write(&private_key_path, signing_key.serialize_pem()).unwrap();
     fs::set_permissions(&private_key_path, fs::Permissions::from_mode(0o600)).unwrap();
-    let address = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap();
-
-    let daemon = DaemonProcess::spawn(
+    let (daemon, address) = spawn_daemon_on_available_port(
         &binary,
         &database,
         &socket,
-        address,
         &certificate_path,
         &private_key_path,
     );
@@ -1173,16 +1179,10 @@ fn sigterm_cancels_authenticated_slow_https_and_allows_immediate_restart() {
     fs::write(&certificate_path, cert.pem()).unwrap();
     fs::write(&private_key_path, signing_key.serialize_pem()).unwrap();
     fs::set_permissions(&private_key_path, fs::Permissions::from_mode(0o600)).unwrap();
-    let address = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap();
-
-    let daemon = DaemonProcess::spawn(
+    let (daemon, address) = spawn_daemon_on_available_port(
         &binary,
         &database,
         &socket,
-        address,
         &certificate_path,
         &private_key_path,
     );
@@ -1208,15 +1208,10 @@ fn sigterm_cancels_authenticated_slow_https_and_allows_immediate_restart() {
     assert_eq!(runtime_owner_count(&database), 0);
     assert!(!socket.exists());
 
-    let restart_address = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap();
-    let restarted = DaemonProcess::spawn(
+    let (restarted, _restart_address) = spawn_daemon_on_available_port(
         &binary,
         &database,
         &socket,
-        restart_address,
         &certificate_path,
         &private_key_path,
     );
@@ -1258,15 +1253,10 @@ fn repeated_remote_read_phase_shutdowns_preserve_process_resource_baselines() {
     let mut active_resources = Vec::with_capacity(REMOTE_READ_SHUTDOWN_PHASES);
 
     for (cycle, phase) in phases.into_iter().enumerate() {
-        let address = TcpListener::bind("127.0.0.1:0")
-            .unwrap()
-            .local_addr()
-            .unwrap();
-        let daemon = DaemonProcess::spawn(
+        let (daemon, address) = spawn_daemon_on_available_port(
             &binary,
             &database,
             &socket,
-            address,
             &certificate_path,
             &private_key_path,
         );
@@ -1331,15 +1321,10 @@ fn repeated_remote_read_phase_shutdowns_preserve_process_resource_baselines() {
         assert_process_resources_released(pid);
     }
 
-    let restart_address = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap();
-    let restarted = DaemonProcess::spawn(
+    let (restarted, restart_address) = spawn_daemon_on_available_port(
         &binary,
         &database,
         &socket,
-        restart_address,
         &certificate_path,
         &private_key_path,
     );
@@ -1432,15 +1417,10 @@ fn mixed_remote_read_phases_with_listener_backlog_preserve_bounded_shutdown_and_
     let mut backlog_resources = Vec::with_capacity(REMOTE_READ_SHUTDOWN_PHASES);
 
     for (cycle, phase) in phases.into_iter().enumerate() {
-        let address = TcpListener::bind("127.0.0.1:0")
-            .unwrap()
-            .local_addr()
-            .unwrap();
-        let daemon = DaemonProcess::spawn(
+        let (daemon, address) = spawn_daemon_on_available_port(
             &binary,
             &database,
             &socket,
-            address,
             &certificate_path,
             &private_key_path,
         );
@@ -1525,15 +1505,10 @@ fn mixed_remote_read_phases_with_listener_backlog_preserve_bounded_shutdown_and_
         assert_process_resources_released(pid);
     }
 
-    let restart_address = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap();
-    let restarted = DaemonProcess::spawn(
+    let (restarted, restart_address) = spawn_daemon_on_available_port(
         &binary,
         &database,
         &socket,
-        restart_address,
         &certificate_path,
         &private_key_path,
     );
@@ -1618,15 +1593,10 @@ fn maximum_event_sessions_with_stalled_request_preserve_bounded_shutdown_and_res
     fs::write(&certificate_path, cert.pem()).unwrap();
     fs::write(&private_key_path, signing_key.serialize_pem()).unwrap();
     fs::set_permissions(&private_key_path, fs::Permissions::from_mode(0o600)).unwrap();
-    let address = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap();
-    let daemon = DaemonProcess::spawn(
+    let (daemon, address) = spawn_daemon_on_available_port(
         &binary,
         &database,
         &socket,
-        address,
         &certificate_path,
         &private_key_path,
     );
@@ -1684,15 +1654,10 @@ fn maximum_event_sessions_with_stalled_request_preserve_bounded_shutdown_and_res
     assert!(!socket.exists());
     assert_process_resources_released(pid);
 
-    let restart_address = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap();
-    let restarted = DaemonProcess::spawn(
+    let (restarted, restart_address) = spawn_daemon_on_available_port(
         &binary,
         &database,
         &socket,
-        restart_address,
         &certificate_path,
         &private_key_path,
     );
@@ -1758,15 +1723,10 @@ fn maximum_event_session_cycles_reclaim_slots_and_preserve_cross_transport_progr
     fs::write(&certificate_path, cert.pem()).unwrap();
     fs::write(&private_key_path, signing_key.serialize_pem()).unwrap();
     fs::set_permissions(&private_key_path, fs::Permissions::from_mode(0o600)).unwrap();
-    let address = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap();
-    let daemon = DaemonProcess::spawn(
+    let (daemon, address) = spawn_daemon_on_available_port(
         &binary,
         &database,
         &socket,
-        address,
         &certificate_path,
         &private_key_path,
     );
@@ -1896,15 +1856,10 @@ fn maximum_event_session_cycles_reclaim_slots_and_preserve_cross_transport_progr
     assert!(!socket.exists());
     assert_process_resources_released(pid);
 
-    let restart_address = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap();
-    let restarted = DaemonProcess::spawn(
+    let (restarted, restart_address) = spawn_daemon_on_available_port(
         &binary,
         &database,
         &socket,
-        restart_address,
         &certificate_path,
         &private_key_path,
     );
@@ -1971,15 +1926,10 @@ fn slow_event_session_is_bounded_without_blocking_healthy_fanout_or_transports()
     fs::write(&certificate_path, cert.pem()).unwrap();
     fs::write(&private_key_path, signing_key.serialize_pem()).unwrap();
     fs::set_permissions(&private_key_path, fs::Permissions::from_mode(0o600)).unwrap();
-    let address = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap();
-    let daemon = DaemonProcess::spawn(
+    let (daemon, address) = spawn_daemon_on_available_port(
         &binary,
         &database,
         &socket,
-        address,
         &certificate_path,
         &private_key_path,
     );
@@ -2101,15 +2051,10 @@ fn slow_event_session_is_bounded_without_blocking_healthy_fanout_or_transports()
     assert!(!socket.exists());
     assert_process_resources_released(pid);
 
-    let restart_address = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap();
-    let restarted = DaemonProcess::spawn(
+    let (restarted, restart_address) = spawn_daemon_on_available_port(
         &binary,
         &database,
         &socket,
-        restart_address,
         &certificate_path,
         &private_key_path,
     );

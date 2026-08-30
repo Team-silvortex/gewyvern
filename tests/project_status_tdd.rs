@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use gewyvern::project_status::{
-    ContractStability, EvidenceKind, EvidenceState, Independence, Maturity, Priority,
+    Confidence, ContractStability, EvidenceKind, EvidenceState, Independence, Maturity, Priority,
     STATUS_CALIBRATION_MODEL, STATUS_SCHEMA_VERSION, StatusCatalog, default_catalog_path,
 };
 use ring::digest::{SHA256, digest};
@@ -192,11 +192,18 @@ fn project_status_calibration_separates_delivery_from_the_full_portfolio() {
         expected_delivery_completion
     );
     assert_eq!(u64::from(summary.portfolio_score), expected_portfolio_score);
-    assert_eq!(summary.deferred_cell_count, 1);
-    assert_eq!(summary.deferred.len(), 1);
+    assert_eq!(summary.deferred_cell_count, 2);
+    assert_eq!(summary.deferred.len(), 2);
     assert_eq!(
-        summary.deferred[0].id,
-        "etragon/learning-sidecar/advisory-learning"
+        summary
+            .deferred
+            .iter()
+            .map(|cell| cell.id.as_str())
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from([
+            "etragon/learning-sidecar/advisory-learning",
+            "leserpent-2/release-assurance/desktop-account-proof",
+        ])
     );
     for attention_view in [
         &summary.weakest,
@@ -5158,17 +5165,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/ui-renderers/avalonia-renderer")
         .expect("Leserpent Gate 4 renderer cell must exist");
-    assert_eq!(avalonia.maturity, Maturity::Stabilizing);
+    assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.priority, Priority::Critical);
-    assert_eq!(avalonia.completion, 97);
+    assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.110.0");
-    assert!(
-        avalonia
-            .blockers
-            .iter()
-            .any(|blocker| blocker.id == "desktop-production-account-proof")
-    );
+    assert_eq!(avalonia.contract.version, "1.113.0");
+    assert!(avalonia.blockers.is_empty());
     assert!(
         avalonia
             .contract
@@ -5491,19 +5493,18 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && item.path == "src/leserpent_account_config.rs"
             && item.state == EvidenceState::Present
     }));
-    assert!(avalonia.next_gate.contains("--silvortex-issuer"));
-    assert!(avalonia.next_gate.contains("--prove-silvortex-account"));
-    assert!(avalonia.next_gate.contains("macOS NativeAOT application"));
-    assert!(avalonia.next_gate.contains("system-browser"));
-    assert!(avalonia.next_gate.contains("credential-vault"));
-    assert!(avalonia.next_gate.contains("local logout"));
     assert!(
         avalonia
             .next_gate
-            .contains("broaden packaged host evidence after 2.0")
+            .contains("MIT open-source desktop control path")
     );
-    assert_eq!(avalonia.blockers.len(), 1);
-    assert_eq!(avalonia.blockers[0].id, "desktop-production-account-proof");
+    assert!(avalonia.next_gate.contains("after 2.0"));
+    assert!(
+        avalonia
+            .next_gate
+            .contains("future hosted subscription service")
+    );
+    assert!(avalonia.blockers.is_empty());
 
     let frontend_parity = catalog
         .cells
@@ -7216,13 +7217,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/ui-renderers/desktop-localization")
         .expect("desktop localization contract must remain tracked");
-    assert_eq!(desktop_localization.maturity, Maturity::Stabilizing);
-    assert_eq!(desktop_localization.priority, Priority::Active);
-    assert_eq!(desktop_localization.completion, 96);
-    assert_eq!(desktop_localization.contract.version, "0.24.0");
+    assert_eq!(desktop_localization.maturity, Maturity::Mature);
+    assert_eq!(desktop_localization.priority, Priority::Maintenance);
+    assert_eq!(desktop_localization.completion, 100);
+    assert_eq!(desktop_localization.contract.version, "1.0.0");
     assert_eq!(
         desktop_localization.contract.stability,
-        ContractStability::Evolving
+        ContractStability::Stable
     );
     for surface in [
         "thirty-official-locale-identifiers",
@@ -7378,30 +7379,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing desktop localization surface {surface}"
         );
     }
-    assert!(desktop_localization.blockers.iter().any(|blocker| {
-        blocker.id == "desktop-long-tail-language-review"
-            && blocker.summary.contains("eight built-in locales")
-            && blocker.summary.contains("seven non-English built-ins")
-            && blocker.summary.contains("exact 750-key semantic set")
-            && blocker
-                .summary
-                .contains("existing-runtime registration editor")
-            && blocker.summary.contains("Typed presentation")
-            && blocker.summary.contains("80-key native-shell catalogs")
-            && blocker
-                .summary
-                .contains("18-key core-ui v1 compatibility floor")
-            && blocker.summary.contains("22 current official v1.2.0")
-            && blocker.summary.contains("exact 42-key set")
-            && blocker
-                .summary
-                .contains("Packaged multi-host refresh evidence is explicitly post-2.0")
-            && blocker.summary.contains("intentionally partial")
-            && blocker
-                .summary
-                .contains("both 12-key downloadable expansions")
-            && blocker.summary.contains("native-speaker review")
-    }));
+    assert!(desktop_localization.blockers.is_empty());
     assert!(desktop_localization.evidence.iter().any(|evidence| {
         evidence.path == "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopLocalization.cs"
             && evidence.state == EvidenceState::Present
@@ -7455,7 +7433,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         desktop_localization
             .next_gate
-            .contains("Review the six candidate built-in catalogs and both")
+            .contains("After 2.0, review the six candidate built-in catalogs and both")
     );
     assert!(
         desktop_localization
@@ -7465,7 +7443,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         desktop_localization
             .next_gate
-            .contains("refresh packaged multi-host evidence after 2.0")
+            .contains("refresh packaged multi-host evidence")
     );
     assert!(desktop_localization.evidence.iter().any(|evidence| {
         evidence.path
@@ -7693,6 +7671,171 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && evidence.state == EvidenceState::Present
     }));
 
+    let account_access = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/domain-model/account-access-boundary")
+        .expect("account access boundary must be tracked independently");
+    assert_eq!(account_access.maturity, Maturity::Mature);
+    assert_eq!(account_access.priority, Priority::Critical);
+    assert_eq!(account_access.completion, 100);
+    assert_eq!(account_access.confidence, Confidence::High);
+    assert_eq!(account_access.independence, Independence::ReusableLibrary);
+    assert_eq!(account_access.contract.version, "1.1.0");
+    assert_eq!(account_access.contract.stability, ContractStability::Stable);
+    for surface in [
+        "mit-open-source-free-core",
+        "zero-price-current-core",
+        "account-independent-current-core",
+        "current-core-subscription-ineligible",
+        "existing-core-reclassification-forbidden",
+        "machine-readable-open-source-core-manifest",
+        "complete-current-core-capability-classification",
+        "zero-account-gated-core-capabilities",
+        "account-configuration-failure-core-preservation",
+        "signed-out-core-preservation",
+        "login-only-no-elevation",
+        "explicit-subscription-entitlement",
+        "exact-entitlement-match",
+        "daemon-credential-independence",
+        "shared-desktop-mobile-access-policy",
+        "future-hosted-service-subscription-only",
+    ] {
+        assert!(
+            account_access
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing account access surface {surface}"
+        );
+    }
+    assert!(account_access.blockers.is_empty());
+    assert!(
+        account_access
+            .depends_on
+            .iter()
+            .any(|dependency| { dependency == "leserpent-2/domain-model/command-query-kernel" })
+    );
+    assert!(account_access.evidence.iter().any(|evidence| {
+        evidence.path == "apps/leserpent-avalonia/src/Leserpent.RemoteClient/ProductAccessPolicy.cs"
+            && evidence.kind == EvidenceKind::Source
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(account_access.evidence.iter().any(|evidence| {
+        evidence.path == "project/product/open-source-core.json"
+            && evidence.kind == EvidenceKind::Source
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(account_access.evidence.iter().any(|evidence| {
+        evidence.path == "tests/open_source_core_policy_tdd.rs"
+            && evidence.kind == EvidenceKind::Test
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(account_access.evidence.iter().any(|evidence| {
+        evidence.path == "apps/leserpent-mobile/src/Leserpent.MobileConformance"
+            && evidence.kind == EvidenceKind::Test
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(account_access.next_gate.contains("MIT licensing"));
+    assert!(account_access.next_gate.contains("zero price"));
+    assert!(account_access.next_gate.contains("exact entitlement"));
+    let gate_four = catalog
+        .coverage_requirements
+        .iter()
+        .find(|requirement| requirement.id == "gate-four-ui-vertical-slice")
+        .expect("Gate 4 coverage requirement must exist");
+    assert!(
+        gate_four
+            .cells
+            .iter()
+            .any(|cell| { cell == "leserpent-2/domain-model/account-access-boundary" })
+    );
+
+    let desktop_account_proof = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/release-assurance/desktop-account-proof")
+        .expect("desktop account proof must be tracked independently");
+    assert_eq!(desktop_account_proof.maturity, Maturity::Stabilizing);
+    assert_eq!(desktop_account_proof.priority, Priority::Deferred);
+    assert_eq!(desktop_account_proof.completion, 97);
+    assert_eq!(desktop_account_proof.contract.version, "1.0.0");
+    assert_eq!(
+        desktop_account_proof.contract.stability,
+        ContractStability::Stable
+    );
+    for surface in [
+        "strict-account-proof-v2",
+        "same-read-account-configuration-digest",
+        "binary-and-bundle-bound-account-proof",
+        "strict-rust-account-proof-verifier",
+        "unknown-account-proof-field-rejection",
+        "duplicate-account-proof-field-rejection",
+        "account-proof-binary-drift-rejection",
+        "account-proof-plist-drift-rejection",
+        "identity-free-secret-free-evidence",
+        "daemon-authority-independence",
+    ] {
+        assert!(
+            desktop_account_proof
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing desktop account proof surface {surface}"
+        );
+    }
+    assert!(
+        desktop_account_proof
+            .depends_on
+            .iter()
+            .any(|dependency| { dependency == "leserpent-2/ui-renderers/avalonia-renderer" })
+    );
+    assert!(
+        desktop_account_proof
+            .depends_on
+            .iter()
+            .any(|dependency| { dependency == "leserpent-2/domain-model/account-access-boundary" })
+    );
+    assert!(desktop_account_proof.evidence.iter().any(|evidence| {
+        evidence.path == "docs/release-checklist.md"
+            && evidence.kind == EvidenceKind::Documentation
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(desktop_account_proof.evidence.iter().any(|evidence| {
+        evidence.path == "src/bin/gewyvern_leserpent_release.rs"
+            && evidence.kind == EvidenceKind::Source
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(desktop_account_proof.evidence.iter().any(|evidence| {
+        evidence.path == "docs/fixtures/leserpent_silvortex_desktop_account_macos_arm64.json"
+            && evidence.kind == EvidenceKind::Release
+            && evidence.state == EvidenceState::Planned
+    }));
+    assert_eq!(desktop_account_proof.blockers.len(), 1);
+    assert_eq!(
+        desktop_account_proof.blockers[0].id,
+        "desktop-production-account-proof"
+    );
+    assert!(
+        desktop_account_proof
+            .next_gate
+            .contains("--prove-silvortex-account")
+    );
+    assert!(
+        desktop_account_proof
+            .next_gate
+            .contains("gewyvern_leserpent_release account-proof")
+    );
+    assert!(desktop_account_proof.next_gate.contains("Info.plist"));
+    assert!(desktop_account_proof.next_gate.contains("After 2.0"));
+    assert!(
+        desktop_account_proof
+            .next_gate
+            .contains("future hosted subscription service")
+    );
+
     let two_zero_seal = catalog
         .cells
         .iter()
@@ -7701,7 +7844,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(two_zero_seal.completion, 64);
     assert_eq!(two_zero_seal.maturity, Maturity::Developing);
     assert_eq!(two_zero_seal.priority, Priority::Critical);
-    assert_eq!(two_zero_seal.contract.version, "0.19.0-draft");
+    assert_eq!(two_zero_seal.contract.version, "0.20.0-draft");
     assert!(
         two_zero_seal
             .contract
@@ -7722,6 +7865,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "existing-proof-shelves-required",
         "expanded-host-device-test-matrix-post-two-zero",
         "production-signing-notarization-post-two-zero",
+        "future-hosted-account-proof-post-two-zero",
+        "long-tail-native-speaker-review-post-two-zero",
     ] {
         assert!(
             two_zero_seal
@@ -7766,6 +7911,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && evidence.state == EvidenceState::Present
     }));
     assert!(two_zero_seal.evidence.iter().any(|evidence| {
+        evidence.path == "project/product/open-source-core.json"
+            && evidence.kind == EvidenceKind::Source
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(two_zero_seal.evidence.iter().any(|evidence| {
         evidence.path == "project/release/leserpent-2-patch-seal.json"
             && evidence.state == EvidenceState::Present
     }));
@@ -7784,17 +7934,46 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .iter()
             .any(|dependency| dependency == "leserpent-2/ui-renderers/frontend-functional-parity")
     );
+    assert!(
+        !two_zero_seal.depends_on.iter().any(|dependency| {
+            dependency == "leserpent-2/release-assurance/desktop-account-proof"
+        })
+    );
+    assert!(
+        two_zero_seal
+            .depends_on
+            .iter()
+            .any(|dependency| { dependency == "leserpent-2/domain-model/account-access-boundary" })
+    );
     assert!(two_zero_seal.blockers.iter().any(|blocker| {
         blocker.id == "prior-gates-open"
             && blocker
                 .summary
                 .contains("v1 schema and compatibility baselines")
-            && blocker.summary.contains("Avalonia production-account flow")
-            && blocker.summary.contains("desktop language review")
+            && blocker.summary.contains("hosted-account proof")
+            && blocker.summary.contains("long-tail native-speaker review")
             && blocker
                 .summary
-                .contains("production signing/notarization are post-2.0 tracks")
+                .contains("are post-2.0 tracks, not seal blockers")
     }));
+    let gate_seven = catalog
+        .coverage_requirements
+        .iter()
+        .find(|requirement| requirement.id == "gate-seven-two-zero-seal")
+        .expect("Gate 7 coverage requirement must exist");
+    assert_eq!(
+        gate_seven.cells,
+        ["leserpent-2/release-assurance/two-zero-seal"]
+    );
+    let hosted_account_proof = catalog
+        .coverage_requirements
+        .iter()
+        .find(|requirement| requirement.id == "proof-post-two-zero-hosted-account")
+        .expect("post-2.0 hosted-account proof shelf must remain tracked");
+    assert_eq!(
+        hosted_account_proof.cells,
+        ["leserpent-2/release-assurance/desktop-account-proof"]
+    );
 
     let continuous_proof = catalog
         .cells
@@ -9120,19 +9299,19 @@ fn native_status_cli_exposes_human_and_machine_views() {
     assert_eq!(payload["schema_version"], STATUS_SCHEMA_VERSION);
     assert_eq!(payload["calibration"]["model"], STATUS_CALIBRATION_MODEL);
     assert_eq!(payload["calibration"]["as_of"], "2026-08-30");
-    assert_eq!(payload["deferred_cell_count"], 1);
+    assert_eq!(payload["deferred_cell_count"], 2);
     assert!(payload["overall_score"].is_u64());
     assert!(payload["portfolio_score"].is_u64());
-    assert_eq!(payload["coverage"]["requirement_count"], 29);
+    assert_eq!(payload["coverage"]["requirement_count"], 30);
     assert_eq!(payload["coverage"]["architecture_count"], 6);
     assert_eq!(payload["coverage"]["ownership_boundary_count"], 21);
     assert_eq!(payload["coverage"]["roadmap_gate_count"], 7);
-    assert_eq!(payload["coverage"]["proof_shelf_count"], 1);
+    assert_eq!(payload["coverage"]["proof_shelf_count"], 2);
     assert_eq!(payload["weakest"].as_array().unwrap().len(), 3);
     assert!(payload["lifecycles"].as_array().unwrap().len() >= 3);
     assert!(payload["architectures"].as_array().unwrap().len() >= 6);
     assert!(payload["modules"].as_array().unwrap().len() >= 12);
-    assert_eq!(payload["deferred"].as_array().unwrap().len(), 1);
+    assert_eq!(payload["deferred"].as_array().unwrap().len(), 2);
     assert_eq!(payload["deferred"][0]["priority"], "deferred");
 
     let developing = Command::new(binary)
@@ -9157,10 +9336,20 @@ fn native_status_cli_exposes_human_and_machine_views() {
     assert!(deferred.status.success());
     let payload: serde_json::Value =
         serde_json::from_slice(&deferred.stdout).expect("deferred view must be JSON");
-    assert_eq!(payload.as_array().unwrap().len(), 1);
-    assert_eq!(
-        payload[0]["id"],
-        "etragon/learning-sidecar/advisory-learning"
+    assert_eq!(payload.as_array().unwrap().len(), 2);
+    assert!(
+        payload
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|cell| { cell["id"] == "etragon/learning-sidecar/advisory-learning" })
+    );
+    assert!(
+        payload
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|cell| { cell["id"] == "leserpent-2/release-assurance/desktop-account-proof" })
     );
 
     let help = Command::new(binary)

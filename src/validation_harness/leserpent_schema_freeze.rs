@@ -51,6 +51,8 @@ const EXPECTED_DEFERRED_CAPABILITIES: &[&str] = &[
     "etragon-release-authority",
     "expanded-host-device-test-matrix",
     "full-mobile-device-parity",
+    "future-hosted-account-production-proof",
+    "long-tail-native-speaker-review",
     "production-signing-notarization",
     "second-gui-control-dsl",
     "windows-native-parity",

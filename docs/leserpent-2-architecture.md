@@ -41,11 +41,21 @@ the already-declared architecture.
 
 This boundary keeps Etragon advisory, Windows native parity, additional runtime
 languages, automatic GUI framework compatibility, full mobile parity, expanded
-host/device test matrices, and production signing/notarization outside the 2.0
-release gate. Those can evolve later only as independent post-2.0 tracks, not as
-prerequisites for the 2.0 seal. Existing regression, security, compatibility,
-AOT, and performance shelves remain mandatory and cannot be weakened to satisfy
-the seal.
+host/device test matrices, production signing/notarization, future
+hosted-account production proof, and long-tail native-speaker review outside the
+2.0 release gate. Those can evolve later only as independent post-2.0 tracks,
+not as prerequisites for the 2.0 seal. Existing regression, security,
+compatibility, AOT, and performance shelves remain mandatory and cannot be
+weakened to satisfy the seal.
+
+The frozen capability set is also the open-source core set. Every current
+Gewyvern, GewyLang, Leserpent, and Leselang capability is MIT-licensed and free
+to use without a Team Silvortex account or subscription. Existing capabilities
+may not be reclassified, metered, or moved behind a paid service. A future
+subscription boundary may contain only a newly introduced hosted service
+extension; the free self-hosted implementation and its existing local/remote
+control surfaces remain intact. The machine contract is
+`project/product/open-source-core.json`.
 
 Leselang is not a general-purpose VM, application runtime, or DartVM-style
 language platform. Its target is a protocolized GUI/control automation runtime:
@@ -83,6 +93,8 @@ heap, ambient thread pool, or general app runtime just to look like a larger VM.
 8. UI-local state such as geometry, focus, and animation may remain
    frontend-specific. Domain state and operator actions may not.
 9. No control-plane decision path may be introduced in a frontend language.
+10. Every declared current capability remains MIT-licensed, open source, free,
+    account-independent, and ineligible for subscription reclassification.
    Rust owns policy, authorization, idempotency, revision, and effect
    semantics.
 10. Frontends may request a canonical Leselang representation only by sending
@@ -236,11 +248,11 @@ startup recovery, account presentation, the remote daemon shell, and remote
 operation/Leselang controls, plus the runtime child workspace, Orchestra
 plan/control/history workspace, debugger live execution, existing-runtime
 registration editor, Hub dynamic cards, and Learning Center, contribute
-exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 36-key, 56-key, 57-key,
+exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 37-key, 56-key, 57-key,
 78-key, 72-key, 33-key, 49-key, 69-key, and 61-key catalogs without
 overlapping the frozen core set. `DesktopDomainCatalogContract` gives these domains one exact-key,
 bounded-value, and format-placeholder validator; the full non-English built-in
-semantic set is therefore 750 keys. All eight built-in
+semantic set is therefore 751 keys. All eight built-in
 locale trees are measured inside their native dialog envelopes, and open
 controls, accessible names, controlled phases, status, and flow direction
 reproject on language change while operation identities, operator values, and
@@ -302,9 +314,11 @@ The companion saved-daemon proof persists the live authority through the
 production connection catalog, imports exactly one managed CA, rejects a decoy
 CA at TLS, and completes the same private roundtrip without mutating its inputs.
 The six candidate built-in translations and both 12-key downloadable expansions
-still need native-speaker review. Current v1.2.0 packaged macOS and physical
-Linux proof refreshes also remain open. All 22 packs remain intentionally
-partial beyond their exact 42-key official set.
+still need native-speaker review on the post-2.0 quality track. Current v1.2.0
+packaged macOS and physical Linux proof refreshes live on the same track. These
+transparent review labels do not block the complete typed localization path;
+all 22 packs remain intentionally partial beyond their exact 42-key official
+set.
 Arabic, Hebrew, and Persian switch the inherited Avalonia flow direction to RTL.
 
 Cross-authority refresh admission is frontend-independent. The shared remote
@@ -2429,10 +2443,22 @@ client overrides explicit. The provider contract has physical Linux evidence
 for migration, authorization code with PKCE S256, RS256/MFA/UserInfo binding,
 rotating refresh tokens, replay containment, and consent revocation. That
 shadow proof does not claim native system-browser or platform credential-vault
-execution. One configured desktop execution remains the functional account
-closure; repeating it across packaged hosts is post-2.0 proof expansion. In
-every case, Team Silvortex account identity cannot replace endpoint-bound
-`leserpentd` credentials or authorize daemon mutations by itself.
+execution. One configured desktop execution remains mandatory before the first
+future hosted subscription service is introduced, but it is a post-2.0 account
+readiness track rather than a free-core release dependency. In every case, Team
+Silvortex account identity cannot replace endpoint-bound `leserpentd`
+credentials or authorize daemon mutations by itself.
+
+Account access is a separate product-capability boundary. Every capability in
+the current Hub, local/self-hosted control path, remote workspace, debugger,
+diagnostic, language, Learning Center, and Leselang automation surface is
+classified as MIT open-source free core and remains available when account
+configuration is absent, signed out, restoring, or failed. It cannot be
+reclassified into a subscription tier. Only a newly introduced future hosted
+service extension may require both an authenticated account and the exact
+subscription entitlement; login alone grants no elevation. This policy never
+bypasses the independent endpoint-bound daemon credential required for
+authenticated daemon operations.
 
 Release-facing account evidence is produced only by the packaged NativeAOT
 desktop through `--prove-silvortex-account`. The runner rejects non-reviewed
@@ -2441,12 +2467,16 @@ credentials, output replacement, and linked output directories before browser
 launch. It executes the same production session used by the Hub, disposes it,
 creates a fresh session that restores from Keychain or Secret Service, verifies
 refresh rotation without retaining the credential digest, and invokes the
-normal local logout path. Passing evidence is a bounded private atomic JSON
-record containing the binary hash and boolean lifecycle observations, with no
-provider origin, account identity, credential value, or daemon authority. The
-runner is proof plumbing, not the proof itself; the functional status gate
-closes after the macOS NativeAOT application executes it against the reviewed
-provider, while additional packaged-host evidence remains post-2.0.
+normal local logout path. Passing v2 evidence is a bounded private atomic JSON
+record containing the executable hash, the digest of the exact `Info.plist`
+read that supplied the public account configuration, and boolean lifecycle
+observations, with no provider origin, account identity, credential value, or
+daemon authority. The strict native `gewyvern_leserpent_release account-proof`
+consumer rejects unknown or duplicate fields and recomputes both bundle
+digests before accepting those observations. The runner is proof plumbing, not
+the proof itself; the deferred hosted-account track closes after the final
+signed macOS NativeAOT application executes it against the reviewed provider.
+It does not block the account-independent 2.0 core seal.
 
 Account operations are process-lifetime asynchronous but disposal is a strict
 generation fence. Dispose atomically rejects new work, cancels discovery or

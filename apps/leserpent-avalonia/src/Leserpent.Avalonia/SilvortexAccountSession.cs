@@ -348,6 +348,7 @@ internal sealed class SilvortexAccountSession : IDisposable
 
     public static void VerifyContract()
     {
+        ProductAccessPolicy.VerifyContract();
         var options = SilvortexAccountOptions.Create(
             "https://id.example.invalid/",
             SilvortexAccountOptions.ReviewedClientId,

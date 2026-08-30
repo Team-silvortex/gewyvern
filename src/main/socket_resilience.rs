@@ -49,7 +49,6 @@ impl SocketLoopHealth {
     }
 
     pub(crate) fn record_idle_timeout(&mut self) -> usize {
-        self.consecutive_failures = 0;
         self.consecutive_idle_timeouts += 1;
         self.total_idle_timeouts += 1;
         publish_socket_resilience_idle(self);
@@ -160,7 +159,7 @@ fn publish_socket_resilience_failure(report: SocketFailureReport) {
 
 fn publish_socket_resilience_idle(health: &SocketLoopHealth) {
     use std::sync::atomic::Ordering;
-    socket_failure_counter().store(0, Ordering::Release);
+    socket_failure_counter().store(health.consecutive_failures, Ordering::Release);
     socket_total_failure_counter().store(health.total_failures, Ordering::Release);
     socket_idle_counter().store(health.consecutive_idle_timeouts, Ordering::Release);
     socket_total_idle_counter().store(health.total_idle_timeouts, Ordering::Release);
@@ -272,5 +271,20 @@ mod tests {
         assert_eq!(status.consecutive_idle_timeouts, 2);
         assert_eq!(status.total_idle_timeouts, 2);
         assert_eq!(status.current_backoff_ms, 0);
+    }
+
+    #[test]
+    fn idle_timeout_does_not_claim_recovery_after_a_socket_failure() {
+        let _guard = test_guard();
+        super::reset_socket_resilience_status();
+        let mut health = SocketLoopHealth::default();
+        let _ = health.record_failure();
+        assert_eq!(health.record_idle_timeout(), 1);
+
+        let status = super::current_socket_resilience_status();
+        assert_eq!(status.consecutive_failures, 1);
+        assert_eq!(status.total_failures, 1);
+        assert_eq!(status.consecutive_idle_timeouts, 1);
+        assert_eq!(health.record_success(), Some(1));
     }
 }

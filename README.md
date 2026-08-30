@@ -112,6 +112,23 @@ session data.
   `apps/etragon`, and `apps/leserpent`
 - protocol registry shape: scanned gewy project packages under `protocols/`
 
+## Open Source Core Guarantee
+
+All current primary capabilities are MIT-licensed, open source, and free. This
+includes the Gewyvern debugger/runtime, GewyLang compiler and protocol library,
+Rust Leserpent domain/protocol/runtime/daemon/CLI crates, Leselang language and
+GUI automation crates, the self-hosted Web console, Avalonia desktop client,
+mobile client source, local and remote orchestration, reverse deployment,
+runtime workspaces and debugger, diagnostics, localization, and the Learning
+Center.
+
+No Team Silvortex account or subscription may gate, meter, or reclassify these
+existing capabilities. A future subscription may cover only a newly introduced
+hosted service extension; it cannot remove a current capability from the free
+self-hosted product. Endpoint credentials still protect daemon authority and
+are unrelated to payment or account status. The exact machine-readable policy
+is [project/product/open-source-core.json](project/product/open-source-core.json).
+
 ## Current Release Line
 
 `gewyvern` is no longer just a convergence story. The current line is:
@@ -125,7 +142,8 @@ session data.
 
 The 2.0 seal prioritizes completing and polishing the declared function chain.
 Existing regression and security gates remain required; broader host/device
-matrices and production signing/notarization evidence begin after `2.0.0`.
+matrices, production signing/notarization, future hosted-account proof, and
+long-tail native-speaker review begin after `2.0.0`.
 
 The `1.0.0` seal established the trust baseline. The `1.20.x` line preserves
 that baseline while extending the surrounding system: stable CLI/runtime and

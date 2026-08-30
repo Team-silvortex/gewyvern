@@ -1,17 +1,24 @@
 use std::env;
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command, Output};
 
 use gewyvern::leserpent_account_config::{SILVORTEX_ISSUER_KEY, is_canonical_https_origin};
 use gewyvern::native_binary::file_is_mach_o_arm64;
 use ring::digest::{SHA256, digest};
+use serde::Deserialize;
 use serde_json::json;
 
 const BUNDLE_ID: &str = "org.gewyvern.leserpent";
 const EXECUTABLE: &str = "Leserpent.Avalonia";
 const DAEMON_EXECUTABLE: &str = "leserpentd";
 const PRODUCT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const ACCOUNT_PROOF_ID: &str = "leserpent-silvortex-native-desktop-account";
+const ACCOUNT_PROOF_SCHEMA_VERSION: u32 = 2;
+const ACCOUNT_PROOF_CONTRACT_VERSION: &str = "1.111.0";
+const MAX_ACCOUNT_PROOF_BYTES: u64 = 16 * 1024;
+const MAX_ACCOUNT_CONFIG_BYTES: u64 = 64 * 1024;
 const DEFAULT_ENTITLEMENTS: &str = "assets/packaging/leserpent-macos.entitlements";
 const CODESIGN_PATH: &str = "/usr/bin/codesign";
 const DITTO_PATH: &str = "/usr/bin/ditto";
@@ -41,6 +48,7 @@ fn main() {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Action {
+    AccountProof,
     Preflight,
     Sign,
     Notarize,
@@ -57,12 +65,88 @@ struct Options {
     custom_entitlements: bool,
     allow_adhoc: bool,
     require_ready: bool,
+    evidence: Option<PathBuf>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AccountProofEvidence {
+    schema_version: u32,
+    proof: String,
+    recorded_at: String,
+    source: AccountProofSource,
+    registration: AccountProofRegistration,
+    target: AccountProofTarget,
+    observations: AccountProofObservations,
+    boundaries: AccountProofBoundaries,
+    duration_ms: u64,
+    result: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AccountProofSource {
+    avalonia_contract: String,
+    binary_sha256: String,
+    configuration_sha256: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AccountProofRegistration {
+    application_key: String,
+    client_profile: String,
+    client_id: String,
+    client_kind: String,
+    public_client: bool,
+    client_secret_present: bool,
+    redirect_uri: String,
+    scopes: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AccountProofTarget {
+    operating_system: String,
+    architecture: String,
+    configuration_source: String,
+    execution: String,
+    native_aot: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AccountProofObservations {
+    system_browser_launched: bool,
+    loopback_callback_accepted: bool,
+    platform_vault_login_persisted: bool,
+    fresh_session_restore: bool,
+    refresh_credential_rotated: bool,
+    access_credential_revocation_attempted: bool,
+    refresh_credential_revocation_attempted: bool,
+    local_logout_completed: bool,
+    platform_vault_empty_after_logout: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AccountProofBoundaries {
+    provider_origin_written: bool,
+    configuration_value_written: bool,
+    account_identity_written: bool,
+    credential_value_written: bool,
+    credential_digest_written: bool,
+    daemon_authority_touched: bool,
+    preexisting_credential_overwritten: bool,
+    environment_override_accepted: bool,
+    secret_free: bool,
 }
 
 impl Options {
     fn parse(args: impl Iterator<Item = String>) -> Result<Self, String> {
         let mut args = args.peekable();
         let action = match args.next().as_deref() {
+            Some("account-proof") => Action::AccountProof,
             Some("preflight") => Action::Preflight,
             Some("sign") => Action::Sign,
             Some("notarize") => Action::Notarize,
@@ -77,9 +161,13 @@ impl Options {
         let mut custom_entitlements = false;
         let mut allow_adhoc = false;
         let mut require_ready = false;
+        let mut evidence = None;
         while let Some(argument) = args.next() {
             let value = match argument.as_str() {
                 "--app" | "--identity" | "--keychain-profile" | "--entitlements" => args
+                    .next()
+                    .ok_or_else(|| format!("{argument} requires a value"))?,
+                "--evidence" if evidence.is_none() => args
                     .next()
                     .ok_or_else(|| format!("{argument} requires a value"))?,
                 "--allow-adhoc" => {
@@ -100,7 +188,12 @@ impl Options {
                     entitlements = PathBuf::from(value);
                     custom_entitlements = true;
                 }
-                _ => unreachable!(),
+                "--evidence" => evidence = Some(PathBuf::from(value)),
+                _ => {
+                    return Err(format!(
+                        "internal argument parser state is invalid for `{argument}`"
+                    ));
+                }
             }
         }
         let options = Self {
@@ -112,6 +205,7 @@ impl Options {
             custom_entitlements,
             allow_adhoc,
             require_ready,
+            evidence,
         };
         options.validate()?;
         Ok(options)
@@ -119,8 +213,19 @@ impl Options {
 
     fn validate(&self) -> Result<(), String> {
         match self.action {
+            Action::AccountProof => {
+                if self.evidence.is_none()
+                    || self.identity.is_some()
+                    || self.keychain_profile.is_some()
+                    || self.custom_entitlements
+                    || self.allow_adhoc
+                    || self.require_ready
+                {
+                    return Err("account-proof requires only --app and --evidence".to_string());
+                }
+            }
             Action::Preflight => {
-                if self.identity.is_some() || self.allow_adhoc {
+                if self.identity.is_some() || self.allow_adhoc || self.evidence.is_some() {
                     return Err("preflight received an option for another action".to_string());
                 }
             }
@@ -136,7 +241,11 @@ impl Options {
                     );
                 }
                 validate_opaque(identity, "identity")?;
-                if self.keychain_profile.is_some() || self.allow_adhoc || self.require_ready {
+                if self.keychain_profile.is_some()
+                    || self.allow_adhoc
+                    || self.require_ready
+                    || self.evidence.is_some()
+                {
                     return Err("sign received an option for another action".to_string());
                 }
             }
@@ -150,6 +259,7 @@ impl Options {
                     || self.allow_adhoc
                     || self.custom_entitlements
                     || self.require_ready
+                    || self.evidence.is_some()
                 {
                     return Err("notarize received an option for another action".to_string());
                 }
@@ -159,6 +269,7 @@ impl Options {
                     || self.keychain_profile.is_some()
                     || self.custom_entitlements
                     || self.require_ready
+                    || self.evidence.is_some()
                 {
                     return Err("verify received an option for another action".to_string());
                 }
@@ -174,6 +285,18 @@ fn run(options: Options) -> Result<String, String> {
     }
     validate_app(&options.app)?;
     match options.action {
+        Action::AccountProof => {
+            let evidence = options
+                .evidence
+                .as_deref()
+                .ok_or_else(|| "account-proof requires --evidence".to_string())?;
+            verify_account_proof(&options.app, evidence)?;
+            Ok(format!(
+                "Leserpent macOS account proof valid: app={}, evidence={}, binary_bound=true, configuration_bound=true, secret_free=true",
+                options.app.display(),
+                evidence.display()
+            ))
+        }
         Action::Preflight => preflight(&options),
         Action::Sign => sign(&options),
         Action::Notarize => notarize(&options),
@@ -339,11 +462,139 @@ fn preflight_blockers(
 fn file_sha256(path: &Path) -> Result<String, String> {
     let bytes =
         fs::read(path).map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
-    Ok(digest(&SHA256, &bytes)
+    Ok(sha256_hex(&bytes))
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    digest(&SHA256, bytes)
         .as_ref()
         .iter()
         .map(|byte| format!("{byte:02x}"))
-        .collect())
+        .collect()
+}
+
+fn read_bounded_regular_file(path: &Path, label: &str, max_bytes: u64) -> Result<Vec<u8>, String> {
+    validate_regular_file(path, label)?;
+    let file = fs::File::open(path)
+        .map_err(|error| format!("failed to open {label} {}: {error}", path.display()))?;
+    let metadata = file
+        .metadata()
+        .map_err(|error| format!("failed to inspect {label} {}: {error}", path.display()))?;
+    if !metadata.is_file() || metadata.len() == 0 || metadata.len() > max_bytes {
+        return Err(format!(
+            "{label} must be a non-empty regular file no larger than {max_bytes} bytes"
+        ));
+    }
+
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    file.take(max_bytes + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| format!("failed to read {label} {}: {error}", path.display()))?;
+    if bytes.is_empty() || bytes.len() as u64 > max_bytes {
+        return Err(format!(
+            "{label} changed or exceeded its size limit while read"
+        ));
+    }
+    validate_regular_file(path, label)?;
+    Ok(bytes)
+}
+
+fn verify_account_proof(app: &Path, evidence_path: &Path) -> Result<(), String> {
+    let bytes = read_bounded_regular_file(
+        evidence_path,
+        "account proof evidence",
+        MAX_ACCOUNT_PROOF_BYTES,
+    )?;
+    let evidence: AccountProofEvidence = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("account proof evidence is not strict schema v2 JSON: {error}"))?;
+
+    let executable = app.join("Contents/MacOS").join(EXECUTABLE);
+    let plist_path = app.join("Contents/Info.plist");
+    validate_regular_file(&executable, "account proof executable")?;
+    let plist_bytes = read_bounded_regular_file(
+        &plist_path,
+        "account proof Info.plist",
+        MAX_ACCOUNT_CONFIG_BYTES,
+    )?;
+    let plist = std::str::from_utf8(&plist_bytes)
+        .map_err(|_| "account proof Info.plist is not UTF-8".to_string())?;
+    let plist_sha256 = sha256_hex(&plist_bytes);
+    let issuer = plist_string_value(plist, SILVORTEX_ISSUER_KEY)?;
+    if !is_canonical_https_origin(issuer) {
+        return Err("account proof app has no canonical Team Silvortex issuer".to_string());
+    }
+
+    if evidence.schema_version != ACCOUNT_PROOF_SCHEMA_VERSION
+        || evidence.proof != ACCOUNT_PROOF_ID
+        || evidence.source.avalonia_contract != ACCOUNT_PROOF_CONTRACT_VERSION
+        || !is_account_proof_timestamp(&evidence.recorded_at)
+        || !is_lower_sha256(&evidence.source.binary_sha256)
+        || !is_lower_sha256(&evidence.source.configuration_sha256)
+        || evidence.source.binary_sha256 != file_sha256(&executable)?
+        || evidence.source.configuration_sha256 != plist_sha256
+        || evidence.registration.application_key != "leserpent"
+        || evidence.registration.client_profile != "leserpent_desktop"
+        || evidence.registration.client_id != "svx_client_leserpent_desktop"
+        || evidence.registration.client_kind != "native"
+        || !evidence.registration.public_client
+        || evidence.registration.client_secret_present
+        || evidence.registration.redirect_uri != "http://127.0.0.1:43817/oidc/callback"
+        || evidence.registration.scopes != "openid profile email offline_access"
+        || evidence.target.operating_system != "macos"
+        || evidence.target.architecture != "arm64"
+        || evidence.target.configuration_source != "packaged-info-plist"
+        || evidence.target.execution != "packaged-native-aot-system-browser"
+        || !evidence.target.native_aot
+        || evidence.duration_ms == 0
+        || evidence.duration_ms > 30 * 60 * 1000
+        || evidence.result != "passed"
+        || !account_observations_complete(&evidence.observations)
+        || !account_boundaries_safe(&evidence.boundaries)
+    {
+        return Err(
+            "account proof evidence does not match the packaged release contract".to_string(),
+        );
+    }
+    Ok(())
+}
+
+fn account_observations_complete(value: &AccountProofObservations) -> bool {
+    value.system_browser_launched
+        && value.loopback_callback_accepted
+        && value.platform_vault_login_persisted
+        && value.fresh_session_restore
+        && value.refresh_credential_rotated
+        && value.access_credential_revocation_attempted
+        && value.refresh_credential_revocation_attempted
+        && value.local_logout_completed
+        && value.platform_vault_empty_after_logout
+}
+
+fn account_boundaries_safe(value: &AccountProofBoundaries) -> bool {
+    !value.provider_origin_written
+        && !value.configuration_value_written
+        && !value.account_identity_written
+        && !value.credential_value_written
+        && !value.credential_digest_written
+        && !value.daemon_authority_touched
+        && !value.preexisting_credential_overwritten
+        && !value.environment_override_accepted
+        && value.secret_free
+}
+
+fn is_lower_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn is_account_proof_timestamp(value: &str) -> bool {
+    (20..=40).contains(&value.len())
+        && value.is_ascii()
+        && value.as_bytes().get(10) == Some(&b'T')
+        && (value.ends_with('Z') || value.ends_with("+00:00"))
+        && !value.bytes().any(|byte| byte.is_ascii_control())
 }
 
 fn formal_release_claims(allow_adhoc: bool) -> bool {
@@ -351,7 +602,10 @@ fn formal_release_claims(allow_adhoc: bool) -> bool {
 }
 
 fn sign(options: &Options) -> Result<String, String> {
-    let identity = options.identity.as_deref().expect("validated identity");
+    let identity = options
+        .identity
+        .as_deref()
+        .ok_or_else(|| "sign requires --identity".to_string())?;
     validate_regular_file(&options.entitlements, "entitlements")?;
     run_checked(
         apple_command(PLUTIL_PATH)
@@ -376,7 +630,7 @@ fn notarize(options: &Options) -> Result<String, String> {
     let profile = options
         .keychain_profile
         .as_deref()
-        .expect("validated keychain profile");
+        .ok_or_else(|| "notarize requires --keychain-profile".to_string())?;
     let archive = env::temp_dir().join(format!("leserpent-notarization-{}.zip", process::id()));
     if archive.exists() {
         return Err(format!(
@@ -789,7 +1043,7 @@ fn run_checked(command: &mut Command, context: &str) -> Result<Output, String> {
 }
 
 fn usage() -> &'static str {
-    "usage:\n  gewyvern_leserpent_release preflight --app Leserpent.app [--keychain-profile PROFILE] [--entitlements FILE] [--require-ready]\n  gewyvern_leserpent_release sign --app Leserpent.app --identity 'Developer ID Application: ...' [--entitlements FILE]\n  gewyvern_leserpent_release notarize --app Leserpent.app --keychain-profile PROFILE\n  gewyvern_leserpent_release verify --app Leserpent.app [--allow-adhoc]"
+    "usage:\n  gewyvern_leserpent_release account-proof --app Leserpent.app --evidence proof.json\n  gewyvern_leserpent_release preflight --app Leserpent.app [--keychain-profile PROFILE] [--entitlements FILE] [--require-ready]\n  gewyvern_leserpent_release sign --app Leserpent.app --identity 'Developer ID Application: ...' [--entitlements FILE]\n  gewyvern_leserpent_release notarize --app Leserpent.app --keychain-profile PROFILE\n  gewyvern_leserpent_release verify --app Leserpent.app [--allow-adhoc]"
 }
 
 #[cfg(test)]
@@ -835,6 +1089,29 @@ mod tests {
 
     #[test]
     fn accepts_only_action_scoped_release_options() {
+        assert!(
+            parse(&[
+                "account-proof",
+                "--app",
+                "Leserpent.app",
+                "--evidence",
+                "proof.json"
+            ])
+            .is_ok()
+        );
+        assert!(parse(&["account-proof", "--app", "Leserpent.app"]).is_err());
+        assert!(
+            parse(&[
+                "account-proof",
+                "--app",
+                "Leserpent.app",
+                "--evidence",
+                "one.json",
+                "--evidence",
+                "two.json"
+            ])
+            .is_err()
+        );
         assert!(parse(&["preflight", "--app", "Leserpent.app"]).is_ok());
         assert!(
             parse(&[
@@ -868,6 +1145,16 @@ mod tests {
             .is_ok()
         );
         assert!(parse(&["verify", "--app", "Leserpent.app", "--allow-adhoc"]).is_ok());
+        assert!(
+            parse(&[
+                "preflight",
+                "--app",
+                "Leserpent.app",
+                "--evidence",
+                "proof.json"
+            ])
+            .is_err()
+        );
         assert!(
             parse(&[
                 "verify",
@@ -1039,6 +1326,115 @@ mod tests {
             ))
             .is_err()
         );
+    }
+
+    #[test]
+    fn account_proof_is_strict_and_bound_to_binary_and_plist() {
+        let root = env::temp_dir().join(format!(
+            "gewyvern-leserpent-account-proof-{}",
+            process::id()
+        ));
+        let app = root.join("Leserpent.app");
+        let contents = app.join("Contents");
+        let macos = contents.join("MacOS");
+        let evidence_path = root.join("account-proof.json");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&macos).unwrap();
+        let plist = valid_plist().replace(
+            "</dict>",
+            &format!(
+                "<key>{SILVORTEX_ISSUER_KEY}</key>\
+                 <string>https://id.example.invalid/</string></dict>"
+            ),
+        );
+        let executable = macos.join(EXECUTABLE);
+        fs::write(&executable, b"signed-native-aot-fixture").unwrap();
+        fs::write(contents.join("Info.plist"), &plist).unwrap();
+        let evidence = json!({
+            "schema_version": ACCOUNT_PROOF_SCHEMA_VERSION,
+            "proof": ACCOUNT_PROOF_ID,
+            "recorded_at": "2026-08-30T00:00:00+00:00",
+            "source": {
+                "avalonia_contract": ACCOUNT_PROOF_CONTRACT_VERSION,
+                "binary_sha256": file_sha256(&executable).unwrap(),
+                "configuration_sha256": file_sha256(&contents.join("Info.plist")).unwrap(),
+            },
+            "registration": {
+                "application_key": "leserpent",
+                "client_profile": "leserpent_desktop",
+                "client_id": "svx_client_leserpent_desktop",
+                "client_kind": "native",
+                "public_client": true,
+                "client_secret_present": false,
+                "redirect_uri": "http://127.0.0.1:43817/oidc/callback",
+                "scopes": "openid profile email offline_access",
+            },
+            "target": {
+                "operating_system": "macos",
+                "architecture": "arm64",
+                "configuration_source": "packaged-info-plist",
+                "execution": "packaged-native-aot-system-browser",
+                "native_aot": true,
+            },
+            "observations": {
+                "system_browser_launched": true,
+                "loopback_callback_accepted": true,
+                "platform_vault_login_persisted": true,
+                "fresh_session_restore": true,
+                "refresh_credential_rotated": true,
+                "access_credential_revocation_attempted": true,
+                "refresh_credential_revocation_attempted": true,
+                "local_logout_completed": true,
+                "platform_vault_empty_after_logout": true,
+            },
+            "boundaries": {
+                "provider_origin_written": false,
+                "configuration_value_written": false,
+                "account_identity_written": false,
+                "credential_value_written": false,
+                "credential_digest_written": false,
+                "daemon_authority_touched": false,
+                "preexisting_credential_overwritten": false,
+                "environment_override_accepted": false,
+                "secret_free": true,
+            },
+            "duration_ms": 1,
+            "result": "passed",
+        });
+        let valid = serde_json::to_vec(&evidence).unwrap();
+        fs::write(&evidence_path, &valid).unwrap();
+        verify_account_proof(&app, &evidence_path).unwrap();
+
+        fs::write(
+            &evidence_path,
+            vec![b'x'; MAX_ACCOUNT_PROOF_BYTES as usize + 1],
+        )
+        .unwrap();
+        assert!(verify_account_proof(&app, &evidence_path).is_err());
+
+        let mut unknown = evidence.clone();
+        unknown
+            .as_object_mut()
+            .unwrap()
+            .insert("issuer".to_string(), json!("https://id.example.invalid/"));
+        fs::write(&evidence_path, serde_json::to_vec(&unknown).unwrap()).unwrap();
+        assert!(verify_account_proof(&app, &evidence_path).is_err());
+
+        let duplicate = String::from_utf8(valid.clone()).unwrap().replace(
+            "\"schema_version\":2",
+            "\"schema_version\":2,\"schema_version\":2",
+        );
+        fs::write(&evidence_path, duplicate).unwrap();
+        assert!(verify_account_proof(&app, &evidence_path).is_err());
+
+        fs::write(&evidence_path, &valid).unwrap();
+        fs::write(contents.join("Info.plist"), format!("{plist}\n")).unwrap();
+        assert!(verify_account_proof(&app, &evidence_path).is_err());
+        fs::write(contents.join("Info.plist"), &plist).unwrap();
+        fs::write(&executable, b"different-signed-native-aot-fixture").unwrap();
+        assert!(verify_account_proof(&app, &evidence_path).is_err());
+
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

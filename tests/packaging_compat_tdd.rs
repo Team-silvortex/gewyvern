@@ -109,6 +109,20 @@ fn rpm_template_matches_deb_staged_compat_contract() {
 }
 
 #[test]
+fn containerized_package_build_preserves_the_calling_user_ownership() {
+    let builder = read_repo_file("scripts/packaging/build_packages_in_container.sh");
+
+    assert!(builder.contains("CONTAINER_UID=\"$(id -u)\""));
+    assert!(builder.contains("CONTAINER_GID=\"$(id -g)\""));
+    assert!(builder.contains("--user \"${CONTAINER_UID}:${CONTAINER_GID}\""));
+    assert!(builder.contains("-e HOME=/tmp"));
+    assert!(builder.contains("CONTAINER_TARGET_CACHE"));
+    assert!(builder.contains("-v \"${CONTAINER_TARGET_CACHE}:/cargo-target\""));
+    assert!(builder.contains("-e CARGO_TARGET_DIR=/cargo-target"));
+    assert!(builder.contains("\"${ROOT}/docker/linux-dev\""));
+}
+
+#[test]
 fn install_smoke_validates_packaged_compat_artifacts() {
     let harness = read_repo_file("src/validation_harness/container_packaging.rs");
     let smoke = read_repo_file("scripts/packaging/package_install_smoke.sh");

@@ -1,10 +1,10 @@
 {
   "schema": "leserpent.frontend-package/v1",
-  "inputsSha256": "0c0e24c52d228ce248fa313d481086bd78b7fc4306f968f9ce985feaffbbe67a",
+  "inputsSha256": "e159db3bf7f665df2eda67076268e78e246e73c7037f4ca62c44bc64246b79c3",
   "assetsSha256": "372bbecd94490a55c5d966684b06b07ef66f52991b31b95b379bbfbe6eb9a0bb",
   "inputFileCount": 28,
   "assetFileCount": 29,
-  "inputBytes": 457186,
+  "inputBytes": 457230,
   "assetBytes": 759864,
   "assets": [
     {

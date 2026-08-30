@@ -556,6 +556,8 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     let health_coordinator = repo_source(
         "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteAuthorityHealthCoordinator.cs",
     );
+    let product_access =
+        repo_source("apps/leserpent-avalonia/src/Leserpent.RemoteClient/ProductAccessPolicy.cs");
     let remote_window =
         repo_source("apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteMainWindow.cs");
     let remote_conformance =
@@ -641,6 +643,12 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
         health_coordinator.contains("retired authority health completion crossed the stop fence")
     );
     assert!(!health_coordinator.contains("Avalonia"));
+    assert!(product_access.contains("public static class ProductAccessPolicy"));
+    assert!(product_access.contains("OpenSourceCoreCapabilities"));
+    assert!(product_access.contains("OpenSourceLicenseSpdx = \"MIT\""));
+    assert!(product_access.contains("OpenSourceCoreRequiresPayment => false"));
+    assert!(product_access.contains("SubscriptionEntitlement"));
+    assert!(!product_access.contains("Avalonia"));
     assert!(
         remote_window.contains("private readonly RemoteMutationCoordinator mutationCoordinator")
     );
@@ -739,6 +747,12 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     assert!(mobile_conformance.contains("authority_health_coordination=true"));
     assert!(mobile_conformance.contains("health_single_flight=true"));
     assert!(mobile_conformance.contains("health_stop_fence=true"));
+    assert!(mobile_conformance.contains("ProductAccessPolicy.VerifyContract()"));
+    assert!(mobile_conformance.contains("open_source_core=true"));
+    assert!(mobile_conformance.contains("core_license=MIT"));
+    assert!(mobile_conformance.contains("core_price=free"));
+    assert!(mobile_conformance.contains("current_core_paywall=false"));
+    assert!(mobile_conformance.contains("account_core_gate=false"));
 }
 
 #[test]
@@ -959,7 +973,7 @@ fn desktop_tutorial_is_offline_accessible_and_ui_reachable() {
     assert!(lifecycle.contains("window is not DesktopTutorialWindow"));
     assert!(program.contains("offline_tutorial=true"));
     assert!(program.contains("builtin_tutorial_catalogs=7"));
-    assert!(program.contains("builtin_semantic_keys=750"));
+    assert!(program.contains("builtin_semantic_keys=751"));
     assert!(program.contains("builtin_tutorial_complete=true"));
     assert!(readme.contains("`--verify-desktop-tutorial`"));
     assert!(first_run.contains("`Learning Center...`"));
@@ -1242,7 +1256,7 @@ fn desktop_language_selection_is_persistent_bounded_and_ui_ir_aware() {
     assert!(program.contains("complete_builtin_locales=8"));
     assert!(program.contains("builtin_semantic_catalogs=7"));
     assert!(program.contains("semantic_keys=26"));
-    assert!(program.contains("builtin_semantic_keys=750"));
+    assert!(program.contains("builtin_semantic_keys=751"));
     assert!(program.contains("language_pack_core_ui_keys=18"));
     assert!(program.contains("language_pack_official_version=1.2.0"));
     assert!(program.contains("language_pack_official_keys=42"));
@@ -1567,7 +1581,7 @@ fn gewyvern_provisioning_is_authority_scoped_identity_locked_and_bounded() {
     assert!(program.contains("--verify-provisioning-client"));
     assert!(program.contains("builtin_provisioning_catalogs=7"));
     assert!(program.contains("provisioning_semantic_keys=43"));
-    assert!(program.contains("builtin_semantic_keys=750"));
+    assert!(program.contains("builtin_semantic_keys=751"));
     assert!(program.contains("localized_gewyvern_provisioning=true"));
     assert!(promotion.contains("BootstrapPromotionJsonContext.Default"));
     assert!(!promotion.contains("JsonSerializer.Serialize(new\n"));
@@ -1635,7 +1649,7 @@ fn gewyvern_retirement_is_confirmed_provisioning_bound_and_failure_safe() {
     assert!(program.contains("--verify-retirement-client"));
     assert!(program.contains("builtin_retirement_catalogs=7"));
     assert!(program.contains("retirement_semantic_keys=45"));
-    assert!(program.contains("builtin_semantic_keys=750"));
+    assert!(program.contains("builtin_semantic_keys=751"));
     assert!(program.contains("localized_gewyvern_retirement=true"));
 }
 
@@ -2147,7 +2161,7 @@ fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
     assert!(app.contains("live_language_reprojection=true"));
     assert!(program.contains("builtin_connection_catalogs=7"));
     assert!(program.contains("connection_semantic_keys=33"));
-    assert!(program.contains("builtin_semantic_keys=750"));
+    assert!(program.contains("builtin_semantic_keys=751"));
     assert!(window.contains("if (operationInFlight || isClosed)"));
     assert!(health.contains("remote health did not prove a ready protocol-v1 authority"));
     assert!(health.contains("remote health queue counters are inconsistent"));
@@ -2220,7 +2234,7 @@ fn desktop_reverse_deployment_is_strictly_localized_and_operator_data_preserving
     assert!(app.contains("await window.ProbeWorkflowAsync(\"zh-CN\")"));
     assert!(program.contains("builtin_bootstrap_catalogs=7"));
     assert!(program.contains("bootstrap_semantic_keys=46"));
-    assert!(program.contains("builtin_semantic_keys=750"));
+    assert!(program.contains("builtin_semantic_keys=751"));
     assert!(program.contains("localized_reverse_deployment=true"));
 }
 
@@ -2336,6 +2350,8 @@ fn silvortex_account_is_native_pkce_bound_and_offline_optional() {
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
     let vault = avalonia_source("Leserpent.RemoteClient/RemoteTokenStore.cs");
+    let access = avalonia_source("Leserpent.RemoteClient/ProductAccessPolicy.cs");
+    let mobile = repo_source("apps/leserpent-mobile/src/Leserpent.MobileConformance/Program.cs");
 
     assert!(account.contains("code_challenge_method"));
     assert!(account.contains("ReviewedApplicationKey = \"leserpent\""));
@@ -2369,12 +2385,16 @@ fn silvortex_account_is_native_pkce_bound_and_offline_optional() {
     assert!(account.contains("Team Silvortex accepted an incompatible presentation status"));
     assert!(!account.contains("new(\"client_secret\""));
     assert!(control.contains("hub-silvortex-action"));
+    assert!(control.contains("hub-silvortex-core-access"));
+    assert!(control.contains("Text(\"access.core\")"));
     assert!(control.contains("DesktopAccountCatalogs.Resolve(localization, key)"));
     assert!(control.contains("localization.Changed += OnLocalizationChanged"));
     assert!(control.contains("localization.Changed -= OnLocalizationChanged"));
     assert!(control.contains("VerifyLayoutEnvelope()"));
     assert!(control.contains("ProbeLocalizedPresentation("));
-    assert!(catalog.contains("public const int KeyCount = 36;"));
+    assert!(catalog.contains("public const int KeyCount = 37;"));
+    assert!(catalog.contains("[\"access.core\"]"));
+    assert!(catalog.contains("Core tools are MIT-licensed, open source, and free"));
     assert!(catalog.contains("Daemon credentials remain separate"));
     assert!(catalog.contains("DesktopDomainCatalogContract.Verify("));
     assert!(localization.contains("DesktopAccountCatalogs.VerifyContract();"));
@@ -2382,6 +2402,8 @@ fn silvortex_account_is_native_pkce_bound_and_offline_optional() {
     assert!(hub.contains("SilvortexAccountControl"));
     assert!(hub.contains("ProbeLocalizedAccountPresentation("));
     assert!(hub.contains("accountControl.VerifyLayoutEnvelope();"));
+    assert!(hub.contains("VerifyOpenSourceCoreAccess()"));
+    assert!(hub.contains("RequireCompleteOpenSourceCore(HubOpenSourceCoreCapabilities)"));
     assert!(app.contains("SilvortexAccountSession.FromRuntimeConfiguration()"));
     assert!(app.contains("localized_account_catalogs=7"));
     assert!(app.contains("localized_account_layouts=8"));
@@ -2398,14 +2420,34 @@ fn silvortex_account_is_native_pkce_bound_and_offline_optional() {
         )
     );
     assert!(program.contains("--verify-silvortex-account"));
+    assert!(program.contains("--verify-product-access-policy"));
     assert!(program.contains("reviewed_application=leserpent"));
     assert!(program.contains("reviewed_profile=leserpent_desktop"));
     assert!(program.contains("default_client_id=true"));
     assert!(program.contains("builtin_account_catalogs=7"));
-    assert!(program.contains("account_semantic_keys=36"));
+    assert!(program.contains("account_semantic_keys=37"));
+    assert!(program.contains("builtin_semantic_keys=751"));
+    assert!(program.contains("account_core_gate=false"));
+    assert!(program.contains("open_source_core=true"));
+    assert!(program.contains("core_license=MIT"));
+    assert!(program.contains("core_price=free"));
+    assert!(program.contains("current_core_paywall=false"));
+    assert!(program.contains("subscription_scope=future_hosted_services_only"));
+    assert!(program.contains("login_only_elevation=false"));
     assert!(program.contains("localized_account=true"));
     assert!(vault.contains("public static class PlatformCredentialVault"));
     assert!(vault.contains("LinuxSecretService.StoreAccount"));
+    assert!(access.contains("public enum ProductCapability"));
+    assert!(access.contains("ProductCapability.LeselangAutomation"));
+    assert!(access.contains("ProductCapability.ReservedHostedSubscriptionService"));
+    assert!(access.contains("ProductAccessTier.OpenSourceCore"));
+    assert!(access.contains("OpenSourceCoreMayBeSubscriptionGated => false"));
+    assert!(access.contains("public const string SubscriptionEntitlement"));
+    assert!(access.contains("accountAuthenticated: false"));
+    assert!(access.contains("SubscriptionEntitlement.ToUpperInvariant()"));
+    assert!(access.contains("The Leserpent product access policy accepted an unknown capability"));
+    assert!(mobile.contains("ProductAccessPolicy.VerifyContract()"));
+    assert!(mobile.contains("open_source_core=true"));
 }
 
 #[test]
@@ -2413,11 +2455,16 @@ fn silvortex_account_proof_is_native_private_and_existing_credential_safe() {
     let proof = avalonia_source("Leserpent.Avalonia/SilvortexAccountProof.cs");
     let account = avalonia_source("Leserpent.Avalonia/SilvortexAccountSession.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+    let release = repo_source("src/bin/gewyvern_leserpent_release.rs");
 
-    assert!(proof.contains("ContractVersion = \"1.99.0\""));
+    assert!(proof.contains("ContractVersion = \"1.111.0\""));
+    assert!(proof.contains("SchemaVersion = 2"));
     assert!(!proof.contains("--prove-silvortex-account"));
     assert!(proof.contains("RuntimeFeature.IsDynamicCodeSupported"));
     assert!(proof.contains("packaged-info-plist"));
+    assert!(proof.contains("configuration.BindingSha256!"));
+    assert!(proof.contains("configuration_sha256"));
+    assert!(proof.contains("configuration_value_written"));
     assert!(proof.contains("environment_override_accepted"));
     assert!(proof.contains("macOS desktop account proof requires the reviewed issuer embedded"));
     assert!(proof.contains("EnsureFreshCredential"));
@@ -2434,11 +2481,22 @@ fn silvortex_account_proof_is_native_private_and_existing_credential_safe() {
     assert!(proof.contains("credential_digest_written"));
     assert!(proof.contains("daemon_authority_touched"));
     assert!(proof.contains("preexisting_credential_overwritten"));
+    assert!(proof.contains("IsLowerSha256(facts.ConfigurationSha256)"));
     assert!(account.contains("internal Task RestoreForProofAsync()"));
     assert!(account.contains("StoredRefreshTokenDigest"));
     assert!(program.contains("--verify-silvortex-account-proof"));
     assert!(program.contains("--prove-silvortex-account"));
     assert!(program.contains("packaged_macos_config=true"));
+    assert!(program.contains("schema=v2"));
+    assert!(program.contains("binary_binding=true"));
+    assert!(program.contains("configuration_binding=true"));
     assert!(program.contains("identity_retained=false"));
     assert!(program.contains("credential_retained=false"));
+    assert!(release.contains("Some(\"account-proof\") => Action::AccountProof"));
+    assert!(release.contains("#[serde(deny_unknown_fields)]"));
+    assert!(release.contains("read_bounded_regular_file("));
+    assert!(release.contains("sha256_hex(&plist_bytes)"));
+    assert!(release.contains("configuration_sha256 != plist_sha256"));
+    assert!(release.contains("binary_sha256 != file_sha256(&executable)?"));
+    assert!(release.contains("account_boundaries_safe"));
 }

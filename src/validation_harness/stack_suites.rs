@@ -2,7 +2,7 @@ use std::env;
 use std::fs::{self, File};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output, Stdio};
+use std::process::{Child, Command, ExitStatus, Output, Stdio};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -925,6 +925,7 @@ impl ThreeModuleStackConfig {
     fn from_env() -> Result<Self, ValidationError> {
         let repo = repo_root();
         let work_dir = temp_dir_preview("three-module-stack");
+        let default_resilience_summary_path = repo.join("target/validation/resilience-summary.txt");
         let unique = std::process::id();
         Ok(Self {
             etragon_root: repo.join("apps/etragon"),
@@ -988,8 +989,14 @@ impl ThreeModuleStackConfig {
             gw_b_socket_port: env_u16("GW_B_SOCKET_PORT", 19002)?,
             gw_b_api_port: env_u16("GW_B_API_PORT", 19102)?,
             et_a_api_port: env_u16("ET_A_API_PORT", 19431)?,
-            gw_api_admin_token: env_admin_token("GW_API_ADMIN_TOKEN", "stack-smoke")?,
-            et_a_admin_token: env_admin_token("ET_A_ADMIN_TOKEN", "stack-smoke-admin-token")?,
+            gw_api_admin_token: env_admin_token(
+                "GW_API_ADMIN_TOKEN",
+                "stack-smoke-admin-token-0123456789",
+            )?,
+            et_a_admin_token: env_admin_token(
+                "ET_A_ADMIN_TOKEN",
+                "stack-sidecar-admin-token-0123456789",
+            )?,
             leserpent_dotnet_restore_first: env_bool("LESERPENT_DOTNET_RESTORE_FIRST", false),
             leserpent_dotnet_ignore_failed_sources: env_bool(
                 "LESERPENT_DOTNET_IGNORE_FAILED_SOURCES",
@@ -1007,10 +1014,7 @@ impl ThreeModuleStackConfig {
             cargo_net_offline: env_bool("CARGO_NET_OFFLINE", false),
             resilience_summary_path: env_path(
                 "RESILIENCE_SUMMARY_PATH",
-                &work_dir
-                    .join("resilience-summary.txt")
-                    .display()
-                    .to_string(),
+                &default_resilience_summary_path.display().to_string(),
             )?,
         })
     }
@@ -1125,7 +1129,7 @@ impl PathologyConfig {
             api_port: env_u16("API_PORT", 19301)?,
             api_admin_token: env_admin_token(
                 "PATHO_API_ADMIN_TOKEN",
-                "pathology-smoke-admin-token",
+                "pathology-smoke-admin-token-0123456789",
             )?,
             out_dir: out_dir.unwrap_or_else(|| default_out_dir("pathological-container")),
             pathology_fixture_dir: repo.join("tests/pathological-containers"),
@@ -1307,7 +1311,7 @@ fn build_stack_image(cfg: &ThreeModuleStackConfig) -> Result<(), ValidationError
             .arg(&cfg.image_tag)
             .arg("-f")
             .arg(cfg.repo_root.join("docker/linux-dev/Dockerfile"))
-            .arg(&cfg.repo_root),
+            .arg(cfg.repo_root.join("docker/linux-dev")),
         "docker build failed",
     )
 }
@@ -1350,9 +1354,37 @@ fn build_stack_image_from_pathology(cfg: &PathologyConfig) -> Result<(), Validat
             .arg(&cfg.image_tag)
             .arg("-f")
             .arg(cfg.repo_root.join("docker/linux-dev/Dockerfile"))
-            .arg(&cfg.repo_root),
+            .arg(cfg.repo_root.join("docker/linux-dev")),
         "docker build failed",
     )
+}
+
+fn docker_host_user_spec() -> Result<String, ValidationError> {
+    let uid = docker_numeric_host_identity("-u", "uid")?;
+    let gid = docker_numeric_host_identity("-g", "gid")?;
+    Ok(format!("{uid}:{gid}"))
+}
+
+fn docker_numeric_host_identity(flag: &str, label: &str) -> Result<String, ValidationError> {
+    let output = Command::new("id")
+        .arg(flag)
+        .output()
+        .map_err(|err| ValidationError::new(format!("failed to query host {label}: {err}")))?;
+    if !output.status.success() {
+        return Err(ValidationError::new(format!(
+            "failed to query host {label} with status {}",
+            output.status
+        )));
+    }
+    let value = std::str::from_utf8(&output.stdout)
+        .map_err(|_| ValidationError::new(format!("host {label} is not valid UTF-8")))?
+        .trim();
+    if value.is_empty() || !value.chars().all(|ch| ch.is_ascii_digit()) {
+        return Err(ValidationError::new(format!(
+            "host {label} must be a numeric identifier"
+        )));
+    }
+    Ok(value.to_string())
 }
 
 fn build_stack_binaries(
@@ -1363,9 +1395,13 @@ fn build_stack_binaries(
         Command::new("docker")
             .arg("run")
             .arg("--rm")
+            .arg("--user")
+            .arg(docker_host_user_spec()?)
+            .arg("-e")
+            .arg("HOME=/tmp")
             .arg("-v")
             .arg(format!(
-                "{}:/workspace/dev/gewyvern",
+                "{}:/workspace/dev/gewyvern:ro",
                 cfg.repo_root.display()
             ))
             .arg("-v")
@@ -1383,10 +1419,10 @@ fn build_stack_binaries(
                 "set -euo pipefail\n\
                  export CARGO_TARGET_DIR=/stack-target/etragon\n\
                  cd /workspace/dev/gewyvern/apps/etragon\n\
-                 cargo build --quiet\n\
+                 cargo build --quiet --locked\n\
                  export CARGO_TARGET_DIR=/stack-target/gewyvern\n\
                  cd /workspace/dev/gewyvern\n\
-                 cargo build --quiet --bin gewyvern --bin gewyvern_socket_send\n",
+                 cargo build --quiet --locked --bin gewyvern --bin gewyvern_socket_send\n",
             ),
         "stack binary build failed",
     )
@@ -1400,9 +1436,13 @@ fn build_pathology_binaries(
         Command::new("docker")
             .arg("run")
             .arg("--rm")
+            .arg("--user")
+            .arg(docker_host_user_spec()?)
+            .arg("-e")
+            .arg("HOME=/tmp")
             .arg("-v")
             .arg(format!(
-                "{}:/workspace/dev/gewyvern",
+                "{}:/workspace/dev/gewyvern:ro",
                 cfg.repo_root.display()
             ))
             .arg("-v")
@@ -1420,7 +1460,7 @@ fn build_pathology_binaries(
                 "set -euo pipefail\n\
                  export CARGO_TARGET_DIR=/stack-target/gewyvern\n\
                  cd /workspace/dev/gewyvern\n\
-                 cargo build --quiet --bin gewyvern --bin gewyvern_socket_send\n",
+                 cargo build --quiet --locked --bin gewyvern --bin gewyvern_socket_send\n",
             ),
         "pathology binary build failed",
     )
@@ -1451,11 +1491,11 @@ fn start_gewyvern_container(
         .arg("GEWY_API_ADMIN_TOKEN")
         .arg("-v")
         .arg(format!(
-            "{}:/workspace/dev/gewyvern",
+            "{}:/workspace/dev/gewyvern:ro",
             cfg.repo_root.display()
         ))
         .arg("-v")
-        .arg(format!("{}:/stack-target", target_cache_dir.display()))
+        .arg(format!("{}:/stack-target:ro", target_cache_dir.display()))
         .arg(&cfg.image_tag)
         .arg("bash")
         .arg("-lc")
@@ -1501,9 +1541,12 @@ fn start_etragon_container(
             .arg("-e")
             .arg("ETRAGON_SOURCE_ADMIN_TOKEN")
             .arg("-v")
-            .arg(format!("{}:/workspace/dev/gewyvern", cfg.repo_root.display()))
+            .arg(format!(
+                "{}:/workspace/dev/gewyvern:ro",
+                cfg.repo_root.display()
+            ))
             .arg("-v")
-            .arg(format!("{}:/stack-target", target_cache_dir.display()))
+            .arg(format!("{}:/stack-target:ro", target_cache_dir.display()))
             .arg(&cfg.image_tag)
             .arg("bash")
             .arg("-lc")
@@ -1567,11 +1610,11 @@ fn start_pathology_runtime(
         .arg("GEWY_API_ADMIN_TOKEN")
         .arg("-v")
         .arg(format!(
-            "{}:/workspace/dev/gewyvern",
+            "{}:/workspace/dev/gewyvern:ro",
             cfg.repo_root.display()
         ))
         .arg("-v")
-        .arg(format!("{}:/stack-target", target_cache_dir.display()))
+        .arg(format!("{}:/stack-target:ro", target_cache_dir.display()))
         .arg(&cfg.image_tag)
         .arg("bash")
         .arg("-lc")
@@ -1714,11 +1757,24 @@ fn inject_socket_bad_json(container_name: &str, count: usize) -> Result<(), Vali
     run_command(
         Command::new("docker")
             .arg("exec")
+            .arg("--env")
+            .arg("GEWY_MALFORMED_SOCKET_COUNT")
             .arg(container_name)
             .arg("bash")
             .arg("-lc")
             .arg(
-                "set -euo pipefail\nfor _ in $(seq 1 \"$GEWY_MALFORMED_SOCKET_COUNT\"); do exec 3<>/dev/tcp/127.0.0.1/9000; printf '{\"bad\":\"json\"\\n' >&3 || true; exec 3>&-; exec 3<&-; done",
+                r#"set -euo pipefail
+test "$GEWY_MALFORMED_SOCKET_COUNT" -gt 0
+sent=0
+for _ in $(seq 1 "$GEWY_MALFORMED_SOCKET_COUNT"); do
+  exec 3<>/dev/tcp/127.0.0.1/9000
+  printf '{"bad":"json"\n' >&3 || true
+  exec 3>&-
+  exec 3<&-
+  sent=$((sent + 1))
+done
+test "$sent" -eq "$GEWY_MALFORMED_SOCKET_COUNT"
+"#,
             )
             .env("GEWY_MALFORMED_SOCKET_COUNT", &count),
         "failed to inject malformed socket payloads",
@@ -1735,12 +1791,10 @@ fn ensure_docker_network(network_name: &str) -> Result<(), ValidationError> {
     )?;
     let deadline = Instant::now() + Duration::from_secs(10);
     while Instant::now() < deadline {
-        let status = Command::new("docker")
-            .args(["network", "inspect", network_name])
-            .status()
-            .map_err(|err| {
-                ValidationError::new(format!("failed to inspect docker network: {err}"))
-            })?;
+        let status = quiet_command_status(
+            Command::new("docker").args(["network", "inspect", network_name]),
+            "failed to inspect docker network",
+        )?;
         if status.success() {
             return Ok(());
         }
@@ -2094,10 +2148,8 @@ fn require_dotnet() -> Result<(), ValidationError> {
 }
 
 fn ensure_docker_reachable() -> Result<(), ValidationError> {
-    let status = Command::new("docker")
-        .arg("info")
-        .status()
-        .map_err(|err| ValidationError::new(format!("failed to query docker: {err}")))?;
+    let status =
+        quiet_command_status(Command::new("docker").arg("info"), "failed to query docker")?;
     if status.success() {
         Ok(())
     } else {
@@ -2108,10 +2160,10 @@ fn ensure_docker_reachable() -> Result<(), ValidationError> {
 }
 
 fn ensure_juice_shop_image(name: &str) -> Result<(), ValidationError> {
-    let status = Command::new("docker")
-        .args(["image", "inspect", name])
-        .status()
-        .map_err(|err| ValidationError::new(format!("failed to inspect image `{name}`: {err}")))?;
+    let status = quiet_command_status(
+        Command::new("docker").args(["image", "inspect", name]),
+        &format!("failed to inspect image `{name}`"),
+    )?;
     if status.success() {
         return Ok(());
     }
@@ -2122,10 +2174,10 @@ fn ensure_juice_shop_image(name: &str) -> Result<(), ValidationError> {
 }
 
 fn ensure_ftp_denied_image(name: &str) -> Result<(), ValidationError> {
-    let status = Command::new("docker")
-        .args(["image", "inspect", name])
-        .status()
-        .map_err(|err| ValidationError::new(format!("failed to inspect image `{name}`: {err}")))?;
+    let status = quiet_command_status(
+        Command::new("docker").args(["image", "inspect", name]),
+        &format!("failed to inspect image `{name}`"),
+    )?;
     if status.success() {
         return Ok(());
     }
@@ -2136,10 +2188,10 @@ fn ensure_ftp_denied_image(name: &str) -> Result<(), ValidationError> {
 }
 
 fn ensure_ldap_bind_denied_image(name: &str) -> Result<(), ValidationError> {
-    let status = Command::new("docker")
-        .args(["image", "inspect", name])
-        .status()
-        .map_err(|err| ValidationError::new(format!("failed to inspect image `{name}`: {err}")))?;
+    let status = quiet_command_status(
+        Command::new("docker").args(["image", "inspect", name]),
+        &format!("failed to inspect image `{name}`"),
+    )?;
     if status.success() {
         return Ok(());
     }
@@ -2150,10 +2202,10 @@ fn ensure_ldap_bind_denied_image(name: &str) -> Result<(), ValidationError> {
 }
 
 fn ensure_docker_image(name: &str) -> Result<(), ValidationError> {
-    let status = Command::new("docker")
-        .args(["image", "inspect", name])
-        .status()
-        .map_err(|err| ValidationError::new(format!("failed to inspect image `{name}`: {err}")))?;
+    let status = quiet_command_status(
+        Command::new("docker").args(["image", "inspect", name]),
+        &format!("failed to inspect image `{name}`"),
+    )?;
     if status.success() {
         Ok(())
     } else {
@@ -2230,6 +2282,18 @@ fn read_container_file(container_name: &str, path: &str) -> Result<String, Valid
         )));
     }
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+fn quiet_command_status(
+    command: &mut Command,
+    context: &str,
+) -> Result<ExitStatus, ValidationError> {
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map_err(|err| ValidationError::new(format!("{context}: {err}")))
 }
 
 fn run_command(command: &mut Command, context: &str) -> Result<(), ValidationError> {
@@ -2375,13 +2439,22 @@ fn env_optional_docker_cli_arg_value(name: &str, default: &str) -> Result<String
 }
 
 fn env_admin_token(name: &str, default: &str) -> Result<String, ValidationError> {
-    let token = env_string(name, default).trim().to_string();
-    if token.is_empty() {
-        return Err(ValidationError::new(format!("{name} must not be empty")));
-    }
-    if token.bytes().any(|byte| byte.is_ascii_control()) {
+    validate_admin_token(name, env_string(name, default))
+}
+
+fn validate_admin_token(name: &str, raw: String) -> Result<String, ValidationError> {
+    let token = raw.trim().to_string();
+    if !(32..=256).contains(&token.len()) {
         return Err(ValidationError::new(format!(
-            "{name} must not contain control characters"
+            "{name} must contain 32-256 non-whitespace characters"
+        )));
+    }
+    if token
+        .chars()
+        .any(|character| character.is_whitespace() || character.is_control())
+    {
+        return Err(ValidationError::new(format!(
+            "{name} must not contain whitespace or control characters"
         )));
     }
     Ok(token)
@@ -2432,7 +2505,7 @@ fn validate_env_path(name: &str, value: String) -> Result<PathBuf, ValidationErr
 
 #[cfg(test)]
 mod tests {
-    use super::{validate_docker_cli_arg_value, validate_env_path};
+    use super::{validate_admin_token, validate_docker_cli_arg_value, validate_env_path};
     use std::path::PathBuf;
 
     #[test]
@@ -2476,5 +2549,13 @@ mod tests {
     fn rejects_env_path_that_is_too_long() {
         let long = "a".repeat(4097);
         assert!(validate_env_path("CARGO_CACHE_DIR", long).is_err());
+    }
+
+    #[test]
+    fn admin_token_validation_matches_the_runtime_contract() {
+        assert!(validate_admin_token("TOKEN", "short".to_string()).is_err());
+        assert!(validate_admin_token("TOKEN", "a".repeat(32)).is_ok());
+        assert!(validate_admin_token("TOKEN", "b".repeat(257)).is_err());
+        assert!(validate_admin_token("TOKEN", format!("{} ", "c".repeat(31))).is_err());
     }
 }

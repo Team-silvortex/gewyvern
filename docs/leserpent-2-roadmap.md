@@ -33,9 +33,17 @@ contract.
 
 The existing regression, security, compatibility, AOT, and performance shelves
 remain mandatory for every release candidate. Expanding the host, kernel,
-physical-device, or platform test matrix and retaining production
-signing/notarization evidence are post-`2.0.0` tracks; neither may substitute for
+physical-device, or platform test matrix, retaining production
+signing/notarization evidence, proving a future hosted-account lifecycle, and
+long-tail native-speaker review are post-`2.0.0` tracks; none may substitute for
 closing an existing functional gap or block the functional 2.0 seal.
+
+Every capability inside this frozen scope is part of the MIT open-source free
+core. It may not be account-gated, metered, subscription-gated, or reclassified
+after release. Future commercial work is limited to newly introduced hosted
+service extensions and must preserve the complete free self-hosted path. The
+machine-readable source of truth is
+`project/product/open-source-core.json`.
 
 Implementation stack rule:
 
@@ -618,23 +626,41 @@ x86_64 disposable-provider run applies the real migration and passes the full
 RS256 ID-token verification, MFA assurance, UserInfo subject binding, refresh
 rotation/replay containment, and consent revocation. The retained proof is
 `docs/fixtures/leserpent_silvortex_oidc_provider_shadow_linux_x86_64_20260810.json`.
-Gate 4 still requires one real configured desktop run through the system
-browser and platform credential vault; broader packaged-host repetition is a
-post-2.0 proof track. Account identity remains separate from every
-endpoint-bound `leserpentd` authority.
+The complete MIT core remains functional with no configured account, so Gate 4
+does not require a production identity-provider run. One real configured
+desktop run through the system browser and platform credential vault remains a
+post-2.0 prerequisite before introducing the first future hosted subscription
+service. Account identity remains separate from every endpoint-bound
+`leserpentd` authority.
+
+The shared desktop/mobile access policy now classifies all current product
+capabilities as MIT open-source free core. Missing, signed-out, restoring, or failed Team
+Silvortex account state therefore cannot disable the Hub, local Orchestra,
+deployment, runtime workspace, debugger, diagnostics, localization, Learning
+Center, or Leselang automation, and those capabilities cannot later be moved
+behind a subscription. The only subscription-classified surface is an unwired
+future hosted-service marker, and it requires both authentication and the exact
+subscription entitlement; login by itself grants nothing. Endpoint-bound daemon
+credentials remain independently mandatory wherever daemon authority is required.
 
 The desktop now provides a fail-closed
-`--prove-silvortex-account <absolute-output.json>` runner for that remaining
-gate. It is restricted to the reviewed client, fixed callback, HTTPS issuer,
+`--prove-silvortex-account <absolute-output.json>` runner for that deferred
+hosted-service readiness proof. It is restricted to the reviewed client, fixed callback, HTTPS issuer,
 and packaged NativeAOT executable; it refuses an existing account credential
 instead of overwriting it. The runner reuses the production login, fresh-session
 restore, refresh rotation, and local logout paths, then atomically writes a
-private identity-free result. `--verify-silvortex-account-proof` exercises the
-writer, ordering, overwrite, linked-directory, and incomplete-proof fences
-without contacting an identity provider. The next step is execution against
-the provisioned Team Silvortex issuer on the macOS NativeAOT application rather
-than another simulated provider claim. Linux Secret Service and additional-host
-parity evidence follow after 2.0.
+private identity-free result. Its v2 schema binds both the final executable
+digest and the digest of the exact `Info.plist` read that supplied the account
+configuration. `--verify-silvortex-account-proof` exercises the writer,
+ordering, overwrite, linked-directory, and incomplete-proof fences without
+contacting an identity provider. The native
+`gewyvern_leserpent_release account-proof` verifier independently decodes that
+schema with unknown- and duplicate-field rejection, recomputes both bundle
+digests, and rechecks every privacy and authority boundary. The next step is
+execution after 2.0 against the provisioned Team Silvortex issuer on the final
+signed macOS NativeAOT application, before the first hosted subscription
+service ships, rather than another simulated provider claim. Linux Secret
+Service and additional-host parity evidence follow on the same deferred track.
 
 Session shutdown now has its own deterministic contract proof. Disposing while
 OIDC discovery is in flight atomically rejects new operations, cancels the
@@ -2414,9 +2440,9 @@ workspace, plus the Orchestra plan/control/history workspace, debugger live
 execution, Hub dynamic cards, the existing-runtime registration editor, and
 Learning Center, now establish the
 specialist-dialog pattern.
-Their exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 36-key, 56-key,
+Their exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 37-key, 56-key,
 57-key, 78-key, 72-key, 33-key, 49-key, 69-key, and 61-key catalogs bring every
-non-English built-in to 750 semantic keys without touching the frozen core set. They share one strict
+non-English built-in to 751 semantic keys without touching the frozen core set. They share one strict
 key/value/placeholder validator. Eight-locale native layout probes cover each
 dialog and the account card at the minimum Hub envelope. The remote proof also
 covers compact and wide shells plus 32 refresh/deployment/cleanup/cancellation
@@ -2468,7 +2494,8 @@ packages also persist the live authority as a saved daemon, reload exactly one
 managed CA through the production catalog path, reject a decoy CA, and complete
 the credential-free private roundtrip without mutating persisted inputs. Only
 native-speaker, current packaged/physical evidence, and long-tail pack review
-remain on this localization line.
+remain on the transparent post-2.0 localization quality line rather than the
+functional core gate.
 The native control proof performs a real temporary import/download/remove roundtrip. The six
 candidate built-in translations plus both 12-key downloadable expansions stay
 pending native-speaker review; all 22 packs remain partial beyond their exact
@@ -2521,8 +2548,9 @@ control-plane migration proof suites while emitting the actual observed count;
 promotion to `frozen` remains forbidden until the in-scope Gate 7 functional,
 compatibility, security, performance, migration, packaging, and rollback
 criteria are reproducible. Scope closure is reported independently as
-`scope_freeze_ready=true`. Production Apple distribution evidence remains a
-separately labelled post-2.0 proof track.
+`scope_freeze_ready=true`. Production Apple distribution evidence, future
+hosted-account proof, and long-tail native-speaker review remain separately
+labelled post-2.0 tracks.
 Its companion candidate baseline pins SHA-256 fingerprints for five wire and
 legacy-wire fixtures plus four renderer fixtures. This makes accidental exact
 format drift fail before the semantic proof suites without pretending that the

@@ -187,6 +187,8 @@ fn leserpent_next_major_has_one_architecture_and_one_delivery_roadmap() {
         "WinRM is explicitly outside the 2.0 evidence gate",
         "physical device release parity is deferred",
         "full mobile device release parity beyond the declared entry/lifecycle contract",
+        "Every capability inside this frozen scope is part of the MIT open-source free core",
+        "Future commercial work is limited to newly introduced hosted service extensions",
     ] {
         assert!(
             normalized_roadmap.contains(freeze_rule),

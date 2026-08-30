@@ -521,6 +521,7 @@ internal sealed class LeserpentApp : Application
                 try
                 {
                     window.VerifyTopologyContract();
+                    window.VerifyOpenSourceCoreAccess();
                     window.VerifyLayoutEnvelope();
                     var localizedAccountLayoutCount = 0;
                     var localizedHubLayoutCount = 0;
@@ -573,7 +574,7 @@ internal sealed class LeserpentApp : Application
                             "Hub action routing did not preserve its runtime or tutorial target");
                     }
                     Console.WriteLine(
-                        "Hub topology valid: client_root=true, local_daemon=true, remote_daemons=2, live_topologies=3, authority_proofs=3, queue_health=true, runtime_children=6, runtime_actions=6, topology_filter=true, authority_filter=true, cross_authority_runtime_filter=true, empty_filter_state=true, filter_focus_recovery=true, refresh_all_control=true, refresh_all_single_flight=true, card_refresh_join=true, shared_refresh_policy=true, refresh_busy_state=true, refresh_completion_status=true, tutorial_entry=true, language_entry=true, daemon_route=true, authoritative_workspace_gate=true, shared_workspace_launch=true, retained_topology_state=true, revision_regression_fence=true, bounded_auto_refresh=true, bounded_preview=true, independent_actions=true, legacy_remote_button=false, automation=true, localized_account_catalogs=7, localized_account_layouts=8, localized_hub_catalogs=7, hub_semantic_keys=69, localized_hub_layouts=8, typed_hub_cards=true, opaque_operator_data=true, minimum_hub_layout=true, live_account_language_reprojection=true");
+                        "Hub topology valid: client_root=true, local_daemon=true, remote_daemons=2, live_topologies=3, authority_proofs=3, queue_health=true, runtime_children=6, runtime_actions=6, topology_filter=true, authority_filter=true, cross_authority_runtime_filter=true, empty_filter_state=true, filter_focus_recovery=true, refresh_all_control=true, refresh_all_single_flight=true, card_refresh_join=true, shared_refresh_policy=true, refresh_busy_state=true, refresh_completion_status=true, tutorial_entry=true, language_entry=true, daemon_route=true, authoritative_workspace_gate=true, shared_workspace_launch=true, retained_topology_state=true, revision_regression_fence=true, bounded_auto_refresh=true, bounded_preview=true, independent_actions=true, legacy_remote_button=false, automation=true, open_source_core=true, core_license=MIT, core_price=free, current_core_paywall=false, account_core_gate=false, daemon_credentials_independent=true, subscription_scope=future_hosted_services_only, subscription_requires_account=true, subscription_requires_entitlement=true, login_only_elevation=false, localized_account_catalogs=7, localized_account_layouts=8, localized_hub_catalogs=7, hub_semantic_keys=69, localized_hub_layouts=8, typed_hub_cards=true, opaque_operator_data=true, minimum_hub_layout=true, live_account_language_reprojection=true");
                     window.Close();
                 }
                 catch (Exception error)

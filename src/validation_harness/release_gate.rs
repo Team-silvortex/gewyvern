@@ -20,8 +20,7 @@ use super::{
     read_bounded_unique_key_value_file, run_container_runtime_validation,
     run_container_validation_summary, run_debugger_cross_validation,
     run_leserpent_parity_recovery_validation, run_leserpent_schema_freeze_validation,
-    run_package_install_smoke, run_pathological_container_validation,
-    run_remote_linux_host_validation, run_three_module_stack_smoke,
+    run_package_install_smoke, run_remote_linux_host_validation,
     validate_leserpent_control_plane_aot_evidence,
     validate_leserpent_language_pack_local_orchestra_aot_evidence, validation_command_stdout,
     validation_log,
@@ -233,7 +232,7 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
     if options.run_stack {
         validation_log("[release-gate] ----------------------------------------");
         validation_log("[release-gate] running three-module stack smoke");
-        run_three_module_stack_smoke()?;
+        run_repo_script("scripts/validation/three_module_stack_smoke.sh", &[])?;
         checks.push("three_module_stack_smoke".to_string());
     } else {
         validation_log("[release-gate] skipping three-module stack smoke");
@@ -251,7 +250,10 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
     if options.run_pathology {
         validation_log("[release-gate] ----------------------------------------");
         validation_log("[release-gate] running pathological container validation");
-        run_pathological_container_validation(None)?;
+        run_repo_script(
+            "scripts/validation/pathological_container_validation.sh",
+            &[],
+        )?;
         checks.push("pathological_container_validation".to_string());
     } else {
         validation_log("[release-gate] skipping pathological container validation");
@@ -403,6 +405,7 @@ fn print_remote_release_gate_summary(out_dir: &Path) -> Result<(), ValidationErr
         "release-gate remote run evidence",
         &[
             "host",
+            "target_kind",
             "remote_dir",
             "build_packages",
             "keep_remote_dir",
@@ -452,7 +455,30 @@ fn print_remote_release_gate_summary(out_dir: &Path) -> Result<(), ValidationErr
         64 * 1024,
     )?;
 
-    require_evidence_keys(&run, &["remote_dir"], "release-gate remote run evidence")?;
+    require_evidence_keys(
+        &run,
+        &["target_kind", "remote_dir"],
+        "release-gate remote run evidence",
+    )?;
+    let target_kind = run
+        .get("target_kind")
+        .ok_or_else(|| ValidationError::new("release-gate remote run is missing target_kind"))?;
+    if target_kind != RemoteLinuxTargetKind::Physical.as_str() {
+        return Err(ValidationError::new(format!(
+            "remote target kind mismatch: release gate requires physical evidence, got {target_kind}"
+        )));
+    }
+    let history_target_kind = history_summary
+        .get("target_kind")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| {
+            ValidationError::new("release-gate remote history is missing target_kind")
+        })?;
+    if history_target_kind != target_kind {
+        return Err(ValidationError::new(
+            "remote run and history target kinds disagree",
+        ));
+    }
     require_evidence_keys(
         &ebpf,
         &["status", "reason", "default_route_device"],
@@ -486,6 +512,7 @@ fn print_remote_release_gate_summary(out_dir: &Path) -> Result<(), ValidationErr
     if let Some(remote_dir) = run.get("remote_dir") {
         validation_log(format!("[release-gate] remote dir: {remote_dir}"));
     }
+    validation_log(format!("[release-gate] remote target kind: {target_kind}"));
     if let Some(status) = ebpf.get("status") {
         let reason = ebpf.get("reason").map(String::as_str).unwrap_or("unknown");
         validation_log(format!(
@@ -943,6 +970,23 @@ fn write_release_artifact_index(out_dir: &Path, checks: &[String]) -> Result<(),
         ),
     ];
 
+    let missing_completed_artifacts = entries
+        .iter()
+        .filter(|entry| entry["stage_ran"] == true && entry["status"] != "present")
+        .map(|entry| {
+            format!(
+                "{} ({})",
+                entry["key"].as_str().unwrap_or("unknown"),
+                entry["path"].as_str().unwrap_or("unknown")
+            )
+        })
+        .collect::<Vec<_>>();
+    let artifact_state = if missing_completed_artifacts.is_empty() {
+        "ok"
+    } else {
+        "incomplete"
+    };
+
     let payload = json!({
         "schema_version": 2,
         "kind": "release_artifact_index",
@@ -972,7 +1016,7 @@ fn write_release_artifact_index(out_dir: &Path, checks: &[String]) -> Result<(),
         .collect::<Vec<_>>()
         .join("\n");
     let summary_contents = format!(
-        "release gate artifacts: ok\npublication_id={publication_id}\nroot={}\nindex={}\nsummary={}\n\n{}\n",
+        "release gate artifacts: {artifact_state}\npublication_id={publication_id}\nroot={}\nindex={}\nsummary={}\n\n{}\n",
         out_dir.display(),
         artifact_index_path.display(),
         artifact_summary_path.display(),
@@ -984,6 +1028,13 @@ fn write_release_artifact_index(out_dir: &Path, checks: &[String]) -> Result<(),
     atomic_write_release_artifact(&artifact_summary_path, summary_contents.as_bytes())?;
     atomic_write_release_artifact(&artifact_index_path, index_contents.as_bytes())?;
     validate_release_artifact_publication(&artifact_index_path, &artifact_summary_path)?;
+
+    if !missing_completed_artifacts.is_empty() {
+        return Err(ValidationError::new(format!(
+            "release evidence missing after completed stage: {}",
+            missing_completed_artifacts.join(", ")
+        )));
+    }
 
     Ok(())
 }
@@ -1114,6 +1165,7 @@ fn release_artifact_entry(
         "path": path.display().to_string(),
         "status": status,
         "expectation": expectation,
+        "stage_ran": stage_ran,
         "producer": producer,
         "note": note,
     })
@@ -1401,6 +1453,26 @@ mod tests {
     }
 
     #[test]
+    fn artifact_index_rejects_missing_evidence_for_a_completed_stage() {
+        let out_dir = std::env::temp_dir().join(format!(
+            "gewyvern-missing-release-artifact-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&out_dir);
+
+        let error =
+            write_release_artifact_index(&out_dir, &["three_module_stack_smoke".to_string()])
+                .expect_err("a completed stage without its evidence must fail closed");
+
+        assert!(
+            error
+                .to_string()
+                .contains("three_module_resilience_summary")
+        );
+        std::fs::remove_dir_all(out_dir).unwrap();
+    }
+
+    #[test]
     fn artifact_publication_rejects_a_torn_index_summary_pair() {
         let out_dir = std::env::temp_dir().join(format!(
             "gewyvern-torn-release-artifact-{}",
@@ -1484,7 +1556,7 @@ mod tests {
         std::fs::create_dir_all(&out_dir).unwrap();
         std::fs::write(
             out_dir.join("remote-run.txt"),
-            "host=linux\nremote_dir=/tmp/gewyvern\nbuild_packages=true\nkeep_remote_dir=false\nchecks=ok\n",
+            "host=linux\ntarget_kind=physical\nremote_dir=/tmp/gewyvern\nbuild_packages=true\nkeep_remote_dir=false\nchecks=ok\n",
         )
         .unwrap();
         std::fs::write(
@@ -1496,11 +1568,22 @@ mod tests {
         std::fs::write(out_dir.join("remote-ebpf-recent.txt"), "recent evidence\n").unwrap();
         std::fs::write(
             out_dir.join("remote-ebpf-status-summary.json"),
-            r#"{"entries":1,"status_counts":{"ok":1},"integrity":{"status":"clean"},"matrix":{"ready":true}}"#,
+            r#"{"target_kind":"physical","entries":1,"status_counts":{"ok":1},"integrity":{"status":"clean"},"matrix":{"ready":true}}"#,
         )
         .unwrap();
 
         assert!(print_remote_release_gate_summary(&out_dir).is_ok());
+        std::fs::write(
+            out_dir.join("remote-run.txt"),
+            "host=linux\ntarget_kind=vm\nremote_dir=/tmp/gewyvern\nbuild_packages=true\nkeep_remote_dir=false\nchecks=ok\n",
+        )
+        .unwrap();
+        assert!(print_remote_release_gate_summary(&out_dir).is_err());
+        std::fs::write(
+            out_dir.join("remote-run.txt"),
+            "host=linux\ntarget_kind=physical\nremote_dir=/tmp/gewyvern\nbuild_packages=true\nkeep_remote_dir=false\nchecks=ok\n",
+        )
+        .unwrap();
         std::fs::write(
             out_dir.join("remote-ebpf.txt"),
             "status=ok\nstatus=skipped\nreason=ambiguous\ndefault_route_device=eth0\n",

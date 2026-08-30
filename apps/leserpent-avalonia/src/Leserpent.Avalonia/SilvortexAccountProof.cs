@@ -11,8 +11,9 @@ internal sealed record SilvortexAccountProofResult(
 
 internal static class SilvortexAccountProof
 {
-    public const string ContractVersion = "1.99.0";
+    public const string ContractVersion = "1.111.0";
     private const string ProofId = "leserpent-silvortex-native-desktop-account";
+    private const int SchemaVersion = 2;
     private const int MaxEvidenceBytes = 16 * 1024;
 
     public static async Task<SilvortexAccountProofResult> RunAsync(string outputPath)
@@ -79,6 +80,7 @@ internal static class SilvortexAccountProof
                 RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant(),
                 ConfigurationSource(configuration.Source),
                 HashCurrentBinary(),
+                configuration.BindingSha256!,
                 timer.ElapsedMilliseconds,
                 SystemBrowserLaunched: true,
                 LoopbackCallbackAccepted: true,
@@ -123,24 +125,34 @@ internal static class SilvortexAccountProof
             "https://id.example.invalid/",
             SilvortexAccountOptions.ReviewedClientId,
             SilvortexAccountOptions.DefaultCallbackPort);
+        var configurationDigest = new string('b', 64);
         EnsureReviewedConfiguration(options);
         EnsureReleaseConfiguration(
             new SilvortexAccountConfiguration(
                 options,
                 "fixture",
-                SilvortexAccountConfigurationSource.PackagedBundle),
+                SilvortexAccountConfigurationSource.PackagedBundle,
+                BindingSha256: configurationDigest),
             requirePackagedBundle: true);
         EnsureReleaseConfiguration(
             new SilvortexAccountConfiguration(
                 options,
                 "fixture",
-                SilvortexAccountConfigurationSource.Environment),
+                SilvortexAccountConfigurationSource.Environment,
+                BindingSha256: configurationDigest),
             requirePackagedBundle: false);
         ExpectRejected(() => EnsureReleaseConfiguration(
             new SilvortexAccountConfiguration(
                 options,
                 "fixture",
-                SilvortexAccountConfigurationSource.Environment),
+                SilvortexAccountConfigurationSource.Environment,
+                BindingSha256: configurationDigest),
+            requirePackagedBundle: true));
+        ExpectRejected(() => EnsureReleaseConfiguration(
+            new SilvortexAccountConfiguration(
+                options,
+                "fixture",
+                SilvortexAccountConfigurationSource.PackagedBundle),
             requirePackagedBundle: true));
         ExpectRejected(() => EnsureReviewedConfiguration(options with
         {
@@ -161,6 +173,7 @@ internal static class SilvortexAccountProof
                 "arm64",
                 "packaged-info-plist",
                 new string('a', 64),
+                configurationDigest,
                 DurationMilliseconds: 1,
                 SystemBrowserLaunched: true,
                 LoopbackCallbackAccepted: true,
@@ -175,10 +188,12 @@ internal static class SilvortexAccountProof
             WriteEvidence(evidencePath, facts, DateTimeOffset.UnixEpoch);
             using var evidence = JsonDocument.Parse(File.ReadAllBytes(evidencePath));
             var document = evidence.RootElement;
-            if (document.GetProperty("schema_version").GetInt32() != 1
+            if (document.GetProperty("schema_version").GetInt32() != SchemaVersion
                 || document.GetProperty("proof").GetString() != ProofId
                 || document.GetProperty("source").GetProperty("avalonia_contract").GetString()
                     != ContractVersion
+                || document.GetProperty("source").GetProperty("configuration_sha256").GetString()
+                    != configurationDigest
                 || document.GetProperty("target").GetProperty("configuration_source").GetString()
                     != "packaged-info-plist"
                 || document.GetProperty("observations")
@@ -189,6 +204,9 @@ internal static class SilvortexAccountProof
                     != JsonValueKind.False
                 || document.GetProperty("boundaries")
                     .GetProperty("environment_override_accepted").ValueKind
+                    != JsonValueKind.False
+                || document.GetProperty("boundaries")
+                    .GetProperty("configuration_value_written").ValueKind
                     != JsonValueKind.False
                 || document.GetProperty("result").GetString() != "passed")
             {
@@ -279,6 +297,11 @@ internal static class SilvortexAccountProof
             throw new InvalidDataException(requirePackagedBundle
                 ? "macOS desktop account proof requires the reviewed issuer embedded in the application bundle."
                 : "Linux desktop account proof requires an explicit HTTPS issuer environment configuration.");
+        }
+        if (!IsLowerSha256(configuration.BindingSha256))
+        {
+            throw new InvalidDataException(
+                "Desktop account proof requires a canonical configuration binding.");
         }
     }
 
@@ -410,12 +433,13 @@ internal static class SilvortexAccountProof
                 }))
                 {
                     writer.WriteStartObject();
-                    writer.WriteNumber("schema_version", 1);
+                    writer.WriteNumber("schema_version", SchemaVersion);
                     writer.WriteString("proof", ProofId);
                     writer.WriteString("recorded_at", recordedAt.ToUniversalTime());
                     writer.WriteStartObject("source");
                     writer.WriteString("avalonia_contract", ContractVersion);
                     writer.WriteString("binary_sha256", facts.BinarySha256);
+                    writer.WriteString("configuration_sha256", facts.ConfigurationSha256);
                     writer.WriteEndObject();
                     writer.WriteStartObject("registration");
                     writer.WriteString("application_key", SilvortexAccountOptions.ReviewedApplicationKey);
@@ -459,6 +483,7 @@ internal static class SilvortexAccountProof
                     writer.WriteEndObject();
                     writer.WriteStartObject("boundaries");
                     writer.WriteBoolean("provider_origin_written", false);
+                    writer.WriteBoolean("configuration_value_written", false);
                     writer.WriteBoolean("account_identity_written", false);
                     writer.WriteBoolean("credential_value_written", false);
                     writer.WriteBoolean("credential_digest_written", false);
@@ -495,7 +520,8 @@ internal static class SilvortexAccountProof
             || (facts.OperatingSystem == "linux"
                 && facts.ConfigurationSource != "environment")
             || facts.BinarySha256.Length != 64
-            || !facts.BinarySha256.All(character => char.IsAsciiHexDigit(character))
+            || !IsLowerSha256(facts.BinarySha256)
+            || !IsLowerSha256(facts.ConfigurationSha256)
             || facts.DurationMilliseconds <= 0
             || !facts.SystemBrowserLaunched
             || !facts.LoopbackCallbackAccepted
@@ -511,6 +537,11 @@ internal static class SilvortexAccountProof
                 "Team Silvortex desktop proof facts are incomplete.");
         }
     }
+
+    private static bool IsLowerSha256(string? value) =>
+        value?.Length == 64
+        && value.All(character => char.IsAsciiDigit(character)
+            || character is >= 'a' and <= 'f');
 
     private static void ExpectRejected(Action action)
     {
@@ -531,6 +562,7 @@ internal static class SilvortexAccountProof
         string Architecture,
         string ConfigurationSource,
         string BinarySha256,
+        string ConfigurationSha256,
         long DurationMilliseconds,
         bool SystemBrowserLaunched,
         bool LoopbackCallbackAccepted,

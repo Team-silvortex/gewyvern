@@ -231,6 +231,7 @@ fn container_entrypoints_default_to_a_bounded_remote_linux_workspace() {
     for entrypoint in [
         "scripts/packaging/build_packages_in_container.sh",
         "scripts/packaging/release_container_check.sh",
+        "scripts/validation/three_module_stack_smoke.sh",
         "scripts/validation/juice_shop_container_validation.sh",
         "scripts/validation/ftp_denied_container_validation.sh",
         "scripts/validation/ldap_bind_denied_container_validation.sh",

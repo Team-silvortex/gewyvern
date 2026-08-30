@@ -379,6 +379,15 @@ files; the summary lands first and JSON is the machine commit point. Consumers
 must reject a missing, duplicated, malformed, or mismatched publication ID
 instead of combining files from concurrent or interrupted release-gate runs.
 
+Each indexed artifact also records `stage_ran` as `true`, `false`, or `null`.
+`true` means the current gate completed that producer stage and therefore must
+publish a `present` artifact; `false` is reported as `not_run` even if stale
+files exist; `null` denotes an independently collected optional shelf. A
+completed stage with an `absent` artifact publishes an `incomplete` index for
+diagnostics and then fails the release gate. In particular, the three-module
+stack writes its compact summary to
+`target/validation/resilience-summary.txt`, never to an ephemeral work tree.
+
 ### Summary Contract Semantics
 
 - `primary_failure_*`

@@ -1,6 +1,7 @@
 {
   "name": "leserpent-frontend",
   "private": true,
+  "license": "MIT",
   "description": "TypeScript build pipeline for leserpent wwwroot assets",
   "scripts": {
     "build:frontend": "npm run build:language-packs && tsc -p tsconfig.json",

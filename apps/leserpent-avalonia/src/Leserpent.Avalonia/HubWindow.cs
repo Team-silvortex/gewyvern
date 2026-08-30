@@ -10,6 +10,23 @@ using Avalonia.Threading;
 internal sealed class HubWindow : Window
 {
     private const int MaxVisibleRuntimesPerDaemon = 6;
+    private static readonly IReadOnlyList<ProductCapability> HubOpenSourceCoreCapabilities =
+    [
+        ProductCapability.FleetTopology,
+        ProductCapability.LocalOrchestra,
+        ProductCapability.DaemonConnection,
+        ProductCapability.ReverseDeployment,
+        ProductCapability.DaemonRetirement,
+        ProductCapability.GewyvernProvisioning,
+        ProductCapability.GewyvernRetirement,
+        ProductCapability.RuntimeWorkspace,
+        ProductCapability.RuntimeMutation,
+        ProductCapability.RuntimeDebugger,
+        ProductCapability.LeselangAutomation,
+        ProductCapability.DiagnosticExport,
+        ProductCapability.LanguageManagement,
+        ProductCapability.LearningCenter,
+    ];
     private readonly List<Control> auditedControls = [];
     private readonly List<DaemonTopologyCard> topologyCards = [];
     private readonly RemoteTopologyRefreshCoordinator topologyRefresh = new();
@@ -110,8 +127,9 @@ internal sealed class HubWindow : Window
         SilvortexAccountSession accountSession)
     {
         this.localization = localization;
+        ProductAccessPolicy.RequireCompleteOpenSourceCore(HubOpenSourceCoreCapabilities);
         daemonCardCount = connections.Count + (localSupported ? 1 : 0);
-        expectedAuditedControlCount = 14 + connections.Count * 3 + (localSupported ? 2 : 0);
+        expectedAuditedControlCount = 15 + connections.Count * 3 + (localSupported ? 2 : 0);
         topologyFilterBox.PlaceholderText = localization.Text(DesktopTextKey.FindDaemonOrRuntime);
         clearTopologyFilterButton.Content = localization.Text(DesktopTextKey.Clear);
         refreshAllTopologyButton.Content = localization.Text(DesktopTextKey.RefreshAll);
@@ -724,6 +742,24 @@ internal sealed class HubWindow : Window
             || ids.Contains("hub-open-remote"))
         {
             throw new InvalidDataException("Hub topology control contract drifted");
+        }
+    }
+
+    public void VerifyOpenSourceCoreAccess()
+    {
+        ProductAccessPolicy.RequireCompleteOpenSourceCore(HubOpenSourceCoreCapabilities);
+        if (HubOpenSourceCoreCapabilities.Any(capability =>
+        {
+            var decision = ProductAccessPolicy.Evaluate(
+                capability,
+                accountAuthenticated: false);
+            return !decision.Allowed
+                || decision.RequiresPayment
+                || decision.LicenseSpdx != ProductAccessPolicy.OpenSourceLicenseSpdx;
+        }))
+        {
+            throw new InvalidDataException(
+                "The Leserpent Hub gated or monetized an open-source core capability.");
         }
     }
 

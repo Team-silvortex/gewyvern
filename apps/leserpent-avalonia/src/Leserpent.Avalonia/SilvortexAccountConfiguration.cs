@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Xml;
 using System.Xml.Linq;
@@ -14,7 +15,8 @@ internal sealed record SilvortexAccountConfiguration(
     string Message,
     SilvortexAccountConfigurationSource Source,
     SilvortexAccountStatus Status = SilvortexAccountStatus.Raw,
-    string? StatusDetail = null);
+    string? StatusDetail = null,
+    string? BindingSha256 = null);
 
 internal static class SilvortexAccountConfigurationLoader
 {
@@ -42,13 +44,14 @@ internal static class SilvortexAccountConfigurationLoader
                 environmentIssuer,
                 environmentClientId,
                 environmentPort,
-                environmentAllowInsecure);
+                environmentAllowInsecure,
+                packagedBindingSha256: null);
         }
 
-        string? packagedIssuer;
+        PackagedAccountConfiguration packagedConfiguration;
         try
         {
-            packagedIssuer = ReadPackagedIssuer(plistPath);
+            packagedConfiguration = ReadPackagedConfiguration(plistPath);
         }
         catch (Exception error) when (error is IOException
             or UnauthorizedAccessException
@@ -64,11 +67,12 @@ internal static class SilvortexAccountConfigurationLoader
         }
         return Resolve(
             packagedBundle: true,
-            packagedIssuer,
+            packagedConfiguration.Issuer,
             environmentIssuer,
             environmentClientId,
             environmentPort,
-            environmentAllowInsecure);
+            environmentAllowInsecure,
+            packagedConfiguration.Sha256);
     }
 
     public static void VerifyContract()
@@ -88,16 +92,19 @@ internal static class SilvortexAccountConfigurationLoader
             throw new InvalidDataException(
                 "Packaged Team Silvortex issuer projection drifted.");
         }
+        var packagedBinding = Sha256Hex(Encoding.UTF8.GetBytes(plist));
         var packaged = Resolve(
             packagedBundle: true,
             packagedIssuer: issuer,
             environmentIssuer: null,
             environmentClientId: null,
             environmentPort: null,
-            environmentAllowInsecure: null);
+            environmentAllowInsecure: null,
+            packagedBindingSha256: packagedBinding);
         if (packaged.Source != SilvortexAccountConfigurationSource.PackagedBundle
             || packaged.Options?.ClientId != SilvortexAccountOptions.ReviewedClientId
-            || packaged.Options.CallbackPort != SilvortexAccountOptions.DefaultCallbackPort)
+            || packaged.Options.CallbackPort != SilvortexAccountOptions.DefaultCallbackPort
+            || packaged.BindingSha256 != packagedBinding)
         {
             throw new InvalidDataException(
                 "Packaged Team Silvortex reviewed-client configuration drifted.");
@@ -108,7 +115,8 @@ internal static class SilvortexAccountConfigurationLoader
             environmentIssuer: "https://attacker.example.invalid/",
             environmentClientId: null,
             environmentPort: null,
-            environmentAllowInsecure: null);
+            environmentAllowInsecure: null,
+            packagedBindingSha256: packagedBinding);
         if (overridden.Options is not null
             || overridden.Source != SilvortexAccountConfigurationSource.PackagedBundle)
         {
@@ -121,9 +129,12 @@ internal static class SilvortexAccountConfigurationLoader
             environmentIssuer: issuer,
             environmentClientId: null,
             environmentPort: null,
-            environmentAllowInsecure: null);
+            environmentAllowInsecure: null,
+            packagedBindingSha256: null);
         if (development.Source != SilvortexAccountConfigurationSource.Environment
-            || development.Options?.Issuer.AbsoluteUri != issuer)
+            || development.Options?.Issuer.AbsoluteUri != issuer
+            || development.BindingSha256?.Length != 64
+            || development.BindingSha256 == packagedBinding)
         {
             throw new InvalidDataException(
                 "Team Silvortex development environment configuration drifted.");
@@ -174,7 +185,8 @@ internal static class SilvortexAccountConfigurationLoader
         string? environmentIssuer,
         string? environmentClientId,
         string? environmentPort,
-        string? environmentAllowInsecure)
+        string? environmentAllowInsecure,
+        string? packagedBindingSha256)
     {
         environmentIssuer = environmentIssuer?.Trim();
         environmentClientId = environmentClientId?.Trim();
@@ -210,7 +222,8 @@ internal static class SilvortexAccountConfigurationLoader
                         SilvortexAccountOptions.DefaultCallbackPort),
                     "Team Silvortex sign-in is ready from the application bundle.",
                     SilvortexAccountConfigurationSource.PackagedBundle,
-                    SilvortexAccountStatus.BundleReady);
+                    SilvortexAccountStatus.BundleReady,
+                    BindingSha256: RequireBindingSha256(packagedBindingSha256));
             }
             catch (InvalidDataException error)
             {
@@ -249,15 +262,17 @@ internal static class SilvortexAccountConfigurationLoader
             : int.TryParse(environmentPort, out var parsed) ? parsed : -1;
         try
         {
+            var options = SilvortexAccountOptions.Create(
+                environmentIssuer!,
+                clientId,
+                port,
+                allowInsecure);
             return new SilvortexAccountConfiguration(
-                SilvortexAccountOptions.Create(
-                    environmentIssuer!,
-                    clientId,
-                    port,
-                    allowInsecure),
+                options,
                 "Team Silvortex sign-in is ready from development configuration.",
                 SilvortexAccountConfigurationSource.Environment,
-                SilvortexAccountStatus.DevelopmentReady);
+                SilvortexAccountStatus.DevelopmentReady,
+                BindingSha256: EnvironmentBindingSha256(options));
         }
         catch (InvalidDataException error)
         {
@@ -292,7 +307,7 @@ internal static class SilvortexAccountConfigurationLoader
         return Path.Combine(contents.FullName, "Info.plist");
     }
 
-    private static string? ReadPackagedIssuer(string path)
+    private static PackagedAccountConfiguration ReadPackagedConfiguration(string path)
     {
         var info = new FileInfo(path);
         if (!info.Exists
@@ -321,7 +336,9 @@ internal static class SilvortexAccountConfigurationLoader
             throw new InvalidDataException(
                 "Packaged Team Silvortex Info.plist changed while it was read.");
         }
-        return ParsePackagedIssuer(payload);
+        return new PackagedAccountConfiguration(
+            ParsePackagedIssuer(payload),
+            Sha256Hex(payload));
     }
 
     private static string? ParsePackagedIssuer(ReadOnlySpan<byte> payload)
@@ -441,5 +458,29 @@ internal static class SilvortexAccountConfigurationLoader
             "Packaged Team Silvortex parser accepted an unsafe plist.");
     }
 
+    private static string EnvironmentBindingSha256(SilvortexAccountOptions options)
+    {
+        var projection = $"leserpent-silvortex-environment/v1\n"
+            + $"issuer={options.Issuer.AbsoluteUri}\n"
+            + $"client_id={options.ClientId}\n"
+            + $"callback_port={options.CallbackPort}\n";
+        return Sha256Hex(Encoding.UTF8.GetBytes(projection));
+    }
+
+    private static string RequireBindingSha256(string? value)
+    {
+        if (value?.Length != 64 || value.Any(character => !char.IsAsciiHexDigit(character)))
+        {
+            throw new InvalidDataException(
+                "Packaged Team Silvortex configuration binding is unavailable.");
+        }
+        return value.ToLowerInvariant();
+    }
+
+    private static string Sha256Hex(ReadOnlySpan<byte> payload) =>
+        Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
+
     private static bool HasValue(string? value) => !string.IsNullOrEmpty(value);
+
+    private sealed record PackagedAccountConfiguration(string? Issuer, string Sha256);
 }

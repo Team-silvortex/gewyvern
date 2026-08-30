@@ -266,9 +266,9 @@ controls, plus the runtime child workspace, Orchestra plan/control/history
 workspace, debugger live execution, the existing-runtime registration editor,
 Hub dynamic cards, and Learning Center,
 are complete specialist domains.
-Their exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 36-key, 56-key,
+Their exact 33-key, 46-key, 43-key, 45-key, 37-key, 9-key, 37-key, 56-key,
 57-key, 78-key, 72-key, 33-key, 49-key, 69-key, and 61-key catalogs bring the
-non-English built-in semantic set to 750 keys. One shared strict validator
+non-English built-in semantic set to 751 keys. One shared strict validator
 rejects missing/extra keys, malformed placeholders, controls, or oversized
 values. Native controls have eight-locale layout probes, and live language
 changes reproject labels, controlled phases, status, accessibility, and flow
@@ -317,8 +317,9 @@ locally is structurally validated but is not represented as catalog-authenticate
 Closing the language window cancels an active download, and a single-operation
 fence prevents import/download/remove races.
 The six candidate built-in translations and both 12-key downloadable expansions
-remain pending native-speaker review, while the 22 packs stay intentionally
-partial beyond their exact 42-key official set. Run
+remain pending native-speaker review on a transparent post-2.0 quality track,
+while the 22 packs stay intentionally partial beyond their exact 42-key
+official set. This does not block the complete typed localization machinery. Run
 `--verify-desktop-localization` for the
 catalog/persistence contract and `--verify-desktop-language-controls` for the
 real 31-choice and import/download/remove control tree, all eight built-in selector
@@ -385,20 +386,34 @@ state, nonce, an exclusive loopback callback, strict same-origin discovery,
 RS256/JWKS verification, MFA assurance, and UserInfo subject binding. Only the
 rotating refresh token is persisted, under
 `org.gewyvern.leserpent.silvortex` in macOS Keychain or Linux Secret Service;
-access and ID tokens remain process-local. Team Silvortex account identity does
-not replace endpoint-bound `leserpentd` credentials. The native account card
+access and ID tokens remain process-local. Every current local, self-hosted, and
+remote core workflow is MIT-licensed, open source, free, and available without a
+Team Silvortex account. Existing core capabilities cannot be moved behind an
+account or subscription. Sign-in is reserved for newly introduced future hosted
+services; sign-in alone grants no service access without an explicit
+subscription entitlement.
+Team Silvortex account identity does not replace endpoint-bound `leserpentd`
+credentials. The native account card
 maps typed session status into the same strict eight-language catalog used by
 its visible actions and accessibility metadata; raw bounded failure detail is
 only a format argument and never drives authentication state. Verify the
 offline protocol and cryptographic contract with `--verify-silvortex-account`,
 and its eight-locale Hub layout with `--verify-hub-topology`.
 
+Verify the MIT, zero-price, account-independent core and future hosted-service
+subscription boundary without a network or account session:
+
+```bash
+Leserpent --verify-product-access-policy
+```
+
 The registered provider path has a retained disposable-database proof at
 `../../docs/fixtures/leserpent_silvortex_oidc_provider_shadow_linux_x86_64_20260810.json`.
 It covers the reviewed client through login, refresh rotation/replay containment,
-and consent revocation. It does not replace the remaining release-facing proof
+and consent revocation. It does not replace the deferred hosted-service proof
 of a real system-browser login, platform credential-vault restore, and local
-desktop logout on each supported host.
+desktop logout on each supported host. That proof is required before the first
+future hosted subscription service, not for the account-independent 2.0 core.
 
 The packaged desktop now owns that release-facing proof runner. Validate its
 offline safety contract with:
@@ -414,7 +429,16 @@ in `Info.plist`; an environment-only flat binary is deliberately rejected:
 
 ```bash
 /Applications/Leserpent.app/Contents/MacOS/Leserpent.Avalonia \
-  --prove-silvortex-account /absolute/path/leserpent-account-proof.json
+  --prove-silvortex-account "${TMPDIR:?}/leserpent-account-proof.json"
+```
+
+Run the producer only from the final signed bundle, then validate the result
+against that exact bundle through the independent native release verifier:
+
+```bash
+cargo run --bin gewyvern_leserpent_release -- account-proof \
+  --app /Applications/Leserpent.app \
+  --evidence "${TMPDIR:?}/leserpent-account-proof.json"
 ```
 
 The runner refuses client/callback overrides, JIT builds, existing account
@@ -425,6 +449,12 @@ through the production path, verifies that the platform vault is empty, and
 writes one private atomic JSON result. Provider origin, account identity,
 credential values, and credential digests are never retained. A failed run
 cleans any credential it created and emits no passing evidence.
+The v2 evidence binds both the final executable SHA-256 and the SHA-256 of the
+exact `Info.plist` bytes used to resolve its account configuration. The Rust
+verifier strictly rejects unknown or duplicate JSON fields, non-canonical
+digests, unsafe privacy/authority flags, or any later executable/plist drift.
+Changing either bound file requires a new functional run; code-only verifier
+success does not replace the real production login proof.
 
 `Deploy daemon` opens the native reverse-deployment workspace. It selects one
 saved authenticated daemon as the deployment authority, accepts only a target,
@@ -1051,7 +1081,9 @@ unknown files, and non-arm64 payloads, and refuses to replace an existing
 bundle. `--silvortex-issuer` accepts only a canonical HTTPS origin ending in
 `/`, writes no credential, and may be omitted to keep the optional account
 feature disabled. The release preflight and NativeAOT client independently
-revalidate this public plist value. The official path omits `--version`, so
+revalidate this public plist value, while account-proof v2 hashes the same
+plist read that supplied the configuration. The official path omits
+`--version`, so
 both bundle version fields
 inherit the root Rust workspace release automatically; downstream packagers
 may still override that value explicitly. `leserpent-icon.icns` is generated

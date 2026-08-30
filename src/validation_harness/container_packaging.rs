@@ -25,6 +25,8 @@ const DEFAULT_DEB_RUNTIME_IMAGE: &str = "ubuntu:24.04";
 const DEFAULT_RPM_RUNTIME_IMAGE: &str = "fedora:41";
 const DEFAULT_DEB_SMOKE_IMAGE: &str = "ubuntu:24.04";
 const DEFAULT_RPM_SMOKE_IMAGE: &str = "fedora:41";
+const CONTAINER_DEB_PACKAGE_PATH: &str = "/tmp/gewyvern-package.deb";
+const CONTAINER_RPM_PACKAGE_PATH: &str = "/tmp/gewyvern-package.rpm";
 
 pub fn run_package_install_smoke(
     mode: ReleaseCheckMode,
@@ -371,11 +373,7 @@ fn run_deb_validation(
     body: &'static str,
 ) -> Result<PathBuf, ValidationError> {
     let deb_path = package_from_manifest(packages_dir, "deb", "deb")?;
-    let package_name = deb_path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| ValidationError::new("invalid deb package filename"))?;
-    let package_file = shell_single_quote(&format!("/packages/{package_name}"));
+    let package_file = shell_single_quote(CONTAINER_DEB_PACKAGE_PATH);
 
     let script = format!(
         "set -euo pipefail\n\
@@ -383,6 +381,8 @@ if [ -n \"${{GEWY_DEB_APT_MIRROR:-}}\" ]; then\n\
   sed -i \"s|http://archive.ubuntu.com/ubuntu|${{GEWY_DEB_APT_MIRROR}}|g; s|http://security.ubuntu.com/ubuntu|${{GEWY_DEB_APT_MIRROR}}|g\" /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true\n\
 fi\n\
 GEWY_PACKAGE_FILE={package_file}\n\
+test -f \"${{GEWY_PACKAGE_FILE}}\"\n\
+chmod a-w \"${{GEWY_PACKAGE_FILE}}\"\n\
 if ! dpkg -i \"${{GEWY_PACKAGE_FILE}}\" >/tmp/gewyvern-dpkg-install.log 2>&1; then\n\
   apt-get update >/dev/null\n\
   apt-get install -y \"${{GEWY_PACKAGE_FILE}}\" >/dev/null\n\
@@ -393,7 +393,8 @@ fi\n\
     run_docker_script(
         cfg.validation_name,
         "deb",
-        packages_dir,
+        &deb_path,
+        CONTAINER_DEB_PACKAGE_PATH,
         &cfg.deb_image,
         &script,
     )?;
@@ -410,13 +411,8 @@ fn run_rpm_validation(
     packages_dir: &Path,
     body: &'static str,
 ) -> Result<PathBuf, ValidationError> {
-    let rpm_dir = packages_dir.join("rpm");
     let rpm_path = package_from_manifest(packages_dir, "rpm", "rpm")?;
-    let package_name = rpm_path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| ValidationError::new("invalid rpm package filename"))?;
-    let package_file = shell_single_quote(&format!("/packages/{package_name}"));
+    let package_file = shell_single_quote(CONTAINER_RPM_PACKAGE_PATH);
 
     let install_line =
         format!("rpm -Uvh {package_file} >/dev/null || dnf install -y {package_file} >/dev/null");
@@ -427,6 +423,8 @@ if [ -n \"${{GEWY_RPM_DNF_MIRROR:-}}\" ]; then\n\
   sed -i \"s|^metalink=|#metalink=|g; s|^mirrorlist=|#mirrorlist=|g; s|^#baseurl=http://download.example/pub/fedora/linux|baseurl=${{GEWY_RPM_DNF_MIRROR}}|g; s|^#baseurl=https://download.example/pub/fedora/linux|baseurl=${{GEWY_RPM_DNF_MIRROR}}|g\" /etc/yum.repos.d/*.repo 2>/dev/null || true\n\
 fi\n\
 GEWY_PACKAGE_FILE={package_file}\n\
+test -f \"${{GEWY_PACKAGE_FILE}}\"\n\
+chmod a-w \"${{GEWY_PACKAGE_FILE}}\"\n\
 {install_line}\n\
 {body}\n"
     );
@@ -434,7 +432,8 @@ GEWY_PACKAGE_FILE={package_file}\n\
     run_docker_script(
         cfg.validation_name,
         "rpm",
-        &rpm_dir,
+        &rpm_path,
+        CONTAINER_RPM_PACKAGE_PATH,
         &cfg.rpm_image,
         &script,
     )?;
@@ -449,7 +448,8 @@ GEWY_PACKAGE_FILE={package_file}\n\
 fn run_docker_script(
     validation_name: &str,
     mode_label: &str,
-    mount_source: &Path,
+    package_source: &Path,
+    package_target: &str,
     image: &str,
     script: &str,
 ) -> Result<(), ValidationError> {
@@ -464,20 +464,16 @@ fn run_docker_script(
             .unwrap_or_default()
             .as_millis()
     );
-    let mount = format!("{}:/packages:ro", mount_source.display());
-
-    let args = [
-        "run",
-        "--name",
+    let mut cleanup = DockerContainerCleanup::new(container_name.clone());
+    docker_create_package_container(&container_name, image, script, validation_name)?;
+    docker_copy_package(
         &container_name,
-        "--rm",
-        "-v",
-        &mount,
-        image,
-        "bash",
-        "-lc",
-        script,
-    ];
+        package_source,
+        package_target,
+        validation_name,
+    )?;
+
+    let args = ["start", "-a", &container_name];
 
     let status = if has_command("timeout") {
         let mut cmd = Command::new("timeout");
@@ -493,11 +489,6 @@ fn run_docker_script(
             ))
         })?;
         if status.code() == Some(124) {
-            let _ = Command::new("docker")
-                .args(["rm", "-f", &container_name])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
             return Err(ValidationError::new(format!(
                 "container validation timed out after {timeout_seconds}s: {validation_name}"
             )));
@@ -522,7 +513,119 @@ fn run_docker_script(
         )));
     }
 
-    Ok(())
+    cleanup.remove()
+}
+
+fn docker_create_package_container(
+    container_name: &str,
+    image: &str,
+    script: &str,
+    validation_name: &str,
+) -> Result<(), ValidationError> {
+    let status = Command::new("docker")
+        .args([
+            "create",
+            "--name",
+            container_name,
+            image,
+            "bash",
+            "-lc",
+            script,
+        ])
+        .stdin(Stdio::null())
+        .stdout(validation_command_stdout())
+        .stderr(Stdio::inherit())
+        .status()
+        .map_err(|err| {
+            ValidationError::new(format!(
+                "failed to create container validation `{validation_name}`: {err}"
+            ))
+        })?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(ValidationError::new(format!(
+            "failed to create container validation `{validation_name}` with status {status}"
+        )))
+    }
+}
+
+fn docker_copy_package(
+    container_name: &str,
+    package_source: &Path,
+    package_target: &str,
+    validation_name: &str,
+) -> Result<(), ValidationError> {
+    let destination = format!("{container_name}:{package_target}");
+    let status = Command::new("docker")
+        .arg("cp")
+        .arg(package_source)
+        .arg(destination)
+        .stdin(Stdio::null())
+        .stdout(validation_command_stdout())
+        .stderr(Stdio::inherit())
+        .status()
+        .map_err(|err| {
+            ValidationError::new(format!(
+                "failed to copy package for container validation `{validation_name}`: {err}"
+            ))
+        })?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(ValidationError::new(format!(
+            "failed to copy package for container validation `{validation_name}` with status {status}"
+        )))
+    }
+}
+
+struct DockerContainerCleanup {
+    name: String,
+    active: bool,
+}
+
+impl DockerContainerCleanup {
+    fn new(name: String) -> Self {
+        Self { name, active: true }
+    }
+
+    fn remove(&mut self) -> Result<(), ValidationError> {
+        let output = Command::new("docker")
+            .args(["rm", "-f", &self.name])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .output()
+            .map_err(|err| {
+                ValidationError::new(format!(
+                    "failed to remove validation container `{}`: {err}",
+                    self.name
+                ))
+            })?;
+        if !output.status.success() {
+            return Err(ValidationError::new(format!(
+                "failed to remove validation container `{}` with status {}: {}",
+                self.name,
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            )));
+        }
+        self.active = false;
+        Ok(())
+    }
+}
+
+impl Drop for DockerContainerCleanup {
+    fn drop(&mut self) {
+        if self.active {
+            let _ = Command::new("docker")
+                .args(["rm", "-f", &self.name])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+    }
 }
 
 fn package_from_manifest(

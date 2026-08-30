@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "policy_id": "gewyvern-open-source-core",
+  "license_spdx": "MIT",
+  "official_price": "free",
+  "account_required": false,
+  "subscription_eligible": false,
+  "existing_capability_reclassification_allowed": false,
+  "components": [
+    { "id": "gewyvern-runtime", "source": "src" },
+    { "id": "gewylang-compiler", "source": "crates/gewyc" },
+    { "id": "protocol-standard-library", "source": "protocols" },
+    { "id": "leserpent-domain", "source": "crates/leserpent-domain" },
+    { "id": "leserpent-protocol", "source": "crates/leserpent-protocol" },
+    { "id": "leserpent-runtime", "source": "crates/leserpent-runtime" },
+    { "id": "leserpent-adapters", "source": "crates/leserpent-adapters" },
+    { "id": "leserpentd", "source": "crates/leserpentd" },
+    { "id": "leserpent-cli", "source": "crates/leserpent-cli" },
+    { "id": "leselang-syntax", "source": "crates/leselang-syntax" },
+    { "id": "leselang-hir", "source": "crates/leselang-hir" },
+    { "id": "leselang-vm", "source": "crates/leselang-vm" },
+    { "id": "leselang-command", "source": "crates/leselang-command" },
+    { "id": "leselang-observe", "source": "crates/leselang-observe" },
+    { "id": "leselang-ui", "source": "crates/leselang-ui" },
+    { "id": "leserpent-web-console", "source": "apps/leserpent" },
+    { "id": "leserpent-avalonia-client", "source": "apps/leserpent-avalonia" },
+    { "id": "leserpent-mobile-clients", "source": "apps/leserpent-mobile" }
+  ],
+  "operator_capabilities": [
+    "fleet-topology",
+    "local-orchestra",
+    "daemon-connection",
+    "reverse-deployment",
+    "daemon-retirement",
+    "gewyvern-provisioning",
+    "gewyvern-retirement",
+    "runtime-workspace",
+    "runtime-mutation",
+    "runtime-debugger",
+    "leselang-automation",
+    "diagnostic-export",
+    "language-management",
+    "learning-center"
+  ],
+  "subscription_boundary": {
+    "scope": "future-hosted-service-extensions-only",
+    "may_include_existing_core_capabilities": false,
+    "account_required": true,
+    "entitlement_required": true
+  }
+}

@@ -49,6 +49,7 @@ command/query contract 的可替换入口：
 3. 所有 execution 委托 gewyvern
 4. 必须依赖 runtime capability
 5. runtime 权威优先
+6. 当前核心能力全部采用 MIT 许可证、开源且免费；账号和订阅不得限制或回收既有能力
 
 ---
 

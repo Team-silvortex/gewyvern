@@ -16,6 +16,15 @@ DOCKER_RUSTUP_UPDATE_ROOT="${DOCKER_RUSTUP_UPDATE_ROOT:-https://static.rust-lang
 DOCKER_RUSTUP_INSTALL_TIMEOUT_SECONDS="${DOCKER_RUSTUP_INSTALL_TIMEOUT_SECONDS:-600}"
 CARGO_CACHE_DIR="${CARGO_CACHE_DIR:-${CARGO_HOME:-${HOME}/.cargo}}"
 CARGO_NET_OFFLINE="${CARGO_NET_OFFLINE:-false}"
+CONTAINER_UID="$(id -u)"
+CONTAINER_GID="$(id -g)"
+if [[ -z "${CARGO_TARGET_DIR:-}" ]]; then
+  CONTAINER_TARGET_CACHE="${ROOT}/target"
+elif [[ "${CARGO_TARGET_DIR}" == /* ]]; then
+  CONTAINER_TARGET_CACHE="${CARGO_TARGET_DIR}"
+else
+  CONTAINER_TARGET_CACHE="${ROOT}/${CARGO_TARGET_DIR}"
+fi
 
 usage() {
   cat <<'EOF'
@@ -47,7 +56,7 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-mkdir -p "${CARGO_CACHE_DIR}"
+mkdir -p "${CARGO_CACHE_DIR}" "${CONTAINER_TARGET_CACHE}"
 
 docker build \
   --build-arg "BASE_IMAGE=${DOCKER_BASE_IMAGE}" \
@@ -59,11 +68,15 @@ docker build \
   --build-arg "RUSTUP_INSTALL_TIMEOUT_SECONDS=${DOCKER_RUSTUP_INSTALL_TIMEOUT_SECONDS}" \
   -t "${IMAGE_TAG}" \
   -f "${ROOT}/docker/linux-dev/Dockerfile" \
-  "${ROOT}"
+  "${ROOT}/docker/linux-dev"
 docker run --rm \
+  --user "${CONTAINER_UID}:${CONTAINER_GID}" \
   -v "${ROOT}:/workspace" \
   -v "${CARGO_CACHE_DIR}:/cargo-cache" \
+  -v "${CONTAINER_TARGET_CACHE}:/cargo-target" \
+  -e HOME=/tmp \
   -e CARGO_HOME=/cargo-cache \
+  -e CARGO_TARGET_DIR=/cargo-target \
   -e "CARGO_NET_OFFLINE=${CARGO_NET_OFFLINE}" \
   -w /workspace \
   "${IMAGE_TAG}" \

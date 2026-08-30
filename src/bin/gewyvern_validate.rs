@@ -2725,7 +2725,7 @@ fn summarize_release_gate_posture(
         (
             "full",
             "ready",
-            "hold this release-gate run as the current 1.0 candidate reference and watch later regressions against it",
+            "hold this release-gate run as the current 2.0 candidate reference and watch later regressions against it",
         )
     } else if packaged_ready && stack_ready && debugger_ready && pathology_ready && remote_partial {
         (
@@ -2737,7 +2737,7 @@ fn summarize_release_gate_posture(
         (
             "local_only",
             "remote_missing",
-            "the local release gate passed, but remote Linux host evidence did not run; execute --remote-host-validation before treating this as a 1.0 candidate",
+            "the local release gate passed, but remote Linux host evidence did not run; execute --remote-host-validation before treating this as a 2.0 candidate",
         )
     } else if let Some(remote) = remote {
         if remote

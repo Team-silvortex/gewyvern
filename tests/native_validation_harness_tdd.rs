@@ -539,6 +539,8 @@ fn leserpent_schema_freeze_inventory_is_bounded_non_vacuous_and_candidate_only()
     assert!(scope_freeze.contains("renderer-neutral-gui-automation"));
     assert!(scope_freeze.contains("windows-native-parity"));
     assert!(scope_freeze.contains("full-mobile-device-parity"));
+    assert!(scope_freeze.contains("future-hosted-account-production-proof"));
+    assert!(scope_freeze.contains("long-tail-native-speaker-review"));
     assert!(!scope_freeze.contains("target_args"));
     assert!(patch_seal.contains("\"release_line\": \"1.20.x\""));
     assert!(patch_seal.contains("\"target_release\": \"2.0.0\""));
@@ -848,6 +850,14 @@ fn three_module_stack_smoke_uses_native_stack_probe_for_json_readiness() {
     let stack_cli = read_repo_file("src/validation_harness_cli_stack.rs");
     let suites = read_repo_file("src/validation_harness/stack_suites.rs");
     let script = read_repo_file("scripts/validation/three_module_stack_smoke.sh");
+    let release_gate = read_repo_file("src/validation_harness/release_gate.rs");
+    let malformed_injector = suites
+        .split_once("fn inject_socket_bad_json")
+        .expect("malformed socket injector")
+        .1
+        .split_once("fn ensure_docker_network")
+        .expect("malformed socket injector boundary")
+        .0;
 
     assert!(stack_probe.contains("resilience-healthy"));
     assert!(stack_probe.contains("leserpent-runtime-detail"));
@@ -860,6 +870,12 @@ fn three_module_stack_smoke_uses_native_stack_probe_for_json_readiness() {
     assert!(suites.contains("GW_API_ADMIN_TOKEN"));
     assert!(suites.contains("PATHO_API_ADMIN_TOKEN"));
     assert!(suites.contains("ETRAGON_SOURCE_ADMIN_TOKEN"));
+    assert!(malformed_injector.contains(".arg(\"--env\")"));
+    assert!(malformed_injector.contains(".arg(\"GEWY_MALFORMED_SOCKET_COUNT\")"));
+    assert!(malformed_injector.contains("test \"$sent\" -eq \"$GEWY_MALFORMED_SOCKET_COUNT\""));
+    assert!(suites.contains("stack-smoke-admin-token-0123456789"));
+    assert!(suites.contains("pathology-smoke-admin-token-0123456789"));
+    assert!(suites.contains("validate_admin_token"));
     assert!(suites.contains(".arg(\"GEWY_API_ADMIN_TOKEN\")"));
     assert!(!suites.contains("format!(\"GEWY_API_ADMIN_TOKEN={}"));
     assert!(!suites.contains("format!(\"ETRAGON_ADMIN_TOKEN={}"));
@@ -868,8 +884,25 @@ fn three_module_stack_smoke_uses_native_stack_probe_for_json_readiness() {
     assert!(suites.contains("127.0.0.1:{socket_port}:9000"));
     assert!(suites.contains("127.0.0.1:{api_port}:9100"));
     assert!(suites.contains("127.0.0.1:{}:4321"));
+    assert!(suites.contains("docker_host_user_spec"));
+    assert!(suites.contains("fn quiet_command_status("));
+    assert!(suites.contains(".stdout(Stdio::null())"));
+    assert!(suites.matches("quiet_command_status(").count() >= 7);
+    assert!(suites.contains(".arg(\"--user\")"));
+    assert!(suites.contains("{}:/workspace/dev/gewyvern:ro"));
+    assert!(suites.contains("{}:/stack-target:ro"));
+    assert!(suites.contains("cargo build --quiet --locked"));
+    assert!(suites.contains("cfg.repo_root.join(\"docker/linux-dev\")"));
+    assert!(suites.contains("repo.join(\"target/validation/resilience-summary.txt\")"));
+    assert!(!suites.contains(".arg(&cfg.repo_root),"));
+    assert!(script.contains("container_execution.sh"));
+    assert!(script.contains("gewy_container_maybe_run_remote"));
     assert!(script.contains("gewyvern_validate"));
     assert!(script.contains("three-module-stack-smoke"));
+    assert!(release_gate.contains("scripts/validation/three_module_stack_smoke.sh"));
+    assert!(release_gate.contains("scripts/validation/pathological_container_validation.sh"));
+    assert!(!release_gate.contains("run_three_module_stack_smoke()?"));
+    assert!(!release_gate.contains("run_pathological_container_validation(None)?"));
     assert!(!script.contains("wait_for_json_python"));
     assert!(!script.contains("assert_json_python"));
     assert!(!script.contains("python3 -c"));
@@ -995,6 +1028,13 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(packaging.contains("GEWY_RPM_SMOKE_IMAGE"));
     assert!(packaging.contains("timeout_seconds"));
     assert!(packaging.contains("docker"));
+    assert!(packaging.contains("docker_create_package_container"));
+    assert!(packaging.contains("docker_copy_package"));
+    assert!(packaging.contains("DockerContainerCleanup"));
+    assert!(packaging.contains("[\"start\", \"-a\", &container_name]"));
+    assert!(packaging.contains("test -f \\\"${{GEWY_PACKAGE_FILE}}\\\""));
+    assert!(packaging.contains("chmod a-w \\\"${{GEWY_PACKAGE_FILE}}\\\""));
+    assert!(!packaging.contains(":/packages:ro"));
     assert!(packaging.contains("run_package_install_smoke"));
     assert!(packaging.contains("fn run_packaged_validation("));
     assert!(packaging.contains("prepare_container_evidence"));
@@ -1008,6 +1048,10 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(packaging.contains("gewyvern_socket_send"));
     assert!(!build_packages.contains("--bin gewyvern_validate"));
     assert!(native_runner.contains("cargo build --quiet --bin \"${BIN_NAME}\""));
+    assert!(native_runner.contains("[[ -z \"${GEWYVERN_NATIVE_BIN_DIR:-}\" ]]"));
+    assert!(native_runner.contains("refresh the managed debug binary"));
+    assert!(native_runner.contains("[[ \"${1:-}\" == \"--\" ]]"));
+    assert!(native_runner.contains("shift"));
     assert!(build_packages.contains("-p gewyvern"));
     assert!(build_packages.contains("-p gewyc"));
     assert!(build_packages.contains("command -v ld.lld"));

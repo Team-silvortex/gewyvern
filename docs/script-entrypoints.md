@@ -762,6 +762,39 @@ cargo run --bin gewyvern_leserpent_release -- notarize \
   --keychain-profile leserpent-notary
 ```
 
+Before any account-enabled release proof, verify that all current product
+capabilities remain MIT-licensed, open source, free, and available without Team
+Silvortex login, and that only a future hosted-service marker may require an
+explicit entitlement:
+
+```bash
+artifacts/leserpent-avalonia/Leserpent.app/Contents/MacOS/Leserpent.Avalonia \
+  --verify-product-access-policy
+```
+
+This check must report `core_license=MIT`, `core_price=free`, and
+`current_core_paywall=false`. It is offline, does not replace endpoint-bound
+daemon credentials, and does not contact the account provider. After 2.0 and
+before the first future hosted subscription service, generate the production
+account proof from the final signed/notarized packaged executable, then verify
+the bounded result without trusting the managed producer:
+
+```bash
+artifacts/leserpent-avalonia/Leserpent.app/Contents/MacOS/Leserpent.Avalonia \
+  --prove-silvortex-account "${TMPDIR:?}/leserpent-account-proof.json"
+
+cargo run --bin gewyvern_leserpent_release -- account-proof \
+  --app artifacts/leserpent-avalonia/Leserpent.app \
+  --evidence "${TMPDIR:?}/leserpent-account-proof.json"
+```
+
+The v2 proof contains no issuer, identity, credential, credential digest, or
+daemon authority. It binds the executable and the exact `Info.plist` bytes
+used for account configuration. The strict Rust verifier rejects unknown or
+duplicate fields, unsafe boundary flags, and any binary or plist drift. If a
+bound file changes, rerun the real browser/vault workflow and verify the new
+evidence against the final bundle.
+
 `preflight` emits one JSON object by default, including when readiness is
 blocked. Add `--require-ready` when it is a mutation gate; blocked readiness
 then exits nonzero and includes the report in the bounded error. Its v2 schema
@@ -876,7 +909,7 @@ execution; an intentional compatibility change must update the fixture and its
 reviewed candidate baseline together.
 
 The frozen `project/release/leserpent-2-scope-freeze.json` separately fixes the
-10 core capability families, nine permitted closure-work categories, six
+10 core capability families, 10 permitted closure-work categories, 10
 explicit deferrals, both authority-document anchors, and their live status-cell
 references. Scope expansion, a missing deferral, an Etragon/1.x authority leak,
 or a stale status reference fails closed. This manifest contains no executable

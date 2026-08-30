@@ -3,12 +3,13 @@ using System.Globalization;
 internal static class DesktopAccountCatalogs
 {
     private const string Prefix = "desktop.account.";
-    public const int KeyCount = 36;
+    public const int KeyCount = 37;
 
     public static IReadOnlyDictionary<string, string> English { get; } = Catalog(
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["label"] = "TEAM SILVORTEX",
+            ["access.core"] = "Core tools are MIT-licensed, open source, and free. Accounts are only for future hosted subscription services and never replace daemon credentials.",
             ["identity.disabled"] = "Offline workspace",
             ["identity.signed_out"] = "No account session",
             ["identity.working"] = "Securing session...",
@@ -50,6 +51,7 @@ internal static class DesktopAccountCatalogs
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["label"] = "TEAM SILVORTEX",
+            ["access.core"] = "核心功能采用 MIT 许可证、开源且免费；账号仅用于未来的托管订阅服务，且不能替代 daemon 凭证。",
             ["identity.disabled"] = "离线工作区",
             ["identity.signed_out"] = "没有账号会话",
             ["identity.working"] = "正在保护会话...",
@@ -91,6 +93,7 @@ internal static class DesktopAccountCatalogs
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["label"] = "TEAM SILVORTEX",
+            ["access.core"] = "核心功能採用 MIT 授權、開源且免費；帳號僅用於未來的託管訂閱服務，且不能取代 daemon 憑證。",
             ["identity.disabled"] = "離線工作區",
             ["identity.signed_out"] = "沒有帳號工作階段",
             ["identity.working"] = "正在保護工作階段...",
@@ -132,6 +135,7 @@ internal static class DesktopAccountCatalogs
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["label"] = "TEAM SILVORTEX",
+            ["access.core"] = "コア機能は MIT ライセンスのオープンソースで無料です。アカウントは将来のホスト型サブスクリプションサービス専用で、daemon 認証情報の代わりにはなりません。",
             ["identity.disabled"] = "オフラインワークスペース",
             ["identity.signed_out"] = "アカウントセッションなし",
             ["identity.working"] = "セッションを保護しています...",
@@ -173,6 +177,7 @@ internal static class DesktopAccountCatalogs
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["label"] = "TEAM SILVORTEX",
+            ["access.core"] = "Las funciones principales usan licencia MIT, son de código abierto y gratuitas. La cuenta solo sirve para futuros servicios alojados por suscripción y nunca sustituye las credenciales del daemon.",
             ["identity.disabled"] = "Espacio de trabajo sin conexión",
             ["identity.signed_out"] = "Sin sesión de cuenta",
             ["identity.working"] = "Protegiendo la sesión...",
@@ -214,6 +219,7 @@ internal static class DesktopAccountCatalogs
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["label"] = "TEAM SILVORTEX",
+            ["access.core"] = "Die Kernfunktionen sind MIT-lizenziert, quelloffen und kostenlos. Das Konto dient nur künftigen gehosteten Abonnementdiensten und ersetzt niemals Daemon-Anmeldedaten.",
             ["identity.disabled"] = "Offline-Arbeitsbereich",
             ["identity.signed_out"] = "Keine Kontositzung",
             ["identity.working"] = "Sitzung wird geschützt...",
@@ -255,6 +261,7 @@ internal static class DesktopAccountCatalogs
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["label"] = "TEAM SILVORTEX",
+            ["access.core"] = "Les fonctions principales sont sous licence MIT, open source et gratuites. Le compte sert uniquement aux futurs services hébergés sur abonnement et ne remplace jamais les identifiants du daemon.",
             ["identity.disabled"] = "Espace de travail hors ligne",
             ["identity.signed_out"] = "Aucune session de compte",
             ["identity.working"] = "Sécurisation de la session...",
@@ -296,6 +303,7 @@ internal static class DesktopAccountCatalogs
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["label"] = "TEAM SILVORTEX",
+            ["access.core"] = "핵심 기능은 MIT 라이선스의 오픈 소스이며 무료입니다. 계정은 향후 호스팅 구독 서비스에만 사용되며 daemon 자격 증명을 대체하지 않습니다.",
             ["identity.disabled"] = "오프라인 작업 공간",
             ["identity.signed_out"] = "계정 세션 없음",
             ["identity.working"] = "세션 보호 중...",

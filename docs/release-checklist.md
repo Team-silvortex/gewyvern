@@ -205,6 +205,38 @@ stapling, ticket validation, and Gatekeeper assessment on a pending app. A
 failure cannot replace the prior published artifact. Use the lower-level
 release binary only when diagnosing one stage.
 
+Verify the account boundary offline before a Team Silvortex-enabled release:
+
+```bash
+artifacts/leserpent-avalonia/Leserpent.app/Contents/MacOS/Leserpent.Avalonia \
+  --verify-product-access-policy
+```
+
+It must report `open_source_core=true`, `core_license=MIT`, `core_price=free`,
+`current_core_paywall=false`, no login-only elevation, and independent daemon
+credentials. The machine policy at `project/product/open-source-core.json` must
+still reject subscription eligibility and reclassification for every existing
+capability. For a future Team
+Silvortex-hosted-service-enabled desktop release, the production account lifecycle
+is a separate mandatory proof. After final signing and notarization, ensure the
+evidence path does not exist, run the real browser/vault flow from that bundle,
+and verify the result against the same immutable app:
+
+```bash
+artifacts/leserpent-avalonia/Leserpent.app/Contents/MacOS/Leserpent.Avalonia \
+  --prove-silvortex-account "${TMPDIR:?}/leserpent-account-proof.json"
+
+cargo run --bin gewyvern_leserpent_release -- account-proof \
+  --app artifacts/leserpent-avalonia/Leserpent.app \
+  --evidence "${TMPDIR:?}/leserpent-account-proof.json"
+```
+
+The second command must report both `binary_bound=true` and
+`configuration_bound=true`. Any executable or `Info.plist` change invalidates
+the evidence and requires the functional proof to be repeated. The reviewed
+provider run is mandatory before the first future hosted subscription service,
+but it is a transparent post-2.0 track and does not block the MIT free core.
+
 The native release binary inventories and executes `codesign`, `ditto`,
 `plutil`, `security`, `spctl`, and `xcrun` through the same fixed `/usr/bin` or
 `/usr/sbin` paths and gives their subprocesses only the standard system

@@ -31,6 +31,13 @@ internal sealed class SilvortexAccountControl : Border, IDisposable
         TextWrapping = TextWrapping.Wrap,
         MaxWidth = 270,
     };
+    private readonly TextBlock accessText = new()
+    {
+        Foreground = LeserpentTheme.Accent,
+        FontSize = 11,
+        TextWrapping = TextWrapping.Wrap,
+        MaxWidth = 270,
+    };
     private readonly Button actionButton = new()
     {
         Padding = new Thickness(12, 7),
@@ -58,6 +65,7 @@ internal sealed class SilvortexAccountControl : Border, IDisposable
         VerticalAlignment = VerticalAlignment.Top;
 
         AutomationProperties.SetAutomationId(statusText, "hub-silvortex-status");
+        AutomationProperties.SetAutomationId(accessText, "hub-silvortex-core-access");
         AutomationProperties.SetAutomationId(actionButton, "hub-silvortex-action");
         var marker = new Border
         {
@@ -99,7 +107,7 @@ internal sealed class SilvortexAccountControl : Border, IDisposable
         Child = new StackPanel
         {
             Spacing = 9,
-            Children = { labelRow, body },
+            Children = { labelRow, body, accessText },
         };
 
         actionButton.Click += OnAction;
@@ -109,7 +117,7 @@ internal sealed class SilvortexAccountControl : Border, IDisposable
         session.BeginRestore();
     }
 
-    public IReadOnlyList<Control> AuditedControls => [statusText, actionButton];
+    public IReadOnlyList<Control> AuditedControls => [statusText, accessText, actionButton];
 
     public void Dispose()
     {
@@ -149,6 +157,8 @@ internal sealed class SilvortexAccountControl : Border, IDisposable
             || identityText.Text != expectedIdentity
             || actionButton.Content as string != expectedAction
             || statusText.Text != expectedStatus
+            || accessText.Text != Text("access.core")
+            || AutomationProperties.GetName(accessText) != accessText.Text
             || AutomationProperties.GetName(actionButton) != Text("a11y.sign_in")
             || FlowDirection != localization.FlowDirection)
         {
@@ -192,6 +202,8 @@ internal sealed class SilvortexAccountControl : Border, IDisposable
     {
         FlowDirection = localization.FlowDirection;
         labelText.Text = Text("label");
+        accessText.Text = Text("access.core");
+        AutomationProperties.SetName(accessText, accessText.Text);
         AutomationProperties.SetHelpText(actionButton, Text("a11y.help"));
         Apply(snapshot);
     }

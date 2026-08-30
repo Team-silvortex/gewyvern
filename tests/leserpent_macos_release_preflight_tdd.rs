@@ -19,6 +19,15 @@ fn macos_release_preflight_is_machine_readable_and_fail_closed() {
     let report: Value = serde_json::from_str(&fixture).unwrap();
 
     assert!(release.contains("Some(\"preflight\") => Action::Preflight"));
+    assert!(release.contains("Some(\"account-proof\") => Action::AccountProof"));
+    assert!(release.contains("ACCOUNT_PROOF_SCHEMA_VERSION: u32 = 2"));
+    assert!(release.contains("verify_account_proof(&options.app, evidence)?"));
+    assert!(release.contains("#[serde(deny_unknown_fields)]"));
+    assert!(release.contains("read_bounded_regular_file("));
+    assert!(release.contains("MAX_ACCOUNT_CONFIG_BYTES"));
+    assert!(release.contains("sha256_hex(&plist_bytes)"));
+    assert!(release.contains("configuration_sha256 != plist_sha256"));
+    assert!(release.contains("binary_sha256 != file_sha256(&executable)?"));
     assert!(release.contains("developer_id_identity_count"));
     assert!(release.contains("notary_profile_is_valid"));
     assert!(release.contains("apple_release_tool_missing"));
