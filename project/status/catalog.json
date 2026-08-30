@@ -4,7 +4,7 @@
   "checkpoint": "v1.20.0-to-v2.0.0-roadmap",
   "calibration": {
     "model": "priority-weighted-strength-v1",
-    "as_of": "2026-08-28"
+    "as_of": "2026-08-29"
   },
   "dimensions": {
     "architectures": [
@@ -705,7 +705,7 @@
       "independence": "reusable-library",
       "contract": {
         "id": "gewylang-frontend-contract",
-        "version": "1.31.0",
+        "version": "1.32.0",
         "stability": "stable",
         "surfaces": [
           "gewylang-source",
@@ -791,7 +791,15 @@
           "stable-invalid-string-character-diagnostics",
           "bounded-gewylang-source",
           "bounded-include-source-read",
-          "stable-source-size-diagnostics"
+          "stable-source-size-diagnostics",
+          "shared-bounded-source-graph",
+          "confined-entry-aliases",
+          "actual-content-source-read-limit",
+          "borrowed-package-dependency-map",
+          "borrowed-comment-free-source-normalization",
+          "uniform-include-comment-normalization",
+          "stable-source-graph-diagnostics",
+          "package-include-graph-benchmark"
         ]
       },
       "depends_on": [],
@@ -802,6 +810,7 @@
         { "kind": "source", "path": "src/dsl/contract.rs", "state": "present" },
         { "kind": "source", "path": "src/dsl/function_types.rs", "state": "present" },
         { "kind": "source", "path": "src/dsl/pipeline/lowering.rs", "state": "present" },
+        { "kind": "source", "path": "src/dsl/source_graph.rs", "state": "present" },
         { "kind": "test", "path": "crates/gewyc/tests/cli_information.rs", "state": "present" },
         { "kind": "test", "path": "crates/gewyc/src/tests.rs", "state": "present" },
         { "kind": "test", "path": "tests/gewylang_docs_tdd.rs", "state": "present" },
@@ -810,7 +819,7 @@
         { "kind": "documentation", "path": "docs/gewylang-system.md", "state": "present" },
         { "kind": "documentation", "path": "docs/performance-baselines.md", "state": "present" }
       ],
-      "next_gate": "Preserve Syntax v1 and the versioned Expanded AST, Binding IR, and Analysis IR contracts while extending diagnostics."
+      "next_gate": "Preserve Syntax v1 and the versioned Expanded AST, Binding IR, and Analysis IR contracts while retaining one bounded, root-confined source graph for every compiler projection."
     },
     {
       "id": "gewylang/protocol-packages/protocol-catalog",
@@ -825,19 +834,23 @@
       "independence": "reusable-library",
       "contract": {
         "id": "protocol-package-contract",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "stability": "stable",
-        "surfaces": ["gewy-package", "protocol-registry", "entry-aliases", "family-shelves", "strict-catalog-validation", "confined-package-entry"]
+        "surfaces": ["gewy-package", "protocol-registry", "entry-aliases", "family-shelves", "strict-catalog-validation", "confined-package-entry", "request-local-catalog-snapshot", "iterative-bounded-stable-registry-scan", "batch-profile-resolution"]
       },
       "depends_on": ["gewylang/compiler/parser-lowering"],
       "blockers": [],
       "consumers": ["gewyvern-runtime", "gewyc", "external-package-authors"],
       "evidence": [
         { "kind": "source", "path": "protocols", "state": "present" },
+        { "kind": "source", "path": "src/protocol_profiles.rs", "state": "present" },
+        { "kind": "source", "path": "src/protocol_profiles/registry.rs", "state": "present" },
         { "kind": "test", "path": "tests/protocol_registry_tdd.rs", "state": "present" },
+        { "kind": "test", "path": "crates/gewyc/src/tests.rs", "state": "present" },
+        { "kind": "documentation", "path": "docs/performance-baselines.md", "state": "present" },
         { "kind": "documentation", "path": "docs/book/reference-protocol-surface.md", "state": "present" }
       ],
-      "next_gate": "Preserve package compatibility and require future catalog filters to retain strict diagnostics and package-root confinement."
+      "next_gate": "Preserve package compatibility, deterministic strict diagnostics, package-root confinement, and request-local snapshot freshness; future catalog filters must reuse snapshots rather than install a process-wide cache."
     },
     {
       "id": "leserpent-1x/control-plane/orchestration-persistence",
@@ -1293,9 +1306,9 @@
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-web-console",
-        "version": "1.4.10",
+        "version": "1.4.11",
         "stability": "stable",
-        "surfaces": ["dashboard", "runtime-workspace", "language-packs", "operator-guardrails", "server-authoritative-cleanup-plan", "stale-confirmation-fence", "server-authoritative-registration-plan", "secret-free-registration-preview", "server-orchestrated-recovery-command", "server-issued-command-kind", "leserpent-brand-icon", "windows-web-access-path", "content-addressed-frontend-package", "incremental-locked-typescript-build", "publish-time-stale-asset-prevention", "bounded-frontend-package-inventory", "native-frontend-package-coordinator", "incremental-native-packager-build", "node-free-unchanged-release-path", "cross-platform-atomic-manifest-replacement", "precompressed-static-asset-endpoints", "content-etag-static-delivery", "width-first-mobile-layout", "mobile-filter-disclosure", "safe-area-bottom-navigation", "minimum-44px-touch-targets", "roving-keyboard-tab-semantics", "low-height-document-scroll-fallback", "mobile-runtime-card-table", "narrow-runtime-card-table", "container-aware-runtime-card-table", "runtime-row-roving-keyboard-selection", "contextual-runtime-action-labels", "single-open-runtime-action-menu", "polite-runtime-list-status", "protocol-reason-i18n-normalization", "semantic-registration-sections", "optional-sidecar-disclosure", "live-registration-readiness", "field-focused-registration-recovery", "operator-controlled-secret-visibility", "secret-remask-and-dom-clear", "mobile-sticky-registration-actions", "localized-registration-guidance", "deletion-aware-registration-guidance", "registration-success-detail-handoff", "live-registration-language-switch", "operator-first-runtime-detail", "persistent-runtime-posture-summary", "localized-runtime-detail-tabs", "structured-evidence-availability", "capability-support-cards", "server-command-recovery-cards", "attention-targeted-navigation", "validated-runtime-detail-route", "mobile-runtime-diagnostic-workbench", "bounded-runtime-window-workspace", "single-live-runtime-iframe", "sanitized-runtime-window-persistence", "deep-link-window-intent-priority", "runtime-window-keyboard-navigation", "runtime-window-close-focus-recovery"]
+        "surfaces": ["dashboard", "runtime-workspace", "language-packs", "operator-guardrails", "server-authoritative-cleanup-plan", "stale-confirmation-fence", "server-authoritative-registration-plan", "secret-free-registration-preview", "reviewed-runtime-ca-file", "sha256-bound-registration-plan", "mobile-safe-ca-import", "server-orchestrated-recovery-command", "server-issued-command-kind", "leserpent-brand-icon", "windows-web-access-path", "content-addressed-frontend-package", "incremental-locked-typescript-build", "publish-time-stale-asset-prevention", "bounded-frontend-package-inventory", "native-frontend-package-coordinator", "incremental-native-packager-build", "node-free-unchanged-release-path", "cross-platform-atomic-manifest-replacement", "precompressed-static-asset-endpoints", "content-etag-static-delivery", "width-first-mobile-layout", "mobile-filter-disclosure", "safe-area-bottom-navigation", "minimum-44px-touch-targets", "roving-keyboard-tab-semantics", "low-height-document-scroll-fallback", "mobile-runtime-card-table", "narrow-runtime-card-table", "container-aware-runtime-card-table", "runtime-row-roving-keyboard-selection", "contextual-runtime-action-labels", "single-open-runtime-action-menu", "polite-runtime-list-status", "protocol-reason-i18n-normalization", "semantic-registration-sections", "optional-sidecar-disclosure", "live-registration-readiness", "field-focused-registration-recovery", "operator-controlled-secret-visibility", "secret-remask-and-dom-clear", "mobile-sticky-registration-actions", "localized-registration-guidance", "deletion-aware-registration-guidance", "registration-success-detail-handoff", "live-registration-language-switch", "operator-first-runtime-detail", "persistent-runtime-posture-summary", "localized-runtime-detail-tabs", "structured-evidence-availability", "capability-support-cards", "server-command-recovery-cards", "attention-targeted-navigation", "validated-runtime-detail-route", "mobile-runtime-diagnostic-workbench", "bounded-runtime-window-workspace", "single-live-runtime-iframe", "sanitized-runtime-window-persistence", "deep-link-window-intent-priority", "runtime-window-keyboard-navigation", "runtime-window-close-focus-recovery"]
       },
       "depends_on": ["leserpent-1x/control-plane/orchestration-persistence"],
       "blockers": [],
@@ -1911,9 +1924,9 @@
       "independence": "standalone-service",
       "contract": {
         "id": "leserpentd-contract",
-        "version": "1.23.0",
+        "version": "1.24.0",
         "stability": "stable",
-        "surfaces": ["standalone-binary", "database-selection", "owner-heartbeat", "typed-adapter-registry", "bounded-worker-step", "bounded-kind-parallel-batch", "claim-order-settlement", "same-kind-lease-exclusion", "cooperative-cancellation", "adapter-panic-isolation", "panic-safe-worker-join", "heartbeat-only-safe-mode", "finite-step-smoke", "authenticated-unix-ipc", "authenticated-runtime-registration", "registration-restart-readback", "authenticated-https-wire", "default-off-remote-listener", "environment-only-tokens", "zeroized-remote-token", "zeroized-authorization-prefix", "private-socket", "private-tls-key", "atomic-unix-tls-identity-open", "bounded-frame", "bounded-http-request", "exact-content-length-request-framing", "strict-ascii-token-header-names", "websocket-binary-prefix-preservation", "shared-wire-v1-dispatch", "peer-failure-isolation", "authenticated-runtime-log-query", "endpoint-free-log-response", "authority-health", "queue-health", "periodic-maintenance", "bounded-terminal-retention", "retention-statistics", "gewyvern-health-registration", "gewyvern-status-registration", "sigint-shutdown", "sigterm-shutdown", "raii-lease-release", "process-isolation", "lifecycle", "recovery", "physical-linux-stress-proof", "shared-transport-safety-consumer", "post-open-file-growth-rejection", "thin-transport-error-mapping", "same-owner-stale-unix-socket-reclamation", "live-unix-listener-replacement-rejection", "nonsocket-and-symlink-preservation", "insecure-socket-replacement-rejection", "device-inode-revalidation-before-unlink", "unclean-same-path-restart", "physical-linux-unclean-restart-proof", "repeated-unclean-same-path-restart", "two-cycle-socket-reclamation", "physical-linux-repeated-unclean-restart-proof", "post-recovery-production-ipc-batch-saturation", "64-connection-claim-admission", "bounded-contention-completion", "physical-linux-post-recovery-contention-proof", "post-recovery-mixed-response-saturation", "16-abandoned-response-claims", "48-readable-retry-replays", "isolated-peer-response-failure", "physical-linux-saturated-duplicate-retry-proof", "bounded-parallel-ipc-frame-read", "16-slowloris-timeout-isolation", "16-malformed-16-unauthorized-peer-isolation", "two-wave-batch-progress-under-5000ms", "physical-linux-hostile-peer-progress-proof", "repeated-hostile-batch-lifecycle-proof", "owner-heartbeat-continuity-under-hostile-load", "signal-cancellable-ipc-frame-read", "bounded-sigterm-under-slowloris", "graceful-owner-and-socket-release", "immediate-same-path-restart", "hard-total-frame-read-deadline", "physical-linux-repeated-hostile-lifecycle-proof", "three-cycle-hostile-resource-retention", "stable-post-batch-fd-task-baseline", "scoped-reader-thread-join", "saturated-plus-64-fd-task-proof", "per-cycle-proc-owner-socket-release", "physical-linux-hostile-resource-retention-proof", "accept-order-ready-prefix-dispatch", "later-reader-nonblocking-response", "three-saturated-reconnect-fairness-waves", "60-slow-4-valid-reconnect-wave", "twelve-bounded-reconnect-replays", "owner-heartbeat-under-reconnect-waves", "physical-linux-hostile-reconnect-fairness-proof", "maintenance-first-daemon-turn", "alternating-unix-ipc-https-priority", "three-saturated-cross-transport-waves", "bounded-authenticated-https-under-ipc-saturation", "owner-heartbeat-under-cross-transport-load", "stable-writer-generation-under-cross-transport-load", "physical-linux-cross-transport-fairness-proof", "authenticated-slow-https-body-timeout", "three-slow-https-cross-transport-waves", "four-concurrent-ipc-queries-per-wave", "twelve-bounded-ipc-queries-under-https-pressure", "owner-heartbeat-under-slow-https-pressure", "stable-writer-generation-under-slow-https-pressure", "physical-linux-symmetric-cross-transport-fairness-proof", "hard-total-tls-http-read-deadline", "signal-cancellable-remote-request-read", "100ms-remote-read-stop-poll", "pre-authority-cancellation-fence", "cancelled-response-suppression", "bounded-sigterm-under-authenticated-slow-https", "remote-owner-socket-release", "immediate-post-https-cancellation-restart", "physical-linux-slow-https-sigterm-proof", "repeated-remote-read-phase-shutdown", "incomplete-tls-handshake-cancellation", "incomplete-http-header-cancellation", "authenticated-body-cancellation-cycle", "stable-remote-idle-fd-task-baseline", "single-remote-connection-fd-accounting", "zero-remote-task-amplification", "per-phase-proc-owner-socket-release", "immediate-cross-phase-restart", "physical-linux-remote-read-phase-resource-proof", "nonblocking-tcp-rustls-underlay", "wouldblock-absorbed-before-rustls", "nonretryable-connection-aborted-cancellation", "sqlite-journal-aware-idle-baseline", "three-run-physical-phase-stability", "post-read-deadline-immediate-http-error", "collision-free-parallel-lifecycle-fixtures", "shared-debugger-authority", "bounded-debugger-session-registry", "private-debugger-vm-journal", "fixed-debugger-vm-capabilities", "first-effect-suspension", "process-bound-debugger-session-lifecycle", "persistent-debugger-cancel-audit", "authenticated-debugger-tls-vertical", "debugger-deadline-terminal-convergence", "bounded-cross-process-debugger-journal-retention", "sqlite-debugger-sidecar-cleanup", "authenticated-debugger-ipc-vertical", "rust-web-runtime-registration-route", "daemon-owned-registration-authority", "strict-loopback-registration-trust", "platform-secret-registration-write", "hot-catalog-registration-activation", "restart-registration-recovery", "deterministic-registration-compensation", "real-tls-rust-web-registration-proof", "zeroized-http-request-body", "redacted-http-request-debug"]
+        "surfaces": ["standalone-binary", "database-selection", "owner-heartbeat", "typed-adapter-registry", "bounded-worker-step", "bounded-kind-parallel-batch", "claim-order-settlement", "same-kind-lease-exclusion", "cooperative-cancellation", "adapter-panic-isolation", "panic-safe-worker-join", "heartbeat-only-safe-mode", "finite-step-smoke", "authenticated-unix-ipc", "authenticated-runtime-registration", "registration-restart-readback", "authenticated-https-wire", "default-off-remote-listener", "environment-only-tokens", "zeroized-remote-token", "zeroized-authorization-prefix", "private-socket", "private-tls-key", "atomic-unix-tls-identity-open", "bounded-frame", "bounded-http-request", "exact-content-length-request-framing", "strict-ascii-token-header-names", "websocket-binary-prefix-preservation", "shared-wire-v1-dispatch", "peer-failure-isolation", "authenticated-runtime-log-query", "endpoint-free-log-response", "authority-health", "queue-health", "periodic-maintenance", "bounded-terminal-retention", "retention-statistics", "gewyvern-health-registration", "gewyvern-status-registration", "sigint-shutdown", "sigterm-shutdown", "raii-lease-release", "process-isolation", "lifecycle", "recovery", "physical-linux-stress-proof", "shared-transport-safety-consumer", "post-open-file-growth-rejection", "thin-transport-error-mapping", "same-owner-stale-unix-socket-reclamation", "live-unix-listener-replacement-rejection", "nonsocket-and-symlink-preservation", "insecure-socket-replacement-rejection", "device-inode-revalidation-before-unlink", "unclean-same-path-restart", "physical-linux-unclean-restart-proof", "repeated-unclean-same-path-restart", "two-cycle-socket-reclamation", "physical-linux-repeated-unclean-restart-proof", "post-recovery-production-ipc-batch-saturation", "64-connection-claim-admission", "bounded-contention-completion", "physical-linux-post-recovery-contention-proof", "post-recovery-mixed-response-saturation", "16-abandoned-response-claims", "48-readable-retry-replays", "isolated-peer-response-failure", "physical-linux-saturated-duplicate-retry-proof", "bounded-parallel-ipc-frame-read", "16-slowloris-timeout-isolation", "16-malformed-16-unauthorized-peer-isolation", "two-wave-batch-progress-under-5000ms", "physical-linux-hostile-peer-progress-proof", "repeated-hostile-batch-lifecycle-proof", "owner-heartbeat-continuity-under-hostile-load", "signal-cancellable-ipc-frame-read", "bounded-sigterm-under-slowloris", "graceful-owner-and-socket-release", "immediate-same-path-restart", "hard-total-frame-read-deadline", "physical-linux-repeated-hostile-lifecycle-proof", "three-cycle-hostile-resource-retention", "stable-post-batch-fd-task-baseline", "scoped-reader-thread-join", "saturated-plus-64-fd-task-proof", "per-cycle-proc-owner-socket-release", "physical-linux-hostile-resource-retention-proof", "accept-order-ready-prefix-dispatch", "later-reader-nonblocking-response", "three-saturated-reconnect-fairness-waves", "60-slow-4-valid-reconnect-wave", "twelve-bounded-reconnect-replays", "owner-heartbeat-under-reconnect-waves", "physical-linux-hostile-reconnect-fairness-proof", "maintenance-first-daemon-turn", "alternating-unix-ipc-https-priority", "three-saturated-cross-transport-waves", "bounded-authenticated-https-under-ipc-saturation", "owner-heartbeat-under-cross-transport-load", "stable-writer-generation-under-cross-transport-load", "physical-linux-cross-transport-fairness-proof", "authenticated-slow-https-body-timeout", "three-slow-https-cross-transport-waves", "four-concurrent-ipc-queries-per-wave", "twelve-bounded-ipc-queries-under-https-pressure", "owner-heartbeat-under-slow-https-pressure", "stable-writer-generation-under-slow-https-pressure", "physical-linux-symmetric-cross-transport-fairness-proof", "hard-total-tls-http-read-deadline", "signal-cancellable-remote-request-read", "100ms-remote-read-stop-poll", "pre-authority-cancellation-fence", "cancelled-response-suppression", "bounded-sigterm-under-authenticated-slow-https", "remote-owner-socket-release", "immediate-post-https-cancellation-restart", "physical-linux-slow-https-sigterm-proof", "repeated-remote-read-phase-shutdown", "incomplete-tls-handshake-cancellation", "incomplete-http-header-cancellation", "authenticated-body-cancellation-cycle", "stable-remote-idle-fd-task-baseline", "single-remote-connection-fd-accounting", "zero-remote-task-amplification", "per-phase-proc-owner-socket-release", "immediate-cross-phase-restart", "physical-linux-remote-read-phase-resource-proof", "nonblocking-tcp-rustls-underlay", "wouldblock-absorbed-before-rustls", "nonretryable-connection-aborted-cancellation", "sqlite-journal-aware-idle-baseline", "three-run-physical-phase-stability", "post-read-deadline-immediate-http-error", "collision-free-parallel-lifecycle-fixtures", "shared-debugger-authority", "bounded-debugger-session-registry", "private-debugger-vm-journal", "fixed-debugger-vm-capabilities", "first-effect-suspension", "process-bound-debugger-session-lifecycle", "persistent-debugger-cancel-audit", "authenticated-debugger-tls-vertical", "debugger-deadline-terminal-convergence", "bounded-cross-process-debugger-journal-retention", "sqlite-debugger-sidecar-cleanup", "authenticated-debugger-ipc-vertical", "rust-web-runtime-registration-route", "daemon-owned-registration-authority", "explicit-runtime-target-trust", "persisted-runtime-ca-binding", "registration-plan-v3-ca-digest", "non-loopback-https-registration", "legacy-loopback-binding-recovery", "real-tls-in-memory-ca-proof", "platform-secret-registration-write", "hot-catalog-registration-activation", "restart-registration-recovery", "deterministic-registration-compensation", "real-tls-rust-web-registration-proof", "zeroized-http-request-body", "redacted-http-request-debug"]
       },
       "depends_on": ["leserpent-2/control-runtime/durable-authority", "leserpent-2/transport-protocol/wire-compatibility", "leserpent-2/effect-adapters/typed-integrations"],
       "blockers": [],
@@ -2558,7 +2571,7 @@
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-gui-function-chain",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "stability": "stable",
         "surfaces": [
           "machine-readable-operation-inventory",
@@ -2621,7 +2634,11 @@
           "atomic-platform-secret-store-contract",
           "rust-web-shared-hot-target-catalog",
           "rust-web-crash-recoverable-registration",
-          "rust-web-loopback-trust-binding",
+          "rust-web-explicit-target-trust-binding",
+          "rust-web-reviewed-ca-import",
+          "rust-web-sha256-registration-plan",
+          "rust-web-non-loopback-https-registration",
+          "rust-web-ca-restart-recovery",
           "rust-web-platform-secret-cow",
           "rust-web-registration-restart-recovery",
           "runtime-target-secret-gc",
@@ -2707,10 +2724,11 @@
         { "kind": "test", "path": "tests/gui_function_chain_tdd.rs", "state": "present" },
         { "kind": "test", "path": "tests/leserpent_avalonia_orchestra_tdd.rs", "state": "present" },
         { "kind": "test", "path": "tests/leserpent_avalonia_registration_tdd.rs", "state": "present" },
+        { "kind": "test", "path": "tests/leserpent_frontend_ux_adaptation_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" }
       ],
-      "next_gate": "Keep the closed GUI function chain under real-TLS, restart, import/export, and cleanup regression while designing explicit persisted CA trust before enabling non-loopback dynamic Gewyvern registration."
+      "next_gate": "Keep dual-mode loopback HTTP and reviewed-CA HTTPS registration under real-TLS, wrong-CA, restart, import/export, cleanup, and frontend package regression; retain physical Linux remote-target proof as release evidence rather than ambient trust authority."
     },
     {
       "id": "leserpent-2/ui-renderers/desktop-localization",

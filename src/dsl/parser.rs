@@ -5,19 +5,20 @@ use super::pipeline::{
     parse_pipeline_call, parse_pipeline_function_signature, parse_pipeline_let_binding,
     parse_pipeline_single_arg, push_pipeline_function_call,
 };
+use super::source_graph::SourceGraphState;
 use super::{
     DslError, FrontendGraphEdge, FrontendGraphEdgeKind, FrontendIncludeSource,
     FrontendIncludeSourceKind, FrontendUseEdge, PackageContext, PipelineCall, PipelineFunction,
     PipelineFunctionBodySyntax, PipelineLetBinding, PipelineModule, PipelineParam, package,
-    read_file,
+    strip_comments_preserve_layout,
 };
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
 
 pub(super) fn parse_pipeline_module(
     input: &str,
     package: Option<&PackageContext>,
     allow_template_head: bool,
+    source_graph: &mut SourceGraphState,
 ) -> Result<PipelineModule, DslError> {
     let mut module = PipelineModule {
         package_scope: package
@@ -32,9 +33,6 @@ pub(super) fn parse_pipeline_module(
         include_edges: Vec::new(),
         use_edges: Vec::new(),
     };
-    let mut include_stack = package
-        .map(|package| vec![PathBuf::from(&package.entry_file)])
-        .unwrap_or_default();
     parse_pipeline_module_into(
         input,
         package,
@@ -42,7 +40,7 @@ pub(super) fn parse_pipeline_module(
         &mut module,
         None,
         "entry",
-        &mut include_stack,
+        source_graph,
     )?;
 
     if allow_template_head && module.template.is_none() {
@@ -61,7 +59,7 @@ fn parse_pipeline_module_into(
     module: &mut PipelineModule,
     function_name: Option<&str>,
     source_graph_id: &str,
-    include_stack: &mut Vec<PathBuf>,
+    source_graph: &mut SourceGraphState,
 ) -> Result<(), DslError> {
     let lines = input.lines().collect::<Vec<_>>();
     let mut index = 0usize;
@@ -263,64 +261,45 @@ fn parse_pipeline_module_into(
                     )
                     .at_line(line_no)
                 })?;
-                let include_path = package::resolve_include_path(package, &include)
+                let resolved = package::resolve_include(package, &include)
                     .map_err(|err| err.at_line(line_no))?;
-                if include_stack.contains(&include_path) {
-                    return Err(DslError::InvalidValue(format!(
-                        "pipeline include cycle detected at '{}'",
-                        include_path.to_string_lossy()
-                    ))
-                    .at_line(line_no));
-                }
+                let resolved_path = resolved.path.to_string_lossy().into_owned();
                 module.include_sources.push(FrontendIncludeSource {
                     request: include.clone(),
-                    resolved_path: include_path.to_string_lossy().into_owned(),
-                    kind: if include.split_once(':').is_some() {
+                    resolved_path: resolved_path.clone(),
+                    kind: if resolved.dependency.is_some() {
                         FrontendIncludeSourceKind::Dependency
                     } else {
                         FrontendIncludeSourceKind::Local
                     },
-                    dependency: include
-                        .split_once(':')
-                        .map(|(dependency, _)| dependency.to_string()),
-                    package_scope: include
-                        .split_once(':')
-                        .map(|(dependency, _)| dependency.to_string())
-                        .unwrap_or_else(|| package.package_scope.clone()),
+                    dependency: resolved.dependency.clone(),
+                    package_scope: resolved.package_scope.clone(),
                 });
+                let include_graph_id = format!("file:{resolved_path}");
                 module.include_edges.push(FrontendGraphEdge {
                     from: source_graph_id.to_string(),
-                    to: format!("file:{}", include_path.to_string_lossy()),
+                    to: include_graph_id.clone(),
                     kind: FrontendGraphEdgeKind::Include,
                     line: line_no,
                 });
-                let include_input = read_file(&include_path.to_string_lossy())
+                let include_input = source_graph
+                    .load_include(&resolved.path)
                     .map_err(|err| err.at_line(line_no))?;
-                let include_root = include_path
-                    .parent()
-                    .map(Path::to_path_buf)
-                    .unwrap_or_else(|| package.root_dir.clone());
-                let include_package = PackageContext {
-                    package_scope: include
-                        .split_once(':')
-                        .map(|(dependency, _)| dependency.to_string())
-                        .unwrap_or_else(|| package.package_scope.clone()),
-                    root_dir: include_root,
-                    entry_file: include_path.to_string_lossy().into_owned(),
-                    dependencies: package.dependencies.clone(),
-                };
-                include_stack.push(include_path.clone());
-                parse_pipeline_module_into(
-                    &include_input,
-                    Some(&include_package),
-                    false,
-                    module,
-                    function_name,
-                    &format!("file:{}", include_path.to_string_lossy()),
-                    include_stack,
-                )
-                .map_err(|err| err.at_line(line_no))?;
-                include_stack.pop();
+                let include_package = package.for_include(&resolved);
+                let result =
+                    strip_comments_preserve_layout(&include_input).and_then(|normalized| {
+                        parse_pipeline_module_into(
+                            &normalized,
+                            Some(&include_package),
+                            false,
+                            module,
+                            function_name,
+                            &include_graph_id,
+                            source_graph,
+                        )
+                    });
+                source_graph.leave_include(&resolved.path);
+                result.map_err(|err| err.at_line(line_no))?;
             }
             other => {
                 pending_docs.clear();

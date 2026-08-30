@@ -20,7 +20,7 @@ fn count_protocol_catalog() -> (usize, usize) {
         })
         .filter(|path| path.is_dir())
         .collect();
-    let entries = families
+    let registered_entries = families
         .iter()
         .map(|family| {
             fs::read_dir(family)
@@ -28,14 +28,14 @@ fn count_protocol_catalog() -> (usize, usize) {
                 .filter(|entry| {
                     entry
                         .as_ref()
-                        .map(|item| item.path().is_dir())
+                        .map(|item| item.path().join("gewy.pkg").is_file())
                         .unwrap_or(false)
                 })
                 .count()
         })
         .sum();
 
-    (families.len(), entries)
+    (families.len(), registered_entries)
 }
 
 fn section_version(document: &str, section: &str) -> String {
@@ -198,27 +198,23 @@ fn root_cli_reports_the_shared_product_version() {
 
 #[test]
 fn docs_catalog_anchor_matches_packaged_protocol_tree() {
-    let (families, entries) = count_protocol_catalog();
+    let (families, registered_entries) = count_protocol_catalog();
     let readme = read_repo_file("README.md");
     let history = read_repo_file("docs/history/v1.0.0.md");
 
     assert!(
         readme.contains(&format!(
-            "protocol registry coverage: {families} protocol families and {entries} package entries"
+            "protocol registry coverage: {families} protocol families and {registered_entries} package entries"
         )),
         "README protocol registry count should match protocols/ tree"
     );
     assert!(
-        history.contains(&format!(
-            "{families} protocol family directories under `protocols/`"
-        )),
-        "v1.0.0 history anchor should match protocol family count"
+        history.contains("70 protocol family directories under `protocols/`"),
+        "v1.0.0 history anchor should preserve its release-time family count"
     );
     assert!(
-        history.contains(&format!(
-            "{entries} packaged protocol entries under those family directories"
-        )),
-        "v1.0.0 history anchor should match protocol entry count"
+        history.contains("363 packaged protocol entries under those family directories"),
+        "v1.0.0 history anchor should preserve its release-time entry count"
     );
 }
 

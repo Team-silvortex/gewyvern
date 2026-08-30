@@ -134,7 +134,7 @@ fn project_status_catalog_is_protocolized_and_valid() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     catalog.validate(&root).expect("catalog must validate");
     assert_eq!(catalog.calibration.model, STATUS_CALIBRATION_MODEL);
-    assert_eq!(catalog.calibration.as_of, "2026-08-28");
+    assert_eq!(catalog.calibration.as_of, "2026-08-29");
     assert!(catalog.dimensions.architectures.len() >= 6);
     assert!(catalog.dimensions.modules.len() >= 21);
     assert!(catalog.dimensions.features.len() >= 23);
@@ -307,10 +307,23 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
     let registration = &inventory["rust_web_registration"];
     assert_eq!(registration["route"], "/v1/runtimes/register");
     assert_eq!(registration["journal_schema"], 21);
+    let target_trust = &registration["target_trust"];
     assert_eq!(
-        registration["target_trust"],
-        "root-loopback-http-origin-with-explicit-port-only"
+        target_trust["loopback_http"],
+        "root-origin-with-explicit-port-and-no-ca"
     );
+    assert_eq!(
+        target_trust["remote_https"],
+        "root-origin-with-explicit-reviewed-ca-pem-and-sha256"
+    );
+    assert_eq!(target_trust["ambient_platform_pki_is_authority"], false);
+    assert_eq!(
+        target_trust["plan_token"],
+        "runtime-registration-plan-v3-binds-ca-sha256"
+    );
+    assert_eq!(target_trust["binding_schema"], 2);
+    assert_eq!(target_trust["legacy_binding_schema"], 1);
+    assert_eq!(target_trust["maximum_ca_pem_bytes"], 32_768);
     assert!(
         registration["transaction"]
             .as_array()
@@ -4913,7 +4926,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(gewylang.maturity, Maturity::Mature);
     assert_eq!(gewylang.completion, 100);
     assert_eq!(gewylang.contract.stability, ContractStability::Stable);
-    assert_eq!(gewylang.contract.version, "1.31.0");
+    assert_eq!(gewylang.contract.version, "1.32.0");
     for surface in [
         "standard-cli-help-and-version-exit-contract",
         "versioned-language-contract-stamp",
@@ -4928,6 +4941,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "borrowed-rule-keyword-lowering",
         "borrowed-unescaped-literal-lowering",
         "focused-parser-lowering-benchmark",
+        "shared-bounded-source-graph",
+        "confined-entry-aliases",
+        "actual-content-source-read-limit",
+        "borrowed-package-dependency-map",
+        "borrowed-comment-free-source-normalization",
+        "uniform-include-comment-normalization",
+        "stable-source-graph-diagnostics",
+        "package-include-graph-benchmark",
     ] {
         assert!(
             gewylang
@@ -4948,9 +4969,49 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         item.path == "src/dsl/contract.rs" && item.state == EvidenceState::Present
     }));
     assert!(gewylang.evidence.iter().any(|item| {
+        item.path == "src/dsl/source_graph.rs" && item.state == EvidenceState::Present
+    }));
+    assert!(gewylang.evidence.iter().any(|item| {
         item.path == "docs/gewylang-contract.md" && item.state == EvidenceState::Present
     }));
     assert!(gewylang.blockers.is_empty());
+
+    let protocol_catalog = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "gewylang/protocol-packages/protocol-catalog")
+        .expect("GewyLang protocol catalog cell must exist");
+    assert_eq!(protocol_catalog.maturity, Maturity::Mature);
+    assert_eq!(protocol_catalog.completion, 100);
+    assert_eq!(
+        protocol_catalog.contract.stability,
+        ContractStability::Stable
+    );
+    assert_eq!(protocol_catalog.contract.version, "1.2.0");
+    for surface in [
+        "strict-catalog-validation",
+        "confined-package-entry",
+        "request-local-catalog-snapshot",
+        "iterative-bounded-stable-registry-scan",
+        "batch-profile-resolution",
+    ] {
+        assert!(
+            protocol_catalog
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing protocol catalog surface {surface}"
+        );
+    }
+    assert!(protocol_catalog.evidence.iter().any(|item| {
+        item.path == "src/protocol_profiles/registry.rs" && item.state == EvidenceState::Present
+    }));
+    assert!(protocol_catalog.evidence.iter().any(|item| {
+        item.path == "docs/performance-baselines.md" && item.state == EvidenceState::Present
+    }));
+    assert!(protocol_catalog.blockers.is_empty());
+
     assert!(
         language
             .evidence
@@ -5323,7 +5384,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         frontend_parity.contract.stability,
         ContractStability::Stable
     );
-    assert_eq!(frontend_parity.contract.version, "1.0.0");
+    assert_eq!(frontend_parity.contract.version, "1.1.0");
     for surface in [
         "avalonia-orchestra-native-plan-run-control-closure",
         "strict-dotnet-orchestra-control-codec",
@@ -5359,7 +5420,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "atomic-platform-secret-store-contract",
         "rust-web-shared-hot-target-catalog",
         "rust-web-crash-recoverable-registration",
-        "rust-web-loopback-trust-binding",
+        "rust-web-explicit-target-trust-binding",
+        "rust-web-reviewed-ca-import",
+        "rust-web-sha256-registration-plan",
+        "rust-web-non-loopback-https-registration",
+        "rust-web-ca-restart-recovery",
         "rust-web-platform-secret-cow",
         "rust-web-registration-restart-recovery",
         "runtime-target-secret-gc",
@@ -5827,7 +5892,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/daemon-host/daemon-lifecycle")
         .expect("Leserpent daemon lifecycle cell must exist");
-    assert_eq!(daemon_lifecycle.contract.version, "1.23.0");
+    assert_eq!(daemon_lifecycle.contract.version, "1.24.0");
     assert_eq!(
         daemon_lifecycle.contract.stability,
         ContractStability::Stable
@@ -5920,7 +5985,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "collision-free-parallel-lifecycle-fixtures",
         "rust-web-runtime-registration-route",
         "daemon-owned-registration-authority",
-        "strict-loopback-registration-trust",
+        "explicit-runtime-target-trust",
+        "persisted-runtime-ca-binding",
+        "registration-plan-v3-ca-digest",
+        "non-loopback-https-registration",
+        "legacy-loopback-binding-recovery",
+        "real-tls-in-memory-ca-proof",
         "platform-secret-registration-write",
         "hot-catalog-registration-activation",
         "restart-registration-recovery",
@@ -8875,7 +8945,7 @@ fn native_status_cli_exposes_human_and_machine_views() {
         serde_json::from_slice(&summary.stdout).expect("summary must be JSON");
     assert_eq!(payload["schema_version"], STATUS_SCHEMA_VERSION);
     assert_eq!(payload["calibration"]["model"], STATUS_CALIBRATION_MODEL);
-    assert_eq!(payload["calibration"]["as_of"], "2026-08-28");
+    assert_eq!(payload["calibration"]["as_of"], "2026-08-29");
     assert_eq!(payload["deferred_cell_count"], 1);
     assert!(payload["overall_score"].is_u64());
     assert!(payload["portfolio_score"].is_u64());

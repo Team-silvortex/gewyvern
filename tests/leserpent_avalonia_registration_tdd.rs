@@ -139,7 +139,8 @@ fn function_chain_closes_existing_runtime_registration_and_rust_web_target() {
     assert!(docs.contains("field edits invalidate it"));
     assert!(docs.contains("`/v1/runtimes/register`"));
     assert!(docs.contains("schema-v21 intent"));
-    assert!(docs.contains("remote HTTPS registration still fails"));
+    assert!(docs.contains("explicitly reviewed PEM CA"));
+    assert!(docs.contains("secret-free v3 plan token binds that digest"));
     assert!(!status.contains("\"id\": \"avalonia-runtime-registration-editor\""));
     assert!(!status.contains("\"id\": \"product-debugger-session-bridge\""));
     assert!(!status.contains("\"id\": \"product-leselang-execution-host\""));

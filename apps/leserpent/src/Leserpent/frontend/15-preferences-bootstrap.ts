@@ -507,6 +507,11 @@ function bootstrapDashboard() {
     nodes.registerToken.setAttribute("aria-invalid", "false");
     scheduleRenderRegisterPreview();
   });
+  nodes.registerCaFile.addEventListener("change", (event) => {
+    const [file] = event.currentTarget.files || [];
+    void loadRegistrationCa(file);
+  });
+  nodes.registerCaClear.addEventListener("click", () => clearRegistrationCa());
   nodes.registerTokenToggle.addEventListener("click", () => {
     setRegistrationSecretVisibility(
       nodes.registerToken,

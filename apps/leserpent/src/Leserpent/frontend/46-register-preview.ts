@@ -23,11 +23,12 @@ function registrationPlanDraft() {
     name: nodes.registerName.value.trim(),
     endpoint: nodes.registerEndpoint.value.trim(),
     sidecarEndpoint: nodes.registerSidecarEndpoint.value.trim() || null,
+    tlsCaSha256: state.registrationCaSha256 || null,
   };
 }
 
 function registrationPlanDraftKey(draft = registrationPlanDraft()) {
-  return [draft.name, draft.endpoint, draft.sidecarEndpoint || ""].join("::");
+  return [draft.name, draft.endpoint, draft.sidecarEndpoint || "", draft.tlsCaSha256 || ""].join("::");
 }
 
 function currentRegistrationPlan() {
@@ -62,6 +63,25 @@ function registrationReadiness(endpointValid, sidecarEndpointValid) {
   }
   if (!endpointValid) {
     return { plan, ready: false, field: nodes.registerEndpoint, tone: "bad", message: t("register.blockedEndpoint") };
+  }
+  const httpsTarget = endpointRequiresExplicitCa(endpoint);
+  if (state.registrationCaLoading) {
+    return { plan, ready: false, field: nodes.registerCaFile, tone: "pending", message: t("register.caLoading") };
+  }
+  if (state.registrationCaError) {
+    return {
+      plan,
+      ready: false,
+      field: nodes.registerCaFile,
+      tone: "bad",
+      message: t("register.caInvalid", { message: state.registrationCaError }),
+    };
+  }
+  if (httpsTarget && !state.registrationCaSha256) {
+    return { plan, ready: false, field: nodes.registerCaFile, tone: "bad", message: t("register.caRequired") };
+  }
+  if (!httpsTarget && state.registrationCaSha256) {
+    return { plan, ready: false, field: nodes.registerCaFile, tone: "bad", message: t("register.caOnlyHttps") };
   }
   if (!pairingToken) {
     return {
@@ -170,6 +190,110 @@ function clearRegistrationSecrets() {
   maskRegistrationSecrets();
 }
 
+function endpointRequiresExplicitCa(endpoint) {
+  try {
+    return new URL(endpoint).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function formatSha256Fingerprint(fingerprint) {
+  return fingerprint.match(/.{1,2}/g)?.join(":") || fingerprint;
+}
+
+function canonicalizeRegistrationCaPem(source) {
+  const pem = source.replace(/\r\n?/g, "\n").trim() + "\n";
+  const bytes = new TextEncoder().encode(pem);
+  if (
+    bytes.length === 0
+    || bytes.length > 32 * 1024
+    || !pem.startsWith("-----BEGIN CERTIFICATE-----\n")
+    || !pem.endsWith("-----END CERTIFICATE-----\n")
+    || pem.includes("PRIVATE KEY")
+    || [...pem].some((character) => character.charCodeAt(0) > 0x7f)
+  ) {
+    throw new Error(t("register.caFileInvalid"));
+  }
+  return { pem, bytes };
+}
+
+function clearRegistrationCa(schedule = true) {
+  state.registrationCaLoadSequence += 1;
+  state.registrationCaPem = "";
+  state.registrationCaSha256 = "";
+  state.registrationCaFileName = "";
+  state.registrationCaError = "";
+  state.registrationCaLoading = false;
+  nodes.registerCaFile.value = "";
+  nodes.registerCaFile.setAttribute("aria-invalid", "false");
+  if (schedule) {
+    scheduleRegistrationPlanPreview();
+  }
+}
+
+async function loadRegistrationCa(file) {
+  const sequence = ++state.registrationCaLoadSequence;
+  state.registrationCaPem = "";
+  state.registrationCaSha256 = "";
+  state.registrationCaFileName = "";
+  state.registrationCaError = "";
+  if (!file) {
+    state.registrationCaLoading = false;
+    scheduleRegistrationPlanPreview();
+    return;
+  }
+  state.registrationCaLoading = true;
+  scheduleRenderRegisterPreview();
+  try {
+    if (file.size <= 0 || file.size > 32 * 1024) {
+      throw new Error(t("register.caFileInvalid"));
+    }
+    if (!window.crypto?.subtle) {
+      throw new Error(t("register.caDigestUnavailable"));
+    }
+    const { pem, bytes } = canonicalizeRegistrationCaPem(await file.text());
+    const digest = await window.crypto.subtle.digest("SHA-256", bytes);
+    if (sequence !== state.registrationCaLoadSequence) return;
+    state.registrationCaPem = pem;
+    state.registrationCaSha256 = [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+    state.registrationCaFileName = file.name || "ca.pem";
+    nodes.registerCaFile.setAttribute("aria-invalid", "false");
+  } catch (error) {
+    if (sequence !== state.registrationCaLoadSequence) return;
+    state.registrationCaError = error?.message || t("register.caFileInvalid");
+    nodes.registerCaFile.setAttribute("aria-invalid", "true");
+  } finally {
+    if (sequence === state.registrationCaLoadSequence) {
+      state.registrationCaLoading = false;
+      scheduleRegistrationPlanPreview();
+    }
+  }
+}
+
+function syncRegistrationCaStatus() {
+  let message = t("register.caNotSelected");
+  let tone = "neutral";
+  if (state.registrationCaLoading) {
+    message = t("register.caLoading");
+    tone = "pending";
+  } else if (state.registrationCaError) {
+    message = t("register.caInvalid", { message: state.registrationCaError });
+    tone = "bad";
+  } else if (state.registrationCaSha256) {
+    message = t("register.caReady", {
+      file: state.registrationCaFileName,
+      fingerprint: formatSha256Fingerprint(state.registrationCaSha256),
+    });
+    tone = "good";
+  }
+  nodes.registerCaStatus.textContent = message;
+  nodes.registerCaStatus.dataset.tone = tone;
+  nodes.registerCaClear.disabled = !state.registrationCaLoading && !state.registrationCaSha256 && !state.registrationCaError;
+}
+
 async function loadRegistrationPlan() {
   const draft = registrationPlanDraft();
   const draftKey = registrationPlanDraftKey(draft);
@@ -269,6 +393,7 @@ function registerPreviewSignature() {
     nodes.registerSidecarEndpoint.value.trim(),
     nodes.registerSidecarAdminToken.value.trim() ? "protected" : "open",
     nodes.registerToken.value.trim() ? "paired" : "missing-token",
+    state.registrationCaLoading ? "ca-loading" : state.registrationCaError || state.registrationCaSha256 || "ca-none",
     nodes.registerRuntimeEnvironment.value.trim(),
     nodes.registerRuntimeCluster.value.trim(),
     nodes.registerRuntimeRole.value.trim(),
@@ -311,6 +436,7 @@ function scheduleRegistrationPlanPreview() {
 }
 
 function renderRegisterPreview() {
+  syncRegistrationCaStatus();
   const endpoint = nodes.registerEndpoint.value.trim();
   const sidecarEndpoint = nodes.registerSidecarEndpoint.value.trim();
   const endpointValid = endpoint.length > 0 && isLikelyHttpEndpoint(endpoint);
@@ -324,6 +450,10 @@ function renderRegisterPreview() {
 
   const sidecarAdminToken = nodes.registerSidecarAdminToken.value.trim();
   const pairingTokenReady = !!nodes.registerToken.value.trim();
+  const httpsTarget = endpointValid && endpointRequiresExplicitCa(endpoint);
+  const trustState = state.registrationCaSha256
+    ? t("register.trustPinned")
+    : httpsTarget ? t("register.trustPending") : t("register.trustLoopback");
   const explicitName = nodes.registerName.value.trim();
   const suggestedName = endpointValid ? suggestedRuntimeName(endpoint) : "";
   const effectiveName = explicitName || suggestedName || t("register.pendingRuntimeName");
@@ -373,6 +503,11 @@ function renderRegisterPreview() {
       <div class="register-preview-row">
         <span>${escapeHtml(t("register.previewPairing"))}</span>
         <strong class="register-preview-state ${pairingTokenReady ? "good" : "bad"}">${escapeHtml(t(pairingTokenReady ? "register.pairingReady" : "register.pairingMissing"))}</strong>
+      </div>
+      <div class="register-preview-row">
+        <span>${escapeHtml(t("register.previewTrust"))}</span>
+        <strong class="register-preview-state ${state.registrationCaSha256 || !httpsTarget ? "good" : "bad"}">${escapeHtml(trustState)}</strong>
+        ${state.registrationCaSha256 ? `<div class="register-preview-meta">SHA-256 ${escapeHtml(formatSha256Fingerprint(state.registrationCaSha256))}</div>` : ""}
       </div>
       <div class="register-preview-row">
         <span>${escapeHtml(t("register.previewCapabilityFetch"))}</span>

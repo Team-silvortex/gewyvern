@@ -111,6 +111,65 @@ struct RegistryManifest {
     dsl_path: String,
 }
 
+#[derive(Debug)]
+/// An immutable, request-local view of the discovered protocol registry.
+pub struct ProtocolCatalogSnapshot {
+    registry: Option<Vec<RegistryManifest>>,
+}
+
+impl ProtocolCatalogSnapshot {
+    /// Discovers the current registry without installing a process-wide cache.
+    pub fn discover() -> Self {
+        Self {
+            registry: scan_protocol_registry(),
+        }
+    }
+
+    #[cfg(test)]
+    fn discover_in(dir: &Path) -> Option<Self> {
+        Some(Self {
+            registry: Some(scan_protocol_registry_in(dir)?),
+        })
+    }
+
+    pub fn protocol_summaries(&self) -> Vec<ProtocolSummary> {
+        self.registry
+            .as_deref()
+            .map(protocol_summaries_from_registry)
+            .unwrap_or_else(built_in_protocol_summaries)
+    }
+
+    pub fn protocol_summary(&self, protocol: &str) -> Option<ProtocolSummary> {
+        let (protocol, _) = split_protocol_alias(protocol);
+        if let Some(registry) = self.registry.as_deref() {
+            return protocol_summary_from_registry(registry, protocol);
+        }
+        built_in_protocol_summary(protocol)
+    }
+
+    pub fn resolve_protocol_profile(
+        &self,
+        protocol: &str,
+        entry: Option<&str>,
+    ) -> Option<ResolvedProtocolProfile> {
+        resolve_protocol_profile_with_registry(self.registry.as_deref(), protocol, entry)
+    }
+
+    pub fn default_protocol_scan_set(&self) -> Vec<ResolvedProtocolProfile> {
+        if let Some(registry) = self.registry.as_deref() {
+            return default_protocol_scan_set_from_registry(registry);
+        }
+        PROTOCOL_PROFILES
+            .iter()
+            .flat_map(|profile| {
+                profile.entries.iter().filter_map(|entry| {
+                    resolve_protocol_profile_with_registry(None, profile.name, Some(entry.mode))
+                })
+            })
+            .collect()
+    }
+}
+
 pub fn protocol_dsl_path(protocol: &str, entry: Option<&str>) -> Option<String> {
     resolve_protocol_profile(protocol, entry).map(|profile| profile.dsl_path)
 }
@@ -120,18 +179,11 @@ pub fn resolve_built_in_dsl_path(raw: &str) -> String {
 }
 
 pub fn protocol_summaries() -> Vec<ProtocolSummary> {
-    if let Some(registry) = scan_protocol_registry() {
-        return protocol_summaries_from_registry(registry);
-    }
-    built_in_protocol_summaries()
+    ProtocolCatalogSnapshot::discover().protocol_summaries()
 }
 
 pub fn protocol_summary(protocol: &str) -> Option<ProtocolSummary> {
-    let (protocol, _) = split_protocol_alias(protocol);
-    if let Some(registry) = scan_protocol_registry() {
-        return protocol_summary_from_registry(registry, protocol);
-    }
-    built_in_protocol_summary(protocol)
+    ProtocolCatalogSnapshot::discover().protocol_summary(protocol)
 }
 
 pub fn protocol_surface(protocol: &str, entry: &str) -> Option<ProtocolSurfaceSummary> {
@@ -224,7 +276,15 @@ pub fn resolve_protocol_profile(
     protocol: &str,
     entry: Option<&str>,
 ) -> Option<ResolvedProtocolProfile> {
-    if let Some(registry) = scan_protocol_registry()
+    ProtocolCatalogSnapshot::discover().resolve_protocol_profile(protocol, entry)
+}
+
+fn resolve_protocol_profile_with_registry(
+    registry: Option<&[RegistryManifest]>,
+    protocol: &str,
+    entry: Option<&str>,
+) -> Option<ResolvedProtocolProfile> {
+    if let Some(registry) = registry
         && let Some(profile) = resolve_protocol_profile_from_registry(registry, protocol, entry)
     {
         return Some(profile);
@@ -247,7 +307,7 @@ pub fn resolve_protocol_profile(
 }
 
 fn resolve_protocol_profile_from_registry(
-    registry: Vec<RegistryManifest>,
+    registry: &[RegistryManifest],
     protocol: &str,
     entry: Option<&str>,
 ) -> Option<ResolvedProtocolProfile> {
@@ -263,14 +323,14 @@ fn resolve_protocol_profile_from_registry(
         });
     }
     let canonical =
-        resolve_registry_alias(&registry, protocol).unwrap_or_else(|| protocol.to_string());
+        resolve_registry_alias(registry, protocol).unwrap_or_else(|| protocol.to_string());
     let mut matches = registry
-        .into_iter()
+        .iter()
         .filter(|manifest| manifest.protocol == canonical)
         .collect::<Vec<_>>();
     matches.sort_by(|left, right| left.entry.cmp(&right.entry));
     let selected = if let Some(entry) = entry {
-        let resolved_entry = resolve_registry_entry_alias(&matches, &canonical, entry)
+        let resolved_entry = resolve_registry_entry_alias(registry, &canonical, entry)
             .map(str::to_string)
             .unwrap_or_else(|| entry.to_string());
         matches
@@ -280,13 +340,13 @@ fn resolve_protocol_profile_from_registry(
         matches
             .iter()
             .find(|manifest| manifest.default)
-            .cloned()
+            .copied()
             .or_else(|| matches.into_iter().next())
     }?;
     Some(ResolvedProtocolProfile {
-        protocol: selected.protocol,
-        entry: selected.entry,
-        dsl_path: selected.dsl_path,
+        protocol: selected.protocol.clone(),
+        entry: selected.entry.clone(),
+        dsl_path: selected.dsl_path.clone(),
     })
 }
 
@@ -296,33 +356,22 @@ fn resolve_protocol_profile_from_dir(
     protocol: &str,
     entry: Option<&str>,
 ) -> Option<ResolvedProtocolProfile> {
-    resolve_protocol_profile_from_registry(scan_protocol_registry_in(dir)?, protocol, entry)
+    let registry = scan_protocol_registry_in(dir)?;
+    resolve_protocol_profile_from_registry(&registry, protocol, entry)
 }
 
 pub fn default_protocol_scan_set() -> Vec<ResolvedProtocolProfile> {
-    if let Some(registry) = scan_protocol_registry() {
-        return default_protocol_scan_set_from_registry(registry);
-    }
-    PROTOCOL_PROFILES
-        .iter()
-        .flat_map(|profile| {
-            profile
-                .entries
-                .iter()
-                .filter_map(|entry| resolve_protocol_profile(profile.name, Some(entry.mode)))
-                .collect::<Vec<_>>()
-        })
-        .collect()
+    ProtocolCatalogSnapshot::discover().default_protocol_scan_set()
 }
 
 pub fn default_protocol_scan_set_from_dir(dir: &str) -> Option<Vec<ResolvedProtocolProfile>> {
     let registry = scan_protocol_registry_in(std::path::Path::new(dir))?;
-    Some(default_protocol_scan_set_from_registry(registry))
+    Some(default_protocol_scan_set_from_registry(&registry))
 }
 
 pub fn validate_protocol_registry_dir(dir: &str) -> Result<Vec<ResolvedProtocolProfile>, String> {
     let registry = scan_protocol_registry_in_strict(std::path::Path::new(dir))?;
-    Ok(default_protocol_scan_set_from_registry(registry))
+    Ok(default_protocol_scan_set_from_registry(&registry))
 }
 
 pub fn protocol_target_name_for_template_id(template_id: &str) -> Option<String> {
@@ -347,7 +396,8 @@ fn protocol_target_name_for_template_id_from_dir(dir: &Path, template_id: &str) 
     if template_id.trim().is_empty() {
         return None;
     }
-    let profiles = default_protocol_scan_set_from_registry(scan_protocol_registry_in(dir)?);
+    let registry = scan_protocol_registry_in(dir)?;
+    let profiles = default_protocol_scan_set_from_registry(&registry);
     protocol_target_name_from_scan_set(profiles, template_id)
 }
 

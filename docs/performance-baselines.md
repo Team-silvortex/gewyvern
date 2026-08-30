@@ -166,6 +166,27 @@ values borrow source text. Reproduce both measurements with:
 cargo test --release --locked -p gewyc benchmark_gewylang_ -- --ignored --nocapture --test-threads=1
 ```
 
+The same date's protocol-catalog pass replaces recursive directory walking and
+redundant metadata/canonicalization calls with a budgeted iterative scan while
+retaining symlink rejection, actual-content read limits, and package-root
+confinement. Ten alternating baseline/current release-binary pairs of 20
+complete strict scans over 361 manifests reduced the median from `451.082` to
+`357.033 ms` (`20.8%`). A request-local
+`ProtocolCatalogSnapshot` also lets batch callers scan once without creating a
+stale process cache. Across five batches of 24 targets, the median fell from
+`3662.819` for repeated standalone lookup to `143.938 ms` with one snapshot per
+batch (`96.1%`) across seven final-implementation samples.
+
+The `2026-08-29` GewyLang source-graph pass shares one immutable dependency map
+across nested package contexts and stops canonicalizing roots that the package
+resolver has already canonicalized. Ten alternating same-host release pairs on
+a 24-module, 64-dependency package reduced 500 frontend compilations from an
+`889.015 ms` median to `751.322 ms` (`15.5%`). The same path now enforces
+regular-file actual-content reads and shared file-count, include-depth, and
+aggregate-byte budgets for entry aliases and pipeline includes. Comment-free
+sources use a borrowed normalization fast path, while files containing comments
+retain the same layout-preserving semantics at every include level.
+
 The same date's runtime-ledger pass replaces the full stable sort after every
 accepted fact with an append fast path and a stable binary-insertion fallback
 for genuinely out-of-order IDs. Ten alternating same-host test-binary pairs on
@@ -289,8 +310,11 @@ For `gewylang` / `gewyc`, the first useful compiler-facing benchmark family is:
 - `benchmark_gewyc_explain_report_udp_process_debug`
 - `benchmark_gewyc_envelope_report_udp_process_debug`
 - `benchmark_gewyc_lockfile_protocol_publish_package`
+- `benchmark_protocol_registry_strict_scan`
+- `benchmark_protocol_catalog_snapshot_batch_resolution`
 - `benchmark_gewylang_parse_lower_smtp_data_path`
 - `benchmark_gewylang_parse_lower_frontend_smtp_data_path`
+- `benchmark_gewylang_package_include_graph`
 
 The expected workflow before calling a release candidate acceptable is:
 
@@ -319,8 +343,11 @@ Current baselines:
 | `benchmark_gewyc_explain_report_udp_process_debug` | `35.959` | 100 iterations, median of 10 optimized samples from alternating binary A/B |
 | `benchmark_gewyc_envelope_report_udp_process_debug` | `37.238` | 100 iterations, median of 10 optimized samples from alternating binary A/B |
 | `benchmark_gewyc_lockfile_protocol_publish_package` | `3.013` | 100 iterations, unchanged path retained as the current same-host observation |
+| `benchmark_protocol_registry_strict_scan` | `357.033` | 20 complete strict scans of 361 manifests; 10 alternating baseline/current pairs, paired baseline 451.082 ms |
+| `benchmark_protocol_catalog_snapshot_batch_resolution` | `143.938` | 5 batches of 24 targets through request-local snapshots; same-run standalone-helper median was 3662.819 ms |
 | `benchmark_gewylang_parse_lower_smtp_data_path` | `71.449` | 200 in-memory release compilations of 7,159 bytes, median of seven samples |
 | `benchmark_gewylang_parse_lower_frontend_smtp_data_path` | `74.181` | Same workload with frontend projection, median of seven samples |
+| `benchmark_gewylang_package_include_graph` | `751.322` | 500 frontend compilations of 24 modules and 64 dependencies; 10 alternating baseline/current pairs, paired baseline 889.015 ms |
 | `benchmark_runtime_ingest_ordered_8192_facts` | `0.795` | 8,192 ordered facts, median of 10 optimized samples from alternating binary A/B |
 | `benchmark_flow_reconstruction_8192_facts` | `119.015` | 50 reconstructions of 8,192 facts across 256 flows, median of 10 optimized samples from alternating binary A/B |
 | `benchmark_runtime_flow_snapshots_8192_facts` | `129.556` | 50 session snapshots of 8,192 materialized facts across 256 flows, median of 10 optimized samples from alternating binary A/B |
@@ -372,6 +399,7 @@ bash scripts/perf/benchmark_summary.sh 3 benchmark_findings_json_large_protocol_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_http_transactions_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_gewyc_
 cargo test --release --locked -p gewyc benchmark_gewylang_ -- --ignored --nocapture --test-threads=1
+cargo test --release --locked -p gewyc benchmark_protocol_ -- --ignored --nocapture --test-threads=1
 bash scripts/perf/benchmark_summary.sh 3 benchmark_runtime_ingest_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_flow_reconstruction_
 bash scripts/perf/benchmark_summary.sh 3 benchmark_runtime_flow_snapshots_

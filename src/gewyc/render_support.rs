@@ -579,6 +579,16 @@ pub(super) fn dsl_invalid_value_code(value: &str) -> &'static str {
         "GEWYC-PARSE-MISSING-PIPELINE-PREFIX"
     } else if value.starts_with("pipeline include cycle detected at '") {
         "GEWYC-PARSE-INCLUDE-CYCLE"
+    } else if value.starts_with("gewylang include depth exceeds ") {
+        "GEWYC-PARSE-INCLUDE-DEPTH-LIMIT"
+    } else if value.starts_with("gewylang source graph exceeds ") && value.ends_with(" files") {
+        "GEWYC-PARSE-SOURCE-GRAPH-FILE-LIMIT"
+    } else if value.starts_with("gewylang source graph exceeds ") && value.ends_with(" bytes") {
+        "GEWYC-PARSE-SOURCE-GRAPH-BYTE-LIMIT"
+    } else if value.starts_with("gewylang source path '")
+        && value.ends_with("' is not a regular file")
+    {
+        "GEWYC-PARSE-SOURCE-NONREGULAR"
     } else if value.starts_with("pipeline use cycle detected at function '") {
         "GEWYC-PARSE-USE-CYCLE"
     } else if value.starts_with("unknown package source '") {

@@ -251,6 +251,22 @@ fn dsl_invalid_value_codes_classify_package_graph_failures() {
             "GEWYC-PARSE-INCLUDE-CYCLE",
         ),
         (
+            "gewylang include depth exceeds 32",
+            "GEWYC-PARSE-INCLUDE-DEPTH-LIMIT",
+        ),
+        (
+            "gewylang source graph exceeds 256 files",
+            "GEWYC-PARSE-SOURCE-GRAPH-FILE-LIMIT",
+        ),
+        (
+            "gewylang source graph exceeds 4194304 bytes",
+            "GEWYC-PARSE-SOURCE-GRAPH-BYTE-LIMIT",
+        ),
+        (
+            "gewylang source path '/tmp/source.sock' is not a regular file",
+            "GEWYC-PARSE-SOURCE-NONREGULAR",
+        ),
+        (
             "pipeline use cycle detected at function 'core'",
             "GEWYC-PARSE-USE-CYCLE",
         ),

@@ -2,8 +2,8 @@ use gewyvern::export::ExportBundle;
 use gewyvern::flow::{FlowId, ProcessView, ProgramFlowId};
 use gewyvern::ledger::{CpuId, FactEnvelope, FactId, FactKind, RouteDecisionFact, SessionId};
 use gewyvern::protocol_profiles::{
-    default_protocol_scan_set, protocol_summaries, protocol_summary, resolve_protocol_profile,
-    validate_protocol_registry_dir,
+    ProtocolCatalogSnapshot, default_protocol_scan_set, protocol_summaries, protocol_summary,
+    resolve_protocol_profile, validate_protocol_registry_dir,
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use gewyvern::template::TemplateBinding;
@@ -442,6 +442,7 @@ pub(crate) fn scan_targets_from_set_file(path: &str) -> Result<Vec<ScanTarget>, 
     }
     let contents = fs::read_to_string(path)
         .map_err(|err| format!("failed to read protocol set '{path}': {err}"))?;
+    let catalog = ProtocolCatalogSnapshot::discover();
     let mut targets = Vec::new();
     let mut seen = HashSet::new();
 
@@ -452,13 +453,15 @@ pub(crate) fn scan_targets_from_set_file(path: &str) -> Result<Vec<ScanTarget>, 
         }
         let (protocol, entry) = parse_protocol_set_line(line)
             .map_err(|err| format!("invalid protocol set line {}: {err}", index + 1))?;
-        let resolved = resolve_protocol_profile(protocol, entry).ok_or_else(|| {
-            format!(
-                "unsupported protocol target on line {}: {}",
-                index + 1,
-                line
-            )
-        })?;
+        let resolved = catalog
+            .resolve_protocol_profile(protocol, entry)
+            .ok_or_else(|| {
+                format!(
+                    "unsupported protocol target on line {}: {}",
+                    index + 1,
+                    line
+                )
+            })?;
         let key = format!("{}:{}", resolved.protocol, resolved.entry);
         if seen.insert(key) {
             targets.push(ScanTarget::from_resolved(resolved));

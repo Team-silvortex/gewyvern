@@ -1,5 +1,6 @@
-use std::collections::{BTreeSet, HashSet};
+use std::collections::BTreeSet;
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use super::profiles::{PACKAGED_SHARE_ROOT, PROTOCOL_REGISTRY_ROOT};
@@ -10,6 +11,7 @@ use crate::runtime_layout::{
 };
 
 const MAX_REGISTRY_DIRECTORIES: usize = 4096;
+const MAX_REGISTRY_ENTRIES: usize = 16_384;
 const MAX_REGISTRY_MANIFESTS: usize = 2048;
 const MAX_REGISTRY_MANIFEST_BYTES: u64 = 64 * 1024;
 
@@ -96,16 +98,16 @@ pub(super) fn resolve_built_in_dsl_path(raw: &str) -> String {
 }
 
 pub(super) fn default_protocol_scan_set_from_registry(
-    registry: Vec<RegistryManifest>,
+    registry: &[RegistryManifest],
 ) -> Vec<ResolvedProtocolProfile> {
     let mut seen = BTreeSet::<(String, String)>::new();
     let mut resolved = registry
-        .into_iter()
+        .iter()
         .filter(|manifest| seen.insert((manifest.protocol.clone(), manifest.entry.clone())))
         .map(|manifest| ResolvedProtocolProfile {
-            protocol: manifest.protocol,
-            entry: manifest.entry,
-            dsl_path: manifest.dsl_path,
+            protocol: manifest.protocol.clone(),
+            entry: manifest.entry.clone(),
+            dsl_path: manifest.dsl_path.clone(),
         })
         .collect::<Vec<_>>();
     resolved.sort_by(|left, right| {
@@ -117,64 +119,97 @@ pub(super) fn default_protocol_scan_set_from_registry(
 }
 
 fn collect_registry_manifests(
-    dir: &Path,
+    root: &Path,
     manifests: &mut Vec<RegistryManifest>,
     state: &mut RegistryScanState,
 ) -> Result<(), String> {
-    if !dir.exists() {
-        return Ok(());
-    }
-    let dir_metadata = fs::symlink_metadata(dir).map_err(|err| err.to_string())?;
-    if dir_metadata.file_type().is_symlink() {
-        return Ok(());
-    }
-    let canonical_dir = fs::canonicalize(dir).map_err(|err| err.to_string())?;
-    if !state.visited_dirs.insert(canonical_dir) {
-        return Ok(());
-    }
-    state.directories_scanned += 1;
-    if state.directories_scanned > MAX_REGISTRY_DIRECTORIES {
-        return Err(format!(
-            "protocol registry exceeded directory budget of {}",
-            MAX_REGISTRY_DIRECTORIES
-        ));
-    }
-    for entry in fs::read_dir(dir).map_err(|err| err.to_string())? {
-        let entry = entry.map_err(|err| err.to_string())?;
-        let path = entry.path();
-        let metadata = fs::symlink_metadata(&path).map_err(|err| err.to_string())?;
-        if metadata.file_type().is_symlink() {
+    let mut pending_dirs = vec![root.to_path_buf()];
+    while let Some(dir) = pending_dirs.pop() {
+        let dir_metadata = match fs::symlink_metadata(&dir) {
+            Ok(metadata) => metadata,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(err) => return Err(err.to_string()),
+        };
+        if dir_metadata.file_type().is_symlink() {
             continue;
         }
-        if path.is_dir() {
-            collect_registry_manifests(&path, manifests, state)?;
-            continue;
-        }
-        if path.file_name().and_then(|name| name.to_str()) != Some("gewy.pkg") {
-            continue;
-        }
-        state.manifests_loaded += 1;
-        if state.manifests_loaded > MAX_REGISTRY_MANIFESTS {
+        state.directories_scanned += 1;
+        if state.directories_scanned > MAX_REGISTRY_DIRECTORIES {
             return Err(format!(
-                "protocol registry exceeded manifest budget of {}",
-                MAX_REGISTRY_MANIFESTS
+                "protocol registry exceeded directory budget of {}",
+                MAX_REGISTRY_DIRECTORIES
             ));
         }
-        manifests.push(read_registry_manifest(&path)?);
+
+        let mut entries = Vec::new();
+        for entry in fs::read_dir(&dir).map_err(|err| err.to_string())? {
+            state.entries_seen += 1;
+            if state.entries_seen > MAX_REGISTRY_ENTRIES {
+                return Err(format!(
+                    "protocol registry exceeded directory entry budget of {}",
+                    MAX_REGISTRY_ENTRIES
+                ));
+            }
+            entries.push(entry.map_err(|err| err.to_string())?);
+        }
+        entries.sort_unstable_by_key(|entry| entry.file_name());
+        let mut child_dirs = Vec::new();
+        for entry in entries {
+            let path = entry.path();
+            let metadata = fs::symlink_metadata(&path).map_err(|err| err.to_string())?;
+            if metadata.file_type().is_symlink() {
+                continue;
+            }
+            if metadata.is_dir() {
+                child_dirs.push(path);
+                continue;
+            }
+            if path.file_name().and_then(|name| name.to_str()) != Some("gewy.pkg") {
+                continue;
+            }
+            if !metadata.is_file() {
+                return Err(format!(
+                    "manifest '{}' must be a regular file",
+                    path.display()
+                ));
+            }
+            state.manifests_loaded += 1;
+            if state.manifests_loaded > MAX_REGISTRY_MANIFESTS {
+                return Err(format!(
+                    "protocol registry exceeded manifest budget of {}",
+                    MAX_REGISTRY_MANIFESTS
+                ));
+            }
+            manifests.push(read_registry_manifest(&path, metadata.len())?);
+        }
+        pending_dirs.extend(child_dirs.into_iter().rev());
     }
     Ok(())
 }
 
-fn read_registry_manifest(path: &Path) -> Result<RegistryManifest, String> {
-    let manifest_metadata = fs::metadata(path).map_err(|err| err.to_string())?;
-    if manifest_metadata.len() > MAX_REGISTRY_MANIFEST_BYTES {
+fn read_registry_manifest(path: &Path, manifest_len: u64) -> Result<RegistryManifest, String> {
+    if manifest_len > MAX_REGISTRY_MANIFEST_BYTES {
         return Err(format!(
             "manifest '{}' exceeded size budget of {} bytes",
             path.display(),
             MAX_REGISTRY_MANIFEST_BYTES
         ));
     }
-    let input = fs::read_to_string(path).map_err(|err| err.to_string())?;
+    let mut bytes = Vec::with_capacity(manifest_len as usize);
+    fs::File::open(path)
+        .map_err(|err| err.to_string())?
+        .take(MAX_REGISTRY_MANIFEST_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|err| err.to_string())?;
+    if bytes.len() as u64 > MAX_REGISTRY_MANIFEST_BYTES {
+        return Err(format!(
+            "manifest '{}' exceeded size budget of {} bytes",
+            path.display(),
+            MAX_REGISTRY_MANIFEST_BYTES
+        ));
+    }
+    let input = String::from_utf8(bytes)
+        .map_err(|err| format!("manifest '{}' is not UTF-8: {err}", path.display()))?;
     let root = path
         .parent()
         .ok_or_else(|| format!("manifest '{}' has no parent", path.display()))?;
@@ -225,9 +260,9 @@ fn read_registry_manifest(path: &Path) -> Result<RegistryManifest, String> {
         .ok_or_else(|| format!("manifest '{}' missing register.protocol", path.display()))?;
     let protocol_entry = protocol_entry
         .ok_or_else(|| format!("manifest '{}' missing register.entry", path.display()))?;
-    validate_package_entry(root, &entry, path)?;
-    let dsl_path = fs::canonicalize(root)
+    let canonical_root = fs::canonicalize(root)
         .map_err(|err| format!("failed to resolve package root '{}': {err}", root.display()))?;
+    validate_package_entry(root, &canonical_root, &entry, path)?;
 
     Ok(RegistryManifest {
         protocol,
@@ -235,11 +270,16 @@ fn read_registry_manifest(path: &Path) -> Result<RegistryManifest, String> {
         default,
         aliases,
         entry_aliases,
-        dsl_path: dsl_path.to_string_lossy().into_owned(),
+        dsl_path: canonical_root.to_string_lossy().into_owned(),
     })
 }
 
-fn validate_package_entry(root: &Path, entry: &str, manifest: &Path) -> Result<(), String> {
+fn validate_package_entry(
+    root: &Path,
+    canonical_root: &Path,
+    entry: &str,
+    manifest: &Path,
+) -> Result<(), String> {
     let relative = Path::new(entry);
     if relative.as_os_str().is_empty()
         || relative.is_absolute()
@@ -253,9 +293,8 @@ fn validate_package_entry(root: &Path, entry: &str, manifest: &Path) -> Result<(
         ));
     }
 
-    let canonical_root = fs::canonicalize(root)
-        .map_err(|err| format!("failed to resolve package root '{}': {err}", root.display()))?;
     let mut candidate = root.to_path_buf();
+    let mut entry_metadata = None;
     for component in relative.components() {
         let std::path::Component::Normal(component) = component else {
             unreachable!("entry components were validated above");
@@ -269,9 +308,9 @@ fn validate_package_entry(root: &Path, entry: &str, manifest: &Path) -> Result<(
                 manifest.display()
             ));
         }
+        entry_metadata = Some(metadata);
     }
-    let metadata = fs::symlink_metadata(&candidate)
-        .map_err(|err| format!("failed to inspect '{}': {err}", candidate.display()))?;
+    let metadata = entry_metadata.expect("validated entry path should contain a component");
     if !metadata.is_file() {
         return Err(format!(
             "manifest '{}' entry must resolve to a regular file",
@@ -280,7 +319,7 @@ fn validate_package_entry(root: &Path, entry: &str, manifest: &Path) -> Result<(
     }
     let canonical_entry = fs::canonicalize(&candidate)
         .map_err(|err| format!("failed to resolve '{}': {err}", candidate.display()))?;
-    if !canonical_entry.starts_with(&canonical_root) {
+    if !canonical_entry.starts_with(canonical_root) {
         return Err(format!(
             "manifest '{}' entry escapes its package root",
             manifest.display()
@@ -316,8 +355,8 @@ pub(super) fn resolve_registry_entry_alias<'a>(
 
 #[derive(Default)]
 struct RegistryScanState {
-    visited_dirs: HashSet<PathBuf>,
     directories_scanned: usize,
+    entries_seen: usize,
     manifests_loaded: usize,
 }
 
@@ -378,6 +417,49 @@ mod tests {
             error.contains("entry must be a normalized relative path"),
             "{error}"
         );
+    }
+
+    #[test]
+    fn strict_scan_reports_manifest_errors_in_stable_path_order() {
+        let root = temp_registry_root();
+        for package in ["z-last", "a-first"] {
+            let package_dir = root.join(package);
+            fs::create_dir_all(&package_dir).expect("package dir should be creatable");
+            fs::write(
+                package_dir.join("gewy.pkg"),
+                "register.protocol=http\nregister.entry=request\n",
+            )
+            .expect("manifest should be writable");
+        }
+
+        let error = scan_protocol_registry_in_strict(&root).unwrap_err();
+        let expected_path = root.join("a-first").join("gewy.pkg");
+        let _ = fs::remove_dir_all(&root);
+        assert!(
+            error.contains(&expected_path.to_string_lossy().into_owned()),
+            "{error}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn manifest_must_be_a_regular_file() {
+        use std::os::unix::net::UnixListener;
+
+        let root = Path::new("/tmp").join(format!(
+            "gw-reg-{}-{}",
+            std::process::id(),
+            NEXT_TEMP_REGISTRY_ID.fetch_add(1, Ordering::Relaxed)
+        ));
+        let package_dir = root.join("http").join("request");
+        fs::create_dir_all(&package_dir).expect("package dir should be creatable");
+        let listener = UnixListener::bind(package_dir.join("gewy.pkg"))
+            .expect("manifest socket should be bindable");
+
+        let error = scan_protocol_registry_in_strict(&root).unwrap_err();
+        drop(listener);
+        let _ = fs::remove_dir_all(&root);
+        assert!(error.contains("must be a regular file"), "{error}");
     }
 
     #[cfg(unix)]

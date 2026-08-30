@@ -107,6 +107,25 @@ Every manifest entry must be a normalized relative path to a regular file
 inside its package directory. Absolute paths, `..`, symlinks in the entry path,
 and package-root escapes are rejected before a target is exposed.
 
+### Request-Local Catalog Snapshots
+
+Use `ProtocolCatalogSnapshot::discover()` when one operation needs more than
+one catalog lookup. A snapshot scans the registry once and can then serve
+protocol summaries, individual summaries, profile resolution, and the default
+scan set without touching the directory again.
+
+Snapshots are deliberately request-local and immutable. They are not installed
+as a process-wide cache: an existing snapshot remains internally consistent,
+while the next `discover()` observes package changes. The standalone helper
+functions remain compatible and perform fresh discovery for each call.
+
+The scanner itself uses a bounded iterative traversal. It ignores symlinked
+directories, accepts only regular `gewy.pkg` files, validates package entries
+component by component, and processes directory names in stable order so strict
+diagnostics are reproducible. One scan is capped at 4,096 directories, 16,384
+directory entries, 2,048 manifests, and 64 KiB of actual manifest content per
+file; exceeding any budget fails the strict scan.
+
 For surfaces that carry explicit failure or denial posture, the current
 machine-facing protocol surface can also include:
 
@@ -296,6 +315,9 @@ It is expected to:
 2. normalize entry aliases to the canonical entry
 3. choose the default entry when `entry` is omitted
 4. return the resolved package DSL path
+
+For a batch, call the equivalent method on one `ProtocolCatalogSnapshot`
+instead of repeatedly calling the standalone helper.
 
 ### `protocol_surface(protocol, entry)`
 

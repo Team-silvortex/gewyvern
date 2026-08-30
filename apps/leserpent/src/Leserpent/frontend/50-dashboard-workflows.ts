@@ -44,6 +44,7 @@ function clearRegisterForm() {
     nodes.registerSidecarEndpoint,
     nodes.registerSidecarAdminToken,
     nodes.registerToken,
+    nodes.registerCaFile,
   ].some((input) => input.value.trim());
   if (hasOperatorInput && !window.confirm(t("register.clearConfirm"))) {
     return;
@@ -57,6 +58,7 @@ function clearRegisterForm() {
   nodes.registerEndpoint.value = "";
   nodes.registerSidecarEndpoint.value = "";
   clearRegistrationSecrets();
+  clearRegistrationCa(false);
   nodes.registerSidecarDetails.open = false;
   for (const field of [
     nodes.registerName,
@@ -64,6 +66,7 @@ function clearRegisterForm() {
     nodes.registerSidecarEndpoint,
     nodes.registerSidecarAdminToken,
     nodes.registerToken,
+    nodes.registerCaFile,
   ]) {
     field.setAttribute("aria-invalid", "false");
   }
@@ -676,6 +679,8 @@ async function submitRegisterForm(event) {
     sidecarEndpoint: sidecarEndpoint || null,
     sidecarAdminToken: nodes.registerSidecarAdminToken.value.trim() || null,
     pairingToken: nodes.registerToken.value.trim(),
+    tlsCaPem: state.registrationCaPem || null,
+    tlsCaSha256: state.registrationCaSha256 || null,
     capabilities: [],
     tags: {
       environment: nodes.registerRuntimeEnvironment.value.trim() || null,
@@ -693,6 +698,7 @@ async function submitRegisterForm(event) {
       state.registrationPlan = null;
       state.registerNameTouched = false;
       clearRegistrationSecrets();
+      clearRegistrationCa(false);
       renderRegisterPreview();
       state.activeTab = "runtimes";
       state.activeRuntimeMainTab = "detail";

@@ -90,7 +90,7 @@ session data.
 - stage: post-1.0 stable development, preserving the sealed debugger core while
   hardening reliability and advancing the Rust Leserpent/Leselang control plane
 - transport support: TCP + UDP
-- protocol registry coverage: 70 protocol families and 363 package entries
+- protocol registry coverage: 70 protocol families and 361 package entries
   under `protocols/`
 - input modes: demo facts, Unix socket, TCP socket
 - Linux probe support: tracepoint, kprobe, tc ingress smoke/probe paths

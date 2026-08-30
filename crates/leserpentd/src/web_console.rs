@@ -16,7 +16,7 @@ use crate::web_console_orchestra;
 
 const MAX_FILTER_VALUE_BYTES: usize = 128;
 pub(crate) const MAX_REGISTRATION_PLAN_BYTES: usize = 8 * 1024;
-pub(crate) const MAX_REGISTRATION_REQUEST_BYTES: usize = 16 * 1024;
+pub(crate) const MAX_REGISTRATION_REQUEST_BYTES: usize = 64 * 1024;
 pub(crate) const MAX_CLEANUP_REQUEST_BYTES: usize = 1024;
 pub(crate) const MAX_ORCHESTRA_COMMAND_BYTES: usize = 4 * 1024;
 pub(crate) const MAX_ATOMIC_CLEANUP_TARGETS: usize = 128;

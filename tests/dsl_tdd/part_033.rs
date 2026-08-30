@@ -226,6 +226,75 @@ template(:include_cycle)
 }
 
 #[test]
+fn dsl_nested_local_include_resolves_from_source_and_stays_within_package_root() {
+    let package_dir = std::env::temp_dir().join(format!(
+        "gewy-package-{}-nested-local-include",
+        std::process::id()
+    ));
+    let module_dir = package_dir.join("modules");
+    fs::create_dir_all(&module_dir).unwrap();
+    fs::write(
+        package_dir.join("gewy.pkg"),
+        "name=nested_local_include\nversion=0.1.0\nentry=main.gewy\n",
+    )
+    .unwrap();
+    fs::write(
+        package_dir.join("main.gewy"),
+        "template :nested_local_include\n|> window :default_5s\n|> reason :udp_datagram_l1\n|> include \"./modules/module.gewy\"\n",
+    )
+    .unwrap();
+    fs::write(
+        module_dir.join("module.gewy"),
+        "|> include \"../shared.gewy\"\n",
+    )
+    .unwrap();
+    fs::write(
+        package_dir.join("shared.gewy"),
+        "|> fragment :udp_packet_meta_fragment\n|> fragment :route_meta_fragment\n|> fragment :sock_lineage_fragment\n|> operation :datagram_exchange\n|> program_model :nested_local_include_model\n|> program_rule predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true\n",
+    )
+    .unwrap();
+
+    let binding = compile_file(package_dir.to_str().unwrap()).unwrap();
+    fs::remove_dir_all(package_dir).unwrap();
+    assert_eq!(binding.template.id, "nested_local_include");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "nested_local_include_model"
+    );
+}
+
+#[test]
+fn dsl_included_modules_share_entry_comment_normalization() {
+    let package_dir = std::env::temp_dir().join(format!(
+        "gewy-package-{}-included-comments",
+        std::process::id()
+    ));
+    fs::create_dir_all(&package_dir).unwrap();
+    fs::write(
+        package_dir.join("gewy.pkg"),
+        "name=included_comments\nversion=0.1.0\nentry=main.gewy\n",
+    )
+    .unwrap();
+    fs::write(
+        package_dir.join("main.gewy"),
+        "template :included_comments\n|> window :default_5s\n|> reason :udp_datagram_l1\n|> include \"./module.gewy\"\n",
+    )
+    .unwrap();
+    fs::write(
+        package_dir.join("module.gewy"),
+        "/* |> unknown_step :must_not_parse */\n|> fragment :udp_packet_meta_fragment\n|> fragment :route_meta_fragment\n|> fragment :sock_lineage_fragment\n|> operation :datagram_exchange\n|> program_model :included_comments_model\n|> program_rule predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true\n",
+    )
+    .unwrap();
+
+    let binding = compile_file(package_dir.to_str().unwrap()).unwrap();
+    fs::remove_dir_all(package_dir).unwrap();
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "included_comments_model"
+    );
+}
+
+#[test]
 fn dsl_rejects_oversized_pipeline_include_before_parsing() {
     let package_dir = std::env::temp_dir().join(format!(
         "gewy-package-{}-oversized-include",

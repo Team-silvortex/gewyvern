@@ -2,13 +2,39 @@ use super::{DslError, PACKAGE_MANIFEST_FILE};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PackageContext {
     pub(crate) package_scope: String,
-    pub(crate) root_dir: PathBuf,
+    pub(crate) source_root: PathBuf,
+    pub(crate) package_root: PathBuf,
     pub(crate) entry_file: String,
-    pub(crate) dependencies: BTreeMap<String, PathBuf>,
+    pub(crate) dependencies: Arc<BTreeMap<String, PathBuf>>,
+}
+
+pub(super) struct ResolvedInclude {
+    pub(super) path: PathBuf,
+    pub(super) package_scope: String,
+    pub(super) package_root: PathBuf,
+    pub(super) dependency: Option<String>,
+}
+
+impl PackageContext {
+    pub(super) fn for_include(&self, include: &ResolvedInclude) -> Self {
+        let source_root = include
+            .path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| include.package_root.clone());
+        Self {
+            package_scope: include.package_scope.clone(),
+            source_root,
+            package_root: include.package_root.clone(),
+            entry_file: include.path.to_string_lossy().into_owned(),
+            dependencies: Arc::clone(&self.dependencies),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -57,16 +83,17 @@ pub(super) fn resolve_package_context(path: &str) -> Result<PackageContext, DslE
         .and_then(|ext| ext.to_str())
         .is_some_and(|ext| ext == "gewy")
     {
-        let entry_file = path.to_string_lossy().into_owned();
-        let root_dir = path
+        let entry_path = canonicalize_existing_path(path)?;
+        let root_dir = entry_path
             .parent()
             .map(Path::to_path_buf)
             .unwrap_or_else(|| PathBuf::from("."));
         return Ok(PackageContext {
             package_scope: "standalone".to_string(),
-            root_dir,
-            entry_file,
-            dependencies: BTreeMap::new(),
+            source_root: root_dir.clone(),
+            package_root: root_dir,
+            entry_file: entry_path.to_string_lossy().into_owned(),
+            dependencies: Arc::new(BTreeMap::new()),
         });
     }
 
@@ -79,14 +106,19 @@ pub(super) fn resolve_package_context(path: &str) -> Result<PackageContext, DslE
     {
         path.to_path_buf()
     } else {
+        let entry_path = canonicalize_existing_path(path)?;
         return Ok(PackageContext {
             package_scope: "standalone".to_string(),
-            entry_file: path.to_string_lossy().into_owned(),
-            root_dir: path
+            entry_file: entry_path.to_string_lossy().into_owned(),
+            source_root: entry_path
                 .parent()
                 .map(Path::to_path_buf)
                 .unwrap_or_else(|| PathBuf::from(".")),
-            dependencies: BTreeMap::new(),
+            package_root: entry_path
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| PathBuf::from(".")),
+            dependencies: Arc::new(BTreeMap::new()),
         });
     };
 
@@ -97,12 +129,13 @@ pub(super) fn resolve_package_context(path: &str) -> Result<PackageContext, DslE
         .unwrap_or_else(|| PathBuf::from("."));
     let package_root = canonicalize_existing_path(&package_root)?;
     let entry_path = canonicalize_existing_path(&package_root.join(manifest.entry))?;
-    ensure_within_root(&entry_path, &package_root)?;
+    ensure_within_canonical_root(&entry_path, &package_root)?;
     Ok(PackageContext {
         package_scope: manifest.name,
         entry_file: entry_path.to_string_lossy().into_owned(),
-        root_dir: package_root,
-        dependencies: manifest.dependencies,
+        source_root: package_root.clone(),
+        package_root,
+        dependencies: Arc::new(manifest.dependencies),
     })
 }
 
@@ -167,27 +200,37 @@ fn resolve_dependency_root(
             DslError::InvalidValue(format!("unknown package source '{source_name}'"))
         })?;
         let resolved = canonicalize_existing_path(&source_root.join(package_path))?;
-        ensure_within_root(&resolved, source_root)?;
+        ensure_within_canonical_root(&resolved, source_root)?;
         return Ok(resolved);
     }
     canonicalize_existing_path(&manifest_root.join(value))
 }
 
-pub(super) fn resolve_include_path(
+pub(super) fn resolve_include(
     package: &PackageContext,
     include: &str,
-) -> Result<PathBuf, DslError> {
+) -> Result<ResolvedInclude, DslError> {
     if let Some((dep_name, file)) = include.split_once(':') {
         let dep_root = package.dependencies.get(dep_name).ok_or_else(|| {
             DslError::InvalidValue(format!("unknown package dependency '{dep_name}'"))
         })?;
         let resolved = canonicalize_existing_path(&dep_root.join(file))?;
-        ensure_within_root(&resolved, dep_root)?;
-        return Ok(resolved);
+        ensure_within_canonical_root(&resolved, dep_root)?;
+        return Ok(ResolvedInclude {
+            path: resolved,
+            package_scope: dep_name.to_string(),
+            package_root: dep_root.clone(),
+            dependency: Some(dep_name.to_string()),
+        });
     }
-    let resolved = canonicalize_existing_path(&package.root_dir.join(include))?;
-    ensure_within_root(&resolved, &package.root_dir)?;
-    Ok(resolved)
+    let resolved = canonicalize_existing_path(&package.source_root.join(include))?;
+    ensure_within_canonical_root(&resolved, &package.package_root)?;
+    Ok(ResolvedInclude {
+        path: resolved,
+        package_scope: package.package_scope.clone(),
+        package_root: package.package_root.clone(),
+        dependency: None,
+    })
 }
 
 fn canonicalize_existing_path(path: &Path) -> Result<PathBuf, DslError> {
@@ -195,17 +238,15 @@ fn canonicalize_existing_path(path: &Path) -> Result<PathBuf, DslError> {
         .map_err(|err| DslError::Io(err.to_string()))
 }
 
-fn ensure_within_root(path: &Path, root: &Path) -> Result<(), DslError> {
-    let normalized_root = root
-        .canonicalize()
-        .map_err(|err| DslError::Io(err.to_string()))?;
-    if path.starts_with(&normalized_root) {
+fn ensure_within_canonical_root(path: &Path, root: &Path) -> Result<(), DslError> {
+    debug_assert!(root.is_absolute());
+    if path.starts_with(root) {
         Ok(())
     } else {
         Err(DslError::InvalidValue(format!(
             "included path '{}' escapes package root '{}'",
             path.display(),
-            normalized_root.display()
+            root.display()
         )))
     }
 }

@@ -400,10 +400,19 @@
     "route": "/v1/runtimes/register",
     "availability": "explicit-web-console-writer-with-persistent-runtime-and-native-mutable-secret-store",
     "authority": "daemon-owned-writer-generation-never-exposed-to-browser",
-    "target_trust": "root-loopback-http-origin-with-explicit-port-only",
+    "target_trust": {
+      "loopback_http": "root-origin-with-explicit-port-and-no-ca",
+      "remote_https": "root-origin-with-explicit-reviewed-ca-pem-and-sha256",
+      "ambient_platform_pki_is_authority": false,
+      "plan_token": "runtime-registration-plan-v3-binds-ca-sha256",
+      "binding_schema": 2,
+      "legacy_binding_schema": 1,
+      "maximum_ca_pem_bytes": 32768
+    },
     "journal_schema": 21,
     "transaction": [
       "durable-secret-free-intent",
+      "digest-fenced-public-ca-trust",
       "copy-on-write-platform-secret",
       "idempotent-runtime-registration-command",
       "shared-target-catalog-activation",
@@ -414,7 +423,8 @@
       "exact-operation-replay",
       "pre-secret-intent-retry",
       "post-secret-command-resume",
-      "active-binding-hot-catalog-restore",
+      "explicit-ca-active-binding-hot-catalog-restore",
+      "legacy-loopback-binding-recovery",
       "deterministic-conflict-compensation",
       "orphan-binding-retirement"
     ],
@@ -427,6 +437,8 @@
     ],
     "local_evidence": [
       "crates/leserpentd/src/runtime_target_registration.rs",
+      "crates/leserpentd/src/web_console_write.rs",
+      "crates/leserpent-adapters/src/gewyvern.rs",
       "crates/leserpentd/src/remote.rs",
       "crates/leserpent-runtime/src/persistence.rs"
     ]

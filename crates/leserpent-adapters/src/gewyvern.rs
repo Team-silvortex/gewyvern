@@ -145,6 +145,10 @@ impl std::fmt::Debug for GewyvernTarget {
 }
 
 impl GewyvernTarget {
+    pub fn validate_https_origin(origin: &str) -> Result<(), String> {
+        HttpsEndpoint::parse(origin).map(|_| ())
+    }
+
     pub fn loopback(address: SocketAddr, admin_secret: Option<SecretKey>) -> Result<Self, String> {
         if !address.ip().is_loopback() {
             return Err("Gewyvern adapter currently permits loopback targets only".into());
@@ -162,13 +166,27 @@ impl GewyvernTarget {
     ) -> Result<Self, String> {
         let endpoint = HttpsEndpoint::parse(origin)?;
         let tls = load_tls_config(ca_path.as_ref())?;
-        Ok(Self {
+        Ok(Self::https_target(endpoint, tls, admin_secret))
+    }
+
+    pub fn https_with_ca_pem(
+        origin: &str,
+        ca_pem: &str,
+        admin_secret: SecretKey,
+    ) -> Result<Self, String> {
+        let endpoint = HttpsEndpoint::parse(origin)?;
+        let tls = load_tls_config_from_pem(ca_pem)?;
+        Ok(Self::https_target(endpoint, tls, admin_secret))
+    }
+
+    fn https_target(endpoint: HttpsEndpoint, tls: ClientConfig, admin_secret: SecretKey) -> Self {
+        Self {
             transport: GewyvernTransport::Https {
                 endpoint,
                 tls: Arc::new(tls),
             },
             admin_secret: Some(admin_secret),
-        })
+        }
     }
 
     pub(crate) fn is_authenticated(&self) -> bool {
@@ -261,6 +279,20 @@ fn load_tls_config(ca_path: &Path) -> Result<ClientConfig, String> {
     let certificates = CertificateDer::pem_reader_iter(&mut reader)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| "Gewyvern CA contains invalid PEM".to_string())?;
+    build_tls_config(certificates)
+}
+
+fn load_tls_config_from_pem(ca_pem: &str) -> Result<ClientConfig, String> {
+    if ca_pem.is_empty() || ca_pem.len() as u64 > MAX_CA_FILE_BYTES {
+        return Err("Gewyvern CA PEM has an invalid size".into());
+    }
+    let certificates = CertificateDer::pem_slice_iter(ca_pem.as_bytes())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "Gewyvern CA contains invalid PEM".to_string())?;
+    build_tls_config(certificates)
+}
+
+fn build_tls_config(certificates: Vec<CertificateDer<'static>>) -> Result<ClientConfig, String> {
     if certificates.is_empty() {
         return Err("Gewyvern CA contains no certificates".into());
     }
@@ -928,8 +960,7 @@ mod tests {
     fn health_adapter_authenticates_over_verified_https() {
         let CertifiedKey { cert, signing_key } =
             generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
-        let ca_path = temp_path("gewyvern-ca");
-        fs::write(&ca_path, cert.pem()).unwrap();
+        let ca_pem = cert.pem();
         let private_key =
             PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(signing_key.serialize_der()));
         let provider = Arc::new(rustls::crypto::ring::default_provider());
@@ -962,9 +993,9 @@ mod tests {
             ConfiguredSecretStore::new([(key.clone(), SecretValue::new("test-token").unwrap())])
                 .unwrap(),
         );
-        let target = GewyvernTarget::https(
+        let target = GewyvernTarget::https_with_ca_pem(
             &format!("https://localhost:{}", address.port()),
-            &ca_path,
+            &ca_pem,
             key,
         )
         .unwrap();
@@ -974,7 +1005,52 @@ mod tests {
         let result = adapter.execute(br#"{"runtime_id":"runtime-a"}"#);
         assert!(matches!(result, EffectExecution::Complete(_)), "{result:?}");
         server.join().unwrap();
-        fs::remove_file(ca_path).unwrap();
+    }
+
+    #[test]
+    fn in_memory_https_target_rejects_an_unreviewed_ca() {
+        let CertifiedKey { cert, signing_key } =
+            generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+        let wrong = generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+        let private_key =
+            PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(signing_key.serialize_der()));
+        let provider = Arc::new(rustls::crypto::ring::default_provider());
+        let server_config = ServerConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_no_client_auth()
+            .with_single_cert(vec![cert.der().clone()], private_key)
+            .unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (socket, _) = listener.accept().unwrap();
+            let connection = ServerConnection::new(Arc::new(server_config)).unwrap();
+            let mut stream = StreamOwned::new(connection, socket);
+            let mut request = [0_u8; 128];
+            assert!(stream.read(&mut request).is_err());
+        });
+        let key = SecretKey::new("runtime-wrong-ca-admin").unwrap();
+        let secrets = Arc::new(
+            ConfiguredSecretStore::new([(key.clone(), SecretValue::new("test-token").unwrap())])
+                .unwrap(),
+        );
+        let target = GewyvernTarget::https_with_ca_pem(
+            &format!("https://localhost:{}", address.port()),
+            &wrong.cert.pem(),
+            key,
+        )
+        .unwrap();
+        let mut adapter = GewyvernHealthAdapter::with_secret_store(
+            [("runtime-wrong-ca".to_string(), target)],
+            secrets,
+        )
+        .unwrap();
+        assert!(matches!(
+            adapter.execute(br#"{"runtime_id":"runtime-wrong-ca"}"#),
+            EffectExecution::Retry { .. }
+        ));
+        server.join().unwrap();
     }
 
     #[test]

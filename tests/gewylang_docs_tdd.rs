@@ -85,10 +85,34 @@ fn language_contract_schema_matches_the_rust_stage_contract() {
         "cargo run -p gewyc -- ir",
         "Runtime Projections Are Separate",
         "schema_hint.schema_version",
+        "Source Graph Safety Contract",
+        "`256` source files",
+        "`32` levels",
+        "`4194304` bytes",
     ] {
         assert!(
             contract.contains(required),
             "GewyLang contract is missing {required}"
+        );
+    }
+}
+
+#[test]
+fn package_reference_locks_source_graph_resolution_and_budgets() {
+    let reference =
+        fs::read_to_string(repository_root().join("docs/book/reference-gewylang-package.md"))
+            .expect("GewyLang package reference must be readable");
+    for required in [
+        "Resolution And Resource Limits",
+        "`262144` bytes per regular source file",
+        "`256` source files per compilation",
+        "`32` nested filesystem include levels",
+        "`4194304` aggregate source bytes",
+        "aliases use the same",
+    ] {
+        assert!(
+            reference.contains(required),
+            "GewyLang package reference is missing {required}"
         );
     }
 }

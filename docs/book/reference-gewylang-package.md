@@ -117,6 +117,30 @@ The compiler now surfaces this provenance in frontend reports as
 - include kind
 - dependency name when present
 
+### Resolution And Resource Limits
+
+Local includes resolve relative to the source that contains the include, but
+the resolved canonical path must remain inside the original package root. A
+module in `modules/` may therefore include `../shared.gewy`, while it cannot
+escape to a sibling of the package. Dependency includes follow the same model
+inside the named dependency root.
+
+The complete source graph is fail-closed and bounded:
+
+- `262144` bytes per regular source file
+- `256` source files per compilation, including the entry
+- `32` nested filesystem include levels
+- `4194304` aggregate source bytes per compilation
+
+The compiler counts every consumed source occurrence. It rejects active-path
+cycles before opening the repeated source and checks actual bytes read rather
+than trusting file metadata. `gewyc frontend`, binding compilation, diagnostics,
+and explain surfaces all use this same loader.
+
+An entry file whose only substantive line is `include "./module.gewy"` remains
+accepted as a compatibility alias. It is not a bypass: aliases use the same
+root confinement, cycle detection, and graph budgets as pipeline includes.
+
 ## Function Units
 
 Function units are the current reusable module form.

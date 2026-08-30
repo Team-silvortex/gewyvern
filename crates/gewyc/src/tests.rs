@@ -40,6 +40,42 @@ fn temp_test_dir(prefix: &str) -> std::path::PathBuf {
     fs::create_dir_all(&root).expect("create temp test dir");
     root
 }
+
+fn package_include_graph_benchmark_fixture() -> std::path::PathBuf {
+    let root = temp_test_dir("include-graph-benchmark");
+    let dependencies = root.join("dependencies");
+    let modules = root.join("modules");
+    fs::create_dir_all(&dependencies).unwrap();
+    fs::create_dir_all(&modules).unwrap();
+
+    let mut manifest = "name=include_graph_benchmark\nversion=0.1.0\nentry=main.gewy\n".to_string();
+    for index in 0..64 {
+        let dependency = dependencies.join(format!("dep_{index}"));
+        fs::create_dir_all(&dependency).unwrap();
+        manifest.push_str(&format!(
+            "dep.dep_{index}={}\n",
+            dependency.to_string_lossy()
+        ));
+    }
+    fs::write(root.join("gewy.pkg"), manifest).unwrap();
+
+    let mut main =
+        "template :include_graph_benchmark\n|> window :default_5s\n|> reason :udp_datagram_l1\n"
+            .to_string();
+    for index in 0..24 {
+        main.push_str(&format!("|> include \"./modules/module_{index}.gewy\"\n"));
+        fs::write(
+            modules.join(format!("module_{index}.gewy")),
+            format!("fn helper_{index}() =\n  |> fragment :udp_packet_meta_fragment\n"),
+        )
+        .unwrap();
+    }
+    main.push_str(
+        "|> fragment :udp_packet_meta_fragment\n|> fragment :route_meta_fragment\n|> fragment :sock_lineage_fragment\n|> operation :datagram_exchange\n|> program_model :include_graph_benchmark_model\n|> program_rule predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true\n",
+    );
+    fs::write(root.join("main.gewy"), main).unwrap();
+    root
+}
 #[test]
 fn parse_cli_defaults_to_compile_command() {
     let cli = parse_cli(
@@ -694,6 +730,73 @@ fn benchmark_gewyc_lockfile_protocol_publish_package() {
 
 #[test]
 #[ignore = "benchmark"]
+fn benchmark_protocol_registry_strict_scan() {
+    let root = protocol_fixture_path("");
+    let start = Instant::now();
+    let mut total_profiles = 0usize;
+    for _ in 0..20 {
+        let profiles = gewyvern::protocol_profiles::validate_protocol_registry_dir(&root).unwrap();
+        total_profiles += profiles.len();
+        black_box(profiles);
+    }
+    let elapsed = start.elapsed();
+    assert!(total_profiles > 0);
+    eprintln!(
+        "benchmark_protocol_registry_strict_scan: iterations=20 total_profiles={} elapsed_ms={:.3}",
+        total_profiles,
+        elapsed.as_secs_f64() * 1000.0
+    );
+}
+
+#[test]
+#[ignore = "benchmark"]
+fn benchmark_protocol_catalog_snapshot_batch_resolution() {
+    let targets = gewyvern::protocol_profiles::default_protocol_scan_set()
+        .into_iter()
+        .take(24)
+        .map(|profile| (profile.protocol, profile.entry))
+        .collect::<Vec<_>>();
+
+    let baseline_start = Instant::now();
+    let mut baseline_resolved = 0usize;
+    for _ in 0..5 {
+        for (protocol, entry) in &targets {
+            let profile = gewyvern::protocol_profiles::resolve_protocol_profile(
+                black_box(protocol),
+                Some(black_box(entry)),
+            )
+            .unwrap();
+            baseline_resolved += 1;
+            black_box(profile);
+        }
+    }
+    let baseline_elapsed = baseline_start.elapsed();
+
+    let snapshot_start = Instant::now();
+    let mut snapshot_resolved = 0usize;
+    for _ in 0..5 {
+        let catalog = gewyvern::protocol_profiles::ProtocolCatalogSnapshot::discover();
+        for (protocol, entry) in &targets {
+            let profile = catalog
+                .resolve_protocol_profile(black_box(protocol), Some(black_box(entry)))
+                .unwrap();
+            snapshot_resolved += 1;
+            black_box(profile);
+        }
+    }
+    let snapshot_elapsed = snapshot_start.elapsed();
+
+    assert_eq!(baseline_resolved, snapshot_resolved);
+    eprintln!(
+        "benchmark_protocol_catalog_snapshot_batch_resolution: iterations=5 targets={} baseline_ms={:.3} snapshot_ms={:.3}",
+        targets.len(),
+        baseline_elapsed.as_secs_f64() * 1000.0,
+        snapshot_elapsed.as_secs_f64() * 1000.0
+    );
+}
+
+#[test]
+#[ignore = "benchmark"]
 fn benchmark_gewylang_parse_lower_smtp_data_path() {
     let source = fs::read_to_string(dsl_fixture_path("smtp_data_path.gewy")).unwrap();
     let start = Instant::now();
@@ -736,6 +839,27 @@ fn benchmark_gewylang_parse_lower_frontend_smtp_data_path() {
         "benchmark_gewylang_parse_lower_frontend_smtp_data_path: iterations=200 source_bytes={} total_steps={} elapsed_ms={:.3}",
         source.len(),
         total_steps,
+        elapsed.as_secs_f64() * 1000.0
+    );
+}
+
+#[test]
+#[ignore = "benchmark"]
+fn benchmark_gewylang_package_include_graph() {
+    let root = package_include_graph_benchmark_fixture();
+    let start = Instant::now();
+    let mut total_functions = 0usize;
+    for _ in 0..500 {
+        let report = compile_frontend_report_file(black_box(root.to_str().unwrap())).unwrap();
+        total_functions += report.function_count;
+        black_box(report);
+    }
+    let elapsed = start.elapsed();
+    fs::remove_dir_all(&root).unwrap();
+    assert_eq!(total_functions, 12_000);
+    eprintln!(
+        "benchmark_gewylang_package_include_graph: iterations=500 modules=24 dependencies=64 total_functions={} elapsed_ms={:.3}",
+        total_functions,
         elapsed.as_secs_f64() * 1000.0
     );
 }

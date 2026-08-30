@@ -1,6 +1,8 @@
 use super::profiles::PROTOCOL_PROFILES;
 use super::tests_env::EnvGuard;
-use super::{resolve_built_in_dsl_path, resolve_protocol_profile_from_dir};
+use super::{
+    ProtocolCatalogSnapshot, resolve_built_in_dsl_path, resolve_protocol_profile_from_dir,
+};
 use std::fs;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs as unix_fs;
@@ -134,6 +136,50 @@ fn profile_resolves_from_an_explicit_registry_directory() {
     fs::remove_dir_all(&root).unwrap();
 
     assert_eq!(resolved, Some(expected));
+}
+
+#[test]
+fn catalog_snapshot_is_request_local_and_refreshes_on_rediscovery() {
+    let root = std::env::temp_dir().join(format!(
+        "gewyvern-protocol-snapshot-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let package_dir = root.join("custom").join("observe");
+    fs::create_dir_all(&package_dir).unwrap();
+    fs::write(package_dir.join("main.gewy"), "template(:custom_observe)\n").unwrap();
+    fs::write(
+        package_dir.join("gewy.pkg"),
+        "entry=main.gewy\nregister.protocol=custom\nregister.entry=observe\nregister.default=true\n",
+    )
+    .unwrap();
+
+    let first = ProtocolCatalogSnapshot::discover_in(&root).expect("first catalog snapshot");
+    fs::write(
+        package_dir.join("gewy.pkg"),
+        "entry=main.gewy\nregister.protocol=custom\nregister.entry=inspect\nregister.default=true\n",
+    )
+    .unwrap();
+    let second = ProtocolCatalogSnapshot::discover_in(&root).expect("second catalog snapshot");
+
+    assert!(
+        first
+            .resolve_protocol_profile("custom", Some("observe"))
+            .is_some()
+    );
+    assert!(
+        first
+            .resolve_protocol_profile("custom", Some("inspect"))
+            .is_none()
+    );
+    assert!(
+        second
+            .resolve_protocol_profile("custom", Some("inspect"))
+            .is_some()
+    );
+    fs::remove_dir_all(&root).unwrap();
 }
 
 #[cfg(target_family = "unix")]

@@ -37,6 +37,12 @@ interface DashboardState {
   };
   latestRuntimes: RuntimeSummary[];
   registerNameTouched: boolean;
+  registrationCaPem: string;
+  registrationCaSha256: string;
+  registrationCaFileName: string;
+  registrationCaError: string;
+  registrationCaLoading: boolean;
+  registrationCaLoadSequence: number;
   adminToken: string;
   adminTokenVisible: boolean;
   adminTokenTestState: string;

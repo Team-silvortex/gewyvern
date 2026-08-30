@@ -250,7 +250,8 @@ projection, operator feedback, and Leselang equivalence separately. Its
 at 100, and the supported ASP.NET Web bridge at 100, for a combined target score
 of 100. The Rust daemon now serves the shared packaged TypeScript console and its
 Bearer-authenticated first-screen read projections directly. Refresh, deletion,
-strict-loopback Gewyvern registration, writer-fenced snapshots, bounded
+explicit-trust loopback HTTP and reviewed-CA HTTPS Gewyvern registration,
+writer-fenced snapshots, bounded
 secret-free state export, atomic portable state import, and the core Orchestra
 plan/run/event/fleet/execute/cancel/retry/session routes are Rust-owned. Generic
 session handoff now uses a bounded, idempotent, restart-recoverable SQLite

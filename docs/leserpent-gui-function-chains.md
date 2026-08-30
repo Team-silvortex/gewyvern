@@ -91,11 +91,16 @@ credential, applies an idempotent runtime command, hot-activates the target, and
 then commits a durable binding. Exact retries replay the same operation, startup
 recovers every pre-commit window, and copy-on-write secret aliases are drained by
 durable garbage collection after rotation, conflict, or deletion. The coordinator
-deliberately accepts only root `http://127.0.0.1:PORT/` and
-`http://[::1]:PORT/` Gewyvern origins; remote HTTPS registration still fails
-closed until a registration request can carry reviewed CA trust without turning
-ambient PKI into authority. Real TLS tests prove the browser-to-daemon boundary
-and the registration replay path.
+accepts root `http://127.0.0.1:PORT/` and `http://[::1]:PORT/` origins without a
+CA. A remote Gewyvern target must instead use a root HTTPS origin without path,
+query, or credentials and carry an explicitly reviewed PEM CA of at most 32 KiB.
+The browser computes and displays its SHA-256 fingerprint before planning; the
+secret-free v3 plan token binds that digest, and submission rejects PEM drift
+before mutating runtime state, credentials, or bindings. Binding schema v2 keeps
+the public CA and digest for exact restart recovery while legacy schema-v1
+loopback bindings remain readable. Ambient platform PKI is never registration
+authority. Real TLS tests prove accepted in-memory CA trust, wrong-CA rejection,
+the browser-to-daemon boundary, and registration replay.
 
 Persistence checkpoint and export no longer cross the bridge. Writer mode gates
 `POST /v1/persistence/save`, which commits the runtime's checksum-bound snapshot

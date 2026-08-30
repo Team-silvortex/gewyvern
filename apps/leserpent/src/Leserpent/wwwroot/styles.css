@@ -1939,6 +1939,59 @@ select:focus {
   min-width: 0;
 }
 
+.register-ca-field {
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--panel-2) 88%, transparent);
+}
+
+.register-field-copy,
+.register-ca-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.register-field-copy {
+  margin-bottom: 7px;
+}
+
+.register-ca-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.runtime-register-panel .register-ca-control input[type="file"] {
+  min-width: 0;
+  padding: 6px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.register-ca-control button {
+  min-height: 36px;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+.register-ca-status {
+  margin-top: 7px;
+}
+
+.register-ca-status[data-tone="good"] {
+  color: #277a55;
+}
+
+.register-ca-status[data-tone="bad"] {
+  color: var(--danger);
+}
+
 .runtime-register-panel .register-secret-input input {
   min-width: 0;
   border-start-end-radius: 0;
@@ -5024,6 +5077,14 @@ details:not([open]) > :not(summary) {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  :root[data-layout-mode="mobile"] .register-ca-control {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :root[data-layout-mode="mobile"] .register-ca-control button {
+    width: 100%;
+  }
+
   :root[data-layout-mode="mobile"] .register-section {
     padding: 10px;
     border-radius: 14px;
@@ -5394,6 +5455,7 @@ details:not([open]) > :not(summary) {
 }
 
 :root[data-theme="dark"] .register-guidance[data-tone="good"],
+:root[data-theme="dark"] .register-ca-status[data-tone="good"],
 :root[data-theme="dark"] .runtime-register-footer .form-result[data-tone="good"] {
   color: #9be0bd;
 }

@@ -1,7 +1,10 @@
 use crate::fragment::{RegistryError, builtin_registry_ref};
 use crate::template::TemplateBinding;
+use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::fs;
+use std::fs::{self, File};
+use std::io::Read;
+use std::path::Path;
 
 mod contract;
 mod diagnostics;
@@ -13,6 +16,7 @@ mod package;
 mod parser;
 mod pipeline;
 mod predicate;
+mod source_graph;
 
 pub use self::contract::{
     GEWYLANG_ANALYSIS_IR_VERSION, GEWYLANG_BINDING_IR_VERSION, GEWYLANG_EXPANDED_AST_VERSION,
@@ -42,6 +46,9 @@ pub(crate) use self::predicate::{parse_flow_predicate, parse_reason_key_event};
 
 pub const PACKAGE_MANIFEST_FILE: &str = "gewy.pkg";
 pub const MAX_GEWYLANG_SOURCE_BYTES: usize = 256 * 1024;
+pub const MAX_GEWYLANG_SOURCE_GRAPH_FILES: usize = 256;
+pub const MAX_GEWYLANG_INCLUDE_DEPTH: usize = 32;
+pub const MAX_GEWYLANG_SOURCE_GRAPH_BYTES: usize = 4 * 1024 * 1024;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum DslError {
@@ -58,13 +65,34 @@ pub enum DslError {
 }
 
 pub fn read_file(path: &str) -> Result<String, DslError> {
+    read_source_file(Path::new(path))
+}
+
+fn read_source_file(path: &Path) -> Result<String, DslError> {
     let metadata = fs::metadata(path).map_err(|err| DslError::Io(err.to_string()))?;
+    if !metadata.is_file() {
+        return Err(DslError::InvalidValue(format!(
+            "gewylang source path '{}' is not a regular file",
+            path.display()
+        )));
+    }
     if metadata.len() > MAX_GEWYLANG_SOURCE_BYTES as u64 {
         return Err(gewylang_source_too_large());
     }
-    let input = fs::read_to_string(path).map_err(|err| DslError::Io(err.to_string()))?;
-    validate_gewylang_source_size(&input)?;
-    Ok(input)
+    let file = File::open(path).map_err(|err| DslError::Io(err.to_string()))?;
+    let mut bytes = Vec::with_capacity(
+        usize::try_from(metadata.len())
+            .unwrap_or(MAX_GEWYLANG_SOURCE_BYTES)
+            .min(MAX_GEWYLANG_SOURCE_BYTES)
+            .saturating_add(1),
+    );
+    file.take((MAX_GEWYLANG_SOURCE_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|err| DslError::Io(err.to_string()))?;
+    if bytes.len() > MAX_GEWYLANG_SOURCE_BYTES {
+        return Err(gewylang_source_too_large());
+    }
+    String::from_utf8(bytes).map_err(|err| DslError::Io(err.to_string()))
 }
 
 fn validate_gewylang_source_size(input: &str) -> Result<(), DslError> {
@@ -80,7 +108,11 @@ fn gewylang_source_too_large() -> DslError {
     ))
 }
 
-pub(super) fn strip_comments_preserve_layout(input: &str) -> Result<String, DslError> {
+pub(super) fn strip_comments_preserve_layout(input: &str) -> Result<Cow<'_, str>, DslError> {
+    if !input.as_bytes().contains(&b'#') && !input.as_bytes().windows(2).any(|pair| pair == b"/*") {
+        return Ok(Cow::Borrowed(input));
+    }
+
     let mut output = String::with_capacity(input.len());
     let mut chars = input.chars().peekable();
     let mut in_string = false;
@@ -175,7 +207,7 @@ pub(super) fn strip_comments_preserve_layout(input: &str) -> Result<String, DslE
                 .at_line_column(line, Some(column)),
         );
     }
-    Ok(output)
+    Ok(Cow::Owned(output))
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -372,6 +404,30 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn gewylang_source_reader_rejects_non_regular_files() {
+        use std::os::unix::net::UnixListener;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "gewy-source-socket-{}-{unique}",
+            std::process::id()
+        ));
+        let listener = UnixListener::bind(&path).unwrap();
+        let err = super::read_file(path.to_str().unwrap()).unwrap_err();
+        drop(listener);
+        std::fs::remove_file(&path).unwrap();
+
+        assert!(
+            matches!(err, super::DslError::InvalidValue(message) if message.contains("is not a regular file"))
+        );
+    }
+
     #[test]
     fn strip_comments_keeps_string_hashes_and_newlines() {
         let input = "template(:demo) # tail\n|> include(\"./a#b.gewy\")\n/* block\ncomment */\n";
@@ -381,6 +437,15 @@ mod tests {
         assert_eq!(input.lines().count(), stripped.lines().count());
         assert!(!stripped.contains("tail"));
         assert!(!stripped.contains("block"));
+    }
+
+    #[test]
+    fn comment_free_sources_are_borrowed_without_copying() {
+        let input = "template :borrowed\n|> window :default_5s\n";
+        assert!(matches!(
+            super::strip_comments_preserve_layout(input).unwrap(),
+            std::borrow::Cow::Borrowed(source) if std::ptr::eq(source, input)
+        ));
     }
 
     #[test]

@@ -16,11 +16,14 @@ use leserpent_runtime::{
     ControlRuntime, PlanResult, RuntimeError, RuntimeTargetRegistrationAdmission,
     RuntimeTargetRegistrationRecord,
 };
+use ring::digest::{SHA256, digest};
 use serde::{Deserialize, Serialize};
 
 use crate::wire::constant_time_equals;
 
-const TARGET_BINDING_SCHEMA_VERSION: u32 = 1;
+const LEGACY_TARGET_BINDING_SCHEMA_VERSION: u32 = 1;
+const TARGET_BINDING_SCHEMA_VERSION: u32 = 2;
+const MAX_TARGET_CA_PEM_BYTES: usize = 32 * 1024;
 const OPERATION_PREFIX: &str = "web-register-";
 const SECRET_PREFIX: &str = "runtime-target-secret-";
 
@@ -51,14 +54,30 @@ pub(crate) struct RuntimeTargetRegistrationIntent {
     pub(crate) tags: RuntimeTags,
     pub(crate) expected_revision: Option<Revision>,
     pub(crate) plan_token: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) tls_ca_pem: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) tls_ca_sha256: Option<String>,
 }
 
 impl RuntimeTargetRegistrationIntent {
+    #[cfg(test)]
     pub(crate) fn new(
         action: RuntimeTargetRegistrationAction,
         target: RuntimeTargetDescriptor,
         expected_revision: Option<Revision>,
         plan_token: String,
+    ) -> Result<Self, RuntimeTargetRegistrationError> {
+        Self::new_with_trust(action, target, expected_revision, plan_token, None, None)
+    }
+
+    pub(crate) fn new_with_trust(
+        action: RuntimeTargetRegistrationAction,
+        target: RuntimeTargetDescriptor,
+        expected_revision: Option<Revision>,
+        plan_token: String,
+        tls_ca_pem: Option<String>,
+        tls_ca_sha256: Option<String>,
     ) -> Result<Self, RuntimeTargetRegistrationError> {
         let RuntimeTargetDescriptor {
             runtime_id,
@@ -70,12 +89,11 @@ impl RuntimeTargetRegistrationIntent {
         validate_plan_token(&plan_token)?;
         validate_registration_intent(&name, &endpoint, sidecar_endpoint.as_deref(), &tags)
             .map_err(|_| RuntimeTargetRegistrationError::invalid())?;
-        loopback_address(&endpoint)?;
         if matches!(action, RuntimeTargetRegistrationAction::Create) != expected_revision.is_none()
         {
             return Err(RuntimeTargetRegistrationError::invalid());
         }
-        Ok(Self {
+        let intent = Self {
             schema_version: TARGET_BINDING_SCHEMA_VERSION,
             action,
             runtime_id,
@@ -85,7 +103,11 @@ impl RuntimeTargetRegistrationIntent {
             tags,
             expected_revision,
             plan_token,
-        })
+            tls_ca_pem,
+            tls_ca_sha256,
+        };
+        intent.target()?;
+        Ok(intent)
     }
 
     pub(crate) fn operation_id(&self) -> String {
@@ -102,8 +124,23 @@ impl RuntimeTargetRegistrationIntent {
     }
 
     fn target(&self) -> Result<GewyvernTarget, RuntimeTargetRegistrationError> {
-        GewyvernTarget::loopback(loopback_address(&self.endpoint)?, Some(self.secret_key()?))
-            .map_err(|_| RuntimeTargetRegistrationError::invalid())
+        match (&self.tls_ca_pem, &self.tls_ca_sha256) {
+            (None, None) => GewyvernTarget::loopback(
+                loopback_address(&self.endpoint)?,
+                Some(self.secret_key()?),
+            )
+            .map_err(|_| RuntimeTargetRegistrationError::invalid()),
+            (Some(ca_pem), Some(ca_sha256)) => {
+                validate_ca_binding(ca_pem, ca_sha256)?;
+                let origin = self
+                    .endpoint
+                    .strip_suffix('/')
+                    .ok_or_else(RuntimeTargetRegistrationError::invalid)?;
+                GewyvernTarget::https_with_ca_pem(origin, ca_pem, self.secret_key()?)
+                    .map_err(|_| RuntimeTargetRegistrationError::invalid())
+            }
+            _ => Err(RuntimeTargetRegistrationError::invalid()),
+        }
     }
 
     fn matches_projection(&self, projection: &RuntimeProjection) -> bool {
@@ -491,10 +528,16 @@ fn parse_payload(
 ) -> Result<RuntimeTargetRegistrationIntent, RuntimeTargetRegistrationError> {
     let intent: RuntimeTargetRegistrationIntent =
         serde_json::from_slice(payload).map_err(|_| RuntimeTargetRegistrationError::internal())?;
-    if intent.schema_version != TARGET_BINDING_SCHEMA_VERSION {
+    let schema_version = intent.schema_version;
+    if !matches!(
+        schema_version,
+        LEGACY_TARGET_BINDING_SCHEMA_VERSION | TARGET_BINDING_SCHEMA_VERSION
+    ) || schema_version == LEGACY_TARGET_BINDING_SCHEMA_VERSION
+        && (intent.tls_ca_pem.is_some() || intent.tls_ca_sha256.is_some())
+    {
         return Err(RuntimeTargetRegistrationError::internal());
     }
-    RuntimeTargetRegistrationIntent::new(
+    let mut normalized = RuntimeTargetRegistrationIntent::new_with_trust(
         intent.action,
         RuntimeTargetDescriptor {
             runtime_id: intent.runtime_id,
@@ -505,7 +548,11 @@ fn parse_payload(
         },
         intent.expected_revision,
         intent.plan_token,
-    )
+        intent.tls_ca_pem,
+        intent.tls_ca_sha256,
+    )?;
+    normalized.schema_version = schema_version;
+    Ok(normalized)
 }
 
 fn validate_record_identity(
@@ -586,6 +633,32 @@ pub(crate) fn loopback_address(
         return Err(RuntimeTargetRegistrationError::invalid());
     }
     Ok(address)
+}
+
+fn validate_ca_binding(
+    ca_pem: &str,
+    ca_sha256: &str,
+) -> Result<(), RuntimeTargetRegistrationError> {
+    if ca_pem.len() > MAX_TARGET_CA_PEM_BYTES
+        || !ca_pem.starts_with("-----BEGIN CERTIFICATE-----\n")
+        || !ca_pem.ends_with("-----END CERTIFICATE-----\n")
+        || ca_sha256.len() != 64
+        || !ca_sha256
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+        || ca_sha256 != sha256_hex(ca_pem.as_bytes())
+    {
+        return Err(RuntimeTargetRegistrationError::invalid());
+    }
+    Ok(())
+}
+
+fn sha256_hex(value: &[u8]) -> String {
+    digest(&SHA256, value)
+        .as_ref()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn validate_plan_token(token: &str) -> Result<(), RuntimeTargetRegistrationError> {
@@ -767,6 +840,88 @@ mod tests {
         assert_eq!(recovered.runtime_target_bindings().unwrap().len(), 1);
         drop(recovered);
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn explicit_https_ca_binding_is_digest_fenced_and_restart_recoverable() {
+        let certificate = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+        let ca_pem = certificate.cert.pem();
+        let ca_sha256 = sha256_hex(ca_pem.as_bytes());
+        let target = RuntimeTargetDescriptor {
+            runtime_id: RuntimeId::new("runtime-https-a").unwrap(),
+            name: "HTTPS Runtime A".into(),
+            endpoint: "https://localhost:9443/".into(),
+            sidecar_endpoint: None,
+            tags: RuntimeTags::default(),
+        };
+        let invalid = RuntimeTargetRegistrationIntent::new_with_trust(
+            RuntimeTargetRegistrationAction::Create,
+            RuntimeTargetDescriptor {
+                runtime_id: target.runtime_id.clone(),
+                name: target.name.clone(),
+                endpoint: target.endpoint.clone(),
+                sidecar_endpoint: None,
+                tags: RuntimeTags::default(),
+            },
+            None,
+            "7".repeat(64),
+            Some(ca_pem.clone()),
+            Some("0".repeat(64)),
+        )
+        .unwrap_err();
+        assert_eq!(invalid.kind, RuntimeTargetRegistrationErrorKind::Invalid);
+
+        let registration = RuntimeTargetRegistrationIntent::new_with_trust(
+            RuntimeTargetRegistrationAction::Create,
+            target,
+            None,
+            "8".repeat(64),
+            Some(ca_pem.clone()),
+            Some(ca_sha256.clone()),
+        )
+        .unwrap();
+        let path = temp_database("https-ca");
+        let secrets = Arc::new(MemorySecretStore::default());
+        let targets = GewyvernTargetCatalog::default();
+        let authority = RuntimeTargetRegistrationAuthority::new(targets.clone(), secrets.clone());
+        let supplied = SecretValue::new("https-pairing-secret").unwrap();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        authority
+            .execute(&mut runtime, &registration, &supplied)
+            .unwrap();
+        assert_eq!(
+            targets.endpoint_origins().unwrap(),
+            vec![("runtime-https-a".into(), "https://localhost:9443".into())]
+        );
+        let binding = runtime.runtime_target_bindings().unwrap().pop().unwrap();
+        let binding_text = String::from_utf8(binding.payload).unwrap();
+        assert!(binding_text.contains(&ca_sha256));
+        assert!(binding_text.contains("BEGIN CERTIFICATE"));
+        assert!(!binding_text.contains("https-pairing-secret"));
+        drop(runtime);
+
+        let recovered_targets = GewyvernTargetCatalog::default();
+        let recovered_authority =
+            RuntimeTargetRegistrationAuthority::new(recovered_targets.clone(), secrets);
+        let mut recovered = ControlRuntime::open(&path).unwrap();
+        recovered_authority.recover(&mut recovered).unwrap();
+        assert_eq!(
+            recovered_targets.endpoint_origins().unwrap(),
+            vec![("runtime-https-a".into(), "https://localhost:9443".into())]
+        );
+        drop(recovered);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn legacy_loopback_binding_payload_remains_recoverable() {
+        let mut legacy = intent('6', "http://127.0.0.1:9418/");
+        legacy.schema_version = LEGACY_TARGET_BINDING_SCHEMA_VERSION;
+        let payload = legacy.payload().unwrap();
+        assert!(!String::from_utf8_lossy(&payload).contains("tls_ca"));
+        let parsed = parse_payload(&payload).unwrap();
+        assert_eq!(parsed.schema_version, LEGACY_TARGET_BINDING_SCHEMA_VERSION);
+        assert!(parsed.target().is_ok());
     }
 
     #[test]

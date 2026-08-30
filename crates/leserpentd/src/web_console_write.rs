@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 
-use leserpent_adapters::{MAX_SECRET_BYTES, SecretValue};
+use leserpent_adapters::{GewyvernTarget, MAX_SECRET_BYTES, SecretValue};
 use leserpent_domain::{
     CAPABILITY_RUNTIME_REFRESH, COMMAND_PLAN_SCHEMA_VERSION, CapabilitySet, Command,
     CommandEnvelope, CommandId, CommandOrigin, CommandPlan, Confirmation,
@@ -37,6 +37,9 @@ use crate::web_console_orchestra;
 
 const REGISTRATION_TRANSACTION_REASON: &str = "rust_web_registration_transaction_unavailable";
 const REGISTRATION_LOOPBACK_REASON: &str = "loopback_gewyvern_target_required";
+const REGISTRATION_CA_REASON: &str = "explicit_gewyvern_ca_required";
+const REGISTRATION_CA_MISMATCH_REASON: &str = "gewyvern_ca_not_applicable";
+const REGISTRATION_HTTPS_ORIGIN_REASON: &str = "gewyvern_https_origin_required";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RefreshKind {
@@ -52,6 +55,8 @@ struct RegistrationPlanRequest {
     endpoint: String,
     #[serde(default)]
     sidecar_endpoint: Option<String>,
+    #[serde(default)]
+    tls_ca_sha256: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -97,6 +102,10 @@ struct RegistrationRequest {
     sidecar_status_endpoint: Option<String>,
     #[serde(default)]
     sidecar_admin_token: Option<String>,
+    #[serde(default)]
+    tls_ca_pem: Option<String>,
+    #[serde(default)]
+    tls_ca_sha256: Option<String>,
     registration_plan_token: String,
 }
 
@@ -105,6 +114,7 @@ struct RegistrationCoordinates {
     name: String,
     endpoint: String,
     sidecar_endpoint: Option<String>,
+    tls_ca_sha256: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -1365,6 +1375,7 @@ fn registration_plan(
         request.name,
         request.endpoint,
         request.sidecar_endpoint,
+        request.tls_ca_sha256,
         &RuntimeTags::default(),
     )?;
     let decision = registration_decision(runtime, &coordinates, registration_available)?;
@@ -1375,7 +1386,16 @@ fn registration_plan(
     let reason_message = match decision.reason {
         Some("endpoint_conflict") => "runtime endpoint is already registered to another runtime",
         Some(REGISTRATION_LOOPBACK_REASON) => {
-            "native Rust registration currently accepts an explicit loopback HTTP Gewyvern origin"
+            "remote Gewyvern targets require an explicit HTTPS origin"
+        }
+        Some(REGISTRATION_CA_REASON) => {
+            "HTTPS Gewyvern registration requires an explicitly reviewed CA certificate"
+        }
+        Some(REGISTRATION_CA_MISMATCH_REASON) => {
+            "CA trust is only accepted for an HTTPS Gewyvern origin"
+        }
+        Some(REGISTRATION_HTTPS_ORIGIN_REASON) => {
+            "Gewyvern HTTPS registration requires a root origin without path, query, or credentials"
         }
         Some(REGISTRATION_TRANSACTION_REASON) => {
             "native Rust registration requires daemon-owned durable credential authority"
@@ -1394,6 +1414,8 @@ fn registration_plan(
         "plannedRuntimeId": decision.planned_runtime_id.as_str(),
         "expectedRevision": decision.expected_revision.map(|revision| revision.0),
         "authorityBound": true,
+        "trustMode": if coordinates.tls_ca_sha256.is_some() { "pinned_https" } else { "loopback_http" },
+        "tlsCaSha256": coordinates.tls_ca_sha256,
         "planToken": decision.plan_token,
     }))
 }
@@ -1429,12 +1451,13 @@ fn registration_decision(
         .map_err(map_domain_error)?,
     };
     let expected_revision = existing.as_ref().map(|runtime| runtime.revision);
+    let transport_reason = registration_transport_reason(coordinates);
     let (action, reason) = if endpoint_conflict {
         (None, Some("endpoint_conflict"))
     } else if !registration_available {
         (None, Some(REGISTRATION_TRANSACTION_REASON))
-    } else if loopback_address(&coordinates.endpoint).is_err() {
-        (None, Some(REGISTRATION_LOOPBACK_REASON))
+    } else if let Some(reason) = transport_reason {
+        (None, Some(reason))
     } else if existing.is_some() {
         (Some(RuntimeTargetRegistrationAction::Update), None)
     } else {
@@ -1444,6 +1467,7 @@ fn registration_decision(
         &coordinates.name,
         &coordinates.endpoint,
         coordinates.sidecar_endpoint.as_deref(),
+        coordinates.tls_ca_sha256.as_deref(),
         &planned_runtime_id,
         expected_revision,
         action.map(registration_action_label).unwrap_or("reject"),
@@ -1483,6 +1507,7 @@ fn register_runtime(
         request.name,
         request.endpoint,
         request.sidecar_endpoint,
+        request.tls_ca_sha256,
         &tags,
     )?;
     if request.registration_plan_token.len() != 64
@@ -1507,6 +1532,8 @@ fn register_runtime(
                 || intent.endpoint != coordinates.endpoint
                 || intent.sidecar_endpoint != coordinates.sidecar_endpoint
                 || intent.tags != tags
+                || intent.tls_ca_sha256 != coordinates.tls_ca_sha256
+                || intent.tls_ca_pem != request.tls_ca_pem
             {
                 return Err(registration_conflict());
             }
@@ -1518,7 +1545,7 @@ fn register_runtime(
                 return Err(registration_conflict());
             }
             let action = decision.action.ok_or_else(registration_conflict)?;
-            RuntimeTargetRegistrationIntent::new(
+            RuntimeTargetRegistrationIntent::new_with_trust(
                 action,
                 RuntimeTargetDescriptor {
                     runtime_id: decision.planned_runtime_id,
@@ -1529,6 +1556,8 @@ fn register_runtime(
                 },
                 decision.expected_revision,
                 request.registration_plan_token,
+                request.tls_ca_pem,
+                coordinates.tls_ca_sha256,
             )
             .map_err(map_registration_error)?
         }
@@ -1566,6 +1595,7 @@ fn normalize_registration_coordinates(
     name: String,
     endpoint: String,
     sidecar_endpoint: Option<String>,
+    tls_ca_sha256: Option<String>,
     tags: &RuntimeTags,
 ) -> Result<RegistrationCoordinates, ConsoleWriteError> {
     let name = name.trim().to_string();
@@ -1574,13 +1604,45 @@ fn normalize_registration_coordinates(
         .filter(|endpoint| !endpoint.trim().is_empty())
         .map(|endpoint| normalize_http_endpoint(&endpoint).ok_or_else(invalid_registration_plan))
         .transpose()?;
+    let tls_ca_sha256 = tls_ca_sha256
+        .filter(|fingerprint| !fingerprint.trim().is_empty())
+        .map(|fingerprint| {
+            let fingerprint = fingerprint.trim().to_ascii_lowercase();
+            valid_sha256(&fingerprint)
+                .then_some(fingerprint)
+                .ok_or_else(invalid_registration_plan)
+        })
+        .transpose()?;
     validate_registration_intent(&name, &endpoint, sidecar_endpoint.as_deref(), tags)
         .map_err(|_| invalid_registration_plan())?;
     Ok(RegistrationCoordinates {
         name,
         endpoint,
         sidecar_endpoint,
+        tls_ca_sha256,
     })
+}
+
+fn registration_transport_reason(coordinates: &RegistrationCoordinates) -> Option<&'static str> {
+    if loopback_address(&coordinates.endpoint).is_ok() {
+        return coordinates
+            .tls_ca_sha256
+            .is_some()
+            .then_some(REGISTRATION_CA_MISMATCH_REASON);
+    }
+    if !coordinates.endpoint.starts_with("https://") {
+        return Some(REGISTRATION_LOOPBACK_REASON);
+    }
+    let Some(origin) = coordinates.endpoint.strip_suffix('/') else {
+        return Some(REGISTRATION_HTTPS_ORIGIN_REASON);
+    };
+    if GewyvernTarget::validate_https_origin(origin).is_err() {
+        return Some(REGISTRATION_HTTPS_ORIGIN_REASON);
+    }
+    coordinates
+        .tls_ca_sha256
+        .is_none()
+        .then_some(REGISTRATION_CA_REASON)
 }
 
 fn invalid_registration_plan() -> ConsoleWriteError {
@@ -1632,6 +1694,13 @@ fn nonempty(value: &Option<String>) -> bool {
     value.as_ref().is_some_and(|value| !value.trim().is_empty())
 }
 
+fn valid_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+}
+
 fn normalize_http_endpoint(value: &str) -> Option<String> {
     let value = value.trim();
     if value.is_empty()
@@ -1673,15 +1742,17 @@ fn registration_plan_token(
     name: &str,
     endpoint: &str,
     sidecar_endpoint: Option<&str>,
+    tls_ca_sha256: Option<&str>,
     planned_runtime_id: &RuntimeId,
     expected_revision: Option<Revision>,
     action: &str,
 ) -> String {
     let input = format!(
-        "runtime-registration-plan-v2\n{}\n{}\n{}\ndaemon\n{}\n{}\n{}",
+        "runtime-registration-plan-v3\n{}\n{}\n{}\n{}\ndaemon\n{}\n{}\n{}",
         name.to_ascii_lowercase(),
         endpoint,
         sidecar_endpoint.unwrap_or_default(),
+        tls_ca_sha256.unwrap_or_default(),
         action,
         planned_runtime_id.as_str().to_ascii_lowercase(),
         expected_revision.map_or_else(String::new, |revision| revision.0.to_string()),
@@ -2281,6 +2352,139 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(fragment.status, ConsoleWriteStatus::BadRequest);
+    }
+
+    #[test]
+    fn https_registration_plan_binds_reviewed_ca_and_rejects_pem_drift_before_mutation() {
+        let path = temp_database("https-registration");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let writer_id = "adadadadadadadadadadadadadadadad";
+        let fence = AuthorityWriterFence {
+            generation: runtime
+                .claim_authority_writer(writer_id)
+                .unwrap()
+                .generation,
+            writer_id: writer_id.into(),
+        };
+        let targets = GewyvernTargetCatalog::default();
+        let secrets = Arc::new(TestSecretStore::default());
+        let mutable_secrets: Arc<dyn MutableSecretStore> = secrets.clone();
+        let authority = RuntimeTargetRegistrationAuthority::new(targets.clone(), mutable_secrets);
+        let certificate = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+        let ca_pem = certificate.cert.pem();
+        let ca_sha256 = sha256_hex(ca_pem.as_bytes());
+
+        let missing_trust: Value = serde_json::from_slice(
+            &execute_with_registration(
+                &ConsoleApiRoute::RegistrationPlan,
+                br#"{"name":"HTTPS Runtime","endpoint":"https://localhost:19443"}"#,
+                &mut runtime,
+                Some(&fence),
+                Some(&authority),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(missing_trust["allowed"], false);
+        assert_eq!(missing_trust["reason"], REGISTRATION_CA_REASON);
+
+        let plan_body = serde_json::to_vec(&json!({
+            "name": "HTTPS Runtime",
+            "endpoint": "https://localhost:19443",
+            "sidecarEndpoint": null,
+            "tlsCaSha256": ca_sha256,
+        }))
+        .unwrap();
+        let plan: Value = serde_json::from_slice(
+            &execute_with_registration(
+                &ConsoleApiRoute::RegistrationPlan,
+                &plan_body,
+                &mut runtime,
+                Some(&fence),
+                Some(&authority),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(plan["allowed"], true);
+        assert_eq!(plan["trustMode"], "pinned_https");
+        assert_eq!(plan["tlsCaSha256"], ca_sha256);
+
+        let drifted = serde_json::to_vec(&json!({
+            "name": "HTTPS Runtime",
+            "endpoint": "https://localhost:19443",
+            "pairingToken": "https-pairing-secret",
+            "capabilities": [],
+            "tags": {},
+            "fetchCapabilities": false,
+            "sidecarEndpoint": null,
+            "sidecarAdminToken": null,
+            "tlsCaPem": ca_pem.replace('A', "B"),
+            "tlsCaSha256": ca_sha256,
+            "registrationPlanToken": plan["planToken"],
+        }))
+        .unwrap();
+        assert_eq!(
+            execute_with_registration(
+                &ConsoleApiRoute::Registration,
+                &drifted,
+                &mut runtime,
+                Some(&fence),
+                Some(&authority),
+            )
+            .unwrap_err()
+            .status,
+            ConsoleWriteStatus::BadRequest
+        );
+        assert!(runtime.runtime_event_state().1.is_empty());
+        assert!(runtime.runtime_target_bindings().unwrap().is_empty());
+        assert!(secrets.keys().is_empty());
+
+        let request = serde_json::to_vec(&json!({
+            "name": "HTTPS Runtime",
+            "endpoint": "https://localhost:19443",
+            "pairingToken": "https-pairing-secret",
+            "capabilities": [],
+            "tags": {},
+            "fetchCapabilities": false,
+            "sidecarEndpoint": null,
+            "sidecarAdminToken": null,
+            "tlsCaPem": ca_pem,
+            "tlsCaSha256": ca_sha256,
+            "registrationPlanToken": plan["planToken"],
+        }))
+        .unwrap();
+        let registered: Value = serde_json::from_slice(
+            &execute_with_registration(
+                &ConsoleApiRoute::Registration,
+                &request,
+                &mut runtime,
+                Some(&fence),
+                Some(&authority),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let runtime_id = registered["runtimeId"].as_str().unwrap().to_string();
+        assert_eq!(
+            targets.endpoint_origins().unwrap(),
+            vec![(runtime_id.clone(), "https://localhost:19443".into())]
+        );
+        drop(runtime);
+
+        let recovered_targets = GewyvernTargetCatalog::default();
+        let recovered_authority = RuntimeTargetRegistrationAuthority::new(
+            recovered_targets.clone(),
+            secrets as Arc<dyn MutableSecretStore>,
+        );
+        let mut recovered = ControlRuntime::open(&path).unwrap();
+        recovered_authority.recover(&mut recovered).unwrap();
+        assert_eq!(
+            recovered_targets.endpoint_origins().unwrap(),
+            vec![(runtime_id, "https://localhost:19443".into())]
+        );
+        drop(recovered);
+        fs::remove_file(path).unwrap();
     }
 
     #[test]

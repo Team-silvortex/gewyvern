@@ -143,6 +143,9 @@ fn runtime_registration_is_progressive_secret_safe_and_error_recoverable() {
         "<fieldset class=\"register-section register-section-access\">",
         "<fieldset class=\"register-section register-section-placement\">",
         "id=\"register-sidecar-details\"",
+        "id=\"register-ca-file\"",
+        "id=\"register-ca-clear\"",
+        "id=\"register-ca-status\"",
         "id=\"register-guidance\"",
         "aria-live=\"polite\"",
         "aria-controls=\"register-token\"",
@@ -161,6 +164,11 @@ fn runtime_registration_is_progressive_secret_safe_and_error_recoverable() {
         "function setRegistrationSecretVisibility",
         "function maskRegistrationSecrets",
         "function clearRegistrationSecrets",
+        "function canonicalizeRegistrationCaPem",
+        "function loadRegistrationCa",
+        "function clearRegistrationCa",
+        "window.crypto.subtle.digest(\"SHA-256\"",
+        "tlsCaSha256: state.registrationCaSha256 || null",
         "field.scrollIntoView",
         "nodes.registerGuidance.dataset.tone",
     ] {
@@ -170,7 +178,11 @@ fn runtime_registration_is_progressive_secret_safe_and_error_recoverable() {
         );
     }
 
-    assert!(workflows.contains("clearRegistrationSecrets();\n      renderRegisterPreview();"));
+    assert!(workflows.contains(
+        "clearRegistrationSecrets();\n      clearRegistrationCa(false);\n      renderRegisterPreview();"
+    ));
+    assert!(workflows.contains("tlsCaPem: state.registrationCaPem || null"));
+    assert!(workflows.contains("tlsCaSha256: state.registrationCaSha256 || null"));
     assert!(workflows.contains("}), \"good\");\n      applyTabShell();"));
     assert!(workflows.contains("showRegistrationIssue(readiness);"));
     assert!(bootstrap.contains("document.addEventListener(\"visibilitychange\""));
@@ -182,6 +194,8 @@ fn runtime_registration_is_progressive_secret_safe_and_error_recoverable() {
         ".register-section-target .register-section-fields",
         ".register-secret-toggle[aria-pressed=\"true\"]",
         ".register-guidance[data-tone=\"bad\"]",
+        ".register-ca-status[data-tone=\"bad\"]",
+        ":root[data-layout-mode=\"mobile\"] .register-ca-control",
         "position: sticky",
         "bottom: calc(76px + env(safe-area-inset-bottom))",
         ".register-action-buttons",
@@ -200,6 +214,9 @@ fn runtime_registration_is_progressive_secret_safe_and_error_recoverable() {
         "checkingPlan:",
         "ready:",
         "fixHighlighted:",
+        "caCertificate:",
+        "caRequired:",
+        "trustPinned:",
     ] {
         assert!(
             simplified_chinese.contains(key),
@@ -460,7 +477,7 @@ fn mobile_adaptation_is_protocolized_in_the_status_tensor() {
         .find(|cell| cell["id"] == "leserpent-1x/web-console/browser-operations")
         .expect("web console status cell must exist");
 
-    assert_eq!(cell["contract"]["version"], "1.4.10");
+    assert_eq!(cell["contract"]["version"], "1.4.11");
     for surface in [
         "width-first-mobile-layout",
         "mobile-filter-disclosure",

@@ -6,16 +6,16 @@ use super::profiles::{PROTOCOL_PROFILES, ProtocolProfile, find_protocol_profile}
 use super::{ProtocolEntrySummary, ProtocolSummary, RegistryManifest};
 
 pub(super) fn protocol_summaries_from_registry(
-    registry: Vec<RegistryManifest>,
+    registry: &[RegistryManifest],
 ) -> Vec<ProtocolSummary> {
     let mut protocols = BTreeMap::<String, RegistryProtocolSummary>::new();
     for manifest in registry {
         let protocol = protocols.entry(manifest.protocol.clone()).or_default();
         protocol.aliases.extend(manifest.aliases.clone());
-        let entry = protocol.entries.entry(manifest.entry).or_default();
+        let entry = protocol.entries.entry(manifest.entry.clone()).or_default();
         entry.default |= manifest.default;
         entry.aliases.extend(manifest.aliases.clone());
-        entry.aliases.extend(manifest.entry_aliases);
+        entry.aliases.extend(manifest.entry_aliases.clone());
     }
     protocols
         .into_iter()
@@ -41,7 +41,7 @@ pub(super) fn protocol_summaries_from_registry(
 }
 
 pub(super) fn protocol_summary_from_registry(
-    registry: Vec<RegistryManifest>,
+    registry: &[RegistryManifest],
     protocol: &str,
 ) -> Option<ProtocolSummary> {
     let canonical = registry
