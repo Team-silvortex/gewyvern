@@ -60,11 +60,13 @@ Validate the complete bundle without changing the host installation:
 scripts/validation/leserpent_linux_bundle_smoke.sh artifacts/leserpent/linux-x64
 ```
 
-The smoke uses a temporary `DESTDIR`, installs and upgrades two immutable
-releases, explicitly rolls back through the `current`/`previous` links, proves
-configuration and state preservation, executes a real bridge request, starts
-the rolled-back Native AOT host on loopback, and retains a machine-readable
-result below `target/validation/leserpent-linux-bundle-smoke/`.
+The smoke uses a temporary `DESTDIR`, proves that the target lock is acquired
+before bundle validation, rejects a symbolic-link staging root, installs and
+upgrades two immutable releases, explicitly rolls back through the
+`current`/`previous` links, proves configuration and state preservation,
+executes a real bridge request, starts the rolled-back Native AOT host on
+loopback, and retains a machine-readable result below
+`target/validation/leserpent-linux-bundle-smoke/`.
 
 ## Install or upgrade
 
@@ -93,7 +95,7 @@ The installer:
 - stores mutable state and SQLite data below `/var/lib/leserpent`
 - starts the service, waits for `/health`, and rolls back the release link if health fails
 - retains the three newest healthy releases by default
-- serializes real host mutation with a bounded installation lock
+- serializes real-host and staged-target mutation with a bounded installation lock
 - removes an uncommitted release and restores the stable link after any failed upgrade stage
 - updates the systemd unit in the same transaction as the release link, including rollback
 
@@ -145,6 +147,10 @@ restart it when service activation had begun, and remove the uncommitted
 release.
 The selected release and `/etc/systemd/system/leserpent.service` therefore stay
 version-aligned after upgrades, explicit rollback, and failed health checks.
+Staged installs reject `/` and symbolic-link `DESTDIR` roots. They lock the
+staging directory itself before validating the bundle, so concurrent package
+or validation jobs targeting the same tree cannot interleave link and unit
+transactions or add lock files to the packaged filesystem.
 
 ## Remove a host installation
 

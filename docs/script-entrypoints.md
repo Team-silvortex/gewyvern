@@ -371,6 +371,13 @@ SQLite proof binds writability to the live control-plane writer fence: schema
 initialization occurs after lease acquisition, and later lease loss returns new
 operations to read-only mode.
 
+The companion language-pack proof derives the expected official pack version
+and translation-leaf count from the current catalog and `pt-BR` asset before it
+starts. Remote verification therefore cannot drift behind a pack expansion.
+Failure cleanup emits the active publish, local-orchestra, saved-daemon, or
+restore stage and a bounded log tail while still removing the large NativeAOT
+temporary directories.
+
 Useful flags:
 
 - `--host <ssh-host>`
@@ -378,6 +385,16 @@ Useful flags:
 - `--remote-dir <path>`
 - `--skip-build`
 - `--keep-remote-dir`
+
+Global `--json-out PATH` enables machine output without also requiring
+`--json`. A write failure is fatal rather than being reported as a successful
+validation. For example:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- \
+  --json-out target/validation/remote-linux-host-validation/latest-run.json \
+  remote-linux-host-validation
+```
 
 Evidence written locally:
 
@@ -397,6 +414,8 @@ Evidence written locally:
 - `target/validation/remote-linux-host-validation/remote-ebpf-latest.json`
 - `target/validation/remote-linux-host-validation/remote-ebpf-recent.txt`
 - `target/validation/remote-linux-host-validation/remote-ebpf-status-summary.json`
+- the path supplied through `--json-out`, such as
+  `target/validation/remote-linux-host-validation/latest-run.json`
 
 With `--target-kind vm`, the same bounded inventory is written under
 `target/validation/remote-linux-vm-validation/` instead. The two complete run
@@ -407,8 +426,8 @@ under `target/validation/remote-workspace-sync-cache/{physical,vm}.txt`.
 The phase-timing file records the observed wall-clock time for each major
 remote validation step so we can tell whether regressions come from sync,
 materialization, build, the Leserpent control-plane NativeAOT proof, package
-smoke, the Avalonia Local Orchestra plus saved-daemon language-pack NativeAOT proof, runtime
-smoke, or the privileged eBPF attach path.
+smoke, the Avalonia Local Orchestra plus saved-daemon language-pack NativeAOT
+proof, runtime smoke, or the privileged eBPF attach path.
 Remote build/package/runtime subphase timing files are mandatory after their
 corresponding successful stage. They use the shared bounded unique-key parser,
 accept only known phases and finite non-negative values up to 24 hours, and
@@ -617,7 +636,9 @@ construction uses one Cargo invocation; managed publish uses `--no-restore`
 and does not repeat it. The final `bundle-manifest.toml` and `SHA256SUMS`
 bind every payload and deployment asset. The installer verifies before and
 after copy, uses a whole-bundle release identity, and leaves the prior
-`current` release active if any uncommitted stage fails.
+`current` release active if any uncommitted stage fails. Real and `DESTDIR`
+installs take the same bounded target-level lock before bundle validation;
+staging roots that are `/` or symbolic links fail closed.
 
 Run the physical Linux bundle, upgrade, rollback, bridge, and live-health smoke
 after packaging:
@@ -702,8 +723,10 @@ the bounded `current`/`previous` metadata live below
 copies a bounded symlink-free bundle, validates arm64 thin or universal Mach-O
 payloads and exact plist identity, requires executable main and `leserpentd`
 payloads, and binds every native payload into the immutable release ID. It
-strips group/world write permissions and atomically replaces managed links. It
-rejects an existing unmanaged launcher
+strips group/world write permissions and atomically replaces managed links.
+Install and rollback hold a bounded exclusive lock on the installer root, while
+status queries use a shared lock and cannot observe a half-switched link pair.
+It rejects an existing unmanaged launcher
 instead of overwriting it. Profiles, managed CAs, caches, Keychain credentials,
 and Orchestra data remain outside the installer root and survive upgrades and
 rollback. `--root` and `--launcher` accept absolute paths for packaging proof or

@@ -68,11 +68,17 @@ fn linux_publish_builds_and_installs_the_rust_compatibility_bridge() {
     assert!(installer.contains("sha256sum --strict --check SHA256SUMS"));
     assert!(installer.contains("release_hash=\"$(sha256sum \"${SOURCE_DIR}/SHA256SUMS\""));
     assert!(installer.contains("flock -w 120 9"));
+    assert!(installer.contains("exec 9<\"${DESTDIR}\""));
+    assert!(installer.contains("refusing to use / as a staged Leserpent installation root"));
     assert!(installer.contains("cleanup_uncommitted_release"));
     assert!(installer.contains("--keep-releases must be an integer from 2 through 64"));
     assert!(installer.contains("cp -a --no-preserve=ownership"));
     assert!(!installer.contains("-name '*.dbg' -delete"));
     assert_eq!(installer.matches("health_check() {").count(), 1);
+    assert!(
+        installer.find("flock -w 120 9").unwrap()
+            < installer.find("verify_bundle \"${SOURCE_DIR}\"").unwrap()
+    );
     assert!(
         installer.find("verify_bundle \"${SOURCE_DIR}\"").unwrap()
             < installer
@@ -92,6 +98,17 @@ fn linux_publish_builds_and_installs_the_rust_compatibility_bridge() {
     assert!(smoke.contains("tampered-bundle-rejection-before-mutation"));
     assert!(smoke.contains("exact-bundle-inventory"));
     assert!(smoke.contains("content-addressed-release-identity"));
+    assert!(smoke.contains("staged-install-lock-before-bundle-verification"));
+    assert!(smoke.contains("unsafe-staging-root-rejection"));
+    assert!(smoke.contains("flock -n 8"));
+
+    let retained =
+        std::fs::read_to_string(root.join("docs/fixtures/leserpent_linux_bundle_smoke.json"))
+            .unwrap();
+    assert!(retained.contains("\"staged-install-lock-before-bundle-verification\""));
+    assert!(retained.contains("\"unsafe-staging-root-rejection\""));
+    assert!(retained.contains("\"failed-upgrade-release-and-unit-restoration\""));
+    assert!(retained.contains("\"daemon_sha256\""));
 
     let environment =
         std::fs::read_to_string(root.join("apps/leserpent/deploy/linux/leserpent.env.example"))

@@ -134,7 +134,7 @@ fn project_status_catalog_is_protocolized_and_valid() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     catalog.validate(&root).expect("catalog must validate");
     assert_eq!(catalog.calibration.model, STATUS_CALIBRATION_MODEL);
-    assert_eq!(catalog.calibration.as_of, "2026-08-29");
+    assert_eq!(catalog.calibration.as_of, "2026-08-30");
     assert!(catalog.dimensions.architectures.len() >= 6);
     assert!(catalog.dimensions.modules.len() >= 21);
     assert!(catalog.dimensions.features.len() >= 23);
@@ -4209,6 +4209,139 @@ fn retained_physical_linux_language_pack_proof_is_non_vacuous() {
 }
 
 #[test]
+fn retained_linux_runtime_polish_proof_matches_current_contracts() {
+    let root = repository_root();
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            root.join("docs/fixtures/gewyvern_remote_linux_runtime_polish_20260830.json"),
+        )
+        .expect("Linux runtime polish evidence must exist"),
+    )
+    .expect("Linux runtime polish evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["proof"], "gewyvern-1.20.5-linux-runtime-polish");
+    assert_eq!(evidence["source_version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(evidence["target"]["platform"], "linux-x86_64");
+    assert_eq!(evidence["target"]["target_kind"], "physical");
+    assert_eq!(evidence["target"]["virtualization"], "none");
+    assert_eq!(evidence["toolchain"]["rustc"], "1.95.0");
+
+    let language_root = root.join("apps/leserpent/src/Leserpent/wwwroot/language-packs");
+    assert_eq!(evidence["language_pack_contract"]["version"], "1.2.0");
+    assert_eq!(evidence["language_pack_contract"]["translation_keys"], 42);
+    assert_eq!(
+        evidence["language_pack_contract"]["catalog_sha256"],
+        sha256_hex(
+            &std::fs::read(language_root.join("catalog.json"))
+                .expect("current language-pack catalog must exist")
+        )
+    );
+    assert_eq!(
+        evidence["language_pack_contract"]["pack_sha256"],
+        sha256_hex(
+            &std::fs::read(language_root.join("pt-BR.json"))
+                .expect("current pt-BR language pack must exist")
+        )
+    );
+    for check in [
+        "catalog_bound_at_validation_time",
+        "local_orchestra_roundtrip",
+        "saved_daemon_roundtrip",
+    ] {
+        assert_eq!(evidence["language_pack_contract"][check], true);
+    }
+
+    assert_eq!(evidence["privileged_helper"]["protocol"], 1);
+    assert_eq!(evidence["privileged_helper"]["version"], "1.20.0");
+    assert_eq!(evidence["privileged_helper"]["root_owned"], true);
+    assert_eq!(evidence["privileged_helper"]["command_limited_sudo"], true);
+    assert_eq!(
+        evidence["privileged_helper"]["unrestricted_passwordless_sudo"],
+        false
+    );
+    assert_eq!(
+        evidence["checks"]
+            .as_array()
+            .expect("runtime polish checks must be an array")
+            .len(),
+        19
+    );
+    for check in ["tracepoint", "kprobe", "tc"] {
+        assert_eq!(evidence["ebpf"][check], true);
+    }
+    assert_eq!(evidence["validation_posture"], "full");
+    assert_eq!(evidence["matrix"]["release_eligible"], true);
+    assert_eq!(evidence["matrix"]["ready"], false);
+    assert_eq!(evidence["release_gate_signal"], "coverage_incomplete");
+    assert_eq!(evidence["result"], "passed");
+}
+
+#[test]
+fn retained_deployment_recovery_proof_binds_both_hosts_and_reverse_deployment() {
+    let root = repository_root();
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            root.join("docs/fixtures/leserpent_deployment_recovery_20260830.json"),
+        )
+        .expect("deployment recovery evidence must exist"),
+    )
+    .expect("deployment recovery evidence must be JSON");
+    let linux_smoke: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(root.join("docs/fixtures/leserpent_linux_bundle_smoke.json"))
+            .expect("Linux bundle smoke evidence must exist"),
+    )
+    .expect("Linux bundle smoke evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["proof"], "leserpent-1.20.6-deployment-recovery");
+    assert_eq!(evidence["release_slot"], "1.20.6");
+    assert_eq!(evidence["workspace_version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(evidence["linux"]["target_kind"], "physical");
+    assert_eq!(evidence["linux"]["virtualization"], "none");
+    assert_eq!(evidence["linux"]["kernel"], "7.0.0-28-generic");
+    assert_eq!(evidence["linux"]["smoke_check_count"], 22);
+    assert_eq!(
+        evidence["linux"]["bundle_identity"],
+        linux_smoke["bundle_identity"]
+    );
+    assert_eq!(
+        linux_smoke["checks"]
+            .as_array()
+            .expect("Linux smoke checks must be an array")
+            .len(),
+        22
+    );
+    for check in [
+        "staged-install-lock-before-bundle-verification",
+        "unsafe-staging-root-rejection",
+        "failed-upgrade-release-and-unit-restoration",
+        "rolled-back-live-native-aot-health",
+    ] {
+        assert!(
+            json_string_set(&linux_smoke, "checks").contains(check),
+            "missing retained deployment check {check}"
+        );
+    }
+    assert_eq!(evidence["macos"]["platform"], "macos-arm64");
+    assert_eq!(evidence["macos"]["target_scoped_exclusive_lock"], true);
+    assert_eq!(evidence["macos"]["shared_status_lock"], true);
+    assert_eq!(
+        evidence["reverse_deployment"]["daemon_install_recovery_tests"],
+        16
+    );
+    assert_eq!(
+        evidence["reverse_deployment"]["bootstrap_adapter_tests"],
+        12
+    );
+    assert_eq!(
+        evidence["reverse_deployment"]["gewyvern_installer_vertical_tests"],
+        2
+    );
+    assert_eq!(evidence["result"], "passed");
+}
+
+#[test]
 fn retained_remote_linux_workspace_identity_evidence_is_non_vacuous() {
     let evidence: serde_json::Value =
         serde_json::from_str(
@@ -7671,7 +7804,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(continuous_proof.maturity, Maturity::Mature);
     assert_eq!(continuous_proof.priority, Priority::Maintenance);
     assert_eq!(continuous_proof.completion, 100);
-    assert_eq!(continuous_proof.contract.version, "1.4.0");
+    assert_eq!(continuous_proof.contract.version, "1.6.0");
     assert_eq!(
         continuous_proof.contract.stability,
         ContractStability::Stable
@@ -7779,6 +7912,15 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "validated-control-bundle-reuse-deploy",
         "single-pass-control-bundle-hashing",
         "transactional-systemd-unit-rollback",
+        "cross-toolchain-clippy-compatibility-proof",
+        "catalog-bound-language-pack-aot-proof",
+        "staged-language-pack-aot-failure-diagnostics",
+        "standalone-json-out-publication-proof",
+        "physical-linux-1.20-full-transaction-proof",
+        "target-serialized-linux-staging-install",
+        "unsafe-linux-staging-root-rejection",
+        "target-serialized-macos-install",
+        "shared-lock-macos-install-status",
     ] {
         assert!(
             continuous_proof
@@ -7807,7 +7949,26 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && evidence.state == EvidenceState::Present
     }));
     assert!(continuous_proof.evidence.iter().any(|evidence| {
+        evidence.path == "docs/fixtures/gewyvern_remote_linux_runtime_polish_20260830.json"
+            && evidence.kind == EvidenceKind::Release
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(continuous_proof.evidence.iter().any(|evidence| {
         evidence.path == "src/validation_harness/release_gate.rs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(continuous_proof.evidence.iter().any(|evidence| {
+        evidence.path == "src/leserpent_macos_install.rs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(continuous_proof.evidence.iter().any(|evidence| {
+        evidence.path == "docs/fixtures/leserpent_linux_bundle_smoke.json"
+            && evidence.kind == EvidenceKind::Release
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(continuous_proof.evidence.iter().any(|evidence| {
+        evidence.path == "docs/fixtures/leserpent_deployment_recovery_20260830.json"
+            && evidence.kind == EvidenceKind::Release
             && evidence.state == EvidenceState::Present
     }));
     assert!(continuous_proof.evidence.iter().any(|evidence| {
@@ -8958,7 +9119,7 @@ fn native_status_cli_exposes_human_and_machine_views() {
         serde_json::from_slice(&summary.stdout).expect("summary must be JSON");
     assert_eq!(payload["schema_version"], STATUS_SCHEMA_VERSION);
     assert_eq!(payload["calibration"]["model"], STATUS_CALIBRATION_MODEL);
-    assert_eq!(payload["calibration"]["as_of"], "2026-08-29");
+    assert_eq!(payload["calibration"]["as_of"], "2026-08-30");
     assert_eq!(payload["deferred_cell_count"], 1);
     assert!(payload["overall_score"].is_u64());
     assert!(payload["portfolio_score"].is_u64());

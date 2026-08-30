@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "proof": "leserpent-1.20.6-deployment-recovery",
+  "observed_at": "2026-08-30T02:57:14Z",
+  "release_slot": "1.20.6",
+  "workspace_version": "1.20.0",
+  "linux": {
+    "platform": "linux-x86_64",
+    "target_kind": "physical",
+    "virtualization": "none",
+    "kernel": "7.0.0-28-generic",
+    "rustc": "1.95.0",
+    "dotnet_sdk": "10.0.111",
+    "package_seconds": {
+      "native_payloads": 0.187,
+      "locked_aot_restore": 1.076,
+      "aot_publish": 42.963,
+      "total": 44.172
+    },
+    "bundle_identity": "9aff455f99a0cbe1325e1bb87cbf0a94ea03ede774a87c1087f41dbabe9b28b9",
+    "smoke_fixture": "docs/fixtures/leserpent_linux_bundle_smoke.json",
+    "smoke_check_count": 22
+  },
+  "macos": {
+    "platform": "macos-arm64",
+    "target_kind": "physical",
+    "kernel": "25.5.0",
+    "installer_module_tests": 7,
+    "installer_contract_tests": 1,
+    "target_scoped_exclusive_lock": true,
+    "shared_status_lock": true,
+    "independent_root_progress": true
+  },
+  "reverse_deployment": {
+    "daemon_install_recovery_tests": 16,
+    "bootstrap_adapter_tests": 12,
+    "gewyvern_installer_vertical_tests": 2,
+    "generation_rollback_contract": true,
+    "activation_health_fence": true,
+    "restart_replay_contract": true
+  },
+  "checks": [
+    "linux-target-lock-before-bundle-validation",
+    "linux-unsafe-staging-root-rejection",
+    "linux-upgrade-failure-restoration",
+    "linux-explicit-rollback-state-preservation",
+    "linux-live-rolled-back-native-aot-health",
+    "macos-exclusive-install-rollback-lock",
+    "macos-shared-status-lock",
+    "reverse-bootstrap-recovery-regression"
+  ],
+  "result": "passed"
+}

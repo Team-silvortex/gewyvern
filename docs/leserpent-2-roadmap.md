@@ -78,6 +78,24 @@ The authoritative machine-readable schedule is
 unknown closure work, duplicate focus areas, incomplete closure-family coverage,
 and product versions outside the `1.20.x -> 2.0.0` window.
 
+The retained `1.20.5` Linux polish proof now covers Rust 1.95 quality gates,
+DEB/RPM and runtime smoke, both NativeAOT control proofs, catalog-bound language
+packs, and fixed-helper tracepoint/kprobe/tc attachment on the physical Linux
+shelf. It does not close the final release seal: the physical matrix still
+needs a second host fingerprint and kernel release, and the later deployment,
+desktop, documentation, and release-candidate slots remain distinct gates.
+
+The `1.20.6` deployment-recovery pass closes a cross-platform concurrency gap
+without expanding scope. Linux real-host and staging installs now serialize
+before bundle validation, reject unsafe staging roots, and retain the existing
+failed-upgrade, unit rollback, configuration, and state invariants. The native
+macOS installer uses the same target-scoped model: install and rollback are
+exclusive, status readers share a bounded lock, and unrelated roots remain
+independent. Reverse bootstrap and Gewyvern provisioning keep their existing
+generation, health-fence, restart-replay, and activation-rollback contracts.
+The retained physical Linux, local macOS, and reverse-deployment result is
+[`docs/fixtures/leserpent_deployment_recovery_20260830.json`](fixtures/leserpent_deployment_recovery_20260830.json).
+
 ## Baseline: 1.x Bridge
 
 The current ASP.NET, TypeScript, SQLite, Orchestra, deployment, security, and
@@ -2525,15 +2543,17 @@ and supports both a corrected SQLite retry and explicit JSON-only operator
 rollback. The Linux x64 package path now also has install/upgrade/rollback proof
 on a physical Linux 6.17 host.
 Its locked NativeAOT restore includes the RID-specific compiler and SQLite
-assets, and the bundle smoke performs staged install, distinct-release upgrade,
-explicit atomic `current` rollback, configuration/state preservation, a live
-Rust compatibility request, and rolled-back service health. Unsafe or missing
-release links fail closed, while an unhealthy production rollback restores the
-original pair. macOS arm64 now has an equivalent user-local package proof
+assets, and the bundle smoke proves target serialization before validation,
+staged install, distinct-release upgrade, explicit atomic `current` rollback,
+configuration/state preservation, a live Rust compatibility request, and
+rolled-back service health. Unsafe staging roots and unsafe or missing release
+links fail closed, while an unhealthy production rollback restores the original
+pair. macOS arm64 now has an equivalent user-local package proof
 through the native Rust installer. It accepts thin arm64 and bounded universal
 Mach-O dependencies, copies symlink-free versioned app bundles, exposes one
 stable launcher, rejects escaping or unmanaged links, preserves external user
-state, and proves `1.4.0 -> 1.4.1 -> 1.4.0` with a live rolled-back control
+state, serializes install/rollback against shared status readers, and proves
+`1.4.0 -> 1.4.1 -> 1.4.0` with a live rolled-back control
 fixture. The retained evidence deliberately identifies its signature as ad-hoc
 with no Team ID. Provisioned Developer ID signing, notarization, stapling, and
 Gatekeeper evidence remain a post-2.0 production-distribution track rather than

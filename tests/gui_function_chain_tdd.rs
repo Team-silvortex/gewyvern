@@ -197,6 +197,16 @@ fn gui_summary_separates_product_closure_from_renderer_conformance() {
 }
 
 #[test]
+fn gui_summary_returns_zero_when_no_target_surface_is_present() {
+    let mut catalog = load_catalog();
+    for surface in &mut catalog.surfaces {
+        surface.lifecycle = GuiSurfaceLifecycle::Bridge;
+    }
+
+    assert_eq!(catalog.summary().target_score, 0);
+}
+
+#[test]
 fn closed_claims_require_every_stage_and_nonclosed_claims_require_a_gap() {
     let mut catalog = load_catalog();
     let fleet = catalog

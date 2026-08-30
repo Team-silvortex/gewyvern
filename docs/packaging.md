@@ -202,8 +202,10 @@ cargo dev deploy control --reuse --no-start
 
 The installer verifies both source and copied release, derives its immutable
 release suffix from the checksum inventory for the complete bundle, serializes
-host mutation, preserves configuration/state, and restores the prior link
-and systemd unit while removing an uncommitted release on failure.
+both host and staging-target mutation before verification, preserves
+configuration/state, and restores the prior link and systemd unit while
+removing an uncommitted release on failure. A staged target is the lock object,
+so no coordination file leaks into the package tree.
 
 Use the native developer entrypoint:
 

@@ -30,6 +30,10 @@ fn macos_installer_is_native_bounded_and_rollback_capable() {
     assert!(installer.contains("replace_link(&options.root, \"current\""));
     assert!(installer.contains("replace_link(&options.root, \"previous\""));
     assert!(installer.contains("restore_link"));
+    assert!(installer.contains("INSTALL_LOCK_TIMEOUT"));
+    assert!(installer.contains("lock.try_lock_shared()"));
+    assert!(installer.contains("lock.try_lock()"));
+    assert!(installer.contains("install_lock_is_target_scoped_bounded_and_status_aware"));
     assert!(installer.contains("source application cannot be inside the install root"));
     assert!(fixture.contains("\"apple_release_evidence\": false"));
     assert!(fixture.contains("\"rolled-back-live-control-fixture\""));

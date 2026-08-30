@@ -1474,6 +1474,8 @@ fn parse_global_cli_options(args: Vec<String>) -> (GlobalCliOptions, Vec<String>
             "--json-out" => {
                 if let Some(value) = iter.next() {
                     options.json_out = Some(PathBuf::from(value));
+                    options.json = true;
+                    options.json_errors = true;
                 } else {
                     options.json_out_missing = true;
                 }
@@ -1682,10 +1684,18 @@ fn emit_json_payload(
 ) {
     let rendered = payload.to_string();
     if let Some(path) = json_out {
-        if let Some(parent) = path.parent() {
-            let _ = fs::create_dir_all(parent);
+        let result = path
+            .parent()
+            .map(fs::create_dir_all)
+            .transpose()
+            .and_then(|_| fs::write(path, rendered.as_bytes()));
+        if let Err(error) = result {
+            eprintln!(
+                "validation failed: cannot write JSON output '{}': {error}",
+                path.display()
+            );
+            process::exit(1);
         }
-        let _ = fs::write(path, rendered.as_bytes());
     }
     if stderr {
         eprintln!("{rendered}");
@@ -3443,5 +3453,22 @@ mod tests {
             err.to_string(),
             "--socket-target is required when --socket-kind is tcp"
         );
+    }
+
+    #[test]
+    fn global_json_out_enables_success_and_failure_json() {
+        let (options, args) = parse_global_cli_options(vec![
+            "--json-out".into(),
+            "/tmp/gewyvern-validation.json".into(),
+            "list".into(),
+        ]);
+
+        assert!(options.json);
+        assert!(options.json_errors);
+        assert_eq!(
+            options.json_out,
+            Some(PathBuf::from("/tmp/gewyvern-validation.json"))
+        );
+        assert_eq!(args, vec!["list"]);
     }
 }

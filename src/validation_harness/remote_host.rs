@@ -2321,7 +2321,7 @@ pub fn validate_leserpent_control_plane_aot_evidence(root: &Path) -> Result<(), 
 }
 
 const LOCAL_ORCHESTRA_VERIFICATION_PREFIX: &str = "local orchestra valid: ";
-const LOCAL_ORCHESTRA_VERIFICATION_CHECKS: [&str; 20] = [
+const LOCAL_ORCHESTRA_STATIC_VERIFICATION_CHECKS: [&str; 18] = [
     "rust_daemon=true",
     "loopback_tls=true",
     "ephemeral_token=true",
@@ -2332,8 +2332,6 @@ const LOCAL_ORCHESTRA_VERIFICATION_CHECKS: [&str; 20] = [
     "credential_free_language_pack_download=true",
     "language_pack_digest_binding=true",
     "language_pack_private_roundtrip=true",
-    "language_pack_official_version=1.1.0",
-    "language_pack_official_keys=30",
     "private_files=true",
     "minimal_child_environment=true",
     "optional_bootstrap_origin=true",
@@ -2345,7 +2343,7 @@ const LOCAL_ORCHESTRA_VERIFICATION_CHECKS: [&str; 20] = [
 ];
 
 const SAVED_DAEMON_LANGUAGE_PACK_VERIFICATION_PREFIX: &str = "saved daemon language pack valid: ";
-const SAVED_DAEMON_LANGUAGE_PACK_VERIFICATION_CHECKS: [&str; 12] = [
+const SAVED_DAEMON_LANGUAGE_PACK_STATIC_VERIFICATION_CHECKS: [&str; 10] = [
     "persisted_catalog=true",
     "saved_connection_source=true",
     "selected_ca_only=true",
@@ -2354,8 +2352,6 @@ const SAVED_DAEMON_LANGUAGE_PACK_VERIFICATION_CHECKS: [&str; 12] = [
     "admin_token_sent=false",
     "digest_binding=true",
     "private_roundtrip=true",
-    "language_pack_official_version=1.1.0",
-    "language_pack_official_keys=30",
     "input_immutable=true",
     "process_cleanup=true",
 ];
@@ -2532,12 +2528,17 @@ pub fn validate_leserpent_language_pack_local_orchestra_aot_evidence(
             "Leserpent Local Orchestra language-pack verification is missing its fixed prefix",
         ));
     };
-    let checks = checks.split(", ").collect::<BTreeSet<_>>();
-    if checks
-        != LOCAL_ORCHESTRA_VERIFICATION_CHECKS
-            .into_iter()
-            .collect::<BTreeSet<_>>()
-    {
+    let (official_version, official_keys) = current_official_language_pack_contract()?;
+    let checks = checks.split(", ").map(str::to_string).collect::<Vec<_>>();
+    let unique_checks = checks.iter().cloned().collect::<BTreeSet<_>>();
+    let expected_checks = language_pack_verification_checks(
+        &LOCAL_ORCHESTRA_STATIC_VERIFICATION_CHECKS,
+        &official_version,
+        official_keys,
+    )
+    .into_iter()
+    .collect::<BTreeSet<_>>();
+    if checks.len() != unique_checks.len() || unique_checks != expected_checks {
         return Err(ValidationError::new(
             "Leserpent Local Orchestra language-pack verification is incomplete",
         ));
@@ -2558,11 +2559,20 @@ pub fn validate_leserpent_language_pack_local_orchestra_aot_evidence(
             "Leserpent saved daemon language-pack verification is missing its fixed prefix",
         ));
     };
-    let saved_checks = saved_checks.split(", ").collect::<BTreeSet<_>>();
-    if saved_checks
-        != SAVED_DAEMON_LANGUAGE_PACK_VERIFICATION_CHECKS
-            .into_iter()
-            .collect::<BTreeSet<_>>()
+    let saved_checks = saved_checks
+        .split(", ")
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    let unique_saved_checks = saved_checks.iter().cloned().collect::<BTreeSet<_>>();
+    let expected_saved_checks = language_pack_verification_checks(
+        &SAVED_DAEMON_LANGUAGE_PACK_STATIC_VERIFICATION_CHECKS,
+        &official_version,
+        official_keys,
+    )
+    .into_iter()
+    .collect::<BTreeSet<_>>();
+    if saved_checks.len() != unique_saved_checks.len()
+        || unique_saved_checks != expected_saved_checks
     {
         return Err(ValidationError::new(
             "Leserpent saved daemon language-pack verification is incomplete",
@@ -2589,6 +2599,103 @@ pub fn validate_leserpent_language_pack_local_orchestra_aot_evidence(
         }
     }
     Ok(())
+}
+
+fn current_official_language_pack_contract() -> Result<(String, usize), ValidationError> {
+    let asset_root = repo_root().join("apps/leserpent/src/Leserpent/wwwroot/language-packs");
+    let catalog = read_bounded_json_file(
+        &asset_root.join("catalog.json"),
+        "Leserpent official language-pack catalog",
+        64 * 1024,
+    )?;
+    let pack = read_bounded_json_file(
+        &asset_root.join("pt-BR.json"),
+        "Leserpent official pt-BR language pack",
+        64 * 1024,
+    )?;
+    official_language_pack_contract(&catalog, &pack)
+}
+
+fn official_language_pack_contract(
+    catalog: &serde_json::Value,
+    pack: &serde_json::Value,
+) -> Result<(String, usize), ValidationError> {
+    let catalog_entries = catalog
+        .get("packs")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| ValidationError::new("Leserpent language-pack catalog has no pack list"))?
+        .iter()
+        .filter(|entry| entry.get("locale").and_then(serde_json::Value::as_str) == Some("pt-BR"))
+        .collect::<Vec<_>>();
+    if catalog_entries.len() != 1 {
+        return Err(ValidationError::new(
+            "Leserpent language-pack catalog must contain exactly one pt-BR entry",
+        ));
+    }
+    let catalog_version = catalog_entries[0]
+        .get("version")
+        .and_then(serde_json::Value::as_str)
+        .filter(|version| valid_language_pack_version(version))
+        .ok_or_else(|| ValidationError::new("Leserpent pt-BR catalog entry version is invalid"))?;
+    if pack.get("locale").and_then(serde_json::Value::as_str) != Some("pt-BR") {
+        return Err(ValidationError::new(
+            "Leserpent pt-BR language-pack locale is invalid",
+        ));
+    }
+    let pack_version = pack
+        .get("version")
+        .and_then(serde_json::Value::as_str)
+        .filter(|version| valid_language_pack_version(version))
+        .ok_or_else(|| ValidationError::new("Leserpent pt-BR language-pack version is invalid"))?;
+    if catalog_version != pack_version {
+        return Err(ValidationError::new(
+            "Leserpent pt-BR language-pack version does not match its catalog entry",
+        ));
+    }
+    let official_keys = pack
+        .get("translations")
+        .and_then(count_translation_strings)
+        .filter(|count| *count > 0)
+        .ok_or_else(|| {
+            ValidationError::new(
+                "Leserpent pt-BR language pack must contain a non-empty string-only translation tree",
+            )
+        })?;
+    Ok((pack_version.to_string(), official_keys))
+}
+
+fn valid_language_pack_version(version: &str) -> bool {
+    !version.is_empty()
+        && version.len() <= 64
+        && version.as_bytes()[0].is_ascii_alphanumeric()
+        && version
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'+' | b'-'))
+}
+
+fn count_translation_strings(value: &serde_json::Value) -> Option<usize> {
+    match value {
+        serde_json::Value::String(_) => Some(1),
+        serde_json::Value::Object(values) => values.values().try_fold(0usize, |count, value| {
+            count.checked_add(count_translation_strings(value)?)
+        }),
+        _ => None,
+    }
+}
+
+fn language_pack_verification_checks(
+    static_checks: &[&str],
+    official_version: &str,
+    official_keys: usize,
+) -> Vec<String> {
+    static_checks
+        .iter()
+        .map(|check| (*check).to_string())
+        .chain([
+            format!("language_pack_official_version={official_version}"),
+            format!("language_pack_official_keys={official_keys}"),
+        ])
+        .collect()
 }
 
 fn validate_sha256_manifest(
@@ -4043,17 +4150,32 @@ EVIDENCE="$(pwd)/target/packages/leserpent-language-pack-local-orchestra-native-
 PUBLISH="$EVIDENCE/publish"
 DOTNET_ARTIFACTS="$EVIDENCE/dotnet-artifacts"
 DAEMON="$CARGO_TARGET_DIR/release/leserpentd"
+STAGE=initialize
 cleanup() {
+  status=$?
+  trap - EXIT
+  if [ "$status" -ne 0 ]; then
+    printf 'remote language-pack proof failed at stage: %s\n' "$STAGE" >&2
+    for log in daemon-build.log restore.log publish.log verification.log saved-verification.log; do
+      if [ -s "$EVIDENCE/$log" ]; then
+        printf '%s\n' "----- $log (tail) -----" >&2
+        tail -n 80 "$EVIDENCE/$log" >&2 || true
+      fi
+    done
+  fi
   find "$PUBLISH" "$DOTNET_ARTIFACTS" -depth -delete 2>/dev/null || true
+  exit "$status"
 }
 trap cleanup EXIT
 mkdir -p "$EVIDENCE"
 find "$EVIDENCE" -mindepth 1 -depth -delete
 mkdir -p "$PUBLISH"
 
+STAGE=daemon-build
 cargo build --locked --quiet --release -p leserpentd --bin leserpentd \
   --features leserpentd/native-ssh >"$EVIDENCE/daemon-build.log" 2>&1
 printf 'cargo build completed\n' >>"$EVIDENCE/daemon-build.log"
+STAGE=dotnet-restore
 dotnet restore apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj \
   -p:PublishProfile=NativeAot \
   -p:PublishAot=true \
@@ -4061,6 +4183,7 @@ dotnet restore apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia
   --locked-mode \
   --artifacts-path "$DOTNET_ARTIFACTS" >"$EVIDENCE/restore.log" 2>&1
 printf 'dotnet restore completed\n' >>"$EVIDENCE/restore.log"
+STAGE=dotnet-publish
 dotnet publish apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj \
   -p:PublishProfile=NativeAot \
   -p:PublishAot=true \
@@ -4089,16 +4212,18 @@ file "$PUBLISH/leserpentd" | grep -q 'ELF 64-bit.*x86-64'
   sha256sum catalog.json pt-BR.json
 ) >"$EVIDENCE/language-pack-assets.sha256"
 
+STAGE=local-orchestra-verification
 "$PUBLISH/Leserpent.Avalonia" \
   --verify-local-orchestra "$PUBLISH/leserpentd" \
   >"$EVIDENCE/verification.log" 2>&1
 grep -q 'credential_free_language_pack_download=true' "$EVIDENCE/verification.log"
 grep -q 'language_pack_digest_binding=true' "$EVIDENCE/verification.log"
 grep -q 'language_pack_private_roundtrip=true' "$EVIDENCE/verification.log"
-grep -q 'language_pack_official_version=1.1.0' "$EVIDENCE/verification.log"
-grep -q 'language_pack_official_keys=30' "$EVIDENCE/verification.log"
+grep -Eq '(^|, )language_pack_official_version=[0-9A-Za-z][0-9A-Za-z.+-]{0,63}(, |$)' "$EVIDENCE/verification.log"
+grep -Eq '(^|, )language_pack_official_keys=[1-9][0-9]{0,5}(, |$)' "$EVIDENCE/verification.log"
 grep -q 'process_cleanup=true' "$EVIDENCE/verification.log"
 
+STAGE=saved-daemon-verification
 "$PUBLISH/Leserpent.Avalonia" \
   --verify-saved-daemon-language-pack "$PUBLISH/leserpentd" \
   >"$EVIDENCE/saved-verification.log" 2>&1
@@ -4107,11 +4232,12 @@ grep -q 'selected_ca_only=true' "$EVIDENCE/saved-verification.log"
 grep -q 'wrong_ca_rejected=true' "$EVIDENCE/saved-verification.log"
 grep -q 'bearer_sent=false' "$EVIDENCE/saved-verification.log"
 grep -q 'admin_token_sent=false' "$EVIDENCE/saved-verification.log"
-grep -q 'language_pack_official_version=1.1.0' "$EVIDENCE/saved-verification.log"
-grep -q 'language_pack_official_keys=30' "$EVIDENCE/saved-verification.log"
+grep -Eq '(^|, )language_pack_official_version=[0-9A-Za-z][0-9A-Za-z.+-]{0,63}(, |$)' "$EVIDENCE/saved-verification.log"
+grep -Eq '(^|, )language_pack_official_keys=[1-9][0-9]{0,5}(, |$)' "$EVIDENCE/saved-verification.log"
 grep -q 'input_immutable=true' "$EVIDENCE/saved-verification.log"
 grep -q 'process_cleanup=true' "$EVIDENCE/saved-verification.log"
 
+STAGE=evidence-finalize
 printf 'os=Linux\narch=%s\nrid=linux-x64\nkernel=%s\ndotnet_sdk=%s\nrustc=%s\ncargo=%s\navalonia_bytes=%s\nleserpentd_bytes=%s\n' \
   "$(uname -m)" \
   "$(uname -r)" \
@@ -4138,6 +4264,7 @@ cat >"$EVIDENCE/evidence-index.json" <<'JSON'
   ]
 }
 JSON
+STAGE=complete
 echo 'remote Leserpent Local Orchestra language-pack NativeAOT proof: ok'
 "#;
 
@@ -4570,6 +4697,7 @@ mod tests {
         validate_remote_target_kind, validate_remote_workspace_sync_key,
         validate_ssh_control_path_template,
     };
+    use serde_json::json;
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::process::Command;
@@ -5178,6 +5306,51 @@ mod tests {
         assert!(publish.contains("--verify-saved-daemon-language-pack"));
         assert!(publish.contains("saved-verification.log"));
         assert!(publish.contains("language-pack-assets.sha256"));
+        assert!(restore.contains("remote language-pack proof failed at stage"));
+        assert!(publish.contains("language_pack_official_version=[0-9A-Za-z]"));
+        assert!(publish.contains("language_pack_official_keys=[1-9]"));
+        assert!(!publish.contains("language_pack_official_version=1.1.0"));
+        assert!(!publish.contains("language_pack_official_keys=30"));
+    }
+
+    #[test]
+    fn official_language_pack_contract_rejects_ambiguous_or_malformed_metadata() {
+        let pack = json!({
+            "locale": "pt-BR",
+            "version": "1.2.0",
+            "translations": {"hub": {"title": "Painel"}}
+        });
+        let catalog = json!({"packs": [{"locale": "pt-BR", "version": "1.2.0"}]});
+        assert_eq!(
+            super::official_language_pack_contract(&catalog, &pack).unwrap(),
+            ("1.2.0".to_string(), 1)
+        );
+
+        for invalid_catalog in [
+            json!({"packs": []}),
+            json!({"packs": [{"locale": "pt-BR"}]}),
+            json!({"packs": [
+                {"locale": "pt-BR", "version": "1.2.0"},
+                {"locale": "pt-BR", "version": "1.2.0"}
+            ]}),
+            json!({"packs": [{"locale": "pt-BR", "version": "1.2.1"}]}),
+        ] {
+            assert!(super::official_language_pack_contract(&invalid_catalog, &pack).is_err());
+        }
+
+        let wrong_locale = json!({
+            "locale": "en-US",
+            "version": "1.2.0",
+            "translations": {"hub": {"title": "Panel"}}
+        });
+        assert!(super::official_language_pack_contract(&catalog, &wrong_locale).is_err());
+
+        let non_string_leaf = json!({
+            "locale": "pt-BR",
+            "version": "1.2.0",
+            "translations": {"hub": {"title": 42}}
+        });
+        assert!(super::official_language_pack_contract(&catalog, &non_string_leaf).is_err());
     }
 
     #[test]
@@ -5253,6 +5426,19 @@ mod tests {
         fs::write(
             root.join("saved-verification.log"),
             "saved daemon language pack valid: persisted_catalog=true\n",
+        )
+        .unwrap();
+        assert!(validate_leserpent_language_pack_local_orchestra_aot_evidence(&root).is_err());
+
+        write_valid_leserpent_language_pack_local_orchestra_aot_evidence(&root);
+        let verification = fs::read_to_string(root.join("verification.log")).unwrap();
+        let (official_version, _) = super::current_official_language_pack_contract().unwrap();
+        fs::write(
+            root.join("verification.log"),
+            verification.replace(
+                &format!("language_pack_official_version={official_version}"),
+                "language_pack_official_version=9.9.9",
+            ),
         )
         .unwrap();
         assert!(validate_leserpent_language_pack_local_orchestra_aot_evidence(&root).is_err());
@@ -5404,6 +5590,8 @@ mod tests {
             super::repo_root().join("apps/leserpent/src/Leserpent/wwwroot/language-packs");
         let catalog_hash = super::evidence_file_sha256(&asset_root.join("catalog.json")).unwrap();
         let pack_hash = super::evidence_file_sha256(&asset_root.join("pt-BR.json")).unwrap();
+        let (official_version, official_keys) =
+            super::current_official_language_pack_contract().unwrap();
         fs::write(
             root.join("language-pack-assets.sha256"),
             format!("{catalog_hash}  catalog.json\n{pack_hash}  pt-BR.json\n"),
@@ -5414,7 +5602,12 @@ mod tests {
             format!(
                 "{}{}\n",
                 super::LOCAL_ORCHESTRA_VERIFICATION_PREFIX,
-                super::LOCAL_ORCHESTRA_VERIFICATION_CHECKS.join(", ")
+                super::language_pack_verification_checks(
+                    &super::LOCAL_ORCHESTRA_STATIC_VERIFICATION_CHECKS,
+                    &official_version,
+                    official_keys,
+                )
+                .join(", ")
             ),
         )
         .unwrap();
@@ -5423,7 +5616,12 @@ mod tests {
             format!(
                 "{}{}\n",
                 super::SAVED_DAEMON_LANGUAGE_PACK_VERIFICATION_PREFIX,
-                super::SAVED_DAEMON_LANGUAGE_PACK_VERIFICATION_CHECKS.join(", ")
+                super::language_pack_verification_checks(
+                    &super::SAVED_DAEMON_LANGUAGE_PACK_STATIC_VERIFICATION_CHECKS,
+                    &official_version,
+                    official_keys,
+                )
+                .join(", ")
             ),
         )
         .unwrap();

@@ -490,6 +490,41 @@ contains one independent physical host fingerprint and one kernel release. The
 bounded, secret-free record is
 `docs/fixtures/gewyvern_remote_linux_workspace_identity_physical_20260824.json`.
 
+### 1.20.5 Linux Runtime Polish Recheck
+
+On `2026-08-30`, the same physical Ubuntu `x86_64` shelf exercised the current
+`1.20.0` source at the `1.20.5` closure slot. Rust `1.95.0` first exposed a
+checked-division Clippy regression that local Rust `1.94.1` did not report. The
+next run exposed stale fixed `1.1.0` / 30-key language-pack evidence after the
+official pack had advanced to `1.2.0` / 42 keys. Both failures were closed with
+regression coverage: score rounding now uses checked integer operations, and
+the NativeAOT proof binds its exact expectations to the current catalog while
+retaining stage-specific failure diagnostics.
+
+The remote fixed helper was then upgraded from `1.16.0` to `1.20.0`. It remains
+root-owned, protocol `1`, and restricted to the dedicated UID through the
+command-limited sudoers rule; the ordinary account still cannot run generic
+passwordless sudo. The final transaction passed all 19 build, NativeAOT,
+package, runtime, ownership, and eBPF checks:
+
+| Phase | Seconds | Notes |
+| --- | ---: | --- |
+| `workspace_sync` | `0.399` | changed source snapshot through the ordinary SSH identity |
+| `remote_rust_quality` | `0.717` | Rust 1.95 locked all-target Clippy |
+| `remote_package_build` | `0.543` | warm manifest-bound DEB/RPM artifacts |
+| `remote_leserpent_control_plane_aot` | `40.758` | packaged control-plane NativeAOT proof |
+| `remote_leserpent_language_pack_local_orchestra_aot` | `57.308` | catalog-bound local and saved-daemon proof |
+| `remote_runtime_smoke` | `0.308` | TCP/UDP host-mode runtime proof |
+| `remote_ebpf_attach` | `0.688` | fixed-helper tracepoint, kprobe, and tc proof |
+| `total` | `101.767` | complete physical Linux transaction, no budget warning |
+
+`--json-out` independently produced the final machine summary, and output-path
+failures now return nonzero instead of silently dropping evidence. The run is
+`validation_posture=full` and `linux_proof_complete=true`; its release signal
+remains `coverage_incomplete` because this retained physical matrix still has
+one host fingerprint and one kernel release. The bounded record is
+`docs/fixtures/gewyvern_remote_linux_runtime_polish_20260830.json`.
+
 ### Ubuntu 22.04 VM Kernel Compatibility Recheck
 
 Also on `2026-08-24`, the isolated `gewyvern-jammy` compatibility shelf ran the
@@ -606,3 +641,27 @@ request, and NativeAOT health. Its synchronized bounded record is
 `target/validation/leserpent-linux-bundle-smoke/latest.json`. The current
 warm-path bottleneck is NativeAOT code generation; restore, Rust payload
 construction, and bundle hashing no longer dominate this workflow.
+
+### 1.20.6 Deployment Recovery Recheck
+
+On `2026-08-30`, the same physical Ubuntu `x86_64` host and Linux
+`7.0.0-28-generic` kernel rebuilt the control bundle after target-level
+installer serialization was added:
+
+| Stage | Seconds | Notes |
+| --- | ---: | --- |
+| `control-native-payloads` | `0.187` | one locked warm Cargo invocation |
+| `control-aot-restore` | `1.076` | locked `linux-x64` graph |
+| `control-aot-publish` | `42.963` | stripped NativeAOT code generation |
+| total package workflow | `44.172` | includes manifest validation and atomic publication |
+
+The resulting bundle identity is
+`9aff455f99a0cbe1325e1bb87cbf0a94ea03ede774a87c1087f41dbabe9b28b9`.
+Its 22-check smoke proved that a staged installer waits on the destination
+before bundle validation, rejects symbolic-link staging roots, and still passes
+failed-upgrade restoration, explicit rollback, external state/configuration
+preservation, compatibility bridge execution, and live rolled-back NativeAOT
+health. Native reverse-deployment regressions also passed 16 daemon installer,
+12 bootstrap adapter, and two Gewyvern installer vertical tests. The retained
+cross-platform record is
+`docs/fixtures/leserpent_deployment_recovery_20260830.json`.

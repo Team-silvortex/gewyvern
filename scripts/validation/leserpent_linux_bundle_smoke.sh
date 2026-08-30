@@ -10,7 +10,7 @@ if [[ "$(uname -s)" != "Linux" || "$(uname -m)" != "x86_64" ]]; then
   echo "Leserpent Linux bundle smoke requires Linux x86_64" >&2
   exit 2
 fi
-for tool in curl file sha256sum stat; do
+for tool in curl file flock sha256sum stat; do
   command -v "${tool}" >/dev/null || { echo "missing required tool: ${tool}" >&2; exit 2; }
 done
 for required in Leserpent leserpent-compat-bridge leserpentd libe_sqlite3.so \
@@ -20,7 +20,12 @@ done
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/leserpent-linux-bundle.XXXXXX")"
 pid=""
+installer_pid=""
 cleanup() {
+  if [[ -n "${installer_pid}" ]] && kill -0 "${installer_pid}" 2>/dev/null; then
+    kill "${installer_pid}" 2>/dev/null || true
+    wait "${installer_pid}" 2>/dev/null || true
+  fi
   if [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null; then
     kill "${pid}" 2>/dev/null || true
     wait "${pid}" 2>/dev/null || true
@@ -33,6 +38,30 @@ file "${BUNDLE}/Leserpent" | grep -q 'ELF 64-bit.*x86-64'
 file "${BUNDLE}/leserpent-compat-bridge" | grep -q 'ELF 64-bit.*x86-64'
 file "${BUNDLE}/leserpentd" | grep -q 'ELF 64-bit.*x86-64'
 
+serialized_root="${work}/serialized-root"
+mkdir -p "${serialized_root}"
+exec 8<"${serialized_root}"
+flock -n 8
+DESTDIR="${serialized_root}" "${BUNDLE}/deploy/install.sh" \
+  --source "${work}/missing-source" >"${work}/serialized.log" 2>&1 8<&- &
+installer_pid=$!
+sleep 0.5
+if ! kill -0 "${installer_pid}" 2>/dev/null; then
+  cat "${work}/serialized.log" >&2
+  echo "staged installer reached bundle validation without waiting for its target lock" >&2
+  exit 1
+fi
+[[ ! -e "${serialized_root}/opt/leserpent/current" ]]
+flock -u 8
+exec 8<&-
+if wait "${installer_pid}"; then
+  echo "installer accepted a missing bundle after acquiring its target lock" >&2
+  exit 1
+fi
+installer_pid=""
+grep -q 'invalid Leserpent bundle root' "${work}/serialized.log"
+rm -rf "${serialized_root}"
+
 tampered_source="${work}/tampered-source"
 cp -a "${BUNDLE}" "${tampered_source}"
 printf '\n<!-- tampered -->\n' >>"${tampered_source}/wwwroot/index.html"
@@ -43,6 +72,16 @@ if DESTDIR="${work}/tampered-root" "${tampered_source}/deploy/install.sh" \
 fi
 grep -Eq 'manifest does not match|checksum.*does not match|FAILED' "${work}/tampered.log"
 [[ ! -e "${work}/tampered-root/opt/leserpent/current" ]]
+
+mkdir -p "${work}/outside-staging-root"
+ln -s "${work}/outside-staging-root" "${work}/staging-root-link"
+if DESTDIR="${work}/staging-root-link" "${BUNDLE}/deploy/install.sh" \
+  --source "${BUNDLE}" >"${work}/staging-root-link.log" 2>&1; then
+  echo "installer accepted a symbolic-link staging root" >&2
+  exit 1
+fi
+grep -q 'refusing unsafe Leserpent staging root' "${work}/staging-root-link.log"
+[[ ! -e "${work}/outside-staging-root/opt/leserpent/current" ]]
 
 mkdir -p "${work}/unsafe-root/opt/leserpent"
 ln -s ../../outside "${work}/unsafe-root/opt/leserpent/current"
@@ -177,6 +216,8 @@ cat >"${temp}" <<EOF
     "exact-bundle-inventory",
     "installed-bundle-checksum-verification",
     "content-addressed-release-identity",
+    "staged-install-lock-before-bundle-verification",
+    "unsafe-staging-root-rejection",
     "unsafe-existing-current-link-rejection",
     "staged-atomic-current-link",
     "staged-upgrade-current-previous-link",

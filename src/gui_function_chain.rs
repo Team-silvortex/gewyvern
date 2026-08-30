@@ -332,7 +332,7 @@ impl GuiFunctionChainCatalog {
     pub fn summary(&self) -> GuiFunctionChainSummary {
         let mut surfaces = Vec::with_capacity(self.surfaces.len());
         let mut target_score_sum = 0u32;
-        let mut target_score_count = 0u32;
+        let mut target_score_count = 0usize;
         for surface in &self.surfaces {
             let relevant = self
                 .chains
@@ -356,7 +356,7 @@ impl GuiFunctionChainCatalog {
             let score = rounded_score(score_sum, relevant.len());
             if surface.lifecycle == GuiSurfaceLifecycle::Target {
                 target_score_sum += score_sum;
-                target_score_count += relevant.len() as u32;
+                target_score_count += relevant.len();
             }
             surfaces.push(GuiSurfaceSummary {
                 id: surface.id.clone(),
@@ -380,11 +380,7 @@ impl GuiFunctionChainCatalog {
             as_of: self.as_of.clone(),
             operation_count: self.operations.len(),
             chain_count: self.chains.len(),
-            target_score: if target_score_count == 0 {
-                0
-            } else {
-                ((target_score_sum + target_score_count / 2) / target_score_count) as u8
-            },
+            target_score: rounded_score(target_score_sum, target_score_count),
             surfaces,
         }
     }
@@ -616,9 +612,13 @@ fn count_state(values: &[(&GuiFunctionChain, &GuiCoverage)], state: GuiCoverageS
 }
 
 fn rounded_score(score_sum: u32, count: usize) -> u8 {
-    if count == 0 {
-        0
-    } else {
-        ((score_sum + count as u32 / 2) / count as u32) as u8
-    }
+    u64::try_from(count)
+        .ok()
+        .and_then(|count| {
+            u64::from(score_sum)
+                .checked_add(count / 2)
+                .and_then(|rounded| rounded.checked_div(count))
+        })
+        .and_then(|score| u8::try_from(score).ok())
+        .unwrap_or_default()
 }

@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "proof": "gewyvern-1.20.5-linux-runtime-polish",
+  "captured_at_utc": "2026-08-30T01:42:45Z",
+  "source_version": "1.20.0",
+  "target": {
+    "platform": "linux-x86_64",
+    "target_kind": "physical",
+    "kernel": "7.0.0-28-generic",
+    "virtualization": "none",
+    "default_route_device": "wlp3s0"
+  },
+  "toolchain": {
+    "rustc": "1.95.0",
+    "cargo": "1.95.0",
+    "dotnet_sdk": "10.0.111"
+  },
+  "closed_regressions": [
+    "rust-1.95-manual-checked-division-clippy-drift",
+    "stale-fixed-language-pack-version-and-key-evidence",
+    "standalone-json-out-not-enabling-json-publication",
+    "json-output-write-failure-reported-as-success",
+    "stale-1.16.0-privileged-helper"
+  ],
+  "language_pack_contract": {
+    "locale": "pt-BR",
+    "version": "1.2.0",
+    "translation_keys": 42,
+    "catalog_sha256": "1761e63413dc002936a2a18528dc1092851b89ec9ea3ce7e97a776c21fde4776",
+    "pack_sha256": "a6473048fddc02791304abf33abecb36fd13d8acb63923322a1a4363483c530c",
+    "catalog_bound_at_validation_time": true,
+    "local_orchestra_roundtrip": true,
+    "saved_daemon_roundtrip": true
+  },
+  "privileged_helper": {
+    "path": "/usr/libexec/gewyvern-ebpf-helper",
+    "protocol": 1,
+    "version": "1.20.0",
+    "allowed_uid": 1001,
+    "root_owned": true,
+    "command_limited_sudo": true,
+    "unrestricted_passwordless_sudo": false
+  },
+  "checks": [
+    "remote_preflight",
+    "workspace_synced",
+    "remote_workspace_ownership_preflight",
+    "remote_workspace_materialized",
+    "remote_rust_quality",
+    "remote_linux_target_check",
+    "remote_package_build",
+    "remote_leserpent_control_plane_aot",
+    "remote_leserpent_language_pack_local_orchestra_aot",
+    "remote_package_build_timings",
+    "remote_artifacts_present",
+    "remote_package_smoke",
+    "remote_package_smoke_timings",
+    "remote_runtime_smoke",
+    "remote_runtime_smoke_timings",
+    "remote_ebpf_evidence_synced",
+    "remote_ebpf_smoke",
+    "remote_workspace_ownership_postflight",
+    "remote_phase_timings"
+  ],
+  "ebpf": {
+    "status": "ok",
+    "reason": "all_smokes_passed_privileged_helper",
+    "tracepoint": true,
+    "kprobe": true,
+    "tc": true
+  },
+  "phase_seconds": {
+    "workspace_sync": 0.399,
+    "remote_rust_quality": 0.717,
+    "remote_linux_target_check": 0.439,
+    "remote_package_build": 0.543,
+    "remote_leserpent_control_plane_aot": 40.758,
+    "remote_leserpent_language_pack_local_orchestra_aot": 57.308,
+    "remote_package_smoke": 0.169,
+    "remote_runtime_smoke": 0.308,
+    "remote_ebpf_attach": 0.688,
+    "total": 101.767
+  },
+  "matrix": {
+    "release_eligible": true,
+    "ready": false,
+    "minimum_physical_hosts": 2,
+    "minimum_kernel_releases": 2,
+    "successful_physical_hosts": 1,
+    "successful_kernel_releases": 1
+  },
+  "validation_posture": "full",
+  "release_gate_signal": "coverage_incomplete",
+  "result": "passed"
+}

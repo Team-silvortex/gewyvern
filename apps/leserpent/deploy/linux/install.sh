@@ -67,6 +67,28 @@ if [[ -z "${DESTDIR}" && "${EUID}" -ne 0 ]]; then
   exit 1
 fi
 
+command -v flock >/dev/null 2>&1 || {
+  printf '%s\n' 'flock is required for serialized Leserpent installation' >&2
+  exit 1
+}
+
+if [[ -n "${DESTDIR}" ]]; then
+  while [[ "${DESTDIR}" != / && "${DESTDIR}" == */ ]]; do
+    DESTDIR="${DESTDIR%/}"
+  done
+  [[ "${DESTDIR}" != / ]] || {
+    printf '%s\n' 'refusing to use / as a staged Leserpent installation root' >&2
+    exit 1
+  }
+  if [[ ! -e "${DESTDIR}" && ! -L "${DESTDIR}" ]]; then
+    mkdir -p -- "${DESTDIR}"
+  fi
+  [[ -d "${DESTDIR}" && ! -L "${DESTDIR}" ]] || {
+    printf 'refusing unsafe Leserpent staging root: %s\n' "${DESTDIR}" >&2
+    exit 1
+  }
+fi
+
 prefix="${DESTDIR}/opt/leserpent"
 config_dir="${DESTDIR}/etc/leserpent"
 state_dir="${DESTDIR}/var/lib/leserpent"
@@ -77,6 +99,16 @@ unit_backup="${unit_dir}/.leserpent.service.backup.$$"
 unit_transaction_started=false
 unit_existed=false
 unit_touched=false
+
+if [[ -z "${DESTDIR}" ]]; then
+  exec 9>/run/lock/leserpent-install.lock
+else
+  exec 9<"${DESTDIR}"
+fi
+flock -w 120 9 || {
+  printf '%s\n' 'timed out waiting for another Leserpent installation' >&2
+  exit 1
+}
 
 for managed_dir in "${prefix}" "${prefix}/releases" "${config_dir}" "${state_dir}" "${unit_dir}"; do
   if [[ (-e "${managed_dir}" || -L "${managed_dir}") \
@@ -315,18 +347,6 @@ wait_until_healthy() {
   done
   return 1
 }
-
-if [[ -z "${DESTDIR}" ]]; then
-  command -v flock >/dev/null 2>&1 || {
-    printf '%s\n' 'flock is required for serialized Leserpent installation' >&2
-    exit 1
-  }
-  exec 9>/run/lock/leserpent-install.lock
-  flock -w 120 9 || {
-    printf '%s\n' 'timed out waiting for another Leserpent installation' >&2
-    exit 1
-  }
-fi
 
 verify_bundle "${SOURCE_DIR}"
 

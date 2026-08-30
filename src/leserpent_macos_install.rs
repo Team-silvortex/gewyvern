@@ -1,7 +1,9 @@
 use std::collections::BTreeSet;
 use std::env;
-use std::fs;
+use std::fs::{self, File, TryLockError};
 use std::path::{Component, Path, PathBuf};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use ring::digest::{Context, SHA256};
 use serde::Serialize;
@@ -13,6 +15,7 @@ const EXECUTABLE: &str = "Leserpent.Avalonia";
 const DAEMON_EXECUTABLE: &str = "leserpentd";
 const MAX_BUNDLE_FILES: usize = 256;
 const MAX_BUNDLE_BYTES: u64 = 1024 * 1024 * 1024;
+const INSTALL_LOCK_TIMEOUT: Duration = Duration::from_secs(120);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstallAction {
@@ -117,12 +120,48 @@ pub fn execute(options: &InstallOptions) -> Result<InstallReport, String> {
 }
 
 fn execute_on_supported_host(options: &InstallOptions) -> Result<InstallReport, String> {
+    let _install_lock = acquire_install_lock(options, INSTALL_LOCK_TIMEOUT)?;
     match options.action {
         InstallAction::Install => install(options)?,
         InstallAction::Rollback => rollback(options)?,
         InstallAction::Status => validate_status(options)?,
     }
     report(options)
+}
+
+fn acquire_install_lock(options: &InstallOptions, timeout: Duration) -> Result<File, String> {
+    if options.action == InstallAction::Install {
+        fs::create_dir_all(&options.root).map_err(|error| error.to_string())?;
+    }
+    require_directory(&options.root, "install root")?;
+    let lock = File::open(&options.root)
+        .map_err(|error| format!("failed to open Leserpent install lock: {error}"))?;
+    let deadline = Instant::now()
+        .checked_add(timeout)
+        .ok_or_else(|| "Leserpent install lock timeout overflowed".to_string())?;
+
+    loop {
+        let result = match options.action {
+            InstallAction::Status => lock.try_lock_shared(),
+            InstallAction::Install | InstallAction::Rollback => lock.try_lock(),
+        };
+        match result {
+            Ok(()) => return Ok(lock),
+            Err(TryLockError::WouldBlock) if Instant::now() < deadline => {
+                thread::sleep(
+                    deadline
+                        .saturating_duration_since(Instant::now())
+                        .min(Duration::from_millis(25)),
+                );
+            }
+            Err(TryLockError::WouldBlock) => {
+                return Err("timed out waiting for another Leserpent installation".to_string());
+            }
+            Err(TryLockError::Error(error)) => {
+                return Err(format!("failed to lock Leserpent install root: {error}"));
+            }
+        }
+    }
 }
 
 fn install(options: &InstallOptions) -> Result<(), String> {
@@ -739,6 +778,35 @@ mod tests {
         );
         assert!(root.join("Applications/Leserpent.app").is_symlink());
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn install_lock_is_target_scoped_bounded_and_status_aware() {
+        let root = fixture_root("install-lock");
+        let other_root = fixture_root("other-install-lock");
+        let install = options(&root, Some(root.join("source.app")), InstallAction::Install);
+        let status = options(&root, None, InstallAction::Status);
+        let other = options(
+            &other_root,
+            Some(other_root.join("source.app")),
+            InstallAction::Install,
+        );
+
+        let held = acquire_install_lock(&install, Duration::ZERO).unwrap();
+        let error = acquire_install_lock(&status, Duration::from_millis(30)).unwrap_err();
+        assert!(error.contains("timed out waiting for another Leserpent installation"));
+        let independent = acquire_install_lock(&other, Duration::ZERO).unwrap();
+        drop(independent);
+        drop(held);
+
+        let first_reader = acquire_install_lock(&status, Duration::ZERO).unwrap();
+        let second_reader = acquire_install_lock(&status, Duration::ZERO).unwrap();
+        drop(second_reader);
+        drop(first_reader);
+        acquire_install_lock(&install, Duration::ZERO).unwrap();
+
+        fs::remove_dir_all(root).unwrap();
+        fs::remove_dir_all(other_root).unwrap();
     }
 
     #[test]

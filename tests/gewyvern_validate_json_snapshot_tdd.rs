@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Mutex, MutexGuard};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
@@ -128,6 +129,70 @@ fn help_json_matches_fixture() {
     assert!(ok, "help should succeed, stderr: {stderr}");
     assert!(stderr.trim().is_empty(), "unexpected stderr: {stderr}");
     assert_eq!(parse_single_json(&stdout), expected);
+}
+
+#[test]
+fn json_out_alone_writes_the_success_payload() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!(
+        "gewyvern-validate-json-out-{}-{unique}.json",
+        std::process::id()
+    ));
+    let output = Command::new(env!("CARGO_BIN_EXE_gewyvern_validate"))
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .arg("--json-out")
+        .arg(&path)
+        .arg("list")
+        .output()
+        .unwrap_or_else(|err| panic!("failed to run gewyvern_validate: {err}"));
+
+    let written = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+    let _ = fs::remove_file(&path);
+
+    assert!(output.status.success());
+    assert_eq!(
+        parse_single_json(&written),
+        read_fixture("docs/fixtures/gewyvern_validate_list.json")
+    );
+    assert_eq!(
+        parse_single_json(&String::from_utf8(output.stdout).unwrap()),
+        parse_single_json(&written)
+    );
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn json_out_write_failure_is_never_reported_as_success() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let parent = std::env::temp_dir().join(format!(
+        "gewyvern-validate-json-parent-{}-{unique}",
+        std::process::id()
+    ));
+    fs::write(&parent, b"not a directory").unwrap();
+    let path = parent.join("result.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_gewyvern_validate"))
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .arg("--json-out")
+        .arg(&path)
+        .arg("list")
+        .output()
+        .unwrap_or_else(|err| panic!("failed to run gewyvern_validate: {err}"));
+    let _ = fs::remove_file(&parent);
+
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    assert!(
+        String::from_utf8(output.stderr)
+            .unwrap()
+            .contains("cannot write JSON output")
+    );
 }
 
 #[test]
