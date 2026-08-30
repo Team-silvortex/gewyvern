@@ -1,6 +1,14 @@
 # gewyvern v2.0.x
 
 <p align="center">
+  <strong>Gewyvern</strong> ·
+  <a href="LESERPENT.md">Leserpent</a> ·
+  <a href="docs/leselang-language.md">Leselang</a> ·
+  <a href="docs/index.md">Documentation</a> ·
+  <a href="https://github.com/Team-silvortex/gewyvern/releases/latest">Download</a>
+</p>
+
+<p align="center">
   <img src="docs/assets/branding/gewyvern-logo-v1.svg" alt="gewyvern logo" width="240">
 </p>
 
@@ -23,7 +31,8 @@ usable as a system:
   registry, persistence, config, logging, certificates, and runtime API
 - `etragon`: optional, incubating advisory-learning sidecar; its deep-learning
   stack is not integrated yet, so it remains deliberately downweighted
-- `leserpent`: cross-platform control-plane shell with Orchestra and independent child UI windows for coordinating multiple gewyvern instances
+- [`leserpent`](LESERPENT.md): cross-platform control plane with Orchestra and
+  independent child UI windows for coordinating multiple Gewyvern instances
 
 The long-term direction is:
 

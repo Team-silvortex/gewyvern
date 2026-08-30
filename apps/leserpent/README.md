@@ -1,5 +1,8 @@
 # leserpent Design Spec
 
+> Community-facing product overview: [Leserpent](../../LESERPENT.md). This page
+> retains implementation and compatibility-bridge details for contributors.
+
 <p align="center">
   <img src="../../assets/branding/leserpent-icon.png" alt="Leserpent feathered serpent icon" width="220">
 </p>

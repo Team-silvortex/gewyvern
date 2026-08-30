@@ -255,6 +255,7 @@ fn check_surfaces(root: &Path, version: &ProductVersion) -> Result<(), String> {
     );
     for (path, expected) in [
         ("README.md", format!("# gewyvern v{line}\n")),
+        ("LESERPENT.md", format!("# Leserpent v{line}\n")),
         ("README.md", format!("project version: `{line}`")),
         (
             "README.md",

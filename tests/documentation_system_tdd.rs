@@ -83,6 +83,38 @@ fn documentation_index_routes_to_each_small_domain_module() {
 }
 
 #[test]
+fn root_product_navigation_exposes_leserpent_as_a_first_class_entry() {
+    let root = repository_root();
+    let gewyvern = fs::read_to_string(root.join("README.md")).expect("root README must exist");
+    let leserpent =
+        fs::read_to_string(root.join("LESERPENT.md")).expect("Leserpent product page must exist");
+    let implementation = fs::read_to_string(root.join("apps/leserpent/README.md"))
+        .expect("Leserpent implementation README must exist");
+
+    assert!(gewyvern.contains("href=\"LESERPENT.md\""));
+    assert!(leserpent.contains("href=\"README.md\""));
+    assert!(implementation.contains("(../../LESERPENT.md)"));
+    let (minor_line, _) = env!("CARGO_PKG_VERSION")
+        .rsplit_once('.')
+        .expect("workspace version must be semantic");
+    assert!(leserpent.contains(&format!("# Leserpent v{minor_line}.x")));
+    for invariant in [
+        "one or more leserpentd authorities",
+        "One Leserpent client can manage multiple independent `leserpentd` authorities",
+        "Credentials protect infrastructure authority",
+        "does not require a remote connection before local Orchestra",
+        "cargo dev package desktop",
+        "cargo dev package control",
+        "not Apple-notarized",
+    ] {
+        assert!(
+            leserpent.contains(invariant),
+            "Leserpent product page lacks invariant: {invariant}"
+        );
+    }
+}
+
+#[test]
 fn tutorial_shelf_covers_cli_desktop_languages_and_remote_lifecycle() {
     let root = repository_root();
     let shelf =
@@ -216,7 +248,7 @@ fn tutorial_shelf_covers_cli_desktop_languages_and_remote_lifecycle() {
 #[test]
 fn documentation_tree_has_no_dangling_local_links() {
     let root = repository_root();
-    let mut documents = vec![root.join("README.md")];
+    let mut documents = vec![root.join("README.md"), root.join("LESERPENT.md")];
     collect_markdown(&root.join("docs"), &mut documents);
 
     let mut checked = 0usize;

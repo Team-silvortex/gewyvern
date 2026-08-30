@@ -7,6 +7,7 @@ that owns your question; do not scan the repository by filename.
 
 - Choose a working outcome: [tutorial shelf](book/tutorials.md)
 - CLI operator: [first real run](book/tutorial-first-run.md)
+- Leserpent overview: [product page](../LESERPENT.md)
 - Desktop operator: [first Leserpent session](book/tutorial-leserpent-desktop.md)
 - GewyLang author: [first package](book/tutorial-gewylang-package.md)
 - Leselang author: [first GUI automation](book/tutorial-leselang-gui-automation.md)
