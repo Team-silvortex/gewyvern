@@ -12,7 +12,8 @@ that owns your question; do not scan the repository by filename.
 - Leselang author: [first GUI automation](book/tutorial-leselang-gui-automation.md)
 - Remote operator: [disposable deployment lab](book/tutorial-remote-deployment-lab.md)
 - Contributor: [project module](modules/project.md)
-- Next major: [Leserpent 2.0 roadmap](leserpent-2-roadmap.md)
+- Current release: [v2.0.0 release notes](history/v2.0.0-release-notes.md)
+- Architecture and delivery record: [Leserpent 2.0](leserpent-2-roadmap.md)
 - Sequential reading: [book](book/index.md)
 
 ## Modules

@@ -279,7 +279,7 @@ Measurement notes:
 
 ## Release-Candidate Interpretation
 
-For the active `1.20.x` line, the intended acceptance rule is:
+For the active `2.0.x` line, the intended acceptance rule is:
 
 - compare against the `median`
 - judge regressions on the same developer-class machine, not across unrelated

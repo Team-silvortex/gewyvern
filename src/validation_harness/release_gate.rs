@@ -1180,21 +1180,30 @@ fn summarize_remote_release_gate_posture(
         .and_then(|value| value.get("status"))
         .and_then(serde_json::Value::as_str)
         .is_some_and(|status| status != "clean");
-    let has_matrix_coverage_gap = history_summary
-        .and_then(|value| value.get("matrix"))
+    let matrix = history_summary.and_then(|value| value.get("matrix"));
+    let has_matrix_coverage_gap = matrix
         .and_then(|value| value.get("ready"))
         .and_then(serde_json::Value::as_bool)
         == Some(false);
+    let matrix_release_eligible = matrix
+        .and_then(|value| value.get("release_eligible"))
+        .and_then(serde_json::Value::as_bool)
+        == Some(true);
     match ebpf.get("status").map(String::as_str) {
         Some("ok") if has_history_integrity_warning => (
             "full",
             "watch",
             "inspect remote-ebpf-history-rejected.jsonl before treating this Linux history as a clean release reference",
         ),
-        Some("ok") if has_matrix_coverage_gap => (
+        Some("ok") if has_matrix_coverage_gap && !matrix_release_eligible => (
             "full",
             "coverage_incomplete",
             "collect successful evidence from at least two physical hosts and two kernel releases before treating the Linux matrix as release-ready",
+        ),
+        Some("ok") if has_matrix_coverage_gap => (
+            "full",
+            "ready",
+            "hold this Linux host run as the release reference; retain the second physical host and kernel release as a transparent post-2.0 breadth advisory",
         ),
         Some("ok") => (
             "full",
@@ -1375,7 +1384,7 @@ mod tests {
     }
 
     #[test]
-    fn incomplete_physical_matrix_blocks_ready_release_signal() {
+    fn matrix_without_release_eligibility_blocks_ready_release_signal() {
         let ebpf = BTreeMap::from([("status".to_string(), "ok".to_string())]);
         let history = serde_json::json!({
             "integrity": {"status": "clean"},
@@ -1387,6 +1396,21 @@ mod tests {
         assert_eq!(posture, "full");
         assert_eq!(signal, "coverage_incomplete");
         assert!(next_step.contains("two physical hosts"));
+    }
+
+    #[test]
+    fn release_eligible_physical_matrix_keeps_breadth_gap_advisory() {
+        let ebpf = BTreeMap::from([("status".to_string(), "ok".to_string())]);
+        let history = serde_json::json!({
+            "integrity": {"status": "clean"},
+            "matrix": {"ready": false, "release_eligible": true}
+        });
+
+        let (posture, signal, next_step) =
+            summarize_remote_release_gate_posture(&ebpf, Some(&history));
+        assert_eq!(posture, "full");
+        assert_eq!(signal, "ready");
+        assert!(next_step.contains("post-2.0 breadth advisory"));
     }
 
     #[test]

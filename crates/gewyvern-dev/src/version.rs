@@ -94,6 +94,14 @@ impl ProductVersion {
     fn active_line(&self) -> String {
         format!("{}.{}.x", self.major, self.minor)
     }
+
+    fn status_checkpoint(&self) -> String {
+        if self.major >= 2 {
+            format!("v{}-community-release", self.raw)
+        } else {
+            format!("v{}-to-v2.0.0-roadmap", self.raw)
+        }
+    }
 }
 
 impl fmt::Display for ProductVersion {
@@ -254,7 +262,7 @@ fn check_surfaces(root: &Path, version: &ProductVersion) -> Result<(), String> {
         ),
         (
             "ROADMAP.md",
-            format!("`v{exact}` as the current shared release"),
+            format!("current shared community release is `v{exact}`"),
         ),
         (
             "apps/leserpent/README.md",
@@ -270,7 +278,7 @@ fn check_surfaces(root: &Path, version: &ProductVersion) -> Result<(), String> {
         ),
         (
             "project/status/catalog.json",
-            format!("\"checkpoint\": \"v{exact}-to-v2.0.0-roadmap\""),
+            format!("\"checkpoint\": \"{}\"", version.status_checkpoint()),
         ),
         (
             "docs/development.md",
@@ -392,9 +400,9 @@ fn check_active_line_documents(root: &Path, version: &ProductVersion) -> Result<
     for path in markdown_files(root)? {
         let document = read_regular_file(&path)?;
         for (major, minor, offset) in release_line_markers(&document) {
-            if major != version.major
-                || minor == version.minor
-                || (version.major == 1 && minor == 0)
+            if major < version.major
+                || (major == version.major && minor == version.minor)
+                || (major == 1 && minor == 0)
             {
                 continue;
             }
@@ -439,6 +447,10 @@ fn release_line_markers(document: &str) -> Vec<(u64, u64, usize)> {
             index += 1;
             continue;
         }
+        if preceded_by_three_digit_status(bytes, start) {
+            index += 1;
+            continue;
+        }
         let Some((major, after_major)) = parse_number(bytes, number_start) else {
             index += 1;
             continue;
@@ -463,6 +475,17 @@ fn release_line_markers(document: &str) -> Vec<(u64, u64, usize)> {
         index = after_minor + 2;
     }
     markers
+}
+
+fn preceded_by_three_digit_status(bytes: &[u8], start: usize) -> bool {
+    if start < 4 || !bytes[start - 1].is_ascii_whitespace() {
+        return false;
+    }
+    let status_start = start - 4;
+    bytes[status_start..start - 1]
+        .iter()
+        .all(u8::is_ascii_digit)
+        && (status_start == 0 || !bytes[status_start - 1].is_ascii_digit())
 }
 
 fn parse_number(bytes: &[u8], start: usize) -> Option<(u64, usize)> {
@@ -494,8 +517,32 @@ fn plan_update(
         &format!("<Version>{current}</Version>"),
         &format!("<Version>{target}</Version>"),
     )?;
-    updates.replace_at_least_once("README.md", &format!("v{current}"), &format!("v{target}"))?;
-    updates.replace_at_least_once("ROADMAP.md", &format!("v{current}"), &format!("v{target}"))?;
+    updates.replace_once(
+        "README.md",
+        &format!("# gewyvern v{}", current.active_line()),
+        &format!("# gewyvern v{}", target.active_line()),
+    )?;
+    updates.replace_once(
+        "README.md",
+        &format!("project version: `{}`", current.active_line()),
+        &format!("project version: `{}`", target.active_line()),
+    )?;
+    updates.replace_once(
+        "README.md",
+        &format!(
+            "current release line: `v{}`, with `v{current}`",
+            current.active_line()
+        ),
+        &format!(
+            "current release line: `v{}`, with `v{target}`",
+            target.active_line()
+        ),
+    )?;
+    updates.replace_once(
+        "ROADMAP.md",
+        &format!("current shared community release is `v{current}`"),
+        &format!("current shared community release is `v{target}`"),
+    )?;
     updates.replace_once(
         "apps/leserpent/README.md",
         &format!("Current shared release: `{current}`"),
@@ -513,8 +560,8 @@ fn plan_update(
     )?;
     updates.replace_once(
         "project/status/catalog.json",
-        &format!("\"checkpoint\": \"v{current}-to-v2.0.0-roadmap\""),
-        &format!("\"checkpoint\": \"v{target}-to-v2.0.0-roadmap\""),
+        &format!("\"checkpoint\": \"{}\"", current.status_checkpoint()),
+        &format!("\"checkpoint\": \"{}\"", target.status_checkpoint()),
     )?;
     updates.replace_once(
         "docs/development.md",
@@ -549,6 +596,9 @@ fn plan_update(
                 .strip_prefix(root)
                 .map_err(|error| error.to_string())?
                 .to_path_buf();
+            if relative == Path::new("docs/leserpent-2-roadmap.md") {
+                continue;
+            }
             replacements += updates.replace_all_if_present(&relative, &old_line, &new_line)?;
         }
         if replacements == 0 {
@@ -709,21 +759,6 @@ impl UpdateSet {
                 ));
             }
             Ok(document.replacen(current, target, 1))
-        })
-    }
-
-    fn replace_at_least_once(
-        &mut self,
-        relative: impl AsRef<Path>,
-        current: &str,
-        target: &str,
-    ) -> Result<(), String> {
-        let display = relative.as_ref().display().to_string();
-        self.transform(relative, |document| {
-            if !document.contains(current) {
-                return Err(format!("{display} is missing `{current}`"));
-            }
-            Ok(document.replace(current, target))
         })
     }
 
@@ -963,6 +998,14 @@ mod tests {
                 "accepted {version}"
             );
         }
+        assert_eq!(
+            ProductVersion::parse("1.20.9").unwrap().status_checkpoint(),
+            "v1.20.9-to-v2.0.0-roadmap"
+        );
+        assert_eq!(
+            ProductVersion::parse("2.0.0").unwrap().status_checkpoint(),
+            "v2.0.0-community-release"
+        );
     }
 
     #[test]
@@ -995,12 +1038,30 @@ mod tests {
     #[test]
     fn active_line_scanner_distinguishes_product_lines() {
         assert_eq!(
-            release_line_markers("current `v1.17.x`, baseline `1.0.x`")
-                .into_iter()
-                .map(|(major, minor, _)| (major, minor))
-                .collect::<BTreeSet<_>>(),
+            release_line_markers(
+                "current `v1.17.x`, baseline `1.0.x`, SMTP acceptance `250 2.1.x`"
+            )
+            .into_iter()
+            .map(|(major, minor, _)| (major, minor))
+            .collect::<BTreeSet<_>>(),
             BTreeSet::from([(1, 0), (1, 17)])
         );
+    }
+
+    #[test]
+    fn prior_major_lines_remain_valid_history_after_a_major_release() {
+        let current = ProductVersion::parse("2.0.0").unwrap();
+        let accepted = |major, minor| {
+            major < current.major
+                || (major == current.major && minor == current.minor)
+                || (major == 1 && minor == 0)
+        };
+
+        assert!(accepted(1, 20));
+        assert!(accepted(1, 0));
+        assert!(accepted(2, 0));
+        assert!(!accepted(2, 1));
+        assert!(!accepted(3, 0));
     }
 
     #[test]

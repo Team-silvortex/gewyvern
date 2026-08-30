@@ -27,7 +27,7 @@ For those, use:
 
 ## Layout Policy
 
-The active `1.20.x` policy is:
+The active `2.0.x` policy is:
 
 - standard roots are explicit
 - environment overrides stay supported
@@ -82,7 +82,7 @@ and one packaged share root:
 
 ## Config File Name
 
-The standard config file name for the active `1.20.x` line is:
+The standard config file name for the active `2.0.x` line is:
 
 - `gewyvern.toml`
 
@@ -92,7 +92,7 @@ For the exact search order, fallback names, and supported sections, use:
 
 ## Current Asset Expectations
 
-The current `1.20.x` expectation is:
+The current `2.0.x` expectation is:
 
 - protocol registry packages live under `data/protocols/`
 - built-in DSL helpers can live under `data/dsl/`
@@ -116,7 +116,7 @@ without overwriting files already present in the standard layout.
 - archived API snapshot artifacts live under `state/history/api/`
 - packaged read-only assets still live under `/usr/share/gewyvern/` on Linux
 
-The current `1.20.x` history retention rule is intentionally simple:
+The current `2.0.x` history retention rule is intentionally simple:
 
 - keep the most recent 32 archived API snapshot refreshes
 - prune older archived refreshes during later successful writes
@@ -257,7 +257,7 @@ Watch these files when validating control-plane consumers:
 - `latest/api/v1/latest/targets/<path-segment>/protocol-surface.json`
 - `latest/api/v1/latest/protocols/<protocol>/entries/<entry>/surface.json`
 
-In the current `1.20.x` line those JSON artifacts may include:
+In the current `2.0.x` line those JSON artifacts may include:
 
 - `selected_overlay`
 - `overlays`

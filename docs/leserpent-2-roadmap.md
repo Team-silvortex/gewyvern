@@ -1,15 +1,19 @@
-# Leserpent 1.0 To 2.0 Roadmap
+# Leserpent 1.0 To 2.0 Delivery Record
 
 This is the execution roadmap for the
 [Leserpent 2.0 architecture](leserpent-2-architecture.md). The architecture
 defines the invariant destination; this page defines ordered delivery gates.
 
-The roadmap is capability-gated, not date-gated. A later gate may be prototyped
-early, but it cannot become authoritative before its prerequisites are green.
+The delivery sequence was capability-gated, not date-gated. Its completed gates
+remain the maintenance baseline for the released system.
 
-Current implementation checkpoint: shared release `v1.20.0`. The
+Current implementation checkpoint: shared release `v2.0.0`. The
 [project status tensor](project-status-system.md) remains authoritative for
 per-feature maturity, evidence, dependencies, and next gates.
+
+`v2.0.0` completes the frozen core delivery described here. The ordered
+`1.20.0` through `1.20.9` slots below are retained as release evidence rather
+than renumbered into the new stable line.
 
 ## 2.0 Scope Freeze
 
@@ -61,7 +65,7 @@ Implementation stack rule:
 
 ## 1.20.x Final Seal Window
 
-`1.20.x` is the final ten-slot stabilization window before `2.0.0`. The slots
+`1.20.x` was the final ten-slot stabilization window before `2.0.0`. The slots
 are ordered release gates, not invitations to add ten more feature batches.
 Every change must fit the accepted closure-work set in the scope freeze, and a
 patch may absorb work from a later slot when evidence is ready without widening
@@ -89,9 +93,8 @@ and product versions outside the `1.20.x -> 2.0.0` window.
 The retained `1.20.5` Linux polish proof now covers Rust 1.95 quality gates,
 DEB/RPM and runtime smoke, both NativeAOT control proofs, catalog-bound language
 packs, and fixed-helper tracepoint/kprobe/tc attachment on the physical Linux
-shelf. It does not close the final release seal: the physical matrix still
-needs a second host fingerprint and kernel release, and the later deployment,
-desktop, documentation, and release-candidate slots remain distinct gates.
+shelf. A broader physical matrix remains valuable post-release, but it is not a
+substitute for or blocker of the retained functional 2.0 seal.
 
 The `1.20.6` deployment-recovery pass closes a cross-platform concurrency gap
 without expanding scope. Linux real-host and staging installs now serialize

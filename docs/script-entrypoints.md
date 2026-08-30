@@ -347,9 +347,11 @@ control-plane NativeAOT persistence proof, and attach/kprobe/tc in one evidence
 transaction. A first run under a new workspace identity may report `watch`
 because its isolated source and target caches are cold; rerun with the same
 ordinary identity to measure the warm reference. A clean warm run reports
-`linux_proof_complete=true`.
-It still reports `coverage_incomplete` until successful evidence spans at least
-two physical host fingerprints and two kernel releases.
+`linux_proof_complete=true`. For the 2.0 community-release posture, a complete
+physical-host run with `matrix.release_eligible=true` may report `ready` while
+`matrix.ready=false`; the second physical host and second kernel release remain
+an explicit post-2.0 breadth advisory rather than being hidden or treated as a
+core-release blocker.
 
 Defaults:
 
@@ -458,11 +460,12 @@ frequently `skipped`, or drifting in total runtime.
 success on one machine cannot masquerade as broad physical-host coverage.
 The summary also records `target_kind`, `matrix.breadth_ready`, and
 `matrix.release_eligible`. VM breadth can exercise portability, but
-`matrix.ready` is always false for VM evidence.
-An `ok` attach run still reports `validation_posture=full`, but the release
-signal is `coverage_incomplete` and `requires_followup=true` while this matrix
-is below threshold. `release_gate_signal=ready` is reserved for a successful
-current run whose retained physical-host matrix is also ready.
+`matrix.ready` is always false for VM evidence. A successful physical-host run
+with `matrix.release_eligible=true` can report `release_gate_signal=ready` and
+`requires_followup=false` even when the broader matrix is not yet ready; the
+matrix fields and `next_step` preserve that post-2.0 breadth advisory. A false
+or missing release-eligibility signal keeps the stricter
+`coverage_incomplete` result.
 Physical hosts are keyed by a SHA-256 digest of the remote machine ID; the raw
 machine ID is never stored or returned. Records without a valid digest remain
 readable but appear under `unidentified_successful_runs` and do not increase

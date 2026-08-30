@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "release": "2.0.0",
+  "recorded_on": "2026-08-30",
+  "gate_posture": "full",
+  "ship_signal": "ready",
+  "stages": {
+    "build_packages": true,
+    "debugger_cross_validation": true,
+    "leserpent_parity_recovery": true,
+    "leserpent_schema_freeze": true,
+    "pathological_container_validation": true,
+    "release_container_check": true,
+    "remote_linux_host_validation": true,
+    "three_module_stack_smoke": true
+  },
+  "linux": {
+    "target_kind": "physical",
+    "architecture": "x86_64",
+    "proof_complete": true,
+    "release_eligible": true,
+    "breadth_ready": false,
+    "breadth_posture": "post-2.0-community-advisory",
+    "helper_protocol": 1,
+    "helper_version": "2.0.0",
+    "ebpf_status": "ok",
+    "ebpf_reason": "all_smokes_passed_privileged_helper"
+  },
+  "performance_seconds": {
+    "remote_total": 123.288,
+    "workspace_sync": 0.255,
+    "control_plane_native_aot": 48.78,
+    "language_pack_native_aot": 68.674,
+    "ebpf_attach": 1.387
+  },
+  "security": {
+    "rustsec": "clean",
+    "npm_audit": "clean",
+    "nuget_vulnerabilities": "clean",
+    "dotnet_security_tests": 329
+  },
+  "budget_warnings": [],
+  "result": "passed"
+}

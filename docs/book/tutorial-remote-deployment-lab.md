@@ -51,7 +51,7 @@ Choose stable IDs once and retain them through observation and cleanup:
 
 ```bash
 export AUTHORITY=https://authority.example:7443
-export AUTHORITY_CA=/absolute/path/to/authority-ca.pem
+export AUTHORITY_CA="${HOME}/.config/gewyvern/authority-ca.pem"
 export TARGET_HOST=lab-target.example
 export BOOTSTRAP_ID=tutorial-bootstrap-001
 export PROVISIONING_ID=tutorial-provision-001

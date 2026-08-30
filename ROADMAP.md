@@ -1,24 +1,21 @@
 # gewyvern Roadmap
 
-This roadmap treats `v1.20.x` as the active post-1.0 stable line, with
-`v1.20.0` as the current shared release.
+This roadmap treats `v2.0.x` as the active stable line.
+The current shared community release is `v2.0.0`.
 
-`gewyvern` is no longer on the road to `1.0.0`; it has crossed that line.
-The current question is how to preserve the sealed Gewyvern core while
-Leserpent grows into the Rust, Leselang, CLI, and multi-frontend control plane
-defined for `2.0.0`.
+`gewyvern` is no longer on the road to `1.0.0` or `2.0.0`; both seals are now
+release history. The current question is how to preserve the released Gewyvern
+core and Rust control-plane/automation contracts while community evidence grows.
 
 ## Current Line
 
 - last fully documented historical validation baseline: `v0.10.0`
 - sealed stable baseline: `v1.0.0`
-- current documented checkpoint: `v1.20.0`
-- active line: `v1.20.x` reliability work and Rust control-plane delivery
-- target next major: `v2.0.0`, centered on the Rust Leserpent runtime and
-  replaceable Leselang, CLI, and GUI frontends
-- active next-major architecture:
+- current documented checkpoint: `v2.0.0`
+- active line: `v2.0.x` maintenance, operator polish, and community validation
+- released architecture:
   [docs/leserpent-2-architecture.md](docs/leserpent-2-architecture.md)
-- active delivery gates:
+- completed delivery record and maintenance roadmap:
   [docs/leserpent-2-roadmap.md](docs/leserpent-2-roadmap.md)
 
 For the durable minor-line record, see
@@ -28,9 +25,9 @@ For the explicit `0.15.x -> 0.20.x -> 1.0.0` spine, see
 Machine-readable current progress is tracked by the
 [project status tensor](docs/project-status-system.md), not duplicated here.
 
-## What `v1.20.x` Means Right Now
+## What `v2.0.x` Means Right Now
 
-At the current `v1.20.0` checkpoint, the active line should be interpreted as:
+At the current `v2.0.0` checkpoint, the active line should be interpreted as:
 
 - a usable standalone Linux-oriented debugger/runtime with a sealed core
 - a stable `gewylang` and `gewyc` surface for real package authoring
@@ -50,7 +47,7 @@ It should not be interpreted as:
 
 ## Current Priorities
 
-### 1. `v1.20.x`: Reliability And Operating Confidence
+### 1. `v2.0.x`: Release Maintenance And Operating Confidence
 
 - keep release-gate, remote-Linux, and target-lab validation paths easy to rerun
 - keep startup, stop, logs, persistence, and cleanup predictable under failed
@@ -60,19 +57,18 @@ It should not be interpreted as:
 - improve performance and UX where the stable core is already proven
 - keep adjacent apps aligned to the same mainline version and stable boundaries
 
-This is the final ten-slot `v1.20.0` through `v1.20.9` seal window. It is
-closure-only: existing-capability polish, reliability, security, performance,
-conformance, packaging/deployment/recovery, documentation, and simplification
-may advance, while new core capability families remain frozen. Existing proof
-shelves stay mandatory; expanded platform/device testing and production
-signing/notarization move to post-2.0 work. The detailed and machine-validated
-sequence lives in [docs/leserpent-2-roadmap.md](docs/leserpent-2-roadmap.md) and
+The final ten-slot `v1.20.0` through `v1.20.9` closure window completed before
+`v2.0.0`. Its proof shelves remain mandatory; expanded platform/device testing
+and production signing/notarization continue as post-2.0 work. The completed,
+machine-validated sequence remains recorded in
+[docs/leserpent-2-roadmap.md](docs/leserpent-2-roadmap.md) and
 [project/release/leserpent-2-patch-seal.json](project/release/leserpent-2-patch-seal.json).
 
 Execution shelf:
 
 - [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
 - [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md)
+- [docs/history/v2.0.0-release-notes.md](docs/history/v2.0.0-release-notes.md)
 
 ### 2. Post-`1.0.0`: Deliberate Extension Only
 
@@ -81,15 +77,15 @@ Execution shelf:
 - machine-facing changes should be treated as explicit contract management
 - nearby tooling may evolve faster, but core surfaces should stay narrow
 
-### 3. `v2.0`: Rust Leserpent And Leselang
+### 3. `v2.0`: Shipped Rust Leserpent And Leselang Baseline
 
 - preserve Gewyvern as the Linux-first debugger/runtime rather than absorbing
   it into a control-plane rewrite
-- move Leserpent command, query, policy, journal, effect, and replay semantics
-  into Rust
-- make Leselang a synchronous functional language driven by typed,
+- keep Leserpent command, query, policy, journal, effect, and replay semantics
+  authoritative in Rust
+- keep Leselang a synchronous functional language driven by typed,
   journaled effect suspension and re-entry
-- make Rust CLI, Avalonia GUI, web clients, and model-generated Leselang
+- preserve Rust CLI, Avalonia GUI, web clients, and model-generated Leselang as
   atomically replaceable through one command/query protocol
 - retain the 1.x ASP.NET and TypeScript implementation as a tested migration
   bridge; prohibit a big-bang rewrite

@@ -215,7 +215,7 @@ Important boundary:
 
 ## Completion Checkpoint
 
-The current `v1.20.x` line keeps compatibility promises around its documented
+The current `v2.0.x` line keeps compatibility promises around its documented
 stable surfaces while leaving explicitly evolving extensions room to mature.
 
 That means:

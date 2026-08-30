@@ -1255,6 +1255,7 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("-C link-arg=-fuse-ld=lld"));
     assert!(!remote.contains(".arg(\"/tests/\")"));
     assert!(!remote.contains(".arg(\"tests/\")"));
+    assert!(remote.contains(".arg(\"--delete-excluded\")"));
     assert!(remote.contains(".arg(\"apps/**/obj/\")"));
     assert!(remote.contains(".arg(\"apps/**/bin/\")"));
     assert!(remote.contains(".arg(\"**/__pycache__/\")"));

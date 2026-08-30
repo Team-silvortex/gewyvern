@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "project": "gewyvern",
-  "checkpoint": "v1.20.0-to-v2.0.0-roadmap",
+  "checkpoint": "v2.0.0-community-release",
   "calibration": {
     "model": "priority-weighted-strength-v1",
     "as_of": "2026-08-30"
@@ -3176,25 +3176,20 @@
       "architecture": "leserpent-2",
       "module": "release-assurance",
       "feature": "two-zero-seal",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "critical",
-      "maturity": "developing",
-      "completion": 64,
+      "maturity": "mature",
+      "completion": 100,
       "confidence": "high",
       "independence": "internal",
       "contract": {
         "id": "leserpent-two-zero-release",
-        "version": "0.20.0-draft",
-        "stability": "draft",
+        "version": "2.0.0",
+        "stability": "stable",
         "surfaces": ["schema-freeze", "closed-core-capability-scope", "machine-validated-scope-freeze-manifest", "ten-slot-patch-seal-plan", "patch-seal-closure-whitelist", "existing-proof-shelves-required", "expanded-host-device-test-matrix-post-two-zero", "production-signing-notarization-post-two-zero", "future-hosted-account-proof-post-two-zero", "long-tail-native-speaker-review-post-two-zero", "security-audit", "performance-comparison", "migration", "packaging", "rollback", "machine-readable-v1-candidate-inventory", "fixed-non-executable-proof-registry", "non-vacuous-schema-readiness-proof", "reviewed-v1-compatibility-baseline", "sha256-fixture-drift-gate", "wire-and-renderer-golden-coverage", "runtime-journal-v1-v3-v6-migration-replay", "invalid-migration-history-rejection", "legacy-wire-migration-replay", "minimum-migration-test-count", "shared-locked-dotnet-proof-runner", "filtered-managed-migration-proof", "sqlite-v1-in-place-migration", "legacy-json-to-sqlite-migration", "failed-save-snapshot-preservation", "zero-dotnet-artifact-residue", "transactional-migration-write-rollback", "retained-json-byte-preservation", "managed-migration-retry", "operator-json-rollback", "isolated-web-development-aot-lock-graphs", "pinned-web-native-aot-toolchain", "locked-linux-native-aot-rid-graph", "staged-linux-install-upgrade-rollback", "safe-current-previous-release-links", "unsafe-existing-current-link-rejection", "configuration-state-preservation", "rolled-back-live-native-aot-health", "physical-linux-x64-package-rollback-proof", "native-macos-versioned-installer", "bounded-universal-macho-arm64-validation", "stable-user-app-launcher", "macos-current-previous-upgrade", "macos-explicit-rollback-swap", "macos-external-profile-preservation", "installed-adhoc-signature-integrity", "rolled-back-live-macos-control-fixture", "physical-macos-arm64-package-rollback-proof", "machine-readable-apple-release-preflight", "apple-release-tool-inventory", "developer-id-identity-count", "notary-profile-readiness", "explicit-blocked-release-evidence", "bundled-daemon-release-validation", "native-payload-bound-release-identity", "daemon-bound-release-preflight", "unified-leserpent-release-proof-stage", "current-run-schema-scope-artifact-index", "strict-release-readiness-mutation-gate", "atomic-apple-release-workflow", "fixed-system-apple-tool-paths", "path-hijack-resistant-apple-release"]
       },
       "depends_on": ["leserpent-2/remote-console/remote-mobile-console", "leserpent-2/ui-renderers/avalonia-renderer", "leserpent-2/ui-renderers/desktop-localization", "leserpent-2/ui-renderers/frontend-functional-parity", "leserpent-2/domain-model/account-access-boundary", "leserpent-2/release-assurance/continuous-proof"],
-      "blockers": [
-        {
-          "id": "prior-gates-open",
-          "summary": "The scope and current proof shelves are reproducible, but the v1 schema and compatibility baselines remain candidate-only until the functional, security, performance, migration, packaging, and rollback gate is reproduced. Future hosted-account proof, long-tail native-speaker review, expanded host/device testing, and production signing/notarization are post-2.0 tracks, not seal blockers."
-        }
-      ],
+      "blockers": [],
       "consumers": ["release-engineering", "operators", "downstream-integrators"],
       "evidence": [
         { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
@@ -3218,9 +3213,10 @@
         { "kind": "release", "path": "docs/fixtures/leserpent_macos_install_rollback.json", "state": "present" },
         { "kind": "release", "path": "docs/fixtures/leserpent_macos_release_preflight.json", "state": "present" },
         { "kind": "test", "path": "tests/gewyvern_validate_json_snapshot_tdd.rs", "state": "present" },
+        { "kind": "release", "path": "project/status/evidence/gewyvern_v2_release_gate_20260830.json", "state": "present" },
         { "kind": "release", "path": "target/validation/leserpent-2-release", "state": "planned" }
       ],
-      "next_gate": "Freeze both v1 baselines only after reproducing the existing functional, compatibility, security, performance, migration, packaging, and rollback gate; keep future hosted-account and long-tail language-quality work outside the core seal."
+      "next_gate": "Preserve the frozen 2.0 contracts and ship-ready release-gate baseline; expand the independent physical-host and kernel matrix with community evidence, and keep Apple notarization, future hosted-account proof, and long-tail language review on their explicit post-2.0 tracks."
     },
     {
       "id": "leserpent-2/release-assurance/continuous-proof",

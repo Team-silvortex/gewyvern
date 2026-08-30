@@ -610,7 +610,7 @@ dependencies = [
 
 [[package]]
 name = "etragon"
-version = "1.20.0"
+version = "2.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -804,14 +804,14 @@ dependencies = [
 
 [[package]]
 name = "gewyc"
-version = "1.20.0"
+version = "2.0.0"
 dependencies = [
  "gewyvern",
 ]
 
 [[package]]
 name = "gewyvern"
-version = "1.20.0"
+version = "2.0.0"
 dependencies = [
  "http",
  "leselang-hir",
@@ -830,7 +830,7 @@ dependencies = [
 
 [[package]]
 name = "gewyvern-dev"
-version = "1.20.0"
+version = "2.0.0"
 dependencies = [
  "ring",
 ]
@@ -1040,7 +1040,7 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "leselang-command"
-version = "1.20.0"
+version = "2.0.0"
 dependencies = [
  "leselang-hir",
  "leselang-syntax",
@@ -1050,7 +1050,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-hir"
-version = "1.20.0"
+version = "2.0.0"
 dependencies = [
  "leselang-syntax",
  "leserpent-domain",
@@ -1059,7 +1059,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-observe"
-version = "1.20.0"
+version = "2.0.0"
 dependencies = [
  "leselang-command",
  "leselang-hir",
@@ -1073,7 +1073,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-syntax"
-version = "1.20.0"
+version = "2.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1081,7 +1081,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-ui"
-version = "1.20.0"
+version = "2.0.0"
 dependencies = [
  "leselang-command",
  "leselang-hir",
@@ -1092,7 +1092,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-vm"
-version = "1.20.0"
+version = "2.0.0"
 dependencies = [
  "leselang-command",
  "leselang-hir",
@@ -1105,7 +1105,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-adapters"
-version = "1.20.0"
+version = "2.0.0"
 dependencies = [
  "leserpent-domain",
  "leserpent-protocol",
@@ -1124,7 +1124,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-cli"
-version = "1.20.0"
+version = "2.0.0"
 dependencies = [
  "leselang-command",
  "leselang-hir",
@@ -1144,7 +1144,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-domain"
-version = "1.20.0"
+version = "2.0.0"
 dependencies = [
  "http",
  "serde",
@@ -1153,7 +1153,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-frontend-package"
-version = "1.20.0"
+version = "2.0.0"
 dependencies = [
  "ring",
  "serde",
@@ -1162,7 +1162,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-protocol"
-version = "1.20.0"
+version = "2.0.0"
 dependencies = [
  "leselang-ui",
  "leselang-vm",
@@ -1176,7 +1176,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-runtime"
-version = "1.20.0"
+version = "2.0.0"
 dependencies = [
  "leselang-command",
  "leselang-hir",
@@ -1190,7 +1190,7 @@ dependencies = [
 
 [[package]]
 name = "leserpentd"
-version = "1.20.0"
+version = "2.0.0"
 dependencies = [
  "leselang-hir",
  "leselang-observe",

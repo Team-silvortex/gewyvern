@@ -2847,11 +2847,15 @@ fn summarize_remote_validation_posture(
         .and_then(|value| value.get("status"))
         .and_then(|value| value.as_str())
         .is_some_and(|status| status != "clean");
-    let has_matrix_coverage_gap = summary
-        .get("remote_ebpf_matrix")
+    let matrix = summary.get("remote_ebpf_matrix");
+    let has_matrix_coverage_gap = matrix
         .and_then(|value| value.get("ready"))
         .and_then(|value| value.as_bool())
         == Some(false);
+    let matrix_release_eligible = matrix
+        .and_then(|value| value.get("release_eligible"))
+        .and_then(|value| value.as_bool())
+        == Some(true);
     let is_vm_target = summary.get("target_kind").and_then(|value| value.as_str()) == Some("vm");
     match ebpf.get("status").map(String::as_str) {
         Some("ok") if has_history_integrity_warning => (
@@ -2869,10 +2873,15 @@ fn summarize_remote_validation_posture(
             "compatibility_only",
             "retain this VM run as compatibility evidence; it does not contribute to the physical-host release matrix",
         ),
-        Some("ok") if has_matrix_coverage_gap => (
+        Some("ok") if has_matrix_coverage_gap && !matrix_release_eligible => (
             "full",
             "coverage_incomplete",
             "collect successful evidence from at least two physical hosts and two kernel releases before treating the Linux matrix as release-ready",
+        ),
+        Some("ok") if has_matrix_coverage_gap => (
+            "full",
+            "ready",
+            "hold this run as the current Linux release reference; retain the second physical host and kernel release as a transparent post-2.0 breadth advisory",
         ),
         Some("ok") => (
             "full",

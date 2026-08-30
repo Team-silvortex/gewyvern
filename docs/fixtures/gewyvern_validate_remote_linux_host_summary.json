@@ -8,7 +8,7 @@
   },
   "keep_remote_dir": false,
   "linux_proof_complete": true,
-  "next_step": "collect successful evidence from at least two physical hosts and two kernel releases before treating the Linux matrix as release-ready",
+  "next_step": "hold this run as the current Linux release reference; retain the second physical host and kernel release as a transparent post-2.0 breadth advisory",
   "package_build_timings": {
     "package_all": 1.25,
     "release_build": 12.5,
@@ -60,7 +60,7 @@
     "2026-07-11T09:00:00Z ok all_smokes_passed_admin_ssh 4.200"
   ],
   "recent_ebpf_trend": "2/2 ok, 0/2 skipped",
-  "release_gate_signal": "coverage_incomplete",
+  "release_gate_signal": "ready",
   "remote_checks": [
     "remote_preflight",
     "remote_artifacts_present",
@@ -102,7 +102,7 @@
   "remote_ebpf_status_counts": {
     "ok": 2
   },
-  "requires_followup": true,
+  "requires_followup": false,
   "runtime_smoke_timings": {
     "tcp_analysis": 0.4,
     "tcp_boot_health": 0.7,

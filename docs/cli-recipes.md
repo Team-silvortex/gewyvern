@@ -6,7 +6,7 @@ Confirm the installed product line without loading runtime configuration:
 gewyvern --version
 ```
 
-This page keeps the practical command shelf for the active `1.20.x` line.
+This page keeps the practical command shelf for the active `2.0.x` line.
 
 Use it when you already understand the project shape and just want known-good
 commands for the runtime CLI, `gewyc`, socket ingest, and local integration
@@ -67,7 +67,7 @@ attention lists.
 ## Security Checks
 
 Use these when you want the shortest repeatable security shelf for the current
-`1.20.x` line:
+`2.0.x` line:
 
 ```bash
 cargo audit

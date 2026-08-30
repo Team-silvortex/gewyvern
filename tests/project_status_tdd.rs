@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use gewyvern::project_status::{
-    Confidence, ContractStability, EvidenceKind, EvidenceState, Independence, Maturity, Priority,
-    STATUS_CALIBRATION_MODEL, STATUS_SCHEMA_VERSION, StatusCatalog, default_catalog_path,
+    Confidence, ContractStability, EvidenceKind, EvidenceState, Independence, Lifecycle, Maturity,
+    Priority, STATUS_CALIBRATION_MODEL, STATUS_SCHEMA_VERSION, StatusCatalog, default_catalog_path,
 };
 use ring::digest::{SHA256, digest};
 use serde_json::json;
@@ -4216,7 +4216,7 @@ fn retained_physical_linux_language_pack_proof_is_non_vacuous() {
 }
 
 #[test]
-fn retained_linux_runtime_polish_proof_matches_current_contracts() {
+fn retained_linux_runtime_polish_proof_matches_frozen_closure_contracts() {
     let root = repository_root();
     let evidence: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(
@@ -4228,7 +4228,8 @@ fn retained_linux_runtime_polish_proof_matches_current_contracts() {
 
     assert_eq!(evidence["schema_version"], 1);
     assert_eq!(evidence["proof"], "gewyvern-1.20.5-linux-runtime-polish");
-    assert_eq!(evidence["source_version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(evidence["source_version"], "1.20.0");
+    assert!(env!("CARGO_PKG_VERSION").starts_with("2."));
     assert_eq!(evidence["target"]["platform"], "linux-x86_64");
     assert_eq!(evidence["target"]["target_kind"], "physical");
     assert_eq!(evidence["target"]["virtualization"], "none");
@@ -4282,6 +4283,11 @@ fn retained_linux_runtime_polish_proof_matches_current_contracts() {
     assert_eq!(evidence["matrix"]["ready"], false);
     assert_eq!(evidence["release_gate_signal"], "coverage_incomplete");
     assert_eq!(evidence["result"], "passed");
+    assert!(
+        std::fs::read_to_string(root.join("project/status/catalog.json"))
+            .expect("status catalog must exist")
+            .contains("gewyvern_remote_linux_runtime_polish_20260830.json")
+    );
 }
 
 #[test]
@@ -4303,7 +4309,8 @@ fn retained_deployment_recovery_proof_binds_both_hosts_and_reverse_deployment() 
     assert_eq!(evidence["schema_version"], 1);
     assert_eq!(evidence["proof"], "leserpent-1.20.6-deployment-recovery");
     assert_eq!(evidence["release_slot"], "1.20.6");
-    assert_eq!(evidence["workspace_version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(evidence["workspace_version"], "1.20.0");
+    assert!(env!("CARGO_PKG_VERSION").starts_with("2."));
     assert_eq!(evidence["linux"]["target_kind"], "physical");
     assert_eq!(evidence["linux"]["virtualization"], "none");
     assert_eq!(evidence["linux"]["kernel"], "7.0.0-28-generic");
@@ -4346,6 +4353,11 @@ fn retained_deployment_recovery_proof_binds_both_hosts_and_reverse_deployment() 
         2
     );
     assert_eq!(evidence["result"], "passed");
+    assert!(
+        std::fs::read_to_string(root.join("project/status/catalog.json"))
+            .expect("status catalog must exist")
+            .contains("leserpent_deployment_recovery_20260830.json")
+    );
 }
 
 #[test]
@@ -7847,10 +7859,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/release-assurance/two-zero-seal")
         .expect("2.0 release seal must be tracked independently");
-    assert_eq!(two_zero_seal.completion, 64);
-    assert_eq!(two_zero_seal.maturity, Maturity::Developing);
+    assert_eq!(two_zero_seal.lifecycle, Lifecycle::Current);
+    assert_eq!(two_zero_seal.completion, 100);
+    assert_eq!(two_zero_seal.maturity, Maturity::Mature);
     assert_eq!(two_zero_seal.priority, Priority::Critical);
-    assert_eq!(two_zero_seal.contract.version, "0.20.0-draft");
+    assert_eq!(two_zero_seal.contract.version, "2.0.0");
+    assert_eq!(two_zero_seal.contract.stability, ContractStability::Stable);
     assert!(
         two_zero_seal
             .contract
@@ -7951,17 +7965,27 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .iter()
             .any(|dependency| { dependency == "leserpent-2/domain-model/account-access-boundary" })
     );
-    assert!(two_zero_seal.blockers.iter().any(|blocker| {
-        blocker.id == "prior-gates-open"
-            && blocker
-                .summary
-                .contains("v1 schema and compatibility baselines")
-            && blocker.summary.contains("hosted-account proof")
-            && blocker.summary.contains("long-tail native-speaker review")
-            && blocker
-                .summary
-                .contains("are post-2.0 tracks, not seal blockers")
+    assert!(two_zero_seal.blockers.is_empty());
+    assert!(two_zero_seal.evidence.iter().any(|evidence| {
+        evidence.path == "project/status/evidence/gewyvern_v2_release_gate_20260830.json"
+            && evidence.kind == EvidenceKind::Release
+            && evidence.state == EvidenceState::Present
     }));
+    assert!(two_zero_seal.next_gate.contains("community evidence"));
+    let release_gate_evidence: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(
+            repository_root()
+                .join("project/status/evidence/gewyvern_v2_release_gate_20260830.json"),
+        )
+        .expect("retained 2.0 release-gate evidence must exist"),
+    )
+    .expect("retained 2.0 release-gate evidence must be valid JSON");
+    assert_eq!(release_gate_evidence["release"], "2.0.0");
+    assert_eq!(release_gate_evidence["gate_posture"], "full");
+    assert_eq!(release_gate_evidence["ship_signal"], "ready");
+    assert_eq!(release_gate_evidence["linux"]["proof_complete"], true);
+    assert_eq!(release_gate_evidence["linux"]["release_eligible"], true);
+    assert_eq!(release_gate_evidence["linux"]["breadth_ready"], false);
     let gate_seven = catalog
         .coverage_requirements
         .iter()

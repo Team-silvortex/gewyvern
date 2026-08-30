@@ -202,7 +202,7 @@ This is usually the fastest way to answer:
 
 ## Step 6: Exercise The High-Frequency Shelf
 
-For the active `1.20.x` line, the most valuable operator surface is the
+For the active `2.0.x` line, the most valuable operator surface is the
 high-frequency protocol shelf plus the debugger cross-validation path.
 
 Run:

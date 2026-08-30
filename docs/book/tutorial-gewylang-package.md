@@ -147,7 +147,7 @@ This is one of the best ways to confirm that:
 The compile succeeds when the command exits with code `0`; do not infer success
 only from the presence of an older output file.
 
-For the current `1.20.x`-line compiler surfaces, a practical read order is:
+For the current `2.0.x`-line compiler surfaces, a practical read order is:
 
 1. check `envelope.payload.summary.finding_count`
 2. read `envelope.payload.summary.next_step`

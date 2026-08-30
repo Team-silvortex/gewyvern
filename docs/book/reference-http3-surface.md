@@ -105,6 +105,6 @@ The machine-facing `reading_companions` field uses the same jump contract; see:
 
 ## Stability Note
 
-This page is the lookup hub for the HTTP/3 family in the current `1.20.x` line.
+This page is the lookup hub for the HTTP/3 family in the current `2.0.x` line.
 New HTTP/3 role-specific branches should prefer landing behind this shelf
 instead of being linked from multiple higher-level pages independently.

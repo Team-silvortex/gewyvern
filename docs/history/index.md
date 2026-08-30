@@ -12,6 +12,8 @@ For `gewyvern`, the middle numeric component is treated as the **minor** line:
 - `v0.19.x`
 - `v0.20.x`
 - `v1.0.0`
+- `v1.20.x`
+- `v2.0.0`
 
 The rule from here forward is simple:
 
@@ -70,6 +72,9 @@ background cleanup.
   Linux proof paths, and release evidence coherent.
 - [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md)
   Formal release note for the first sealed stable line.
+- [docs/history/v2.0.0-release-notes.md](docs/history/v2.0.0-release-notes.md)
+  Formal release note for the protocolized Gewyvern, Leserpent, and Leselang
+  infrastructure release.
 - [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md)
   Forward-looking minor-line plan from `0.15.x` through `0.20.x`, intended to
   make `v1.0.0` the direct next step after the final pre-`1.0` seal.
@@ -93,7 +98,8 @@ background cleanup.
 | `v0.19.x` | Integrated debugger behavior, reliability hardening, and pre-seal convergence | historical snapshot | [docs/history/v0.19.x.md](docs/history/v0.19.x.md) |
 | `v0.20.x` | Final pre-`1.0` seal with repeatable release gates and frozen core surfaces | historical prelude | [docs/history/v0.20.x.md](docs/history/v0.20.x.md) |
 | `v1.0.0` | First sealed stable line with repeatable release gates, Linux proof, and frozen machine-facing shelves | sealed baseline | [docs/history/v1.0.0.md](docs/history/v1.0.0.md) |
-| `v1.7.x` | Active reliability and Rust Leserpent/Leselang control-plane delivery line | active | [ROADMAP.md](../../ROADMAP.md) |
+| `v1.20.x` | Final closure window for reliability, security, performance, frontend conformance, deployment, desktop UX, and documentation | completed seal | [project/release/leserpent-2-patch-seal.json](../../project/release/leserpent-2-patch-seal.json) |
+| `v2.0.0` | Released protocolized network-debugging infrastructure with Rust control authority and replaceable operator frontends | current stable release | [docs/history/v2.0.0-release-notes.md](v2.0.0-release-notes.md) |
 | `v1.0.0 release` | Formal stable-release note for the first sealed mainline ship | release note | [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md) |
 | `v0.15.x -> v1.0.0` | Forward roadmap through `v0.20.x` with `v1.0.0` as the intended direct successor | completed roadmap | [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md) |
 
@@ -145,7 +151,7 @@ Use other pages when you want something else:
 - for the current structured reading paths, use
   [docs/book/index.md](docs/book/index.md)
 - for the current active release posture, use
-  [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
+  [docs/history/v2.0.0-release-notes.md](v2.0.0-release-notes.md)
 - for the formal stable-release announcement shelf, use
   [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md)
 - for the shortest ledger of historical release lines, use this page

@@ -1390,6 +1390,7 @@ fn sync_workspace(
     command
         .arg("-az")
         .arg("--delete")
+        .arg("--delete-excluded")
         .arg("-e")
         .arg(rsync_command)
         .arg("--exclude")

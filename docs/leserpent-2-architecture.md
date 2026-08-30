@@ -1,13 +1,13 @@
 # Leserpent 2.0 Architecture
 
-This document is the authoritative target architecture for the
-`1.0.0 -> 2.0.0` Leserpent line. It describes intended behavior, not the
-current 1.x implementation. Delivery order and exit gates live in the
+This document is the authoritative released architecture for the
+`1.0.0 -> 2.0.0` Leserpent line. It describes the stable 2.0 contract; delivery
+history and continuing maintenance gates live in the
 [Leserpent 2.0 roadmap](leserpent-2-roadmap.md).
 
-The current implementation checkpoint is the shared `v1.20.0` release. This
-document remains the `2.0.0` target contract rather than a claim that every
-target capability is already complete.
+The current implementation checkpoint is the shared `v2.0.0` release. The
+frozen in-scope capability set is implemented; explicitly excluded post-release
+tracks remain outside this contract.
 
 ## Decision
 
@@ -27,17 +27,16 @@ The platform stack constraint is explicit:
 - No Node.js, Python, shell, or other additional runtime language is allowed to
   carry new control-plane authority.
 
-The current ASP.NET and TypeScript application remains the 1.x implementation
-and migration bridge. It is not the semantic center of the 2.0 system.
+The legacy ASP.NET and TypeScript application remains a compatibility and
+migration bridge. It is not the semantic center of the 2.0 system.
 
 ## 2.0 Scope Boundary
 
-The 2.0 target scope is frozen. The release may complete the declared
-Leserpent/Gewyvern/Leselang/Avalonia control loop, but it may not add new core
-capability families before `2.0.0`. Finishing work is limited to closure,
-reliability, performance, security, conformance, existing-capability polish,
-packaging/deployment/recovery, current release evidence, and documentation for
-the already-declared architecture.
+The 2.0 scope is frozen. The released
+Leserpent/Gewyvern/Leselang/Avalonia control loop may receive compatible
+maintenance, reliability, performance, security, packaging, deployment,
+recovery, evidence, and documentation work without silently adding a new core
+capability family.
 
 This boundary keeps Etragon advisory, Windows native parity, additional runtime
 languages, automatic GUI framework compatibility, full mobile parity, expanded
