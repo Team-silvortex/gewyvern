@@ -579,3 +579,30 @@ Current soft warning budgets reflected by the CLI/JSON remote summary:
 - `remote_runtime_smoke <= 3s`
 - `remote_ebpf_smoke <= 10s`
 - `remote_ebpf_evidence_sync <= 5s`
+
+### Leserpent content-addressed control bundle
+
+On `2026-08-30`, the trusted Ubuntu `x86_64` builder running Linux
+`7.0.0-28-generic` packaged the finalized Linux control bundle with warm
+compiler caches:
+
+```bash
+cargo dev package control
+```
+
+| Stage | Seconds | Notes |
+| --- | ---: | --- |
+| `control-native-payloads` | `0.231` | one locked Cargo invocation for bridge and daemon |
+| `control-aot-restore` | `1.122` | locked `linux-x64` graph |
+| parallel preparation wall time | `1.122` | restore and Rust build overlap |
+| `control-aot-publish` | `43.465` | stripped NativeAOT code generation, no repeated Rust payload build |
+| total package workflow | `44.719` | includes single-pass manifest/hash validation and atomic publication |
+
+The follow-up physical Linux bundle smoke passed exact inventory and checksum
+verification, pre-mutation tamper rejection, content-addressed upgrade
+identity, immutable staged install, transactional systemd-unit rollback,
+injected half-upgrade recovery, explicit rollback, live compatibility bridge
+request, and NativeAOT health. Its synchronized bounded record is
+`target/validation/leserpent-linux-bundle-smoke/latest.json`. The current
+warm-path bottleneck is NativeAOT code generation; restore, Rust payload
+construction, and bundle hashing no longer dominate this workflow.

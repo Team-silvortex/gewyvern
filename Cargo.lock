@@ -831,6 +831,9 @@ dependencies = [
 [[package]]
 name = "gewyvern-dev"
 version = "1.20.0"
+dependencies = [
+ "ring",
+]
 
 [[package]]
 name = "ghash"

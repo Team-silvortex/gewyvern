@@ -20,17 +20,28 @@ fn linux_publish_builds_and_installs_the_rust_compatibility_bridge() {
             .unwrap();
     assert!(project.contains("BuildRustCompatibilityBridge"));
     assert!(project.contains(
-        "cargo build --locked --release -p leserpent-protocol --bin leserpent-compat-bridge"
+        "cargo build --locked --release -p leserpent-protocol -p leserpentd --bin leserpent-compat-bridge --bin leserpentd --features leserpentd/native-ssh"
     ));
-    assert!(project.contains(
-        "cargo build --locked --release -p leserpentd --bin leserpentd --features native-ssh"
-    ));
+    assert_eq!(
+        project
+            .matches("<Exec Command=\"cargo build --locked --release")
+            .count(),
+        1
+    );
+    assert!(project.contains("SkipRustCompatibilityBridge"));
     assert!(project.contains("DestinationFiles=\"$(PublishDir)leserpentd\""));
     assert!(project.contains("RejectCrossPlatformRustCompatibilityBridge"));
     assert!(project.contains("packages.development.lock.json"));
     assert!(project.contains("'$(PublishAot)' == 'true'"));
     assert!(project.contains("NativeAotToolchainVersion"));
     assert!(project.contains("KnownILCompilerPack"));
+    let publish_profile = std::fs::read_to_string(
+        root.join("apps/leserpent/src/Leserpent/Properties/PublishProfiles/native-aot.pubxml"),
+    )
+    .unwrap();
+    assert!(publish_profile.contains("<StripSymbols>true</StripSymbols>"));
+    assert!(publish_profile.contains("<Link>deploy/install.sh</Link>"));
+    assert!(publish_profile.contains("<Link>deploy/leserpent.service</Link>"));
     assert!(
         root.join("apps/leserpent/src/Leserpent/packages.development.lock.json")
             .is_file()
@@ -53,12 +64,20 @@ fn linux_publish_builds_and_installs_the_rust_compatibility_bridge() {
     assert!(installer.contains("cannot rollback: previous release link is missing or unsafe"));
     assert!(installer.contains("cannot upgrade: current release link is missing or unsafe"));
     assert!(installer.contains("rollback health check failed; restored original release"));
+    assert!(installer.contains("verify_bundle \"${SOURCE_DIR}\""));
+    assert!(installer.contains("sha256sum --strict --check SHA256SUMS"));
+    assert!(installer.contains("release_hash=\"$(sha256sum \"${SOURCE_DIR}/SHA256SUMS\""));
+    assert!(installer.contains("flock -w 120 9"));
+    assert!(installer.contains("cleanup_uncommitted_release"));
+    assert!(installer.contains("--keep-releases must be an integer from 2 through 64"));
+    assert!(installer.contains("cp -a --no-preserve=ownership"));
+    assert!(!installer.contains("-name '*.dbg' -delete"));
     assert_eq!(installer.matches("health_check() {").count(), 1);
     assert!(
-        installer
-            .find("if [[ \"${ACTION}\" == rollback ]]")
-            .unwrap()
-            < installer.find("for required in Leserpent").unwrap()
+        installer.find("verify_bundle \"${SOURCE_DIR}\"").unwrap()
+            < installer
+                .find("if [[ \"${ACTION}\" == rollback ]]")
+                .unwrap()
     );
 
     let smoke =
@@ -70,6 +89,9 @@ fn linux_publish_builds_and_installs_the_rust_compatibility_bridge() {
     assert!(smoke.contains("state-preserved-across-upgrade-rollback"));
     assert!(smoke.contains("explicit-atomic-rollback"));
     assert!(smoke.contains("rolled-back-live-native-aot-health"));
+    assert!(smoke.contains("tampered-bundle-rejection-before-mutation"));
+    assert!(smoke.contains("exact-bundle-inventory"));
+    assert!(smoke.contains("content-addressed-release-identity"));
 
     let environment =
         std::fs::read_to_string(root.join("apps/leserpent/deploy/linux/leserpent.env.example"))

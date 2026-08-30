@@ -69,7 +69,7 @@ fn linux_probe_docs_call_out_required_privileges() {
 }
 
 #[test]
-fn native_developer_workflow_owns_locked_build_package_and_desktop_deploy_routes() {
+fn native_developer_workflow_owns_locked_build_package_and_deploy_routes() {
     let cargo_config = read_repo_file(".cargo/config.toml");
     let workspace = read_repo_file("Cargo.toml");
     let workflow = read_repo_file("crates/gewyvern-dev/src/main.rs");
@@ -86,7 +86,9 @@ fn native_developer_workflow_owns_locked_build_package_and_desktop_deploy_routes
         "cargo dev check",
         "cargo dev build",
         "cargo dev package linux",
+        "cargo dev package control",
         "cargo dev package desktop",
+        "cargo dev deploy control",
         "cargo dev deploy desktop",
     ] {
         assert!(
@@ -103,12 +105,18 @@ fn native_developer_workflow_owns_locked_build_package_and_desktop_deploy_routes
     assert!(workflow.contains("arguments.push(\"--no-restore\")"));
     assert!(workflow.contains("RestoreLockedMode=true"));
     assert!(workflow.contains("desktop-signature-verify"));
+    assert!(workflow.contains("control_bundle_manifest"));
+    assert!(workflow.contains("CONTROL_BUNDLE_SUMS"));
+    assert!(workflow.contains("SkipRustCompatibilityBridge=true"));
     assert!(workspace.contains("[profile.dev]"));
     assert!(workspace.contains("[profile.test]"));
     assert!(workspace.matches("debug = \"line-tables-only\"").count() >= 2);
     assert!(development.contains("cargo dev check"));
     assert!(development.contains("cargo dev build"));
     assert!(packaging.contains("cargo dev package linux --format layout --skip-build"));
+    assert!(packaging.contains("cargo dev package control"));
+    assert!(development.contains("cargo dev deploy control"));
+    assert!(entrypoints.contains("cargo dev package control"));
     assert!(entrypoints.contains("cargo dev deploy desktop --launch"));
 }
 

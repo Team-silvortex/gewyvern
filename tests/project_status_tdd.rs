@@ -7671,7 +7671,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(continuous_proof.maturity, Maturity::Mature);
     assert_eq!(continuous_proof.priority, Priority::Maintenance);
     assert_eq!(continuous_proof.completion, 100);
-    assert_eq!(continuous_proof.contract.version, "1.2.0");
+    assert_eq!(continuous_proof.contract.version, "1.4.0");
     assert_eq!(
         continuous_proof.contract.stability,
         ContractStability::Stable
@@ -7767,6 +7767,18 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "strict-apple-release-readiness-gate",
         "atomic-developer-id-notarization-workflow",
         "pending-bundle-release-isolation",
+        "one-command-linux-control-bundle",
+        "parallel-control-aot-and-rust-payload-build",
+        "single-invocation-rust-control-payload-build",
+        "atomic-content-addressed-control-bundle",
+        "exact-control-bundle-inventory",
+        "pre-and-post-copy-bundle-verification",
+        "whole-bundle-release-identity",
+        "serialized-linux-control-install",
+        "failed-control-release-cleanup",
+        "validated-control-bundle-reuse-deploy",
+        "single-pass-control-bundle-hashing",
+        "transactional-systemd-unit-rollback",
     ] {
         assert!(
             continuous_proof
@@ -7822,7 +7834,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(provisioning.maturity, Maturity::Mature);
     assert_eq!(provisioning.completion, 100);
     assert_eq!(provisioning.contract.stability, ContractStability::Stable);
-    assert_eq!(provisioning.contract.version, "1.0.1");
+    assert_eq!(provisioning.contract.version, "1.0.2");
     for surface in [
         "bounded-native-service-manager-batch",
         "timed-out-service-manager-child-reaping",
@@ -8026,6 +8038,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "forged-provisioning-retirement-rejection",
         "idempotent-physical-retirement-replay",
         "zero-residue-systemd-user-retirement",
+        "collision-free-installer-temporary-identities",
     ] {
         assert!(
             provisioning

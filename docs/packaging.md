@@ -174,6 +174,37 @@ If you already know the outcome you want and only need the shortest route to
 the right packaging script, start with
 [docs/script-entrypoints.md](docs/script-entrypoints.md).
 
+### Leserpent Linux control bundle
+
+The Gewyvern DEB/RPM route below and the Leserpent control-service bundle are
+separate products. On a Linux x86-64 builder, create the latter with:
+
+```bash
+cargo dev package control
+```
+
+The workflow overlaps locked NativeAOT restore with one Rust release build for
+`leserpent-compat-bridge` and `leserpentd`, then publishes the managed host
+with `--no-restore` and without repeating Cargo. It explicitly assembles
+`deploy/`, generates `bundle-manifest.toml` plus sorted `SHA256SUMS`,
+rejects symlinks, special nodes, unsafe paths, wrong-architecture executables,
+unlisted files, and content drift, then atomically replaces only the default
+managed output:
+
+- `artifacts/leserpent/linux-x64`
+
+Build and install in one route, or reuse a previously verified bundle:
+
+```bash
+cargo dev deploy control
+cargo dev deploy control --reuse --no-start
+```
+
+The installer verifies both source and copied release, derives its immutable
+release suffix from the checksum inventory for the complete bundle, serializes
+host mutation, preserves configuration/state, and restores the prior link
+and systemd unit while removing an uncommitted release on failure.
+
 Use the native developer entrypoint:
 
 ```bash

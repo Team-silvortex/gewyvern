@@ -5,6 +5,9 @@ edition.workspace = true
 license.workspace = true
 publish = false
 
+[dependencies]
+ring = "0.17"
+
 [[bin]]
 name = "gewyvern-dev"
 path = "src/main.rs"

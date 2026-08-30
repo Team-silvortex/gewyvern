@@ -7,6 +7,7 @@ use std::net::{Ipv4Addr, SocketAddr};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -51,6 +52,7 @@ const HEALTH_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(750);
 const HEALTH_RETRY_INTERVAL: Duration = Duration::from_millis(100);
 const SERVICE_MANAGER_COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
 const SERVICE_MANAGER_POLL_INTERVAL: Duration = Duration::from_millis(25);
+static UNIQUE_SUFFIX_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GewyvernInstallError {
@@ -1782,10 +1784,11 @@ fn sync_dir(path: &Path) -> Result<(), GewyvernInstallError> {
 }
 
 fn unique_suffix() -> u128 {
-    SystemTime::now()
+    let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
-        .as_nanos()
+        .as_nanos();
+    (timestamp << 64) | u128::from(UNIQUE_SUFFIX_COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -1894,6 +1897,18 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn temporary_suffixes_are_unique_under_concurrency() {
+        let workers = (0..8)
+            .map(|_| std::thread::spawn(|| (0..256).map(|_| unique_suffix()).collect::<Vec<_>>()))
+            .collect::<Vec<_>>();
+        let mut suffixes = std::collections::HashSet::new();
+        for worker in workers {
+            suffixes.extend(worker.join().unwrap());
+        }
+        assert_eq!(suffixes.len(), 8 * 256);
     }
 
     fn fixture() -> (

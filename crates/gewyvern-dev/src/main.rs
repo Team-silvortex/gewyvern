@@ -1,13 +1,22 @@
 use std::env;
 use std::ffi::OsString;
-use std::fs;
+use std::fs::{self, File};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Instant;
 
+use ring::digest::{Context, SHA256, digest};
+
 mod version;
+
+const CONTROL_BUNDLE_RID: &str = "linux-x64";
+const CONTROL_BUNDLE_MANIFEST: &str = "bundle-manifest.toml";
+const CONTROL_BUNDLE_SUMS: &str = "SHA256SUMS";
+const MAX_CONTROL_BUNDLE_FILES: usize = 4_096;
+const MAX_CONTROL_BUNDLE_BYTES: u64 = 1024 * 1024 * 1024;
 
 const USAGE: &str = r#"Usage:
   cargo dev doctor
@@ -16,7 +25,9 @@ const USAGE: &str = r#"Usage:
   cargo dev check [--scope core|control|desktop|all] [--restore] [--dry-run]
   cargo dev build [--scope core|control|desktop|all] [--release] [--restore] [--dry-run]
   cargo dev package linux [--format layout|deb|rpm|all] [--skip-build] [--out-dir PATH] [--dry-run]
+  cargo dev package control [--output DIR] [--dry-run]
   cargo dev package desktop [--output APP] [--silvortex-issuer URL] [--identity ID --notary-profile PROFILE] [--dry-run]
+  cargo dev deploy control [--output DIR] [--reuse] [--no-start] [--keep-releases N] [--dry-run]
   cargo dev deploy desktop [--output APP] [--silvortex-issuer URL] [--identity ID --notary-profile PROFILE] [--launch] [--dry-run]
 
 The native workflow keeps compiler caches intact, reports stage timings, and
@@ -122,6 +133,16 @@ struct LinuxPackageOptions {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+struct ControlOptions {
+    output: PathBuf,
+    install: bool,
+    reuse: bool,
+    no_start: bool,
+    keep_releases: u16,
+    dry_run: bool,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 struct AppleReleaseOptions {
     identity: String,
     notary_profile: String,
@@ -144,6 +165,7 @@ enum Workflow {
     Check(BuildOptions),
     Build(BuildOptions),
     PackageLinux(LinuxPackageOptions),
+    Control(ControlOptions),
     Desktop(DesktopOptions),
 }
 
@@ -160,19 +182,70 @@ impl Workflow {
             Some("build") => parse_build(arguments).map(Self::Build),
             Some("package") => match arguments.next().as_deref() {
                 Some("linux") => parse_linux_package(arguments).map(Self::PackageLinux),
+                Some("control") => parse_control(arguments, false).map(Self::Control),
                 Some("desktop") => parse_desktop(arguments, false).map(Self::Desktop),
                 Some(value) => Err(format!("unknown package target `{value}`\n{USAGE}")),
-                None => Err(format!("package requires linux or desktop\n{USAGE}")),
+                None => Err(format!(
+                    "package requires linux, control, or desktop\n{USAGE}"
+                )),
             },
             Some("deploy") => match arguments.next().as_deref() {
+                Some("control") => parse_control(arguments, true).map(Self::Control),
                 Some("desktop") => parse_desktop(arguments, true).map(Self::Desktop),
                 Some(value) => Err(format!("unknown deploy target `{value}`\n{USAGE}")),
-                None => Err(format!("deploy requires desktop\n{USAGE}")),
+                None => Err(format!("deploy requires control or desktop\n{USAGE}")),
             },
             Some(value) => Err(format!("unknown workflow `{value}`\n{USAGE}")),
             None => Err(USAGE.to_string()),
         }
     }
+}
+
+fn parse_control(
+    arguments: impl Iterator<Item = String>,
+    install: bool,
+) -> Result<ControlOptions, String> {
+    let mut output = PathBuf::from("artifacts/leserpent/linux-x64");
+    let mut output_seen = false;
+    let mut reuse = false;
+    let mut no_start = false;
+    let mut keep_releases = 3_u16;
+    let mut keep_releases_seen = false;
+    let mut dry_run = false;
+    let mut arguments = arguments.peekable();
+    while let Some(argument) = arguments.next() {
+        match argument.as_str() {
+            "--output" if !output_seen => {
+                output = PathBuf::from(next_value(&mut arguments, "--output")?);
+                output_seen = true;
+            }
+            "--reuse" if install && !reuse => reuse = true,
+            "--no-start" if install && !no_start => no_start = true,
+            "--keep-releases" if install && !keep_releases_seen => {
+                let value = next_value(&mut arguments, "--keep-releases")?;
+                keep_releases = value.parse().map_err(|_| {
+                    "--keep-releases must be an integer from 2 through 64".to_string()
+                })?;
+                if !(2..=64).contains(&keep_releases) {
+                    return Err("--keep-releases must be an integer from 2 through 64".to_string());
+                }
+                keep_releases_seen = true;
+            }
+            "--dry-run" if !dry_run => dry_run = true,
+            _ => return Err(format!("unknown or repeated control option `{argument}`")),
+        }
+    }
+    if output.as_os_str().is_empty() || output == Path::new(".") || output == Path::new("..") {
+        return Err("--output must identify a bundle directory".to_string());
+    }
+    Ok(ControlOptions {
+        output,
+        install,
+        reuse,
+        no_start,
+        keep_releases,
+        dry_run,
+    })
 }
 
 fn parse_check(arguments: impl Iterator<Item = String>) -> Result<BuildOptions, String> {
@@ -381,6 +454,18 @@ fn execute(workflow: Workflow, root: PathBuf) -> Result<WorkflowOutcome, String>
             let artifact = package_linux(&root, &options)?;
             Ok(WorkflowOutcome {
                 action: "package-linux",
+                artifact: Some(artifact),
+            })
+        }
+        Workflow::Control(options) => {
+            let action = if options.install {
+                "deploy-control"
+            } else {
+                "package-control"
+            };
+            let artifact = control_pipeline(&root, &options)?;
+            Ok(WorkflowOutcome {
+                action,
                 artifact: Some(artifact),
             })
         }
@@ -700,6 +785,552 @@ fn package_linux(root: &Path, options: &LinuxPackageOptions) -> Result<PathBuf, 
             .as_deref()
             .unwrap_or_else(|| Path::new("target/packages")),
     ))
+}
+
+fn control_pipeline(root: &Path, options: &ControlOptions) -> Result<PathBuf, String> {
+    let output = resolve_from_root(root, &options.output);
+    if options.reuse {
+        if !options.dry_run {
+            let identity = validate_control_bundle(&output, env!("CARGO_PKG_VERSION"))?;
+            eprintln!("[reuse:control-bundle] identity={identity}");
+        }
+    } else {
+        package_control_bundle(root, options, &output)?;
+    }
+    if options.install {
+        install_control_bundle(root, options, &output)?;
+    }
+    Ok(output)
+}
+
+fn package_control_bundle(
+    root: &Path,
+    options: &ControlOptions,
+    output: &Path,
+) -> Result<(), String> {
+    let supported_host = env::consts::OS == "linux" && env::consts::ARCH == "x86_64";
+    if !options.dry_run && !supported_host {
+        return Err("control package/deploy currently requires a Linux x86_64 host".to_string());
+    }
+    let project = root.join("apps/leserpent/src/Leserpent/Leserpent.csproj");
+    require_file(&project, "Leserpent control project", options.dry_run)?;
+    for (path, label) in [
+        (
+            root.join("apps/leserpent/deploy/linux/install.sh"),
+            "Leserpent Linux installer",
+        ),
+        (
+            root.join("apps/leserpent/deploy/linux/leserpent.service"),
+            "Leserpent systemd unit",
+        ),
+        (
+            root.join("apps/leserpent/deploy/linux/leserpent.env.example"),
+            "Leserpent environment template",
+        ),
+    ] {
+        require_file(&path, label, options.dry_run)?;
+    }
+
+    let managed_root = root.join("target/dev-workflow/control");
+    let dotnet_artifacts = managed_root.join("dotnet-artifacts");
+    let pending = adjacent_temporary_path(output, "pending")?;
+    if !options.dry_run {
+        preflight_managed_output(
+            output,
+            &root.join("artifacts/leserpent/linux-x64"),
+            &pending,
+            "control bundle",
+        )?;
+        fs::create_dir_all(&managed_root).map_err(|error| error.to_string())?;
+    }
+    let _lock = if options.dry_run {
+        None
+    } else {
+        Some(DirectoryLock::acquire(&managed_root.join("pipeline.lock"))?)
+    };
+    let target_root = cargo_target_root(root);
+    let release_dir = target_root.join("release");
+    let bridge = release_dir.join("leserpent-compat-bridge");
+    let daemon = release_dir.join("leserpentd");
+    run_parallel(
+        vec![
+            control_restore_spec(root, &dotnet_artifacts),
+            control_native_payloads_spec(root),
+        ],
+        options.dry_run,
+    )?;
+
+    let mut pending_guard = None;
+    if !options.dry_run {
+        if let Some(parent) = output.parent() {
+            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+        pending_guard = Some(PendingDirectory::new(&pending));
+    }
+    run_one(
+        control_publish_spec(root, &project, &dotnet_artifacts, &pending),
+        options.dry_run,
+    )?;
+    if options.dry_run {
+        eprintln!(
+            "[dry-run:control-bundle-finalize] copy Rust payloads, write {}, verify, and atomically publish {}",
+            CONTROL_BUNDLE_SUMS,
+            output.display()
+        );
+        return Ok(());
+    }
+
+    copy_regular_executable(&bridge, &pending.join("leserpent-compat-bridge"))?;
+    copy_regular_executable(&daemon, &pending.join("leserpentd"))?;
+    let deploy_source = root.join("apps/leserpent/deploy/linux");
+    let deploy_output = pending.join("deploy");
+    fs::create_dir_all(&deploy_output)
+        .map_err(|error| format!("failed to create control deploy directory: {error}"))?;
+    copy_regular_executable(
+        &deploy_source.join("install.sh"),
+        &deploy_output.join("install.sh"),
+    )?;
+    copy_regular_file(
+        &deploy_source.join("leserpent.service"),
+        &deploy_output.join("leserpent.service"),
+    )?;
+    copy_regular_file(
+        &deploy_source.join("leserpent.env.example"),
+        &deploy_output.join("leserpent.env.example"),
+    )?;
+    write_control_bundle_metadata(&pending, env!("CARGO_PKG_VERSION"))?;
+    let identity = validate_control_bundle(&pending, env!("CARGO_PKG_VERSION"))?;
+    atomic_replace_directory(&pending, output)?;
+    pending_guard
+        .as_mut()
+        .expect("real control workflow owns a pending guard")
+        .disarm();
+    eprintln!("[publish:control-bundle] identity={identity}");
+    Ok(())
+}
+
+fn control_restore_spec(root: &Path, artifacts: &Path) -> ProcessSpec {
+    ProcessSpec::new(
+        "control-aot-restore",
+        "dotnet",
+        [
+            OsString::from("restore"),
+            OsString::from("apps/leserpent/src/Leserpent/Leserpent.csproj"),
+            OsString::from("-p:PublishProfile=native-aot"),
+            OsString::from("-p:PublishAot=true"),
+            OsString::from("-p:RuntimeIdentifier=linux-x64"),
+            OsString::from("--locked-mode"),
+            OsString::from("--artifacts-path"),
+            artifacts.as_os_str().to_owned(),
+        ],
+        root,
+    )
+}
+
+fn control_native_payloads_spec(root: &Path) -> ProcessSpec {
+    ProcessSpec::new(
+        "control-native-payloads",
+        "cargo",
+        [
+            "build",
+            "--locked",
+            "--release",
+            "-p",
+            "leserpent-protocol",
+            "-p",
+            "leserpentd",
+            "--bin",
+            "leserpent-compat-bridge",
+            "--bin",
+            "leserpentd",
+            "--features",
+            "leserpentd/native-ssh",
+        ],
+        root,
+    )
+}
+
+fn control_publish_spec(
+    root: &Path,
+    project: &Path,
+    artifacts: &Path,
+    output: &Path,
+) -> ProcessSpec {
+    ProcessSpec::new(
+        "control-aot-publish",
+        "dotnet",
+        [
+            OsString::from("publish"),
+            project.as_os_str().to_owned(),
+            OsString::from("-p:PublishProfile=native-aot"),
+            OsString::from("-p:PublishAot=true"),
+            OsString::from("-p:RuntimeIdentifier=linux-x64"),
+            OsString::from("-p:SkipRustCompatibilityBridge=true"),
+            OsString::from("--no-restore"),
+            OsString::from("--artifacts-path"),
+            artifacts.as_os_str().to_owned(),
+            OsString::from("-o"),
+            output.as_os_str().to_owned(),
+        ],
+        root,
+    )
+}
+
+fn install_control_bundle(
+    root: &Path,
+    options: &ControlOptions,
+    output: &Path,
+) -> Result<(), String> {
+    if !options.dry_run {
+        validate_control_bundle(output, env!("CARGO_PKG_VERSION"))?;
+    }
+    let installer = output.join("deploy/install.sh");
+    let mut installer_arguments = vec![
+        installer.as_os_str().to_owned(),
+        OsString::from("--source"),
+        output.as_os_str().to_owned(),
+        OsString::from("--keep-releases"),
+        OsString::from(options.keep_releases.to_string()),
+    ];
+    if options.no_start {
+        installer_arguments.push(OsString::from("--no-start"));
+    }
+    let spec = if effective_user_is_root() {
+        ProcessSpec::new("control-install", "bash", installer_arguments, root)
+    } else {
+        let mut arguments = vec![
+            OsString::from("--non-interactive"),
+            OsString::from("--"),
+            OsString::from("bash"),
+        ];
+        arguments.extend(installer_arguments);
+        ProcessSpec::new("control-install", "sudo", arguments, root)
+    };
+    run_one(spec, options.dry_run)
+}
+
+fn effective_user_is_root() -> bool {
+    Command::new("id")
+        .arg("-u")
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .is_ok_and(|output| output.status.success() && output.stdout == b"0\n")
+}
+
+#[derive(Debug)]
+struct ControlBundleFile {
+    path: String,
+    bytes: u64,
+    sha256: String,
+}
+
+fn write_control_bundle_metadata(bundle: &Path, version: &str) -> Result<String, String> {
+    for name in [CONTROL_BUNDLE_MANIFEST, CONTROL_BUNDLE_SUMS] {
+        match fs::symlink_metadata(bundle.join(name)) {
+            Ok(_) => return Err(format!("control bundle metadata already exists: {name}")),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "failed to inspect control bundle metadata: {error}"
+                ));
+            }
+        }
+    }
+    let mut files =
+        collect_control_bundle_files(bundle, &[CONTROL_BUNDLE_MANIFEST, CONTROL_BUNDLE_SUMS])?;
+    if files.len() >= MAX_CONTROL_BUNDLE_FILES {
+        return Err(format!(
+            "control bundle leaves no inventory slot for {CONTROL_BUNDLE_MANIFEST}"
+        ));
+    }
+    let payload_bytes = files.iter().try_fold(0_u64, |total, file| {
+        total
+            .checked_add(file.bytes)
+            .ok_or_else(|| "control bundle byte count overflowed".to_string())
+    })?;
+    let payload_files = files.len();
+    let manifest_path = bundle.join(CONTROL_BUNDLE_MANIFEST);
+    fs::write(
+        &manifest_path,
+        control_bundle_manifest(version, payload_files, payload_bytes),
+    )
+    .map_err(|error| format!("failed to write control bundle manifest: {error}"))?;
+
+    let manifest_metadata = fs::symlink_metadata(&manifest_path)
+        .map_err(|error| format!("failed to inspect control bundle manifest: {error}"))?;
+    files.push(ControlBundleFile {
+        path: CONTROL_BUNDLE_MANIFEST.to_string(),
+        bytes: manifest_metadata.len(),
+        sha256: sha256_file(&manifest_path)?,
+    });
+    files.sort_by(|left, right| left.path.cmp(&right.path));
+    let sums = control_bundle_sums(&files);
+    fs::write(bundle.join(CONTROL_BUNDLE_SUMS), &sums)
+        .map_err(|error| format!("failed to write control bundle checksums: {error}"))?;
+    Ok(sha256_bytes(sums.as_bytes()))
+}
+
+fn validate_control_bundle(bundle: &Path, version: &str) -> Result<String, String> {
+    require_directory(bundle, "control bundle")?;
+    for path in [
+        "Leserpent",
+        "leserpent-compat-bridge",
+        "leserpentd",
+        "libe_sqlite3.so",
+        "wwwroot/index.html",
+        "deploy/install.sh",
+        "deploy/leserpent.service",
+        "deploy/leserpent.env.example",
+        CONTROL_BUNDLE_MANIFEST,
+        CONTROL_BUNDLE_SUMS,
+    ] {
+        require_file(&bundle.join(path), path, false)?;
+    }
+    require_directory(&bundle.join("wwwroot"), "control bundle wwwroot")?;
+    for executable in ["Leserpent", "leserpent-compat-bridge", "leserpentd"] {
+        require_elf_x86_64(&bundle.join(executable), executable)?;
+        require_executable(&bundle.join(executable), executable)?;
+    }
+    require_elf_x86_64(&bundle.join("libe_sqlite3.so"), "libe_sqlite3.so")?;
+    require_executable(&bundle.join("deploy/install.sh"), "deploy/install.sh")?;
+
+    let files = collect_control_bundle_files(bundle, &[CONTROL_BUNDLE_SUMS])?;
+    let payload = files
+        .iter()
+        .filter(|file| file.path != CONTROL_BUNDLE_MANIFEST)
+        .collect::<Vec<_>>();
+    let payload_bytes = payload.iter().try_fold(0_u64, |total, file| {
+        total
+            .checked_add(file.bytes)
+            .ok_or_else(|| "control bundle byte count overflowed".to_string())
+    })?;
+    let manifest = read_bounded_text(&bundle.join(CONTROL_BUNDLE_MANIFEST), 16 * 1024)?;
+    let expected_manifest = control_bundle_manifest(version, payload.len(), payload_bytes);
+    if manifest != expected_manifest {
+        return Err("control bundle manifest does not match its payload".to_string());
+    }
+
+    let sums = read_bounded_text(&bundle.join(CONTROL_BUNDLE_SUMS), 1024 * 1024)?;
+    if sums != control_bundle_sums(&files) {
+        return Err("control bundle checksum inventory does not match its files".to_string());
+    }
+    Ok(sha256_bytes(sums.as_bytes()))
+}
+
+fn control_bundle_manifest(version: &str, payload_files: usize, payload_bytes: u64) -> String {
+    format!(
+        "schema_version = 1\nproduct = \"leserpent-control\"\nversion = \"{version}\"\nrid = \"{CONTROL_BUNDLE_RID}\"\nhash_algorithm = \"sha256\"\ninventory = \"{CONTROL_BUNDLE_SUMS}\"\npayload_files = {payload_files}\npayload_bytes = {payload_bytes}\n"
+    )
+}
+
+fn control_bundle_sums(files: &[ControlBundleFile]) -> String {
+    let mut body = String::new();
+    for file in files {
+        body.push_str(&file.sha256);
+        body.push_str("  ");
+        body.push_str(&file.path);
+        body.push('\n');
+    }
+    body
+}
+
+fn collect_control_bundle_files(
+    bundle: &Path,
+    excluded: &[&str],
+) -> Result<Vec<ControlBundleFile>, String> {
+    require_directory(bundle, "control bundle")?;
+    let mut pending = vec![bundle.to_path_buf()];
+    let mut files = Vec::new();
+    let mut total_bytes = 0_u64;
+    while let Some(directory) = pending.pop() {
+        let mut entries = fs::read_dir(&directory)
+            .map_err(|error| format!("failed to read control bundle: {error}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("failed to read control bundle entry: {error}"))?;
+        entries.sort_by_key(|entry| entry.file_name());
+        for entry in entries.into_iter().rev() {
+            let path = entry.path();
+            let metadata = fs::symlink_metadata(&path)
+                .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
+            if metadata.file_type().is_symlink() {
+                return Err(format!(
+                    "control bundle must not contain symlinks: {}",
+                    path.display()
+                ));
+            }
+            if metadata.is_dir() {
+                pending.push(path);
+                continue;
+            }
+            if !metadata.is_file() {
+                return Err(format!(
+                    "control bundle must contain only regular files and directories: {}",
+                    path.display()
+                ));
+            }
+            let relative = portable_bundle_path(bundle, &path)?;
+            if excluded.iter().any(|candidate| relative == *candidate) {
+                continue;
+            }
+            total_bytes = total_bytes
+                .checked_add(metadata.len())
+                .ok_or_else(|| "control bundle byte count overflowed".to_string())?;
+            if total_bytes > MAX_CONTROL_BUNDLE_BYTES {
+                return Err(format!(
+                    "control bundle exceeds the {}-byte limit",
+                    MAX_CONTROL_BUNDLE_BYTES
+                ));
+            }
+            files.push(ControlBundleFile {
+                path: relative,
+                bytes: metadata.len(),
+                sha256: sha256_file(&path)?,
+            });
+            if files.len() > MAX_CONTROL_BUNDLE_FILES {
+                return Err(format!(
+                    "control bundle exceeds the {MAX_CONTROL_BUNDLE_FILES}-file limit"
+                ));
+            }
+        }
+    }
+    files.sort_by(|left, right| left.path.cmp(&right.path));
+    Ok(files)
+}
+
+fn portable_bundle_path(bundle: &Path, path: &Path) -> Result<String, String> {
+    let relative = path
+        .strip_prefix(bundle)
+        .map_err(|_| "control bundle path escaped its root".to_string())?;
+    let value = relative
+        .to_str()
+        .ok_or_else(|| "control bundle paths must be UTF-8".to_string())?
+        .replace(std::path::MAIN_SEPARATOR, "/");
+    if value.is_empty()
+        || value.starts_with('/')
+        || value.starts_with('-')
+        || value.contains("//")
+        || value.split('/').any(|component| {
+            component.is_empty()
+                || matches!(component, "." | "..")
+                || !component
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+        })
+    {
+        return Err(format!("control bundle path is not portable: {value}"));
+    }
+    Ok(value)
+}
+
+fn sha256_file(path: &Path) -> Result<String, String> {
+    let mut file =
+        File::open(path).map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
+    let mut context = Context::new(&SHA256);
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
+        if read == 0 {
+            break;
+        }
+        context.update(&buffer[..read]);
+    }
+    Ok(hex(context.finish().as_ref()))
+}
+
+fn sha256_bytes(value: &[u8]) -> String {
+    hex(digest(&SHA256, value).as_ref())
+}
+
+fn hex(value: &[u8]) -> String {
+    value.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn read_bounded_text(path: &Path, limit: u64) -> Result<String, String> {
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > limit {
+        return Err(format!(
+            "bundle metadata is not a bounded regular file: {}",
+            path.display()
+        ));
+    }
+    fs::read_to_string(path).map_err(|error| format!("failed to read {}: {error}", path.display()))
+}
+
+fn require_elf_x86_64(path: &Path, label: &str) -> Result<(), String> {
+    let mut header = [0_u8; 20];
+    File::open(path)
+        .and_then(|mut file| std::io::Read::read_exact(&mut file, &mut header))
+        .map_err(|error| format!("failed to inspect {label}: {error}"))?;
+    if header[..4] != *b"\x7fELF"
+        || header[4] != 2
+        || header[5] != 1
+        || u16::from_le_bytes([header[18], header[19]]) != 62
+    {
+        return Err(format!("{label} is not a 64-bit x86 ELF payload"));
+    }
+    Ok(())
+}
+
+fn require_executable(path: &Path, label: &str) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if fs::metadata(path)
+            .map_err(|error| format!("failed to inspect {label}: {error}"))?
+            .permissions()
+            .mode()
+            & 0o111
+            == 0
+        {
+            return Err(format!("{label} is not executable"));
+        }
+    }
+    Ok(())
+}
+
+fn copy_regular_executable(source: &Path, destination: &Path) -> Result<(), String> {
+    require_regular_control_source(source)?;
+    require_executable(source, "native control payload")?;
+    copy_control_source(source, destination)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(destination, fs::Permissions::from_mode(0o755))
+            .map_err(|error| format!("failed to set native payload permissions: {error}"))?;
+    }
+    Ok(())
+}
+
+fn copy_regular_file(source: &Path, destination: &Path) -> Result<(), String> {
+    require_regular_control_source(source)?;
+    copy_control_source(source, destination)
+}
+
+fn require_regular_control_source(source: &Path) -> Result<(), String> {
+    let metadata = fs::symlink_metadata(source)
+        .map_err(|error| format!("failed to inspect {}: {error}", source.display()))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(format!(
+            "control bundle source must be a regular non-symlink file: {}",
+            source.display()
+        ));
+    }
+    Ok(())
+}
+
+fn copy_control_source(source: &Path, destination: &Path) -> Result<(), String> {
+    fs::copy(source, destination).map_err(|error| {
+        format!(
+            "failed to copy {} to {}: {error}",
+            source.display(),
+            destination.display()
+        )
+    })?;
+    Ok(())
 }
 
 fn desktop_pipeline(root: &Path, options: &DesktopOptions) -> Result<PathBuf, String> {
@@ -1053,6 +1684,16 @@ fn require_file(path: &Path, label: &str, dry_run: bool) -> Result<(), String> {
     }
 }
 
+fn require_directory(path: &Path, label: &str) -> Result<(), String> {
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("{label} {} is unavailable: {error}", path.display()))?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        Err(format!("{label} must be a non-symlink directory"))
+    } else {
+        Ok(())
+    }
+}
+
 fn resolve_from_root(root: &Path, path: &Path) -> PathBuf {
     if path.is_absolute() {
         path.to_path_buf()
@@ -1091,56 +1732,77 @@ fn adjacent_temporary_path(output: &Path, role: &str) -> Result<PathBuf, String>
     let parent = output
         .parent()
         .ok_or_else(|| "bundle output must have a parent directory".to_string())?;
-    let stem = output
-        .file_stem()
+    let name = output
+        .file_name()
         .and_then(|value| value.to_str())
         .ok_or_else(|| "bundle output must have a UTF-8 filename".to_string())?;
-    let extension = output
-        .extension()
-        .and_then(|value| value.to_str())
-        .ok_or_else(|| "bundle output must have a filename extension".to_string())?;
-    Ok(parent.join(format!(".{stem}.{role}-{}.{extension}", std::process::id())))
+    if name.is_empty() || name == "." || name == ".." {
+        return Err("bundle output must have a safe filename".to_string());
+    }
+    let pending_name = match (
+        output.file_stem().and_then(|value| value.to_str()),
+        output.extension().and_then(|value| value.to_str()),
+    ) {
+        (Some(stem), Some(extension)) if !stem.is_empty() && !extension.is_empty() => {
+            format!(".{stem}.{role}-{}.{extension}", std::process::id())
+        }
+        _ => format!(".{name}.{role}-{}", std::process::id()),
+    };
+    Ok(parent.join(pending_name))
 }
 
 fn preflight_desktop_output(root: &Path, output: &Path, pending: &Path) -> Result<(), String> {
+    preflight_managed_output(
+        output,
+        &root.join("artifacts/leserpent-avalonia/Leserpent.app"),
+        pending,
+        "desktop bundle",
+    )
+}
+
+fn preflight_managed_output(
+    output: &Path,
+    managed_output: &Path,
+    pending: &Path,
+    label: &str,
+) -> Result<(), String> {
     match fs::symlink_metadata(pending) {
         Ok(_) => {
             return Err(format!(
-                "temporary bundle path already exists: {}",
+                "temporary {label} path already exists: {}",
                 pending.display()
             ));
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(format!("failed to inspect temporary bundle path: {error}")),
+        Err(error) => return Err(format!("failed to inspect temporary {label} path: {error}")),
     }
     let existing = match fs::symlink_metadata(output) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(format!("failed to inspect bundle output: {error}")),
+        Err(error) => return Err(format!("failed to inspect {label} output: {error}")),
     };
     if existing.file_type().is_symlink() || !existing.is_dir() {
         return Err(format!(
-            "existing bundle output must be a non-symlink directory: {}",
+            "existing {label} output must be a non-symlink directory: {}",
             output.display()
         ));
     }
 
-    let managed_output = root.join("artifacts/leserpent-avalonia/Leserpent.app");
     let output_identity = fs::canonicalize(output)
-        .map_err(|error| format!("failed to resolve existing bundle output: {error}"))?;
-    let managed_identity = match fs::canonicalize(&managed_output) {
+        .map_err(|error| format!("failed to resolve existing {label} output: {error}"))?;
+    let managed_identity = match fs::canonicalize(managed_output) {
         Ok(path) => path,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return Err(format!(
-                "refusing to replace existing custom bundle output: {}; move it first or use the default managed output",
+                "refusing to replace existing custom {label} output: {}; move it first or use the default managed output",
                 output.display()
             ));
         }
-        Err(error) => return Err(format!("failed to resolve managed bundle output: {error}")),
+        Err(error) => return Err(format!("failed to resolve managed {label} output: {error}")),
     };
     if output_identity != managed_identity {
         return Err(format!(
-            "refusing to replace existing custom bundle output: {}; move it first or use the default managed output",
+            "refusing to replace existing custom {label} output: {}; move it first or use the default managed output",
             output.display()
         ));
     }
@@ -1226,15 +1888,13 @@ impl DirectoryLock {
     fn acquire(path: &Path) -> Result<Self, String> {
         fs::create_dir(path).map_err(|error| {
             format!(
-                "desktop workflow lock is unavailable at {}: {error}; remove it only after confirming no workflow is active",
+                "workflow lock is unavailable at {}: {error}; remove it only after confirming no workflow is active",
                 path.display()
             )
         })?;
         if let Err(error) = fs::write(path.join("owner.txt"), std::process::id().to_string()) {
             let _ = fs::remove_dir(path);
-            return Err(format!(
-                "failed to record desktop workflow lock owner: {error}"
-            ));
+            return Err(format!("failed to record workflow lock owner: {error}"));
         }
         Ok(Self {
             path: path.to_path_buf(),
@@ -1313,7 +1973,7 @@ mod tests {
     }
 
     #[test]
-    fn parser_keeps_linux_reuse_and_desktop_deploy_explicit() {
+    fn parser_keeps_linux_control_and_desktop_routes_explicit() {
         let linux = Workflow::parse(vec![
             "package".into(),
             "linux".into(),
@@ -1330,6 +1990,42 @@ mod tests {
                 out_dir: None,
                 dry_run: false,
             })
+        );
+
+        let control = Workflow::parse(vec!["package".into(), "control".into()]).unwrap();
+        assert_eq!(
+            control,
+            Workflow::Control(ControlOptions {
+                output: PathBuf::from("artifacts/leserpent/linux-x64"),
+                install: false,
+                reuse: false,
+                no_start: false,
+                keep_releases: 3,
+                dry_run: false,
+            })
+        );
+        let control = Workflow::parse(vec![
+            "deploy".into(),
+            "control".into(),
+            "--reuse".into(),
+            "--no-start".into(),
+            "--keep-releases".into(),
+            "5".into(),
+        ])
+        .unwrap();
+        assert_eq!(
+            control,
+            Workflow::Control(ControlOptions {
+                output: PathBuf::from("artifacts/leserpent/linux-x64"),
+                install: true,
+                reuse: true,
+                no_start: true,
+                keep_releases: 5,
+                dry_run: false,
+            })
+        );
+        assert!(
+            Workflow::parse(vec!["package".into(), "control".into(), "--reuse".into()]).is_err()
         );
 
         let desktop =
@@ -1357,6 +2053,13 @@ mod tests {
         assert_eq!(
             pending.extension().and_then(|value| value.to_str()),
             Some("app")
+        );
+        let control_pending = adjacent_temporary_path(&root.join("linux-x64"), "pending").unwrap();
+        assert!(
+            control_pending
+                .file_name()
+                .and_then(|value| value.to_str())
+                .is_some_and(|value| value.starts_with(".linux-x64.pending-"))
         );
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&output).unwrap();
@@ -1576,9 +2279,91 @@ mod tests {
         assert!(
             preflight_desktop_output(&root, &custom, &custom_pending)
                 .unwrap_err()
-                .contains("refusing to replace existing custom bundle output")
+                .contains("refusing to replace existing custom desktop bundle output")
         );
 
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn control_pipeline_specs_restore_and_build_once_before_publish() {
+        let root = Path::new("/repo");
+        let artifacts = Path::new("/repo/target/dev-workflow/control/dotnet-artifacts");
+        let restore = control_restore_spec(root, artifacts).rendered();
+        assert!(restore.contains("dotnet restore"));
+        assert!(restore.contains("--locked-mode"));
+        assert!(restore.contains("PublishProfile=native-aot"));
+        assert!(restore.contains("RuntimeIdentifier=linux-x64"));
+
+        let native = control_native_payloads_spec(root).rendered();
+        assert_eq!(native.matches("cargo build").count(), 1);
+        assert!(native.contains("-p leserpent-protocol -p leserpentd"));
+        assert!(native.contains("--bin leserpent-compat-bridge --bin leserpentd"));
+        assert!(native.contains("leserpentd/native-ssh"));
+
+        let publish = control_publish_spec(
+            root,
+            Path::new("/repo/apps/leserpent/src/Leserpent/Leserpent.csproj"),
+            artifacts,
+            Path::new("/repo/artifacts/leserpent/.linux-x64.pending"),
+        )
+        .rendered();
+        assert!(publish.contains("dotnet publish"));
+        assert!(publish.contains("PublishProfile=native-aot"));
+        assert!(publish.contains("SkipRustCompatibilityBridge=true"));
+        assert!(publish.contains("--no-restore"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn control_bundle_metadata_rejects_tampering_and_inventory_drift() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = env::temp_dir().join(format!(
+            "gewyvern-dev-control-bundle-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("deploy")).unwrap();
+        fs::create_dir_all(root.join("wwwroot")).unwrap();
+
+        let mut elf = vec![0_u8; 64];
+        elf[..4].copy_from_slice(b"\x7fELF");
+        elf[4] = 2;
+        elf[5] = 1;
+        elf[18..20].copy_from_slice(&62_u16.to_le_bytes());
+        for executable in ["Leserpent", "leserpent-compat-bridge", "leserpentd"] {
+            let path = root.join(executable);
+            fs::write(&path, &elf).unwrap();
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        fs::write(root.join("libe_sqlite3.so"), &elf).unwrap();
+        fs::write(root.join("wwwroot/index.html"), b"control").unwrap();
+        fs::write(root.join("deploy/leserpent.service"), b"service").unwrap();
+        fs::write(root.join("deploy/leserpent.env.example"), b"env").unwrap();
+        let installer = root.join("deploy/install.sh");
+        fs::write(&installer, b"#!/usr/bin/env bash\n").unwrap();
+        fs::set_permissions(&installer, fs::Permissions::from_mode(0o755)).unwrap();
+
+        let identity = write_control_bundle_metadata(&root, "1.20.0").unwrap();
+        assert_eq!(identity.len(), 64);
+        assert_eq!(validate_control_bundle(&root, "1.20.0").unwrap(), identity);
+
+        fs::write(root.join("wwwroot/index.html"), b"changed").unwrap();
+        assert!(
+            validate_control_bundle(&root, "1.20.0")
+                .unwrap_err()
+                .contains("checksum inventory does not match its files")
+        );
+        fs::write(root.join("wwwroot/index.html"), b"control").unwrap();
+        assert_eq!(validate_control_bundle(&root, "1.20.0").unwrap(), identity);
+
+        fs::write(root.join("wwwroot/untracked.js"), b"extra").unwrap();
+        assert!(
+            validate_control_bundle(&root, "1.20.0")
+                .unwrap_err()
+                .contains("manifest does not match its payload")
+        );
         fs::remove_dir_all(root).unwrap();
     }
 }

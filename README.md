@@ -266,6 +266,11 @@ Core CLI and test entrypoints:
   `--notary-profile PROFILE` switches the same atomic workflow to strict
   preflight, Developer ID signing, notarization, stapling, and Gatekeeper
   verification.
+- `cargo dev package control` / `cargo dev deploy control`
+  Build the Linux x86-64 Leserpent NativeAOT control bundle with its Rust
+  bridge and daemon, exact SHA-256 inventory, atomic publication, and checked
+  immutable-release installation. Add `--reuse` to deploy an existing bundle
+  only after full revalidation.
 
 Packaging entrypoints:
 

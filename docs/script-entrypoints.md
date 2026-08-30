@@ -23,6 +23,8 @@ cargo dev version check
 cargo dev check
 cargo dev build
 cargo dev package linux --format layout
+cargo dev package control
+cargo dev deploy control --reuse --no-start
 cargo dev package desktop
 cargo dev deploy desktop --launch
 ```
@@ -592,6 +594,37 @@ Evidence is retained under `target/validation/leserpent-aot/`:
 Use global `--json` and `--json-out` when CI should consume the result without
 parsing human output. Windows remains outside this command until `win-x64` has
 a locked dependency graph and native-host execution evidence.
+
+### I want to package or deploy the Leserpent Linux control service
+
+On a Linux x86-64 builder, produce the complete content-addressed NativeAOT
+control bundle with:
+
+```bash
+cargo dev package control
+```
+
+Build and atomically install it, or skip compilation and install an existing
+bundle only after complete revalidation:
+
+```bash
+cargo dev deploy control
+cargo dev deploy control --reuse --no-start
+```
+
+Restore and Rust payload construction overlap. Rust bridge and daemon
+construction uses one Cargo invocation; managed publish uses `--no-restore`
+and does not repeat it. The final `bundle-manifest.toml` and `SHA256SUMS`
+bind every payload and deployment asset. The installer verifies before and
+after copy, uses a whole-bundle release identity, and leaves the prior
+`current` release active if any uncommitted stage fails.
+
+Run the physical Linux bundle, upgrade, rollback, bridge, and live-health smoke
+after packaging:
+
+```bash
+scripts/validation/leserpent_linux_bundle_smoke.sh artifacts/leserpent/linux-x64
+```
 
 ### I want to package the Leserpent macOS app
 

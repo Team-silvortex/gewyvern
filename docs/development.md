@@ -128,6 +128,20 @@ Do not place another `*_protocol_runtime_ir_tdd.rs` file directly under
 `tests/`: Cargo would treat it as another crate and repeat code generation,
 fixture compilation, and linking.
 
+Package or atomically install the Linux x86-64 Leserpent control service:
+
+```bash
+cargo dev package control
+cargo dev deploy control
+cargo dev deploy control --reuse --no-start
+```
+
+The control workflow builds NativeAOT and Rust payloads in parallel, publishes
+through a pending directory, and writes an exact SHA-256 inventory before
+replacing the managed artifact. `--reuse` never trusts a directory by name:
+it revalidates the version, executable formats, manifest, and every listed file
+before installation.
+
 Package or install the macOS arm64 desktop app through the same native entry:
 
 ```bash
