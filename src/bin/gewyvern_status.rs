@@ -5,39 +5,78 @@ use std::process;
 use gewyvern::gui_function_chain::{
     GuiFunctionChainCatalog, GuiFunctionChainSummary, default_gui_function_chain_path,
 };
+use gewyvern::machine_error::{ErrorCategory, MachineError};
 use gewyvern::project_status::{
     Independence, Lifecycle, Maturity, Priority, StatusCatalog, StatusCellView,
     default_catalog_path,
 };
 
 fn main() {
-    match run(env::args().skip(1).collect()) {
+    let args = env::args().skip(1).collect::<Vec<_>>();
+    let json_errors = args.iter().any(|argument| argument == "--json");
+    match run(args) {
         Ok(output) => println!("{output}"),
         Err(error) => {
-            eprintln!("status failed: {error}");
-            process::exit(1);
+            if json_errors {
+                match error.to_json() {
+                    Ok(payload) => eprintln!("{payload}"),
+                    Err(serialization_error) => eprintln!(
+                        "status failed: {} [{}]; failed to encode machine error: {}",
+                        error.message, error.code, serialization_error
+                    ),
+                }
+            } else {
+                eprintln!("status failed: {} [{}]", error.message, error.code);
+            }
+            process::exit(i32::from(error.exit_code));
         }
     }
 }
 
-fn run(args: Vec<String>) -> Result<String, String> {
-    let options = Options::parse(args)?;
+fn run(args: Vec<String>) -> Result<String, MachineError> {
+    let options = Options::parse(args).map_err(|message| {
+        MachineError::new(
+            "status_cli_invalid",
+            ErrorCategory::Input,
+            message,
+            false,
+            2,
+        )
+    })?;
     if options.command == Command::Help {
         return Ok(usage().to_string());
     }
-    let catalog = StatusCatalog::load(&options.catalog)?;
+    let catalog = StatusCatalog::load_typed(&options.catalog).map_err(MachineError::from)?;
     if let Err(errors) = catalog.validate(&options.repository_root) {
-        return Err(format!(
-            "catalog validation failed:\n- {}",
-            errors.join("\n- ")
+        return Err(MachineError::new(
+            "status_catalog_validation_failed",
+            ErrorCategory::Configuration,
+            format!("catalog validation failed:\n- {}", errors.join("\n- ")),
+            false,
+            1,
         ));
     }
     let gui_catalog =
-        GuiFunctionChainCatalog::load(default_gui_function_chain_path(&options.repository_root))?;
+        GuiFunctionChainCatalog::load(default_gui_function_chain_path(&options.repository_root))
+            .map_err(|message| {
+                MachineError::new(
+                    "gui_catalog_load_failed",
+                    ErrorCategory::Configuration,
+                    message,
+                    false,
+                    1,
+                )
+            })?;
     if let Err(errors) = gui_catalog.validate(&options.repository_root) {
-        return Err(format!(
-            "GUI function-chain validation failed:\n- {}",
-            errors.join("\n- ")
+        return Err(MachineError::new(
+            "gui_catalog_validation_failed",
+            ErrorCategory::Configuration,
+            format!(
+                "GUI function-chain validation failed:\n- {}",
+                errors.join("\n- ")
+            ),
+            false,
+            1,
         ));
     }
     let gui_summary = gui_catalog.summary();
@@ -68,7 +107,7 @@ fn run(args: Vec<String>) -> Result<String, String> {
 
     if options.command == Command::Gui {
         return if options.json {
-            serde_json::to_string_pretty(&gui_summary).map_err(|error| error.to_string())
+            serde_json::to_string_pretty(&gui_summary).map_err(status_serialization_error)
         } else {
             Ok(render_gui_summary(&gui_summary))
         };
@@ -77,7 +116,7 @@ fn run(args: Vec<String>) -> Result<String, String> {
     let summary = catalog.summary(options.limit);
     if options.command == Command::Summary {
         return if options.json {
-            serde_json::to_string_pretty(&summary).map_err(|err| err.to_string())
+            serde_json::to_string_pretty(&summary).map_err(status_serialization_error)
         } else {
             Ok(render_summary(&summary))
         };
@@ -135,10 +174,20 @@ fn run(args: Vec<String>) -> Result<String, String> {
     cells.truncate(options.limit);
 
     if options.json {
-        serde_json::to_string_pretty(&cells).map_err(|err| err.to_string())
+        serde_json::to_string_pretty(&cells).map_err(status_serialization_error)
     } else {
         Ok(render_cells(&cells))
     }
+}
+
+fn status_serialization_error(error: serde_json::Error) -> MachineError {
+    MachineError::new(
+        "status_json_encode_failed",
+        ErrorCategory::Internal,
+        error.to_string(),
+        false,
+        1,
+    )
 }
 
 fn render_gui_summary(summary: &GuiFunctionChainSummary) -> String {

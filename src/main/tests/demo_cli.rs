@@ -340,7 +340,8 @@ fn protocol_selector_uses_scan_style_target_label_for_demo_outputs() {
         "session".to_string(),
     ])
     .unwrap();
-    let outputs = collect_cli_outputs(&cli, SystemTime::UNIX_EPOCH, &[], crate::UiLocale::detect());
+    let outputs = collect_cli_outputs(&cli, SystemTime::UNIX_EPOCH, &[], crate::UiLocale::detect())
+        .expect("protocol demo outputs must render");
     assert_eq!(outputs.len(), 1);
     assert_eq!(outputs[0].0, "scan:mysql:session");
 }
@@ -348,7 +349,8 @@ fn protocol_selector_uses_scan_style_target_label_for_demo_outputs() {
 #[test]
 fn protocol_selector_uses_default_entry_in_target_label_when_entry_is_omitted() {
     let cli = Cli::from_args(["--protocol".to_string(), "mysql".to_string()]).unwrap();
-    let outputs = collect_cli_outputs(&cli, SystemTime::UNIX_EPOCH, &[], crate::UiLocale::detect());
+    let outputs = collect_cli_outputs(&cli, SystemTime::UNIX_EPOCH, &[], crate::UiLocale::detect())
+        .expect("default protocol demo outputs must render");
     assert_eq!(outputs.len(), 1);
     assert_eq!(outputs[0].0, "scan:mysql:session");
 }
@@ -360,7 +362,8 @@ fn dsl_selector_falls_back_to_runtime_target_name_for_unknown_template() {
         dsl_fixture_path("udp_process_debug.gewy"),
     ])
     .unwrap();
-    let outputs = collect_cli_outputs(&cli, SystemTime::UNIX_EPOCH, &[], crate::UiLocale::detect());
+    let outputs = collect_cli_outputs(&cli, SystemTime::UNIX_EPOCH, &[], crate::UiLocale::detect())
+        .expect("DSL demo outputs must render");
     assert_eq!(outputs.len(), 1);
     assert_eq!(outputs[0].0, SOCKET_SESSION_TARGET_NAME);
 }

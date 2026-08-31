@@ -58,17 +58,15 @@ impl Drop for ApiService {
     }
 }
 
-pub fn start_api_service(addr: &str, allow_remote_bind: bool) -> ApiService {
+pub fn start_api_service(addr: &str, allow_remote_bind: bool) -> Result<ApiService, String> {
     let access_policy = ApiAccessPolicy::from_env(allow_remote_bind);
-    start_api_service_with(addr, access_policy, ApiTransport::Plain).unwrap_or_else(|message| {
+    start_api_service_with(addr, access_policy, ApiTransport::Plain).inspect_err(|message| {
         log_error_event(
             "api",
             EVENT_API_LISTENER_BIND_FAILED,
             &[("socket", addr.to_string()), ("error", message.clone())],
             "refused unsafe api listener bind",
         );
-        eprintln!("{message}");
-        std::process::exit(1);
     })
 }
 
@@ -76,21 +74,19 @@ pub fn start_api_service_with_admin_token(
     addr: &str,
     allow_remote_bind: bool,
     admin_token: Option<&str>,
-) -> ApiService {
+) -> Result<ApiService, String> {
     let access_policy = ApiAccessPolicy {
         allow_remote_bind,
         admin_token: admin_token.and_then(normalize_api_admin_token),
         require_token: false,
     };
-    start_api_service_with(addr, access_policy, ApiTransport::Plain).unwrap_or_else(|message| {
+    start_api_service_with(addr, access_policy, ApiTransport::Plain).inspect_err(|message| {
         log_error_event(
             "api",
             EVENT_API_LISTENER_BIND_FAILED,
             &[("socket", addr.to_string()), ("error", message.clone())],
             "refused unsafe api listener bind",
         );
-        eprintln!("{message}");
-        std::process::exit(1);
     })
 }
 

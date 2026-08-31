@@ -2,6 +2,7 @@ use gewyvern::export::ExportBundle;
 use gewyvern::ledger::{
     CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, SessionId, TcpStateFact,
 };
+use gewyvern::machine_error::{ErrorCategory, MachineError};
 use gewyvern::socket_input::{
     collect_tcp_socket_facts, collect_unix_socket_facts, run_tcp_socket_session,
     run_tcp_socket_session_with_binding, run_unix_socket_session,
@@ -17,7 +18,8 @@ use crate::serve_runtime::{
 };
 use crate::{
     Cli, ScanTarget, SocketTarget, UiLocale, annotate_export_trust, filter_export_by_pid,
-    route_fact, run_binding_demo, run_binding_session, run_session, selected_scan_target_for_cli,
+    route_fact, run_binding_session, run_session, selected_scan_target_for_cli,
+    try_run_binding_demo,
 };
 
 const TCP_DEMO_TARGET_NAME: &str = "tcp_demo";
@@ -28,14 +30,14 @@ pub(crate) fn collect_cli_outputs(
     base: SystemTime,
     scan_targets: &[ScanTarget],
     locale: UiLocale,
-) -> Vec<(String, ExportBundle)> {
+) -> Result<Vec<(String, ExportBundle)>, MachineError> {
     let mut outputs: Vec<(String, ExportBundle)> = Vec::new();
     if let Some(socket_target) = cli.socket_target.as_ref() {
-        collect_socket_cli_outputs(&mut outputs, cli, socket_target, scan_targets, locale);
+        collect_socket_cli_outputs(&mut outputs, cli, socket_target, scan_targets, locale)?;
     } else {
-        collect_non_socket_cli_outputs(&mut outputs, cli, base, scan_targets);
+        collect_non_socket_cli_outputs(&mut outputs, cli, base, scan_targets)?;
     }
-    outputs
+    Ok(outputs)
 }
 
 fn collect_socket_cli_outputs(
@@ -44,10 +46,10 @@ fn collect_socket_cli_outputs(
     socket_target: &SocketTarget,
     scan_targets: &[ScanTarget],
     locale: UiLocale,
-) {
+) -> Result<(), MachineError> {
     if cli.serve {
-        serve_socket_sessions(cli, socket_target);
-        return;
+        serve_socket_sessions(cli, socket_target)?;
+        return Ok(());
     }
 
     if cli.scan_all {
@@ -55,32 +57,33 @@ fn collect_socket_cli_outputs(
             SocketTarget::Unix(path) => collect_unix_socket_facts(path),
             SocketTarget::Tcp(addr) => collect_tcp_socket_facts(addr),
         }
-        .unwrap_or_else(|err| {
+        .map_err(|err| {
             let endpoint = socket_target_endpoint(socket_target);
+            let detail = format!("{err:?}");
             log_error_event(
                 "runtime",
                 EVENT_SOCKET_SESSION_COLLECT_FAILED,
-                &[("endpoint", endpoint), ("error", format!("{err:?}"))],
+                &[("endpoint", endpoint), ("error", detail.clone())],
                 "failed to collect socket session facts",
             );
-            eprintln!(
-                "{}",
-                locale.msgf("socket_session_failed", &format!("{err:?}"), None)
-            );
-            std::process::exit(1);
-        });
+            MachineError::new(
+                "socket_session_collect_failed",
+                ErrorCategory::Environment,
+                locale.msgf("socket_session_failed", &detail, None),
+                true,
+                1,
+            )
+        })?;
         for target in scan_targets {
-            push_filtered_output(
-                outputs,
-                cli,
-                target.label(),
-                run_binding_session(target.binding(), &facts),
-            );
+            let binding = target.binding()?;
+            let export = run_binding_session(binding, &facts)?;
+            push_filtered_output(outputs, cli, target.label(), export);
         }
-        return;
+        return Ok(());
     }
 
-    let export = match (socket_target, cli.dsl_binding()) {
+    let binding = cli.dsl_binding()?;
+    let export = match (socket_target, binding) {
         (SocketTarget::Unix(path), Some(binding)) => {
             run_unix_socket_session_with_binding(path, binding)
         }
@@ -94,24 +97,28 @@ fn collect_socket_cli_outputs(
             run_tcp_socket_session(addr, cli.template_mode.template())
         }
     }
-    .unwrap_or_else(|err| {
+    .map_err(|err| {
         let endpoint = socket_target_endpoint(socket_target);
+        let detail = format!("{err:?}");
         log_error_event(
             "runtime",
             EVENT_SOCKET_SESSION_RUN_FAILED,
-            &[("endpoint", endpoint), ("error", format!("{err:?}"))],
+            &[("endpoint", endpoint), ("error", detail.clone())],
             "failed to run socket session",
         );
-        eprintln!(
-            "{}",
-            locale.msgf("socket_session_failed", &format!("{err:?}"), None)
-        );
-        std::process::exit(1);
-    });
+        MachineError::new(
+            "socket_session_run_failed",
+            ErrorCategory::Environment,
+            locale.msgf("socket_session_failed", &detail, None),
+            true,
+            1,
+        )
+    })?;
     let label = selected_scan_target_for_cli(cli)
         .map(|target| target.label())
         .unwrap_or_else(|| SOCKET_SESSION_TARGET_NAME.to_string());
     push_filtered_output(outputs, cli, label, export);
+    Ok(())
 }
 
 fn collect_non_socket_cli_outputs(
@@ -119,26 +126,22 @@ fn collect_non_socket_cli_outputs(
     cli: &Cli,
     base: SystemTime,
     scan_targets: &[ScanTarget],
-) {
+) -> Result<(), MachineError> {
     if cli.scan_all {
         for target in scan_targets {
-            push_filtered_output(
-                outputs,
-                cli,
-                target.label(),
-                run_binding_demo(target.binding()),
-            );
+            let binding = target.binding()?;
+            push_filtered_output(outputs, cli, target.label(), try_run_binding_demo(binding)?);
         }
-        return;
+        return Ok(());
     }
 
-    if let Some(binding) = cli.dsl_binding() {
-        let export = run_binding_demo(binding);
+    if let Some(binding) = cli.dsl_binding()? {
+        let export = try_run_binding_demo(binding)?;
         let label = selected_scan_target_for_cli(cli)
             .map(|target| target.label())
             .unwrap_or_else(|| single_runtime_target_name(&export));
         push_filtered_output(outputs, cli, label, export);
-        return;
+        return Ok(());
     }
 
     if cli.demo_mode.includes_tcp() {
@@ -146,7 +149,7 @@ fn collect_non_socket_cli_outputs(
             outputs,
             cli,
             TCP_DEMO_TARGET_NAME.to_string(),
-            tcp_demo_export(base),
+            tcp_demo_export(base)?,
         );
     }
 
@@ -155,9 +158,10 @@ fn collect_non_socket_cli_outputs(
             outputs,
             cli,
             UDP_DEMO_TARGET_NAME.to_string(),
-            udp_demo_export(base),
+            udp_demo_export(base)?,
         );
     }
+    Ok(())
 }
 
 fn push_filtered_output(
@@ -180,7 +184,7 @@ fn socket_target_endpoint(socket_target: &SocketTarget) -> String {
     }
 }
 
-fn tcp_demo_export(base: SystemTime) -> ExportBundle {
+fn tcp_demo_export(base: SystemTime) -> Result<ExportBundle, MachineError> {
     run_session(
         handshake_debug_template(),
         vec![
@@ -240,7 +244,7 @@ fn tcp_demo_export(base: SystemTime) -> ExportBundle {
     )
 }
 
-fn udp_demo_export(base: SystemTime) -> ExportBundle {
+fn udp_demo_export(base: SystemTime) -> Result<ExportBundle, MachineError> {
     run_session(
         udp_debug_template(),
         vec![

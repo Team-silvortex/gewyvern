@@ -7,28 +7,70 @@ use gewyvern::certificate_state::{
 
 use crate::data_api::render_runtime_certificate_state_json;
 
-pub(crate) fn try_run_certificate_state_command(args: &[String]) -> Option<i32> {
-    if args.first().map(String::as_str) != Some("certificate-state") {
-        return None;
-    }
-    match run_certificate_state_command(&args[1..]) {
-        Ok(output) => {
-            if !output.is_empty() {
-                println!("{output}");
-            }
-            Some(0)
-        }
-        Err(message) => {
-            eprintln!("{message}");
-            Some(2)
-        }
-    }
-}
-
-fn run_certificate_state_command(args: &[String]) -> Result<String, String> {
+pub(crate) fn validate_certificate_state_command(args: &[String]) -> Result<(), String> {
     let Some(command) = args.first().map(String::as_str) else {
         return Err(certificate_state_usage().into());
     };
+    match command {
+        "show" | "sync-rotation" => validate_json_only_args(&args[1..]),
+        "set-rotation" => {
+            let options = parse_kv_args(&args[1..])?;
+            validate_option_keys(
+                &options,
+                &[
+                    "--path",
+                    "--status",
+                    "--due-unix-ms",
+                    "--last-rotated-unix-ms",
+                    "--updated-unix-ms",
+                    "--note",
+                ],
+            )?;
+            required_option(&options, "--path")?;
+            parse_rotation_status(required_option(&options, "--status")?)?;
+            parse_optional_i128_option(&options, "--due-unix-ms")?;
+            parse_optional_i128_option(&options, "--last-rotated-unix-ms")?;
+            parse_optional_i128_option(&options, "--updated-unix-ms")?;
+            Ok(())
+        }
+        "clear-rotation" | "clear-revocation" => {
+            let options = parse_kv_args(&args[1..])?;
+            validate_option_keys(&options, &["--path"])?;
+            required_option(&options, "--path")?;
+            Ok(())
+        }
+        "set-revocation" => {
+            let options = parse_kv_args(&args[1..])?;
+            validate_option_keys(
+                &options,
+                &[
+                    "--path",
+                    "--scope",
+                    "--status",
+                    "--effective-unix-ms",
+                    "--updated-unix-ms",
+                    "--note",
+                ],
+            )?;
+            required_option(&options, "--path")?;
+            parse_material_scope(required_option(&options, "--scope")?)?;
+            parse_revocation_status(required_option(&options, "--status")?)?;
+            parse_optional_i128_option(&options, "--effective-unix-ms")?;
+            parse_optional_i128_option(&options, "--updated-unix-ms")?;
+            Ok(())
+        }
+        "--help" | "-h" | "help" => Err(certificate_state_usage().into()),
+        _ => Err(format!(
+            "unknown certificate-state command '{}'\n\n{}",
+            command,
+            certificate_state_usage()
+        )),
+    }
+}
+
+pub(crate) fn run_certificate_state_command(args: &[String]) -> Result<String, String> {
+    validate_certificate_state_command(args)?;
+    let command = args[0].as_str();
     match command {
         "show" => {
             let json = args.iter().skip(1).any(|arg| arg == "--json");
@@ -125,6 +167,28 @@ fn run_certificate_state_command(args: &[String]) -> Result<String, String> {
             certificate_state_usage()
         )),
     }
+}
+
+fn validate_json_only_args(args: &[String]) -> Result<(), String> {
+    if let Some(argument) = args.iter().find(|argument| argument.as_str() != "--json") {
+        return Err(format!("unexpected argument '{argument}'"));
+    }
+    Ok(())
+}
+
+fn validate_option_keys(options: &[(String, String)], allowed: &[&str]) -> Result<(), String> {
+    for (index, (flag, _)) in options.iter().enumerate() {
+        if !allowed.contains(&flag.as_str()) {
+            return Err(format!("unsupported option '{flag}'"));
+        }
+        if options[..index]
+            .iter()
+            .any(|(previous, _)| previous == flag)
+        {
+            return Err(format!("duplicate option '{flag}'"));
+        }
+    }
+    Ok(())
 }
 
 fn parse_kv_args(args: &[String]) -> Result<Vec<(String, String)>, String> {

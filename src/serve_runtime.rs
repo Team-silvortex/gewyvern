@@ -1,4 +1,5 @@
 use gewyvern::export::ExportBundle;
+use gewyvern::machine_error::{ErrorCategory, MachineError};
 use gewyvern::protocol_profiles::protocol_target_name_for_template_id;
 use std::net::TcpListener;
 
@@ -40,21 +41,36 @@ use super::{
 
 pub(crate) const SOCKET_SESSION_TARGET_NAME: &str = "socket_session";
 
-pub(super) fn serve_socket_sessions(cli: &Cli, socket_target: &SocketTarget) {
-    let api_service = cli.api_socket.as_deref().map(|addr| {
+pub(super) fn serve_socket_sessions(
+    cli: &Cli,
+    socket_target: &SocketTarget,
+) -> Result<(), MachineError> {
+    let api_service = if let Some(addr) = cli.api_socket.as_deref() {
         log_info_event(
             "api",
             EVENT_API_SERVICE_START,
             &[("socket", addr.to_string())],
             "starting api service",
         );
-        match cli.api_admin_token.as_deref() {
+        let service = match cli.api_admin_token.as_deref() {
             Some(token) => {
                 start_api_service_with_admin_token(addr, cli.allow_remote_api, Some(token))
             }
             None => start_api_service(addr, cli.allow_remote_api),
         }
-    });
+        .map_err(|message| {
+            MachineError::new(
+                "api_service_start_failed",
+                ErrorCategory::Environment,
+                message,
+                true,
+                1,
+            )
+        })?;
+        Some(service)
+    } else {
+        None
+    };
     match socket_target {
         SocketTarget::Unix(path) => serve_unix_socket_sessions(cli, path, api_service),
         SocketTarget::Tcp(addr) => serve_tcp_socket_sessions(cli, addr, api_service),
@@ -88,7 +104,11 @@ fn log_socket_idle_timeout(transport: &str, endpoint: &str, idle_polls: usize, e
     );
 }
 
-fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_service: Option<ApiService>) {
+fn serve_unix_socket_sessions(
+    cli: &Cli,
+    path: &str,
+    api_service: Option<ApiService>,
+) -> Result<(), MachineError> {
     let locale = UiLocale::detect();
     let api_state = api_service.as_ref().map(ApiService::state);
     log_info_event(
@@ -100,38 +120,39 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_service: Option<ApiServ
         ],
         "starting unix socket service",
     );
-    let scan_targets = scan_targets_for_cli(cli).unwrap_or_else(|err| {
-        eprintln!("{err}");
-        std::process::exit(2);
-    });
+    let scan_targets = scan_targets_for_cli(cli).map_err(|message| {
+        MachineError::new(
+            "scan_target_resolve_failed",
+            ErrorCategory::Input,
+            message,
+            false,
+            2,
+        )
+    })?;
     #[cfg(target_family = "unix")]
     {
-        super::remove_unix_socket_file(path).unwrap_or_else(|err| {
-            log_socket_service_failure(
-                EVENT_SOCKET_STALE_CLEANUP_FAILED,
-                "unix",
-                path,
-                &format!("{err:?}"),
-            );
-            eprintln!(
-                "{}",
-                locale.msgf("socket_service_failed", &format!("{err:?}"), None)
-            );
-            std::process::exit(1);
-        });
-        let listener = super::bind_unix_socket_listener(path).unwrap_or_else(|err| {
-            log_socket_service_failure(
-                EVENT_SOCKET_LISTENER_BIND_FAILED,
-                "unix",
-                path,
-                &format!("{err:?}"),
-            );
-            eprintln!(
-                "{}",
-                locale.msgf("socket_service_failed", &format!("{err:?}"), None)
-            );
-            std::process::exit(1);
-        });
+        super::remove_unix_socket_file(path).map_err(|err| {
+            let detail = format!("{err:?}");
+            log_socket_service_failure(EVENT_SOCKET_STALE_CLEANUP_FAILED, "unix", path, &detail);
+            MachineError::new(
+                "socket_stale_cleanup_failed",
+                ErrorCategory::Io,
+                locale.msgf("socket_service_failed", &detail, None),
+                true,
+                1,
+            )
+        })?;
+        let listener = super::bind_unix_socket_listener(path).map_err(|err| {
+            let detail = format!("{err:?}");
+            log_socket_service_failure(EVENT_SOCKET_LISTENER_BIND_FAILED, "unix", path, &detail);
+            MachineError::new(
+                "socket_listener_bind_failed",
+                ErrorCategory::Environment,
+                locale.msgf("socket_service_failed", &detail, None),
+                true,
+                1,
+            )
+        })?;
         let max_sessions = cli.max_sessions.unwrap_or(usize::MAX);
         let mut handled_sessions = 0usize;
         let mut loop_health = SocketLoopHealth::default();
@@ -175,15 +196,15 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_service: Option<ApiServ
                 handled_sessions += 1;
                 let mut outputs = Vec::new();
                 for target in &scan_targets {
-                    let export = run_binding_session(target.binding(), &facts);
+                    let export = run_binding_session(target.binding()?, &facts)?;
                     let export = annotate_export_trust(export, cli);
                     outputs.push((target.label(), export));
                 }
-                emit_scan_outputs(cli, &outputs, true, api_state);
+                emit_scan_outputs(cli, &outputs, true, api_state)?;
                 continue;
             }
 
-            let export = match if let Some(binding) = cli.dsl_binding() {
+            let export = match if let Some(binding) = cli.dsl_binding()? {
                 super::run_unix_socket_session_on_listener_with_binding(&listener, binding)
             } else {
                 super::run_unix_socket_session_on_listener(&listener, cli.template_mode.template())
@@ -220,33 +241,41 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_service: Option<ApiServ
             handled_sessions += 1;
             let export = annotate_export_trust(export, cli);
             let target_name = single_runtime_target_name(&export);
-            emit_rendered(cli, &target_name, &export, true, api_state);
+            emit_rendered(cli, &target_name, &export, true, api_state)?;
         }
 
-        super::remove_unix_socket_file(path).unwrap_or_else(|err| {
-            log_socket_service_failure(
-                EVENT_SOCKET_LISTENER_CLEANUP_FAILED,
-                "unix",
-                path,
-                &format!("{err:?}"),
-            );
-            eprintln!(
-                "{}",
-                locale.msgf("socket_service_failed", &format!("{err:?}"), None)
-            );
-            std::process::exit(1);
-        });
+        super::remove_unix_socket_file(path).map_err(|err| {
+            let detail = format!("{err:?}");
+            log_socket_service_failure(EVENT_SOCKET_LISTENER_CLEANUP_FAILED, "unix", path, &detail);
+            MachineError::new(
+                "socket_listener_cleanup_failed",
+                ErrorCategory::Io,
+                locale.msgf("socket_service_failed", &detail, None),
+                true,
+                1,
+            )
+        })?;
+        Ok(())
     }
 
     #[cfg(not(target_family = "unix"))]
     {
         let _ = path;
-        eprintln!("{}", locale.msg("unix_only"));
-        std::process::exit(1);
+        Err(MachineError::new(
+            "unix_socket_unsupported",
+            ErrorCategory::Environment,
+            locale.msg("unix_only"),
+            false,
+            1,
+        ))
     }
 }
 
-fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_service: Option<ApiService>) {
+fn serve_tcp_socket_sessions(
+    cli: &Cli,
+    addr: &str,
+    api_service: Option<ApiService>,
+) -> Result<(), MachineError> {
     let locale = UiLocale::detect();
     let api_state = api_service.as_ref().map(ApiService::state);
     log_info_event(
@@ -258,23 +287,30 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_service: Option<ApiServi
         ],
         "starting tcp socket service",
     );
-    let scan_targets = scan_targets_for_cli(cli).unwrap_or_else(|err| {
-        eprintln!("{err}");
-        std::process::exit(2);
-    });
-    let listener = TcpListener::bind(addr).unwrap_or_else(|err| {
+    let scan_targets = scan_targets_for_cli(cli).map_err(|message| {
+        MachineError::new(
+            "scan_target_resolve_failed",
+            ErrorCategory::Input,
+            message,
+            false,
+            2,
+        )
+    })?;
+    let listener = TcpListener::bind(addr).map_err(|err| {
         log_socket_service_failure(
             EVENT_SOCKET_LISTENER_BIND_FAILED,
             "tcp",
             addr,
             &err.to_string(),
         );
-        eprintln!(
-            "{}",
-            locale.msgf("socket_service_failed", &err.to_string(), None)
-        );
-        std::process::exit(1);
-    });
+        MachineError::new(
+            "socket_listener_bind_failed",
+            ErrorCategory::Environment,
+            locale.msgf("socket_service_failed", &err.to_string(), None),
+            true,
+            1,
+        )
+    })?;
     let max_sessions = cli.max_sessions.unwrap_or(usize::MAX);
     let mut handled_sessions = 0usize;
     let mut loop_health = SocketLoopHealth::default();
@@ -313,15 +349,15 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_service: Option<ApiServi
             handled_sessions += 1;
             let mut outputs = Vec::new();
             for target in &scan_targets {
-                let export = run_binding_session(target.binding(), &facts);
+                let export = run_binding_session(target.binding()?, &facts)?;
                 let export = annotate_export_trust(export, cli);
                 outputs.push((target.label(), export));
             }
-            emit_scan_outputs(cli, &outputs, true, api_state);
+            emit_scan_outputs(cli, &outputs, true, api_state)?;
             continue;
         }
 
-        let export = match if let Some(binding) = cli.dsl_binding() {
+        let export = match if let Some(binding) = cli.dsl_binding()? {
             super::run_tcp_socket_session_on_listener_with_binding(&listener, binding)
         } else {
             super::run_tcp_socket_session_on_listener(&listener, cli.template_mode.template())
@@ -358,8 +394,9 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_service: Option<ApiServi
         handled_sessions += 1;
         let export = annotate_export_trust(export, cli);
         let target_name = single_runtime_target_name(&export);
-        emit_rendered(cli, &target_name, &export, true, api_state);
+        emit_rendered(cli, &target_name, &export, true, api_state)?;
     }
+    Ok(())
 }
 
 pub(crate) fn single_runtime_target_name(export: &ExportBundle) -> String {
@@ -379,7 +416,7 @@ fn emit_rendered(
     export: &ExportBundle,
     append: bool,
     api_state: Option<&ApiState>,
-) {
+) -> Result<(), MachineError> {
     let analysis = analysis_snapshot(export);
     let protocol_surface = protocol_surface_for_target(name);
     let summary_text = summary_line_with_analysis(name, export, &analysis);
@@ -471,7 +508,7 @@ fn emit_rendered(
         summary_text
     };
 
-    write_rendered_output(cli, &rendered, append);
+    write_rendered_output(cli, &rendered, append)
 }
 
 fn emit_scan_outputs(
@@ -479,7 +516,7 @@ fn emit_scan_outputs(
     outputs: &[(String, ExportBundle)],
     append: bool,
     api_state: Option<&ApiState>,
-) {
+) -> Result<(), MachineError> {
     let analyses = collect_analyses(outputs);
     let protocol_surfaces = collect_protocol_surfaces(outputs);
     let scan_summary_text =
@@ -572,45 +609,68 @@ fn emit_scan_outputs(
         None if cli.json => scan_summary_json,
         None => scan_summary_text,
     };
-    write_rendered_output(cli, &rendered, append);
+    write_rendered_output(cli, &rendered, append)
 }
 
-fn write_rendered_output(cli: &Cli, rendered: &str, append: bool) {
+fn write_rendered_output(cli: &Cli, rendered: &str, append: bool) -> Result<(), MachineError> {
     let locale = UiLocale::detect();
     if let Some(path) = cli.out_path.as_deref() {
         if append {
-            let mut existing = super::fs::read_to_string(path).unwrap_or_default();
+            let mut existing = match super::fs::read_to_string(path) {
+                Ok(existing) => existing,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+                Err(error) => {
+                    log_error_event(
+                        "output",
+                        EVENT_APPEND_FAILED,
+                        &[("path", path.to_string()), ("error", error.to_string())],
+                        "failed to read existing rendered output before append",
+                    );
+                    return Err(MachineError::new(
+                        "output_append_read_failed",
+                        ErrorCategory::Io,
+                        locale.msgf("write_failed", path, Some(&error.to_string())),
+                        true,
+                        1,
+                    ));
+                }
+            };
             existing.push_str(rendered);
             existing.push('\n');
-            super::fs::write(path, existing).unwrap_or_else(|err| {
+            super::fs::write(path, existing).map_err(|error| {
                 log_error_event(
                     "output",
                     EVENT_APPEND_FAILED,
-                    &[("path", path.to_string()), ("error", err.to_string())],
+                    &[("path", path.to_string()), ("error", error.to_string())],
                     "failed to append rendered output",
                 );
-                eprintln!(
-                    "{}",
-                    locale.msgf("write_failed", path, Some(&err.to_string()))
-                );
-                std::process::exit(1);
-            });
+                MachineError::new(
+                    "output_append_failed",
+                    ErrorCategory::Io,
+                    locale.msgf("write_failed", path, Some(&error.to_string())),
+                    true,
+                    1,
+                )
+            })?;
         } else {
-            super::fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
+            super::fs::write(path, format!("{rendered}\n")).map_err(|error| {
                 log_error_event(
                     "output",
                     EVENT_WRITE_FAILED,
-                    &[("path", path.to_string()), ("error", err.to_string())],
+                    &[("path", path.to_string()), ("error", error.to_string())],
                     "failed to write rendered output",
                 );
-                eprintln!(
-                    "{}",
-                    locale.msgf("write_failed", path, Some(&err.to_string()))
-                );
-                std::process::exit(1);
-            });
+                MachineError::new(
+                    "output_write_failed",
+                    ErrorCategory::Io,
+                    locale.msgf("write_failed", path, Some(&error.to_string())),
+                    true,
+                    1,
+                )
+            })?;
         }
     } else {
         println!("{rendered}");
     }
+    Ok(())
 }

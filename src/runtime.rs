@@ -6,7 +6,8 @@ use crate::fragment::{
 };
 use crate::ledger::{FactEnvelope, FactId, FactIndex, FactKind, FactKindTag};
 use crate::loader::{LinuxProbeLoader, Loader, LoaderError};
-use crate::program::build_program_flows_indexed;
+use crate::machine_error::{ErrorCategory, MachineError};
+use crate::program::{ProgramModel, build_program_flows_indexed};
 use crate::reason::{ReasonChain, ReasonProfile, build_reason_chains_indexed};
 use crate::template::{
     FragmentParamValue, Template, TemplateBinding, TemplateError, WindowProfile,
@@ -34,6 +35,7 @@ pub struct RuntimeSession {
     template: Template,
     window_profile: WindowProfile,
     reason_profile: ReasonProfile,
+    program_model: ProgramModel,
     attach_plan: AttachPlan,
     attach_report: AttachReport,
     binding_diagnostics: BindingDiagnostics,
@@ -74,6 +76,56 @@ pub enum RuntimeError {
     InvalidTemplate(TemplateError),
     Registry(RegistryError),
     Loader(LoaderError),
+}
+
+impl RuntimeError {
+    pub const fn code(&self) -> &'static str {
+        match self {
+            Self::InvalidTemplate(_) => "runtime_template_invalid",
+            Self::Registry(_) => "runtime_registry_invalid",
+            Self::Loader(_) => "runtime_loader_failed",
+        }
+    }
+
+    pub const fn category(&self) -> ErrorCategory {
+        match self {
+            Self::InvalidTemplate(_) => ErrorCategory::Input,
+            Self::Registry(_) => ErrorCategory::Configuration,
+            Self::Loader(_) => ErrorCategory::Environment,
+        }
+    }
+
+    pub const fn retryable(&self) -> bool {
+        matches!(self, Self::Loader(_))
+    }
+}
+
+impl std::fmt::Display for RuntimeError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidTemplate(error) => {
+                write!(formatter, "{}: {error:?}", self.code())
+            }
+            Self::Registry(error) => write!(formatter, "{}: {error:?}", self.code()),
+            Self::Loader(error) => write!(formatter, "{}: {error:?}", self.code()),
+        }
+    }
+}
+
+impl std::error::Error for RuntimeError {}
+
+impl From<RuntimeError> for MachineError {
+    fn from(error: RuntimeError) -> Self {
+        let code = error.code();
+        let category = error.category();
+        let retryable = error.retryable();
+        let exit_code = if matches!(&error, RuntimeError::Loader(_)) {
+            1
+        } else {
+            2
+        };
+        Self::new(code, category, error.to_string(), retryable, exit_code)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -189,16 +241,34 @@ impl RuntimeSession {
     }
 
     pub fn start(config: SessionConfig) -> Result<Self, RuntimeError> {
-        let window_profile = config
+        config
             .template
-            .window_profile
-            .clone()
-            .expect("template already validated");
-        let reason_profile = config
-            .template
-            .reason_profile
-            .clone()
-            .expect("template already validated");
+            .validate()
+            .map_err(RuntimeError::InvalidTemplate)?;
+        let window_profile =
+            config
+                .template
+                .window_profile
+                .clone()
+                .ok_or(RuntimeError::InvalidTemplate(
+                    TemplateError::MissingWindowProfile,
+                ))?;
+        let reason_profile =
+            config
+                .template
+                .reason_profile
+                .clone()
+                .ok_or(RuntimeError::InvalidTemplate(
+                    TemplateError::MissingReasonProfile,
+                ))?;
+        let program_model =
+            config
+                .template
+                .program_model
+                .clone()
+                .ok_or(RuntimeError::InvalidTemplate(
+                    TemplateError::MissingProgramModel,
+                ))?;
         let attach_plan = config
             .registry
             .plan(config.template.fragment_set.iter().map(String::as_str))
@@ -219,6 +289,7 @@ impl RuntimeSession {
             template: config.template,
             window_profile,
             reason_profile,
+            program_model,
             attach_plan,
             attach_report,
             binding_diagnostics,
@@ -273,13 +344,15 @@ impl RuntimeSession {
     }
 
     pub fn freeze(&mut self, end: SystemTime) {
-        let freeze_at = end + Duration::from_millis(self.window_profile.lateness_ms);
+        let freeze_at = end
+            .checked_add(Duration::from_millis(self.window_profile.lateness_ms))
+            .unwrap_or(end);
         self.window_end = Some(end);
         self.frozen_at = Some(freeze_at);
 
-        let window_start = self
-            .window_start()
-            .expect("window start exists after freezing");
+        let window_start = end
+            .checked_sub(Duration::from_millis(self.window_profile.duration_ms))
+            .unwrap_or(SystemTime::UNIX_EPOCH);
         let mut retained = Vec::with_capacity(self.facts.len());
         for fact in std::mem::take(&mut self.facts) {
             if fact.ts < window_start {
@@ -316,18 +389,10 @@ impl RuntimeSession {
     fn export_analysis(&self) -> ExportAnalysis {
         let flows = build_flow_snapshots(&self.facts);
         let fact_index = FactIndex::new(&self.facts);
-        let program_model = self
-            .template
-            .program_model
-            .as_ref()
-            .expect("template already validated");
-        let program_flows = build_program_flows_indexed(program_model, &flows, &fact_index);
+        let program_flows = build_program_flows_indexed(&self.program_model, &flows, &fact_index);
         let reasons = build_reason_chains_indexed(&self.reason_profile, &flows, &fact_index);
         let program_findings = build_program_findings(
-            self.template
-                .program_model
-                .as_ref()
-                .expect("template already validated"),
+            &self.program_model,
             &self.binding_diagnostics,
             &self.attach_report,
             &self.rejected_facts,

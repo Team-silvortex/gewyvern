@@ -1,22 +1,31 @@
 use gewyvern::dsl::compile_file;
 use gewyvern::export::ExportBundle;
 use gewyvern::http::compose_http_transactions;
+use gewyvern::machine_error::{ErrorCategory, MachineError};
 use gewyvern::protocol_profiles::resolve_built_in_dsl_path;
 
+use crate::runtime_events::EVENT_DSL_COMPILE_FAILED;
+use crate::runtime_logging::log_error_event;
 use crate::{
     Cli, export_has_operation, findings_json, findings_text, http_transactions_json,
     http_transactions_text, render_debug_session_outputs, render_debugger_console_outputs,
-    render_report_outputs, render_scan_outputs, run_binding_demo, summary_json, summary_line,
+    render_report_outputs, render_scan_outputs, summary_json, summary_line, try_run_binding_demo,
 };
 
-pub(crate) fn render_cli_outputs(cli: &Cli, outputs: Vec<(String, ExportBundle)>) -> String {
+pub(crate) fn render_cli_outputs(
+    cli: &Cli,
+    outputs: Vec<(String, ExportBundle)>,
+) -> Result<String, MachineError> {
     if cli.http_transactions {
         return render_http_transaction_outputs(cli, &outputs);
     }
-    render_standard_cli_outputs(cli, outputs)
+    Ok(render_standard_cli_outputs(cli, outputs))
 }
 
-fn render_http_transaction_outputs(cli: &Cli, outputs: &[(String, ExportBundle)]) -> String {
+fn render_http_transaction_outputs(
+    cli: &Cli,
+    outputs: &[(String, ExportBundle)],
+) -> Result<String, MachineError> {
     let needs_http_response_companions = cli.dsl_path.is_some()
         && outputs
             .iter()
@@ -33,31 +42,48 @@ fn render_http_transaction_outputs(cli: &Cli, outputs: &[(String, ExportBundle)]
     if cli.dsl_path.is_some() {
         if needs_http_response_companions {
             let dns_path = resolve_built_in_dsl_path("dsl/dns_udp_process.gewy");
-            composed_exports.push(run_binding_demo(
-                compile_file(&dns_path).expect("dns dsl should compile"),
-            ));
+            composed_exports.push(try_run_binding_demo(compile_companion_dsl(&dns_path)?)?);
             let http_response_path =
                 resolve_built_in_dsl_path("dsl/http_server_response_path.gewy");
-            composed_exports.push(run_binding_demo(
-                compile_file(&http_response_path).expect("http server dsl should compile"),
-            ));
+            composed_exports.push(try_run_binding_demo(compile_companion_dsl(
+                &http_response_path,
+            )?)?);
         }
         if needs_http3_response_companion {
             let http3_response_path =
                 resolve_built_in_dsl_path("dsl/http3_server_response_path.gewy");
-            composed_exports.push(run_binding_demo(
-                compile_file(&http3_response_path).expect("http3 server dsl should compile"),
-            ));
+            composed_exports.push(try_run_binding_demo(compile_companion_dsl(
+                &http3_response_path,
+            )?)?);
         }
     }
 
     let transactions = compose_http_transactions(&composed_exports);
 
-    if cli.json {
+    Ok(if cli.json {
         http_transactions_json(&transactions)
     } else {
         http_transactions_text(&transactions)
-    }
+    })
+}
+
+fn compile_companion_dsl(path: &str) -> Result<gewyvern::template::TemplateBinding, MachineError> {
+    compile_file(path).map_err(|error| {
+        let detail = format!("{error:?}");
+        log_error_event(
+            "dsl",
+            EVENT_DSL_COMPILE_FAILED,
+            &[("path", path.to_string()), ("error", detail.clone())],
+            "failed to compile built-in companion dsl",
+        );
+        MachineError::new(
+            "companion_dsl_compile_failed",
+            ErrorCategory::Configuration,
+            format!("failed to compile built-in companion DSL '{path}': {detail}"),
+            false,
+            2,
+        )
+    })
 }
 
 fn render_standard_cli_outputs(cli: &Cli, outputs: Vec<(String, ExportBundle)>) -> String {

@@ -2,10 +2,78 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::machine_error::{ErrorCategory, MachineError};
 use serde::{Deserialize, Serialize};
 
 pub const STATUS_SCHEMA_VERSION: u32 = 3;
 pub const STATUS_CALIBRATION_MODEL: &str = "priority-weighted-strength-v1";
+
+#[derive(Debug)]
+pub enum StatusCatalogLoadError {
+    Read {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+    Decode {
+        path: PathBuf,
+        source: serde_json::Error,
+    },
+}
+
+impl StatusCatalogLoadError {
+    pub const fn code(&self) -> &'static str {
+        match self {
+            Self::Read { .. } => "status_catalog_read_failed",
+            Self::Decode { .. } => "status_catalog_decode_failed",
+        }
+    }
+
+    pub const fn retryable(&self) -> bool {
+        matches!(self, Self::Read { .. })
+    }
+
+    pub const fn category(&self) -> ErrorCategory {
+        match self {
+            Self::Read { .. } => ErrorCategory::Io,
+            Self::Decode { .. } => ErrorCategory::Configuration,
+        }
+    }
+}
+
+impl std::fmt::Display for StatusCatalogLoadError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Read { path, source } => write!(
+                formatter,
+                "failed to read status catalog '{}': {source}",
+                path.display()
+            ),
+            Self::Decode { path, source } => write!(
+                formatter,
+                "failed to decode status catalog '{}': {source}",
+                path.display()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for StatusCatalogLoadError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Read { source, .. } => Some(source),
+            Self::Decode { source, .. } => Some(source),
+        }
+    }
+}
+
+impl From<StatusCatalogLoadError> for MachineError {
+    fn from(error: StatusCatalogLoadError) -> Self {
+        let code = error.code();
+        let category = error.category();
+        let retryable = error.retryable();
+        Self::new(code, category, error.to_string(), retryable, 1)
+    }
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct StatusCatalog {
@@ -249,14 +317,18 @@ pub struct StatusCellView {
 
 impl StatusCatalog {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
+        Self::load_typed(path).map_err(|error| error.to_string())
+    }
+
+    pub fn load_typed(path: impl AsRef<Path>) -> Result<Self, StatusCatalogLoadError> {
         let path = path.as_ref();
-        let source = fs::read_to_string(path)
-            .map_err(|err| format!("failed to read status catalog '{}': {err}", path.display()))?;
-        serde_json::from_str(&source).map_err(|err| {
-            format!(
-                "failed to decode status catalog '{}': {err}",
-                path.display()
-            )
+        let source = fs::read_to_string(path).map_err(|source| StatusCatalogLoadError::Read {
+            path: path.to_path_buf(),
+            source,
+        })?;
+        serde_json::from_str(&source).map_err(|source| StatusCatalogLoadError::Decode {
+            path: path.to_path_buf(),
+            source,
         })
     }
 

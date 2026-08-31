@@ -74,9 +74,12 @@ use crate::report_runtime::{
 };
 use crate::runtime_events::EVENT_SCAN_TARGET_RESOLVE_FAILED;
 use crate::runtime_logging::log_error_event;
-use crate::startup::bootstrap_cli;
+use crate::startup::{BootstrapOutcome, bootstrap_cli};
+use gewyvern::machine_error::{ErrorCategory, MachineError};
 
+#[cfg(test)]
 pub(crate) use self::binding_demo::run_binding_demo;
+pub(crate) use self::binding_demo::try_run_binding_demo;
 pub(crate) use self::diagnostics_mode::render_diagnostics_mode;
 pub(crate) use self::output_collection::collect_cli_outputs;
 pub(crate) use self::preflight::handle_cli_preflight;
@@ -88,80 +91,117 @@ pub(crate) use self::ui_locale::UiLocale;
 fn main() {
     let locale = UiLocale::detect();
     let args = env::args().skip(1).collect::<Vec<_>>();
+    let json_errors = args.iter().any(|argument| argument == "--json");
+    match run_main(args, locale) {
+        Ok(0) => {}
+        Ok(exit_code) => std::process::exit(exit_code),
+        Err(error) => {
+            if json_errors {
+                match error.to_json() {
+                    Ok(payload) => eprintln!("{payload}"),
+                    Err(serialization_error) => eprintln!(
+                        "gewyvern: {} [{}]; failed to encode machine error: {}",
+                        error.message, error.code, serialization_error
+                    ),
+                }
+            } else {
+                eprintln!("gewyvern: {} [{}]", error.message, error.code);
+            }
+            std::process::exit(i32::from(error.exit_code));
+        }
+    }
+}
+
+fn run_main(args: Vec<String>, locale: UiLocale) -> Result<i32, MachineError> {
     if args.first().map(String::as_str) == Some("gewyvern-install-v1") {
         if args.len() != 1 {
-            eprintln!("gewyvern: gewyvern-install-v1 accepts no command-line arguments");
-            std::process::exit(1);
+            return Err(invalid_native_command("gewyvern-install-v1"));
         }
-        if let Err(error) = gewyvern_install::run_gewyvern_install_stdio() {
-            eprintln!("gewyvern: {error}");
-            std::process::exit(1);
-        }
-        return;
+        gewyvern_install::run_gewyvern_install_stdio()
+            .map_err(|error| native_command_error("gewyvern_install_failed", error))?;
+        return Ok(0);
     }
     if args.first().map(String::as_str) == Some("gewyvern-activate-v1") {
         if args.len() != 1 {
-            eprintln!("gewyvern: gewyvern-activate-v1 accepts no command-line arguments");
-            std::process::exit(1);
+            return Err(invalid_native_command("gewyvern-activate-v1"));
         }
-        if let Err(error) = gewyvern_install::run_gewyvern_activate_stdio() {
-            eprintln!("gewyvern: {error}");
-            std::process::exit(1);
-        }
-        return;
+        gewyvern_install::run_gewyvern_activate_stdio()
+            .map_err(|error| native_command_error("gewyvern_activate_failed", error))?;
+        return Ok(0);
     }
     if args.first().map(String::as_str) == Some("gewyvern-retire-v1") {
         if args.len() != 1 {
-            eprintln!("gewyvern: gewyvern-retire-v1 accepts no command-line arguments");
-            std::process::exit(1);
+            return Err(invalid_native_command("gewyvern-retire-v1"));
         }
-        if let Err(error) = gewyvern_install::run_gewyvern_retire_stdio() {
-            eprintln!("gewyvern: {error}");
-            std::process::exit(1);
-        }
-        return;
+        gewyvern_install::run_gewyvern_retire_stdio()
+            .map_err(|error| native_command_error("gewyvern_retire_failed", error))?;
+        return Ok(0);
     }
     if args.first().map(String::as_str) == Some("gewyvern-service-v1") {
         if args.len() != 1 {
-            eprintln!("gewyvern: gewyvern-service-v1 accepts no command-line arguments");
-            std::process::exit(1);
+            return Err(invalid_native_command("gewyvern-service-v1"));
         }
-        if let Err(error) = gewyvern_install::run_gewyvern_service() {
-            eprintln!("gewyvern: {error}");
-            std::process::exit(1);
-        }
-        return;
+        gewyvern_install::run_gewyvern_service()
+            .map_err(|error| native_command_error("gewyvern_service_failed", error))?;
+        return Ok(0);
     }
     if matches!(args.as_slice(), [flag] if flag == "--version" || flag == "-V") {
         println!("gewyvern {}", env!("CARGO_PKG_VERSION"));
-        return;
+        return Ok(0);
     }
-    let cli = bootstrap_cli(args);
-    if handle_cli_preflight(&cli, locale) {
-        return;
+    if matches!(args.as_slice(), [flag] if flag == "--help" || flag == "-h") {
+        println!("{}", usage());
+        return Ok(0);
     }
-    let rendered = run_cli_main(&cli, locale);
-    write_or_print(&rendered, cli.out_path.as_deref(), locale);
+    let cli = match bootstrap_cli(args)? {
+        BootstrapOutcome::Ready(cli) => cli,
+        BootstrapOutcome::Completed(exit_code) => return Ok(exit_code),
+    };
+    if handle_cli_preflight(&cli, locale)? {
+        return Ok(0);
+    }
+    let rendered = run_cli_main(&cli, locale)?;
+    write_or_print(&rendered, cli.out_path.as_deref(), locale)?;
+    Ok(0)
 }
 
-fn run_cli_main(cli: &Cli, locale: UiLocale) -> String {
+fn invalid_native_command(command: &'static str) -> MachineError {
+    MachineError::new(
+        "native_command_invalid_arguments",
+        ErrorCategory::Input,
+        format!("{command} accepts no command-line arguments"),
+        false,
+        1,
+    )
+}
+
+fn native_command_error(code: &'static str, error: impl std::fmt::Display) -> MachineError {
+    MachineError::new(code, ErrorCategory::Runtime, error.to_string(), false, 1)
+}
+
+fn run_cli_main(cli: &Cli, locale: UiLocale) -> Result<String, MachineError> {
     let base = SystemTime::UNIX_EPOCH + Duration::from_secs(1_710_000_000);
-    let scan_targets = scan_targets_for_cli(cli).unwrap_or_else(|err| {
+    let scan_targets = scan_targets_for_cli(cli).map_err(|err| {
         log_error_event(
             "runtime",
             EVENT_SCAN_TARGET_RESOLVE_FAILED,
             &[("error", err.clone())],
             "failed to resolve scan targets",
         );
-        eprintln!("{err}");
-        std::process::exit(2);
-    });
+        MachineError::new(
+            "scan_target_resolve_failed",
+            ErrorCategory::Input,
+            err,
+            false,
+            2,
+        )
+    })?;
 
     if cli.diagnostics {
         return render_diagnostics_mode(cli, locale);
     }
 
-    let outputs = collect_cli_outputs(cli, base, &scan_targets, locale);
+    let outputs = collect_cli_outputs(cli, base, &scan_targets, locale)?;
     render_cli_outputs(cli, outputs)
 }
 

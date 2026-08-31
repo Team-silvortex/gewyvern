@@ -17,6 +17,7 @@ pub mod leserpent_account_config;
 pub mod leserpent_macos_install;
 pub mod linux_ebpf_smoke;
 pub mod loader;
+pub mod machine_error;
 pub mod native_binary;
 pub mod program;
 pub mod project_status;

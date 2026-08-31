@@ -1,5 +1,7 @@
 # gewyvern v2.0.x
 
+[![CI](https://github.com/Team-silvortex/gewyvern/actions/workflows/ci.yml/badge.svg)](https://github.com/Team-silvortex/gewyvern/actions/workflows/ci.yml)
+
 <p align="center">
   <strong>Gewyvern</strong> ·
   <a href="LESERPENT.md">Leserpent</a> ·

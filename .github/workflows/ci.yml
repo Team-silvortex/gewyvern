@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+
+jobs:
+  rust:
+    name: Rust quality gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+
+      - name: Select Rust toolchain
+        run: rustup default stable
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+      - name: Build workspace
+        run: cargo build --workspace --all-targets --all-features --locked
+
+      - name: Test workspace
+        run: cargo test --workspace --all-features --locked
+
+  product-surfaces:
+    name: TypeScript and .NET quality gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Select Rust toolchain
+        run: rustup default stable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+          cache-dependency-path: apps/leserpent/package-lock.json
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix apps/leserpent
+
+      - name: Validate language packs
+        run: npm run verify:language-packs --prefix apps/leserpent
+
+      - name: Type-check frontend
+        run: npm run check:frontend --prefix apps/leserpent
+
+      - name: Verify packaged frontend
+        run: npm run verify:frontend-package --prefix apps/leserpent
+
+      - name: Restore Leserpent service
+        run: dotnet restore apps/leserpent/leserpent.slnx --locked-mode -p:ContinuousIntegrationBuild=true
+
+      - name: Test Leserpent service
+        run: dotnet test apps/leserpent/leserpent.slnx --no-restore --configuration Release -p:ContinuousIntegrationBuild=true
+
+      - name: Restore Leserpent desktop
+        run: dotnet restore apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj --locked-mode -p:ContinuousIntegrationBuild=true
+
+      - name: Build Leserpent desktop
+        run: dotnet build apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj --no-restore --configuration Release -p:ContinuousIntegrationBuild=true

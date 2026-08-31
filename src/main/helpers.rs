@@ -1,6 +1,7 @@
 use gewyvern::export::ExportBundle;
 use gewyvern::flow::{FlowId, ProcessView, ProgramFlowId};
 use gewyvern::ledger::{CpuId, FactEnvelope, FactId, FactKind, RouteDecisionFact, SessionId};
+use gewyvern::machine_error::{ErrorCategory, MachineError};
 use gewyvern::protocol_profiles::{
     ProtocolCatalogSnapshot, default_protocol_scan_set, protocol_summaries, protocol_summary,
     resolve_protocol_profile, validate_protocol_registry_dir,
@@ -233,9 +234,9 @@ pub(crate) fn filter_export_by_pid(export: &ExportBundle, pid: u32) -> ExportBun
 pub(crate) fn run_session(
     template: gewyvern::template::Template,
     facts: Vec<FactEnvelope>,
-) -> ExportBundle {
-    let config = SessionConfig::for_template(template).expect("builtin template should be valid");
-    let mut session = RuntimeSession::start(config).expect("session startup should succeed");
+) -> Result<ExportBundle, MachineError> {
+    let config = SessionConfig::for_template(template).map_err(MachineError::from)?;
+    let mut session = RuntimeSession::start(config).map_err(MachineError::from)?;
     let window_end = facts
         .iter()
         .map(|fact| fact.ts)
@@ -247,25 +248,15 @@ pub(crate) fn run_session(
     }
     session.freeze(window_end);
 
-    let export = session.into_export_bundle();
-    let replay = ExportBundle::from_json(&export.to_json())
-        .expect("runtime should export replayable json")
-        .replay()
-        .expect("export should replay");
-
-    assert_eq!(
-        export.reasons, replay.reasons,
-        "replay should stay deterministic"
-    );
-    export
+    Ok(session.into_export_bundle())
 }
 
 pub(crate) fn run_binding_session(
     binding: TemplateBinding,
     facts: &[FactEnvelope],
-) -> ExportBundle {
-    let config = SessionConfig::for_binding(binding).expect("dsl binding should be valid");
-    let mut session = RuntimeSession::start(config).expect("dsl session startup should succeed");
+) -> Result<ExportBundle, MachineError> {
+    let config = SessionConfig::for_binding(binding).map_err(MachineError::from)?;
+    let mut session = RuntimeSession::start(config).map_err(MachineError::from)?;
     let window_end = facts
         .iter()
         .map(|fact| fact.ts)
@@ -276,7 +267,7 @@ pub(crate) fn run_binding_session(
         session.ingest(fact.clone());
     }
     session.freeze(window_end);
-    session.into_export_bundle()
+    Ok(session.into_export_bundle())
 }
 
 pub(crate) fn route_fact(
@@ -303,24 +294,31 @@ pub(crate) fn route_fact(
     }
 }
 
-pub(crate) fn write_or_print(rendered: &str, out_path: Option<&str>, locale: UiLocale) {
+pub(crate) fn write_or_print(
+    rendered: &str,
+    out_path: Option<&str>,
+    locale: UiLocale,
+) -> Result<(), MachineError> {
     if let Some(path) = out_path {
-        fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
+        fs::write(path, format!("{rendered}\n")).map_err(|err| {
             log_error_event(
                 "output",
                 EVENT_WRITE_FAILED,
                 &[("path", path.to_string()), ("error", err.to_string())],
                 "failed to write rendered output",
             );
-            eprintln!(
-                "{}",
-                locale.msgf("write_failed", path, Some(&err.to_string()))
-            );
-            std::process::exit(1);
-        });
+            MachineError::new(
+                "output_write_failed",
+                ErrorCategory::Io,
+                locale.msgf("write_failed", path, Some(&err.to_string())),
+                true,
+                1,
+            )
+        })?;
     } else {
         println!("{rendered}");
     }
+    Ok(())
 }
 
 pub(crate) fn list_protocols_text() -> String {

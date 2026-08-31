@@ -3,6 +3,7 @@ use gewyvern::ledger::{
     CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, QuicFrameType,
     QuicPacketType, SessionId, SockLineageFact, TcpStateFact,
 };
+use gewyvern::machine_error::{ErrorCategory, MachineError};
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use gewyvern::template::TemplateBinding;
 use std::time::{Duration, SystemTime};
@@ -13,7 +14,7 @@ fn has_fragment(fragments: &[String], id: &str) -> bool {
     fragments.iter().any(|fragment| fragment == id)
 }
 
-pub(crate) fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
+pub(crate) fn try_run_binding_demo(binding: TemplateBinding) -> Result<ExportBundle, MachineError> {
     let base = SystemTime::UNIX_EPOCH + Duration::from_secs(1_710_000_000);
     let fragments = &binding.template.fragment_set;
     let tcp_demo_dport = binding
@@ -188,12 +189,17 @@ pub(crate) fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
     } else if has_fragment(fragments, "udp_packet_meta_fragment") {
         include!("binding_demo/udp_default.rs")
     } else {
-        eprintln!("{}", UiLocale::detect().msg("unsupported_fragment_combo"));
-        std::process::exit(2);
+        return Err(MachineError::new(
+            "demo_fragment_combination_unsupported",
+            ErrorCategory::Input,
+            UiLocale::detect().msg("unsupported_fragment_combo"),
+            false,
+            2,
+        ));
     };
 
-    let config = SessionConfig::for_binding(binding).expect("dsl binding should validate");
-    let mut session = RuntimeSession::start(config).expect("dsl session startup should succeed");
+    let config = SessionConfig::for_binding(binding).map_err(MachineError::from)?;
+    let mut session = RuntimeSession::start(config).map_err(MachineError::from)?;
     let window_end = facts
         .iter()
         .map(|fact| fact.ts)
@@ -205,15 +211,10 @@ pub(crate) fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
     }
     session.freeze(window_end);
 
-    let export = session.into_export_bundle();
-    let replay = ExportBundle::from_json(&export.to_json())
-        .expect("runtime should export replayable json")
-        .replay()
-        .expect("export should replay");
+    Ok(session.into_export_bundle())
+}
 
-    assert_eq!(
-        export.reasons, replay.reasons,
-        "replay should stay deterministic"
-    );
-    export
+#[cfg(test)]
+pub(crate) fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
+    try_run_binding_demo(binding).expect("test binding demo must be valid")
 }

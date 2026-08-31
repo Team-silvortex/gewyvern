@@ -5,6 +5,7 @@ use crate::runtime_events::EVENT_DSL_COMPILE_FAILED;
 use crate::runtime_logging::{LogLevel, LoggingConfig, log_error_event};
 use crate::{UiLocale, usage};
 use gewyvern::dsl::compile_file;
+use gewyvern::machine_error::{ErrorCategory, MachineError};
 use gewyvern::protocol_profiles::{ResolvedProtocolProfile, protocol_dsl_path};
 use gewyvern::template::{TemplateBinding, handshake_debug_template, udp_debug_template};
 
@@ -126,24 +127,8 @@ impl ScanTarget {
         format!("scan:{}:{}", self.protocol, self.entry)
     }
 
-    pub(crate) fn binding(&self) -> TemplateBinding {
-        let locale = UiLocale::detect();
-        compile_file(&self.dsl_path).unwrap_or_else(|err| {
-            log_error_event(
-                "dsl",
-                EVENT_DSL_COMPILE_FAILED,
-                &[
-                    ("path", self.dsl_path.clone()),
-                    ("error", format!("{err:?}")),
-                ],
-                "failed to compile dsl binding",
-            );
-            eprintln!(
-                "{}",
-                locale.msgf("dsl_compile_failed", &format!("{err:?}"), None)
-            );
-            std::process::exit(2);
-        })
+    pub(crate) fn binding(&self) -> Result<TemplateBinding, MachineError> {
+        compile_dsl_binding(&self.dsl_path)
     }
 }
 
@@ -207,23 +192,11 @@ impl ReportFormat {
 }
 
 impl Cli {
-    pub(crate) fn dsl_binding(&self) -> Option<TemplateBinding> {
-        let locale = UiLocale::detect();
-        self.dsl_path.as_deref().map(|path| {
-            compile_file(path).unwrap_or_else(|err| {
-                log_error_event(
-                    "dsl",
-                    EVENT_DSL_COMPILE_FAILED,
-                    &[("path", path.to_string()), ("error", format!("{err:?}"))],
-                    "failed to compile dsl binding",
-                );
-                eprintln!(
-                    "{}",
-                    locale.msgf("dsl_compile_failed", &format!("{err:?}"), None)
-                );
-                std::process::exit(2);
-            })
-        })
+    pub(crate) fn dsl_binding(&self) -> Result<Option<TemplateBinding>, MachineError> {
+        self.dsl_path
+            .as_deref()
+            .map(compile_dsl_binding)
+            .transpose()
     }
 
     #[cfg_attr(not(test), allow(dead_code))]
@@ -550,6 +523,25 @@ impl Cli {
             max_files: self.log_max_files,
         }
     }
+}
+
+fn compile_dsl_binding(path: &str) -> Result<TemplateBinding, MachineError> {
+    compile_file(path).map_err(|error| {
+        let detail = format!("{error:?}");
+        log_error_event(
+            "dsl",
+            EVENT_DSL_COMPILE_FAILED,
+            &[("path", path.to_string()), ("error", detail.clone())],
+            "failed to compile dsl binding",
+        );
+        MachineError::new(
+            "dsl_compile_failed",
+            ErrorCategory::Input,
+            UiLocale::detect().msgf("dsl_compile_failed", &detail, None),
+            false,
+            2,
+        )
+    })
 }
 
 pub(crate) fn resolve_api_admin_token(
