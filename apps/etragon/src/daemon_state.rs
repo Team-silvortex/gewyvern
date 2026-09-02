@@ -368,8 +368,7 @@ pub(super) fn parse_target_daemon_output_from_json(
         .ok_or_else(|| "persisted target output path_segment was null".to_string())?,
         output_json: extract_json_value(input, "output_json")
             .ok_or_else(|| "persisted target output missing output_json".to_string())?,
-        input_json: extract_json_value(input, "input_json")
-            .and_then(|value| if value == "null" { None } else { Some(value) }),
+        input_json: extract_json_value(input, "input_json").filter(|value| value != "null"),
         recommendation_summary_json: extract_json_value(input, "recommendation_summary_json")
             .ok_or_else(|| {
                 "persisted target output missing recommendation_summary_json".to_string()
@@ -456,7 +455,7 @@ pub(super) fn parse_daemon_snapshot_from_json(input: &str) -> Result<DaemonSnaps
         latest_output_json: extract_json_value(input, "latest_output_json")
             .ok_or_else(|| "persisted daemon snapshot missing latest_output_json".to_string())?,
         latest_input_json: extract_json_value(input, "latest_input_json")
-            .and_then(|value| if value == "null" { None } else { Some(value) }),
+            .filter(|value| value != "null"),
         latest_recommendation_summary_json: extract_json_value(
             input,
             "latest_recommendation_summary_json",

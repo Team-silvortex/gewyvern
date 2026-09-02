@@ -606,7 +606,7 @@ mod tests {
         }))
         .unwrap()
         .into_iter()
-        .chain([b'\n'])
+        .chain(*b"\n")
         .collect()
     }
 
@@ -1091,7 +1091,7 @@ mod tests {
         }))
         .unwrap()
         .into_iter()
-        .chain([b'\n'])
+        .chain(*b"\n")
         .collect::<Vec<_>>();
         let response = server.dispatch(&frame, &mut runtime);
         assert!(matches!(
@@ -1123,7 +1123,7 @@ mod tests {
         }))
         .unwrap()
         .into_iter()
-        .chain([b'\n'])
+        .chain(*b"\n")
         .collect::<Vec<_>>();
         assert!(matches!(
             server.dispatch(&conflicting, &mut runtime),
@@ -1140,7 +1140,7 @@ mod tests {
         }))
         .unwrap()
         .into_iter()
-        .chain([b'\n'])
+        .chain(*b"\n")
         .collect::<Vec<_>>();
         assert!(matches!(
             server.dispatch(&unauthorized, &mut runtime),
@@ -1189,7 +1189,7 @@ mod tests {
         }))
         .unwrap()
         .into_iter()
-        .chain([b'\n'])
+        .chain(*b"\n")
         .collect::<Vec<_>>();
         assert!(matches!(
             server.dispatch(&frame, &mut runtime),
@@ -1216,7 +1216,7 @@ mod tests {
         }))
         .unwrap()
         .into_iter()
-        .chain([b'\n'])
+        .chain(*b"\n")
         .collect::<Vec<_>>();
         assert!(matches!(
             server.dispatch(&unauthorized, &mut runtime),
@@ -1271,7 +1271,7 @@ mod tests {
             }))
             .unwrap()
             .into_iter()
-            .chain([b'\n'])
+            .chain(*b"\n")
             .collect::<Vec<_>>()
         };
 
@@ -1380,7 +1380,7 @@ mod tests {
             }))
             .unwrap()
             .into_iter()
-            .chain([b'\n'])
+            .chain(*b"\n")
             .collect::<Vec<_>>()
         };
         let retirement_id =

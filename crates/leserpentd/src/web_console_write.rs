@@ -1930,7 +1930,7 @@ fn cleanup_runtimes(
         return Err(invalid_cleanup_request());
     }
     let command_id =
-        CommandId::new(format!("web-cleanup-{}", &request.plan_token)).map_err(map_domain_error)?;
+        CommandId::new(format!("web-cleanup-{}", request.plan_token)).map_err(map_domain_error)?;
 
     let lookup = runtime
         .runtime_unregistration_receipt(command_id.clone())

@@ -3,6 +3,7 @@
     <Project Path="src/Leserpent/Leserpent.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Leserpent.RuntimeDeletionCrashHarness/Leserpent.RuntimeDeletionCrashHarness.csproj" />
     <Project Path="tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj" />
   </Folder>
 </Solution>
