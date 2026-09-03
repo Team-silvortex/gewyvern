@@ -111,6 +111,21 @@ fn normalize_release_artifact_shape(index: &Value) -> Value {
     })
 }
 
+fn normalize_release_gate_snapshot(mut report: Value) -> Value {
+    let expected_evidence_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("target")
+        .join("validation")
+        .display()
+        .to_string();
+    assert_eq!(
+        report["evidence_dir"],
+        Value::String(expected_evidence_dir),
+        "release-gate should report this repository's validation directory"
+    );
+    report["evidence_dir"] = Value::String("<repo>/target/validation".into());
+    report
+}
+
 #[test]
 fn list_json_matches_fixture() {
     let expected = read_fixture("docs/fixtures/gewyvern_validate_list.json");
@@ -211,7 +226,10 @@ fn minimal_release_gate_json_matches_fixture() {
 
     assert!(ok, "release-gate should succeed, stderr: {stderr}");
     assert!(stderr.trim().is_empty(), "unexpected stderr: {stderr}");
-    assert_eq!(parse_single_json(&stdout), expected);
+    assert_eq!(
+        normalize_release_gate_snapshot(parse_single_json(&stdout)),
+        expected
+    );
 }
 
 #[test]

@@ -1,7 +1,7 @@
 {
   "checks": [],
   "command": "release-gate",
-  "evidence_dir": "/Users/Shared/chroot/dev/gewyvern/target/validation",
+  "evidence_dir": "<repo>/target/validation",
   "extra": {
     "gate_posture": "incomplete",
     "next_step": "inspect the missing release-gate stages and rerun the skipped validation shelves before ship",
