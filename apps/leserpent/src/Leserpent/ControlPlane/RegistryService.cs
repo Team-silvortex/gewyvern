@@ -1171,7 +1171,8 @@ public sealed partial class RegistryService
                     "runtime_deletion_retry_revision_exhausted",
                     "runtime deletion intent revision is exhausted");
             }
-            var effectiveRequestedAt = requestedAt ?? DateTimeOffset.UtcNow;
+            var now = timeProvider.GetUtcNow();
+            var effectiveRequestedAt = requestedAt ?? now;
             if (requestedAt is null)
             {
                 var lastRequestedAt = runtimeDeletionRetryAudit
@@ -1192,7 +1193,7 @@ public sealed partial class RegistryService
                     "runtime deletion intent is already eligible for automatic recovery");
             }
             if (effectiveRequestedAt < intent.PreparedAt ||
-                effectiveRequestedAt > DateTimeOffset.UtcNow.AddMinutes(5))
+                effectiveRequestedAt > now.AddMinutes(5))
             {
                 throw new RuntimeDeletionRetryException(
                     "invalid_runtime_deletion_retry",

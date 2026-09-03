@@ -4,7 +4,7 @@ use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -423,10 +423,7 @@ fn validate_runtime_id_for_path(runtime_id: &str) -> Result<(), GewyvernInstallE
     if path.is_absolute() {
         return Err(GewyvernInstallError::InvalidRequest);
     }
-    if path
-        .components()
-        .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
-    {
+    if contains_explicit_dot_component(path) {
         return Err(GewyvernInstallError::InvalidRequest);
     }
     Ok(())
@@ -1306,15 +1303,17 @@ fn platform_layout(profile: &str) -> Result<GewyvernInstallLayout, GewyvernInsta
 }
 
 fn validate_root(root: &Path) -> Result<(), GewyvernInstallError> {
-    if !root.is_absolute()
-        || root == Path::new("/")
-        || root
-            .components()
-            .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
-    {
+    if !root.is_absolute() || root.parent().is_none() || contains_explicit_dot_component(root) {
         return Err(GewyvernInstallError::InvalidLayout);
     }
     reject_existing_symlink_components(root)
+}
+
+fn contains_explicit_dot_component(path: &Path) -> bool {
+    path.as_os_str()
+        .as_encoded_bytes()
+        .split(|byte| *byte == b'/' || (cfg!(windows) && *byte == b'\\'))
+        .any(|component| component == b"." || component == b"..")
 }
 
 fn manifest(request: &GewyvernInstallerRequest) -> InstallManifest {
@@ -2454,6 +2453,20 @@ mod tests {
             validate_root(Path::new("/tmp/./dot")),
             Err(GewyvernInstallError::InvalidLayout)
         );
+    }
+
+    #[test]
+    fn explicit_dot_components_are_detected_before_path_normalization() {
+        assert!(contains_explicit_dot_component(Path::new("/missing/./dot")));
+        assert!(contains_explicit_dot_component(Path::new(
+            "/missing/../escape"
+        )));
+        assert!(!contains_explicit_dot_component(Path::new(
+            "/missing/.../valid"
+        )));
+        assert!(!contains_explicit_dot_component(Path::new(
+            "/missing/valid"
+        )));
     }
 
     #[cfg(unix)]

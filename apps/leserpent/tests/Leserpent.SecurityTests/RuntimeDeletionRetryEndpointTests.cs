@@ -24,7 +24,8 @@ public sealed class RuntimeDeletionRetryEndpointTests
             $"leserpent-retry-endpoint-{Guid.NewGuid():N}.json");
         try
         {
-            var registry = CreateRegistry(statePath);
+            var clock = new ManualTimeProvider(DateTimeOffset.UtcNow);
+            var registry = CreateRegistry(statePath, clock);
             const string runtimeId = "runtime-retry-endpoint";
             registry.RegisterRuntime(
                 new RuntimeRegistrationRequest(
@@ -35,6 +36,8 @@ public sealed class RuntimeDeletionRetryEndpointTests
             registry.ReserveRuntimeDeletion(new[] { runtimeId }).Dispose();
             var preparedIntent = Assert.Single(
                 registry.ListPendingRuntimeDeletions());
+            // Keep the retry window ahead of wall time so bypassing the injected clock fails.
+            clock.SetUtcNow(preparedIntent.PreparedAt.AddMinutes(2));
 
             await using var app = await BuildTestAppAsync(registry);
             var client = app.GetTestClient();
@@ -48,7 +51,7 @@ public sealed class RuntimeDeletionRetryEndpointTests
                     "operator-a"));
             Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
 
-            var attemptedAt = DateTimeOffset.UtcNow;
+            var attemptedAt = clock.GetUtcNow();
             using (var reservation = Assert.Single(
                 registry.ClaimPendingRuntimeDeletions(1, attemptedAt)))
             {
@@ -63,6 +66,18 @@ public sealed class RuntimeDeletionRetryEndpointTests
             }
             var intent = Assert.Single(
                 registry.ListPendingRuntimeDeletions());
+            clock.SetUtcNow(intent.NextAttemptAt!.Value);
+            var boundaryError = Assert.Throws<RuntimeDeletionRetryException>(() =>
+                registry.RetryRuntimeDeletionNow(
+                    intent.IntentId,
+                    new RuntimeDeletionRetryNowRequest(
+                        intent.Revision,
+                        "retry-endpoint-boundary",
+                        "operator-a")));
+            Assert.Equal(
+                "runtime_deletion_retry_not_deferred",
+                boundaryError.Code);
+            clock.SetUtcNow(attemptedAt);
             var request = new RuntimeDeletionRetryNowRequest(
                 intent.Revision,
                 "retry-endpoint-request",
@@ -101,7 +116,9 @@ public sealed class RuntimeDeletionRetryEndpointTests
         }
     }
 
-    private static RegistryService CreateRegistry(string statePath)
+    private static RegistryService CreateRegistry(
+        string statePath,
+        TimeProvider timeProvider)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -118,7 +135,8 @@ public sealed class RuntimeDeletionRetryEndpointTests
                         Path.GetDirectoryName(statePath)!,
                 },
                 NullLogger<ControlPlaneStateStore>.Instance),
-            new InMemoryOrchestraRunStore());
+            new InMemoryOrchestraRunStore(),
+            timeProvider);
     }
 
     private static async Task<WebApplication> BuildTestAppAsync(
@@ -164,5 +182,16 @@ public sealed class RuntimeDeletionRetryEndpointTests
         public string ContentRootPath { get; set; } = string.Empty;
         public IFileProvider ContentRootFileProvider { get; set; } =
             new NullFileProvider();
+    }
+
+    private sealed class ManualTimeProvider(
+        DateTimeOffset current) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => current;
+
+        public void SetUtcNow(DateTimeOffset value)
+        {
+            current = value;
+        }
     }
 }
