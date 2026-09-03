@@ -10,7 +10,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use leserpent_protocol::bootstrap_installer::{
     BOOTSTRAP_INSTALLER_SCHEMA_VERSION, BootstrapInstallerRequest, BootstrapInstallerResponse,
-    BootstrapInstallerServiceState, MAX_BOOTSTRAP_INSTALLER_BYTES,
+    BootstrapInstallerServiceState, MAX_BOOTSTRAP_ARTIFACT_BYTES, MAX_BOOTSTRAP_INSTALLER_BYTES,
     decode_bootstrap_installer_request, encode_bootstrap_installer_response,
 };
 use leserpent_protocol::bootstrap_retirement::{
@@ -24,7 +24,6 @@ use rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
-const MAX_INSTALL_ARTIFACT_BYTES: u64 = 64 * 1024 * 1024;
 const EXECUTABLE_NAME: &str = "leserpentd";
 const TOKEN_NAME: &str = "session.token";
 const MANIFEST_NAME: &str = "install.json";
@@ -1541,7 +1540,7 @@ fn read_regular_bounded(path: &Path) -> Result<Vec<u8>, BootstrapInstallError> {
         || path_metadata.file_type().is_symlink()
         || !same_file_identity(&metadata, &path_metadata)
         || metadata.len() == 0
-        || metadata.len() > MAX_INSTALL_ARTIFACT_BYTES
+        || metadata.len() > MAX_BOOTSTRAP_ARTIFACT_BYTES as u64
     {
         return Err(BootstrapInstallError::InvalidArtifact);
     }
@@ -2069,6 +2068,22 @@ mod tests {
             Err(BootstrapInstallError::InvalidLayout)
         );
         assert!(!real_root.join(CURRENT_NAME).exists());
+    }
+
+    #[test]
+    fn oversized_artifact_is_rejected_before_reading() {
+        let (temp, _source, request, layout) = fixture();
+        let oversized = temp.0.join("oversized-leserpentd");
+        File::create(&oversized)
+            .unwrap()
+            .set_len(MAX_BOOTSTRAP_ARTIFACT_BYTES as u64 + 1)
+            .unwrap();
+
+        assert_eq!(
+            install_bootstrap_artifact(&oversized, &request, &layout),
+            Err(BootstrapInstallError::InvalidArtifact)
+        );
+        assert!(!layout.root.join(CURRENT_NAME).exists());
     }
 
     #[test]

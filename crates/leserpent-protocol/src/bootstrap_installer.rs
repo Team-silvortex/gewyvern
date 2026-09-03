@@ -7,6 +7,7 @@ use zeroize::{Zeroize, Zeroizing};
 
 pub const BOOTSTRAP_INSTALLER_SCHEMA_VERSION: u32 = 1;
 pub const MAX_BOOTSTRAP_INSTALLER_BYTES: usize = 64 * 1024;
+pub const MAX_BOOTSTRAP_ARTIFACT_BYTES: usize = 256 * 1024 * 1024;
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

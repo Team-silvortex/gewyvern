@@ -16,6 +16,7 @@ use leserpent_protocol::bootstrap::{
     BOOTSTRAP_PROTOCOL_SCHEMA_VERSION, BootstrapRequestEnvelope, BootstrapResponse,
     BootstrapResponseEnvelope, decode_bootstrap_request, encode_bootstrap_response,
 };
+pub use leserpent_protocol::bootstrap_installer::MAX_BOOTSTRAP_ARTIFACT_BYTES;
 #[cfg(feature = "native-ssh")]
 use leserpent_protocol::bootstrap_installer::{
     BootstrapInstallerRequest, BootstrapInstallerServiceState, MAX_BOOTSTRAP_INSTALLER_BYTES,
@@ -47,7 +48,6 @@ use crate::{
 
 pub const HOST_BOOTSTRAP_EFFECT_KIND: &str = "leserpent.host.bootstrap";
 pub const DAEMON_RETIREMENT_EFFECT_KIND: &str = "leserpent.daemon.retire";
-pub const MAX_BOOTSTRAP_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Clone)]
 pub struct BootstrapArtifact {
