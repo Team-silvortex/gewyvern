@@ -1209,6 +1209,7 @@ dependencies = [
  "serde",
  "serde_json",
  "signal-hook",
+ "socket2",
  "time",
  "tungstenite",
  "zeroize",

@@ -1864,8 +1864,9 @@ backpressure source. One maximum-capacity production process starts with 128
 runtime projections and 32 authenticated clients; one client stops reading
 while the other 31 consume 24 revision-bound snapshots each. All 744 healthy
 deliveries complete, IPC and HTTPS remain responsive after every eight
-revisions, and the non-reader is evicted by the 1 MiB bounded write buffer
-without affecting writer generation or restart. Physical Linux still needs to
+revisions, and the non-reader is evicted by the bounded 64 KiB socket send queue
+and 1 MiB application write buffer without affecting writer generation or
+restart. Physical Linux still needs to
 retain the exact slow-session FD reclamation and zero-task-amplification data
 beside the preceding three-cycle resource proof.
 

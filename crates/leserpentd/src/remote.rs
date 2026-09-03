@@ -179,6 +179,10 @@ impl<S: Write> Write for PrefixedStream<S> {
 }
 
 impl PrefixedStream<RemoteTlsStream> {
+    pub(crate) fn set_send_buffer_size(&self, bytes: usize) -> std::io::Result<()> {
+        socket2::SockRef::from(&self.inner.sock).set_send_buffer_size(bytes)
+    }
+
     pub(crate) fn set_nonblocking(&self, nonblocking: bool) -> std::io::Result<()> {
         self.inner.sock.set_nonblocking(nonblocking)
     }

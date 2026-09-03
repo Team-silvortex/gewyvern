@@ -18,6 +18,7 @@ use crate::wire::constant_time_equals;
 
 pub(crate) const MAX_EVENT_SESSIONS: usize = 32;
 const EVENT_SUBPROTOCOL: &str = "leserpent.events.v1";
+const EVENT_SOCKET_SEND_BUFFER_BYTES: usize = 64 * 1024;
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(15);
 const MAX_INBOUND_FRAMES_PER_TICK: usize = 4;
 
@@ -53,6 +54,10 @@ impl EventSession {
         };
         let mut socket = accept_hdr_with_config(stream, callback, Some(config))
             .map_err(|_| "WebSocket upgrade failed".to_string())?;
+        socket
+            .get_mut()
+            .set_send_buffer_size(EVENT_SOCKET_SEND_BUFFER_BYTES)
+            .map_err(|error| error.to_string())?;
         socket
             .get_mut()
             .set_nonblocking(true)

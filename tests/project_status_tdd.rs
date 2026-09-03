@@ -666,6 +666,7 @@ fn slow_event_session_contract_is_bounded_and_non_vacuous() {
     assert_eq!(proof["healthy_event_sessions"], 31);
     assert_eq!(proof["authority_revisions"], 24);
     assert_eq!(proof["healthy_runtime_snapshot_events"], 744);
+    assert_eq!(proof["event_socket_send_buffer_bytes"], 64 * 1_024);
     assert_eq!(proof["event_write_buffer_limit_bytes"], 1_049_600);
     assert!(
         proof["slow_session_policy"]
@@ -686,9 +687,13 @@ fn slow_event_session_contract_is_bounded_and_non_vacuous() {
 
     let events = std::fs::read_to_string(repository_root().join("crates/leserpentd/src/events.rs"))
         .expect("event session source must exist");
+    let bounded_socket = events
+        .find(".set_send_buffer_size(EVENT_SOCKET_SEND_BUFFER_BYTES)")
+        .expect("event sessions must retain a bounded native send queue");
     let bounded_buffer = events
         .find(".max_write_buffer_size(MAX_PROTOCOL_MESSAGE_BYTES + 1024)")
         .expect("event sessions must retain a bounded write buffer");
+    assert!(bounded_socket > bounded_buffer);
     let slow_session_drop = events[bounded_buffer..]
         .find("Err(_) => false")
         .expect("event sessions must isolate a terminal slow writer");

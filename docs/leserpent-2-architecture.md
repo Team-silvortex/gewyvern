@@ -2541,10 +2541,11 @@ Each remote scheduler turn polls existing event sessions before accepting a new
 connection, so peer Close frames reclaim stale occupancy before the 32-session
 capacity fence is evaluated. A second poll after admission sends the new
 session's initial snapshot without adding a per-session task.
-Outbound `WouldBlock` does not advance past unsafely discarded data: tungstenite
-retains the frame in its bounded write buffer and the daemon continues polling.
-If a non-reading peer fills that buffer, only that event session is removed;
-other event sessions and the IPC/HTTPS schedulers continue independently.
+Outbound `WouldBlock` does not advance past unsafely discarded data: each event
+socket requests a 64 KiB kernel send buffer, tungstenite retains the frame in
+its bounded write buffer, and the daemon continues polling. If a non-reading
+peer fills those bounded queues, only that event session is removed; other
+event sessions and the IPC/HTTPS schedulers continue independently.
 All versioned Rust wire envelopes now reject unknown fields, matching the
 schema's fail-closed top-level contract and the strict .NET decoder. Health and
 remote projection payloads apply the same rule: optional v1 fields may be

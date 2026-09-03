@@ -385,6 +385,7 @@
       "healthy_event_sessions": 31,
       "authority_revisions": 24,
       "healthy_runtime_snapshot_events": 744,
+      "event_socket_send_buffer_bytes": 65536,
       "event_write_buffer_limit_bytes": 1049600,
       "slow_session_policy": "retain-wouldblock-frames-inside-the-bounded-tungstenite-buffer-and-drop-only-the-slow-session-when-that-buffer-cannot-accept-another-snapshot",
       "healthy_fanout": "all-thirty-one-reading-clients-receive-every-revision-bound-endpoint-redacted-snapshot",

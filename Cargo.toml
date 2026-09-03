@@ -34,6 +34,7 @@ signal-hook = "0.3"
 time = { version = "0.3", features = ["formatting", "parsing"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 tungstenite = { version = "0.29", default-features = false, features = ["handshake"] }
+socket2 = "0.6.5"
 
 [package]
 name = "gewyvern"

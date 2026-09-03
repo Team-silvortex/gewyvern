@@ -22,6 +22,7 @@ leserpent-runtime = { path = "../leserpent-runtime" }
 serde.workspace = true
 serde_json.workspace = true
 signal-hook.workspace = true
+socket2.workspace = true
 time.workspace = true
 rustls.workspace = true
 ring = "0.17"

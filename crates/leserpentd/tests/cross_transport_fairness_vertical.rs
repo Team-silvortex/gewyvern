@@ -917,7 +917,10 @@ fn seed_slow_event_runtime_snapshot(database: &Path) {
     assert_eq!(runtime_owner_count(database), 0);
 }
 
-fn assert_slow_event_session_is_bounded_and_closed(websocket: &mut EventClient) -> usize {
+fn assert_slow_event_session_is_bounded_and_closed(
+    websocket: &mut EventClient,
+    server_reclaimed: bool,
+) -> usize {
     let mut buffered_snapshots = 0;
     for _ in 0..SLOW_EVENT_REVISIONS + 8 {
         match websocket.read() {
@@ -939,7 +942,11 @@ fn assert_slow_event_session_is_bounded_and_closed(websocket: &mut EventClient) 
                     std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
                 ) =>
             {
-                panic!("slow event session remained open after bounded backpressure")
+                assert!(
+                    server_reclaimed,
+                    "slow event session remained open without server-side FD reclamation"
+                );
+                return buffered_snapshots;
             }
             Err(_) => return buffered_snapshots,
         }
@@ -2030,8 +2037,10 @@ fn slow_event_session_is_bounded_without_blocking_healthy_fanout_or_transports()
 
     let healthy_resources =
         wait_for_event_session_count_resources(pid, baseline, MAXIMUM_EVENT_SESSIONS - 1);
-    let buffered_slow_snapshots =
-        assert_slow_event_session_is_bounded_and_closed(&mut slow_session);
+    let buffered_slow_snapshots = assert_slow_event_session_is_bounded_and_closed(
+        &mut slow_session,
+        healthy_resources.is_some(),
+    );
     assert!(buffered_slow_snapshots < SLOW_EVENT_REVISIONS);
     assert_eq!(authority_writer_generation(&database), 1);
     for healthy_session in &mut healthy_sessions {
