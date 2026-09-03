@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command as ProcessCommand, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -53,6 +53,13 @@ type StalledRemoteTask = thread::JoinHandle<StalledRemoteAttempt>;
 type EventClient = WebSocket<StreamOwned<ClientConnection, TcpStream>>;
 static NEXT_TEMP_ROOT: AtomicU64 = AtomicU64::new(0);
 static DAEMON_PORT_BIND: Mutex<()> = Mutex::new(());
+static CROSS_TRANSPORT_TEST_SERIAL: Mutex<()> = Mutex::new(());
+
+fn lock_cross_transport_test() -> MutexGuard<'static, ()> {
+    CROSS_TRANSPORT_TEST_SERIAL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 #[derive(Clone, Copy, Debug)]
 enum RemoteReadPhase {
@@ -974,6 +981,7 @@ fn sample_unchanged_process_resources(
 
 #[test]
 fn https_and_maintenance_progress_across_repeated_saturated_ipc_waves() {
+    let _test_guard = lock_cross_transport_test();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
     let root = TempRoot::new();
     let database = root.0.join("cross-transport.sqlite");
@@ -1063,6 +1071,7 @@ fn https_and_maintenance_progress_across_repeated_saturated_ipc_waves() {
 
 #[test]
 fn ipc_and_maintenance_progress_across_repeated_authenticated_slow_https_waves() {
+    let _test_guard = lock_cross_transport_test();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
     let root = TempRoot::new();
     let database = root.0.join("slow-https.sqlite");
@@ -1175,6 +1184,7 @@ fn ipc_and_maintenance_progress_across_repeated_authenticated_slow_https_waves()
 
 #[test]
 fn sigterm_cancels_authenticated_slow_https_and_allows_immediate_restart() {
+    let _test_guard = lock_cross_transport_test();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
     let root = TempRoot::new();
     let database = root.0.join("slow-https-shutdown.sqlite");
@@ -1238,6 +1248,7 @@ fn sigterm_cancels_authenticated_slow_https_and_allows_immediate_restart() {
 
 #[test]
 fn repeated_remote_read_phase_shutdowns_preserve_process_resource_baselines() {
+    let _test_guard = lock_cross_transport_test();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
     let root = TempRoot::new();
     let database = root.0.join("remote-read-phase-shutdown.sqlite");
@@ -1402,6 +1413,7 @@ fn repeated_remote_read_phase_shutdowns_preserve_process_resource_baselines() {
 
 #[test]
 fn mixed_remote_read_phases_with_listener_backlog_preserve_bounded_shutdown_and_authority() {
+    let _test_guard = lock_cross_transport_test();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
     let root = TempRoot::new();
     let database = root.0.join("remote-backlog-shutdown.sqlite");
@@ -1589,6 +1601,7 @@ fn mixed_remote_read_phases_with_listener_backlog_preserve_bounded_shutdown_and_
 
 #[test]
 fn maximum_event_sessions_with_stalled_request_preserve_bounded_shutdown_and_resources() {
+    let _test_guard = lock_cross_transport_test();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
     let root = TempRoot::new();
     let database = root.0.join("event-session-shutdown.sqlite");
@@ -1719,6 +1732,7 @@ fn maximum_event_sessions_with_stalled_request_preserve_bounded_shutdown_and_res
 
 #[test]
 fn maximum_event_session_cycles_reclaim_slots_and_preserve_cross_transport_progress() {
+    let _test_guard = lock_cross_transport_test();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
     let root = TempRoot::new();
     let database = root.0.join("event-session-cycles.sqlite");
@@ -1921,6 +1935,7 @@ fn maximum_event_session_cycles_reclaim_slots_and_preserve_cross_transport_progr
 
 #[test]
 fn slow_event_session_is_bounded_without_blocking_healthy_fanout_or_transports() {
+    let _test_guard = lock_cross_transport_test();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
     let root = TempRoot::new();
     let database = root.0.join("slow-event-session.sqlite");
