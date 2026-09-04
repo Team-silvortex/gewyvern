@@ -126,11 +126,13 @@ stack exists, it remains a deferred optional sidecar.
 
 ### Shared Native Foundation
 
-Two narrow crates sit below product semantics rather than forming another
+Three narrow crates sit below product semantics rather than forming another
 authority plane:
 
 - `silvortex-bounded-io` owns security-sensitive bounded file and transport
   mechanics without depending on any product crate.
+- `silvortex-identity` owns validated runtime, provisioning, retirement, and
+  credential identities plus their stable scalar wire representation.
 - `gewyvern-install-contract` owns the strict installation and retirement wire
   exchanged between a Gewyvern binary and Leserpent deployment adapters.
 
@@ -271,6 +273,7 @@ leserpent-domain -> runtime -> adapters -> leserpentd
                            Gewyvern machine contract
 
 silvortex-bounded-io -> Gewyvern / protocol / adapters / CLI / daemon
+silvortex-identity -> Gewyvern install contract / leserpent-domain
 gewyvern-install-contract -> Gewyvern installer / protocol / adapters
 
 GewyLang -> fragment registry -> Gewyvern runtime -> export/replay
@@ -281,16 +284,15 @@ GewyLang -> fragment registry -> Gewyvern runtime -> export/replay
 
 The logical Gewyvern runtime remains independent. Generic bounded file, HTTP
 token, connection-deadline, and absolute-I/O-deadline behavior now lives in the
-zero-business-dependency `silvortex-bounded-io` crate. Strict Gewyvern
-installation and retirement messages live in `gewyvern-install-contract`.
-`leserpent-protocol` re-exports both old module paths for source compatibility,
-but the Gewyvern production graph no longer imports the full protocol, VM, or
-UI stack.
-
-One narrow boundary debt remains: `gewyvern-install-contract` currently reuses
-four validated identity types from `leserpent-domain`. Those identities should
-move to a neutral identity crate before the two product crate sets are released
-independently; their Rust type identity and serialized bytes must not change.
+zero-business-dependency `silvortex-bounded-io` crate. Shared validated
+identities live in the zero-product-dependency `silvortex-identity` crate.
+Strict Gewyvern installation and retirement messages live in
+`gewyvern-install-contract`, which depends only on that neutral identity layer
+plus codec and cryptographic primitives. `leserpent-domain` and
+`leserpent-protocol` preserve their old public import paths as re-exports of the
+same Rust types and modules. The Gewyvern production graph therefore imports no
+Leserpent or Leselang product crate while retaining identical identifier wire
+bytes.
 
 ## The Advantage Zone
 
@@ -342,8 +344,9 @@ The status tensor and source map identify four maintenance priorities:
    confuse a 100% delivery score with permanent maturity.
 2. Freeze the ASP.NET/TypeScript implementation as a compatibility bridge and
    add no new semantic authority there.
-3. Finish neutral identity extraction beneath the new install contract before
-   publishing Gewyvern or Leserpent as independently versioned crate sets.
+3. Preserve the completed neutral I/O, identity, and install-contract
+   extractions; no product semantics or reverse product dependencies may leak
+   back into those shared crates.
 4. Split internal monoliths along existing contracts when touched. In
    particular, Leselang VM/UI and Leserpent runtime/persistence modules should
    become smaller implementation units without changing their public protocol.

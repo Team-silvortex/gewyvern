@@ -2,11 +2,9 @@
 
 use std::fmt;
 
-use leserpent_domain::RuntimeId;
-use leserpent_domain::bootstrap::CredentialHandle;
-use leserpent_domain::provisioning::ProvisioningId;
 use ring::digest::{SHA256, digest};
 use serde::{Deserialize, Serialize};
+use silvortex_identity::{CredentialHandle, ProvisioningId, RuntimeId};
 use zeroize::{Zeroize, Zeroizing};
 
 pub const GEWYVERN_INSTALLER_SCHEMA_VERSION: u32 = 1;

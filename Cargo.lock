@@ -840,10 +840,10 @@ dependencies = [
 name = "gewyvern-install-contract"
 version = "2.0.0"
 dependencies = [
- "leserpent-domain",
  "ring",
  "serde",
  "serde_json",
+ "silvortex-identity",
  "zeroize",
 ]
 
@@ -1164,6 +1164,7 @@ dependencies = [
  "http",
  "serde",
  "serde_json",
+ "silvortex-identity",
 ]
 
 [[package]]
@@ -2141,6 +2142,14 @@ name = "silvortex-bounded-io"
 version = "2.0.0"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "silvortex-identity"
+version = "2.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

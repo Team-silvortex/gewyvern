@@ -703,6 +703,8 @@ mod tests {
     use super::*;
     use std::os::unix::fs::{PermissionsExt, symlink};
 
+    const LOCK_HANDOFF_TIMEOUT: Duration = Duration::from_secs(2);
+
     fn fixture_root(label: &str) -> PathBuf {
         env::temp_dir().join(format!(
             "leserpent-macos-install-{label}-{}",
@@ -793,17 +795,32 @@ mod tests {
         );
 
         let held = acquire_install_lock(&install, Duration::ZERO).unwrap();
+        let inherited_writer = held.try_clone().unwrap();
         let error = acquire_install_lock(&status, Duration::from_millis(30)).unwrap_err();
         assert!(error.contains("timed out waiting for another Leserpent installation"));
         let independent = acquire_install_lock(&other, Duration::ZERO).unwrap();
         drop(independent);
         drop(held);
 
-        let first_reader = acquire_install_lock(&status, Duration::ZERO).unwrap();
+        // A concurrent fork may retain the descriptor until exec closes it. Model that
+        // handoff explicitly instead of assuming zero-latency close visibility.
+        let writer_release = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(30));
+            drop(inherited_writer);
+        });
+        let first_reader = acquire_install_lock(&status, LOCK_HANDOFF_TIMEOUT).unwrap();
+        writer_release.join().unwrap();
         let second_reader = acquire_install_lock(&status, Duration::ZERO).unwrap();
+        let inherited_reader = first_reader.try_clone().unwrap();
         drop(second_reader);
         drop(first_reader);
-        acquire_install_lock(&install, Duration::ZERO).unwrap();
+        let reader_release = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(30));
+            drop(inherited_reader);
+        });
+        let writer = acquire_install_lock(&install, LOCK_HANDOFF_TIMEOUT).unwrap();
+        reader_release.join().unwrap();
+        drop(writer);
 
         fs::remove_dir_all(root).unwrap();
         fs::remove_dir_all(other_root).unwrap();

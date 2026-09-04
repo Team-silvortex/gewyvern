@@ -3,6 +3,7 @@ use std::fmt;
 
 use http::Uri;
 use serde::{Deserialize, Serialize};
+pub use silvortex_identity::{IdentityError, RuntimeId};
 
 pub mod bootstrap;
 pub mod bootstrap_retirement;
@@ -25,10 +26,6 @@ pub const RUNTIME_DEPLOYMENT_EFFECT_KIND: &str = "gewyvern.deployment.submit";
 pub const MAX_RUNTIME_HISTORY_ENTRIES: usize = 32;
 pub const MAX_RUNTIME_LOG_QUERY_ENTRIES: u16 = 256;
 pub const MAX_RUNTIME_LOG_MESSAGE_BYTES: usize = 64 * 1024;
-
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
-#[serde(transparent)]
-pub struct RuntimeId(String);
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
@@ -542,16 +539,6 @@ pub struct InMemoryControlPlane {
     applied: BTreeMap<(String, IdempotencyKey), AppliedCommand>,
 }
 
-impl RuntimeId {
-    pub fn new(value: impl Into<String>) -> Result<Self, DomainError> {
-        validated_identifier("runtime_id", value.into()).map(Self)
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
 impl CommandId {
     pub fn new(value: impl Into<String>) -> Result<Self, DomainError> {
         validated_identifier("command_id", value.into()).map(Self)
@@ -586,7 +573,6 @@ macro_rules! impl_validated_identifier_deserialize {
     };
 }
 
-impl_validated_identifier_deserialize!(RuntimeId);
 impl_validated_identifier_deserialize!(CommandId);
 impl_validated_identifier_deserialize!(IdempotencyKey);
 
@@ -1751,15 +1737,21 @@ impl fmt::Display for DomainError {
 
 impl std::error::Error for DomainError {}
 
+impl From<silvortex_identity::IdentityError> for DomainError {
+    fn from(error: silvortex_identity::IdentityError) -> Self {
+        match error {
+            silvortex_identity::IdentityError::InvalidIdentifier { field } => {
+                Self::InvalidIdentifier { field }
+            }
+            silvortex_identity::IdentityError::InvalidCredentialHandle => Self::InvalidIdentifier {
+                field: "credential_handle",
+            },
+        }
+    }
+}
+
 fn validated_identifier(field: &'static str, value: String) -> Result<String, DomainError> {
-    let valid = !value.is_empty()
-        && value.len() <= 128
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b':' | b'.'));
-    valid
-        .then_some(value)
-        .ok_or(DomainError::InvalidIdentifier { field })
+    silvortex_identity::validate_identifier(field, value).map_err(DomainError::from)
 }
 
 /// Validates the debugger session identity shared by language, UI, and plan boundaries.

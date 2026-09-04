@@ -1448,7 +1448,7 @@ fn registration_decision(
             &coordinates.name,
             &coordinates.endpoint,
         ))
-        .map_err(map_domain_error)?,
+        .map_err(|error| map_domain_error(error.into()))?,
     };
     let expected_revision = existing.as_ref().map(|runtime| runtime.revision);
     let transport_reason = registration_transport_reason(coordinates);

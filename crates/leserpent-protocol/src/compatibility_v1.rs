@@ -183,7 +183,7 @@ pub fn decode_runtime_deployment_request(
     bytes: &[u8],
 ) -> Result<LegacyRuntimeDeploymentEnvelope, CompatibilityError> {
     let envelope: LegacyRuntimeDeploymentEnvelope = decode_capped(bytes)?;
-    RuntimeId::new(&envelope.runtime_id)?;
+    RuntimeId::new(&envelope.runtime_id).map_err(DomainError::from)?;
     let request = &envelope.request;
     if !request.confirmed {
         return Err(CompatibilityError::InvalidDeployment(
@@ -359,7 +359,7 @@ pub fn runtime_status_refresh_command(
         confirmation: Confirmation::NotRequired,
         dry_run,
         command: Command::RuntimeRefresh {
-            runtime_id: RuntimeId::new(runtime_id)?,
+            runtime_id: RuntimeId::new(runtime_id).map_err(DomainError::from)?,
         },
     })
 }
@@ -370,7 +370,7 @@ pub fn seed_runtime_collection(
 ) -> Result<(), CompatibilityError> {
     for runtime in collection.runtimes {
         control.register_runtime_with_metadata(
-            RuntimeId::new(runtime.runtime_id)?,
+            RuntimeId::new(runtime.runtime_id).map_err(DomainError::from)?,
             runtime.name,
             runtime.endpoint,
             runtime.tags.into(),

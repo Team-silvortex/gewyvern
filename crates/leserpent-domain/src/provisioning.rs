@@ -2,6 +2,7 @@ use std::fmt;
 
 use http::Uri;
 use serde::{Deserialize, Serialize};
+pub use silvortex_identity::ProvisioningId;
 
 use crate::bootstrap::{BootstrapTarget, CredentialHandle};
 use crate::{CapabilitySet, Principal, RuntimeId};
@@ -10,30 +11,6 @@ pub const PROVISIONING_DOMAIN_SCHEMA_VERSION: u32 = 1;
 pub const PROVISIONING_CHECKPOINT_SCHEMA_VERSION: u32 = 1;
 pub const PROVISIONING_SERVICE_PROTOCOL_VERSION: u32 = 1;
 pub const CAPABILITY_RUNTIME_PROVISION: &str = "runtime.provision";
-
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
-#[serde(transparent)]
-pub struct ProvisioningId(String);
-
-impl ProvisioningId {
-    pub fn new(value: impl Into<String>) -> Result<Self, ProvisioningError> {
-        validate_identifier("provisioning_id", value.into()).map(Self)
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl<'de> Deserialize<'de> for ProvisioningId {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        Self::new(value).map_err(serde::de::Error::custom)
-    }
-}
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -430,15 +407,21 @@ impl fmt::Display for ProvisioningError {
 
 impl std::error::Error for ProvisioningError {}
 
+impl From<silvortex_identity::IdentityError> for ProvisioningError {
+    fn from(error: silvortex_identity::IdentityError) -> Self {
+        match error {
+            silvortex_identity::IdentityError::InvalidIdentifier { field } => {
+                Self::InvalidIdentifier { field }
+            }
+            silvortex_identity::IdentityError::InvalidCredentialHandle => Self::InvalidIdentifier {
+                field: "credential_handle",
+            },
+        }
+    }
+}
+
 fn validate_identifier(field: &'static str, value: String) -> Result<String, ProvisioningError> {
-    let valid = !value.is_empty()
-        && value.len() <= 128
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b':' | b'.'));
-    valid
-        .then_some(value)
-        .ok_or(ProvisioningError::InvalidIdentifier { field })
+    silvortex_identity::validate_identifier(field, value).map_err(ProvisioningError::from)
 }
 
 fn validate_endpoint(value: &str) -> Result<(), ProvisioningError> {

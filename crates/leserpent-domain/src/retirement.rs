@@ -1,6 +1,7 @@
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
+pub use silvortex_identity::RetirementId;
 
 use crate::bootstrap::{BootstrapTarget, CredentialHandle};
 use crate::provisioning::ProvisioningId;
@@ -9,30 +10,6 @@ use crate::{CapabilitySet, Principal, RuntimeId};
 pub const RETIREMENT_DOMAIN_SCHEMA_VERSION: u32 = 1;
 pub const RETIREMENT_CHECKPOINT_SCHEMA_VERSION: u32 = 1;
 pub const CAPABILITY_RUNTIME_RETIRE: &str = "runtime.retire";
-
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
-#[serde(transparent)]
-pub struct RetirementId(String);
-
-impl RetirementId {
-    pub fn new(value: impl Into<String>) -> Result<Self, RetirementError> {
-        validate_identifier("retirement_id", value.into()).map(Self)
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl<'de> Deserialize<'de> for RetirementId {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        Self::new(value).map_err(serde::de::Error::custom)
-    }
-}
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -383,16 +360,21 @@ impl fmt::Display for RetirementError {
 
 impl std::error::Error for RetirementError {}
 
-fn validate_identifier(field: &'static str, value: String) -> Result<String, RetirementError> {
-    if value.is_empty()
-        || value.len() > 128
-        || !value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
-    {
-        return Err(RetirementError::InvalidIdentifier { field });
+impl From<silvortex_identity::IdentityError> for RetirementError {
+    fn from(error: silvortex_identity::IdentityError) -> Self {
+        match error {
+            silvortex_identity::IdentityError::InvalidIdentifier { field } => {
+                Self::InvalidIdentifier { field }
+            }
+            silvortex_identity::IdentityError::InvalidCredentialHandle => {
+                Self::InvalidCredentialHandle
+            }
+        }
     }
-    Ok(value)
+}
+
+fn validate_identifier(field: &'static str, value: String) -> Result<String, RetirementError> {
+    silvortex_identity::validate_identifier(field, value).map_err(RetirementError::from)
 }
 
 fn validate_fault(value: &str) -> Result<(), RetirementError> {

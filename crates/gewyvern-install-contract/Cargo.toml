@@ -6,8 +6,8 @@ description = "Strict wire contracts for installing and retiring Gewyvern servic
 license.workspace = true
 
 [dependencies]
-leserpent-domain = { path = "../leserpent-domain" }
 ring = "0.17"
 serde.workspace = true
 serde_json.workspace = true
+silvortex-identity = { path = "../silvortex-identity" }
 zeroize = "1"

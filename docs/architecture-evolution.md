@@ -56,11 +56,10 @@ surface area.
 
 Priority seams:
 
-1. Keep `silvortex-bounded-io` free of business semantics and preserve its
-   single-source security tests across every native consumer.
-2. Move shared installer identity types beneath `gewyvern-install-contract`
-   into a neutral identity crate without changing wire bytes or public type
-   identity.
+1. Keep `silvortex-bounded-io` and `silvortex-identity` free of product
+   semantics and preserve their single-source safety and compatibility tests.
+2. Preserve the completed identity extraction: old domain paths, scalar wire
+   bytes, rejection rules, and shared Rust type identity must remain stable.
 3. Keep Gewyvern installer integration separate from diagnosis semantics and
    feature-gate it when independent package publication requires that split.
 4. Ratchet ASP.NET mutation paths toward Rust daemon authority until the Web

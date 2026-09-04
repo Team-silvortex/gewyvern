@@ -18,6 +18,7 @@ members = [
     "crates/leserpent-runtime",
     "crates/leserpentd",
     "crates/silvortex-bounded-io",
+    "crates/silvortex-identity",
     "apps/etragon",
 ]
 resolver = "3"

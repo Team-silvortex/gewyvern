@@ -36,7 +36,7 @@
       {
         "id": "shared-foundation",
         "label": "Shared Native Foundation",
-        "summary": "Product-neutral bounded I/O and narrow cross-plane service lifecycle contracts."
+        "summary": "Product-neutral validated identities, bounded I/O, and narrow cross-plane service lifecycle contracts."
       },
       {
         "id": "project-governance",
@@ -159,6 +159,11 @@
         "id": "bounded-io",
         "label": "Bounded Native I/O",
         "summary": "Reusable file, socket, deadline, and HTTP-token safety primitives."
+      },
+      {
+        "id": "identity",
+        "label": "Validated Identity",
+        "summary": "Reusable validated identifiers shared across native protocol boundaries."
       },
       {
         "id": "install-contract",
@@ -323,6 +328,11 @@
         "summary": "Product-neutral bounded files, deadline sockets, and strict HTTP header tokens."
       },
       {
+        "id": "validated-identities",
+        "label": "Validated Identities",
+        "summary": "Product-neutral runtime, provisioning, retirement, and credential identities."
+      },
+      {
         "id": "gewyvern-install-wire",
         "label": "Gewyvern Install Wire",
         "summary": "Strict, bounded, identity-bound installation and retirement exchange."
@@ -342,6 +352,14 @@
       "summary": "The shared bounded-I/O crate owns product-neutral file and transport safety without business dependencies.",
       "source": "docs/architecture-blueprint.md",
       "cells": ["shared-foundation/bounded-io/bounded-native-io"]
+    },
+    {
+      "id": "boundary-shared-identity",
+      "architecture": "shared-foundation",
+      "kind": "ownership-boundary",
+      "summary": "The shared identity crate owns product-neutral validated identifiers and their stable scalar wire representation.",
+      "source": "docs/architecture-blueprint.md",
+      "cells": ["shared-foundation/identity/validated-identities"]
     },
     {
       "id": "boundary-shared-gewyvern-install-contract",
@@ -625,29 +643,53 @@
       "next_gate": "Preserve zero business dependencies and add native Windows reparse-point and deadline proof before claiming the same atomic file posture there."
     },
     {
+      "id": "shared-foundation/identity/validated-identities",
+      "architecture": "shared-foundation",
+      "module": "identity",
+      "feature": "validated-identities",
+      "lifecycle": "current",
+      "priority": "active",
+      "maturity": "mature",
+      "completion": 100,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "silvortex-identity",
+        "version": "1.0.0",
+        "stability": "stable",
+        "surfaces": ["runtime-id", "provisioning-id", "retirement-id", "credential-handle", "public-identifier-bound", "public-vault-prefix", "single-source-bounded-ascii-identifier-grammar", "strict-vault-handle-grammar", "panic-free-credential-parts", "transparent-scalar-serialization", "validated-deserialization", "legacy-domain-path-reexports"]
+      },
+      "depends_on": [],
+      "blockers": [],
+      "consumers": ["gewyvern-install-contract", "leserpent-domain"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/architecture-blueprint.md", "state": "present" },
+        { "kind": "source", "path": "crates/silvortex-identity/Cargo.toml", "state": "present" },
+        { "kind": "source", "path": "crates/silvortex-identity/src/lib.rs", "state": "present" },
+        { "kind": "test", "path": "crates/silvortex-identity/src/lib.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-domain/tests/identity_compatibility.rs", "state": "present" }
+      ],
+      "next_gate": "Preserve zero product dependencies, scalar wire bytes, identifier rejection rules, and old domain import-path type identity for every future identity change."
+    },
+    {
       "id": "shared-foundation/install-contract/gewyvern-install-wire",
       "architecture": "shared-foundation",
       "module": "install-contract",
       "feature": "gewyvern-install-wire",
       "lifecycle": "current",
       "priority": "active",
-      "maturity": "stabilizing",
-      "completion": 95,
+      "maturity": "mature",
+      "completion": 100,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "gewyvern-install-contract",
         "version": "1.0.0",
         "stability": "stable",
-        "surfaces": ["strict-installer-request", "zeroizing-secret-request", "redacted-debug-output", "identity-bound-readiness-receipt", "digest-bound-tls-identity", "strict-retirement-request", "identity-bound-retirement-receipt", "bounded-json-codecs", "leserpent-protocol-compatibility-reexports"]
+        "surfaces": ["strict-installer-request", "zeroizing-secret-request", "redacted-debug-output", "identity-bound-readiness-receipt", "digest-bound-tls-identity", "strict-retirement-request", "identity-bound-retirement-receipt", "bounded-json-codecs", "neutral-shared-identities", "leserpent-protocol-compatibility-reexports"]
       },
-      "depends_on": ["leserpent-2/domain-model/command-query-kernel"],
-      "blockers": [
-        {
-          "id": "installer-identity-coupling",
-          "summary": "The narrow contract still imports shared runtime, provisioning, retirement, and credential ID types from leserpent-domain."
-        }
-      ],
+      "depends_on": ["shared-foundation/identity/validated-identities"],
+      "blockers": [],
       "consumers": ["gewyvern-installer", "leserpent-protocol", "leserpent-adapters"],
       "evidence": [
         { "kind": "documentation", "path": "docs/architecture-blueprint.md", "state": "present" },
@@ -658,7 +700,7 @@
         { "kind": "test", "path": "crates/gewyvern-install-contract/src/retirement.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-protocol/tests/extracted_contract_compatibility.rs", "state": "present" }
       ],
-      "next_gate": "Move the four shared identifier types into a neutral identity crate without changing Rust type identity, serialized bytes, schema versions, or error behavior."
+      "next_gate": "Preserve strict schemas, identity binding, bounded codecs, secret zeroization, and zero Leserpent product dependencies while the contract evolves."
     },
     {
       "id": "gewyvern-core/runtime-evidence/evidence-reconstruction",
@@ -677,7 +719,7 @@
         "stability": "stable",
         "surfaces": ["cli", "json-export", "runtime-api", "validation", "loss-accounted-windowing", "bounded-stack-probe-http-response", "bounded-stack-probe-connect-read-write-timeouts", "bounded-validation-resolved-address-count", "shared-validation-connect-deadline", "shared-core-transport-safety", "socket-send-shared-connect-deadline", "segmented-http-header-test-proof", "stack-probe-request-injection-rejection", "strict-http-success-status", "strict-http-header-terminator", "panic-free-chunk-decoder", "bracketed-ipv6-authority", "shared-bounded-validation-tcp-http", "deduplicated-validation-http-clients", "fragmented-ambiguous-oversized-http-proof", "bounded-resilience-fault-attempts", "bounded-resilience-log-input", "bounded-socket-send-connect-write", "shared-socket-ingest-line-limit", "single-line-raw-payload", "preconnect-raw-payload-validation", "socket-send-mutually-exclusive-target", "socket-send-mutually-exclusive-payload"]
       },
-      "depends_on": ["shared-foundation/bounded-io/bounded-native-io"],
+      "depends_on": ["shared-foundation/bounded-io/bounded-native-io", "shared-foundation/install-contract/gewyvern-install-wire"],
       "blockers": [],
       "consumers": ["gewyc", "leserpent", "etragon", "operators"],
       "evidence": [
@@ -1543,7 +1585,7 @@
           "debugger-cancel-command"
         ]
       },
-      "depends_on": ["leserpent-1x/control-plane/orchestration-persistence"],
+      "depends_on": ["leserpent-1x/control-plane/orchestration-persistence", "shared-foundation/identity/validated-identities"],
       "blockers": [],
       "consumers": ["leselang-vm", "leserpent-cli", "avalonia-client", "web-adapter"],
       "evidence": [

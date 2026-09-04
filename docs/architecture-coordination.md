@@ -130,6 +130,7 @@ Use the first matching route:
 | native-only layout/focus behavior | renderer host | accessibility and lifecycle proof |
 | transport encoding | `leserpent-protocol` | compatibility fixtures; no policy change |
 | product-neutral file or deadline mechanism | `silvortex-bounded-io` | product-specific errors and policy stay with caller |
+| product-neutral validated identifier | `silvortex-identity` | product-specific authorization and lifecycle rules stay with caller |
 | Gewyvern installer/retirement exchange | `gewyvern-install-contract` | adapter authorization and installer effects stay outside codec |
 | advisory ranking | Etragon | sanitized append-only result |
 

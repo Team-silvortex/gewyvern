@@ -1869,10 +1869,7 @@ mod tests {
     #[cfg(unix)]
     use std::os::unix::fs::{PermissionsExt, symlink};
 
-    use leserpent_domain::RuntimeId;
-    use leserpent_domain::bootstrap::CredentialHandle;
-    use leserpent_domain::provisioning::ProvisioningId;
-    use leserpent_domain::retirement::RetirementId;
+    use gewyvern_install_contract::{CredentialHandle, ProvisioningId, RetirementId, RuntimeId};
 
     use super::*;
 

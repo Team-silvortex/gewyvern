@@ -548,7 +548,8 @@ fn control_session_from_persistence(
 ) -> Result<ControlSession, RuntimeError> {
     Ok(ControlSession {
         session_id: session.session_id,
-        runtime_id: RuntimeId::new(session.runtime_id).map_err(RuntimeError::Domain)?,
+        runtime_id: RuntimeId::new(session.runtime_id)
+            .map_err(|error| RuntimeError::Domain(error.into()))?,
         pipeline_kind: session.pipeline_kind,
         requested_by: session.requested_by,
         status: session.status,
@@ -905,8 +906,8 @@ impl ControlRuntime {
                 JournalEntryKind::RuntimeRegistration => {
                     let registration: RuntimeRegistration = serde_json::from_slice(&entry.payload)
                         .map_err(|error| RuntimeError::Storage(error.to_string()))?;
-                    let runtime_id =
-                        RuntimeId::new(registration.runtime_id).map_err(RuntimeError::Domain)?;
+                    let runtime_id = RuntimeId::new(registration.runtime_id)
+                        .map_err(|error| RuntimeError::Domain(error.into()))?;
                     runtime.control.register_runtime(
                         runtime_id.clone(),
                         registration.name,
@@ -923,8 +924,8 @@ impl ControlRuntime {
                     let unregistration: RuntimeUnregistration =
                         serde_json::from_slice(&entry.payload)
                             .map_err(|error| RuntimeError::Storage(error.to_string()))?;
-                    let runtime_id =
-                        RuntimeId::new(unregistration.runtime_id).map_err(RuntimeError::Domain)?;
+                    let runtime_id = RuntimeId::new(unregistration.runtime_id)
+                        .map_err(|error| RuntimeError::Domain(error.into()))?;
                     if !runtime.control.unregister_runtime(&runtime_id) {
                         return Err(RuntimeError::ReplayMismatch {
                             sequence: entry.sequence,
@@ -991,8 +992,8 @@ impl ControlRuntime {
                     let observation: RuntimeStatusObservation =
                         serde_json::from_slice(&entry.payload)
                             .map_err(|error| RuntimeError::Storage(error.to_string()))?;
-                    let runtime_id =
-                        RuntimeId::new(observation.runtime_id).map_err(RuntimeError::Domain)?;
+                    let runtime_id = RuntimeId::new(observation.runtime_id)
+                        .map_err(|error| RuntimeError::Domain(error.into()))?;
                     let projection = runtime
                         .control
                         .complete_runtime_status_refresh(
@@ -1019,8 +1020,8 @@ impl ControlRuntime {
                     let observation: RuntimeCapabilityObservation =
                         serde_json::from_slice(&entry.payload)
                             .map_err(|error| RuntimeError::Storage(error.to_string()))?;
-                    let runtime_id =
-                        RuntimeId::new(observation.runtime_id).map_err(RuntimeError::Domain)?;
+                    let runtime_id = RuntimeId::new(observation.runtime_id)
+                        .map_err(|error| RuntimeError::Domain(error.into()))?;
                     let projection = runtime
                         .control
                         .complete_runtime_capability_refresh(
@@ -1477,7 +1478,8 @@ impl ControlRuntime {
             .map_err(|_| {
                 RuntimeError::Storage("cancelled status effect payload is invalid".into())
             })?;
-        let runtime_id = RuntimeId::new(request.runtime_id).map_err(RuntimeError::Domain)?;
+        let runtime_id = RuntimeId::new(request.runtime_id)
+            .map_err(|error| RuntimeError::Domain(error.into()))?;
         let current = self
             .control
             .runtime_projection(&runtime_id)
@@ -2571,8 +2573,8 @@ impl ControlRuntime {
     ) -> Result<(), RuntimeError> {
         let observation: RuntimeStatusObservation = serde_json::from_slice(outcome)
             .map_err(|_| RuntimeError::InvalidEffectOutcome("invalid runtime status JSON"))?;
-        let runtime_id =
-            RuntimeId::new(observation.runtime_id.clone()).map_err(RuntimeError::Domain)?;
+        let runtime_id = RuntimeId::new(observation.runtime_id.clone())
+            .map_err(|error| RuntimeError::Domain(error.into()))?;
         let mut staged = self.control.clone();
         let projection = staged
             .complete_runtime_status_refresh(
@@ -2611,8 +2613,8 @@ impl ControlRuntime {
     ) -> Result<(), RuntimeError> {
         let observation: RuntimeCapabilityObservation = serde_json::from_slice(outcome)
             .map_err(|_| RuntimeError::InvalidEffectOutcome("invalid runtime capability JSON"))?;
-        let runtime_id =
-            RuntimeId::new(observation.runtime_id.clone()).map_err(RuntimeError::Domain)?;
+        let runtime_id = RuntimeId::new(observation.runtime_id.clone())
+            .map_err(|error| RuntimeError::Domain(error.into()))?;
         let mut staged = self.control.clone();
         let projection = staged
             .complete_runtime_capability_refresh(

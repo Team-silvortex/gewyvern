@@ -14,6 +14,7 @@ changing a cross-project boundary.
 | [`src/`](../src) | Gewyvern runtime, API, evidence reconstruction, CLI | observed network truth |
 | [`crates/gewyc/`](../crates/gewyc) | GewyLang compiler CLI | language diagnostics and lowering |
 | [`crates/silvortex-bounded-io/`](../crates/silvortex-bounded-io) | product-neutral bounded files and transport deadlines | native I/O safety invariants |
+| [`crates/silvortex-identity/`](../crates/silvortex-identity) | product-neutral validated protocol identities | identifier grammar and scalar wire identity |
 | [`crates/gewyvern-install-contract/`](../crates/gewyvern-install-contract) | strict Gewyvern installation and retirement exchange | cross-plane lifecycle wire contract |
 | [`crates/leserpent-domain/`](../crates/leserpent-domain) | shared command/query/event model | control vocabulary |
 | [`crates/leselang-*`](../crates) | Leselang syntax, HIR, VM, command and UI lowering | normalized automation intent |
@@ -77,6 +78,7 @@ The intended dependency flow is:
 GewyLang source -> Gewyvern evidence runtime -> machine evidence contract
 
 silvortex-bounded-io -> Gewyvern / protocol / adapters / CLI / daemon
+silvortex-identity -> Gewyvern install contract / leserpent-domain
 gewyvern-install-contract -> Gewyvern installer / protocol / adapters
 
 leserpent-domain
@@ -92,11 +94,10 @@ Lower layers must not depend on a renderer. A transport may encode a command,
 but it must not decide whether that command is allowed. An adapter may execute
 an authorized effect, but it must not mint authority.
 
-The root Gewyvern crate no longer consumes `leserpent-protocol` in its normal
-dependency graph. Old protocol module paths remain compatibility re-exports.
-The remaining narrow debt is that `gewyvern-install-contract` consumes shared
-identity types from `leserpent-domain`; move those types to a neutral identity
-crate before independently publishing the product crate sets.
+The root Gewyvern crate consumes no Leserpent or Leselang crate in its normal
+dependency graph. `gewyvern-install-contract` and `leserpent-domain` share the
+same validated ID types through `silvortex-identity`; old domain and protocol
+paths remain compatibility re-exports with unchanged scalar wire bytes.
 
 ## Toolchain Boundaries
 
@@ -111,6 +112,14 @@ The repository intentionally uses three implementation toolchains:
 Node.js, Python, and shell may assist development or validation, but they do
 not carry production control-plane semantics. Native entrypoints are preferred
 for product build, packaging, bootstrap, and deployment flows.
+
+## Release Versioning
+
+The repository publishes one shared mainline version from the root Rust
+workspace. Product crates, native clients, the Web bridge, and Etragon no
+longer carry independent release numbers; their package metadata inherits or
+follows the root `gewyvern` release line. Protocol contract versions remain
+independent because they describe compatibility rather than product releases.
 
 ## Common Commands
 

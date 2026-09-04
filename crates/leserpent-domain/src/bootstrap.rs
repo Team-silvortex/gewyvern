@@ -2,6 +2,7 @@ use std::fmt;
 
 use http::Uri;
 use serde::{Deserialize, Serialize};
+pub use silvortex_identity::CredentialHandle;
 
 use crate::{CapabilitySet, Principal};
 
@@ -17,10 +18,6 @@ pub struct BootstrapId(String);
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct DaemonId(String);
-
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
-#[serde(transparent)]
-pub struct CredentialHandle(String);
 
 macro_rules! validated_identifier {
     ($name:ident, $field:literal) => {
@@ -48,43 +45,6 @@ macro_rules! validated_identifier {
 
 validated_identifier!(BootstrapId, "bootstrap_id");
 validated_identifier!(DaemonId, "daemon_id");
-
-impl CredentialHandle {
-    pub fn new(value: impl Into<String>) -> Result<Self, BootstrapError> {
-        let value = validate_identifier("credential_handle", value.into())?;
-        let Some((provider, key)) = value
-            .strip_prefix("vault:")
-            .and_then(|suffix| suffix.split_once(':'))
-        else {
-            return Err(BootstrapError::InvalidCredentialHandle);
-        };
-        if provider.is_empty() || key.is_empty() {
-            return Err(BootstrapError::InvalidCredentialHandle);
-        }
-        Ok(Self(value))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    pub fn parts(&self) -> (&str, &str) {
-        self.0
-            .strip_prefix("vault:")
-            .and_then(|suffix| suffix.split_once(':'))
-            .expect("validated credential handles always contain provider and key")
-    }
-}
-
-impl<'de> Deserialize<'de> for CredentialHandle {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        Self::new(value).map_err(serde::de::Error::custom)
-    }
-}
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -549,15 +509,21 @@ impl fmt::Display for BootstrapError {
 
 impl std::error::Error for BootstrapError {}
 
+impl From<silvortex_identity::IdentityError> for BootstrapError {
+    fn from(error: silvortex_identity::IdentityError) -> Self {
+        match error {
+            silvortex_identity::IdentityError::InvalidIdentifier { field } => {
+                Self::InvalidIdentifier { field }
+            }
+            silvortex_identity::IdentityError::InvalidCredentialHandle => {
+                Self::InvalidCredentialHandle
+            }
+        }
+    }
+}
+
 fn validate_identifier(field: &'static str, value: String) -> Result<String, BootstrapError> {
-    let valid = !value.is_empty()
-        && value.len() <= 128
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b':' | b'.'));
-    valid
-        .then_some(value)
-        .ok_or(BootstrapError::InvalidIdentifier { field })
+    silvortex_identity::validate_identifier(field, value).map_err(BootstrapError::from)
 }
 
 fn validate_endpoint(value: &str) -> Result<(), BootstrapError> {
@@ -859,7 +825,7 @@ mod tests {
     #[test]
     fn credential_handles_cannot_be_raw_secrets() {
         assert_eq!(
-            CredentialHandle::new("test-only-raw-secret"),
+            CredentialHandle::new("test-only-raw-secret").map_err(BootstrapError::from),
             Err(BootstrapError::InvalidCredentialHandle)
         );
         assert!(CredentialHandle::new("vault:ssh:host-example").is_ok());

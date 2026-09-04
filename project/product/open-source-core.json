@@ -12,6 +12,7 @@
     { "id": "gewyvern-install-contract", "source": "crates/gewyvern-install-contract" },
     { "id": "protocol-standard-library", "source": "protocols" },
     { "id": "silvortex-bounded-io", "source": "crates/silvortex-bounded-io" },
+    { "id": "silvortex-identity", "source": "crates/silvortex-identity" },
     { "id": "leserpent-domain", "source": "crates/leserpent-domain" },
     { "id": "leserpent-protocol", "source": "crates/leserpent-protocol" },
     { "id": "leserpent-runtime", "source": "crates/leserpent-runtime" },

@@ -1,0 +1,12 @@
+[package]
+name = "silvortex-identity"
+version.workspace = true
+edition.workspace = true
+description = "Product-neutral validated identities for native protocol boundaries"
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

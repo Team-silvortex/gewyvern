@@ -10,9 +10,7 @@ use gewyvern_install_contract::installer::{
     GewyvernInstallerRequest, GewyvernInstallerServiceState, decode_gewyvern_installer_response,
     encode_gewyvern_installer_request,
 };
-use leserpent_domain::RuntimeId;
-use leserpent_domain::bootstrap::CredentialHandle;
-use leserpent_domain::provisioning::ProvisioningId;
+use gewyvern_install_contract::{CredentialHandle, ProvisioningId, RuntimeId};
 use ring::digest::{SHA256, digest};
 
 struct TempDir(PathBuf);

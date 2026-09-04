@@ -110,6 +110,7 @@ fn architecture_shelf_defines_one_protocolized_debugging_fabric() {
         "## The Advantage Zone",
         "## Scope Guardrails",
         "silvortex-bounded-io",
+        "silvortex-identity",
         "gewyvern-install-contract",
     ] {
         assert!(

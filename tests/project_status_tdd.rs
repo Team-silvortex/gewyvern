@@ -136,10 +136,10 @@ fn project_status_catalog_is_protocolized_and_valid() {
     assert_eq!(catalog.calibration.model, STATUS_CALIBRATION_MODEL);
     assert_eq!(catalog.calibration.as_of, "2026-09-04");
     assert!(catalog.dimensions.architectures.len() >= 7);
-    assert!(catalog.dimensions.modules.len() >= 23);
-    assert!(catalog.dimensions.features.len() >= 25);
-    assert!(catalog.coverage_requirements.len() >= 32);
-    assert!(catalog.cells.len() >= 32);
+    assert!(catalog.dimensions.modules.len() >= 24);
+    assert!(catalog.dimensions.features.len() >= 26);
+    assert!(catalog.coverage_requirements.len() >= 33);
+    assert!(catalog.cells.len() >= 33);
 
     for cell in &catalog.cells {
         assert!(!cell.contract.id.is_empty());
@@ -188,6 +188,7 @@ fn shared_native_foundations_cut_the_reverse_protocol_dependency() {
     assert!(normal_dependencies.contains("gewyvern-install-contract"));
     assert!(normal_dependencies.contains("silvortex-bounded-io"));
     assert!(!normal_dependencies.contains("leserpent-protocol"));
+    assert!(!normal_dependencies.contains("leserpent-domain"));
 
     let bounded_manifest =
         std::fs::read_to_string(root.join("crates/silvortex-bounded-io/Cargo.toml"))
@@ -202,6 +203,26 @@ fn shared_native_foundations_cut_the_reverse_protocol_dependency() {
             "product-neutral bounded I/O leaked {product} semantics"
         );
     }
+
+    let identity_manifest =
+        std::fs::read_to_string(root.join("crates/silvortex-identity/Cargo.toml"))
+            .expect("identity manifest must exist");
+    let identity_source =
+        std::fs::read_to_string(root.join("crates/silvortex-identity/src/lib.rs"))
+            .expect("identity source must exist");
+    for product in ["gewyvern", "leserpent", "leselang", "etragon"] {
+        assert!(
+            !identity_manifest.to_ascii_lowercase().contains(product)
+                && !identity_source.to_ascii_lowercase().contains(product),
+            "product-neutral identity crate leaked {product} semantics"
+        );
+    }
+
+    let install_manifest =
+        std::fs::read_to_string(root.join("crates/gewyvern-install-contract/Cargo.toml"))
+            .expect("install contract manifest must exist");
+    assert!(install_manifest.contains("silvortex-identity"));
+    assert!(!install_manifest.contains("leserpent-domain"));
 
     let protocol = std::fs::read_to_string(root.join("crates/leserpent-protocol/src/lib.rs"))
         .expect("Leserpent protocol source must exist");
@@ -221,17 +242,24 @@ fn shared_native_foundations_cut_the_reverse_protocol_dependency() {
         .expect("bounded I/O foundation must be tracked");
     assert!(bounded.depends_on.is_empty());
     assert_eq!(bounded.independence, Independence::ReusableLibrary);
+    let identity = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "shared-foundation/identity/validated-identities")
+        .expect("validated identity foundation must be tracked");
+    assert!(identity.depends_on.is_empty());
+    assert!(identity.blockers.is_empty());
+    assert_eq!(identity.independence, Independence::ReusableLibrary);
     let install = catalog
         .cells
         .iter()
         .find(|cell| cell.id == "shared-foundation/install-contract/gewyvern-install-wire")
         .expect("install contract foundation must be tracked");
     assert_eq!(install.independence, Independence::ReusableLibrary);
-    assert!(
-        install
-            .blockers
-            .iter()
-            .any(|blocker| blocker.id == "installer-identity-coupling")
+    assert!(install.blockers.is_empty());
+    assert_eq!(
+        install.depends_on,
+        vec!["shared-foundation/identity/validated-identities"]
     );
 }
 
@@ -9340,6 +9368,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "boundary-leserpent-1x-web-console",
         "boundary-etragon-learning-sidecar",
         "boundary-shared-bounded-io",
+        "boundary-shared-identity",
         "boundary-shared-gewyvern-install-contract",
         "boundary-project-status-governance",
     ];
@@ -9456,9 +9485,9 @@ fn native_status_cli_exposes_human_and_machine_views() {
     assert_eq!(payload["deferred_cell_count"], 2);
     assert!(payload["overall_score"].is_u64());
     assert!(payload["portfolio_score"].is_u64());
-    assert_eq!(payload["coverage"]["requirement_count"], 32);
+    assert_eq!(payload["coverage"]["requirement_count"], 33);
     assert_eq!(payload["coverage"]["architecture_count"], 7);
-    assert_eq!(payload["coverage"]["ownership_boundary_count"], 23);
+    assert_eq!(payload["coverage"]["ownership_boundary_count"], 24);
     assert_eq!(payload["coverage"]["roadmap_gate_count"], 7);
     assert_eq!(payload["coverage"]["proof_shelf_count"], 2);
     assert_eq!(payload["weakest"].as_array().unwrap().len(), 3);

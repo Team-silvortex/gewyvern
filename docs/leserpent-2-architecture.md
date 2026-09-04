@@ -815,8 +815,9 @@ The intended source ownership is:
 | `leselang-command` | control-plane DSL lowering into `CommandPlan` and explicit rejection of frontend-local effects |
 | `leselang-ui` | pure UI DSL lowering into `UiDocument` and `UiPatch`, semantic event/effect round trips, typed presentation operations, and bounded canonical export intents |
 | `silvortex-bounded-io` | product-neutral bounded files, HTTP tokens, connection budgets, and absolute I/O deadlines |
+| `silvortex-identity` | product-neutral validated runtime, provisioning, retirement, and credential identities with stable scalar wire bytes |
 | `gewyvern-install-contract` | strict, bounded Gewyvern installation and retirement exchange shared across planes |
-| `leserpent-domain` | validated IDs, commands, queries, events, revisions, capabilities, bootstrap state, and plan authorization |
+| `leserpent-domain` | identity compatibility re-exports, commands, queries, events, revisions, capabilities, bootstrap state, and plan authorization |
 | `leserpent-runtime` | transactions, scheduling, policy, replay, projections |
 | `leserpent-protocol` | IPC, HTTP, WebSocket, bootstrap wire, schema, compatibility, and stable re-exports of extracted contracts |
 | `leserpent-adapters` | typed Gewyvern health, status, deployment, discovery, and native secret-store integrations |

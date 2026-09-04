@@ -2,10 +2,8 @@
 
 use std::fmt;
 
-use leserpent_domain::RuntimeId;
-use leserpent_domain::provisioning::ProvisioningId;
-use leserpent_domain::retirement::RetirementId;
 use serde::{Deserialize, Serialize};
+use silvortex_identity::{ProvisioningId, RetirementId, RuntimeId};
 
 pub const GEWYVERN_RETIREMENT_SCHEMA_VERSION: u32 = 1;
 pub const MAX_GEWYVERN_RETIREMENT_BYTES: usize = 64 * 1024;
