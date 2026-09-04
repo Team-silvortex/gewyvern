@@ -1,6 +1,7 @@
-use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
+
+use silvortex_bounded_io::open_bounded_regular_file;
 
 const MACH_O_ARM64_HEADER_BYTES: usize = 8;
 const MAX_FAT_ARCHITECTURES: usize = 32;
@@ -48,9 +49,12 @@ pub fn is_mach_o_arm64(bytes: &[u8]) -> bool {
     }
     (0..count).any(|index| {
         let offset = 8 + index * entry_bytes;
-        let raw = bytes[offset..offset + 4]
-            .try_into()
-            .expect("bounded fat architecture entry");
+        let Some(raw) = bytes
+            .get(offset..offset + 4)
+            .and_then(|value| value.try_into().ok())
+        else {
+            return false;
+        };
         let cpu_type = if big_endian {
             u32::from_be_bytes(raw)
         } else {
@@ -61,7 +65,7 @@ pub fn is_mach_o_arm64(bytes: &[u8]) -> bool {
 }
 
 pub fn file_is_mach_o_arm64(path: &Path) -> io::Result<bool> {
-    let mut file = File::open(path)?;
+    let mut file = open_bounded_regular_file(path, u64::MAX)?;
     let mut header = [0_u8; MAX_MACH_O_HEADER_BYTES];
     let mut read = 0;
     while read < header.len() {

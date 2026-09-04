@@ -301,25 +301,25 @@ pub(crate) fn parse_api_route_for_method(
     Ok(match path {
         "/v1/capabilities" => Some(ConsoleApiRoute::Capabilities),
         "/v1/fleet/summary" => Some(ConsoleApiRoute::FleetSummary(
-            filtered.expect("filtered route has a filter"),
+            filtered.ok_or(ConsoleRouteError::InvalidTarget)?,
         )),
         "/v1/fleet/attention-summary" => Some(ConsoleApiRoute::FleetAttentionSummary(
-            filtered.expect("filtered route has a filter"),
+            filtered.ok_or(ConsoleRouteError::InvalidTarget)?,
         )),
         "/v1/fleet/runtimes-needing-attention" => Some(ConsoleApiRoute::FleetAttentionList(
-            filtered.expect("filtered route has a filter"),
+            filtered.ok_or(ConsoleRouteError::InvalidTarget)?,
         )),
         "/v1/fleet/refresh-all" => Some(ConsoleApiRoute::FleetRefreshAll(
-            filtered.expect("filtered route has a filter"),
+            filtered.ok_or(ConsoleRouteError::InvalidTarget)?,
         )),
         "/v1/fleet/refresh-capabilities" => Some(ConsoleApiRoute::FleetRefreshCapabilities(
-            filtered.expect("filtered route has a filter"),
+            filtered.ok_or(ConsoleRouteError::InvalidTarget)?,
         )),
         "/v1/fleet/refresh-status" => Some(ConsoleApiRoute::FleetRefreshStatus(
-            filtered.expect("filtered route has a filter"),
+            filtered.ok_or(ConsoleRouteError::InvalidTarget)?,
         )),
         "/v1/runtimes" => Some(ConsoleApiRoute::Runtimes(
-            filtered.expect("filtered route has a filter"),
+            filtered.ok_or(ConsoleRouteError::InvalidTarget)?,
         )),
         "/v1/sessions" if method == "POST" => Some(ConsoleApiRoute::SessionCreate),
         "/v1/sessions" => Some(ConsoleApiRoute::Sessions),
@@ -327,19 +327,19 @@ pub(crate) fn parse_api_route_for_method(
         "/v1/persistence/import" => Some(ConsoleApiRoute::PersistenceImport),
         "/v1/persistence/save" => Some(ConsoleApiRoute::PersistenceSave),
         "/v1/runtimes/cleanup-plan" => Some(ConsoleApiRoute::CleanupPlan(
-            filtered.expect("filtered route has a filter"),
+            filtered.ok_or(ConsoleRouteError::InvalidTarget)?,
         )),
         "/v1/runtimes/delete-failed" => Some(ConsoleApiRoute::RuntimeCleanup(
             CleanupKind::Failed,
-            filtered.expect("filtered route has a filter"),
+            filtered.ok_or(ConsoleRouteError::InvalidTarget)?,
         )),
         "/v1/runtimes/delete-unobserved" => Some(ConsoleApiRoute::RuntimeCleanup(
             CleanupKind::Unobserved,
-            filtered.expect("filtered route has a filter"),
+            filtered.ok_or(ConsoleRouteError::InvalidTarget)?,
         )),
         "/v1/runtimes/delete-slice" => Some(ConsoleApiRoute::RuntimeCleanup(
             CleanupKind::Slice,
-            filtered.expect("filtered route has a filter"),
+            filtered.ok_or(ConsoleRouteError::InvalidTarget)?,
         )),
         "/v1/runtimes/registration-plan" => Some(ConsoleApiRoute::RegistrationPlan),
         "/v1/runtimes/register" => Some(ConsoleApiRoute::Registration),
@@ -1348,8 +1348,9 @@ pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
     let digest = digest::digest(&digest::SHA256, bytes);
     let mut encoded = String::with_capacity(digest.as_ref().len() * 2);
     for byte in digest.as_ref() {
-        use std::fmt::Write as _;
-        write!(&mut encoded, "{byte:02x}").expect("writing to a String cannot fail");
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        encoded.push(char::from(HEX[(byte >> 4) as usize]));
+        encoded.push(char::from(HEX[(byte & 0x0f) as usize]));
     }
     encoded
 }

@@ -53,7 +53,9 @@ pub(super) fn validate_model_diagnostics(
         return Ok(());
     }
 
-    let first = diagnostics.rules.first().expect("checked non-empty rules");
+    let Some(first) = diagnostics.rules.first() else {
+        return Ok(());
+    };
     if !first.unsupported_payload_offsets.is_empty() && first.missing_facts.is_empty() {
         return Err(RegistryError::UnsupportedRulePayloadOffsets {
             model: model_name.into(),

@@ -4,6 +4,7 @@ use std::fmt;
 
 use ring::digest::{SHA256, digest};
 use serde::{Deserialize, Serialize};
+use silvortex_bounded_io::parse_https_origin;
 use silvortex_identity::{CredentialHandle, ProvisioningId, RuntimeId};
 use zeroize::{Zeroize, Zeroizing};
 
@@ -294,13 +295,7 @@ fn valid_sha256(value: &str) -> bool {
 }
 
 fn valid_https_origin(value: &str) -> bool {
-    let Some(authority) = value.strip_prefix("https://") else {
-        return false;
-    };
-    !authority.is_empty()
-        && authority.len() <= 320
-        && !authority.contains(['/', '?', '#', '@'])
-        && !authority.chars().any(char::is_whitespace)
+    parse_https_origin(value).is_some()
 }
 
 fn valid_tls_ca_pem(value: &str) -> bool {
@@ -386,6 +381,29 @@ mod tests {
             decode_gewyvern_installer_request(&vec![b' '; MAX_GEWYVERN_INSTALLER_BYTES + 1]),
             Err(GewyvernInstallerCodecError::Oversized { .. })
         ));
+
+        for endpoint in [
+            "https://runtime.example:+443",
+            "https://runtime.example:0443",
+            "https://runtime.example\\ignored",
+            "https://127.1:9443",
+            "https://host_example:9443",
+        ] {
+            assert!(
+                GewyvernInstallerRequest::new(
+                    ProvisioningId::new("provision-1").unwrap(),
+                    RuntimeId::new("runtime-1").unwrap(),
+                    endpoint,
+                    "test",
+                    "a".repeat(64),
+                    CredentialHandle::new("vault:gewyvern:runtime-api").unwrap(),
+                    CredentialHandle::new("vault:gewyvern-ca:runtime-ca").unwrap(),
+                    TOKEN,
+                )
+                .is_err(),
+                "unsafe endpoint was accepted: {endpoint:?}"
+            );
+        }
     }
 
     #[test]

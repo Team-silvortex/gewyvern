@@ -1,18 +1,27 @@
 use gewyvern::certificate_inventory::{
-    CertificateAssetKind, CertificateInventory, runtime_certificate_inventory,
+    CertificateAssetKind, CertificateInventory, runtime_certificate_inventory_scan,
 };
-use gewyvern::certificate_policy::certificate_policy_for_inventory;
+use gewyvern::certificate_policy::certificate_policy_for_inventory_with_scan_status;
 use gewyvern::certificate_state::runtime_certificate_state;
 
 use super::certificate_state::append_state_summary_json;
 use crate::render_utils::append_json_string;
 
 pub(super) fn api_runtime_certificates_json() -> String {
-    api_runtime_certificates_json_from_inventory(&runtime_certificate_inventory())
+    let scan = runtime_certificate_inventory_scan();
+    api_runtime_certificates_json_with_scan_status(&scan.inventory, scan.truncated)
 }
 
+#[cfg(test)]
 pub(super) fn api_runtime_certificates_json_from_inventory(
     inventory: &CertificateInventory,
+) -> String {
+    api_runtime_certificates_json_with_scan_status(inventory, false)
+}
+
+fn api_runtime_certificates_json_with_scan_status(
+    inventory: &CertificateInventory,
+    scan_truncated: bool,
 ) -> String {
     let mut json = String::with_capacity(4096);
     json.push_str("{\"surface\":\"runtime_certificates\",\"root\":");
@@ -50,6 +59,8 @@ pub(super) fn api_runtime_certificates_json_from_inventory(
     } else {
         "false"
     });
+    json.push_str(",\"scan_truncated\":");
+    json.push_str(if scan_truncated { "true" } else { "false" });
     json.push_str(",\"summary\":{");
     append_count_field(&mut json, "trust_items", inventory.trust_items.len());
     json.push(',');
@@ -61,7 +72,7 @@ pub(super) fn api_runtime_certificates_json_from_inventory(
     json.push(',');
     append_count_field(&mut json, "identity_items", inventory.identity_items.len());
     json.push_str("},\"policy\":");
-    append_policy_summary_json(&mut json, inventory);
+    append_policy_summary_json(&mut json, inventory, scan_truncated);
     json.push_str(",\"state\":");
     append_state_summary_json(&mut json, &runtime_certificate_state());
     json.push_str(",\"trust_items\":");
@@ -74,8 +85,12 @@ pub(super) fn api_runtime_certificates_json_from_inventory(
     json
 }
 
-fn append_policy_summary_json(target: &mut String, inventory: &CertificateInventory) {
-    let policy = certificate_policy_for_inventory(inventory);
+fn append_policy_summary_json(
+    target: &mut String,
+    inventory: &CertificateInventory,
+    scan_truncated: bool,
+) {
+    let policy = certificate_policy_for_inventory_with_scan_status(inventory, scan_truncated);
     target.push('{');
     target.push_str("\"status\":");
     append_json_string(target, policy.status);
@@ -231,6 +246,7 @@ mod tests {
         assert!(body.contains("\"policy\":{"));
         assert!(body.contains("\"reason_codes\":["));
         assert!(body.contains("\"require_explicit_remote_trust\":true"));
+        assert!(body.contains("\"scan_truncated\":false"));
         assert!(body.contains("\"validity\":{\"certificate_count\":1"));
     }
 
@@ -277,7 +293,7 @@ mod tests {
             identity_items: vec![],
         };
 
-        let body = api_runtime_certificates_json_from_inventory(&inventory);
+        let body = api_runtime_certificates_json_with_scan_status(&inventory, true);
         assert!(body.contains("\"root\":\"/srv/gewyvern/certificates\""));
         assert!(body.contains("\"trust_root\":\"/srv/gewyvern/certificates/trust\""));
         assert!(body.contains("\"roots\":{\"root_exists\":false"));
@@ -286,6 +302,7 @@ mod tests {
         assert!(body.contains("\"identity_root_exists\":true"));
         assert!(body.contains("\"state_root_exists\":false"));
         assert!(body.contains("\"require_explicit_remote_trust\":true"));
+        assert!(body.contains("\"scan_truncated\":true"));
         assert!(body.contains("\"policy\":{\"status\":"));
         assert!(body.contains("\"severity\":"));
         assert!(body.contains("\"summary\":"));

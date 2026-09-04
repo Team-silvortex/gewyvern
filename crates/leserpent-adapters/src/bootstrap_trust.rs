@@ -8,6 +8,7 @@ use ring::digest::{SHA256, digest};
 use rustls::RootCertStore;
 use rustls::pki_types::{CertificateDer, pem::PemObject};
 use serde::{Deserialize, Serialize};
+use silvortex_bounded_io::{open_bounded_regular_file, parse_https_origin};
 
 const MAX_TRUST_RECORD_BYTES: u64 = 64 * 1024;
 
@@ -86,6 +87,18 @@ impl FileBootstrapTrustStore {
         &self,
         handle: &CredentialHandle,
     ) -> Result<Option<BootstrapTrustRecord>, BootstrapTrustError> {
+        let root_metadata = match fs::symlink_metadata(&self.root) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(_) => return Err(BootstrapTrustError::Storage),
+        };
+        if !root_metadata.is_dir()
+            || root_metadata.file_type().is_symlink()
+            || !metadata_has_mode(&root_metadata, 0o700)
+        {
+            return Err(BootstrapTrustError::UnsafeStorage);
+        }
+        reject_symlink_components(&self.root)?;
         let path = self.record_path(handle)?;
         match fs::symlink_metadata(&path) {
             Ok(_) => {}
@@ -214,11 +227,7 @@ fn write_new_private(path: &Path, bytes: &[u8]) -> Result<(), BootstrapTrustErro
 }
 
 fn read_private_record(path: &Path) -> Result<Vec<u8>, BootstrapTrustError> {
-    let mut options = OpenOptions::new();
-    options.read(true);
-    set_no_follow(&mut options);
-    let mut file = options
-        .open(path)
+    let mut file = open_bounded_regular_file(path, MAX_TRUST_RECORD_BYTES)
         .map_err(|_| BootstrapTrustError::Storage)?;
     let metadata = file.metadata().map_err(|_| BootstrapTrustError::Storage)?;
     if !metadata.is_file()
@@ -248,12 +257,7 @@ fn metadata_has_mode(_metadata: &fs::Metadata, _mode: u32) -> bool {
 }
 
 fn valid_https_origin(value: &str) -> bool {
-    value.strip_prefix("https://").is_some_and(|authority| {
-        !authority.is_empty()
-            && authority.len() <= 320
-            && !authority.contains(['/', '?', '#', '@'])
-            && !authority.chars().any(char::is_whitespace)
-    })
+    parse_https_origin(value).is_some()
 }
 
 fn unique_suffix() -> u128 {
@@ -280,15 +284,6 @@ fn set_open_mode(options: &mut OpenOptions, mode: u32) {
 
 #[cfg(not(unix))]
 fn set_open_mode(_options: &mut OpenOptions, _mode: u32) {}
-
-#[cfg(unix)]
-fn set_no_follow(options: &mut OpenOptions) {
-    use std::os::unix::fs::OpenOptionsExt;
-    options.custom_flags(libc::O_NOFOLLOW);
-}
-
-#[cfg(not(unix))]
-fn set_no_follow(_options: &mut OpenOptions) {}
 
 #[cfg(unix)]
 fn set_mode(path: &Path, mode: u32) -> Result<(), BootstrapTrustError> {
@@ -388,6 +383,20 @@ mod tests {
             Err(BootstrapTrustError::InvalidHandle)
         );
         fs::remove_dir_all(parent).unwrap();
+    }
+
+    #[test]
+    fn file_store_rejects_insecure_existing_root_on_load() {
+        let root =
+            std::env::temp_dir().join(format!("leserpent-trust-insecure-{}", unique_suffix()));
+        fs::create_dir_all(&root).unwrap();
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o755)).unwrap();
+        let store = FileBootstrapTrustStore::new(&root).unwrap();
+        let handle = CredentialHandle::new("vault:leserpent-ca:host-example").unwrap();
+
+        assert_eq!(store.load(&handle), Err(BootstrapTrustError::UnsafeStorage));
+
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

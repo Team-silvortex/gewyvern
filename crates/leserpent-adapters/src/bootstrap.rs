@@ -38,6 +38,7 @@ use leserpent_protocol::bootstrap_retirement_control::{
 };
 use leserpent_runtime::EffectExecution;
 use ring::digest::{SHA256, digest};
+use silvortex_bounded_io::parse_https_origin;
 
 #[cfg(feature = "native-ssh")]
 use crate::native_ssh::{NativeSshClient, NativeSshError, NativeSshJob};
@@ -789,14 +790,8 @@ pub(crate) fn valid_sha256_fingerprint(value: &str) -> bool {
 }
 
 pub(crate) fn validate_https_origin(value: &str) -> Result<(), String> {
-    let Some(authority) = value.strip_prefix("https://") else {
-        return Err("daemon endpoint must be an HTTPS origin".into());
-    };
-    let valid = !authority.is_empty()
-        && authority.len() <= 320
-        && !authority.contains(['/', '?', '#', '@'])
-        && !authority.chars().any(char::is_whitespace);
-    valid
+    parse_https_origin(value)
+        .is_some()
         .then_some(())
         .ok_or_else(|| "daemon endpoint must be an HTTPS origin".into())
 }

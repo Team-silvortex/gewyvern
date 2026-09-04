@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
 use rustls::{ServerConfig, ServerConnection, StreamOwned};
-use silvortex_bounded_io::open_bounded_regular_file;
+use silvortex_bounded_io::{open_bounded_regular_file, wrap_tcp_stream_with_io_deadline};
 
 use super::{
     API_CLIENT_READ_TIMEOUT, API_CLIENT_WRITE_TIMEOUT, API_MAX_CONCURRENT_CLIENTS, ApiAccessPolicy,
@@ -136,7 +136,7 @@ fn start_api_service_with(
     let handle = thread::spawn(move || {
         while !thread_shutdown.load(Ordering::Acquire) {
             match listener.accept() {
-                Ok((mut stream, remote_addr)) => {
+                Ok((stream, remote_addr)) => {
                     let previous = active_clients.fetch_add(1, Ordering::AcqRel);
                     if previous >= API_MAX_CONCURRENT_CLIENTS {
                         active_clients.fetch_sub(1, Ordering::AcqRel);
@@ -161,14 +161,14 @@ fn start_api_service_with(
                     let client_transport = transport.clone();
                     thread::spawn(move || {
                         let _guard = ActiveApiClientGuard(client_counter);
-                        if stream
-                            .set_nonblocking(false)
-                            .and_then(|()| stream.set_read_timeout(Some(API_CLIENT_READ_TIMEOUT)))
-                            .and_then(|()| stream.set_write_timeout(Some(API_CLIENT_WRITE_TIMEOUT)))
-                            .is_err()
-                        {
+                        if stream.set_nonblocking(false).is_err() {
                             return;
                         }
+                        let Ok(mut stream) =
+                            wrap_tcp_stream_with_io_deadline(stream, API_CLIENT_READ_TIMEOUT)
+                        else {
+                            return;
+                        };
                         match client_transport {
                             ApiTransport::Plain => handle_api_client(
                                 &mut stream,
@@ -310,7 +310,7 @@ fn reject_api_client_overload(mut stream: TcpStream) {
 }
 
 fn service_busy_response() -> &'static str {
-    "HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: 55\r\nConnection: close\r\n\r\n{\"error\":\"service_busy\",\"retry_after\":\"short_backoff\"}"
+    "HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json; charset=utf-8\r\nX-Content-Type-Options: nosniff\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nPermissions-Policy: camera=(), geolocation=(), microphone=(), usb=()\r\nContent-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\r\nContent-Length: 55\r\nConnection: close\r\n\r\n{\"error\":\"service_busy\",\"retry_after\":\"short_backoff\"}"
 }
 
 #[cfg(test)]
@@ -422,6 +422,9 @@ mod tests {
     fn overload_rejection_uses_503_service_busy_response() {
         let response = service_busy_response();
         assert!(response.starts_with("HTTP/1.1 503 Service Unavailable"));
+        assert!(response.contains("X-Content-Type-Options: nosniff"));
+        assert!(response.contains("Cache-Control: no-store"));
+        assert!(response.contains("Content-Security-Policy: default-src 'none'"));
         assert!(response.contains("\"error\":\"service_busy\""));
         assert!(response.contains("\"retry_after\":\"short_backoff\""));
     }

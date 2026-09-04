@@ -333,7 +333,7 @@ function scheduleRegistrationPlan() {
 }
 
 function isLikelyHttpEndpoint(endpoint) {
-  if (!(endpoint.startsWith("http://") || endpoint.startsWith("https://"))) {
+  if (endpoint.length > 2048 || endpoint !== endpoint.trim() || /[\\\s]/u.test(endpoint)) {
     return false;
   }
 
@@ -342,7 +342,10 @@ function isLikelyHttpEndpoint(endpoint) {
     return (parsed.protocol === "http:" || parsed.protocol === "https:")
       && !!parsed.hostname
       && !parsed.username
-      && !parsed.password;
+      && !parsed.password
+      && parsed.port !== "0"
+      && !parsed.search
+      && !parsed.hash;
   } catch {
     return false;
   }

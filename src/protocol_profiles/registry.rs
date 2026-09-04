@@ -1,3 +1,4 @@
+use silvortex_bounded_io::open_bounded_regular_file;
 use std::collections::BTreeSet;
 use std::fs;
 use std::io::Read;
@@ -195,11 +196,14 @@ fn read_registry_manifest(path: &Path, manifest_len: u64) -> Result<RegistryMani
             MAX_REGISTRY_MANIFEST_BYTES
         ));
     }
+    let mut file = open_bounded_regular_file(path, MAX_REGISTRY_MANIFEST_BYTES).map_err(|err| {
+        format!(
+            "failed to securely open manifest '{}': {err}",
+            path.display()
+        )
+    })?;
     let mut bytes = Vec::with_capacity(manifest_len as usize);
-    fs::File::open(path)
-        .map_err(|err| err.to_string())?
-        .take(MAX_REGISTRY_MANIFEST_BYTES + 1)
-        .read_to_end(&mut bytes)
+    file.read_to_end(&mut bytes)
         .map_err(|err| err.to_string())?;
     if bytes.len() as u64 > MAX_REGISTRY_MANIFEST_BYTES {
         return Err(format!(
@@ -297,7 +301,10 @@ fn validate_package_entry(
     let mut entry_metadata = None;
     for component in relative.components() {
         let std::path::Component::Normal(component) = component else {
-            unreachable!("entry components were validated above");
+            return Err(format!(
+                "manifest '{}' entry must be a normalized relative path",
+                manifest.display()
+            ));
         };
         candidate.push(component);
         let metadata = fs::symlink_metadata(&candidate)
@@ -310,7 +317,12 @@ fn validate_package_entry(
         }
         entry_metadata = Some(metadata);
     }
-    let metadata = entry_metadata.expect("validated entry path should contain a component");
+    let Some(metadata) = entry_metadata else {
+        return Err(format!(
+            "manifest '{}' entry must be a normalized relative path",
+            manifest.display()
+        ));
+    };
     if !metadata.is_file() {
         return Err(format!(
             "manifest '{}' entry must resolve to a regular file",

@@ -2,6 +2,8 @@ use std::borrow::Cow;
 use std::io::{Read, Write};
 use std::net::IpAddr;
 
+use silvortex_bounded_io::parse_http_content_length;
+
 use super::anomaly_flow_view::api_target_anomaly_flow_json;
 use super::certificate_inventory::api_runtime_certificates_json;
 use super::certificate_policy::api_runtime_certificate_policy_json;
@@ -28,6 +30,7 @@ use super::training_manifest::{
 use super::{
     API_ADMIN_TOKEN_HEADER, API_ENDPOINTS_JSON, API_MAX_RESPONSE_BODY_BYTES, API_VERSION,
     ApiAccessPolicy, ApiDeploymentState, ApiSnapshot, ApiState, api_client_is_loopback,
+    lock_api_snapshot,
 };
 
 pub(crate) fn api_response_for_request<'a>(
@@ -583,18 +586,7 @@ pub(super) fn handle_api_client<S: Read + Write>(
         );
         return;
     }
-    let snapshot = match state.lock() {
-        Ok(guard) => guard.clone(),
-        Err(_) => {
-            let _ = write_http_response(
-                stream,
-                500,
-                "application/json; charset=utf-8",
-                "{\"error\":\"snapshot_state_unavailable\"}",
-            );
-            return;
-        }
-    };
+    let snapshot = lock_api_snapshot(&state).clone();
     let (status, content_type, body) = api_response_for_request(path, &snapshot);
     let _ = write_http_response(stream, status, content_type, body.as_ref());
 }
@@ -613,39 +605,77 @@ fn read_http_request(stream: &mut impl Read) -> Result<String, (u16, &'static st
             break;
         }
         request.extend_from_slice(&chunk[..bytes_read]);
-        if request.len() > MAX_HEADER_BYTES + MAX_BODY_BYTES {
+        if request.len() > MAX_HEADER_BYTES + 4 + MAX_BODY_BYTES {
             return Err((413, "{\"error\":\"request_too_large\"}"));
         }
 
-        if expected_len.is_none()
-            && let Some(header_end) = request.windows(4).position(|window| window == b"\r\n\r\n")
-        {
-            if header_end > MAX_HEADER_BYTES {
+        if expected_len.is_none() {
+            if let Some(header_end) = request.windows(4).position(|window| window == b"\r\n\r\n") {
+                if header_end > MAX_HEADER_BYTES {
+                    return Err((413, "{\"error\":\"request_headers_too_large\"}"));
+                }
+                let headers = std::str::from_utf8(&request[..header_end])
+                    .map_err(|_| (400, "{\"error\":\"invalid_http_request\"}"))?;
+                validate_http_request_head(headers)?;
+                let transfer_encoding = request_header_value(headers, "Transfer-Encoding")
+                    .map_err(|_| (400, "{\"error\":\"ambiguous_transfer_encoding\"}"))?;
+                if transfer_encoding.is_some() {
+                    return Err((400, "{\"error\":\"chunked_requests_not_supported\"}"));
+                }
+                let body_len = request_header_value(headers, "Content-Length")
+                    .map_err(|_| (400, "{\"error\":\"ambiguous_content_length\"}"))?
+                    .map(|value| parse_http_content_length(value).ok_or(()))
+                    .transpose()
+                    .map_err(|_| (400, "{\"error\":\"invalid_content_length\"}"))?
+                    .unwrap_or(0);
+                if body_len > MAX_BODY_BYTES {
+                    return Err((413, "{\"error\":\"request_body_too_large\"}"));
+                }
+                expected_len = Some(header_end + 4 + body_len);
+            } else if request.len() > MAX_HEADER_BYTES + 3 {
                 return Err((413, "{\"error\":\"request_headers_too_large\"}"));
             }
-            let headers = std::str::from_utf8(&request[..header_end])
-                .map_err(|_| (400, "{\"error\":\"invalid_http_request\"}"))?;
-            if request_header_value(headers, "Transfer-Encoding").is_some() {
-                return Err((400, "{\"error\":\"chunked_requests_not_supported\"}"));
-            }
-            let body_len = request_header_value(headers, "Content-Length")
-                .map(|value| value.parse::<usize>())
-                .transpose()
-                .map_err(|_| (400, "{\"error\":\"invalid_content_length\"}"))?
-                .unwrap_or(0);
-            if body_len > MAX_BODY_BYTES {
-                return Err((413, "{\"error\":\"request_body_too_large\"}"));
-            }
-            expected_len = Some(header_end + 4 + body_len);
         }
         if let Some(length) = expected_len
             && request.len() >= length
         {
-            request.truncate(length);
+            if request.len() != length {
+                return Err((400, "{\"error\":\"unexpected_request_bytes\"}"));
+            }
             break;
         }
     }
+    let expected_len = expected_len.ok_or((400, "{\"error\":\"incomplete_http_headers\"}"))?;
+    if request.len() != expected_len {
+        return Err((400, "{\"error\":\"incomplete_http_body\"}"));
+    }
     String::from_utf8(request).map_err(|_| (400, "{\"error\":\"invalid_http_request\"}"))
+}
+
+fn validate_http_request_head(headers: &str) -> Result<(), (u16, &'static str)> {
+    let invalid = || (400, "{\"error\":\"invalid_http_request\"}");
+    let request_line = headers.split("\r\n").next().ok_or_else(invalid)?;
+    let mut fields = request_line.split(' ');
+    let method = fields.next().ok_or_else(invalid)?;
+    let target = fields.next().ok_or_else(invalid)?;
+    let version = fields.next().ok_or_else(invalid)?;
+    if fields.next().is_some()
+        || method.is_empty()
+        || !method.bytes().all(is_http_token_byte)
+        || target.is_empty()
+        || !target.starts_with('/')
+        || target.starts_with("//")
+        || target.contains(['#', '\\'])
+        || !target.bytes().all(|byte| byte.is_ascii_graphic())
+        || version != "HTTP/1.1"
+    {
+        return Err(invalid());
+    }
+    let host = request_header_value(headers, "Host").map_err(|_| invalid())?;
+    if host.is_none_or(str::is_empty) {
+        return Err(invalid());
+    }
+    Ok(())
 }
 
 fn request_is_authorized(
@@ -664,6 +694,8 @@ fn request_has_valid_admin_token(request_text: &str, access_policy: &ApiAccessPo
         return false;
     };
     request_header_value(request_text, API_ADMIN_TOKEN_HEADER)
+        .ok()
+        .flatten()
         .map(|value| token_equals(value, expected_token))
         .unwrap_or(false)
 }
@@ -681,20 +713,62 @@ fn token_equals(supplied: &str, expected: &str) -> bool {
     diff == 0
 }
 
-fn request_header_value<'a>(request_text: &'a str, header_name: &str) -> Option<&'a str> {
+fn request_header_value<'a>(
+    request_text: &'a str,
+    header_name: &str,
+) -> Result<Option<&'a str>, ()> {
+    let headers = request_text
+        .split_once("\r\n\r\n")
+        .map_or(request_text, |(headers, _)| headers);
     let mut matched = None;
-    for line in request_text.lines().skip(1) {
-        let Some((name, value)) = line.split_once(':') else {
-            continue;
-        };
-        if name.trim().eq_ignore_ascii_case(header_name) {
+    for line in headers.split("\r\n").skip(1) {
+        if line
+            .as_bytes()
+            .first()
+            .is_some_and(|byte| matches!(byte, b' ' | b'\t'))
+            || line.contains('\r')
+            || line.contains('\n')
+        {
+            return Err(());
+        }
+        let (name, value) = line.split_once(':').ok_or(())?;
+        if name.is_empty()
+            || !name.bytes().all(is_http_token_byte)
+            || value
+                .bytes()
+                .any(|byte| byte == 0x7f || (byte < 0x20 && byte != b'\t'))
+        {
+            return Err(());
+        }
+        if name.eq_ignore_ascii_case(header_name) {
             if matched.is_some() {
-                return None;
+                return Err(());
             }
             matched = Some(value.trim());
         }
     }
-    matched
+    Ok(matched)
+}
+
+fn is_http_token_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric()
+        || matches!(
+            byte,
+            b'!' | b'#'
+                | b'$'
+                | b'%'
+                | b'&'
+                | b'\''
+                | b'*'
+                | b'+'
+                | b'-'
+                | b'.'
+                | b'^'
+                | b'_'
+                | b'`'
+                | b'|'
+                | b'~'
+        )
 }
 
 fn write_http_response(
@@ -718,7 +792,7 @@ fn write_http_response(
     };
     write!(
         stream,
-        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nX-Content-Type-Options: nosniff\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nPermissions-Policy: camera=(), geolocation=(), microphone=(), usb=()\r\nContent-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
         status,
         reason,
         content_type,
@@ -779,6 +853,88 @@ mod tests {
     }
 
     #[test]
+    fn admin_token_lookup_never_scans_the_request_body() {
+        let policy = ApiAccessPolicy {
+            allow_remote_bind: true,
+            admin_token: Some("secret-token".into()),
+            require_token: false,
+        };
+        assert!(!request_is_authorized(
+            "10.0.0.5".parse().unwrap(),
+            "POST /v1/deployments HTTP/1.1\r\nHost: remote\r\nContent-Length: 38\r\n\r\nX-Gewyvern-Admin-Token: secret-token",
+            &policy,
+        ));
+    }
+
+    #[test]
+    fn http_parser_rejects_ambiguous_framing_and_incomplete_requests() {
+        for (request, expected_error) in [
+            (
+                "GET /health HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nContent-Length: 0\r\n\r\n",
+                "{\"error\":\"ambiguous_content_length\"}",
+            ),
+            (
+                "GET /health HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: identity\r\nTransfer-Encoding: identity\r\n\r\n",
+                "{\"error\":\"ambiguous_transfer_encoding\"}",
+            ),
+            (
+                "GET /health HTTP/1.1\r\nHost: localhost",
+                "{\"error\":\"incomplete_http_headers\"}",
+            ),
+            (
+                "POST /v1/deployments HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\r\n{}",
+                "{\"error\":\"incomplete_http_body\"}",
+            ),
+            (
+                "GET /health HTTP/1.1\r\nHost: localhost\r\nContent-Length: +0\r\n\r\n",
+                "{\"error\":\"invalid_content_length\"}",
+            ),
+            (
+                "GET /health HTTP/1.1\r\nHost: localhost\r\n\r\ntrailing",
+                "{\"error\":\"unexpected_request_bytes\"}",
+            ),
+        ] {
+            let mut stream = std::io::Cursor::new(request.as_bytes());
+            assert_eq!(
+                read_http_request(&mut stream).unwrap_err().1,
+                expected_error
+            );
+        }
+    }
+
+    #[test]
+    fn http_parser_rejects_ambiguous_request_targets_and_hosts() {
+        for request in [
+            "GET  /health HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            "GET /health HTTP/1.0\r\nHost: localhost\r\n\r\n",
+            "GET https://localhost/health HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            "GET //localhost/health HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            "GET /health\\ignored HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            "GET /health HTTP/1.1\r\n\r\n",
+            "GET /health HTTP/1.1\r\nHost: first\r\nHost: second\r\n\r\n",
+        ] {
+            let mut stream = std::io::Cursor::new(request.as_bytes());
+            assert_eq!(
+                read_http_request(&mut stream).unwrap_err().1,
+                "{\"error\":\"invalid_http_request\"}",
+                "ambiguous request was accepted: {request:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn http_responses_disable_active_content_and_caching() {
+        let mut response = Vec::new();
+        write_http_response(&mut response, 200, "text/html; charset=utf-8", "<p>ok</p>").unwrap();
+        let response = String::from_utf8(response).unwrap();
+        assert!(response.contains("X-Content-Type-Options: nosniff\r\n"));
+        assert!(response.contains("Cache-Control: no-store\r\n"));
+        assert!(response.contains("Referrer-Policy: no-referrer\r\n"));
+        assert!(response.contains("script-src 'none'"));
+        assert!(response.contains("form-action 'none'"));
+    }
+
+    #[test]
     fn loopback_requests_are_allowed_without_token() {
         let policy = ApiAccessPolicy {
             allow_remote_bind: false,
@@ -819,7 +975,7 @@ mod tests {
     }
 
     #[test]
-    fn poisoned_snapshot_state_returns_500_without_panicking() {
+    fn poisoned_snapshot_state_recovers_without_losing_api_availability() {
         let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
         let poisoned = Arc::clone(&state);
         let _ = std::thread::spawn(move || {
@@ -834,13 +990,14 @@ mod tests {
         handle_api_client(
             &mut stream,
             "127.0.0.1".parse().unwrap(),
-            state,
+            Arc::clone(&state),
             deployments,
             ApiAccessPolicy::default(),
         );
 
         let output = String::from_utf8(stream.into_inner()).unwrap();
-        assert!(output.contains("500 Internal Server Error"));
-        assert!(output.contains("snapshot_state_unavailable"));
+        assert!(output.contains("HTTP/1.1 200 OK"));
+        assert!(!state.is_poisoned());
+        assert!(state.lock().is_ok());
     }
 }

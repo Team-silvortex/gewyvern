@@ -1742,12 +1742,12 @@ pub fn validate_registration_intent(
     let endpoint_valid = !endpoint.is_empty()
         && endpoint.len() <= 2048
         && endpoint == endpoint.trim()
-        && !endpoint.chars().any(char::is_control);
+        && normalize_runtime_http_endpoint(endpoint).is_some();
     let sidecar_endpoint_valid = sidecar_endpoint.is_none_or(|value| {
         !value.is_empty()
             && value.len() <= 2048
             && value == value.trim()
-            && !value.chars().any(char::is_control)
+            && normalize_runtime_http_endpoint(value).is_some()
     });
     let tags_valid = [
         tags.environment.as_deref(),
@@ -1779,9 +1779,80 @@ pub fn validate_registration_intent(
     Ok(())
 }
 
+/// Validates and canonicalizes a runtime base URL before it crosses a command,
+/// persistence, or browser boundary. Queries cannot be safely composed with
+/// the fixed API paths used by Leserpent, so endpoint bases reject them.
+pub fn normalize_runtime_http_endpoint(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty()
+        || value.len() > 2048
+        || value.contains('\\')
+        || value.contains('#')
+        || value
+            .chars()
+            .any(|character| character.is_control() || character.is_whitespace())
+    {
+        return None;
+    }
+
+    let uri = value.parse::<Uri>().ok()?;
+    let scheme = uri.scheme_str()?;
+    if !scheme.eq_ignore_ascii_case("http") && !scheme.eq_ignore_ascii_case("https") {
+        return None;
+    }
+    let authority = uri.authority()?;
+    if authority.host().is_empty()
+        || authority.as_str().contains('@')
+        || !runtime_http_authority_port_is_valid(authority.as_str())
+    {
+        return None;
+    }
+    let path_and_query = uri.path_and_query()?;
+    if path_and_query.query().is_some() || !path_and_query.path().starts_with('/') {
+        return None;
+    }
+    let path = if path_and_query.path().is_empty() {
+        "/"
+    } else {
+        path_and_query.path()
+    };
+    Some(format!(
+        "{}://{}{}",
+        scheme.to_ascii_lowercase(),
+        authority.as_str().to_ascii_lowercase(),
+        path
+    ))
+}
+
+fn runtime_http_authority_port_is_valid(authority: &str) -> bool {
+    let port = if let Some(bracketed) = authority.strip_prefix('[') {
+        let Some((host, suffix)) = bracketed.split_once(']') else {
+            return false;
+        };
+        if host.is_empty() {
+            return false;
+        }
+        if suffix.is_empty() {
+            None
+        } else {
+            let Some(port) = suffix.strip_prefix(':') else {
+                return false;
+            };
+            Some(port)
+        }
+    } else {
+        if authority.matches(':').count() > 1 {
+            return false;
+        }
+        authority.rsplit_once(':').map(|(_, port)| port)
+    };
+
+    port.is_none_or(|port| port.parse::<u16>().is_ok_and(|port| port != 0))
+}
+
 /// Returns the stable endpoint identity used to prevent one target from being
-/// registered under multiple runtime identities. Non-URI development endpoints
-/// retain their exact validated representation for wire-v1 compatibility.
+/// registered under multiple runtime identities. The fallback representation is
+/// retained for legacy snapshots; new registrations accept only HTTP(S) URLs.
 pub fn canonical_runtime_endpoint_identity(endpoint: &str) -> String {
     let endpoint = endpoint.trim();
     let Ok(uri) = endpoint.parse::<Uri>() else {
@@ -2346,6 +2417,41 @@ mod tests {
             control.execute(duplicate),
             Err(DomainError::IdempotencyConflict { .. })
         ));
+    }
+
+    #[test]
+    fn runtime_registration_rejects_unsafe_or_ambiguous_endpoint_bases() {
+        let tags = RuntimeTags::default();
+        for endpoint in [
+            "javascript:alert(1)",
+            "file:///tmp/runtime",
+            "https://user@example.test/",
+            "https://example.test/?redirect=https://evil.test",
+            "https://example.test/#client-fragment",
+            "https://example.test\\@evil.test/",
+            "https://example.test:0/",
+            "https://example.test:99999/",
+        ] {
+            assert_eq!(
+                validate_registration_intent("Runtime", endpoint, None, &tags),
+                Err(DomainError::InvalidIdentifier { field: "endpoint" }),
+                "unsafe endpoint was accepted: {endpoint}"
+            );
+        }
+
+        assert_eq!(
+            normalize_runtime_http_endpoint(" HTTPS://Example.TEST:443/base "),
+            Some("https://example.test:443/base".into())
+        );
+        assert!(
+            validate_registration_intent(
+                "Runtime",
+                "https://example.test/base",
+                Some("http://127.0.0.1:9412/"),
+                &tags,
+            )
+            .is_ok()
+        );
     }
 
     #[test]

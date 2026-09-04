@@ -22,6 +22,7 @@ use rcgen::{CertifiedKey, generate_simple_self_signed};
 use ring::digest::{Context, SHA256, digest};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
 use serde::{Deserialize, Serialize};
+use silvortex_bounded_io::{open_bounded_regular_file, parse_https_origin};
 use zeroize::Zeroizing;
 
 const EXECUTABLE_NAME: &str = "leserpentd";
@@ -1412,22 +1413,9 @@ fn path_text(path: &Path) -> Result<String, BootstrapInstallError> {
 }
 
 fn endpoint_port(endpoint: &str) -> Result<u16, BootstrapInstallError> {
-    let authority = endpoint
-        .strip_prefix("https://")
-        .ok_or(BootstrapInstallError::InvalidRequest)?;
-    let port = if authority.starts_with('[') {
-        authority
-            .rsplit_once("]:")
-            .map(|(_, port)| port)
-            .ok_or(BootstrapInstallError::InvalidRequest)?
-    } else {
-        authority
-            .rsplit_once(':')
-            .map(|(_, port)| port)
-            .unwrap_or("443")
-    };
-    port.parse()
-        .map_err(|_| BootstrapInstallError::InvalidRequest)
+    parse_https_origin(endpoint)
+        .map(|origin| origin.port())
+        .ok_or(BootstrapInstallError::InvalidRequest)
 }
 
 #[cfg(target_os = "macos")]
@@ -1496,19 +1484,7 @@ fn validate_tls_pair(certificate: &[u8], private_key: &[u8]) -> Result<(), Boots
 }
 
 fn endpoint_host(endpoint: &str) -> Option<String> {
-    let authority = endpoint.strip_prefix("https://")?;
-    if let Some(bracketed) = authority.strip_prefix('[') {
-        let (host, suffix) = bracketed.split_once(']')?;
-        if host.is_empty() || !(suffix.is_empty() || suffix.starts_with(':')) {
-            return None;
-        }
-        return Some(host.into());
-    }
-    match authority.rsplit_once(':') {
-        Some((host, port)) if !host.is_empty() && port.parse::<u16>().is_ok() => Some(host.into()),
-        None if !authority.is_empty() => Some(authority.into()),
-        _ => None,
-    }
+    parse_https_origin(endpoint).map(|origin| origin.host().to_string())
 }
 
 fn commit_current(root: &Path, generation: &str) -> Result<(), BootstrapInstallError> {
@@ -1530,20 +1506,11 @@ fn commit_current(root: &Path, generation: &str) -> Result<(), BootstrapInstallE
 }
 
 fn read_regular_bounded(path: &Path) -> Result<Vec<u8>, BootstrapInstallError> {
-    let mut file = File::open(path).map_err(|_| BootstrapInstallError::InvalidArtifact)?;
+    let mut file = open_bounded_regular_file(path, MAX_BOOTSTRAP_ARTIFACT_BYTES as u64)
+        .map_err(|_| BootstrapInstallError::InvalidArtifact)?;
     let metadata = file
         .metadata()
         .map_err(|_| BootstrapInstallError::InvalidArtifact)?;
-    let path_metadata =
-        fs::symlink_metadata(path).map_err(|_| BootstrapInstallError::InvalidArtifact)?;
-    if !metadata.is_file()
-        || path_metadata.file_type().is_symlink()
-        || !same_file_identity(&metadata, &path_metadata)
-        || metadata.len() == 0
-        || metadata.len() > MAX_BOOTSTRAP_ARTIFACT_BYTES as u64
-    {
-        return Err(BootstrapInstallError::InvalidArtifact);
-    }
     let mut bytes = Vec::with_capacity(metadata.len() as usize);
     file.read_to_end(&mut bytes)
         .map_err(|_| BootstrapInstallError::InvalidArtifact)?;
@@ -1554,12 +1521,12 @@ fn read_regular_bounded(path: &Path) -> Result<Vec<u8>, BootstrapInstallError> {
 }
 
 fn read_private_file(path: &Path, limit: u64) -> Result<Zeroizing<Vec<u8>>, BootstrapInstallError> {
-    require_mode(path, 0o600)?;
-    let mut file = File::open(path).map_err(|_| BootstrapInstallError::GenerationConflict)?;
+    let mut file = open_bounded_regular_file(path, limit)
+        .map_err(|_| BootstrapInstallError::GenerationConflict)?;
     let metadata = file
         .metadata()
         .map_err(|_| BootstrapInstallError::GenerationConflict)?;
-    if !metadata.is_file() || metadata.len() > limit {
+    if !metadata_has_mode(&metadata, 0o600) {
         return Err(BootstrapInstallError::GenerationConflict);
     }
     let mut bytes = Zeroizing::new(Vec::with_capacity(metadata.len() as usize));
@@ -1701,14 +1668,14 @@ fn require_directory_mode(_path: &Path, _expected: u32) -> Result<(), BootstrapI
 }
 
 #[cfg(unix)]
-fn same_file_identity(opened: &fs::Metadata, path: &fs::Metadata) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    opened.dev() == path.dev() && opened.ino() == path.ino()
+fn metadata_has_mode(metadata: &fs::Metadata, expected: u32) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    metadata.permissions().mode() & 0o777 == expected
 }
 
 #[cfg(not(unix))]
-fn same_file_identity(_opened: &fs::Metadata, _path: &fs::Metadata) -> bool {
-    true
+fn metadata_has_mode(_metadata: &fs::Metadata, _expected: u32) -> bool {
+    false
 }
 
 #[cfg(not(unix))]

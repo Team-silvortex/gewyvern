@@ -44,7 +44,10 @@ fn main() {
         return;
     }
     let started = Instant::now();
-    let result = Workflow::parse(arguments).and_then(|workflow| execute(workflow, repo_root()));
+    let result = Workflow::parse(arguments).and_then(|workflow| {
+        let root = repo_root()?;
+        execute(workflow, root)
+    });
     match result {
         Ok(outcome) => eprintln!(
             "workflow complete: action={}, elapsed={:.3}s{}",
@@ -484,12 +487,12 @@ fn execute(workflow: Workflow, root: PathBuf) -> Result<WorkflowOutcome, String>
     }
 }
 
-fn repo_root() -> PathBuf {
+fn repo_root() -> Result<PathBuf, String> {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(Path::parent)
-        .expect("developer workflow crate must live under crates/")
-        .to_path_buf()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| "developer workflow crate must live under crates/".to_string())
 }
 
 #[derive(Clone, Debug)]
@@ -903,7 +906,7 @@ fn package_control_bundle(
     atomic_replace_directory(&pending, output)?;
     pending_guard
         .as_mut()
-        .expect("real control workflow owns a pending guard")
+        .ok_or_else(|| "control workflow lost its pending-directory guard".to_string())?
         .disarm();
     eprintln!("[publish:control-bundle] identity={identity}");
     Ok(())
@@ -1453,7 +1456,7 @@ fn desktop_pipeline(root: &Path, options: &DesktopOptions) -> Result<PathBuf, St
         atomic_replace_directory(&pending, &output)?;
         pending_guard
             .as_mut()
-            .expect("real desktop workflow owns a pending guard")
+            .ok_or_else(|| "desktop workflow lost its pending-directory guard".to_string())?
             .disarm();
     }
 

@@ -1,9 +1,13 @@
-use std::fs;
+use std::io::Read;
 use std::path::Path;
+
+use silvortex_bounded_io::open_bounded_regular_file;
 
 use crate::certificate_inventory::CertificateAssetKind;
 use x509_parser::pem::Pem;
 use x509_parser::prelude::{FromDer, X509Certificate};
+
+const MAX_CERTIFICATE_PEM_BYTES: u64 = 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CertificateValidityWindow {
@@ -26,9 +30,13 @@ pub fn inspect_certificate_validity(
     ) {
         return None;
     }
-    let Ok(contents) = fs::read(path) else {
+    let Ok(mut file) = open_bounded_regular_file(path, MAX_CERTIFICATE_PEM_BYTES) else {
         return None;
     };
+    let mut contents = Vec::new();
+    if file.read_to_end(&mut contents).is_err() {
+        return None;
+    }
     certificate_validity_from_pem_bytes(&contents)
 }
 
@@ -73,6 +81,8 @@ pub fn certificate_validity_from_pem_bytes(contents: &[u8]) -> Option<Certificat
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     const TEST_CERT_PEM: &str = "-----BEGIN CERTIFICATE-----\n\
 MIIDETCCAfmgAwIBAgIUZCW1Sx3Ms0VIC3Qka3U+uyMAiqAwDQYJKoZIhvcNAQEL\n\
@@ -104,5 +114,24 @@ m1mukAGYQJ1NnRIr044e4WtIhEi7\n\
         );
         assert_eq!(validity.earliest_not_after_unix_ms, Some(2_097_380_066_000));
         assert_eq!(validity.latest_not_after_unix_ms, Some(2_097_380_066_000));
+    }
+
+    #[test]
+    fn certificate_file_inspection_is_bounded_before_parsing() {
+        let path = std::env::temp_dir().join(format!(
+            "gewyvern-certificate-limit-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::write(&path, vec![b'x'; MAX_CERTIFICATE_PEM_BYTES as usize + 1]).unwrap();
+
+        assert_eq!(
+            inspect_certificate_validity(&path, CertificateAssetKind::CertificatePem),
+            None
+        );
+        fs::remove_file(path).unwrap();
     }
 }

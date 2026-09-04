@@ -1,6 +1,7 @@
 using Leserpent.ControlPlane;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Text;
 using System.Text.Json;
 using Xunit;
 
@@ -123,6 +124,32 @@ public sealed class RustCompatibilityBridgeTests
                 new RuntimeStatusRefreshResponse("runtime-a", "A", "http://a", status),
                 CancellationToken.None));
         Assert.Contains("exceeds 1 MiB", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BridgeResponseReaderBoundsAndStrictlyDecodesStdout()
+    {
+        var valid = new MemoryStream(Encoding.UTF8.GetBytes("{\"label\":\"羽蛇\"}\r\n"));
+        Assert.Equal(
+            "{\"label\":\"羽蛇\"}",
+            await RustCompatibilityBridge.ReadBoundedResponseLineAsync(
+                valid,
+                CancellationToken.None));
+
+        var oversized = new MemoryStream(
+            Enumerable.Repeat((byte)'x', 1024 * 1024 + 1).ToArray());
+        var sizeError = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            RustCompatibilityBridge.ReadBoundedResponseLineAsync(
+                oversized,
+                CancellationToken.None));
+        Assert.Contains("exceeds 1 MiB", sizeError.Message, StringComparison.Ordinal);
+
+        var malformed = new MemoryStream([0xff, (byte)'\n']);
+        var encodingError = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            RustCompatibilityBridge.ReadBoundedResponseLineAsync(
+                malformed,
+                CancellationToken.None));
+        Assert.Contains("valid UTF-8", encodingError.Message, StringComparison.Ordinal);
     }
 
     private static RustCompatibilityBridge CreateBridge(

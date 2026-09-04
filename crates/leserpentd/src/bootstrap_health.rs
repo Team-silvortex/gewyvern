@@ -10,7 +10,10 @@ use leserpent_protocol::{
 };
 use rustls::pki_types::{CertificateDer, ServerName, pem::PemObject};
 use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
-use silvortex_bounded_io::{MAX_HTTP_HEADER_BYTES, connect_with_io_deadline, is_http_header_name};
+use silvortex_bounded_io::{
+    MAX_HTTP_HEADER_BYTES, connect_with_io_deadline, is_http_header_name,
+    parse_http_content_length, parse_http_status_code, parse_https_origin,
+};
 use zeroize::Zeroizing;
 
 const HEALTH_DEADLINE: Duration = Duration::from_secs(8);
@@ -152,9 +155,7 @@ fn read_health_response(
         .ok_or("bootstrap health response has no status line")?
         .splitn(3, ' ');
     let status = if status_line.next() == Some("HTTP/1.1") {
-        status_line
-            .next()
-            .and_then(|value| value.parse::<u16>().ok())
+        status_line.next().and_then(parse_http_status_code)
     } else {
         None
     };
@@ -191,10 +192,10 @@ fn read_health_response(
     }) {
         return Err("bootstrap health response is not JSON".into());
     }
-    let content_length = content_length
-        .ok_or("bootstrap health response has no content length")?
-        .parse::<usize>()
-        .map_err(|_| "bootstrap health content length is invalid")?;
+    let content_length = parse_http_content_length(
+        content_length.ok_or("bootstrap health response has no content length")?,
+    )
+    .ok_or("bootstrap health content length is invalid")?;
     if content_length > MAX_PROTOCOL_MESSAGE_BYTES {
         return Err("bootstrap health response exceeds the limit".into());
     }
@@ -226,38 +227,15 @@ struct HealthEndpoint {
 
 impl HealthEndpoint {
     fn parse(endpoint: &str) -> Result<Self, String> {
-        let authority = endpoint
-            .strip_prefix("https://")
-            .ok_or("bootstrap health endpoint is not HTTPS")?;
-        if authority.is_empty()
-            || authority.len() > 320
-            || authority.contains(['/', '?', '#', '@'])
-            || authority.bytes().any(|byte| byte <= 0x20)
-        {
-            return Err("bootstrap health endpoint is invalid".into());
-        }
-        let (host, port) = if let Some(bracketed) = authority.strip_prefix('[') {
-            let (host, suffix) = bracketed
-                .split_once(']')
-                .ok_or("bootstrap health endpoint is invalid")?;
-            let port = suffix
-                .strip_prefix(':')
-                .map(parse_port)
-                .transpose()?
-                .unwrap_or(443);
-            (host.to_string(), port)
-        } else {
-            let (host, port) = authority
-                .rsplit_once(':')
-                .map_or((authority, Ok(443)), |(host, port)| {
-                    (host, parse_port(port))
-                });
-            (host.to_string(), port?)
-        };
+        let origin = parse_https_origin(endpoint)
+            .ok_or_else(|| "bootstrap health endpoint is invalid".to_string())?;
+        let authority = origin.authority().to_string();
+        let host = origin.host().to_string();
+        let port = origin.port();
         let server_name = ServerName::try_from(host.clone())
             .map_err(|_| "bootstrap health TLS server name is invalid")?;
         Ok(Self {
-            authority: authority.into(),
+            authority,
             host,
             port,
             server_name,
@@ -269,14 +247,6 @@ impl HealthEndpoint {
 enum HealthRoute {
     Loopback,
     Endpoint,
-}
-
-fn parse_port(value: &str) -> Result<u16, String> {
-    value
-        .parse::<u16>()
-        .ok()
-        .filter(|port| *port != 0)
-        .ok_or_else(|| "bootstrap health endpoint port is invalid".into())
 }
 
 #[cfg(test)]
@@ -347,6 +317,12 @@ mod tests {
 
         let malformed = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nContent-Type: application/json\r\n\r\n0\r\n\r\n";
         assert!(read_health_response(&mut Cursor::new(malformed)).is_err());
+        let signed_status =
+            b"HTTP/1.1 +200 OK\r\nContent-Type: application/json\r\nContent-Length: 0\r\n\r\n";
+        assert!(read_health_response(&mut Cursor::new(signed_status)).is_err());
+        let signed_length =
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: +0\r\n\r\n";
+        assert!(read_health_response(&mut Cursor::new(signed_length)).is_err());
     }
 
     #[test]
@@ -356,6 +332,10 @@ mod tests {
         assert_eq!(endpoint.port, 7443);
         assert!(HealthEndpoint::parse("https://user@host.example:7443").is_err());
         assert!(HealthEndpoint::parse("http://host.example:7443").is_err());
+        assert!(HealthEndpoint::parse("https://host.example:+443").is_err());
+        assert!(HealthEndpoint::parse("https://host.example:0443").is_err());
+        assert!(HealthEndpoint::parse("https://host\\example").is_err());
+        assert_eq!(HealthEndpoint::parse("https://[::1]").unwrap().port, 443);
     }
 
     #[test]

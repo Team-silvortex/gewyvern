@@ -9,5 +9,6 @@ license.workspace = true
 ring = "0.17"
 serde.workspace = true
 serde_json.workspace = true
+silvortex-bounded-io = { path = "../silvortex-bounded-io" }
 silvortex-identity = { path = "../silvortex-identity" }
 zeroize = "1"

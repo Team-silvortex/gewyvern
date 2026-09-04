@@ -404,42 +404,39 @@ fn attention_reasons(target: &ApiTargetSnapshot) -> Vec<&'static AttentionReason
     let mut reasons = Vec::new();
     match target.automation_outcome.as_deref() {
         Some("targeted_escalation") => {
-            reasons.push(reason_spec("automation.targeted_escalation"));
+            reasons.extend(reason_spec("automation.targeted_escalation"));
         }
         Some("manual_review") => {
-            reasons.push(reason_spec("automation.manual_review"));
+            reasons.extend(reason_spec("automation.manual_review"));
         }
         Some("collect_more_evidence") => {
-            reasons.push(reason_spec("automation.collect_more_evidence"));
+            reasons.extend(reason_spec("automation.collect_more_evidence"));
         }
         _ => {}
     }
     match target.external_sidecar_trust_level.as_deref() {
-        Some("unverified") => reasons.push(reason_spec("sidecar.unverified")),
-        Some("degraded") => reasons.push(reason_spec("sidecar.degraded")),
+        Some("unverified") => reasons.extend(reason_spec("sidecar.unverified")),
+        Some("degraded") => reasons.extend(reason_spec("sidecar.degraded")),
         _ => {}
     }
     if target.external_capability_status.as_deref() == Some("unavailable") {
-        reasons.push(reason_spec("capability.unavailable"));
+        reasons.extend(reason_spec("capability.unavailable"));
     }
     if target.has_external_sidecar_context && !target.has_external_capability_profile {
-        reasons.push(reason_spec("sidecar.context_without_profile"));
+        reasons.extend(reason_spec("sidecar.context_without_profile"));
     }
     reasons
 }
 
-fn reason_spec(key: &str) -> &'static AttentionReasonSpec {
-    REASON_SPECS
-        .iter()
-        .find(|spec| spec.key == key)
-        .expect("attention reason spec should exist")
+fn reason_spec(key: &str) -> Option<&'static AttentionReasonSpec> {
+    REASON_SPECS.iter().find(|spec| spec.key == key)
 }
 
 fn runtime_policy_attention_reasons() -> Vec<&'static AttentionReasonSpec> {
     runtime_certificate_policy()
         .reasons
         .into_iter()
-        .map(|reason| reason_spec(reason.code))
+        .filter_map(|reason| reason_spec(reason.code))
         .collect()
 }
 
@@ -563,9 +560,35 @@ fn append_reason_counts_json(target: &mut String, counts: &[ReasonCount]) {
         target.push_str("\"key\":");
         append_json_string(target, &reason.key);
         target.push_str(",\"priority\":");
-        append_json_string(target, reason_spec(&reason.key).priority.label());
+        append_json_string(
+            target,
+            reason_spec(&reason.key)
+                .map_or(AttentionPriority::Warning, |spec| spec.priority)
+                .label(),
+        );
         target.push_str(",\"count\":");
         target.push_str(&reason.count.to_string());
         target.push('}');
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unknown_attention_reason_degrades_to_warning_without_panicking() {
+        let mut json = String::new();
+        append_reason_counts_json(
+            &mut json,
+            &[ReasonCount {
+                key: "future.policy.reason".into(),
+                count: 1,
+            }],
+        );
+        assert_eq!(
+            json,
+            "{\"key\":\"future.policy.reason\",\"priority\":\"warning\",\"count\":1}"
+        );
     }
 }

@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Diagnostics;
 using System.ComponentModel;
 using System.Text;
@@ -22,6 +23,7 @@ public interface ICompatibilityBridge
 public sealed class RustCompatibilityBridge : ICompatibilityBridge, IDisposable
 {
     private const int MaxMessageBytes = 1024 * 1024;
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private readonly string? executablePath;
     private readonly TimeSpan timeout;
     private readonly ILogger<RustCompatibilityBridge> logger;
@@ -144,7 +146,9 @@ public sealed class RustCompatibilityBridge : ICompatibilityBridge, IDisposable
                     var activeProcess = EnsureProcess();
                     await activeProcess.StandardInput.WriteLineAsync(request.AsMemory(), deadline.Token);
                     await activeProcess.StandardInput.FlushAsync(deadline.Token);
-                    var line = await activeProcess.StandardOutput.ReadLineAsync(deadline.Token);
+                    var line = await ReadBoundedResponseLineAsync(
+                        activeProcess.StandardOutput.BaseStream,
+                        deadline.Token);
                     return ValidateResponse(requestId, line);
                 }
                 catch (Exception error) when (
@@ -170,6 +174,58 @@ public sealed class RustCompatibilityBridge : ICompatibilityBridge, IDisposable
         }
 
         throw new CompatibilityBridgeException("Rust compatibility bridge request failed");
+    }
+
+    internal static async Task<string?> ReadBoundedResponseLineAsync(
+        Stream output,
+        CancellationToken cancellationToken)
+    {
+        using var message = new MemoryStream();
+        var buffer = new byte[4096];
+        while (true)
+        {
+            var read = await output.ReadAsync(buffer.AsMemory(), cancellationToken);
+            if (read == 0)
+            {
+                return message.Length == 0 ? null : DecodeResponseLine(message);
+            }
+
+            var newline = Array.IndexOf(buffer, (byte)'\n', 0, read);
+            var bytesToAppend = newline >= 0 ? newline : read;
+            if (message.Length + bytesToAppend > MaxMessageBytes)
+            {
+                throw new InvalidDataException("Rust compatibility bridge response exceeds 1 MiB");
+            }
+            message.Write(buffer, 0, bytesToAppend);
+
+            if (newline < 0)
+            {
+                continue;
+            }
+            if (newline + 1 != read)
+            {
+                throw new InvalidDataException("Rust compatibility bridge emitted trailing response data");
+            }
+            return DecodeResponseLine(message);
+        }
+    }
+
+    private static string DecodeResponseLine(MemoryStream message)
+    {
+        var length = checked((int)message.Length);
+        var bytes = message.GetBuffer();
+        if (length > 0 && bytes[length - 1] == (byte)'\r')
+        {
+            length--;
+        }
+        try
+        {
+            return StrictUtf8.GetString(bytes, 0, length);
+        }
+        catch (DecoderFallbackException error)
+        {
+            throw new InvalidDataException("Rust compatibility bridge response is not valid UTF-8", error);
+        }
     }
 
     private Process EnsureProcess()
@@ -224,7 +280,7 @@ public sealed class RustCompatibilityBridge : ICompatibilityBridge, IDisposable
         T payload,
         JsonTypeInfo<T> payloadType)
     {
-        using var buffer = new MemoryStream();
+        var buffer = new CappedBufferWriter(MaxMessageBytes);
         using (var writer = new Utf8JsonWriter(buffer))
         {
             writer.WriteStartObject();
@@ -234,7 +290,48 @@ public sealed class RustCompatibilityBridge : ICompatibilityBridge, IDisposable
             JsonSerializer.Serialize(writer, payload, payloadType);
             writer.WriteEndObject();
         }
-        return Encoding.UTF8.GetString(buffer.GetBuffer(), 0, checked((int)buffer.Length));
+        return StrictUtf8.GetString(buffer.WrittenSpan);
+    }
+
+    private sealed class CappedBufferWriter(int maximumBytes) : IBufferWriter<byte>
+    {
+        private readonly ArrayBufferWriter<byte> buffer = new(Math.Min(maximumBytes, 4096));
+
+        public ReadOnlySpan<byte> WrittenSpan => buffer.WrittenSpan;
+
+        public void Advance(int count)
+        {
+            if (count < 0 || count > maximumBytes - buffer.WrittenCount)
+            {
+                throw new CompatibilityBridgeException("compatibility request exceeds 1 MiB");
+            }
+            buffer.Advance(count);
+        }
+
+        public Memory<byte> GetMemory(int sizeHint = 0)
+        {
+            EnsureCapacity(sizeHint);
+            return buffer.GetMemory(sizeHint);
+        }
+
+        public Span<byte> GetSpan(int sizeHint = 0)
+        {
+            EnsureCapacity(sizeHint);
+            return buffer.GetSpan(sizeHint);
+        }
+
+        private void EnsureCapacity(int sizeHint)
+        {
+            if (sizeHint < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(sizeHint));
+            }
+            var required = Math.Max(sizeHint, 1);
+            if (required > maximumBytes - buffer.WrittenCount)
+            {
+                throw new CompatibilityBridgeException("compatibility request exceeds 1 MiB");
+            }
+        }
     }
 
     private static JsonElement? ValidateResponse(string requestId, string? line)

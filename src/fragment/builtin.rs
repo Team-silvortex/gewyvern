@@ -141,9 +141,9 @@ fn build_builtin_registry() -> FragmentRegistry {
     ];
 
     for fragment in fragments {
-        registry
-            .register(fragment)
-            .expect("builtin registry must stay valid");
+        if registry.register(fragment).is_err() {
+            return FragmentRegistry::new();
+        }
     }
     registry
 }

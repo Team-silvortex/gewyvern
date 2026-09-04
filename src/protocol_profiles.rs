@@ -9,6 +9,7 @@ mod summary;
 mod surface;
 
 use aliases::{protocol_entry_aliases, resolve_protocol_entry_alias, split_protocol_alias};
+use gewylang_contract::MAX_GEWYLANG_SOURCE_BYTES;
 use overlays::selected_overlay_for_alias;
 use profiles::{PROTOCOL_PROFILES, find_protocol_profile};
 use registry::{
@@ -17,13 +18,17 @@ use registry::{
     resolve_registry_entry_alias, scan_protocol_registry, scan_protocol_registry_in,
     scan_protocol_registry_in_strict,
 };
+use silvortex_bounded_io::open_bounded_regular_file;
 use std::fs;
+use std::io::Read;
 use std::path::Path;
 use summary::{
     built_in_protocol_summaries, built_in_protocol_summary, protocol_summaries_from_registry,
     protocol_summary_from_registry,
 };
 use surface::built_in_protocol_surface;
+
+const MAX_PROTOCOL_TEMPLATE_DIRECTORY_ENTRIES: usize = 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolvedProtocolProfile {
@@ -231,11 +236,7 @@ fn protocol_surface_with_summary_lookup(
         }
         (summary, selected_entry.to_string())
     };
-    Some(built_in_protocol_surface(
-        summary,
-        selected_entry,
-        selected_overlay,
-    ))
+    built_in_protocol_surface(summary, selected_entry, selected_overlay)
 }
 
 pub fn protocol_surface_from_summary(
@@ -248,7 +249,7 @@ pub fn protocol_surface_from_summary(
         .find(|item| item.mode == entry || item.aliases.iter().any(|alias| alias == entry))?
         .mode
         .clone();
-    Some(built_in_protocol_surface(summary, selected_entry, None))
+    built_in_protocol_surface(summary, selected_entry, None)
 }
 
 pub fn protocol_names() -> Vec<String> {
@@ -423,7 +424,10 @@ fn protocol_template_candidates(dsl_path: &str) -> Vec<String> {
             push_protocol_template_candidates(&mut candidates, &main);
         }
         if let Ok(entries) = fs::read_dir(path) {
-            for entry in entries.flatten() {
+            for entry in entries
+                .take(MAX_PROTOCOL_TEMPLATE_DIRECTORY_ENTRIES)
+                .flatten()
+            {
                 let entry_path = entry.path();
                 if entry_path == main
                     || entry_path.extension().and_then(|ext| ext.to_str()) != Some("gewy")
@@ -449,7 +453,9 @@ fn push_protocol_template_candidates(candidates: &mut Vec<String>, path: &Path) 
 }
 
 fn read_template_id_from_dsl(path: &Path) -> Option<String> {
-    let input = fs::read_to_string(path).ok()?;
+    let mut file = open_bounded_regular_file(path, MAX_GEWYLANG_SOURCE_BYTES as u64).ok()?;
+    let mut input = String::new();
+    file.read_to_string(&mut input).ok()?;
     extract_template_id(&input)
 }
 

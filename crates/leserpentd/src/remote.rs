@@ -29,6 +29,7 @@ use rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
 use rustls::{ServerConfig, ServerConnection, StreamOwned};
 use silvortex_bounded_io::{
     BoundedFile, MAX_HTTP_HEADER_BYTES, is_http_header_name, open_bounded_regular_file,
+    parse_http_content_length,
 };
 use zeroize::{Zeroize, Zeroizing};
 
@@ -1078,9 +1079,8 @@ fn read_http_request(
                     });
                 }
                 let content_length = content_length
-                    .ok_or_else(HttpError::bad_request)?
-                    .parse::<usize>()
-                    .map_err(|_| HttpError::bad_request())?;
+                    .and_then(parse_http_content_length)
+                    .ok_or_else(HttpError::bad_request)?;
                 if content_length == 0 {
                     return Err(HttpError::bad_request());
                 }
@@ -1150,9 +1150,8 @@ fn read_http_request(
         });
     }
     let content_length = content_length
-        .ok_or_else(HttpError::bad_request)?
-        .parse::<usize>()
-        .map_err(|_| HttpError::bad_request())?;
+        .and_then(parse_http_content_length)
+        .ok_or_else(HttpError::bad_request)?;
     let limit = match route {
         HttpRoute::ConsoleAsset(_) | HttpRoute::ConsoleApi(_) | HttpRoute::LanguagePack(_) => {
             return Err(HttpError::bad_request());
@@ -2122,6 +2121,19 @@ mod tests {
         assert!(matches!(
             read_http_request(
                 &mut Cursor::new(disguised_chunked.into_bytes()),
+                TOKEN.as_bytes()
+            )
+            .unwrap_err()
+            .status,
+            HttpStatus::BadRequest
+        ));
+
+        let signed_content_length = format!(
+            "POST /v1/wire HTTP/1.1\r\nAuthorization: Bearer {TOKEN}\r\nContent-Type: application/json\r\nContent-Length: +0\r\n\r\n"
+        );
+        assert!(matches!(
+            read_http_request(
+                &mut Cursor::new(signed_content_length.into_bytes()),
                 TOKEN.as_bytes()
             )
             .unwrap_err()

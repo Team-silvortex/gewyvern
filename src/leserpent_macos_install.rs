@@ -108,7 +108,8 @@ pub struct InstallReport {
 
 impl InstallReport {
     pub fn to_json(&self) -> String {
-        serde_json::to_string(self).expect("fixed install report must serialize")
+        serde_json::to_string(self)
+            .unwrap_or_else(|_| "{\"error\":\"install_report_serialization_failed\"}".into())
     }
 }
 
@@ -165,7 +166,10 @@ fn acquire_install_lock(options: &InstallOptions, timeout: Duration) -> Result<F
 }
 
 fn install(options: &InstallOptions) -> Result<(), String> {
-    let source = options.app.as_deref().expect("install app was parsed");
+    let source = options
+        .app
+        .as_deref()
+        .ok_or_else(|| "install requires --app".to_string())?;
     let source = fs::canonicalize(source).map_err(|error| error.to_string())?;
     if source.starts_with(&options.root) {
         return Err("source application cannot be inside the install root".to_string());
@@ -954,6 +958,12 @@ mod tests {
                     .map(str::to_string)
             )
             .is_err()
+        );
+
+        let root = fixture_root("missing-install-app");
+        assert_eq!(
+            install(&options(&root, None, InstallAction::Install)),
+            Err("install requires --app".to_string())
         );
     }
 

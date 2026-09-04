@@ -7,18 +7,17 @@ pub(super) fn built_in_protocol_surface(
     summary: ProtocolSummary,
     selected_entry: String,
     selected_overlay: Option<String>,
-) -> ProtocolSurfaceSummary {
+) -> Option<ProtocolSurfaceSummary> {
     let selected = summary
         .entries
         .iter()
-        .find(|entry| entry.mode == selected_entry)
-        .expect("selected entry should exist in protocol summary");
+        .find(|entry| entry.mode == selected_entry)?;
     let sibling_entries = summary
         .entries
         .iter()
         .map(|entry| entry.mode.clone())
         .collect::<Vec<_>>();
-    ProtocolSurfaceSummary {
+    Some(ProtocolSurfaceSummary {
         protocol: summary.protocol.clone(),
         entry: selected.mode.clone(),
         default_entry: summary.default_entry.clone(),
@@ -31,5 +30,5 @@ pub(super) fn built_in_protocol_surface(
         entry_semantics: built_in_protocol_entry_semantics(&summary.protocol, &selected.mode),
         overlays: overlays_for_surface(&summary.protocol, &selected.mode),
         selected_overlay,
-    }
+    })
 }

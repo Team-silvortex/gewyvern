@@ -937,16 +937,18 @@ fn external_engine_roundtrip_rejects_shell_command_bridge() {
 }
 
 #[test]
-fn control_plane_security_limits_large_persistence_imports() {
+fn control_plane_security_limits_all_api_bodies_and_large_persistence_imports() {
     let security =
         read_repo_file("apps/leserpent/src/Leserpent/ControlPlane/ControlPlaneSecurityPolicy.cs");
 
+    assert!(security.contains("ControlPlaneRequestBodyLimitBytes"));
     assert!(security.contains("PersistenceImportBodyLimitBytes"));
     assert!(security.contains("IHttpMaxRequestBodySizeFeature"));
-    assert!(security.contains("ApplyPersistenceImportLimit"));
-    assert!(security.contains("MaxRequestBodySize = PersistenceImportBodyLimitBytes"));
+    assert!(security.contains("ApplyRequestBodyLimit"));
+    assert!(security.contains("MaxRequestBodySize = maximumBytes"));
     assert!(security.contains("Status413PayloadTooLarge"));
     assert!(security.contains("persistence_import_too_large"));
+    assert!(security.contains("control_plane_request_too_large"));
 }
 
 #[test]

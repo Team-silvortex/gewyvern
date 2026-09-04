@@ -26,7 +26,10 @@ use ring::digest::{SHA256, digest};
 use rustls::pki_types::{CertificateDer, ServerName, pem::PemObject};
 use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
 use serde::{Deserialize, Serialize};
-use silvortex_bounded_io::{MAX_HTTP_HEADER_BYTES, connect_with_deadline, is_http_header_name};
+use silvortex_bounded_io::{
+    MAX_HTTP_HEADER_BYTES, connect_with_deadline, is_http_header_name, open_bounded_regular_file,
+    parse_http_content_length, parse_http_status_code, parse_https_origin,
+};
 use zeroize::Zeroizing;
 
 const MAX_INSTALL_ARTIFACT_BYTES: u64 = 256 * 1024 * 1024;
@@ -1115,7 +1118,13 @@ fn read_health_response(reader: &mut impl Read) -> Result<Vec<u8>, GewyvernInsta
     let header = std::str::from_utf8(&bytes[..header_end - 4])
         .map_err(|_| GewyvernInstallError::HealthProof)?;
     let mut lines = header.split("\r\n");
-    if lines.next().and_then(|line| line.split_whitespace().nth(1)) != Some("200") {
+    let status = lines.next().and_then(|line| {
+        let mut fields = line.splitn(3, ' ');
+        (fields.next() == Some("HTTP/1.1"))
+            .then(|| fields.next().and_then(parse_http_status_code))
+            .flatten()
+    });
+    if status != Some(200) {
         return Err(GewyvernInstallError::HealthProof);
     }
     let mut content_length = None;
@@ -1149,7 +1158,7 @@ fn read_health_response(reader: &mut impl Read) -> Result<Vec<u8>, GewyvernInsta
         return Err(GewyvernInstallError::HealthProof);
     }
     let content_length = content_length
-        .and_then(|value| value.parse::<usize>().ok())
+        .and_then(parse_http_content_length)
         .filter(|length| *length <= MAX_HEALTH_BODY_BYTES)
         .ok_or(GewyvernInstallError::HealthProof)?;
     let mut body = bytes.split_off(header_end);
@@ -1172,43 +1181,14 @@ struct HealthEndpoint {
 
 impl HealthEndpoint {
     fn parse(endpoint: &str) -> Result<Self, GewyvernInstallError> {
-        let authority = endpoint
-            .strip_prefix("https://")
-            .filter(|value| {
-                !value.is_empty()
-                    && value.len() <= 320
-                    && !value.contains(['/', '?', '#', '@'])
-                    && !value.bytes().any(|byte| byte <= 0x20)
-            })
-            .ok_or(GewyvernInstallError::InvalidRequest)?;
-        let (host, port) = if let Some(bracketed) = authority.strip_prefix('[') {
-            let (host, suffix) = bracketed
-                .split_once(']')
-                .ok_or(GewyvernInstallError::InvalidRequest)?;
-            let port = suffix
-                .strip_prefix(':')
-                .map(str::parse::<u16>)
-                .transpose()
-                .map_err(|_| GewyvernInstallError::InvalidRequest)?
-                .unwrap_or(443);
-            (host.to_string(), port)
-        } else {
-            match authority.rsplit_once(':') {
-                Some((host, port)) => (
-                    host.to_string(),
-                    port.parse::<u16>()
-                        .map_err(|_| GewyvernInstallError::InvalidRequest)?,
-                ),
-                None => (authority.to_string(), 443),
-            }
-        };
-        if port == 0 {
-            return Err(GewyvernInstallError::InvalidRequest);
-        }
+        let origin = parse_https_origin(endpoint).ok_or(GewyvernInstallError::InvalidRequest)?;
+        let authority = origin.authority().to_string();
+        let host = origin.host().to_string();
+        let port = origin.port();
         let server_name =
             ServerName::try_from(host).map_err(|_| GewyvernInstallError::InvalidRequest)?;
         Ok(Self {
-            authority: authority.into(),
+            authority,
             port,
             server_name,
         })
@@ -1402,24 +1382,8 @@ fn service_plan(
 }
 
 fn endpoint_port(endpoint: &str) -> Result<u16, GewyvernInstallError> {
-    let authority = endpoint
-        .strip_prefix("https://")
-        .ok_or(GewyvernInstallError::InvalidRequest)?;
-    let value = if authority.starts_with('[') {
-        authority
-            .rsplit_once("]:")
-            .map(|(_, port)| port)
-            .unwrap_or("443")
-    } else {
-        authority
-            .rsplit_once(':')
-            .map(|(_, port)| port)
-            .unwrap_or("443")
-    };
-    value
-        .parse::<u16>()
-        .ok()
-        .filter(|port| *port != 0)
+    parse_https_origin(endpoint)
+        .map(|origin| origin.port())
         .ok_or(GewyvernInstallError::InvalidRequest)
 }
 
@@ -1611,19 +1575,7 @@ fn generate_tls_identity(
 }
 
 fn endpoint_host(endpoint: &str) -> Option<String> {
-    let authority = endpoint.strip_prefix("https://")?;
-    if let Some(bracketed) = authority.strip_prefix('[') {
-        let (host, suffix) = bracketed.split_once(']')?;
-        if host.is_empty() || (!suffix.is_empty() && !suffix.starts_with(':')) {
-            return None;
-        }
-        return Some(host.into());
-    }
-    match authority.rsplit_once(':') {
-        Some((host, port)) if !host.is_empty() && port.parse::<u16>().is_ok() => Some(host.into()),
-        None if !authority.is_empty() => Some(authority.into()),
-        _ => None,
-    }
+    parse_https_origin(endpoint).map(|origin| origin.host().to_string())
 }
 
 fn commit_current(runtime_root: &Path, generation: &str) -> Result<(), GewyvernInstallError> {
@@ -1645,18 +1597,11 @@ fn commit_current(runtime_root: &Path, generation: &str) -> Result<(), GewyvernI
 }
 
 fn read_artifact(path: &Path) -> Result<Vec<u8>, GewyvernInstallError> {
-    let path_metadata =
-        fs::symlink_metadata(path).map_err(|_| GewyvernInstallError::InvalidArtifact)?;
-    if path_metadata.file_type().is_symlink() || !path_metadata.is_file() {
-        return Err(GewyvernInstallError::InvalidArtifact);
-    }
-    let mut file = File::open(path).map_err(|_| GewyvernInstallError::InvalidArtifact)?;
+    let mut file = open_bounded_regular_file(path, MAX_INSTALL_ARTIFACT_BYTES)
+        .map_err(|_| GewyvernInstallError::InvalidArtifact)?;
     let metadata = file
         .metadata()
         .map_err(|_| GewyvernInstallError::InvalidArtifact)?;
-    if metadata.len() == 0 || metadata.len() > MAX_INSTALL_ARTIFACT_BYTES {
-        return Err(GewyvernInstallError::InvalidArtifact);
-    }
     let mut bytes = Vec::with_capacity(metadata.len() as usize);
     file.read_to_end(&mut bytes)
         .map_err(|_| GewyvernInstallError::InvalidArtifact)?;
@@ -1710,13 +1655,11 @@ fn write_new_file(path: &Path, bytes: &[u8], mode: u32) -> Result<(), GewyvernIn
 }
 
 fn read_private_file(path: &Path, limit: u64) -> Result<Vec<u8>, GewyvernInstallError> {
-    let metadata = fs::symlink_metadata(path).map_err(|_| GewyvernInstallError::Storage)?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > limit {
-        return Err(GewyvernInstallError::GenerationConflict);
-    }
+    let mut file = open_bounded_regular_file(path, limit)
+        .map_err(|_| GewyvernInstallError::GenerationConflict)?;
+    let metadata = file.metadata().map_err(|_| GewyvernInstallError::Storage)?;
     let mut bytes = Vec::with_capacity(metadata.len() as usize);
-    File::open(path)
-        .and_then(|mut file| file.read_to_end(&mut bytes))
+    file.read_to_end(&mut bytes)
         .map_err(|_| GewyvernInstallError::Storage)?;
     if bytes.len() as u64 != metadata.len() {
         return Err(GewyvernInstallError::GenerationConflict);

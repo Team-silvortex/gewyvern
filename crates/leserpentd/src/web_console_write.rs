@@ -8,7 +8,8 @@ use leserpent_domain::{
     Principal, RefreshStatus, Revision, RuntimeCapabilitySnapshot, RuntimeId, RuntimeListFilter,
     RuntimeProjection, RuntimeSidecarMemorySlotSnapshot, RuntimeSidecarMemorySnapshot,
     RuntimeSidecarStatusSnapshot, RuntimeStatusSnapshot, RuntimeTags,
-    canonical_runtime_endpoint_identity, validate_registration_intent,
+    canonical_runtime_endpoint_identity, normalize_runtime_http_endpoint,
+    validate_registration_intent,
 };
 use leserpent_protocol::{AuthorityWriterFence, MAX_PROTOCOL_MESSAGE_BYTES};
 use leserpent_runtime::{
@@ -611,8 +612,9 @@ fn deterministic_session_id(request_id: &str, runtime_id: &RuntimeId) -> String 
 fn hex_prefix(bytes: &[u8]) -> String {
     let mut encoded = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
-        use std::fmt::Write as _;
-        write!(&mut encoded, "{byte:02x}").expect("writing to a String cannot fail");
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        encoded.push(char::from(HEX[(byte >> 4) as usize]));
+        encoded.push(char::from(HEX[(byte & 0x0f) as usize]));
     }
     encoded
 }
@@ -738,12 +740,6 @@ fn build_import_snapshot(
     for imported in &request.runtimes {
         let runtime_id = RuntimeId::new(imported.runtime_id.clone())
             .map_err(|_| invalid_persistence_import())?;
-        if !runtime_ids.insert(imported.runtime_id.clone())
-            || !folded_runtime_ids.insert(imported.runtime_id.to_ascii_lowercase())
-            || !endpoint_ids.insert(canonical_runtime_endpoint_identity(&imported.endpoint))
-        {
-            return Err(invalid_persistence_import());
-        }
         let tags = RuntimeTags {
             environment: imported.tags.environment.clone(),
             cluster: imported.tags.cluster.clone(),
@@ -756,6 +752,12 @@ fn build_import_snapshot(
             &tags,
         )
         .map_err(|_| invalid_persistence_import())?;
+        if !runtime_ids.insert(imported.runtime_id.clone())
+            || !folded_runtime_ids.insert(imported.runtime_id.to_ascii_lowercase())
+            || !endpoint_ids.insert(canonical_runtime_endpoint_identity(&imported.endpoint))
+        {
+            return Err(invalid_persistence_import());
+        }
         let registered_at = import_timestamp_unix_ms(&imported.registered_at)?;
         let updated_at = import_timestamp_unix_ms(&imported.updated_at)?;
         if registered_at > updated_at {
@@ -1702,35 +1704,7 @@ fn valid_sha256(value: &str) -> bool {
 }
 
 fn normalize_http_endpoint(value: &str) -> Option<String> {
-    let value = value.trim();
-    if value.is_empty()
-        || value.len() > 2048
-        || value
-            .chars()
-            .any(|character| character.is_control() || character.is_whitespace())
-    {
-        return None;
-    }
-    let (scheme, remainder) = value.split_once("://")?;
-    if !scheme.eq_ignore_ascii_case("http") && !scheme.eq_ignore_ascii_case("https") {
-        return None;
-    }
-    let authority_end = remainder.find(['/', '?', '#']).unwrap_or(remainder.len());
-    let authority = &remainder[..authority_end];
-    if authority.is_empty() || authority.contains('@') {
-        return None;
-    }
-    let suffix = &remainder[authority_end..];
-    if suffix.contains('#') {
-        return None;
-    }
-    let suffix = if suffix.is_empty() { "/" } else { suffix };
-    Some(format!(
-        "{}://{}{}",
-        scheme.to_ascii_lowercase(),
-        authority.to_ascii_lowercase(),
-        suffix
-    ))
+    normalize_runtime_http_endpoint(value)
 }
 
 fn proposed_runtime_id(name: &str, endpoint: &str) -> String {
@@ -2706,6 +2680,23 @@ mod tests {
                 .generation,
             writer_id: writer_id.into(),
         };
+        let mut unsafe_import = exported.clone();
+        unsafe_import["runtimes"][0]["endpoint"] = json!("javascript:alert(1)");
+        let revision_before_rejection = runtime.runtime_event_state().0;
+        let error = execute(
+            &ConsoleApiRoute::PersistenceImport,
+            &serde_json::to_vec(&unsafe_import).unwrap(),
+            &mut runtime,
+            Some(&fence),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "invalid_persistence_import");
+        assert_eq!(runtime.runtime_event_state().0, revision_before_rejection);
+        assert_eq!(
+            runtime.runtime_projection(&runtime_id).unwrap().endpoint,
+            "https://runtime.invalid"
+        );
+
         let response = execute(
             &ConsoleApiRoute::PersistenceImport,
             &export,

@@ -39,6 +39,17 @@ pub(crate) use self::training_manifest::training_sample_id;
 pub type ApiState = Arc<Mutex<Arc<ApiSnapshot>>>;
 type ApiDeploymentState = Arc<Mutex<ApiDeploymentStore>>;
 
+fn lock_api_snapshot(state: &ApiState) -> std::sync::MutexGuard<'_, Arc<ApiSnapshot>> {
+    match state.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            let guard = poisoned.into_inner();
+            state.clear_poison();
+            guard
+        }
+    }
+}
+
 const API_CLIENT_READ_TIMEOUT: Duration = Duration::from_secs(3);
 const API_CLIENT_WRITE_TIMEOUT: Duration = Duration::from_secs(3);
 const API_MAX_CONCURRENT_CLIENTS: usize = 128;
@@ -215,7 +226,7 @@ pub(crate) fn api_response_for_request<'a>(
 
 pub(crate) fn persist_api_snapshot(state: &ApiState) -> Result<(), String> {
     let snapshot = {
-        let guard = state.lock().expect("api snapshot mutex poisoned");
+        let guard = lock_api_snapshot(state);
         guard.clone()
     };
     persistence::persist_latest_snapshot(&snapshot)
@@ -251,7 +262,7 @@ pub(crate) fn update_api_snapshot_for_single_with_protocol_surface(
         .into_snapshot_with_protocol_surface(protocol_surface);
     let mut target_snapshots = HashMap::new();
     target_snapshots.insert(target_name.clone(), target_snapshot);
-    let mut guard = state.lock().expect("api snapshot mutex poisoned");
+    let mut guard = lock_api_snapshot(state);
     *guard = Arc::new(ApiSnapshot {
         updated_unix_ms: current_unix_ms(),
         kind: "single".into(),
@@ -366,7 +377,7 @@ pub(crate) fn update_api_snapshot_for_scan_with_protocol_surfaces(
             rendered.into_snapshot_with_protocol_surface(protocol_surface),
         );
     }
-    let mut guard = state.lock().expect("api snapshot mutex poisoned");
+    let mut guard = lock_api_snapshot(state);
     *guard = Arc::new(ApiSnapshot {
         updated_unix_ms: current_unix_ms(),
         kind: "scan".into(),
@@ -499,6 +510,29 @@ fn current_unix_ms() -> u128 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn api_snapshot_lock_recovers_after_a_writer_panics() {
+        let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+        let poisoned = Arc::clone(&state);
+        assert!(
+            std::thread::spawn(move || {
+                let _guard = poisoned.lock().unwrap();
+                panic!("poison the API snapshot lock");
+            })
+            .join()
+            .is_err()
+        );
+
+        let mut guard = lock_api_snapshot(&state);
+        *guard = Arc::new(ApiSnapshot {
+            kind: "recovered".into(),
+            ..ApiSnapshot::default()
+        });
+        assert_eq!(guard.kind, "recovered");
+        drop(guard);
+        assert!(!state.is_poisoned());
+    }
 
     #[test]
     fn normalize_api_admin_token_rejects_too_short_and_too_long_values() {

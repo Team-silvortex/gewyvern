@@ -142,6 +142,27 @@ public sealed class ControlPlaneSecurityPolicyTests
     }
 
     [Fact]
+    public void OtherControlPlaneRequestsAreAlsoBoundedBeforeBodyRead()
+    {
+        var policy = BuildPolicy();
+        var context = BuildContext(
+            "POST",
+            "/v1/runtimes",
+            IPAddress.Loopback);
+        context.Request.ContentLength =
+            ControlPlaneSecurityPolicy.ControlPlaneRequestBodyLimitBytes + 1;
+
+        var allowed = policy.TryAuthorize(
+            context,
+            out var statusCode,
+            out var payload);
+
+        Assert.False(allowed);
+        Assert.Equal(StatusCodes.Status413PayloadTooLarge, statusCode);
+        Assert.Contains("control_plane_request_too_large", payload.ToString());
+    }
+
+    [Fact]
     public async Task PersistenceImportRejectsPendingRegistrationIntent()
     {
         var policy = BuildPolicy();
@@ -213,6 +234,69 @@ public sealed class ControlPlaneSecurityPolicyTests
             CancellationToken.None);
 
         Assert.Equal("runtime endpoint may not embed user credentials", error);
+    }
+
+    [Fact]
+    public async Task RuntimeEndpointBasesRejectAmbiguousCompositionSyntax()
+    {
+        var policy = BuildPolicy();
+        var endpoints = new[]
+        {
+            " http://127.0.0.1:49152/",
+            "http://127.0.0.1:49152/?mode=full",
+            "http://127.0.0.1:49152/#client-fragment",
+            "http://127.0.0.1:49152\\ignored",
+            "http://127.0.0.1:0/",
+            $"http://127.0.0.1/{new string('a', ControlPlaneSecurityPolicy.MaximumEndpointUrlLength)}",
+        };
+
+        foreach (var endpoint in endpoints)
+        {
+            var error = await policy.ValidateRegistrationPlanAsync(
+                new RuntimeRegistrationPlanRequest("Runtime", endpoint, null),
+                CancellationToken.None);
+
+            Assert.NotNull(error);
+        }
+    }
+
+    [Fact]
+    public async Task RegistrationRejectsUnsafeOrOrphanedOutboundCredentials()
+    {
+        var policy = BuildPolicy();
+        var invalidCredentials = new[]
+        {
+            "token\r\nInjected: value",
+            "token with space",
+            "token-é",
+            new string('a', ControlPlaneSecurityPolicy.MaximumAdminTokenLength + 1),
+        };
+
+        foreach (var credential in invalidCredentials)
+        {
+            var error = await policy.ValidateRegistrationAsync(
+                new RuntimeRegistrationRequest(
+                    "Runtime",
+                    "http://127.0.0.1:49152",
+                    credential),
+                CancellationToken.None);
+
+            Assert.Equal(
+                $"runtime pairing token must contain at most {ControlPlaneSecurityPolicy.MaximumAdminTokenLength} visible ASCII characters",
+                error);
+        }
+
+        var orphanedSidecarCredential = await policy.ValidateRegistrationAsync(
+            new RuntimeRegistrationRequest(
+                "Runtime",
+                "http://127.0.0.1:49152",
+                "",
+                SidecarAdminToken: "sidecar-token"),
+            CancellationToken.None);
+
+        Assert.Equal(
+            "sidecar admin token requires a sidecar endpoint",
+            orphanedSidecarCredential);
     }
 
     [Fact]

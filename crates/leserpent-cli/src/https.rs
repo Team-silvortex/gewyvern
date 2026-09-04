@@ -30,7 +30,8 @@ use rustls::pki_types::{CertificateDer, ServerName, pem::PemObject};
 use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
 use silvortex_bounded_io::{
     BoundedFile, DeadlineTcpStream, MAX_HTTP_HEADER_BYTES, connect_with_io_deadline,
-    is_http_header_name, open_bounded_regular_file,
+    is_http_header_name, open_bounded_regular_file, parse_http_content_length,
+    parse_http_status_code, parse_https_origin,
 };
 use zeroize::Zeroizing;
 
@@ -258,43 +259,10 @@ struct HttpsEndpoint {
 
 impl HttpsEndpoint {
     fn parse(value: &str) -> Result<Self, CliError> {
-        if value.len() > 2048 || value.bytes().any(|byte| byte <= 0x20) {
-            return Err(invalid_endpoint());
-        }
-        let authority = value
-            .strip_prefix("https://")
-            .ok_or_else(invalid_endpoint)?;
-        if authority.is_empty()
-            || authority
-                .bytes()
-                .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@'))
-        {
-            return Err(invalid_endpoint());
-        }
-        let (host, port, host_header) = if let Some(bracketed) = authority.strip_prefix('[') {
-            let (host, suffix) = bracketed.split_once(']').ok_or_else(invalid_endpoint)?;
-            let port = match suffix.strip_prefix(':') {
-                Some(value) => parse_port(value)?,
-                None if suffix.is_empty() => 443,
-                None => return Err(invalid_endpoint()),
-            };
-            if host.is_empty() || host.parse::<std::net::Ipv6Addr>().is_err() {
-                return Err(invalid_endpoint());
-            }
-            (host.to_string(), port, format!("[{host}]:{port}"))
-        } else {
-            if authority.matches(':').count() > 1 {
-                return Err(invalid_endpoint());
-            }
-            let (host, port) = match authority.rsplit_once(':') {
-                Some((host, port)) => (host, parse_port(port)?),
-                None => (authority, 443),
-            };
-            if host.is_empty() {
-                return Err(invalid_endpoint());
-            }
-            (host.to_string(), port, format!("{host}:{port}"))
-        };
+        let origin = parse_https_origin(value).ok_or_else(invalid_endpoint)?;
+        let host = origin.host().to_string();
+        let port = origin.port();
+        let host_header = origin.host_header();
         let server_name = ServerName::try_from(host.clone()).map_err(|_| invalid_endpoint())?;
         Ok(Self {
             host,
@@ -303,14 +271,6 @@ impl HttpsEndpoint {
             server_name,
         })
     }
-}
-
-fn parse_port(value: &str) -> Result<u16, CliError> {
-    let port = value.parse::<u16>().map_err(|_| invalid_endpoint())?;
-    if port == 0 {
-        return Err(invalid_endpoint());
-    }
-    Ok(port)
 }
 
 fn invalid_endpoint() -> CliError {
@@ -375,7 +335,7 @@ fn read_http_response_body(stream: &mut impl Read) -> Result<Vec<u8>, CliError> 
     }
     let status = status_parts
         .next()
-        .and_then(|value| value.parse::<u16>().ok())
+        .and_then(parse_http_status_code)
         .ok_or_else(|| CliError::Protocol("remote response status is invalid".into()))?;
     if !matches!(status, 200 | 400 | 401 | 404 | 405 | 413 | 415) {
         return Err(CliError::Protocol(format!(
@@ -423,10 +383,11 @@ fn read_http_response_body(stream: &mut impl Read) -> Result<Vec<u8>, CliError> 
             "remote response is not application/json".into(),
         ));
     }
-    let content_length = content_length
-        .ok_or_else(|| CliError::Protocol("remote response has no Content-Length".into()))?
-        .parse::<usize>()
-        .map_err(|_| CliError::Protocol("remote response Content-Length is invalid".into()))?;
+    let content_length = parse_http_content_length(
+        content_length
+            .ok_or_else(|| CliError::Protocol("remote response has no Content-Length".into()))?,
+    )
+    .ok_or_else(|| CliError::Protocol("remote response Content-Length is invalid".into()))?;
     if content_length > MAX_PROTOCOL_MESSAGE_BYTES {
         return Err(CliError::Protocol(
             "remote response exceeds the protocol limit".into(),
@@ -500,6 +461,11 @@ mod tests {
             "https://localhost/path",
             "https://user@localhost",
             "https://localhost:0",
+            "https://localhost:+443",
+            "https://localhost:0443",
+            "https://host\\ignored",
+            "https://127.1",
+            "https://host_name",
             "https://::1:9443",
             "https://localhost?token=secret",
         ] {
@@ -601,6 +567,13 @@ mod tests {
             &body,
         );
         assert!(read_http_response_body(&mut Cursor::new(valid)).is_ok());
+
+        for invalid in [
+            response("+200 OK", "Content-Length: 0\r\n", &[]),
+            response("200 OK", "Content-Length: +0\r\n", &[]),
+        ] {
+            assert!(read_http_response_body(&mut Cursor::new(invalid)).is_err());
+        }
 
         let duplicate = response(
             "200 OK",

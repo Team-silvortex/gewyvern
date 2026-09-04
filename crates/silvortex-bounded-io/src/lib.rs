@@ -2,7 +2,7 @@
 
 use std::fs::{File, Metadata, OpenOptions};
 use std::io::{self, Read, Write};
-use std::net::{TcpStream, ToSocketAddrs};
+use std::net::{Ipv4Addr, Ipv6Addr, TcpStream, ToSocketAddrs};
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
@@ -10,6 +10,37 @@ use std::time::{Duration, Instant};
 
 pub const MAX_HTTP_HEADER_BYTES: usize = 16 * 1024;
 pub const MAX_RESOLVED_ADDRESSES: usize = 8;
+pub const MAX_HTTPS_AUTHORITY_BYTES: usize = 320;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct HttpsOrigin<'a> {
+    authority: &'a str,
+    host: &'a str,
+    port: u16,
+    ipv6: bool,
+}
+
+impl<'a> HttpsOrigin<'a> {
+    pub fn authority(self) -> &'a str {
+        self.authority
+    }
+
+    pub fn host(self) -> &'a str {
+        self.host
+    }
+
+    pub fn port(self) -> u16 {
+        self.port
+    }
+
+    pub fn host_header(self) -> String {
+        if self.ipv6 {
+            format!("[{}]:{}", self.host, self.port)
+        } else {
+            format!("{}:{}", self.host, self.port)
+        }
+    }
+}
 
 pub struct BoundedFile {
     file: File,
@@ -128,6 +159,106 @@ pub fn is_http_header_name(name: &str) -> bool {
         })
 }
 
+pub fn parse_http_content_length(value: &str) -> Option<usize> {
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    value.parse().ok()
+}
+
+pub fn parse_http_status_code(value: &str) -> Option<u16> {
+    if value.len() != 3 || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    value
+        .parse()
+        .ok()
+        .filter(|status| (100..=599).contains(status))
+}
+
+pub fn parse_https_origin(value: &str) -> Option<HttpsOrigin<'_>> {
+    let authority = value.strip_prefix("https://")?;
+    if authority.is_empty()
+        || authority.len() > MAX_HTTPS_AUTHORITY_BYTES
+        || !authority.is_ascii()
+        || authority.bytes().any(|byte| {
+            byte <= 0x20 || byte == 0x7f || matches!(byte, b'/' | b'?' | b'#' | b'@' | b'\\')
+        })
+    {
+        return None;
+    }
+
+    if let Some(bracketed) = authority.strip_prefix('[') {
+        let (host, suffix) = bracketed.split_once(']')?;
+        let port = match suffix.strip_prefix(':') {
+            Some(value) => parse_https_port(value)?,
+            None if suffix.is_empty() => 443,
+            None => return None,
+        };
+        host.parse::<Ipv6Addr>().ok()?;
+        return Some(HttpsOrigin {
+            authority,
+            host,
+            port,
+            ipv6: true,
+        });
+    }
+
+    if authority.matches(':').count() > 1 {
+        return None;
+    }
+    let (host, port) = match authority.rsplit_once(':') {
+        Some((host, value)) => (host, parse_https_port(value)?),
+        None => (authority, 443),
+    };
+    if !valid_https_host(host) {
+        return None;
+    }
+    Some(HttpsOrigin {
+        authority,
+        host,
+        port,
+        ipv6: false,
+    })
+}
+
+fn parse_https_port(value: &str) -> Option<u16> {
+    if value.is_empty()
+        || !value.bytes().all(|byte| byte.is_ascii_digit())
+        || (value.len() > 1 && value.starts_with('0'))
+    {
+        return None;
+    }
+    value.parse().ok().filter(|port| *port != 0)
+}
+
+fn valid_https_host(host: &str) -> bool {
+    if host.is_empty() || host.len() > 253 || host.ends_with('.') {
+        return false;
+    }
+    if host
+        .bytes()
+        .all(|byte| byte.is_ascii_digit() || byte == b'.')
+    {
+        return host.parse::<Ipv4Addr>().is_ok();
+    }
+    host.split('.').all(|label| {
+        !label.is_empty()
+            && label.len() <= 63
+            && label
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+            && label
+                .as_bytes()
+                .first()
+                .is_some_and(u8::is_ascii_alphanumeric)
+            && label
+                .as_bytes()
+                .last()
+                .is_some_and(u8::is_ascii_alphanumeric)
+    })
+}
+
 pub fn open_bounded_regular_file(path: &Path, max_bytes: u64) -> io::Result<BoundedFile> {
     if max_bytes == 0 {
         return Err(io::Error::new(
@@ -147,7 +278,7 @@ pub fn open_bounded_regular_file(path: &Path, max_bytes: u64) -> io::Result<Boun
     let mut options = OpenOptions::new();
     options.read(true);
     #[cfg(unix)]
-    options.custom_flags(libc::O_NOFOLLOW);
+    options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
     let file = options.open(path)?;
     let metadata = file.metadata()?;
     if !metadata.file_type().is_file() || metadata.len() == 0 || metadata.len() > max_bytes {
@@ -207,20 +338,31 @@ pub fn connect_with_io_deadline(
     address: impl ToSocketAddrs,
     timeout: Duration,
 ) -> io::Result<DeadlineTcpStream> {
+    let deadline = io_deadline_after(timeout)?;
+    let stream = connect_with_deadline(address, timeout)?;
+    DeadlineTcpStream::new(stream, deadline)
+}
+
+pub fn wrap_tcp_stream_with_io_deadline(
+    stream: TcpStream,
+    timeout: Duration,
+) -> io::Result<DeadlineTcpStream> {
+    DeadlineTcpStream::new(stream, io_deadline_after(timeout)?)
+}
+
+fn io_deadline_after(timeout: Duration) -> io::Result<Instant> {
     if timeout.is_zero() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "transport I/O timeout must be non-zero",
         ));
     }
-    let deadline = Instant::now().checked_add(timeout).ok_or_else(|| {
+    Instant::now().checked_add(timeout).ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
             "transport I/O timeout exceeds the supported duration",
         )
-    })?;
-    let stream = connect_with_deadline(address, timeout)?;
-    DeadlineTcpStream::new(stream, deadline)
+    })
 }
 
 #[cfg(test)]
@@ -245,12 +387,93 @@ mod tests {
     }
 
     #[test]
+    fn http_numbers_require_the_wire_decimal_grammar() {
+        assert_eq!(parse_http_content_length("0"), Some(0));
+        assert_eq!(parse_http_content_length("0012"), Some(12));
+        assert_eq!(parse_http_content_length("12"), Some(12));
+        assert_eq!(parse_http_status_code("200"), Some(200));
+        assert_eq!(parse_http_status_code("599"), Some(599));
+
+        for invalid in ["", "+0", "-0", " 0", "0 ", "1_0", "184467440737095516160"] {
+            assert_eq!(parse_http_content_length(invalid), None, "{invalid:?}");
+        }
+        for invalid in ["", "20", "0200", "+200", "600", "999", "2O0"] {
+            assert_eq!(parse_http_status_code(invalid), None, "{invalid:?}");
+        }
+    }
+
+    #[test]
+    fn https_origins_have_one_strict_cross_plane_grammar() {
+        let cases = [
+            ("https://localhost", "localhost", 443, "localhost:443"),
+            (
+                "https://host.example:7443",
+                "host.example",
+                7443,
+                "host.example:7443",
+            ),
+            ("https://127.0.0.1:443", "127.0.0.1", 443, "127.0.0.1:443"),
+            ("https://[::1]", "::1", 443, "[::1]:443"),
+            (
+                "https://[2001:db8::1]:9443",
+                "2001:db8::1",
+                9443,
+                "[2001:db8::1]:9443",
+            ),
+        ];
+        for (value, host, port, host_header) in cases {
+            let origin = parse_https_origin(value).unwrap();
+            assert_eq!(origin.authority(), value.strip_prefix("https://").unwrap());
+            assert_eq!(origin.host(), host);
+            assert_eq!(origin.port(), port);
+            assert_eq!(origin.host_header(), host_header);
+        }
+
+        for invalid in [
+            "http://host.example",
+            "https://",
+            "https://host.example/",
+            "https://host.example?secret",
+            "https://user@host.example",
+            "https://host\\example",
+            "https://host.example\u{7f}",
+            "https://host.example:0",
+            "https://host.example:+443",
+            "https://host.example:0443",
+            "https://host.example:65536",
+            "https://::1",
+            "https://[::1",
+            "https://[::1]suffix",
+            "https://127.1",
+            "https://999.1.1.1",
+            "https://-host.example",
+            "https://host-.example",
+            "https://host..example",
+            "https://host.example.",
+            "https://host_example",
+            "https://host.例子",
+        ] {
+            assert!(parse_https_origin(invalid).is_none(), "{invalid:?}");
+        }
+    }
+
+    #[test]
     fn connector_applies_a_nonzero_deadline_to_loopback() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         assert!(connect_with_deadline(listener.local_addr().unwrap(), Duration::ZERO).is_err());
         assert!(
             connect_with_deadline(listener.local_addr().unwrap(), Duration::from_secs(1)).is_ok()
         );
+    }
+
+    #[test]
+    fn accepted_stream_wrapper_rejects_a_zero_io_deadline() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let peer = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (stream, _) = listener.accept().unwrap();
+
+        assert!(wrap_tcp_stream_with_io_deadline(stream, Duration::ZERO).is_err());
+        drop(peer);
     }
 
     #[test]
@@ -331,6 +554,32 @@ mod tests {
         assert!(open_bounded_regular_file(&target, 6).is_err());
         assert!(open_bounded_regular_file(&target, 0).is_err());
         assert!(open_bounded_regular_file(&link, 7).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_file_open_rejects_fifo_without_waiting_for_a_writer() {
+        use std::ffi::CString;
+        use std::os::unix::ffi::OsStrExt;
+
+        let root = std::env::temp_dir().join(format!(
+            "silvortex-bounded-io-fifo-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let fifo = root.join("input.pipe");
+        let fifo_path = CString::new(fifo.as_os_str().as_bytes()).unwrap();
+        // SAFETY: fifo_path is a live NUL-terminated path and the requested mode is valid.
+        assert_eq!(unsafe { libc::mkfifo(fifo_path.as_ptr(), 0o600) }, 0);
+
+        let started = Instant::now();
+        assert!(open_bounded_regular_file(&fifo, 1024).is_err());
+        assert!(started.elapsed() < Duration::from_secs(5));
         fs::remove_dir_all(root).unwrap();
     }
 

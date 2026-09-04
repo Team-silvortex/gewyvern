@@ -30,6 +30,24 @@ fn canonical_template_head_extracts_without_the_atom_prefix() {
 }
 
 #[test]
+fn oversized_template_source_is_ignored() {
+    let path = std::env::temp_dir().join(format!(
+        "gewyvern-oversized-template-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let mut source = "template(:oversized_template)\n".to_string();
+    source.push_str(&"x".repeat(super::MAX_GEWYLANG_SOURCE_BYTES));
+    fs::write(&path, source).unwrap();
+
+    assert_eq!(super::read_template_id_from_dsl(&path), None);
+
+    fs::remove_file(path).unwrap();
+}
+
+#[test]
 fn template_id_resolves_to_packaged_protocol_target_name() {
     let _lock = super::tests_env::lock();
     assert_eq!(

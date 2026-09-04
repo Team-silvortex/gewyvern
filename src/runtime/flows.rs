@@ -50,7 +50,9 @@ pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {
             flows.push(FlowAccumulator::default());
         }
 
-        let acc = flows.last_mut().expect("flow accumulator should exist");
+        let Some(acc) = flows.last_mut() else {
+            continue;
+        };
         if !acc
             .fragment_sources
             .iter()
@@ -109,18 +111,20 @@ pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {
         .flat_map(|(_, flows)| flows)
         .filter(|acc| acc.emerged_at.is_some())
         .enumerate()
-        .map(|(idx, acc)| build_flow_snapshot((idx + 1) as u64, acc))
+        .filter_map(|(idx, acc)| build_flow_snapshot((idx + 1) as u64, acc))
         .collect()
 }
 
-fn build_flow_snapshot(id: u64, mut acc: FlowAccumulator) -> FlowSnapshot {
+fn build_flow_snapshot(id: u64, mut acc: FlowAccumulator) -> Option<FlowSnapshot> {
+    let emerged_at = acc.emerged_at?;
+    let last_seen_at = acc.last_seen_at?;
     let confidence = confidence_for_flow(&acc.evidence);
     acc.fragment_sources.sort();
-    FlowSnapshot {
+    Some(FlowSnapshot {
         id: FlowId(id),
         lifecycle: FlowLifecycleView {
-            emerged_at: acc.emerged_at.expect("flow should have a first fact"),
-            last_seen_at: acc.last_seen_at.expect("flow should have a last fact"),
+            emerged_at,
+            last_seen_at,
             tcp_state_now: acc.tcp_state_now,
             terminated: acc.terminated,
             termination_fact: acc.termination_fact,
@@ -134,7 +138,7 @@ fn build_flow_snapshot(id: u64, mut acc: FlowAccumulator) -> FlowSnapshot {
         evidence: acc.evidence,
         confidence,
         fragment_sources: acc.fragment_sources,
-    }
+    })
 }
 
 fn confidence_for_flow(acc: &impl FlowAccumulatorView) -> f32 {

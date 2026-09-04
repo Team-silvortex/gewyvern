@@ -1,5 +1,6 @@
 use crate::certificate_inventory::{
-    CertificateAssetKind, CertificateInventory, CertificateItem, runtime_certificate_inventory,
+    CertificateAssetKind, CertificateInventory, CertificateInventoryScan, CertificateItem,
+    runtime_certificate_inventory_scan,
 };
 use crate::certificate_state::{
     CertificateMaterialScope, CertificateRevocationStatus, CertificateRotationStatus,
@@ -20,6 +21,7 @@ pub const REASON_EXPIRING_CERTIFICATE_MATERIAL: &str = "expiring_certificate_mat
 pub const REASON_OVERDUE_CERTIFICATE_ROTATION: &str = "overdue_certificate_rotation";
 pub const REASON_REVOKED_CERTIFICATE_MATERIAL: &str = "revoked_certificate_material";
 pub const REASON_DISTRUSTED_TRUST_ANCHOR_MATERIAL: &str = "distrusted_trust_anchor_material";
+pub const REASON_CERTIFICATE_INVENTORY_TRUNCATED: &str = "certificate_inventory_truncated";
 
 const EXPIRING_SOON_WINDOW_MS: i128 = 30_i128 * 24 * 60 * 60 * 1000;
 
@@ -40,30 +42,46 @@ pub struct CertificatePolicyReason {
 }
 
 pub fn runtime_certificate_policy() -> CertificatePolicyView {
-    certificate_policy_for_inventory_and_state(
-        &runtime_certificate_inventory(),
+    let scan = runtime_certificate_inventory_scan();
+    certificate_policy_for_inventory_and_state_with_truncation(
+        &scan.inventory,
         &runtime_certificate_state(),
+        scan.truncated,
     )
 }
 
 pub fn certificate_policy_for_inventory(inventory: &CertificateInventory) -> CertificatePolicyView {
-    certificate_policy_for_inventory_and_state(
+    certificate_policy_for_inventory_and_state(inventory, &empty_certificate_state(inventory))
+}
+
+pub fn certificate_policy_for_inventory_scan(
+    scan: &CertificateInventoryScan,
+) -> CertificatePolicyView {
+    certificate_policy_for_inventory_with_scan_status(&scan.inventory, scan.truncated)
+}
+
+pub fn certificate_policy_for_inventory_with_scan_status(
+    inventory: &CertificateInventory,
+    scan_truncated: bool,
+) -> CertificatePolicyView {
+    certificate_policy_for_inventory_and_state_with_truncation(
         inventory,
-        &crate::certificate_state::CertificateRuntimeState {
-            root: inventory.state_root.clone(),
-            rotation_records_path: inventory.state_root.join("rotation-records.tsv"),
-            revocation_records_path: inventory.state_root.join("revocation-records.tsv"),
-            rotation_records_exist: false,
-            revocation_records_exist: false,
-            rotation_records: Vec::new(),
-            revocation_records: Vec::new(),
-        },
+        &empty_certificate_state(inventory),
+        scan_truncated,
     )
 }
 
 pub fn certificate_policy_for_inventory_and_state(
     inventory: &CertificateInventory,
     state: &crate::certificate_state::CertificateRuntimeState,
+) -> CertificatePolicyView {
+    certificate_policy_for_inventory_and_state_with_truncation(inventory, state, false)
+}
+
+fn certificate_policy_for_inventory_and_state_with_truncation(
+    inventory: &CertificateInventory,
+    state: &crate::certificate_state::CertificateRuntimeState,
+    scan_truncated: bool,
 ) -> CertificatePolicyView {
     let mut reasons = Vec::new();
     let trust_private_keys =
@@ -110,6 +128,13 @@ pub fn certificate_policy_for_inventory_and_state(
         })
         .count();
 
+    if scan_truncated {
+        reasons.push(reason(
+            REASON_CERTIFICATE_INVENTORY_TRUNCATED,
+            "warning",
+            "certificate inventory exceeded a safe scan boundary and is incomplete",
+        ));
+    }
     if inventory.require_explicit_remote_trust && trust_certs == 0 {
         reasons.push(reason(
             REASON_EXPLICIT_REMOTE_TRUST_WITHOUT_ANCHORS,
@@ -201,6 +226,20 @@ pub fn certificate_policy_for_inventory_and_state(
         summary: summarize_policy_text(&reasons, status),
         recommended_actions: recommended_actions(&reasons),
         reasons,
+    }
+}
+
+fn empty_certificate_state(
+    inventory: &CertificateInventory,
+) -> crate::certificate_state::CertificateRuntimeState {
+    crate::certificate_state::CertificateRuntimeState {
+        root: inventory.state_root.clone(),
+        rotation_records_path: inventory.state_root.join("rotation-records.tsv"),
+        revocation_records_path: inventory.state_root.join("revocation-records.tsv"),
+        rotation_records_exist: false,
+        revocation_records_exist: false,
+        rotation_records: Vec::new(),
+        revocation_records: Vec::new(),
     }
 }
 
@@ -306,6 +345,14 @@ fn summarize_policy_text(reasons: &[CertificatePolicyReason], status: &str) -> S
 
 fn recommended_actions(reasons: &[CertificatePolicyReason]) -> Vec<&'static str> {
     let mut actions = Vec::new();
+    if reasons
+        .iter()
+        .any(|reason| reason.code == REASON_CERTIFICATE_INVENTORY_TRUNCATED)
+    {
+        actions.push(
+            "reduce or partition the certificate shelves before relying on inventory policy results",
+        );
+    }
     if reasons
         .iter()
         .any(|reason| reason.code == REASON_EXPLICIT_REMOTE_TRUST_WITHOUT_ANCHORS)
@@ -434,6 +481,29 @@ mod tests {
             view.reasons
                 .iter()
                 .any(|reason| reason.code == REASON_PRIVATE_KEYS_PRESENT_IN_TRUST_ROOT)
+        );
+    }
+
+    #[test]
+    fn policy_fails_conservatively_when_inventory_is_truncated() {
+        let mut inventory = inventory();
+        inventory.require_explicit_remote_trust = false;
+        inventory.authority_root_exists = false;
+        let view = certificate_policy_for_inventory_scan(&CertificateInventoryScan {
+            inventory,
+            truncated: true,
+        });
+
+        assert_eq!(view.status, "attention");
+        assert!(
+            view.reasons
+                .iter()
+                .any(|reason| reason.code == REASON_CERTIFICATE_INVENTORY_TRUNCATED)
+        );
+        assert!(
+            view.recommended_actions
+                .iter()
+                .any(|action| { action.contains("reduce or partition the certificate shelves") })
         );
     }
 

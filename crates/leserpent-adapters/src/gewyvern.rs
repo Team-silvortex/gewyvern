@@ -15,7 +15,8 @@ use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
 use serde::Deserialize;
 use silvortex_bounded_io::{
     BoundedFile, MAX_HTTP_HEADER_BYTES, connect_with_io_deadline, is_http_header_name,
-    open_bounded_regular_file,
+    open_bounded_regular_file, parse_http_content_length, parse_http_status_code,
+    parse_https_origin,
 };
 use zeroize::Zeroize;
 
@@ -215,43 +216,10 @@ pub fn validate_gewyvern_admin_secret(secret: &crate::SecretValue) -> Result<(),
 
 impl HttpsEndpoint {
     fn parse(value: &str) -> Result<Self, String> {
-        if value.len() > 2048 || value.bytes().any(|byte| byte <= 0x20) {
-            return Err(invalid_https_origin());
-        }
-        let authority = value
-            .strip_prefix("https://")
-            .ok_or_else(invalid_https_origin)?;
-        if authority.is_empty()
-            || authority
-                .bytes()
-                .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@'))
-        {
-            return Err(invalid_https_origin());
-        }
-        let (host, port, host_header) = if let Some(bracketed) = authority.strip_prefix('[') {
-            let (host, suffix) = bracketed.split_once(']').ok_or_else(invalid_https_origin)?;
-            let port = match suffix.strip_prefix(':') {
-                Some(value) => parse_https_port(value)?,
-                None if suffix.is_empty() => 443,
-                None => return Err(invalid_https_origin()),
-            };
-            if host.is_empty() || host.parse::<std::net::Ipv6Addr>().is_err() {
-                return Err(invalid_https_origin());
-            }
-            (host.to_string(), port, format!("[{host}]:{port}"))
-        } else {
-            if authority.matches(':').count() > 1 {
-                return Err(invalid_https_origin());
-            }
-            let (host, port) = match authority.rsplit_once(':') {
-                Some((host, port)) => (host, parse_https_port(port)?),
-                None => (authority, 443),
-            };
-            if host.is_empty() {
-                return Err(invalid_https_origin());
-            }
-            (host.to_string(), port, format!("{host}:{port}"))
-        };
+        let origin = parse_https_origin(value).ok_or_else(invalid_https_origin)?;
+        let host = origin.host().to_string();
+        let port = origin.port();
+        let host_header = origin.host_header();
         let server_name = ServerName::try_from(host.clone()).map_err(|_| invalid_https_origin())?;
         Ok(Self {
             host,
@@ -260,14 +228,6 @@ impl HttpsEndpoint {
             server_name,
         })
     }
-}
-
-fn parse_https_port(value: &str) -> Result<u16, String> {
-    let port = value.parse::<u16>().map_err(|_| invalid_https_origin())?;
-    if port == 0 {
-        return Err(invalid_https_origin());
-    }
-    Ok(port)
 }
 
 fn invalid_https_origin() -> String {
@@ -725,8 +685,7 @@ fn read_json_response(stream: &mut impl Read) -> Result<HttpJsonResponse, String
     }
     let status = status_parts
         .next()
-        .and_then(|value| value.parse::<u16>().ok())
-        .filter(|value| (100..=599).contains(value))
+        .and_then(parse_http_status_code)
         .ok_or_else(|| "Gewyvern API response status is invalid".to_string())?;
     let mut content_length = None;
     let mut content_type = None;
@@ -758,10 +717,10 @@ fn read_json_response(stream: &mut impl Read) -> Result<HttpJsonResponse, String
     }) {
         return Err("Gewyvern API response is not application/json".into());
     }
-    let content_length = content_length
-        .ok_or_else(|| "Gewyvern API response has no Content-Length".to_string())?
-        .parse::<usize>()
-        .map_err(|_| "Gewyvern API response Content-Length is invalid".to_string())?;
+    let content_length = parse_http_content_length(
+        content_length.ok_or_else(|| "Gewyvern API response has no Content-Length".to_string())?,
+    )
+    .ok_or_else(|| "Gewyvern API response Content-Length is invalid".to_string())?;
     if content_length > MAX_HTTP_BODY_BYTES {
         return Err("Gewyvern API response body is too large".into());
     }
@@ -1069,6 +1028,8 @@ mod tests {
         valid.extend_from_slice(b"x");
         assert!(read_json_response(&mut Cursor::new(&valid)).is_err());
         for response in [
+            b"HTTP/1.1 +200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}".as_slice(),
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: +2\r\n\r\n{}".as_slice(),
             b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\nContent-Length: 2\r\n\r\n{}".as_slice(),
             b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n".as_slice(),
             b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding : chunked\r\nContent-Length: 2\r\n\r\n{}".as_slice(),
@@ -1102,9 +1063,15 @@ mod tests {
             "https://localhost/path",
             "https://user@localhost",
             "https://localhost:0",
+            "https://localhost:+443",
+            "https://localhost:0443",
+            "https://host\\ignored",
+            "https://127.1",
+            "https://host_name",
         ] {
-            assert!(GewyvernTarget::https(origin, "/missing", key.clone()).is_err());
+            assert!(HttpsEndpoint::parse(origin).is_err(), "{origin:?}");
         }
+        assert!(HttpsEndpoint::parse("https://[::1]").is_ok());
         let empty_ca = temp_path("empty-ca");
         fs::write(&empty_ca, []).unwrap();
         assert!(GewyvernTarget::https("https://localhost", &empty_ca, key).is_err());

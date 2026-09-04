@@ -13,9 +13,11 @@ public sealed class ControlPlaneSecurityPolicy
     public const string IntentHeader = "X-Leserpent-Intent";
     public const string MutateIntent = "mutate";
     public const string ExportIntent = "export";
-    public const long PersistenceImportBodyLimitBytes = 1_048_576;
+    public const long ControlPlaneRequestBodyLimitBytes = 1_048_576;
+    public const long PersistenceImportBodyLimitBytes = ControlPlaneRequestBodyLimitBytes;
     public const int MinimumAdminTokenLength = 32;
     public const int MaximumAdminTokenLength = 256;
+    public const int MaximumEndpointUrlLength = 2048;
 
     private readonly string? adminToken;
 
@@ -56,15 +58,19 @@ public sealed class ControlPlaneSecurityPolicy
             return true;
         }
 
-        if (IsPersistenceImport(path))
+        if (path.StartsWithSegments("/v1"))
         {
-            ApplyPersistenceImportLimit(context);
-            if (context.Request.ContentLength > PersistenceImportBodyLimitBytes)
+            ApplyRequestBodyLimit(context, ControlPlaneRequestBodyLimitBytes);
+            if (context.Request.ContentLength > ControlPlaneRequestBodyLimitBytes)
             {
                 statusCode = StatusCodes.Status413PayloadTooLarge;
-                payload = new ApiErrorResponse(
-                    "persistence_import_too_large",
-                    MaxBytes: PersistenceImportBodyLimitBytes);
+                payload = IsPersistenceImport(path)
+                    ? new ApiErrorResponse(
+                        "persistence_import_too_large",
+                        MaxBytes: PersistenceImportBodyLimitBytes)
+                    : new ApiErrorResponse(
+                        "control_plane_request_too_large",
+                        MaxBytes: ControlPlaneRequestBodyLimitBytes);
                 return false;
             }
         }
@@ -103,13 +109,34 @@ public sealed class ControlPlaneSecurityPolicy
 
     public async Task<string?> ValidateRegistrationAsync(RuntimeRegistrationRequest request, CancellationToken cancellationToken)
     {
-        var runtimeError = await ValidateEndpointUrlAsync(request.Endpoint, "runtime endpoint", cancellationToken);
+        var runtimeCredentialError = ValidateOptionalOutboundCredential(
+            request.PairingToken,
+            "runtime pairing token");
+        if (runtimeCredentialError is not null)
+        {
+            return runtimeCredentialError;
+        }
+
+        var sidecarCredentialError = ValidateOptionalOutboundCredential(
+            request.SidecarAdminToken,
+            "sidecar admin token");
+        if (sidecarCredentialError is not null)
+        {
+            return sidecarCredentialError;
+        }
+        if (string.IsNullOrWhiteSpace(request.SidecarEndpoint)
+            && !string.IsNullOrWhiteSpace(request.SidecarAdminToken))
+        {
+            return "sidecar admin token requires a sidecar endpoint";
+        }
+
+        var runtimeError = await ValidateEndpointBaseUrlAsync(request.Endpoint, "runtime endpoint", cancellationToken);
         if (runtimeError is not null)
         {
             return runtimeError;
         }
 
-        var sidecarError = await ValidateOptionalEndpointUrlAsync(request.SidecarEndpoint, "sidecar endpoint", cancellationToken);
+        var sidecarError = await ValidateOptionalEndpointBaseUrlAsync(request.SidecarEndpoint, "sidecar endpoint", cancellationToken);
         if (sidecarError is not null)
         {
             return sidecarError;
@@ -133,8 +160,8 @@ public sealed class ControlPlaneSecurityPolicy
 
     public async Task<string?> ValidateRegistrationPlanAsync(RuntimeRegistrationPlanRequest request, CancellationToken cancellationToken)
     {
-        var runtimeError = await ValidateEndpointUrlAsync(request.Endpoint, "runtime endpoint", cancellationToken);
-        return runtimeError ?? await ValidateOptionalEndpointUrlAsync(request.SidecarEndpoint, "sidecar endpoint", cancellationToken);
+        var runtimeError = await ValidateEndpointBaseUrlAsync(request.Endpoint, "runtime endpoint", cancellationToken);
+        return runtimeError ?? await ValidateOptionalEndpointBaseUrlAsync(request.SidecarEndpoint, "sidecar endpoint", cancellationToken);
     }
 
     public async Task<string?> ValidateImportAsync(PersistedControlPlaneState state, CancellationToken cancellationToken)
@@ -150,13 +177,13 @@ public sealed class ControlPlaneSecurityPolicy
 
         foreach (var runtime in state.Runtimes)
         {
-            var runtimeError = await ValidateEndpointUrlAsync(runtime.Endpoint, $"runtime endpoint for {runtime.Name}", cancellationToken);
+            var runtimeError = await ValidateEndpointBaseUrlAsync(runtime.Endpoint, $"runtime endpoint for {runtime.Name}", cancellationToken);
             if (runtimeError is not null)
             {
                 return runtimeError;
             }
 
-            var sidecarError = await ValidateOptionalEndpointUrlAsync(runtime.SidecarEndpoint, $"sidecar endpoint for {runtime.Name}", cancellationToken);
+            var sidecarError = await ValidateOptionalEndpointBaseUrlAsync(runtime.SidecarEndpoint, $"sidecar endpoint for {runtime.Name}", cancellationToken);
             if (sidecarError is not null)
             {
                 return sidecarError;
@@ -174,7 +201,14 @@ public sealed class ControlPlaneSecurityPolicy
 
     public async Task<EndpointAccessPlanResult> BuildEndpointAccessPlanAsync(string url, string label, CancellationToken cancellationToken)
     {
-        if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri))
+        if (string.IsNullOrEmpty(url)
+            || url.Length > MaximumEndpointUrlLength
+            || !string.Equals(url, url.Trim(), StringComparison.Ordinal)
+            || url.Contains('\\')
+            || url.Any(character => char.IsControl(character) || char.IsWhiteSpace(character))
+            || !Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            || string.IsNullOrWhiteSpace(uri.Host)
+            || uri.Port == 0)
         {
             return EndpointAccessPlanResult.Failed($"{label} is not a valid absolute URL");
         }
@@ -209,10 +243,28 @@ public sealed class ControlPlaneSecurityPolicy
         return EndpointAccessPlanResult.Succeeded(new EndpointAccessPlan(uri, SelectPinnedAddress(addresses)));
     }
 
+    private async Task<string?> ValidateEndpointBaseUrlAsync(string url, string label, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrEmpty(url)
+            && url.Length <= MaximumEndpointUrlLength
+            && Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            && (!string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment)))
+        {
+            return $"{label} may not include a query or fragment";
+        }
+
+        return await ValidateEndpointUrlAsync(url, label, cancellationToken);
+    }
+
     private Task<string?> ValidateOptionalEndpointUrlAsync(string? url, string label, CancellationToken cancellationToken) =>
         string.IsNullOrWhiteSpace(url)
             ? Task.FromResult<string?>(null)
             : ValidateEndpointUrlAsync(url, label, cancellationToken);
+
+    private Task<string?> ValidateOptionalEndpointBaseUrlAsync(string? url, string label, CancellationToken cancellationToken) =>
+        string.IsNullOrWhiteSpace(url)
+            ? Task.FromResult<string?>(null)
+            : ValidateEndpointBaseUrlAsync(url, label, cancellationToken);
 
     private static bool RequiresIntentHeader(HttpRequest request)
     {
@@ -254,12 +306,12 @@ public sealed class ControlPlaneSecurityPolicy
     private static bool IsPersistenceImport(PathString path) =>
         string.Equals(path, "/v1/persistence/import", StringComparison.OrdinalIgnoreCase);
 
-    private static void ApplyPersistenceImportLimit(HttpContext context)
+    private static void ApplyRequestBodyLimit(HttpContext context, long maximumBytes)
     {
         var maxBodySizeFeature = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
         if (maxBodySizeFeature is { IsReadOnly: false })
         {
-            maxBodySizeFeature.MaxRequestBodySize = PersistenceImportBodyLimitBytes;
+            maxBodySizeFeature.MaxRequestBodySize = maximumBytes;
         }
     }
 
@@ -338,6 +390,20 @@ public sealed class ControlPlaneSecurityPolicy
         || string.Equals(value?.Trim(), "true", StringComparison.OrdinalIgnoreCase)
         || string.Equals(value?.Trim(), "yes", StringComparison.OrdinalIgnoreCase)
         || string.Equals(value?.Trim(), "on", StringComparison.OrdinalIgnoreCase);
+
+    private static string? ValidateOptionalOutboundCredential(string? value, string label)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var credential = value.Trim();
+        return credential.Length > MaximumAdminTokenLength
+            || credential.Any(character => character is < '!' or > '~')
+                ? $"{label} must contain at most {MaximumAdminTokenLength} visible ASCII characters"
+                : null;
+    }
 
     private static string? NormalizeToken(string? value)
     {

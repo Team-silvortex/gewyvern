@@ -3,6 +3,7 @@ use std::fmt;
 use leserpent_domain::bootstrap::{BootstrapId, DaemonId};
 use ring::digest::{SHA256, digest};
 use serde::{Deserialize, Serialize};
+use silvortex_bounded_io::parse_https_origin;
 use zeroize::{Zeroize, Zeroizing};
 
 pub const BOOTSTRAP_INSTALLER_SCHEMA_VERSION: u32 = 1;
@@ -247,13 +248,7 @@ fn require_bound(bytes: &[u8]) -> Result<(), BootstrapInstallerCodecError> {
 }
 
 fn valid_https_origin(value: &str) -> bool {
-    let Some(authority) = value.strip_prefix("https://") else {
-        return false;
-    };
-    !authority.is_empty()
-        && authority.len() <= 320
-        && !authority.contains(['/', '?', '#', '@'])
-        && !authority.chars().any(char::is_whitespace)
+    parse_https_origin(value).is_some()
 }
 
 fn valid_tls_ca_pem(value: &str) -> bool {
@@ -343,11 +338,33 @@ mod tests {
 
     #[test]
     fn installer_credentials_and_digest_are_validated() {
+        for endpoint in [
+            "http://host.example:7443",
+            "https://host.example:+443",
+            "https://host.example:0443",
+            "https://host.example\\ignored",
+            "https://127.1:7443",
+            "https://host_example:7443",
+        ] {
+            assert!(
+                BootstrapInstallerRequest::new(
+                    BootstrapId::new("bootstrap-1").unwrap(),
+                    DaemonId::new("daemon-1").unwrap(),
+                    endpoint,
+                    "test",
+                    "a".repeat(64),
+                    "0123456789abcdef0123456789abcdef",
+                )
+                .is_err(),
+                "unsafe endpoint was accepted: {endpoint:?}"
+            );
+        }
+
         assert!(
             BootstrapInstallerRequest::new(
                 BootstrapId::new("bootstrap-1").unwrap(),
                 DaemonId::new("daemon-1").unwrap(),
-                "http://host.example:7443",
+                "https://host.example:7443",
                 "test",
                 "A".repeat(64),
                 "short",
