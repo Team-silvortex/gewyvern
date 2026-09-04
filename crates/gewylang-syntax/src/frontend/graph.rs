@@ -2,7 +2,7 @@ use super::{
     FrontendExpansionPreview, FrontendGraphEdge, FrontendGraphEdgeKind, FrontendGraphNode,
     FrontendGraphNodeKind, FrontendUseEdge,
 };
-use crate::dsl::{PipelineCall, PipelineModule, parse_pipeline_single_arg};
+use crate::{PipelineCall, PipelineModule, parse_pipeline_single_arg};
 
 pub(super) fn pipeline_graph_nodes(module: &PipelineModule) -> Vec<FrontendGraphNode> {
     let mut nodes = Vec::new();

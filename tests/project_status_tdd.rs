@@ -5188,6 +5188,47 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         item.path == "src/bounded_process.rs" && item.state == EvidenceState::Present
     }));
 
+    let gewylang_frontend = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "gewylang/language-syntax/standalone-frontend")
+        .expect("standalone GewyLang frontend cell must exist");
+    assert_eq!(gewylang_frontend.maturity, Maturity::Mature);
+    assert_eq!(gewylang_frontend.completion, 100);
+    assert_eq!(
+        gewylang_frontend.contract.stability,
+        ContractStability::Stable
+    );
+    assert_eq!(gewylang_frontend.contract.version, "1.0.0");
+    for surface in [
+        "typed-syntax-tree",
+        "package-manifest-resolution",
+        "confined-include-expansion",
+        "source-located-diagnostics",
+        "frontend-summary",
+        "zero-product-dependency-closure",
+    ] {
+        assert!(
+            gewylang_frontend
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing standalone GewyLang frontend surface {surface}"
+        );
+    }
+    assert!(gewylang_frontend.depends_on.is_empty());
+    assert!(gewylang_frontend.evidence.iter().any(|item| {
+        item.path == "crates/gewylang-syntax/src/lib.rs" && item.state == EvidenceState::Present
+    }));
+    assert!(gewylang_frontend.evidence.iter().any(|item| {
+        item.path == "crates/gewylang-syntax/src/source_graph.rs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(gewylang_frontend.evidence.iter().any(|item| {
+        item.path == "tests/language_independence_tdd.rs" && item.state == EvidenceState::Present
+    }));
+
     let gewylang = catalog
         .cells
         .iter()
@@ -5197,9 +5238,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(gewylang.completion, 100);
     assert_eq!(gewylang.contract.stability, ContractStability::Stable);
     assert_eq!(gewylang.contract.version, "1.32.0");
+    assert_eq!(
+        gewylang.depends_on,
+        ["gewylang/language-syntax/standalone-frontend"]
+    );
     for surface in [
         "standard-cli-help-and-version-exit-contract",
         "versioned-language-contract-stamp",
+        "product-independent-language-contract",
         "syntax-v1",
         "expanded-ast-v1",
         "binding-ir-v1",
@@ -5236,10 +5282,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         item.path == "crates/gewyc/src/tests.rs" && item.state == EvidenceState::Present
     }));
     assert!(gewylang.evidence.iter().any(|item| {
-        item.path == "src/dsl/contract.rs" && item.state == EvidenceState::Present
-    }));
-    assert!(gewylang.evidence.iter().any(|item| {
-        item.path == "src/dsl/source_graph.rs" && item.state == EvidenceState::Present
+        item.path == "crates/gewylang-contract/src/lib.rs" && item.state == EvidenceState::Present
     }));
     assert!(gewylang.evidence.iter().any(|item| {
         item.path == "docs/gewylang-contract.md" && item.state == EvidenceState::Present
@@ -8730,11 +8773,28 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(ui.next_gate.contains("presentation"));
     assert!(!ui.next_gate.contains("selection"));
 
+    let host_contract = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-host-contract/host-abi")
+        .expect("Leselang host contract cell must exist");
+    assert_eq!(host_contract.maturity, Maturity::Mature);
+    assert_eq!(host_contract.completion, 100);
+    assert_eq!(host_contract.contract.stability, ContractStability::Stable);
+    assert!(
+        host_contract
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "zero-product-dependency-closure")
+    );
+    assert!(host_contract.blockers.is_empty());
+
     let syntax = catalog
         .cells
         .iter()
-        .find(|cell| cell.id == "leserpent-2/language-syntax/lossless-frontend")
-        .expect("Leserpent language syntax cell must exist");
+        .find(|cell| cell.id == "leselang/language-syntax/lossless-frontend")
+        .expect("Leselang syntax cell must exist");
     assert_eq!(syntax.maturity, Maturity::Mature);
     assert_eq!(syntax.completion, 100);
     assert_eq!(syntax.contract.stability, ContractStability::Stable);
@@ -8757,8 +8817,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     let hir = catalog
         .cells
         .iter()
-        .find(|cell| cell.id == "leserpent-2/language-hir/typed-effects")
-        .expect("Leserpent language HIR cell must exist");
+        .find(|cell| cell.id == "leselang/language-hir/typed-effects")
+        .expect("Leselang HIR cell must exist");
     assert_eq!(hir.contract.version, "0.65.0");
     for surface in [
         "debugger-cancel-effect",
@@ -9363,6 +9423,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "boundary-gewyvern-runtime-evidence",
         "boundary-gewyvern-linux-ebpf",
         "boundary-gewylang-compiler",
+        "boundary-gewylang-syntax",
         "boundary-gewylang-protocol-packages",
         "boundary-leserpent-1x-control-plane",
         "boundary-leserpent-1x-web-console",
@@ -9485,9 +9546,9 @@ fn native_status_cli_exposes_human_and_machine_views() {
     assert_eq!(payload["deferred_cell_count"], 2);
     assert!(payload["overall_score"].is_u64());
     assert!(payload["portfolio_score"].is_u64());
-    assert_eq!(payload["coverage"]["requirement_count"], 33);
-    assert_eq!(payload["coverage"]["architecture_count"], 7);
-    assert_eq!(payload["coverage"]["ownership_boundary_count"], 24);
+    assert_eq!(payload["coverage"]["requirement_count"], 35);
+    assert_eq!(payload["coverage"]["architecture_count"], 8);
+    assert_eq!(payload["coverage"]["ownership_boundary_count"], 26);
     assert_eq!(payload["coverage"]["roadmap_gate_count"], 7);
     assert_eq!(payload["coverage"]["proof_shelf_count"], 2);
     assert_eq!(payload["weakest"].as_array().unwrap().len(), 3);

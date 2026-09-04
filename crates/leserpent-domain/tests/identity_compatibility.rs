@@ -1,7 +1,17 @@
+use leselang_host_contract::{
+    CapabilitySet as HostCapabilitySet, CommandOrigin as HostCommandOrigin,
+    Confirmation as HostConfirmation, Principal as HostPrincipal, Revision as HostRevision,
+    RuntimeListFilter as HostRuntimeListFilter,
+};
 use leserpent_domain::bootstrap::{BootstrapError, CredentialHandle as DomainCredentialHandle};
 use leserpent_domain::provisioning::{ProvisioningError, ProvisioningId as DomainProvisioningId};
 use leserpent_domain::retirement::{RetirementError, RetirementId as DomainRetirementId};
-use leserpent_domain::{DomainError, RuntimeId as DomainRuntimeId};
+use leserpent_domain::{
+    CapabilitySet as DomainCapabilitySet, CommandOrigin as DomainCommandOrigin,
+    Confirmation as DomainConfirmation, DomainError, Principal as DomainPrincipal,
+    Revision as DomainRevision, RuntimeId as DomainRuntimeId,
+    RuntimeListFilter as DomainRuntimeListFilter,
+};
 use silvortex_identity::{
     CredentialHandle, IdentityError, ProvisioningId, RetirementId, RuntimeId,
 };
@@ -10,6 +20,12 @@ fn accepts_runtime(_: RuntimeId) {}
 fn accepts_provisioning(_: ProvisioningId) {}
 fn accepts_retirement(_: RetirementId) {}
 fn accepts_credential(_: CredentialHandle) {}
+fn accepts_capabilities(_: HostCapabilitySet) {}
+fn accepts_origin(_: HostCommandOrigin) {}
+fn accepts_confirmation(_: HostConfirmation) {}
+fn accepts_principal(_: HostPrincipal) {}
+fn accepts_revision(_: HostRevision) {}
+fn accepts_filter(_: HostRuntimeListFilter) {}
 
 #[test]
 fn legacy_domain_paths_preserve_identity_type_and_wire_identity() {
@@ -63,4 +79,27 @@ fn domain_error_adapters_preserve_rejection_messages() {
 fn legacy_constructors_expose_the_neutral_error_contract() {
     let result: Result<DomainRuntimeId, IdentityError> = DomainRuntimeId::new("runtime-a");
     assert!(result.is_ok());
+}
+
+#[test]
+fn legacy_domain_paths_preserve_leselang_host_type_identity() {
+    let capabilities: DomainCapabilitySet = HostCapabilitySet::new(["runtime.read"]);
+    let origin: DomainCommandOrigin = HostCommandOrigin::Leselang;
+    let confirmation: DomainConfirmation = HostConfirmation::Confirmed;
+    let principal: DomainPrincipal = HostPrincipal {
+        id: "operator-a".into(),
+    };
+    let revision: DomainRevision = HostRevision(7);
+    let filter: DomainRuntimeListFilter = HostRuntimeListFilter {
+        environment: Some("production".into()),
+        cluster: None,
+        role: Some("edge".into()),
+    };
+
+    accepts_capabilities(capabilities);
+    accepts_origin(origin);
+    accepts_confirmation(confirmation);
+    accepts_principal(principal);
+    accepts_revision(revision);
+    accepts_filter(filter);
 }

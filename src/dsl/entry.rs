@@ -1,24 +1,19 @@
-use super::frontend::summarize_pipeline_module;
 use super::legacy::build_binding_from_canonical_assignments;
-use super::source_graph::SourceGraphState;
 use super::{
-    DslError, FrontendModuleSummary, PackageContext, TemplateBinding,
-    lower_pipeline_module_to_assignments, package, parse_pipeline_function_head,
-    parse_pipeline_module, read_file, strip_comments_preserve_layout, validate_compiled_binding,
-    validate_gewylang_source_size,
+    DslError, FrontendModuleSummary, PackageContext, PipelineModule, TemplateBinding,
+    lower_pipeline_module_to_assignments, summarize_pipeline_module, validate_compiled_binding,
 };
-use std::path::Path;
 
 pub fn parse_file_unvalidated(path: &str) -> Result<TemplateBinding, DslError> {
-    let (input, package) = load_file_with_package_context(path)?;
-    parse_str_unvalidated_with_base(&input, Some(&package))
+    let module = gewylang_syntax::parse_file(path).map_err(DslError::from)?;
+    binding_from_module(&module)
 }
 
 pub fn parse_file_with_frontend_unvalidated(
     path: &str,
 ) -> Result<(TemplateBinding, FrontendModuleSummary), DslError> {
-    let (input, package) = load_file_with_package_context(path)?;
-    parse_str_with_frontend_unvalidated_with_base(&input, Some(&package))
+    let module = gewylang_syntax::parse_file(path).map_err(DslError::from)?;
+    binding_and_frontend_from_module(module)
 }
 
 pub fn compile_file(path: &str) -> Result<TemplateBinding, DslError> {
@@ -28,156 +23,51 @@ pub fn compile_file(path: &str) -> Result<TemplateBinding, DslError> {
 }
 
 pub fn parse_str_unvalidated(input: &str) -> Result<TemplateBinding, DslError> {
-    parse_str_unvalidated_with_base(input, None)
+    let module = gewylang_syntax::parse_str(input).map_err(DslError::from)?;
+    binding_from_module(&module)
 }
 
 pub fn parse_str_with_frontend_unvalidated(
     input: &str,
 ) -> Result<(TemplateBinding, FrontendModuleSummary), DslError> {
-    parse_str_with_frontend_unvalidated_with_base(input, None)
+    let module = gewylang_syntax::parse_str(input).map_err(DslError::from)?;
+    binding_and_frontend_from_module(module)
 }
 
 pub(crate) fn load_file_with_package_context(
     path: &str,
 ) -> Result<(String, PackageContext), DslError> {
-    let package = package::resolve_package_context(path)?;
-    let resolved = package.entry_file.clone();
-    let input = read_file(&resolved)?;
-    Ok((input, package))
+    gewylang_syntax::load_file_with_package_context(path).map_err(DslError::from)
 }
 
 pub(crate) fn parse_str_with_frontend_unvalidated_with_package(
     input: &str,
     package: &PackageContext,
 ) -> Result<(TemplateBinding, FrontendModuleSummary), DslError> {
-    parse_str_with_frontend_unvalidated_with_base(input, Some(package))
+    let module = gewylang_syntax::parse_str_with_package(input, package).map_err(DslError::from)?;
+    binding_and_frontend_from_module(module)
 }
 
 pub(crate) fn parse_str_unvalidated_with_package(
     input: &str,
     package: &PackageContext,
 ) -> Result<TemplateBinding, DslError> {
-    parse_str_unvalidated_with_base(input, Some(package))
+    let module = gewylang_syntax::parse_str_with_package(input, package).map_err(DslError::from)?;
+    binding_from_module(&module)
 }
 
-fn parse_str_unvalidated_with_base(
-    input: &str,
-    package: Option<&PackageContext>,
-) -> Result<TemplateBinding, DslError> {
-    let module = parse_expanded_pipeline_module(input, package)?;
-    let assignments = lower_pipeline_module_to_assignments(&module, true)?;
+fn binding_from_module(module: &PipelineModule) -> Result<TemplateBinding, DslError> {
+    let assignments = lower_pipeline_module_to_assignments(module, true)?;
     build_binding_from_canonical_assignments(assignments)
 }
 
-fn parse_str_with_frontend_unvalidated_with_base(
-    input: &str,
-    package: Option<&PackageContext>,
+fn binding_and_frontend_from_module(
+    module: PipelineModule,
 ) -> Result<(TemplateBinding, FrontendModuleSummary), DslError> {
-    let module = parse_expanded_pipeline_module(input, package)?;
     let assignments = lower_pipeline_module_to_assignments(&module, true)?;
     let binding = build_binding_from_canonical_assignments(assignments)?;
     let frontend = summarize_pipeline_module(module);
     Ok((binding, frontend))
-}
-
-pub(super) fn parse_expanded_pipeline_module(
-    input: &str,
-    package: Option<&PackageContext>,
-) -> Result<super::PipelineModule, DslError> {
-    validate_gewylang_source_size(input)?;
-    let entry_path = package.map(|package| Path::new(&package.entry_file));
-    let mut source_graph = SourceGraphState::new(entry_path, input.len())?;
-    parse_expanded_pipeline_module_with_graph(input, package, &mut source_graph)
-}
-
-fn parse_expanded_pipeline_module_with_graph(
-    input: &str,
-    package: Option<&PackageContext>,
-    source_graph: &mut SourceGraphState,
-) -> Result<super::PipelineModule, DslError> {
-    validate_gewylang_source_size(input)?;
-    let normalized = strip_comments_preserve_layout(input)?;
-    if looks_like_pipeline_dsl(&normalized) {
-        return parse_pipeline_module(&normalized, package, true, source_graph);
-    }
-
-    let Some(include_target) = parse_include_entry_alias_target(&normalized) else {
-        return Err(DslError::InvalidValue(
-            "gewylang now only supports the pipeline stable subset".into(),
-        ));
-    };
-    let Some(package) = package else {
-        return Err(DslError::InvalidValue(
-            "pipeline include() requires a filesystem-backed entry file".into(),
-        ));
-    };
-    let include = package::resolve_include(package, &include_target)?;
-    let include_input = source_graph.load_include(&include.path)?;
-    let include_package = package.for_include(&include);
-    let result = parse_expanded_pipeline_module_with_graph(
-        &include_input,
-        Some(&include_package),
-        source_graph,
-    );
-    source_graph.leave_include(&include.path);
-    result
-}
-
-pub(super) fn looks_like_pipeline_dsl(input: &str) -> bool {
-    input
-        .lines()
-        .map(str::trim)
-        .find(|line| {
-            !line.is_empty()
-                && !line.starts_with('#')
-                && !line.starts_with("///")
-                && !line.starts_with("//!")
-        })
-        .is_some_and(|line| {
-            is_pipeline_template_head(line)
-                || parse_pipeline_function_head(line).is_some()
-                || line == "fn"
-                || line.starts_with("fn ")
-                || line == "template"
-                || line.starts_with("template(")
-        })
-}
-
-fn is_pipeline_template_head(line: &str) -> bool {
-    (line.starts_with("template(") && line.ends_with(')'))
-        || line
-            .strip_prefix("template ")
-            .is_some_and(|value| !value.trim().is_empty())
-}
-
-fn parse_include_entry_alias_target(input: &str) -> Option<String> {
-    let mut substantive_lines = input.lines().map(str::trim).filter(|line| {
-        !line.is_empty()
-            && !line.starts_with('#')
-            && !line.starts_with("///")
-            && !line.starts_with("//!")
-    });
-    let line = substantive_lines.next()?;
-    if substantive_lines.next().is_some() {
-        return None;
-    }
-    if let Some(target) = line.strip_prefix("include ") {
-        return parse_quoted_include_target(target.trim());
-    }
-    if let Some(target) = line
-        .strip_prefix("include(")
-        .and_then(|rest| rest.strip_suffix(')'))
-    {
-        return parse_quoted_include_target(target.trim());
-    }
-    None
-}
-
-fn parse_quoted_include_target(input: &str) -> Option<String> {
-    input
-        .strip_prefix('"')
-        .and_then(|rest| rest.strip_suffix('"'))
-        .map(str::to_string)
 }
 
 #[cfg(test)]

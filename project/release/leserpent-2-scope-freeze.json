@@ -67,8 +67,8 @@
     {
       "id": "renderer-neutral-gui-automation",
       "status_cells": [
-        "leserpent-2/language-syntax/lossless-frontend",
-        "leserpent-2/language-hir/typed-effects",
+        "leselang/language-syntax/lossless-frontend",
+        "leselang/language-hir/typed-effects",
         "leserpent-2/language-vm/effect-reentry",
         "leserpent-2/ui-language/ui-ir-lowering",
         "leserpent-2/ui-renderers/avalonia-renderer",

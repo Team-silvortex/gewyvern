@@ -2302,23 +2302,23 @@ fn audit_matches_record(audit: &DebuggerAuditContext, record: &DebuggerAuditReco
         && record.expected_revision == audit.expected_revision
 }
 
-fn command_origin_label(origin: leserpent_domain::CommandOrigin) -> &'static str {
+fn command_origin_label(origin: crate::CommandOrigin) -> &'static str {
     match origin {
-        leserpent_domain::CommandOrigin::Gui => "gui",
-        leserpent_domain::CommandOrigin::Cli => "cli",
-        leserpent_domain::CommandOrigin::Leselang => "leselang",
-        leserpent_domain::CommandOrigin::Model => "model",
-        leserpent_domain::CommandOrigin::CompatibilityAdapter => "compatibility_adapter",
+        crate::CommandOrigin::Gui => "gui",
+        crate::CommandOrigin::Cli => "cli",
+        crate::CommandOrigin::Leselang => "leselang",
+        crate::CommandOrigin::Model => "model",
+        crate::CommandOrigin::CompatibilityAdapter => "compatibility_adapter",
     }
 }
 
-fn parse_command_origin(value: &str) -> rusqlite::Result<leserpent_domain::CommandOrigin> {
+fn parse_command_origin(value: &str) -> rusqlite::Result<crate::CommandOrigin> {
     match value {
-        "gui" => Ok(leserpent_domain::CommandOrigin::Gui),
-        "cli" => Ok(leserpent_domain::CommandOrigin::Cli),
-        "leselang" => Ok(leserpent_domain::CommandOrigin::Leselang),
-        "model" => Ok(leserpent_domain::CommandOrigin::Model),
-        "compatibility_adapter" => Ok(leserpent_domain::CommandOrigin::CompatibilityAdapter),
+        "gui" => Ok(crate::CommandOrigin::Gui),
+        "cli" => Ok(crate::CommandOrigin::Cli),
+        "leselang" => Ok(crate::CommandOrigin::Leselang),
+        "model" => Ok(crate::CommandOrigin::Model),
+        "compatibility_adapter" => Ok(crate::CommandOrigin::CompatibilityAdapter),
         _ => Err(rusqlite::Error::InvalidQuery),
     }
 }

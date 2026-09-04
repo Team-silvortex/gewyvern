@@ -19,12 +19,15 @@ use leselang_hir::{
     UiSemanticActionKind, UiSemanticNodeKind, authorize, validate_ui_expected_text,
     validate_ui_form_field_key, validate_ui_form_value, validate_ui_node_id,
 };
-use leserpent_domain::{
+use leselang_host_contract::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
-    CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Command, CommandEnvelope, CommandId, CommandOrigin,
-    CommandResult, CommandStatus, Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey,
-    MAX_RUNTIME_LOG_QUERY_ENTRIES, Principal, Query, QueryEnvelope, QueryResult, Revision,
-    RuntimeId, RuntimeLogRecord, RuntimeProjection, validate_debugger_session_id,
+    CAPABILITY_RUNTIME_REFRESH, CapabilitySet, CommandOrigin, Confirmation, Principal, Revision,
+    RuntimeId, validate_debugger_session_id,
+};
+use leserpent_domain::{
+    Command, CommandEnvelope, CommandId, CommandResult, CommandStatus, DOMAIN_SCHEMA_VERSION,
+    IdempotencyKey, MAX_RUNTIME_LOG_QUERY_ENTRIES, Query, QueryEnvelope, QueryResult,
+    RuntimeLogRecord, RuntimeProjection,
 };
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};

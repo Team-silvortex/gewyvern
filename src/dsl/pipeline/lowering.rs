@@ -1,7 +1,3 @@
-use super::parsing::{
-    is_pipeline_identifier, parse_pipeline_literal, parse_pipeline_literal_cow,
-    parse_pipeline_single_arg, parse_pipeline_use_call,
-};
 use super::{PipelineKeywordArg, PipelineUseCall, looks_like_pipeline_keyword_arg};
 use crate::dsl::{
     DslError, PipelineCall, PipelineFunction, PipelineModule,
@@ -18,6 +14,10 @@ use crate::ledger::FactKindTag;
 use crate::program::ProgramRule;
 use crate::reason::{ReasonProfile, ReasonRule};
 use crate::template::FragmentParamValue;
+use gewylang_syntax::{
+    is_pipeline_identifier, parse_pipeline_literal, parse_pipeline_literal_cow,
+    parse_pipeline_single_arg, parse_pipeline_use_call,
+};
 use std::collections::BTreeMap;
 
 pub(crate) fn lower_pipeline_module_to_assignments(

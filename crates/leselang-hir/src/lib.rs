@@ -1,11 +1,14 @@
 use std::collections::HashSet;
 
-use leselang_syntax::{Expression, Span, SyntaxTree, format as format_syntax, parse};
-use leserpent_domain::{
+use leselang_host_contract::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
-    CAPABILITY_RUNTIME_REFRESH, CapabilitySet, DomainError, RuntimeId, RuntimeListFilter,
-    validate_debugger_session_id, validate_deployment_intent,
+    CAPABILITY_RUNTIME_REFRESH, HostContractError, validate_debugger_session_id,
+    validate_deployment_intent,
 };
+pub use leselang_host_contract::{
+    CAPABILITY_UI_PRESENTATION, CapabilitySet, RuntimeId, RuntimeListFilter,
+};
+use leselang_syntax::{Expression, Span, SyntaxTree, format as format_syntax, parse};
 use serde::{Deserialize, Serialize};
 
 pub const MAX_ALL_BRANCHES: usize = 64;
@@ -15,7 +18,6 @@ pub const MAX_UI_FORM_FIELD_MAX_LENGTH: usize = 256;
 pub const MAX_UI_CHILD_COUNT: usize = 4_096;
 pub const MAX_UI_NODE_ID_BYTES: usize = 128;
 pub const MAX_UI_EXPECTED_TEXT_BYTES: usize = 1_024;
-pub const CAPABILITY_UI_PRESENTATION: &str = "ui.presentation";
 pub const UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACTION_KIND_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACTION_LABEL_TIMEOUT_MS: u64 = 2_000;
@@ -2680,7 +2682,7 @@ fn lower_atomic_effect(
     if callee == "runtime.deploy"
         && diagnostics.is_empty()
         && let Some(pipeline_kind) = pipeline_kind.as_deref()
-        && let Err(DomainError::InvalidIdentifier { field }) =
+        && let Err(HostContractError::InvalidIdentifier { field }) =
             validate_deployment_intent(pipeline_kind, target.as_deref())
     {
         diagnostics.push(Diagnostic {

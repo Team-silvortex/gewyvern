@@ -810,9 +810,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "gewylang-contract"
+version = "2.0.0"
+
+[[package]]
+name = "gewylang-syntax"
+version = "2.0.0"
+dependencies = [
+ "gewylang-contract",
+]
+
+[[package]]
 name = "gewyvern"
 version = "2.0.0"
 dependencies = [
+ "gewylang-contract",
+ "gewylang-syntax",
  "gewyvern-install-contract",
  "http",
  "leselang-hir",
@@ -1055,6 +1068,7 @@ name = "leselang-command"
 version = "2.0.0"
 dependencies = [
  "leselang-hir",
+ "leselang-host-contract",
  "leselang-syntax",
  "leserpent-domain",
  "serde_json",
@@ -1064,9 +1078,18 @@ dependencies = [
 name = "leselang-hir"
 version = "2.0.0"
 dependencies = [
+ "leselang-host-contract",
  "leselang-syntax",
- "leserpent-domain",
  "serde",
+]
+
+[[package]]
+name = "leselang-host-contract"
+version = "2.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "silvortex-identity",
 ]
 
 [[package]]
@@ -1075,6 +1098,7 @@ version = "2.0.0"
 dependencies = [
  "leselang-command",
  "leselang-hir",
+ "leselang-host-contract",
  "leselang-syntax",
  "leselang-ui",
  "leselang-vm",
@@ -1097,6 +1121,7 @@ version = "2.0.0"
 dependencies = [
  "leselang-command",
  "leselang-hir",
+ "leselang-host-contract",
  "leserpent-domain",
  "serde",
  "serde_json",
@@ -1108,6 +1133,7 @@ version = "2.0.0"
 dependencies = [
  "leselang-command",
  "leselang-hir",
+ "leselang-host-contract",
  "leselang-syntax",
  "leserpent-domain",
  "rusqlite",
@@ -1162,6 +1188,7 @@ name = "leserpent-domain"
 version = "2.0.0"
 dependencies = [
  "http",
+ "leselang-host-contract",
  "serde",
  "serde_json",
  "silvortex-identity",

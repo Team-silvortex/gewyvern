@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 leselang-hir = { path = "../leselang-hir" }
+leselang-host-contract = { path = "../leselang-host-contract" }
 leserpent-domain = { path = "../leserpent-domain" }
 serde_json.workspace = true
 

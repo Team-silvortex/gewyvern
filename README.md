@@ -125,8 +125,9 @@ session data.
 - security posture: loopback-first local runtime, protected remote API use
   only when explicit remote bind and runtime admin-token requirements are both
   satisfied, plus certificate policy/state surfaces
-- workspace shape: independent Gewyvern/GewyLang and Leserpent/Leselang crates,
-  product-neutral native foundations, plus replaceable clients under `apps/`
+- workspace shape: independent language contract/front-end closures, explicit
+  Gewyvern and Leserpent binding adapters, product-neutral native foundations,
+  plus replaceable clients under `apps/`
 - protocol registry shape: scanned gewy project packages under `protocols/`
 
 ## Open Source Core Guarantee
@@ -216,11 +217,18 @@ responsibility boundaries:
 - [Cargo.toml](Cargo.toml)
   Root workspace manifest.
 - [src](src)
-  Runtime, IR, DSL compiler front-end, export/replay, loader, and built-in CLI.
+  Runtime, IR, GewyLang semantic lowering, export/replay, loader, and built-in CLI.
 - [src/bin](src/bin)
   Helper binaries such as socket senders used by local/runtime demos.
 - [crates/gewyc](crates/gewyc)
   Dedicated `.gewy` compiler CLI surface.
+- [crates/gewylang-contract](crates/gewylang-contract)
+  Product-independent GewyLang identity, stage versions, and source bounds.
+- [crates/gewylang-syntax](crates/gewylang-syntax)
+  Product-independent GewyLang source loading, package graph, AST, parser, and
+  frontend summaries.
+- [crates/leselang-host-contract](crates/leselang-host-contract)
+  Product-independent Leselang host ABI shared with explicit product adapters.
 - [apps/etragon](apps/etragon)
   Nearby diagnosis-partner sidecar crate; follows the root `gewyvern` version.
 - [apps/leserpent](apps/leserpent)

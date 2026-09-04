@@ -9,6 +9,8 @@
   "components": [
     { "id": "gewyvern-runtime", "source": "src" },
     { "id": "gewylang-compiler", "source": "crates/gewyc" },
+    { "id": "gewylang-contract", "source": "crates/gewylang-contract" },
+    { "id": "gewylang-syntax", "source": "crates/gewylang-syntax" },
     { "id": "gewyvern-install-contract", "source": "crates/gewyvern-install-contract" },
     { "id": "protocol-standard-library", "source": "protocols" },
     { "id": "silvortex-bounded-io", "source": "crates/silvortex-bounded-io" },
@@ -19,6 +21,7 @@
     { "id": "leserpent-adapters", "source": "crates/leserpent-adapters" },
     { "id": "leserpentd", "source": "crates/leserpentd" },
     { "id": "leserpent-cli", "source": "crates/leserpent-cli" },
+    { "id": "leselang-host-contract", "source": "crates/leselang-host-contract" },
     { "id": "leselang-syntax", "source": "crates/leselang-syntax" },
     { "id": "leselang-hir", "source": "crates/leselang-hir" },
     { "id": "leselang-vm", "source": "crates/leselang-vm" },

@@ -2,10 +2,13 @@
 members = [
     ".",
     "crates/gewyc",
+    "crates/gewylang-contract",
+    "crates/gewylang-syntax",
     "crates/gewyvern-dev",
     "crates/gewyvern-install-contract",
     "crates/leselang-command",
     "crates/leselang-hir",
+    "crates/leselang-host-contract",
     "crates/leselang-observe",
     "crates/leselang-syntax",
     "crates/leselang-ui",
@@ -54,6 +57,8 @@ http.workspace = true
 ring = "0.17"
 rustls.workspace = true
 x509-parser = "0.18.1"
+gewylang-contract = { path = "crates/gewylang-contract" }
+gewylang-syntax = { path = "crates/gewylang-syntax" }
 gewyvern-install-contract = { path = "crates/gewyvern-install-contract" }
 rcgen = "0.14"
 silvortex-bounded-io = { path = "crates/silvortex-bounded-io" }

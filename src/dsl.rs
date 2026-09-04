@@ -1,27 +1,13 @@
 use crate::fragment::{RegistryError, builtin_registry_ref};
 use crate::template::TemplateBinding;
-use std::borrow::Cow;
-use std::collections::BTreeMap;
-use std::fs::{self, File};
-use std::io::Read;
-use std::path::Path;
 
-mod contract;
 mod diagnostics;
 mod entry;
-mod frontend;
 mod function_types;
 mod legacy;
-mod package;
-mod parser;
 mod pipeline;
 mod predicate;
-mod source_graph;
 
-pub use self::contract::{
-    GEWYLANG_ANALYSIS_IR_VERSION, GEWYLANG_BINDING_IR_VERSION, GEWYLANG_EXPANDED_AST_VERSION,
-    GEWYLANG_LANGUAGE_ID, GEWYLANG_SYNTAX_VERSION, GewyLangContractStamp, GewyLangStage,
-};
 pub use self::entry::{
     compile_file, parse_file_unvalidated, parse_file_with_frontend_unvalidated,
     parse_str_unvalidated, parse_str_with_frontend_unvalidated,
@@ -30,25 +16,45 @@ pub(crate) use self::entry::{
     load_file_with_package_context, parse_str_unvalidated_with_package,
     parse_str_with_frontend_unvalidated_with_package,
 };
-pub(crate) use self::frontend::summarize_frontend_str_with_package;
-pub use self::frontend::{
+use self::pipeline::lower_pipeline_module_to_assignments;
+pub(crate) use self::predicate::{parse_flow_predicate, parse_reason_key_event};
+pub use gewylang_contract::{
+    GEWYLANG_ANALYSIS_IR_VERSION, GEWYLANG_BINDING_IR_VERSION, GEWYLANG_EXPANDED_AST_VERSION,
+    GEWYLANG_LANGUAGE_ID, GEWYLANG_SYNTAX_VERSION, GewyLangContractStamp, GewyLangStage,
+    MAX_GEWYLANG_INCLUDE_DEPTH, MAX_GEWYLANG_SOURCE_BYTES, MAX_GEWYLANG_SOURCE_GRAPH_BYTES,
+    MAX_GEWYLANG_SOURCE_GRAPH_FILES, PACKAGE_MANIFEST_FILE,
+};
+pub use gewylang_syntax::{
     FrontendDslKind, FrontendExpansionPreview, FrontendFunctionNode, FrontendFunctionParam,
     FrontendGraphEdge, FrontendGraphEdgeKind, FrontendGraphNode, FrontendGraphNodeKind,
     FrontendIncludeSource, FrontendIncludeSourceKind, FrontendModuleSummary, FrontendUseEdge,
-    summarize_frontend_file, summarize_frontend_str,
 };
-use self::function_types::PipelineValueKind;
-use self::package::PackageContext;
-pub use self::package::build_lockfile;
-use self::parser::{parse_pipeline_function_head, parse_pipeline_module};
-use self::pipeline::{lower_pipeline_module_to_assignments, parse_pipeline_single_arg};
-pub(crate) use self::predicate::{parse_flow_predicate, parse_reason_key_event};
+pub(crate) use gewylang_syntax::{
+    PackageContext, PipelineCall, PipelineFunction, PipelineModule, summarize_pipeline_module,
+};
 
-pub const PACKAGE_MANIFEST_FILE: &str = "gewy.pkg";
-pub const MAX_GEWYLANG_SOURCE_BYTES: usize = 256 * 1024;
-pub const MAX_GEWYLANG_SOURCE_GRAPH_FILES: usize = 256;
-pub const MAX_GEWYLANG_INCLUDE_DEPTH: usize = 32;
-pub const MAX_GEWYLANG_SOURCE_GRAPH_BYTES: usize = 4 * 1024 * 1024;
+pub fn build_lockfile(path: &str) -> Result<String, DslError> {
+    gewylang_syntax::build_lockfile(path).map_err(DslError::from)
+}
+
+pub fn read_file(path: &str) -> Result<String, DslError> {
+    gewylang_syntax::read_file(path).map_err(DslError::from)
+}
+
+pub fn summarize_frontend_file(path: &str) -> Result<FrontendModuleSummary, DslError> {
+    gewylang_syntax::summarize_frontend_file(path).map_err(DslError::from)
+}
+
+pub fn summarize_frontend_str(input: &str) -> Result<FrontendModuleSummary, DslError> {
+    gewylang_syntax::summarize_frontend_str(input).map_err(DslError::from)
+}
+
+pub(crate) fn summarize_frontend_str_with_package(
+    input: &str,
+    package: &PackageContext,
+) -> Result<FrontendModuleSummary, DslError> {
+    gewylang_syntax::summarize_frontend_str_with_package(input, package).map_err(DslError::from)
+}
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum DslError {
@@ -64,204 +70,6 @@ pub enum DslError {
     Io(String),
 }
 
-pub fn read_file(path: &str) -> Result<String, DslError> {
-    read_source_file(Path::new(path))
-}
-
-fn read_source_file(path: &Path) -> Result<String, DslError> {
-    let metadata = fs::metadata(path).map_err(|err| DslError::Io(err.to_string()))?;
-    if !metadata.is_file() {
-        return Err(DslError::InvalidValue(format!(
-            "gewylang source path '{}' is not a regular file",
-            path.display()
-        )));
-    }
-    if metadata.len() > MAX_GEWYLANG_SOURCE_BYTES as u64 {
-        return Err(gewylang_source_too_large());
-    }
-    let file = File::open(path).map_err(|err| DslError::Io(err.to_string()))?;
-    let mut bytes = Vec::with_capacity(
-        usize::try_from(metadata.len())
-            .unwrap_or(MAX_GEWYLANG_SOURCE_BYTES)
-            .min(MAX_GEWYLANG_SOURCE_BYTES)
-            .saturating_add(1),
-    );
-    file.take((MAX_GEWYLANG_SOURCE_BYTES + 1) as u64)
-        .read_to_end(&mut bytes)
-        .map_err(|err| DslError::Io(err.to_string()))?;
-    if bytes.len() > MAX_GEWYLANG_SOURCE_BYTES {
-        return Err(gewylang_source_too_large());
-    }
-    String::from_utf8(bytes).map_err(|err| DslError::Io(err.to_string()))
-}
-
-fn validate_gewylang_source_size(input: &str) -> Result<(), DslError> {
-    if input.len() > MAX_GEWYLANG_SOURCE_BYTES {
-        return Err(gewylang_source_too_large());
-    }
-    Ok(())
-}
-
-fn gewylang_source_too_large() -> DslError {
-    DslError::InvalidValue(format!(
-        "gewylang source exceeds {MAX_GEWYLANG_SOURCE_BYTES} bytes"
-    ))
-}
-
-pub(super) fn strip_comments_preserve_layout(input: &str) -> Result<Cow<'_, str>, DslError> {
-    if !input.as_bytes().contains(&b'#') && !input.as_bytes().windows(2).any(|pair| pair == b"/*") {
-        return Ok(Cow::Borrowed(input));
-    }
-
-    let mut output = String::with_capacity(input.len());
-    let mut chars = input.chars().peekable();
-    let mut in_string = false;
-    let mut escape = false;
-    let mut in_block_comment = false;
-    let mut block_comment_start = None;
-    let mut line = 1usize;
-    let mut column = 1usize;
-
-    while let Some(ch) = chars.next() {
-        if in_block_comment {
-            if ch == '*' && matches!(chars.peek(), Some('/')) {
-                output.push(' ');
-                output.push(' ');
-                chars.next();
-                in_block_comment = false;
-                column += 2;
-            } else if ch == '\n' {
-                output.push('\n');
-                line += 1;
-                column = 1;
-            } else {
-                output.push(' ');
-                column += ch.len_utf8();
-            }
-            continue;
-        }
-
-        if in_string {
-            output.push(ch);
-            if escape {
-                escape = false;
-            } else if ch == '\\' {
-                escape = true;
-            } else if ch == '"' {
-                in_string = false;
-            }
-            if ch == '\n' {
-                line += 1;
-                column = 1;
-            } else {
-                column += ch.len_utf8();
-            }
-            continue;
-        }
-
-        if ch == '"' {
-            in_string = true;
-            output.push(ch);
-            column += 1;
-            continue;
-        }
-
-        if ch == '/' && matches!(chars.peek(), Some('*')) {
-            output.push(' ');
-            output.push(' ');
-            chars.next();
-            in_block_comment = true;
-            block_comment_start = Some((line, column));
-            column += 2;
-            continue;
-        }
-
-        if ch == '#' {
-            output.push(' ');
-            for next in chars.by_ref() {
-                if next == '\n' {
-                    output.push('\n');
-                    line += 1;
-                    column = 1;
-                    break;
-                }
-                output.push(' ');
-                column += next.len_utf8();
-            }
-            continue;
-        }
-
-        output.push(ch);
-        if ch == '\n' {
-            line += 1;
-            column = 1;
-        } else {
-            column += ch.len_utf8();
-        }
-    }
-
-    if in_block_comment {
-        let (line, column) = block_comment_start.unwrap_or((line, column));
-        return Err(
-            DslError::InvalidValue("unclosed pipeline block comment".into())
-                .at_line_column(line, Some(column)),
-        );
-    }
-    Ok(Cow::Owned(output))
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct PipelineModule {
-    package_scope: String,
-    module_doc: Option<String>,
-    template_doc: Option<String>,
-    template: Option<PipelineCall>,
-    body: Vec<PipelineCall>,
-    functions: BTreeMap<String, PipelineFunction>,
-    include_sources: Vec<FrontendIncludeSource>,
-    include_edges: Vec<FrontendGraphEdge>,
-    use_edges: Vec<FrontendUseEdge>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct PipelineFunction {
-    doc: Option<String>,
-    params: Vec<PipelineParam>,
-    local_bindings: Vec<PipelineLetBinding>,
-    body: Vec<PipelineCall>,
-    source_id: String,
-    package_scope: String,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct PipelineParam {
-    name: String,
-    default_value: Option<String>,
-    declared_kind: Option<PipelineValueKind>,
-    inferred_kind: Option<PipelineValueKind>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct PipelineCall {
-    line_no: usize,
-    column_no: usize,
-    name: String,
-    args: Vec<String>,
-    arg_columns: Vec<usize>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum PipelineFunctionBodySyntax {
-    Block,
-    Expression,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct PipelineLetBinding {
-    name: String,
-    value: String,
-}
-
 pub fn compile_str(input: &str) -> Result<TemplateBinding, DslError> {
     let binding = parse_str_unvalidated(input)?;
     validate_compiled_binding(&binding).map_err(DslError::Registry)?;
@@ -270,6 +78,26 @@ pub fn compile_str(input: &str) -> Result<TemplateBinding, DslError> {
 
 pub fn validate_compiled_binding(binding: &TemplateBinding) -> Result<(), RegistryError> {
     builtin_registry_ref().validate_binding(binding)
+}
+
+impl From<gewylang_syntax::SyntaxError> for DslError {
+    fn from(error: gewylang_syntax::SyntaxError) -> Self {
+        match error {
+            gewylang_syntax::SyntaxError::Located {
+                line,
+                column,
+                inner,
+            } => Self::Located {
+                line,
+                column,
+                inner: Box::new(Self::from(*inner)),
+            },
+            gewylang_syntax::SyntaxError::InvalidLine(line) => Self::InvalidLine(line),
+            gewylang_syntax::SyntaxError::MissingField(field) => Self::MissingField(field),
+            gewylang_syntax::SyntaxError::InvalidValue(value) => Self::InvalidValue(value),
+            gewylang_syntax::SyntaxError::Io(error) => Self::Io(error),
+        }
+    }
 }
 
 impl DslError {
@@ -382,80 +210,4 @@ fn split_top_level_with_columns(
     let leading = raw.find(trimmed).unwrap_or(0);
     parts.push((base_column + start + leading, trimmed.to_string()));
     parts
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn gewylang_source_size_is_bounded() {
-        assert!(
-            super::validate_gewylang_source_size(&"x".repeat(super::MAX_GEWYLANG_SOURCE_BYTES))
-                .is_ok()
-        );
-        let err =
-            super::validate_gewylang_source_size(&"x".repeat(super::MAX_GEWYLANG_SOURCE_BYTES + 1))
-                .expect_err("oversized source must fail closed");
-        assert_eq!(
-            err,
-            super::DslError::InvalidValue(format!(
-                "gewylang source exceeds {} bytes",
-                super::MAX_GEWYLANG_SOURCE_BYTES
-            ))
-        );
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn gewylang_source_reader_rejects_non_regular_files() {
-        use std::os::unix::net::UnixListener;
-        use std::time::{SystemTime, UNIX_EPOCH};
-
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock should be after unix epoch")
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "gewy-source-socket-{}-{unique}",
-            std::process::id()
-        ));
-        let listener = UnixListener::bind(&path).unwrap();
-        let err = super::read_file(path.to_str().unwrap()).unwrap_err();
-        drop(listener);
-        std::fs::remove_file(&path).unwrap();
-
-        assert!(
-            matches!(err, super::DslError::InvalidValue(message) if message.contains("is not a regular file"))
-        );
-    }
-
-    #[test]
-    fn strip_comments_keeps_string_hashes_and_newlines() {
-        let input = "template(:demo) # tail\n|> include(\"./a#b.gewy\")\n/* block\ncomment */\n";
-        let stripped = super::strip_comments_preserve_layout(input).unwrap();
-        assert!(stripped.contains("template(:demo)"));
-        assert!(stripped.contains("\"./a#b.gewy\""));
-        assert_eq!(input.lines().count(), stripped.lines().count());
-        assert!(!stripped.contains("tail"));
-        assert!(!stripped.contains("block"));
-    }
-
-    #[test]
-    fn comment_free_sources_are_borrowed_without_copying() {
-        let input = "template :borrowed\n|> window :default_5s\n";
-        assert!(matches!(
-            super::strip_comments_preserve_layout(input).unwrap(),
-            std::borrow::Cow::Borrowed(source) if std::ptr::eq(source, input)
-        ));
-    }
-
-    #[test]
-    fn strip_comments_rejects_unclosed_block_comments_at_the_opening_delimiter() {
-        let input = "template :demo\n  /* never closed\n|> window :default_5s\n";
-        let err = super::strip_comments_preserve_layout(input).unwrap_err();
-        assert_eq!(
-            err,
-            super::DslError::InvalidValue("unclosed pipeline block comment".into())
-                .at_line_column(2, Some(3))
-        );
-    }
 }

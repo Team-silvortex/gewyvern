@@ -19,6 +19,11 @@
         "summary": "Protocol language, compiler, package model, and protocol standard library."
       },
       {
+        "id": "leselang",
+        "label": "Leselang Language",
+        "summary": "Hostable GUI and control automation language with product-independent frontend contracts."
+      },
+      {
         "id": "leserpent-1x",
         "label": "Leserpent 1.x Bridge",
         "summary": "Compatibility Web bridge and migration surface over Rust-owned control semantics."
@@ -86,9 +91,14 @@
         "summary": "Wire envelopes, compatibility fixtures, IPC, HTTP, and WebSocket transport."
       },
       {
+        "id": "language-host-contract",
+        "label": "Leselang Host Contract",
+        "summary": "Product-independent identities, capabilities, selectors, and bounded effect inputs."
+      },
+      {
         "id": "language-syntax",
-        "label": "Leselang Syntax",
-        "summary": "Lossless syntax, parser diagnostics, formatter, and source limits."
+        "label": "Language Syntax",
+        "summary": "Product-independent syntax trees, parser diagnostics, formatting, package graphs, and source limits."
       },
       {
         "id": "language-hir",
@@ -193,6 +203,11 @@
         "summary": "Canonical GewyLang syntax through typed runtime binding."
       },
       {
+        "id": "standalone-frontend",
+        "label": "Standalone Frontend",
+        "summary": "Product-independent GewyLang source, package, parser, AST, and inspection model."
+      },
+      {
         "id": "protocol-catalog",
         "label": "Protocol Catalog",
         "summary": "Reusable packaged protocol definitions and registry metadata."
@@ -221,6 +236,11 @@
         "id": "wire-compatibility",
         "label": "Wire Compatibility",
         "summary": "Versioned transport schemas and compatibility behavior shared by every frontend."
+      },
+      {
+        "id": "host-abi",
+        "label": "Language Host ABI",
+        "summary": "Stable product-independent values exchanged between Leselang and explicit host adapters."
       },
       {
         "id": "lossless-frontend",
@@ -402,6 +422,14 @@
       "cells": ["gewylang/compiler/parser-lowering"]
     },
     {
+      "id": "boundary-gewylang-syntax",
+      "architecture": "gewylang",
+      "kind": "ownership-boundary",
+      "summary": "The gewylang-syntax crate owns bounded source loading, package expansion, parsing, syntax trees, and frontend summaries without product dependencies.",
+      "source": "docs/gewylang-contract.md",
+      "cells": ["gewylang/language-syntax/standalone-frontend"]
+    },
+    {
       "id": "boundary-gewylang-protocol-packages",
       "architecture": "gewylang",
       "kind": "ownership-boundary",
@@ -437,20 +465,28 @@
       "cells": ["etragon/learning-sidecar/advisory-learning"]
     },
     {
+      "id": "boundary-leselang-host-contract",
+      "architecture": "leselang",
+      "kind": "ownership-boundary",
+      "summary": "The leselang-host-contract crate owns the product-independent ABI used by the language frontend and explicit product adapters.",
+      "source": "docs/architecture-blueprint.md",
+      "cells": ["leselang/language-host-contract/host-abi"]
+    },
+    {
       "id": "boundary-leselang-syntax",
-      "architecture": "leserpent-2",
+      "architecture": "leselang",
       "kind": "ownership-boundary",
       "summary": "The leselang-syntax crate owns lossless parsing and source diagnostics.",
-      "source": "docs/leserpent-2-architecture.md",
-      "cells": ["leserpent-2/language-syntax/lossless-frontend"]
+      "source": "docs/leselang-language.md",
+      "cells": ["leselang/language-syntax/lossless-frontend"]
     },
     {
       "id": "boundary-leselang-hir",
-      "architecture": "leserpent-2",
+      "architecture": "leselang",
       "kind": "ownership-boundary",
       "summary": "The leselang-hir crate owns validated names, types, effects, and capabilities.",
-      "source": "docs/leserpent-2-architecture.md",
-      "cells": ["leserpent-2/language-hir/typed-effects"]
+      "source": "docs/leselang-language.md",
+      "cells": ["leselang/language-hir/typed-effects"]
     },
     {
       "id": "boundary-leselang-vm",
@@ -552,9 +588,9 @@
       "id": "gate-two-language-vm",
       "architecture": "leserpent-2",
       "kind": "roadmap-gate",
-      "summary": "Gate 2 requires syntax, HIR, VM, and command lowering to suspend and replay deterministically.",
+      "summary": "Gate 2 integrates the independently owned Leselang frontend with Leserpent VM replay and command lowering.",
       "source": "docs/leserpent-2-roadmap.md",
-      "cells": ["leserpent-2/language-syntax/lossless-frontend", "leserpent-2/language-hir/typed-effects", "leserpent-2/language-vm/effect-reentry", "leserpent-2/command-lowering/command-plan-lowering"]
+      "cells": ["leserpent-2/language-vm/effect-reentry", "leserpent-2/command-lowering/command-plan-lowering"]
     },
     {
       "id": "gate-three-native-cli",
@@ -858,6 +894,49 @@
       "next_gate": "Preserve the current physical-host, two-kernel VM, package, eBPF, recovery, and performance baseline through 2.0; expand independent physical-host and kernel breadth after 2.0."
     },
     {
+      "id": "gewylang/language-syntax/standalone-frontend",
+      "architecture": "gewylang",
+      "module": "language-syntax",
+      "feature": "standalone-frontend",
+      "lifecycle": "current",
+      "priority": "maintenance",
+      "maturity": "mature",
+      "completion": 100,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "gewylang-syntax-contract",
+        "version": "1.0.0",
+        "stability": "stable",
+        "surfaces": [
+          "bounded-source-loading",
+          "comment-layout-preservation",
+          "package-manifest-resolution",
+          "confined-include-expansion",
+          "bounded-source-graph",
+          "pipeline-call-syntax",
+          "pipeline-function-syntax",
+          "typed-syntax-tree",
+          "source-located-diagnostics",
+          "frontend-summary",
+          "include-and-use-graph",
+          "zero-product-dependency-closure"
+        ]
+      },
+      "depends_on": [],
+      "blockers": [],
+      "consumers": ["gewyvern-lowering-adapter", "gewyc", "external-language-tooling"],
+      "evidence": [
+        { "kind": "source", "path": "crates/gewylang-syntax/src/lib.rs", "state": "present" },
+        { "kind": "source", "path": "crates/gewylang-syntax/src/parser.rs", "state": "present" },
+        { "kind": "source", "path": "crates/gewylang-syntax/src/package.rs", "state": "present" },
+        { "kind": "source", "path": "crates/gewylang-syntax/src/source_graph.rs", "state": "present" },
+        { "kind": "test", "path": "tests/language_independence_tdd.rs", "state": "present" },
+        { "kind": "documentation", "path": "docs/gewylang-contract.md", "state": "present" }
+      ],
+      "next_gate": "Publish the syntax crate as the stable parser dependency of a standalone compiler facade while preserving every Syntax v1 source and diagnostic anchor."
+    },
+    {
       "id": "gewylang/compiler/parser-lowering",
       "architecture": "gewylang",
       "module": "compiler",
@@ -877,6 +956,7 @@
           "gewyc-cli",
           "standard-cli-help-and-version-exit-contract",
           "versioned-language-contract-stamp",
+          "product-independent-language-contract",
           "syntax-v1",
           "expanded-ast-v1",
           "binding-ir-v1",
@@ -967,24 +1047,25 @@
           "package-include-graph-benchmark"
         ]
       },
-      "depends_on": [],
+      "depends_on": ["gewylang/language-syntax/standalone-frontend"],
       "blockers": [],
       "consumers": ["protocol-authors", "gewyvern-runtime", "model-tooling"],
       "evidence": [
         { "kind": "source", "path": "crates/gewyc/src/main.rs", "state": "present" },
-        { "kind": "source", "path": "src/dsl/contract.rs", "state": "present" },
+        { "kind": "source", "path": "crates/gewylang-contract/src/lib.rs", "state": "present" },
+        { "kind": "source", "path": "crates/gewylang-syntax/src/lib.rs", "state": "present" },
         { "kind": "source", "path": "src/dsl/function_types.rs", "state": "present" },
         { "kind": "source", "path": "src/dsl/pipeline/lowering.rs", "state": "present" },
-        { "kind": "source", "path": "src/dsl/source_graph.rs", "state": "present" },
         { "kind": "test", "path": "crates/gewyc/tests/cli_information.rs", "state": "present" },
         { "kind": "test", "path": "crates/gewyc/src/tests.rs", "state": "present" },
         { "kind": "test", "path": "tests/gewylang_docs_tdd.rs", "state": "present" },
+        { "kind": "test", "path": "tests/language_independence_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/gewylang-contract.md", "state": "present" },
         { "kind": "documentation", "path": "docs/contracts/gewylang-language-contract-v1.schema.json", "state": "present" },
         { "kind": "documentation", "path": "docs/gewylang-system.md", "state": "present" },
         { "kind": "documentation", "path": "docs/performance-baselines.md", "state": "present" }
       ],
-      "next_gate": "Preserve Syntax v1 and the versioned Expanded AST, Binding IR, and Analysis IR contracts while retaining one bounded, root-confined source graph for every compiler projection."
+      "next_gate": "Extract semantic binding lowering behind a standalone compiler facade so gewyc no longer links the full Gewyvern runtime; preserve every binding and analysis payload while doing so."
     },
     {
       "id": "gewylang/protocol-packages/protocol-catalog",
@@ -1657,8 +1738,38 @@
       "next_gate": "Preserve the stable wire-v1 fail-closed contract and its strict debugger session variants; structural envelope changes require an explicit schema version while remote-console owns deferred Android client proof."
     },
     {
-      "id": "leserpent-2/language-syntax/lossless-frontend",
-      "architecture": "leserpent-2",
+      "id": "leselang/language-host-contract/host-abi",
+      "architecture": "leselang",
+      "module": "language-host-contract",
+      "feature": "host-abi",
+      "lifecycle": "current",
+      "priority": "critical",
+      "maturity": "mature",
+      "completion": 100,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "leselang-host-contract",
+        "version": "1.0.0",
+        "stability": "stable",
+        "surfaces": ["principal", "revision", "capability-set", "command-origin", "confirmation", "runtime-id", "runtime-list-filter", "effect-capability-identifiers", "debugger-session-validation", "deployment-intent-validation", "transparent-wire-compatibility", "legacy-leserpent-domain-reexports", "zero-product-dependency-closure"]
+      },
+      "depends_on": ["shared-foundation/identity/validated-identities"],
+      "blockers": [],
+      "consumers": ["leselang-hir", "leserpent-domain", "language-host-adapters"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/architecture-blueprint.md", "state": "present" },
+        { "kind": "documentation", "path": "docs/leselang-language.md", "state": "present" },
+        { "kind": "source", "path": "crates/leselang-host-contract/Cargo.toml", "state": "present" },
+        { "kind": "source", "path": "crates/leselang-host-contract/src/lib.rs", "state": "present" },
+        { "kind": "test", "path": "tests/language_independence_tdd.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-domain/tests/identity_compatibility.rs", "state": "present" }
+      ],
+      "next_gate": "Preserve zero product dependencies and identical legacy wire bytes while the VM and UI product bindings move behind explicit adapter traits."
+    },
+    {
+      "id": "leselang/language-syntax/lossless-frontend",
+      "architecture": "leselang",
       "module": "language-syntax",
       "feature": "lossless-frontend",
       "lifecycle": "current",
@@ -1681,13 +1792,14 @@
         { "kind": "source", "path": "crates/leselang-syntax", "state": "present" },
         { "kind": "test", "path": "crates/leselang-syntax/src/lib.rs", "state": "present" },
         { "kind": "test", "path": "crates/leselang-vm/examples/language_benchmark.rs", "state": "present" },
-        { "kind": "test", "path": "tests/leselang_fuzz_tdd.rs", "state": "present" }
+        { "kind": "test", "path": "tests/leselang_fuzz_tdd.rs", "state": "present" },
+        { "kind": "test", "path": "tests/language_independence_tdd.rs", "state": "present" }
       ],
       "next_gate": "Preserve the stable lossless syntax and validated span contract while future operations expand through HIR rather than parser shortcuts."
     },
     {
-      "id": "leserpent-2/language-hir/typed-effects",
-      "architecture": "leserpent-2",
+      "id": "leselang/language-hir/typed-effects",
+      "architecture": "leselang",
       "module": "language-hir",
       "feature": "typed-effects",
       "lifecycle": "current",
@@ -1702,14 +1814,15 @@
         "stability": "stable",
         "surfaces": ["typed-hir", "strict-effect-deserialization", "capability-check", "effect-union", "declared-branch-order", "runtime-inspect-effect", "runtime-history-effect", "runtime-logs-effect", "runtime-capability-refresh-effect", "runtime-deploy-effect", "debugger-cancel-effect", "ui-activate-effect", "ui-focus-effect", "ui-focus-navigation-effect", "typed-focus-navigation-direction", "expanded-focus-navigation-directions", "ui-scroll-into-view-effect", "ui-assert-visible-effect", "ui-assert-hidden-effect", "ui-wait-hidden-effect", "fixed-hidden-wait-policy", "ui-assert-realized-effect", "ui-wait-realized-effect", "fixed-realization-wait-policy", "ui-wait-visible-effect", "fixed-visibility-wait-policy", "ui-assert-focused-effect", "ui-wait-focused-effect", "fixed-focused-wait-policy", "ui-assert-unfocused-effect", "ui-wait-unfocused-effect", "fixed-unfocused-wait-policy", "ui-assert-enabled-effect", "ui-assert-disabled-effect", "ui-wait-enabled-effect", "fixed-enabled-wait-policy", "ui-wait-disabled-effect", "fixed-disabled-wait-policy", "ui-open-window-effect", "ui-close-window-effect", "ui-assert-window-open-effect", "ui-wait-window-open-effect", "fixed-window-open-wait-policy", "ui-assert-window-closed-effect", "ui-wait-window-closed-effect", "fixed-window-closed-wait-policy", "ui-assert-selection-effect", "ui-wait-selection-effect", "typed-ui-selection-state", "ui-set-selection-effect", "fixed-selection-wait-policy", "ui-assert-child-count-effect", "ui-wait-child-count-effect", "bounded-ui-child-count", "ui-assert-text-effect", "ui-wait-text-effect", "fixed-text-wait-policy", "ui-assert-automation-id-effect", "ui-wait-automation-id-effect", "fixed-automation-id-wait-policy", "ui-assert-node-kind-effect", "ui-wait-node-kind-effect", "fixed-node-kind-wait-policy", "ui-assert-action-kind-effect", "ui-wait-action-kind-effect", "fixed-action-kind-wait-policy", "ui-assert-action-label-effect", "ui-wait-action-label-effect", "fixed-action-label-wait-policy", "ui-assert-action-available-effect", "ui-wait-action-available-effect", "fixed-action-available-wait-policy", "ui-assert-action-unavailable-reason-effect", "ui-wait-action-unavailable-reason-effect", "fixed-action-unavailable-reason-wait-policy", "ui-submit-form-effect", "ui-cancel-form-effect", "distinct-form-lifecycle-mutations", "ui-assert-form-field-effect", "ui-assert-form-field-input-kind-effect", "ui-assert-form-field-required-effect", "ui-assert-form-field-max-length-effect", "ui-assert-form-field-placeholder-effect", "ui-wait-form-field-effect", "fixed-form-field-wait-policy", "ui-wait-form-field-input-kind-effect", "fixed-form-field-input-kind-wait-policy", "ui-wait-form-field-required-effect", "fixed-form-field-required-wait-policy", "ui-wait-form-field-max-length-effect", "fixed-form-field-max-length-wait-policy", "ui-wait-form-field-placeholder-effect", "fixed-form-field-placeholder-wait-policy", "ui-set-form-value-effect", "ui-assert-form-value-effect", "ui-wait-form-value-effect", "fixed-form-value-wait-policy", "shared-ui-form-value-validation", "ui-assert-accessible-name-effect", "ui-wait-accessible-name-effect", "fixed-accessible-name-wait-policy", "ui-assert-accessible-description-effect", "ui-wait-accessible-description-effect", "fixed-accessible-description-wait-policy", "ui-presentation-capability", "shared-ui-node-id-validation", "shared-ui-expected-text-validation", "bounded-form-field-key-validation", "bounded-form-max-length-string", "optional-form-placeholder-expected", "optional-action-unavailable-reason-expected", "typed-form-input-kind", "typed-form-requirement-state", "shared-domain-deployment-validation", "shared-debugger-session-validation", "bounded-deployment-intent", "canonical-effect-source", "canonical-effect-roundtrip", "single-allocation-name-deduplication", "bounded-language-pipeline-benchmark"]
       },
-      "depends_on": ["leserpent-2/language-syntax/lossless-frontend", "leserpent-2/domain-model/command-query-kernel"],
+      "depends_on": ["leselang/language-syntax/lossless-frontend", "leselang/language-host-contract/host-abi"],
       "blockers": [],
       "consumers": ["leselang-vm", "leselang-command", "leselang-ui"],
       "evidence": [
         { "kind": "documentation", "path": "docs/leselang-language.md", "state": "present" },
         { "kind": "source", "path": "crates/leselang-hir", "state": "present" },
         { "kind": "test", "path": "crates/leselang-hir/src/lib.rs", "state": "present" },
-        { "kind": "test", "path": "crates/leselang-vm/examples/language_benchmark.rs", "state": "present" }
+        { "kind": "test", "path": "crates/leselang-vm/examples/language_benchmark.rs", "state": "present" },
+        { "kind": "test", "path": "tests/language_independence_tdd.rs", "state": "present" }
       ],
       "next_gate": "Preserve the stable typed-effect boundary, closed assertion/wait symmetry, and presentation/control-plane separation; add operations only for a concrete frozen-scope automation gap."
     },
@@ -1923,7 +2036,7 @@
           "bounded-language-pipeline-benchmark"
         ]
       },
-      "depends_on": ["leserpent-2/language-hir/typed-effects", "leserpent-2/domain-model/command-query-kernel"],
+      "depends_on": ["leselang/language-hir/typed-effects", "leserpent-2/domain-model/command-query-kernel"],
       "blockers": [],
       "consumers": ["model-automation", "leserpent-cli", "ui-functions"],
       "evidence": [
@@ -1952,7 +2065,7 @@
         "stability": "stable",
         "surfaces": ["command-plan", "planned-operation", "runtime-list-query", "runtime-inspect-query", "runtime-history-query", "bounded-runtime-logs-query", "runtime-refresh-command", "runtime-deploy-command", "independent-runtime-deploy-capability", "debugger-cancel-command", "debugger-cancel-language-lowering", "debugger-control-capability", "frontend-local-effect-rejection", "action-activation-command-rejection", "multi-presentation-effect-rejection", "realization-wait-command-rejection", "visibility-wait-command-rejection", "enabled-wait-command-rejection", "disabled-wait-command-rejection", "window-lifecycle-open-command-rejection", "window-lifecycle-close-command-rejection", "window-open-command-rejection", "window-open-wait-command-rejection", "window-closed-command-rejection", "window-closed-wait-command-rejection", "focused-wait-command-rejection", "unfocused-wait-command-rejection", "unfocused-assert-command-rejection", "focus-navigation-command-rejection", "selection-command-rejection", "child-count-assert-command-rejection", "child-count-wait-command-rejection", "text-wait-command-rejection", "accessible-name-wait-command-rejection", "accessible-description-wait-command-rejection", "automation-id-command-rejection", "node-kind-command-rejection", "node-kind-wait-command-rejection", "action-kind-command-rejection", "action-kind-wait-command-rejection", "action-label-command-rejection", "action-label-wait-command-rejection", "action-available-command-rejection", "action-available-wait-command-rejection", "action-unavailable-reason-command-rejection", "action-unavailable-reason-wait-command-rejection", "form-field-command-rejection", "form-field-input-kind-command-rejection", "form-field-required-command-rejection", "form-field-max-length-command-rejection", "form-field-placeholder-command-rejection", "form-field-wait-command-rejection", "form-field-input-kind-wait-command-rejection", "form-field-required-wait-command-rejection", "form-field-max-length-wait-command-rejection", "form-field-placeholder-wait-command-rejection", "disabled-assert-command-rejection", "hidden-assert-command-rejection", "hidden-wait-command-rejection", "origin-metadata", "dry-run-plan", "versioned-plan-json", "bounded-plan-codec", "plan-semantic-validation", "fail-closed-capability-check", "canonical-leselang", "shared-cli-query-lowering", "shared-cli-command-lowering", "deterministic-local-plan-export"]
       },
-      "depends_on": ["leserpent-2/language-hir/typed-effects", "leserpent-2/domain-model/command-query-kernel"],
+      "depends_on": ["leselang/language-hir/typed-effects", "leserpent-2/domain-model/command-query-kernel"],
       "blockers": [],
       "consumers": ["leselang-vm", "leserpent-cli", "ui-actions", "model-automation"],
       "evidence": [
@@ -1982,7 +2095,7 @@
         "stability": "stable",
         "surfaces": ["ui-document", "stable-node-id", "typed-semantic-node", "localized-fallback-text", "accessibility-metadata", "bounded-ui-tree", "strict-unknown-field-rejection", "strict-action-field-rejection", "strict-patch-operation-field-rejection", "bounded-json-codec", "context-free-patch-validation", "embedded-patch-node-validation", "fleet-document-lowering", "runtime-workspace-lowering", "runtime-capability-projection", "explicit-unobserved-capabilities", "canonical-capability-endpoint-nodes", "sorted-capability-extension-nodes", "capability-secret-omission", "runtime-log-projection", "runtime-log-document-lowering", "runtime-log-source-producer", "bounded-log-source-batch", "newest-log-window", "utf8-safe-log-sanitization", "bounded-log-window", "sanitized-log-display", "stable-log-entry-id", "debugger-projection", "debugger-document-lowering", "stackless-waiting-effect-state", "synchronous-reentry-transition", "runtime-deploy-debugger-kind", "debugger-cancel-debugger-kind", "bounded-logical-frames", "debugger-secret-omission", "validated-vm-producer", "relative-deadline-projection", "debugger-cancel-plan", "safe-mutation-inspection", "debugger-dry-run", "session-revision-fenced-cancel", "confirmation-gated-cancel", "atomic-persistent-debugger-audit", "restart-safe-debugger-audit-replay", "debugger-workspace-session-binding", "session-bound-debugger-action", "debugger-action-command-lowering", "token-free-mutation-result", "same-revision-state-composition", "torn-state-rejection", "bounded-history-nodes", "endpoint-omission", "ui-event", "ui-event-hir-effect-lowering", "hir-effect-ui-event-reverse-mapping", "canonical-event-leselang-export", "current-action-semantic-roundtrip", "ui-adapter-manifest", "complete-presentation-atom-manifest", "presentation-atom-profile-manifest", "presentation-atom-family-metadata", "presentation-atom-effect-metadata", "developer-owned-adapter-kind", "generated-framework-binding-kind", "cross-language-adapter-manifest-fixture", "single-validation-event-lowering", "parameterized-form-description", "typed-submit-event", "bounded-form-value-validation", "runtime-deploy-form-lowering", "revision-fenced-event", "runtime-bound-action", "runtime-inspect-action", "frontend-neutral-inspect-plan", "shared-command-plan", "ui-presentation-operation", "ui-activate-presentation-roundtrip", "interaction-presentation-atom-profile", "action-target-activation-validation", "semantic-selection-state", "ui-set-selection-presentation-roundtrip", "selection-lifecycle-mutation-profile", "ui-assert-realized-presentation-roundtrip", "ui-wait-realized-presentation-roundtrip", "fixed-realization-wait-timeout", "ui-wait-visible-presentation-roundtrip", "fixed-visibility-wait-timeout", "ui-assert-enabled-presentation-roundtrip", "ui-assert-disabled-presentation-roundtrip", "ui-assert-hidden-presentation-roundtrip", "ui-wait-hidden-presentation-roundtrip", "fixed-hidden-wait-timeout", "ui-wait-enabled-presentation-roundtrip", "fixed-enabled-wait-timeout", "ui-wait-disabled-presentation-roundtrip", "fixed-disabled-wait-timeout", "ui-open-window-presentation-roundtrip", "ui-close-window-presentation-roundtrip", "window-lifecycle-mutation-profile", "ui-assert-window-open-presentation-roundtrip", "ui-wait-window-open-presentation-roundtrip", "fixed-window-open-wait-timeout", "ui-assert-window-closed-presentation-roundtrip", "ui-wait-window-closed-presentation-roundtrip", "fixed-window-closed-wait-timeout", "ui-wait-focused-presentation-roundtrip", "fixed-focused-wait-timeout", "ui-assert-unfocused-presentation-roundtrip", "ui-wait-unfocused-presentation-roundtrip", "fixed-unfocused-wait-timeout", "ui-focus-navigation-presentation-roundtrip", "explicit-focus-navigation-direction", "focus-navigation-first-last-roundtrip", "ui-assert-selection-presentation-roundtrip", "ui-wait-selection-presentation-roundtrip", "fixed-selection-wait-timeout", "ui-assert-child-count-presentation-roundtrip", "ui-wait-child-count-presentation-roundtrip", "fixed-child-count-wait-timeout", "structural-presentation-atom-profile", "ui-assert-text-presentation-roundtrip", "ui-wait-text-presentation-roundtrip", "fixed-text-wait-timeout", "ui-assert-automation-id-presentation-roundtrip", "ui-wait-automation-id-presentation-roundtrip", "fixed-automation-id-wait-timeout", "ui-assert-node-kind-presentation-roundtrip", "ui-wait-node-kind-presentation-roundtrip", "fixed-node-kind-wait-timeout", "ui-assert-action-kind-presentation-roundtrip", "ui-wait-action-kind-presentation-roundtrip", "fixed-action-kind-wait-timeout", "action-kind-wait-target-validation", "ui-assert-action-label-presentation-roundtrip", "ui-wait-action-label-presentation-roundtrip", "fixed-action-label-wait-timeout", "action-label-target-validation", "ui-assert-action-available-presentation-roundtrip", "ui-wait-action-available-presentation-roundtrip", "fixed-action-available-wait-timeout", "action-available-target-validation", "ui-assert-action-unavailable-reason-presentation-roundtrip", "ui-wait-action-unavailable-reason-presentation-roundtrip", "fixed-action-unavailable-reason-wait-timeout", "action-unavailable-reason-target-validation", "ui-submit-form-presentation-roundtrip", "ui-cancel-form-presentation-roundtrip", "form-lifecycle-presentation-atom-profile", "parameterized-action-form-lifecycle-validation", "frontend-local-form-lifecycle", "ui-assert-form-field-presentation-roundtrip", "form-field-target-validation", "ui-assert-form-field-input-kind-presentation-roundtrip", "form-field-input-kind-target-validation", "ui-assert-form-field-required-presentation-roundtrip", "form-field-required-target-validation", "ui-assert-form-field-max-length-presentation-roundtrip", "form-field-max-length-target-validation", "ui-assert-form-field-placeholder-presentation-roundtrip", "form-field-placeholder-target-validation", "ui-wait-form-field-presentation-roundtrip", "fixed-form-field-wait-timeout", "ui-wait-form-field-input-kind-presentation-roundtrip", "fixed-form-field-input-kind-wait-timeout", "ui-wait-form-field-required-presentation-roundtrip", "fixed-form-field-required-wait-timeout", "ui-wait-form-field-max-length-presentation-roundtrip", "fixed-form-field-max-length-wait-timeout", "ui-wait-form-field-placeholder-presentation-roundtrip", "fixed-form-field-placeholder-wait-timeout", "ui-set-form-value-presentation-roundtrip", "ui-assert-form-value-presentation-roundtrip", "ui-wait-form-value-presentation-roundtrip", "fixed-form-value-wait-timeout", "form-value-presentation-atom-profile", "form-value-schema-bound-mutation", "ui-assert-accessible-name-presentation-roundtrip", "ui-wait-accessible-name-presentation-roundtrip", "fixed-accessible-name-wait-timeout", "ui-assert-accessible-description-presentation-roundtrip", "ui-wait-accessible-description-presentation-roundtrip", "fixed-accessible-description-wait-timeout", "ui-patch", "deterministic-incremental-diff", "same-topology-linear-diff", "relative-patch-performance-fence", "working-tree-diff-convergence", "bounded-history-window-diff", "reference-patch-application", "patch-revision-fence", "cyclic-move-rejection", "renderer-conformance-roundtrip", "cross-language-renderer-fixture"]
       },
-      "depends_on": ["leserpent-2/language-hir/typed-effects", "leserpent-2/command-lowering/command-plan-lowering"],
+      "depends_on": ["leselang/language-hir/typed-effects", "leserpent-2/command-lowering/command-plan-lowering"],
       "blockers": [],
       "consumers": ["avalonia-renderer", "web-renderer", "model-automation"],
       "evidence": [

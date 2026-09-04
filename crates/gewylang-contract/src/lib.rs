@@ -1,13 +1,33 @@
+//! Stable, product-independent GewyLang language and compiler-stage contract.
+
 /// Stable language identifier carried by every public GewyLang stage stamp.
 pub const GEWYLANG_LANGUAGE_ID: &str = "gewylang";
 /// Canonical `.gewy` source syntax version accepted by the current compiler.
 pub const GEWYLANG_SYNTAX_VERSION: u32 = 1;
 /// Public expanded package and provenance projection version.
 pub const GEWYLANG_EXPANDED_AST_VERSION: u32 = 1;
-/// Executable `TemplateBinding` semantic contract version.
+/// Executable binding semantic contract version.
 pub const GEWYLANG_BINDING_IR_VERSION: u32 = 1;
-/// Diagnostics-enriched `IrReport` contract version.
+/// Diagnostics-enriched analysis contract version.
 pub const GEWYLANG_ANALYSIS_IR_VERSION: u32 = 1;
+
+/// Canonical package-manifest filename used by GewyLang package roots.
+pub const PACKAGE_MANIFEST_FILE: &str = "gewy.pkg";
+/// Maximum UTF-8 byte length accepted for one source file.
+pub const MAX_GEWYLANG_SOURCE_BYTES: usize = 256 * 1024;
+/// Maximum number of source files accepted in one expanded package graph.
+pub const MAX_GEWYLANG_SOURCE_GRAPH_FILES: usize = 256;
+/// Maximum recursive include depth accepted by package expansion.
+pub const MAX_GEWYLANG_INCLUDE_DEPTH: usize = 32;
+/// Maximum aggregate UTF-8 byte length accepted across a source graph.
+pub const MAX_GEWYLANG_SOURCE_GRAPH_BYTES: usize = 4 * 1024 * 1024;
+
+const _: () = {
+    assert!(MAX_GEWYLANG_SOURCE_BYTES > 0);
+    assert!(MAX_GEWYLANG_SOURCE_GRAPH_FILES > 0);
+    assert!(MAX_GEWYLANG_INCLUDE_DEPTH < MAX_GEWYLANG_SOURCE_GRAPH_FILES);
+    assert!(MAX_GEWYLANG_SOURCE_GRAPH_BYTES >= MAX_GEWYLANG_SOURCE_BYTES);
+};
 
 /// Public, versioned compiler boundaries exposed by GewyLang tooling.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -1,5 +1,6 @@
 use leselang_command::CommandPlan;
 use leselang_hir::Effect;
+use leselang_host_contract::{Confirmation, Revision, RuntimeId};
 use leselang_ui::{
     DebuggerEffectKind, DebuggerFrame, DebuggerPendingEffect, DebuggerProjection, DebuggerState,
     MAX_RUNTIME_LOG_DISPLAY_BYTES, MAX_RUNTIME_LOG_ENTRIES, MAX_UI_TEXT_BYTES, RuntimeLogEntry,
@@ -11,8 +12,8 @@ use leselang_vm::{
     encode_continuation, validate_effect_request,
 };
 use leserpent_domain::{
-    Command, CommandPlanError, Confirmation, MAX_RUNTIME_LOG_MESSAGE_BYTES, PlannedOperation,
-    Revision, RuntimeId, RuntimeLogLevel, RuntimeLogRecord,
+    Command, CommandPlanError, MAX_RUNTIME_LOG_MESSAGE_BYTES, PlannedOperation, RuntimeLogLevel,
+    RuntimeLogRecord,
 };
 use serde::{Deserialize, Serialize};
 

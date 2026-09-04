@@ -18,9 +18,8 @@ use leselang_hir::{
     UiSemanticNodeKind as HirUiSemanticNodeKind, canonical_source, validate_ui_expected_text,
     validate_ui_form_field_key, validate_ui_form_value, validate_ui_node_id,
 };
-use leserpent_domain::{
-    CommandPlan, QueryResult, RefreshStatus, Revision, RuntimeId, validate_deployment_intent,
-};
+use leselang_host_contract::{Revision, RuntimeId, validate_deployment_intent};
+use leserpent_domain::{CommandPlan, QueryResult, RefreshStatus};
 use serde::{Deserialize, Serialize};
 
 pub const UI_SCHEMA_VERSION: u32 = 1;

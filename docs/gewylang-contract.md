@@ -5,9 +5,21 @@ Grammar details remain in [the canonical EBNF](gewylang.ebnf), while this page
 defines the boundaries between syntax, compiler representations, and runtime
 projections.
 
-The machine-readable contract stamp is defined by
-[`src/dsl/contract.rs`](../src/dsl/contract.rs) and described by
+The machine-readable contract stamp and source bounds are owned by the
+zero-product-dependency
+[`gewylang-contract`](../crates/gewylang-contract) crate and described by
 [`gewylang-language-contract-v1.schema.json`](contracts/gewylang-language-contract-v1.schema.json).
+`gewyvern::dsl` re-exports the same Rust items for source compatibility, but
+external generators and inspection tools can consume the contract without
+linking the Gewyvern runtime.
+
+The product-independent [`gewylang-syntax`](../crates/gewylang-syntax) crate
+consumes that contract and owns bounded source loading, package/include graph
+expansion, the canonical syntax AST and parser, and frontend summaries. Its only
+normal dependency is `gewylang-contract`, so editors, generators, and static
+inspection tools can parse GewyLang without linking Gewyvern. The
+`gewyvern::dsl` facade preserves the established API and error shape while it
+adapts this syntax tree into `TemplateBinding` and runtime analysis structures.
 
 ## Contract Identity
 
@@ -37,9 +49,9 @@ Consumers must match all four fields before interpreting stage-specific data.
 | Stage | Version | Meaning | Primary surface |
 | --- | --- | --- | --- |
 | Source syntax | `1` | Canonical `.gewy` grammar and source semantics. | [`gewylang.ebnf`](gewylang.ebnf) |
-| `expanded_ast` | `1` | Expanded package composition, declarations, provenance, and `use` graph. | `gewyc frontend` |
-| `binding_ir` | `1` | Executable semantic compile target represented in Rust by `TemplateBinding`. | `gewyc binding` |
-| `analysis_ir` | `1` | Diagnostics-enriched program and reason model projection represented by `IrReport`. | `gewyc ir` |
+| `expanded_ast` | `1` | Expanded package composition, declarations, provenance, and `use` graph. | `gewylang-syntax` |
+| `binding_ir` | `1` | Executable semantic compile target represented in Rust by `TemplateBinding`. | Gewyvern semantic lowering / `gewyc binding` |
+| `analysis_ir` | `1` | Diagnostics-enriched program and reason model projection represented by `IrReport`. | Gewyvern analysis adapter / `gewyc ir` |
 
 The stage names are protocol identifiers. Human-facing prose may use
 "Expanded AST", "Binding IR", and "Analysis IR", but serialized output must

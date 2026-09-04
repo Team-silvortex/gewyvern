@@ -1,15 +1,15 @@
 use super::function_types::{
     format_pipeline_function_signature, infer_pipeline_param_kinds, resolve_pipeline_param_kind,
 };
-use super::pipeline::{
+use super::parsing::{
     parse_pipeline_call, parse_pipeline_function_signature, parse_pipeline_let_binding,
     parse_pipeline_single_arg, push_pipeline_function_call,
 };
 use super::source_graph::SourceGraphState;
 use super::{
-    DslError, FrontendGraphEdge, FrontendGraphEdgeKind, FrontendIncludeSource,
-    FrontendIncludeSourceKind, FrontendUseEdge, PackageContext, PipelineCall, PipelineFunction,
-    PipelineFunctionBodySyntax, PipelineLetBinding, PipelineModule, PipelineParam, package,
+    FrontendGraphEdge, FrontendGraphEdgeKind, FrontendIncludeSource, FrontendIncludeSourceKind,
+    FrontendUseEdge, PackageContext, PipelineCall, PipelineFunction, PipelineFunctionBodySyntax,
+    PipelineLetBinding, PipelineModule, PipelineParam, SyntaxError as DslError, package,
     strip_comments_preserve_layout,
 };
 use std::collections::BTreeMap;
@@ -342,9 +342,7 @@ fn parse_pipeline_module_into(
     Ok(())
 }
 
-pub(super) fn parse_pipeline_function_head(
-    line: &str,
-) -> Option<(&str, PipelineFunctionBodySyntax)> {
+pub fn parse_pipeline_function_head(line: &str) -> Option<(&str, PipelineFunctionBodySyntax)> {
     if let Some(header) = line.strip_suffix('{') {
         let header = header.trim();
         let signature = header.strip_prefix("fn ")?;

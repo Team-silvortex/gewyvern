@@ -2,8 +2,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use http::Uri;
+pub use leselang_host_contract::{
+    CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
+    CAPABILITY_RUNTIME_REFRESH, CapabilitySet, CommandOrigin, Confirmation, Principal, Revision,
+    RuntimeId, RuntimeListFilter,
+};
 use serde::{Deserialize, Serialize};
-pub use silvortex_identity::{IdentityError, RuntimeId};
+pub use silvortex_identity::IdentityError;
 
 pub mod bootstrap;
 pub mod bootstrap_retirement;
@@ -13,13 +18,9 @@ pub mod retirement;
 pub const DOMAIN_SCHEMA_VERSION: u32 = 1;
 pub const COMMAND_PLAN_SCHEMA_VERSION: u32 = 1;
 pub const DOMAIN_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
-pub const CAPABILITY_RUNTIME_READ: &str = "runtime.read";
 pub const CAPABILITY_RUNTIME_REGISTER: &str = "runtime.register";
 pub const CAPABILITY_RUNTIME_UNREGISTER: &str = "runtime.unregister";
-pub const CAPABILITY_RUNTIME_REFRESH: &str = "runtime.refresh";
-pub const CAPABILITY_RUNTIME_DEPLOY: &str = "runtime.deploy";
 pub const CAPABILITY_ORCHESTRA_WRITE: &str = "orchestra.write";
-pub const CAPABILITY_DEBUGGER_CONTROL: &str = "debugger.control";
 pub const RUNTIME_STATUS_REFRESH_EFFECT_KIND: &str = "gewyvern.status.refresh";
 pub const RUNTIME_CAPABILITY_DISCOVERY_EFFECT_KIND: &str = "gewyvern.capabilities.discover";
 pub const RUNTIME_DEPLOYMENT_EFFECT_KIND: &str = "gewyvern.deployment.submit";
@@ -34,36 +35,6 @@ pub struct CommandId(String);
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct IdempotencyKey(String);
-
-#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
-#[serde(transparent)]
-pub struct Revision(pub u64);
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct Principal {
-    pub id: String,
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(transparent)]
-pub struct CapabilitySet(BTreeSet<String>);
-
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CommandOrigin {
-    Gui,
-    Cli,
-    Leselang,
-    Model,
-    CompatibilityAdapter,
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Confirmation {
-    NotRequired,
-    Confirmed,
-}
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields, tag = "kind", rename_all = "snake_case")]
@@ -146,13 +117,6 @@ pub struct RuntimeLogRecord {
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct RuntimeTags {
-    pub environment: Option<String>,
-    pub cluster: Option<String>,
-    pub role: Option<String>,
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-pub struct RuntimeListFilter {
     pub environment: Option<String>,
     pub cluster: Option<String>,
     pub role: Option<String>,
@@ -576,16 +540,6 @@ macro_rules! impl_validated_identifier_deserialize {
 impl_validated_identifier_deserialize!(CommandId);
 impl_validated_identifier_deserialize!(IdempotencyKey);
 
-impl CapabilitySet {
-    pub fn new(values: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        Self(values.into_iter().map(Into::into).collect())
-    }
-
-    pub fn contains(&self, capability: &str) -> bool {
-        self.0.contains(capability)
-    }
-}
-
 impl CommandPlan {
     pub fn validate(&self) -> Result<(), CommandPlanError> {
         if self.schema_version != COMMAND_PLAN_SCHEMA_VERSION {
@@ -773,16 +727,6 @@ impl fmt::Display for CommandPlanError {
 }
 
 impl std::error::Error for CommandPlanError {}
-
-impl RuntimeListFilter {
-    pub fn normalized(self) -> Self {
-        Self {
-            environment: normalize_filter_value(self.environment),
-            cluster: normalize_filter_value(self.cluster),
-            role: normalize_filter_value(self.role),
-        }
-    }
-}
 
 impl Default for RuntimeStatusSnapshot {
     fn default() -> Self {
@@ -1750,13 +1694,23 @@ impl From<silvortex_identity::IdentityError> for DomainError {
     }
 }
 
+impl From<leselang_host_contract::HostContractError> for DomainError {
+    fn from(error: leselang_host_contract::HostContractError) -> Self {
+        match error {
+            leselang_host_contract::HostContractError::InvalidIdentifier { field } => {
+                Self::InvalidIdentifier { field }
+            }
+        }
+    }
+}
+
 fn validated_identifier(field: &'static str, value: String) -> Result<String, DomainError> {
     silvortex_identity::validate_identifier(field, value).map_err(DomainError::from)
 }
 
 /// Validates the debugger session identity shared by language, UI, and plan boundaries.
 pub fn validate_debugger_session_id(session_id: &str) -> Result<(), DomainError> {
-    validated_identifier("session_id", session_id.to_string()).map(|_| ())
+    leselang_host_contract::validate_debugger_session_id(session_id).map_err(DomainError::from)
 }
 
 /// Validates the deployment fields shared by language, CLI, plan, and runtime boundaries.
@@ -1764,27 +1718,8 @@ pub fn validate_deployment_intent(
     pipeline_kind: &str,
     target: Option<&str>,
 ) -> Result<(), DomainError> {
-    let pipeline_valid = !pipeline_kind.is_empty()
-        && pipeline_kind.len() <= 128
-        && pipeline_kind == pipeline_kind.trim()
-        && pipeline_kind
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'/' | b'_' | b'-'));
-    let target_valid = target.is_none_or(|target| {
-        !target.is_empty()
-            && target.len() <= 256
-            && target == target.trim()
-            && !target.chars().any(char::is_control)
-    });
-    if !pipeline_valid {
-        return Err(DomainError::InvalidIdentifier {
-            field: "pipeline_kind",
-        });
-    }
-    if !target_valid {
-        return Err(DomainError::InvalidIdentifier { field: "target" });
-    }
-    Ok(())
+    leselang_host_contract::validate_deployment_intent(pipeline_kind, target)
+        .map_err(DomainError::from)
 }
 
 /// Validates the canonical, secret-free registration fields shared by all frontends.
@@ -2099,13 +2034,6 @@ fn require_capability(
         .contains(capability)
         .then_some(())
         .ok_or(DomainError::Unauthorized { capability })
-}
-
-fn normalize_filter_value(value: Option<String>) -> Option<String> {
-    value.and_then(|value| {
-        let trimmed = value.trim();
-        (!trimmed.is_empty()).then(|| trimmed.to_string())
-    })
 }
 
 fn matches_filter(runtime: &RuntimeProjection, filter: &RuntimeListFilter) -> bool {

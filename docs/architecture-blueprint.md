@@ -140,6 +140,30 @@ These crates may be reused by several planes, but they cannot decide policy or
 own durable truth. Their purpose is to remove duplicated mechanism without
 creating a new semantic center.
 
+### Language-Owned Boundaries
+
+Two leaf contracts and an independent GewyLang frontend establish future
+repository boundaries without creating a shared business layer:
+
+- `gewylang-contract` owns GewyLang language identity, compiler-stage versions,
+  package filename, and bounded source-graph limits. It has no product
+  dependency; `gewyvern::dsl` is a compatibility re-export.
+- `leselang-host-contract` owns Leselang's product-independent host ABI values:
+  principal, revision, capabilities, runtime selector, and bounded effect-input
+  validation. `leserpent-domain` preserves its existing imports as compatibility
+  re-exports.
+- `gewylang-syntax` owns bounded source loading, package/include graphs, the
+  canonical syntax AST and parser, and frontend summaries. Its normal dependency
+  closure contains only `gewylang-contract`.
+
+`leselang-syntax -> leselang-host-contract + leselang-hir` is now a standalone
+frontend closure. `leselang-command` remains the explicit Leserpent binding,
+while VM/UI product result extraction remains staged work. Likewise,
+`gewylang-contract -> gewylang-syntax` is a standalone frontend closure;
+`gewyvern::dsl` remains its source-compatible facade and owns semantic lowering
+to runtime bindings and analysis reports. `gewyc` still links Gewyvern only for
+that product-facing lowering and reporting layer.
+
 ## End-To-End Topology
 
 ```mermaid
@@ -264,7 +288,10 @@ renderer hosts
   -> leserpent-protocol
   -> leserpent-domain
 
-leselang syntax -> HIR -> command/UI lowering -> VM/observe
+leselang-syntax -> leselang-host-contract -> leselang-hir
+                                             |
+                                             v
+                          Leserpent command/UI adapters -> VM/observe
                                       |
                                       v
 leserpent-domain -> runtime -> adapters -> leserpentd
@@ -275,8 +302,12 @@ leserpent-domain -> runtime -> adapters -> leserpentd
 silvortex-bounded-io -> Gewyvern / protocol / adapters / CLI / daemon
 silvortex-identity -> Gewyvern install contract / leserpent-domain
 gewyvern-install-contract -> Gewyvern installer / protocol / adapters
+gewylang-contract -> gewylang-syntax -> external tooling
+                                      |
+                                      v
+                         Gewyvern semantic lowering -> gewyc
 
-GewyLang -> fragment registry -> Gewyvern runtime -> export/replay
+GewyLang -> gewylang-syntax -> fragment registry -> Gewyvern runtime -> export/replay
                                                     |
                                                     v
                                          optional Etragon advice
@@ -344,12 +375,16 @@ The status tensor and source map identify four maintenance priorities:
    confuse a 100% delivery score with permanent maturity.
 2. Freeze the ASP.NET/TypeScript implementation as a compatibility bridge and
    add no new semantic authority there.
-3. Preserve the completed neutral I/O, identity, and install-contract
-   extractions; no product semantics or reverse product dependencies may leak
-   back into those shared crates.
-4. Split internal monoliths along existing contracts when touched. In
-   particular, Leselang VM/UI and Leserpent runtime/persistence modules should
-   become smaller implementation units without changing their public protocol.
+3. Preserve the completed neutral I/O, identity, install-contract, and
+   language-contract extractions; no product semantics or reverse product
+   dependencies may leak back into those crates.
+4. Finish the language seams: preserve the extracted GewyLang frontend and move
+   semantic lowering/compiler-facade ownership out of the Gewyvern runtime;
+   split Leselang VM/UI product bindings behind the host contract without
+   changing wire behavior.
+5. Split other internal monoliths along existing contracts when touched. In
+   particular, Leserpent runtime/persistence modules should become smaller
+   implementation units without changing their public protocol.
 
 Etragon remains explicit deferred work, not a hidden weakness in the core
 release.

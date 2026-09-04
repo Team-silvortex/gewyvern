@@ -1,10 +1,10 @@
 // Keep nearby parser tests beside the helpers they specify.
 #![allow(clippy::items_after_test_module)]
 
-use super::{PipelineProvidedArg, PipelineUseCall, looks_like_pipeline_keyword_arg};
-use crate::dsl::{
-    DslError, PipelineCall, PipelineLetBinding, PipelineModule, PipelineParam, frontend,
-    function_types::parse_pipeline_value_kind_name,
+use crate::{
+    PipelineCall, PipelineLetBinding, PipelineModule, PipelineParam, PipelineProvidedArg,
+    PipelineUseCall, SyntaxError as DslError, frontend,
+    function_types::parse_pipeline_value_kind_name, looks_like_pipeline_keyword_arg,
 };
 use std::{
     borrow::Cow,
@@ -54,9 +54,7 @@ pub(crate) fn push_pipeline_function_call(
     Ok(())
 }
 
-pub(crate) fn parse_pipeline_let_binding(
-    line: &str,
-) -> Result<Option<PipelineLetBinding>, DslError> {
+pub fn parse_pipeline_let_binding(line: &str) -> Result<Option<PipelineLetBinding>, DslError> {
     let Some(remainder) = line.strip_prefix("let ") else {
         return Ok(None);
     };
@@ -90,9 +88,7 @@ pub(crate) fn parse_pipeline_let_binding(
     }))
 }
 
-pub(crate) fn parse_pipeline_call(
-    line: &str,
-) -> Result<(String, Vec<String>, Vec<usize>), DslError> {
+pub fn parse_pipeline_call(line: &str) -> Result<(String, Vec<String>, Vec<usize>), DslError> {
     validate_pipeline_string_delimiters(line)?;
     validate_no_braced_pipeline_placeholders(line)?;
     let (open, duplicate_open) = first_two_unquoted_char_positions(line, '(');
@@ -185,7 +181,7 @@ fn invalid_pipeline_call_at(line: &str, column: usize) -> DslError {
         .at_line_column(0, Some(column))
 }
 
-pub(crate) fn parse_pipeline_function_signature(
+pub fn parse_pipeline_function_signature(
     signature: &str,
 ) -> Result<(String, Vec<PipelineParam>), DslError> {
     validate_pipeline_string_delimiters(signature)?;
@@ -324,7 +320,7 @@ pub(crate) fn parse_pipeline_param_name(param: &str) -> Result<String, DslError>
     Ok(value)
 }
 
-pub(super) fn is_pipeline_identifier(value: &str) -> bool {
+pub fn is_pipeline_identifier(value: &str) -> bool {
     let mut chars = value.chars();
     let Some(first) = chars.next() else {
         return false;
@@ -754,11 +750,11 @@ mod tests {
     }
 }
 
-pub(crate) fn parse_pipeline_literal(value: &str) -> Result<String, DslError> {
+pub fn parse_pipeline_literal(value: &str) -> Result<String, DslError> {
     parse_pipeline_literal_cow(value).map(Cow::into_owned)
 }
 
-pub(crate) fn parse_pipeline_literal_cow(value: &str) -> Result<Cow<'_, str>, DslError> {
+pub fn parse_pipeline_literal_cow(value: &str) -> Result<Cow<'_, str>, DslError> {
     let value = value.trim();
     if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
         let inner = &value[1..value.len() - 1];
@@ -824,7 +820,7 @@ fn invalid_pipeline_string_character(ch: char, column: usize) -> DslError {
     .at_line_column(0, Some(column))
 }
 
-pub(crate) fn parse_pipeline_single_arg(args: &[String], step: &str) -> Result<String, DslError> {
+pub fn parse_pipeline_single_arg(args: &[String], step: &str) -> Result<String, DslError> {
     if args.len() != 1 {
         return Err(DslError::InvalidValue(format!(
             "pipeline step '{step}' expects exactly one argument"
@@ -834,7 +830,7 @@ pub(crate) fn parse_pipeline_single_arg(args: &[String], step: &str) -> Result<S
     parse_pipeline_literal(&args[0])
 }
 
-pub(crate) fn parse_pipeline_use_call(args: &[String]) -> Result<PipelineUseCall, DslError> {
+pub fn parse_pipeline_use_call(args: &[String]) -> Result<PipelineUseCall, DslError> {
     if args.is_empty() {
         return Err(DslError::InvalidValue(
             "pipeline step 'use' expects at least one argument".into(),

@@ -228,9 +228,11 @@ most relevant implementation shelves:
 
 - [src/dsl.rs](../src/dsl.rs)
 - [src/dsl/pipeline.rs](../src/dsl/pipeline.rs)
+- [crates/gewylang-syntax/src/lib.rs](../crates/gewylang-syntax/src/lib.rs)
+- [crates/gewylang-syntax/src/package.rs](../crates/gewylang-syntax/src/package.rs)
+- [crates/gewylang-syntax/src/frontend.rs](../crates/gewylang-syntax/src/frontend.rs)
 - [src/dsl/predicate.rs](../src/dsl/predicate.rs)
-- [src/dsl/package.rs](../src/dsl/package.rs)
-- [src/dsl/frontend.rs](../src/dsl/frontend.rs)
+- [src/dsl/pipeline/lowering.rs](../src/dsl/pipeline/lowering.rs)
 - [src/template.rs](../src/template.rs)
 - [src/program.rs](../src/program.rs)
 - [src/fragment.rs](../src/fragment.rs)

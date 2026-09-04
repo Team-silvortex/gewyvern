@@ -1,7 +1,7 @@
 mod graph;
 mod summary;
 
-use super::{DslError, PipelineModule};
+use super::{PipelineModule, SyntaxError as DslError};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FrontendDslKind {
@@ -110,13 +110,13 @@ pub fn summarize_frontend_str(input: &str) -> Result<FrontendModuleSummary, DslE
     summary::summarize_frontend_str(input)
 }
 
-pub(crate) fn summarize_frontend_str_with_package(
+pub fn summarize_frontend_str_with_package(
     input: &str,
     package: &super::PackageContext,
 ) -> Result<FrontendModuleSummary, DslError> {
     summary::summarize_frontend_str_with_package(input, package)
 }
 
-pub(super) fn summarize_pipeline_module(module: PipelineModule) -> FrontendModuleSummary {
+pub fn summarize_pipeline_module(module: PipelineModule) -> FrontendModuleSummary {
     summary::summarize_pipeline_module(module)
 }

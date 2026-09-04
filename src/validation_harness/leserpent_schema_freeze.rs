@@ -482,9 +482,7 @@ fn load_and_validate_scope_freeze(
                     capability.id
                 )));
             }
-            if !(cell.starts_with("leserpent-2/") || cell.starts_with("gewyvern-core/"))
-                || !known_cells.contains(cell.as_str())
-            {
+            if !is_core_status_cell(cell) || !known_cells.contains(cell.as_str()) {
                 return Err(ValidationError::new(format!(
                     "scope capability {} references unavailable core status cell {cell}",
                     capability.id
@@ -494,6 +492,12 @@ fn load_and_validate_scope_freeze(
     }
 
     Ok(scope)
+}
+
+fn is_core_status_cell(cell: &str) -> bool {
+    ["gewyvern-core/", "gewylang/", "leselang/", "leserpent-2/"]
+        .iter()
+        .any(|prefix| cell.starts_with(prefix))
 }
 
 fn load_and_validate_patch_seal(
@@ -1012,6 +1016,12 @@ mod tests {
             scope.deferred_capabilities.len(),
             EXPECTED_DEFERRED_CAPABILITIES.len()
         );
+        assert!(scope.core_capabilities.iter().any(|capability| {
+            capability
+                .status_cells
+                .iter()
+                .any(|cell| cell.starts_with("leselang/"))
+        }));
     }
 
     #[test]

@@ -6,7 +6,7 @@ implemented Leselang slice. The broader destination is defined by the
 syntax is not part of this contract.
 
 Leselang is not a general-purpose language runtime. It is the narrow,
-protocolized GUI and control automation language for Leserpent: source lowers
+protocolized GUI and control automation language that Leserpent hosts: source lowers
 to typed effects, renderer-neutral UI presentation operations, canonical
 exports, and durable continuation re-entry. The long-term host shape is a
 hostable Rust crate, not a process-global interpreter. By design, no GUI framework is automatically compatible with this crate.
@@ -17,6 +17,15 @@ as the explicit compatibility proof for either path. Non-Rust integrations
 should cross only the protocol or narrow FFI boundary. Host event loops, async
 runtimes, threads, widget object models, and hand-written framework shortcuts
 stay outside the language contract.
+
+The repository boundary is executable rather than aspirational. The
+`leselang-syntax`, `leselang-host-contract`, and `leselang-hir` dependency
+closures contain no Leserpent or Gewyvern product crate. The host contract owns
+only stable identities, principals, revisions, capabilities, filters, and
+bounded effect inputs. `leselang-command` is deliberately a Leserpent adapter;
+the current VM, UI, and observe crates still consume product command/result
+types and remain the next extraction seam. CI checks these dependency closures
+so product policy cannot leak back into the independent frontend.
 
 Status: **Gate 2 execution and syntax contracts stable at 1.0.0**. The current
 vertical slice parses, lowers, authorizes, suspends,
@@ -1354,7 +1363,10 @@ For deterministic model or CLI integration:
 `Vm::resume` remains the direct embedded path for an effect that has not been
 leased. Once a request is leased, completion must use `acknowledge_effect`.
 
-The implementation lives in `crates/leselang-syntax`, `crates/leselang-hir`,
-and `crates/leselang-vm`. Delivery progress is tracked by the
+The independent frontend implementation lives in `crates/leselang-syntax`,
+`crates/leselang-host-contract`, and `crates/leselang-hir`. Execution and
+product bindings currently live in `crates/leselang-vm`,
+`crates/leselang-command`, `crates/leselang-ui`, and
+`crates/leselang-observe`. Delivery progress is tracked by the
 [project status tensor](project-status-system.md), not inferred from future
 examples in architecture documents.

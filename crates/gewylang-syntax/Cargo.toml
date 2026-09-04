@@ -1,0 +1,9 @@
+[package]
+name = "gewylang-syntax"
+version.workspace = true
+edition.workspace = true
+description = "Product-independent GewyLang source, package, syntax tree, and frontend model"
+license.workspace = true
+
+[dependencies]
+gewylang-contract = { path = "../gewylang-contract" }

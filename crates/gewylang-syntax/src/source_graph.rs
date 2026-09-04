@@ -1,7 +1,8 @@
 use super::{
-    DslError, MAX_GEWYLANG_INCLUDE_DEPTH, MAX_GEWYLANG_SOURCE_GRAPH_BYTES,
-    MAX_GEWYLANG_SOURCE_GRAPH_FILES, read_source_file,
+    MAX_GEWYLANG_INCLUDE_DEPTH, MAX_GEWYLANG_SOURCE_GRAPH_BYTES, MAX_GEWYLANG_SOURCE_GRAPH_FILES,
+    read_source_file,
 };
+use crate::SyntaxError as DslError;
 use std::path::{Path, PathBuf};
 
 pub(super) struct SourceGraphState {

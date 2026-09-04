@@ -1,11 +1,11 @@
 use super::graph::{pipeline_expansion_previews, pipeline_graph_edges, pipeline_graph_nodes};
 use super::{FrontendDslKind, FrontendFunctionNode, FrontendFunctionParam, FrontendModuleSummary};
-use crate::dsl::entry::parse_expanded_pipeline_module;
-use crate::dsl::function_types::{format_pipeline_function_signature, pipeline_value_kind_text};
-use crate::dsl::{DslError, PackageContext, PipelineModule};
+use crate::entry::parse_expanded_pipeline_module;
+use crate::function_types::{format_pipeline_function_signature, pipeline_value_kind_text};
+use crate::{PackageContext, PipelineModule, SyntaxError as DslError};
 
 pub(super) fn summarize_frontend_file(path: &str) -> Result<FrontendModuleSummary, DslError> {
-    let (input, package) = crate::dsl::entry::load_file_with_package_context(path)?;
+    let (input, package) = crate::entry::load_file_with_package_context(path)?;
     summarize_frontend_str_with_base(&input, Some(&package))
 }
 
@@ -13,7 +13,7 @@ pub(super) fn summarize_frontend_str(input: &str) -> Result<FrontendModuleSummar
     summarize_frontend_str_with_base(input, None)
 }
 
-pub(crate) fn summarize_frontend_str_with_package(
+pub(super) fn summarize_frontend_str_with_package(
     input: &str,
     package: &PackageContext,
 ) -> Result<FrontendModuleSummary, DslError> {

@@ -1,0 +1,6 @@
+[package]
+name = "gewylang-contract"
+version.workspace = true
+edition.workspace = true
+description = "Product-independent GewyLang language and compiler-stage contract"
+license.workspace = true

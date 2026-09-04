@@ -12,7 +12,9 @@ changing a cross-project boundary.
 | Path | Role | Authority |
 | --- | --- | --- |
 | [`src/`](../src) | Gewyvern runtime, API, evidence reconstruction, CLI | observed network truth |
-| [`crates/gewyc/`](../crates/gewyc) | GewyLang compiler CLI | language diagnostics and lowering |
+| [`crates/gewylang-contract/`](../crates/gewylang-contract) | product-independent GewyLang identity and stage contract | language/version identity and source bounds |
+| [`crates/gewylang-syntax/`](../crates/gewylang-syntax) | product-independent source, package, AST, parser, frontend | canonical syntax interpretation |
+| [`crates/gewyc/`](../crates/gewyc) | GewyLang compiler CLI | diagnostic and lowering orchestration |
 | [`crates/silvortex-bounded-io/`](../crates/silvortex-bounded-io) | product-neutral bounded files and transport deadlines | native I/O safety invariants |
 | [`crates/silvortex-identity/`](../crates/silvortex-identity) | product-neutral validated protocol identities | identifier grammar and scalar wire identity |
 | [`crates/gewyvern-install-contract/`](../crates/gewyvern-install-contract) | strict Gewyvern installation and retirement exchange | cross-plane lifecycle wire contract |
@@ -75,7 +77,13 @@ observed fact, command result, or audit record.
 The intended dependency flow is:
 
 ```text
-GewyLang source -> Gewyvern evidence runtime -> machine evidence contract
+GewyLang source -> gewylang-contract -> gewylang-syntax
+                                             |
+                                             v
+                              Gewyvern semantic lowering
+                                             |
+                                             v
+                        evidence runtime -> machine evidence contract
 
 silvortex-bounded-io -> Gewyvern / protocol / adapters / CLI / daemon
 silvortex-identity -> Gewyvern install contract / leserpent-domain
@@ -98,6 +106,9 @@ The root Gewyvern crate consumes no Leserpent or Leselang crate in its normal
 dependency graph. `gewyvern-install-contract` and `leserpent-domain` share the
 same validated ID types through `silvortex-identity`; old domain and protocol
 paths remain compatibility re-exports with unchanged scalar wire bytes.
+GewyLang tooling that only needs source/package parsing can stop at
+`gewylang-syntax`; runtime bindings and evidence-aware analysis deliberately
+cross into Gewyvern through its compatibility adapter.
 
 ## Toolchain Boundaries
 

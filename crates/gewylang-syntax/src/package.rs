@@ -1,11 +1,11 @@
-use super::{DslError, PACKAGE_MANIFEST_FILE};
+use super::{PACKAGE_MANIFEST_FILE, SyntaxError as DslError};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct PackageContext {
+pub struct PackageContext {
     pub(crate) package_scope: String,
     pub(crate) source_root: PathBuf,
     pub(crate) package_root: PathBuf,

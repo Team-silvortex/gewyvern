@@ -1,11 +1,14 @@
 use leselang_hir::Effect;
-use leserpent_domain::{
+use leselang_host_contract::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
-    CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Command, CommandEnvelope, CommandId, CommandOrigin,
-    Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey, MAX_RUNTIME_LOG_QUERY_ENTRIES, Principal,
-    Query, QueryEnvelope, Revision, RuntimeId, RuntimeListFilter,
+    CAPABILITY_RUNTIME_REFRESH, CapabilitySet, CommandOrigin, Confirmation, Principal, Revision,
+    RuntimeId, RuntimeListFilter,
 };
 pub use leserpent_domain::{COMMAND_PLAN_SCHEMA_VERSION, CommandPlan, PlannedOperation};
+use leserpent_domain::{
+    Command, CommandEnvelope, CommandId, DOMAIN_SCHEMA_VERSION, IdempotencyKey,
+    MAX_RUNTIME_LOG_QUERY_ENTRIES, Query, QueryEnvelope,
+};
 
 pub const MAX_COMMAND_PLAN_BYTES: usize = 64 * 1024;
 
