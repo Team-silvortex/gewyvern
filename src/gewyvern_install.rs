@@ -11,24 +11,22 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use leserpent_protocol::gewyvern_installer::{
+use gewyvern_install_contract::installer::{
     GEWYVERN_INSTALLER_SCHEMA_VERSION, GewyvernInstallerRequest, GewyvernInstallerResponse,
     GewyvernInstallerServiceState, MAX_GEWYVERN_INSTALLER_BYTES, decode_gewyvern_installer_request,
     encode_gewyvern_installer_response,
 };
-use leserpent_protocol::gewyvern_retirement::{
+use gewyvern_install_contract::retirement::{
     GEWYVERN_RETIREMENT_SCHEMA_VERSION, GewyvernRetirementRequest, GewyvernRetirementResponse,
     MAX_GEWYVERN_RETIREMENT_BYTES, decode_gewyvern_retirement_request,
     encode_gewyvern_retirement_response,
-};
-use leserpent_protocol::transport_safety::{
-    MAX_HTTP_HEADER_BYTES, connect_with_deadline, is_http_header_name,
 };
 use rcgen::{CertifiedKey, generate_simple_self_signed};
 use ring::digest::{SHA256, digest};
 use rustls::pki_types::{CertificateDer, ServerName, pem::PemObject};
 use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
 use serde::{Deserialize, Serialize};
+use silvortex_bounded_io::{MAX_HTTP_HEADER_BYTES, connect_with_deadline, is_http_header_name};
 use zeroize::Zeroizing;
 
 const MAX_INSTALL_ARTIFACT_BYTES: u64 = 256 * 1024 * 1024;

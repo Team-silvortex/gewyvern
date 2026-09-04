@@ -27,6 +27,7 @@ time.workspace = true
 rustls.workspace = true
 ring = "0.17"
 rcgen = "0.14"
+silvortex-bounded-io = { path = "../silvortex-bounded-io" }
 tungstenite.workspace = true
 zeroize = "1"
 

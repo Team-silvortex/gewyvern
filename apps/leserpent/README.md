@@ -1,4 +1,4 @@
-# leserpent Design Spec
+# Leserpent Web Compatibility Bridge
 
 > Community-facing product overview: [Leserpent](../../LESERPENT.md). This page
 > retains implementation and compatibility-bridge details for contributors.
@@ -7,7 +7,7 @@
   <img src="../../assets/branding/leserpent-icon.png" alt="Leserpent feathered serpent icon" width="220">
 </p>
 
-### eBPF Control Plane & Visual Orchestration Service
+### Self-hosted Web renderer and 1.x migration surface
 
 MIT License
 Status: Active; follows the root `gewyvern` version line
@@ -22,26 +22,27 @@ Monorepo home:
 
 ## 0. 定位
 
-leserpent 是：
+`apps/leserpent` 是：
 
-> control plane / management service
+> ASP.NET/TypeScript compatibility bridge and Web renderer
 
-当前 1.x 不是 CLI wrapper、kernel runtime 或 eBPF execution engine。
+它不是 kernel runtime、eBPF execution engine，也不是 2.x control-plane
+语义中心。
 
-2.0 目标不是继续扩张这个 ASP.NET 应用，而是将 control-plane 语义迁移
-到 Rust `leserpentd`，并让 Rust CLI、Leselang 与 Avalonia GUI 成为同一
-command/query contract 的可替换入口：
+2.0 已经将 control-plane 语义迁移到 Rust `leserpentd`。Rust CLI、
+Leselang、Avalonia、mobile 与 Web 都是同一 command/query contract 的
+可替换入口：
 
 * [Leserpent 2.0 architecture](../../docs/leserpent-2-architecture.md)
 * [Leserpent 1.0 to 2.0 roadmap](../../docs/leserpent-2-roadmap.md)
 
-它负责：
+这层负责：
 
-* 生成 pipeline spec
-* 分发
-* 管理
-* 可视化
-* 审计
+* 承载自托管 Web 控制台
+* 将兼容路由和旧状态迁移到 Rust contract
+* 渲染 daemon 的权威 projection
+* 保留迁移期恢复与审计兼容性
+* 为 Windows 等尚无原生客户端的平台提供 Web 入口
 
 ---
 
@@ -49,29 +50,31 @@ command/query contract 的可替换入口：
 
 1. 不直接操作 kernel
 2. 不直接 attach eBPF
-3. 所有 execution 委托 gewyvern
-4. 必须依赖 runtime capability
-5. runtime 权威优先
-6. 当前核心能力全部采用 MIT 许可证、开源且免费；账号和订阅不得限制或回收既有能力
+3. 所有网络调试 execution 委托 Gewyvern
+4. 所有 control-plane 决策委托 Rust `leserpentd`
+5. 必须依赖 runtime capability 与 expected revision
+6. bridge 可以翻译，不可以建立第二权威
+7. 当前核心能力全部采用 MIT 许可证、开源且免费；账号和订阅不得限制或回收既有能力
 
 ---
 
 ## 2. 部署模型
 
-当前 1.x：
-
-* ASP.NET Core
-* server-first
-* 可跨平台部署
-* 不建议部署普通客户端
-
-目标 2.0：
+当前 2.x：
 
 * Rust control runtime and native CLI
 * separate local daemon and replaceable clients
 * Avalonia desktop/mobile renderer
 * authenticated web/mobile transport
-* current ASP.NET/TypeScript surface as the migration bridge
+* one client managing multiple independent daemon authorities
+* one daemon authority managing multiple Gewyvern services
+
+兼容 bridge：
+
+* ASP.NET Core + TypeScript static frontend
+* server-first, cross-platform, self-hosted
+* 通过 Rust compatibility bridge 或 daemon transport 消费权威状态
+* 不再新增只存在于 managed runtime 的 control-plane 语义
 
 ### Runtime posture
 
@@ -130,58 +133,53 @@ command/query contract 的可替换入口：
 
 ## 3. 连接模型
 
+```text
+Avalonia / mobile / Web / CLI / Leselang
+  -> authenticated IPC or HTTPS/WebSocket
+  -> leserpentd
+  -> versioned Gewyvern machine contract
+  -> one or more Gewyvern services
 ```
-leserpent → gewyvern
-```
 
-短连接：
-
-* 即时 gRPC
-
-非：
-
-* 长连接 agent 控制
+命令、查询和事件使用同一版本化语义。传输可以不同，但 transport 不拥有
+policy；renderer 也不能绕过 daemon 直接调用部署或 Gewyvern adapter。
 
 ---
 
-## 4. 配对模型
+## 4. 信任模型
 
-流程：
-
-1. gewyvern 提供 token
-2. leserpent 生成密钥对
-3. 交换公钥
-4. 建立 trust
-
-之后：
-
-* 所有请求签名
+* 本地 authority 使用私有 Unix IPC 与 endpoint token
+* 远程 authority 使用 HTTPS、显式 CA 信任和 endpoint-scoped token
+* bootstrap credential 只用于安装和绑定 daemon，不自动升级为长期 authority
+* Gewyvern deployment credential 只进入 capability-gated adapter
+* desktop/mobile token 只进入平台 secret store，不进入 UI document 或 profile
 
 ---
 
-## 5. Pipeline assembler
+## 5. Intent assembler
 
 用户：
 
-* 不接触 protobuf
+* 不接触 wire JSON
 * 不写 JSON
 
 UI：
 
-* 组合 pipeline
+* 组合 typed action、表单和 Orchestra plan
 
-leserpent：
+Rust authority：
 
-> 生成 protobuf spec
+> 校验 capability、identity、revision 与 confirmation，并生成可重放 command plan
 
 ---
 
 ## 6. 能力依赖模型
 
-leserpent：
+所有 Leserpent frontend：
 
 * 必须读取 gewyvern capability
 * 不可假设 runtime 能力
+* 不可在 frontend 自行补出 daemon 未声明的操作
 
 ---
 
@@ -189,20 +187,20 @@ leserpent：
 
 | 状态              | 行为           |
 | --------------- | ------------ |
-| not supported   | 禁止           |
-| risky           | UI提示，不允许远程执行 |
-| fully supported | 允许           |
+| unavailable | 禁止并提供稳定原因 |
+| confirmation required | 生成预览并要求显式确认 |
+| available | 提交 revision-fenced command |
 
 ---
 
 ## 8. session 管理
 
-leserpent：
+`leserpentd`：
 
 * 创建
 * 查询
 * 停止
-* 审计
+* 审计与重放
 
 但：
 
@@ -212,23 +210,19 @@ leserpent：
 
 ## 9. 安全责任
 
-身份：
-
-* user auth
-* RBAC
-* audit
-
-runtime：
-
-* 不承担
+* `leserpentd` 承担 identity、capability、confirmation、revision 与 audit 权威
+* Gewyvern 承担 runtime admin token、采集权限和 observed-truth 边界
+* renderer 承担平台 secret storage，但不读取或持久化明文到 UI state
+* Team Silvortex account 是可选 hosted-service 身份，不是开源核心能力门槛
 
 ---
 
 ## 10. UI 目标
 
-* pipeline 可视化
-* session 可视化
-* metrics / trace 展示
+* 多 daemon hub 与每个 daemon 的独立 workspace
+* runtime、Orchestra、日志和 debugger projection
+* GUI action 与 Leselang/CLI 一一对应
+* renderer-neutral UI IR、可访问性和本地平台体验
 
 ---
 
@@ -238,19 +232,22 @@ runtime：
 * 不做 attach
 * 不做 verifier
 * 不做 eBPF 编译
+* 不在 C# 或 TypeScript 中新增 control-plane authority
+* 不绕过 Leselang/domain protocol 建立 GUI 私有操作
 
 ---
 
-## 12. 当前代码骨架
+## 12. 当前 bridge 实现
 
-当前仓库已经有一个最小 ASP.NET Core control-plane 骨架：
+当前仓库保留一个成熟的 ASP.NET Core 兼容服务：
 
 - `src/Leserpent`
   - standalone Web API service
   - built-in static dashboard
-  - in-memory runtime registry
-  - capability-aware session creation
-  - session query / stop surface
+  - legacy runtime/session state import and recovery
+  - daemon-authoritative runtime and Orchestra projection
+  - capability-aware compatibility routes
+  - static TypeScript dashboard
 
 当前公开路由：
 
@@ -280,13 +277,13 @@ runtime：
 - `POST /v1/sessions`
 - `POST /v1/sessions/{id}/stop`
 
-当前这层故意保持很轻：
+当前这层故意保持为 bridge：
 
-- 现在已经能主动抓取 gewyvern `/v1/capabilities`
-- runtime registry / session state 现在会持久化到本地 state file
-- 还没有真实 gRPC runtime client
-- 还没有 pairing / signing
-- 还没有 RBAC；Orchestra audit persistence 可由 managed SQLite 或配置后的 Rust daemon 提供
+- 旧 runtime/session 状态继续支持导入、恢复和显式兼容路由
+- 配置 daemon 后，Rust schema 与 writer fence 是 Orchestra 和 mutation 权威
+- managed persistence 只保留离线兼容与迁移职责，不与 daemon 双写
+- 新操作必须先进入 Rust domain/protocol，再由 Web 层消费
+- 远程信任使用明确的 HTTPS CA/token contract，不再承诺未实现的 gRPC 或隐式配对
 
 ### 当前持久化行为
 

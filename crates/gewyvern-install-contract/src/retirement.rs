@@ -1,3 +1,5 @@
+//! Retirement request, response, and identity-binding validation.
+
 use std::fmt;
 
 use leserpent_domain::RuntimeId;

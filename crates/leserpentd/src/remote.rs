@@ -20,16 +20,16 @@ use leserpent_protocol::provisioning::{
     MAX_PROVISIONING_PROTOCOL_BYTES, encode_provisioning_response,
 };
 use leserpent_protocol::retirement::{MAX_RETIREMENT_PROTOCOL_BYTES, encode_retirement_response};
-use leserpent_protocol::transport_safety::{
-    AUTHORITY_WRITER_GENERATION_HEADER, AUTHORITY_WRITER_ID_HEADER, BoundedFile,
-    MAX_HTTP_HEADER_BYTES, is_http_header_name, open_bounded_regular_file,
-};
 use leserpent_protocol::{
-    AuthorityWriterFence, MAX_PROTOCOL_MESSAGE_BYTES, decode_request, encode_response,
+    AUTHORITY_WRITER_GENERATION_HEADER, AUTHORITY_WRITER_ID_HEADER, AuthorityWriterFence,
+    MAX_PROTOCOL_MESSAGE_BYTES, decode_request, encode_response,
 };
 use leserpent_runtime::ControlRuntime;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
 use rustls::{ServerConfig, ServerConnection, StreamOwned};
+use silvortex_bounded_io::{
+    BoundedFile, MAX_HTTP_HEADER_BYTES, is_http_header_name, open_bounded_regular_file,
+};
 use zeroize::{Zeroize, Zeroizing};
 
 use crate::bootstrap_submission::{decode_and_submit, error as bootstrap_error};

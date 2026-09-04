@@ -83,6 +83,72 @@ fn documentation_index_routes_to_each_small_domain_module() {
 }
 
 #[test]
+fn architecture_shelf_defines_one_protocolized_debugging_fabric() {
+    let root = repository_root();
+    let blueprint = fs::read_to_string(root.join("docs/architecture-blueprint.md"))
+        .expect("canonical architecture blueprint must exist");
+    let coordination = fs::read_to_string(root.join("docs/architecture-coordination.md"))
+        .expect("architecture coordination contract must exist");
+    let evolution = fs::read_to_string(root.join("docs/architecture-evolution.md"))
+        .expect("architecture evolution contract must exist");
+    let monorepo = fs::read_to_string(root.join("docs/monorepo-stack.md"))
+        .expect("monorepo stack guide must exist");
+    let bridge = fs::read_to_string(root.join("apps/leserpent/README.md"))
+        .expect("Web compatibility bridge documentation must exist");
+
+    for invariant in [
+        "replayable, protocolized network debugging fabric",
+        "## Four Planes",
+        "### Evidence Plane",
+        "### Authority Plane",
+        "### Intent Plane",
+        "### Presentation Plane",
+        "### Advisory Sideplane",
+        "one kernel/container boundary -> one Gewyvern service",
+        "one leserpentd authority      -> many Gewyvern services",
+        "one Leserpent client          -> many independent leserpentd authorities",
+        "## The Advantage Zone",
+        "## Scope Guardrails",
+        "silvortex-bounded-io",
+        "gewyvern-install-contract",
+    ] {
+        assert!(
+            blueprint.contains(invariant),
+            "canonical blueprint lacks invariant: {invariant}"
+        );
+    }
+
+    for invariant in [
+        "## Compatibility Bridge Rule",
+        "## Current 2.0.x Priorities",
+        "Horizon 2: Remove Boundary Debt",
+        "A shared checkout does not imply shared\nauthority",
+        "Managed persistence must not become a second authority",
+    ] {
+        assert!(
+            coordination.contains(invariant)
+                || evolution.contains(invariant)
+                || monorepo.contains(invariant),
+            "architecture shelf lacks invariant: {invariant}"
+        );
+    }
+
+    assert!(bridge.contains("ASP.NET/TypeScript compatibility bridge"));
+    assert!(bridge.contains("不再新增只存在于 managed runtime 的 control-plane 语义"));
+    for stale in [
+        "2.0 目标",
+        "目标 2.0",
+        "即时 gRPC",
+        "最小 ASP.NET Core control-plane 骨架",
+    ] {
+        assert!(
+            !bridge.contains(stale),
+            "Web bridge documentation restored stale architecture: {stale}"
+        );
+    }
+}
+
+#[test]
 fn root_product_navigation_exposes_leserpent_as_a_first_class_entry() {
     let root = repository_root();
     let gewyvern = fs::read_to_string(root.join("README.md")).expect("root README must exist");

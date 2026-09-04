@@ -1,3 +1,5 @@
+//! Installation request, response, binding, and readiness validation.
+
 use std::fmt;
 
 use leserpent_domain::RuntimeId;

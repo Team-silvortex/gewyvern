@@ -122,7 +122,7 @@ failed outcome atomically completes at `failed`; a successful outcome derives an
 authority-owned proof and commits effect completion, the runtime registration
 journal entry, and revision-3 `runtime_registered` checkpoint in one transaction.
 
-`leserpent_protocol::gewyvern_installer` owns the separate internal installer
+`gewyvern_install_contract::installer` owns the separate internal installer
 wire used by the host-key-pinned native SSH channel. Its strict request and
 response are independently capped at 64 KiB. The request binds provisioning and
 runtime IDs, HTTPS endpoint, artifact digest, install profile, API/trust handles,
@@ -143,6 +143,11 @@ implemented. Runtime ID conflict is rejected before adapter dispatch, a lost
 effect lease rolls registration and checkpoint writes back together, and legacy
 revision-2 `service_ready` checkpoints promote through the same transaction after
 restart. No public provisioning wire field was added for this authority handoff.
+
+The old `leserpent_protocol::gewyvern_installer`,
+`leserpent_protocol::gewyvern_retirement`, and
+`leserpent_protocol::transport_safety` module paths remain source-compatible
+re-exports. New consumers should import the narrow owning crates directly.
 
 The native CLI consumes this unchanged draft envelope through a separate
 `runtime provision` command. Execution requires `--yes`, an explicit stable

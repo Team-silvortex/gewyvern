@@ -1,238 +1,216 @@
 # Architecture Evolution
 
-Use this page when you need the design-evolution sheet for `gewyvern`.
+This page describes how the released `2.0.x` architecture should deepen
+without dissolving its boundaries. It is directional guidance, not a promise
+that a feature belongs to a particular version.
 
-This page is the bridge between:
+Start with the [canonical blueprint](architecture-blueprint.md), then use the
+[coordination protocol](architecture-coordination.md) for individual changes.
+Historical version narratives live under [history](history/index.md).
 
-- the static blueprints in
-  [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
-- the current release posture in
-  [docs/v0.14-posture.md](docs/v0.14-posture.md)
-- the historical minor-line notes in
-  [docs/history/index.md](docs/history/index.md)
+## From Product Stack To Debugging Fabric
 
-Its job is not to promise exact version contents.
+The pre-2.0 work assembled three strong ideas:
 
-Its job is to explain how the architecture is meant to mature, and what kind of
-change belongs in which layer.
+- Gewyvern turns bounded kernel evidence into protocol-aware explanations.
+- Leserpent turns many runtime instances into durable, recoverable authority.
+- Leselang makes GUI and code control share one typed semantic boundary.
 
-## The Main Evolution Spine
+The post-2.0 task is not to add a fourth unrelated product. It is to make these
+ideas compound into a replayable, protocolized network debugging fabric.
 
-The project should keep evolving along one primary chain:
+The compounding loop is:
 
-```mermaid
-flowchart LR
-    A["gewylang authoring"] --> B["binding + frontend reports"]
-    B --> C["lowered IR visibility"]
-    C --> D["runtime evidence materialization"]
-    D --> E["diagnosis + operator guidance"]
-    E --> F["export + replay"]
-    F --> G["nearby additive tools"]
+```text
+incident
+  -> bounded evidence
+  -> deterministic explanation
+  -> typed remediation or experiment
+  -> durable effect receipt
+  -> new evidence
+  -> replay and comparison
 ```
 
-This order matters.
+Every improvement should shorten, strengthen, or clarify this loop.
 
-If the earlier stages stay blurry, the later stages become expensive and
-fragile.
+## Evolution Horizons
 
-## What v0.13.x Solved
+### Horizon 1: Protect The Released Loop
 
-`v0.13.x` was the convergence line.
+Current `2.0.x` work should:
 
-Architecturally, that line did three important things:
+- preserve machine and wire compatibility
+- keep Linux evidence collection reliable and bounded
+- keep GUI, CLI, and Leselang origin parity green
+- improve startup, deployment, recovery, diagnostics, and packaging
+- retain exact security, resource, and performance evidence
+- keep all existing core capabilities usable without an account
 
-1. made the compiler/runtime/report split legible
-2. made IR inspection and protocol registry surfaces first-class
-3. made documentation and boundary wording part of the release surface
+This horizon changes implementation freely when necessary, but does not add a
+new authority or capability family.
 
-That line mostly answered:
+### Horizon 2: Remove Boundary Debt
 
-- what is this project really trying to be?
+The next architectural leverage comes from cleaner extraction, not more
+surface area.
 
-## What v0.15.x Is Solving
+Priority seams:
 
-`v0.15.x` is the maturity line.
+1. Keep `silvortex-bounded-io` free of business semantics and preserve its
+   single-source security tests across every native consumer.
+2. Move shared installer identity types beneath `gewyvern-install-contract`
+   into a neutral identity crate without changing wire bytes or public type
+   identity.
+3. Keep Gewyvern installer integration separate from diagnosis semantics and
+   feature-gate it when independent package publication requires that split.
+4. Ratchet ASP.NET mutation paths toward Rust daemon authority until the Web
+   line is only a renderer and compatibility adapter.
+5. Split large Leselang VM/UI and Leserpent runtime/persistence files along
+   their existing public contracts.
+6. Generate strict foreign-language codecs and renderer bindings from stable
+   schemas where generation removes hand-maintained semantic duplication.
 
-Architecturally, this line is about:
+Extraction succeeds only when behavior and protocol remain unchanged.
 
-1. deepening protocol coverage without collapsing organization
-2. making `gewylang` and `gewyc` reusable and reviewable
-3. making runtime/report/API behavior stable enough for real use
-4. making collaboration with `etragon` and `leserpent` additive instead of
-   invasive
+### Horizon 3: Deepen The Advantage Zone
 
-That line mostly asks:
+After boundaries are cleaner, deepen capabilities that reinforce the loop:
 
-- can the clearer architecture now deepen without dissolving its own
-  boundaries?
+- richer protocol program models grounded in real evidence
+- better causal comparison across replayed sessions
+- safer experiment and remediation plans with explicit rollback
+- stronger multi-authority topology views without merged authority
+- more complete renderer adapters generated from the Leselang UI schema
+- community-authored protocol packages with reproducible attach/replay proof
 
-## The Intended Pace Of Change
+Breadth is useful when it improves the same debugging model. Breadth that needs
+a new truth owner belongs outside the core.
 
-Not every layer should evolve at the same speed.
+### Horizon 4: Optional Adjacent Systems
 
-### Fast-Moving Layers
+Independent tracks may mature without becoming prerequisites:
 
-These can keep expanding actively:
+- Etragon with reproducible model artifacts and evaluation
+- Windows native clients
+- production signing and notarization
+- hosted collaboration or subscription services
+- additional physical-device and kernel matrices
 
-- protocol package coverage
-- protocol shelves and aliases
-- docs/reference detail
-- compiler-facing explain/report ergonomics
-- local validation workflows
+Each track must consume the open protocols and preserve local self-hosted
+authority.
 
-### Medium-Moving Layers
+## Pace By Contract Layer
 
-These should evolve carefully but continuously:
+### Fast Moving
 
-- lowered IR representation
-- program-flow and reason-flow narration quality
-- export metadata richness
-- additive external-engine contracts
+- protocol packages and examples
+- renderer-local UX and accessibility
+- diagnostics and operator guidance
+- test fixtures and community evidence
+- internal module extraction
 
-### Slow-Moving Layers
+### Deliberate
 
-These should change only with high confidence:
+- GewyLang and Leselang syntax
+- runtime IR and UI IR
+- command/query domain additions
+- adapter capability and receipt shapes
+- deployment topology behavior
 
-- core diagnosis spine semantics
-- machine-facing contract shape
-- fragment capability model direction
-- runtime truth ownership model
+### Slow Moving
 
-## Evolution By Layer
+- evidence truth ownership
+- authority and revision semantics
+- durable continuation format
+- replay determinism
+- open-source core boundary
+- wire compatibility and secret policy
 
-### 1. gewylang
+The slower a layer moves, the stronger its migration and retained evidence must
+be.
 
-Near-term goal:
+## Independence Targets
 
-- become a clearer selector/parameterizer for existing runtime capability
-
-Desired evolution:
-
-- stronger package ergonomics
-- better diagnostics
-- lightweight inference where it improves safety and clarity
-
-Avoid:
-
-- turning `gewylang` into an unconstrained general language
-- hiding runtime requirements behind too much inference
-
-### 2. IR
-
-Near-term goal:
-
-- stay inspectable and structurally explicit
-
-Desired evolution:
-
-- clearer lowered views
-- better deltas and archival snapshots
-- more structured links between author intent and runtime evidence needs
-
-Avoid:
-
-- adding opaque intermediate layers that frontends cannot explain
-
-### 3. Runtime
-
-Near-term goal:
-
-- stay conservative, bounded, and evidence-driven
-
-Desired evolution:
-
-- better mixed-flow reasoning
-- richer high-frequency protocol posture
-- stronger degraded-mode clarity
-
-Avoid:
-
-- speculative over-interpretation
-- hidden fallback heuristics that drift away from declared evidence
-
-### 4. Export And Replay
-
-Near-term goal:
-
-- remain deterministic enough for offline review and comparison
-
-Desired evolution:
-
-- clearer archival use
-- sharper machine-facing summaries
-- better cross-version review anchors
-
-Avoid:
-
-- turning export into an unstable dump of incidental internals
-
-### 5. Nearby Tools
-
-Near-term goal:
-
-- make collaboration useful without making `gewyvern` dependent on it
-
-Desired evolution:
-
-- `etragon` as diagnosis partner
-- `leserpent` as orchestration/control-plane view
-- local memory/training helpers around, not inside, runtime truth
-
-Avoid:
-
-- moving core runtime ownership out of `gewyvern`
-- making sidecars authoritative for base diagnosis
-
-## Evolution Blueprint
-
-```mermaid
-flowchart TD
-    A["Protocol depth"] --> B["Better shelves + package coverage"]
-    B --> C["Clearer lowering and IR explanation"]
-    C --> D["Stronger runtime confidence shaping"]
-    D --> E["More trustworthy export + replay review"]
-    E --> F["Safer collaboration with nearby tools"]
-```
-
-That means protocol work is not isolated from IR work, and IR work is not
-isolated from operator experience. They are one pipeline.
-
-## Architecture Rules For Future Work
-
-When choosing a change, prefer work that:
-
-1. improves a common operator workflow
-2. makes author intent more legible in compiler/IR surfaces
-3. strengthens runtime conservatism instead of weakening it
-4. reduces organizational entropy in the source tree
-5. makes collaboration more modular rather than more entangled
-
-Defer work that:
-
-1. adds broad new surface without stronger validation
-2. introduces another implicit truth source
-3. hides evidence requirements behind magic
-4. widens the language faster than the runtime can justify
-
-## Reading Order For Reviewers
-
-If you want to review the architecture as a moving system, use this order:
-
-1. [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
-2. [docs/architecture-blueprint-modules.md](docs/architecture-blueprint-modules.md)
-3. [docs/architecture-evolution.md](docs/architecture-evolution.md)
-4. [docs/history/v0.13.x.md](docs/history/v0.13.x.md)
-5. [docs/history/v0.15.x.md](docs/history/v0.15.x.md)
-6. [docs/field-validation.md](docs/field-validation.md)
+The monorepo is a coordination convenience, not an excuse for one inseparable
+binary.
+
+- Gewyvern remains a standalone debugger and reusable runtime/compiler core.
+- GewyLang remains a reusable authoring and lowering toolchain.
+- `leserpentd` remains a standalone authority service.
+- Leserpent CLI remains a standalone operator surface.
+- Leselang crates remain hostable by Rust and adaptable through generated
+  protocol or narrow FFI boundaries.
+- Avalonia, mobile, and Web remain replaceable renderers.
+- Etragon remains an optional standalone advisory service.
+
+Independent publication may come later. Architectural independence is enforced
+now through one-way contracts and tests.
+
+## Monolith Reduction
+
+Large source files are not automatically bad, but they become dangerous when
+they hide more than one authority or contract boundary.
+
+When touching a large module:
+
+1. identify the existing public contract
+2. separate parsing, validation, state transition, persistence, and rendering
+   internally
+3. keep one authority entry point
+4. add characterization tests before moving code
+5. preserve serialized forms and error codes
+6. measure compile time and runtime before and after
+
+Do not split files merely to lower line counts. Split where tests can prove a
+stable semantic seam.
+
+## Proof-Driven Maturity
+
+Architecture maturity is demonstrated by:
+
+- malformed input fails closed without process loss
+- cancellation and shutdown remain bounded under hostile peers
+- crash recovery preserves one durable authority
+- replay produces stable conclusions
+- GUI, CLI, and Leselang produce equivalent command plans
+- renderers reject schema and capability drift
+- independent processes expose exact resource and performance baselines
+- compatibility bridges can be removed from a test topology without changing
+  core semantics
+
+The [status tensor](project-status-system.md) records current evidence,
+independence, blockers, and next gates. A high score is a snapshot, not a reason
+to stop falsifying the architecture.
+
+## Decision Filter
+
+Prefer a proposed change when it answers yes to most of these:
+
+- Does it improve a real debugging loop?
+- Does it strengthen observed evidence or make uncertainty clearer?
+- Does it preserve exactly one truth owner?
+- Can GUI, CLI, and Leselang share the result?
+- Can the result be exported, replayed, or compared?
+- Does it keep privileged behavior bounded?
+- Does it preserve standalone and self-hosted operation?
+- Can tests prove the behavior without relying on one machine or UI?
+
+Defer it when its main value is genericity, feature count, or imitation of an
+established tool category.
 
 ## Current Thesis
 
-For the current line, the architecture thesis is:
+The strongest path after 2.0 is:
 
-- keep the standalone debugger core narrow
-- deepen protocol and IR quality without broad architectural churn
-- let nearby tools collaborate through explicit contracts
-- make every layer easier to inspect than it was in the previous minor line
+```text
+protect contracts
+  -> remove reverse dependencies
+  -> shrink compatibility authority
+  -> deepen evidence/action replay
+  -> broaden adapters and community proof
+```
 
-If a change does not help one of those outcomes, it probably does not belong on
-the main architectural spine right now.
+That path creates a category advantage. It does not ask Gewyvern to beat every
+packet analyzer, proxy, observability platform, or GUI framework at its own
+game. It makes the whole evidence-to-action loop something those isolated tools
+do not provide.

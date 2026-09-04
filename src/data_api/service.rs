@@ -9,9 +9,9 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use leserpent_protocol::transport_safety::open_bounded_regular_file;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
 use rustls::{ServerConfig, ServerConnection, StreamOwned};
+use silvortex_bounded_io::open_bounded_regular_file;
 
 use super::{
     API_CLIENT_READ_TIMEOUT, API_CLIENT_WRITE_TIMEOUT, API_MAX_CONCURRENT_CLIENTS, ApiAccessPolicy,

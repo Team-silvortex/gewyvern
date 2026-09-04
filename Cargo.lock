@@ -813,17 +813,18 @@ dependencies = [
 name = "gewyvern"
 version = "2.0.0"
 dependencies = [
+ "gewyvern-install-contract",
  "http",
  "leselang-hir",
  "leselang-syntax",
  "leselang-vm",
  "leserpent-domain",
- "leserpent-protocol",
  "rcgen",
  "ring",
  "rustls",
  "serde",
  "serde_json",
+ "silvortex-bounded-io",
  "x509-parser",
  "zeroize",
 ]
@@ -833,6 +834,17 @@ name = "gewyvern-dev"
 version = "2.0.0"
 dependencies = [
  "ring",
+]
+
+[[package]]
+name = "gewyvern-install-contract"
+version = "2.0.0"
+dependencies = [
+ "leserpent-domain",
+ "ring",
+ "serde",
+ "serde_json",
+ "zeroize",
 ]
 
 [[package]]
@@ -1107,6 +1119,7 @@ dependencies = [
 name = "leserpent-adapters"
 version = "2.0.0"
 dependencies = [
+ "gewyvern-install-contract",
  "leserpent-domain",
  "leserpent-protocol",
  "leserpent-runtime",
@@ -1118,6 +1131,7 @@ dependencies = [
  "rustls",
  "serde",
  "serde_json",
+ "silvortex-bounded-io",
  "tokio",
  "zeroize",
 ]
@@ -1139,6 +1153,7 @@ dependencies = [
  "rustls",
  "serde",
  "serde_json",
+ "silvortex-bounded-io",
  "zeroize",
 ]
 
@@ -1164,13 +1179,14 @@ dependencies = [
 name = "leserpent-protocol"
 version = "2.0.0"
 dependencies = [
+ "gewyvern-install-contract",
  "leselang-ui",
  "leselang-vm",
  "leserpent-domain",
- "libc",
  "ring",
  "serde",
  "serde_json",
+ "silvortex-bounded-io",
  "zeroize",
 ]
 
@@ -1209,6 +1225,7 @@ dependencies = [
  "serde",
  "serde_json",
  "signal-hook",
+ "silvortex-bounded-io",
  "socket2",
  "time",
  "tungstenite",
@@ -2117,6 +2134,13 @@ checksum = "28d567dcbaf0049cb8ac2608a76cd95ff9e4412e1899d389ee400918ca7537f5"
 dependencies = [
  "digest 0.11.3",
  "rand_core 0.10.1",
+]
+
+[[package]]
+name = "silvortex-bounded-io"
+version = "2.0.0"
+dependencies = [
+ "libc",
 ]
 
 [[package]]

@@ -1,0 +1,13 @@
+[package]
+name = "gewyvern-install-contract"
+version.workspace = true
+edition.workspace = true
+description = "Strict wire contracts for installing and retiring Gewyvern services"
+license.workspace = true
+
+[dependencies]
+leserpent-domain = { path = "../leserpent-domain" }
+ring = "0.17"
+serde.workspace = true
+serde_json.workspace = true
+zeroize = "1"

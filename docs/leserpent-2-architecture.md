@@ -397,7 +397,7 @@ strict, 64 KiB-bounded envelope that rejects unknown and raw credential fields.
 the dedicated `gewyvern.runtime.provision` adapter is registered. The adapter
 resolves the installation credential locally, returns only `ServiceReady` or
 `Failed`, and daemon settlement rejects identity drift before atomically advancing
-the checkpoint. The separate `leserpent-protocol::gewyvern_installer` wire now
+the checkpoint. The separate `gewyvern-install-contract::installer` wire now
 binds the internal installer exchange to provisioning/runtime identity, HTTPS
 endpoint, artifact generation, API/trust handles, a zeroizing API token, and a
 digest-verified public CA. Its readiness validator refuses merely `Installed`
@@ -814,9 +814,11 @@ The intended source ownership is:
 | `leselang-observe` | validated, sanitized VM/runtime projections for UI consumers |
 | `leselang-command` | control-plane DSL lowering into `CommandPlan` and explicit rejection of frontend-local effects |
 | `leselang-ui` | pure UI DSL lowering into `UiDocument` and `UiPatch`, semantic event/effect round trips, typed presentation operations, and bounded canonical export intents |
+| `silvortex-bounded-io` | product-neutral bounded files, HTTP tokens, connection budgets, and absolute I/O deadlines |
+| `gewyvern-install-contract` | strict, bounded Gewyvern installation and retirement exchange shared across planes |
 | `leserpent-domain` | validated IDs, commands, queries, events, revisions, capabilities, bootstrap state, and plan authorization |
 | `leserpent-runtime` | transactions, scheduling, policy, replay, projections |
-| `leserpent-protocol` | IPC, HTTP, WebSocket, bootstrap wire, schema, compatibility, and shared transport safety |
+| `leserpent-protocol` | IPC, HTTP, WebSocket, bootstrap wire, schema, compatibility, and stable re-exports of extracted contracts |
 | `leserpent-adapters` | typed Gewyvern health, status, deployment, discovery, and native secret-store integrations |
 | `leserpent-cli` | native CLI parsing and rendering |
 | `leserpentd` | local and remote runtime host |
@@ -2514,7 +2516,7 @@ no plaintext fallback. HTTP/1.1 headers are bounded, request bodies retain the
 failures are isolated per connection.
 
 Transport-independent safety mechanics have one implementation in
-`leserpent-protocol::transport_safety`: HTTP header token validation, bounded
+`silvortex-bounded-io`: HTTP header token validation, bounded
 regular-file opening with atomic symlink rejection on Unix, read-time growth
 enforcement, deadline-bounded TCP connection, and an absolute-deadline TCP
 stream. CLI HTTPS exchanges, bootstrap health probes, and Gewyvern adapters use
@@ -2530,6 +2532,11 @@ treat this as a resolved-address connection deadline rather than claiming a
 hard DNS wall-clock timeout. After resolution returns, the remaining monotonic
 budget spans connection, TLS handshake, request writes, response headers, and
 response body reads.
+
+The previous `leserpent_protocol::transport_safety`,
+`leserpent_protocol::gewyvern_installer`, and
+`leserpent_protocol::gewyvern_retirement` paths remain compatibility
+re-exports. New native consumers depend on the narrow owning crates directly.
 
 The event schema is versioned independently from request/response wire-v1.
 Sessions receive endpoint-redacted runtime snapshots, revision heartbeats, and

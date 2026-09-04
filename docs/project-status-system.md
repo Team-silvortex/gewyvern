@@ -1,7 +1,7 @@
 # Project Status Tensor
 
-This page defines the machine-readable project management protocol used from
-the `1.0.0 -> 2.0.0` line onward.
+This page defines the machine-readable project management protocol used by the
+released `2.0.x` line and its later evolution.
 
 The source of truth is [project/status/catalog.json](../project/status/catalog.json).
 Its protocol schema is
@@ -17,7 +17,8 @@ architecture x module x feature -> status cell
 ```
 
 - **Architecture** identifies a product or durable system boundary, such as
-  Gewyvern Core, GewyLang, Leserpent 1.x, Leserpent 2.0, or Etragon.
+  Gewyvern Core, GewyLang, Shared Native Foundation, Leserpent 1.x,
+  Leserpent 2.0, or Etragon.
 - **Module** identifies the implementation and ownership boundary.
 - **Feature** identifies the independently judged capability.
 
@@ -27,8 +28,9 @@ implicitly planned work.
 Schema v3 carries a `coverage_requirements` manifest and a dated `calibration`
 record. Coverage maps authoritative architecture ownership boundaries, roadmap
 gates, and continuous proof shelves onto concrete cells. The manifest covers
-Gewyvern Core, GewyLang, the Leserpent 1.x bridge, Leserpent 2, the Etragon
-sidecar, and status governance itself. Validation is exhaustive and
+Gewyvern Core, GewyLang, the shared native foundation, the Leserpent 1.x
+bridge, Leserpent 2, the Etragon sidecar, and status governance itself.
+Validation is exhaustive and
 bidirectional: every architecture with a cell must declare a requirement, every
 requirement must reference an existing same-architecture cell, and every cell
 must be covered by at least one requirement. This distinguishes a structurally
@@ -58,6 +60,17 @@ Every cell carries:
 - known consumers
 - present or planned evidence
 - one concrete next gate
+
+Lifecycle describes architectural posture, not maturity or release priority:
+
+- `current`: shipped or otherwise authoritative in the current architecture
+- `bridge`: retained compatibility or migration surface with no new authority
+- `target`: not yet shipped into the current architecture
+- `retired`: historical and no longer part of the supported system
+
+A mature, fully tested component must not remain `target` after its release.
+Conversely, compatibility code remains `bridge` even when it is production
+quality. This keeps the tensor honest about authority as well as completeness.
 
 Every coverage requirement carries:
 
@@ -193,9 +206,11 @@ self-dependencies, dependency cycles, and unsupported schema versions.
 It also rejects architectures without a coverage manifest, duplicate
 requirements, missing source documents, unknown or cross-architecture cell
 mappings, empty mappings, and orphan cells. Coverage sources are deliberately
-architecture-specific: the project blueprint owns Gewyvern Core, the GewyLang
-system page owns the language shelf, the Leserpent roadmap owns both migration
-bridge and 2.0 gates, and the sidecar collaboration contract owns Etragon.
+architecture-specific: the canonical blueprint owns the system topology and
+Gewyvern Core and shared native foundations, the GewyLang system page owns the
+protocol-language shelf, the released Leserpent architecture owns its stable
+boundaries, the historical roadmap retains delivery-gate evidence, and the
+sidecar collaboration contract owns Etragon.
 
 ## Relationship To Roadmaps
 

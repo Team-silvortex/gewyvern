@@ -2,11 +2,11 @@ use std::io;
 use std::time::{Duration, Instant};
 
 use leserpent_domain::{Revision, RuntimeProjection};
-use leserpent_protocol::transport_safety::is_http_header_name;
 use leserpent_protocol::{
     EVENT_SCHEMA_VERSION, EventEnvelope, MAX_PROTOCOL_MESSAGE_BYTES, ProtocolEvent,
     RemoteRuntimeProjection, encode_event,
 };
+use silvortex_bounded_io::is_http_header_name;
 use tungstenite::error::Error as WebSocketError;
 use tungstenite::handshake::server::{Request, Response};
 use tungstenite::http::HeaderValue;

@@ -13,16 +13,19 @@ pub mod bootstrap_installer;
 pub mod bootstrap_retirement;
 pub mod bootstrap_retirement_control;
 pub mod compatibility_v1;
-pub mod gewyvern_installer;
-pub mod gewyvern_retirement;
 pub mod provisioning;
 pub mod retirement;
-pub mod transport_safety;
+
+pub use gewyvern_install_contract::installer as gewyvern_installer;
+pub use gewyvern_install_contract::retirement as gewyvern_retirement;
+pub use silvortex_bounded_io as transport_safety;
 
 pub const PROTOCOL_SCHEMA_VERSION: u32 = 1;
 pub const EVENT_SCHEMA_VERSION: u32 = 1;
 pub const MAX_PROTOCOL_MESSAGE_BYTES: usize = 1024 * 1024;
 pub const CAPABILITY_AUTHORITY_WRITER: &str = "authority.writer";
+pub const AUTHORITY_WRITER_ID_HEADER: &str = "X-Leserpent-Authority-Writer-Id";
+pub const AUTHORITY_WRITER_GENERATION_HEADER: &str = "X-Leserpent-Authority-Writer-Generation";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", content = "payload", rename_all = "snake_case")]

@@ -1,3 +1,5 @@
+//! Product-neutral bounded I/O primitives for native service boundaries.
+
 use std::fs::{File, Metadata, OpenOptions};
 use std::io::{self, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
@@ -8,8 +10,6 @@ use std::time::{Duration, Instant};
 
 pub const MAX_HTTP_HEADER_BYTES: usize = 16 * 1024;
 pub const MAX_RESOLVED_ADDRESSES: usize = 8;
-pub const AUTHORITY_WRITER_ID_HEADER: &str = "X-Leserpent-Authority-Writer-Id";
-pub const AUTHORITY_WRITER_GENERATION_HEADER: &str = "X-Leserpent-Authority-Writer-Generation";
 
 pub struct BoundedFile {
     file: File,
@@ -314,7 +314,7 @@ mod tests {
         use std::os::unix::fs::symlink;
 
         let root = std::env::temp_dir().join(format!(
-            "leserpent-transport-safety-{}-{}",
+            "silvortex-bounded-io-{}-{}",
             std::process::id(),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -337,7 +337,7 @@ mod tests {
     #[test]
     fn bounded_file_read_rejects_growth_after_open() {
         let path = std::env::temp_dir().join(format!(
-            "leserpent-transport-growth-{}-{}",
+            "silvortex-bounded-io-growth-{}-{}",
             std::process::id(),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)

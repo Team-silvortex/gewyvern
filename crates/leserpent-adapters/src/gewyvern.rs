@@ -9,14 +9,14 @@ use leserpent_domain::{
     RUNTIME_STATUS_REFRESH_EFFECT_KIND, RuntimeStatusObservation, RuntimeStatusRefreshRequest,
     RuntimeStatusSnapshot,
 };
-use leserpent_protocol::transport_safety::{
-    BoundedFile, MAX_HTTP_HEADER_BYTES, connect_with_io_deadline, is_http_header_name,
-    open_bounded_regular_file,
-};
 use leserpent_runtime::EffectExecution;
 use rustls::pki_types::{CertificateDer, ServerName, pem::PemObject};
 use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
 use serde::Deserialize;
+use silvortex_bounded_io::{
+    BoundedFile, MAX_HTTP_HEADER_BYTES, connect_with_io_deadline, is_http_header_name,
+    open_bounded_regular_file,
+};
 use zeroize::Zeroize;
 
 use crate::{EffectAdapter, EmptySecretStore, SecretKey, SecretStore, validate_id};

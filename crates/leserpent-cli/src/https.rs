@@ -22,17 +22,16 @@ use leserpent_protocol::retirement::{
     MAX_RETIREMENT_PROTOCOL_BYTES, RetirementRequestEnvelope, RetirementResponseEnvelope,
     decode_retirement_response, encode_retirement_request,
 };
-use leserpent_protocol::transport_safety::{
-    AUTHORITY_WRITER_GENERATION_HEADER, AUTHORITY_WRITER_ID_HEADER, BoundedFile, DeadlineTcpStream,
-    MAX_HTTP_HEADER_BYTES, connect_with_io_deadline, is_http_header_name,
-    open_bounded_regular_file,
-};
 use leserpent_protocol::{
-    AuthorityWriterFence, MAX_PROTOCOL_MESSAGE_BYTES, RequestEnvelope, ResponseEnvelope,
-    decode_response, encode_request,
+    AUTHORITY_WRITER_GENERATION_HEADER, AUTHORITY_WRITER_ID_HEADER, AuthorityWriterFence,
+    MAX_PROTOCOL_MESSAGE_BYTES, RequestEnvelope, ResponseEnvelope, decode_response, encode_request,
 };
 use rustls::pki_types::{CertificateDer, ServerName, pem::PemObject};
 use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
+use silvortex_bounded_io::{
+    BoundedFile, DeadlineTcpStream, MAX_HTTP_HEADER_BYTES, connect_with_io_deadline,
+    is_http_header_name, open_bounded_regular_file,
+};
 use zeroize::Zeroizing;
 
 use crate::CliError;

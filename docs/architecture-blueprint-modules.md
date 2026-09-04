@@ -1,6 +1,8 @@
 # Architecture Blueprint: Module Map
 
-Use this page when you need the source-level architecture sheet for `gewyvern`.
+Use this page when you need the source-level architecture sheet for the
+Gewyvern evidence plane. The cross-product authority and intent planes are
+defined by [the canonical architecture blueprint](architecture-blueprint.md).
 
 This page complements:
 

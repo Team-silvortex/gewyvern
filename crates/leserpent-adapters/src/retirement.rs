@@ -2,15 +2,15 @@ use std::sync::Arc;
 #[cfg(feature = "native-ssh")]
 use std::{collections::BTreeMap, time::Duration};
 
-use leserpent_domain::bootstrap::BootstrapTransport;
-use leserpent_domain::retirement::{
-    GewyvernRetirementReceipt, RuntimeRetirement, RuntimeRetirementSnapshot,
-};
 #[cfg(feature = "native-ssh")]
-use leserpent_protocol::gewyvern_retirement::{
+use gewyvern_install_contract::retirement::{
     GEWYVERN_RETIREMENT_SCHEMA_VERSION, GewyvernRetirementRequest, MAX_GEWYVERN_RETIREMENT_BYTES,
     decode_gewyvern_retirement_response, encode_gewyvern_retirement_request,
     validate_gewyvern_retirement_response_binding,
+};
+use leserpent_domain::bootstrap::BootstrapTransport;
+use leserpent_domain::retirement::{
+    GewyvernRetirementReceipt, RuntimeRetirement, RuntimeRetirementSnapshot,
 };
 use leserpent_protocol::retirement::{
     RETIREMENT_PROTOCOL_SCHEMA_VERSION, RetirementRequestEnvelope, RetirementResponse,

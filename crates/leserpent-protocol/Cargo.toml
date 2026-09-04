@@ -6,13 +6,12 @@ description = "Versioned wire protocol for Leserpent commands, queries, events, 
 license.workspace = true
 
 [dependencies]
+gewyvern-install-contract = { path = "../gewyvern-install-contract" }
 leselang-ui = { path = "../leselang-ui" }
 leselang-vm = { path = "../leselang-vm" }
 leserpent-domain = { path = "../leserpent-domain" }
 ring = "0.17"
 serde.workspace = true
 serde_json.workspace = true
+silvortex-bounded-io = { path = "../silvortex-bounded-io" }
 zeroize = "1"
-
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"

@@ -5,11 +5,12 @@ maintenance, and historical context.
 
 ## Start
 
-1. [Development guide](../development.md)
-2. [Module boundaries](../module-boundaries.md)
-3. [Monorepo stack](../monorepo-stack.md)
-4. [Project status tensor](../project-status-system.md)
-5. [Live status entry](../../STATUS.md)
+1. [Canonical architecture blueprint](../architecture-blueprint.md)
+2. [Development guide](../development.md)
+3. [Module boundaries](../module-boundaries.md)
+4. [Monorepo stack](../monorepo-stack.md)
+5. [Project status tensor](../project-status-system.md)
+6. [Live status entry](../../STATUS.md)
 
 ## Maintain
 

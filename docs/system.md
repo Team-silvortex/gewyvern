@@ -1,6 +1,11 @@
 # System Guide
 
-Use this page when you need the current system-level map for `gewyvern`.
+Use this page when you need the evidence-plane architecture of `gewyvern`.
+
+For the complete Gewyvern, Leserpent, Leselang, renderer, and Etragon topology,
+start with [the canonical architecture blueprint](architecture-blueprint.md).
+This page deliberately drills into Gewyvern rather than defining authority for
+the whole product fabric.
 
 This page is intentionally a durable architecture note. It explains:
 

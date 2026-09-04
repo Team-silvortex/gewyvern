@@ -4,15 +4,13 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use leserpent_protocol::transport_safety::{
-    MAX_HTTP_HEADER_BYTES, connect_with_io_deadline, is_http_header_name,
-};
 use leserpent_protocol::{
     HealthRequest, MAX_PROTOCOL_MESSAGE_BYTES, PROTOCOL_SCHEMA_VERSION, ProtocolRequest,
     ProtocolResponse, RequestEnvelope, decode_response, encode_request,
 };
 use rustls::pki_types::{CertificateDer, ServerName, pem::PemObject};
 use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
+use silvortex_bounded_io::{MAX_HTTP_HEADER_BYTES, connect_with_io_deadline, is_http_header_name};
 use zeroize::Zeroizing;
 
 const HEALTH_DEADLINE: Duration = Duration::from_secs(8);

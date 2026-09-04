@@ -1,269 +1,370 @@
 # Architecture Blueprint
 
-Use this page when you need the project-level design sheet for `gewyvern`.
+This is the canonical system-level architecture for the active `2.0.x` line.
+It describes Gewyvern, GewyLang, Leserpent, and Leselang as one system while
+preserving their independent product and process boundaries.
 
-This is the durable blueprint page for the active `2.0.x` line. It is meant
-to answer four questions quickly:
+Use the deeper pages only after this one:
 
-- what are the major subsystems?
-- how does evidence move through the stack?
-- what boundaries are meant to stay stable?
-- where should future protocol, IR, and runtime evolution land?
+- [Gewyvern runtime internals](architecture.md)
+- [Gewyvern source modules](architecture-blueprint-modules.md)
+- [Leserpent 2 architecture](leserpent-2-architecture.md)
+- [GewyLang system](gewylang-system.md)
+- [Leselang language](leselang-language.md)
+- [architecture change protocol](architecture-coordination.md)
+- [post-2.0 evolution](architecture-evolution.md)
 
-This page is not the deepest runtime internals note. For that, also read:
+## System Thesis
 
-- [docs/system.md](docs/system.md)
-- [docs/architecture.md](docs/architecture.md)
-- [docs/module-boundaries.md](docs/module-boundaries.md)
-- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
-- [docs/book/explanation-dataflow-topology.md](docs/book/explanation-dataflow-topology.md)
+The project is a **replayable, protocolized network debugging fabric**.
 
-## Role In The Shelf
+It turns bounded kernel and user-space evidence into deterministic network
+program explanations, then exposes the same versioned control semantics to
+humans, conventional automation, and models. It is not one large application:
+each layer remains independently useful and communicates through explicit
+contracts.
 
-Treat this page as the quickest architecture design sheet.
+The shortest expression of the paradigm is:
 
-Use it when you want:
+```text
+declare observation -> collect evidence -> reconstruct behavior
+-> decide through durable authority -> perform bounded effects
+-> project the same truth to GUI, CLI, and code -> replay
+```
 
-- one page that names the major subsystems
-- a fast evidence-movement picture through the stack
-- the stable architectural contracts for the current line
+This is the project's advantage zone. Protocol coverage, eBPF, orchestration,
+and GUI automation matter because they reinforce this loop, not as unrelated
+feature counts.
 
-Then branch like this:
+## Four Planes
 
-- fuller layered prose map:
-  [docs/system.md](docs/system.md)
-- runtime-pipeline deep dive:
-  [docs/architecture.md](docs/architecture.md)
-- source-module clustering:
-  [docs/architecture-blueprint-modules.md](docs/architecture-blueprint-modules.md)
-- project-wide dataflow topology:
-  [docs/book/explanation-dataflow-topology.md](docs/book/explanation-dataflow-topology.md)
-- evolution and sequencing:
-  [docs/architecture-evolution.md](docs/architecture-evolution.md)
-  and
-  [docs/architecture-coordination.md](docs/architecture-coordination.md)
+### Evidence Plane
 
-## One-Sentence Intent
+Owned by Gewyvern and GewyLang.
 
-`gewyvern` is a protocol-agnostic, window-bounded network debugger where
-`gewylang` selects and parameterizes prebuilt fragment capabilities, the runtime
-materializes evidence into structured flows and deterministic reasons, and the
-result can be exported, replayed, and augmented by nearby tools without
-replacing the core runtime truth.
+```text
+GewyLang package
+  -> compiler and typed binding
+  -> prebuilt fragment selection and parameters
+  -> attach plan
+  -> eBPF and user-space facts
+  -> transport flows
+  -> program flows
+  -> conservative reason chains
+  -> replayable reports and machine projections
+```
 
-## Companion Shelves
+Gewyvern owns observed truth. It remains a standalone Linux-first debugger and
+must never require Leserpent, a graphical client, an account, or Etragon in
+order to collect, explain, export, or replay evidence.
 
-- [docs/system.md](docs/system.md)
-  for the layered system map in prose
-- [docs/architecture.md](docs/architecture.md)
-  for the runtime-pipeline and IR-bearing deep dive
-- [docs/architecture-blueprint-modules.md](docs/architecture-blueprint-modules.md)
-  for the source-cluster map
-- [docs/module-boundaries.md](docs/module-boundaries.md)
-  for file-level ownership rules
-- [docs/architecture-evolution.md](docs/architecture-evolution.md)
-  and
-  [docs/architecture-coordination.md](docs/architecture-coordination.md)
-  for how the design is supposed to mature
+GewyLang selects and parameterizes known capabilities. It does not generate
+arbitrary kernel programs. This keeps verifier risk, privilege, and evidence
+shape bounded by reviewed fragment templates.
 
-## System Blueprint
+### Authority Plane
+
+Owned by the Rust Leserpent domain, runtime, adapters, and `leserpentd`.
+
+```text
+CommandEnvelope / Query
+  -> identity, capability, revision, and confirmation checks
+  -> durable command plan and journal
+  -> bounded adapter effect
+  -> receipt and authoritative projection
+  -> event stream and deterministic recovery
+```
+
+`leserpentd` owns control truth: runtime registration, orchestration,
+deployment, effect scheduling, persistence, idempotency, and recovery. A
+frontend may request an operation, but it cannot define or bypass its policy.
+
+### Intent Plane
+
+Owned by Leselang and the shared Leserpent command/query domain.
+
+Leselang is a narrow, hostable Rust automation language for control and GUI
+semantics. Its source model is synchronous. External work suspends as a typed,
+journaled effect and resumes through an explicit continuation instead of
+exposing ambient `async` state to the program.
+
+The intent plane accepts three equivalent origins:
+
+- a Leselang program, including a model-proposed program
+- the native Leserpent CLI
+- a typed action emitted by a graphical frontend
+
+All three lower into the same command/query contract. No origin receives a
+private authority path.
+
+### Presentation Plane
+
+Owned by replaceable clients and renderer adapters.
+
+- Avalonia desktop
+- native mobile hosts
+- the TypeScript Web console
+- future renderers implementing the same adapter contract
+
+Rust produces renderer-neutral `UiDocument`, event, patch, and presentation
+operations. Frontends own native controls, layout, focus, accessibility,
+animation, and secret storage integration. They do not own orchestration,
+authorization, revision, or effect semantics.
+
+A GUI framework is compatible only after a developer-owned adapter or a
+schema-driven generator implements the declared `UiAdapterManifest`. There is
+no magical automatic compatibility claim.
+
+### Advisory Sideplane
+
+Etragon is deliberately outside the four-plane authority chain.
+
+It may consume sanitized Gewyvern analysis, learn, rank, or append advice. It
+cannot replace evidence, rewrite the base diagnosis, authorize an effect, or
+become required for ordinary operation. Until its reproducible deep-learning
+stack exists, it remains a deferred optional sidecar.
+
+### Shared Native Foundation
+
+Two narrow crates sit below product semantics rather than forming another
+authority plane:
+
+- `silvortex-bounded-io` owns security-sensitive bounded file and transport
+  mechanics without depending on any product crate.
+- `gewyvern-install-contract` owns the strict installation and retirement wire
+  exchanged between a Gewyvern binary and Leserpent deployment adapters.
+
+These crates may be reused by several planes, but they cannot decide policy or
+own durable truth. Their purpose is to remove duplicated mechanism without
+creating a new semantic center.
+
+## End-To-End Topology
 
 ```mermaid
 flowchart LR
-    A["gewylang / protocols"] --> B["DSL compile + validation"]
-    B --> C["TemplateBinding"]
-    C --> D["Fragment registry + attach planning"]
-    D --> E["Loader / probe path"]
-    E --> F["Fact ingest + runtime gating"]
-    F --> G["Transport flows"]
-    G --> H["Program flows"]
-    H --> I["Reason chains"]
-    I --> J["Reports / API / export bundle"]
-    J --> K["Replay / offline review"]
-    J --> L["Nearby additive engines"]
+    subgraph B1["Kernel or container boundary A"]
+        G1["Gewyvern service"]
+    end
+    subgraph B2["Kernel or container boundary B"]
+        G2["Gewyvern service"]
+    end
+    subgraph H["Host or administrative domain"]
+        D["leserpentd authority"]
+    end
+    subgraph C["Operator clients"]
+        A["Avalonia / mobile"]
+        W["Web"]
+        L["CLI / Leselang"]
+    end
+    G1 <-->|"versioned machine contract"| D
+    G2 <-->|"versioned machine contract"| D
+    A <-->|"commands, queries, events, UI IR"| D
+    W <-->|"commands, queries, events, UI IR"| D
+    L <-->|"commands, queries, events"| D
 ```
 
-## Major Subsystems
+The default cardinality is intentional:
 
-### 1. Authoring Surface
-
-This is the human-facing input layer.
-
-- `dsl/`
-- `protocols/`
-- `gewy.pkg`
-- `gewy.lock`
-
-Its job is to express protocol or diagnostic intent without generating kernel
-programs directly.
-
-Design rule:
-
-- authoring selects and parameterizes runtime capability
-- authoring does not synthesize arbitrary eBPF bytecode
-
-### 2. Compiler Surface
-
-This is the `gewylang -> TemplateBinding` layer.
-
-- `src/dsl.rs`
-- `src/gewyc.rs`
-- `crates/gewyc/src/main.rs`
-
-Its job is to:
-
-- parse source
-- resolve package/project structure
-- validate fragment compatibility
-- expose binding, diagnostics, findings, stages, and envelope reports
-- expose focused IR review surfaces
-
-Design rule:
-
-- compiler output must stay understandable without requiring a live runtime
-
-### 3. Capability Registry
-
-This is the static runtime inventory.
-
-- `src/fragment.rs`
-- `src/protocol_profiles.rs`
-- `src/protocol_profiles/`
-
-Its job is to define:
-
-- what evidence can be collected
-- what protocol families and entries exist
-- what aliases, shelves, and package defaults resolve to
-
-Design rule:
-
-- registry data should be easy to extend without forcing redesign of the core runtime
-
-### 4. Runtime Core
-
-This is the evidence engine.
-
-- `src/loader.rs`
-- `src/runtime.rs`
-- `src/flow.rs`
-- `src/program.rs`
-- `src/reason.rs`
-- `src/ir.rs`
-- `src/template.rs`
-
-Its job is to:
-
-- plan attaches
-- gate ingested facts
-- reconstruct transport flows
-- materialize higher-level program flows
-- derive deterministic reasons conservatively
-
-Design rule:
-
-- runtime semantics must stay grounded in observed facts and selected fragments
-
-### 5. Operator Surfaces
-
-This is the human and machine output layer.
-
-- `src/report_runtime.rs`
-- `src/data_api.rs`
-- `src/serve_runtime.rs`
-- `src/export.rs`
-- `src/render_utils.rs`
-
-Its job is to:
-
-- render HTML/text/JSON
-- expose latest-snapshot reads
-- serve long-lived runtime/API loops
-- export replayable bundles
-
-Design rule:
-
-- operator surfaces render and expose runtime truth
-- they do not become a second reasoning engine
-
-### 6. Additive Collaboration Layer
-
-This is the nearby multi-tool boundary.
-
-- `etragon`
-- `leserpent`
-- external analysis workers
-
-Its job is to:
-
-- enrich
-- rank
-- summarize
-- orchestrate
-
-It is not allowed to redefine the core `gewyvern` diagnosis spine.
-
-Design rule:
-
-- `gewyvern` remains the runtime truth source
-- nearby engines remain additive, bounded, and replaceable
-
-## Stable Boundary Contract
-
-For the current line, the important architectural contracts are:
-
-1. `gewylang` compiles into bindings and IR-facing reports, not kernel code.
-2. Fragments remain the kernel-facing capability units.
-3. Protocol shelves remain a registry/selection surface, not a second compiler.
-4. Runtime reasoning remains conservative and evidence-bounded.
-5. Export remains replay-oriented and deterministic.
-6. External engines may append context, but not override base runtime truth.
-
-## Evolution Path
-
-The intended architectural evolution is:
-
-```mermaid
-flowchart TD
-    A["More protocol packages"] --> B["Richer registry coverage"]
-    B --> C["More explicit IR lowering"]
-    C --> D["Sharper runtime narratives"]
-    D --> E["Better export + replay review"]
-    E --> F["Stronger collaboration with nearby tools"]
+```text
+one kernel/container boundary -> one Gewyvern service
+one leserpentd authority      -> many Gewyvern services
+one Leserpent client          -> many independent leserpentd authorities
 ```
 
-What should grow next:
+This keeps capture and privilege local to the observed boundary, control
+authority local to an administrative domain, and operator presentation free to
+span several domains without silently merging their authority.
 
-- protocol family depth
-- registry structure
-- IR explainability
-- runtime validation evidence
-- collaboration contracts
+Reverse deployment follows the same direction:
 
-What should not grow casually:
+```text
+client bootstrap credential
+  -> install and bind leserpentd
+  -> connect to that new authority
+  -> authority-scoped deployment credential
+  -> install, attest, and register Gewyvern
+```
 
-- ad hoc generated kernel behavior
-- hidden second reasoning engines
-- undocumented cross-layer shortcuts
-- unstable machine-facing schema drift
+Bootstrap credentials do not become permanent runtime authority, and runtime
+credentials do not leak into renderer state.
 
-## Decision Sheet
+## Two Languages, Two Jobs
 
-When taking a design change, use this quick routing table:
+| Language | Declares | Lowers Into | Must Not Own |
+| --- | --- | --- | --- |
+| GewyLang | what evidence and protocol behavior to observe | fragment/template bindings and runtime IR | arbitrary eBPF generation, fleet authority, UI behavior |
+| Leselang | what control operation or UI presentation to perform | typed command plans, UI IR, and effect continuations | packet interpretation, ambient host access, general application runtime |
 
-- protocol addition: registry + protocol shelf + packaged DSL + validation
-- `gewylang` feature: compiler surface + IR contract + docs
-- runtime interpretation change: runtime + reason + operator semantics docs
-- long-lived service change: serve/API/report layers + service-behavior docs
-- sidecar collaboration change: external-engine contract + sidecar-collaboration docs
+They meet through versioned machine contracts, not shared hidden state.
+GewyLang makes network behavior programmable; Leselang makes operation and
+presentation programmable.
 
-## Companion Pages
+## Authority Ledger
 
-- [docs/system.md](docs/system.md)
-  Layered system map.
-- [docs/architecture-blueprint-modules.md](docs/architecture-blueprint-modules.md)
-  Module-level dependency and ownership blueprint.
-- [docs/architecture.md](docs/architecture.md)
-  Runtime pipeline deep dive.
-- [docs/module-boundaries.md](docs/module-boundaries.md)
-  Concrete source ownership rules.
+Every important truth has exactly one owner:
+
+| Truth | Owner | Read By |
+| --- | --- | --- |
+| observed facts and reconstructed network behavior | Gewyvern | reports, Leserpent, Etragon |
+| protocol package meaning and fragment requirements | GewyLang compiler and registry | Gewyvern |
+| commands, revisions, effects, receipts, and durable fleet state | Leserpent Rust authority | every frontend |
+| automation execution and continuation state | Leselang VM plus Leserpent journal | CLI and GUI projections |
+| native layout, focus, animation, and platform secret handles | each renderer | that renderer only |
+| advisory ranking or learned suggestions | Etragon | operators and policy as untrusted advice |
+
+If two modules can both mutate the same truth independently, the architecture
+is wrong. Compatibility bridges may translate, but they may not establish a
+second authority.
+
+## Atomic Replaceability
+
+GUI, CLI, and Leselang are equivalent at the semantic boundary, not visually
+identical.
+
+For the same principal, capabilities, expected revision, and input state:
+
+- equivalent operations lower to equivalent command plans
+- authorization and confirmation decisions are identical
+- external effects are journaled and recovered identically
+- queries and events expose the same domain truth
+- only presentation-local behavior may differ
+
+This makes model-driven automation inspectable. A model proposes bounded
+Leselang or typed intent; it does not click through an invisible privileged
+back door.
+
+## Stable Boundary Contracts
+
+The current architecture depends on these contracts staying explicit:
+
+1. GewyLang source -> expanded syntax, binding IR, analysis IR, and
+   `TemplateBinding`.
+2. Fragment registry -> attach plan and declared fact capability.
+3. Gewyvern facts -> flows, reasons, reports, API projections, and replay.
+4. Leserpent domain -> versioned commands, queries, events, revisions, and
+   capabilities.
+5. Leselang -> typed effects, command plans, UI IR, and continuations.
+6. `leserpentd` -> authenticated IPC/HTTPS/WebSocket transport and durable
+   authority.
+7. Renderer adapter -> complete `UiAdapterManifest` conformance.
+8. Etragon -> append-only advisory augmentation.
+
+Transport is not authority. Serialization is not policy. A C#, TypeScript, or
+future FFI client may carry a contract without owning its meaning.
+
+## Dependency Direction
+
+The intended source direction is:
+
+```text
+renderer hosts
+  -> generated/strict client codecs
+  -> leserpent-protocol
+  -> leserpent-domain
+
+leselang syntax -> HIR -> command/UI lowering -> VM/observe
+                                      |
+                                      v
+leserpent-domain -> runtime -> adapters -> leserpentd
+                                      |
+                                      v
+                           Gewyvern machine contract
+
+silvortex-bounded-io -> Gewyvern / protocol / adapters / CLI / daemon
+gewyvern-install-contract -> Gewyvern installer / protocol / adapters
+
+GewyLang -> fragment registry -> Gewyvern runtime -> export/replay
+                                                    |
+                                                    v
+                                         optional Etragon advice
+```
+
+The logical Gewyvern runtime remains independent. Generic bounded file, HTTP
+token, connection-deadline, and absolute-I/O-deadline behavior now lives in the
+zero-business-dependency `silvortex-bounded-io` crate. Strict Gewyvern
+installation and retirement messages live in `gewyvern-install-contract`.
+`leserpent-protocol` re-exports both old module paths for source compatibility,
+but the Gewyvern production graph no longer imports the full protocol, VM, or
+UI stack.
+
+One narrow boundary debt remains: `gewyvern-install-contract` currently reuses
+four validated identity types from `leserpent-domain`. Those identities should
+move to a neutral identity crate before the two product crate sets are released
+independently; their Rust type identity and serialized bytes must not change.
+
+## The Advantage Zone
+
+The project should compete where all four planes reinforce each other:
+
+1. **Evidence-native debugging**: kernel facts become protocol and program
+   explanations rather than an undifferentiated packet stream.
+2. **Verifier-safe programmability**: a DSL composes reviewed capture
+   capabilities instead of generating arbitrary privileged code.
+3. **Replay before automation**: evidence, decisions, effects, and UI intent
+   can be inspected and compared after the live incident.
+4. **Interface equivalence**: GUI, CLI, and model-driven code share one
+   command/query and UI protocol.
+5. **Deterministic effect re-entry**: synchronous source semantics survive
+   external waits, crashes, retries, and daemon restarts through durable typed
+   continuations.
+6. **Topology-aware self-hosting**: capture stays near kernels while one client
+   can safely coordinate many independent authorities.
+7. **Local sovereignty**: the free core remains useful without a hosted
+   account, cloud policy engine, or proprietary control service.
+
+Wireshark remains a stronger general packet microscope, proxy tools remain
+stronger for interception workflows, and observability platforms remain
+stronger for long-horizon telemetry. Gewyvern's distinct category is the
+bounded debugging loop that connects protocol-aware evidence, durable control,
+and replaceable automation surfaces.
+
+## Scope Guardrails
+
+Do not dilute the advantage zone by turning the project into:
+
+- a general packet analyzer clone
+- a transparent interception proxy clone
+- a general-purpose eBPF compiler
+- a general-purpose programming language or application VM
+- a frontend-led control plane
+- an ML-led diagnosis authority
+- a mandatory cloud service
+- a long-horizon metrics warehouse
+
+Integrations with those categories are useful only when they preserve the
+authority ledger and feed the debugging loop.
+
+## Current Pressure Map
+
+The status tensor and source map identify four maintenance priorities:
+
+1. Keep the shipped Rust authority and renderer parity proofs green; do not
+   confuse a 100% delivery score with permanent maturity.
+2. Freeze the ASP.NET/TypeScript implementation as a compatibility bridge and
+   add no new semantic authority there.
+3. Finish neutral identity extraction beneath the new install contract before
+   publishing Gewyvern or Leserpent as independently versioned crate sets.
+4. Split internal monoliths along existing contracts when touched. In
+   particular, Leselang VM/UI and Leserpent runtime/persistence modules should
+   become smaller implementation units without changing their public protocol.
+
+Etragon remains explicit deferred work, not a hidden weakness in the core
+release.
+
+## Change Routing
+
+- New protocol observation belongs in protocol packages, GewyLang lowering,
+  fragment capability, and evidence proof.
+- New diagnosis semantics belong in Gewyvern runtime IR and replay tests.
+- New fleet operation starts in `leserpent-domain`, then runtime policy,
+  adapter effect, transport, Leselang lowering, and frontend projection.
+- New GUI behavior starts as renderer-neutral UI IR unless it is strictly
+  local layout, focus, accessibility, animation, or secret storage.
+- New model behavior must enter through the same Leselang parser, HIR,
+  capability, confirmation, and effect limits as human-authored automation.
+- New advisory logic belongs in Etragon and stays append-only.
+
+The detailed sequencing rules live in
+[Architecture Coordination](architecture-coordination.md). Current maturity,
+independence, dependencies, and evidence remain authoritative in the
+[project status tensor](project-status-system.md).

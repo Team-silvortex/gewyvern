@@ -1,0 +1,9 @@
+[package]
+name = "silvortex-bounded-io"
+version.workspace = true
+edition.workspace = true
+description = "Bounded file and transport primitives for security-sensitive native services"
+license.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

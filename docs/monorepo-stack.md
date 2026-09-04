@@ -1,159 +1,180 @@
 # Monorepo Stack Guide
 
-This page explains how the local `gewyvern` repository now carries the broader
-stack as one monorepo while still preserving clean role boundaries between the
-core runtime and the nearby companion applications.
+This repository ships one debugging fabric through several independently
+replaceable processes and renderers. A shared checkout does not imply shared
+authority: each semantic decision still has exactly one owner.
 
-Use this page when the question is:
+Read the [canonical architecture blueprint](architecture-blueprint.md) before
+changing a cross-project boundary.
 
-- where do `gewyvern`, `etragon`, and `leserpent` live now?
-- which toolchain belongs to which subproject?
-- how should local builds, tests, and stack validation work after the migration?
-- what should stay shared, and what should stay separate?
+## Repository Map
 
-## Current Layout
+| Path | Role | Authority |
+| --- | --- | --- |
+| [`src/`](../src) | Gewyvern runtime, API, evidence reconstruction, CLI | observed network truth |
+| [`crates/gewyc/`](../crates/gewyc) | GewyLang compiler CLI | language diagnostics and lowering |
+| [`crates/silvortex-bounded-io/`](../crates/silvortex-bounded-io) | product-neutral bounded files and transport deadlines | native I/O safety invariants |
+| [`crates/gewyvern-install-contract/`](../crates/gewyvern-install-contract) | strict Gewyvern installation and retirement exchange | cross-plane lifecycle wire contract |
+| [`crates/leserpent-domain/`](../crates/leserpent-domain) | shared command/query/event model | control vocabulary |
+| [`crates/leselang-*`](../crates) | Leselang syntax, HIR, VM, command and UI lowering | normalized automation intent |
+| [`crates/leserpent-runtime/`](../crates/leserpent-runtime) | transactions, journal, effects, projections | durable control truth |
+| [`crates/leserpent-protocol/`](../crates/leserpent-protocol) | versioned wire envelopes and transport semantics | protocol compatibility |
+| [`crates/leserpent-adapters/`](../crates/leserpent-adapters) | capability-gated external effects | boundary integration |
+| [`crates/leserpentd/`](../crates/leserpentd) | self-hosted authority process | daemon lifecycle and authenticated access |
+| [`crates/leserpent-cli/`](../crates/leserpent-cli) | native operator client | no independent semantics |
+| [`apps/leserpent-avalonia/`](../apps/leserpent-avalonia) | desktop renderer and multi-daemon hub | no independent semantics |
+| [`apps/leserpent-mobile/`](../apps/leserpent-mobile) | mobile renderer | no independent semantics |
+| [`apps/leserpent/`](../apps/leserpent) | ASP.NET/TypeScript Web compatibility bridge | migration and rendering only |
+| [`apps/etragon/`](../apps/etragon) | optional advisory sideplane | append-only advice, never control truth |
 
-The repository now has one top-level root:
+## Process Topology
 
-- this repository checkout
+```text
+Avalonia / mobile / Web / CLI / Leselang
+                    |
+         authenticated protocol
+                    |
+             one leserpentd
+                    |
+        versioned Gewyvern contract
+             /      |      \
+        Gewyvern Gewyvern Gewyvern
+           |        |        |
+        kernel or container boundaries
+```
 
-Within that root:
+The cardinality rules are stable:
 
-- [Cargo.toml](Cargo.toml)
-  Root Rust workspace manifest.
-- [src](src)
-  Core `gewyvern` runtime, protocol work, IR, APIs, and CLI.
-- [crates/gewyc](crates/gewyc)
-  Dedicated compiler CLI crate.
-- [apps/etragon](apps/etragon)
-  Nearby diagnosis-partner sidecar application.
-- [apps/leserpent](apps/leserpent)
-  Cross-platform control plane application.
+- one kernel or container boundary maps to one Gewyvern service
+- one `leserpentd` authority manages many Gewyvern services
+- one client may manage many independent `leserpentd` authorities
+- a renderer may disappear without changing durable control truth
+- Etragon may disappear without changing evidence or control truth
 
-## Project Roles
+## Semantic Ownership
 
-The migration did not change the architectural roles:
+`gewyvern` owns capture, protocol interpretation, reconstruction, reasons,
+replay, and exported evidence. GewyLang describes protocol-aware evidence
+programs that lower into bounded, verifier-safe runtime plans.
 
-- `gewyvern`
-  Owns runtime capture, protocol interpretation, IR lowering, report surfaces,
-  and the conservative diagnosis spine.
-- `etragon`
-  Owns nearby external-analysis enrichment and sidecar learning surfaces.
-- `leserpent`
-  Owns control-plane registry, multi-runtime coordination, and operator-facing
-  UI workflows.
+Rust Leserpent owns identity, capabilities, revisions, confirmation, durable
+commands, effects, audit, and projections. Leselang, CLI, Avalonia, mobile, and
+Web all consume this same command/query model; none may invent a private action.
 
-What changed is only the repository boundary:
+The ASP.NET/TypeScript application is a supported compatibility bridge and Web
+renderer. New control semantics enter the Rust domain/protocol first, then the
+bridge consumes them. Managed persistence must not become a second authority.
 
-- they now evolve together in one checkout
-- shared validation can live in one place
-- docs and scripts can point at stable in-repo paths
-- cross-project refactors no longer need sibling-repo choreography
+Etragon is deliberately advisory and downweighted until its later learning
+stack has independent evidence. Advice is append-only and can never rewrite an
+observed fact, command result, or audit record.
 
-## Version Posture
+## Dependency Direction
 
-Current version line:
+The intended dependency flow is:
 
-- `gewyvern`: root version
-- `etragon`: follows the root `gewyvern` version
-- `leserpent`: follows the root `gewyvern` version
+```text
+GewyLang source -> Gewyvern evidence runtime -> machine evidence contract
 
-The stack now uses one shared mainline version. `etragon` and `leserpent` no
-longer carry independent release numbers; app-specific compatibility is tracked
-through schema, API, and persistence contracts instead.
+silvortex-bounded-io -> Gewyvern / protocol / adapters / CLI / daemon
+gewyvern-install-contract -> Gewyvern installer / protocol / adapters
+
+leserpent-domain
+  -> Leselang HIR/VM/lowering
+  -> leserpent-runtime
+  -> leserpent-protocol
+  -> leserpent-adapters
+  -> leserpentd
+  -> replaceable clients and bridges
+```
+
+Lower layers must not depend on a renderer. A transport may encode a command,
+but it must not decide whether that command is allowed. An adapter may execute
+an authorized effect, but it must not mint authority.
+
+The root Gewyvern crate no longer consumes `leserpent-protocol` in its normal
+dependency graph. Old protocol module paths remain compatibility re-exports.
+The remaining narrow debt is that `gewyvern-install-contract` consumes shared
+identity types from `leserpent-domain`; move those types to a neutral identity
+crate before independently publishing the product crate sets.
 
 ## Toolchain Boundaries
 
-The stack is one repository, but not one toolchain:
+The repository intentionally uses three implementation toolchains:
 
-- `gewyvern`
-  Rust workspace member
-- `gewyc`
-  Rust workspace member
-- `etragon`
-  Rust workspace member
-- `leserpent`
-  .NET backend plus TypeScript frontend app under `apps/`
+- Rust builds Gewyvern, GewyLang, Leselang, Leserpent authority, daemon, CLI,
+  adapters, protocol, native packaging coordinators, and Etragon.
+- C# builds replaceable Avalonia desktop/mobile renderers and the retained
+  ASP.NET compatibility host.
+- TypeScript builds browser rendering and interaction code only.
 
-That means:
-
-- use `cargo` from the repository root for `gewyvern`, `gewyc`, and `etragon`
-- use `dotnet` and `npm` within `apps/leserpent` for the control plane
+Node.js, Python, and shell may assist development or validation, but they do
+not carry production control-plane semantics. Native entrypoints are preferred
+for product build, packaging, bootstrap, and deployment flows.
 
 ## Common Commands
 
 From the repository root:
 
 ```bash
-# Main runtime
-cargo run -- --scan-all --json --summary-only
-
-# Compiler CLI
-cargo run -p gewyc -- dsl/http_request_path.gewy --json
-
-# Nearby sidecar
-cargo run -p etragon -- --help
-
-# Rust workspace validation
+cargo dev doctor
+cargo dev check
+cargo dev build
 cargo test --workspace
+cargo run --bin gewyvern_status -- validate
 ```
 
-For `leserpent`:
+For the Web compatibility bridge:
 
 ```bash
 cd apps/leserpent
 npm run check:frontend
+npm run verify:frontend-package
 dotnet build src/Leserpent/Leserpent.csproj
 ```
 
+For native client packaging and platform-specific checks, use the commands in
+[Packaging](packaging.md) and [Release Checklist](release-checklist.md) instead
+of inventing an alternate build path.
+
+## Change Rules
+
+When a change crosses stack boundaries:
+
+1. Name the owning plane and authority before editing an endpoint or renderer.
+2. Add or revise the neutral domain operation/query/event first.
+3. Implement authority, revision, capability, and persistence behavior in Rust.
+4. Expose the operation through the versioned protocol.
+5. Adapt every supported renderer without adding renderer-only semantics.
+6. Prove GUI, CLI, and Leselang equivalence where the action is user-visible.
+7. Update the status tensor and its evidence in the same change.
+
+Do not extract code merely because files are large. Extract a module only when
+it has a named contract, one-way dependencies, focused tests, and a plausible
+independent consumer. This prevents cosmetic fragmentation while the large VM,
+UI lowering, runtime, persistence, and desktop classes are reduced along real
+semantic seams.
+
 ## Validation Order
 
-When you want confidence after a stack-wide change, use this order:
+Use the narrowest proof that crosses the changed boundary, then widen:
 
-1. `cargo test --workspace`
-2. `cd apps/leserpent && npm run check:frontend`
-3. `dotnet build apps/leserpent/src/Leserpent/Leserpent.csproj`
-4. stack scripts under [scripts](scripts), especially:
-   [scripts/demos/external_engine_roundtrip_demo.sh](scripts/demos/external_engine_roundtrip_demo.sh)
-   and
-   `cargo run --quiet --bin gewyvern_validate -- three-module-stack-smoke`
+1. crate or frontend unit tests
+2. command/query and wire compatibility tests
+3. daemon persistence and replay tests
+4. GUI function-chain conformance
+5. packaging and install verification
+6. Linux physical-host evidence when kernel behavior changed
 
-Use the thin demos first when the question is “did the path still connect?”.
-Use the fuller stack validation when the question is “does the topology still
-behave as one system?”.
-
-The full stack validation creates isolated administrator tokens by default for
-its remotely bound Gewyvern and Etragon containers. Override them with
-`GW_API_ADMIN_TOKEN`, `ET_A_ADMIN_TOKEN`, or `PATHO_API_ADMIN_TOKEN` when a
-specific fixture identity is required. Tokens are forwarded through named
-container environment variables rather than Docker command arguments, and are
-not written to validation evidence.
-
-## Migration Rules Going Forward
-
-Now that the stack lives in one repository, keep these rules:
-
-- keep runtime-core work at the repository root
-- keep app-specific code inside `apps/etragon` or `apps/leserpent`
-- only extract shared modules when the boundary is stable enough to deserve it
-- do not let the monorepo erase role boundaries
-- prefer relative in-repo paths in docs and scripts over old sibling-repo paths
-
-## What “Clean Migration” Means Here
-
-The migration should be considered healthy when:
-
-- there are no live references to old standalone sibling checkouts for
-  `etragon` or `leserpent`
-- stack scripts default to in-repo `apps/` paths
-- `etragon` participates in the root Rust workspace
-- `leserpent` still builds cleanly from its new location
-- docs describe one stack checkout instead of three independent repositories
+The status tensor is the machine-readable map of those proofs. Historical
+roadmaps explain how the system arrived here; they do not override current
+implementation evidence.
 
 ## Related Pages
 
-- [README.md](README.md)
-- [docs/index.md](docs/index.md)
-- [docs/cli-recipes.md](docs/cli-recipes.md)
-- [docs/book/how-to-wire-etragon-sidecar.md](docs/book/how-to-wire-etragon-sidecar.md)
-- [apps/README.md](apps/README.md)
+- [Architecture Blueprint](architecture-blueprint.md)
+- [Architecture Coordination](architecture-coordination.md)
+- [Architecture Evolution](architecture-evolution.md)
+- [Module Boundaries](module-boundaries.md)
+- [Project Status Tensor](project-status-system.md)
+- [Leserpent 2.0 Architecture](leserpent-2-architecture.md)

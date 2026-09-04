@@ -1,262 +1,249 @@
 # Architecture Coordination
 
-Use this page when you need the coordination sheet across the four main
-evolution lines in `gewyvern`:
+This page defines how changes move through the released four-plane
+architecture. Read the [system blueprint](architecture-blueprint.md) first.
 
-- protocol surface
-- IR surface
-- runtime surface
-- nearby collaboration surface
+The purpose of this protocol is to keep new work inside the project's advantage
+zone: protocol-aware evidence, durable authority, equivalent automation
+surfaces, and deterministic replay.
 
-This page is meant to answer:
+## Change Order
 
-- how do these lines constrain each other?
-- where should new work land first?
-- what has to be true before a later line can grow safely?
-
-Read this alongside:
-
-- [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
-- [docs/architecture-evolution.md](docs/architecture-evolution.md)
-- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
-- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
-- [docs/sidecar-collaboration.md](docs/sidecar-collaboration.md)
-
-## Role In The Shelf
-
-Treat this page as the sequencing sheet across architecture lines.
-
-Use it after you already understand the basic stack and now want to answer:
-
-- which line should change first?
-- what does protocol work owe IR work?
-- when is collaboration safe to expose?
-
-If you still need the broad architecture picture first, step back to:
-
-- [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
-- [docs/system.md](docs/system.md)
-
-## The Four-Line Model
-
-```mermaid
-flowchart LR
-    P["Protocol surface"] --> I["IR surface"]
-    I --> R["Runtime surface"]
-    R --> C["Collaboration surface"]
-    R --> I
-    I --> P
-    C --> R
-```
-
-The important point is that these are not independent tracks.
-
-They are one system viewed from four different leverage points.
-
-## Line 1: Protocol Surface
-
-This line covers:
-
-- `protocols/`
-- `protocol_profiles`
-- family shelves
-- aliases
-- packaged entry layout
-
-Its job is to answer:
-
-- what network-module paths are supported?
-- how are they named and resolved?
-- which entrypoint should a user or validator run?
-
-This line should move first when:
-
-- a protocol family is incomplete
-- an entry split is unclear
-- package organization is drifting
-
-But protocol work is not finished when the package exists.
-It is only finished when the rest of the lines can understand it too.
-
-## Line 2: IR Surface
-
-This line covers:
-
-- lowered `program_model`
-- lowered `reason_model`
-- `ir_lowering_delta`
-- explain/report envelopes
-
-Its job is to answer:
-
-- what did the author intent lower into?
-- which modules and phases exist explicitly now?
-- which rule shapes are supported or unsupported?
-
-This line should move next after protocol work when:
-
-- a new protocol path is hard to review
-- supportability is unclear
-- the lowered model is too opaque to compare across versions
-
-Protocol depth without readable IR becomes expensive quickly.
-
-## Line 3: Runtime Surface
-
-This line covers:
-
-- fact gating
-- transport flows
-- program flows
-- reasons
-- diagnosis spine
-- operator guidance
-- export and replay surfaces
-
-Its job is to answer:
-
-- what evidence actually materialized?
-- what network function does the runtime think happened?
-- what conservative action should an operator take next?
-
-This line should move after IR work when:
-
-- the lowered model is clear, but runtime posture is weak
-- mixed-flow scenarios are still too ambiguous
-- exported runtime truth is hard to trust or replay
-
-Runtime work should remain evidence-first rather than narrative-first.
-
-## Line 4: Collaboration Surface
-
-This line covers:
-
-- external-engine contracts
-- `etragon` collaboration
-- `leserpent` control-plane integration
-- additive context and orchestration boundaries
-
-Its job is to answer:
-
-- how can nearby tools help without becoming the truth source?
-- what can be appended, ranked, or orchestrated safely?
-- what remains owned by standalone `gewyvern`?
-
-This line should move last in the chain when:
-
-- protocol coverage exists
-- IR shape is explainable
-- runtime outputs are trustworthy enough to share
-
-Collaboration is strongest when the earlier three lines are already clear.
-
-## Dependency Order
-
-The safest design order is:
+Cross-plane work follows one direction:
 
 ```text
-protocol clarity
-  -> IR clarity
-  -> runtime clarity
-  -> collaboration clarity
+operator outcome
+  -> evidence requirement
+  -> versioned domain contract
+  -> authority and policy
+  -> bounded adapter effect
+  -> query/event/UI projection
+  -> renderer integration
+  -> replay, parity, and recovery proof
 ```
 
-The reverse order is usually a smell.
+Not every change touches every step. A change must still begin at the earliest
+step that owns its meaning. Starting later creates hidden semantics.
 
-If collaboration pressure starts forcing hidden runtime semantics or hidden IR
-assumptions, the architecture is drifting.
+## Plane Responsibilities
 
-## What Each Line Owes The Next One
+### Evidence
 
-### Protocol -> IR
+Owns:
 
-The protocol line owes the IR line:
+- GewyLang packages and compiler lowering
+- fragment capabilities and attach planning
+- facts, flows, reasons, exports, and replay
 
-- stable canonical names
-- explicit package boundaries
-- clear entrypoint splits
+Owes the authority plane:
 
-### IR -> Runtime
+- stable runtime identity and capabilities
+- bounded machine-readable projections
+- explicit loss, confidence, and failure semantics
 
-The IR line owes the runtime line:
+Must not absorb:
 
-- explicit modules and phases
-- reviewable rule shapes
-- supportability clarity
+- fleet policy
+- GUI workflows
+- model advice as observed truth
 
-### Runtime -> Collaboration
+### Authority
 
-The runtime line owes the collaboration line:
+Owns:
 
-- trustworthy base diagnosis
-- bounded machine-facing contracts
-- replayable and inspectable runtime truth
+- commands, queries, events, and revisions
+- authorization, confirmation, idempotency, and scheduling
+- persistence, effect journals, receipts, and recovery
+- runtime registration, deployment, and retirement
 
-### Collaboration -> Runtime
+Owes intent and presentation:
 
-The collaboration line owes the runtime line:
+- one canonical operation per capability
+- actionable typed rejection
+- revision-bound projections
+- deterministic replay behavior
 
-- append-only posture
-- explicit trust levels
-- no hidden sovereignty over diagnosis
+Must not absorb:
 
-## Example Coordination Paths
+- packet interpretation
+- renderer layout
+- unbounded framework objects
 
-### Example A: New Protocol Entry
+### Intent
 
-Work order:
+Owns:
 
-1. add packaged protocol entry
-2. add shelf and alias coverage
-3. confirm lowered IR remains legible
-4. confirm runtime guidance is still conservative
-5. only then expose it to nearby tools
+- Leselang syntax, HIR, effects, continuations, and command lowering
+- renderer-neutral UI documents and presentation operations
+- semantic equivalence between language, CLI, and GUI actions
 
-### Example B: IR Improvement
+Owes authority:
 
-Work order:
+- typed and capability-declared intent
+- no ambient host calls
+- no frontend-only privileged operation
 
-1. improve lowered report clarity
-2. confirm supportability diagnostics improve
-3. use that clarity to sharpen runtime review
-4. only later let sidecars or orchestration rely on it
+Must not absorb:
 
-### Example C: Sidecar/Control-Plane Feature
+- a general-purpose VM
+- arbitrary native object access
+- hidden asynchronous source semantics
 
-Work order:
+### Presentation
 
-1. confirm base runtime truth is already sufficient
-2. define the additive contract
-3. expose collaboration hints
-4. avoid rewriting built-in guidance semantics
+Owns:
 
-## Coordination Rules
+- native controls and Web rendering
+- local layout, focus, accessibility, animation, and platform lifecycle
+- platform secret handles and endpoint profiles
 
-When deciding where a change belongs, use these routing rules:
+Owes intent and authority:
 
-1. If naming, package layout, or family resolution is unclear, start at the protocol line.
-2. If author intent is hard to compare or explain, start at the IR line.
-3. If evidence exists but guidance is weak or misleading, start at the runtime line.
-4. If the change is about multi-tool value on top of already-good runtime truth, start at the collaboration line.
+- strict codec behavior
+- complete adapter-manifest conformance
+- typed action events
+- stale-generation and unavailable-action rejection
+
+Must not absorb:
+
+- control policy
+- persistence authority
+- direct Gewyvern or deployment adapter access
+
+### Advisory
+
+Etragon may consume sanitized evidence and return append-only suggestions. Any
+future model integration follows the same rule. Advice is data; it is never an
+authority shortcut.
+
+## Routing Rules
+
+Use the first matching route:
+
+| Change | Start Here | Required Handoff |
+| --- | --- | --- |
+| protocol or observation path | GewyLang package and fragment contract | Gewyvern runtime/replay proof |
+| evidence interpretation | Gewyvern IR and diagnosis | machine projection and replay compatibility |
+| fleet operation | `leserpent-domain` | runtime, adapter, protocol, Leselang, frontends |
+| external deployment effect | domain capability and confirmation policy | adapter receipt and recovery proof |
+| GUI automation atom | `leselang-ui` or `leselang-command` | adapter manifest and renderer conformance |
+| native-only layout/focus behavior | renderer host | accessibility and lifecycle proof |
+| transport encoding | `leserpent-protocol` | compatibility fixtures; no policy change |
+| product-neutral file or deadline mechanism | `silvortex-bounded-io` | product-specific errors and policy stay with caller |
+| Gewyvern installer/retirement exchange | `gewyvern-install-contract` | adapter authorization and installer effects stay outside codec |
+| advisory ranking | Etragon | sanitized append-only result |
+
+If a feature begins in C# or TypeScript but changes domain behavior, stop and
+move its meaning into Rust before continuing the frontend work.
+
+## New Operation Protocol
+
+A new control operation is complete only when:
+
+1. The operator outcome and non-goals are written.
+2. `leserpent-domain` names the command/query, capability, identity, and
+   revision semantics.
+3. The Rust runtime owns policy, idempotency, confirmation, and durable state.
+4. An adapter executes only the authorized bounded effect and returns a typed
+   receipt.
+5. IPC/HTTPS/WebSocket transport carries the same versioned meaning.
+6. Leselang, CLI, and GUI can express the operation without private shortcuts.
+7. Origin parity, crash recovery, stale revision, malformed input, and
+   cancellation tests prove the path.
+
+Frontend completion alone is never operation completion.
+
+## New Observation Protocol
+
+A new protocol observation is complete only when:
+
+1. A real debugging question defines the evidence need.
+2. A GewyLang package names the protocol path and expected behavior.
+3. Existing reviewed fragments cover the need, or a new bounded fragment is
+   added explicitly.
+4. Compiler reports expose the lowered requirements.
+5. Runtime reconstruction remains conservative when evidence is absent or
+   partial.
+6. Export and replay preserve the same conclusion.
+7. Linux attach and malformed-input tests prove the boundary.
+
+Protocol count without a reviewable evidence path is not architectural
+progress.
+
+## GUI And Code Equivalence
+
+For every non-local GUI action, reviewers must be able to answer:
+
+- Which command or query does it represent?
+- Which capability admits it?
+- Which expected revision fences it?
+- How does CLI express it?
+- How does Leselang express it?
+- Which event or projection confirms it?
+- What happens after cancellation, crash, reconnect, or replay?
+
+If one answer is missing, the GUI has discovered a contract gap rather than a
+reason to add local business logic.
+
+## Compatibility Bridge Rule
+
+The ASP.NET/TypeScript line is a bridge with a strict ratchet:
+
+- it may adapt legacy state or routes into the Rust contracts
+- it may render the same projections
+- it may retain compatibility persistence needed for migration and recovery
+- it may not receive a new source of semantic authority
+- every touched mutation path should move closer to daemon authority
+- bridge removal must be possible without changing Gewyvern or Leselang
+
+Migration code can be long-lived. Duplicate authority cannot.
+
+## Cross-Plane Review
+
+Before merging a cross-plane change, verify:
+
+1. **Truth owner**: exactly one module can commit the state.
+2. **Trust boundary**: secrets and credentials cross only their declared
+   adapter or platform vault.
+3. **Bounds**: source, message, queue, file, effect, and retry limits are
+   explicit.
+4. **Failure shape**: external failures become stable machine codes without
+   secret-bearing diagnostics.
+5. **Replay**: the same durable inputs reproduce the same semantic result.
+6. **Replaceability**: no frontend-only operation or hidden control state was
+   introduced.
+7. **Independence**: standalone Gewyvern and standalone `leserpentd` remain
+   usable at their documented boundaries.
+8. **Tensor coverage**: changed architecture, module, feature, contract, and
+   evidence metadata are updated together.
 
 ## Anti-Patterns
 
-Avoid these coordination mistakes:
+Reject changes that:
 
-- adding protocol entries without IR review surfaces
-- adding IR complexity before a real protocol or operator need exists
-- making runtime narratives stronger than the evidence warrants
-- letting sidecars become unofficial diagnosis owners
-- letting orchestration concerns distort standalone debugger boundaries
+- call Gewyvern directly from a renderer
+- put authorization or revision policy in C# or TypeScript
+- add a Leselang host escape for convenience
+- infer success from transport completion without an authority receipt
+- generate arbitrary eBPF from untrusted DSL
+- let an advisory model overwrite observed diagnosis
+- create a second persistence writer during migration
+- add a protocol package without lowering and replay proof
+- use UI clicking as the only automation contract
+- make a hosted account necessary for existing self-hosted behavior
 
-## Current 0.15.x Coordination Thesis
+## Current 2.0.x Priorities
 
-For the current line, the intended balance is:
+The released architecture is feature-complete for its declared scope. Current
+coordination therefore prioritizes:
 
-- protocol expansion is welcome
-- IR growth should stay structured and explainable
-- runtime behavior should stay conservative and reviewable
-- collaboration should remain additive and clearly bounded
+1. reliability, security, performance, and operator clarity inside existing
+   contracts
+2. removal of reverse utility dependencies and bridge-owned authority
+3. smaller internal implementation modules behind unchanged public contracts
+4. broader independent Linux, macOS, and mobile evidence
+5. community integrations that consume protocols without becoming new truth
+   owners
 
-That means the most valuable work is usually work that strengthens the handoff
-between two neighboring lines, not work that tries to jump over them.
+Etragon deep learning, Windows native parity, production signing, and hosted
+services remain independent tracks. They must not distort the four-plane core.

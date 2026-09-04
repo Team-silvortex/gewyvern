@@ -36,6 +36,12 @@ usable as a system:
 - [`leserpent`](LESERPENT.md): cross-platform control plane with Orchestra and
   independent child UI windows for coordinating multiple Gewyvern instances
 
+Together these pieces form a replayable, protocolized network debugging
+fabric. Gewyvern owns observed truth, `leserpentd` owns durable control truth,
+Leselang makes GUI/CLI/code intent equivalent, and every renderer remains
+replaceable. The canonical system map and the project's distinct advantage
+zone live in [the architecture blueprint](docs/architecture-blueprint.md).
+
 The long-term direction is:
 
 - fragments are the embryo of runtime IR
@@ -119,8 +125,8 @@ session data.
 - security posture: loopback-first local runtime, protected remote API use
   only when explicit remote bind and runtime admin-token requirements are both
   satisfied, plus certificate policy/state surfaces
-- workspace shape: `gewyvern` runtime crate, `gewyc` compiler CLI crate,
-  `apps/etragon`, and `apps/leserpent`
+- workspace shape: independent Gewyvern/GewyLang and Leserpent/Leselang crates,
+  product-neutral native foundations, plus replaceable clients under `apps/`
 - protocol registry shape: scanned gewy project packages under `protocols/`
 
 ## Open Source Core Guarantee
@@ -350,7 +356,9 @@ The current line is already useful for:
 - explicit runtime lifecycle validation for startup, recovery, stop, logs, and
   cleanup
 - packaged `deb` and `rpm` validation and release gating
-- nearby collaboration with `etragon` and `leserpent`
+- protocolized multi-runtime authority through `leserpentd`
+- equivalent GUI, CLI, and Leselang control through one command/query contract
+- optional append-only advisory collaboration with `etragon`
 
 For the deeper durable shelves behind those capabilities, use:
 
@@ -454,10 +462,10 @@ release evidence is intentionally separated under
 
 ## Near-Term Direction
 
-The next meaningful step is not only “more protocol branches”.
-It is making the broad protocol shelf feel like one integrated debugger:
-protocol packages should lower toward the same IR vocabulary, runtime exits
-should stay clean, logs and state should explain what happened, and the local
-operator loop should remain predictable as post-`1.0.0` physical-machine and
-cross-validation testing expands. The concrete release path is tracked in
-[ROADMAP.md](ROADMAP.md).
+The next meaningful step is not a new unrelated capability family. It is to
+deepen the evidence-to-action loop: preserve deterministic evidence and replay,
+remove reverse utility dependencies, shrink compatibility-owned authority,
+and keep GUI, CLI, and Leselang behavior equivalent as physical-machine and
+community validation expands. The system thesis lives in
+[the architecture blueprint](docs/architecture-blueprint.md); concrete work is
+tracked in [ROADMAP.md](ROADMAP.md).

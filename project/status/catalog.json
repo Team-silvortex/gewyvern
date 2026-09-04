@@ -4,7 +4,7 @@
   "checkpoint": "v2.0.0-community-release",
   "calibration": {
     "model": "priority-weighted-strength-v1",
-    "as_of": "2026-08-30"
+    "as_of": "2026-09-04"
   },
   "dimensions": {
     "architectures": [
@@ -21,17 +21,22 @@
       {
         "id": "leserpent-1x",
         "label": "Leserpent 1.x Bridge",
-        "summary": "Current ASP.NET control plane and TypeScript operator console."
+        "summary": "Compatibility Web bridge and migration surface over Rust-owned control semantics."
       },
       {
         "id": "leserpent-2",
         "label": "Leserpent 2.0",
-        "summary": "Target Rust control runtime with equivalent Leselang, CLI, and GUI frontends."
+        "summary": "Released Rust authority with equivalent Leselang, CLI, GUI, and Web frontends."
       },
       {
         "id": "etragon",
         "label": "Etragon",
         "summary": "Optional, temporarily downweighted advisory-learning sidecar; the deep-learning stack is not integrated yet."
+      },
+      {
+        "id": "shared-foundation",
+        "label": "Shared Native Foundation",
+        "summary": "Product-neutral bounded I/O and narrow cross-plane service lifecycle contracts."
       },
       {
         "id": "project-governance",
@@ -68,7 +73,7 @@
       {
         "id": "web-console",
         "label": "Web Console",
-        "summary": "Current browser operator interface and runtime workspaces."
+        "summary": "Browser renderer and compatibility runtime workspaces over Rust-owned semantics."
       },
       {
         "id": "domain-model",
@@ -149,6 +154,16 @@
         "id": "learning-sidecar",
         "label": "Learning Sidecar",
         "summary": "Advisory analysis, online memory, and daemon collaboration."
+      },
+      {
+        "id": "bounded-io",
+        "label": "Bounded Native I/O",
+        "summary": "Reusable file, socket, deadline, and HTTP-token safety primitives."
+      },
+      {
+        "id": "install-contract",
+        "label": "Gewyvern Install Contract",
+        "summary": "Strict installer and retirement messages shared across evidence and authority planes."
       },
       {
         "id": "status-governance",
@@ -303,6 +318,16 @@
         "summary": "Optional learning and recommendation enrichment."
       },
       {
+        "id": "bounded-native-io",
+        "label": "Bounded Native I/O",
+        "summary": "Product-neutral bounded files, deadline sockets, and strict HTTP header tokens."
+      },
+      {
+        "id": "gewyvern-install-wire",
+        "label": "Gewyvern Install Wire",
+        "summary": "Strict, bounded, identity-bound installation and retirement exchange."
+      },
+      {
         "id": "status-tensor",
         "label": "Status Tensor",
         "summary": "Architecture-module-feature project progress control."
@@ -310,6 +335,22 @@
     ]
   },
   "coverage_requirements": [
+    {
+      "id": "boundary-shared-bounded-io",
+      "architecture": "shared-foundation",
+      "kind": "ownership-boundary",
+      "summary": "The shared bounded-I/O crate owns product-neutral file and transport safety without business dependencies.",
+      "source": "docs/architecture-blueprint.md",
+      "cells": ["shared-foundation/bounded-io/bounded-native-io"]
+    },
+    {
+      "id": "boundary-shared-gewyvern-install-contract",
+      "architecture": "shared-foundation",
+      "kind": "ownership-boundary",
+      "summary": "The narrow Gewyvern install-contract crate owns strict installation and retirement wire semantics across product planes.",
+      "source": "docs/architecture-blueprint.md",
+      "cells": ["shared-foundation/install-contract/gewyvern-install-wire"]
+    },
     {
       "id": "boundary-project-status-governance",
       "architecture": "project-governance",
@@ -445,7 +486,7 @@
       "id": "boundary-leserpent-protocol",
       "architecture": "leserpent-2",
       "kind": "ownership-boundary",
-      "summary": "The leserpent-protocol crate owns wire schemas, compatibility, transports, and shared transport-safety primitives.",
+      "summary": "The leserpent-protocol crate owns Leserpent wire schemas, compatibility, and protocol-specific transports while re-exporting stable shared contracts.",
       "source": "docs/leserpent-2-architecture.md",
       "cells": ["leserpent-2/transport-protocol/wire-compatibility"]
     },
@@ -556,6 +597,70 @@
   ],
   "cells": [
     {
+      "id": "shared-foundation/bounded-io/bounded-native-io",
+      "architecture": "shared-foundation",
+      "module": "bounded-io",
+      "feature": "bounded-native-io",
+      "lifecycle": "current",
+      "priority": "active",
+      "maturity": "mature",
+      "completion": 100,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "silvortex-bounded-io",
+        "version": "1.0.0",
+        "stability": "stable",
+        "surfaces": ["bounded-regular-file-open", "atomic-unix-symlink-rejection", "post-open-growth-rejection", "bounded-address-resolution", "deadline-tcp-connect", "absolute-tcp-io-deadline", "strict-http-header-token-grammar", "compatibility-reexports"]
+      },
+      "depends_on": [],
+      "blockers": [],
+      "consumers": ["gewyvern", "leserpent-protocol", "leserpent-adapters", "leserpent-cli", "leserpentd"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/architecture-blueprint.md", "state": "present" },
+        { "kind": "source", "path": "crates/silvortex-bounded-io/Cargo.toml", "state": "present" },
+        { "kind": "source", "path": "crates/silvortex-bounded-io/src/lib.rs", "state": "present" },
+        { "kind": "test", "path": "crates/silvortex-bounded-io/src/lib.rs", "state": "present" }
+      ],
+      "next_gate": "Preserve zero business dependencies and add native Windows reparse-point and deadline proof before claiming the same atomic file posture there."
+    },
+    {
+      "id": "shared-foundation/install-contract/gewyvern-install-wire",
+      "architecture": "shared-foundation",
+      "module": "install-contract",
+      "feature": "gewyvern-install-wire",
+      "lifecycle": "current",
+      "priority": "active",
+      "maturity": "stabilizing",
+      "completion": 95,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "gewyvern-install-contract",
+        "version": "1.0.0",
+        "stability": "stable",
+        "surfaces": ["strict-installer-request", "zeroizing-secret-request", "redacted-debug-output", "identity-bound-readiness-receipt", "digest-bound-tls-identity", "strict-retirement-request", "identity-bound-retirement-receipt", "bounded-json-codecs", "leserpent-protocol-compatibility-reexports"]
+      },
+      "depends_on": ["leserpent-2/domain-model/command-query-kernel"],
+      "blockers": [
+        {
+          "id": "installer-identity-coupling",
+          "summary": "The narrow contract still imports shared runtime, provisioning, retirement, and credential ID types from leserpent-domain."
+        }
+      ],
+      "consumers": ["gewyvern-installer", "leserpent-protocol", "leserpent-adapters"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/architecture-blueprint.md", "state": "present" },
+        { "kind": "source", "path": "crates/gewyvern-install-contract/Cargo.toml", "state": "present" },
+        { "kind": "source", "path": "crates/gewyvern-install-contract/src/installer.rs", "state": "present" },
+        { "kind": "source", "path": "crates/gewyvern-install-contract/src/retirement.rs", "state": "present" },
+        { "kind": "test", "path": "crates/gewyvern-install-contract/src/installer.rs", "state": "present" },
+        { "kind": "test", "path": "crates/gewyvern-install-contract/src/retirement.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-protocol/tests/extracted_contract_compatibility.rs", "state": "present" }
+      ],
+      "next_gate": "Move the four shared identifier types into a neutral identity crate without changing Rust type identity, serialized bytes, schema versions, or error behavior."
+    },
+    {
       "id": "gewyvern-core/runtime-evidence/evidence-reconstruction",
       "architecture": "gewyvern-core",
       "module": "runtime-evidence",
@@ -572,12 +677,12 @@
         "stability": "stable",
         "surfaces": ["cli", "json-export", "runtime-api", "validation", "loss-accounted-windowing", "bounded-stack-probe-http-response", "bounded-stack-probe-connect-read-write-timeouts", "bounded-validation-resolved-address-count", "shared-validation-connect-deadline", "shared-core-transport-safety", "socket-send-shared-connect-deadline", "segmented-http-header-test-proof", "stack-probe-request-injection-rejection", "strict-http-success-status", "strict-http-header-terminator", "panic-free-chunk-decoder", "bracketed-ipv6-authority", "shared-bounded-validation-tcp-http", "deduplicated-validation-http-clients", "fragmented-ambiguous-oversized-http-proof", "bounded-resilience-fault-attempts", "bounded-resilience-log-input", "bounded-socket-send-connect-write", "shared-socket-ingest-line-limit", "single-line-raw-payload", "preconnect-raw-payload-validation", "socket-send-mutually-exclusive-target", "socket-send-mutually-exclusive-payload"]
       },
-      "depends_on": [],
+      "depends_on": ["shared-foundation/bounded-io/bounded-native-io"],
       "blockers": [],
       "consumers": ["gewyc", "leserpent", "etragon", "operators"],
       "evidence": [
         { "kind": "source", "path": "src/runtime.rs", "state": "present" },
-        { "kind": "source", "path": "src/transport_safety.rs", "state": "present" },
+        { "kind": "source", "path": "crates/silvortex-bounded-io/src/lib.rs", "state": "present" },
         { "kind": "source", "path": "src/bin/gewyvern_socket_send.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/http_probe.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/resilience.rs", "state": "present" },
@@ -1353,7 +1458,7 @@
       "architecture": "leserpent-2",
       "module": "domain-model",
       "feature": "command-query-kernel",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "critical",
       "maturity": "mature",
       "completion": 100,
@@ -1471,7 +1576,7 @@
       "architecture": "leserpent-2",
       "module": "transport-protocol",
       "feature": "wire-compatibility",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "critical",
       "maturity": "mature",
       "completion": 100,
@@ -1483,14 +1588,14 @@
         "stability": "stable",
         "surfaces": ["wire-envelope", "strict-versioned-envelope-fields", "strict-health-payload-fields", "strict-remote-projection-fields", "legacy-v1-compatibility", "compatibility-process-transport", "authenticated-unix-ipc", "bounded-line-framing", "authority-health-request", "optional-effect-queue-health", "legacy-health-response-decode", "typed-runtime-history-query", "typed-runtime-log-query", "bounded-log-cursor", "shared-wire-dispatch", "runtime-register-wire-command", "runtime-registration-update-wire-command", "runtime-discovery-intake-wire-command", "runtime-endpoint-conflict-wire-error", "secret-field-rejection", "runtime-deploy-wire-command", "authenticated-https-wire", "authenticated-https-cli", "remote-capability-refresh-vertical", "remote-discovery-inspect-readback", "authenticated-websocket-events", "versioned-event-envelope", "required-event-subprotocol", "revision-snapshot-resume", "future-cursor-resync", "remote-endpoint-redaction", "bounded-event-sessions", "explicit-ca-trust", "tls-hostname-verification", "bearer-token-authentication", "zeroized-server-bearer-token", "zeroized-consumed-authorization-prefix", "bounded-http-framing", "strict-ascii-token-header-names", "exact-content-length-request-framing", "websocket-binary-prefix-preservation", "tls-key-file-safety", "atomic-unix-tls-identity-open", "peer-failure-isolation", "remote-cli-exit-contract", "typed-avalonia-runtime-refresh", "revision-fenced-remote-mutation", "rust-dotnet-mutation-vertical", "rust-dotnet-workspace-query-vertical", "rust-dotnet-workspace-log-vertical", "named-transport-proof", "retained-transport-evidence", "authenticated-ipc-negative-paths", "authenticated-https-negative-paths", "websocket-security-negative-paths", "macos-arm64-transport-proof", "physical-linux-x64-transport-proof", "tracked-rust-compatibility-binary-source", "physical-linux-native-aot-bundle-smoke", "staged-linux-installer-proof", "rustls-pki-types-direct-pem-parsing", "shared-transport-safety-substrate", "single-source-http-header-token-grammar", "single-source-atomic-bounded-file-open", "single-source-deadline-tcp-connect", "single-source-absolute-io-deadline", "trickle-resistant-outbound-exchange", "post-open-file-growth-bounded-read", "zero-duplicate-transport-safety-implementations", "strict-csharp-runtime-projection-decode", "configured-web-runtime-list-readback", "configured-web-runtime-inspect-readback", "runtime-unregister-wire-mutation", "runtime-unregister-capability", "confirmed-bounded-unregister-targets", "runtime-unregister-replay-result", "optional-unregistration-replay-horizon-health", "legacy-horizon-free-health-decode", "strict-avalonia-horizon-health-decode", "optional-runtime-unregistration-operation-generation", "legacy-generation-free-receipt-decode", "typed-runtime-unregistration-receipt-lookup", "atomic-receipt-horizon-response", "typed-null-receipt-miss", "canonical-authority-writer-http-headers", "paired-unique-writer-header-validation", "post-bearer-writer-ticket-validation", "authenticated-https-generation-fence", "exhaustive-request-fence-classification", "runtime-refresh-generation-fence", "bootstrap-session-bind-generation-fence", "debugger-session-start-wire-command", "typed-debugger-session-query", "bounded-debugger-source", "strict-debugger-session-fields", "revision-fenced-debugger-cancel", "rust-dotnet-debugger-tls-vertical", "authenticated-debugger-ipc-vertical", "untyped-cli-debugger-response-fence"]
       },
-      "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-1x/control-plane/orchestration-persistence"],
+      "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-1x/control-plane/orchestration-persistence", "shared-foundation/bounded-io/bounded-native-io", "shared-foundation/install-contract/gewyvern-install-wire"],
       "blockers": [],
       "consumers": ["leserpent-adapters", "leserpent-cli", "avalonia-client", "web-adapter", "leserpentd"],
       "evidence": [
         { "kind": "documentation", "path": "crates/leserpent-protocol/COMPATIBILITY.md", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-protocol", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-protocol/src/lib.rs", "state": "present" },
-        { "kind": "source", "path": "crates/leserpent-protocol/src/transport_safety.rs", "state": "present" },
+        { "kind": "source", "path": "crates/silvortex-bounded-io/src/lib.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-protocol/src/bin/leserpent-compat-bridge.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/ipc.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/remote.rs", "state": "present" },
@@ -1501,6 +1606,7 @@
         { "kind": "test", "path": "crates/leserpent-cli/tests/https_vertical.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/leserpent_transport.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-protocol/tests/compatibility_v1.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-protocol/tests/extracted_contract_compatibility.rs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/RustCompatibilityFixtureTests.cs", "state": "present" },
         { "kind": "test", "path": "tests/leserpent_bridge_packaging_tdd.rs", "state": "present" },
         { "kind": "test", "path": "scripts/validation/leserpent_linux_bundle_smoke.sh", "state": "present" },
@@ -1513,7 +1619,7 @@
       "architecture": "leserpent-2",
       "module": "language-syntax",
       "feature": "lossless-frontend",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "critical",
       "maturity": "mature",
       "completion": 100,
@@ -1542,7 +1648,7 @@
       "architecture": "leserpent-2",
       "module": "language-hir",
       "feature": "typed-effects",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "critical",
       "maturity": "mature",
       "completion": 100,
@@ -1570,7 +1676,7 @@
       "architecture": "leserpent-2",
       "module": "language-vm",
       "feature": "effect-reentry",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "critical",
       "maturity": "mature",
       "completion": 100,
@@ -1792,7 +1898,7 @@
       "architecture": "leserpent-2",
       "module": "command-lowering",
       "feature": "command-plan-lowering",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "critical",
       "maturity": "mature",
       "completion": 100,
@@ -1822,7 +1928,7 @@
       "architecture": "leserpent-2",
       "module": "ui-language",
       "feature": "ui-ir-lowering",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "critical",
       "maturity": "mature",
       "completion": 100,
@@ -1852,7 +1958,7 @@
       "architecture": "leserpent-2",
       "module": "control-runtime",
       "feature": "durable-authority",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "critical",
       "maturity": "mature",
       "completion": 100,
@@ -1903,7 +2009,7 @@
       "architecture": "leserpent-2",
       "module": "effect-adapters",
       "feature": "typed-integrations",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "critical",
       "maturity": "mature",
       "completion": 100,
@@ -1934,7 +2040,7 @@
       "architecture": "leserpent-2",
       "module": "daemon-host",
       "feature": "daemon-lifecycle",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "critical",
       "maturity": "mature",
       "completion": 100,
@@ -1985,7 +2091,7 @@
       "architecture": "leserpent-2",
       "module": "deployment-bootstrap",
       "feature": "reverse-bootstrap",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "critical",
       "maturity": "mature",
       "completion": 100,
@@ -2243,7 +2349,7 @@
       "architecture": "leserpent-2",
       "module": "deployment-bootstrap",
       "feature": "gewyvern-provisioning",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "critical",
       "maturity": "mature",
       "completion": 100,
@@ -2386,7 +2492,8 @@
       "depends_on": [
         "leserpent-2/deployment-bootstrap/reverse-bootstrap",
         "leserpent-2/domain-model/command-query-kernel",
-        "leserpent-2/transport-protocol/wire-compatibility"
+        "leserpent-2/transport-protocol/wire-compatibility",
+        "shared-foundation/install-contract/gewyvern-install-wire"
       ],
       "blockers": [],
       "consumers": ["leserpentd", "leserpent-cli", "avalonia-client", "model-automation"],
@@ -2408,8 +2515,8 @@
         { "kind": "test", "path": "crates/leserpent-adapters/src/retirement.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/retirement_submission.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpentd/src/lib.rs", "state": "present" },
-        { "kind": "source", "path": "crates/leserpent-protocol/src/gewyvern_retirement.rs", "state": "present" },
-        { "kind": "test", "path": "crates/leserpent-protocol/src/gewyvern_retirement.rs", "state": "present" },
+        { "kind": "source", "path": "crates/gewyvern-install-contract/src/retirement.rs", "state": "present" },
+        { "kind": "test", "path": "crates/gewyvern-install-contract/src/retirement.rs", "state": "present" },
         { "kind": "source", "path": "src/gewyvern_install.rs", "state": "present" },
         { "kind": "test", "path": "src/gewyvern_install.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/gewyvern_origin.rs", "state": "present" },
@@ -2419,9 +2526,9 @@
         { "kind": "test", "path": "crates/leserpentd/src/lib.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpentd/src/ipc.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpentd/src/remote.rs", "state": "present" },
-        { "kind": "source", "path": "crates/leserpent-protocol/src/gewyvern_installer.rs", "state": "present" },
-        { "kind": "test", "path": "crates/leserpent-protocol/tests/fixtures/gewyvern-installer-request-v1.json", "state": "present" },
-        { "kind": "test", "path": "crates/leserpent-protocol/tests/fixtures/gewyvern-installer-ready-response-v1.json", "state": "present" },
+        { "kind": "source", "path": "crates/gewyvern-install-contract/src/installer.rs", "state": "present" },
+        { "kind": "test", "path": "crates/gewyvern-install-contract/tests/fixtures/gewyvern-installer-request-v1.json", "state": "present" },
+        { "kind": "test", "path": "crates/gewyvern-install-contract/tests/fixtures/gewyvern-installer-ready-response-v1.json", "state": "present" },
         { "kind": "source", "path": "src/gewyvern_install.rs", "state": "present" },
         { "kind": "source", "path": "src/data_api/service.rs", "state": "present" },
         { "kind": "source", "path": "src/main.rs", "state": "present" },
@@ -2448,7 +2555,7 @@
       "architecture": "leserpent-2",
       "module": "native-cli",
       "feature": "cli-parity",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "critical",
       "maturity": "mature",
       "completion": 100,
@@ -2481,7 +2588,7 @@
       "architecture": "leserpent-2",
       "module": "ui-renderers",
       "feature": "avalonia-renderer",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "critical",
       "maturity": "mature",
       "completion": 100,
@@ -2577,7 +2684,7 @@
       "architecture": "leserpent-2",
       "module": "ui-renderers",
       "feature": "frontend-functional-parity",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "critical",
       "maturity": "stabilizing",
       "completion": 100,
@@ -2749,7 +2856,7 @@
       "architecture": "leserpent-2",
       "module": "ui-renderers",
       "feature": "desktop-localization",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "maintenance",
       "maturity": "mature",
       "completion": 100,
@@ -3002,7 +3109,7 @@
       "architecture": "leserpent-2",
       "module": "remote-console",
       "feature": "remote-mobile-console",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "maintenance",
       "maturity": "mature",
       "completion": 100,
@@ -3073,7 +3180,7 @@
       "architecture": "leserpent-2",
       "module": "domain-model",
       "feature": "account-access-boundary",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "critical",
       "maturity": "mature",
       "completion": 100,
@@ -3223,7 +3330,7 @@
       "architecture": "leserpent-2",
       "module": "release-assurance",
       "feature": "continuous-proof",
-      "lifecycle": "target",
+      "lifecycle": "current",
       "priority": "maintenance",
       "maturity": "mature",
       "completion": 100,

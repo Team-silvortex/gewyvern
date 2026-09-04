@@ -134,12 +134,12 @@ fn project_status_catalog_is_protocolized_and_valid() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     catalog.validate(&root).expect("catalog must validate");
     assert_eq!(catalog.calibration.model, STATUS_CALIBRATION_MODEL);
-    assert_eq!(catalog.calibration.as_of, "2026-08-30");
-    assert!(catalog.dimensions.architectures.len() >= 6);
-    assert!(catalog.dimensions.modules.len() >= 21);
-    assert!(catalog.dimensions.features.len() >= 23);
-    assert!(catalog.coverage_requirements.len() >= 28);
-    assert!(catalog.cells.len() >= 23);
+    assert_eq!(catalog.calibration.as_of, "2026-09-04");
+    assert!(catalog.dimensions.architectures.len() >= 7);
+    assert!(catalog.dimensions.modules.len() >= 23);
+    assert!(catalog.dimensions.features.len() >= 25);
+    assert!(catalog.coverage_requirements.len() >= 32);
+    assert!(catalog.cells.len() >= 32);
 
     for cell in &catalog.cells {
         assert!(!cell.contract.id.is_empty());
@@ -148,6 +148,91 @@ fn project_status_catalog_is_protocolized_and_valid() {
         assert!(!cell.evidence.is_empty());
         assert!(!cell.next_gate.is_empty());
     }
+
+    let leserpent_targets = catalog
+        .cells
+        .iter()
+        .filter(|cell| cell.architecture == "leserpent-2" && cell.lifecycle == Lifecycle::Target)
+        .map(|cell| cell.id.as_str())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        leserpent_targets,
+        BTreeSet::from(["leserpent-2/release-assurance/desktop-account-proof"])
+    );
+    assert!(catalog.cells.iter().all(|cell| {
+        cell.architecture != "leserpent-2"
+            || cell.id == "leserpent-2/release-assurance/desktop-account-proof"
+            || cell.lifecycle == Lifecycle::Current
+    }));
+    assert!(
+        catalog
+            .cells
+            .iter()
+            .filter(|cell| cell.architecture == "leserpent-1x")
+            .all(|cell| cell.lifecycle == Lifecycle::Bridge)
+    );
+}
+
+#[test]
+fn shared_native_foundations_cut_the_reverse_protocol_dependency() {
+    let root = repository_root();
+    let root_manifest =
+        std::fs::read_to_string(root.join("Cargo.toml")).expect("workspace manifest must exist");
+    let normal_dependencies = root_manifest
+        .split_once("[dependencies]")
+        .expect("root dependencies section must exist")
+        .1
+        .split_once("[dev-dependencies]")
+        .expect("root dev-dependencies section must exist")
+        .0;
+    assert!(normal_dependencies.contains("gewyvern-install-contract"));
+    assert!(normal_dependencies.contains("silvortex-bounded-io"));
+    assert!(!normal_dependencies.contains("leserpent-protocol"));
+
+    let bounded_manifest =
+        std::fs::read_to_string(root.join("crates/silvortex-bounded-io/Cargo.toml"))
+            .expect("bounded I/O manifest must exist");
+    let bounded_source =
+        std::fs::read_to_string(root.join("crates/silvortex-bounded-io/src/lib.rs"))
+            .expect("bounded I/O source must exist");
+    for product in ["gewyvern", "leserpent", "leselang", "etragon"] {
+        assert!(
+            !bounded_manifest.to_ascii_lowercase().contains(product)
+                && !bounded_source.to_ascii_lowercase().contains(product),
+            "product-neutral bounded I/O leaked {product} semantics"
+        );
+    }
+
+    let protocol = std::fs::read_to_string(root.join("crates/leserpent-protocol/src/lib.rs"))
+        .expect("Leserpent protocol source must exist");
+    assert!(protocol.contains("pub use silvortex_bounded_io as transport_safety"));
+    assert!(
+        protocol.contains("pub use gewyvern_install_contract::installer as gewyvern_installer")
+    );
+    assert!(
+        protocol.contains("pub use gewyvern_install_contract::retirement as gewyvern_retirement")
+    );
+
+    let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
+    let bounded = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "shared-foundation/bounded-io/bounded-native-io")
+        .expect("bounded I/O foundation must be tracked");
+    assert!(bounded.depends_on.is_empty());
+    assert_eq!(bounded.independence, Independence::ReusableLibrary);
+    let install = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "shared-foundation/install-contract/gewyvern-install-wire")
+        .expect("install contract foundation must be tracked");
+    assert_eq!(install.independence, Independence::ReusableLibrary);
+    assert!(
+        install
+            .blockers
+            .iter()
+            .any(|blocker| blocker.id == "installer-identity-coupling")
+    );
 }
 
 #[test]
@@ -9254,6 +9339,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "boundary-leserpent-1x-control-plane",
         "boundary-leserpent-1x-web-console",
         "boundary-etragon-learning-sidecar",
+        "boundary-shared-bounded-io",
+        "boundary-shared-gewyvern-install-contract",
         "boundary-project-status-governance",
     ];
     for requirement in required_boundaries {
@@ -9365,13 +9452,13 @@ fn native_status_cli_exposes_human_and_machine_views() {
         serde_json::from_slice(&summary.stdout).expect("summary must be JSON");
     assert_eq!(payload["schema_version"], STATUS_SCHEMA_VERSION);
     assert_eq!(payload["calibration"]["model"], STATUS_CALIBRATION_MODEL);
-    assert_eq!(payload["calibration"]["as_of"], "2026-08-30");
+    assert_eq!(payload["calibration"]["as_of"], "2026-09-04");
     assert_eq!(payload["deferred_cell_count"], 2);
     assert!(payload["overall_score"].is_u64());
     assert!(payload["portfolio_score"].is_u64());
-    assert_eq!(payload["coverage"]["requirement_count"], 30);
-    assert_eq!(payload["coverage"]["architecture_count"], 6);
-    assert_eq!(payload["coverage"]["ownership_boundary_count"], 21);
+    assert_eq!(payload["coverage"]["requirement_count"], 32);
+    assert_eq!(payload["coverage"]["architecture_count"], 7);
+    assert_eq!(payload["coverage"]["ownership_boundary_count"], 23);
     assert_eq!(payload["coverage"]["roadmap_gate_count"], 7);
     assert_eq!(payload["coverage"]["proof_shelf_count"], 2);
     assert_eq!(payload["weakest"].as_array().unwrap().len(), 3);
@@ -9436,7 +9523,7 @@ fn native_status_cli_exposes_human_and_machine_views() {
             "--feature",
             "effect-reentry",
             "--lifecycle",
-            "target",
+            "current",
             "--maturity",
             "mature",
             "--priority",

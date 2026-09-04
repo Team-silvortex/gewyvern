@@ -16,8 +16,8 @@ use leserpent_adapters::{
 use leserpent_domain::bootstrap::{
     BootstrapTarget, BootstrapTransport, CredentialHandle, DaemonId,
 };
-use leserpent_protocol::transport_safety::open_bounded_regular_file;
 use serde::Deserialize;
+use silvortex_bounded_io::open_bounded_regular_file;
 
 pub const BOOTSTRAP_ORIGIN_CONFIG_SCHEMA_VERSION: u32 = 1;
 pub(crate) const MAX_ORIGIN_CONFIG_BYTES: u64 = 64 * 1024;

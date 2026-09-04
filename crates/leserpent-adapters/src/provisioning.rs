@@ -5,16 +5,16 @@ use std::sync::Arc;
 #[cfg(feature = "native-ssh")]
 use std::time::Duration;
 
-use leserpent_domain::RuntimeId;
-use leserpent_domain::bootstrap::{BootstrapTarget, BootstrapTransport, CredentialHandle};
-use leserpent_domain::provisioning::{GewyvernServiceReceipt, RuntimeProvisioning};
 #[cfg(feature = "native-ssh")]
-use leserpent_protocol::gewyvern_installer::{
+use gewyvern_install_contract::installer::{
     GewyvernInstallerRequest, GewyvernInstallerResponse, GewyvernInstallerServiceState,
     MAX_GEWYVERN_INSTALLER_BYTES, decode_gewyvern_installer_response,
     encode_gewyvern_installer_request, validate_gewyvern_installer_readiness,
     validate_gewyvern_installer_response_binding,
 };
+use leserpent_domain::RuntimeId;
+use leserpent_domain::bootstrap::{BootstrapTarget, BootstrapTransport, CredentialHandle};
+use leserpent_domain::provisioning::{GewyvernServiceReceipt, RuntimeProvisioning};
 use leserpent_protocol::provisioning::{
     PROVISIONING_PROTOCOL_SCHEMA_VERSION, ProvisioningRequestEnvelope, ProvisioningResponse,
     ProvisioningResponseEnvelope, decode_provisioning_request, encode_provisioning_response,
@@ -676,8 +676,7 @@ mod tests {
             .cert
             .pem();
         GewyvernInstallerResponse {
-            schema_version:
-                leserpent_protocol::gewyvern_installer::GEWYVERN_INSTALLER_SCHEMA_VERSION,
+            schema_version: gewyvern_install_contract::installer::GEWYVERN_INSTALLER_SCHEMA_VERSION,
             provisioning_id: request.provisioning_id.clone(),
             runtime_id: request.runtime_id.clone(),
             endpoint: request.endpoint.clone(),
