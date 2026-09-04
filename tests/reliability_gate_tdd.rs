@@ -16,7 +16,11 @@ fn production_source(path: impl AsRef<Path>) -> String {
 #[test]
 fn critical_runtime_sources_do_not_use_panic_shortcuts_in_production() {
     let root = repository_root();
-    for relative in ["src/runtime.rs", "crates/leserpent-runtime/src/lib.rs"] {
+    for relative in [
+        "src/runtime.rs",
+        "crates/gewylang-compiler/src/lowering.rs",
+        "crates/leserpent-runtime/src/lib.rs",
+    ] {
         let production = production_source(root.join(relative));
         for forbidden in ["panic!(", ".expect(", ".unwrap("] {
             assert!(

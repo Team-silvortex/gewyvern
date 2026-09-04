@@ -18,8 +18,12 @@ consumes that contract and owns bounded source loading, package/include graph
 expansion, the canonical syntax AST and parser, and frontend summaries. Its only
 normal dependency is `gewylang-contract`, so editors, generators, and static
 inspection tools can parse GewyLang without linking Gewyvern. The
-`gewyvern::dsl` facade preserves the established API and error shape while it
-adapts this syntax tree into `TemplateBinding` and runtime analysis structures.
+product-independent [`gewylang-compiler`](../crates/gewylang-compiler) crate
+then owns function expansion, parameter substitution, canonical rule lowering,
+and direct string/file compiler facades. Its `SemanticHost` trait is the only
+place where product-specific values enter lowering. The `gewyvern::dsl` facade
+preserves the established API and error shape while its adapter maps those
+canonical assignments into `TemplateBinding` and runtime analysis structures.
 
 ## Contract Identity
 
@@ -50,7 +54,7 @@ Consumers must match all four fields before interpreting stage-specific data.
 | --- | --- | --- | --- |
 | Source syntax | `1` | Canonical `.gewy` grammar and source semantics. | [`gewylang.ebnf`](gewylang.ebnf) |
 | `expanded_ast` | `1` | Expanded package composition, declarations, provenance, and `use` graph. | `gewylang-syntax` |
-| `binding_ir` | `1` | Executable semantic compile target represented in Rust by `TemplateBinding`. | Gewyvern semantic lowering / `gewyc binding` |
+| `binding_ir` | `1` | Executable semantic compile target represented in Rust by `TemplateBinding`. | Gewyvern semantic-host adapter / `gewyc binding` |
 | `analysis_ir` | `1` | Diagnostics-enriched program and reason model projection represented by `IrReport`. | Gewyvern analysis adapter / `gewyc ir` |
 
 The stage names are protocol identifiers. Human-facing prose may use
@@ -61,8 +65,10 @@ use the exact lowercase identifiers in the table.
 
 ```text
 GewyLang Syntax v1
-  -> private parser representation
+  -> gewylang-syntax
   -> Expanded AST v1
+  -> gewylang-compiler + explicit SemanticHost
+  -> canonical assignments
   -> Binding IR v1
   -> validation and supportability analysis
   -> Analysis IR v1

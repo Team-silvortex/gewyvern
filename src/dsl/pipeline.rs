@@ -1,15 +1,13 @@
-use std::borrow::Cow;
+use super::{DslError, PipelineModule, semantic_host::GewyvernSemanticHost};
 
-use gewylang_syntax::PipelineUseCall;
+pub(super) type CanonicalAssignment = gewylang_compiler::CanonicalAssignment<GewyvernSemanticHost>;
+pub(super) type CanonicalAssignmentValue =
+    gewylang_compiler::CanonicalAssignmentValue<GewyvernSemanticHost>;
 
-mod lowering;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct PipelineKeywordArg<'a> {
-    value: Cow<'a, str>,
-    value_column: usize,
+pub(super) fn lower_pipeline_module_to_assignments(
+    module: &PipelineModule,
+    allow_template_head: bool,
+) -> Result<Vec<CanonicalAssignment>, DslError> {
+    gewylang_compiler::lower_pipeline_module(module, &GewyvernSemanticHost, allow_template_head)
+        .map_err(DslError::from)
 }
-
-pub(super) use gewylang_syntax::looks_like_pipeline_keyword_arg;
-
-pub(super) use lowering::lower_pipeline_module_to_assignments;

@@ -1,0 +1,9 @@
+[package]
+name = "gewylang-compiler"
+version.workspace = true
+edition.workspace = true
+description = "Product-independent GewyLang semantic lowering and host boundary"
+license.workspace = true
+
+[dependencies]
+gewylang-syntax = { path = "../gewylang-syntax" }

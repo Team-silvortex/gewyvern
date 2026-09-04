@@ -1,29 +1,32 @@
-use super::{PipelineKeywordArg, PipelineUseCall, looks_like_pipeline_keyword_arg};
-use crate::dsl::{
-    DslError, PipelineCall, PipelineFunction, PipelineModule,
-    diagnostics::{
-        pipeline_available_steps_message, pipeline_declared_functions_message,
-        pipeline_declared_params_message, pipeline_unknown_placeholder_message,
-    },
-    function_types::{format_pipeline_function_signature, validate_pipeline_param_value_kind},
-    legacy::{self, CanonicalAssignment, CanonicalAssignmentValue},
-    predicate::{parse_narrative_template, parse_reason_narrative},
+use crate::{
+    CanonicalAssignment, CanonicalAssignmentValue, LocatedSemanticValue, ProgramRuleInput,
+    ReasonRuleInput, RuleScope, SemanticHost,
 };
-use crate::fragment::EvidenceTier;
-use crate::ledger::FactKindTag;
-use crate::program::ProgramRule;
-use crate::reason::{ReasonProfile, ReasonRule};
-use crate::template::FragmentParamValue;
 use gewylang_syntax::{
-    is_pipeline_identifier, parse_pipeline_literal, parse_pipeline_literal_cow,
-    parse_pipeline_single_arg, parse_pipeline_use_call,
+    PipelineCall, PipelineFunction, PipelineModule, PipelineUseCall, SyntaxError,
+    format_pipeline_function_signature, is_pipeline_identifier, looks_like_pipeline_keyword_arg,
+    parse_pipeline_literal, parse_pipeline_literal_cow, parse_pipeline_single_arg,
+    parse_pipeline_use_call, pipeline_available_steps_message, pipeline_declared_functions_message,
+    pipeline_declared_params_message, pipeline_unknown_placeholder_message,
 };
 use std::collections::BTreeMap;
 
-pub(crate) fn lower_pipeline_module_to_assignments(
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PipelineKeywordArg<'a> {
+    value: std::borrow::Cow<'a, str>,
+    value_column: usize,
+}
+
+struct LoweringContext<'a, H: SemanticHost> {
+    module: &'a PipelineModule,
+    host: &'a H,
+}
+
+pub fn lower_pipeline_module<H: SemanticHost>(
     module: &PipelineModule,
+    host: &H,
     allow_template_head: bool,
-) -> Result<Vec<CanonicalAssignment>, DslError> {
+) -> Result<Vec<CanonicalAssignment<H>>, SyntaxError> {
     let mut output = Vec::new();
     if let Some(template) = &module.template {
         output.push(CanonicalAssignment::new(
@@ -34,14 +37,15 @@ pub(crate) fn lower_pipeline_module_to_assignments(
             template.line_no,
         ));
     } else if allow_template_head {
-        return Err(DslError::InvalidValue(
+        return Err(SyntaxError::InvalidValue(
             "pipeline DSL must start with template(...) or template :name".into(),
         ));
     }
 
+    let context = LoweringContext { module, host };
     lower_pipeline_calls(
         &module.body,
-        module,
+        &context,
         &mut output,
         allow_template_head,
         &mut Vec::new(),
@@ -51,19 +55,19 @@ pub(crate) fn lower_pipeline_module_to_assignments(
     Ok(output)
 }
 
-fn lower_pipeline_calls(
+fn lower_pipeline_calls<H: SemanticHost>(
     calls: &[PipelineCall],
-    module: &PipelineModule,
-    output: &mut Vec<CanonicalAssignment>,
+    context: &LoweringContext<'_, H>,
+    output: &mut Vec<CanonicalAssignment<H>>,
     allow_template_head: bool,
     use_stack: &mut Vec<String>,
     bindings: &BTreeMap<String, String>,
     scope_context: &str,
-) -> Result<(), DslError> {
+) -> Result<(), SyntaxError> {
     for call in calls {
         lower_pipeline_call(
             call,
-            module,
+            context,
             output,
             allow_template_head,
             use_stack,
@@ -74,15 +78,15 @@ fn lower_pipeline_calls(
     Ok(())
 }
 
-fn lower_pipeline_call(
+fn lower_pipeline_call<H: SemanticHost>(
     call: &PipelineCall,
-    module: &PipelineModule,
-    output: &mut Vec<CanonicalAssignment>,
+    context: &LoweringContext<'_, H>,
+    output: &mut Vec<CanonicalAssignment<H>>,
     allow_template_head: bool,
     use_stack: &mut Vec<String>,
     bindings: &BTreeMap<String, String>,
     scope_context: &str,
-) -> Result<(), DslError> {
+) -> Result<(), SyntaxError> {
     let line_no = call.line_no;
     let column_no = call.column_no;
     let resolved_args = if call.args.iter().any(|arg| arg.contains('$')) {
@@ -101,7 +105,7 @@ fn lower_pipeline_call(
     match call.name.as_str() {
         "template" => {
             if !allow_template_head {
-                return Err(DslError::InvalidValue(
+                return Err(SyntaxError::InvalidValue(
                     "pipeline DSL supports exactly one template head".into(),
                 )
                 .at_line(line_no));
@@ -119,21 +123,26 @@ fn lower_pipeline_call(
                 .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
             let function_name = use_call.function_name.clone();
             if use_stack.contains(&function_name) {
-                return Err(DslError::InvalidValue(format!(
+                return Err(SyntaxError::InvalidValue(format!(
                     "pipeline use cycle detected at function '{function_name}'"
                 ))
                 .at_line(line_no));
             }
-            let function = module.functions.get(&function_name).ok_or_else(|| {
-                let declared = module.functions.keys().cloned().collect::<Vec<_>>();
-                DslError::InvalidValue(format!(
-                    "unknown pipeline function '{function_name}'. {}",
-                    pipeline_declared_functions_message(&declared)
-                ))
-                .at_line(line_no)
-            })?;
-            let mut function_bindings = build_pipeline_function_bindings(function, &use_call)
-                .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
+            let function = context
+                .module
+                .functions
+                .get(&function_name)
+                .ok_or_else(|| {
+                    let declared = context.module.functions.keys().cloned().collect::<Vec<_>>();
+                    SyntaxError::InvalidValue(format!(
+                        "unknown pipeline function '{function_name}'. {}",
+                        pipeline_declared_functions_message(&declared)
+                    ))
+                    .at_line(line_no)
+                })?;
+            let mut function_bindings =
+                build_pipeline_function_bindings(context.host, function, &use_call)
+                    .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
             let function_signature =
                 format_pipeline_function_signature(&function_name, &function.params);
             for binding in &function.local_bindings {
@@ -151,7 +160,7 @@ fn lower_pipeline_call(
             use_stack.push(function_name.clone());
             lower_pipeline_calls(
                 &function.body,
-                module,
+                context,
                 output,
                 false,
                 use_stack,
@@ -161,18 +170,25 @@ fn lower_pipeline_call(
             use_stack.pop();
         }
         "include" => {
-            return Err(DslError::InvalidValue(
+            return Err(SyntaxError::InvalidValue(
                 "pipeline include() should be resolved before lowering".into(),
             )
             .at_line(line_no));
         }
-        "window" => lower_pipeline_window(args, &call.arg_columns, column_no, line_no, output)
-            .map_err(|err| err.at_line(line_no))?,
+        "window" => lower_pipeline_window(
+            context.host,
+            args,
+            &call.arg_columns,
+            column_no,
+            line_no,
+            output,
+        )
+        .map_err(|err| err.at_line(line_no))?,
         "reason" => {
             let id = parse_pipeline_single_arg(args, "reason")
                 .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
-            let profile = ReasonProfile::from_id(&id).ok_or_else(|| {
-                DslError::InvalidValue(format!("unknown reason profile '{id}'")).at_line_column(
+            let profile = context.host.parse_reason_profile(&id).map_err(|err| {
+                err.at_line_column(
                     line_no,
                     call.arg_columns.first().copied().or(Some(column_no)),
                 )
@@ -207,36 +223,36 @@ fn lower_pipeline_call(
             let value = parse_pipeline_single_arg(args, "operation")
                 .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
             output.push(CanonicalAssignment::new(
-                CanonicalAssignmentValue::Operation(legacy::parse_operation(&value)),
+                CanonicalAssignmentValue::Operation(context.host.parse_operation(&value)),
                 line_no,
             ));
         }
         "param" => output.push(CanonicalAssignment::new(
-            lower_pipeline_param(args)
+            lower_pipeline_param(context.host, args)
                 .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
             line_no,
         )),
         "evidence" => output.push(CanonicalAssignment::new(
-            lower_pipeline_evidence(args)
+            lower_pipeline_evidence(context.host, args)
                 .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
             line_no,
         )),
         "program_rule" => output.push(CanonicalAssignment::new(
             CanonicalAssignmentValue::ProgramRule(
-                lower_pipeline_program_rule(args, &call.arg_columns, column_no)
+                lower_pipeline_program_rule(context.host, args, &call.arg_columns, column_no)
                     .map_err(|err| err.at_line(line_no))?,
             ),
             line_no,
         )),
         "reason_rule" => output.push(CanonicalAssignment::new(
             CanonicalAssignmentValue::ReasonRule(
-                lower_pipeline_reason_rule(args, &call.arg_columns, column_no)
+                lower_pipeline_reason_rule(context.host, args, &call.arg_columns, column_no)
                     .map_err(|err| err.at_line(line_no))?,
             ),
             line_no,
         )),
         other => {
-            return Err(DslError::InvalidValue(format!(
+            return Err(SyntaxError::InvalidValue(format!(
                 "unknown pipeline DSL step '{other}'. {}",
                 pipeline_available_steps_message()
             ))
@@ -246,10 +262,11 @@ fn lower_pipeline_call(
     Ok(())
 }
 
-fn build_pipeline_function_bindings(
+fn build_pipeline_function_bindings<H: SemanticHost>(
+    host: &H,
     function: &PipelineFunction,
     use_call: &PipelineUseCall,
-) -> Result<BTreeMap<String, String>, DslError> {
+) -> Result<BTreeMap<String, String>, SyntaxError> {
     let function_name = &use_call.function_name;
     let signature = format_pipeline_function_signature(function_name, &function.params);
     let required_count = function
@@ -263,14 +280,14 @@ fn build_pipeline_function_bindings(
             .iter()
             .any(|param| param.name == name.as_str())
     }) {
-        return Err(DslError::InvalidValue(format!(
+        return Err(SyntaxError::InvalidValue(format!(
             "pipeline function call does not match {signature}: unknown named parameter '{unknown_name}'. {}",
             known_pipeline_params_message(function_name, function)
         ))
         .at_line_column(0, Some(1)));
     }
     if use_call.positional_args.len() > function.params.len() {
-        return Err(DslError::InvalidValue(format!(
+        return Err(SyntaxError::InvalidValue(format!(
             "pipeline function call does not match {signature}: expected at most {} positional args, got {}",
             function.params.len(),
             use_call.positional_args.len()
@@ -285,7 +302,7 @@ fn build_pipeline_function_bindings(
         } else {
             format!("{} to {}", required_count, function.params.len())
         };
-        return Err(DslError::InvalidValue(format!(
+        return Err(SyntaxError::InvalidValue(format!(
             "pipeline function call does not match {signature}: expected {arity} args, got {}",
             use_call.positional_args.len() + use_call.named_args.len()
         ))
@@ -295,7 +312,7 @@ fn build_pipeline_function_bindings(
     let mut bindings = BTreeMap::new();
     for param in function.params.iter().take(use_call.positional_args.len()) {
         if use_call.named_args.contains_key(&param.name) {
-            return Err(DslError::InvalidValue(format!(
+            return Err(SyntaxError::InvalidValue(format!(
                 "pipeline function call does not match {signature}: parameter '{}' received both positional and named values",
                 param.name
             ))
@@ -305,7 +322,7 @@ fn build_pipeline_function_bindings(
     for (index, param) in function.params.iter().enumerate() {
         if let Some(actual) = use_call.positional_args.get(index) {
             if let Some(kind) = param.inferred_kind {
-                validate_pipeline_param_value_kind(
+                host.validate_pipeline_param_value_kind(
                     &actual.raw,
                     kind,
                     &format!(
@@ -319,7 +336,7 @@ fn build_pipeline_function_bindings(
         }
         if let Some(actual) = use_call.named_args.get(&param.name) {
             if let Some(kind) = param.inferred_kind {
-                validate_pipeline_param_value_kind(
+                host.validate_pipeline_param_value_kind(
                     &actual.raw,
                     kind,
                     &format!(
@@ -332,7 +349,7 @@ fn build_pipeline_function_bindings(
             continue;
         }
         let default_value = param.default_value.as_ref().ok_or_else(|| {
-            DslError::InvalidValue(format!(
+            SyntaxError::InvalidValue(format!(
                 "pipeline function call does not match {signature}: missing required parameter '{}'",
                 param.name
             ))
@@ -344,7 +361,7 @@ fn build_pipeline_function_bindings(
         );
         let resolved = substitute_pipeline_arg(default_value, &bindings, &default_context)?;
         if let Some(kind) = param.inferred_kind {
-            validate_pipeline_param_value_kind(
+            host.validate_pipeline_param_value_kind(
                 &resolved,
                 kind,
                 &format!(
@@ -358,11 +375,11 @@ fn build_pipeline_function_bindings(
     Ok(bindings)
 }
 
-pub(crate) fn substitute_pipeline_arg(
+pub fn substitute_pipeline_arg(
     arg: &str,
     bindings: &BTreeMap<String, String>,
     context: &str,
-) -> Result<String, DslError> {
+) -> Result<String, SyntaxError> {
     if !arg.contains('$') {
         return Ok(arg.to_string());
     }
@@ -379,7 +396,7 @@ pub(crate) fn substitute_pipeline_arg(
         }
         iterations += 1;
         if iterations > 32 {
-            return Err(DslError::InvalidValue(format!(
+            return Err(SyntaxError::InvalidValue(format!(
                 "pipeline placeholder expansion exceeded 32 substitutions while {context}"
             ))
             .at_line_column(0, Some(1)));
@@ -391,7 +408,7 @@ fn substitute_pipeline_arg_once(
     arg: &str,
     bindings: &BTreeMap<String, String>,
     context: &str,
-) -> Result<(String, bool), DslError> {
+) -> Result<(String, bool), SyntaxError> {
     let bytes = arg.as_bytes();
     let mut output = String::with_capacity(arg.len());
     let mut index = 0usize;
@@ -434,7 +451,7 @@ fn substitute_pipeline_arg_once(
             let name_start = next + 1;
             let Some(close_offset) = bytes[name_start..].iter().position(|byte| *byte == b'}')
             else {
-                return Err(DslError::InvalidValue(format!(
+                return Err(SyntaxError::InvalidValue(format!(
                     "unclosed pipeline placeholder in '{arg}'"
                 ))
                 .at_line_column(0, Some(start_column)));
@@ -443,8 +460,10 @@ fn substitute_pipeline_arg_once(
             let key = arg[name_start..name_end].trim();
             let value = bindings.get(key).ok_or_else(|| {
                 let names = bindings.keys().cloned().collect::<Vec<_>>();
-                DslError::InvalidValue(pipeline_unknown_placeholder_message(context, key, &names))
-                    .at_line_column(0, Some(start_column + 2))
+                SyntaxError::InvalidValue(pipeline_unknown_placeholder_message(
+                    context, key, &names,
+                ))
+                .at_line_column(0, Some(start_column + 2))
             })?;
             output.push_str(&arg[copy_start..index]);
             output.push_str(value);
@@ -462,8 +481,10 @@ fn substitute_pipeline_arg_once(
             let key = &arg[next..end];
             let value = bindings.get(key).ok_or_else(|| {
                 let names = bindings.keys().cloned().collect::<Vec<_>>();
-                DslError::InvalidValue(pipeline_unknown_placeholder_message(context, key, &names))
-                    .at_line_column(0, Some(index + 2))
+                SyntaxError::InvalidValue(pipeline_unknown_placeholder_message(
+                    context, key, &names,
+                ))
+                .at_line_column(0, Some(index + 2))
             })?;
             output.push_str(&arg[copy_start..index]);
             output.push_str(value);
@@ -504,18 +525,18 @@ fn parse_pipeline_keywords_with_columns<'a>(
     args: &'a [String],
     arg_columns: &[usize],
     step: &str,
-) -> Result<BTreeMap<&'a str, PipelineKeywordArg<'a>>, DslError> {
+) -> Result<BTreeMap<&'a str, PipelineKeywordArg<'a>>, SyntaxError> {
     let mut keywords = BTreeMap::new();
     for (arg, arg_column) in args.iter().zip(arg_columns.iter()) {
         let (key, value) = arg.split_once(':').ok_or_else(|| {
-            DslError::InvalidValue(format!(
+            SyntaxError::InvalidValue(format!(
                 "pipeline step '{step}' expected keyword argument, got '{arg}'"
             ))
             .at_line_column(0, Some(*arg_column))
         })?;
         let key = key.trim();
         if !is_pipeline_identifier(key) {
-            return Err(DslError::InvalidValue(format!(
+            return Err(SyntaxError::InvalidValue(format!(
                 "pipeline step '{step}' received invalid keyword field name '{key}'"
             ))
             .at_line_column(0, Some(*arg_column)));
@@ -526,7 +547,7 @@ fn parse_pipeline_keywords_with_columns<'a>(
             } else {
                 format!("pipeline step '{step}' received duplicate field '{key}'")
             };
-            return Err(DslError::InvalidValue(message).at_line_column(0, Some(*arg_column)));
+            return Err(SyntaxError::InvalidValue(message).at_line_column(0, Some(*arg_column)));
         }
         let value_trimmed = value.trim();
         let value_offset = value.find(value_trimmed).unwrap_or(0);
@@ -545,7 +566,7 @@ fn canonicalize_pipeline_rule_keywords<'a>(
     keywords: BTreeMap<&str, PipelineKeywordArg<'a>>,
     reason_rule: bool,
     call_column: usize,
-) -> Result<BTreeMap<&'static str, PipelineKeywordArg<'a>>, DslError> {
+) -> Result<BTreeMap<&'static str, PipelineKeywordArg<'a>>, SyntaxError> {
     let mut canonical = BTreeMap::new();
     for (key, value) in keywords {
         let normalized = match key {
@@ -557,14 +578,14 @@ fn canonicalize_pipeline_rule_keywords<'a>(
             "module" | "mod" => "module",
             "phase" => "phase",
             _ => {
-                return Err(DslError::InvalidValue(format!(
+                return Err(SyntaxError::InvalidValue(format!(
                     "pipeline rule received unknown field '{key}'"
                 ))
                 .at_line_column(0, Some(value.value_column)));
             }
         };
         if canonical.insert(normalized, value).is_some() {
-            return Err(DslError::InvalidValue(format!(
+            return Err(SyntaxError::InvalidValue(format!(
                 "pipeline rule received duplicate field '{normalized}'"
             ))
             .at_line_column(0, Some(call_column)));
@@ -578,7 +599,7 @@ fn normalize_pipeline_rule_args<'a>(
     arg_columns: &[usize],
     reason_rule: bool,
     call_column: usize,
-) -> Result<BTreeMap<&'static str, PipelineKeywordArg<'a>>, DslError> {
+) -> Result<BTreeMap<&'static str, PipelineKeywordArg<'a>>, SyntaxError> {
     let signal_key = if reason_rule { "key_event" } else { "stage" };
     let step = if reason_rule {
         "reason_rule"
@@ -589,7 +610,7 @@ fn normalize_pipeline_rule_args<'a>(
     let has_keywords = args.iter().any(|arg| looks_like_pipeline_keyword_arg(arg));
     if !has_keywords {
         if args.len() != positional_limit {
-            return Err(DslError::InvalidValue(format!(
+            return Err(SyntaxError::InvalidValue(format!(
                 "pipeline step '{step}' positional shorthand expects exactly 4 arguments"
             ))
             .at_line_column(0, Some(call_column)));
@@ -613,7 +634,7 @@ fn normalize_pipeline_rule_args<'a>(
         .take_while(|arg| !looks_like_pipeline_keyword_arg(arg))
         .count();
     if positional_count > positional_limit {
-        return Err(DslError::InvalidValue(format!(
+        return Err(SyntaxError::InvalidValue(format!(
             "pipeline step '{step}' positional shorthand accepts at most 4 leading arguments"
         ))
         .at_line_column(0, Some(call_column)));
@@ -623,7 +644,7 @@ fn normalize_pipeline_rule_args<'a>(
         .skip(positional_count)
         .any(|arg| !looks_like_pipeline_keyword_arg(arg))
     {
-        return Err(DslError::InvalidValue(format!(
+        return Err(SyntaxError::InvalidValue(format!(
             "pipeline step '{step}' cannot place positional arguments after named arguments"
         ))
         .at_line_column(0, Some(call_column)));
@@ -651,7 +672,7 @@ fn normalize_pipeline_rule_args<'a>(
     )?;
     for (key, value) in remaining_keywords {
         if keywords.insert(key, value).is_some() {
-            return Err(DslError::InvalidValue(format!(
+            return Err(SyntaxError::InvalidValue(format!(
                 "pipeline step '{step}' received duplicate rule field"
             ))
             .at_line_column(0, Some(call_column)));
@@ -660,19 +681,20 @@ fn normalize_pipeline_rule_args<'a>(
     canonicalize_pipeline_rule_keywords(keywords, reason_rule, call_column)
 }
 
-pub(crate) fn lower_pipeline_window(
+fn lower_pipeline_window<H: SemanticHost>(
+    host: &H,
     args: &[String],
     arg_columns: &[usize],
     call_column: usize,
     line_no: usize,
-    output: &mut Vec<CanonicalAssignment>,
-) -> Result<(), DslError> {
+    output: &mut Vec<CanonicalAssignment<H>>,
+) -> Result<(), SyntaxError> {
     if args.len() == 1 && !looks_like_pipeline_keyword_arg(&args[0]) {
         let id = parse_pipeline_literal_cow(&args[0])?;
         let value_column = arg_columns.first().copied().unwrap_or(call_column);
         output.push(CanonicalAssignment::new(
             CanonicalAssignmentValue::Window(
-                legacy::parse_window_profile(&id)
+                host.parse_window_profile(&id)
                     .map_err(|err| err.at_line_column(0, Some(value_column)))?,
             ),
             line_no,
@@ -684,17 +706,17 @@ pub(crate) fn lower_pipeline_window(
         .iter()
         .find(|(field, _)| !matches!(**field, "duration_ms" | "lateness_ms"))
     {
-        return Err(DslError::InvalidValue(format!(
+        return Err(SyntaxError::InvalidValue(format!(
             "pipeline step 'window' received unknown field '{field}'"
         ))
         .at_line_column(0, Some(value.value_column)));
     }
     let duration_ms = keywords
         .get("duration_ms")
-        .ok_or(DslError::MissingField("duration_ms").at_line_column(0, Some(call_column)))?;
+        .ok_or(SyntaxError::MissingField("duration_ms").at_line_column(0, Some(call_column)))?;
     let lateness_ms = keywords
         .get("lateness_ms")
-        .ok_or(DslError::MissingField("lateness_ms").at_line_column(0, Some(call_column)))?;
+        .ok_or(SyntaxError::MissingField("lateness_ms").at_line_column(0, Some(call_column)))?;
     output.push(CanonicalAssignment::new(
         CanonicalAssignmentValue::WindowDuration(parse_pipeline_u64(duration_ms, "duration_ms")?),
         line_no,
@@ -706,16 +728,19 @@ pub(crate) fn lower_pipeline_window(
     Ok(())
 }
 
-fn parse_pipeline_u64(arg: &PipelineKeywordArg<'_>, field: &str) -> Result<u64, DslError> {
+fn parse_pipeline_u64(arg: &PipelineKeywordArg<'_>, field: &str) -> Result<u64, SyntaxError> {
     arg.value.parse::<u64>().map_err(|_| {
-        DslError::InvalidValue(format!("invalid u64 for '{field}': '{}'", arg.value))
+        SyntaxError::InvalidValue(format!("invalid u64 for '{field}': '{}'", arg.value))
             .at_line_column(0, Some(arg.value_column))
     })
 }
 
-pub(crate) fn lower_pipeline_param(args: &[String]) -> Result<CanonicalAssignmentValue, DslError> {
+fn lower_pipeline_param<H: SemanticHost>(
+    host: &H,
+    args: &[String],
+) -> Result<CanonicalAssignmentValue<H>, SyntaxError> {
     if args.len() != 2 {
-        return Err(DslError::InvalidValue(
+        return Err(SyntaxError::InvalidValue(
             "pipeline step 'param' expects target and value".into(),
         )
         .at_line_column(0, Some(1)));
@@ -723,15 +748,9 @@ pub(crate) fn lower_pipeline_param(args: &[String]) -> Result<CanonicalAssignmen
     let target = parse_pipeline_literal_cow(&args[0])?;
     let (fragment_id, key) = target
         .split_once('.')
-        .ok_or_else(|| DslError::InvalidValue(format!("invalid param target '{target}'")))?;
+        .ok_or_else(|| SyntaxError::InvalidValue(format!("invalid param target '{target}'")))?;
     let value = parse_pipeline_literal_cow(&args[1])?;
-    let value = if matches!(value.as_ref(), "true" | "false") {
-        FragmentParamValue::Bool(crate::dsl::parse_bool(value.as_ref())?)
-    } else if let Ok(value) = value.parse::<u64>() {
-        FragmentParamValue::U64(value)
-    } else {
-        FragmentParamValue::String(value.into_owned())
-    };
+    let value = host.parse_fragment_param_value(value.as_ref())?;
     Ok(CanonicalAssignmentValue::FragmentParam {
         fragment_id: fragment_id.trim().to_string(),
         key: key.trim().to_string(),
@@ -739,99 +758,100 @@ pub(crate) fn lower_pipeline_param(args: &[String]) -> Result<CanonicalAssignmen
     })
 }
 
-pub(crate) fn lower_pipeline_evidence(
+fn lower_pipeline_evidence<H: SemanticHost>(
+    host: &H,
     args: &[String],
-) -> Result<CanonicalAssignmentValue, DslError> {
+) -> Result<CanonicalAssignmentValue<H>, SyntaxError> {
     if args.len() != 2 {
-        return Err(DslError::InvalidValue(
+        return Err(SyntaxError::InvalidValue(
             "pipeline step 'evidence' expects fact kind and tier".into(),
         )
         .at_line_column(0, Some(1)));
     }
     let fact_kind_id = parse_pipeline_literal_cow(&args[0])?;
-    let fact_kind = FactKindTag::from_str(fact_kind_id.as_ref()).ok_or_else(|| {
-        DslError::InvalidValue(format!("unknown evidence fact kind '{fact_kind_id}'"))
-    })?;
+    let fact_kind = host.parse_fact_kind(fact_kind_id.as_ref())?;
     let tier_id = parse_pipeline_literal_cow(&args[1])?;
-    let tier = match tier_id.as_ref() {
-        "core_requirement" => EvidenceTier::CoreRequirement,
-        "optional_enhancement" => EvidenceTier::OptionalEnhancement,
-        other => {
-            return Err(DslError::InvalidValue(format!(
-                "unknown evidence tier '{other}'"
-            )));
-        }
-    };
+    let tier = host.parse_evidence_tier(tier_id.as_ref())?;
     Ok(CanonicalAssignmentValue::EvidenceOverride { fact_kind, tier })
 }
 
-pub(crate) fn lower_pipeline_program_rule(
+fn lower_pipeline_program_rule<H: SemanticHost>(
+    host: &H,
     args: &[String],
     arg_columns: &[usize],
     call_column: usize,
-) -> Result<ProgramRule, DslError> {
+) -> Result<H::ProgramRule, SyntaxError> {
     let keywords = normalize_pipeline_rule_args(args, arg_columns, false, call_column)?;
     let predicate = keywords
         .get("predicate")
-        .ok_or(DslError::MissingField("predicate").at_line_column(0, Some(call_column)))?;
+        .ok_or(SyntaxError::MissingField("predicate").at_line_column(0, Some(call_column)))?;
     let signal = keywords
         .get("stage")
-        .ok_or(DslError::MissingField("stage").at_line_column(0, Some(call_column)))?;
+        .ok_or(SyntaxError::MissingField("stage").at_line_column(0, Some(call_column)))?;
     let narrative = keywords
         .get("narrative")
-        .ok_or(DslError::MissingField("narrative").at_line_column(0, Some(call_column)))?;
+        .ok_or(SyntaxError::MissingField("narrative").at_line_column(0, Some(call_column)))?;
     let dedupe = keywords
         .get("dedupe")
-        .ok_or(DslError::MissingField("dedupe").at_line_column(0, Some(call_column)))?;
-    let (module, phase) = lower_rule_scope(&keywords)?;
-    Ok(ProgramRule {
-        predicate: crate::dsl::parse_flow_predicate(predicate.value.as_ref())
-            .map_err(|err| err.reanchor_line_column(0, predicate.value_column))?,
-        signal: legacy::parse_stage(signal.value.as_ref())
-            .map_err(|err| err.reanchor_line_column(0, signal.value_column))?,
-        narrative: parse_narrative_template(narrative.value.as_ref()),
-        dedupe: crate::dsl::parse_bool(dedupe.value.as_ref())
-            .map_err(|err| err.reanchor_line_column(0, dedupe.value_column))?,
-        module,
-        phase,
+        .ok_or(SyntaxError::MissingField("dedupe").at_line_column(0, Some(call_column)))?;
+    let scope = lower_rule_scope(&keywords)?;
+    let dedupe = parse_bool(dedupe.value.as_ref())
+        .map_err(|err| err.reanchor_line_column(0, dedupe.value_column))?;
+    host.build_program_rule(ProgramRuleInput {
+        predicate: LocatedSemanticValue {
+            value: predicate.value.as_ref(),
+            column: predicate.value_column,
+        },
+        stage: LocatedSemanticValue {
+            value: signal.value.as_ref(),
+            column: signal.value_column,
+        },
+        narrative: narrative.value.as_ref(),
+        dedupe,
+        scope,
     })
 }
 
-pub(crate) fn lower_pipeline_reason_rule(
+fn lower_pipeline_reason_rule<H: SemanticHost>(
+    host: &H,
     args: &[String],
     arg_columns: &[usize],
     call_column: usize,
-) -> Result<ReasonRule, DslError> {
+) -> Result<H::ReasonRule, SyntaxError> {
     let keywords = normalize_pipeline_rule_args(args, arg_columns, true, call_column)?;
     let predicate = keywords
         .get("predicate")
-        .ok_or(DslError::MissingField("predicate").at_line_column(0, Some(call_column)))?;
+        .ok_or(SyntaxError::MissingField("predicate").at_line_column(0, Some(call_column)))?;
     let key_event = keywords
         .get("key_event")
-        .ok_or(DslError::MissingField("key_event").at_line_column(0, Some(call_column)))?;
+        .ok_or(SyntaxError::MissingField("key_event").at_line_column(0, Some(call_column)))?;
     let narrative = keywords
         .get("narrative")
-        .ok_or(DslError::MissingField("narrative").at_line_column(0, Some(call_column)))?;
+        .ok_or(SyntaxError::MissingField("narrative").at_line_column(0, Some(call_column)))?;
     let dedupe = keywords
         .get("dedupe")
-        .ok_or(DslError::MissingField("dedupe").at_line_column(0, Some(call_column)))?;
-    let (module, phase) = lower_rule_scope(&keywords)?;
-    Ok(ReasonRule {
-        predicate: crate::dsl::parse_flow_predicate(predicate.value.as_ref())
-            .map_err(|err| err.reanchor_line_column(0, predicate.value_column))?,
-        signal: crate::dsl::parse_reason_key_event(key_event.value.as_ref())
-            .map_err(|err| err.reanchor_line_column(0, key_event.value_column))?,
-        narrative: parse_reason_narrative(narrative.value.as_ref()),
-        dedupe: crate::dsl::parse_bool(dedupe.value.as_ref())
-            .map_err(|err| err.reanchor_line_column(0, dedupe.value_column))?,
-        module,
-        phase,
+        .ok_or(SyntaxError::MissingField("dedupe").at_line_column(0, Some(call_column)))?;
+    let scope = lower_rule_scope(&keywords)?;
+    let dedupe = parse_bool(dedupe.value.as_ref())
+        .map_err(|err| err.reanchor_line_column(0, dedupe.value_column))?;
+    host.build_reason_rule(ReasonRuleInput {
+        predicate: LocatedSemanticValue {
+            value: predicate.value.as_ref(),
+            column: predicate.value_column,
+        },
+        key_event: LocatedSemanticValue {
+            value: key_event.value.as_ref(),
+            column: key_event.value_column,
+        },
+        narrative: narrative.value.as_ref(),
+        dedupe,
+        scope,
     })
 }
 
 fn lower_rule_scope(
     keywords: &BTreeMap<&'static str, PipelineKeywordArg<'_>>,
-) -> Result<(Option<String>, Option<String>), DslError> {
+) -> Result<RuleScope, SyntaxError> {
     let module = keywords
         .get("module")
         .map(|value| value.value.as_ref().to_string());
@@ -841,13 +861,21 @@ fn lower_rule_scope(
     if module.is_none()
         && let Some(phase) = keywords.get("phase")
     {
-        return Err(DslError::InvalidValue(format!(
+        return Err(SyntaxError::InvalidValue(format!(
             "pipeline rule phase '{}' requires module",
             phase.value
         ))
         .at_line_column(0, Some(phase.value_column)));
     }
-    Ok((module, phase))
+    Ok(RuleScope { module, phase })
+}
+
+fn parse_bool(value: &str) -> Result<bool, SyntaxError> {
+    match value {
+        "true" => Ok(true),
+        "false" => Ok(false),
+        other => Err(SyntaxError::InvalidValue(format!("invalid bool '{other}'"))),
+    }
 }
 
 #[cfg(test)]
@@ -866,7 +894,7 @@ mod tests {
             .expect_err("deep placeholder chains must fail closed");
         assert!(matches!(
             err.root(),
-            DslError::InvalidValue(message)
+            SyntaxError::InvalidValue(message)
                 if message == "pipeline placeholder expansion exceeded 32 substitutions while test expansion"
         ));
     }
@@ -897,11 +925,11 @@ mod tests {
             "narrative: :process_bound".to_string(),
             "dedupe: true".to_string(),
         ];
-        let err = lower_pipeline_program_rule(&args, &[1; 5], 1)
+        let err = normalize_pipeline_rule_args(&args, &[1; 5], false, 1)
             .expect_err("canonical aliases must still be rejected as duplicates");
         assert!(matches!(
             err.root(),
-            DslError::InvalidValue(message)
+            SyntaxError::InvalidValue(message)
                 if message == "pipeline rule received duplicate field 'predicate'"
         ));
     }

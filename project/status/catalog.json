@@ -208,6 +208,11 @@
         "summary": "Product-independent GewyLang source, package, parser, AST, and inspection model."
       },
       {
+        "id": "standalone-lowering",
+        "label": "Standalone Lowering",
+        "summary": "Product-independent GewyLang expansion and host-generic semantic lowering."
+      },
+      {
         "id": "protocol-catalog",
         "label": "Protocol Catalog",
         "summary": "Reusable packaged protocol definitions and registry metadata."
@@ -417,9 +422,12 @@
       "id": "boundary-gewylang-compiler",
       "architecture": "gewylang",
       "kind": "ownership-boundary",
-      "summary": "The GewyLang compiler owns parsing, validation, and lowering into stable runtime IR.",
+      "summary": "The gewylang-compiler crate owns function expansion, parameter binding, canonical lowering, and the explicit semantic-host boundary; Gewyvern owns only its runtime adapter.",
       "source": "docs/gewylang-system.md",
-      "cells": ["gewylang/compiler/parser-lowering"]
+      "cells": [
+        "gewylang/compiler/standalone-lowering",
+        "gewylang/compiler/parser-lowering"
+      ]
     },
     {
       "id": "boundary-gewylang-syntax",
@@ -934,7 +942,44 @@
         { "kind": "test", "path": "tests/language_independence_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/gewylang-contract.md", "state": "present" }
       ],
-      "next_gate": "Publish the syntax crate as the stable parser dependency of a standalone compiler facade while preserving every Syntax v1 source and diagnostic anchor."
+      "next_gate": "Preserve Syntax v1 source and diagnostic compatibility while preparing the frontend crate for independent publication."
+    },
+    {
+      "id": "gewylang/compiler/standalone-lowering",
+      "architecture": "gewylang",
+      "module": "compiler",
+      "feature": "standalone-lowering",
+      "lifecycle": "current",
+      "priority": "maintenance",
+      "maturity": "mature",
+      "completion": 100,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "gewylang-semantic-host-contract",
+        "version": "1.0.0",
+        "stability": "stable",
+        "surfaces": [
+          "direct-string-and-file-compiler-facade",
+          "canonical-assignment-stream",
+          "function-expansion",
+          "typed-parameter-validation-hook",
+          "bounded-placeholder-substitution",
+          "canonical-rule-keywords",
+          "explicit-semantic-host",
+          "zero-product-dependency-closure"
+        ]
+      },
+      "depends_on": ["gewylang/language-syntax/standalone-frontend"],
+      "blockers": [],
+      "consumers": ["gewyvern-semantic-host", "gewyc", "external-language-hosts"],
+      "evidence": [
+        { "kind": "source", "path": "crates/gewylang-compiler/src/lib.rs", "state": "present" },
+        { "kind": "source", "path": "crates/gewylang-compiler/src/lowering.rs", "state": "present" },
+        { "kind": "test", "path": "tests/language_independence_tdd.rs", "state": "present" },
+        { "kind": "documentation", "path": "docs/gewylang-contract.md", "state": "present" }
+      ],
+      "next_gate": "Stabilize a product-neutral Binding IR and analysis facade so gewyc can emit every compiler stage without linking the Gewyvern runtime."
     },
     {
       "id": "gewylang/compiler/parser-lowering",
@@ -1047,15 +1092,16 @@
           "package-include-graph-benchmark"
         ]
       },
-      "depends_on": ["gewylang/language-syntax/standalone-frontend"],
+      "depends_on": ["gewylang/compiler/standalone-lowering"],
       "blockers": [],
       "consumers": ["protocol-authors", "gewyvern-runtime", "model-tooling"],
       "evidence": [
         { "kind": "source", "path": "crates/gewyc/src/main.rs", "state": "present" },
         { "kind": "source", "path": "crates/gewylang-contract/src/lib.rs", "state": "present" },
         { "kind": "source", "path": "crates/gewylang-syntax/src/lib.rs", "state": "present" },
+        { "kind": "source", "path": "crates/gewylang-compiler/src/lib.rs", "state": "present" },
         { "kind": "source", "path": "src/dsl/function_types.rs", "state": "present" },
-        { "kind": "source", "path": "src/dsl/pipeline/lowering.rs", "state": "present" },
+        { "kind": "source", "path": "src/dsl/semantic_host.rs", "state": "present" },
         { "kind": "test", "path": "crates/gewyc/tests/cli_information.rs", "state": "present" },
         { "kind": "test", "path": "crates/gewyc/src/tests.rs", "state": "present" },
         { "kind": "test", "path": "tests/gewylang_docs_tdd.rs", "state": "present" },
@@ -1065,7 +1111,7 @@
         { "kind": "documentation", "path": "docs/gewylang-system.md", "state": "present" },
         { "kind": "documentation", "path": "docs/performance-baselines.md", "state": "present" }
       ],
-      "next_gate": "Extract semantic binding lowering behind a standalone compiler facade so gewyc no longer links the full Gewyvern runtime; preserve every binding and analysis payload while doing so."
+      "next_gate": "Move the stable Binding IR and analysis facade behind the independent compiler boundary so gewyc no longer links the full Gewyvern runtime; preserve every payload and diagnostic code while doing so."
     },
     {
       "id": "gewylang/protocol-packages/protocol-catalog",

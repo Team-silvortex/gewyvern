@@ -8,7 +8,8 @@
   "existing_capability_reclassification_allowed": false,
   "components": [
     { "id": "gewyvern-runtime", "source": "src" },
-    { "id": "gewylang-compiler", "source": "crates/gewyc" },
+    { "id": "gewylang-compiler", "source": "crates/gewylang-compiler" },
+    { "id": "gewyc-cli", "source": "crates/gewyc" },
     { "id": "gewylang-contract", "source": "crates/gewylang-contract" },
     { "id": "gewylang-syntax", "source": "crates/gewylang-syntax" },
     { "id": "gewyvern-install-contract", "source": "crates/gewyvern-install-contract" },

@@ -103,6 +103,7 @@ fn every_current_primary_capability_is_mit_open_source_and_free() {
     let expected_components = BTreeSet::from([
         "gewyvern-runtime",
         "gewyvern-install-contract",
+        "gewyc-cli",
         "gewylang-compiler",
         "gewylang-contract",
         "gewylang-syntax",

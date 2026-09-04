@@ -1,50 +1,15 @@
 use crate::flow::{ProgramOperation, ProgramStageKind};
-use crate::fragment::EvidenceTier;
-use crate::ledger::FactKindTag;
 use crate::program::{ProgramModel, ProgramRule};
 use crate::reason::{ReasonModel, ReasonProfile, ReasonRule};
 use crate::template::{
-    FragmentParamValue, Template, TemplateBinding, WindowProfile, default_5s_window,
+    Template, TemplateBinding, WindowProfile, default_5s_window,
     default_program_model_for_reason_profile,
 };
 
-use super::DslError;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct CanonicalAssignment {
-    pub value: CanonicalAssignmentValue,
-    pub line_no: usize,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) enum CanonicalAssignmentValue {
-    Template(String),
-    Window(WindowProfile),
-    WindowDuration(u64),
-    WindowLateness(u64),
-    Reason(ReasonProfile),
-    ReasonModel(String),
-    ReasonRule(ReasonRule),
-    Fragment(String),
-    ProgramModel(String),
-    Operation(ProgramOperation),
-    ProgramRule(ProgramRule),
-    FragmentParam {
-        fragment_id: String,
-        key: String,
-        value: FragmentParamValue,
-    },
-    EvidenceOverride {
-        fact_kind: FactKindTag,
-        tier: EvidenceTier,
-    },
-}
-
-impl CanonicalAssignment {
-    pub fn new(value: CanonicalAssignmentValue, line_no: usize) -> Self {
-        Self { value, line_no }
-    }
-}
+use super::{
+    DslError,
+    pipeline::{CanonicalAssignment, CanonicalAssignmentValue},
+};
 
 pub(super) fn build_binding_from_canonical_assignments(
     assignments: Vec<CanonicalAssignment>,

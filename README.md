@@ -217,13 +217,16 @@ responsibility boundaries:
 - [Cargo.toml](Cargo.toml)
   Root workspace manifest.
 - [src](src)
-  Runtime, IR, GewyLang semantic lowering, export/replay, loader, and built-in CLI.
+  Runtime, IR, GewyLang semantic-host adapter, export/replay, loader, and built-in CLI.
 - [src/bin](src/bin)
   Helper binaries such as socket senders used by local/runtime demos.
 - [crates/gewyc](crates/gewyc)
   Dedicated `.gewy` compiler CLI surface.
 - [crates/gewylang-contract](crates/gewylang-contract)
   Product-independent GewyLang identity, stage versions, and source bounds.
+- [crates/gewylang-compiler](crates/gewylang-compiler)
+  Product-independent GewyLang function expansion, canonical lowering, and
+  explicit semantic-host interface.
 - [crates/gewylang-syntax](crates/gewylang-syntax)
   Product-independent GewyLang source loading, package graph, AST, parser, and
   frontend summaries.

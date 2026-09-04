@@ -2,6 +2,7 @@
 members = [
     ".",
     "crates/gewyc",
+    "crates/gewylang-compiler",
     "crates/gewylang-contract",
     "crates/gewylang-syntax",
     "crates/gewyvern-dev",
@@ -58,6 +59,7 @@ ring = "0.17"
 rustls.workspace = true
 x509-parser = "0.18.1"
 gewylang-contract = { path = "crates/gewylang-contract" }
+gewylang-compiler = { path = "crates/gewylang-compiler" }
 gewylang-syntax = { path = "crates/gewylang-syntax" }
 gewyvern-install-contract = { path = "crates/gewyvern-install-contract" }
 rcgen = "0.14"

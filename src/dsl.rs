@@ -1,12 +1,12 @@
 use crate::fragment::{RegistryError, builtin_registry_ref};
 use crate::template::TemplateBinding;
 
-mod diagnostics;
 mod entry;
 mod function_types;
 mod legacy;
 mod pipeline;
 mod predicate;
+mod semantic_host;
 
 pub use self::entry::{
     compile_file, parse_file_unvalidated, parse_file_with_frontend_unvalidated,
@@ -29,9 +29,7 @@ pub use gewylang_syntax::{
     FrontendGraphEdge, FrontendGraphEdgeKind, FrontendGraphNode, FrontendGraphNodeKind,
     FrontendIncludeSource, FrontendIncludeSourceKind, FrontendModuleSummary, FrontendUseEdge,
 };
-pub(crate) use gewylang_syntax::{
-    PackageContext, PipelineCall, PipelineFunction, PipelineModule, summarize_pipeline_module,
-};
+pub(crate) use gewylang_syntax::{PackageContext, PipelineModule, summarize_pipeline_module};
 
 pub fn build_lockfile(path: &str) -> Result<String, DslError> {
     gewylang_syntax::build_lockfile(path).map_err(DslError::from)

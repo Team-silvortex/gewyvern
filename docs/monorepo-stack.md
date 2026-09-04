@@ -14,6 +14,7 @@ changing a cross-project boundary.
 | [`src/`](../src) | Gewyvern runtime, API, evidence reconstruction, CLI | observed network truth |
 | [`crates/gewylang-contract/`](../crates/gewylang-contract) | product-independent GewyLang identity and stage contract | language/version identity and source bounds |
 | [`crates/gewylang-syntax/`](../crates/gewylang-syntax) | product-independent source, package, AST, parser, frontend | canonical syntax interpretation |
+| [`crates/gewylang-compiler/`](../crates/gewylang-compiler) | product-independent expansion and host-generic semantic lowering | canonical compiler behavior and semantic-host boundary |
 | [`crates/gewyc/`](../crates/gewyc) | GewyLang compiler CLI | diagnostic and lowering orchestration |
 | [`crates/silvortex-bounded-io/`](../crates/silvortex-bounded-io) | product-neutral bounded files and transport deadlines | native I/O safety invariants |
 | [`crates/silvortex-identity/`](../crates/silvortex-identity) | product-neutral validated protocol identities | identifier grammar and scalar wire identity |
@@ -80,7 +81,10 @@ The intended dependency flow is:
 GewyLang source -> gewylang-contract -> gewylang-syntax
                                              |
                                              v
-                              Gewyvern semantic lowering
+                                  gewylang-compiler
+                                             |
+                                             v
+                               Gewyvern semantic host
                                              |
                                              v
                         evidence runtime -> machine evidence contract
@@ -107,8 +111,10 @@ dependency graph. `gewyvern-install-contract` and `leserpent-domain` share the
 same validated ID types through `silvortex-identity`; old domain and protocol
 paths remain compatibility re-exports with unchanged scalar wire bytes.
 GewyLang tooling that only needs source/package parsing can stop at
-`gewylang-syntax`; runtime bindings and evidence-aware analysis deliberately
-cross into Gewyvern through its compatibility adapter.
+`gewylang-syntax`; tooling that needs function expansion and canonical lowering
+can stop at `gewylang-compiler` and implement `SemanticHost`. Runtime bindings
+and evidence-aware analysis deliberately cross into Gewyvern through its
+compatibility adapter.
 
 ## Toolchain Boundaries
 

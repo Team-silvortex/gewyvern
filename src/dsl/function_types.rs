@@ -6,8 +6,6 @@ use super::{
 };
 use gewylang_syntax::PipelineValueKind;
 
-pub(super) use gewylang_syntax::format_pipeline_function_signature;
-
 pub(super) fn validate_pipeline_param_value_kind(
     raw_value: &str,
     kind: PipelineValueKind,

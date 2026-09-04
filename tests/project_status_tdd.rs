@@ -5229,6 +5229,46 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         item.path == "tests/language_independence_tdd.rs" && item.state == EvidenceState::Present
     }));
 
+    let gewylang_compiler = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "gewylang/compiler/standalone-lowering")
+        .expect("standalone GewyLang compiler cell must exist");
+    assert_eq!(gewylang_compiler.maturity, Maturity::Mature);
+    assert_eq!(gewylang_compiler.completion, 100);
+    assert_eq!(
+        gewylang_compiler.contract.stability,
+        ContractStability::Stable
+    );
+    assert_eq!(gewylang_compiler.contract.version, "1.0.0");
+    for surface in [
+        "direct-string-and-file-compiler-facade",
+        "canonical-assignment-stream",
+        "function-expansion",
+        "explicit-semantic-host",
+        "zero-product-dependency-closure",
+    ] {
+        assert!(
+            gewylang_compiler
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing standalone GewyLang compiler surface {surface}"
+        );
+    }
+    assert_eq!(
+        gewylang_compiler.depends_on,
+        ["gewylang/language-syntax/standalone-frontend"]
+    );
+    assert!(gewylang_compiler.evidence.iter().any(|item| {
+        item.path == "crates/gewylang-compiler/src/lib.rs" && item.state == EvidenceState::Present
+    }));
+    assert!(gewylang_compiler.evidence.iter().any(|item| {
+        item.path == "crates/gewylang-compiler/src/lowering.rs"
+            && item.state == EvidenceState::Present
+    }));
+
     let gewylang = catalog
         .cells
         .iter()
@@ -5240,7 +5280,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(gewylang.contract.version, "1.32.0");
     assert_eq!(
         gewylang.depends_on,
-        ["gewylang/language-syntax/standalone-frontend"]
+        ["gewylang/compiler/standalone-lowering"]
     );
     for surface in [
         "standard-cli-help-and-version-exit-contract",
@@ -5283,6 +5323,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }));
     assert!(gewylang.evidence.iter().any(|item| {
         item.path == "crates/gewylang-contract/src/lib.rs" && item.state == EvidenceState::Present
+    }));
+    assert!(gewylang.evidence.iter().any(|item| {
+        item.path == "src/dsl/semantic_host.rs" && item.state == EvidenceState::Present
     }));
     assert!(gewylang.evidence.iter().any(|item| {
         item.path == "docs/gewylang-contract.md" && item.state == EvidenceState::Present

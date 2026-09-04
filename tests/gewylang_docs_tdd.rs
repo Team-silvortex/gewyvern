@@ -122,7 +122,8 @@ fn dynamic_narrative_and_parameter_lowering_paths_do_not_leak_static_text() {
     let root = repository_root();
     let predicate = fs::read_to_string(root.join("src/dsl/predicate.rs")).unwrap();
     let legacy = fs::read_to_string(root.join("src/dsl/legacy.rs")).unwrap();
-    let lowering = fs::read_to_string(root.join("src/dsl/pipeline/lowering.rs")).unwrap();
+    let lowering =
+        fs::read_to_string(root.join("crates/gewylang-compiler/src/lowering.rs")).unwrap();
     let codec = fs::read_to_string(root.join("src/export/reason_codec/parse.rs")).unwrap();
     let attach_codec = fs::read_to_string(root.join("src/export/attach_codec.rs")).unwrap();
     let attach_decode = fs::read_to_string(root.join("src/export/attach_codec/decode.rs")).unwrap();
@@ -149,7 +150,8 @@ fn dynamic_narrative_and_parameter_lowering_paths_do_not_leak_static_text() {
 fn canonical_pipeline_lowering_does_not_round_trip_through_legacy_text() {
     let root = repository_root();
     let entry = fs::read_to_string(root.join("src/dsl/entry.rs")).unwrap();
-    let lowering = fs::read_to_string(root.join("src/dsl/pipeline/lowering.rs")).unwrap();
+    let lowering =
+        fs::read_to_string(root.join("crates/gewylang-compiler/src/lowering.rs")).unwrap();
 
     assert!(!entry.contains("pipeline_to_legacy"));
     assert!(!entry.contains("parse_legacy_str_unvalidated"));

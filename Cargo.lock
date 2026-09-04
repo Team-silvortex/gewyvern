@@ -810,6 +810,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "gewylang-compiler"
+version = "2.0.0"
+dependencies = [
+ "gewylang-syntax",
+]
+
+[[package]]
 name = "gewylang-contract"
 version = "2.0.0"
 
@@ -824,6 +831,7 @@ dependencies = [
 name = "gewyvern"
 version = "2.0.0"
 dependencies = [
+ "gewylang-compiler",
  "gewylang-contract",
  "gewylang-syntax",
  "gewyvern-install-contract",
