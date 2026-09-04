@@ -1,4 +1,6 @@
-use std::collections::HashSet;
+#![forbid(unsafe_code)]
+
+use std::collections::{BTreeSet, HashSet};
 
 use leselang_host_contract::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
@@ -13,6 +15,8 @@ use serde::{Deserialize, Serialize};
 
 pub const MAX_ALL_BRANCHES: usize = 64;
 pub const MAX_BRANCH_NAME_BYTES: usize = 64;
+pub const MAX_CANONICAL_EFFECT_NODES: usize = 16 * 1024;
+pub const MAX_EFFECT_NESTING_DEPTH: usize = leselang_syntax::MAX_CALL_DEPTH;
 pub const MAX_UI_FORM_FIELD_KEY_BYTES: usize = 128;
 pub const MAX_UI_FORM_FIELD_MAX_LENGTH: usize = 256;
 pub const MAX_UI_CHILD_COUNT: usize = 4_096;
@@ -604,6 +608,16 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
             span: Some(*span),
         }]),
     }
+}
+
+fn require_lowered<T>(value: Option<T>, span: Span, field: &str) -> Result<T, Vec<Diagnostic>> {
+    value.ok_or_else(|| {
+        vec![Diagnostic {
+            code: "LSH1999".to_string(),
+            message: format!("internal lowering invariant is missing '{field}'"),
+            span: Some(span),
+        }]
+    })
 }
 
 fn lower_atomic_effect(
@@ -2715,43 +2729,51 @@ fn lower_atomic_effect(
         ),
         "runtime.inspect" => (
             Effect::RuntimeInspect {
-                runtime_id: runtime_id.expect("validated runtime.inspect identifier"),
+                runtime_id: require_lowered(runtime_id, span, "runtime.inspect identifier")?,
             },
             Type::RuntimeInspect,
             CAPABILITY_RUNTIME_READ,
         ),
         "runtime.history" => (
             Effect::RuntimeHistory {
-                runtime_id: runtime_id.expect("validated runtime.history identifier"),
+                runtime_id: require_lowered(runtime_id, span, "runtime.history identifier")?,
             },
             Type::RuntimeHistory,
             CAPABILITY_RUNTIME_READ,
         ),
         "runtime.logs" => (
             Effect::RuntimeLogs {
-                runtime_id: runtime_id.expect("validated runtime.logs identifier"),
+                runtime_id: require_lowered(runtime_id, span, "runtime.logs identifier")?,
             },
             Type::RuntimeLogs,
             CAPABILITY_RUNTIME_READ,
         ),
         "runtime.refresh" => (
             Effect::RuntimeRefresh {
-                runtime_id: runtime_id.expect("validated runtime.refresh identifier"),
+                runtime_id: require_lowered(runtime_id, span, "runtime.refresh identifier")?,
             },
             Type::RuntimeRefresh,
             CAPABILITY_RUNTIME_REFRESH,
         ),
         "runtime.refresh_capabilities" => (
             Effect::RuntimeCapabilitiesRefresh {
-                runtime_id: runtime_id.expect("validated runtime.refresh_capabilities identifier"),
+                runtime_id: require_lowered(
+                    runtime_id,
+                    span,
+                    "runtime.refresh_capabilities identifier",
+                )?,
             },
             Type::RuntimeCapabilitiesRefresh,
             CAPABILITY_RUNTIME_REFRESH,
         ),
         "runtime.deploy" => (
             Effect::RuntimeDeploy {
-                runtime_id: runtime_id.expect("validated runtime.deploy identifier"),
-                pipeline_kind: pipeline_kind.expect("validated runtime.deploy pipeline kind"),
+                runtime_id: require_lowered(runtime_id, span, "runtime.deploy identifier")?,
+                pipeline_kind: require_lowered(
+                    pipeline_kind,
+                    span,
+                    "runtime.deploy pipeline kind",
+                )?,
                 target,
             },
             Type::RuntimeDeploy,
@@ -2759,497 +2781,536 @@ fn lower_atomic_effect(
         ),
         "debugger.cancel" => (
             Effect::DebuggerCancel {
-                session_id: session_id.expect("validated debugger session identifier"),
+                session_id: require_lowered(session_id, span, "debugger session identifier")?,
             },
             Type::DebuggerCancel,
             CAPABILITY_DEBUGGER_CONTROL,
         ),
         "ui.activate" => (
             Effect::UiActivate {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiActivate,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.focus" => (
             Effect::UiFocus {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiFocus,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.navigate_focus" => (
             Effect::UiNavigateFocus {
-                node_id: node_id.expect("validated UI node identifier"),
-                direction: focus_navigation_direction
-                    .expect("validated UI focus navigation direction"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                direction: require_lowered(
+                    focus_navigation_direction,
+                    span,
+                    "UI focus navigation direction",
+                )?,
             },
             Type::UiNavigateFocus,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.scroll_into_view" => (
             Effect::UiScrollIntoView {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiScrollIntoView,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_visible" => (
             Effect::UiAssertVisible {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiAssertVisible,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_hidden" => (
             Effect::UiAssertHidden {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiAssertHidden,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_hidden" => (
             Effect::UiWaitHidden {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiWaitHidden,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_realized" => (
             Effect::UiAssertRealized {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiAssertRealized,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_realized" => (
             Effect::UiWaitRealized {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiWaitRealized,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_visible" => (
             Effect::UiWaitVisible {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiWaitVisible,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_enabled" => (
             Effect::UiWaitEnabled {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiWaitEnabled,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_disabled" => (
             Effect::UiWaitDisabled {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiWaitDisabled,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.open_window" => (
             Effect::UiOpenWindow {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiOpenWindow,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.close_window" => (
             Effect::UiCloseWindow {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiCloseWindow,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_window_open" => (
             Effect::UiAssertWindowOpen {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiAssertWindowOpen,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_window_open" => (
             Effect::UiWaitWindowOpen {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiWaitWindowOpen,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_window_closed" => (
             Effect::UiAssertWindowClosed {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiAssertWindowClosed,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_window_closed" => (
             Effect::UiWaitWindowClosed {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiWaitWindowClosed,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_focused" => (
             Effect::UiWaitFocused {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiWaitFocused,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_focused" => (
             Effect::UiAssertFocused {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiAssertFocused,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_unfocused" => (
             Effect::UiWaitUnfocused {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiWaitUnfocused,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_unfocused" => (
             Effect::UiAssertUnfocused {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiAssertUnfocused,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_enabled" => (
             Effect::UiAssertEnabled {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiAssertEnabled,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_disabled" => (
             Effect::UiAssertDisabled {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiAssertDisabled,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_child_count" => (
             Effect::UiAssertChildCount {
-                node_id: node_id.expect("validated UI node identifier"),
-                count: expected_child_count.expect("validated UI child count"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                count: require_lowered(expected_child_count, span, "UI child count")?,
             },
             Type::UiAssertChildCount,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_child_count" => (
             Effect::UiWaitChildCount {
-                node_id: node_id.expect("validated UI node identifier"),
-                count: expected_child_count.expect("validated UI child count"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                count: require_lowered(expected_child_count, span, "UI child count")?,
             },
             Type::UiWaitChildCount,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.set_selection" => (
             Effect::UiSetSelection {
-                node_id: node_id.expect("validated UI node identifier"),
-                state: selection_state.expect("validated UI selection state"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                state: require_lowered(selection_state, span, "UI selection state")?,
             },
             Type::UiSetSelection,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_selection" => (
             Effect::UiAssertSelection {
-                node_id: node_id.expect("validated UI node identifier"),
-                state: selection_state.expect("validated UI selection state"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                state: require_lowered(selection_state, span, "UI selection state")?,
             },
             Type::UiAssertSelection,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_selection" => (
             Effect::UiWaitSelection {
-                node_id: node_id.expect("validated UI node identifier"),
-                state: selection_state.expect("validated UI selection state"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                state: require_lowered(selection_state, span, "UI selection state")?,
             },
             Type::UiWaitSelection,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_text" => (
             Effect::UiAssertText {
-                node_id: node_id.expect("validated UI node identifier"),
-                expected: expected_text.expect("validated UI expected text"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                expected: require_lowered(expected_text, span, "UI expected text")?,
             },
             Type::UiAssertText,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_text" => (
             Effect::UiWaitText {
-                node_id: node_id.expect("validated UI node identifier"),
-                expected: expected_text.expect("validated UI expected text"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                expected: require_lowered(expected_text, span, "UI expected text")?,
             },
             Type::UiWaitText,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_automation_id" => (
             Effect::UiAssertAutomationId {
-                node_id: node_id.expect("validated UI node identifier"),
-                expected: expected_text.expect("validated UI expected automation identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                expected: require_lowered(
+                    expected_text,
+                    span,
+                    "UI expected automation identifier",
+                )?,
             },
             Type::UiAssertAutomationId,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_automation_id" => (
             Effect::UiWaitAutomationId {
-                node_id: node_id.expect("validated UI node identifier"),
-                expected: expected_text.expect("validated UI expected automation identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                expected: require_lowered(
+                    expected_text,
+                    span,
+                    "UI expected automation identifier",
+                )?,
             },
             Type::UiWaitAutomationId,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_node_kind" => (
             Effect::UiAssertNodeKind {
-                node_id: node_id.expect("validated UI node identifier"),
-                expected_kind: semantic_node_kind.expect("validated UI semantic node kind"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                expected_kind: require_lowered(semantic_node_kind, span, "UI semantic node kind")?,
             },
             Type::UiAssertNodeKind,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_node_kind" => (
             Effect::UiWaitNodeKind {
-                node_id: node_id.expect("validated UI node identifier"),
-                expected_kind: semantic_node_kind.expect("validated UI semantic node kind"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                expected_kind: require_lowered(semantic_node_kind, span, "UI semantic node kind")?,
             },
             Type::UiWaitNodeKind,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_action_kind" => (
             Effect::UiAssertActionKind {
-                node_id: node_id.expect("validated UI node identifier"),
-                expected_kind: semantic_action_kind.expect("validated UI semantic action kind"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                expected_kind: require_lowered(
+                    semantic_action_kind,
+                    span,
+                    "UI semantic action kind",
+                )?,
             },
             Type::UiAssertActionKind,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_action_kind" => (
             Effect::UiWaitActionKind {
-                node_id: node_id.expect("validated UI node identifier"),
-                expected_kind: semantic_action_kind.expect("validated UI semantic action kind"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                expected_kind: require_lowered(
+                    semantic_action_kind,
+                    span,
+                    "UI semantic action kind",
+                )?,
             },
             Type::UiWaitActionKind,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_action_label" => (
             Effect::UiAssertActionLabel {
-                node_id: node_id.expect("validated UI node identifier"),
-                expected: expected_text.expect("validated UI expected action label"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                expected: require_lowered(expected_text, span, "UI expected action label")?,
             },
             Type::UiAssertActionLabel,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_action_label" => (
             Effect::UiWaitActionLabel {
-                node_id: node_id.expect("validated UI node identifier"),
-                expected: expected_text.expect("validated UI expected action label"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                expected: require_lowered(expected_text, span, "UI expected action label")?,
             },
             Type::UiWaitActionLabel,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_action_available" => (
             Effect::UiAssertActionAvailable {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiAssertActionAvailable,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_action_available" => (
             Effect::UiWaitActionAvailable {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiWaitActionAvailable,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_action_unavailable_reason" => (
             Effect::UiAssertActionUnavailableReason {
-                node_id: node_id.expect("validated UI node identifier"),
-                expected: action_unavailable_reason_expected
-                    .expect("validated UI action unavailable reason"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                expected: require_lowered(
+                    action_unavailable_reason_expected,
+                    span,
+                    "UI action unavailable reason",
+                )?,
             },
             Type::UiAssertActionUnavailableReason,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_action_unavailable_reason" => (
             Effect::UiWaitActionUnavailableReason {
-                node_id: node_id.expect("validated UI node identifier"),
-                expected: action_unavailable_reason_expected
-                    .expect("validated UI action unavailable reason"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                expected: require_lowered(
+                    action_unavailable_reason_expected,
+                    span,
+                    "UI action unavailable reason",
+                )?,
             },
             Type::UiWaitActionUnavailableReason,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.submit_form" => (
             Effect::UiSubmitForm {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiSubmitForm,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.cancel_form" => (
             Effect::UiCancelForm {
-                node_id: node_id.expect("validated UI node identifier"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
             },
             Type::UiCancelForm,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.set_form_value" => (
             Effect::UiSetFormValue {
-                node_id: node_id.expect("validated UI node identifier"),
-                field: form_field_key.expect("validated UI form field key"),
-                value: form_value.expect("validated UI form value"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                field: require_lowered(form_field_key, span, "UI form field key")?,
+                value: require_lowered(form_value, span, "UI form value")?,
             },
             Type::UiSetFormValue,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_form_value" => (
             Effect::UiAssertFormValue {
-                node_id: node_id.expect("validated UI node identifier"),
-                field: form_field_key.expect("validated UI form field key"),
-                expected: form_value.expect("validated UI expected form value"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                field: require_lowered(form_field_key, span, "UI form field key")?,
+                expected: require_lowered(form_value, span, "UI expected form value")?,
             },
             Type::UiAssertFormValue,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_form_value" => (
             Effect::UiWaitFormValue {
-                node_id: node_id.expect("validated UI node identifier"),
-                field: form_field_key.expect("validated UI form field key"),
-                expected: form_value.expect("validated UI expected form value"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                field: require_lowered(form_field_key, span, "UI form field key")?,
+                expected: require_lowered(form_value, span, "UI expected form value")?,
             },
             Type::UiWaitFormValue,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_form_field" => (
             Effect::UiAssertFormField {
-                node_id: node_id.expect("validated UI node identifier"),
-                field: form_field_key.expect("validated UI form field key"),
-                expected: expected_text.expect("validated UI expected form field label"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                field: require_lowered(form_field_key, span, "UI form field key")?,
+                expected: require_lowered(expected_text, span, "UI expected form field label")?,
             },
             Type::UiAssertFormField,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_form_field" => (
             Effect::UiWaitFormField {
-                node_id: node_id.expect("validated UI node identifier"),
-                field: form_field_key.expect("validated UI form field key"),
-                expected: expected_text.expect("validated UI expected form field label"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                field: require_lowered(form_field_key, span, "UI form field key")?,
+                expected: require_lowered(expected_text, span, "UI expected form field label")?,
             },
             Type::UiWaitFormField,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_form_field_input_kind" => (
             Effect::UiAssertFormFieldInputKind {
-                node_id: node_id.expect("validated UI node identifier"),
-                field: form_field_key.expect("validated UI form field key"),
-                input_kind: form_input_kind.expect("validated UI form input kind"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                field: require_lowered(form_field_key, span, "UI form field key")?,
+                input_kind: require_lowered(form_input_kind, span, "UI form input kind")?,
             },
             Type::UiAssertFormFieldInputKind,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_form_field_input_kind" => (
             Effect::UiWaitFormFieldInputKind {
-                node_id: node_id.expect("validated UI node identifier"),
-                field: form_field_key.expect("validated UI form field key"),
-                input_kind: form_input_kind.expect("validated UI form input kind"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                field: require_lowered(form_field_key, span, "UI form field key")?,
+                input_kind: require_lowered(form_input_kind, span, "UI form input kind")?,
             },
             Type::UiWaitFormFieldInputKind,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_form_field_required" => (
             Effect::UiAssertFormFieldRequired {
-                node_id: node_id.expect("validated UI node identifier"),
-                field: form_field_key.expect("validated UI form field key"),
-                state: form_requirement_state.expect("validated UI form requirement state"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                field: require_lowered(form_field_key, span, "UI form field key")?,
+                state: require_lowered(form_requirement_state, span, "UI form requirement state")?,
             },
             Type::UiAssertFormFieldRequired,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_form_field_required" => (
             Effect::UiWaitFormFieldRequired {
-                node_id: node_id.expect("validated UI node identifier"),
-                field: form_field_key.expect("validated UI form field key"),
-                state: form_requirement_state.expect("validated UI form requirement state"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                field: require_lowered(form_field_key, span, "UI form field key")?,
+                state: require_lowered(form_requirement_state, span, "UI form requirement state")?,
             },
             Type::UiWaitFormFieldRequired,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_form_field_max_length" => (
             Effect::UiAssertFormFieldMaxLength {
-                node_id: node_id.expect("validated UI node identifier"),
-                field: form_field_key.expect("validated UI form field key"),
-                max_length: form_max_length.expect("validated UI form max length"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                field: require_lowered(form_field_key, span, "UI form field key")?,
+                max_length: require_lowered(form_max_length, span, "UI form max length")?,
             },
             Type::UiAssertFormFieldMaxLength,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_form_field_max_length" => (
             Effect::UiWaitFormFieldMaxLength {
-                node_id: node_id.expect("validated UI node identifier"),
-                field: form_field_key.expect("validated UI form field key"),
-                max_length: form_max_length.expect("validated UI form max length"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                field: require_lowered(form_field_key, span, "UI form field key")?,
+                max_length: require_lowered(form_max_length, span, "UI form max length")?,
             },
             Type::UiWaitFormFieldMaxLength,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_form_field_placeholder" => (
             Effect::UiAssertFormFieldPlaceholder {
-                node_id: node_id.expect("validated UI node identifier"),
-                field: form_field_key.expect("validated UI form field key"),
-                expected: form_placeholder_expected.expect("validated UI form placeholder"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                field: require_lowered(form_field_key, span, "UI form field key")?,
+                expected: require_lowered(form_placeholder_expected, span, "UI form placeholder")?,
             },
             Type::UiAssertFormFieldPlaceholder,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_form_field_placeholder" => (
             Effect::UiWaitFormFieldPlaceholder {
-                node_id: node_id.expect("validated UI node identifier"),
-                field: form_field_key.expect("validated UI form field key"),
-                expected: form_placeholder_expected.expect("validated UI form placeholder"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                field: require_lowered(form_field_key, span, "UI form field key")?,
+                expected: require_lowered(form_placeholder_expected, span, "UI form placeholder")?,
             },
             Type::UiWaitFormFieldPlaceholder,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_accessible_name" => (
             Effect::UiAssertAccessibleName {
-                node_id: node_id.expect("validated UI node identifier"),
-                expected: expected_text.expect("validated UI expected accessible name"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                expected: require_lowered(expected_text, span, "UI expected accessible name")?,
             },
             Type::UiAssertAccessibleName,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_accessible_name" => (
             Effect::UiWaitAccessibleName {
-                node_id: node_id.expect("validated UI node identifier"),
-                expected: expected_text.expect("validated UI expected accessible name"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                expected: require_lowered(expected_text, span, "UI expected accessible name")?,
             },
             Type::UiWaitAccessibleName,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_accessible_description" => (
             Effect::UiAssertAccessibleDescription {
-                node_id: node_id.expect("validated UI node identifier"),
-                expected: expected_text.expect("validated UI expected accessible description"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                expected: require_lowered(
+                    expected_text,
+                    span,
+                    "UI expected accessible description",
+                )?,
             },
             Type::UiAssertAccessibleDescription,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.wait_accessible_description" => (
             Effect::UiWaitAccessibleDescription {
-                node_id: node_id.expect("validated UI node identifier"),
-                expected: expected_text.expect("validated UI expected accessible description"),
+                node_id: require_lowered(node_id, span, "UI node identifier")?,
+                expected: require_lowered(
+                    expected_text,
+                    span,
+                    "UI expected accessible description",
+                )?,
             },
             Type::UiWaitAccessibleDescription,
             CAPABILITY_UI_PRESENTATION,
         ),
-        _ => unreachable!("unknown effects returned above"),
+        _ => {
+            return Err(vec![Diagnostic {
+                code: "LSH1999".to_string(),
+                message: format!("internal lowering invariant has unknown effect '{callee}'"),
+                span: Some(span),
+            }]);
+        }
     };
     Ok(LoweredEffect {
         effect,
@@ -3259,6 +3320,7 @@ fn lower_atomic_effect(
 }
 
 pub fn canonical_source(effect: &Effect) -> Result<String, CanonicalSourceError> {
+    validate_canonical_effect_shape(effect)?;
     let source = format!("fn main() = {}", canonical_effect_source(effect, 0));
     let formatted = format_syntax(&parse(&source)).map_err(CanonicalSourceError::Syntax)?;
     let round_trip = lower(&parse(&formatted)).map_err(CanonicalSourceError::InvalidEffect)?;
@@ -3266,6 +3328,48 @@ pub fn canonical_source(effect: &Effect) -> Result<String, CanonicalSourceError>
         return Err(CanonicalSourceError::RoundTripMismatch);
     }
     Ok(formatted)
+}
+
+fn validate_canonical_effect_shape(effect: &Effect) -> Result<(), CanonicalSourceError> {
+    let mut pending = vec![(effect, 0usize)];
+    let mut visited = 0usize;
+    while let Some((effect, depth)) = pending.pop() {
+        if depth >= MAX_EFFECT_NESTING_DEPTH {
+            return Err(CanonicalSourceError::InvalidEffect(vec![Diagnostic {
+                code: "LSH1204".to_string(),
+                message: format!(
+                    "effect nesting exceeds the {MAX_EFFECT_NESTING_DEPTH}-level limit"
+                ),
+                span: None,
+            }]));
+        }
+        visited += 1;
+        if visited > MAX_CANONICAL_EFFECT_NODES {
+            return Err(CanonicalSourceError::InvalidEffect(vec![Diagnostic {
+                code: "LSH1205".to_string(),
+                message: format!(
+                    "effect graph exceeds the {MAX_CANONICAL_EFFECT_NODES}-node limit"
+                ),
+                span: None,
+            }]));
+        }
+        if let Effect::All { branches } = effect {
+            if !(2..=MAX_ALL_BRANCHES).contains(&branches.len()) {
+                return Err(CanonicalSourceError::InvalidEffect(vec![Diagnostic {
+                    code: "LSH1201".to_string(),
+                    message: "all requires between 2 and 64 named branches".to_string(),
+                    span: None,
+                }]));
+            }
+            pending.extend(
+                branches
+                    .iter()
+                    .rev()
+                    .map(|branch| (&branch.effect, depth + 1)),
+            );
+        }
+    }
+    Ok(())
 }
 
 fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
@@ -4029,10 +4133,22 @@ fn expression_span(expression: &Expression) -> Span {
 }
 
 pub fn authorize(program: &HirProgram, capabilities: &CapabilitySet) -> Result<(), Diagnostic> {
-    program
+    let required = required_capabilities_for_effect(&program.function.effect);
+    let declared = program
         .function
         .required_capabilities
         .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    if declared.len() != program.function.required_capabilities.len() || declared != required {
+        return Err(Diagnostic {
+            code: "LSH2002".to_string(),
+            message: "HIR capability metadata does not match its effect".to_string(),
+            span: None,
+        });
+    }
+    required
+        .into_iter()
         .find(|required| !capabilities.contains(required))
         .map_or(Ok(()), |required| {
             Err(Diagnostic {
@@ -4041,6 +4157,92 @@ pub fn authorize(program: &HirProgram, capabilities: &CapabilitySet) -> Result<(
                 span: None,
             })
         })
+}
+
+fn required_capabilities_for_effect(effect: &Effect) -> BTreeSet<&'static str> {
+    let mut required = BTreeSet::new();
+    let mut pending = vec![effect];
+    while let Some(effect) = pending.pop() {
+        let capability = match effect {
+            Effect::RuntimeList { .. }
+            | Effect::RuntimeInspect { .. }
+            | Effect::RuntimeHistory { .. }
+            | Effect::RuntimeLogs { .. } => CAPABILITY_RUNTIME_READ,
+            Effect::RuntimeRefresh { .. } | Effect::RuntimeCapabilitiesRefresh { .. } => {
+                CAPABILITY_RUNTIME_REFRESH
+            }
+            Effect::RuntimeDeploy { .. } => CAPABILITY_RUNTIME_DEPLOY,
+            Effect::DebuggerCancel { .. } => CAPABILITY_DEBUGGER_CONTROL,
+            Effect::UiActivate { .. }
+            | Effect::UiFocus { .. }
+            | Effect::UiNavigateFocus { .. }
+            | Effect::UiScrollIntoView { .. }
+            | Effect::UiAssertVisible { .. }
+            | Effect::UiAssertHidden { .. }
+            | Effect::UiWaitHidden { .. }
+            | Effect::UiAssertRealized { .. }
+            | Effect::UiWaitRealized { .. }
+            | Effect::UiWaitVisible { .. }
+            | Effect::UiWaitEnabled { .. }
+            | Effect::UiWaitDisabled { .. }
+            | Effect::UiOpenWindow { .. }
+            | Effect::UiCloseWindow { .. }
+            | Effect::UiAssertWindowOpen { .. }
+            | Effect::UiWaitWindowOpen { .. }
+            | Effect::UiAssertWindowClosed { .. }
+            | Effect::UiWaitWindowClosed { .. }
+            | Effect::UiWaitFocused { .. }
+            | Effect::UiAssertFocused { .. }
+            | Effect::UiWaitUnfocused { .. }
+            | Effect::UiAssertUnfocused { .. }
+            | Effect::UiAssertEnabled { .. }
+            | Effect::UiAssertDisabled { .. }
+            | Effect::UiAssertChildCount { .. }
+            | Effect::UiWaitChildCount { .. }
+            | Effect::UiSetSelection { .. }
+            | Effect::UiAssertSelection { .. }
+            | Effect::UiWaitSelection { .. }
+            | Effect::UiAssertText { .. }
+            | Effect::UiWaitText { .. }
+            | Effect::UiAssertAutomationId { .. }
+            | Effect::UiWaitAutomationId { .. }
+            | Effect::UiAssertNodeKind { .. }
+            | Effect::UiWaitNodeKind { .. }
+            | Effect::UiAssertActionKind { .. }
+            | Effect::UiWaitActionKind { .. }
+            | Effect::UiAssertActionLabel { .. }
+            | Effect::UiWaitActionLabel { .. }
+            | Effect::UiAssertActionAvailable { .. }
+            | Effect::UiWaitActionAvailable { .. }
+            | Effect::UiAssertActionUnavailableReason { .. }
+            | Effect::UiWaitActionUnavailableReason { .. }
+            | Effect::UiSubmitForm { .. }
+            | Effect::UiCancelForm { .. }
+            | Effect::UiSetFormValue { .. }
+            | Effect::UiAssertFormValue { .. }
+            | Effect::UiWaitFormValue { .. }
+            | Effect::UiAssertFormField { .. }
+            | Effect::UiWaitFormField { .. }
+            | Effect::UiAssertFormFieldInputKind { .. }
+            | Effect::UiWaitFormFieldInputKind { .. }
+            | Effect::UiAssertFormFieldRequired { .. }
+            | Effect::UiWaitFormFieldRequired { .. }
+            | Effect::UiAssertFormFieldMaxLength { .. }
+            | Effect::UiWaitFormFieldMaxLength { .. }
+            | Effect::UiAssertFormFieldPlaceholder { .. }
+            | Effect::UiWaitFormFieldPlaceholder { .. }
+            | Effect::UiAssertAccessibleName { .. }
+            | Effect::UiWaitAccessibleName { .. }
+            | Effect::UiAssertAccessibleDescription { .. }
+            | Effect::UiWaitAccessibleDescription { .. } => CAPABILITY_UI_PRESENTATION,
+            Effect::All { branches } => {
+                pending.extend(branches.iter().map(|branch| &branch.effect));
+                continue;
+            }
+        };
+        required.insert(capability);
+    }
+    required
 }
 
 #[cfg(test)]
@@ -4087,6 +4289,16 @@ mod tests {
             "LSH2001"
         );
         authorize(&program, &CapabilitySet::new([CAPABILITY_RUNTIME_READ])).unwrap();
+    }
+
+    #[test]
+    fn authorization_rejects_forged_capability_metadata() {
+        let mut program = lower(&parse("fn main() = runtime.list()")).unwrap();
+        program.function.required_capabilities.clear();
+
+        let error = authorize(&program, &CapabilitySet::default())
+            .expect_err("authorization must derive requirements from the effect");
+        assert_eq!(error.code, "LSH2002");
     }
 
     #[test]
@@ -6754,5 +6966,38 @@ mod tests {
             authorize(&program, &CapabilitySet::new([CAPABILITY_RUNTIME_READ])).unwrap_err();
         assert_eq!(error.code, "LSH2001");
         assert!(error.message.contains(CAPABILITY_RUNTIME_REFRESH));
+    }
+
+    #[test]
+    fn canonical_source_rejects_excessive_effect_nesting_before_formatting() {
+        let mut effect = Effect::UiActivate {
+            node_id: "nested-target".to_string(),
+        };
+        let mut result_type = Type::UiActivate;
+        for _ in 0..MAX_EFFECT_NESTING_DEPTH {
+            effect = Effect::All {
+                branches: vec![
+                    HirBranch {
+                        name: "nested".to_string(),
+                        effect,
+                        result_type,
+                    },
+                    HirBranch {
+                        name: "side".to_string(),
+                        effect: Effect::UiActivate {
+                            node_id: "side-target".to_string(),
+                        },
+                        result_type: Type::UiActivate,
+                    },
+                ],
+            };
+            result_type = Type::Structured;
+        }
+
+        assert!(matches!(
+            canonical_source(&effect),
+            Err(CanonicalSourceError::InvalidEffect(errors))
+                if errors.iter().any(|error| error.code == "LSH1204")
+        ));
     }
 }

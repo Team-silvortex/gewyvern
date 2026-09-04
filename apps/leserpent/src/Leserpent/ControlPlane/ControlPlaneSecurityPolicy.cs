@@ -14,6 +14,8 @@ public sealed class ControlPlaneSecurityPolicy
     public const string MutateIntent = "mutate";
     public const string ExportIntent = "export";
     public const long PersistenceImportBodyLimitBytes = 1_048_576;
+    public const int MinimumAdminTokenLength = 32;
+    public const int MaximumAdminTokenLength = 256;
 
     private readonly string? adminToken;
 
@@ -39,6 +41,16 @@ public sealed class ControlPlaneSecurityPolicy
         payload = new ApiErrorResponse("none");
 
         var path = context.Request.Path;
+        var isLoopback = IsLoopbackRequest(context);
+        if (!isLoopback && !context.Request.IsHttps)
+        {
+            statusCode = StatusCodes.Status426UpgradeRequired;
+            payload = new ApiErrorResponse(
+                "https_required",
+                "remote Leserpent access requires HTTPS");
+            return false;
+        }
+
         if (!path.StartsWithSegments("/v1") && !path.StartsWithSegments("/health"))
         {
             return true;
@@ -57,7 +69,6 @@ public sealed class ControlPlaneSecurityPolicy
             }
         }
 
-        var isLoopback = IsLoopbackRequest(context);
         var hasValidToken = HasValidAdminToken(context.Request);
         if (!isLoopback && !hasValidToken)
         {
@@ -335,7 +346,15 @@ public sealed class ControlPlaneSecurityPolicy
             return null;
         }
 
-        return value.Trim();
+        var token = value.Trim();
+        if (token.Length is < MinimumAdminTokenLength or > MaximumAdminTokenLength
+            || token.Any(character => character is < '!' or > '~'))
+        {
+            throw new InvalidOperationException(
+                $"LESERPENT_ADMIN_TOKEN must contain {MinimumAdminTokenLength} to {MaximumAdminTokenLength} visible ASCII characters");
+        }
+
+        return token;
     }
 }
 

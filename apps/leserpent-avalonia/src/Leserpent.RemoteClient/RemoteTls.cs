@@ -1,6 +1,7 @@
 using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 
 public sealed record RemoteTrustIdentity(
     string Origin,
@@ -30,11 +31,47 @@ public sealed record RemoteTrustIdentity(
 
 public static class RemoteTls
 {
-    public static X509Certificate2 LoadRoot(string path) =>
-        LoadRootFromPem(File.ReadAllText(path));
+    private const int MaxCertificateBytes = 1024 * 1024;
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
-    public static X509Certificate2 LoadRootFromPem(string pem) =>
-        X509Certificate2.CreateFromPem(pem);
+    public static X509Certificate2 LoadRoot(string path)
+    {
+        if (!Path.IsPathFullyQualified(path))
+        {
+            throw new InvalidDataException("remote CA path must be absolute");
+        }
+        var attributes = File.GetAttributes(path);
+        if ((attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0)
+        {
+            throw new InvalidDataException("remote CA must be a regular file");
+        }
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        if (stream.Length is <= 0 or > MaxCertificateBytes)
+        {
+            throw new InvalidDataException("remote CA has an invalid size");
+        }
+        var payload = new byte[checked((int)stream.Length)];
+        stream.ReadExactly(payload);
+        try
+        {
+            return LoadRootFromPem(StrictUtf8.GetString(payload));
+        }
+        catch (DecoderFallbackException error)
+        {
+            throw new InvalidDataException("remote CA is not valid UTF-8 PEM", error);
+        }
+    }
+
+    public static X509Certificate2 LoadRootFromPem(string pem)
+    {
+        if (string.IsNullOrWhiteSpace(pem)
+            || StrictUtf8.GetByteCount(pem) > MaxCertificateBytes
+            || pem.Contains('\0'))
+        {
+            throw new InvalidDataException("remote CA PEM has an invalid size or encoding");
+        }
+        return X509Certificate2.CreateFromPem(pem);
+    }
 
     public static bool ValidateServerCertificate(
         X509Certificate? certificate,

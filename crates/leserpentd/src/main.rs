@@ -376,9 +376,9 @@ fn run() -> Result<(), String> {
             })
             .collect::<Result<Vec<_>, _>>()?;
         for (runtime_id, origin, ca_path) in gewyvern_https_targets {
-            let admin_secret = configured_admin_secret
-                .clone()
-                .expect("remote target credential was checked above");
+            let admin_secret = configured_admin_secret.clone().ok_or_else(|| {
+                "remote Gewyvern target credential became unavailable during startup".to_string()
+            })?;
             targets.push((
                 runtime_id,
                 GewyvernTarget::https(&origin, ca_path, admin_secret)?,
@@ -440,15 +440,14 @@ fn run() -> Result<(), String> {
     if let Some(origin) = bootstrap_origin {
         let secrets = bootstrap_secrets
             .as_ref()
-            .expect("bootstrap origin trust-root requirement was checked")
+            .ok_or_else(|| "bootstrap session secret store is unavailable".to_string())?
             .clone();
+        let trust_root = bootstrap_trust_root
+            .as_ref()
+            .ok_or_else(|| "bootstrap origin trust root is unavailable".to_string())?;
         let trust: Arc<dyn BootstrapTrustStore> = Arc::new(
-            FileBootstrapTrustStore::new(
-                bootstrap_trust_root
-                    .as_ref()
-                    .expect("bootstrap origin trust-root requirement was checked"),
-            )
-            .map_err(|error| format!("cannot open bootstrap trust store: {error:?}"))?,
+            FileBootstrapTrustStore::new(trust_root)
+                .map_err(|error| format!("cannot open bootstrap trust store: {error:?}"))?,
         );
         let (bootstrap, retirement) = origin.into_native_adapters(secrets, trust)?;
         registry.register(bootstrap)?;
@@ -460,30 +459,28 @@ fn run() -> Result<(), String> {
             PlatformSecretStore::new(origin.secret_service())
                 .map_err(|error| format!("cannot open Gewyvern provisioning store: {error:?}"))?,
         );
+        let trust_root = bootstrap_trust_root
+            .as_ref()
+            .ok_or_else(|| "Gewyvern origin trust root is unavailable".to_string())?;
         let trust: Arc<dyn BootstrapTrustStore> = Arc::new(
-            FileBootstrapTrustStore::new(
-                bootstrap_trust_root
-                    .as_ref()
-                    .expect("Gewyvern origin trust-root requirement was checked"),
-            )
-            .map_err(|error| format!("cannot open Gewyvern trust store: {error:?}"))?,
+            FileBootstrapTrustStore::new(trust_root)
+                .map_err(|error| format!("cannot open Gewyvern trust store: {error:?}"))?,
         );
         let (provisioning, retirement) = origin.into_native_adapters(secrets, trust)?;
         registry.register(provisioning)?;
         registry.register(retirement)?;
     }
-    let bootstrap_verifier: Option<Arc<dyn BootstrapSessionVerifier>> = bootstrap_trust_root
-        .map(|trust_root| {
-            NativeBootstrapSessionVerifier::new(
-                bootstrap_secrets
-                    .as_ref()
-                    .expect("bootstrap trust root always initializes a secret store")
-                    .clone(),
-                trust_root,
-            )
-            .map(|verifier| Arc::new(verifier) as Arc<dyn BootstrapSessionVerifier>)
-        })
-        .transpose()?;
+    let bootstrap_verifier: Option<Arc<dyn BootstrapSessionVerifier>> = match bootstrap_trust_root {
+        Some(trust_root) => {
+            let secrets = bootstrap_secrets
+                .as_ref()
+                .ok_or_else(|| "bootstrap session secret store is unavailable".to_string())?
+                .clone();
+            let verifier = NativeBootstrapSessionVerifier::new(secrets, trust_root)?;
+            Some(Arc::new(verifier))
+        }
+        None => None,
+    };
     let bootstrap_submission_enabled = registry.contains_kind(HOST_BOOTSTRAP_EFFECT_KIND);
     let provisioning_submission_enabled = registry.contains_kind(GEWYVERN_PROVISIONING_EFFECT_KIND);
     let retirement_submission_enabled = registry.contains_kind(GEWYVERN_RETIREMENT_EFFECT_KIND);
@@ -549,7 +546,12 @@ fn run() -> Result<(), String> {
                             .into(),
                     );
                 }
-                (Some(_), Some(_)) => unreachable!("mutual exclusion was checked"),
+                (Some(_), Some(_)) => {
+                    return Err(
+                        "--remote-token-file and LESERPENT_REMOTE_TOKEN are mutually exclusive"
+                            .into(),
+                    );
+                }
             };
             let server = RemoteServer::bind(address, certificate, private_key, &token)?;
             let server = match &web_console_writer_fence {
@@ -636,8 +638,7 @@ fn new_authority_writer_id() -> Result<String, String> {
     let mut writer_id = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
         use std::fmt::Write as _;
-        write!(&mut writer_id, "{byte:02x}")
-            .expect("writing a fixed authority writer ID cannot fail");
+        let _ = write!(&mut writer_id, "{byte:02x}");
     }
     Ok(writer_id)
 }

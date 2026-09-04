@@ -17,7 +17,9 @@ internal sealed class RemoteWireTransport : IDisposable
             AutomaticDecompression = DecompressionMethods.None,
             ConnectTimeout = RequestTimeout,
             MaxConnectionsPerServer = 2,
+            MaxResponseHeadersLength = 16,
             PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+            UseCookies = false,
         };
         handler.SslOptions.RemoteCertificateValidationCallback =
             (_, certificate, _, errors) =>
@@ -109,9 +111,15 @@ internal sealed class RemoteWireTransport : IDisposable
         {
             throw new InvalidDataException($"remote {operation} exceeds the protocol limit");
         }
-        using var content = new ByteArrayContent(payload.ToArray());
-        content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-        using var response = await client.PostAsync(route, content, cancellationToken)
+        using var request = new HttpRequestMessage(HttpMethod.Post, route)
+        {
+            Content = new ByteArrayContent(payload.ToArray()),
+        };
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        using var response = await client.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken)
             .ConfigureAwait(false);
         if (!string.Equals(
             response.Content.Headers.ContentType?.MediaType,

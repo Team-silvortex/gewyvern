@@ -358,8 +358,8 @@ cargo run -- --scan-all \
   --api-socket 127.0.0.1:9100 \
   --json --summary-only
 
-# remote API, explicit exposure plus runtime admin token
-GEWY_API_ADMIN_TOKEN='replace-me' \
+# remote plaintext API: only inside an authenticated encrypted overlay
+GEWY_API_ADMIN_TOKEN="$(openssl rand -hex 32)" \
 cargo run -- --scan-all \
   --tcp-socket 127.0.0.1:9000 \
   --serve \
@@ -367,15 +367,22 @@ cargo run -- --scan-all \
   --allow-remote-api \
   --json --summary-only
 
-# equivalent remote API launch with CLI token injection
+# equivalent launch with CLI token injection
+token="$(openssl rand -hex 32)"
 cargo run -- --scan-all \
   --tcp-socket 127.0.0.1:9000 \
   --serve \
   --api-socket 0.0.0.0:9100 \
   --allow-remote-api \
-  --api-admin-token replace-me \
+  --api-admin-token "$token" \
   --json --summary-only
 ```
+
+`--allow-remote-api` is an explicit plaintext-HTTP escape hatch, not a TLS
+transport. Prefer the packaged TLS API service or keep this listener on
+loopback behind a same-host TLS proxy. Otherwise expose it only through an
+authenticated encrypted overlay such as WireGuard; never send its admin token
+over an untrusted network.
 
 Human-facing ingest mode examples:
 

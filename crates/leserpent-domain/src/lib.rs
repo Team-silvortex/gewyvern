@@ -1145,9 +1145,11 @@ impl InMemoryControlPlane {
                         runtime_id: runtime_id.as_str().to_string(),
                     }
                 })?;
-                let expected = envelope
-                    .expected_revision
-                    .expect("registration update revision was validated above");
+                let Some(expected) = envelope.expected_revision else {
+                    return Err(DomainError::InvalidQuery {
+                        reason: "runtime registration update requires a runtime revision",
+                    });
+                };
                 if expected != current.revision {
                     return Err(DomainError::RevisionConflict {
                         expected,
@@ -1205,9 +1207,11 @@ impl InMemoryControlPlane {
                         runtime_id: runtime_id.as_str().to_string(),
                     }
                 })?;
-                let expected = envelope
-                    .expected_revision
-                    .expect("discovery intake revision was validated above");
+                let Some(expected) = envelope.expected_revision else {
+                    return Err(DomainError::InvalidQuery {
+                        reason: "runtime discovery intake requires a runtime revision",
+                    });
+                };
                 if expected != current.revision {
                     return Err(DomainError::RevisionConflict {
                         expected,
@@ -1408,7 +1412,9 @@ impl InMemoryControlPlane {
                 }
                 Ok(result)
             }
-            Command::DebuggerCancel { .. } => unreachable!("debugger commands returned above"),
+            Command::DebuggerCancel { .. } => Err(DomainError::InvalidQuery {
+                reason: "debugger commands require the Leselang VM authority",
+            }),
         }
     }
 

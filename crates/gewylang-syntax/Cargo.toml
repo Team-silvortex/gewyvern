@@ -7,3 +7,6 @@ license.workspace = true
 
 [dependencies]
 gewylang-contract = { path = "../gewylang-contract" }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

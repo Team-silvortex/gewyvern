@@ -298,7 +298,9 @@ fn parse_pipeline_module_into(
                             source_graph,
                         )
                     });
-                source_graph.leave_include(&resolved.path);
+                source_graph
+                    .leave_include(&resolved.path)
+                    .map_err(|err| err.at_line(line_no))?;
                 result.map_err(|err| err.at_line(line_no))?;
             }
             other => {
@@ -307,11 +309,19 @@ fn parse_pipeline_module_into(
                     &mut module
                         .functions
                         .get_mut(function_name)
-                        .expect("function exists while parsing")
+                        .ok_or_else(|| {
+                            DslError::InvalidValue(format!(
+                                "pipeline function '{function_name}' is unavailable while parsing"
+                            ))
+                            .at_line(line_no)
+                        })?
                         .body
                 } else {
                     &mut module.body
                 };
+                let use_target = (other == "use")
+                    .then(|| parse_pipeline_single_arg(&args, "use").ok())
+                    .flatten();
                 target.push(PipelineCall {
                     line_no,
                     column_no: call_column,
@@ -322,12 +332,7 @@ fn parse_pipeline_module_into(
                         .map(|column| call_column + column.saturating_sub(1))
                         .collect(),
                 });
-                if other == "use"
-                    && let Ok(target_name) = parse_pipeline_single_arg(
-                        &target.last().expect("call just inserted").args,
-                        "use",
-                    )
-                {
+                if let Some(target_name) = use_target {
                     module.use_edges.push(FrontendUseEdge {
                         from: function_name.unwrap_or("entry").to_string(),
                         to: target_name,

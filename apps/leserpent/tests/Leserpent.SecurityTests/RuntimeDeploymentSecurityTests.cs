@@ -38,7 +38,7 @@ public sealed class RuntimeDeploymentSecurityTests
         var discovery = new CapabilityDiscoveryService(client, new ControlPlaneSecurityPolicy(configuration));
 
         var result = await discovery.DeployAsync(
-            new RuntimeControlAccess("runtime-1", "runtime", "http://runtime.test", "runtime-secret", new RuntimeTags(null, null, null)),
+            new RuntimeControlAccess("runtime-1", "runtime", "https://runtime.test", "runtime-secret", new RuntimeTags(null, null, null)),
             new RuntimeDeploymentRequest("http/request", "operator", true, "req-1", "pid:42"),
             CancellationToken.None);
 
@@ -46,6 +46,45 @@ public sealed class RuntimeDeploymentSecurityTests
         Assert.DoesNotContain("runtime-secret", observedBody);
         Assert.Equal("accepted", result.Status);
         Assert.Equal("runtime-1", result.RuntimeId);
+    }
+
+    [Fact]
+    public async Task DeploymentRefusesToSendAdminTokenOverRemoteHttp()
+    {
+        var requestObserved = false;
+        using var client = new HttpClient(new RecordingHandler(_ =>
+        {
+            requestObserved = true;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Accepted));
+        }));
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["LESERPENT_ALLOW_PUBLIC_ENDPOINTS"] = "true",
+            })
+            .Build();
+        var discovery = new CapabilityDiscoveryService(
+            client,
+            new ControlPlaneSecurityPolicy(configuration));
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            discovery.DeployAsync(
+                new RuntimeControlAccess(
+                    "runtime-1",
+                    "runtime",
+                    "http://runtime.test",
+                    "runtime-secret",
+                    new RuntimeTags(null, null, null)),
+                new RuntimeDeploymentRequest(
+                    "http/request",
+                    "operator",
+                    true,
+                    "req-1",
+                    "pid:42"),
+                CancellationToken.None));
+
+        Assert.Contains("non-loopback HTTP", error.Message);
+        Assert.False(requestObserved);
     }
 
     [Fact]

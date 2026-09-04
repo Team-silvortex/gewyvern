@@ -6,6 +6,7 @@ public sealed class ControlPlaneStateStore
 {
     private const int CurrentSchemaVersion = 9;
     private const int OldestSupportedSchemaVersion = 1;
+    internal const int MaximumStateFileBytes = 16 * 1024 * 1024;
 
     private readonly string statePath;
     private readonly string backupStatePath;
@@ -54,8 +55,8 @@ public sealed class ControlPlaneStateStore
 
         try
         {
-            using var stream = File.OpenRead(statePath);
-            var state = JsonSerializer.Deserialize(stream, jsonContext.PersistedControlPlaneState);
+            var payload = ReadBoundedStateFile(statePath);
+            var state = JsonSerializer.Deserialize(payload, jsonContext.PersistedControlPlaneState);
             if (state is null)
             {
                 IsDirty = false;
@@ -91,6 +92,13 @@ public sealed class ControlPlaneStateStore
                 BackupFailureCode: null);
             primaryStateKnownGood = true;
             return state;
+        }
+        catch (StateFileLoadException ex)
+        {
+            IsDirty = false;
+            LastSaveError = "control_plane_state_load_failed";
+            logger.LogWarning(ex, "Rejected control-plane state from {StatePath}; attempting backup recovery.", statePath);
+            return TryLoadBackupState(ex.FailureCode);
         }
         catch (JsonException ex)
         {
@@ -247,30 +255,23 @@ public sealed class ControlPlaneStateStore
                     Directory.CreateDirectory(directory);
                 }
 
-                using (var stream = new FileStream(
-                    tempPath,
-                    FileMode.CreateNew,
-                    FileAccess.Write,
-                    FileShare.None))
+                using (var stream = CreatePrivateStateFile(tempPath))
                 {
                     JsonSerializer.Serialize(stream, state, jsonContext.PersistedControlPlaneState);
+                    if (stream.Length > MaximumStateFileBytes)
+                    {
+                        throw new InvalidDataException(
+                            $"control-plane state exceeds the {MaximumStateFileBytes}-byte persistence limit");
+                    }
                     stream.Flush(flushToDisk: true);
                 }
 
                 if (primaryStateKnownGood && File.Exists(statePath))
                 {
-                    using var source = new FileStream(
-                        statePath,
-                        FileMode.Open,
-                        FileAccess.Read,
-                        FileShare.Read);
-                    using (var backup = new FileStream(
-                        backupTempPath,
-                        FileMode.CreateNew,
-                        FileAccess.Write,
-                        FileShare.None))
+                    var primaryPayload = ReadBoundedStateFile(statePath);
+                    using (var backup = CreatePrivateStateFile(backupTempPath))
                     {
-                        source.CopyTo(backup);
+                        backup.Write(primaryPayload);
                         backup.Flush(flushToDisk: true);
                     }
                     File.Move(
@@ -343,8 +344,8 @@ public sealed class ControlPlaneStateStore
 
         try
         {
-            using var stream = File.OpenRead(backupStatePath);
-            var state = JsonSerializer.Deserialize(stream, jsonContext.PersistedControlPlaneState);
+            var payload = ReadBoundedStateFile(backupStatePath);
+            var state = JsonSerializer.Deserialize(payload, jsonContext.PersistedControlPlaneState);
             if (state is null || !IsCompatible(state))
             {
                 var backupFailureCode = state is null
@@ -371,6 +372,15 @@ public sealed class ControlPlaneStateStore
                 BackupFailureCode: null);
             logger.LogWarning("Recovered control-plane state from backup file at {BackupStatePath}.", backupStatePath);
             return state;
+        }
+        catch (StateFileLoadException ex)
+        {
+            LastSaveError = "control_plane_state_backup_load_failed";
+            LoadProvenance = FailedLoad(
+                primaryFailureCode,
+                ex.FailureCode);
+            logger.LogWarning(ex, "Rejected backup control-plane state from {BackupStatePath}; starting from an empty registry.", backupStatePath);
+            return null;
         }
         catch (JsonException ex)
         {
@@ -410,6 +420,69 @@ public sealed class ControlPlaneStateStore
             Degraded: true,
             PrimaryFailureCode: primaryFailureCode,
             BackupFailureCode: backupFailureCode);
+
+    private static byte[] ReadBoundedStateFile(string path)
+    {
+        var info = new FileInfo(path);
+        info.Refresh();
+        if (!info.Exists)
+        {
+            throw new StateFileLoadException(
+                ControlPlaneStateLoadFailureCode.NotFound,
+                "control-plane state file does not exist");
+        }
+        if ((info.Attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0)
+        {
+            throw new StateFileLoadException(
+                ControlPlaneStateLoadFailureCode.UnsafeFile,
+                "control-plane state must be a regular file and cannot be a reparse point");
+        }
+        if (info.Length > MaximumStateFileBytes)
+        {
+            throw new StateFileLoadException(
+                ControlPlaneStateLoadFailureCode.TooLarge,
+                $"control-plane state exceeds the {MaximumStateFileBytes}-byte load limit");
+        }
+
+        using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 4096,
+            FileOptions.SequentialScan);
+        if (stream.Length > MaximumStateFileBytes)
+        {
+            throw new StateFileLoadException(
+                ControlPlaneStateLoadFailureCode.TooLarge,
+                $"control-plane state exceeds the {MaximumStateFileBytes}-byte load limit");
+        }
+        var payload = GC.AllocateUninitializedArray<byte>(checked((int)stream.Length));
+        stream.ReadExactly(payload);
+        if (stream.ReadByte() != -1)
+        {
+            throw new StateFileLoadException(
+                ControlPlaneStateLoadFailureCode.ReadFailed,
+                "control-plane state changed while it was being read");
+        }
+        return payload;
+    }
+
+    private static FileStream CreatePrivateStateFile(string path)
+    {
+        var options = new FileStreamOptions
+        {
+            Access = FileAccess.Write,
+            Mode = FileMode.CreateNew,
+            Share = FileShare.None,
+            Options = FileOptions.WriteThrough,
+        };
+        if (!OperatingSystem.IsWindows())
+        {
+            options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        }
+        return new FileStream(path, options);
+    }
 
     private static PersistedControlPlaneState UpgradeState(
         PersistedControlPlaneState state)
@@ -477,6 +550,13 @@ public sealed class ControlPlaneStateStore
         }
 
         return Path.Combine(environment.ContentRootPath, ".leserpent-state", "control-plane-state.json");
+    }
+
+    private sealed class StateFileLoadException(
+        ControlPlaneStateLoadFailureCode failureCode,
+        string message) : IOException(message)
+    {
+        public ControlPlaneStateLoadFailureCode FailureCode { get; } = failureCode;
     }
 }
 

@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Product-independent values shared by Leselang and its host adapters.
 
 use std::collections::BTreeSet;

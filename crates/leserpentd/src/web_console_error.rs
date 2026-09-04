@@ -42,7 +42,10 @@ impl ConsoleWriteError {
             "error": self.code,
             "reason": self.reason,
         }))
-        .expect("fixed Rust Web error response must serialize")
+        .unwrap_or_else(|_| {
+            br#"{"error":"web_projection_failed","reason":"Rust Web error response serialization failed"}"#
+                .to_vec()
+        })
     }
 }
 

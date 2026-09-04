@@ -111,9 +111,10 @@ impl EventSession {
             Ok(payload) if payload.len() <= MAX_PROTOCOL_MESSAGE_BYTES => payload,
             _ => return false,
         };
-        match self.socket.send(Message::text(
-            String::from_utf8(payload).expect("event JSON is UTF-8"),
-        )) {
+        let Ok(payload) = String::from_utf8(payload) else {
+            return false;
+        };
+        match self.socket.send(Message::text(payload)) {
             Ok(()) => {
                 self.last_activity = Instant::now();
                 true

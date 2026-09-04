@@ -115,12 +115,16 @@ Binding compilation and Expanded AST inspection use the same source-graph
 loader. The loader applies these limits before lowering:
 
 - each source is a regular file containing at most `262144` bytes
+- `gewy.pkg` is a regular file containing at most `65536` bytes, with no
+  duplicate identity, entry, source-alias, or dependency-alias fields
 - one compilation consumes at most `256` source files, including the entry
 - filesystem includes nest at most `32` levels below the entry
 - the entry and every included source consume at most `4194304` bytes together
 
 Reads are bounded by actual content rather than trusting an earlier metadata
-length. Entry-only `include "..."` compatibility files and canonical pipeline
+length. Manifest symbolic links are rejected, and Unix source opens use
+no-follow semantics on the resolved file to close the final-component
+metadata/open race. Entry-only `include "..."` compatibility files and canonical pipeline
 `include(...)` steps share the same cycle detection, path confinement, and
 budgets. Local paths resolve from the containing source while remaining inside
 the package root; dependency paths remain inside their declared dependency
@@ -130,6 +134,12 @@ layout-preserving comment normalization; comment-free sources stay borrowed.
 These are fail-closed resource and path rules for Syntax v1, not new syntax or
 new IR fields. Changing the private loader without changing these observable
 limits does not require an IR stage-version bump.
+
+Semantic expansion has an independent budget: one compilation may consume at
+most `16384` expanded calls, function use may nest at most `64` levels, and one
+value after placeholder substitution may contain at most `262144` bytes. These
+limits apply to acyclic graphs too, preventing repeated function use or local
+bindings from producing exponential CPU or memory growth.
 
 ## Expanded AST v1
 

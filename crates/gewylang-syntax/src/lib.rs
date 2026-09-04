@@ -1,10 +1,14 @@
+#![forbid(unsafe_code)]
+
 //! Product-independent GewyLang source, package, parser, and frontend model.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
-use std::fs::{self, File};
+use std::fs::{self, OpenOptions};
 use std::io::Read;
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 
 mod diagnostics;
@@ -32,7 +36,9 @@ pub use frontend::{
 };
 pub use function_types::{format_pipeline_function_signature, pipeline_value_kind_text};
 pub use gewylang_contract::{
-    GEWYLANG_SYNTAX_VERSION, MAX_GEWYLANG_INCLUDE_DEPTH, MAX_GEWYLANG_SOURCE_BYTES,
+    GEWYLANG_SYNTAX_VERSION, MAX_GEWYLANG_EXPANDED_VALUE_BYTES, MAX_GEWYLANG_EXPANSION_STEPS,
+    MAX_GEWYLANG_FUNCTION_EXPANSION_DEPTH, MAX_GEWYLANG_INCLUDE_DEPTH,
+    MAX_GEWYLANG_PACKAGE_MANIFEST_BYTES, MAX_GEWYLANG_SOURCE_BYTES,
     MAX_GEWYLANG_SOURCE_GRAPH_BYTES, MAX_GEWYLANG_SOURCE_GRAPH_FILES, PACKAGE_MANIFEST_FILE,
 };
 pub use package::{PackageContext, build_lockfile};
@@ -242,28 +248,57 @@ pub fn read_file(path: &str) -> Result<String, SyntaxError> {
 }
 
 pub(crate) fn read_source_file(path: &Path) -> Result<String, SyntaxError> {
-    let metadata = fs::metadata(path).map_err(|err| SyntaxError::Io(err.to_string()))?;
-    if !metadata.is_file() {
+    read_bounded_utf8_file(path, MAX_GEWYLANG_SOURCE_BYTES, "gewylang source")
+}
+
+pub(crate) fn read_bounded_utf8_file(
+    path: &Path,
+    max_bytes: usize,
+    label: &str,
+) -> Result<String, SyntaxError> {
+    let path_metadata =
+        fs::symlink_metadata(path).map_err(|err| SyntaxError::Io(err.to_string()))?;
+    if path_metadata.file_type().is_symlink() || !path_metadata.is_file() {
         return Err(SyntaxError::InvalidValue(format!(
-            "gewylang source path '{}' is not a regular file",
+            "{label} path '{}' is not a regular file",
             path.display()
         )));
     }
-    if metadata.len() > MAX_GEWYLANG_SOURCE_BYTES as u64 {
-        return Err(gewylang_source_too_large());
+    if path_metadata.len() > max_bytes as u64 {
+        return Err(bounded_file_too_large(label, max_bytes));
     }
-    let file = File::open(path).map_err(|err| SyntaxError::Io(err.to_string()))?;
+
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    let file = options
+        .open(path)
+        .map_err(|err| SyntaxError::Io(err.to_string()))?;
+    let metadata = file
+        .metadata()
+        .map_err(|err| SyntaxError::Io(err.to_string()))?;
+    if !metadata.is_file() {
+        return Err(SyntaxError::InvalidValue(format!(
+            "{label} path '{}' is not a regular file",
+            path.display()
+        )));
+    }
+    if metadata.len() > max_bytes as u64 {
+        return Err(bounded_file_too_large(label, max_bytes));
+    }
+
     let mut bytes = Vec::with_capacity(
         usize::try_from(metadata.len())
-            .unwrap_or(MAX_GEWYLANG_SOURCE_BYTES)
-            .min(MAX_GEWYLANG_SOURCE_BYTES)
+            .unwrap_or(max_bytes)
+            .min(max_bytes)
             .saturating_add(1),
     );
-    file.take((MAX_GEWYLANG_SOURCE_BYTES + 1) as u64)
+    file.take(max_bytes.saturating_add(1) as u64)
         .read_to_end(&mut bytes)
         .map_err(|err| SyntaxError::Io(err.to_string()))?;
-    if bytes.len() > MAX_GEWYLANG_SOURCE_BYTES {
-        return Err(gewylang_source_too_large());
+    if bytes.len() > max_bytes {
+        return Err(bounded_file_too_large(label, max_bytes));
     }
     String::from_utf8(bytes).map_err(|err| SyntaxError::Io(err.to_string()))
 }
@@ -276,9 +311,11 @@ pub fn validate_source_size(input: &str) -> Result<(), SyntaxError> {
 }
 
 fn gewylang_source_too_large() -> SyntaxError {
-    SyntaxError::InvalidValue(format!(
-        "gewylang source exceeds {MAX_GEWYLANG_SOURCE_BYTES} bytes"
-    ))
+    bounded_file_too_large("gewylang source", MAX_GEWYLANG_SOURCE_BYTES)
+}
+
+fn bounded_file_too_large(label: &str, max_bytes: usize) -> SyntaxError {
+    SyntaxError::InvalidValue(format!("{label} exceeds {max_bytes} bytes"))
 }
 
 pub fn strip_comments_preserve_layout(input: &str) -> Result<Cow<'_, str>, SyntaxError> {

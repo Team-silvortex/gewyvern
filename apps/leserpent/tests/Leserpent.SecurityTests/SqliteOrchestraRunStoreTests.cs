@@ -1242,6 +1242,104 @@ public sealed class SqliteOrchestraRunStoreTests
     }
 
     [Fact]
+    public void ControlPlaneStateStoreRecoversWhenPrimaryExceedsLoadLimit()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var writer = CreateStateStore(statePath);
+            writer.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>());
+            writer.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>());
+            using (var oversized = new FileStream(
+                statePath,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None))
+            {
+                oversized.SetLength(
+                    ControlPlaneStateStore.MaximumStateFileBytes + 1L);
+            }
+
+            var reader = CreateStateStore(statePath);
+            Assert.NotNull(reader.Load());
+            Assert.Equal(
+                ControlPlaneStateLoadFailureCode.TooLarge,
+                reader.LoadProvenance.PrimaryFailureCode);
+            Assert.Equal(
+                ControlPlaneStateLoadSource.Backup,
+                reader.LoadProvenance.Source);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
+    public void ControlPlaneStateStoreRejectsReparsePointState()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var statePath = TemporaryPath("json");
+        var targetPath = TemporaryPath("json");
+        try
+        {
+            var targetWriter = CreateStateStore(targetPath);
+            targetWriter.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>());
+            File.CreateSymbolicLink(statePath, targetPath);
+
+            var reader = CreateStateStore(statePath);
+            Assert.Null(reader.Load());
+            Assert.Equal(
+                ControlPlaneStateLoadFailureCode.UnsafeFile,
+                reader.LoadProvenance.PrimaryFailureCode);
+        }
+        finally
+        {
+            DeleteState(statePath);
+            DeleteState(targetPath);
+        }
+    }
+
+    [Fact]
+    public void ControlPlaneStateStoreWritesPrivateUnixStateFiles()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var writer = CreateStateStore(statePath);
+            writer.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>());
+            writer.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>());
+
+            var expected = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+            Assert.Equal(expected, File.GetUnixFileMode(statePath));
+            Assert.Equal(expected, File.GetUnixFileMode($"{statePath}.bak"));
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
     public void ControlPlaneStateStoreDoesNotPoisonGoodBackupOnFirstPostRecoverySave()
     {
         var statePath = TemporaryPath("json");

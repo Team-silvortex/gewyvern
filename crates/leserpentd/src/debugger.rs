@@ -446,7 +446,7 @@ impl DebuggerAuthority {
                 Some(DebuggerFaultSummary {
                     code: format!(
                         "debugger_presentation_{}",
-                        rejection_code.expect("rejected presentation retains its code")
+                        rejection_code.unwrap_or("rejected")
                     ),
                     display: "the GUI adapter rejected the presentation operation".into(),
                 }),
@@ -567,11 +567,9 @@ impl DebuggerAuthority {
             .filter(|(_, session)| session.current_projection.state != DebuggerState::WaitingEffect)
             .min_by_key(|(_, session)| session.sequence)
             .map(|(session_id, _)| session_id.clone());
-        if let Some(session_id) = oldest {
-            let session = self
-                .sessions
-                .remove(&session_id)
-                .expect("selected debugger session remains present");
+        if let Some(session_id) = oldest
+            && let Some(session) = self.sessions.remove(&session_id)
+        {
             let journal_path = session.journal_path.clone();
             drop(session);
             remove_journal_files(&journal_path)?;
@@ -876,10 +874,12 @@ fn vm_capabilities() -> CapabilitySet {
 }
 
 fn source_digest(source: &str) -> [u8; 32] {
-    digest(&SHA256, source.as_bytes())
-        .as_ref()
-        .try_into()
-        .expect("SHA-256 output is always 32 bytes")
+    let digest = digest(&SHA256, source.as_bytes());
+    let mut output = [0_u8; 32];
+    if let Some(bytes) = digest.as_ref().get(..output.len()) {
+        output.copy_from_slice(bytes);
+    }
+    output
 }
 
 fn now_ms() -> Result<u64, DebuggerAuthorityError> {

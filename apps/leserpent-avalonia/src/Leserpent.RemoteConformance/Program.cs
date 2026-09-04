@@ -432,8 +432,11 @@ RequireThrows<ArgumentException>(() => RemoteTokenResolver.Resolve(
     environmentToken,
     new FixtureTokenStore("invalid token")),
     "invalid platform credential silently fell back to the environment");
-RequireThrows<ArgumentException>(() => RemoteClientOptions.ValidateToken(new string('x', 4097)),
+RequireThrows<ArgumentException>(() => RemoteClientOptions.ValidateToken(new string('x', 257)),
     "oversized remote token was accepted");
+RequireThrows<ArgumentException>(() => RemoteClientOptions.ValidateToken(
+    $"{new string('x', 31)}\u007f"),
+    "non-visible remote token was accepted");
 var fixtureVault = new FixtureTokenVault();
 RemoteTokenResolver.Store(credentialEndpoint, storedToken, fixtureVault);
 Require(fixtureVault.Load(credentialEndpoint) == storedToken,

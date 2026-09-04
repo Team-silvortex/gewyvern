@@ -3,11 +3,13 @@ use crate::{
     ReasonRuleInput, RuleScope, SemanticHost,
 };
 use gewylang_syntax::{
-    PipelineCall, PipelineFunction, PipelineModule, PipelineUseCall, SyntaxError,
-    format_pipeline_function_signature, is_pipeline_identifier, looks_like_pipeline_keyword_arg,
-    parse_pipeline_literal, parse_pipeline_literal_cow, parse_pipeline_single_arg,
-    parse_pipeline_use_call, pipeline_available_steps_message, pipeline_declared_functions_message,
-    pipeline_declared_params_message, pipeline_unknown_placeholder_message,
+    MAX_GEWYLANG_EXPANDED_VALUE_BYTES, MAX_GEWYLANG_EXPANSION_STEPS,
+    MAX_GEWYLANG_FUNCTION_EXPANSION_DEPTH, PipelineCall, PipelineFunction, PipelineModule,
+    PipelineUseCall, SyntaxError, format_pipeline_function_signature, is_pipeline_identifier,
+    looks_like_pipeline_keyword_arg, parse_pipeline_literal, parse_pipeline_literal_cow,
+    parse_pipeline_single_arg, parse_pipeline_use_call, pipeline_available_steps_message,
+    pipeline_declared_functions_message, pipeline_declared_params_message,
+    pipeline_unknown_placeholder_message,
 };
 use std::collections::BTreeMap;
 
@@ -20,6 +22,25 @@ struct PipelineKeywordArg<'a> {
 struct LoweringContext<'a, H: SemanticHost> {
     module: &'a PipelineModule,
     host: &'a H,
+}
+
+#[derive(Default)]
+struct ExpansionState {
+    steps: usize,
+    use_stack: Vec<String>,
+}
+
+impl ExpansionState {
+    fn consume(&mut self, line_no: usize) -> Result<(), SyntaxError> {
+        if self.steps >= MAX_GEWYLANG_EXPANSION_STEPS {
+            return Err(SyntaxError::InvalidValue(format!(
+                "pipeline expansion exceeds {MAX_GEWYLANG_EXPANSION_STEPS} semantic calls"
+            ))
+            .at_line(line_no));
+        }
+        self.steps += 1;
+        Ok(())
+    }
 }
 
 pub fn lower_pipeline_module<H: SemanticHost>(
@@ -43,12 +64,13 @@ pub fn lower_pipeline_module<H: SemanticHost>(
     }
 
     let context = LoweringContext { module, host };
+    let mut expansion = ExpansionState::default();
     lower_pipeline_calls(
         &module.body,
         &context,
         &mut output,
         allow_template_head,
-        &mut Vec::new(),
+        &mut expansion,
         &BTreeMap::new(),
         "entry pipeline",
     )?;
@@ -60,7 +82,7 @@ fn lower_pipeline_calls<H: SemanticHost>(
     context: &LoweringContext<'_, H>,
     output: &mut Vec<CanonicalAssignment<H>>,
     allow_template_head: bool,
-    use_stack: &mut Vec<String>,
+    expansion: &mut ExpansionState,
     bindings: &BTreeMap<String, String>,
     scope_context: &str,
 ) -> Result<(), SyntaxError> {
@@ -70,7 +92,7 @@ fn lower_pipeline_calls<H: SemanticHost>(
             context,
             output,
             allow_template_head,
-            use_stack,
+            expansion,
             bindings,
             scope_context,
         )?;
@@ -83,12 +105,13 @@ fn lower_pipeline_call<H: SemanticHost>(
     context: &LoweringContext<'_, H>,
     output: &mut Vec<CanonicalAssignment<H>>,
     allow_template_head: bool,
-    use_stack: &mut Vec<String>,
+    expansion: &mut ExpansionState,
     bindings: &BTreeMap<String, String>,
     scope_context: &str,
 ) -> Result<(), SyntaxError> {
     let line_no = call.line_no;
     let column_no = call.column_no;
+    expansion.consume(line_no)?;
     let resolved_args = if call.args.iter().any(|arg| arg.contains('$')) {
         let call_context = format!("{} while expanding {}", call.name, scope_context);
         Some(
@@ -122,9 +145,15 @@ fn lower_pipeline_call<H: SemanticHost>(
             let use_call = parse_pipeline_use_call(args)
                 .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
             let function_name = use_call.function_name.clone();
-            if use_stack.contains(&function_name) {
+            if expansion.use_stack.contains(&function_name) {
                 return Err(SyntaxError::InvalidValue(format!(
                     "pipeline use cycle detected at function '{function_name}'"
+                ))
+                .at_line(line_no));
+            }
+            if expansion.use_stack.len() >= MAX_GEWYLANG_FUNCTION_EXPANSION_DEPTH {
+                return Err(SyntaxError::InvalidValue(format!(
+                    "pipeline function expansion depth exceeds {MAX_GEWYLANG_FUNCTION_EXPANSION_DEPTH}"
                 ))
                 .at_line(line_no));
             }
@@ -157,17 +186,17 @@ fn lower_pipeline_call<H: SemanticHost>(
                         .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
                 );
             }
-            use_stack.push(function_name.clone());
+            expansion.use_stack.push(function_name.clone());
             lower_pipeline_calls(
                 &function.body,
                 context,
                 output,
                 false,
-                use_stack,
+                expansion,
                 &function_bindings,
                 &function_signature,
             )?;
-            use_stack.pop();
+            expansion.use_stack.pop();
         }
         "include" => {
             return Err(SyntaxError::InvalidValue(
@@ -380,6 +409,7 @@ pub fn substitute_pipeline_arg(
     bindings: &BTreeMap<String, String>,
     context: &str,
 ) -> Result<String, SyntaxError> {
+    ensure_expanded_value_size(arg.len(), context)?;
     if !arg.contains('$') {
         return Ok(arg.to_string());
     }
@@ -410,7 +440,7 @@ fn substitute_pipeline_arg_once(
     context: &str,
 ) -> Result<(String, bool), SyntaxError> {
     let bytes = arg.as_bytes();
-    let mut output = String::with_capacity(arg.len());
+    let mut output = String::with_capacity(arg.len().min(MAX_GEWYLANG_EXPANDED_VALUE_BYTES));
     let mut index = 0usize;
     let mut copy_start = 0usize;
     let mut changed = false;
@@ -465,8 +495,8 @@ fn substitute_pipeline_arg_once(
                 ))
                 .at_line_column(0, Some(start_column + 2))
             })?;
-            output.push_str(&arg[copy_start..index]);
-            output.push_str(value);
+            push_bounded_expanded_value(&mut output, &arg[copy_start..index], context)?;
+            push_bounded_expanded_value(&mut output, value, context)?;
             changed = true;
             index = name_end + 1;
             copy_start = index;
@@ -486,8 +516,8 @@ fn substitute_pipeline_arg_once(
                 ))
                 .at_line_column(0, Some(index + 2))
             })?;
-            output.push_str(&arg[copy_start..index]);
-            output.push_str(value);
+            push_bounded_expanded_value(&mut output, &arg[copy_start..index], context)?;
+            push_bounded_expanded_value(&mut output, value, context)?;
             changed = true;
             index = end;
             copy_start = index;
@@ -497,8 +527,36 @@ fn substitute_pipeline_arg_once(
         index += 1;
     }
 
-    output.push_str(&arg[copy_start..]);
+    push_bounded_expanded_value(&mut output, &arg[copy_start..], context)?;
     Ok((output, changed))
+}
+
+fn push_bounded_expanded_value(
+    output: &mut String,
+    value: &str,
+    context: &str,
+) -> Result<(), SyntaxError> {
+    let expanded_len = output
+        .len()
+        .checked_add(value.len())
+        .ok_or_else(|| expanded_value_too_large(context))?;
+    ensure_expanded_value_size(expanded_len, context)?;
+    output.push_str(value);
+    Ok(())
+}
+
+fn ensure_expanded_value_size(len: usize, context: &str) -> Result<(), SyntaxError> {
+    if len > MAX_GEWYLANG_EXPANDED_VALUE_BYTES {
+        return Err(expanded_value_too_large(context));
+    }
+    Ok(())
+}
+
+fn expanded_value_too_large(context: &str) -> SyntaxError {
+    SyntaxError::InvalidValue(format!(
+        "pipeline expanded value exceeds {MAX_GEWYLANG_EXPANDED_VALUE_BYTES} bytes while {context}"
+    ))
+    .at_line_column(0, Some(1))
 }
 
 fn is_pipeline_placeholder_byte(byte: u8) -> bool {
@@ -914,6 +972,22 @@ mod tests {
             substitute_pipeline_arg("前-${name}-${ name }-后", &bindings, "test").unwrap(),
             "前-resolved-resolved-后"
         );
+    }
+
+    #[test]
+    fn placeholder_substitution_rejects_exponential_output_growth() {
+        let bindings = BTreeMap::from([(
+            "value".to_string(),
+            "x".repeat(MAX_GEWYLANG_EXPANDED_VALUE_BYTES / 2 + 1),
+        )]);
+
+        let err = substitute_pipeline_arg("$value$value", &bindings, "test expansion")
+            .expect_err("expanded values must remain bounded");
+        assert!(matches!(
+            err.root(),
+            SyntaxError::InvalidValue(message)
+                if message.contains("pipeline expanded value exceeds")
+        ));
     }
 
     #[test]

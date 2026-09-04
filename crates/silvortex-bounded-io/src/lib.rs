@@ -96,8 +96,8 @@ impl Read for BoundedFile {
             };
         }
 
-        let allowed = usize::try_from(self.remaining.min(buffer.len() as u64))
-            .expect("bounded read length fits usize");
+        let remaining = usize::try_from(self.remaining).unwrap_or(usize::MAX);
+        let allowed = remaining.min(buffer.len());
         let read = self.file.read(&mut buffer[..allowed])?;
         self.remaining -= read as u64;
         Ok(read)

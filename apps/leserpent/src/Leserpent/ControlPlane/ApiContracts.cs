@@ -95,6 +95,10 @@ public enum ControlPlaneStateLoadFailureCode
     InvalidJson,
     [JsonStringEnumMemberName("semantic_invalid")]
     SemanticInvalid,
+    [JsonStringEnumMemberName("too_large")]
+    TooLarge,
+    [JsonStringEnumMemberName("unsafe_file")]
+    UnsafeFile,
     [JsonStringEnumMemberName("read_failed")]
     ReadFailed,
 }

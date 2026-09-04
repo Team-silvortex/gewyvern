@@ -56,12 +56,18 @@ impl SourceGraphState {
         Ok(input)
     }
 
-    pub(super) fn leave_include(&mut self, path: &Path) {
-        let active = self
-            .active_paths
-            .pop()
-            .expect("included source must have an active graph entry");
-        debug_assert_eq!(active, path);
+    pub(super) fn leave_include(&mut self, path: &Path) -> Result<(), DslError> {
+        let active = self.active_paths.pop().ok_or_else(|| {
+            DslError::InvalidValue("gewylang include graph stack is empty".into())
+        })?;
+        if active != path {
+            return Err(DslError::InvalidValue(format!(
+                "gewylang include graph stack mismatch: expected '{}', found '{}'",
+                path.display(),
+                active.display()
+            )));
+        }
+        Ok(())
     }
 }
 

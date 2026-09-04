@@ -1086,7 +1086,7 @@ fn read_http_request(
                 }
                 let maximum = route
                     .max_json_body_bytes()
-                    .expect("Rust Web JSON routes declare a body limit");
+                    .ok_or_else(HttpError::bad_request)?;
                 if content_length > maximum {
                     return Err(HttpError {
                         status: HttpStatus::PayloadTooLarge,
@@ -1154,10 +1154,9 @@ fn read_http_request(
         .parse::<usize>()
         .map_err(|_| HttpError::bad_request())?;
     let limit = match route {
-        HttpRoute::ConsoleAsset(_) | HttpRoute::ConsoleApi(_) => {
-            unreachable!("console GET routes return before body parsing")
+        HttpRoute::ConsoleAsset(_) | HttpRoute::ConsoleApi(_) | HttpRoute::LanguagePack(_) => {
+            return Err(HttpError::bad_request());
         }
-        HttpRoute::LanguagePack(_) => unreachable!("language packs return before body parsing"),
         HttpRoute::Wire => MAX_PROTOCOL_MESSAGE_BYTES,
         HttpRoute::Bootstrap => MAX_BOOTSTRAP_PROTOCOL_BYTES,
         HttpRoute::Provisioning => MAX_PROVISIONING_PROTOCOL_BYTES,

@@ -341,6 +341,7 @@ JSON state 默认路径：
 - control-plane 备份刷新同样使用独立临时文件、完整复制、刷盘和原子替换；刷新期间强杀且随后主文件损坏时，加载器仍只恢复完整上一代状态
 - 从备份恢复后，首次保存会跳过旧主文件的备份刷新并直接原子安装新主文件；只有成功提交的主 generation 才能在后续保存中晋升为备份
 - StateStore 和 Registry 共用状态语义验证器；除删除意图/retry 审计约束外，runtime/session 及 legacy Orchestra run ID 必须稳定且大小写不敏感唯一，每个 session 和 run 必须引用已注册 runtime；runtime/session 的必填文本、已知状态、单调时间、非负统计量和嵌套集合会在恢复前校验，capability/requirement 各限制为 256 条且键大小写不敏感唯一，sidecar memory 同样限制为 256 个唯一 slot；runtime/sidecar 状态来源必须符合 `unobserved`、成功或 `fetch_failed` 的时间与固定错误码姿态，远端异常、sidecar 报错和 memory 抓取失败不会把原始错误文本持久化，诊断文本也有明确长度和控制字符边界；Orchestra request ID 在各 runtime 内唯一，保留窗口内的 retry parent 还必须满足同 runtime/plan、终态、attempt `+1` 和单调时间，已被 retention 淘汰的 parent 仍允许作为历史边界；run lifecycle 只接受已知 active/terminal outcome，执行和完成时间不得倒退或来自未来，active run 不得伪装完成，step 列表非空引用且最多 256 条，同时兼容旧 terminal 缺失 `completedAt`；磁盘恢复、保存和显式导入都在任何投影替换、SQLite 迁移或 generation 晋升前 fail closed，并通过 `semantic_invalid` 暴露固定失败原因
+- 主状态和备份均限制为 16 MiB，并拒绝符号链接、重解析点和非普通文件；Unix 新 generation 固定使用 `0600`。主文件触发 `too_large` 或 `unsafe_file` 时仍会尝试可信备份，双 generation 都不可用才进入降级空状态
 - `/health` 和 `/v1/capabilities` 的 `persistence.load` 使用固定枚举报告 `empty|primary|backup|none` 来源、`empty|clean|recovered|failed` 结果及无路径失败码；成功备份恢复保持 persistence ready，同时明确标记为 degraded but operable
 - control-plane 保存与 Orchestra store 故障在健康和 capabilities 响应中只暴露 `control_plane_state_save_failed` / `orchestra_store_operation_failed`，完整底层异常仅进入本机日志
 - Orchestra run/event envelope 在 JSON 恢复、SQLite、leserpentd IPC、内存 store 和 authority 回读上共用语义门：operator/revision/step/event 文本有界且无控制字符，attempt 最多 1000000、step 最多 256 条，event 必须与 run 的身份和 outcome 精确一致且时间不早于执行/完成时间；authority 读取失败会阻止 legacy 覆盖，executor 原始异常只写本机日志，持久历史使用固定失败摘要
@@ -429,13 +430,17 @@ SQLite 不存储原始抓包、大型 eBPF 事件流或分析产物；这些内�
 - 如果设置：
   - `LESERPENT_ADMIN_TOKEN=...`
   - API 模式会变成：`loopback_or_token`
+  - 自定义 token 必须为 32–256 个可见 ASCII 字符；安装器默认生成 256-bit 随机 token
   - 远端请求必须带：
     - `X-Leserpent-Admin-Token: <token>`
+  - 远端 UI 和 API 必须使用 HTTPS；明文 HTTP 会在认证前被拒绝
+- 同机 TLS 反向代理必须覆盖 `X-Forwarded-For` 和 `X-Forwarded-Proto`
+  - 服务只信任来自 loopback 的单跳转发头，避免代理请求被误认成本机免 token 请求
 - 对本地但敏感的写操作，还会要求 very-light intent header：
   - `X-Leserpent-Intent: mutate`
   - `X-Leserpent-Intent: export`
 - dashboard 现在已经内建了一个 `Security` 小折叠区：
-  - 可在浏览器本地保存 admin token
+  - 可在当前浏览器会话中保存 admin token
   - 之后所有控制面请求会自动带上 `X-Leserpent-Admin-Token`
 
 同时，runtime / sidecar endpoint 的 server-side discovery 默认也已经收紧：

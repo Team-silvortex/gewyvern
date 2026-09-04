@@ -112,7 +112,9 @@ fn main() = runtime.refresh(runtime_id: "runtime-a")
 `runtime.refresh` requires `runtime.refresh`, one valid `runtime_id`, and the
 expected runtime revision supplied to `Vm::start`. The VM derives stable
 `leselang-command-N` and `leselang-effect-N` identifiers from the continuation
-sequence and persists the complete `CommandEnvelope` before dispatch.
+sequence and persists the complete `CommandEnvelope` before dispatch. External
+effect requests accept only canonical, non-zero decimal continuation sequences;
+oversized, non-numeric, padded, or exhausted identities fail during decoding.
 
 Deployment remains a narrow typed operation:
 
@@ -1104,6 +1106,9 @@ persistently mismatched targets time out or fail without focus, activation,
 scrolling, or metadata mutation.
 
 Every atomic HIR effect has one Rust-owned canonical source representation.
+Canonicalization rejects effect trees at 16 nesting levels or above and caps
+the traversed graph at 16,384 nodes before recursive formatting, so forged HIR
+cannot turn source normalization into stack or unbounded-work exhaustion.
 Parsing and lowering that source must reproduce the same effect. GUI event
 export uses this printer instead of maintaining a frontend-specific language
 template.
@@ -1189,7 +1194,11 @@ unknown arguments, and values with the wrong shape.
 
 Authorization is explicit and occurs before VM execution. A caller without
 the effect's required capability receives a capability diagnostic; the VM does not emit an
-effect request for unauthorized code.
+effect request for unauthorized code. Authorization derives the required set
+from the typed `Effect` tree and verifies that serialized HIR metadata matches
+it, so clearing or duplicating `required_capabilities` cannot reduce authority.
+Every generated request is semantically revalidated before journal persistence,
+and restored continuations must round-trip through the canonical effect contract.
 
 ## Execution Protocol
 
@@ -1337,8 +1346,8 @@ Diagnostics use stable subsystem prefixes:
 | Prefix | Owner | Examples |
 | --- | --- | --- |
 | `LSE` | lexer and parser | malformed input, source limit |
-| `LSH` | HIR and authorization | unknown effect, duplicate argument, missing capability |
-| `LSV` | VM, continuation, and journal | invalid image, revision conflict, persistence failure |
+| `LSH` | HIR and authorization | unknown effect, duplicate argument, missing or forged capability metadata |
+| `LSV` | VM, continuation, and journal | invalid image or effect identity, revision conflict, persistence failure |
 
 Consumers must branch on diagnostic codes rather than English messages. Spans
 use byte offsets into the original UTF-8 source.

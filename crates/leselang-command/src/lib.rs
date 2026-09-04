@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use leselang_hir::Effect;
 use leselang_host_contract::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
@@ -215,7 +217,7 @@ pub fn lower_effect(
         | Effect::UiWaitAccessibleName { .. }
         | Effect::UiAssertAccessibleDescription { .. }
         | Effect::UiWaitAccessibleDescription { .. } => {
-            unreachable!("frontend-local effects returned before lowering")
+            return Err(LoweringError::FrontendLocalEffect);
         }
         Effect::All { .. } => return Err(LoweringError::StructuredEffectRequiresExpansion),
     };
@@ -301,9 +303,9 @@ pub fn lower_effect(
         | Effect::UiWaitAccessibleName { .. }
         | Effect::UiAssertAccessibleDescription { .. }
         | Effect::UiWaitAccessibleDescription { .. } => {
-            unreachable!("frontend-local effects returned before lowering")
+            return Err(LoweringError::FrontendLocalEffect);
         }
-        Effect::All { .. } => unreachable!("structured effects returned before lowering"),
+        Effect::All { .. } => return Err(LoweringError::StructuredEffectRequiresExpansion),
     };
     Ok(plan)
 }

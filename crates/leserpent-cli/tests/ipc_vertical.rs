@@ -24,7 +24,7 @@ use leserpent_protocol::bootstrap_retirement_control::{
 };
 use leserpent_protocol::provisioning::{
     PROVISIONING_PROTOCOL_SCHEMA_VERSION, ProvisioningResponse, ProvisioningResponseEnvelope,
-    decode_provisioning_request, encode_provisioning_response,
+    decode_provisioning_request, decode_provisioning_response, encode_provisioning_response,
 };
 use leserpent_protocol::retirement::{
     RETIREMENT_PROTOCOL_SCHEMA_VERSION, RetirementResponse, RetirementResponseEnvelope,
@@ -216,6 +216,25 @@ fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
     assert!(watch_stdout.contains("capabilities=unobserved"));
     assert!(watch_stdout.contains("capabilities_observed_for_revision=none"));
     assert!(watch_stdout.contains("runtime=runtime-a"));
+
+    let missing_watch = Command::new(binary)
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "--json",
+            "runtime",
+            "watch",
+            "runtime-missing",
+            "--count",
+            "1",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .output()
+        .unwrap();
+    assert_eq!(missing_watch.status.code(), Some(3));
+    assert!(missing_watch.stderr.is_empty());
+    let missing_watch = decode_response(trim_ascii_whitespace(&missing_watch.stdout)).unwrap();
+    assert!(matches!(missing_watch.response, ProtocolResponse::Error(_)));
 
     let unconfirmed = Command::new(binary)
         .args([
@@ -510,6 +529,36 @@ fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
     assert!(provisioning_output.contains("provisioning=provision-cli-1"));
     assert!(provisioning_output.contains("runtime=runtime-new phase=planned"));
     assert!(!provisioning_output.contains("runtime-example"));
+
+    let conflicting_provisioning = Command::new(binary)
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "--json",
+            "runtime",
+            "provision",
+            "runtime-conflict",
+            "--provisioning-id",
+            "provision-cli-1",
+            "--host",
+            "runtime.example",
+            "--credential-handle",
+            "vault:ssh:runtime-example",
+            "--yes",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .env("LESERPENT_PRINCIPAL", "integration-test")
+        .output()
+        .unwrap();
+    assert_eq!(conflicting_provisioning.status.code(), Some(3));
+    assert!(conflicting_provisioning.stderr.is_empty());
+    let conflicting_provisioning =
+        decode_provisioning_response(trim_ascii_whitespace(&conflicting_provisioning.stdout))
+            .unwrap();
+    assert!(matches!(
+        conflicting_provisioning.response,
+        ProvisioningResponse::Error(_)
+    ));
 
     let bounded_wait = Command::new(binary)
         .args([

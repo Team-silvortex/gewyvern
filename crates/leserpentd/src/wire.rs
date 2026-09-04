@@ -596,69 +596,37 @@ pub(crate) fn execute_request_with_debugger(
         }
         request => request,
     };
-    let required_capability = match &request {
-        ProtocolRequest::Query(query) => match query.query {
-            Query::RuntimeList { .. }
-            | Query::RuntimeInspect { .. }
-            | Query::RuntimeHistory { .. }
-            | Query::RuntimeLogs { .. } => CAPABILITY_RUNTIME_READ,
-        },
-        ProtocolRequest::Command(command) => match command.command {
-            Command::RuntimeRegister { .. }
-            | Command::RuntimeRegistrationUpdate { .. }
-            | Command::RuntimeDiscoveryIntake { .. } => {
-                leserpent_domain::CAPABILITY_RUNTIME_REGISTER
-            }
-            Command::RuntimeRefresh { .. } | Command::RuntimeCapabilitiesRefresh { .. } => {
-                CAPABILITY_RUNTIME_REFRESH
-            }
-            Command::RuntimeDeploy { .. } => leserpent_domain::CAPABILITY_RUNTIME_DEPLOY,
-            Command::DebuggerCancel { .. } => leserpent_domain::CAPABILITY_DEBUGGER_CONTROL,
-        },
-        ProtocolRequest::Health(_)
-        | ProtocolRequest::DeploymentReceipt(_)
-        | ProtocolRequest::OrchestraPersist(_)
-        | ProtocolRequest::OrchestraPlanCatalog(_)
-        | ProtocolRequest::OrchestraRunCommand(_)
-        | ProtocolRequest::OrchestraCancelCommand(_)
-        | ProtocolRequest::OrchestraRetryCommand(_)
-        | ProtocolRequest::OrchestraHistory(_)
-        | ProtocolRequest::OrchestraDelete(_)
-        | ProtocolRequest::OrchestraDeleteCommand(_)
-        | ProtocolRequest::OrchestraDeleteReplayHorizon(_)
-        | ProtocolRequest::OrchestraDeleteReplayCheckpoint(_)
-        | ProtocolRequest::RuntimeUnregister(_)
-        | ProtocolRequest::RuntimeUnregistrationReceipt(_)
-        | ProtocolRequest::AuthorityWriterClaim(_)
-        | ProtocolRequest::BootstrapHandoff(_)
-        | ProtocolRequest::BootstrapSessionBind(_)
-        | ProtocolRequest::DebuggerSessions(_)
-        | ProtocolRequest::DebuggerSessionStart(_)
-        | ProtocolRequest::DebuggerPresentationAcknowledge(_) => unreachable!(),
-    };
-    let operation = match request {
-        ProtocolRequest::Query(query) => PlannedOperation::Query(query),
-        ProtocolRequest::Command(command) => PlannedOperation::Command(command),
-        ProtocolRequest::Health(_)
-        | ProtocolRequest::DeploymentReceipt(_)
-        | ProtocolRequest::OrchestraPersist(_)
-        | ProtocolRequest::OrchestraPlanCatalog(_)
-        | ProtocolRequest::OrchestraRunCommand(_)
-        | ProtocolRequest::OrchestraCancelCommand(_)
-        | ProtocolRequest::OrchestraRetryCommand(_)
-        | ProtocolRequest::OrchestraHistory(_)
-        | ProtocolRequest::OrchestraDelete(_)
-        | ProtocolRequest::OrchestraDeleteCommand(_)
-        | ProtocolRequest::OrchestraDeleteReplayHorizon(_)
-        | ProtocolRequest::OrchestraDeleteReplayCheckpoint(_)
-        | ProtocolRequest::RuntimeUnregister(_)
-        | ProtocolRequest::RuntimeUnregistrationReceipt(_)
-        | ProtocolRequest::AuthorityWriterClaim(_)
-        | ProtocolRequest::BootstrapHandoff(_)
-        | ProtocolRequest::BootstrapSessionBind(_)
-        | ProtocolRequest::DebuggerSessions(_)
-        | ProtocolRequest::DebuggerSessionStart(_)
-        | ProtocolRequest::DebuggerPresentationAcknowledge(_) => unreachable!(),
+    let (required_capability, operation) = match request {
+        ProtocolRequest::Query(query) => {
+            let required_capability = match query.query {
+                Query::RuntimeList { .. }
+                | Query::RuntimeInspect { .. }
+                | Query::RuntimeHistory { .. }
+                | Query::RuntimeLogs { .. } => CAPABILITY_RUNTIME_READ,
+            };
+            (required_capability, PlannedOperation::Query(query))
+        }
+        ProtocolRequest::Command(command) => {
+            let required_capability = match &command.command {
+                Command::RuntimeRegister { .. }
+                | Command::RuntimeRegistrationUpdate { .. }
+                | Command::RuntimeDiscoveryIntake { .. } => {
+                    leserpent_domain::CAPABILITY_RUNTIME_REGISTER
+                }
+                Command::RuntimeRefresh { .. } | Command::RuntimeCapabilitiesRefresh { .. } => {
+                    CAPABILITY_RUNTIME_REFRESH
+                }
+                Command::RuntimeDeploy { .. } => leserpent_domain::CAPABILITY_RUNTIME_DEPLOY,
+                Command::DebuggerCancel { .. } => leserpent_domain::CAPABILITY_DEBUGGER_CONTROL,
+            };
+            (required_capability, PlannedOperation::Command(command))
+        }
+        _ => {
+            return error_response(
+                "invalid_request",
+                "protocol request was not accepted by its dedicated route",
+            );
+        }
     };
     match runtime.execute_plan(CommandPlan {
         schema_version: leserpent_domain::COMMAND_PLAN_SCHEMA_VERSION,
@@ -825,9 +793,9 @@ pub(crate) fn error_response(code: &str, message: &str) -> ResponseEnvelope {
 pub(crate) fn validate_auth_token(token: &str) -> Result<(), String> {
     if token.len() < 32
         || token.len() > MAX_AUTH_TOKEN_BYTES
-        || token.bytes().any(|byte| byte <= 0x20)
+        || !token.bytes().all(|byte| byte.is_ascii_graphic())
     {
-        return Err("authentication token must contain 32 to 256 non-whitespace bytes".into());
+        return Err("authentication token must contain 32 to 256 visible ASCII bytes".into());
     }
     Ok(())
 }

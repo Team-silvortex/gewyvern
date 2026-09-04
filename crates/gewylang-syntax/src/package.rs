@@ -1,6 +1,8 @@
-use super::{PACKAGE_MANIFEST_FILE, SyntaxError as DslError};
+use super::{
+    MAX_GEWYLANG_PACKAGE_MANIFEST_BYTES, PACKAGE_MANIFEST_FILE, SyntaxError as DslError,
+    read_bounded_utf8_file,
+};
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -140,7 +142,11 @@ pub(super) fn resolve_package_context(path: &str) -> Result<PackageContext, DslE
 }
 
 fn read_package_manifest(path: &Path) -> Result<PackageManifest, DslError> {
-    let input = fs::read_to_string(path).map_err(|err| DslError::Io(err.to_string()))?;
+    let input = read_bounded_utf8_file(
+        path,
+        MAX_GEWYLANG_PACKAGE_MANIFEST_BYTES,
+        "gewylang package manifest",
+    )?;
     let mut name = None;
     let mut version = None;
     let mut entry = None;
@@ -161,16 +167,24 @@ fn read_package_manifest(path: &Path) -> Result<PackageManifest, DslError> {
             .ok_or_else(|| DslError::InvalidLine(line.into()))?;
         let value = value.trim().trim_matches('"').to_string();
         match key.trim() {
-            "name" => name = Some(value),
-            "version" => version = Some(value),
-            "entry" => entry = Some(value),
+            "name" => set_manifest_field(&mut name, "name", value)?,
+            "version" => set_manifest_field(&mut version, "version", value)?,
+            "entry" => set_manifest_field(&mut entry, "entry", value)?,
             source if source.starts_with("source.") => {
+                let source_name = source["source.".len()..].trim().to_string();
+                if sources.contains_key(&source_name) {
+                    return Err(duplicate_manifest_field(source));
+                }
                 let source_path = canonicalize_existing_path(&manifest_root.join(value))?;
-                sources.insert(source["source.".len()..].trim().to_string(), source_path);
+                sources.insert(source_name, source_path);
             }
             dep if dep.starts_with("dep.") => {
+                let dependency_name = dep["dep.".len()..].trim().to_string();
+                if dependencies.contains_key(&dependency_name) {
+                    return Err(duplicate_manifest_field(dep));
+                }
                 let dep_path = resolve_dependency_root(&manifest_root, &sources, &value)?;
-                dependencies.insert(dep["dep.".len()..].trim().to_string(), dep_path);
+                dependencies.insert(dependency_name, dep_path);
             }
             _ => {}
         }
@@ -183,6 +197,23 @@ fn read_package_manifest(path: &Path) -> Result<PackageManifest, DslError> {
         sources,
         dependencies,
     })
+}
+
+fn set_manifest_field(
+    slot: &mut Option<String>,
+    field: &'static str,
+    value: String,
+) -> Result<(), DslError> {
+    if slot.replace(value).is_some() {
+        return Err(duplicate_manifest_field(field));
+    }
+    Ok(())
+}
+
+fn duplicate_manifest_field(field: &str) -> DslError {
+    DslError::InvalidValue(format!(
+        "duplicate gewylang package manifest field '{field}'"
+    ))
 }
 
 fn resolve_dependency_root(
@@ -254,6 +285,7 @@ fn ensure_within_canonical_root(path: &Path, root: &Path) -> Result<(), DslError
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temp_root(label: &str) -> PathBuf {
@@ -289,6 +321,66 @@ mod tests {
         let _ = fs::remove_dir_all(root);
         assert!(
             format!("{err:?}").contains("escapes package root"),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn package_manifest_rejects_duplicate_critical_fields() {
+        let root = temp_root("duplicate-field");
+        fs::create_dir_all(&root).unwrap();
+        let manifest = root.join(PACKAGE_MANIFEST_FILE);
+        fs::write(
+            &manifest,
+            "name=first\nname=second\nversion=0.1.0\nentry=main.gewy\n",
+        )
+        .unwrap();
+
+        let err = read_package_manifest(&manifest).unwrap_err();
+        let _ = fs::remove_dir_all(root);
+        assert!(
+            format!("{err:?}").contains("duplicate gewylang package manifest field 'name'"),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn package_manifest_rejects_oversized_input() {
+        let root = temp_root("oversized");
+        fs::create_dir_all(&root).unwrap();
+        let manifest = root.join(PACKAGE_MANIFEST_FILE);
+        fs::write(
+            &manifest,
+            vec![b'x'; MAX_GEWYLANG_PACKAGE_MANIFEST_BYTES + 1],
+        )
+        .unwrap();
+
+        let err = read_package_manifest(&manifest).unwrap_err();
+        let _ = fs::remove_dir_all(root);
+        assert_eq!(
+            err,
+            DslError::InvalidValue(format!(
+                "gewylang package manifest exceeds {MAX_GEWYLANG_PACKAGE_MANIFEST_BYTES} bytes"
+            ))
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn package_manifest_rejects_symbolic_links() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_root("symlink");
+        fs::create_dir_all(&root).unwrap();
+        let target = root.join("actual.pkg");
+        let manifest = root.join(PACKAGE_MANIFEST_FILE);
+        fs::write(&target, "name=test\nversion=0.1.0\nentry=main.gewy\n").unwrap();
+        symlink(&target, &manifest).unwrap();
+
+        let err = read_package_manifest(&manifest).unwrap_err();
+        let _ = fs::remove_dir_all(root);
+        assert!(
+            format!("{err:?}").contains("is not a regular file"),
             "unexpected error: {err:?}"
         );
     }

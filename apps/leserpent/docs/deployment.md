@@ -119,7 +119,17 @@ for health, and restores the original links if the rollback target is
 unhealthy. A successful rollback keeps the displaced release as `previous`,
 allowing an operator to switch back.
 
-The secure default listens on `127.0.0.1:5210`. Keep that binding when a TLS reverse proxy runs on the same host. If clients reach Leserpent through a proxy, provide the generated admin token through the UI security control or the `X-Leserpent-Admin-Token` API header.
+The secure default listens on `127.0.0.1:5210`. Keep that binding when a TLS
+reverse proxy runs on the same host. Remote UI and API requests are rejected
+unless their effective scheme is HTTPS, and they must carry the generated
+admin token through the UI security control or the
+`X-Leserpent-Admin-Token` API header. A custom token must contain 32 to 256
+visible ASCII characters.
+
+The application accepts one `X-Forwarded-For` / `X-Forwarded-Proto` hop only
+from a loopback peer. Configure the same-host proxy to overwrite these headers;
+forwarded headers from network clients are not trusted. This prevents a proxy
+connection from being mistaken for an unauthenticated loopback client.
 
 ## Operations
 

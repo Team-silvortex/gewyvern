@@ -69,7 +69,7 @@ fn parse_expanded_pipeline_module_with_graph(
         Some(&include_package),
         source_graph,
     );
-    source_graph.leave_include(&include.path);
+    source_graph.leave_include(&include.path)?;
     result
 }
 

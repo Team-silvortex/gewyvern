@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::io::{self, Write};
 use std::path::Path;
@@ -16,8 +18,9 @@ use leselang_hir::{
     UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS, UI_WAIT_UNFOCUSED_TIMEOUT_MS,
     UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
     UiFocusNavigationDirection, UiFormInputKind, UiFormRequirementState, UiSelectionState,
-    UiSemanticActionKind, UiSemanticNodeKind, authorize, validate_ui_expected_text,
-    validate_ui_form_field_key, validate_ui_form_value, validate_ui_node_id,
+    UiSemanticActionKind, UiSemanticNodeKind, authorize, canonical_source,
+    validate_ui_expected_text, validate_ui_form_field_key, validate_ui_form_value,
+    validate_ui_node_id,
 };
 use leselang_host_contract::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
@@ -60,6 +63,7 @@ pub const MAX_COMPACTION_BATCH: usize = 1_000;
 pub const MAX_MERGE_BRANCHES: usize = 64;
 pub const MAX_MERGE_BRANCH_NAME_BYTES: usize = 64;
 pub const MAX_STRUCTURED_VALUE_DEPTH: usize = 16;
+const MAX_EFFECT_SEQUENCE: u64 = i64::MAX as u64 - 1;
 
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
@@ -2244,16 +2248,18 @@ impl Vm {
                 }),
             ),
             _ => {
+                let command_id = CommandId::new(format!("leselang-command-{sequence}"))
+                    .map_err(|_| generated_effect_identity_fault())?;
+                let idempotency_key = IdempotencyKey::new(format!("leselang-effect-{sequence}"))
+                    .map_err(|_| generated_effect_identity_fault())?;
                 let plan = lower_effect(
                     effect,
                     &LoweringContext {
                         principal,
                         capabilities,
                         expected_revision,
-                        command_id: CommandId::new(format!("leselang-command-{sequence}"))
-                            .expect("generated command identifier is valid"),
-                        idempotency_key: IdempotencyKey::new(format!("leselang-effect-{sequence}"))
-                            .expect("generated idempotency key is valid"),
+                        command_id,
+                        idempotency_key,
                         origin: CommandOrigin::Leselang,
                         confirmation: if matches!(
                             effect,
@@ -2277,7 +2283,7 @@ impl Vm {
                 (plan.required_capability, operation)
             }
         };
-        Ok(EffectRequest {
+        let request = EffectRequest {
             effect_id: format!("effect-{sequence}"),
             required_capability,
             operation,
@@ -2288,7 +2294,9 @@ impl Vm {
                 deadline_at_ms: image.deadline_at_ms,
                 max_output_items: image.max_output_items,
             },
-        })
+        };
+        validate_effect_request(&request)?;
+        Ok(request)
     }
 
     pub fn restore(&mut self, image: ContinuationImage) -> Result<(), Fault> {
@@ -2309,15 +2317,13 @@ impl Vm {
                 message: "continuation was already consumed".to_string(),
             });
         }
-        if let Some(sequence) = image
-            .token
-            .as_str()
-            .strip_prefix("continuation-")
-            .and_then(|value| value.parse::<u64>().ok())
-        {
-            self.next_effect_id = self.next_effect_id.max(sequence.saturating_add(1));
-        }
+        let sequence = canonical_continuation_sequence(&image.token)
+            .ok_or_else(invalid_continuation_sequence_fault)?;
+        let next_sequence = sequence
+            .checked_add(1)
+            .ok_or_else(effect_sequence_exhausted_fault)?;
         self.journal.record_pending(&image, None)?;
+        self.next_effect_id = self.next_effect_id.max(next_sequence);
         self.pending.insert(image.token.clone(), image);
         Ok(())
     }
@@ -2642,7 +2648,12 @@ impl Vm {
     fn allocate_sequence(&mut self) -> Result<u64, Fault> {
         loop {
             let sequence = self.journal.allocate_sequence(self.next_effect_id)?;
-            self.next_effect_id = self.next_effect_id.saturating_add(1);
+            if sequence == 0 || sequence > MAX_EFFECT_SEQUENCE {
+                return Err(effect_sequence_exhausted_fault());
+            }
+            self.next_effect_id = sequence
+                .checked_add(1)
+                .ok_or_else(effect_sequence_exhausted_fault)?;
             let token = ContinuationToken(format!("continuation-{sequence}"));
             if !self.pending.contains_key(&token) && !self.completed.contains_key(&token) {
                 return Ok(sequence);
@@ -2689,13 +2700,21 @@ impl ContinuationToken {
 }
 
 pub fn encode_continuation(image: &ContinuationImage) -> Result<Vec<u8>, Fault> {
-    validate_image(image)?;
+    validate_continuation_encoding_size(image)?;
+    validate_restorable_image(image)?;
     encode_json_capped(image, MAX_CONTINUATION_BYTES, "continuation")
 }
 
 pub(crate) fn validate_continuation_size(image: &ContinuationImage) -> Result<(), Fault> {
+    validate_continuation_encoding_size(image)?;
+    validate_restorable_image(image)
+}
+
+fn validate_restorable_image(image: &ContinuationImage) -> Result<(), Fault> {
     validate_image(image)?;
-    validate_continuation_encoding_size(image)
+    canonical_continuation_sequence(&image.token)
+        .ok_or_else(invalid_continuation_sequence_fault)?;
+    validate_pending_effect_contract(image)
 }
 
 fn validate_continuation_encoding_size(image: &ContinuationImage) -> Result<(), Fault> {
@@ -2755,8 +2774,16 @@ pub fn decode_continuation(bytes: &[u8]) -> Result<ContinuationImage, Fault> {
         code: "LSV3003".to_string(),
         message: format!("invalid continuation: {error}"),
     })?;
-    validate_image(&image)?;
+    validate_restorable_image(&image)?;
     Ok(image)
+}
+
+fn validate_pending_effect_contract(image: &ContinuationImage) -> Result<(), Fault> {
+    canonical_source(&image.pending_effect).map_err(|_| Fault {
+        code: "LSV2017".to_string(),
+        message: "continuation pending effect is not canonical".to_string(),
+    })?;
+    Ok(())
 }
 
 fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
@@ -2897,16 +2924,15 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
 
 pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
     validate_image(&request.continuation)?;
-    let token_suffix = request
-        .continuation
-        .token
-        .as_str()
-        .strip_prefix("continuation-")
-        .ok_or_else(|| Fault {
+    let sequence =
+        canonical_continuation_sequence(&request.continuation.token).ok_or_else(|| Fault {
             code: "LSV2010".to_string(),
             message: "effect request has a non-canonical continuation token".to_string(),
         })?;
-    if request.effect_id.strip_prefix("effect-") != Some(token_suffix) {
+    let expected_effect_id = format!("effect-{sequence}");
+    let expected_command_id = format!("leselang-command-{sequence}");
+    let expected_idempotency_key = format!("leselang-effect-{sequence}");
+    if request.effect_id != expected_effect_id {
         return Err(Fault {
             code: "LSV2010".to_string(),
             message: "effect identifier does not match continuation token".to_string(),
@@ -2983,10 +3009,8 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                 &request.required_capability,
                 CAPABILITY_RUNTIME_REFRESH,
             )?;
-            command.command_id
-                == CommandId::new(format!("leselang-command-{token_suffix}"))
-                    .expect("canonical command identifier is valid")
-                && command.idempotency_key.as_str() == format!("leselang-effect-{token_suffix}")
+            command.command_id.as_str() == expected_command_id
+                && command.idempotency_key.as_str() == expected_idempotency_key
                 && command.expected_revision == request.continuation.expected_revision
                 && command.origin == CommandOrigin::Leselang
                 && command.confirmation == Confirmation::NotRequired
@@ -3005,10 +3029,8 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                 &request.required_capability,
                 CAPABILITY_RUNTIME_REFRESH,
             )?;
-            command.command_id
-                == CommandId::new(format!("leselang-command-{token_suffix}"))
-                    .expect("canonical command identifier is valid")
-                && command.idempotency_key.as_str() == format!("leselang-effect-{token_suffix}")
+            command.command_id.as_str() == expected_command_id
+                && command.idempotency_key.as_str() == expected_idempotency_key
                 && command.expected_revision == request.continuation.expected_revision
                 && command.origin == CommandOrigin::Leselang
                 && command.confirmation == Confirmation::NotRequired
@@ -3034,10 +3056,8 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                 &request.required_capability,
                 CAPABILITY_RUNTIME_DEPLOY,
             )?;
-            command.command_id
-                == CommandId::new(format!("leselang-command-{token_suffix}"))
-                    .expect("canonical command identifier is valid")
-                && command.idempotency_key.as_str() == format!("leselang-effect-{token_suffix}")
+            command.command_id.as_str() == expected_command_id
+                && command.idempotency_key.as_str() == expected_idempotency_key
                 && command.expected_revision == request.continuation.expected_revision
                 && command.origin == CommandOrigin::Leselang
                 && command.confirmation == Confirmation::Confirmed
@@ -3061,10 +3081,8 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                 &request.required_capability,
                 CAPABILITY_DEBUGGER_CONTROL,
             )?;
-            command.command_id
-                == CommandId::new(format!("leselang-command-{token_suffix}"))
-                    .expect("canonical command identifier is valid")
-                && command.idempotency_key.as_str() == format!("leselang-effect-{token_suffix}")
+            command.command_id.as_str() == expected_command_id
+                && command.idempotency_key.as_str() == expected_idempotency_key
                 && command.expected_revision == request.continuation.expected_revision
                 && command.origin == CommandOrigin::Leselang
                 && command.confirmation == Confirmation::Confirmed
@@ -4430,6 +4448,13 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
     Ok(())
 }
 
+fn generated_effect_identity_fault() -> Fault {
+    Fault {
+        code: "LSV1002".to_string(),
+        message: "generated effect identity is invalid".to_string(),
+    }
+}
+
 fn validate_scheduler_time(now_ms: u64) -> Result<(), Fault> {
     if now_ms > i64::MAX as u64 {
         return Err(Fault {
@@ -4666,6 +4691,27 @@ pub(crate) fn valid_continuation_token(token: &ContinuationToken) -> bool {
             .as_str()
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+}
+
+fn canonical_continuation_sequence(token: &ContinuationToken) -> Option<u64> {
+    let suffix = token.as_str().strip_prefix("continuation-")?;
+    let sequence = suffix.parse::<u64>().ok()?;
+    (sequence > 0 && sequence <= MAX_EFFECT_SEQUENCE && sequence.to_string() == suffix)
+        .then_some(sequence)
+}
+
+fn invalid_continuation_sequence_fault() -> Fault {
+    Fault {
+        code: "LSV2006".to_string(),
+        message: "continuation token has a non-canonical or exhausted sequence".to_string(),
+    }
+}
+
+fn effect_sequence_exhausted_fault() -> Fault {
+    Fault {
+        code: "LSV1003".to_string(),
+        message: "continuation sequence is exhausted".to_string(),
+    }
 }
 
 pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault> {
@@ -7441,6 +7487,53 @@ mod tests {
             node_id: "other-action".into(),
         };
         assert!(validate_effect_request(&request).is_err());
+    }
+
+    #[test]
+    fn forged_hir_and_continuations_fail_before_persistence() {
+        let mut malformed = lower(&parse(
+            "fn main() = ui.activate(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        let Effect::UiActivate { node_id } = &mut malformed.function.effect else {
+            panic!("expected UI activate effect");
+        };
+        *node_id = "x".repeat(leselang_hir::MAX_UI_NODE_ID_BYTES + 1);
+
+        let mut vm = Vm::default();
+        assert!(matches!(
+            vm.start(
+                &malformed,
+                Principal {
+                    id: "desktop-operator".to_string(),
+                },
+                CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+                None,
+            ),
+            Step::Fault(Fault { ref code, .. }) if code == "LSV2013"
+        ));
+        assert_eq!(vm.pending_count(), 0);
+
+        let mut source_vm = Vm::default();
+        let valid = lower(&parse(
+            "fn main() = ui.activate(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        let Step::Effect(request) = source_vm.start(
+            &valid,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI activate effect");
+        };
+        let mut forged_image = request.continuation.clone();
+        forged_image.pending_effect = malformed.function.effect;
+        let mut restored = Vm::default();
+        assert_eq!(restored.restore(forged_image).unwrap_err().code, "LSV2017");
+        assert_eq!(restored.pending_count(), 0);
     }
 
     #[test]
@@ -11921,6 +12014,19 @@ mod tests {
     }
 
     #[test]
+    fn effect_request_rejects_long_non_numeric_identity_without_panicking() {
+        let mut vm = Vm::default();
+        let mut request = start_refresh(&mut vm, Revision(1));
+        let suffix = "x".repeat(115);
+        request.continuation.token = ContinuationToken(format!("continuation-{suffix}"));
+        request.effect_id = format!("effect-{suffix}");
+        let encoded = serde_json::to_vec(&request).unwrap();
+        let error = serde_json::from_slice::<EffectRequest>(&encoded)
+            .expect_err("non-canonical external identities must fail during decoding");
+        assert!(error.to_string().contains("LSV2010"));
+    }
+
+    #[test]
     fn mutating_effect_cannot_bypass_leased_command_envelope() {
         let mut vm = Vm::default();
         let request = start_refresh(&mut vm, Revision(1));
@@ -12288,6 +12394,31 @@ mod tests {
         restarted.restore(restored).unwrap();
         let next = start(&mut restarted, None);
         assert_eq!(next.continuation.token.as_str(), "continuation-2");
+    }
+
+    #[test]
+    fn exhausted_restored_sequence_fails_without_spinning() {
+        let mut source = Vm::default();
+        let mut image = start(&mut source, None).continuation;
+        image.token = ContinuationToken(format!("continuation-{MAX_EFFECT_SEQUENCE}"));
+
+        let mut restored = Vm::default();
+        restored.restore(image.clone()).unwrap();
+        assert!(matches!(
+            restored.start(
+                &program(),
+                Principal {
+                    id: "operator".to_string(),
+                },
+                CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+                None,
+            ),
+            Step::Fault(Fault { ref code, .. }) if code == "LSV1003"
+        ));
+
+        image.token = ContinuationToken(format!("continuation-{}", MAX_EFFECT_SEQUENCE + 1));
+        let mut rejected = Vm::default();
+        assert_eq!(rejected.restore(image).unwrap_err().code, "LSV2006");
     }
 
     #[test]

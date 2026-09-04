@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Stable, product-independent GewyLang Binding IR and Analysis IR values.
 
 mod analysis;

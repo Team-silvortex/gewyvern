@@ -1242,6 +1242,7 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
         {
             context.Connection.RemoteIpAddress =
                 IPAddress.Parse("192.0.2.10");
+            context.Request.Scheme = "https";
             await next();
         });
         app.Use(async (context, next) =>

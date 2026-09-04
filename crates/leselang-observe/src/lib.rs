@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use leselang_command::CommandPlan;
 use leselang_hir::Effect;
 use leselang_host_contract::{Confirmation, Revision, RuntimeId};

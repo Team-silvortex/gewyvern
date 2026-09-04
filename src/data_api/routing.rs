@@ -583,9 +583,17 @@ pub(super) fn handle_api_client<S: Read + Write>(
         );
         return;
     }
-    let snapshot = {
-        let guard = state.lock().expect("api snapshot mutex poisoned");
-        guard.clone()
+    let snapshot = match state.lock() {
+        Ok(guard) => guard.clone(),
+        Err(_) => {
+            let _ = write_http_response(
+                stream,
+                500,
+                "application/json; charset=utf-8",
+                "{\"error\":\"snapshot_state_unavailable\"}",
+            );
+            return;
+        }
     };
     let (status, content_type, body) = api_response_for_request(path, &snapshot);
     let _ = write_http_response(stream, status, content_type, body.as_ref());
@@ -630,8 +638,10 @@ fn read_http_request(stream: &mut impl Read) -> Result<String, (u16, &'static st
             }
             expected_len = Some(header_end + 4 + body_len);
         }
-        if expected_len.is_some_and(|length| request.len() >= length) {
-            request.truncate(expected_len.unwrap());
+        if let Some(length) = expected_len
+            && request.len() >= length
+        {
+            request.truncate(length);
             break;
         }
     }
@@ -721,6 +731,9 @@ fn write_http_response(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Mutex};
+
+    use crate::data_api::ApiDeploymentStore;
 
     #[test]
     fn remote_requests_require_matching_admin_token() {
@@ -803,5 +816,31 @@ mod tests {
         assert_eq!(status, 200);
         assert!(body.contains("\"authenticated_deployment\":true"));
         assert!(body.contains("\"/v1/deployments\""));
+    }
+
+    #[test]
+    fn poisoned_snapshot_state_returns_500_without_panicking() {
+        let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+        let poisoned = Arc::clone(&state);
+        let _ = std::thread::spawn(move || {
+            let _guard = poisoned.lock().unwrap();
+            panic!("poison snapshot state for the recovery-path test");
+        })
+        .join();
+        let deployments = Arc::new(Mutex::new(ApiDeploymentStore::default()));
+        let request = b"GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n".to_vec();
+        let mut stream = std::io::Cursor::new(request);
+
+        handle_api_client(
+            &mut stream,
+            "127.0.0.1".parse().unwrap(),
+            state,
+            deployments,
+            ApiAccessPolicy::default(),
+        );
+
+        let output = String::from_utf8(stream.into_inner()).unwrap();
+        assert!(output.contains("500 Internal Server Error"));
+        assert!(output.contains("snapshot_state_unavailable"));
     }
 }

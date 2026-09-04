@@ -1,6 +1,8 @@
 using System.IO.Compression;
+using System.Net;
 using System.Text.Json;
 using Leserpent.ControlPlane;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.ResponseCompression;
 
 namespace Leserpent;
@@ -16,6 +18,16 @@ public partial class Program
         });
 
         builder.Services.AddAuthorization();
+        builder.Services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
+                | ForwardedHeaders.XForwardedProto;
+            options.ForwardLimit = 1;
+            options.KnownIPNetworks.Clear();
+            options.KnownProxies.Clear();
+            options.KnownProxies.Add(IPAddress.Loopback);
+            options.KnownProxies.Add(IPAddress.IPv6Loopback);
+        });
         builder.Services.ConfigureHttpJsonOptions(options =>
             options.SerializerOptions.TypeInfoResolverChain.Insert(0, LeserpentJsonContext.Default));
         builder.Services.AddOpenApi();
@@ -116,15 +128,30 @@ public partial class Program
         builder.Services.AddSingleton<FleetReadProjectionService>();
         builder.Services.AddSingleton<RuntimeCleanupProjectionService>();
         builder.Services.AddSingleton<OrchestraRuntimeProjectionService>();
-        builder.Services.AddHttpClient<CapabilityDiscoveryService>();
+        builder.Services.AddHttpClient<CapabilityDiscoveryService>(client =>
+            client.Timeout = TimeSpan.FromSeconds(10))
+            .ConfigurePrimaryHttpMessageHandler(() =>
+                new SocketsHttpHandler
+                {
+                    AllowAutoRedirect = false,
+                    UseProxy = false,
+                    MaxResponseHeadersLength = 16,
+                });
         builder.Services.AddSingleton<IOrchestraPlanExecutor, OrchestraPlanExecutor>();
         builder.Services.AddSingleton<OrchestraExecutionCoordinator>();
 
         var app = builder.Build();
 
+        // Only a same-host reverse proxy may define the original client and scheme.
+        app.UseForwardedHeaders();
+
         if (app.Environment.IsDevelopment())
         {
             app.MapOpenApi();
+        }
+        else
+        {
+            app.UseHsts();
         }
 
         app.UseResponseCompression();
@@ -157,6 +184,10 @@ public partial class Program
             if (!security.TryAuthorize(context, out var statusCode, out var payload))
             {
                 context.Response.StatusCode = statusCode;
+                if (statusCode == StatusCodes.Status426UpgradeRequired)
+                {
+                    context.Response.Headers.Upgrade = "TLS/1.2, HTTP/1.1";
+                }
                 await context.Response.WriteAsJsonAsync(
                     payload,
                     LeserpentJsonContext.Default.ApiErrorResponse);

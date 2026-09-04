@@ -446,7 +446,7 @@ fn random_session_request_id() -> Result<String, ConsoleWriteError> {
     let mut encoded = String::with_capacity(32);
     for byte in bytes {
         use std::fmt::Write as _;
-        write!(&mut encoded, "{byte:02x}").expect("writing to a String cannot fail");
+        let _ = write!(&mut encoded, "{byte:02x}");
     }
     Ok(format!("web-session:{encoded}"))
 }
@@ -455,9 +455,9 @@ fn deterministic_identity(prefix: &str, request_id: &str, runtime_id: &RuntimeId
     let input = format!("{prefix}\0{request_id}\0{}", runtime_id.as_str());
     let digest = digest::digest(&digest::SHA256, input.as_bytes());
     let mut encoded = String::with_capacity(32);
-    for byte in &digest.as_ref()[..16] {
+    for byte in digest.as_ref().iter().take(16) {
         use std::fmt::Write as _;
-        write!(&mut encoded, "{byte:02x}").expect("writing to a String cannot fail");
+        let _ = write!(&mut encoded, "{byte:02x}");
     }
     format!("{prefix}-{encoded}")
 }
@@ -602,9 +602,9 @@ fn deterministic_cancel_command_id(
     let input = format!("{}\0{run_id}", runtime_id.as_str());
     let digest = digest::digest(&digest::SHA256, input.as_bytes());
     let mut encoded = String::with_capacity(32);
-    for byte in &digest.as_ref()[..16] {
+    for byte in digest.as_ref().iter().take(16) {
         use std::fmt::Write as _;
-        write!(&mut encoded, "{byte:02x}").expect("writing to a String cannot fail");
+        let _ = write!(&mut encoded, "{byte:02x}");
     }
     CommandId::new(format!("web-cancel-{encoded}")).map_err(|_| invalid_request())
 }
@@ -626,7 +626,7 @@ fn encode_query_value(value: &str) -> String {
             encoded.push(char::from(byte));
         } else {
             use std::fmt::Write as _;
-            write!(&mut encoded, "%{byte:02X}").expect("writing to a String cannot fail");
+            let _ = write!(&mut encoded, "%{byte:02X}");
         }
     }
     encoded

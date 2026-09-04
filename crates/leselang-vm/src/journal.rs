@@ -577,7 +577,7 @@ impl EphemeralJournal {
         let group = self
             .merge_groups
             .get(&group_token)
-            .expect("located merge group remains present");
+            .ok_or_else(|| journal_fault("LSV4033", "located merge group disappeared"))?;
         if group.terminal_step.is_some() {
             return Ok(());
         }
@@ -600,7 +600,7 @@ impl EphemeralJournal {
         let merged = merge_declared(&plan, completions, DEFAULT_MAX_OUTPUT_ITEMS)?;
         self.merge_groups
             .get_mut(&group_token)
-            .expect("located merge group remains present")
+            .ok_or_else(|| journal_fault("LSV4033", "located merge group disappeared"))?
             .terminal_step = Some(merged);
         Ok(())
     }
@@ -655,19 +655,17 @@ impl EphemeralJournal {
             .filter(|(token, _)| !protected.contains(token))
             .map(|(token, _)| EphemeralCompactionUnit::Effect(token.clone()))
             .collect::<Vec<_>>();
-        units.extend(self.merge_groups.iter().filter_map(|(token, group)| {
-            group
-                .terminal_step
-                .as_ref()
-                .map(|_| EphemeralCompactionUnit::Merge {
+        for (token, group) in &self.merge_groups {
+            if group.terminal_step.is_some() {
+                let age_token = group.branch_tokens.first().ok_or_else(|| {
+                    journal_fault("LSV4007", "completed merge group has no branches")
+                })?;
+                units.push(EphemeralCompactionUnit::Merge {
                     group_token: token.clone(),
-                    age_token: group
-                        .branch_tokens
-                        .first()
-                        .expect("validated merge group has branches")
-                        .clone(),
-                })
-        }));
+                    age_token: age_token.clone(),
+                });
+            }
+        }
         units.sort_by(|left, right| continuation_age_order(left.age_token(), right.age_token()));
         let completed_count = units.len();
         let remove_count = completed_count
@@ -679,10 +677,12 @@ impl EphemeralJournal {
             let tokens = match unit {
                 EphemeralCompactionUnit::Effect(token) => vec![token],
                 EphemeralCompactionUnit::Merge { group_token, .. } => {
-                    let group = self
-                        .merge_groups
-                        .remove(&group_token)
-                        .expect("selected merge group remains present");
+                    let group = self.merge_groups.remove(&group_token).ok_or_else(|| {
+                        journal_fault("LSV4033", "selected merge group disappeared")
+                    })?;
+                    let terminal_step = group.terminal_step.as_ref().ok_or_else(|| {
+                        journal_fault("LSV4007", "selected merge group is not completed")
+                    })?;
                     reclaimed_logical_bytes = reclaimed_logical_bytes
                         .saturating_add(
                             encode_json_capped(&group.plan, MAX_CONTINUATION_BYTES, "merge plan")?
@@ -690,10 +690,7 @@ impl EphemeralJournal {
                         )
                         .saturating_add(
                             encode_json_capped(
-                                group
-                                    .terminal_step
-                                    .as_ref()
-                                    .expect("selected merge group is completed"),
+                                terminal_step,
                                 MAX_JOURNAL_ENTRY_BYTES,
                                 "merge result",
                             )?
@@ -801,12 +798,11 @@ impl SqliteJournal {
         let connection = Connection::open_with_flags(path, flags)
             .map_err(|error| journal_error("LSV4002", "failed to open journal", error))?;
         tighten_permissions(path)?;
+        let sqlite_length_limit =
+            i32::try_from(MAX_JOURNAL_ENTRY_BYTES + MAX_CONTINUATION_BYTES + 4096)
+                .map_err(|_| journal_fault("LSV4002", "journal SQLite length limit is invalid"))?;
         connection
-            .set_limit(
-                Limit::SQLITE_LIMIT_LENGTH,
-                i32::try_from(MAX_JOURNAL_ENTRY_BYTES + MAX_CONTINUATION_BYTES + 4096)
-                    .expect("journal SQLite length limit fits i32"),
-            )
+            .set_limit(Limit::SQLITE_LIMIT_LENGTH, sqlite_length_limit)
             .map_err(|error| journal_error("LSV4002", "failed to bound journal", error))?;
         connection
             .busy_timeout(JOURNAL_BUSY_TIMEOUT)
@@ -1259,12 +1255,8 @@ impl SqliteJournal {
         let existing = load_record(&transaction, image.token.as_str())?;
         if let Some(existing) = existing {
             if existing.state == "pending" && existing.image == image_bytes {
-                if request_bytes.is_some() {
-                    ensure_dispatch_matches(
-                        &transaction,
-                        image.token.as_str(),
-                        request.expect("request bytes require request"),
-                    )?;
+                if let Some(request) = request {
+                    ensure_dispatch_matches(&transaction, image.token.as_str(), request)?;
                 }
                 return transaction.commit().map_err(|error| {
                     journal_error("LSV4010", "failed to commit pending journal record", error)
@@ -1730,6 +1722,8 @@ impl SqliteJournal {
                     return Err(journal_fault("LSV4026", "retry schedule is invalid"));
                 }
                 let error_bytes = encode_json_capped(&schedule.error, 2_048, "effect error")?;
+                let ready_at_ms = i64::try_from(schedule.ready_at_ms)
+                    .map_err(|_| journal_fault("LSV4026", "retry clock is invalid"))?;
                 ensure_growth(&transaction, error_bytes.len())?;
                 transaction
                     .execute(
@@ -1740,7 +1734,7 @@ impl SqliteJournal {
                         params![
                             image.token.as_str(),
                             i64::from(schedule.retry_count),
-                            i64::try_from(schedule.ready_at_ms).expect("validated retry clock"),
+                            ready_at_ms,
                             error_bytes
                         ],
                     )
@@ -2462,10 +2456,10 @@ fn finalize_merge_group(
     let completions = branches
         .into_iter()
         .map(|(branch, _, terminal)| {
-            let step: Step = decode_bounded(
-                &terminal.expect("completed branch checked above"),
-                MAX_JOURNAL_ENTRY_BYTES,
-            )?;
+            let terminal = terminal.ok_or_else(|| {
+                journal_fault("LSV4007", "completed merge branch has no terminal step")
+            })?;
+            let step: Step = decode_bounded(&terminal, MAX_JOURNAL_ENTRY_BYTES)?;
             Ok(BranchCompletion {
                 branch,
                 outcome: terminal_step_outcome(step)?,

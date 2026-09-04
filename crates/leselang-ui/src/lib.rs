@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use leselang_command::{LoweringContext, LoweringError, lower_effect};

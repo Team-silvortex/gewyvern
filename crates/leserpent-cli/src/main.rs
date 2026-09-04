@@ -5,13 +5,13 @@ use std::{io, io::Write};
 use leserpent_cli::{
     CliCommand, CliError, DaemonRetirementWaitOptions, HttpsClient, ProvisioningWaitOptions,
     RemoteTrust, RetirementWaitOptions, RuntimeWatchOptions, bootstrap_request_for,
-    daemon_retirement_phase_name, daemon_retirement_request_for, export_leselang, export_plan,
+    daemon_retirement_phase_name, daemon_retirement_request_for, export_plan,
     parse_args_with_remote, parse_authority_writer_fence, provisioning_phase_name,
     provisioning_request_for, render_bootstrap_response, render_daemon_retirement_response,
     render_provisioning_response, render_response, render_retirement_response, request_for,
     retirement_phase_name, retirement_request_for, send_bootstrap_request_with_writer_fence,
     send_daemon_retirement_request_with_writer_fence, send_provisioning_request_with_writer_fence,
-    send_request_with_writer_fence, send_retirement_request_with_writer_fence,
+    send_request_with_writer_fence, send_retirement_request_with_writer_fence, try_export_leselang,
 };
 use leserpent_domain::QueryResult;
 use leserpent_domain::bootstrap_retirement::DaemonRetirementPhase;
@@ -41,7 +41,7 @@ fn run() -> Result<i32, CliError> {
         std::env::var_os("LESERPENT_REMOTE_CA").map(PathBuf::from),
         std::env::var("LESERPENT_PRINCIPAL").ok(),
     )?;
-    if let Some(source) = export_leselang(&options) {
+    if let Some(source) = try_export_leselang(&options)? {
         print!("{source}");
         return Ok(0);
     }
@@ -98,20 +98,37 @@ fn run() -> Result<i32, CliError> {
         return Ok(if is_error { 3 } else { 0 });
     }
     if let Some(request) = provisioning_request_for(&options)? {
-        let CliCommand::RuntimeProvision(provision) = &options.command else {
-            unreachable!("provisioning request requires a runtime provision command");
+        let provision = match &options.command {
+            CliCommand::RuntimeProvision(provision) => provision,
+            _ => {
+                return Err(CliError::Protocol(
+                    "provisioning request did not originate from a runtime provision command"
+                        .into(),
+                ));
+            }
         };
         return run_provisioning(&transport, &request, provision.wait, options.json);
     }
     if let Some(request) = daemon_retirement_request_for(&options)? {
-        let CliCommand::BootstrapRetire(retirement) = &options.command else {
-            unreachable!("daemon retirement request requires a bootstrap retire command");
+        let retirement = match &options.command {
+            CliCommand::BootstrapRetire(retirement) => retirement,
+            _ => {
+                return Err(CliError::Protocol(
+                    "daemon retirement request did not originate from a bootstrap retire command"
+                        .into(),
+                ));
+            }
         };
         return run_daemon_retirement(&transport, &request, retirement.wait, options.json);
     }
     if let Some(request) = retirement_request_for(&options)? {
-        let CliCommand::RuntimeRetire(retirement) = &options.command else {
-            unreachable!("retirement request requires a runtime retire command");
+        let retirement = match &options.command {
+            CliCommand::RuntimeRetire(retirement) => retirement,
+            _ => {
+                return Err(CliError::Protocol(
+                    "retirement request did not originate from a runtime retire command".into(),
+                ));
+            }
         };
         return run_retirement(&transport, &request, retirement.wait, options.json);
     }
@@ -156,8 +173,7 @@ fn run_daemon_retirement(
             leserpent_protocol::bootstrap_retirement_control::DaemonRetirementResponse::Error(
                 _,
             ) => {
-                let error = render_daemon_retirement_response(&response, json).unwrap_err();
-                eprintln!("leserpent: {error}");
+                render_error_response(render_daemon_retirement_response(&response, json));
                 return Ok(3);
             }
             leserpent_protocol::bootstrap_retirement_control::DaemonRetirementResponse::State(
@@ -179,10 +195,10 @@ fn run_daemon_retirement(
             }
         }
         if observation + 1 < observations {
-            std::thread::sleep(Duration::from_millis(
-                wait.expect("multiple observations require wait options")
-                    .interval_ms,
-            ));
+            let interval_ms = wait.map(|options| options.interval_ms).ok_or_else(|| {
+                CliError::Protocol("daemon retirement wait state was lost".into())
+            })?;
+            std::thread::sleep(Duration::from_millis(interval_ms));
         }
     }
     let retirement_id = request.request.intent.retirement_id.as_str();
@@ -208,8 +224,7 @@ fn run_retirement(
         let response = transport.send_retirement(request)?;
         match &response.response {
             leserpent_protocol::retirement::RetirementResponse::Error(_) => {
-                let error = render_retirement_response(&response, json).unwrap_err();
-                eprintln!("leserpent: {error}");
+                render_error_response(render_retirement_response(&response, json));
                 return Ok(3);
             }
             leserpent_protocol::retirement::RetirementResponse::State(state) => {
@@ -229,10 +244,10 @@ fn run_retirement(
             }
         }
         if observation + 1 < observations {
-            std::thread::sleep(Duration::from_millis(
-                wait.expect("multiple observations require wait options")
-                    .interval_ms,
-            ));
+            let interval_ms = wait
+                .map(|options| options.interval_ms)
+                .ok_or_else(|| CliError::Protocol("retirement wait state was lost".into()))?;
+            std::thread::sleep(Duration::from_millis(interval_ms));
         }
     }
     let retirement_id = request.request.intent.retirement_id.as_str();
@@ -256,8 +271,7 @@ fn run_provisioning(
         let response = transport.send_provisioning(request)?;
         match &response.response {
             leserpent_protocol::provisioning::ProvisioningResponse::Error(_) => {
-                let error = render_provisioning_response(&response, json).unwrap_err();
-                eprintln!("leserpent: {error}");
+                render_error_response(render_provisioning_response(&response, json));
                 return Ok(3);
             }
             leserpent_protocol::provisioning::ProvisioningResponse::State(state) => {
@@ -277,10 +291,10 @@ fn run_provisioning(
             }
         }
         if observation + 1 < observations {
-            std::thread::sleep(Duration::from_millis(
-                wait.expect("multiple observations require wait options")
-                    .interval_ms,
-            ));
+            let interval_ms = wait
+                .map(|options| options.interval_ms)
+                .ok_or_else(|| CliError::Protocol("provisioning wait state was lost".into()))?;
+            std::thread::sleep(Duration::from_millis(interval_ms));
         }
     }
     let provisioning_id = request.request.intent.provisioning_id.as_str();
@@ -302,8 +316,7 @@ fn run_watch(
     for iteration in 0..watch.count {
         let response = transport.send(request)?;
         if matches!(response.response, ProtocolResponse::Error(_)) {
-            let error = render_response(&response, json).unwrap_err();
-            eprintln!("leserpent: {error}");
+            render_error_response(render_response(&response, json));
             return Ok(3);
         }
         let revision = match &response.response {
@@ -326,6 +339,13 @@ fn run_watch(
         }
     }
     Ok(0)
+}
+
+fn render_error_response(rendered: Result<String, CliError>) {
+    match rendered {
+        Ok(json) => println!("{json}"),
+        Err(error) => eprintln!("leserpent: {error}"),
+    }
 }
 
 enum ActiveTransport {

@@ -566,7 +566,7 @@ pub fn request_for(options: &CliOptions) -> Result<RequestEnvelope, CliError> {
             ));
         }
         CliCommand::RuntimeList(filter) => {
-            let plan = plan_runtime_list(filter, &query_lowering_context(options))
+            let plan = plan_runtime_list(filter, &query_lowering_context(options)?)
                 .map_err(|error| CliError::Protocol(format!("plan lowering failed: {error:?}")))?;
             let PlannedOperation::Query(query) = plan.operation else {
                 return Err(CliError::Protocol(
@@ -576,7 +576,7 @@ pub fn request_for(options: &CliOptions) -> Result<RequestEnvelope, CliError> {
             ProtocolRequest::Query(query)
         }
         CliCommand::RuntimeInspect(runtime_id) => {
-            let plan = plan_runtime_inspect(runtime_id, &query_lowering_context(options))
+            let plan = plan_runtime_inspect(runtime_id, &query_lowering_context(options)?)
                 .map_err(|error| CliError::Protocol(format!("plan lowering failed: {error:?}")))?;
             let PlannedOperation::Query(query) = plan.operation else {
                 return Err(CliError::Protocol(
@@ -586,7 +586,7 @@ pub fn request_for(options: &CliOptions) -> Result<RequestEnvelope, CliError> {
             ProtocolRequest::Query(query)
         }
         CliCommand::RuntimeHistory(runtime_id) => {
-            let plan = plan_runtime_history(runtime_id, &query_lowering_context(options))
+            let plan = plan_runtime_history(runtime_id, &query_lowering_context(options)?)
                 .map_err(|error| CliError::Protocol(format!("plan lowering failed: {error:?}")))?;
             let PlannedOperation::Query(query) = plan.operation else {
                 return Err(CliError::Protocol(
@@ -596,7 +596,7 @@ pub fn request_for(options: &CliOptions) -> Result<RequestEnvelope, CliError> {
             ProtocolRequest::Query(query)
         }
         CliCommand::RuntimeLogs(runtime_id) => {
-            let plan = plan_runtime_logs(runtime_id, &query_lowering_context(options))
+            let plan = plan_runtime_logs(runtime_id, &query_lowering_context(options)?)
                 .map_err(|error| CliError::Protocol(format!("plan lowering failed: {error:?}")))?;
             let PlannedOperation::Query(query) = plan.operation else {
                 return Err(CliError::Protocol(
@@ -615,7 +615,8 @@ pub fn request_for(options: &CliOptions) -> Result<RequestEnvelope, CliError> {
             })
         }
         CliCommand::RuntimeWatch(watch) => {
-            let plan = plan_runtime_inspect(&watch.runtime_id, &query_lowering_context(options))
+            let context = query_lowering_context(options)?;
+            let plan = plan_runtime_inspect(&watch.runtime_id, &context)
                 .map_err(|error| CliError::Protocol(format!("plan lowering failed: {error:?}")))?;
             let PlannedOperation::Query(query) = plan.operation else {
                 return Err(CliError::Protocol(
@@ -1013,73 +1014,80 @@ fn parse_bootstrap_retire(
 }
 
 pub fn export_leselang(options: &CliOptions) -> Option<String> {
+    try_export_leselang(options).ok().flatten()
+}
+
+pub fn try_export_leselang(options: &CliOptions) -> Result<Option<String>, CliError> {
     let source = match (&options.command, options.local_export) {
         (CliCommand::RuntimeList(filter), Some(LocalExport::Leselang)) => {
             let filter = filter.clone().normalized();
             Some(format!(
                 "fn main() = runtime.list(environment: {}, cluster: {}, role: {})",
-                leselang_optional_string(filter.environment.as_deref()),
-                leselang_optional_string(filter.cluster.as_deref()),
-                leselang_optional_string(filter.role.as_deref()),
+                leselang_optional_string(filter.environment.as_deref())?,
+                leselang_optional_string(filter.cluster.as_deref())?,
+                leselang_optional_string(filter.role.as_deref())?,
             ))
         }
         (CliCommand::RuntimeInspect(runtime_id), Some(LocalExport::Leselang)) => Some(format!(
             "fn main() = runtime.inspect(runtime_id: {})",
-            serde_json::to_string(runtime_id.as_str()).expect("string encoding cannot fail")
+            leselang_string(runtime_id.as_str())?
         )),
         (CliCommand::RuntimeHistory(runtime_id), Some(LocalExport::Leselang)) => Some(format!(
             "fn main() = runtime.history(runtime_id: {})",
-            serde_json::to_string(runtime_id.as_str()).expect("string encoding cannot fail")
+            leselang_string(runtime_id.as_str())?
         )),
         (CliCommand::RuntimeLogs(runtime_id), Some(LocalExport::Leselang)) => Some(format!(
             "fn main() = runtime.logs(runtime_id: {})",
-            serde_json::to_string(runtime_id.as_str()).expect("string encoding cannot fail")
+            leselang_string(runtime_id.as_str())?
         )),
         (CliCommand::RuntimeRefresh(refresh), _) if refresh.export_leselang => Some(format!(
             "fn main() = runtime.refresh(runtime_id: {})",
-            serde_json::to_string(refresh.runtime_id.as_str())
-                .expect("string encoding cannot fail")
+            leselang_string(refresh.runtime_id.as_str())?
         )),
         (CliCommand::RuntimeCapabilitiesRefresh(refresh), _) if refresh.export_leselang => {
             Some(format!(
                 "fn main() = runtime.refresh_capabilities(runtime_id: {})",
-                serde_json::to_string(refresh.runtime_id.as_str())
-                    .expect("string encoding cannot fail")
+                leselang_string(refresh.runtime_id.as_str())?
             ))
         }
         (CliCommand::RuntimeDeploy(deploy), _) if deploy.export_leselang => Some(format!(
             "fn main() = runtime.deploy(runtime_id: {}, pipeline_kind: {}, target: {})",
-            serde_json::to_string(deploy.runtime_id.as_str()).expect("string encoding cannot fail"),
-            serde_json::to_string(&deploy.pipeline_kind).expect("string encoding cannot fail"),
-            leselang_optional_string(deploy.target.as_deref()),
+            leselang_string(deploy.runtime_id.as_str())?,
+            leselang_string(&deploy.pipeline_kind)?,
+            leselang_optional_string(deploy.target.as_deref())?,
         )),
         _ => None,
-    }?;
-    Some(
-        format_leselang(&parse_leselang(&source))
-            .expect("CLI-generated Leselang must satisfy the syntax contract"),
-    )
+    };
+    let Some(source) = source else {
+        return Ok(None);
+    };
+    format_leselang(&parse_leselang(&source))
+        .map(Some)
+        .map_err(|diagnostics| {
+            CliError::Protocol(format!(
+                "CLI-generated Leselang failed syntax validation: {diagnostics:?}"
+            ))
+        })
 }
 
 pub fn export_plan(options: &CliOptions) -> Result<Option<String>, CliError> {
     let plan = match (&options.command, options.local_export) {
         (CliCommand::RuntimeList(filter), Some(LocalExport::Plan)) => {
-            plan_runtime_list(filter, &query_lowering_context(options))
+            plan_runtime_list(filter, &query_lowering_context(options)?)
         }
         (CliCommand::RuntimeInspect(runtime_id), Some(LocalExport::Plan)) => {
-            plan_runtime_inspect(runtime_id, &query_lowering_context(options))
+            plan_runtime_inspect(runtime_id, &query_lowering_context(options)?)
         }
         (CliCommand::RuntimeHistory(runtime_id), Some(LocalExport::Plan)) => {
-            plan_runtime_history(runtime_id, &query_lowering_context(options))
+            plan_runtime_history(runtime_id, &query_lowering_context(options)?)
         }
         (CliCommand::RuntimeLogs(runtime_id), Some(LocalExport::Plan)) => {
-            plan_runtime_logs(runtime_id, &query_lowering_context(options))
+            plan_runtime_logs(runtime_id, &query_lowering_context(options)?)
         }
         (CliCommand::RuntimeRefresh(refresh), _) if refresh.export_plan => {
-            let idempotency_key = refresh
-                .idempotency_key
-                .as_ref()
-                .expect("validated plan export idempotency key");
+            let idempotency_key = refresh.idempotency_key.as_ref().ok_or_else(|| {
+                CliError::Protocol("refresh plan export requires an idempotency key".into())
+            })?;
             plan_runtime_refresh(
                 &refresh.runtime_id,
                 &LoweringContext {
@@ -1103,10 +1111,11 @@ pub fn export_plan(options: &CliOptions) -> Result<Option<String>, CliError> {
             )
         }
         (CliCommand::RuntimeCapabilitiesRefresh(refresh), _) if refresh.export_plan => {
-            let idempotency_key = refresh
-                .idempotency_key
-                .as_ref()
-                .expect("validated plan export idempotency key");
+            let idempotency_key = refresh.idempotency_key.as_ref().ok_or_else(|| {
+                CliError::Protocol(
+                    "capability refresh plan export requires an idempotency key".into(),
+                )
+            })?;
             plan_runtime_capabilities_refresh(
                 &refresh.runtime_id,
                 &LoweringContext {
@@ -1130,10 +1139,9 @@ pub fn export_plan(options: &CliOptions) -> Result<Option<String>, CliError> {
             )
         }
         (CliCommand::RuntimeDeploy(deploy), _) if deploy.export_plan => {
-            let idempotency_key = deploy
-                .idempotency_key
-                .as_ref()
-                .expect("validated plan export idempotency key");
+            let idempotency_key = deploy.idempotency_key.as_ref().ok_or_else(|| {
+                CliError::Protocol("deployment plan export requires an idempotency key".into())
+            })?;
             plan_runtime_deploy(
                 &deploy.runtime_id,
                 &deploy.pipeline_kind,
@@ -1168,28 +1176,33 @@ pub fn export_plan(options: &CliOptions) -> Result<Option<String>, CliError> {
         .map_err(|error| CliError::Protocol(format!("plan encoding is not UTF-8: {error}")))
 }
 
-fn query_lowering_context(options: &CliOptions) -> LoweringContext {
-    LoweringContext {
+fn query_lowering_context(options: &CliOptions) -> Result<LoweringContext, CliError> {
+    Ok(LoweringContext {
         principal: Principal {
             id: options.principal.clone(),
         },
         capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
         expected_revision: None,
         command_id: CommandId::new("unused-query-command")
-            .expect("static query command identifier is valid"),
+            .map_err(|error| CliError::Protocol(error.to_string()))?,
         idempotency_key: IdempotencyKey::new("unused-query-effect")
-            .expect("static query idempotency key is valid"),
+            .map_err(|error| CliError::Protocol(error.to_string()))?,
         origin: CommandOrigin::Cli,
         confirmation: Confirmation::NotRequired,
         dry_run: false,
+    })
+}
+
+fn leselang_optional_string(value: Option<&str>) -> Result<String, CliError> {
+    match value {
+        Some(value) => leselang_string(value),
+        None => Ok("none".to_string()),
     }
 }
 
-fn leselang_optional_string(value: Option<&str>) -> String {
-    value.map_or_else(
-        || "none".to_string(),
-        |value| serde_json::to_string(value).expect("string encoding cannot fail"),
-    )
+fn leselang_string(value: &str) -> Result<String, CliError> {
+    serde_json::to_string(value)
+        .map_err(|error| CliError::Protocol(format!("Leselang string encoding failed: {error}")))
 }
 
 pub fn render_bootstrap_response(

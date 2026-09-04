@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Product-independent GewyLang expansion and semantic lowering.
 
 use gewylang_syntax::{PipelineModule, PipelineValueKind, SyntaxError};
@@ -308,5 +310,51 @@ template(:standalone)
         .unwrap();
 
         assert_eq!(binding, ["template:standalone", "operation:connect_flow"]);
+    }
+
+    #[test]
+    fn function_expansion_depth_is_bounded() {
+        let mut source = String::from("fn f0() {\n  |> operation(:leaf)\n}\n");
+        for depth in 1..=gewylang_syntax::MAX_GEWYLANG_FUNCTION_EXPANSION_DEPTH {
+            source.push_str(&format!(
+                "fn f{depth}() {{\n  |> use(:f{})\n}}\n",
+                depth - 1
+            ));
+        }
+        source.push_str(&format!(
+            "template(:bounded)\n|> use(:f{})\n",
+            gewylang_syntax::MAX_GEWYLANG_FUNCTION_EXPANSION_DEPTH
+        ));
+
+        let err = compile_str(&source, &TestHost)
+            .err()
+            .expect("deep function expansion must fail closed");
+        assert!(matches!(
+            err.root(),
+            SyntaxError::InvalidValue(message)
+                if message.contains("pipeline function expansion depth exceeds")
+        ));
+    }
+
+    #[test]
+    fn semantic_expansion_work_is_bounded() {
+        let mut source = String::from("fn f0() {\n  |> operation(:leaf)\n}\n");
+        for depth in 1..=16 {
+            source.push_str(&format!(
+                "fn f{depth}() {{\n  |> use(:f{})\n  |> use(:f{})\n}}\n",
+                depth - 1,
+                depth - 1
+            ));
+        }
+        source.push_str("template(:bounded)\n|> use(:f16)\n");
+
+        let err = compile_str(&source, &TestHost)
+            .err()
+            .expect("exponential function expansion must fail closed");
+        assert!(matches!(
+            err.root(),
+            SyntaxError::InvalidValue(message)
+                if message.contains("pipeline expansion exceeds")
+        ));
     }
 }

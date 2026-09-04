@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
@@ -9,6 +9,7 @@ namespace Leserpent.ControlPlane;
 public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, ControlPlaneSecurityPolicy securityPolicy)
 {
     private const string EtragonAdminTokenHeader = "X-Etragon-Admin-Token";
+    private const int MaximumDiscoveryResponseBytes = 1_048_576;
     public const string GewyvernAdminTokenHeader = "X-Gewyvern-Admin-Token";
 
     public async Task<CapabilityDiscoveryResult> DiscoverAsync(string endpoint, string? capabilityEndpoint, CancellationToken cancellationToken, string? runtimeAdminToken = null)
@@ -248,11 +249,13 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
             request.Confirmed,
             string.IsNullOrWhiteSpace(request.Target) ? null : request.Target.Trim());
         var plan = planResult.Plan!;
+        EnsureCredentialTransport(plan, runtime.AdminToken);
         using var response = plan.PinnedAddress is null
             ? await SendDeploymentAsync(httpClient, plan.RequestUri, payload, runtime.AdminToken, cancellationToken)
             : await SendPinnedDeploymentAsync(plan, payload, runtime.AdminToken, cancellationToken);
         response.EnsureSuccessStatusCode();
-        var result = await response.Content.ReadFromJsonAsync(
+        var result = await ReadBoundedJsonAsync(
+            response.Content,
             DiscoveryJsonContext.Default.GewyvernDeploymentResponsePayload,
             cancellationToken);
         if (result is null)
@@ -397,6 +400,7 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
     {
         try
         {
+            EnsureCredentialTransport(plan, sidecarAdminToken);
             if (plan.PinnedAddress is null)
             {
                 using var response = await SendAsync(httpClient, plan.RequestUri, cancellationToken, sidecarAdminToken);
@@ -405,7 +409,15 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
                     return false;
                 }
 
-                var body = (await response.Content.ReadAsStringAsync(cancellationToken)).Trim();
+                var bytes = await ReadBoundedBodyAsync(
+                    response.Content,
+                    MaximumDiscoveryResponseBytes,
+                    cancellationToken);
+                if (bytes is null)
+                {
+                    return false;
+                }
+                var body = Encoding.UTF8.GetString(bytes).Trim();
                 return !string.IsNullOrWhiteSpace(body)
                     && !string.Equals(body, "null", StringComparison.OrdinalIgnoreCase)
                     && !string.Equals(body, "{}", StringComparison.OrdinalIgnoreCase);
@@ -418,7 +430,15 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
                 return false;
             }
 
-            var pinnedBody = (await pinnedResponse.Content.ReadAsStringAsync(cancellationToken)).Trim();
+            var pinnedBytes = await ReadBoundedBodyAsync(
+                pinnedResponse.Content,
+                MaximumDiscoveryResponseBytes,
+                cancellationToken);
+            if (pinnedBytes is null)
+            {
+                return false;
+            }
+            var pinnedBody = Encoding.UTF8.GetString(pinnedBytes).Trim();
             return !string.IsNullOrWhiteSpace(pinnedBody)
                 && !string.Equals(pinnedBody, "null", StringComparison.OrdinalIgnoreCase)
                 && !string.Equals(pinnedBody, "{}", StringComparison.OrdinalIgnoreCase);
@@ -453,6 +473,7 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
     {
         try
         {
+            EnsureCredentialTransport(plan, sidecarAdminToken);
             if (plan.PinnedAddress is null)
             {
                 using var response = await SendAsync(httpClient, plan.RequestUri, cancellationToken, sidecarAdminToken);
@@ -461,7 +482,8 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
                     return FailedSidecarMemorySnapshot();
                 }
 
-                var payload = await response.Content.ReadFromJsonAsync(
+                var payload = await ReadBoundedJsonAsync(
+                    response.Content,
                     DiscoveryJsonContext.Default.EtragonMemoryVersionsPayload,
                     cancellationToken);
                 if (payload is null)
@@ -479,7 +501,8 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
                 return FailedSidecarMemorySnapshot();
             }
 
-            var pinnedPayload = await pinnedResponse.Content.ReadFromJsonAsync(
+            var pinnedPayload = await ReadBoundedJsonAsync(
+                pinnedResponse.Content,
                 DiscoveryJsonContext.Default.EtragonMemoryVersionsPayload,
                 cancellationToken);
             if (pinnedPayload is null)
@@ -505,6 +528,7 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
         string? adminToken,
         string adminTokenHeader)
     {
+        EnsureCredentialTransport(plan, adminToken);
         using var pinnedClient = plan.PinnedAddress is null ? null : CreatePinnedHttpClient(plan);
         var client = pinnedClient ?? httpClient;
         using var response = await SendAsync(
@@ -514,7 +538,10 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
             adminToken,
             adminTokenHeader);
         response.EnsureSuccessStatusCode();
-        var body = await ReadBoundedBodyAsync(response.Content, 1024 * 1024, cancellationToken);
+        var body = await ReadBoundedBodyAsync(
+            response.Content,
+            MaximumDiscoveryResponseBytes,
+            cancellationToken);
         if (body is null)
         {
             return null;
@@ -589,29 +616,31 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
         string? adminToken = null,
         string adminTokenHeader = EtragonAdminTokenHeader)
     {
+        EnsureCredentialTransport(plan, adminToken);
         if (plan.PinnedAddress is null)
         {
             using var response = await SendAsync(httpClient, plan.RequestUri, cancellationToken, adminToken, adminTokenHeader);
             response.EnsureSuccessStatusCode();
-            return await response.Content.ReadFromJsonAsync(jsonTypeInfo, cancellationToken);
+            return await ReadBoundedJsonAsync(response.Content, jsonTypeInfo, cancellationToken);
         }
 
         using var client = CreatePinnedHttpClient(plan);
         using var pinnedResponse = await SendAsync(client, plan.RequestUri, cancellationToken, adminToken, adminTokenHeader);
         pinnedResponse.EnsureSuccessStatusCode();
-        return await pinnedResponse.Content.ReadFromJsonAsync(jsonTypeInfo, cancellationToken);
+        return await ReadBoundedJsonAsync(pinnedResponse.Content, jsonTypeInfo, cancellationToken);
     }
 
     private static async Task<HttpResponseMessage> SendAsync(HttpClient client, Uri requestUri, CancellationToken cancellationToken, string? adminToken, string adminTokenHeader = EtragonAdminTokenHeader)
     {
-        if (string.IsNullOrWhiteSpace(adminToken))
-        {
-            return await client.GetAsync(requestUri, cancellationToken);
-        }
-
         using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
-        request.Headers.TryAddWithoutValidation(adminTokenHeader, adminToken.Trim());
-        return await client.SendAsync(request, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(adminToken))
+        {
+            request.Headers.TryAddWithoutValidation(adminTokenHeader, adminToken.Trim());
+        }
+        return await client.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
     }
 
     private async Task<HttpResponseMessage> SendPinnedDeploymentAsync(
@@ -642,13 +671,19 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
         {
             request.Headers.TryAddWithoutValidation(GewyvernAdminTokenHeader, adminToken.Trim());
         }
-        return await client.SendAsync(request, cancellationToken);
+        return await client.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
     }
 
     private HttpClient CreatePinnedHttpClient(EndpointAccessPlan plan)
     {
         var handler = new SocketsHttpHandler
         {
+            AllowAutoRedirect = false,
+            UseProxy = false,
+            MaxResponseHeadersLength = 16,
             ConnectCallback = async (context, cancellationToken) =>
             {
                 var socket = new Socket(plan.PinnedAddress!.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
@@ -673,6 +708,47 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
             client.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
         }
         return client;
+    }
+
+    private static async Task<T?> ReadBoundedJsonAsync<T>(
+        HttpContent content,
+        JsonTypeInfo<T> jsonTypeInfo,
+        CancellationToken cancellationToken)
+    {
+        var body = await ReadBoundedBodyAsync(
+            content,
+            MaximumDiscoveryResponseBytes,
+            cancellationToken);
+        return body is null
+            ? default
+            : JsonSerializer.Deserialize(body, jsonTypeInfo);
+    }
+
+    private static void EnsureCredentialTransport(
+        EndpointAccessPlan plan,
+        string? adminToken)
+    {
+        if (string.IsNullOrWhiteSpace(adminToken)
+            || string.Equals(plan.RequestUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            || IsLoopbackDestination(plan))
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            "refusing to send an admin token over non-loopback HTTP");
+    }
+
+    private static bool IsLoopbackDestination(EndpointAccessPlan plan)
+    {
+        if (plan.PinnedAddress is not null)
+        {
+            return IPAddress.IsLoopback(plan.PinnedAddress);
+        }
+
+        return (IPAddress.TryParse(plan.RequestUri.Host, out var address)
+                && IPAddress.IsLoopback(address))
+            || string.Equals(plan.RequestUri.Host, "localhost", StringComparison.OrdinalIgnoreCase);
     }
 
     private static RuntimeSidecarMemorySnapshot BuildMemorySnapshot(EtragonMemoryVersionsPayload payload)

@@ -4,15 +4,22 @@ Leserpent can submit a typed deployment intent directly to an already-running ge
 
 ## Runtime preparation
 
-Start gewyvern with an explicit remote API bind and admin token:
+Use the authenticated installer flow or put a same-host TLS reverse proxy in
+front of a loopback Gewyvern API. For the proxy pattern, keep Gewyvern itself
+on loopback and use a strong token:
 
 ```bash
-GEWY_API_ADMIN_TOKEN='<strong-random-token>' gewyvern \
+GEWY_API_ADMIN_TOKEN="$(openssl rand -hex 32)" gewyvern \
   --protocol http --entry request --serve \
   --tcp-socket 0.0.0.0:9000 \
-  --api-socket 0.0.0.0:9100 \
-  --allow-remote-api
+  --api-socket 127.0.0.1:9100
 ```
+
+Terminate TLS on the same host and expose an `https://` runtime endpoint with
+a certificate trusted by the Leserpent host. Leserpent refuses to forward a
+runtime or sidecar admin token over non-loopback HTTP. The legacy
+`--allow-remote-api` switch is plaintext and is suitable only inside an
+authenticated encrypted overlay; it is not the recommended deployment path.
 
 Register that runtime in Leserpent using the same value in `pairingToken`. The token is held in Leserpent memory only: it is not included in API responses, JSON state, SQLite, or deployment request bodies. A Leserpent restart therefore requires the operator to pair the runtime again.
 
@@ -34,7 +41,11 @@ X-Leserpent-Intent: mutate
 }
 ```
 
-Leserpent forwards the request to `POST /v1/deployments` with `X-Gewyvern-Admin-Token`, then records the accepted operation in Orchestra history. `requestId` is the idempotency key: an identical retry returns the original deployment, while reuse for a different payload returns a conflict.
+Leserpent forwards the request to `POST /v1/deployments` with
+`X-Gewyvern-Admin-Token` only over HTTPS or loopback HTTP, then records the
+accepted operation in Orchestra history. `requestId` is the idempotency key:
+an identical retry returns the original deployment, while reuse for a
+different payload returns a conflict.
 
 ## Current status boundary
 

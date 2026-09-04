@@ -42,10 +42,11 @@ public sealed record RemoteClientOptions(
 
     public static void ValidateToken(string token)
     {
-        if (token.Length is < 32 or > 4096 || token.Any(char.IsWhiteSpace))
+        if (token.Length is < 32 or > 256
+            || token.Any(character => character is < '!' or > '~'))
         {
             throw new ArgumentException(
-                "remote token must contain 32 to 4096 non-whitespace characters",
+                "remote token must contain 32 to 256 visible ASCII characters",
                 nameof(token));
         }
     }

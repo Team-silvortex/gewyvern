@@ -8,6 +8,8 @@ namespace Leserpent.SecurityTests;
 
 public sealed class ControlPlaneSecurityPolicyTests
 {
+    private const string StrongAdminToken = "0123456789abcdef0123456789abcdef";
+
     [Fact]
     public void RemoteRequestWithoutTokenIsDenied()
     {
@@ -24,14 +26,60 @@ public sealed class ControlPlaneSecurityPolicyTests
     [Fact]
     public void RemoteRequestWithValidTokenIsAllowed()
     {
-        var policy = BuildPolicy(("LESERPENT_ADMIN_TOKEN", "secret-token"));
+        var policy = BuildPolicy(("LESERPENT_ADMIN_TOKEN", StrongAdminToken));
         var context = BuildContext("GET", "/health", IPAddress.Parse("10.0.0.8"));
-        context.Request.Headers[ControlPlaneSecurityPolicy.AdminTokenHeader] = " secret-token ";
+        context.Request.Headers[ControlPlaneSecurityPolicy.AdminTokenHeader] = $" {StrongAdminToken} ";
 
         var allowed = policy.TryAuthorize(context, out var statusCode, out _);
 
         Assert.True(allowed);
         Assert.Equal(StatusCodes.Status200OK, statusCode);
+    }
+
+    [Fact]
+    public void RemoteHttpRequestWithValidTokenIsDenied()
+    {
+        var policy = BuildPolicy(("LESERPENT_ADMIN_TOKEN", StrongAdminToken));
+        var context = BuildContext("GET", "/health", IPAddress.Parse("10.0.0.8"));
+        context.Request.Scheme = "http";
+        context.Request.Headers[ControlPlaneSecurityPolicy.AdminTokenHeader] = StrongAdminToken;
+
+        var allowed = policy.TryAuthorize(context, out var statusCode, out var payload);
+
+        Assert.False(allowed);
+        Assert.Equal(StatusCodes.Status426UpgradeRequired, statusCode);
+        Assert.Contains("https_required", payload.ToString());
+    }
+
+    [Fact]
+    public void RemoteHttpUiRequestIsDeniedBeforeStaticContent()
+    {
+        var policy = BuildPolicy(("LESERPENT_ADMIN_TOKEN", StrongAdminToken));
+        var context = BuildContext("GET", "/", IPAddress.Parse("10.0.0.8"));
+        context.Request.Scheme = "http";
+
+        var allowed = policy.TryAuthorize(context, out var statusCode, out var payload);
+
+        Assert.False(allowed);
+        Assert.Equal(StatusCodes.Status426UpgradeRequired, statusCode);
+        Assert.Contains("https_required", payload.ToString());
+    }
+
+    [Fact]
+    public void InvalidConfiguredAdminTokensAreRejected()
+    {
+        var invalidTokens = new[]
+        {
+            new string('a', ControlPlaneSecurityPolicy.MinimumAdminTokenLength - 1),
+            new string('a', ControlPlaneSecurityPolicy.MaximumAdminTokenLength + 1),
+            $"{new string('a', 16)} {new string('b', 16)}",
+        };
+
+        foreach (var token in invalidTokens)
+        {
+            Assert.Throws<InvalidOperationException>(() =>
+                BuildPolicy(("LESERPENT_ADMIN_TOKEN", token)));
+        }
     }
 
     [Fact]
@@ -202,6 +250,7 @@ public sealed class ControlPlaneSecurityPolicyTests
         var context = new DefaultHttpContext();
         context.Request.Method = method;
         context.Request.Path = path;
+        context.Request.Scheme = "https";
         context.Connection.RemoteIpAddress = remoteIp;
         return context;
     }

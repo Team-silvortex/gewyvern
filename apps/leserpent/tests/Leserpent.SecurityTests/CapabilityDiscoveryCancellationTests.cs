@@ -49,6 +49,28 @@ public sealed class CapabilityDiscoveryCancellationTests
             discovery.DiscoverAsync("http://127.0.0.1:49152", null, cancellation.Token));
     }
 
+    [Fact]
+    public async Task DiscoverAsyncRejectsOversizedCapabilityResponse()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["LESERPENT_ALLOW_PUBLIC_ENDPOINTS"] = "true",
+            })
+            .Build();
+        var security = new ControlPlaneSecurityPolicy(configuration);
+        using var client = new HttpClient(new StaticHandler(new string('x', 1_048_577)));
+        var discovery = new CapabilityDiscoveryService(client, security);
+
+        var result = await discovery.DiscoverAsync(
+            "http://127.0.0.1:49152",
+            null,
+            CancellationToken.None);
+
+        Assert.Equal("capability_fetch_failed", result.CapabilityFetchError);
+        Assert.Null(result.AuthoritySnapshot);
+    }
+
     private sealed class BlockingHandler : HttpMessageHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(
