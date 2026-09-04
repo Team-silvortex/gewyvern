@@ -821,6 +821,13 @@ name = "gewylang-contract"
 version = "2.0.0"
 
 [[package]]
+name = "gewylang-ir"
+version = "2.0.0"
+dependencies = [
+ "gewylang-contract",
+]
+
+[[package]]
 name = "gewylang-syntax"
 version = "2.0.0"
 dependencies = [
@@ -833,6 +840,7 @@ version = "2.0.0"
 dependencies = [
  "gewylang-compiler",
  "gewylang-contract",
+ "gewylang-ir",
  "gewylang-syntax",
  "gewyvern-install-contract",
  "http",

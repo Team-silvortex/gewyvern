@@ -24,7 +24,8 @@ the nearest real `.gewy` example.
 
 - [Language and IR contract](../gewylang-contract.md)
 - [`gewylang-syntax` frontend](../../crates/gewylang-syntax)
-- [`gewylang-compiler` semantic-host boundary](../../crates/gewylang-compiler)
+- [`gewylang-compiler` semantic-host and materializer boundaries](../../crates/gewylang-compiler)
+- [`gewylang-ir` stage values and projection-host contract](../../crates/gewylang-ir)
 - [GewyLang to IR](../book/explanation-gewylang-to-ir.md)
 - [Lightweight types](../book/explanation-gewylang-lightweight-types.md)
 - [IR lowering](../book/reference-ir-lowering.md)

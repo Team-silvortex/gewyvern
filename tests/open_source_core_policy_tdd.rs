@@ -106,6 +106,7 @@ fn every_current_primary_capability_is_mit_open_source_and_free() {
         "gewyc-cli",
         "gewylang-compiler",
         "gewylang-contract",
+        "gewylang-ir",
         "gewylang-syntax",
         "protocol-standard-library",
         "silvortex-bounded-io",

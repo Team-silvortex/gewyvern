@@ -226,7 +226,10 @@ responsibility boundaries:
   Product-independent GewyLang identity, stage versions, and source bounds.
 - [crates/gewylang-compiler](crates/gewylang-compiler)
   Product-independent GewyLang function expansion, canonical lowering, and
-  explicit semantic-host interface.
+  explicit semantic-host and binding-materializer interfaces.
+- [crates/gewylang-ir](crates/gewylang-ir)
+  Product-independent Binding IR, Analysis IR, diagnostics, and history
+  projection values plus the compiler projection-host contract.
 - [crates/gewylang-syntax](crates/gewylang-syntax)
   Product-independent GewyLang source loading, package graph, AST, parser, and
   frontend summaries.

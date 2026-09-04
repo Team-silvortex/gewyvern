@@ -18,7 +18,14 @@ fn critical_runtime_sources_do_not_use_panic_shortcuts_in_production() {
     let root = repository_root();
     for relative in [
         "src/runtime.rs",
+        "src/dsl/materializer.rs",
+        "crates/gewylang-compiler/src/lib.rs",
         "crates/gewylang-compiler/src/lowering.rs",
+        "crates/gewylang-ir/src/analysis.rs",
+        "crates/gewylang-ir/src/binding.rs",
+        "crates/gewylang-ir/src/diagnostics.rs",
+        "crates/gewylang-ir/src/projection.rs",
+        "src/gewyc/projection_host.rs",
         "crates/leserpent-runtime/src/lib.rs",
     ] {
         let production = production_source(root.join(relative));

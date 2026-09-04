@@ -257,13 +257,12 @@ pub(super) fn validation_report(
 }
 
 pub(super) fn diagnostics_stage_report(
-    binding: &TemplateBinding,
-    diagnostics: Result<BindingDiagnostics, RegistryError>,
+    diagnostics: Result<DiagnosticsReport, RegistryError>,
 ) -> DiagnosticsStageReport {
     match diagnostics {
-        Ok(diagnostics) => DiagnosticsStageReport {
+        Ok(report) => DiagnosticsStageReport {
             ok: true,
-            report: Some(diagnostics_report(binding, &diagnostics)),
+            report: Some(report),
             finding: None,
         },
         Err(err) => DiagnosticsStageReport {

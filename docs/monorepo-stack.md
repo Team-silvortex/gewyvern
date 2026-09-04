@@ -14,7 +14,8 @@ changing a cross-project boundary.
 | [`src/`](../src) | Gewyvern runtime, API, evidence reconstruction, CLI | observed network truth |
 | [`crates/gewylang-contract/`](../crates/gewylang-contract) | product-independent GewyLang identity and stage contract | language/version identity and source bounds |
 | [`crates/gewylang-syntax/`](../crates/gewylang-syntax) | product-independent source, package, AST, parser, frontend | canonical syntax interpretation |
-| [`crates/gewylang-compiler/`](../crates/gewylang-compiler) | product-independent expansion and host-generic semantic lowering | canonical compiler behavior and semantic-host boundary |
+| [`crates/gewylang-compiler/`](../crates/gewylang-compiler) | product-independent expansion, host-generic lowering, and materializer dispatch | canonical compiler behavior and host boundaries |
+| [`crates/gewylang-ir/`](../crates/gewylang-ir) | product-independent Binding IR, Analysis IR, diagnostics, history, and projection-host orchestration | stable compiler-stage data and projection contracts |
 | [`crates/gewyc/`](../crates/gewyc) | GewyLang compiler CLI | diagnostic and lowering orchestration |
 | [`crates/silvortex-bounded-io/`](../crates/silvortex-bounded-io) | product-neutral bounded files and transport deadlines | native I/O safety invariants |
 | [`crates/silvortex-identity/`](../crates/silvortex-identity) | product-neutral validated protocol identities | identifier grammar and scalar wire identity |
@@ -79,12 +80,12 @@ The intended dependency flow is:
 
 ```text
 GewyLang source -> gewylang-contract -> gewylang-syntax
-                                             |
-                                             v
-                                  gewylang-compiler
-                                             |
-                                             v
-                               Gewyvern semantic host
+                         |                   |
+                         v                   v
+                    gewylang-ir       gewylang-compiler
+                         ^                   |
+                         |                   v
+                         +------ Gewyvern semantic/analysis host
                                              |
                                              v
                         evidence runtime -> machine evidence contract
@@ -112,9 +113,14 @@ same validated ID types through `silvortex-identity`; old domain and protocol
 paths remain compatibility re-exports with unchanged scalar wire bytes.
 GewyLang tooling that only needs source/package parsing can stop at
 `gewylang-syntax`; tooling that needs function expansion and canonical lowering
-can stop at `gewylang-compiler` and implement `SemanticHost`. Runtime bindings
-and evidence-aware analysis deliberately cross into Gewyvern through its
-compatibility adapter.
+can stop at `gewylang-compiler` and implement `SemanticHost`. A runtime host can
+also implement `BindingMaterializer` to receive the canonical assignment stream
+without moving its product model into the compiler. Runtime bindings and
+evidence-aware analysis deliberately cross into Gewyvern through those explicit
+adapters. `CompilerProjectionHost` returns their stable output values and
+diagnostic failures to `gewylang-ir` as one coherent stage set. The concrete
+Gewyvern adapter remains linked today; extracting it into a narrow crate is the
+remaining physical boundary.
 
 ## Toolchain Boundaries
 

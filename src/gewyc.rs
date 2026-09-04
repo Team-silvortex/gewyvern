@@ -17,6 +17,7 @@ mod explain_support;
 mod frontend;
 mod frontend_focus;
 mod ir_focus;
+mod projection_host;
 mod render;
 mod render_support;
 mod report_types;
@@ -26,6 +27,7 @@ use self::explain_support::*;
 use self::frontend::*;
 use self::frontend_focus::*;
 use self::ir_focus::*;
+use self::projection_host::GewyvernProjectionHost;
 pub use self::render::*;
 use self::render_support::*;
 pub use self::report_types::*;
@@ -156,9 +158,7 @@ fn compile_envelope_from_parts(
     match parsed {
         Ok(binding) => {
             let registry = builtin_registry_ref();
-            let binding_report = binding_report(&binding);
             let diagnostics_result = registry.binding_diagnostics(&binding);
-            let ir_report = ir_report_from_binding(&binding, diagnostics_result.as_ref().ok());
             let validation_result = match registry.validate_binding_params(&binding) {
                 Err(err) => Err(err),
                 Ok(()) => match diagnostics_result.as_ref() {
@@ -172,7 +172,15 @@ fn compile_envelope_from_parts(
                 diagnostics_result.as_ref().ok(),
                 validation_result.err().as_ref(),
             );
-            let diagnostics_stage = diagnostics_stage_report(&binding, diagnostics_result);
+            let projections = gewylang_ir::project_compiler_stages(
+                &GewyvernProjectionHost,
+                &binding,
+                diagnostics_result.as_ref(),
+            );
+            let binding_report = projections.binding;
+            let ir_report = projections.analysis;
+            let diagnostics_stage =
+                diagnostics_stage_report(projections.diagnostics.map_err(|err| err.clone()));
             let diagnostics = diagnostics_stage.report.clone();
             let parse = ParseStageReport {
                 ok: true,

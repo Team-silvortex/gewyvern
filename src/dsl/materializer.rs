@@ -1,9 +1,8 @@
-use crate::flow::{ProgramOperation, ProgramStageKind};
+use crate::flow::ProgramOperation;
 use crate::program::{ProgramModel, ProgramRule};
 use crate::reason::{ReasonModel, ReasonProfile, ReasonRule};
 use crate::template::{
-    Template, TemplateBinding, WindowProfile, default_5s_window,
-    default_program_model_for_reason_profile,
+    Template, TemplateBinding, WindowProfile, default_program_model_for_reason_profile,
 };
 
 use super::{
@@ -90,15 +89,6 @@ pub(super) fn build_binding_from_canonical_assignments(
     Ok(binding)
 }
 
-pub(super) fn parse_window_profile(value: &str) -> Result<WindowProfile, DslError> {
-    match value {
-        "default_5s" => Ok(default_5s_window()),
-        other => Err(DslError::InvalidValue(format!(
-            "unknown window profile '{other}'"
-        ))),
-    }
-}
-
 fn build_window_profile(
     profile: Option<WindowProfile>,
     duration_ms: Option<u64>,
@@ -113,7 +103,6 @@ fn build_window_profile(
             duration_ms,
             lateness_ms,
         }),
-        (None, None) => Err(DslError::MissingField("window")),
         _ => Err(DslError::MissingField("window")),
     }
 }
@@ -154,23 +143,4 @@ fn build_reason_profile(
         id,
         rules: reason_rules,
     }))
-}
-
-pub(super) fn parse_operation(value: &str) -> ProgramOperation {
-    match value {
-        "connect_flow" => ProgramOperation::ConnectFlow,
-        "datagram_exchange" => ProgramOperation::DatagramExchange,
-        "unknown" => ProgramOperation::Unknown,
-        other => ProgramOperation::Custom(other.into()),
-    }
-}
-
-pub(crate) fn parse_stage(value: &str) -> Result<Option<ProgramStageKind>, DslError> {
-    Ok(match value {
-        "none" => None,
-        other => Some(
-            crate::ir::SignalKind::from_id(other)
-                .ok_or_else(|| DslError::InvalidValue(format!("unknown stage '{other}'")))?,
-        ),
-    })
 }

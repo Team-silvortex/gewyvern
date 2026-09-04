@@ -29,6 +29,10 @@ older stable link without maintaining a second language map.
 Language syntax and generation rules belong in the style, syntax, EBNF, or
 reference page. Package composition belongs in the package reference. Compiler
 output belongs in `gewyc` contracts. Implementation ownership follows
-`gewylang-contract -> gewylang-syntax -> gewylang-compiler`; the root
-`gewyvern::dsl` module is the semantic-host adapter for runtime Binding IR and
-Analysis IR. This page contains no duplicate language contract.
+`gewylang-contract -> gewylang-syntax -> gewylang-compiler`, with
+`gewylang-contract -> gewylang-ir` owning stable Binding IR and Analysis IR
+values. The root `gewyvern::dsl` and `gewyvern::gewyc` modules remain the
+runtime materialization and registry-analysis adapters. Runtime materialization
+is reached only through `gewylang_compiler::BindingMaterializer`; compiler-stage
+reports return only through `gewylang_ir::CompilerProjectionHost`. This page
+contains no duplicate language contract.

@@ -142,7 +142,7 @@ creating a new semantic center.
 
 ### Language-Owned Boundaries
 
-Two leaf contracts plus independent GewyLang frontend and compiler crates
+Leaf contracts plus independent GewyLang frontend, compiler, and IR crates
 establish future repository boundaries without creating a shared business
 layer:
 
@@ -157,17 +157,28 @@ layer:
   canonical syntax AST and parser, and frontend summaries. Its normal dependency
   closure contains only `gewylang-contract`.
 - `gewylang-compiler` owns function expansion, parameter binding, canonical
-  assignment lowering, and the explicit `SemanticHost` interface. Its normal
-  dependency closure stops at `gewylang-syntax` and `gewylang-contract`.
+  assignment lowering, the explicit `SemanticHost` value adapter, and the
+  `BindingMaterializer` completion boundary. Its normal dependency closure
+  stops at `gewylang-syntax` and `gewylang-contract`.
+- `gewylang-ir` owns the stable Binding IR and Analysis IR value projections,
+  diagnostics DTOs, deterministic model comparison, history snapshots, and the
+  `CompilerProjectionHost` orchestration boundary. Its only normal dependency
+  is `gewylang-contract`.
 
 `leselang-syntax -> leselang-host-contract + leselang-hir` is now a standalone
 frontend closure. `leselang-command` remains the explicit Leserpent binding,
 while VM/UI product result extraction remains staged work. Likewise,
-`gewylang-contract -> gewylang-syntax -> gewylang-compiler` is a standalone
-compiler closure. `gewyvern::dsl` remains its source-compatible facade and
-implements the semantic host that maps canonical assignments into runtime
-bindings and analysis reports. `gewyc` still links Gewyvern only for that final
-product-facing binding and reporting layer.
+`gewylang-contract -> gewylang-syntax -> gewylang-compiler`, together with the
+parallel `gewylang-contract -> gewylang-ir` contract leaf, is a standalone
+language-owned boundary. `gewyvern::dsl` remains its source-compatible facade
+and implements both compiler host protocols: semantic values are adapted while
+lowering, then the canonical assignment stream is materialized into a runtime
+binding. Gewyvern produces independent IR values only through its
+`CompilerProjectionHost` implementation, while `gewylang-ir` coordinates the
+coherent Binding/Diagnostics/Analysis projection set without erasing registry
+failures. `gewyc` still links Gewyvern for the concrete binding, registry, and
+adapter implementations; the compiler protocols and value contracts themselves
+no longer live in the runtime.
 
 ## End-To-End Topology
 
@@ -308,9 +319,9 @@ silvortex-bounded-io -> Gewyvern / protocol / adapters / CLI / daemon
 silvortex-identity -> Gewyvern install contract / leserpent-domain
 gewyvern-install-contract -> Gewyvern installer / protocol / adapters
 gewylang-contract -> gewylang-syntax -> gewylang-compiler -> external tooling
-                                                           |
-                                                           v
-                                         Gewyvern semantic host -> gewyc
+        |                                                  |
+        v                                                  v
+  gewylang-ir <---------------------------- Gewyvern semantic/analysis host -> gewyc
 
 GewyLang -> gewylang-compiler -> fragment registry -> Gewyvern runtime -> export/replay
                                                       |
@@ -383,10 +394,11 @@ The status tensor and source map identify four maintenance priorities:
 3. Preserve the completed neutral I/O, identity, install-contract, and
    language-contract extractions; no product semantics or reverse product
    dependencies may leak back into those crates.
-4. Finish the language seams: preserve the extracted GewyLang frontend and
-   host-generic compiler, then extract product-neutral Binding/Analysis IR so
-   `gewyc` no longer links the runtime; split Leselang VM/UI product bindings
-   behind the host contract without changing wire behavior.
+4. Finish the language seams: preserve the extracted GewyLang frontend,
+   host-generic compiler, and IR projection contracts, then move the concrete
+   semantic/registry host into a narrow adapter crate so `gewyc` no longer links
+   the full runtime; split Leselang VM/UI product bindings behind the host
+   contract without changing wire behavior.
 5. Split other internal monoliths along existing contracts when touched. In
    particular, Leserpent runtime/persistence modules should become smaller
    implementation units without changing their public protocol.

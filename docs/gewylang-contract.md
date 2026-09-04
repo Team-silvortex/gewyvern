@@ -21,9 +21,18 @@ inspection tools can parse GewyLang without linking Gewyvern. The
 product-independent [`gewylang-compiler`](../crates/gewylang-compiler) crate
 then owns function expansion, parameter substitution, canonical rule lowering,
 and direct string/file compiler facades. Its `SemanticHost` trait is the only
-place where product-specific values enter lowering. The `gewyvern::dsl` facade
-preserves the established API and error shape while its adapter maps those
-canonical assignments into `TemplateBinding` and runtime analysis structures.
+place where product-specific values enter lowering; its `BindingMaterializer`
+trait is the only completion boundary from canonical assignments into a host
+binding. The `gewyvern::dsl` facade preserves the established API and error
+shape while one explicit host implements both protocols and produces
+`TemplateBinding`.
+The product-independent [`gewylang-ir`](../crates/gewylang-ir) crate owns the
+stable Binding IR and Analysis IR report values, diagnostics projections, model
+comparison, history snapshots, and the `CompilerProjectionHost` protocol. Its
+only normal dependency is `gewylang-contract`; it coordinates all three stable
+report projections and preserves host diagnostic failures. Gewyvern remains the
+concrete adapter that maps runtime bindings and registry diagnostics into those
+values.
 
 ## Contract Identity
 
@@ -54,8 +63,8 @@ Consumers must match all four fields before interpreting stage-specific data.
 | --- | --- | --- | --- |
 | Source syntax | `1` | Canonical `.gewy` grammar and source semantics. | [`gewylang.ebnf`](gewylang.ebnf) |
 | `expanded_ast` | `1` | Expanded package composition, declarations, provenance, and `use` graph. | `gewylang-syntax` |
-| `binding_ir` | `1` | Executable semantic compile target represented in Rust by `TemplateBinding`. | Gewyvern semantic-host adapter / `gewyc binding` |
-| `analysis_ir` | `1` | Diagnostics-enriched program and reason model projection represented by `IrReport`. | Gewyvern analysis adapter / `gewyc ir` |
+| `binding_ir` | `1` | Stable materialized-binding projection represented by `gewylang_ir::BindingReport`; execution uses Gewyvern's `TemplateBinding` adapter. | `gewylang-ir` / `gewyc binding` |
+| `analysis_ir` | `1` | Diagnostics-enriched program and reason model projection represented by `gewylang_ir::IrReport`. | `gewylang-ir` / Gewyvern analysis adapter / `gewyc ir` |
 
 The stage names are protocol identifiers. Human-facing prose may use
 "Expanded AST", "Binding IR", and "Analysis IR", but serialized output must
@@ -69,15 +78,20 @@ GewyLang Syntax v1
   -> Expanded AST v1
   -> gewylang-compiler + explicit SemanticHost
   -> canonical assignments
+  -> gewylang-compiler + explicit BindingMaterializer
+  -> Gewyvern binding adapter
   -> Binding IR v1
   -> validation and supportability analysis
+  -> gewylang-ir + explicit CompilerProjectionHost
   -> Analysis IR v1
   -> runtime planning and export projections
 ```
 
-The private parser structs, canonical assignment units, and helper types are
-implementation details. They may change without a stage-version bump when the
-observable syntax and stage contracts remain unchanged.
+The private parser structs, canonical assignment units, and Gewyvern host
+implementations are implementation details. The public host traits may evolve
+compatibly without a stage-version bump when the observable syntax and stage
+contracts remain unchanged. Public `gewylang-ir` values are stage-contract
+types and must follow the corresponding stage version.
 
 ## Source Syntax v1
 

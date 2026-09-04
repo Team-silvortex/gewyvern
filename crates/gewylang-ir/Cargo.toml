@@ -1,0 +1,9 @@
+[package]
+name = "gewylang-ir"
+version.workspace = true
+edition.workspace = true
+description = "Product-independent GewyLang binding and analysis IR contracts"
+license.workspace = true
+
+[dependencies]
+gewylang-contract = { path = "../gewylang-contract" }

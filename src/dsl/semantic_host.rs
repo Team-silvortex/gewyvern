@@ -1,9 +1,11 @@
 use super::{
     DslError,
     function_types::validate_pipeline_param_value_kind,
-    legacy::{parse_operation, parse_stage, parse_window_profile},
+    materializer::build_binding_from_canonical_assignments,
     parse_bool, parse_flow_predicate, parse_reason_key_event,
+    pipeline::CanonicalAssignment,
     predicate::{parse_narrative_template, parse_reason_narrative},
+    semantic_values::{parse_operation, parse_stage, parse_window_profile},
 };
 use crate::flow::{ProgramOperation, ProgramStageKind};
 use crate::fragment::EvidenceTier;
@@ -11,8 +13,8 @@ use crate::ir::FlowPredicate;
 use crate::ledger::FactKindTag;
 use crate::program::ProgramRule;
 use crate::reason::{ReasonProfile, ReasonRule};
-use crate::template::{FragmentParamValue, WindowProfile};
-use gewylang_compiler::{ProgramRuleInput, ReasonRuleInput, SemanticHost};
+use crate::template::{FragmentParamValue, TemplateBinding, WindowProfile};
+use gewylang_compiler::{BindingMaterializer, ProgramRuleInput, ReasonRuleInput, SemanticHost};
 use gewylang_syntax::{PipelineValueKind, SyntaxError};
 
 pub(super) struct GewyvernSemanticHost;
@@ -99,6 +101,18 @@ impl SemanticHost for GewyvernSemanticHost {
             module: input.scope.module,
             phase: input.scope.phase,
         })
+    }
+}
+
+impl BindingMaterializer for GewyvernSemanticHost {
+    type Binding = TemplateBinding;
+    type Error = DslError;
+
+    fn materialize_binding(
+        &self,
+        assignments: Vec<CanonicalAssignment>,
+    ) -> Result<Self::Binding, Self::Error> {
+        build_binding_from_canonical_assignments(assignments)
     }
 }
 

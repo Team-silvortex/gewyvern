@@ -82,6 +82,9 @@ fn language_contract_schema_matches_the_rust_stage_contract() {
         "Expanded AST v1",
         "Binding IR v1",
         "Analysis IR v1",
+        "`gewylang-ir`",
+        "`BindingMaterializer`",
+        "`CompilerProjectionHost`",
         "cargo run -p gewyc -- ir",
         "Runtime Projections Are Separate",
         "schema_hint.schema_version",
@@ -121,7 +124,8 @@ fn package_reference_locks_source_graph_resolution_and_budgets() {
 fn dynamic_narrative_and_parameter_lowering_paths_do_not_leak_static_text() {
     let root = repository_root();
     let predicate = fs::read_to_string(root.join("src/dsl/predicate.rs")).unwrap();
-    let legacy = fs::read_to_string(root.join("src/dsl/legacy.rs")).unwrap();
+    let materializer = fs::read_to_string(root.join("src/dsl/materializer.rs")).unwrap();
+    let semantic_values = fs::read_to_string(root.join("src/dsl/semantic_values.rs")).unwrap();
     let lowering =
         fs::read_to_string(root.join("crates/gewylang-compiler/src/lowering.rs")).unwrap();
     let codec = fs::read_to_string(root.join("src/export/reason_codec/parse.rs")).unwrap();
@@ -139,7 +143,8 @@ fn dynamic_narrative_and_parameter_lowering_paths_do_not_leak_static_text() {
         .unwrap();
 
     assert!(!predicate.contains("Box::leak"));
-    assert!(!legacy.contains("Box::leak"));
+    assert!(!materializer.contains("Box::leak"));
+    assert!(!semantic_values.contains("Box::leak"));
     assert!(!param_lowering.contains("Box::leak"));
     assert!(!narrative_codec.contains("Box::leak"));
     assert!(!attach_codec.contains("Box::leak"));
@@ -150,17 +155,35 @@ fn dynamic_narrative_and_parameter_lowering_paths_do_not_leak_static_text() {
 fn canonical_pipeline_lowering_does_not_round_trip_through_legacy_text() {
     let root = repository_root();
     let entry = fs::read_to_string(root.join("src/dsl/entry.rs")).unwrap();
+    let compiler = fs::read_to_string(root.join("crates/gewylang-compiler/src/lib.rs")).unwrap();
     let lowering =
         fs::read_to_string(root.join("crates/gewylang-compiler/src/lowering.rs")).unwrap();
 
     assert!(!entry.contains("pipeline_to_legacy"));
     assert!(!entry.contains("parse_legacy_str_unvalidated"));
     assert!(!lowering.contains("lower_pipeline_module_to_legacy"));
-    assert!(entry.contains("build_binding_from_canonical_assignments"));
+    assert!(entry.contains("lower_and_materialize_pipeline_module"));
+    assert!(!entry.contains("build_binding_from_canonical_assignments"));
+    assert!(compiler.contains("pub trait BindingMaterializer"));
+    assert!(compiler.contains("host.materialize_binding(assignments)"));
     assert!(!entry.contains("build_binding_from_assignments"));
     assert!(!lowering.contains("LegacyAssignment"));
     assert!(!lowering.contains("format!(\"{}={}\""));
     assert!(!lowering.contains("format!(\"{}:{}\""));
+}
+
+#[test]
+fn compiler_stage_projection_routes_through_the_independent_host_contract() {
+    let root = repository_root();
+    let contract = fs::read_to_string(root.join("crates/gewylang-ir/src/projection.rs")).unwrap();
+    let adapter = fs::read_to_string(root.join("src/gewyc/projection_host.rs")).unwrap();
+    let compiler = fs::read_to_string(root.join("src/gewyc.rs")).unwrap();
+
+    assert!(contract.contains("pub trait CompilerProjectionHost"));
+    assert!(contract.contains("pub fn project_compiler_stages"));
+    assert!(adapter.contains("impl CompilerProjectionHost for GewyvernProjectionHost"));
+    assert!(compiler.contains("gewylang_ir::project_compiler_stages"));
+    assert!(!compiler.contains("ir_report_from_binding(&binding"));
 }
 
 fn repository_root() -> PathBuf {

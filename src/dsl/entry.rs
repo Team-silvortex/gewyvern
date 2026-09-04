@@ -1,12 +1,10 @@
-use super::legacy::build_binding_from_canonical_assignments;
 use super::{
     DslError, FrontendModuleSummary, PackageContext, PipelineModule, TemplateBinding,
-    lower_pipeline_module_to_assignments, summarize_pipeline_module, validate_compiled_binding,
+    semantic_host::GewyvernSemanticHost, summarize_pipeline_module, validate_compiled_binding,
 };
 
 pub fn parse_file_unvalidated(path: &str) -> Result<TemplateBinding, DslError> {
-    let module = gewylang_syntax::parse_file(path).map_err(DslError::from)?;
-    binding_from_module(&module)
+    gewylang_compiler::compile_binding_file(path, &GewyvernSemanticHost)
 }
 
 pub fn parse_file_with_frontend_unvalidated(
@@ -23,8 +21,7 @@ pub fn compile_file(path: &str) -> Result<TemplateBinding, DslError> {
 }
 
 pub fn parse_str_unvalidated(input: &str) -> Result<TemplateBinding, DslError> {
-    let module = gewylang_syntax::parse_str(input).map_err(DslError::from)?;
-    binding_from_module(&module)
+    gewylang_compiler::compile_binding_str(input, &GewyvernSemanticHost)
 }
 
 pub fn parse_str_with_frontend_unvalidated(
@@ -57,15 +54,13 @@ pub(crate) fn parse_str_unvalidated_with_package(
 }
 
 fn binding_from_module(module: &PipelineModule) -> Result<TemplateBinding, DslError> {
-    let assignments = lower_pipeline_module_to_assignments(module, true)?;
-    build_binding_from_canonical_assignments(assignments)
+    gewylang_compiler::lower_and_materialize_pipeline_module(module, &GewyvernSemanticHost, true)
 }
 
 fn binding_and_frontend_from_module(
     module: PipelineModule,
 ) -> Result<(TemplateBinding, FrontendModuleSummary), DslError> {
-    let assignments = lower_pipeline_module_to_assignments(&module, true)?;
-    let binding = build_binding_from_canonical_assignments(assignments)?;
+    let binding = binding_from_module(&module)?;
     let frontend = summarize_pipeline_module(module);
     Ok((binding, frontend))
 }

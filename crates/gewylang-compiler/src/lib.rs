@@ -1,6 +1,6 @@
 //! Product-independent GewyLang expansion and semantic lowering.
 
-use gewylang_syntax::{PipelineValueKind, SyntaxError};
+use gewylang_syntax::{PipelineModule, PipelineValueKind, SyntaxError};
 
 mod lowering;
 
@@ -22,6 +22,35 @@ pub fn compile_file<H: SemanticHost>(
 ) -> Result<Vec<CanonicalAssignment<H>>, SyntaxError> {
     let module = gewylang_syntax::parse_file(path)?;
     lower_pipeline_module(&module, host, true)
+}
+
+/// Parse, lower, and materialize an in-memory GewyLang module through one host.
+pub fn compile_binding_str<H: BindingMaterializer>(
+    input: &str,
+    host: &H,
+) -> Result<H::Binding, H::Error> {
+    let module = gewylang_syntax::parse_str(input).map_err(H::Error::from)?;
+    lower_and_materialize_pipeline_module(&module, host, true)
+}
+
+/// Load, lower, and materialize a GewyLang package entry through one host.
+pub fn compile_binding_file<H: BindingMaterializer>(
+    path: &str,
+    host: &H,
+) -> Result<H::Binding, H::Error> {
+    let module = gewylang_syntax::parse_file(path).map_err(H::Error::from)?;
+    lower_and_materialize_pipeline_module(&module, host, true)
+}
+
+/// Lower a parsed module and hand the canonical stream to its binding host.
+pub fn lower_and_materialize_pipeline_module<H: BindingMaterializer>(
+    module: &PipelineModule,
+    host: &H,
+    allow_template_head: bool,
+) -> Result<H::Binding, H::Error> {
+    let assignments =
+        lower_pipeline_module(module, host, allow_template_head).map_err(H::Error::from)?;
+    host.materialize_binding(assignments)
 }
 
 /// Product semantics required while lowering a GewyLang module.
@@ -63,6 +92,21 @@ pub trait SemanticHost {
         &self,
         input: ReasonRuleInput<'_>,
     ) -> Result<Self::ReasonRule, SyntaxError>;
+}
+
+/// Product boundary that turns canonical assignments into an executable binding.
+///
+/// Static tooling can stop at [`SemanticHost`] and consume the canonical stream.
+/// Runtime hosts implement this second trait only when they need a complete
+/// product binding, keeping product model construction outside the compiler.
+pub trait BindingMaterializer: SemanticHost + Sized {
+    type Binding;
+    type Error: From<SyntaxError>;
+
+    fn materialize_binding(
+        &self,
+        assignments: Vec<CanonicalAssignment<Self>>,
+    ) -> Result<Self::Binding, Self::Error>;
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -193,6 +237,27 @@ mod tests {
         }
     }
 
+    impl BindingMaterializer for TestHost {
+        type Binding = Vec<String>;
+        type Error = SyntaxError;
+
+        fn materialize_binding(
+            &self,
+            assignments: Vec<CanonicalAssignment<Self>>,
+        ) -> Result<Self::Binding, Self::Error> {
+            Ok(assignments
+                .into_iter()
+                .filter_map(|assignment| match assignment.value {
+                    CanonicalAssignmentValue::Template(value) => Some(format!("template:{value}")),
+                    CanonicalAssignmentValue::Operation(value) => {
+                        Some(format!("operation:{value}"))
+                    }
+                    _ => None,
+                })
+                .collect())
+        }
+    }
+
     #[test]
     fn standalone_compiler_lowers_with_a_non_product_host() {
         let assignments = compile_str(
@@ -227,5 +292,21 @@ template(:standalone)
             CanonicalAssignmentValue::ProgramRule(rule)
                 if rule == "process_bound:process_bound:true"
         )));
+    }
+
+    #[test]
+    fn standalone_compiler_materializes_with_a_non_product_host() {
+        let binding = compile_binding_str(
+            r#"
+template(:standalone)
+|> window(:default_5s)
+|> reason(:network_timeout)
+|> operation(:connect_flow)
+"#,
+            &TestHost,
+        )
+        .unwrap();
+
+        assert_eq!(binding, ["template:standalone", "operation:connect_flow"]);
     }
 }

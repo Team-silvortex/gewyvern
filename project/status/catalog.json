@@ -213,6 +213,11 @@
         "summary": "Product-independent GewyLang expansion and host-generic semantic lowering."
       },
       {
+        "id": "standalone-ir-contract",
+        "label": "Standalone IR Contract",
+        "summary": "Product-independent Binding IR, Analysis IR, diagnostics, and history projection values."
+      },
+      {
         "id": "protocol-catalog",
         "label": "Protocol Catalog",
         "summary": "Reusable packaged protocol definitions and registry metadata."
@@ -422,10 +427,11 @@
       "id": "boundary-gewylang-compiler",
       "architecture": "gewylang",
       "kind": "ownership-boundary",
-      "summary": "The gewylang-compiler crate owns function expansion, parameter binding, canonical lowering, and the explicit semantic-host boundary; Gewyvern owns only its runtime adapter.",
+      "summary": "The gewylang-compiler crate owns canonical lowering plus semantic-host and binding-materializer boundaries; gewylang-ir owns stable IR values and projection orchestration; Gewyvern owns only the concrete product adapters.",
       "source": "docs/gewylang-system.md",
       "cells": [
         "gewylang/compiler/standalone-lowering",
+        "gewylang/compiler/standalone-ir-contract",
         "gewylang/compiler/parser-lowering"
       ]
     },
@@ -957,7 +963,7 @@
       "independence": "reusable-library",
       "contract": {
         "id": "gewylang-semantic-host-contract",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "stability": "stable",
         "surfaces": [
           "direct-string-and-file-compiler-facade",
@@ -967,6 +973,9 @@
           "bounded-placeholder-substitution",
           "canonical-rule-keywords",
           "explicit-semantic-host",
+          "explicit-binding-materializer",
+          "direct-string-and-file-binding-facade",
+          "host-generic-binding-output",
           "zero-product-dependency-closure"
         ]
       },
@@ -976,10 +985,56 @@
       "evidence": [
         { "kind": "source", "path": "crates/gewylang-compiler/src/lib.rs", "state": "present" },
         { "kind": "source", "path": "crates/gewylang-compiler/src/lowering.rs", "state": "present" },
+        { "kind": "source", "path": "src/dsl/materializer.rs", "state": "present" },
+        { "kind": "source", "path": "src/dsl/semantic_host.rs", "state": "present" },
         { "kind": "test", "path": "tests/language_independence_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/gewylang-contract.md", "state": "present" }
       ],
-      "next_gate": "Stabilize a product-neutral Binding IR and analysis facade so gewyc can emit every compiler stage without linking the Gewyvern runtime."
+      "next_gate": "Move the concrete Gewyvern semantic and materialization host into a narrow adapter crate without changing Syntax v1 or Binding IR v1."
+    },
+    {
+      "id": "gewylang/compiler/standalone-ir-contract",
+      "architecture": "gewylang",
+      "module": "compiler",
+      "feature": "standalone-ir-contract",
+      "lifecycle": "current",
+      "priority": "maintenance",
+      "maturity": "mature",
+      "completion": 100,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "gewylang-ir-contract",
+        "version": "1.1.0",
+        "stability": "stable",
+        "surfaces": [
+          "binding-ir-v1-values",
+          "analysis-ir-v1-values",
+          "diagnostics-projection-values",
+          "model-shape-queries",
+          "deterministic-model-comparison",
+          "history-snapshot-projection",
+          "compiler-projection-host",
+          "coherent-stage-projection",
+          "diagnostic-error-preservation",
+          "versioned-contract-stamps",
+          "zero-product-dependency-closure"
+        ]
+      },
+      "depends_on": [],
+      "blockers": [],
+      "consumers": ["gewyvern-analysis-adapter", "gewyc", "external-language-tooling"],
+      "evidence": [
+        { "kind": "source", "path": "crates/gewylang-ir/src/lib.rs", "state": "present" },
+        { "kind": "source", "path": "crates/gewylang-ir/src/binding.rs", "state": "present" },
+        { "kind": "source", "path": "crates/gewylang-ir/src/analysis.rs", "state": "present" },
+        { "kind": "source", "path": "crates/gewylang-ir/src/diagnostics.rs", "state": "present" },
+        { "kind": "source", "path": "crates/gewylang-ir/src/projection.rs", "state": "present" },
+        { "kind": "source", "path": "src/gewyc/projection_host.rs", "state": "present" },
+        { "kind": "test", "path": "tests/language_independence_tdd.rs", "state": "present" },
+        { "kind": "documentation", "path": "docs/gewylang-contract.md", "state": "present" }
+      ],
+      "next_gate": "Extract the concrete Gewyvern projection adapter and its minimal registry/model vocabulary so gewyc can stop linking the full runtime without changing payloads."
     },
     {
       "id": "gewylang/compiler/parser-lowering",
@@ -994,7 +1049,7 @@
       "independence": "reusable-library",
       "contract": {
         "id": "gewylang-frontend-contract",
-        "version": "1.32.0",
+        "version": "1.34.0",
         "stability": "stable",
         "surfaces": [
           "gewylang-source",
@@ -1019,6 +1074,10 @@
           "source-located-structured-assignments",
           "no-legacy-text-round-trip",
           "typed-canonical-assignment-values",
+          "explicit-binding-materializer-adapter",
+          "end-to-end-host-materialization",
+          "compiler-projection-host-adapter",
+          "single-stage-projection-dispatch",
           "direct-window-value-lowering",
           "direct-fragment-parameter-lowering",
           "direct-evidence-tier-lowering",
@@ -1092,7 +1151,10 @@
           "package-include-graph-benchmark"
         ]
       },
-      "depends_on": ["gewylang/compiler/standalone-lowering"],
+      "depends_on": [
+        "gewylang/compiler/standalone-lowering",
+        "gewylang/compiler/standalone-ir-contract"
+      ],
       "blockers": [],
       "consumers": ["protocol-authors", "gewyvern-runtime", "model-tooling"],
       "evidence": [
@@ -1101,7 +1163,10 @@
         { "kind": "source", "path": "crates/gewylang-syntax/src/lib.rs", "state": "present" },
         { "kind": "source", "path": "crates/gewylang-compiler/src/lib.rs", "state": "present" },
         { "kind": "source", "path": "src/dsl/function_types.rs", "state": "present" },
+        { "kind": "source", "path": "src/dsl/materializer.rs", "state": "present" },
         { "kind": "source", "path": "src/dsl/semantic_host.rs", "state": "present" },
+        { "kind": "source", "path": "src/dsl/semantic_values.rs", "state": "present" },
+        { "kind": "source", "path": "src/gewyc/projection_host.rs", "state": "present" },
         { "kind": "test", "path": "crates/gewyc/tests/cli_information.rs", "state": "present" },
         { "kind": "test", "path": "crates/gewyc/src/tests.rs", "state": "present" },
         { "kind": "test", "path": "tests/gewylang_docs_tdd.rs", "state": "present" },
@@ -1111,7 +1176,7 @@
         { "kind": "documentation", "path": "docs/gewylang-system.md", "state": "present" },
         { "kind": "documentation", "path": "docs/performance-baselines.md", "state": "present" }
       ],
-      "next_gate": "Move the stable Binding IR and analysis facade behind the independent compiler boundary so gewyc no longer links the full Gewyvern runtime; preserve every payload and diagnostic code while doing so."
+      "next_gate": "Move the concrete semantic, materialization, and registry projection adapters into a narrow Gewyvern language-host crate so gewyc no longer links the full runtime; preserve every payload and diagnostic code."
     },
     {
       "id": "gewylang/protocol-packages/protocol-catalog",

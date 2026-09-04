@@ -79,6 +79,7 @@ fn assert_workspace_closure(root: &str, expected: &[&str]) {
 #[test]
 fn gewylang_frontend_and_compiler_have_no_product_dependency() {
     assert_workspace_closure("gewylang-contract", &[]);
+    assert_workspace_closure("gewylang-ir", &["gewylang-contract"]);
     assert_workspace_closure("gewylang-syntax", &["gewylang-contract"]);
     assert_workspace_closure(
         "gewylang-compiler",

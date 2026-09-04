@@ -1,8 +1,7 @@
 use super::{
-    DslError,
-    legacy::parse_stage,
-    parse_bool, parse_flow_predicate,
+    DslError, parse_bool, parse_flow_predicate,
     predicate::{parse_narrative_template, parse_reason_key_event},
+    semantic_values::parse_stage,
 };
 use gewylang_syntax::PipelineValueKind;
 

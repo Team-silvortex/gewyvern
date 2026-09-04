@@ -41,7 +41,8 @@ If you want the reading order for the whole language shelf, start with
 The DSL does not compile into eBPF bytecode.
 
 Its semantic compile target is Binding IR v1, represented by
-`TemplateBinding`, which carries:
+the public `gewylang_ir::BindingReport` contract and materialized for execution
+as `TemplateBinding`, which carries:
 
 - template identity
 - fragment selection
@@ -84,7 +85,15 @@ template :structured_udp_process_debug
 
 The pipeline parser first merges files and function units into Expanded AST
 v1, then lowers that structure into Binding IR v1. Analysis IR v1 is the
-separate diagnostics-enriched inspection projection.
+separate diagnostics-enriched inspection projection. Both public value shapes
+live in the product-independent `gewylang-ir` crate; runtime materialization and
+registry-aware production remain explicit Gewyvern adapters. The compiler calls
+those adapters only through `SemanticHost` and `BindingMaterializer`; source
+parsing, canonical lowering, and end-to-end host dispatch stay in the
+product-independent `gewylang-compiler` crate. Binding, Diagnostics, and
+Analysis report production crosses back through
+`gewylang_ir::CompilerProjectionHost`, with coherent stage orchestration owned
+by `gewylang-ir` and only field mapping owned by Gewyvern.
 
 Function units reference parameters and local bindings with `$name`, so
 parameterized pipelines stay concise without changing their lowering model.
@@ -229,8 +238,15 @@ most relevant implementation shelves:
 - [src/dsl.rs](../src/dsl.rs)
 - [src/dsl/pipeline.rs](../src/dsl/pipeline.rs)
 - [src/dsl/semantic_host.rs](../src/dsl/semantic_host.rs)
+- [src/dsl/materializer.rs](../src/dsl/materializer.rs)
+- [src/dsl/semantic_values.rs](../src/dsl/semantic_values.rs)
+- [src/gewyc/projection_host.rs](../src/gewyc/projection_host.rs)
 - [crates/gewylang-compiler/src/lib.rs](../crates/gewylang-compiler/src/lib.rs)
 - [crates/gewylang-compiler/src/lowering.rs](../crates/gewylang-compiler/src/lowering.rs)
+- [crates/gewylang-ir/src/lib.rs](../crates/gewylang-ir/src/lib.rs)
+- [crates/gewylang-ir/src/binding.rs](../crates/gewylang-ir/src/binding.rs)
+- [crates/gewylang-ir/src/analysis.rs](../crates/gewylang-ir/src/analysis.rs)
+- [crates/gewylang-ir/src/projection.rs](../crates/gewylang-ir/src/projection.rs)
 - [crates/gewylang-syntax/src/lib.rs](../crates/gewylang-syntax/src/lib.rs)
 - [crates/gewylang-syntax/src/package.rs](../crates/gewylang-syntax/src/package.rs)
 - [crates/gewylang-syntax/src/frontend.rs](../crates/gewylang-syntax/src/frontend.rs)

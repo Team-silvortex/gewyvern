@@ -1,6 +1,5 @@
 mod surfaces;
 
-use super::render_support::*;
 use super::*;
 
 const GEWYC_JSON_SCHEMA_VERSION: usize = 1;
@@ -137,75 +136,18 @@ fn gewyc_surface_json(surface: &str, body: String) -> String {
 }
 
 pub fn binding_report(binding: &TemplateBinding) -> BindingReport {
-    BindingReport {
-        template_id: binding.template.id.to_string(),
-        fragments: binding.template.fragment_set.to_vec(),
-        window: binding
-            .template
-            .window_profile
-            .as_ref()
-            .map(|window| WindowReport {
-                id: window.id.to_string(),
-                duration_ms: window.duration_ms,
-                lateness_ms: window.lateness_ms,
-            }),
-        reason_profile: binding
-            .template
-            .reason_profile
-            .as_ref()
-            .map(reason_profile_report),
-        program_model: binding
-            .template
-            .program_model
-            .as_ref()
-            .map(|model| ProgramModelReport {
-                id: model.id.to_string(),
-                operation: program_operation_text(&model.operation).to_string(),
-                rules: model.rules.len(),
-            }),
-        fragment_params: binding
-            .fragment_params
-            .iter()
-            .flat_map(|(fragment, params)| {
-                params.iter().map(|(key, value)| FragmentParamReport {
-                    fragment: fragment.clone(),
-                    key: key.clone(),
-                    value: fragment_param_report(value),
-                })
-            })
-            .collect(),
-        evidence_overrides: binding
-            .evidence_overrides
-            .iter()
-            .map(|(fact_kind, tier)| EvidenceOverrideReport {
-                fact_kind: fact_kind.to_string(),
-                tier: evidence_tier_text(tier).to_string(),
-            })
-            .collect(),
-    }
+    gewylang_ir::CompilerProjectionHost::project_binding(&GewyvernProjectionHost, binding)
 }
 
 pub fn diagnostics_report(
     binding: &TemplateBinding,
     diagnostics: &BindingDiagnostics,
 ) -> DiagnosticsReport {
-    DiagnosticsReport {
-        template_id: binding.template.id.to_string(),
-        fragments: binding
-            .template
-            .fragment_set
-            .iter()
-            .map(|fragment| (*fragment).to_string())
-            .collect(),
-        program_model: diagnostics
-            .program_model
-            .as_ref()
-            .map(model_diagnostics_report),
-        reason_model: diagnostics
-            .reason_model
-            .as_ref()
-            .map(model_diagnostics_report),
-    }
+    gewylang_ir::CompilerProjectionHost::project_diagnostics(
+        &GewyvernProjectionHost,
+        binding,
+        diagnostics,
+    )
 }
 
 pub(super) fn binding_text(report: &BindingReport) -> String {

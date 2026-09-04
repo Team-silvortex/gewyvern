@@ -11,6 +11,7 @@
     { "id": "gewylang-compiler", "source": "crates/gewylang-compiler" },
     { "id": "gewyc-cli", "source": "crates/gewyc" },
     { "id": "gewylang-contract", "source": "crates/gewylang-contract" },
+    { "id": "gewylang-ir", "source": "crates/gewylang-ir" },
     { "id": "gewylang-syntax", "source": "crates/gewylang-syntax" },
     { "id": "gewyvern-install-contract", "source": "crates/gewyvern-install-contract" },
     { "id": "protocol-standard-library", "source": "protocols" },

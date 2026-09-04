@@ -5240,12 +5240,15 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         gewylang_compiler.contract.stability,
         ContractStability::Stable
     );
-    assert_eq!(gewylang_compiler.contract.version, "1.0.0");
+    assert_eq!(gewylang_compiler.contract.version, "1.1.0");
     for surface in [
         "direct-string-and-file-compiler-facade",
         "canonical-assignment-stream",
         "function-expansion",
         "explicit-semantic-host",
+        "explicit-binding-materializer",
+        "direct-string-and-file-binding-facade",
+        "host-generic-binding-output",
         "zero-product-dependency-closure",
     ] {
         assert!(
@@ -5268,6 +5271,55 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         item.path == "crates/gewylang-compiler/src/lowering.rs"
             && item.state == EvidenceState::Present
     }));
+    assert!(gewylang_compiler.evidence.iter().any(|item| {
+        item.path == "src/dsl/materializer.rs" && item.state == EvidenceState::Present
+    }));
+
+    let gewylang_ir = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "gewylang/compiler/standalone-ir-contract")
+        .expect("standalone GewyLang IR contract cell must exist");
+    assert_eq!(gewylang_ir.maturity, Maturity::Mature);
+    assert_eq!(gewylang_ir.completion, 100);
+    assert_eq!(gewylang_ir.independence, Independence::ReusableLibrary);
+    assert_eq!(gewylang_ir.contract.stability, ContractStability::Stable);
+    assert_eq!(gewylang_ir.contract.version, "1.1.0");
+    assert!(gewylang_ir.depends_on.is_empty());
+    for surface in [
+        "binding-ir-v1-values",
+        "analysis-ir-v1-values",
+        "deterministic-model-comparison",
+        "history-snapshot-projection",
+        "compiler-projection-host",
+        "coherent-stage-projection",
+        "diagnostic-error-preservation",
+        "versioned-contract-stamps",
+        "zero-product-dependency-closure",
+    ] {
+        assert!(
+            gewylang_ir
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing standalone GewyLang IR surface {surface}"
+        );
+    }
+    for path in [
+        "crates/gewylang-ir/src/lib.rs",
+        "crates/gewylang-ir/src/binding.rs",
+        "crates/gewylang-ir/src/analysis.rs",
+        "crates/gewylang-ir/src/diagnostics.rs",
+        "crates/gewylang-ir/src/projection.rs",
+    ] {
+        assert!(
+            gewylang_ir
+                .evidence
+                .iter()
+                .any(|item| { item.path == path && item.state == EvidenceState::Present })
+        );
+    }
 
     let gewylang = catalog
         .cells
@@ -5277,10 +5329,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(gewylang.maturity, Maturity::Mature);
     assert_eq!(gewylang.completion, 100);
     assert_eq!(gewylang.contract.stability, ContractStability::Stable);
-    assert_eq!(gewylang.contract.version, "1.32.0");
+    assert_eq!(gewylang.contract.version, "1.34.0");
     assert_eq!(
         gewylang.depends_on,
-        ["gewylang/compiler/standalone-lowering"]
+        [
+            "gewylang/compiler/standalone-lowering",
+            "gewylang/compiler/standalone-ir-contract"
+        ]
     );
     for surface in [
         "standard-cli-help-and-version-exit-contract",
@@ -5293,6 +5348,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "direct-gewyc-binding-command",
         "direct-gewyc-ir-command",
         "language-contract-json-schema",
+        "explicit-binding-materializer-adapter",
+        "end-to-end-host-materialization",
+        "compiler-projection-host-adapter",
+        "single-stage-projection-dispatch",
         "allocation-bounded-placeholder-scanning",
         "borrowed-rule-keyword-lowering",
         "borrowed-unescaped-literal-lowering",
@@ -5326,6 +5385,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }));
     assert!(gewylang.evidence.iter().any(|item| {
         item.path == "src/dsl/semantic_host.rs" && item.state == EvidenceState::Present
+    }));
+    assert!(gewylang.evidence.iter().any(|item| {
+        item.path == "src/dsl/semantic_values.rs" && item.state == EvidenceState::Present
+    }));
+    assert!(gewylang.evidence.iter().any(|item| {
+        item.path == "src/gewyc/projection_host.rs" && item.state == EvidenceState::Present
     }));
     assert!(gewylang.evidence.iter().any(|item| {
         item.path == "docs/gewylang-contract.md" && item.state == EvidenceState::Present

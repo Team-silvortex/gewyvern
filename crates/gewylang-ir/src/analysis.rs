@@ -1,3 +1,6 @@
+use gewylang_contract::{GewyLangContractStamp, GewyLangStage};
+
+/// Diagnostics-enriched, product-independent Analysis IR projection.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IrReport {
     pub template_id: String,
@@ -69,7 +72,7 @@ pub struct IrModelShapeSummary {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct IrModelCompareSummary {
+pub struct IrModelCompareSummary {
     pub program_rule_count: usize,
     pub reason_rule_count: usize,
     pub rule_count_delta: isize,
@@ -117,7 +120,12 @@ pub struct IrHistoryCompareSnapshot {
 }
 
 impl IrReport {
-    pub(crate) fn model_entries(&self) -> Vec<(&'static str, &IrModelReport)> {
+    /// Contract identity carried by serialized forms of this value.
+    pub const fn contract_stamp() -> GewyLangContractStamp {
+        GewyLangContractStamp::for_stage(GewyLangStage::AnalysisIr)
+    }
+
+    pub fn model_entries(&self) -> Vec<(&'static str, &IrModelReport)> {
         let mut entries = Vec::with_capacity(2);
         if let Some(model) = self.program_model.as_ref() {
             entries.push(("program_model", model));
@@ -128,7 +136,7 @@ impl IrReport {
         entries
     }
 
-    pub(crate) fn compare_models(&self) -> Option<IrModelCompareSummary> {
+    pub fn compare_models(&self) -> Option<IrModelCompareSummary> {
         let program = self.program_model.as_ref()?;
         let reason = self.reason_model.as_ref()?;
         let program_modules = program.modules();
@@ -152,7 +160,7 @@ impl IrReport {
         })
     }
 
-    pub(crate) fn history_snapshot(&self) -> IrHistorySnapshot {
+    pub fn history_snapshot(&self) -> IrHistorySnapshot {
         IrHistorySnapshot {
             template_id: self.template_id.clone(),
             operation: self
@@ -169,21 +177,21 @@ impl IrReport {
                 .map(IrModelReport::history_snapshot),
             model_compare: self
                 .compare_models()
-                .map(|compare| compare.history_snapshot()),
+                .map(IrModelCompareSummary::history_snapshot),
         }
     }
 }
 
 impl IrModelReport {
-    pub(crate) fn supported_rule_count(&self) -> usize {
+    pub fn supported_rule_count(&self) -> usize {
         self.rules.iter().filter(|rule| rule.supported).count()
     }
 
-    pub(crate) fn unsupported_rule_count(&self) -> usize {
+    pub fn unsupported_rule_count(&self) -> usize {
         self.rules.len().saturating_sub(self.supported_rule_count())
     }
 
-    pub(crate) fn modules(&self) -> Vec<String> {
+    pub fn modules(&self) -> Vec<String> {
         unique_sorted_strings(
             self.rules
                 .iter()
@@ -192,7 +200,7 @@ impl IrModelReport {
         )
     }
 
-    pub(crate) fn phases(&self) -> Vec<String> {
+    pub fn phases(&self) -> Vec<String> {
         unique_sorted_strings(
             self.rules
                 .iter()
@@ -201,7 +209,7 @@ impl IrModelReport {
         )
     }
 
-    pub(crate) fn history_snapshot(&self) -> IrHistoryModelSnapshot {
+    pub fn history_snapshot(&self) -> IrHistoryModelSnapshot {
         IrHistoryModelSnapshot {
             id: self.id.clone(),
             kind: self.kind.clone(),
@@ -215,7 +223,7 @@ impl IrModelReport {
 }
 
 impl IrModelCompareSummary {
-    pub(crate) fn history_snapshot(self) -> IrHistoryCompareSnapshot {
+    pub fn history_snapshot(self) -> IrHistoryCompareSnapshot {
         IrHistoryCompareSnapshot {
             rule_count_delta: self.rule_count_delta,
             supported_rule_count_delta: self.supported_rule_count_delta,
@@ -230,27 +238,27 @@ impl IrModelCompareSummary {
 }
 
 impl IrRuleReport {
-    pub(crate) fn module_name(&self) -> Option<&str> {
+    pub fn module_name(&self) -> Option<&str> {
         self.module.as_deref()
     }
 
-    pub(crate) fn phase_name(&self) -> Option<&str> {
+    pub fn phase_name(&self) -> Option<&str> {
         self.phase.as_deref()
     }
 
-    pub(crate) fn signal_name(&self) -> Option<&str> {
+    pub fn signal_name(&self) -> Option<&str> {
         self.signal.as_deref()
     }
 
-    pub(crate) fn phase_kind_name(&self) -> Option<&str> {
+    pub fn phase_kind_name(&self) -> Option<&str> {
         self.phase_kind.as_deref()
     }
 
-    pub(crate) fn has_unsupported_payload_offsets(&self) -> bool {
+    pub fn has_unsupported_payload_offsets(&self) -> bool {
         !self.unsupported_payload_offsets.is_empty()
     }
 
-    pub(crate) fn support_shape(&self) -> IrRuleSupportShape<'_> {
+    pub fn support_shape(&self) -> IrRuleSupportShape<'_> {
         IrRuleSupportShape {
             required_facts: &self.required_facts,
             supporting_fragments: &self.supporting_fragments,
@@ -279,4 +287,64 @@ fn difference_sorted_strings(left: &[String], right: &[String]) -> Vec<String> {
         .filter(|item| !right.contains(item))
         .cloned()
         .collect::<Vec<_>>()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rule(module: &str, phase: &str, supported: bool) -> IrRuleReport {
+        IrRuleReport {
+            rule_index: 0,
+            predicate: "process_bound".into(),
+            signal: Some("process_bound".into()),
+            narrative: "process_bound".into(),
+            dedupe: true,
+            module: Some(module.into()),
+            phase: Some(phase.into()),
+            phase_kind: Some("bind".into()),
+            required_facts: vec![],
+            supporting_fragments: vec![],
+            missing_facts: vec![],
+            unsupported_payload_offsets: vec![],
+            supported,
+        }
+    }
+
+    #[test]
+    fn analysis_report_exposes_the_analysis_ir_contract() {
+        let stamp = IrReport::contract_stamp();
+        assert_eq!(stamp.language, "gewylang");
+        assert_eq!(stamp.stage, GewyLangStage::AnalysisIr);
+        assert_eq!(stamp.stage_version, 1);
+    }
+
+    #[test]
+    fn model_comparison_is_deterministic_and_product_independent() {
+        let report = IrReport {
+            template_id: "standalone".into(),
+            program_model: Some(IrModelReport {
+                kind: "program".into(),
+                id: "program".into(),
+                operation: Some("connect".into()),
+                rules: vec![rule("shared", "bind", true), rule("program", "send", false)],
+            }),
+            reason_model: Some(IrModelReport {
+                kind: "reason".into(),
+                id: "reason".into(),
+                operation: None,
+                rules: vec![rule("shared", "bind", true)],
+            }),
+        };
+
+        let comparison = report.compare_models().unwrap();
+        assert_eq!(comparison.rule_count_delta, 1);
+        assert_eq!(comparison.shared_modules, ["shared"]);
+        assert_eq!(comparison.program_only_modules, ["program"]);
+        assert!(comparison.reason_only_modules.is_empty());
+
+        let snapshot = report.history_snapshot();
+        assert_eq!(snapshot.operation.as_deref(), Some("connect"));
+        assert_eq!(snapshot.program_model.unwrap().unsupported_rule_count, 1);
+    }
 }

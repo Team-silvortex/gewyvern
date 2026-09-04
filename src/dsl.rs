@@ -3,10 +3,11 @@ use crate::template::TemplateBinding;
 
 mod entry;
 mod function_types;
-mod legacy;
+mod materializer;
 mod pipeline;
 mod predicate;
 mod semantic_host;
+mod semantic_values;
 
 pub use self::entry::{
     compile_file, parse_file_unvalidated, parse_file_with_frontend_unvalidated,
@@ -16,7 +17,6 @@ pub(crate) use self::entry::{
     load_file_with_package_context, parse_str_unvalidated_with_package,
     parse_str_with_frontend_unvalidated_with_package,
 };
-use self::pipeline::lower_pipeline_module_to_assignments;
 pub(crate) use self::predicate::{parse_flow_predicate, parse_reason_key_event};
 pub use gewylang_contract::{
     GEWYLANG_ANALYSIS_IR_VERSION, GEWYLANG_BINDING_IR_VERSION, GEWYLANG_EXPANDED_AST_VERSION,

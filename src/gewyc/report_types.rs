@@ -1,87 +1,15 @@
-mod ir;
-
-pub use ir::*;
+pub use gewylang_ir::{
+    BindingReport, DiagnosticsReport, EvidenceOverrideReport, FragmentParamReport,
+    IrHistoryCompareSnapshot, IrHistoryModelSnapshot, IrHistorySnapshot, IrLoweringDelta,
+    IrModelCompareSummary, IrModelReport, IrModelShapeSummary, IrReport, IrRuleReport,
+    IrRuleSupportShape, ModelDiagnosticsReport, ParamValueReport, ProgramModelReport,
+    ReasonProfileReport, RuleDiagnosticsReport, WindowReport,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RenderFormat {
     Text,
     Json,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct BindingReport {
-    pub template_id: String,
-    pub fragments: Vec<String>,
-    pub window: Option<WindowReport>,
-    pub reason_profile: Option<ReasonProfileReport>,
-    pub program_model: Option<ProgramModelReport>,
-    pub fragment_params: Vec<FragmentParamReport>,
-    pub evidence_overrides: Vec<EvidenceOverrideReport>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct WindowReport {
-    pub id: String,
-    pub duration_ms: u64,
-    pub lateness_ms: u64,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ReasonProfileReport {
-    Builtin { id: String },
-    Declarative { id: String, rules: usize },
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProgramModelReport {
-    pub id: String,
-    pub operation: String,
-    pub rules: usize,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct FragmentParamReport {
-    pub fragment: String,
-    pub key: String,
-    pub value: ParamValueReport,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ParamValueReport {
-    Bool(bool),
-    U64(u64),
-    String(String),
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct EvidenceOverrideReport {
-    pub fact_kind: String,
-    pub tier: String,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct DiagnosticsReport {
-    pub template_id: String,
-    pub fragments: Vec<String>,
-    pub program_model: Option<ModelDiagnosticsReport>,
-    pub reason_model: Option<ModelDiagnosticsReport>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ModelDiagnosticsReport {
-    pub model: String,
-    pub rules: Vec<RuleDiagnosticsReport>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RuleDiagnosticsReport {
-    pub rule_index: usize,
-    pub tier: String,
-    pub supported: bool,
-    pub required_facts: Vec<String>,
-    pub supporting_fragments: Vec<String>,
-    pub missing_facts: Vec<String>,
-    pub unsupported_payload_offsets: Vec<u16>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
