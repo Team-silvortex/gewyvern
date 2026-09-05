@@ -7,3 +7,4 @@ license.workspace = true
 
 [dependencies]
 gewyvern = { path = "../.." }
+silvortex-bounded-io = { path = "../silvortex-bounded-io" }

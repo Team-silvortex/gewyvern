@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::process;
 
 use serde_json::json;
+use silvortex_bounded_io::atomic_write_bounded_private_file;
 
 #[path = "../validation_harness_cli_stack.rs"]
 mod gewyvern_validate_stack;
@@ -76,6 +77,7 @@ const TOP_LEVEL_COMMANDS: &[&str] = &[
 ];
 const JSON_SCHEMA_VERSION: u32 = 1;
 const CLI_SOCKET_TARGET_MAX_LEN: usize = 4096;
+const MAX_VALIDATION_JSON_OUTPUT_BYTES: u64 = 16 * 1024 * 1024;
 
 fn listed_commands() -> Vec<&'static str> {
     let mut commands = TOP_LEVEL_COMMANDS
@@ -1686,9 +1688,16 @@ fn emit_json_payload(
     if let Some(path) = json_out {
         let result = path
             .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
             .map(fs::create_dir_all)
             .transpose()
-            .and_then(|_| fs::write(path, rendered.as_bytes()));
+            .and_then(|_| {
+                atomic_write_bounded_private_file(
+                    path,
+                    rendered.as_bytes(),
+                    MAX_VALIDATION_JSON_OUTPUT_BYTES,
+                )
+            });
         if let Err(error) = result {
             eprintln!(
                 "validation failed: cannot write JSON output '{}': {error}",
@@ -3482,5 +3491,29 @@ mod tests {
             Some(PathBuf::from("/tmp/gewyvern-validation.json"))
         );
         assert_eq!(args, vec!["list"]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn json_output_replaces_symlinks_without_touching_their_targets() {
+        use std::os::unix::fs::{MetadataExt, symlink};
+
+        let temp = TempDirGuard::new("gewyvern-validation-json-symlink");
+        let outside = temp.path.join("outside.json");
+        let output = temp.path.join("result.json");
+        fs::write(&outside, "outside\n").unwrap();
+        symlink(&outside, &output).unwrap();
+        let payload = json!({"schema_version": JSON_SCHEMA_VERSION, "ok": true});
+
+        emit_json_payload(&payload, Some(&output), false);
+
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "outside\n");
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&fs::read(&output).unwrap()).unwrap(),
+            payload
+        );
+        let metadata = fs::symlink_metadata(&output).unwrap();
+        assert!(!metadata.file_type().is_symlink());
+        assert_eq!(metadata.mode() & 0o777, 0o600);
     }
 }

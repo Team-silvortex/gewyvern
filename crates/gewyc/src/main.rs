@@ -6,8 +6,13 @@ use gewyvern::gewyc::{
     render_explain_report_with_options, render_findings_report,
     render_frontend_report_with_options, render_ir_report, render_stages_report,
 };
+use silvortex_bounded_io::atomic_write_bounded_private_file;
 use std::env;
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::path::Path;
+
+const MAX_COMPILER_OUTPUT_BYTES: u64 = 64 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum OutputMode {
@@ -339,7 +344,12 @@ fn run_lock(cli: Cli, locale: UiLocale) {
                 .into_owned()
         }
     });
-    fs::write(&out_path, lock).unwrap_or_else(|err| {
+    atomic_write_bounded_private_file(
+        Path::new(&out_path),
+        lock.as_bytes(),
+        MAX_COMPILER_OUTPUT_BYTES,
+    )
+    .unwrap_or_else(|err| {
         eprintln!("{}: {err}", locale.msg("write_failed"));
         std::process::exit(1);
     });
@@ -457,7 +467,7 @@ fn run_init(cli: Cli, locale: UiLocale) {
 }
 
 fn initialize_package(dir: &str) -> Result<(), String> {
-    let root = std::path::Path::new(dir);
+    let root = Path::new(dir);
     if root.exists() && !root.is_dir() {
         return Err(format!(
             "init target '{}' exists but is not a directory",
@@ -474,23 +484,26 @@ fn initialize_package(dir: &str) -> Result<(), String> {
         .unwrap_or_else(|| "gewy_app".to_string());
 
     let manifest_path = root.join("gewy.pkg");
-    if !manifest_path.exists() {
-        fs::write(&manifest_path, render_init_manifest(&package_name))
-            .map_err(|err| err.to_string())?;
-    }
+    create_scaffold_file(&manifest_path, &render_init_manifest(&package_name))?;
 
     let entry_path = root.join("main.gewy");
-    if !entry_path.exists() {
-        fs::write(&entry_path, render_init_entry(&package_name)).map_err(|err| err.to_string())?;
-    }
+    create_scaffold_file(&entry_path, &render_init_entry(&package_name))?;
 
     let module_path = root.join("module.gewy");
-    if !module_path.exists() {
-        fs::write(&module_path, render_init_module(&package_name))
-            .map_err(|err| err.to_string())?;
-    }
+    create_scaffold_file(&module_path, &render_init_module(&package_name))?;
 
     Ok(())
+}
+
+fn create_scaffold_file(path: &Path, contents: &str) -> Result<(), String> {
+    let mut file = match OpenOptions::new().write(true).create_new(true).open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(()),
+        Err(error) => return Err(error.to_string()),
+    };
+    file.write_all(contents.as_bytes())
+        .and_then(|_| file.sync_all())
+        .map_err(|error| error.to_string())
 }
 
 fn normalize_package_name(input: &str) -> String {
@@ -579,7 +592,12 @@ fn render_format(output: OutputMode) -> RenderFormat {
 
 fn emit_output(rendered: &str, out: Option<&str>, locale: UiLocale) {
     if let Some(path) = out {
-        fs::write(path, rendered).unwrap_or_else(|err| {
+        atomic_write_bounded_private_file(
+            Path::new(path),
+            rendered.as_bytes(),
+            MAX_COMPILER_OUTPUT_BYTES,
+        )
+        .unwrap_or_else(|err| {
             eprintln!("{}: {err}", locale.msg("write_failed"));
             std::process::exit(1);
         });

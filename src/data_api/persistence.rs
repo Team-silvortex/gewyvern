@@ -1,8 +1,8 @@
 use crate::render_utils::append_json_string;
 use gewyvern::protocol_profiles::protocol_summaries;
 use gewyvern::runtime_layout::runtime_layout;
+use silvortex_bounded_io::atomic_write_bounded_private_file;
 use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use super::anomaly_flow_view::api_target_anomaly_flow_json;
@@ -29,16 +29,13 @@ use crate::history_catalog_delta::{
     latest_protocol_catalog_delta, protocol_catalog_delta_between_paths,
     protocol_catalog_delta_json, protocol_catalog_delta_markdown,
 };
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
-
 const API_VERSION: &str = env!("CARGO_PKG_VERSION");
 const HISTORY_RETENTION_LIMIT: usize = 32;
 const MAX_HISTORY_RETENTION_LIMIT: usize = 1024;
 const MAX_HISTORY_DIRECTORY_ENTRIES: usize = 4096;
 const MAX_TARGET_DIRECTORY_ENTRIES: usize = 4096;
+const MAX_PERSISTED_SNAPSHOT_FILE_BYTES: u64 = 64 * 1024 * 1024;
 const HISTORY_RETENTION_ENV: &str = "GEWY_HISTORY_RETENTION";
-static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 pub(super) fn persist_latest_snapshot(snapshot: &ApiSnapshot) -> Result<(), String> {
     let state_root = runtime_layout().state_root;
@@ -508,7 +505,6 @@ fn write_optional_file(path: PathBuf, content: Option<&str>) -> Result<(), Strin
 }
 
 fn write_text_file(path: &Path, content: &str) -> Result<(), String> {
-    let temp_path = temp_path(path);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|err| {
             format!(
@@ -517,41 +513,13 @@ fn write_text_file(path: &Path, content: &str) -> Result<(), String> {
             )
         })?;
     }
-    let result = (|| {
-        let mut file = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temp_path)
-            .map_err(|err| {
-                format!(
-                    "failed to create latest snapshot file '{}': {err}",
-                    temp_path.display()
-                )
-            })?;
-        file.write_all(content.as_bytes()).map_err(|err| {
+    atomic_write_bounded_private_file(path, content.as_bytes(), MAX_PERSISTED_SNAPSHOT_FILE_BYTES)
+        .map_err(|err| {
             format!(
-                "failed to write latest snapshot file '{}': {err}",
-                temp_path.display()
-            )
-        })?;
-        file.sync_all().map_err(|err| {
-            format!(
-                "failed to sync latest snapshot file '{}': {err}",
-                temp_path.display()
-            )
-        })?;
-        fs::rename(&temp_path, path).map_err(|err| {
-            format!(
-                "failed to finalize latest snapshot file '{}' as '{}': {err}",
-                temp_path.display(),
+                "failed to persist latest snapshot file '{}': {err}",
                 path.display()
             )
         })
-    })();
-    if result.is_err() {
-        let _ = fs::remove_file(&temp_path);
-    }
-    result
 }
 
 fn remove_if_exists(path: &Path) -> Result<(), String> {
@@ -579,25 +547,11 @@ fn remove_if_exists(path: &Path) -> Result<(), String> {
     })
 }
 
-fn temp_path(path: &Path) -> PathBuf {
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("snapshot");
-    let sequence = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let unix_nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_nanos())
-        .unwrap_or(0);
-    let pid = std::process::id();
-    path.with_file_name(format!("{file_name}.{pid}.{unix_nanos}.{sequence}.tmp"))
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{history_snapshot_dirs, remove_if_exists, temp_path, write_text_file};
+    use super::{history_snapshot_dirs, remove_if_exists, write_text_file};
     use std::fs;
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temp_root(label: &str) -> PathBuf {
@@ -608,18 +562,6 @@ mod tests {
                 .expect("system clock must follow the epoch")
                 .as_nanos()
         ))
-    }
-
-    #[test]
-    fn temp_path_uses_unique_names_per_call() {
-        let path = Path::new("/tmp/meta.json");
-        let first = temp_path(path);
-        let second = temp_path(path);
-
-        assert_ne!(first, second);
-        assert!(first.to_string_lossy().contains("meta.json."));
-        assert!(first.to_string_lossy().ends_with(".tmp"));
-        assert!(second.to_string_lossy().ends_with(".tmp"));
     }
 
     #[cfg(unix)]

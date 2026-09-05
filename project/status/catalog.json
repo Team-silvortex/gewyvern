@@ -677,13 +677,13 @@
       "independence": "reusable-library",
       "contract": {
         "id": "silvortex-bounded-io",
-        "version": "1.0.0",
+        "version": "1.2.0",
         "stability": "stable",
-        "surfaces": ["bounded-regular-file-open", "atomic-unix-symlink-rejection", "post-open-growth-rejection", "bounded-address-resolution", "deadline-tcp-connect", "absolute-tcp-io-deadline", "strict-http-header-token-grammar", "compatibility-reexports"]
+        "surfaces": ["bounded-regular-file-open", "atomic-unix-symlink-rejection", "post-open-growth-rejection", "bounded-private-atomic-replace", "bounded-private-locked-append", "bounded-cross-process-file-lock", "bounded-address-resolution", "deadline-tcp-connect", "absolute-tcp-io-deadline", "strict-http-header-token-grammar", "compatibility-reexports"]
       },
       "depends_on": [],
       "blockers": [],
-      "consumers": ["gewyvern", "leserpent-protocol", "leserpent-adapters", "leserpent-cli", "leserpentd"],
+      "consumers": ["gewyvern", "gewyc", "leserpent-protocol", "leserpent-adapters", "leserpent-cli", "leserpentd"],
       "evidence": [
         { "kind": "documentation", "path": "docs/architecture-blueprint.md", "state": "present" },
         { "kind": "source", "path": "crates/silvortex-bounded-io/Cargo.toml", "state": "present" },
@@ -765,9 +765,9 @@
       "independence": "standalone-tool",
       "contract": {
         "id": "gewyvern-machine-contract",
-        "version": "1.8.0",
+        "version": "1.10.0",
         "stability": "stable",
-        "surfaces": ["cli", "json-export", "runtime-api", "validation", "loss-accounted-windowing", "bounded-stack-probe-http-response", "bounded-stack-probe-connect-read-write-timeouts", "bounded-validation-resolved-address-count", "shared-validation-connect-deadline", "shared-core-transport-safety", "socket-send-shared-connect-deadline", "segmented-http-header-test-proof", "stack-probe-request-injection-rejection", "strict-http-success-status", "strict-http-header-terminator", "panic-free-chunk-decoder", "bracketed-ipv6-authority", "shared-bounded-validation-tcp-http", "deduplicated-validation-http-clients", "fragmented-ambiguous-oversized-http-proof", "bounded-resilience-fault-attempts", "bounded-resilience-log-input", "bounded-socket-send-connect-write", "shared-socket-ingest-line-limit", "single-line-raw-payload", "preconnect-raw-payload-validation", "socket-send-mutually-exclusive-target", "socket-send-mutually-exclusive-payload"]
+        "surfaces": ["cli", "json-export", "runtime-api", "validation", "loss-accounted-windowing", "bounded-private-cli-output", "bounded-private-stream-output", "bounded-private-validation-json-output", "bounded-private-snapshot-persistence", "bounded-stack-probe-http-response", "bounded-stack-probe-connect-read-write-timeouts", "bounded-validation-resolved-address-count", "shared-validation-connect-deadline", "shared-core-transport-safety", "socket-send-shared-connect-deadline", "segmented-http-header-test-proof", "stack-probe-request-injection-rejection", "strict-http-success-status", "strict-http-header-terminator", "panic-free-chunk-decoder", "bracketed-ipv6-authority", "shared-bounded-validation-tcp-http", "deduplicated-validation-http-clients", "fragmented-ambiguous-oversized-http-proof", "bounded-resilience-fault-attempts", "bounded-resilience-log-input", "bounded-socket-send-connect-write", "shared-socket-ingest-line-limit", "single-line-raw-payload", "preconnect-raw-payload-validation", "socket-send-mutually-exclusive-target", "socket-send-mutually-exclusive-payload"]
       },
       "depends_on": ["shared-foundation/bounded-io/bounded-native-io", "shared-foundation/install-contract/gewyvern-install-wire"],
       "blockers": [],
@@ -775,6 +775,8 @@
       "evidence": [
         { "kind": "source", "path": "src/runtime.rs", "state": "present" },
         { "kind": "source", "path": "crates/silvortex-bounded-io/src/lib.rs", "state": "present" },
+        { "kind": "source", "path": "src/serve_runtime.rs", "state": "present" },
+        { "kind": "source", "path": "src/bin/gewyvern_validate.rs", "state": "present" },
         { "kind": "source", "path": "src/bin/gewyvern_socket_send.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/http_probe.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/resilience.rs", "state": "present" },
@@ -1049,11 +1051,13 @@
       "independence": "reusable-library",
       "contract": {
         "id": "gewylang-frontend-contract",
-        "version": "1.34.0",
+        "version": "1.35.0",
         "stability": "stable",
         "surfaces": [
           "gewylang-source",
           "gewyc-cli",
+          "bounded-private-gewyc-output",
+          "create-new-scaffold-files",
           "standard-cli-help-and-version-exit-contract",
           "versioned-language-contract-stamp",
           "product-independent-language-contract",

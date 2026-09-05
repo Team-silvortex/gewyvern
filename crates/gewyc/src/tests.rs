@@ -482,6 +482,53 @@ fn initialize_package_preserves_existing_files() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn initialize_package_does_not_follow_existing_scaffold_symlinks() {
+    use std::os::unix::fs::symlink;
+
+    let root = temp_test_dir("init-symlink");
+    let outside = root.join("outside.pkg");
+    let manifest = root.join("gewy.pkg");
+    fs::write(&outside, "name=outside\nentry=main.gewy\n").unwrap();
+    symlink(&outside, &manifest).unwrap();
+
+    initialize_package(root.to_str().unwrap()).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&outside).unwrap(),
+        "name=outside\nentry=main.gewy\n"
+    );
+    assert!(
+        fs::symlink_metadata(&manifest)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn compiler_output_replaces_symlinks_without_touching_targets() {
+    use std::os::unix::fs::{MetadataExt, symlink};
+
+    let root = temp_test_dir("output-symlink");
+    let outside = root.join("outside.json");
+    let output = root.join("output.json");
+    fs::write(&outside, "outside\n").unwrap();
+    symlink(&outside, &output).unwrap();
+
+    emit_output("{\"ok\":true}", output.to_str(), UiLocale::En);
+
+    assert_eq!(fs::read_to_string(&outside).unwrap(), "outside\n");
+    assert_eq!(fs::read_to_string(&output).unwrap(), "{\"ok\":true}");
+    let metadata = fs::symlink_metadata(&output).unwrap();
+    assert!(!metadata.file_type().is_symlink());
+    assert_eq!(metadata.mode() & 0o777, 0o600);
+    fs::remove_dir_all(root).unwrap();
+}
+
 #[test]
 fn frontend_command_renders_pipeline_graph_summary() {
     let report = compile_frontend_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();

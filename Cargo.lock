@@ -807,6 +807,7 @@ name = "gewyc"
 version = "2.0.0"
 dependencies = [
  "gewyvern",
+ "silvortex-bounded-io",
 ]
 
 [[package]]

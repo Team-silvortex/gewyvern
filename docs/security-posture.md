@@ -145,9 +145,16 @@ current preparation line:
   loops and now carries directory, manifest-count, and manifest-size budgets
 - status catalogs, GUI function-chain catalogs, and their source evidence use
   bounded regular-file reads that reject symbolic links and file-growth races
+- Gewyvern, `gewyc`, and validator JSON file outputs plus persisted API
+  snapshots are size-bounded, privately staged, synced, and atomically
+  replaced; streaming output append is private, size-bounded, symlink- and
+  hard-link-safe, synced, and serialized through a bounded exclusive lock; the
+  `gewyc init` command never overwrites an existing scaffold path, including a
+  symbolic link
 - certificate rotation and revocation state is size-, record-, path-, and
   field-bounded; malformed state is surfaced as invalid, raises policy
-  attention, and cannot be silently overwritten by a state mutation
+  attention, and cannot be silently overwritten by a state mutation; updates
+  are cross-process locked, privately staged, synced, and atomically replaced
 - legacy runtime migration is bounded by directory depth, entry count,
   per-file bytes, and aggregate bytes, and copies through non-symlink file
   handles without overwriting existing destinations

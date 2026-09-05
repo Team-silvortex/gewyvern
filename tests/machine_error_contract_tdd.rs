@@ -157,6 +157,50 @@ fn output_failure_is_one_machine_readable_error_document() {
     assert_machine_error(&output, "output_write_failed", "io", true, 1);
 }
 
+#[cfg(unix)]
+#[test]
+fn output_replaces_a_symlink_without_touching_its_target() {
+    use std::os::unix::fs::symlink;
+
+    let sandbox = Sandbox::new("output-symlink");
+    let outside = sandbox.path("outside.json");
+    let output_path = sandbox.path("protocols.json");
+    fs::write(&outside, "outside\n").expect("outside file must be writable");
+    symlink(&outside, &output_path).expect("output symlink must be created");
+
+    let output = sandbox
+        .gewyvern_command()
+        .args(["--list-protocols", "--json", "--out"])
+        .arg(&output_path)
+        .output()
+        .expect("gewyvern output command must run");
+
+    assert!(output.status.success());
+    assert_eq!(
+        fs::read_to_string(&outside).expect("outside file must remain readable"),
+        "outside\n"
+    );
+    assert!(
+        !fs::symlink_metadata(&output_path)
+            .expect("output must exist")
+            .file_type()
+            .is_symlink()
+    );
+    let document: serde_json::Value = serde_json::from_slice(
+        &fs::read(&output_path).expect("output must contain the protocol catalog"),
+    )
+    .expect("output must remain valid JSON");
+    let protocols = document
+        .as_array()
+        .expect("protocol catalog output must be an array");
+    assert!(!protocols.is_empty());
+    assert!(
+        protocols
+            .iter()
+            .all(|protocol| protocol["protocol"].is_string())
+    );
+}
+
 #[test]
 fn service_listener_failure_returns_to_the_machine_error_boundary() {
     let sandbox = Sandbox::new("service-bind");

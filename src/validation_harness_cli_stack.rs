@@ -4,6 +4,7 @@ use gewyvern::validation_harness::{
     ValidationError, run_stack_json_file_validation, run_stack_probe_validation,
     run_stack_register_runtime_json, write_stack_resilience_summary,
 };
+use silvortex_bounded_io::atomic_write_bounded_private_file;
 
 pub const STACK_COMMANDS: &[&str] = &[
     "stack-check-json",
@@ -12,6 +13,7 @@ pub const STACK_COMMANDS: &[&str] = &[
     "stack-resilience-summary",
 ];
 const JSON_SCHEMA_VERSION: u32 = 1;
+const MAX_STACK_REPORT_JSON_BYTES: u64 = 16 * 1024 * 1024;
 
 pub fn run_stack_command(
     command: &str,
@@ -59,7 +61,7 @@ fn run_probe(
         &report.out_dir,
         json_output,
         json_out,
-    );
+    )?;
     Ok(true)
 }
 
@@ -97,7 +99,7 @@ fn run_check_json(
         &report.out_dir,
         json_output,
         json_out,
-    );
+    )?;
     Ok(true)
 }
 
@@ -119,7 +121,7 @@ fn run_resilience_summary(
         &report.out_dir,
         json_output,
         json_out,
-    );
+    )?;
     Ok(true)
 }
 
@@ -237,7 +239,7 @@ fn print_report(
     out_dir: &std::path::Path,
     json_output: bool,
     json_out: Option<&std::path::Path>,
-) {
+) -> Result<(), ValidationError> {
     if json_output {
         let payload = serde_json::json!({
             "schema_version": JSON_SCHEMA_VERSION,
@@ -248,16 +250,63 @@ fn print_report(
         });
         let rendered = payload.to_string();
         if let Some(path) = json_out {
-            if let Some(parent) = path.parent() {
-                let _ = std::fs::create_dir_all(parent);
+            if let Some(parent) = path
+                .parent()
+                .filter(|parent| !parent.as_os_str().is_empty())
+            {
+                std::fs::create_dir_all(parent).map_err(|error| {
+                    ValidationError::new(format!(
+                        "failed to prepare stack JSON output '{}': {error}",
+                        parent.display()
+                    ))
+                })?;
             }
-            let _ = std::fs::write(path, rendered.as_bytes());
+            atomic_write_bounded_private_file(
+                path,
+                rendered.as_bytes(),
+                MAX_STACK_REPORT_JSON_BYTES,
+            )
+            .map_err(|error| {
+                ValidationError::new(format!(
+                    "failed to write stack JSON output '{}': {error}",
+                    path.display()
+                ))
+            })?;
         }
         println!("{rendered}");
-        return;
+        return Ok(());
     }
 
     println!("{name}: ok");
     println!("checks: {}", checks.join(", "));
     println!("evidence: {}", out_dir.display());
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn stack_json_report_does_not_ignore_output_failures() {
+        let path = std::env::temp_dir().join(format!(
+            "gewyvern-stack-json-output-directory-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&path).unwrap();
+
+        let error = print_report("stack", &["ok".into()], &path, true, Some(&path)).unwrap_err();
+
+        assert!(
+            error
+                .to_string()
+                .contains("failed to write stack JSON output")
+        );
+        std::fs::remove_dir_all(path).unwrap();
+    }
 }

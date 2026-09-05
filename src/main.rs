@@ -54,7 +54,6 @@ use gewyvern::socket_input::{
     run_unix_socket_session_on_listener, run_unix_socket_session_on_listener_with_binding,
 };
 use std::env;
-use std::fs;
 use std::time::{Duration, SystemTime};
 
 use crate::diagnosis_runtime::*;

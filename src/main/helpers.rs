@@ -8,9 +8,8 @@ use gewyvern::protocol_profiles::{
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use gewyvern::template::TemplateBinding;
-use silvortex_bounded_io::read_bounded_utf8_regular_file;
+use silvortex_bounded_io::{atomic_write_bounded_private_file, read_bounded_utf8_regular_file};
 use std::collections::HashSet;
-use std::fs;
 use std::net::ToSocketAddrs;
 use std::path::Path;
 use std::time::SystemTime;
@@ -20,6 +19,7 @@ use crate::runtime_logging::log_error_event;
 use crate::{Cli, IngestMode, ScanTarget, SocketTarget, UiLocale};
 
 const MAX_PROTOCOL_SET_BYTES: u64 = 256 * 1024;
+const MAX_RENDERED_OUTPUT_BYTES: u64 = 64 * 1024 * 1024;
 
 pub(crate) fn process_matches_pid(process: Option<&ProcessView>, pid: u32) -> bool {
     process.is_some_and(|process| process.pid == pid)
@@ -303,7 +303,13 @@ pub(crate) fn write_or_print(
     locale: UiLocale,
 ) -> Result<(), MachineError> {
     if let Some(path) = out_path {
-        fs::write(path, format!("{rendered}\n")).map_err(|err| {
+        let output = format!("{rendered}\n");
+        atomic_write_bounded_private_file(
+            Path::new(path),
+            output.as_bytes(),
+            MAX_RENDERED_OUTPUT_BYTES,
+        )
+        .map_err(|err| {
             log_error_event(
                 "output",
                 EVENT_WRITE_FAILED,

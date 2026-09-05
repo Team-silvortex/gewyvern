@@ -1,16 +1,19 @@
 //! Product-neutral bounded I/O primitives for native service boundaries.
 
-use std::fs::{File, Metadata, OpenOptions};
+use std::fs::{self, File, Metadata, OpenOptions};
 use std::io::{self, Read, Write};
 use std::net::{Ipv4Addr, Ipv6Addr, TcpStream, ToSocketAddrs};
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
-use std::path::Path;
-use std::time::{Duration, Instant};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 pub const MAX_HTTP_HEADER_BYTES: usize = 16 * 1024;
 pub const MAX_RESOLVED_ADDRESSES: usize = 8;
 pub const MAX_HTTPS_AUTHORITY_BYTES: usize = 320;
+const ATOMIC_WRITE_CREATE_ATTEMPTS: usize = 16;
+static ATOMIC_WRITE_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct HttpsOrigin<'a> {
@@ -282,6 +285,169 @@ pub fn read_bounded_utf8_regular_file(path: &Path, max_bytes: u64) -> io::Result
     String::from_utf8(bytes).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
 }
 
+/// Opens and exclusively locks a private regular file, waiting at most `timeout`.
+///
+/// The operating system releases the lock when the returned file is dropped or the process exits.
+pub fn open_private_lock_file(path: &Path, timeout: Duration) -> io::Result<File> {
+    let deadline = lock_deadline(timeout)?;
+
+    #[cfg(not(unix))]
+    if fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "lock path must not be a symlink",
+        ));
+    }
+
+    let mut options = OpenOptions::new();
+    options.read(true).write(true).create(true);
+    configure_private_file_options(&mut options);
+    let file = options.open(path)?;
+    let metadata = file.metadata()?;
+    if !metadata.file_type().is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "lock path must be a regular file",
+        ));
+    }
+    validate_private_file_metadata(&metadata)?;
+    lock_file_until(&file, deadline)?;
+    Ok(file)
+}
+
+/// Appends bytes to a private regular file while holding a bounded exclusive lock.
+pub fn append_bounded_private_file(
+    path: &Path,
+    contents: &[u8],
+    max_bytes: u64,
+    lock_timeout: Duration,
+) -> io::Result<()> {
+    validate_write_size(contents, max_bytes)?;
+    let deadline = lock_deadline(lock_timeout)?;
+    validate_real_parent(path)?;
+
+    #[cfg(not(unix))]
+    if fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "append path must not be a symlink",
+        ));
+    }
+
+    let mut options = OpenOptions::new();
+    options.write(true).append(true).create(true);
+    configure_private_file_options(&mut options);
+    let mut file = options.open(path)?;
+    let metadata = file.metadata()?;
+    if !metadata.file_type().is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "append path must be a regular file",
+        ));
+    }
+    validate_private_file_metadata(&metadata)?;
+    lock_file_until(&file, deadline)?;
+
+    let current_bytes = file.metadata()?.len();
+    let appended_bytes = u64::try_from(contents.len()).unwrap_or(u64::MAX);
+    if current_bytes
+        .checked_add(appended_bytes)
+        .is_none_or(|total| total > max_bytes)
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "appended file would exceed the size limit",
+        ));
+    }
+    file.write_all(contents)?;
+    file.sync_all()
+}
+
+fn lock_deadline(timeout: Duration) -> io::Result<Instant> {
+    if timeout.is_zero() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "file lock timeout must be non-zero",
+        ));
+    }
+    Instant::now().checked_add(timeout).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "file lock timeout exceeds the supported duration",
+        )
+    })
+}
+
+fn lock_file_until(file: &File, deadline: Instant) -> io::Result<()> {
+    loop {
+        match file.try_lock() {
+            Ok(()) => return Ok(()),
+            Err(fs::TryLockError::WouldBlock) => {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if remaining.is_zero() {
+                    return Err(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        "timed out waiting for the file lock",
+                    ));
+                }
+                std::thread::sleep(remaining.min(Duration::from_millis(10)));
+            }
+            Err(fs::TryLockError::Error(error)) => return Err(error),
+        }
+    }
+}
+
+/// Atomically replaces a bounded file with private permissions in its existing real directory.
+pub fn atomic_write_bounded_private_file(
+    path: &Path,
+    contents: &[u8],
+    max_bytes: u64,
+) -> io::Result<()> {
+    validate_write_size(contents, max_bytes)?;
+    let parent = validate_real_parent(path)?;
+
+    let (mut temporary, temporary_path) = create_private_temporary_file(path, parent)?;
+    let result = (|| {
+        temporary.write_all(contents)?;
+        temporary.sync_all()?;
+        drop(temporary);
+        replace_file(&temporary_path, path)?;
+        sync_parent(path)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary_path);
+    }
+    result
+}
+
+fn validate_write_size(contents: &[u8], max_bytes: u64) -> io::Result<()> {
+    if max_bytes == 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "file size limit must be non-zero",
+        ));
+    }
+    if u64::try_from(contents.len()).unwrap_or(u64::MAX) > max_bytes {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "file contents exceed the size limit",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_real_parent(path: &Path) -> io::Result<&Path> {
+    let parent = atomic_file_parent(path)?;
+    let metadata = fs::symlink_metadata(parent)?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "file parent must be a real directory",
+        ));
+    }
+    Ok(parent)
+}
+
 fn open_bounded_regular_file_inner(
     path: &Path,
     max_bytes: u64,
@@ -325,6 +491,139 @@ fn open_bounded_regular_file_inner(
         file,
         remaining: max_bytes,
     })
+}
+
+fn create_private_temporary_file(path: &Path, parent: &Path) -> io::Result<(File, PathBuf)> {
+    path.file_name().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "atomic file path must have a file name",
+        )
+    })?;
+    let process_id = std::process::id();
+    for _ in 0..ATOMIC_WRITE_CREATE_ATTEMPTS {
+        let sequence = ATOMIC_WRITE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let unix_nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        let temporary_path = parent.join(format!(
+            ".atomic-write.{process_id}.{unix_nanos}.{sequence}.tmp"
+        ));
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true);
+        configure_private_file_options(&mut options);
+        match options.open(&temporary_path) {
+            Ok(file) => return Ok((file, temporary_path)),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    Err(io::Error::new(
+        io::ErrorKind::AlreadyExists,
+        "failed to reserve a unique atomic file path",
+    ))
+}
+
+fn atomic_file_parent(path: &Path) -> io::Result<&Path> {
+    match path.parent() {
+        Some(parent) if parent.as_os_str().is_empty() => Ok(Path::new(".")),
+        Some(parent) => Ok(parent),
+        None => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "atomic file path must have a parent directory",
+        )),
+    }
+}
+
+#[cfg(unix)]
+fn configure_private_file_options(options: &mut OpenOptions) {
+    options
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+}
+
+#[cfg(not(unix))]
+fn configure_private_file_options(_: &mut OpenOptions) {}
+
+#[cfg(unix)]
+fn validate_private_file_metadata(metadata: &Metadata) -> io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
+
+    if metadata.uid() != unsafe { libc::geteuid() } {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "private file must be owned by the current user",
+        ));
+    }
+    if metadata.mode() & 0o077 != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "private file must not grant group or other permissions",
+        ));
+    }
+    if metadata.nlink() != 1 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "private file must have exactly one hard link",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn validate_private_file_metadata(_: &Metadata) -> io::Result<()> {
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn replace_file(source: &Path, destination: &Path) -> io::Result<()> {
+    fs::rename(source, destination)
+}
+
+#[cfg(windows)]
+fn replace_file(source: &Path, destination: &Path) -> io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+
+    const MOVEFILE_REPLACE_EXISTING: u32 = 0x1;
+    const MOVEFILE_WRITE_THROUGH: u32 = 0x8;
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        #[link_name = "MoveFileExW"]
+        fn move_file_ex_w(existing: *const u16, replacement: *const u16, flags: u32) -> i32;
+    }
+    let source = source
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<_>>();
+    let destination = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<_>>();
+    let result = unsafe {
+        move_file_ex_w(
+            source.as_ptr(),
+            destination.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    if result == 0 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(unix)]
+fn sync_parent(path: &Path) -> io::Result<()> {
+    File::open(atomic_file_parent(path)?)?.sync_all()
+}
+
+#[cfg(not(unix))]
+fn sync_parent(_: &Path) -> io::Result<()> {
+    Ok(())
 }
 
 pub fn connect_with_deadline(
@@ -409,6 +708,17 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::*;
+
+    fn temp_root(label: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "silvortex-bounded-io-{label}-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock must follow the epoch")
+                .as_nanos()
+        ))
+    }
 
     #[test]
     fn header_names_follow_the_http_token_grammar() {
@@ -702,6 +1012,248 @@ mod tests {
         symlink(&target, &link).unwrap();
 
         assert!(read_bounded_utf8_regular_file(&link, 16).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn atomic_private_write_replaces_complete_files_and_preserves_on_rejection() {
+        let root = temp_root("atomic-write");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("state.tsv");
+        fs::write(&path, b"old").unwrap();
+
+        atomic_write_bounded_private_file(&path, b"complete", 8).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"complete");
+
+        let error = atomic_write_bounded_private_file(&path, b"oversized", 8).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(fs::read(&path).unwrap(), b"complete");
+        assert!(fs::read_dir(&root).unwrap().all(|entry| {
+            !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".tmp")
+        }));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn atomic_private_write_accepts_a_bare_relative_path() {
+        let unique = temp_root("bare-relative");
+        let path = PathBuf::from(unique.file_name().unwrap());
+
+        let result = atomic_write_bounded_private_file(&path, b"complete", 8);
+        let contents = fs::read(&path);
+        let _ = fs::remove_file(&path);
+
+        result.unwrap();
+        assert_eq!(contents.unwrap(), b"complete");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn atomic_private_write_replaces_symlinks_without_touching_their_targets() {
+        use std::os::unix::fs::{MetadataExt, symlink};
+
+        let root = temp_root("atomic-symlink");
+        fs::create_dir_all(&root).unwrap();
+        let outside = root.join("outside.tsv");
+        let path = root.join("state.tsv");
+        fs::write(&outside, b"outside").unwrap();
+        symlink(&outside, &path).unwrap();
+
+        atomic_write_bounded_private_file(&path, b"replacement", 32).unwrap();
+
+        assert_eq!(fs::read(&outside).unwrap(), b"outside");
+        assert_eq!(fs::read(&path).unwrap(), b"replacement");
+        let metadata = fs::symlink_metadata(&path).unwrap();
+        assert!(metadata.is_file());
+        assert!(!metadata.file_type().is_symlink());
+        assert_eq!(metadata.mode() & 0o777, 0o600);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn atomic_private_write_rejects_a_symlinked_parent() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_root("atomic-parent-symlink");
+        let real_parent = root.join("real");
+        let linked_parent = root.join("linked");
+        fs::create_dir_all(&real_parent).unwrap();
+        symlink(&real_parent, &linked_parent).unwrap();
+
+        let error =
+            atomic_write_bounded_private_file(&linked_parent.join("state.tsv"), b"replacement", 32)
+                .unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        assert!(!real_parent.join("state.tsv").exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn bounded_private_append_preserves_bytes_and_enforces_the_total_limit() {
+        let root = temp_root("bounded-append");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("events.log");
+
+        append_bounded_private_file(&path, &[0xff, b'\n'], 8, Duration::from_millis(100)).unwrap();
+        append_bounded_private_file(&path, b"next\n", 8, Duration::from_millis(100)).unwrap();
+        assert_eq!(
+            fs::read(&path).unwrap(),
+            [0xff, b'\n', b'n', b'e', b'x', b't', b'\n']
+        );
+
+        let error =
+            append_bounded_private_file(&path, b"xx", 8, Duration::from_millis(100)).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(
+            fs::read(&path).unwrap(),
+            [0xff, b'\n', b'n', b'e', b'x', b't', b'\n']
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+
+            assert_eq!(fs::metadata(&path).unwrap().mode() & 0o777, 0o600);
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_private_append_rejects_symlinks_without_touching_targets() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_root("bounded-append-symlink");
+        fs::create_dir_all(&root).unwrap();
+        let outside = root.join("outside.log");
+        let path = root.join("events.log");
+        fs::write(&outside, b"outside").unwrap();
+        symlink(&outside, &path).unwrap();
+
+        assert!(
+            append_bounded_private_file(&path, b"next", 32, Duration::from_millis(100)).is_err()
+        );
+        assert_eq!(fs::read(&outside).unwrap(), b"outside");
+        assert!(
+            fs::symlink_metadata(&path)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_private_append_rejects_hard_links_without_touching_targets() {
+        let root = temp_root("bounded-append-hard-link");
+        fs::create_dir_all(&root).unwrap();
+        let outside = root.join("outside.log");
+        let path = root.join("events.log");
+        atomic_write_bounded_private_file(&outside, b"outside", 32).unwrap();
+        fs::hard_link(&outside, &path).unwrap();
+
+        let error = append_bounded_private_file(&path, b"next", 32, Duration::from_millis(100))
+            .unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(fs::read(&outside).unwrap(), b"outside");
+        assert_eq!(fs::read(&path).unwrap(), b"outside");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_private_append_times_out_on_a_competing_writer() {
+        let root = temp_root("bounded-append-lock");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("events.log");
+        atomic_write_bounded_private_file(&path, b"first\n", 32).unwrap();
+        let lock = open_private_lock_file(&path, Duration::from_millis(100)).unwrap();
+
+        let error = append_bounded_private_file(&path, b"next\n", 32, Duration::from_millis(25))
+            .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::TimedOut);
+        assert_eq!(fs::read(&path).unwrap(), b"first\n");
+
+        drop(lock);
+        append_bounded_private_file(&path, b"next\n", 32, Duration::from_millis(100)).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"first\nnext\n");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn invalid_lock_deadlines_fail_before_creating_files() {
+        let root = temp_root("invalid-lock-deadline");
+        fs::create_dir_all(&root).unwrap();
+        let lock_path = root.join("state.lock");
+        let append_path = root.join("events.log");
+
+        assert_eq!(
+            open_private_lock_file(&lock_path, Duration::ZERO)
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput
+        );
+        assert_eq!(
+            append_bounded_private_file(&append_path, b"event\n", 32, Duration::ZERO)
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput
+        );
+        assert!(!lock_path.exists());
+        assert!(!append_path.exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn private_file_lock_times_out_and_recovers_after_release() {
+        let root = temp_root("file-lock");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("state.lock");
+        let first = open_private_lock_file(&path, Duration::from_millis(100)).unwrap();
+
+        let error = open_private_lock_file(&path, Duration::from_millis(25)).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::TimedOut);
+
+        drop(first);
+        let second = open_private_lock_file(&path, Duration::from_millis(100)).unwrap();
+        drop(second);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn private_file_lock_is_private_and_rejects_symlinks() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
+
+        let root = temp_root("file-lock-symlink");
+        fs::create_dir_all(&root).unwrap();
+        let lock = root.join("state.lock");
+        let file = open_private_lock_file(&lock, Duration::from_millis(100)).unwrap();
+        assert_eq!(file.metadata().unwrap().mode() & 0o777, 0o600);
+        drop(file);
+
+        let target = root.join("target.lock");
+        let link = root.join("linked.lock");
+        fs::write(&target, []).unwrap();
+        symlink(&target, &link).unwrap();
+        assert!(open_private_lock_file(&link, Duration::from_millis(100)).is_err());
+
+        let exposed = root.join("exposed.lock");
+        fs::write(&exposed, []).unwrap();
+        fs::set_permissions(&exposed, fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(
+            open_private_lock_file(&exposed, Duration::from_millis(100))
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::PermissionDenied
+        );
         fs::remove_dir_all(root).unwrap();
     }
 }

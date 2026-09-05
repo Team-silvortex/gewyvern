@@ -329,8 +329,9 @@ GewyLang -> gewylang-compiler -> fragment registry -> Gewyvern runtime -> export
                                          optional Etragon advice
 ```
 
-The logical Gewyvern runtime remains independent. Generic bounded file, HTTP
-token, connection-deadline, and absolute-I/O-deadline behavior now lives in the
+The logical Gewyvern runtime remains independent. Generic bounded file,
+private atomic replacement, bounded locked append, cross-process lock, HTTP token,
+connection-deadline, and absolute-I/O-deadline behavior now lives in the
 zero-business-dependency `silvortex-bounded-io` crate. Shared validated
 identities live in the zero-product-dependency `silvortex-identity` crate.
 Strict Gewyvern installation and retirement messages live in

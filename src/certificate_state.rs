@@ -2,13 +2,17 @@ use crate::certificate_inventory::{
     CertificateAssetKind, CertificateInventory, CertificateItem, runtime_certificate_inventory,
 };
 use crate::runtime_layout::{RuntimeLayout, runtime_layout};
-use silvortex_bounded_io::read_bounded_utf8_regular_file;
+use silvortex_bounded_io::{
+    atomic_write_bounded_private_file, open_private_lock_file, read_bounded_utf8_regular_file,
+};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const ROTATION_RECORDS_FILE: &str = "rotation-records.tsv";
 const REVOCATION_RECORDS_FILE: &str = "revocation-records.tsv";
+const CERTIFICATE_STATE_LOCK_FILE: &str = ".certificate-state.lock";
+const CERTIFICATE_STATE_LOCK_TIMEOUT: Duration = Duration::from_secs(10);
 const AUTO_ROTATION_NOTE: &str = "auto:validity-sync";
 const ROTATION_DUE_WINDOW_MS: i128 = 30_i128 * 24 * 60 * 60 * 1000;
 pub const MAX_CERTIFICATE_STATE_FILE_BYTES: u64 = 1024 * 1024;
@@ -92,13 +96,8 @@ pub fn sync_rotation_records_from_inventory_at(
     now_unix_ms: i128,
 ) -> Result<CertificateRotationSyncReport, String> {
     let layout = runtime_layout();
-    fs::create_dir_all(&layout.certificate_state_root).map_err(|err| {
-        format!(
-            "failed to prepare certificate state root '{}': {err}",
-            layout.certificate_state_root.display()
-        )
-    })?;
     let inventory = runtime_certificate_inventory();
+    let _state_lock = lock_certificate_state(&layout.certificate_state_root)?;
     let rotation_records_path = layout.certificate_state_root.join(ROTATION_RECORDS_FILE);
     let mut rotation_records = read_rotation_records(&rotation_records_path)?;
     let generated = generated_rotation_records(&inventory, now_unix_ms);
@@ -147,12 +146,7 @@ pub fn write_rotation_record(
     let relative_path = validate_record_relative_path(relative_path)?;
     let note = sanitize_record_note(note)?;
     let layout = runtime_layout();
-    fs::create_dir_all(&layout.certificate_state_root).map_err(|err| {
-        format!(
-            "failed to prepare certificate state root '{}': {err}",
-            layout.certificate_state_root.display()
-        )
-    })?;
+    let _state_lock = lock_certificate_state(&layout.certificate_state_root)?;
     let rotation_records_path = layout.certificate_state_root.join(ROTATION_RECORDS_FILE);
     let mut rotation_records = read_rotation_records(&rotation_records_path)?;
     upsert_rotation_record(
@@ -172,6 +166,7 @@ pub fn write_rotation_record(
 pub fn remove_rotation_record(relative_path: &str) -> Result<bool, String> {
     let relative_path = validate_record_relative_path(relative_path)?;
     let layout = runtime_layout();
+    let _state_lock = lock_certificate_state(&layout.certificate_state_root)?;
     let rotation_records_path = layout.certificate_state_root.join(ROTATION_RECORDS_FILE);
     let mut rotation_records = read_rotation_records(&rotation_records_path)?;
     let before = rotation_records.len();
@@ -194,12 +189,7 @@ pub fn write_revocation_record(
     let relative_path = validate_record_relative_path(relative_path)?;
     let note = sanitize_record_note(note)?;
     let layout = runtime_layout();
-    fs::create_dir_all(&layout.certificate_state_root).map_err(|err| {
-        format!(
-            "failed to prepare certificate state root '{}': {err}",
-            layout.certificate_state_root.display()
-        )
-    })?;
+    let _state_lock = lock_certificate_state(&layout.certificate_state_root)?;
     let revocation_records_path = layout.certificate_state_root.join(REVOCATION_RECORDS_FILE);
     let mut revocation_records = read_revocation_records(&revocation_records_path)?;
     upsert_revocation_record(
@@ -219,6 +209,7 @@ pub fn write_revocation_record(
 pub fn remove_revocation_record(relative_path: &str) -> Result<bool, String> {
     let relative_path = validate_record_relative_path(relative_path)?;
     let layout = runtime_layout();
+    let _state_lock = lock_certificate_state(&layout.certificate_state_root)?;
     let revocation_records_path = layout.certificate_state_root.join(REVOCATION_RECORDS_FILE);
     let mut revocation_records = read_revocation_records(&revocation_records_path)?;
     let before = revocation_records.len();
@@ -264,6 +255,37 @@ fn state_file_exists(path: &Path) -> bool {
         Ok(_) => true,
         Err(error) => error.kind() != std::io::ErrorKind::NotFound,
     }
+}
+
+fn lock_certificate_state(root: &Path) -> Result<fs::File, String> {
+    fs::create_dir_all(root).map_err(|error| {
+        format!(
+            "failed to prepare certificate state root '{}': {error}",
+            root.display()
+        )
+    })?;
+    let metadata = fs::symlink_metadata(root).map_err(|error| {
+        format!(
+            "failed to inspect certificate state root '{}': {error}",
+            root.display()
+        )
+    })?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return Err(format!(
+            "certificate state root must be a real directory: '{}'",
+            root.display()
+        ));
+    }
+    open_private_lock_file(
+        &root.join(CERTIFICATE_STATE_LOCK_FILE),
+        CERTIFICATE_STATE_LOCK_TIMEOUT,
+    )
+    .map_err(|error| {
+        format!(
+            "failed to lock certificate state root '{}': {error}",
+            root.display()
+        )
+    })
 }
 
 fn read_state_file(path: &Path, kind: &str) -> Result<Option<String>, String> {
@@ -631,12 +653,13 @@ fn write_rotation_records_file(
             ));
         }
     }
-    fs::write(path, rendered).map_err(|err| {
-        format!(
-            "failed to write rotation records '{}': {err}",
-            path.display()
-        )
-    })
+    atomic_write_bounded_private_file(path, rendered.as_bytes(), MAX_CERTIFICATE_STATE_FILE_BYTES)
+        .map_err(|err| {
+            format!(
+                "failed to write rotation records '{}': {err}",
+                path.display()
+            )
+        })
 }
 
 fn write_revocation_records_file(
@@ -670,12 +693,13 @@ fn write_revocation_records_file(
             ));
         }
     }
-    fs::write(path, rendered).map_err(|err| {
-        format!(
-            "failed to write revocation records '{}': {err}",
-            path.display()
-        )
-    })
+    atomic_write_bounded_private_file(path, rendered.as_bytes(), MAX_CERTIFICATE_STATE_FILE_BYTES)
+        .map_err(|err| {
+            format!(
+                "failed to write revocation records '{}': {err}",
+                path.display()
+            )
+        })
 }
 
 fn optional_i128_text(value: Option<i128>) -> String {

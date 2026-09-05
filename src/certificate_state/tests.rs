@@ -184,6 +184,90 @@ fn state_rejects_symlinked_record_files() {
 }
 
 #[test]
+fn rotation_record_writes_publish_complete_private_state() {
+    let root = temp_root("atomic-rotation-write");
+    fs::create_dir_all(&root).unwrap();
+    let path = root.join(ROTATION_RECORDS_FILE);
+    let records = vec![CertificateRotationRecord {
+        relative_path: "identity/prod/runtime.pem".into(),
+        status: CertificateRotationStatus::Due,
+        due_unix_ms: Some(20),
+        last_rotated_unix_ms: Some(10),
+        updated_unix_ms: Some(15),
+        note: Some("rotate soon".into()),
+    }];
+
+    write_rotation_records_file(&path, &records).unwrap();
+
+    assert_eq!(read_rotation_records(&path).unwrap(), records);
+    assert!(fs::read_dir(&root).unwrap().all(|entry| {
+        !entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .ends_with(".tmp")
+    }));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+
+        assert_eq!(fs::metadata(&path).unwrap().mode() & 0o777, 0o600);
+    }
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn rotation_record_writes_replace_symlinks_without_touching_targets() {
+    use std::os::unix::fs::symlink;
+
+    let root = temp_root("atomic-rotation-symlink");
+    fs::create_dir_all(&root).unwrap();
+    let outside = root.join("outside.tsv");
+    let path = root.join(ROTATION_RECORDS_FILE);
+    fs::write(&outside, "outside\n").unwrap();
+    symlink(&outside, &path).unwrap();
+    let records = vec![CertificateRotationRecord {
+        relative_path: "identity/prod/runtime.pem".into(),
+        status: CertificateRotationStatus::Active,
+        due_unix_ms: None,
+        last_rotated_unix_ms: None,
+        updated_unix_ms: Some(15),
+        note: None,
+    }];
+
+    write_rotation_records_file(&path, &records).unwrap();
+
+    assert_eq!(fs::read_to_string(&outside).unwrap(), "outside\n");
+    assert_eq!(read_rotation_records(&path).unwrap(), records);
+    assert!(
+        !fs::symlink_metadata(&path)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn certificate_state_lock_rejects_symlinked_roots_before_creation() {
+    use std::os::unix::fs::symlink;
+
+    let root = temp_root("symlink-lock-root");
+    let real_root = root.join("real");
+    let linked_root = root.join("linked");
+    fs::create_dir_all(&real_root).unwrap();
+    symlink(&real_root, &linked_root).unwrap();
+
+    let error = lock_certificate_state(&linked_root).unwrap_err();
+
+    assert!(error.contains("certificate state root must be a real directory"));
+    assert!(!real_root.join(CERTIFICATE_STATE_LOCK_FILE).exists());
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn generated_rotation_records_mark_active_due_and_overdue() {
     let inventory = CertificateInventory {
         root: PathBuf::from("/tmp/certificates"),

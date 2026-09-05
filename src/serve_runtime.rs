@@ -1,9 +1,10 @@
 use gewyvern::export::ExportBundle;
 use gewyvern::machine_error::{ErrorCategory, MachineError};
 use gewyvern::protocol_profiles::protocol_target_name_for_template_id;
-use std::fs::OpenOptions;
-use std::io::Write;
+use silvortex_bounded_io::{append_bounded_private_file, atomic_write_bounded_private_file};
 use std::net::TcpListener;
+use std::path::Path;
+use std::time::Duration;
 
 use crate::data_api::{
     ApiRenderedTarget, ApiService, ApiState, persist_api_snapshot, start_api_service,
@@ -42,6 +43,8 @@ use super::{
 };
 
 pub(crate) const SOCKET_SESSION_TARGET_NAME: &str = "socket_session";
+const MAX_RENDERED_OUTPUT_BYTES: u64 = 64 * 1024 * 1024;
+const OUTPUT_APPEND_LOCK_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub(super) fn serve_socket_sessions(
     cli: &Cli,
@@ -617,47 +620,36 @@ fn emit_scan_outputs(
 fn write_rendered_output(cli: &Cli, rendered: &str, append: bool) -> Result<(), MachineError> {
     let locale = UiLocale::detect();
     if let Some(path) = cli.out_path.as_deref() {
+        let output = format!("{rendered}\n");
         if append {
-            let mut output = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(path)
-                .map_err(|error| {
-                    log_error_event(
-                        "output",
-                        EVENT_APPEND_FAILED,
-                        &[("path", path.to_string()), ("error", error.to_string())],
-                        "failed to open rendered output for append",
-                    );
-                    MachineError::new(
-                        "output_append_failed",
-                        ErrorCategory::Io,
-                        locale.msgf("write_failed", path, Some(&error.to_string())),
-                        true,
-                        1,
-                    )
-                })?;
-            output
-                .write_all(rendered.as_bytes())
-                .and_then(|()| output.write_all(b"\n"))
-                .and_then(|()| output.flush())
-                .map_err(|error| {
-                    log_error_event(
-                        "output",
-                        EVENT_APPEND_FAILED,
-                        &[("path", path.to_string()), ("error", error.to_string())],
-                        "failed to append rendered output",
-                    );
-                    MachineError::new(
-                        "output_append_failed",
-                        ErrorCategory::Io,
-                        locale.msgf("write_failed", path, Some(&error.to_string())),
-                        true,
-                        1,
-                    )
-                })?;
+            append_bounded_private_file(
+                Path::new(path),
+                output.as_bytes(),
+                MAX_RENDERED_OUTPUT_BYTES,
+                OUTPUT_APPEND_LOCK_TIMEOUT,
+            )
+            .map_err(|error| {
+                log_error_event(
+                    "output",
+                    EVENT_APPEND_FAILED,
+                    &[("path", path.to_string()), ("error", error.to_string())],
+                    "failed to append rendered output",
+                );
+                MachineError::new(
+                    "output_append_failed",
+                    ErrorCategory::Io,
+                    locale.msgf("write_failed", path, Some(&error.to_string())),
+                    true,
+                    1,
+                )
+            })?;
         } else {
-            super::fs::write(path, format!("{rendered}\n")).map_err(|error| {
+            atomic_write_bounded_private_file(
+                Path::new(path),
+                output.as_bytes(),
+                MAX_RENDERED_OUTPUT_BYTES,
+            )
+            .map_err(|error| {
                 log_error_event(
                     "output",
                     EVENT_WRITE_FAILED,
@@ -696,7 +688,8 @@ mod tests {
         ));
         fs::create_dir_all(&root).expect("test output directory must be created");
         let path = root.join("report.log");
-        fs::write(&path, [0xff, b'\n']).expect("non-UTF-8 prefix must be written");
+        atomic_write_bounded_private_file(&path, &[0xff, b'\n'], MAX_RENDERED_OUTPUT_BYTES)
+            .expect("non-UTF-8 prefix must be written");
         let cli = Cli::from_args(["--out".to_string(), path.to_string_lossy().into_owned()])
             .expect("test CLI must parse");
 
@@ -705,6 +698,39 @@ mod tests {
         assert_eq!(
             fs::read(&path).expect("appended output must be readable"),
             [0xff, b'\n', b'n', b'e', b'x', b't', b'\n']
+        );
+        fs::remove_dir_all(root).expect("test output directory must be removed");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn append_output_rejects_symlinks_without_touching_their_targets() {
+        use std::os::unix::fs::symlink;
+
+        let root = std::env::temp_dir().join(format!(
+            "gewyvern-render-append-symlink-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock must follow the epoch")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("test output directory must be created");
+        let outside = root.join("outside.log");
+        let path = root.join("report.log");
+        fs::write(&outside, b"outside").expect("outside file must be written");
+        symlink(&outside, &path).expect("output symlink must be created");
+        let cli = Cli::from_args(["--out".to_string(), path.to_string_lossy().into_owned()])
+            .expect("test CLI must parse");
+
+        let error = write_rendered_output(&cli, "next", true).unwrap_err();
+
+        assert_eq!(error.code, "output_append_failed");
+        assert_eq!(fs::read(&outside).unwrap(), b"outside");
+        assert!(
+            fs::symlink_metadata(&path)
+                .unwrap()
+                .file_type()
+                .is_symlink()
         );
         fs::remove_dir_all(root).expect("test output directory must be removed");
     }

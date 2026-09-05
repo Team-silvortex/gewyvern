@@ -242,6 +242,38 @@ fn shared_native_foundations_cut_the_reverse_protocol_dependency() {
         .expect("bounded I/O foundation must be tracked");
     assert!(bounded.depends_on.is_empty());
     assert_eq!(bounded.independence, Independence::ReusableLibrary);
+    assert_eq!(bounded.contract.version, "1.2.0");
+    assert!(
+        bounded
+            .contract
+            .surfaces
+            .contains(&"bounded-private-locked-append".to_string())
+    );
+    let machine_contract = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "gewyvern-core/runtime-evidence/evidence-reconstruction")
+        .expect("Gewyvern machine contract must be tracked");
+    assert_eq!(machine_contract.contract.version, "1.10.0");
+    for surface in [
+        "bounded-private-stream-output",
+        "bounded-private-validation-json-output",
+    ] {
+        assert!(
+            machine_contract
+                .contract
+                .surfaces
+                .contains(&surface.to_string())
+        );
+    }
+    for path in ["src/serve_runtime.rs", "src/bin/gewyvern_validate.rs"] {
+        assert!(
+            machine_contract
+                .evidence
+                .iter()
+                .any(|evidence| evidence.path == path && evidence.state == EvidenceState::Present)
+        );
+    }
     let identity = catalog
         .cells
         .iter()
@@ -5329,7 +5361,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(gewylang.maturity, Maturity::Mature);
     assert_eq!(gewylang.completion, 100);
     assert_eq!(gewylang.contract.stability, ContractStability::Stable);
-    assert_eq!(gewylang.contract.version, "1.34.0");
+    assert_eq!(gewylang.contract.version, "1.35.0");
     assert_eq!(
         gewylang.depends_on,
         [
@@ -5338,6 +5370,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         ]
     );
     for surface in [
+        "bounded-private-gewyc-output",
+        "create-new-scaffold-files",
         "standard-cli-help-and-version-exit-contract",
         "versioned-language-contract-stamp",
         "product-independent-language-contract",
