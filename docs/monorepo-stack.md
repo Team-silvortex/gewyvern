@@ -15,7 +15,7 @@ changing a cross-project boundary.
 | [`crates/gewylang-contract/`](../crates/gewylang-contract) | product-independent GewyLang identity and stage contract | language/version identity and source bounds |
 | [`crates/gewylang-syntax/`](../crates/gewylang-syntax) | product-independent source, package, AST, parser, frontend | canonical syntax interpretation |
 | [`crates/gewylang-compiler/`](../crates/gewylang-compiler) | product-independent expansion, host-generic lowering, and materializer dispatch | canonical compiler behavior and host boundaries |
-| [`crates/gewylang-ir/`](../crates/gewylang-ir) | product-independent Binding IR, Analysis IR, diagnostics, history, fingerprints, invariant validation, strict wire codec, and projection-host orchestration | stable compiler-stage data, identity, validation, and exchange contracts |
+| [`crates/gewylang-ir/`](../crates/gewylang-ir) | product-independent Binding IR, Analysis IR, diagnostics, history, fingerprints, invariant validation, strict wire codec, typed compatibility diff, and projection-host orchestration | stable compiler-stage data, identity, validation, comparison, and exchange contracts |
 | [`crates/gewyc/`](../crates/gewyc) | GewyLang compiler CLI | diagnostic and lowering orchestration |
 | [`crates/silvortex-bounded-io/`](../crates/silvortex-bounded-io) | product-neutral bounded files and transport deadlines | native I/O safety invariants |
 | [`crates/silvortex-identity/`](../crates/silvortex-identity) | product-neutral validated protocol identities | identifier grammar and scalar wire identity |

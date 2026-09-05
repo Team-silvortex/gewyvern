@@ -254,6 +254,21 @@ cross-stage identity, shape, and rule-support checks. Use
 `project_compiler_stages_checked` at a host boundary so invalid projections are
 returned as stable `GEWYLANG-IR-*` violations before any report is published.
 
+### Typed compatibility diff
+
+Use `diff_binding_ir` or `diff_analysis_ir` after loading trusted in-memory
+values. For standalone artifacts, prefer `diff_binding_ir_json` and
+`diff_analysis_ir_json`: both sides are size-checked, strictly decoded,
+fingerprint-verified, and invariant-validated before comparison. To compare a
+complete compile, pass both coherent stage pairs to `diff_compiler_ir`.
+
+The resulting `IrStageDiff` contains exact before/after fingerprints, bounded
+typed field changes, a truncation marker, and one of `identical`,
+`analysis_only`, `execution_change`, or `incompatible`. The aggregate
+`CompilerIrDiff` takes the more severe Binding/Analysis class. Diff contract v1
+keeps at most 256 field changes and 256 UTF-8 bytes per value preview while
+continuing to evaluate the full compatibility class.
+
 Validation does not normalize input and does not treat an unavailable host
 diagnostics result as malformed IR. This keeps host failures distinct from
 contract corruption while ensuring a present diagnostic projection exactly

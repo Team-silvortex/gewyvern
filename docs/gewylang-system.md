@@ -31,8 +31,8 @@ reference page. Package composition belongs in the package reference. Compiler
 output belongs in `gewyc` contracts. Implementation ownership follows
 `gewylang-contract -> gewylang-syntax -> gewylang-compiler`, with
 `gewylang-contract -> gewylang-ir` owning stable Binding IR and Analysis IR
-values, canonical content fingerprints, fail-closed invariant validation, and
-strict standalone JSON exchange. The root `gewyvern::dsl` and
+values, canonical content fingerprints, fail-closed invariant validation,
+strict standalone JSON exchange, and typed compatibility diffing. The root `gewyvern::dsl` and
 `gewyvern::gewyc` modules remain the
 runtime materialization and registry-analysis adapters. Runtime materialization
 is reached only through `gewylang_compiler::BindingMaterializer`; compiler-stage

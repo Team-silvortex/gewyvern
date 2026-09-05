@@ -244,6 +244,11 @@ rule-level supportability fields. A host diagnostics error remains a host
 error; the validator does not invent diagnostics or mistake an unavailable
 projection for malformed IR.
 
+`validate_binding_analysis_ir` applies the same structural and cross-stage
+checks to an independently loaded Binding/Analysis pair without requiring a
+diagnostics host. Snapshot consumers must use this boundary before treating two
+stage documents as one compile.
+
 Every violation carries a stable `GEWYLANG-IR-*` code, a field path, and a
 detail capped at `512` UTF-8 bytes. Validation accumulates at most `256`
 deterministic violations and marks a report when more were omitted.
@@ -301,6 +306,46 @@ as Analysis IR. The embedded digest detects accidental or unkeyed content
 drift but remains a fingerprint, not an authenticity signature. Wire error
 details are capped at `512` UTF-8 bytes so hostile values cannot become
 unbounded log records.
+
+## Typed IR Diff v1
+
+Diff contract v1 turns exact fingerprint inequality into deterministic typed
+changes. `diff_binding_ir` and `diff_analysis_ir` compare in-memory stage
+values; `diff_binding_ir_json` and `diff_analysis_ir_json` first apply the full
+strict wire decoder, including contract matching, fingerprint recomputation,
+and structural validation. `diff_compiler_ir` accepts two Binding/Analysis
+pairs and rejects either side unless `validate_binding_analysis_ir` proves that
+the pair is coherent.
+
+Every retained `IrChange` carries a stage, fixed field path, change kind
+(`added`, `removed`, `modified`, or `reordered`), semantic impact, and bounded
+before/after previews. The report derives one maximum-severity compatibility
+class:
+
+| Class | Meaning |
+|---|---|
+| `identical` | Every compared field is equal; both stage fingerprints match. |
+| `analysis_only` | Only narrative, reason-model, evidence, or supportability information changed; executable content is unchanged. |
+| `execution_change` | Stable identities remain comparable, but executable configuration or program-rule semantics changed. |
+| `incompatible` | Template/model identity or a top-level optional/variant shape changed; consumers must not correlate or reuse the snapshots automatically. |
+
+Binding fragments, window values, program operation/rule count, and fragment
+parameters are execution-impacting. Evidence overrides and declarative reason
+rule counts are analysis-impacting. In Analysis IR, program predicates,
+signals, dedupe, module, and phase fields are execution-impacting; narratives
+and all supportability fields are analysis-impacting. Reason-model rule content
+is analysis-impacting, while model identity and kind remain incompatible.
+
+Each stage retains at most `256` changes and each value preview at most `256`
+UTF-8 bytes. Preview serialization stops at the limit rather than allocating a
+complete untrusted value first. Classification still examines every field
+after the retained list fills, so truncation cannot hide a later, more severe
+change. A future field missed by the v1 visitor falls back to `incompatible`
+instead of being reported as identical.
+
+Diff classification is payload policy, not provenance, authorization, or
+semantic-version negotiation. It does not alter Syntax v1, Binding IR v1,
+Analysis IR v1, fingerprint encoding v1, or wire JSON v1 bytes.
 
 ## Runtime Projections Are Separate
 

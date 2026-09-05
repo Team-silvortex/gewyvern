@@ -1007,7 +1007,7 @@
       "independence": "reusable-library",
       "contract": {
         "id": "gewylang-ir-contract",
-        "version": "1.3.0",
+        "version": "1.4.0",
         "stability": "stable",
         "surfaces": [
           "binding-ir-v1-values",
@@ -1031,6 +1031,11 @@
           "bounded-wire-error-reporting",
           "wire-fingerprint-reverification",
           "wire-json-schema",
+          "binding-analysis-pair-validation",
+          "typed-ir-diff-v1",
+          "four-level-compatibility-classification",
+          "bounded-diff-reporting",
+          "fail-closed-wire-diff",
           "compiler-projection-host",
           "coherent-stage-projection",
           "diagnostic-error-preservation",
@@ -1049,13 +1054,14 @@
         { "kind": "source", "path": "crates/gewylang-ir/src/fingerprint.rs", "state": "present" },
         { "kind": "source", "path": "crates/gewylang-ir/src/validation.rs", "state": "present" },
         { "kind": "source", "path": "crates/gewylang-ir/src/wire.rs", "state": "present" },
+        { "kind": "source", "path": "crates/gewylang-ir/src/diff.rs", "state": "present" },
         { "kind": "source", "path": "crates/gewylang-ir/src/projection.rs", "state": "present" },
         { "kind": "source", "path": "src/gewyc/projection_host.rs", "state": "present" },
         { "kind": "test", "path": "tests/language_independence_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/gewylang-contract.md", "state": "present" },
         { "kind": "documentation", "path": "docs/contracts/gewylang-ir-wire-v1.schema.json", "state": "present" }
       ],
-      "next_gate": "Add typed IR diff and compatibility classification over validated wire values while preserving fingerprint v1 vectors, wire v1 bytes, and fail-closed decoding."
+      "next_gate": "Add a versioned machine-readable diff envelope and gewyc comparison surface while preserving diff v1 classification, fingerprint v1 vectors, wire v1 bytes, and fail-closed decoding."
     },
     {
       "id": "gewylang/compiler/parser-lowering",

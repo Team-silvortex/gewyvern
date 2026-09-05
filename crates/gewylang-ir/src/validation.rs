@@ -301,6 +301,22 @@ pub fn validate_analysis_ir(analysis: &IrReport) -> IrValidationReport {
     report
 }
 
+/// Validates a Binding/Analysis pair without requiring host diagnostics.
+///
+/// This is the boundary used by independently persisted IR snapshots: each
+/// stage must be structurally valid, and the pair must describe one coherent
+/// compile before a cross-snapshot operation such as diffing is allowed.
+pub fn validate_binding_analysis_ir(
+    binding: &BindingReport,
+    analysis: &IrReport,
+) -> IrValidationReport {
+    let mut report = IrValidationReport::default();
+    report.extend_prefixed("binding", validate_binding_ir(binding));
+    report.extend_prefixed("analysis", validate_analysis_ir(analysis));
+    validate_binding_analysis_links(&mut report, binding, analysis);
+    report
+}
+
 pub fn validate_compiler_stages<E>(
     projections: &CompilerStageProjections<E>,
 ) -> IrValidationReport {
@@ -311,19 +327,7 @@ pub fn validate_compiler_stages<E>(
         report.extend_prefixed("diagnostics", validate_diagnostics_ir(diagnostics));
     }
 
-    if projections.binding.template_id != projections.analysis.template_id {
-        report.push(
-            IrInvariantCode::StageIdentityMismatch,
-            "analysis.template_id",
-            format!(
-                "expected binding template_id '{}', found '{}'",
-                projections.binding.template_id, projections.analysis.template_id
-            ),
-        );
-    }
-    validate_program_stage_shape(&mut report, &projections.binding, &projections.analysis);
-    validate_reason_stage_shape(&mut report, &projections.binding, &projections.analysis);
-    validate_analysis_fragment_references(&mut report, &projections.binding, &projections.analysis);
+    validate_binding_analysis_links(&mut report, &projections.binding, &projections.analysis);
 
     if let Ok(diagnostics) = &projections.diagnostics {
         validate_diagnostics_stage_shape(
@@ -334,6 +338,26 @@ pub fn validate_compiler_stages<E>(
         );
     }
     report
+}
+
+fn validate_binding_analysis_links(
+    report: &mut IrValidationReport,
+    binding: &BindingReport,
+    analysis: &IrReport,
+) {
+    if binding.template_id != analysis.template_id {
+        report.push(
+            IrInvariantCode::StageIdentityMismatch,
+            "analysis.template_id",
+            format!(
+                "expected binding template_id '{}', found '{}'",
+                binding.template_id, analysis.template_id
+            ),
+        );
+    }
+    validate_program_stage_shape(report, binding, analysis);
+    validate_reason_stage_shape(report, binding, analysis);
+    validate_analysis_fragment_references(report, binding, analysis);
 }
 
 fn validate_diagnostics_model(

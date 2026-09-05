@@ -163,7 +163,8 @@ layer:
 - `gewylang-ir` owns the stable Binding IR and Analysis IR value projections,
   diagnostics DTOs, deterministic model comparison, history snapshots,
   canonical SHA-256 content fingerprints, structural/cross-stage invariant
-  validation, strict bounded standalone JSON exchange, and the
+  validation, strict bounded standalone JSON exchange, typed field diff and
+  compatibility classification, and the
   `CompilerProjectionHost` orchestration boundary. Its only workspace
   dependency is `gewylang-contract`; serialization and SHA-256 remain
   product-independent implementation dependencies.
@@ -181,7 +182,8 @@ binding. Gewyvern produces independent IR values only through its
 coherent Binding/Diagnostics/Analysis projection set without erasing registry
 failures. Its checked projection path blocks incoherent stage sets, and its
 wire decoder independently verifies size, schema/version, fingerprint, and
-structural invariants. `gewyc` still links Gewyvern for the concrete binding,
+structural invariants. Its diff boundary refuses malformed or incoherent
+snapshots before assigning compatibility. `gewyc` still links Gewyvern for the concrete binding,
 registry, and adapter implementations; the compiler protocols and value
 contracts themselves no longer live in the runtime.
 

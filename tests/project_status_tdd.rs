@@ -5316,7 +5316,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(gewylang_ir.completion, 100);
     assert_eq!(gewylang_ir.independence, Independence::ReusableLibrary);
     assert_eq!(gewylang_ir.contract.stability, ContractStability::Stable);
-    assert_eq!(gewylang_ir.contract.version, "1.3.0");
+    assert_eq!(gewylang_ir.contract.version, "1.4.0");
     assert!(gewylang_ir.depends_on.is_empty());
     for surface in [
         "binding-ir-v1-values",
@@ -5338,6 +5338,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "bounded-wire-error-reporting",
         "wire-fingerprint-reverification",
         "wire-json-schema",
+        "binding-analysis-pair-validation",
+        "typed-ir-diff-v1",
+        "four-level-compatibility-classification",
+        "bounded-diff-reporting",
+        "fail-closed-wire-diff",
         "compiler-projection-host",
         "coherent-stage-projection",
         "diagnostic-error-preservation",
@@ -5361,6 +5366,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "crates/gewylang-ir/src/fingerprint.rs",
         "crates/gewylang-ir/src/validation.rs",
         "crates/gewylang-ir/src/wire.rs",
+        "crates/gewylang-ir/src/diff.rs",
         "crates/gewylang-ir/src/projection.rs",
         "docs/contracts/gewylang-ir-wire-v1.schema.json",
     ] {
