@@ -1557,6 +1557,13 @@ authority receives eight revision-fenced retry-now requests. Revision `3`,
 eight audit records, and idempotent replay survive reload and convergence.
 Repair starts without waiting for the old deadline and completes in 55 ms on
 Arm64 and 162 ms on physical x86_64 Linux.
+The recovery worker uses one `TimeProvider` for claim eligibility, failed-attempt
+timestamps, and the next retry delay, defaulting to the system clock. The
+saturated-queue test fixes that clock while checking its four initial passes,
+so slower CI workers cannot turn a one-second retry deadline into an extra
+batch. Latency measurements still use a real stopwatch. A separate worker test
+checks that an intent remains deferred immediately before its deadline and
+converges when the controlled clock reaches the deadline and recovery is signaled.
 The retry/claim race extension makes the shared claim lock a retained
 linearizability contract rather than an implementation assumption. It runs
 eight forced worker-first rounds, eight forced operator-first rounds, and 32

@@ -7,7 +7,8 @@ public sealed class RuntimeDeletionRecoveryService(
     IRuntimeRegistrationAuthority registrationAuthority,
     ILogger<RuntimeDeletionRecoveryService> logger,
     RuntimeDeletionRecoverySignal? recoverySignal = null,
-    ControlPlaneWriterFence? writerFence = null) : BackgroundService
+    ControlPlaneWriterFence? writerFence = null,
+    TimeProvider? timeProvider = null) : BackgroundService
 {
     private const int MaxRecoveryBatchSize = 32;
     private const int MaxConcurrentAuthorityMutations = 8;
@@ -17,6 +18,7 @@ public sealed class RuntimeDeletionRecoveryService(
     private static readonly TimeSpan ReadyDelay = TimeSpan.FromMilliseconds(25);
     private readonly RuntimeDeletionRecoverySignal recoverySignal =
         recoverySignal ?? new RuntimeDeletionRecoverySignal();
+    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -37,7 +39,8 @@ public sealed class RuntimeDeletionRecoveryService(
                 return;
             }
             var reservations = registry.ClaimPendingRuntimeDeletions(
-                MaxRecoveryBatchSize);
+                MaxRecoveryBatchSize,
+                timeProvider.GetUtcNow());
             var successfulReservations =
                 new ConcurrentBag<RuntimeDeletionReservation>();
             var failedReservations =
@@ -77,7 +80,7 @@ public sealed class RuntimeDeletionRecoveryService(
                                 failedReservations.Add(new RuntimeDeletionFailure(
                                     reservation,
                                     ClassifyFailure(ex),
-                                    DateTimeOffset.UtcNow));
+                                    timeProvider.GetUtcNow()));
                                 logger.LogWarning(
                                     ex,
                                     "Pending runtime deletion intent {IntentId} did not converge; it will be retried.",
@@ -178,7 +181,7 @@ public sealed class RuntimeDeletionRecoveryService(
             return IdleDelay;
         }
 
-        var now = DateTimeOffset.UtcNow;
+        var now = timeProvider.GetUtcNow();
         var nextAttemptAt = pending
             .Select(static intent => intent.NextAttemptAt)
             .Where(static value => value is not null)

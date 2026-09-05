@@ -1727,6 +1727,80 @@ public sealed class OrchestraExecutionCoordinatorTests
     }
 
     [Fact]
+    public async Task RuntimeDeletionRecoveryUsesOneClockForAttemptsAndRetryEligibility()
+    {
+        var (registry, statePath) = CreateRegistry();
+        var runtime = RegisterRuntime(registry);
+        registry.ReserveRuntimeDeletion(new[] { runtime.RuntimeId }).Dispose();
+        var attemptedAt = DateTimeOffset.UtcNow.AddMinutes(1);
+        var clock = new ManualRecoveryTimeProvider(attemptedAt);
+        try
+        {
+            using (var failingRecovery = new RuntimeDeletionRecoveryService(
+                registry,
+                new MixedQueueRuntimeDeletionAuthority(
+                    new[] { runtime.RuntimeId },
+                    Array.Empty<string>()),
+                NullLogger<RuntimeDeletionRecoveryService>.Instance,
+                timeProvider: clock))
+            {
+                try
+                {
+                    await failingRecovery.StartAsync(CancellationToken.None);
+                    await WaitForRecoveryConditionAsync(
+                        () => registry.ListPendingRuntimeDeletions()
+                            .Any(intent => intent.AttemptCount == 1),
+                        "the first failed attempt was not persisted");
+                }
+                finally
+                {
+                    await failingRecovery.StopAsync(CancellationToken.None);
+                }
+            }
+
+            var failed = Assert.Single(registry.ListPendingRuntimeDeletions());
+            Assert.Equal(attemptedAt, failed.LastAttemptAt);
+            Assert.Equal(attemptedAt.AddSeconds(1), failed.NextAttemptAt);
+            var deadline = failed.NextAttemptAt!.Value;
+            clock.SetUtcNow(deadline.AddTicks(-1));
+            var readsBeforeStart = clock.ReadCount;
+            var signal = new RuntimeDeletionRecoverySignal();
+            var authority = new RecordingRegistrationAuthority();
+            using var recovery = new RuntimeDeletionRecoveryService(
+                registry,
+                authority,
+                NullLogger<RuntimeDeletionRecoveryService>.Instance,
+                recoverySignal: signal,
+                timeProvider: clock);
+            try
+            {
+                await recovery.StartAsync(CancellationToken.None);
+                // The second clock read means the ineligible pass reached its wait.
+                await WaitForRecoveryConditionAsync(
+                    () => clock.ReadCount >= readsBeforeStart + 2,
+                    "the recovery worker did not inspect the deferred intent");
+                Assert.Empty(authority.UnregisteredRuntimeIds);
+                Assert.Equal(1, Assert.Single(
+                    registry.ListPendingRuntimeDeletions()).AttemptCount);
+
+                clock.SetUtcNow(deadline);
+                signal.Pulse();
+                await WaitForPendingDeletionCountAsync(registry, 0);
+                Assert.Equal(new[] { runtime.RuntimeId }, authority.UnregisteredRuntimeIds);
+                Assert.Null(registry.GetRuntime(runtime.RuntimeId));
+            }
+            finally
+            {
+                await recovery.StopAsync(CancellationToken.None);
+            }
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
     public async Task SaturatedRuntimeDeletionQueueIsFairAndStopsCooperatively()
     {
         const int intentCount = 128;
@@ -1786,10 +1860,13 @@ public sealed class OrchestraExecutionCoordinatorTests
         var mixedAuthority = new MixedQueueRuntimeDeletionAuthority(
             poisonRuntimeIds,
             slowRuntimeIds);
+        // Batch fairness must not depend on beating the one-second retry deadline.
+        var recoveryClock = new ManualRecoveryTimeProvider(DateTimeOffset.UtcNow);
         var mixedRecovery = new RuntimeDeletionRecoveryService(
             registry,
             mixedAuthority,
-            NullLogger<RuntimeDeletionRecoveryService>.Instance);
+            NullLogger<RuntimeDeletionRecoveryService>.Instance,
+            timeProvider: recoveryClock);
         var progressionTimer = Stopwatch.StartNew();
         var expectedPendingCounts = new[] { 98, 68, 38, 8 };
         var passLatencies = new List<long>(expectedPendingCounts.Length);
@@ -1943,7 +2020,8 @@ public sealed class OrchestraExecutionCoordinatorTests
         var repairRecovery = new RuntimeDeletionRecoveryService(
             operatorReloaded,
             repairAuthority,
-            NullLogger<RuntimeDeletionRecoveryService>.Instance);
+            NullLogger<RuntimeDeletionRecoveryService>.Instance,
+            timeProvider: new ManualRecoveryTimeProvider(operatorRequestedAt));
         var repairTimer = Stopwatch.StartNew();
         await repairRecovery.StartAsync(CancellationToken.None);
         await WaitForPendingDeletionCountAsync(operatorReloaded, 0);
@@ -2050,6 +2128,22 @@ public sealed class OrchestraExecutionCoordinatorTests
         }
         throw new TimeoutException(
             $"runtime deletion intent count did not converge to {expectedCount}");
+    }
+
+    private static async Task WaitForRecoveryConditionAsync(
+        Func<bool> condition,
+        string timeoutMessage)
+    {
+        var timer = Stopwatch.StartNew();
+        while (timer.Elapsed < TimeSpan.FromSeconds(5))
+        {
+            if (condition())
+            {
+                return;
+            }
+            await Task.Delay(10);
+        }
+        throw new TimeoutException(timeoutMessage);
     }
 
     private static async Task<RuntimeDeletionRetryClaimRaceResult>
@@ -2400,6 +2494,8 @@ public sealed class OrchestraExecutionCoordinatorTests
             retry_now_replay_observed = retryNowReplayObserved,
             retry_now_repair_latency_ms = retryNowRepairLatencyMs,
             retry_backoff_seconds = 1,
+            retry_schedule_clock = "controlled",
+            latency_clock = "system_stopwatch",
             orchestra_delete_batch_count = 5,
             checks = new
             {
@@ -2854,6 +2950,24 @@ public sealed class OrchestraExecutionCoordinatorTests
     private sealed record RuntimeDeletionRetryRolloverCommand(
         PersistedRuntimeDeletionIntent Intent,
         string RequestId);
+
+    private sealed class ManualRecoveryTimeProvider(DateTimeOffset current) : TimeProvider
+    {
+        private long utcTicks = current.UtcTicks;
+        private int readCount;
+
+        public int ReadCount => Volatile.Read(ref readCount);
+
+        public override DateTimeOffset GetUtcNow()
+        {
+            var observed = new DateTimeOffset(Interlocked.Read(ref utcTicks), TimeSpan.Zero);
+            Interlocked.Increment(ref readCount);
+            return observed;
+        }
+
+        public void SetUtcNow(DateTimeOffset value) =>
+            Interlocked.Exchange(ref utcTicks, value.UtcTicks);
+    }
 
     private sealed class CancellationBlockingAuthority : IRuntimeRegistrationAuthority
     {
