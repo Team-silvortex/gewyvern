@@ -82,178 +82,102 @@ impl JsonValue {
 }
 
 pub(crate) struct JsonParser<'a> {
-    input: &'a [u8],
-    pos: usize,
+    input: &'a str,
 }
 
 impl<'a> JsonParser<'a> {
     pub(crate) fn new(input: &'a str) -> Self {
-        Self {
-            input: input.as_bytes(),
-            pos: 0,
-        }
+        Self { input }
     }
 
-    pub(crate) fn parse(mut self) -> Result<JsonValue, ExportError> {
-        let value = self.parse_value()?;
-        self.skip_ws();
-        if self.pos != self.input.len() {
-            return Err(ExportError::InvalidJson("trailing data".into()));
-        }
-        Ok(value)
+    pub(crate) fn parse(self) -> Result<JsonValue, ExportError> {
+        let value = serde_json::from_str(self.input)
+            .map_err(|error| ExportError::InvalidJson(error.to_string()))?;
+        convert_json_value(value)
     }
+}
 
-    fn parse_value(&mut self) -> Result<JsonValue, ExportError> {
-        self.skip_ws();
-        let ch = self
-            .peek()
-            .ok_or_else(|| ExportError::InvalidJson("unexpected eof".into()))?;
-        match ch {
-            b'n' => {
-                self.expect_bytes(b"null")?;
-                Ok(JsonValue::Null)
-            }
-            b't' => {
-                self.expect_bytes(b"true")?;
-                Ok(JsonValue::Bool(true))
-            }
-            b'f' => {
-                self.expect_bytes(b"false")?;
-                Ok(JsonValue::Bool(false))
-            }
-            b'"' => Ok(JsonValue::String(self.parse_string()?)),
-            b'[' => self.parse_array(),
-            b'{' => self.parse_object(),
-            b'-' | b'0'..=b'9' => self.parse_number(),
-            _ => Err(ExportError::InvalidJson("invalid token".into())),
+fn convert_json_value(value: serde_json::Value) -> Result<JsonValue, ExportError> {
+    match value {
+        serde_json::Value::Null => Ok(JsonValue::Null),
+        serde_json::Value::Bool(value) => Ok(JsonValue::Bool(value)),
+        serde_json::Value::Number(value) => {
+            value.as_i64().map(JsonValue::Number).ok_or_else(|| {
+                ExportError::InvalidJson("number must fit signed 64-bit integer".into())
+            })
         }
-    }
-
-    fn parse_array(&mut self) -> Result<JsonValue, ExportError> {
-        self.consume(b'[')?;
-        let mut values = Vec::new();
-        loop {
-            self.skip_ws();
-            if self.try_consume(b']') {
-                break;
-            }
-            values.push(self.parse_value()?);
-            self.skip_ws();
-            if self.try_consume(b']') {
-                break;
-            }
-            self.consume(b',')?;
-        }
-        Ok(JsonValue::Array(values))
-    }
-
-    fn parse_object(&mut self) -> Result<JsonValue, ExportError> {
-        self.consume(b'{')?;
-        let mut map = BTreeMap::new();
-        loop {
-            self.skip_ws();
-            if self.try_consume(b'}') {
-                break;
-            }
-            let key = self.parse_string()?;
-            self.skip_ws();
-            self.consume(b':')?;
-            let value = self.parse_value()?;
-            map.insert(key, value);
-            self.skip_ws();
-            if self.try_consume(b'}') {
-                break;
-            }
-            self.consume(b',')?;
-        }
-        Ok(JsonValue::Object(map))
-    }
-
-    fn parse_string(&mut self) -> Result<String, ExportError> {
-        self.consume(b'"')?;
-        let mut value = String::new();
-        while let Some(ch) = self.peek() {
-            self.pos += 1;
-            match ch {
-                b'"' => return Ok(value),
-                b'\\' => {
-                    let escaped = self
-                        .peek()
-                        .ok_or_else(|| ExportError::InvalidJson("bad escape".into()))?;
-                    self.pos += 1;
-                    match escaped {
-                        b'"' => value.push('"'),
-                        b'\\' => value.push('\\'),
-                        b'n' => value.push('\n'),
-                        b'r' => value.push('\r'),
-                        b't' => value.push('\t'),
-                        _ => return Err(ExportError::InvalidJson("unsupported escape".into())),
-                    }
-                }
-                _ => value.push(ch as char),
-            }
-        }
-        Err(ExportError::InvalidJson("unterminated string".into()))
-    }
-
-    fn parse_number(&mut self) -> Result<JsonValue, ExportError> {
-        let start = self.pos;
-        if self.peek() == Some(b'-') {
-            self.pos += 1;
-        }
-        while matches!(self.peek(), Some(b'0'..=b'9')) {
-            self.pos += 1;
-        }
-        let raw = std::str::from_utf8(&self.input[start..self.pos])
-            .map_err(|_| ExportError::InvalidJson("bad number".into()))?;
-        let value = raw
-            .parse::<i64>()
-            .map_err(|_| ExportError::InvalidJson("bad number".into()))?;
-        Ok(JsonValue::Number(value))
-    }
-
-    fn expect_bytes(&mut self, bytes: &[u8]) -> Result<(), ExportError> {
-        if self.input.get(self.pos..self.pos + bytes.len()) == Some(bytes) {
-            self.pos += bytes.len();
-            Ok(())
-        } else {
-            Err(ExportError::InvalidJson("unexpected token".into()))
-        }
-    }
-
-    fn consume(&mut self, ch: u8) -> Result<(), ExportError> {
-        if self.try_consume(ch) {
-            Ok(())
-        } else {
-            Err(ExportError::InvalidJson("unexpected token".into()))
-        }
-    }
-
-    fn try_consume(&mut self, ch: u8) -> bool {
-        if self.peek() == Some(ch) {
-            self.pos += 1;
-            true
-        } else {
-            false
-        }
-    }
-
-    fn skip_ws(&mut self) {
-        while matches!(self.peek(), Some(b' ' | b'\n' | b'\r' | b'\t')) {
-            self.pos += 1;
-        }
-    }
-
-    fn peek(&self) -> Option<u8> {
-        self.input.get(self.pos).copied()
+        serde_json::Value::String(value) => Ok(JsonValue::String(value)),
+        serde_json::Value::Array(values) => values
+            .into_iter()
+            .map(convert_json_value)
+            .collect::<Result<Vec<_>, _>>()
+            .map(JsonValue::Array),
+        serde_json::Value::Object(values) => values
+            .into_iter()
+            .map(|(key, value)| convert_json_value(value).map(|value| (key, value)))
+            .collect::<Result<BTreeMap<_, _>, _>>()
+            .map(JsonValue::Object),
     }
 }
 
 pub(crate) fn escape_json(input: &str) -> String {
-    input
-        .replace('\\', "\\\\")
-        .replace('"', "\\\"")
-        .replace('\n', "\\n")
-        .replace('\r', "\\r")
-        .replace('\t', "\\t")
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+
+    let mut escaped = String::with_capacity(input.len());
+    for character in input.chars() {
+        match character {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            '\u{08}' => escaped.push_str("\\b"),
+            '\u{0c}' => escaped.push_str("\\f"),
+            character if character.is_control() => {
+                let code = character as usize;
+                escaped.push_str("\\u");
+                escaped.push(char::from(HEX[(code >> 12) & 0x0f]));
+                escaped.push(char::from(HEX[(code >> 8) & 0x0f]));
+                escaped.push(char::from(HEX[(code >> 4) & 0x0f]));
+                escaped.push(char::from(HEX[code & 0x0f]));
+            }
+            _ => escaped.push(character),
+        }
+    }
+    escaped
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::{JsonParser, JsonValue};
+
+    #[test]
+    fn json_round_trip_preserves_unicode_and_all_control_characters() {
+        let value = JsonValue::Object(BTreeMap::from([(
+            "键\0".to_string(),
+            JsonValue::String("雪😀\0\u{1}\u{8}\u{c}\n\r\t\\\"".to_string()),
+        )]));
+
+        let rendered = value.render();
+
+        assert!(serde_json::from_str::<serde_json::Value>(&rendered).is_ok());
+        assert_eq!(JsonParser::new(&rendered).parse().unwrap(), value);
+    }
+
+    #[test]
+    fn parser_accepts_standard_escapes_and_rejects_nonstandard_json() {
+        assert_eq!(
+            JsonParser::new(r#""\b\f\u96ea\ud83d\ude00""#)
+                .parse()
+                .unwrap(),
+            JsonValue::String("\u{8}\u{c}雪😀".to_string())
+        );
+        assert!(JsonParser::new(r#"{"value":[1,]}"#).parse().is_err());
+        assert!(JsonParser::new("01").parse().is_err());
+
+        let deeply_nested = format!("{}0{}", "[".repeat(256), "]".repeat(256));
+        assert!(JsonParser::new(&deeply_nested).parse().is_err());
+    }
 }

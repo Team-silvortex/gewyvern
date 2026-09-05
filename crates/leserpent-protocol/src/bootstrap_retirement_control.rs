@@ -7,6 +7,8 @@ use leserpent_domain::bootstrap_retirement::{
 use leserpent_domain::{CapabilitySet, Principal};
 use serde::{Deserialize, Serialize};
 
+use crate::{BoundedJsonEncodeError, encode_json_bounded};
+
 pub const DAEMON_RETIREMENT_PROTOCOL_SCHEMA_VERSION: u32 = 1;
 pub const MAX_DAEMON_RETIREMENT_PROTOCOL_BYTES: usize = 64 * 1024;
 
@@ -232,10 +234,14 @@ fn require_bound(bytes: &[u8]) -> Result<(), DaemonRetirementCodecError> {
 }
 
 fn encode_bounded(value: &impl Serialize) -> Result<Vec<u8>, DaemonRetirementCodecError> {
-    let bytes = serde_json::to_vec(value)
-        .map_err(|error| DaemonRetirementCodecError::InvalidJson(error.to_string()))?;
-    require_bound(&bytes)?;
-    Ok(bytes)
+    encode_json_bounded(value, MAX_DAEMON_RETIREMENT_PROTOCOL_BYTES).map_err(|error| match error {
+        BoundedJsonEncodeError::Oversized { size, limit } => {
+            DaemonRetirementCodecError::Oversized { size, limit }
+        }
+        BoundedJsonEncodeError::InvalidJson(error) => {
+            DaemonRetirementCodecError::InvalidJson(error.to_string())
+        }
+    })
 }
 
 fn valid_code(value: &str) -> bool {

@@ -271,13 +271,23 @@ fn render_state_text(state: &gewyvern::certificate_state::CertificateRuntimeStat
     rendered.push_str("Certificate State\n");
     rendered.push_str(&format!("root: {}\n", state.root.display()));
     rendered.push_str(&format!(
-        "rotation records: {} ({})\n",
+        "rotation records: {} [{}] ({})\n",
         state.rotation_records.len(),
+        if state.rotation_records_valid {
+            "valid"
+        } else {
+            "invalid"
+        },
         state.rotation_records_path.display()
     ));
     rendered.push_str(&format!(
-        "revocation records: {} ({})\n",
+        "revocation records: {} [{}] ({})\n",
         state.revocation_records.len(),
+        if state.revocation_records_valid {
+            "valid"
+        } else {
+            "invalid"
+        },
         state.revocation_records_path.display()
     ));
     if !state.rotation_records.is_empty() {
@@ -529,6 +539,36 @@ mod tests {
 
         let error = result.expect_err("command should fail");
         assert!(error.contains("note contains control characters"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn set_revocation_refuses_to_overwrite_invalid_existing_state() {
+        let _guard = env_test_lock().lock().unwrap();
+        let root = temp_root("revocation-invalid-existing-state");
+        let state_root = root.join("state").join("certificates");
+        fs::create_dir_all(&state_root).unwrap();
+        let records_path = state_root.join("revocation-records.tsv");
+        let malformed = "trust/anchors/root-ca.pem\ttrust\tunknown\t-\t-\tbroken\n";
+        fs::write(&records_path, malformed).unwrap();
+
+        let _env = TestEnvGuard::set(&[(
+            "GEWY_CERTIFICATE_STATE_ROOT",
+            state_root.to_string_lossy().as_ref(),
+        )]);
+        let result = run_certificate_state_command(&[
+            "set-revocation".into(),
+            "--path".into(),
+            "trust/anchors/new-ca.pem".into(),
+            "--scope".into(),
+            "trust".into(),
+            "--status".into(),
+            "revoked".into(),
+        ]);
+
+        let error = result.expect_err("invalid state must block record updates");
+        assert!(error.contains("invalid revocation record at line 1"));
+        assert_eq!(fs::read_to_string(&records_path).unwrap(), malformed);
         fs::remove_dir_all(root).unwrap();
     }
 

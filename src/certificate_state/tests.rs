@@ -10,6 +10,21 @@ fn temp_root(label: &str) -> PathBuf {
     ))
 }
 
+fn layout_with_certificate_state_root(certificate_state_root: PathBuf) -> RuntimeLayout {
+    RuntimeLayout {
+        config_root: PathBuf::from("/tmp/config"),
+        data_root: PathBuf::from("/tmp/data"),
+        state_root: PathBuf::from("/tmp/state"),
+        cache_root: PathBuf::from("/tmp/cache"),
+        certificate_root: PathBuf::from("/tmp/config/certificates"),
+        trust_root: PathBuf::from("/tmp/config/certificates/trust"),
+        authority_root: PathBuf::from("/tmp/config/certificates/authorities"),
+        identity_root: PathBuf::from("/tmp/config/certificates/identities"),
+        certificate_state_root,
+        legacy_root: None,
+    }
+}
+
 #[test]
 fn state_reads_rotation_and_revocation_records() {
     let root = temp_root("scan");
@@ -25,21 +40,13 @@ fn state_reads_rotation_and_revocation_records() {
     )
     .unwrap();
 
-    let state = runtime_certificate_state_from_layout(RuntimeLayout {
-        config_root: PathBuf::from("/tmp/config"),
-        data_root: PathBuf::from("/tmp/data"),
-        state_root: PathBuf::from("/tmp/state"),
-        cache_root: PathBuf::from("/tmp/cache"),
-        certificate_root: PathBuf::from("/tmp/config/certificates"),
-        trust_root: PathBuf::from("/tmp/config/certificates/trust"),
-        authority_root: PathBuf::from("/tmp/config/certificates/authorities"),
-        identity_root: PathBuf::from("/tmp/config/certificates/identities"),
-        certificate_state_root: root.clone(),
-        legacy_root: None,
-    });
+    let state =
+        runtime_certificate_state_from_layout(layout_with_certificate_state_root(root.clone()));
 
     assert!(state.rotation_records_exist);
     assert!(state.revocation_records_exist);
+    assert!(state.rotation_records_valid);
+    assert!(state.revocation_records_valid);
     assert_eq!(state.rotation_records.len(), 1);
     assert_eq!(
         state.rotation_records[0].status,
@@ -99,7 +106,7 @@ fn sanitize_record_note_rejects_control_characters() {
 }
 
 #[test]
-fn read_rotation_records_skips_unknown_status_entries() {
+fn read_rotation_records_rejects_unknown_status_entries() {
     let root = temp_root("invalid-rotation-status");
     fs::create_dir_all(&root).unwrap();
     let path = root.join(ROTATION_RECORDS_FILE);
@@ -110,14 +117,14 @@ fn read_rotation_records_skips_unknown_status_entries() {
     )
     .unwrap();
 
-    let records = read_rotation_records(&path);
-    assert_eq!(records.len(), 1);
-    assert_eq!(records[0].relative_path, "identity/valid.pem");
+    let error = read_rotation_records(&path).expect_err("unknown status must reject the file");
+    assert!(error.contains("invalid rotation record at line 1"));
+    assert!(error.contains("unsupported rotation status"));
     fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
-fn read_revocation_records_skips_unknown_status_and_scope_entries() {
+fn read_revocation_records_rejects_unknown_status_and_scope_entries() {
     let root = temp_root("invalid-revocation-status");
     fs::create_dir_all(&root).unwrap();
     let path = root.join(REVOCATION_RECORDS_FILE);
@@ -128,9 +135,51 @@ fn read_revocation_records_skips_unknown_status_and_scope_entries() {
     )
     .unwrap();
 
-    let records = read_revocation_records(&path);
-    assert_eq!(records.len(), 1);
-    assert_eq!(records[0].relative_path, "trust/anchors/root-ca.pem");
+    let error =
+        read_revocation_records(&path).expect_err("unknown scope must reject the entire file");
+    assert!(error.contains("invalid revocation record at line 2"));
+    assert!(error.contains("unsupported certificate material scope"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn state_marks_oversized_record_files_invalid() {
+    let root = temp_root("oversized-state");
+    fs::create_dir_all(&root).unwrap();
+    let file = fs::File::create(root.join(REVOCATION_RECORDS_FILE)).unwrap();
+    file.set_len(MAX_CERTIFICATE_STATE_FILE_BYTES + 1).unwrap();
+
+    let state =
+        runtime_certificate_state_from_layout(layout_with_certificate_state_root(root.clone()));
+
+    assert!(state.revocation_records_exist);
+    assert!(!state.revocation_records_valid);
+    assert!(state.revocation_records.is_empty());
+    assert!(state.rotation_records_valid);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn state_rejects_symlinked_record_files() {
+    use std::os::unix::fs::symlink;
+
+    let root = temp_root("symlink-state");
+    fs::create_dir_all(&root).unwrap();
+    let target = root.join("outside.tsv");
+    fs::write(
+        &target,
+        "trust/anchors/root.pem\ttrust\trevoked\t-\t-\tnote\n",
+    )
+    .unwrap();
+    symlink(&target, root.join(REVOCATION_RECORDS_FILE)).unwrap();
+
+    let state =
+        runtime_certificate_state_from_layout(layout_with_certificate_state_root(root.clone()));
+
+    assert!(state.revocation_records_exist);
+    assert!(!state.revocation_records_valid);
+    assert!(state.revocation_records.is_empty());
     fs::remove_dir_all(root).unwrap();
 }
 

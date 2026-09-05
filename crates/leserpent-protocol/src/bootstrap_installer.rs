@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use silvortex_bounded_io::parse_https_origin;
 use zeroize::{Zeroize, Zeroizing};
 
+use crate::{BoundedJsonEncodeError, encode_json_bounded};
+
 pub const BOOTSTRAP_INSTALLER_SCHEMA_VERSION: u32 = 1;
 pub const MAX_BOOTSTRAP_INSTALLER_BYTES: usize = 64 * 1024;
 pub const MAX_BOOTSTRAP_ARTIFACT_BYTES: usize = 256 * 1024 * 1024;
@@ -210,11 +212,7 @@ pub fn encode_bootstrap_installer_request(
     request: &BootstrapInstallerRequest,
 ) -> Result<Zeroizing<Vec<u8>>, BootstrapInstallerCodecError> {
     request.validate()?;
-    let bytes = Zeroizing::new(
-        serde_json::to_vec(request).map_err(|_| BootstrapInstallerCodecError::InvalidJson)?,
-    );
-    require_bound(&bytes)?;
-    Ok(bytes)
+    encode_bounded(request).map(Zeroizing::new)
 }
 
 pub fn decode_bootstrap_installer_response(
@@ -231,10 +229,16 @@ pub fn encode_bootstrap_installer_response(
     response: &BootstrapInstallerResponse,
 ) -> Result<Vec<u8>, BootstrapInstallerCodecError> {
     response.validate()?;
-    let bytes =
-        serde_json::to_vec(response).map_err(|_| BootstrapInstallerCodecError::InvalidJson)?;
-    require_bound(&bytes)?;
-    Ok(bytes)
+    encode_bounded(response)
+}
+
+fn encode_bounded(value: &impl Serialize) -> Result<Vec<u8>, BootstrapInstallerCodecError> {
+    encode_json_bounded(value, MAX_BOOTSTRAP_INSTALLER_BYTES).map_err(|error| match error {
+        BoundedJsonEncodeError::Oversized { size, limit } => {
+            BootstrapInstallerCodecError::Oversized { size, limit }
+        }
+        BoundedJsonEncodeError::InvalidJson(_) => BootstrapInstallerCodecError::InvalidJson,
+    })
 }
 
 fn require_bound(bytes: &[u8]) -> Result<(), BootstrapInstallerCodecError> {

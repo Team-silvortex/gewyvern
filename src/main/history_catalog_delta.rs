@@ -1,7 +1,15 @@
 use crate::render_utils::{append_json_string, append_string_list_json};
+use silvortex_bounded_io::read_bounded_utf8_regular_file;
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+
+const MAX_CATALOG_DIRECTORY_ENTRIES: usize = 32_768;
+const MAX_CATALOG_PROTOCOLS: usize = 2_048;
+const MAX_CATALOG_ENTRIES: usize = 16_384;
+const MAX_CATALOG_ARTIFACT_BYTES: u64 = 1024 * 1024;
+const MAX_CATALOG_TOTAL_BYTES: u64 = 32 * 1024 * 1024;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct ProtocolCatalogDelta {
@@ -71,6 +79,13 @@ struct ProtocolCatalogProtocol {
     entries: BTreeMap<String, String>,
 }
 
+#[derive(Default)]
+struct ProtocolCatalogLoadBudget {
+    directory_entries: usize,
+    catalog_entries: usize,
+    payload_bytes: u64,
+}
+
 fn protocol_catalog_delta_between(
     current_updated_unix_ms: u128,
     current_root: &Path,
@@ -133,22 +148,44 @@ fn protocol_catalog_delta_between(
 
 fn load_protocol_catalog_snapshot(root: &Path) -> Result<ProtocolCatalogSnapshot, String> {
     let protocols_root = root.join("protocols");
-    if !protocols_root.exists() {
+    if !require_optional_directory(&protocols_root)? {
         return Ok(ProtocolCatalogSnapshot::default());
     }
+    let mut budget = ProtocolCatalogLoadBudget::default();
+    let protocol_dirs = read_sorted_dirs(&protocols_root, &mut budget)?;
+    if protocol_dirs.len() > MAX_CATALOG_PROTOCOLS {
+        return Err(format!(
+            "protocol catalog '{}' exceeds the {} protocol limit",
+            protocols_root.display(),
+            MAX_CATALOG_PROTOCOLS
+        ));
+    }
     let mut snapshot = ProtocolCatalogSnapshot::default();
-    for protocol_entry in read_sorted_dirs(&protocols_root)? {
+    for protocol_entry in protocol_dirs {
         let protocol_name = dir_name(&protocol_entry)?;
-        let summary_json = read_optional_file(&protocol_entry.join("summary.json"))?;
+        let summary_json = read_optional_file(&protocol_entry.join("summary.json"), &mut budget)?;
         let mut protocol = ProtocolCatalogProtocol {
             summary_json,
             ..ProtocolCatalogProtocol::default()
         };
         let entries_root = protocol_entry.join("entries");
-        if entries_root.exists() {
-            for entry_dir in read_sorted_dirs(&entries_root)? {
+        if require_optional_directory(&entries_root)? {
+            let entry_dirs = read_sorted_dirs(&entries_root, &mut budget)?;
+            budget.catalog_entries = budget
+                .catalog_entries
+                .checked_add(entry_dirs.len())
+                .ok_or_else(|| "protocol catalog entry counter overflowed".to_string())?;
+            if budget.catalog_entries > MAX_CATALOG_ENTRIES {
+                return Err(format!(
+                    "protocol catalog '{}' exceeds the {} entry limit",
+                    protocols_root.display(),
+                    MAX_CATALOG_ENTRIES
+                ));
+            }
+            for entry_dir in entry_dirs {
                 let entry_name = dir_name(&entry_dir)?;
-                let surface_json = read_optional_file(&entry_dir.join("surface.json"))?;
+                let surface_json =
+                    read_optional_file(&entry_dir.join("surface.json"), &mut budget)?;
                 protocol.entries.insert(entry_name, surface_json);
             }
         }
@@ -157,18 +194,61 @@ fn load_protocol_catalog_snapshot(root: &Path) -> Result<ProtocolCatalogSnapshot
     Ok(snapshot)
 }
 
-fn read_sorted_dirs(root: &Path) -> Result<Vec<PathBuf>, String> {
-    let mut dirs = fs::read_dir(root)
-        .map_err(|err| {
+fn require_optional_directory(path: &Path) -> Result<bool, String> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => Err(format!(
+            "protocol catalog path '{}' must be a non-symlink directory",
+            path.display()
+        )),
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!(
+            "failed to inspect protocol catalog path '{}': {error}",
+            path.display()
+        )),
+    }
+}
+
+fn read_sorted_dirs(
+    root: &Path,
+    budget: &mut ProtocolCatalogLoadBudget,
+) -> Result<Vec<PathBuf>, String> {
+    let read_dir = fs::read_dir(root).map_err(|err| {
+        format!(
+            "failed to inspect protocol catalog root '{}': {err}",
+            root.display()
+        )
+    })?;
+    let mut dirs = Vec::new();
+    for entry in read_dir {
+        budget.directory_entries = budget
+            .directory_entries
+            .checked_add(1)
+            .ok_or_else(|| "protocol catalog directory counter overflowed".to_string())?;
+        if budget.directory_entries > MAX_CATALOG_DIRECTORY_ENTRIES {
+            return Err(format!(
+                "protocol catalog '{}' exceeds the {} directory-entry limit",
+                root.display(),
+                MAX_CATALOG_DIRECTORY_ENTRIES
+            ));
+        }
+        let entry = entry.map_err(|error| {
             format!(
-                "failed to inspect protocol catalog root '{}': {err}",
+                "failed to read protocol catalog root '{}': {error}",
                 root.display()
             )
-        })?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| path.is_dir())
-        .collect::<Vec<_>>();
+        })?;
+        let path = entry.path();
+        let metadata = fs::symlink_metadata(&path).map_err(|error| {
+            format!(
+                "failed to inspect protocol catalog entry '{}': {error}",
+                path.display()
+            )
+        })?;
+        if !metadata.file_type().is_symlink() && metadata.is_dir() {
+            dirs.push(path);
+        }
+    }
     dirs.sort();
     Ok(dirs)
 }
@@ -180,16 +260,60 @@ fn dir_name(path: &Path) -> Result<String, String> {
         .ok_or_else(|| format!("invalid protocol catalog path '{}'", path.display()))
 }
 
-fn read_optional_file(path: &Path) -> Result<String, String> {
-    if !path.exists() {
-        return Ok(String::new());
+fn read_optional_file(
+    path: &Path,
+    budget: &mut ProtocolCatalogLoadBudget,
+) -> Result<String, String> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            return Err(format!(
+                "protocol catalog artifact '{}' must be a regular non-symlink file",
+                path.display()
+            ));
+        }
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(String::new()),
+        Err(error) => {
+            return Err(format!(
+                "failed to inspect protocol catalog file '{}': {error}",
+                path.display()
+            ));
+        }
+    };
+    if metadata.len() > MAX_CATALOG_ARTIFACT_BYTES {
+        return Err(format!(
+            "protocol catalog artifact '{}' exceeds the {} byte limit",
+            path.display(),
+            MAX_CATALOG_ARTIFACT_BYTES
+        ));
     }
-    fs::read_to_string(path).map_err(|err| {
-        format!(
-            "failed to read protocol catalog file '{}': {err}",
-            path.display()
-        )
-    })
+    if budget.payload_bytes.saturating_add(metadata.len()) > MAX_CATALOG_TOTAL_BYTES {
+        return Err(format!(
+            "protocol catalog '{}' exceeds the {} byte cumulative limit",
+            path.display(),
+            MAX_CATALOG_TOTAL_BYTES
+        ));
+    }
+    let contents =
+        read_bounded_utf8_regular_file(path, MAX_CATALOG_ARTIFACT_BYTES).map_err(|err| {
+            format!(
+                "failed to securely read protocol catalog file '{}': {err}",
+                path.display()
+            )
+        })?;
+    let content_len = contents.len() as u64;
+    budget.payload_bytes = budget
+        .payload_bytes
+        .checked_add(content_len)
+        .ok_or_else(|| "protocol catalog byte counter overflowed".to_string())?;
+    if budget.payload_bytes > MAX_CATALOG_TOTAL_BYTES {
+        return Err(format!(
+            "protocol catalog '{}' exceeds the {} byte cumulative limit",
+            path.display(),
+            MAX_CATALOG_TOTAL_BYTES
+        ));
+    }
+    Ok(contents)
 }
 
 fn difference(left: &[String], right: &[String]) -> Vec<String> {

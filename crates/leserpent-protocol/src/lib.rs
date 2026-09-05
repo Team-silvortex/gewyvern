@@ -1,3 +1,5 @@
+use std::io::{self, Write};
+
 use leselang_ui::{DebuggerProjection, UiDocument};
 use leselang_vm::PresentationOperation;
 use leserpent_domain::bootstrap::{BootstrapId, DeploymentBootstrapSnapshot};
@@ -28,7 +30,12 @@ pub const AUTHORITY_WRITER_ID_HEADER: &str = "X-Leserpent-Authority-Writer-Id";
 pub const AUTHORITY_WRITER_GENERATION_HEADER: &str = "X-Leserpent-Authority-Writer-Generation";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
+#[serde(
+    deny_unknown_fields,
+    tag = "kind",
+    content = "payload",
+    rename_all = "snake_case"
+)]
 // Preserve the v1 Rust and wire request shape until the v2 schema seal.
 #[allow(clippy::large_enum_variant)]
 pub enum ProtocolRequest {
@@ -283,7 +290,12 @@ pub struct RequestEnvelope {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
+#[serde(
+    deny_unknown_fields,
+    tag = "kind",
+    content = "payload",
+    rename_all = "snake_case"
+)]
 // Preserve the v1 Rust and wire response shape until the v2 schema seal.
 #[allow(clippy::large_enum_variant)]
 pub enum ProtocolResponse {
@@ -623,7 +635,12 @@ pub struct EventEnvelope {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
+#[serde(
+    deny_unknown_fields,
+    tag = "kind",
+    content = "payload",
+    rename_all = "snake_case"
+)]
 pub enum ProtocolEvent {
     RuntimeSnapshot {
         revision: Revision,
@@ -731,11 +748,11 @@ pub fn decode_request(bytes: &[u8]) -> Result<RequestEnvelope, DecodeError> {
 }
 
 pub fn encode_request(envelope: &RequestEnvelope) -> Result<Vec<u8>, serde_json::Error> {
-    serde_json::to_vec(envelope)
+    encode_protocol_message(envelope)
 }
 
 pub fn encode_response(envelope: &ResponseEnvelope) -> Result<Vec<u8>, serde_json::Error> {
-    serde_json::to_vec(envelope)
+    encode_protocol_message(envelope)
 }
 
 pub fn decode_response(bytes: &[u8]) -> Result<ResponseEnvelope, DecodeError> {
@@ -757,7 +774,81 @@ pub fn decode_response(bytes: &[u8]) -> Result<ResponseEnvelope, DecodeError> {
 }
 
 pub fn encode_event(envelope: &EventEnvelope) -> Result<Vec<u8>, serde_json::Error> {
-    serde_json::to_vec(envelope)
+    encode_protocol_message(envelope)
+}
+
+fn encode_protocol_message(value: &impl Serialize) -> Result<Vec<u8>, serde_json::Error> {
+    encode_json_bounded(value, MAX_PROTOCOL_MESSAGE_BYTES)
+        .map_err(BoundedJsonEncodeError::into_serde_json_error)
+}
+
+pub(crate) enum BoundedJsonEncodeError {
+    Oversized { size: usize, limit: usize },
+    InvalidJson(serde_json::Error),
+}
+
+impl BoundedJsonEncodeError {
+    fn into_serde_json_error(self) -> serde_json::Error {
+        match self {
+            Self::InvalidJson(error) => error,
+            Self::Oversized { size, limit } => serde_json::Error::io(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("encoded JSON size {size} exceeds {limit} bytes"),
+            )),
+        }
+    }
+}
+
+pub(crate) fn encode_json_bounded(
+    value: &impl Serialize,
+    limit: usize,
+) -> Result<Vec<u8>, BoundedJsonEncodeError> {
+    let mut writer = BoundedJsonWriter::new(limit);
+    match serde_json::to_writer(&mut writer, value) {
+        Ok(()) => Ok(writer.output),
+        Err(_) if writer.overflowed => Err(BoundedJsonEncodeError::Oversized {
+            size: writer.attempted_size,
+            limit,
+        }),
+        Err(error) => Err(BoundedJsonEncodeError::InvalidJson(error)),
+    }
+}
+
+struct BoundedJsonWriter {
+    output: Vec<u8>,
+    limit: usize,
+    attempted_size: usize,
+    overflowed: bool,
+}
+
+impl BoundedJsonWriter {
+    fn new(limit: usize) -> Self {
+        Self {
+            output: Vec::with_capacity(limit.min(4 * 1024)),
+            limit,
+            attempted_size: 0,
+            overflowed: false,
+        }
+    }
+}
+
+impl Write for BoundedJsonWriter {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        self.attempted_size = self.output.len().saturating_add(buffer.len());
+        if self.attempted_size > self.limit {
+            self.overflowed = true;
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("encoded JSON exceeds {} bytes", self.limit),
+            ));
+        }
+        self.output.extend_from_slice(buffer);
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 pub fn decode_event(bytes: &[u8]) -> Result<EventEnvelope, DecodeError> {
@@ -816,6 +907,25 @@ mod tests {
 
     use super::*;
 
+    fn assert_request_rejects_unknown_field(value: &serde_json::Value, path: &[&str]) {
+        let mut forged = value.clone();
+        let mut target = &mut forged;
+        for segment in path {
+            target = target
+                .get_mut(*segment)
+                .expect("test path must exist in encoded request");
+        }
+        target
+            .as_object_mut()
+            .expect("test path must identify an object")
+            .insert("unexpected".into(), serde_json::Value::Bool(true));
+        let result = decode_request(&serde_json::to_vec(&forged).unwrap());
+        assert!(
+            matches!(&result, Err(DecodeError::InvalidJson(_))),
+            "path {path:?} decoded as {result:?}"
+        );
+    }
+
     #[test]
     fn runtime_list_request_round_trips_with_explicit_versions() {
         let request = RequestEnvelope {
@@ -833,6 +943,17 @@ mod tests {
         };
         let bytes = encode_request(&request).unwrap();
         assert_eq!(decode_request(&bytes).unwrap(), request);
+
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        for path in [
+            &["request"][..],
+            &["request", "payload"][..],
+            &["request", "payload", "principal"][..],
+            &["request", "payload", "query"][..],
+            &["request", "payload", "query", "filter"][..],
+        ] {
+            assert_request_rejects_unknown_field(&value, path);
+        }
     }
 
     #[test]
@@ -929,6 +1050,10 @@ mod tests {
         };
         let bytes = encode_request(&request).unwrap();
         assert_eq!(decode_request(&bytes).unwrap(), request);
+
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_request_rejects_unknown_field(&value, &["request", "payload"]);
+        assert_request_rejects_unknown_field(&value, &["request", "payload", "command", "tags"]);
 
         let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         value["request"]["payload"]["command"]
@@ -1138,6 +1263,18 @@ mod tests {
         assert!(matches!(
             decode_event(event),
             Err(DecodeError::InvalidJson(message)) if message.contains("unknown field")
+        ));
+
+        let response = br#"{"schema_version":1,"response":{"kind":"health","payload":{"status":"ready","authority_owned":true,"protocol_schema_version":1},"unexpected":true}}"#;
+        assert!(matches!(
+            decode_response(response),
+            Err(DecodeError::InvalidJson(_))
+        ));
+
+        let event = br#"{"schema_version":1,"event":{"kind":"heartbeat","payload":{"revision":1},"unexpected":true}}"#;
+        assert!(matches!(
+            decode_event(event),
+            Err(DecodeError::InvalidJson(_))
         ));
     }
 
@@ -1713,5 +1850,48 @@ mod tests {
         let encoded = String::from_utf8(encoded).unwrap();
         assert!(!encoded.contains("secret-endpoint"));
         assert!(!encoded.contains("endpoint"));
+    }
+
+    #[test]
+    fn protocol_encoders_reject_oversized_wire_messages() {
+        let request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::DebuggerSessionStart(DebuggerSessionStartRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_DEBUGGER_CONTROL]),
+                session_id: "debugger-session-a".into(),
+                source: "x".repeat(MAX_PROTOCOL_MESSAGE_BYTES),
+                expected_revision: None,
+                timeout_ms: 30_000,
+            }),
+        };
+        assert!(encode_request(&request).is_err());
+
+        let response = ResponseEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            response: ProtocolResponse::Error(ProtocolError {
+                code: "oversized".into(),
+                message: "x".repeat(MAX_PROTOCOL_MESSAGE_BYTES),
+            }),
+        };
+        assert!(encode_response(&response).is_err());
+
+        let mut control = leserpent_domain::InMemoryControlPlane::default();
+        let runtime = control.register_runtime(
+            RuntimeId::new("oversized-runtime").unwrap(),
+            "x".repeat(MAX_PROTOCOL_MESSAGE_BYTES),
+            "https://runtime.invalid",
+        );
+        let event = EventEnvelope {
+            schema_version: EVENT_SCHEMA_VERSION,
+            event: ProtocolEvent::RuntimeSnapshot {
+                revision: Revision(1),
+                resumed_after: None,
+                runtimes: vec![RemoteRuntimeProjection::from(runtime)],
+            },
+        };
+        assert!(encode_event(&event).is_err());
     }
 }

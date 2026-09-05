@@ -275,12 +275,5 @@ pub(super) fn diagnostics_excerpt_json(excerpt: &DiagnosticsExcerpt) -> String {
 }
 
 pub(super) fn json_escape_string(value: &str) -> String {
-    // Build tiny JSON fragments directly to keep this reporting layer dependency
-    // light and predictable for snapshot-oriented tests.
-    value
-        .replace('\\', "\\\\")
-        .replace('"', "\\\"")
-        .replace('\n', "\\n")
-        .replace('\r', "\\r")
-        .replace('\t', "\\t")
+    crate::export::escape_json(value)
 }

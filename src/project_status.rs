@@ -1,12 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::machine_error::{ErrorCategory, MachineError};
 use serde::{Deserialize, Serialize};
+use silvortex_bounded_io::read_bounded_utf8_regular_file;
 
 pub const STATUS_SCHEMA_VERSION: u32 = 3;
 pub const STATUS_CALIBRATION_MODEL: &str = "priority-weighted-strength-v1";
+pub const MAX_STATUS_CATALOG_BYTES: u64 = 4 * 1024 * 1024;
 
 #[derive(Debug)]
 pub enum StatusCatalogLoadError {
@@ -322,10 +323,13 @@ impl StatusCatalog {
 
     pub fn load_typed(path: impl AsRef<Path>) -> Result<Self, StatusCatalogLoadError> {
         let path = path.as_ref();
-        let source = fs::read_to_string(path).map_err(|source| StatusCatalogLoadError::Read {
-            path: path.to_path_buf(),
-            source,
-        })?;
+        let source =
+            read_bounded_utf8_regular_file(path, MAX_STATUS_CATALOG_BYTES).map_err(|source| {
+                StatusCatalogLoadError::Read {
+                    path: path.to_path_buf(),
+                    source,
+                }
+            })?;
         serde_json::from_str(&source).map_err(|source| StatusCatalogLoadError::Decode {
             path: path.to_path_buf(),
             source,

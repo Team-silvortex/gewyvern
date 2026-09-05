@@ -1,11 +1,16 @@
 use crate::history_catalog_delta::latest_protocol_catalog_delta;
+use crate::render_utils::append_json_string;
 use gewyvern::runtime_layout::runtime_layout;
+use silvortex_bounded_io::read_bounded_utf8_regular_file;
 use std::fs;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 const API_VERSION: &str = env!("CARGO_PKG_VERSION");
 const HISTORY_RETENTION_LIMIT: usize = 32;
 const HISTORY_RETENTION_ENV: &str = "GEWY_HISTORY_RETENTION";
+const MAX_HISTORY_INDEX_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_HISTORY_ROOT_ENTRIES: usize = 4096;
 
 pub(crate) fn render_history_index(json: bool) -> Result<String, String> {
     let history_root = history_root();
@@ -25,13 +30,24 @@ fn history_root() -> PathBuf {
 
 fn render_history_index_json(history_root: &Path) -> Result<String, String> {
     let index_path = history_root.join("index.json");
-    if index_path.exists() {
-        return fs::read_to_string(&index_path).map_err(|err| {
-            format!(
-                "failed to read history index '{}': {err}",
+    match fs::symlink_metadata(&index_path) {
+        Ok(_) => {
+            return read_bounded_utf8_regular_file(&index_path, MAX_HISTORY_INDEX_BYTES).map_err(
+                |err| {
+                    format!(
+                        "failed to securely read history index '{}': {err}",
+                        index_path.display()
+                    )
+                },
+            );
+        }
+        Err(error) if error.kind() == ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(format!(
+                "failed to inspect history index '{}': {error}",
                 index_path.display()
-            )
-        });
+            ));
+        }
     }
     Ok(empty_history_index_json(history_root))
 }
@@ -78,37 +94,76 @@ fn render_history_index_text(history_root: &Path) -> Result<String, String> {
 }
 
 fn empty_history_index_json(history_root: &Path) -> String {
-    format!(
-        "{{\"schema_version\":2,\"api_version\":\"{}\",\"minor_line\":\"{}\",\"history_retention\":{},\"latest_updated_unix_ms\":null,\"oldest_updated_unix_ms\":null,\"lines\":[{{\"line\":\"{}\",\"status\":\"active\",\"entry_count\":0,\"latest_updated_unix_ms\":null,\"oldest_updated_unix_ms\":null}}],\"entries\":[],\"root\":\"{}\",\"catalog_artifacts\":[\"protocols.json\",\"protocol-clusters.json\",\"protocol-clusters/<cluster>.json\",\"protocols/<protocol>/summary.json\",\"protocols/<protocol>/entries/<entry>/surface.json\"],\"latest_protocol_catalog_delta\":null}}",
+    let mut json = format!(
+        "{{\"schema_version\":2,\"api_version\":\"{}\",\"minor_line\":\"{}\",\"history_retention\":{},\"latest_updated_unix_ms\":null,\"oldest_updated_unix_ms\":null,\"lines\":[{{\"line\":\"{}\",\"status\":\"active\",\"entry_count\":0,\"latest_updated_unix_ms\":null,\"oldest_updated_unix_ms\":null}}],\"entries\":[],\"root\":",
         API_VERSION,
         current_minor_line(),
         history_retention_limit(),
         current_minor_line(),
-        history_root.display()
-    )
+    );
+    append_json_string(&mut json, &history_root.to_string_lossy());
+    json.push_str(
+        ",\"catalog_artifacts\":[\"protocols.json\",\"protocol-clusters.json\",\"protocol-clusters/<cluster>.json\",\"protocols/<protocol>/summary.json\",\"protocols/<protocol>/entries/<entry>/surface.json\"],\"latest_protocol_catalog_delta\":null}",
+    );
+    json
 }
 
 fn history_snapshot_dirs(history_root: &Path) -> Result<Vec<(u128, PathBuf)>, String> {
-    if !history_root.exists() {
-        return Ok(Vec::new());
+    match fs::symlink_metadata(history_root) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            return Err(format!(
+                "history snapshot root '{}' must be a non-symlink directory",
+                history_root.display()
+            ));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => {
+            return Err(format!(
+                "failed to inspect history snapshot root '{}': {error}",
+                history_root.display()
+            ));
+        }
     }
-    let mut entries = fs::read_dir(history_root)
-        .map_err(|err| {
+    let read_dir = fs::read_dir(history_root).map_err(|err| {
+        format!(
+            "failed to inspect history snapshot root '{}': {err}",
+            history_root.display()
+        )
+    })?;
+    let mut entries = Vec::new();
+    for (index, entry) in read_dir.enumerate() {
+        if index >= MAX_HISTORY_ROOT_ENTRIES {
+            return Err(format!(
+                "history snapshot root '{}' exceeds the {} entry limit",
+                history_root.display(),
+                MAX_HISTORY_ROOT_ENTRIES
+            ));
+        }
+        let entry = entry.map_err(|error| {
             format!(
-                "failed to inspect history snapshot root '{}': {err}",
+                "failed to read history snapshot root '{}': {error}",
                 history_root.display()
             )
-        })?
-        .filter_map(Result::ok)
-        .filter(|entry| entry.path().is_dir())
-        .filter_map(|entry| {
-            entry
-                .file_name()
-                .to_str()
-                .and_then(|name| name.parse::<u128>().ok())
-                .map(|updated_unix_ms| (updated_unix_ms, entry.path()))
-        })
-        .collect::<Vec<_>>();
+        })?;
+        let path = entry.path();
+        let metadata = fs::symlink_metadata(&path).map_err(|error| {
+            format!(
+                "failed to inspect history entry '{}': {error}",
+                path.display()
+            )
+        })?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            continue;
+        }
+        if let Some(updated_unix_ms) = entry
+            .file_name()
+            .to_str()
+            .and_then(|name| name.parse::<u128>().ok())
+        {
+            entries.push((updated_unix_ms, path));
+        }
+    }
     entries.sort_by_key(|entry| std::cmp::Reverse(entry.0));
     Ok(entries)
 }

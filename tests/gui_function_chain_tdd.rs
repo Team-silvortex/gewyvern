@@ -264,6 +264,56 @@ fn evidence_anchors_cannot_escape_or_drift() {
     assert!(errors.contains("anchor is missing"));
 }
 
+#[test]
+fn gui_catalog_loader_rejects_oversized_files() {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock must follow the Unix epoch")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!(
+        "gewyvern-gui-chain-oversized-{}-{nonce}.json",
+        std::process::id()
+    ));
+    let file = fs::File::create(&path).expect("oversized catalog must be created");
+    file.set_len(2 * 1024 * 1024)
+        .expect("oversized catalog length must be set");
+
+    let error =
+        GuiFunctionChainCatalog::load(&path).expect_err("oversized GUI catalog must be rejected");
+
+    assert!(error.contains("cannot read GUI function-chain catalog"));
+    fs::remove_file(path).expect("oversized catalog must be removed");
+}
+
+#[cfg(unix)]
+#[test]
+fn gui_catalog_loader_rejects_symlinks() {
+    use std::os::unix::fs::symlink;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock must follow the Unix epoch")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!(
+        "gewyvern-gui-chain-catalog-symlink-{}-{nonce}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&root).expect("catalog sandbox must be created");
+    let target = root.join("target.json");
+    let link = root.join("catalog.json");
+    fs::write(&target, "{}").expect("catalog target must be written");
+    symlink(&target, &link).expect("catalog symlink must be created");
+
+    let error =
+        GuiFunctionChainCatalog::load(&link).expect_err("GUI catalog symlink must be rejected");
+
+    assert!(error.contains("cannot read GUI function-chain catalog"));
+    fs::remove_dir_all(root).expect("catalog sandbox must be removed");
+}
+
 #[cfg(unix)]
 #[test]
 fn evidence_anchors_cannot_escape_through_an_intermediate_symlink() {

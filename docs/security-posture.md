@@ -143,6 +143,21 @@ current preparation line:
   timeout/reaping guard with independent stdout and stderr caps
 - protocol/profile discovery avoids symlink recursion and repeated-directory
   loops and now carries directory, manifest-count, and manifest-size budgets
+- status catalogs, GUI function-chain catalogs, and their source evidence use
+  bounded regular-file reads that reject symbolic links and file-growth races
+- certificate rotation and revocation state is size-, record-, path-, and
+  field-bounded; malformed state is surfaced as invalid, raises policy
+  attention, and cannot be silently overwritten by a state mutation
+- legacy runtime migration is bounded by directory depth, entry count,
+  per-file bytes, and aggregate bytes, and copies through non-symlink file
+  handles without overwriting existing destinations
+- the privileged Linux eBPF helper validates ownership and permissions on the
+  same bounded file descriptor from which its configuration is read
+- Leserpent protocol envelopes reject unknown nested fields and bound shared
+  principal, capability, filter, and command-plan values before execution
+- macOS bundle installation and frontend packaging apply bounded directory
+  scans and non-symlink reads; native payload identity is calculated with a
+  fixed-size streaming buffer rather than whole-file allocation
 
 These are not a full security model, but they are the current concrete guards
 that keep standalone use from drifting into obviously unsafe territory.

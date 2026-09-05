@@ -308,9 +308,31 @@ mod tests {
         assert!(body.contains("\"summary\":"));
         assert!(body.contains("\"reason_count\":"));
         assert!(body.contains("\"reason_codes\":["));
-        assert!(body.contains("\"state\":{\"rotation_records\":"));
-        assert!(body.contains("\"overdue_rotations\":"));
-        assert!(body.contains("\"revocation_records\":"));
-        assert!(body.contains("\"active_revocations\":"));
+        let document: serde_json::Value =
+            serde_json::from_str(&body).expect("certificate inventory must be valid JSON");
+        let state = document
+            .get("state")
+            .and_then(serde_json::Value::as_object)
+            .expect("certificate inventory must carry a state summary");
+        assert!(
+            state
+                .get("state_valid")
+                .and_then(serde_json::Value::as_bool)
+                .is_some()
+        );
+        for field in [
+            "rotation_records",
+            "overdue_rotations",
+            "revocation_records",
+            "active_revocations",
+        ] {
+            assert!(
+                state
+                    .get(field)
+                    .and_then(serde_json::Value::as_u64)
+                    .is_some(),
+                "certificate state summary field {field} must be an unsigned count"
+            );
+        }
     }
 }

@@ -22,6 +22,7 @@ pub const REASON_OVERDUE_CERTIFICATE_ROTATION: &str = "overdue_certificate_rotat
 pub const REASON_REVOKED_CERTIFICATE_MATERIAL: &str = "revoked_certificate_material";
 pub const REASON_DISTRUSTED_TRUST_ANCHOR_MATERIAL: &str = "distrusted_trust_anchor_material";
 pub const REASON_CERTIFICATE_INVENTORY_TRUNCATED: &str = "certificate_inventory_truncated";
+pub const REASON_CERTIFICATE_STATE_INVALID: &str = "certificate_state_invalid";
 
 const EXPIRING_SOON_WINDOW_MS: i128 = 30_i128 * 24 * 60 * 60 * 1000;
 
@@ -135,6 +136,13 @@ fn certificate_policy_for_inventory_and_state_with_truncation(
             "certificate inventory exceeded a safe scan boundary and is incomplete",
         ));
     }
+    if !state.rotation_records_valid || !state.revocation_records_valid {
+        reasons.push(reason(
+            REASON_CERTIFICATE_STATE_INVALID,
+            "warning",
+            "certificate rotation or revocation state is unreadable or invalid and cannot be trusted",
+        ));
+    }
     if inventory.require_explicit_remote_trust && trust_certs == 0 {
         reasons.push(reason(
             REASON_EXPLICIT_REMOTE_TRUST_WITHOUT_ANCHORS,
@@ -238,6 +246,8 @@ fn empty_certificate_state(
         revocation_records_path: inventory.state_root.join("revocation-records.tsv"),
         rotation_records_exist: false,
         revocation_records_exist: false,
+        rotation_records_valid: true,
+        revocation_records_valid: true,
         rotation_records: Vec::new(),
         revocation_records: Vec::new(),
     }
@@ -355,6 +365,14 @@ fn recommended_actions(reasons: &[CertificatePolicyReason]) -> Vec<&'static str>
     }
     if reasons
         .iter()
+        .any(|reason| reason.code == REASON_CERTIFICATE_STATE_INVALID)
+    {
+        actions.push(
+            "repair or restore the certificate rotation and revocation state before relying on certificate policy results",
+        );
+    }
+    if reasons
+        .iter()
         .any(|reason| reason.code == REASON_EXPLICIT_REMOTE_TRUST_WITHOUT_ANCHORS)
     {
         actions.push("add at least one trust anchor before relying on protected remote endpoints");
@@ -450,6 +468,8 @@ mod tests {
             ),
             rotation_records_exist: false,
             revocation_records_exist: false,
+            rotation_records_valid: true,
+            revocation_records_valid: true,
             rotation_records: Vec::new(),
             revocation_records: Vec::new(),
         }
@@ -464,6 +484,34 @@ mod tests {
                 .iter()
                 .any(|reason| reason.code == REASON_EXPLICIT_REMOTE_TRUST_WITHOUT_ANCHORS)
         );
+    }
+
+    #[test]
+    fn policy_marks_invalid_certificate_state_as_attention() {
+        let mut inventory = inventory();
+        inventory.require_explicit_remote_trust = false;
+        inventory.trust_items.push(CertificateItem {
+            relative_path: "anchors/root.pem".into(),
+            asset_kind: CertificateAssetKind::CertificatePem,
+            bytes: 128,
+            modified_unix_ms: None,
+            validity: None,
+        });
+        let mut state = empty_state();
+        state.revocation_records_exist = true;
+        state.revocation_records_valid = false;
+
+        let view = certificate_policy_for_inventory_and_state(&inventory, &state);
+
+        assert_eq!(view.status, "attention");
+        assert!(
+            view.reasons
+                .iter()
+                .any(|reason| reason.code == REASON_CERTIFICATE_STATE_INVALID)
+        );
+        assert!(view.recommended_actions.iter().any(|action| {
+            action.contains("repair or restore the certificate rotation and revocation state")
+        }));
     }
 
     #[test]

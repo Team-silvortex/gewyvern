@@ -1,8 +1,8 @@
 use crate::cli::{CliDefaults, IngestMode, SocketTarget};
 use crate::runtime_logging::LogLevel;
 use gewyvern::runtime_layout::runtime_layout;
+use silvortex_bounded_io::read_bounded_utf8_regular_file;
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 
 const DEFAULT_CONFIG_NAME: &str = "gewyvern.toml";
@@ -22,6 +22,7 @@ const REQUIRE_EXPLICIT_REMOTE_TRUST_ENV: &str = "GEWY_REQUIRE_EXPLICIT_REMOTE_TR
 const SOCKET_FAILURE_BACKOFF_BASE_ENV: &str = "GEWY_SOCKET_FAILURE_BACKOFF_BASE_MS";
 const SOCKET_FAILURE_BACKOFF_CAP_ENV: &str = "GEWY_SOCKET_FAILURE_BACKOFF_CAP_MS";
 const RUNTIME_CONFIG_PATH_MAX_LEN: usize = 4096;
+const MAX_RUNTIME_CONFIG_BYTES: u64 = 256 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct RuntimeConfigFile {
@@ -74,7 +75,7 @@ pub(crate) fn load_runtime_config() -> Result<RuntimeConfigFile, String> {
     let Some(path) = select_runtime_config_path() else {
         return Ok(RuntimeConfigFile::default());
     };
-    let input = fs::read_to_string(&path)
+    let input = read_bounded_utf8_regular_file(&path, MAX_RUNTIME_CONFIG_BYTES)
         .map_err(|err| format!("failed to read runtime config '{}': {err}", path.display()))?;
     let mut config = parse_runtime_config(&input)?;
     config.used_legacy_path = is_legacy_path(&path);

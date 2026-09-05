@@ -7,6 +7,8 @@ use leserpent_domain::provisioning::{
 use leserpent_domain::{CapabilitySet, Principal};
 use serde::{Deserialize, Serialize};
 
+use crate::{BoundedJsonEncodeError, encode_json_bounded};
+
 pub const PROVISIONING_PROTOCOL_SCHEMA_VERSION: u32 = 1;
 pub const MAX_PROVISIONING_PROTOCOL_BYTES: usize = 64 * 1024;
 
@@ -170,10 +172,14 @@ fn require_bound(bytes: &[u8]) -> Result<(), ProvisioningCodecError> {
 }
 
 fn encode_bounded(value: &impl Serialize) -> Result<Vec<u8>, ProvisioningCodecError> {
-    let bytes = serde_json::to_vec(value)
-        .map_err(|error| ProvisioningCodecError::InvalidJson(error.to_string()))?;
-    require_bound(&bytes)?;
-    Ok(bytes)
+    encode_json_bounded(value, MAX_PROVISIONING_PROTOCOL_BYTES).map_err(|error| match error {
+        BoundedJsonEncodeError::Oversized { size, limit } => {
+            ProvisioningCodecError::Oversized { size, limit }
+        }
+        BoundedJsonEncodeError::InvalidJson(error) => {
+            ProvisioningCodecError::InvalidJson(error.to_string())
+        }
+    })
 }
 
 #[cfg(test)]

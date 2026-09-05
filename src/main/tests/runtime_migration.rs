@@ -1,5 +1,7 @@
 use super::env_test_lock as env_lock;
-use crate::runtime_migration::prepare_runtime_layout;
+use crate::runtime_migration::{
+    MAX_LEGACY_MIGRATION_DEPTH, MAX_LEGACY_MIGRATION_FILE_BYTES, prepare_runtime_layout,
+};
 use gewyvern::runtime_layout::runtime_layout;
 use std::fs;
 #[cfg(unix)]
@@ -297,5 +299,59 @@ fn runtime_migration_does_not_follow_legacy_protocols_symlink() {
     assert!(!data_root.join("protocols").exists());
     assert_eq!(fs::read_dir(external).unwrap().count(), 1);
 
+    fs::remove_dir_all(&home).unwrap();
+}
+
+#[test]
+fn runtime_migration_rejects_excessively_deep_legacy_trees() {
+    let _lock = env_lock()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    let home = temp_dir("depth-limit");
+    let mut source = home.join(".gewyvern").join("protocols");
+    for index in 0..=MAX_LEGACY_MIGRATION_DEPTH {
+        source = source.join(format!("level-{index}"));
+    }
+    fs::create_dir_all(&source).unwrap();
+    fs::write(source.join("entry.gewy"), "legacy").unwrap();
+    let _home = EnvGuard::set("HOME", home.to_string_lossy());
+    let _config = EnvGuard::set(
+        "GEWY_CONFIG_HOME",
+        home.join("config-root").to_string_lossy(),
+    );
+    let _data = EnvGuard::set("GEWY_DATA_HOME", home.join("data-root").to_string_lossy());
+    let _state = EnvGuard::set("GEWY_STATE_HOME", home.join("state-root").to_string_lossy());
+    let _cache = EnvGuard::set("GEWY_CACHE_HOME", home.join("cache-root").to_string_lossy());
+
+    let error = prepare_runtime_layout().expect_err("deep migration tree must be rejected");
+
+    assert!(error.contains("directory depth limit"));
+    fs::remove_dir_all(&home).unwrap();
+}
+
+#[test]
+fn runtime_migration_rejects_oversized_legacy_files_without_partial_publish() {
+    let _lock = env_lock()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    let home = temp_dir("file-size-limit");
+    let source_root = home.join(".gewyvern").join("protocols");
+    let data_root = home.join("data-root");
+    fs::create_dir_all(&source_root).unwrap();
+    let source = fs::File::create(source_root.join("oversized.gewy")).unwrap();
+    source.set_len(MAX_LEGACY_MIGRATION_FILE_BYTES + 1).unwrap();
+    let _home = EnvGuard::set("HOME", home.to_string_lossy());
+    let _config = EnvGuard::set(
+        "GEWY_CONFIG_HOME",
+        home.join("config-root").to_string_lossy(),
+    );
+    let _data = EnvGuard::set("GEWY_DATA_HOME", data_root.to_string_lossy());
+    let _state = EnvGuard::set("GEWY_STATE_HOME", home.join("state-root").to_string_lossy());
+    let _cache = EnvGuard::set("GEWY_CACHE_HOME", home.join("cache-root").to_string_lossy());
+
+    let error = prepare_runtime_layout().expect_err("oversized migration file must be rejected");
+
+    assert!(error.contains("failed to securely open legacy runtime file"));
+    assert!(!data_root.join("protocols").join("oversized.gewy").exists());
     fs::remove_dir_all(&home).unwrap();
 }

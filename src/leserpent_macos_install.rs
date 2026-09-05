@@ -1,12 +1,17 @@
 use std::collections::BTreeSet;
 use std::env;
 use std::fs::{self, File, TryLockError};
+use std::io::{self, Read};
 use std::path::{Component, Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use ring::digest::{Context, SHA256};
 use serde::Serialize;
+use silvortex_bounded_io::{
+    open_bounded_regular_file, open_bounded_regular_file_allow_empty,
+    read_bounded_utf8_regular_file,
+};
 
 use crate::native_binary::file_is_mach_o_arm64;
 
@@ -14,7 +19,11 @@ const APP_NAME: &str = "Leserpent.app";
 const EXECUTABLE: &str = "Leserpent.Avalonia";
 const DAEMON_EXECUTABLE: &str = "leserpentd";
 const MAX_BUNDLE_FILES: usize = 256;
+const MAX_BUNDLE_DIRECTORIES: usize = 512;
+const MAX_BUNDLE_DEPTH: usize = 32;
 const MAX_BUNDLE_BYTES: u64 = 1024 * 1024 * 1024;
+const MAX_INFO_PLIST_BYTES: u64 = 1024 * 1024;
+const MAX_RELEASES: usize = 64;
 const INSTALL_LOCK_TIMEOUT: Duration = Duration::from_secs(120);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,8 +84,10 @@ impl InstallOptions {
         if action != InstallAction::Install && app.is_some() {
             return Err("--app is valid only for install".to_string());
         }
-        if keep_releases < 2 {
-            return Err("--keep-releases must be at least 2".to_string());
+        if !(2..=MAX_RELEASES).contains(&keep_releases) {
+            return Err(format!(
+                "--keep-releases must be between 2 and {MAX_RELEASES}"
+            ));
         }
         if !root.is_absolute() || !launcher.is_absolute() {
             return Err("--root and --launcher must be absolute paths".to_string());
@@ -290,8 +301,9 @@ fn inspect_bundle_identity(app: &Path) -> Result<(BundleIdentity, bool), String>
         &app.join("Contents/Resources/leserpent.icns"),
         "application icon",
     )?;
-    let plist = fs::read_to_string(app.join("Contents/Info.plist"))
-        .map_err(|error| format!("Info.plist is unavailable: {error}"))?;
+    let plist =
+        read_bounded_utf8_regular_file(&app.join("Contents/Info.plist"), MAX_INFO_PLIST_BYTES)
+            .map_err(|error| format!("Info.plist is unavailable: {error}"))?;
     if plist_string(&plist, "CFBundleIdentifier")? != "org.gewyvern.leserpent" {
         return Err("Info.plist bundle identifier is invalid".to_string());
     }
@@ -303,16 +315,34 @@ fn inspect_bundle_identity(app: &Path) -> Result<(BundleIdentity, bool), String>
         return Err("Info.plist versions are invalid or inconsistent".to_string());
     }
     let mut digest = Context::new(&SHA256);
+    let mut hashed_bytes = 0_u64;
     for path in native_payloads {
         let name = path
             .file_name()
             .and_then(|value| value.to_str())
             .ok_or_else(|| "native payload name is invalid".to_string())?;
-        let payload = fs::read(&path).map_err(|error| error.to_string())?;
+        let remaining = MAX_BUNDLE_BYTES
+            .checked_sub(hashed_bytes)
+            .filter(|remaining| *remaining > 0)
+            .ok_or_else(|| "native payloads exceed the bundle byte limit".to_string())?;
+        let mut payload = open_bounded_regular_file(&path, remaining)
+            .map_err(|error| format!("failed to open native payload: {error}"))?;
+        let expected_bytes = payload
+            .metadata()
+            .map_err(|error| format!("failed to inspect native payload: {error}"))?
+            .len();
         digest.update(&(name.len() as u64).to_le_bytes());
         digest.update(name.as_bytes());
-        digest.update(&(payload.len() as u64).to_le_bytes());
-        digest.update(&payload);
+        digest.update(&expected_bytes.to_le_bytes());
+        let copied = update_digest_from_reader(&mut digest, &mut payload)
+            .map_err(|error| format!("failed to hash native payload: {error}"))?;
+        if copied != expected_bytes {
+            return Err("native payload changed while its identity was calculated".to_string());
+        }
+        hashed_bytes = hashed_bytes
+            .checked_add(copied)
+            .filter(|bytes| *bytes <= MAX_BUNDLE_BYTES)
+            .ok_or_else(|| "native payloads exceed the bundle byte limit".to_string())?;
     }
     let hash = digest.finish();
     let native_payload_hash = hash
@@ -380,10 +410,11 @@ fn validate_native_payloads(app: &Path) -> Result<(Vec<PathBuf>, bool), String> 
 }
 
 fn inspect_tree(root: &Path) -> Result<(usize, u64), String> {
-    let mut directories = vec![root.to_path_buf()];
+    let mut directories = vec![(root.to_path_buf(), 0_usize)];
+    let mut directory_count = 1_usize;
     let mut files = 0usize;
     let mut bytes = 0u64;
-    while let Some(directory) = directories.pop() {
+    while let Some((directory, depth)) = directories.pop() {
         for entry in fs::read_dir(&directory).map_err(|error| error.to_string())? {
             let entry = entry.map_err(|error| error.to_string())?;
             let metadata = fs::symlink_metadata(entry.path()).map_err(|error| error.to_string())?;
@@ -394,7 +425,19 @@ fn inspect_tree(root: &Path) -> Result<(usize, u64), String> {
                 ));
             }
             if metadata.is_dir() {
-                directories.push(entry.path());
+                let next_depth = depth
+                    .checked_add(1)
+                    .ok_or_else(|| "application bundle directory depth overflowed".to_string())?;
+                if next_depth > MAX_BUNDLE_DEPTH {
+                    return Err("application bundle exceeds its directory depth limit".to_string());
+                }
+                directory_count = directory_count
+                    .checked_add(1)
+                    .ok_or_else(|| "application bundle directory count overflowed".to_string())?;
+                if directory_count > MAX_BUNDLE_DIRECTORIES {
+                    return Err("application bundle exceeds its directory limit".to_string());
+                }
+                directories.push((entry.path(), next_depth));
             } else if metadata.is_file() {
                 files += 1;
                 bytes = bytes
@@ -413,33 +456,99 @@ fn inspect_tree(root: &Path) -> Result<(usize, u64), String> {
 
 fn copy_bundle(source: &Path, destination: &Path) -> Result<(), String> {
     fs::create_dir(destination).map_err(|error| error.to_string())?;
-    for entry in fs::read_dir(source).map_err(|error| error.to_string())? {
-        let entry = entry.map_err(|error| error.to_string())?;
-        let source_path = entry.path();
-        let destination_path = destination.join(entry.file_name());
-        let metadata = fs::symlink_metadata(&source_path).map_err(|error| error.to_string())?;
-        if metadata.is_dir() {
-            copy_bundle(&source_path, &destination_path)?;
-        } else if metadata.is_file() {
-            fs::copy(&source_path, &destination_path).map_err(|error| error.to_string())?;
-            sanitize_permissions(&destination_path, &metadata)?;
-        } else {
-            return Err("application bundle changed during copy".to_string());
+    let mut directories = vec![(source.to_path_buf(), destination.to_path_buf(), 0_usize)];
+    let mut directory_count = 1_usize;
+    let mut file_count = 0_usize;
+    let mut copied_bytes = 0_u64;
+    while let Some((source_directory, destination_directory, depth)) = directories.pop() {
+        for entry in fs::read_dir(&source_directory).map_err(|error| error.to_string())? {
+            let entry = entry.map_err(|error| error.to_string())?;
+            let source_path = entry.path();
+            let destination_path = destination_directory.join(entry.file_name());
+            let metadata = fs::symlink_metadata(&source_path).map_err(|error| error.to_string())?;
+            if metadata.file_type().is_symlink() {
+                return Err("application bundle changed to contain a symbolic link".to_string());
+            }
+            if metadata.is_dir() {
+                let next_depth = depth
+                    .checked_add(1)
+                    .ok_or_else(|| "application bundle directory depth overflowed".to_string())?;
+                if next_depth > MAX_BUNDLE_DEPTH {
+                    return Err("application bundle exceeds its directory depth limit".to_string());
+                }
+                directory_count = directory_count
+                    .checked_add(1)
+                    .ok_or_else(|| "application bundle directory count overflowed".to_string())?;
+                if directory_count > MAX_BUNDLE_DIRECTORIES {
+                    return Err("application bundle exceeds its directory limit".to_string());
+                }
+                fs::create_dir(&destination_path).map_err(|error| error.to_string())?;
+                directories.push((source_path, destination_path, next_depth));
+            } else if metadata.is_file() {
+                file_count = file_count
+                    .checked_add(1)
+                    .ok_or_else(|| "application bundle file count overflowed".to_string())?;
+                if file_count > MAX_BUNDLE_FILES {
+                    return Err("application bundle exceeds its file limit".to_string());
+                }
+                let remaining = MAX_BUNDLE_BYTES
+                    .checked_sub(copied_bytes)
+                    .filter(|remaining| *remaining > 0)
+                    .ok_or_else(|| "application bundle exceeds its byte limit".to_string())?;
+                let copied = copy_bounded_bundle_file(&source_path, &destination_path, remaining)?;
+                copied_bytes = copied_bytes
+                    .checked_add(copied)
+                    .filter(|bytes| *bytes <= MAX_BUNDLE_BYTES)
+                    .ok_or_else(|| "application bundle exceeds its byte limit".to_string())?;
+            } else {
+                return Err("application bundle changed during copy".to_string());
+            }
         }
     }
     Ok(())
 }
 
+fn copy_bounded_bundle_file(
+    source: &Path,
+    destination: &Path,
+    max_bytes: u64,
+) -> Result<u64, String> {
+    let mut input = open_bounded_regular_file_allow_empty(source, max_bytes)
+        .map_err(|error| format!("failed to securely open bundle file: {error}"))?;
+    let metadata = input.metadata().map_err(|error| error.to_string())?;
+    let expected_bytes = metadata.len();
+    let mut output = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(destination)
+        .map_err(|error| error.to_string())?;
+    let result = (|| {
+        sanitize_permissions(&output, &metadata)?;
+        let copied = io::copy(&mut input, &mut output).map_err(|error| error.to_string())?;
+        if copied != expected_bytes {
+            return Err("application bundle file changed during copy".to_string());
+        }
+        output.sync_all().map_err(|error| error.to_string())?;
+        Ok(copied)
+    })();
+    if result.is_err() {
+        drop(output);
+        let _ = fs::remove_file(destination);
+    }
+    result
+}
+
 #[cfg(unix)]
-fn sanitize_permissions(path: &Path, source: &fs::Metadata) -> Result<(), String> {
+fn sanitize_permissions(file: &File, source: &fs::Metadata) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;
 
     let mode = source.permissions().mode() & !0o022;
-    fs::set_permissions(path, fs::Permissions::from_mode(mode)).map_err(|error| error.to_string())
+    file.set_permissions(fs::Permissions::from_mode(mode))
+        .map_err(|error| error.to_string())
 }
 
 #[cfg(not(unix))]
-fn sanitize_permissions(_path: &Path, _source: &fs::Metadata) -> Result<(), String> {
+fn sanitize_permissions(_file: &File, _source: &fs::Metadata) -> Result<(), String> {
     Ok(())
 }
 
@@ -479,10 +588,19 @@ fn release_link(root: &Path, name: &str) -> Result<Option<PathBuf>, String> {
 }
 
 fn legacy_release_id(app: &Path, identity: &BundleIdentity) -> Result<String, String> {
-    let executable =
-        fs::read(app.join("Contents/MacOS").join(EXECUTABLE)).map_err(|error| error.to_string())?;
+    let executable_path = app.join("Contents/MacOS").join(EXECUTABLE);
+    let mut executable = open_bounded_regular_file(&executable_path, MAX_BUNDLE_BYTES)
+        .map_err(|error| error.to_string())?;
+    let expected_bytes = executable
+        .metadata()
+        .map_err(|error| error.to_string())?
+        .len();
     let mut digest = Context::new(&SHA256);
-    digest.update(&executable);
+    let copied = update_digest_from_reader(&mut digest, &mut executable)
+        .map_err(|error| error.to_string())?;
+    if copied != expected_bytes {
+        return Err("legacy executable changed while its identity was calculated".to_string());
+    }
     let hash = digest.finish();
     let legacy_hash: String = hash
         .as_ref()
@@ -640,18 +758,40 @@ fn plist_string(plist: &str, key: &str) -> Result<String, String> {
 }
 
 fn safe_version(version: &str) -> bool {
-    let segments = version.split('.').collect::<Vec<_>>();
-    (1..=3).contains(&segments.len())
-        && segments
-            .iter()
-            .all(|segment| !segment.is_empty() && segment.bytes().all(|byte| byte.is_ascii_digit()))
+    if version.len() > 64 {
+        return false;
+    }
+    let mut count = 0_usize;
+    for segment in version.split('.') {
+        count += 1;
+        if count > 3 || segment.is_empty() || !segment.bytes().all(|byte| byte.is_ascii_digit()) {
+            return false;
+        }
+    }
+    count > 0
 }
 
 fn safe_release_id(value: &str) -> bool {
     !value.is_empty()
+        && value.len() <= 128
         && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
+}
+
+fn update_digest_from_reader(digest: &mut Context, reader: &mut impl Read) -> io::Result<u64> {
+    let mut buffer = [0_u8; 64 * 1024];
+    let mut total = 0_u64;
+    loop {
+        let read = reader.read(&mut buffer)?;
+        if read == 0 {
+            return Ok(total);
+        }
+        digest.update(&buffer[..read]);
+        total = total
+            .checked_add(read as u64)
+            .ok_or_else(|| io::Error::other("digest byte count overflowed"))?;
+    }
 }
 
 fn safe_absolute_path(path: &Path) -> bool {
@@ -953,6 +1093,20 @@ mod tests {
         );
         assert!(
             InstallOptions::parse(
+                [
+                    "install",
+                    "--app",
+                    "/tmp/Leserpent.app",
+                    "--keep-releases",
+                    "65",
+                ]
+                .into_iter()
+                .map(str::to_string)
+            )
+            .is_err()
+        );
+        assert!(
+            InstallOptions::parse(
                 ["rollback", "--app", "/tmp/Leserpent.app"]
                     .into_iter()
                     .map(str::to_string)
@@ -989,6 +1143,37 @@ mod tests {
 
         fs::remove_file(app.join("Contents/MacOS").join(DAEMON_EXECUTABLE)).unwrap();
         assert!(validate_bundle(&app).unwrap_err().contains("daemon"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn bundle_scan_rejects_excessive_directory_depth() {
+        let root = fixture_root("bundle-depth");
+        let mut directory = root.join("source.app");
+        fs::create_dir_all(&directory).unwrap();
+        for index in 0..=MAX_BUNDLE_DEPTH {
+            directory = directory.join(format!("level-{index}"));
+        }
+        fs::create_dir_all(&directory).unwrap();
+
+        let error = inspect_tree(&root.join("source.app"))
+            .expect_err("deep application bundle must be rejected");
+
+        assert!(error.contains("directory depth limit"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn bundle_identity_rejects_oversized_info_plist() {
+        let root = fixture_root("oversized-plist");
+        let app = root.join("source.app");
+        fixture_app(&app, "2.0.0", 1);
+        let plist = fs::File::create(app.join("Contents/Info.plist")).unwrap();
+        plist.set_len(MAX_INFO_PLIST_BYTES + 1).unwrap();
+
+        let error = validate_bundle(&app).expect_err("oversized Info.plist must be rejected");
+
+        assert!(error.contains("Info.plist is unavailable"));
         fs::remove_dir_all(root).unwrap();
     }
 }

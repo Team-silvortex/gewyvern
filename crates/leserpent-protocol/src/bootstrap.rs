@@ -7,6 +7,8 @@ use leserpent_domain::bootstrap::{
 use leserpent_domain::{CapabilitySet, Principal};
 use serde::{Deserialize, Serialize};
 
+use crate::{BoundedJsonEncodeError, encode_json_bounded};
+
 pub const BOOTSTRAP_PROTOCOL_SCHEMA_VERSION: u32 = 1;
 pub const MAX_BOOTSTRAP_PROTOCOL_BYTES: usize = 64 * 1024;
 
@@ -109,10 +111,7 @@ pub fn encode_bootstrap_request(
         });
     }
     validate_request(&envelope.request)?;
-    let bytes = serde_json::to_vec(envelope)
-        .map_err(|error| BootstrapCodecError::InvalidJson(error.to_string()))?;
-    require_bound(&bytes)?;
-    Ok(bytes)
+    encode_bounded(envelope)
 }
 
 pub fn decode_bootstrap_response(
@@ -131,10 +130,7 @@ pub fn encode_bootstrap_response(
 ) -> Result<Vec<u8>, BootstrapCodecError> {
     validate_protocol_schema(envelope.schema_version)?;
     validate_response(&envelope.response)?;
-    let bytes = serde_json::to_vec(envelope)
-        .map_err(|error| BootstrapCodecError::InvalidJson(error.to_string()))?;
-    require_bound(&bytes)?;
-    Ok(bytes)
+    encode_bounded(envelope)
 }
 
 fn validate_request(request: &BootstrapRequest) -> Result<(), BootstrapCodecError> {
@@ -182,6 +178,17 @@ fn require_bound(bytes: &[u8]) -> Result<(), BootstrapCodecError> {
         });
     }
     Ok(())
+}
+
+fn encode_bounded(value: &impl Serialize) -> Result<Vec<u8>, BootstrapCodecError> {
+    encode_json_bounded(value, MAX_BOOTSTRAP_PROTOCOL_BYTES).map_err(|error| match error {
+        BoundedJsonEncodeError::Oversized { size, limit } => {
+            BootstrapCodecError::Oversized { size, limit }
+        }
+        BoundedJsonEncodeError::InvalidJson(error) => {
+            BootstrapCodecError::InvalidJson(error.to_string())
+        }
+    })
 }
 
 fn valid_error_code(value: &str) -> bool {

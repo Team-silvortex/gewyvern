@@ -3,6 +3,8 @@ use std::fmt;
 use leserpent_domain::bootstrap::{BootstrapId, DaemonId};
 use serde::{Deserialize, Serialize};
 
+use crate::{BoundedJsonEncodeError, encode_json_bounded};
+
 pub const BOOTSTRAP_RETIREMENT_SCHEMA_VERSION: u32 = 1;
 pub const MAX_BOOTSTRAP_RETIREMENT_BYTES: usize = 64 * 1024;
 
@@ -145,10 +147,7 @@ pub fn encode_bootstrap_retirement_request(
     request: &BootstrapRetirementRequest,
 ) -> Result<Vec<u8>, BootstrapRetirementCodecError> {
     request.validate()?;
-    let bytes =
-        serde_json::to_vec(request).map_err(|_| BootstrapRetirementCodecError::InvalidJson)?;
-    require_bound(&bytes)?;
-    Ok(bytes)
+    encode_bounded(request)
 }
 
 pub fn decode_bootstrap_retirement_response(
@@ -165,10 +164,16 @@ pub fn encode_bootstrap_retirement_response(
     response: &BootstrapRetirementResponse,
 ) -> Result<Vec<u8>, BootstrapRetirementCodecError> {
     response.validate()?;
-    let bytes =
-        serde_json::to_vec(response).map_err(|_| BootstrapRetirementCodecError::InvalidJson)?;
-    require_bound(&bytes)?;
-    Ok(bytes)
+    encode_bounded(response)
+}
+
+fn encode_bounded(value: &impl Serialize) -> Result<Vec<u8>, BootstrapRetirementCodecError> {
+    encode_json_bounded(value, MAX_BOOTSTRAP_RETIREMENT_BYTES).map_err(|error| match error {
+        BoundedJsonEncodeError::Oversized { size, limit } => {
+            BootstrapRetirementCodecError::Oversized { size, limit }
+        }
+        BoundedJsonEncodeError::InvalidJson(_) => BootstrapRetirementCodecError::InvalidJson,
+    })
 }
 
 pub fn validate_bootstrap_retirement_response_binding(

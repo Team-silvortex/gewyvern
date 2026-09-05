@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
+use silvortex_bounded_io::read_bounded_utf8_regular_file;
 
 pub const GUI_FUNCTION_CHAIN_SCHEMA_VERSION: u32 = 1;
 const MAX_CATALOG_BYTES: u64 = 1024 * 1024;
@@ -152,17 +153,9 @@ pub struct GuiSurfaceSummary {
 impl GuiFunctionChainCatalog {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
         let path = path.as_ref();
-        let metadata = fs::symlink_metadata(path)
-            .map_err(|error| format!("cannot inspect GUI function-chain catalog: {error}"))?;
-        if metadata.file_type().is_symlink() || !metadata.is_file() {
-            return Err("GUI function-chain catalog must be a regular file".to_string());
-        }
-        if metadata.len() > MAX_CATALOG_BYTES {
-            return Err("GUI function-chain catalog exceeds the size limit".to_string());
-        }
-        let payload = fs::read(path)
+        let payload = read_bounded_utf8_regular_file(path, MAX_CATALOG_BYTES)
             .map_err(|error| format!("cannot read GUI function-chain catalog: {error}"))?;
-        serde_json::from_slice(&payload)
+        serde_json::from_str(&payload)
             .map_err(|error| format!("cannot decode GUI function-chain catalog: {error}"))
     }
 
@@ -535,7 +528,7 @@ fn validate_source_anchor(
         ));
         return;
     }
-    match fs::read_to_string(&full_path) {
+    match read_bounded_utf8_regular_file(&full_path, MAX_EVIDENCE_BYTES) {
         Ok(source) if !source.contains(&anchor.contains) => errors.push(format!(
             "{context} anchor is missing from {}: {}",
             anchor.path, anchor.contains

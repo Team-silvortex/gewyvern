@@ -260,6 +260,33 @@ fn valid_https_host(host: &str) -> bool {
 }
 
 pub fn open_bounded_regular_file(path: &Path, max_bytes: u64) -> io::Result<BoundedFile> {
+    open_bounded_regular_file_inner(path, max_bytes, false)
+}
+
+/// Opens a regular, non-symlink file with a hard read limit while permitting empty files.
+pub fn open_bounded_regular_file_allow_empty(
+    path: &Path,
+    max_bytes: u64,
+) -> io::Result<BoundedFile> {
+    open_bounded_regular_file_inner(path, max_bytes, true)
+}
+
+/// Reads a regular, non-symlink UTF-8 file without trusting path metadata or file size races.
+///
+/// Empty text files are accepted; callers that require content should validate it separately.
+pub fn read_bounded_utf8_regular_file(path: &Path, max_bytes: u64) -> io::Result<String> {
+    let mut file = open_bounded_regular_file_inner(path, max_bytes, true)?;
+    let capacity = usize::try_from(file.metadata()?.len()).unwrap_or(0);
+    let mut bytes = Vec::with_capacity(capacity);
+    file.read_to_end(&mut bytes)?;
+    String::from_utf8(bytes).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+}
+
+fn open_bounded_regular_file_inner(
+    path: &Path,
+    max_bytes: u64,
+    allow_empty: bool,
+) -> io::Result<BoundedFile> {
     if max_bytes == 0 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -281,10 +308,17 @@ pub fn open_bounded_regular_file(path: &Path, max_bytes: u64) -> io::Result<Boun
     options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
     let file = options.open(path)?;
     let metadata = file.metadata()?;
-    if !metadata.file_type().is_file() || metadata.len() == 0 || metadata.len() > max_bytes {
+    if !metadata.file_type().is_file()
+        || (!allow_empty && metadata.len() == 0)
+        || metadata.len() > max_bytes
+    {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "file must be regular, non-empty, and within the size limit",
+            if allow_empty {
+                "file must be regular and within the size limit"
+            } else {
+                "file must be regular, non-empty, and within the size limit"
+            },
         ));
     }
     Ok(BoundedFile {
@@ -546,14 +580,19 @@ mod tests {
         ));
         fs::create_dir_all(&root).unwrap();
         let target = root.join("target.pem");
+        let empty = root.join("empty.pem");
         let link = root.join("link.pem");
         fs::write(&target, b"bounded").unwrap();
+        fs::write(&empty, []).unwrap();
         symlink(&target, &link).unwrap();
 
         assert!(open_bounded_regular_file(&target, 7).is_ok());
         assert!(open_bounded_regular_file(&target, 6).is_err());
         assert!(open_bounded_regular_file(&target, 0).is_err());
         assert!(open_bounded_regular_file(&link, 7).is_err());
+        assert!(open_bounded_regular_file(&empty, 7).is_err());
+        assert!(open_bounded_regular_file_allow_empty(&empty, 7).is_ok());
+        assert!(open_bounded_regular_file_allow_empty(&link, 7).is_err());
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -606,5 +645,63 @@ mod tests {
         assert!(file.read_to_end(&mut bytes).is_err());
         assert_eq!(bytes, b"safe");
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn bounded_utf8_reader_accepts_empty_text_and_rejects_oversized_or_invalid_input() {
+        let root = std::env::temp_dir().join(format!(
+            "silvortex-bounded-utf8-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let empty = root.join("empty.txt");
+        let valid = root.join("valid.txt");
+        let oversized = root.join("oversized.txt");
+        let invalid = root.join("invalid.txt");
+        fs::write(&empty, []).unwrap();
+        fs::write(&valid, "hello 世界").unwrap();
+        fs::write(&oversized, b"12345").unwrap();
+        fs::write(&invalid, [0xff, 0xfe]).unwrap();
+
+        assert_eq!(read_bounded_utf8_regular_file(&empty, 16).unwrap(), "");
+        assert_eq!(
+            read_bounded_utf8_regular_file(&valid, 32).unwrap(),
+            "hello 世界"
+        );
+        assert!(read_bounded_utf8_regular_file(&oversized, 4).is_err());
+        assert_eq!(
+            read_bounded_utf8_regular_file(&invalid, 4)
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidData
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_utf8_reader_rejects_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let root = std::env::temp_dir().join(format!(
+            "silvortex-bounded-utf8-link-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let target = root.join("target.txt");
+        let link = root.join("link.txt");
+        fs::write(&target, "bounded").unwrap();
+        symlink(&target, &link).unwrap();
+
+        assert!(read_bounded_utf8_regular_file(&link, 16).is_err());
+        fs::remove_dir_all(root).unwrap();
     }
 }

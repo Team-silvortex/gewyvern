@@ -31,7 +31,28 @@ pub(super) fn api_runtime_certificate_state_json_from_state(
     } else {
         "false"
     });
+    json.push_str(",\"rotation_records_valid\":");
+    json.push_str(if state.rotation_records_valid {
+        "true"
+    } else {
+        "false"
+    });
+    json.push_str(",\"revocation_records_valid\":");
+    json.push_str(if state.revocation_records_valid {
+        "true"
+    } else {
+        "false"
+    });
     json.push_str(",\"summary\":{");
+    json.push_str("\"state_valid\":");
+    json.push_str(
+        if state.rotation_records_valid && state.revocation_records_valid {
+            "true"
+        } else {
+            "false"
+        },
+    );
+    json.push(',');
     append_count_field(&mut json, "rotation_records", state.rotation_records.len());
     json.push(',');
     append_count_field(
@@ -79,6 +100,15 @@ pub(super) fn api_runtime_certificate_state_json_from_state(
 
 pub(super) fn append_state_summary_json(target: &mut String, state: &CertificateRuntimeState) {
     target.push('{');
+    target.push_str("\"state_valid\":");
+    target.push_str(
+        if state.rotation_records_valid && state.revocation_records_valid {
+            "true"
+        } else {
+            "false"
+        },
+    );
+    target.push(',');
     append_count_field(target, "rotation_records", state.rotation_records.len());
     target.push(',');
     append_count_field(
@@ -227,6 +257,8 @@ mod tests {
             ),
             rotation_records_exist: true,
             revocation_records_exist: true,
+            rotation_records_valid: true,
+            revocation_records_valid: true,
             rotation_records: vec![CertificateRotationRecord {
                 relative_path: "identities/prod/runtime.pem".into(),
                 status: CertificateRotationStatus::Overdue,
@@ -246,6 +278,9 @@ mod tests {
         };
         let body = api_runtime_certificate_state_json_from_state(&state);
         assert!(body.contains("\"surface\":\"runtime_certificate_state\""));
+        assert!(body.contains("\"rotation_records_valid\":true"));
+        assert!(body.contains("\"revocation_records_valid\":true"));
+        assert!(body.contains("\"state_valid\":true"));
         assert!(body.contains("\"overdue_rotations\":1"));
         assert!(body.contains("\"active_revocations\":1"));
         assert!(body.contains("\"status\":\"overdue\""));

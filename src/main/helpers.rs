@@ -3,11 +3,12 @@ use gewyvern::flow::{FlowId, ProcessView, ProgramFlowId};
 use gewyvern::ledger::{CpuId, FactEnvelope, FactId, FactKind, RouteDecisionFact, SessionId};
 use gewyvern::machine_error::{ErrorCategory, MachineError};
 use gewyvern::protocol_profiles::{
-    ProtocolCatalogSnapshot, default_protocol_scan_set, protocol_summaries, protocol_summary,
-    resolve_protocol_profile, validate_protocol_registry_dir,
+    ProtocolCatalogSnapshot, ProtocolSummary, default_protocol_scan_set, protocol_summaries,
+    protocol_summary, resolve_protocol_profile, validate_protocol_registry_dir,
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use gewyvern::template::TemplateBinding;
+use silvortex_bounded_io::read_bounded_utf8_regular_file;
 use std::collections::HashSet;
 use std::fs;
 use std::net::ToSocketAddrs;
@@ -17,6 +18,8 @@ use std::time::SystemTime;
 use crate::runtime_events::EVENT_WRITE_FAILED;
 use crate::runtime_logging::log_error_event;
 use crate::{Cli, IngestMode, ScanTarget, SocketTarget, UiLocale};
+
+const MAX_PROTOCOL_SET_BYTES: u64 = 256 * 1024;
 
 pub(crate) fn process_matches_pid(process: Option<&ProcessView>, pid: u32) -> bool {
     process.is_some_and(|process| process.pid == pid)
@@ -341,25 +344,27 @@ pub(crate) fn list_protocols_text() -> String {
 
 pub(crate) fn list_protocols_json() -> String {
     let items = protocol_summaries()
-        .into_iter()
-        .map(|summary| {
-            let entries = summary
-                .entries
-                .iter()
-                .map(|entry| format!("\"{}\"", entry.mode))
-                .collect::<Vec<_>>()
-                .join(",");
-            format!(
-                "{{\"protocol\":\"{}\",\"default_entry\":\"{}\",\"aliases\":{},\"entries\":[{}]}}",
-                summary.protocol,
-                summary.default_entry,
-                json_string_array(&summary.aliases),
-                entries
-            )
-        })
+        .iter()
+        .map(protocol_list_item_json)
         .collect::<Vec<_>>()
         .join(",");
     format!("[{items}]")
+}
+
+fn protocol_list_item_json(summary: &ProtocolSummary) -> String {
+    let entries = summary
+        .entries
+        .iter()
+        .map(|entry| json_string(&entry.mode))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!(
+        "{{\"protocol\":{},\"default_entry\":{},\"aliases\":{},\"entries\":[{}]}}",
+        json_string(&summary.protocol),
+        json_string(&summary.default_entry),
+        json_string_array(&summary.aliases),
+        entries
+    )
 }
 
 pub(crate) fn list_entries_text(protocol: &str) -> Option<String> {
@@ -383,35 +388,90 @@ pub(crate) fn list_entries_text(protocol: &str) -> Option<String> {
 }
 
 pub(crate) fn list_entries_json(protocol: &str) -> Option<String> {
-    let summary = protocol_summary(protocol)?;
+    protocol_summary(protocol).map(|summary| protocol_entries_json(&summary))
+}
+
+fn protocol_entries_json(summary: &ProtocolSummary) -> String {
     let entries = summary
         .entries
-        .into_iter()
+        .iter()
         .map(|entry| {
             format!(
-                "{{\"mode\":\"{}\",\"default\":{},\"aliases\":{}}}",
-                entry.mode,
+                "{{\"mode\":{},\"default\":{},\"aliases\":{}}}",
+                json_string(&entry.mode),
                 if entry.default { "true" } else { "false" },
                 json_string_array(&entry.aliases)
             )
         })
         .collect::<Vec<_>>()
         .join(",");
-    Some(format!(
-        "{{\"protocol\":\"{}\",\"default_entry\":\"{}\",\"aliases\":{},\"entries\":[{entries}]}}",
-        summary.protocol,
-        summary.default_entry,
+    format!(
+        "{{\"protocol\":{},\"default_entry\":{},\"aliases\":{},\"entries\":[{entries}]}}",
+        json_string(&summary.protocol),
+        json_string(&summary.default_entry),
         json_string_array(&summary.aliases),
-    ))
+    )
+}
+
+fn json_string(value: &str) -> String {
+    serde_json::Value::String(value.to_string()).to_string()
 }
 
 fn json_string_array(items: &[String]) -> String {
-    let joined = items
-        .iter()
-        .map(|item| format!("\"{item}\""))
-        .collect::<Vec<_>>()
-        .join(",");
-    format!("[{joined}]")
+    serde_json::Value::Array(
+        items
+            .iter()
+            .cloned()
+            .map(serde_json::Value::String)
+            .collect(),
+    )
+    .to_string()
+}
+
+#[cfg(test)]
+mod json_output_tests {
+    use super::{protocol_entries_json, protocol_list_item_json};
+    use gewyvern::protocol_profiles::{ProtocolEntrySummary, ProtocolSummary};
+
+    fn hostile_summary() -> ProtocolSummary {
+        ProtocolSummary {
+            protocol: "custom\"protocol\\name\nline".to_string(),
+            default_entry: "default\tentry".to_string(),
+            aliases: vec!["alias\"one".to_string(), "alias\\two".to_string()],
+            cluster_hint: None,
+            entries: vec![ProtocolEntrySummary {
+                mode: "mode\nthree".to_string(),
+                default: true,
+                aliases: vec!["entry\ralias".to_string()],
+            }],
+        }
+    }
+
+    #[test]
+    fn protocol_list_json_escapes_registry_metadata() {
+        let summary = hostile_summary();
+        let parsed: serde_json::Value = serde_json::from_str(&protocol_list_item_json(&summary))
+            .expect("escaped protocol list item should be valid JSON");
+
+        assert_eq!(parsed["protocol"], summary.protocol);
+        assert_eq!(parsed["default_entry"], summary.default_entry);
+        assert_eq!(parsed["aliases"][0], summary.aliases[0]);
+        assert_eq!(parsed["entries"][0], summary.entries[0].mode);
+    }
+
+    #[test]
+    fn protocol_entries_json_escapes_registry_metadata() {
+        let summary = hostile_summary();
+        let parsed: serde_json::Value = serde_json::from_str(&protocol_entries_json(&summary))
+            .expect("escaped protocol entries should be valid JSON");
+
+        assert_eq!(parsed["protocol"], summary.protocol);
+        assert_eq!(parsed["entries"][0]["mode"], summary.entries[0].mode);
+        assert_eq!(
+            parsed["entries"][0]["aliases"][0],
+            summary.entries[0].aliases[0]
+        );
+    }
 }
 
 pub(crate) fn scan_targets_for_cli(cli: &Cli) -> Result<Vec<ScanTarget>, String> {
@@ -438,7 +498,7 @@ pub(crate) fn scan_targets_from_set_file(path: &str) -> Result<Vec<ScanTarget>, 
         return validate_protocol_registry_dir(path)
             .map(|targets| targets.into_iter().map(ScanTarget::from_resolved).collect());
     }
-    let contents = fs::read_to_string(path)
+    let contents = read_bounded_utf8_regular_file(Path::new(path), MAX_PROTOCOL_SET_BYTES)
         .map_err(|err| format!("failed to read protocol set '{path}': {err}"))?;
     let catalog = ProtocolCatalogSnapshot::discover();
     let mut targets = Vec::new();

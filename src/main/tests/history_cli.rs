@@ -85,12 +85,13 @@ fn list_history_json_renders_empty_index_when_history_is_missing() {
     let _lock = env_test_lock()
         .lock()
         .unwrap_or_else(|poison| poison.into_inner());
-    let root = temp_dir("empty-json");
+    let root = temp_dir("empty-json-\"quoted");
     let _state = EnvGuard::set("GEWY_STATE_HOME", root.to_string_lossy());
     let _retention = EnvGuard::set("GEWY_HISTORY_RETENTION", "7");
 
     let rendered = render_history_index(true).unwrap();
     let minor_line = expected_minor_line();
+    let parsed: serde_json::Value = serde_json::from_str(&rendered).unwrap();
 
     assert!(rendered.contains("\"schema_version\":2"));
     assert!(rendered.contains(&format!("\"minor_line\":\"{minor_line}\"")));
@@ -100,6 +101,32 @@ fn list_history_json_renders_empty_index_when_history_is_missing() {
     assert!(rendered.contains("\"protocol-clusters/<cluster>.json\""));
     assert!(rendered.contains("\"latest_protocol_catalog_delta\":null"));
     assert!(rendered.contains("\"entries\":[]"));
+    assert_eq!(
+        parsed["root"].as_str(),
+        root.join("history").join("api").join("v1").to_str()
+    );
+}
+
+#[test]
+fn list_history_json_rejects_oversized_index() {
+    let _lock = env_test_lock()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    let root = temp_dir("oversized-index");
+    let history_root = root.join("history").join("api").join("v1");
+    let _state = EnvGuard::set("GEWY_STATE_HOME", root.to_string_lossy());
+    fs::create_dir_all(&history_root).unwrap();
+    fs::write(
+        history_root.join("index.json"),
+        vec![b'x'; 4 * 1024 * 1024 + 1],
+    )
+    .unwrap();
+
+    let error = render_history_index(true).unwrap_err();
+
+    assert!(error.contains("failed to securely read history index"));
+    assert!(error.contains("size limit"));
+    fs::remove_dir_all(&root).unwrap();
 }
 
 #[test]
@@ -164,5 +191,54 @@ fn list_history_text_reports_latest_protocol_catalog_delta() {
     assert!(rendered.contains("added protocols: redis"));
     assert!(rendered.contains("changed entry surfaces: http:request"));
 
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn list_history_text_rejects_oversized_catalog_artifact() {
+    let _lock = env_test_lock()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    let root = temp_dir("oversized-catalog-artifact");
+    let history_root = root.join("history").join("api").join("v1");
+    let _state = EnvGuard::set("GEWY_STATE_HOME", root.to_string_lossy());
+    let previous = history_root.join("1001");
+    let current = history_root.join("1003");
+    write_protocol_surface(&previous, "http", "request", "{}");
+    write_protocol_surface(&current, "http", "request", "{}");
+    fs::write(
+        current.join("protocols").join("http").join("summary.json"),
+        vec![b'x'; 1024 * 1024 + 1],
+    )
+    .unwrap();
+
+    let error = render_history_index(false).unwrap_err();
+
+    assert!(error.contains("protocol catalog artifact"));
+    assert!(error.contains("byte limit"));
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn list_history_text_ignores_symlinked_snapshot_directory() {
+    use std::os::unix::fs::symlink;
+
+    let _lock = env_test_lock()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    let root = temp_dir("symlinked-snapshot");
+    let history_root = root.join("history").join("api").join("v1");
+    let outside = root.join("outside-snapshot");
+    let _state = EnvGuard::set("GEWY_STATE_HOME", root.to_string_lossy());
+    fs::create_dir_all(history_root.join("1001")).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    symlink(&outside, history_root.join("9999")).unwrap();
+
+    let rendered = render_history_index(false).unwrap();
+
+    assert!(rendered.contains("entries: 1"));
+    assert!(rendered.contains("latest: 1001"));
+    assert!(!rendered.contains("latest: 9999"));
     fs::remove_dir_all(&root).unwrap();
 }

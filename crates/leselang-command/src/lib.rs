@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+use std::io::{self, Write};
+
 use leselang_hir::Effect;
 use leselang_host_contract::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
@@ -44,15 +46,53 @@ pub enum PlanCodecError {
 
 pub fn encode_plan(plan: &CommandPlan) -> Result<Vec<u8>, PlanCodecError> {
     validate_plan(plan)?;
-    let bytes =
-        serde_json::to_vec(plan).map_err(|error| PlanCodecError::InvalidJson(error.to_string()))?;
-    if bytes.len() > MAX_COMMAND_PLAN_BYTES {
-        return Err(PlanCodecError::Oversized {
-            size: bytes.len(),
-            limit: MAX_COMMAND_PLAN_BYTES,
-        });
+    let mut writer = CommandPlanWriter::new();
+    if let Err(error) = serde_json::to_writer(&mut writer, plan) {
+        return if writer.overflowed {
+            Err(PlanCodecError::Oversized {
+                size: writer.attempted_size,
+                limit: MAX_COMMAND_PLAN_BYTES,
+            })
+        } else {
+            Err(PlanCodecError::InvalidJson(error.to_string()))
+        };
     }
-    Ok(bytes)
+    Ok(writer.output)
+}
+
+struct CommandPlanWriter {
+    output: Vec<u8>,
+    attempted_size: usize,
+    overflowed: bool,
+}
+
+impl CommandPlanWriter {
+    fn new() -> Self {
+        Self {
+            output: Vec::with_capacity(MAX_COMMAND_PLAN_BYTES.min(4 * 1024)),
+            attempted_size: 0,
+            overflowed: false,
+        }
+    }
+}
+
+impl Write for CommandPlanWriter {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        self.attempted_size = self.output.len().saturating_add(buffer.len());
+        if self.attempted_size > MAX_COMMAND_PLAN_BYTES {
+            self.overflowed = true;
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("command plan exceeds {MAX_COMMAND_PLAN_BYTES} encoded bytes"),
+            ));
+        }
+        self.output.extend_from_slice(buffer);
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 pub fn decode_plan(bytes: &[u8]) -> Result<CommandPlan, PlanCodecError> {
@@ -847,6 +887,25 @@ mod tests {
             })
         );
 
+        for path in [&[][..], &["operation"][..]] {
+            let mut forged = serde_json::to_value(&plan).unwrap();
+            let mut target = &mut forged;
+            for segment in path {
+                target = target
+                    .get_mut(*segment)
+                    .expect("test path must exist in encoded command plan");
+            }
+            target
+                .as_object_mut()
+                .expect("test path must identify an object")
+                .insert("unexpected".into(), serde_json::Value::Bool(true));
+            let result = decode_plan(&serde_json::to_vec(&forged).unwrap());
+            assert!(
+                matches!(&result, Err(PlanCodecError::InvalidJson(_))),
+                "path {path:?} decoded as {result:?}"
+            );
+        }
+
         let oversized = vec![b' '; MAX_COMMAND_PLAN_BYTES + 1];
         assert_eq!(
             decode_plan(&oversized),
@@ -864,6 +923,20 @@ mod tests {
                 "operation requires capability 'runtime.read'".into()
             ))
         );
+
+        let mut oversized_plan = plan;
+        let PlannedOperation::Query(query) = &mut oversized_plan.operation else {
+            panic!("runtime.list must lower to a query");
+        };
+        query.capabilities = CapabilitySet::new([
+            CAPABILITY_RUNTIME_READ.to_string(),
+            "x".repeat(MAX_COMMAND_PLAN_BYTES),
+        ]);
+        assert!(matches!(
+            encode_plan(&oversized_plan),
+            Err(PlanCodecError::Oversized { size, limit })
+                if size > limit && limit == MAX_COMMAND_PLAN_BYTES
+        ));
     }
 
     #[test]

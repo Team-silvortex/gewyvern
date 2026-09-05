@@ -1,6 +1,8 @@
 use gewyvern::export::ExportBundle;
 use gewyvern::machine_error::{ErrorCategory, MachineError};
 use gewyvern::protocol_profiles::protocol_target_name_for_template_id;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::net::TcpListener;
 
 use crate::data_api::{
@@ -616,42 +618,44 @@ fn write_rendered_output(cli: &Cli, rendered: &str, append: bool) -> Result<(), 
     let locale = UiLocale::detect();
     if let Some(path) = cli.out_path.as_deref() {
         if append {
-            let mut existing = match super::fs::read_to_string(path) {
-                Ok(existing) => existing,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
-                Err(error) => {
+            let mut output = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .map_err(|error| {
                     log_error_event(
                         "output",
                         EVENT_APPEND_FAILED,
                         &[("path", path.to_string()), ("error", error.to_string())],
-                        "failed to read existing rendered output before append",
+                        "failed to open rendered output for append",
                     );
-                    return Err(MachineError::new(
-                        "output_append_read_failed",
+                    MachineError::new(
+                        "output_append_failed",
                         ErrorCategory::Io,
                         locale.msgf("write_failed", path, Some(&error.to_string())),
                         true,
                         1,
-                    ));
-                }
-            };
-            existing.push_str(rendered);
-            existing.push('\n');
-            super::fs::write(path, existing).map_err(|error| {
-                log_error_event(
-                    "output",
-                    EVENT_APPEND_FAILED,
-                    &[("path", path.to_string()), ("error", error.to_string())],
-                    "failed to append rendered output",
-                );
-                MachineError::new(
-                    "output_append_failed",
-                    ErrorCategory::Io,
-                    locale.msgf("write_failed", path, Some(&error.to_string())),
-                    true,
-                    1,
-                )
-            })?;
+                    )
+                })?;
+            output
+                .write_all(rendered.as_bytes())
+                .and_then(|()| output.write_all(b"\n"))
+                .and_then(|()| output.flush())
+                .map_err(|error| {
+                    log_error_event(
+                        "output",
+                        EVENT_APPEND_FAILED,
+                        &[("path", path.to_string()), ("error", error.to_string())],
+                        "failed to append rendered output",
+                    );
+                    MachineError::new(
+                        "output_append_failed",
+                        ErrorCategory::Io,
+                        locale.msgf("write_failed", path, Some(&error.to_string())),
+                        true,
+                        1,
+                    )
+                })?;
         } else {
             super::fs::write(path, format!("{rendered}\n")).map_err(|error| {
                 log_error_event(
@@ -673,4 +677,35 @@ fn write_rendered_output(cli: &Cli, rendered: &str, append: bool) -> Result<(), 
         println!("{rendered}");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn append_output_does_not_read_or_rewrite_existing_bytes() {
+        let root = std::env::temp_dir().join(format!(
+            "gewyvern-render-append-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock must follow the epoch")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("test output directory must be created");
+        let path = root.join("report.log");
+        fs::write(&path, [0xff, b'\n']).expect("non-UTF-8 prefix must be written");
+        let cli = Cli::from_args(["--out".to_string(), path.to_string_lossy().into_owned()])
+            .expect("test CLI must parse");
+
+        write_rendered_output(&cli, "next", true).expect("append must succeed");
+
+        assert_eq!(
+            fs::read(&path).expect("appended output must be readable"),
+            [0xff, b'\n', b'n', b'e', b'x', b't', b'\n']
+        );
+        fs::remove_dir_all(root).expect("test output directory must be removed");
+    }
 }

@@ -79,7 +79,7 @@ pub enum Command {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields, tag = "kind", rename_all = "snake_case")]
 pub enum Query {
     RuntimeList {
         filter: RuntimeListFilter,
@@ -116,6 +116,7 @@ pub struct RuntimeLogRecord {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RuntimeTags {
     pub environment: Option<String>,
     pub cluster: Option<String>,
@@ -123,6 +124,7 @@ pub struct RuntimeTags {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RuntimeStatusSnapshot {
     pub status_source: String,
     pub status_fetched_at: Option<String>,
@@ -273,6 +275,7 @@ fn command_result_projection(mut runtime: RuntimeProjection) -> RuntimeProjectio
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct CommandEnvelope {
     pub schema_version: u32,
     pub command_id: CommandId,
@@ -287,6 +290,7 @@ pub struct CommandEnvelope {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct QueryEnvelope {
     pub schema_version: u32,
     pub principal: Principal,
@@ -295,6 +299,7 @@ pub struct QueryEnvelope {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct CommandPlan {
     pub schema_version: u32,
     pub required_capability: String,
@@ -302,7 +307,12 @@ pub struct CommandPlan {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
+#[serde(
+    deny_unknown_fields,
+    tag = "kind",
+    content = "payload",
+    rename_all = "snake_case"
+)]
 pub enum PlannedOperation {
     Query(QueryEnvelope),
     Command(CommandEnvelope),
@@ -323,6 +333,7 @@ pub enum CommandPlanError {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RuntimeProjection {
     pub id: RuntimeId,
     pub name: String,
@@ -356,7 +367,7 @@ pub enum RefreshStatus {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields, tag = "kind", rename_all = "snake_case")]
 pub enum DomainEvent {
     RuntimeRegistered {
         runtime_id: RuntimeId,
@@ -402,6 +413,7 @@ pub enum CommandStatus {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct CommandResult {
     pub command_id: CommandId,
     pub status: CommandStatus,
@@ -410,6 +422,7 @@ pub struct CommandResult {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct DomainSnapshot {
     pub schema_version: u32,
     pub revision: Revision,
@@ -418,6 +431,7 @@ pub struct DomainSnapshot {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct AppliedCommandSnapshot {
     pub principal_id: String,
     pub idempotency_key: IdempotencyKey,
@@ -432,7 +446,7 @@ pub enum DomainSnapshotError {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields, tag = "kind", rename_all = "snake_case")]
 // Keep the established wire/domain shape source-compatible until the v2 schema seal.
 #[allow(clippy::large_enum_variant)]
 pub enum QueryResult {

@@ -1,8 +1,10 @@
 use std::env;
 use std::fs;
+use std::io::Read;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
+use gewyvern::transport_safety::open_bounded_regular_file;
 use gewyvern::validation_harness::{
     run_linux_attach_smoke, run_linux_kprobe_smoke, run_linux_tc_smoke,
 };
@@ -60,18 +62,16 @@ struct HelperConfig {
 }
 
 fn load_config(path: &Path) -> Result<HelperConfig, String> {
-    let metadata = fs::symlink_metadata(path)
+    let mut file = open_bounded_regular_file(path, MAX_CONFIG_BYTES)
+        .map_err(|error| format!("cannot securely open config '{}': {error}", path.display()))?;
+    let metadata = file
+        .metadata()
         .map_err(|error| format!("cannot inspect config '{}': {error}", path.display()))?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
-        return Err("helper config must be a regular non-symlink file".to_string());
-    }
     if metadata.uid() != 0 || metadata.mode() & 0o022 != 0 {
         return Err("helper config must be root-owned and not group/world writable".to_string());
     }
-    if metadata.len() > MAX_CONFIG_BYTES {
-        return Err("helper config exceeds size limit".to_string());
-    }
-    let input = fs::read_to_string(path)
+    let mut input = String::with_capacity(metadata.len() as usize);
+    file.read_to_string(&mut input)
         .map_err(|error| format!("cannot read config '{}': {error}", path.display()))?;
     parse_config(&input)
 }
@@ -287,5 +287,26 @@ mod tests {
     fn helper_protocol_is_explicit_and_versioned() {
         assert_eq!(HELPER_PROTOCOL_VERSION, 1);
         assert!(!env!("CARGO_PKG_VERSION").is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn helper_config_loader_rejects_symlinks_before_trust_checks() {
+        use std::os::unix::fs::symlink;
+
+        let root = std::env::temp_dir().join(format!(
+            "gewyvern-ebpf-helper-config-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let target = root.join("target.conf");
+        let link = root.join("helper.conf");
+        fs::write(&target, "allowed_uid=1001\n").unwrap();
+        symlink(&target, &link).unwrap();
+
+        let error = load_config(&link).expect_err("helper config symlink must be rejected");
+
+        assert!(error.contains("cannot securely open config"));
+        fs::remove_dir_all(root).unwrap();
     }
 }

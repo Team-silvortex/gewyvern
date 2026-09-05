@@ -1,7 +1,7 @@
 use std::env;
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command, Stdio};
 use std::thread;
@@ -10,6 +10,7 @@ use std::time::{Duration, Instant, SystemTime};
 use ring::digest::{Context, SHA256, digest};
 use ring::rand::{SecureRandom, SystemRandom};
 use serde::{Deserialize, Serialize};
+use silvortex_bounded_io::open_bounded_regular_file_allow_empty;
 
 const MANIFEST_SCHEMA: &str = "leserpent.frontend-package/v1";
 const MAX_INPUT_FILES: usize = 128;
@@ -19,6 +20,8 @@ const MAX_DIRECTORY_DEPTH: usize = 16;
 const MAX_INPUT_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_ASSET_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_MANIFEST_BYTES: u64 = 128 * 1024;
+const MAX_PACKAGE_LOCK_BYTES: u64 = 8 * 1024 * 1024;
+const MAX_INSTALLED_PACKAGE_BYTES: u64 = 256 * 1024;
 const MAX_LOCK_BYTES: u64 = 256;
 const LOCK_WAIT: Duration = Duration::from_secs(16 * 60);
 const STALE_LOCK: Duration = Duration::from_secs(15 * 60);
@@ -243,18 +246,26 @@ impl FrontendPackage {
                     "frontend package directory depth exceeds {MAX_DIRECTORY_DEPTH}"
                 ));
             }
-            let mut entries = fs::read_dir(directory)
-                .map_err(|error| format!("failed to read {}: {error}", directory.display()))?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|error| format!("failed to scan {}: {error}", directory.display()))?;
-            entries.sort_by_key(|entry| entry.file_name());
-            for entry in entries {
-                *scanned += 1;
+            let directory_entries = fs::read_dir(directory)
+                .map_err(|error| format!("failed to read {}: {error}", directory.display()))?;
+            let mut entries = Vec::new();
+            for entry in directory_entries {
+                *scanned = scanned
+                    .checked_add(1)
+                    .ok_or_else(|| "frontend package scan entry count overflowed".to_string())?;
                 if *scanned > MAX_SCANNED_ENTRIES {
                     return Err(format!(
                         "frontend package scan exceeds {MAX_SCANNED_ENTRIES} entries"
                     ));
                 }
+                entries.push(
+                    entry.map_err(|error| {
+                        format!("failed to scan {}: {error}", directory.display())
+                    })?,
+                );
+            }
+            entries.sort_by_key(|entry| entry.file_name());
+            for entry in entries {
                 let path = entry.path();
                 let metadata = fs::symlink_metadata(&path)
                     .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
@@ -291,31 +302,26 @@ impl FrontendPackage {
         let mut total_bytes = 0_u64;
         let mut entries = Vec::with_capacity(files.len());
         for path in files {
+            let relative_path = self.relative_path(&path)?;
             let metadata = fs::symlink_metadata(&path)
                 .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
             if !metadata.is_file() || metadata.file_type().is_symlink() {
                 return Err(format!(
-                    "frontend package input must be a real file: {}",
-                    self.relative_path(&path)?
+                    "frontend package input must be a real file: {relative_path}"
                 ));
             }
-            let next_total = total_bytes
-                .checked_add(metadata.len())
-                .ok_or_else(|| "frontend package byte count overflowed".to_string())?;
-            if next_total > max_bytes {
-                return Err(format!("frontend package bytes exceed {max_bytes}"));
-            }
-            let bytes = fs::read(&path)
+            let remaining = max_bytes
+                .checked_sub(total_bytes)
+                .filter(|remaining| *remaining > 0)
+                .ok_or_else(|| format!("frontend package bytes exceed {max_bytes}"))?;
+            let bytes = read_bounded_file(&path, remaining)
                 .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
-            if bytes.len() as u64 != metadata.len() {
-                return Err(format!(
-                    "frontend package input changed while reading: {}",
-                    self.relative_path(&path)?
-                ));
-            }
-            total_bytes = next_total;
+            total_bytes = total_bytes
+                .checked_add(bytes.len() as u64)
+                .filter(|total| *total <= max_bytes)
+                .ok_or_else(|| format!("frontend package bytes exceed {max_bytes}"))?;
             entries.push(AssetEntry {
-                path: self.relative_path(&path)?,
+                path: relative_path,
                 bytes: bytes.len() as u64,
                 sha256: sha256_hex(&bytes),
             });
@@ -353,21 +359,11 @@ impl FrontendPackage {
     }
 
     fn read_manifest(&self) -> Result<Option<FrontendPackageManifest>, String> {
-        let metadata = match fs::symlink_metadata(&self.manifest_path) {
-            Ok(metadata) => metadata,
+        let bytes = match read_bounded_file(&self.manifest_path, MAX_MANIFEST_BYTES) {
+            Ok(bytes) => bytes,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(format!("failed to inspect frontend manifest: {error}")),
+            Err(error) => return Err(format!("failed to read frontend manifest: {error}")),
         };
-        if !metadata.is_file() || metadata.file_type().is_symlink() {
-            return Err("frontend package manifest must be a real file".to_string());
-        }
-        if metadata.len() > MAX_MANIFEST_BYTES {
-            return Err(format!(
-                "frontend package manifest exceeds {MAX_MANIFEST_BYTES} bytes"
-            ));
-        }
-        let bytes = fs::read(&self.manifest_path)
-            .map_err(|error| format!("failed to read frontend manifest: {error}"))?;
         match serde_json::from_slice(&bytes) {
             Ok(manifest) => Ok(Some(manifest)),
             Err(_) => Ok(None),
@@ -471,7 +467,7 @@ impl FrontendPackage {
 
     fn ensure_typescript(&self) -> Result<PathBuf, String> {
         let lock: serde_json::Value = serde_json::from_slice(
-            &fs::read(self.root.join("package-lock.json"))
+            &read_bounded_file(&self.root.join("package-lock.json"), MAX_PACKAGE_LOCK_BYTES)
                 .map_err(|error| format!("failed to read package-lock.json: {error}"))?,
         )
         .map_err(|error| format!("failed to decode package-lock.json: {error}"))?;
@@ -601,9 +597,8 @@ impl PackageLock {
 impl Drop for PackageLock {
     fn drop(&mut self) {
         drop(self.file.take());
-        let owned = fs::read(&self.path)
+        let owned = read_bounded_file(&self.path, MAX_LOCK_BYTES)
             .ok()
-            .filter(|bytes| bytes.len() as u64 <= MAX_LOCK_BYTES)
             .is_some_and(|bytes| bytes == self.token.as_bytes());
         if owned {
             let _ = fs::remove_file(&self.path);
@@ -629,14 +624,27 @@ fn regular_file(path: &Path) -> bool {
 }
 
 fn installed_version(path: &Path) -> Option<String> {
-    if !regular_file(path) {
-        return None;
+    serde_json::from_slice::<serde_json::Value>(
+        &read_bounded_file(path, MAX_INSTALLED_PACKAGE_BYTES).ok()?,
+    )
+    .ok()?
+    .get("version")?
+    .as_str()
+    .map(str::to_string)
+}
+
+fn read_bounded_file(path: &Path, max_bytes: u64) -> io::Result<Vec<u8>> {
+    let mut file = open_bounded_regular_file_allow_empty(path, max_bytes)?;
+    let expected_bytes = file.metadata()?.len();
+    let mut bytes = Vec::with_capacity(usize::try_from(expected_bytes).unwrap_or(0));
+    file.read_to_end(&mut bytes)?;
+    if bytes.len() as u64 != expected_bytes {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "file changed while reading",
+        ));
     }
-    serde_json::from_slice::<serde_json::Value>(&fs::read(path).ok()?)
-        .ok()?
-        .get("version")?
-        .as_str()
-        .map(str::to_string)
+    Ok(bytes)
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -729,6 +737,17 @@ fn sync_parent(_: &Path) -> io::Result<()> {
 mod tests {
     use super::*;
 
+    fn temp_path(label: &str) -> PathBuf {
+        env::temp_dir().join(format!(
+            "leserpent-frontend-package-{label}-{}-{}",
+            process::id(),
+            SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock must follow the epoch")
+                .as_nanos()
+        ))
+    }
+
     #[test]
     fn options_reject_conflicting_modes() {
         let error = Options::parse(["--verify".to_string(), "--force".to_string()].into_iter())
@@ -765,5 +784,31 @@ mod tests {
             sha256_hex(b"leserpent"),
             "b6ad287e4f95f377e38764e104298a06085a2daad6c8db67e4466535d65beaff"
         );
+    }
+
+    #[test]
+    fn bounded_file_reader_rejects_oversized_input() {
+        let path = temp_path("oversized");
+        let file = File::create(&path).unwrap();
+        file.set_len(257).unwrap();
+
+        assert!(read_bounded_file(&path, 256).is_err());
+        fs::remove_file(path).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_file_reader_rejects_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_path("symlink");
+        fs::create_dir_all(&root).unwrap();
+        let target = root.join("target.json");
+        let link = root.join("link.json");
+        fs::write(&target, "{}").unwrap();
+        symlink(&target, &link).unwrap();
+
+        assert!(read_bounded_file(&link, 256).is_err());
+        fs::remove_dir_all(root).unwrap();
     }
 }

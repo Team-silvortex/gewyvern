@@ -330,6 +330,22 @@ fn runtime_config_explicit_file_overrides_standard_path() {
 }
 
 #[test]
+fn runtime_config_rejects_oversized_explicit_file() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("oversized-explicit-file");
+    fs::create_dir_all(&root).unwrap();
+    let explicit_path = root.join("oversized.toml");
+    fs::write(&explicit_path, vec![b'x'; 256 * 1024 + 1]).unwrap();
+    let _config_file = EnvGuard::set("GEWY_CONFIG_FILE", explicit_path.to_string_lossy());
+
+    let error = load_runtime_config().unwrap_err();
+
+    assert!(error.contains("failed to read runtime config"));
+    assert!(error.contains("size limit"));
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
 fn runtime_config_missing_explicit_file_does_not_fallback_to_standard_path() {
     let _lock = env_lock().lock().unwrap();
     let root = temp_dir("config-file-missing");

@@ -484,6 +484,24 @@ fn protocol_set_file_parses_comments_defaults_and_explicit_entries() {
 }
 
 #[test]
+fn protocol_set_file_rejects_oversized_input() {
+    let path = std::env::temp_dir().join(format!(
+        "gewyvern-oversized-protocol-set-{}.txt",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::write(&path, vec![b'x'; 256 * 1024 + 1]).unwrap();
+
+    let error = scan_targets_from_set_file(path.to_str().unwrap()).unwrap_err();
+
+    fs::remove_file(&path).unwrap();
+    assert!(error.contains("failed to read protocol set"));
+    assert!(error.contains("size limit"));
+}
+
+#[test]
 fn protocol_set_directory_scans_registered_gewy_projects() {
     let root = std::env::temp_dir().join(format!(
         "gewyvern-protocol-registry-{}",

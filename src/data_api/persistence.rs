@@ -2,6 +2,7 @@ use crate::render_utils::append_json_string;
 use gewyvern::protocol_profiles::protocol_summaries;
 use gewyvern::runtime_layout::runtime_layout;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use super::anomaly_flow_view::api_target_anomaly_flow_json;
@@ -33,6 +34,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const API_VERSION: &str = env!("CARGO_PKG_VERSION");
 const HISTORY_RETENTION_LIMIT: usize = 32;
+const MAX_HISTORY_RETENTION_LIMIT: usize = 1024;
+const MAX_HISTORY_DIRECTORY_ENTRIES: usize = 4096;
+const MAX_TARGET_DIRECTORY_ENTRIES: usize = 4096;
 const HISTORY_RETENTION_ENV: &str = "GEWY_HISTORY_RETENTION";
 static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(1);
 
@@ -101,7 +105,7 @@ fn history_retention_limit() -> usize {
     std::env::var(HISTORY_RETENTION_ENV)
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
-        .filter(|value| *value > 0)
+        .filter(|value| (1..=MAX_HISTORY_RETENTION_LIMIT).contains(value))
         .unwrap_or(HISTORY_RETENTION_LIMIT)
 }
 
@@ -402,23 +406,44 @@ fn prune_history_snapshots(history_root: &Path, keep: usize) -> Result<(), Strin
 }
 
 fn history_snapshot_dirs(history_root: &Path) -> Result<Vec<(u128, PathBuf)>, String> {
-    let mut entries = fs::read_dir(history_root)
-        .map_err(|err| {
+    let directory = fs::read_dir(history_root).map_err(|err| {
+        format!(
+            "failed to inspect history snapshot root '{}': {err}",
+            history_root.display()
+        )
+    })?;
+    let mut entries = Vec::new();
+    for (index, entry) in directory.enumerate() {
+        if index >= MAX_HISTORY_DIRECTORY_ENTRIES {
+            return Err(format!(
+                "history snapshot root '{}' exceeds the entry limit of {MAX_HISTORY_DIRECTORY_ENTRIES}",
+                history_root.display()
+            ));
+        }
+        let entry = entry.map_err(|err| {
             format!(
-                "failed to inspect history snapshot root '{}': {err}",
+                "failed to read an entry under history snapshot root '{}': {err}",
                 history_root.display()
             )
-        })?
-        .filter_map(Result::ok)
-        .filter(|entry| entry.path().is_dir())
-        .filter_map(|entry| {
-            entry
-                .file_name()
-                .to_str()
-                .and_then(|name| name.parse::<u128>().ok())
-                .map(|updated_unix_ms| (updated_unix_ms, entry.path()))
-        })
-        .collect::<Vec<_>>();
+        })?;
+        let entry_type = entry.file_type().map_err(|err| {
+            format!(
+                "failed to inspect history snapshot entry '{}': {err}",
+                entry.path().display()
+            )
+        })?;
+        if !entry_type.is_dir() {
+            continue;
+        }
+        let file_name = entry.file_name();
+        let Some(updated_unix_ms) = file_name
+            .to_str()
+            .and_then(|name| name.parse::<u128>().ok())
+        else {
+            continue;
+        };
+        entries.push((updated_unix_ms, entry.path()));
+    }
     entries.sort_by_key(|entry| std::cmp::Reverse(entry.0));
     Ok(entries)
 }
@@ -428,12 +453,21 @@ fn remove_stale_target_dirs(targets_root: &Path, snapshot: &ApiSnapshot) -> Resu
     for name in &snapshot.target_names {
         active.insert(api_target_path_segment(name));
     }
-    for entry in fs::read_dir(targets_root).map_err(|err| {
-        format!(
-            "failed to inspect latest snapshot target directories '{}': {err}",
-            targets_root.display()
-        )
-    })? {
+    for (index, entry) in fs::read_dir(targets_root)
+        .map_err(|err| {
+            format!(
+                "failed to inspect latest snapshot target directories '{}': {err}",
+                targets_root.display()
+            )
+        })?
+        .enumerate()
+    {
+        if index >= MAX_TARGET_DIRECTORY_ENTRIES {
+            return Err(format!(
+                "latest snapshot target root '{}' exceeds the entry limit of {MAX_TARGET_DIRECTORY_ENTRIES}",
+                targets_root.display()
+            ));
+        }
         let entry = entry.map_err(|err| {
             format!(
                 "failed to read an entry under latest snapshot target directories '{}': {err}",
@@ -441,10 +475,17 @@ fn remove_stale_target_dirs(targets_root: &Path, snapshot: &ApiSnapshot) -> Resu
             )
         })?;
         let path = entry.path();
-        if !path.is_dir() {
+        let entry_type = entry.file_type().map_err(|err| {
+            format!(
+                "failed to inspect latest snapshot target entry '{}': {err}",
+                path.display()
+            )
+        })?;
+        if !entry_type.is_dir() {
             continue;
         }
-        let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
+        let file_name = entry.file_name();
+        let Some(name) = file_name.to_str() else {
             continue;
         };
         if !active.contains(name) {
@@ -476,25 +517,59 @@ fn write_text_file(path: &Path, content: &str) -> Result<(), String> {
             )
         })?;
     }
-    fs::write(&temp_path, content).map_err(|err| {
-        format!(
-            "failed to write latest snapshot file '{}': {err}",
-            temp_path.display()
-        )
-    })?;
-    fs::rename(&temp_path, path).map_err(|err| {
-        format!(
-            "failed to finalize latest snapshot file '{}' as '{}': {err}",
-            temp_path.display(),
-            path.display()
-        )
-    })?;
-    Ok(())
+    let result = (|| {
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp_path)
+            .map_err(|err| {
+                format!(
+                    "failed to create latest snapshot file '{}': {err}",
+                    temp_path.display()
+                )
+            })?;
+        file.write_all(content.as_bytes()).map_err(|err| {
+            format!(
+                "failed to write latest snapshot file '{}': {err}",
+                temp_path.display()
+            )
+        })?;
+        file.sync_all().map_err(|err| {
+            format!(
+                "failed to sync latest snapshot file '{}': {err}",
+                temp_path.display()
+            )
+        })?;
+        fs::rename(&temp_path, path).map_err(|err| {
+            format!(
+                "failed to finalize latest snapshot file '{}' as '{}': {err}",
+                temp_path.display(),
+                path.display()
+            )
+        })
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temp_path);
+    }
+    result
 }
 
 fn remove_if_exists(path: &Path) -> Result<(), String> {
-    if !path.exists() {
-        return Ok(());
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {
+            return Err(format!(
+                "refusing to remove snapshot directory as a file: '{}'",
+                path.display()
+            ));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => {
+            return Err(format!(
+                "failed to inspect stale latest snapshot file '{}': {error}",
+                path.display()
+            ));
+        }
     }
     fs::remove_file(path).map_err(|err| {
         format!(
@@ -520,8 +595,20 @@ fn temp_path(path: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::temp_path;
-    use std::path::Path;
+    use super::{history_snapshot_dirs, remove_if_exists, temp_path, write_text_file};
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_root(label: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "gewyvern-persistence-{label}-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock must follow the epoch")
+                .as_nanos()
+        ))
+    }
 
     #[test]
     fn temp_path_uses_unique_names_per_call() {
@@ -533,5 +620,64 @@ mod tests {
         assert!(first.to_string_lossy().contains("meta.json."));
         assert!(first.to_string_lossy().ends_with(".tmp"));
         assert!(second.to_string_lossy().ends_with(".tmp"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn history_snapshot_discovery_does_not_follow_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_root("history-symlink");
+        let history = root.join("history");
+        let outside = root.join("outside");
+        fs::create_dir_all(history.join("100")).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        symlink(&outside, history.join("200")).unwrap();
+
+        let entries = history_snapshot_dirs(&history).unwrap();
+
+        assert_eq!(entries, vec![(100, history.join("100"))]);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn snapshot_writes_replace_destination_symlinks_without_touching_targets() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_root("write-symlink");
+        fs::create_dir_all(&root).unwrap();
+        let outside = root.join("outside.json");
+        let snapshot = root.join("snapshot.json");
+        fs::write(&outside, "outside").unwrap();
+        symlink(&outside, &snapshot).unwrap();
+
+        write_text_file(&snapshot, "snapshot").unwrap();
+
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "outside");
+        assert_eq!(fs::read_to_string(&snapshot).unwrap(), "snapshot");
+        assert!(
+            !fs::symlink_metadata(&snapshot)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stale_file_removal_handles_broken_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_root("remove-broken-symlink");
+        fs::create_dir_all(&root).unwrap();
+        let link = root.join("stale.json");
+        symlink(root.join("missing.json"), &link).unwrap();
+
+        remove_if_exists(&link).unwrap();
+
+        assert!(fs::symlink_metadata(&link).is_err());
+        fs::remove_dir_all(root).unwrap();
     }
 }

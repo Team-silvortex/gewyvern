@@ -26,6 +26,7 @@ use self::fact_codec::{
     fact_json, parse_fact, parse_rejected_fact, parse_rejected_fact_summary, rejected_fact_json,
     rejected_fact_summary_json,
 };
+pub(crate) use self::json::escape_json;
 use self::json::{JsonParser, JsonValue};
 use self::program_codec::{
     flow_json, module_finding_json, parse_flow, parse_module_finding, parse_program_finding,

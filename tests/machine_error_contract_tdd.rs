@@ -234,3 +234,18 @@ fn typed_status_loader_distinguishes_retryable_io_from_invalid_content() {
         gewyvern::machine_error::ErrorCategory::Configuration
     );
 }
+
+#[test]
+fn typed_status_loader_rejects_oversized_catalogs_before_decoding() {
+    let sandbox = Sandbox::new("typed-status-oversized");
+    let oversized_path = sandbox.path("oversized.json");
+    let oversized = fs::File::create(&oversized_path).expect("oversized catalog must be created");
+    oversized
+        .set_len(gewyvern::project_status::MAX_STATUS_CATALOG_BYTES + 1)
+        .expect("oversized catalog length must be set");
+
+    let error = StatusCatalog::load_typed(&oversized_path)
+        .expect_err("oversized status catalog must be rejected");
+    assert!(matches!(&error, StatusCatalogLoadError::Read { .. }));
+    assert_eq!(error.code(), "status_catalog_read_failed");
+}
