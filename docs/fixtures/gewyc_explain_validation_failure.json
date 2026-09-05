@@ -161,7 +161,8 @@
           "binding_schema",
           "fragment_params",
           "rule_evidence",
-          "payload_offsets"
+          "payload_offsets",
+          "ir_invariants"
         ],
         "sampled_payload_offsets": [
           0,
@@ -253,6 +254,11 @@
         "stage": "binding_ir",
         "stage_version": 1
       },
+      "fingerprint": {
+        "algorithm": "sha256",
+        "encoding_version": 1,
+        "digest": "02c47b8980f4ebe8b35751f6d372072b1adaeb64a9e5aa56a87d0e9cadb0690d"
+      },
       "template_id": "broken_offsets",
       "status": {
         "has_window": true,
@@ -294,7 +300,8 @@
         "binding_schema",
         "fragment_params",
         "rule_evidence",
-        "payload_offsets"
+        "payload_offsets",
+        "ir_invariants"
       ],
       "sampled_payload_offsets": [
         0,

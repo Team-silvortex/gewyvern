@@ -1,14 +1,17 @@
 use gewylang_contract::{GewyLangContractStamp, GewyLangStage};
+use serde::{Deserialize, Serialize};
 
 /// Diagnostics-enriched, product-independent Analysis IR projection.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct IrReport {
     pub template_id: String,
     pub program_model: Option<IrModelReport>,
     pub reason_model: Option<IrModelReport>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct IrModelReport {
     pub kind: String,
     pub id: String,
@@ -16,7 +19,8 @@ pub struct IrModelReport {
     pub rules: Vec<IrRuleReport>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct IrRuleReport {
     pub rule_index: usize,
     pub predicate: String,

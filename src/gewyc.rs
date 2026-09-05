@@ -166,17 +166,46 @@ fn compile_envelope_from_parts(
                     Err(err) => Err((*err).clone()),
                 },
             };
-            let validation = validation_report(
+            let mut validation = validation_report(
                 registry,
                 &binding,
                 diagnostics_result.as_ref().ok(),
                 validation_result.err().as_ref(),
             );
-            let projections = gewylang_ir::project_compiler_stages(
+            validation.checks.push("ir_invariants".into());
+            let projections = match gewylang_ir::project_compiler_stages_checked(
                 &GewyvernProjectionHost,
                 &binding,
                 diagnostics_result.as_ref(),
-            );
+            ) {
+                Ok(projections) => projections,
+                Err(errors) => {
+                    validation.ok = false;
+                    validation.finding = Some(finding_from_ir_validation_errors(&errors));
+                    let parse = ParseStageReport {
+                        ok: true,
+                        frontend,
+                        report: None,
+                        finding: None,
+                    };
+                    let diagnostics = DiagnosticsStageReport {
+                        ok: false,
+                        report: None,
+                        finding: None,
+                    };
+                    return CompilerEnvelope {
+                        binding: None,
+                        diagnostics: None,
+                        findings: findings_from_stage_reports(&parse, &validation, &diagnostics),
+                        stages: CompilerStagesReport {
+                            parse,
+                            validation,
+                            diagnostics,
+                        },
+                        ir_report: None,
+                    };
+                }
+            };
             let binding_report = projections.binding;
             let ir_report = projections.analysis;
             let diagnostics_stage =

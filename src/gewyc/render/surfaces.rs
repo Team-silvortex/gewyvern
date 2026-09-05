@@ -4,6 +4,7 @@ use super::super::*;
 pub(super) fn binding_text(report: &BindingReport) -> String {
     let mut lines = vec![
         gewylang_contract_text(GewyLangStage::BindingIr),
+        format!("fingerprint={}", report.fingerprint()),
         format!("template={}", report.template_id),
         format!("fragments={}", report.fragments.join(",")),
     ];
@@ -43,6 +44,7 @@ pub(super) fn binding_text(report: &BindingReport) -> String {
 }
 
 pub(super) fn binding_json(report: &BindingReport) -> String {
+    let fingerprint = report.fingerprint();
     let fragment_params = report
         .fragment_params
         .iter()
@@ -89,6 +91,7 @@ pub(super) fn binding_json(report: &BindingReport) -> String {
         concat!(
             "{{",
             "\"language_contract\":{},",
+            "\"fingerprint\":{},",
             "\"template_id\":\"{}\",",
             "\"status\":{{\"has_window\":{},\"has_reason_profile\":{},\"has_program_model\":{}}},",
             "\"counts\":{{\"fragments\":{},\"fragment_params\":{},\"evidence_overrides\":{}}},",
@@ -101,6 +104,7 @@ pub(super) fn binding_json(report: &BindingReport) -> String {
             "}}"
         ),
         gewylang_contract_json(GewyLangStage::BindingIr),
+        ir_fingerprint_json(&fingerprint),
         json_escape_string(&report.template_id),
         report.window.is_some(),
         report.reason_profile.is_some(),

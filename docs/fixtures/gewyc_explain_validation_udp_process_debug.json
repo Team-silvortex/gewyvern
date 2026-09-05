@@ -114,7 +114,8 @@
           "binding_schema",
           "fragment_params",
           "rule_evidence",
-          "payload_offsets"
+          "payload_offsets",
+          "ir_invariants"
         ],
         "sampled_payload_offsets": [
           0,
@@ -242,6 +243,11 @@
         "stage": "binding_ir",
         "stage_version": 1
       },
+      "fingerprint": {
+        "algorithm": "sha256",
+        "encoding_version": 1,
+        "digest": "0472cefbaf4f15e89c7b54acc2a808a44a35f379e2b726284e29c3c6fd8a479d"
+      },
       "template_id": "udp_process_debug",
       "status": {
         "has_window": true,
@@ -289,7 +295,8 @@
         "binding_schema",
         "fragment_params",
         "rule_evidence",
-        "payload_offsets"
+        "payload_offsets",
+        "ir_invariants"
       ],
       "sampled_payload_offsets": [
         0,

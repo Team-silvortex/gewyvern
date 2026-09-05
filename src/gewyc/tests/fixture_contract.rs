@@ -34,6 +34,8 @@ fn stages_fixture_keeps_grouped_status_and_counts_fields() {
     assert!(json.contains("\"validation_fragments\": 3"));
     assert!(json.contains("\"stage\": \"expanded_ast\""));
     assert!(json.contains("\"stage\": \"binding_ir\""));
+    assert!(json.contains("\"algorithm\": \"sha256\""));
+    assert!(json.contains("\"encoding_version\": 1"));
 }
 
 #[test]
@@ -51,6 +53,7 @@ fn explain_success_fixture_keeps_summary_focus_shape() {
     assert!(json.contains("\"focused_report\": {"));
     assert!(json.contains("\"stage\": \"expanded_ast\""));
     assert!(json.contains("\"stage\": \"binding_ir\""));
+    assert!(json.contains("\"fingerprint\": {"));
 }
 
 #[test]
@@ -65,6 +68,8 @@ fn ir_fixture_keeps_the_versioned_analysis_ir_surface() {
     assert!(json.contains("\"stage_version\": 1"));
     assert!(json.contains("\"program_rules\": 3"));
     assert!(json.contains("\"program_model\": {"));
+    assert!(json.contains("\"fingerprint\": {"));
+    assert!(json.contains("\"source_ir_fingerprint\": {"));
 }
 
 #[test]
@@ -91,6 +96,7 @@ fn explain_validation_failure_fixture_keeps_validation_excerpt_shape() {
     assert!(json.contains("\"model\": \"broken_offsets_model\""));
     assert!(json.contains("\"stage\": \"expanded_ast\""));
     assert!(json.contains("\"stage\": \"binding_ir\""));
+    assert!(json.contains("\"fingerprint\": {"));
 }
 
 #[test]

@@ -161,9 +161,12 @@ layer:
   `BindingMaterializer` completion boundary. Its normal dependency closure
   stops at `gewylang-syntax` and `gewylang-contract`.
 - `gewylang-ir` owns the stable Binding IR and Analysis IR value projections,
-  diagnostics DTOs, deterministic model comparison, history snapshots, and the
-  `CompilerProjectionHost` orchestration boundary. Its only normal dependency
-  is `gewylang-contract`.
+  diagnostics DTOs, deterministic model comparison, history snapshots,
+  canonical SHA-256 content fingerprints, structural/cross-stage invariant
+  validation, strict bounded standalone JSON exchange, and the
+  `CompilerProjectionHost` orchestration boundary. Its only workspace
+  dependency is `gewylang-contract`; serialization and SHA-256 remain
+  product-independent implementation dependencies.
 
 `leselang-syntax -> leselang-host-contract + leselang-hir` is now a standalone
 frontend closure. `leselang-command` remains the explicit Leserpent binding,
@@ -176,9 +179,11 @@ lowering, then the canonical assignment stream is materialized into a runtime
 binding. Gewyvern produces independent IR values only through its
 `CompilerProjectionHost` implementation, while `gewylang-ir` coordinates the
 coherent Binding/Diagnostics/Analysis projection set without erasing registry
-failures. `gewyc` still links Gewyvern for the concrete binding, registry, and
-adapter implementations; the compiler protocols and value contracts themselves
-no longer live in the runtime.
+failures. Its checked projection path blocks incoherent stage sets, and its
+wire decoder independently verifies size, schema/version, fingerprint, and
+structural invariants. `gewyc` still links Gewyvern for the concrete binding,
+registry, and adapter implementations; the compiler protocols and value
+contracts themselves no longer live in the runtime.
 
 ## End-To-End Topology
 

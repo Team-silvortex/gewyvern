@@ -1459,3 +1459,52 @@ template(:broken_pipeline_use)
         Some(5)
     );
 }
+
+#[test]
+fn ir_invariant_findings_point_to_the_projection_boundary() {
+    let finding = CompilerFinding {
+        stage: CompilerFindingStage::Validation,
+        code: "GEWYLANG-IR-STAGE-RULE-MISMATCH".into(),
+        severity: CompilerFindingSeverity::Error,
+        line: None,
+        column: None,
+        message: "supportability fields differ".into(),
+    };
+    let report = CompilerFindingsReport {
+        findings: vec![finding.clone()],
+    };
+    assert_eq!(
+        findings_next_step_hint(&report),
+        "inspect the IR invariant path and projection adapter, then rerun"
+    );
+
+    let stages = CompilerStagesReport {
+        parse: ParseStageReport {
+            ok: true,
+            frontend: None,
+            report: None,
+            finding: None,
+        },
+        validation: ValidationReport {
+            ok: false,
+            registry: "builtin".into(),
+            fragment_count: 0,
+            program_rule_count: 0,
+            reason_rule_count: 0,
+            checks: vec!["ir_invariants".into()],
+            sampled_payload_offsets: Vec::new(),
+            required_payload_offsets: Vec::new(),
+            unsupported_payload_offsets: Vec::new(),
+            finding: Some(finding),
+        },
+        diagnostics: DiagnosticsStageReport {
+            ok: false,
+            report: None,
+            finding: None,
+        },
+    };
+    assert_eq!(
+        stages_next_step_hint(&stages),
+        "inspect the IR invariant path and projection adapter, then rerun"
+    );
+}

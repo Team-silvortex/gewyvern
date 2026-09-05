@@ -1,4 +1,4 @@
-use crate::{BindingReport, DiagnosticsReport, IrReport};
+use crate::{BindingReport, DiagnosticsReport, IrReport, IrValidationErrors};
 
 /// Product boundary for projecting one host binding into stable GewyLang IR.
 ///
@@ -47,6 +47,20 @@ where
         diagnostics: diagnostics.map(|diagnostics| host.project_diagnostics(binding, diagnostics)),
         analysis,
     }
+}
+
+/// Projects and validates every stable stage before allowing values to escape.
+pub fn project_compiler_stages_checked<H, E>(
+    host: &H,
+    binding: &H::Binding,
+    diagnostics: Result<&H::Diagnostics, E>,
+) -> Result<CompilerStageProjections<E>, IrValidationErrors>
+where
+    H: CompilerProjectionHost,
+{
+    let projections = project_compiler_stages(host, binding, diagnostics);
+    projections.validate_invariants().into_result()?;
+    Ok(projections)
 }
 
 #[cfg(test)]
@@ -131,5 +145,55 @@ mod tests {
         assert_eq!(projections.diagnostics, Err("registry-unavailable"));
         assert_eq!(projections.binding.template_id, "standalone");
         assert_eq!(projections.analysis.template_id, "standalone");
+    }
+
+    #[test]
+    fn checked_projection_fails_closed_on_cross_stage_drift() {
+        struct DriftingHost;
+
+        impl CompilerProjectionHost for DriftingHost {
+            type Binding = TestBinding;
+            type Diagnostics = TestDiagnostics;
+
+            fn project_binding(&self, binding: &Self::Binding) -> BindingReport {
+                TestHost.project_binding(binding)
+            }
+
+            fn project_diagnostics(
+                &self,
+                binding: &Self::Binding,
+                diagnostics: &Self::Diagnostics,
+            ) -> DiagnosticsReport {
+                TestHost.project_diagnostics(binding, diagnostics)
+            }
+
+            fn project_analysis(
+                &self,
+                _binding: &Self::Binding,
+                _diagnostics: Option<&Self::Diagnostics>,
+            ) -> IrReport {
+                IrReport {
+                    template_id: "drifted".into(),
+                    program_model: None,
+                    reason_model: None,
+                }
+            }
+        }
+
+        let binding = TestBinding {
+            id: "standalone".into(),
+        };
+        let diagnostics = TestDiagnostics;
+        let error = project_compiler_stages_checked(
+            &DriftingHost,
+            &binding,
+            Ok::<_, &'static str>(&diagnostics),
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            error.first().unwrap().code,
+            crate::IrInvariantCode::StageIdentityMismatch
+        );
     }
 }

@@ -113,11 +113,13 @@ pub fn render_explain_report_with_options(
 
 pub fn render_ir_history_snapshot(report: &IrReport, format: RenderFormat) -> String {
     let snapshot = ir_history_snapshot(report);
+    let source_ir_fingerprint = report.fingerprint();
     match format {
-        RenderFormat::Text => ir_history_snapshot_text(&snapshot),
-        RenderFormat::Json => {
-            gewyc_surface_json("ir_history_snapshot", ir_history_snapshot_json(&snapshot))
-        }
+        RenderFormat::Text => ir_history_snapshot_text(&snapshot, &source_ir_fingerprint),
+        RenderFormat::Json => gewyc_surface_json(
+            "ir_history_snapshot",
+            ir_history_snapshot_json(&snapshot, &source_ir_fingerprint),
+        ),
     }
 }
 

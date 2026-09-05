@@ -1,3 +1,4 @@
+use gewylang_ir::{IR_WIRE_FORMAT, IR_WIRE_VERSION, MAX_IR_WIRE_BYTES};
 use gewyvern::dsl::{
     GEWYLANG_ANALYSIS_IR_VERSION, GEWYLANG_BINDING_IR_VERSION, GEWYLANG_EXPANDED_AST_VERSION,
     GEWYLANG_LANGUAGE_ID, GEWYLANG_SYNTAX_VERSION, GewyLangContractStamp, GewyLangStage,
@@ -85,6 +86,13 @@ fn language_contract_schema_matches_the_rust_stage_contract() {
         "`gewylang-ir`",
         "`BindingMaterializer`",
         "`CompilerProjectionHost`",
+        "Canonical IR Fingerprints",
+        "Structural IR Invariants",
+        "Standalone IR Wire v1",
+        "project_compiler_stages_checked",
+        "16777216",
+        "source_ir_fingerprint",
+        "sha256:v1:",
         "cargo run -p gewyc -- ir",
         "Runtime Projections Are Separate",
         "schema_hint.schema_version",
@@ -98,6 +106,34 @@ fn language_contract_schema_matches_the_rust_stage_contract() {
             "GewyLang contract is missing {required}"
         );
     }
+}
+
+#[test]
+fn standalone_ir_wire_schema_matches_the_rust_codec_contract() {
+    let root = repository_root();
+    let schema: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(root.join("docs/contracts/gewylang-ir-wire-v1.schema.json"))
+            .expect("GewyLang IR wire schema must be readable"),
+    )
+    .expect("GewyLang IR wire schema must be valid JSON");
+
+    assert_eq!(
+        schema["$schema"],
+        "https://json-schema.org/draft/2020-12/schema"
+    );
+    assert_eq!(
+        schema["$defs"]["binding_envelope"]["properties"]["wire_format"]["const"],
+        IR_WIRE_FORMAT
+    );
+    assert_eq!(
+        schema["$defs"]["analysis_envelope"]["properties"]["wire_version"]["const"],
+        IR_WIRE_VERSION
+    );
+    assert_eq!(
+        schema["$defs"]["fingerprint"]["properties"]["algorithm"]["const"],
+        "sha256"
+    );
+    assert_eq!(MAX_IR_WIRE_BYTES, 16 * 1024 * 1024);
 }
 
 #[test]
@@ -181,8 +217,9 @@ fn compiler_stage_projection_routes_through_the_independent_host_contract() {
 
     assert!(contract.contains("pub trait CompilerProjectionHost"));
     assert!(contract.contains("pub fn project_compiler_stages"));
+    assert!(contract.contains("pub fn project_compiler_stages_checked"));
     assert!(adapter.contains("impl CompilerProjectionHost for GewyvernProjectionHost"));
-    assert!(compiler.contains("gewylang_ir::project_compiler_stages"));
+    assert!(compiler.contains("gewylang_ir::project_compiler_stages_checked"));
     assert!(!compiler.contains("ir_report_from_binding(&binding"));
 }
 

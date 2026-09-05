@@ -2,8 +2,11 @@
 name = "gewylang-ir"
 version.workspace = true
 edition.workspace = true
-description = "Product-independent GewyLang binding and analysis IR contracts"
+description = "Product-independent GewyLang IR contracts, validation, and wire codec"
 license.workspace = true
 
 [dependencies]
 gewylang-contract = { path = "../gewylang-contract" }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true

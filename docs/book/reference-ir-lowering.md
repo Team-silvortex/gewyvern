@@ -194,6 +194,7 @@ The JSON form is the better choice for editor tooling and review automation.
 
 The Analysis IR report currently centers on:
 
+- `fingerprint`
 - `program_model`
 - `reason_model`
 - `ir_lowering_delta`
@@ -228,6 +229,49 @@ full rule list:
 
 1. Did the front-end lower into the model shape I expected?
 2. Did the lowered `program_model` and `reason_model` stay aligned?
+
+### Canonical fingerprints
+
+Binding IR and Analysis IR expose a deterministic `fingerprint` object with:
+
+- `algorithm = "sha256"`
+- `encoding_version = 1`
+- a 64-character lowercase hexadecimal `digest`
+
+The Analysis IR fingerprint covers complete ordered rule semantics and
+supportability fields, not only rule counts. Each full `program_model` or
+`reason_model` also carries its own independently domain-separated fingerprint.
+Use these values for cache keys, exact artifact identity, and fast change
+detection before requesting a field-level diff. Do not use them as signatures
+or proof of artifact origin.
+
+### Structural validation
+
+`BindingReport::validate_invariants`, `IrReport::validate_invariants`, and
+`DiagnosticsReport::validate_invariants` are product-independent checks for
+malformed stage values. `CompilerStageProjections::validate_invariants` adds
+cross-stage identity, shape, and rule-support checks. Use
+`project_compiler_stages_checked` at a host boundary so invalid projections are
+returned as stable `GEWYLANG-IR-*` violations before any report is published.
+
+Validation does not normalize input and does not treat an unavailable host
+diagnostics result as malformed IR. This keeps host failures distinct from
+contract corruption while ensuring a present diagnostic projection exactly
+matches the supportability fields in Analysis IR.
+
+### Standalone wire exchange
+
+Tools that should not link the Gewyvern runtime can exchange complete stage
+values with `gewylang-ir-json` wire version `1`. The strict encoder/decoder
+APIs cover Binding and Analysis IR, carry the language-stage stamp and
+canonical fingerprint, reject unknown fields, and apply a `16777216` byte
+input limit before parsing. See the
+[normative JSON Schema](../contracts/gewylang-ir-wire-v1.schema.json) and the
+[language/IR contract](../gewylang-contract.md#standalone-ir-wire-v1).
+
+This wire document is not the same contract as a `gewyc` renderer envelope:
+the standalone form is a minimal interchange boundary, while `gewyc` adds
+status, summaries, compatibility fields, and operator guidance.
 
 ### `protocol_ir`
 
@@ -276,6 +320,7 @@ It is meant for:
 
 Its current shape mirrors the stable parts of the IR view:
 
+- `source_ir_fingerprint`
 - `template_id`
 - `operation`
 - `program_model`
@@ -294,7 +339,10 @@ Each model snapshot currently keeps:
 
 This is intentionally narrower than the full rule list. It exists so later
 historical records can say "this was the lowered shape of the line" without
-copying every rule-level detail into the archival layer.
+copying every rule-level detail into the archival layer. The
+`source_ir_fingerprint` still identifies the complete Analysis IR that produced
+the snapshot, so a predicate or narrative change cannot hide behind unchanged
+summary counts.
 
 If you want a Markdown-ready block for a release-history page, the repository
 also carries:
@@ -318,6 +366,9 @@ practical stability is:
 - `history_snapshot` as the archival lowered-shape summary is deliberate
 - `lowered_models` as a per-model summary surface is deliberate
 - `protocol_ir` as the runtime/export protocol classification surface is deliberate
+- deterministic Binding IR, Analysis IR, and model fingerprints are deliberate
+- fail-closed stage and cross-stage invariant validation is deliberate
+- strict, bounded standalone Binding/Analysis IR wire exchange is deliberate
 
 Still evolving:
 

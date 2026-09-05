@@ -1007,7 +1007,7 @@
       "independence": "reusable-library",
       "contract": {
         "id": "gewylang-ir-contract",
-        "version": "1.1.0",
+        "version": "1.3.0",
         "stability": "stable",
         "surfaces": [
           "binding-ir-v1-values",
@@ -1016,6 +1016,21 @@
           "model-shape-queries",
           "deterministic-model-comparison",
           "history-snapshot-projection",
+          "domain-separated-stage-fingerprints",
+          "binding-ir-content-fingerprint",
+          "analysis-ir-content-fingerprint",
+          "independent-model-fingerprint",
+          "fingerprint-v1-golden-vectors",
+          "structural-invariant-validation-v1",
+          "stable-invariant-error-codes",
+          "bounded-invariant-error-reporting",
+          "cross-stage-coherence-validation",
+          "fail-closed-checked-projection",
+          "strict-ir-wire-json-v1",
+          "bounded-wire-decoding",
+          "bounded-wire-error-reporting",
+          "wire-fingerprint-reverification",
+          "wire-json-schema",
           "compiler-projection-host",
           "coherent-stage-projection",
           "diagnostic-error-preservation",
@@ -1031,12 +1046,16 @@
         { "kind": "source", "path": "crates/gewylang-ir/src/binding.rs", "state": "present" },
         { "kind": "source", "path": "crates/gewylang-ir/src/analysis.rs", "state": "present" },
         { "kind": "source", "path": "crates/gewylang-ir/src/diagnostics.rs", "state": "present" },
+        { "kind": "source", "path": "crates/gewylang-ir/src/fingerprint.rs", "state": "present" },
+        { "kind": "source", "path": "crates/gewylang-ir/src/validation.rs", "state": "present" },
+        { "kind": "source", "path": "crates/gewylang-ir/src/wire.rs", "state": "present" },
         { "kind": "source", "path": "crates/gewylang-ir/src/projection.rs", "state": "present" },
         { "kind": "source", "path": "src/gewyc/projection_host.rs", "state": "present" },
         { "kind": "test", "path": "tests/language_independence_tdd.rs", "state": "present" },
-        { "kind": "documentation", "path": "docs/gewylang-contract.md", "state": "present" }
+        { "kind": "documentation", "path": "docs/gewylang-contract.md", "state": "present" },
+        { "kind": "documentation", "path": "docs/contracts/gewylang-ir-wire-v1.schema.json", "state": "present" }
       ],
-      "next_gate": "Extract the concrete Gewyvern projection adapter and its minimal registry/model vocabulary so gewyc can stop linking the full runtime without changing payloads."
+      "next_gate": "Add typed IR diff and compatibility classification over validated wire values while preserving fingerprint v1 vectors, wire v1 bytes, and fail-closed decoding."
     },
     {
       "id": "gewylang/compiler/parser-lowering",

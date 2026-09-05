@@ -5316,13 +5316,28 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(gewylang_ir.completion, 100);
     assert_eq!(gewylang_ir.independence, Independence::ReusableLibrary);
     assert_eq!(gewylang_ir.contract.stability, ContractStability::Stable);
-    assert_eq!(gewylang_ir.contract.version, "1.1.0");
+    assert_eq!(gewylang_ir.contract.version, "1.3.0");
     assert!(gewylang_ir.depends_on.is_empty());
     for surface in [
         "binding-ir-v1-values",
         "analysis-ir-v1-values",
         "deterministic-model-comparison",
         "history-snapshot-projection",
+        "domain-separated-stage-fingerprints",
+        "binding-ir-content-fingerprint",
+        "analysis-ir-content-fingerprint",
+        "independent-model-fingerprint",
+        "fingerprint-v1-golden-vectors",
+        "structural-invariant-validation-v1",
+        "stable-invariant-error-codes",
+        "bounded-invariant-error-reporting",
+        "cross-stage-coherence-validation",
+        "fail-closed-checked-projection",
+        "strict-ir-wire-json-v1",
+        "bounded-wire-decoding",
+        "bounded-wire-error-reporting",
+        "wire-fingerprint-reverification",
+        "wire-json-schema",
         "compiler-projection-host",
         "coherent-stage-projection",
         "diagnostic-error-preservation",
@@ -5343,7 +5358,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "crates/gewylang-ir/src/binding.rs",
         "crates/gewylang-ir/src/analysis.rs",
         "crates/gewylang-ir/src/diagnostics.rs",
+        "crates/gewylang-ir/src/fingerprint.rs",
+        "crates/gewylang-ir/src/validation.rs",
+        "crates/gewylang-ir/src/wire.rs",
         "crates/gewylang-ir/src/projection.rs",
+        "docs/contracts/gewylang-ir-wire-v1.schema.json",
     ] {
         assert!(
             gewylang_ir

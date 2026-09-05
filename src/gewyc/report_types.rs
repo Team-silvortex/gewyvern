@@ -1,8 +1,10 @@
 pub use gewylang_ir::{
-    BindingReport, DiagnosticsReport, EvidenceOverrideReport, FragmentParamReport,
-    IrHistoryCompareSnapshot, IrHistoryModelSnapshot, IrHistorySnapshot, IrLoweringDelta,
-    IrModelCompareSummary, IrModelReport, IrModelShapeSummary, IrReport, IrRuleReport,
-    IrRuleSupportShape, ModelDiagnosticsReport, ParamValueReport, ProgramModelReport,
+    BindingReport, CompilerStageFingerprints, DiagnosticsReport, EvidenceOverrideReport,
+    FragmentParamReport, IR_FINGERPRINT_ALGORITHM, IR_FINGERPRINT_ENCODING_VERSION, IrFingerprint,
+    IrHistoryCompareSnapshot, IrHistoryModelSnapshot, IrHistorySnapshot, IrInvariantCode,
+    IrInvariantViolation, IrLoweringDelta, IrModelCompareSummary, IrModelReport,
+    IrModelShapeSummary, IrReport, IrRuleReport, IrRuleSupportShape, IrValidationErrors,
+    IrValidationReport, ModelDiagnosticsReport, ParamValueReport, ProgramModelReport,
     ReasonProfileReport, RuleDiagnosticsReport, WindowReport,
 };
 

@@ -30,12 +30,18 @@ pub(super) fn ir_history_snapshot(report: &IrReport) -> IrHistorySnapshot {
     report.history_snapshot()
 }
 
-pub(super) fn ir_history_snapshot_text(snapshot: &IrHistorySnapshot) -> String {
-    render::ir_history_snapshot_text(snapshot)
+pub(super) fn ir_history_snapshot_text(
+    snapshot: &IrHistorySnapshot,
+    source_ir_fingerprint: &IrFingerprint,
+) -> String {
+    render::ir_history_snapshot_text(snapshot, source_ir_fingerprint)
 }
 
-pub(super) fn ir_history_snapshot_json(snapshot: &IrHistorySnapshot) -> String {
-    render::ir_history_snapshot_json(snapshot)
+pub(super) fn ir_history_snapshot_json(
+    snapshot: &IrHistorySnapshot,
+    source_ir_fingerprint: &IrFingerprint,
+) -> String {
+    render::ir_history_snapshot_json(snapshot, source_ir_fingerprint)
 }
 
 pub(super) fn ir_lowering_delta(frontend: &FrontendReport, ir: &IrReport) -> IrLoweringDelta {

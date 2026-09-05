@@ -69,7 +69,7 @@ fn stages_json_includes_parse_and_diagnostics_sections() {
     assert!(json.contains("\"validation\":{\"ok\":true"));
     assert!(json.contains("\"registry\":\"builtin\""));
     assert!(json.contains(
-        "\"checks\":[\"binding_schema\",\"fragment_params\",\"rule_evidence\",\"payload_offsets\"]"
+        "\"checks\":[\"binding_schema\",\"fragment_params\",\"rule_evidence\",\"payload_offsets\",\"ir_invariants\"]"
     ));
     assert!(json.contains("\"sampled_payload_offsets\":[0,1,4,5,9,10,13]"));
     assert!(json.contains("\"required_payload_offsets\":[]"));

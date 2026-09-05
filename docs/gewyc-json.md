@@ -108,13 +108,14 @@ For most surfaces, read in this order:
 2. `schema_hint`
 3. `contract_hint`
 4. `payload.language_contract` when the surface represents a language stage
-5. `payload.summary`
-6. `payload.status`
-7. `payload.counts`
-8. `payload.analysis`
-9. `payload.shape_notes`
-10. `payload.excerpts`
-11. `payload.report` or legacy flat fields
+5. `payload.fingerprint` when the language stage exposes exact content identity
+6. `payload.summary`
+7. `payload.status`
+8. `payload.counts`
+9. `payload.analysis`
+10. `payload.shape_notes`
+11. `payload.excerpts`
+12. `payload.report` or legacy flat fields
 
 This keeps scripts resilient even when detail payloads widen.
 
@@ -222,8 +223,14 @@ cargo run -p gewyc -- binding dsl/udp_process_debug.gewy --json
 
 The payload carries `language_contract.stage = "binding_ir"`.
 
+`payload.fingerprint` identifies the complete ordered public Binding IR
+projection. Its
+`algorithm`, `encoding_version`, and `digest` fields are owned by
+`gewylang-ir`, not by the outer `gewyc` envelope.
+
 Grouped fields to prefer:
 
+- `payload.fingerprint`
 - `payload.status.has_window`
 - `payload.status.has_reason_profile`
 - `payload.status.has_program_model`
@@ -340,6 +347,10 @@ Detailed phase sections remain:
 - `payload.validation`
 - `payload.diagnostics`
 
+For a parsed source, `payload.validation.checks` includes `ir_invariants`.
+This records that the product-independent Binding/Diagnostics/Analysis
+coherence gate ran before any IR projection was published.
+
 This surface is the best machine-readable phase spine below `explain`.
 
 ## Envelope Surface
@@ -401,6 +412,7 @@ Full fixture:
 
 Grouped fields to prefer:
 
+- `payload.fingerprint`
 - `payload.status.has_program_model`
 - `payload.status.has_reason_model`
 - `payload.status.has_model_compare`
@@ -416,6 +428,11 @@ Legacy fields remain:
 - `payload.reason_model`
 - `payload.model_compare`
 - `payload.history_snapshot`
+
+Each complete model also has a `fingerprint`. Both embedded history snapshots
+use `source_ir_fingerprint`, which identifies the complete Analysis IR rather
+than only the compact history fields. Fingerprints are deterministic cache and
+comparison identities; they are not authenticity signatures.
 
 ## Explain Surface
 

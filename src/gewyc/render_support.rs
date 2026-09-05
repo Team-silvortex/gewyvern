@@ -22,6 +22,15 @@ pub(super) fn gewylang_contract_json(stage: GewyLangStage) -> String {
     )
 }
 
+pub(super) fn ir_fingerprint_json(fingerprint: &IrFingerprint) -> String {
+    format!(
+        "{{\"algorithm\":{},\"encoding_version\":{},\"digest\":{}}}",
+        json_string(IR_FINGERPRINT_ALGORITHM),
+        IR_FINGERPRINT_ENCODING_VERSION,
+        json_string(&fingerprint.digest_hex())
+    )
+}
+
 pub(super) fn string_json_list(items: &[String]) -> String {
     items
         .iter()
@@ -111,17 +120,26 @@ pub(super) fn finding_json_record(finding: &CompilerFinding) -> String {
 }
 
 pub(super) fn findings_next_step_hint(report: &CompilerFindingsReport) -> &'static str {
-    match report.findings.first().map(|finding| finding.stage) {
-        Some(CompilerFindingStage::Parse) => {
+    match report.findings.first() {
+        Some(finding) if finding.stage == CompilerFindingStage::Parse => {
             "fix the parse finding first, then rerun `gewyc findings` or `gewyc explain`"
         }
-        Some(CompilerFindingStage::Validation) => {
-            "inspect fragment coverage, rule evidence, or payload offsets, then rerun"
+        Some(finding) if finding.stage == CompilerFindingStage::Validation => {
+            validation_next_step_hint(finding)
         }
-        Some(CompilerFindingStage::Diagnostics) => {
+        Some(finding) if finding.stage == CompilerFindingStage::Diagnostics => {
             "inspect unsupported rules and missing facts in `gewyc diagnostics`, then rerun"
         }
+        Some(_) => "inspect the first compiler finding, then rerun",
         None => "findings are clear; continue with `gewyc explain` or runtime verification",
+    }
+}
+
+fn validation_next_step_hint(finding: &CompilerFinding) -> &'static str {
+    if finding.code.starts_with("GEWYLANG-IR-") {
+        "inspect the IR invariant path and projection adapter, then rerun"
+    } else {
+        "inspect fragment coverage, rule evidence, or payload offsets, then rerun"
     }
 }
 
@@ -134,8 +152,8 @@ pub(super) fn stages_finding_count(report: &CompilerStagesReport) -> usize {
 pub(super) fn stages_next_step_hint(report: &CompilerStagesReport) -> &'static str {
     if report.parse.finding.is_some() {
         "fix the parse finding first, then rerun `gewyc stages` or `gewyc explain`"
-    } else if report.validation.finding.is_some() {
-        "inspect fragment coverage, rule evidence, or payload offsets, then rerun"
+    } else if let Some(finding) = &report.validation.finding {
+        validation_next_step_hint(finding)
     } else if report.diagnostics.finding.is_some() {
         "inspect unsupported rules and missing facts in `gewyc diagnostics`, then rerun"
     } else {
@@ -407,6 +425,22 @@ pub(super) fn finding_from_registry_error(
         line: None,
         column: None,
         message: format!("{err:?}"),
+    }
+}
+
+pub(super) fn finding_from_ir_validation_errors(
+    errors: &gewylang_ir::IrValidationErrors,
+) -> CompilerFinding {
+    CompilerFinding {
+        stage: CompilerFindingStage::Validation,
+        code: errors
+            .first()
+            .map_or("GEWYLANG-IR-INVARIANT", |violation| violation.code.id())
+            .to_string(),
+        severity: CompilerFindingSeverity::Error,
+        line: None,
+        column: None,
+        message: errors.to_string(),
     }
 }
 

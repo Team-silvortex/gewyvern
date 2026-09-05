@@ -28,9 +28,11 @@ shape while one explicit host implements both protocols and produces
 `TemplateBinding`.
 The product-independent [`gewylang-ir`](../crates/gewylang-ir) crate owns the
 stable Binding IR and Analysis IR report values, diagnostics projections, model
-comparison, history snapshots, and the `CompilerProjectionHost` protocol. Its
-only normal dependency is `gewylang-contract`; it coordinates all three stable
-report projections and preserves host diagnostic failures. Gewyvern remains the
+comparison, history snapshots, deterministic stage fingerprints, and the
+`CompilerProjectionHost` protocol. Its product-independent workspace dependency
+closure contains only `gewylang-contract`; serialization and SHA-256 libraries
+are external implementation details. It coordinates all three stable report
+projections and preserves host diagnostic failures. Gewyvern remains the
 concrete adapter that maps runtime bindings and registry diagnostics into those
 values.
 
@@ -193,6 +195,112 @@ a separate IR stage.
 The compact `gewyc_ir_snapshot` output is an archival projection of Analysis
 IR v1. It carries the same `analysis_ir` stamp and intentionally omits full
 rule detail; it is not a fourth compiler stage.
+
+## Canonical IR Fingerprints
+
+`gewylang-ir` provides deterministic fingerprints for `BindingReport`,
+`IrReport`, and each `IrModelReport`. The text representation is:
+
+```text
+sha256:v1:<64 lowercase hexadecimal characters>
+```
+
+The corresponding `gewyc` JSON field is an object with `algorithm`,
+`encoding_version`, and `digest`. Binding and direct Analysis IR outputs use
+`payload.fingerprint` and covers the complete public `BindingReport`
+projection. An archival history snapshot uses
+`payload.source_ir_fingerprint`, because that value covers the complete source
+Analysis IR rather than only the compact snapshot fields.
+
+Fingerprint encoding v1 is domain-separated by language id, syntax version,
+stage id, stage version, and projection kind. It uses explicit variant and
+optional-value markers, fixed-width integers, and length-prefixed UTF-8 fields.
+It covers ordered Binding IR values and every ordered Analysis IR rule field,
+including supportability data. This makes same-shape changes to predicates,
+narratives, dedupe behavior, or evidence support visible to release and cache
+tooling.
+
+Fingerprints identify exact IR content. They are not signatures and do not
+prove who produced an artifact. Authenticity still belongs to signed release
+provenance. A change to the canonical fingerprint encoding increments its
+`encoding_version`; it does not by itself change Syntax v1 or an IR stage
+version. The crate pins encoding v1 with golden vectors so implementation drift
+fails tests instead of silently changing artifact identities.
+
+## Structural IR Invariants
+
+`gewylang-ir` validates complete values without consulting the Gewyvern
+runtime or fragment registry. Invariant contract v1 rejects malformed identity
+fields, duplicate set-like values, fragment references outside the declared
+fragment set, unknown evidence/diagnostic tiers, invalid model-kind and
+operation shapes, non-contiguous rule indices, incomplete phase-kind context,
+missing facts that were not required, and support flags that disagree with
+missing facts or unsupported payload offsets.
+
+`CompilerStageProjections::validate_invariants` additionally checks that
+Binding IR, available diagnostics, and Analysis IR agree on template identity,
+fragment order, model presence, model identity, operation, rule count, and
+rule-level supportability fields. A host diagnostics error remains a host
+error; the validator does not invent diagnostics or mistake an unavailable
+projection for malformed IR.
+
+Every violation carries a stable `GEWYLANG-IR-*` code, a field path, and a
+detail capped at `512` UTF-8 bytes. Validation accumulates at most `256`
+deterministic violations and marks a report when more were omitted.
+`project_compiler_stages_checked` converts that report into
+`IrValidationErrors` and releases no projections when any invariant fails.
+`gewyc` uses this checked entry point and reports projection drift as a
+validation finding rather than panicking, normalizing the value, or exposing
+an inconsistent partial IR set.
+
+## Standalone IR Wire v1
+
+The independent crate also owns a strict JSON exchange envelope for complete
+Binding IR and Analysis IR values. Its normative schema is
+[`gewylang-ir-wire-v1.schema.json`](contracts/gewylang-ir-wire-v1.schema.json).
+This codec is deliberately separate from the presentation-oriented outer
+`gewyc` JSON envelope. The following shape abbreviates the stage-specific
+payload and is not itself a complete decodable document.
+
+```json
+{
+  "wire_format": "gewylang-ir-json",
+  "wire_version": 1,
+  "language_contract": {
+    "language": "gewylang",
+    "syntax_version": 1,
+    "stage": "analysis_ir",
+    "stage_version": 1
+  },
+  "fingerprint": {
+    "algorithm": "sha256",
+    "encoding_version": 1,
+    "digest": "<64 lowercase hexadecimal characters>"
+  },
+  "payload": {}
+}
+```
+
+Use `encode_binding_ir_json` / `decode_binding_ir_json` or
+`encode_analysis_ir_json` / `decode_analysis_ir_json`. Encoders first validate
+the source value and emit deterministic compact JSON. Decoders fail closed in
+this order:
+
+1. Reject documents larger than `16777216` bytes before JSON parsing.
+2. Reject malformed JSON, unknown fields, duplicate fields, missing fields,
+   and incompatible scalar types.
+3. Match wire format/version and all four language-contract fields exactly.
+4. Match fingerprint algorithm/encoding and recompute the complete payload
+   digest.
+5. Apply the stage's structural invariants to the fingerprint-verified content.
+
+The size budget limits untrusted decoder allocation; it is independent of the
+source graph budget. Wire v1 preserves all ordered IR fields and does not
+silently fill, reorder, or normalize values. A Binding envelope cannot be read
+as Analysis IR. The embedded digest detects accidental or unkeyed content
+drift but remains a fingerprint, not an authenticity signature. Wire error
+details are capped at `512` UTF-8 bytes so hostile values cannot become
+unbounded log records.
 
 ## Runtime Projections Are Separate
 

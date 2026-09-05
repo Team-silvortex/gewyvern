@@ -29,14 +29,14 @@ When adding or reviewing a machine consumer:
 | Surface | First grouped fields | Primary fixture | Typical consumer |
 | --- | --- | --- | --- |
 | `frontend` | `payload.report.authoring`, `payload.report.counts` | [docs/fixtures/gewyc_frontend_udp_process_debug.json](docs/fixtures/gewyc_frontend_udp_process_debug.json) | graph panel, authoring review |
-| `binding` | `payload.status`, `payload.counts` | binding inside [docs/fixtures/gewyc_explain_validation_udp_process_debug.json](docs/fixtures/gewyc_explain_validation_udp_process_debug.json) | lowerer checks, compiler posture |
+| `binding` | `payload.fingerprint`, `payload.status`, `payload.counts` | binding inside [docs/fixtures/gewyc_explain_validation_udp_process_debug.json](docs/fixtures/gewyc_explain_validation_udp_process_debug.json) | lowerer checks, compiler posture, exact identity |
 | `diagnostics` | `payload.status`, `payload.counts` | diagnostics inside [docs/fixtures/gewyc_stages_udp_process_debug.json](docs/fixtures/gewyc_stages_udp_process_debug.json) | rule support drilldown |
 | `findings` | `payload.findings[]` | findings inside [docs/fixtures/gewyc_explain_validation_failure.json](docs/fixtures/gewyc_explain_validation_failure.json) | editor markers, failure lists |
 | `stages` | `payload.status`, `payload.counts` | [docs/fixtures/gewyc_stages_udp_process_debug.json](docs/fixtures/gewyc_stages_udp_process_debug.json) | phase gate, shell checks |
 | `envelope` | `payload.status`, `payload.surfaces.*` | envelope branch in `gewyc explain` style docs flow | umbrella routing |
 | `explain` | `payload.summary.stage_status`, `payload.summary.analysis`, `payload.summary.shape_notes`, `payload.summary.excerpts` | [docs/fixtures/gewyc_explain_validation_udp_process_debug.json](docs/fixtures/gewyc_explain_validation_udp_process_debug.json) | UI summary, operator panel |
-| `ir` | `payload.language_contract`, `payload.status`, `payload.counts`, `payload.analysis` | [docs/fixtures/gewyc_ir_udp_process_debug.json](docs/fixtures/gewyc_ir_udp_process_debug.json) | direct model review, supportability inspection |
-| `ir_history_snapshot` | `payload.language_contract`, `payload.program_model`, `payload.reason_model`, `payload.model_compare` | IR snapshot path documented in [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md) | archival diff, IR evolution |
+| `ir` | `payload.language_contract`, `payload.fingerprint`, `payload.status`, `payload.counts`, `payload.analysis` | [docs/fixtures/gewyc_ir_udp_process_debug.json](docs/fixtures/gewyc_ir_udp_process_debug.json) | direct model review, supportability inspection, exact identity |
+| `ir_history_snapshot` | `payload.language_contract`, `payload.source_ir_fingerprint`, `payload.program_model`, `payload.reason_model`, `payload.model_compare` | IR snapshot path documented in [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md) | archival diff, IR evolution |
 
 ## Failure Matrix
 

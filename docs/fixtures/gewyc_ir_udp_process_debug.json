@@ -17,6 +17,11 @@
       "stage": "analysis_ir",
       "stage_version": 1
     },
+    "fingerprint": {
+      "algorithm": "sha256",
+      "encoding_version": 1,
+      "digest": "899cf3c9c696eccc94f43073d9138b2a18bdaf931845d0513207dfc479a4ea58"
+    },
     "template_id": "udp_process_debug",
     "status": {
       "has_program_model": true,
@@ -48,6 +53,11 @@
           "syntax_version": 1,
           "stage": "analysis_ir",
           "stage_version": 1
+        },
+        "source_ir_fingerprint": {
+          "algorithm": "sha256",
+          "encoding_version": 1,
+          "digest": "899cf3c9c696eccc94f43073d9138b2a18bdaf931845d0513207dfc479a4ea58"
         },
         "template_id": "udp_process_debug",
         "operation": "datagram_exchange",
@@ -84,6 +94,11 @@
     "program_model": {
       "kind": "program_model",
       "id": "udp_process_debug_dsl_model",
+      "fingerprint": {
+        "algorithm": "sha256",
+        "encoding_version": 1,
+        "digest": "8af3adacd5c21ecd5ee0bb40214a824e85425f02b25254228cbd3080b0ad5913"
+      },
       "operation": "datagram_exchange",
       "rules": [
         {
@@ -148,6 +163,11 @@
     "reason_model": {
       "kind": "builtin_reason_profile",
       "id": "udp_datagram_l1",
+      "fingerprint": {
+        "algorithm": "sha256",
+        "encoding_version": 1,
+        "digest": "8c9846ace0ccf5f5899bd83701fe53247eaa0c44f6abeaf76fe5f8cc30aadd26"
+      },
       "operation": null,
       "rules": []
     },
@@ -171,6 +191,11 @@
         "syntax_version": 1,
         "stage": "analysis_ir",
         "stage_version": 1
+      },
+      "source_ir_fingerprint": {
+        "algorithm": "sha256",
+        "encoding_version": 1,
+        "digest": "899cf3c9c696eccc94f43073d9138b2a18bdaf931845d0513207dfc479a4ea58"
       },
       "template_id": "udp_process_debug",
       "operation": "datagram_exchange",

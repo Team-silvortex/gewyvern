@@ -4,6 +4,7 @@ use crate::gewyc::ir_focus::support::list_or_none;
 pub(super) fn ir_text(report: &IrReport) -> String {
     let mut lines = vec![
         gewylang_contract_text(GewyLangStage::AnalysisIr),
+        format!("fingerprint={}", report.fingerprint()),
         format!("template={}", report.template_id),
     ];
     if let Some(model) = &report.program_model {
@@ -23,6 +24,8 @@ pub(super) fn ir_text(report: &IrReport) -> String {
 }
 
 pub(super) fn ir_json(report: &IrReport) -> String {
+    let fingerprint = report.fingerprint();
+    let history_snapshot = report.history_snapshot();
     let program_rules = report
         .program_model
         .as_ref()
@@ -34,8 +37,9 @@ pub(super) fn ir_json(report: &IrReport) -> String {
         .map(|model| model.rules.len())
         .unwrap_or(0);
     format!(
-        "{{\"language_contract\":{},\"template_id\":{},\"status\":{{\"has_program_model\":{},\"has_reason_model\":{},\"has_model_compare\":{}}},\"counts\":{{\"program_rules\":{},\"reason_rules\":{}}},\"analysis\":{{\"model_compare\":{},\"history_snapshot\":{}}},\"program_model\":{},\"reason_model\":{},\"model_compare\":{},\"history_snapshot\":{}}}",
+        "{{\"language_contract\":{},\"fingerprint\":{},\"template_id\":{},\"status\":{{\"has_program_model\":{},\"has_reason_model\":{},\"has_model_compare\":{}}},\"counts\":{{\"program_rules\":{},\"reason_rules\":{}}},\"analysis\":{{\"model_compare\":{},\"history_snapshot\":{}}},\"program_model\":{},\"reason_model\":{},\"model_compare\":{},\"history_snapshot\":{}}}",
         gewylang_contract_json(GewyLangStage::AnalysisIr),
+        ir_fingerprint_json(&fingerprint),
         json_string(&report.template_id),
         report.program_model.is_some(),
         report.reason_model.is_some(),
@@ -46,7 +50,7 @@ pub(super) fn ir_json(report: &IrReport) -> String {
             .compare_models()
             .map(|compare| ir_compare_json(&compare))
             .unwrap_or_else(|| "null".into()),
-        ir_history_snapshot_json(&report.history_snapshot()),
+        ir_history_snapshot_json(&history_snapshot, &fingerprint),
         report
             .program_model
             .as_ref()
@@ -61,18 +65,21 @@ pub(super) fn ir_json(report: &IrReport) -> String {
             .compare_models()
             .map(|compare| ir_compare_json(&compare))
             .unwrap_or_else(|| "null".into()),
-        ir_history_snapshot_json(&report.history_snapshot()),
+        ir_history_snapshot_json(&history_snapshot, &fingerprint),
     )
 }
 
 fn ir_model_text_lines(model: &IrModelReport, label: &str) -> Vec<String> {
-    let mut lines = vec![format!(
-        "{}={} kind={} rules={}",
-        label,
-        model.id,
-        model.kind,
-        model.rules.len()
-    )];
+    let mut lines = vec![
+        format!(
+            "{}={} kind={} rules={}",
+            label,
+            model.id,
+            model.kind,
+            model.rules.len()
+        ),
+        format!("{label}_fingerprint={}", model.fingerprint()),
+    ];
     if let Some(operation) = &model.operation {
         lines.push(format!("{label}_operation={operation}"));
     }
@@ -109,10 +116,12 @@ fn ir_model_text_lines(model: &IrModelReport, label: &str) -> Vec<String> {
 }
 
 fn ir_model_json(model: &IrModelReport) -> String {
+    let fingerprint = model.fingerprint();
     format!(
-        "{{\"kind\":{},\"id\":{},\"operation\":{},\"rules\":[{}]}}",
+        "{{\"kind\":{},\"id\":{},\"fingerprint\":{},\"operation\":{},\"rules\":[{}]}}",
         json_string(&model.kind),
         json_string(&model.id),
+        ir_fingerprint_json(&fingerprint),
         model
             .operation
             .as_ref()
@@ -248,9 +257,13 @@ fn ir_compare_json(compare: &IrModelCompareSummary) -> String {
     )
 }
 
-pub(super) fn ir_history_snapshot_text(snapshot: &IrHistorySnapshot) -> String {
+pub(super) fn ir_history_snapshot_text(
+    snapshot: &IrHistorySnapshot,
+    source_ir_fingerprint: &IrFingerprint,
+) -> String {
     let mut lines = vec![
         gewylang_contract_text(GewyLangStage::AnalysisIr),
+        format!("source_ir_fingerprint={source_ir_fingerprint}"),
         format!("template={}", snapshot.template_id),
     ];
     lines.push(format!(
@@ -275,11 +288,15 @@ pub(super) fn ir_history_snapshot_text(snapshot: &IrHistorySnapshot) -> String {
     lines.join("\n")
 }
 
-pub(super) fn ir_history_snapshot_json(snapshot: &IrHistorySnapshot) -> String {
+pub(super) fn ir_history_snapshot_json(
+    snapshot: &IrHistorySnapshot,
+    source_ir_fingerprint: &IrFingerprint,
+) -> String {
     format!(
         concat!(
             "{{",
             "\"language_contract\":{},",
+            "\"source_ir_fingerprint\":{},",
             "\"template_id\":{},",
             "\"operation\":{},",
             "\"program_model\":{},",
@@ -288,6 +305,7 @@ pub(super) fn ir_history_snapshot_json(snapshot: &IrHistorySnapshot) -> String {
             "}}"
         ),
         gewylang_contract_json(GewyLangStage::AnalysisIr),
+        ir_fingerprint_json(source_ir_fingerprint),
         json_string(&snapshot.template_id),
         snapshot
             .operation

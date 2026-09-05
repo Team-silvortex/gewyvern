@@ -1,0 +1,560 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gewyvern:gewylang:ir-wire:v1",
+  "title": "GewyLang IR Wire Envelope v1",
+  "description": "Strict standalone JSON exchange for complete Binding IR v1 or Analysis IR v1 values. Semantic invariants and fingerprint equality are additionally enforced by the gewylang-ir decoder.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/binding_envelope"
+    },
+    {
+      "$ref": "#/$defs/analysis_envelope"
+    }
+  ],
+  "$defs": {
+    "fingerprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "encoding_version",
+        "digest"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "sha256"
+        },
+        "encoding_version": {
+          "const": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "binding_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "language",
+        "syntax_version",
+        "stage",
+        "stage_version"
+      ],
+      "properties": {
+        "language": {
+          "const": "gewylang"
+        },
+        "syntax_version": {
+          "const": 1
+        },
+        "stage": {
+          "const": "binding_ir"
+        },
+        "stage_version": {
+          "const": 1
+        }
+      }
+    },
+    "analysis_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "language",
+        "syntax_version",
+        "stage",
+        "stage_version"
+      ],
+      "properties": {
+        "language": {
+          "const": "gewylang"
+        },
+        "syntax_version": {
+          "const": 1
+        },
+        "stage": {
+          "const": "analysis_ir"
+        },
+        "stage_version": {
+          "const": 1
+        }
+      }
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "duration_ms",
+        "lateness_ms"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lateness_ms": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "reason_profile": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "id"
+          ],
+          "properties": {
+            "kind": {
+              "const": "builtin"
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "id",
+            "rules"
+          ],
+          "properties": {
+            "kind": {
+              "const": "declarative"
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "rules": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "program_model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "operation",
+        "rules"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rules": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "param_value": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ],
+          "properties": {
+            "kind": {
+              "const": "bool"
+            },
+            "value": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ],
+          "properties": {
+            "kind": {
+              "const": "u64"
+            },
+            "value": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ],
+          "properties": {
+            "kind": {
+              "const": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "fragment_param": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fragment",
+        "key",
+        "value"
+      ],
+      "properties": {
+        "fragment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {
+          "$ref": "#/$defs/param_value"
+        }
+      }
+    },
+    "evidence_override": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fact_kind",
+        "tier"
+      ],
+      "properties": {
+        "fact_kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tier": {
+          "enum": [
+            "core_requirement",
+            "optional_enhancement"
+          ]
+        }
+      }
+    },
+    "binding_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "template_id",
+        "fragments",
+        "window",
+        "reason_profile",
+        "program_model",
+        "fragment_params",
+        "evidence_overrides"
+      ],
+      "properties": {
+        "template_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fragments": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "window": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/window"
+            }
+          ]
+        },
+        "reason_profile": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/reason_profile"
+            }
+          ]
+        },
+        "program_model": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/program_model"
+            }
+          ]
+        },
+        "fragment_params": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fragment_param"
+          }
+        },
+        "evidence_overrides": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_override"
+          }
+        }
+      }
+    },
+    "analysis_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule_index",
+        "predicate",
+        "signal",
+        "narrative",
+        "dedupe",
+        "module",
+        "phase",
+        "phase_kind",
+        "required_facts",
+        "supporting_fragments",
+        "missing_facts",
+        "unsupported_payload_offsets",
+        "supported"
+      ],
+      "properties": {
+        "rule_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "predicate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signal": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "narrative": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dedupe": {
+          "type": "boolean"
+        },
+        "module": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phase": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phase_kind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "required_facts": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "supporting_fragments": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "missing_facts": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "unsupported_payload_offsets": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          }
+        },
+        "supported": {
+          "type": "boolean"
+        }
+      }
+    },
+    "analysis_model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "operation",
+        "rules"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "program_model",
+            "builtin_reason_profile",
+            "declarative_reason_model"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operation": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/analysis_rule"
+          }
+        }
+      }
+    },
+    "analysis_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "template_id",
+        "program_model",
+        "reason_model"
+      ],
+      "properties": {
+        "template_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "program_model": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/analysis_model"
+            }
+          ]
+        },
+        "reason_model": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/analysis_model"
+            }
+          ]
+        }
+      }
+    },
+    "binding_envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wire_format",
+        "wire_version",
+        "language_contract",
+        "fingerprint",
+        "payload"
+      ],
+      "properties": {
+        "wire_format": {
+          "const": "gewylang-ir-json"
+        },
+        "wire_version": {
+          "const": 1
+        },
+        "language_contract": {
+          "$ref": "#/$defs/binding_contract"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/fingerprint"
+        },
+        "payload": {
+          "$ref": "#/$defs/binding_payload"
+        }
+      }
+    },
+    "analysis_envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wire_format",
+        "wire_version",
+        "language_contract",
+        "fingerprint",
+        "payload"
+      ],
+      "properties": {
+        "wire_format": {
+          "const": "gewylang-ir-json"
+        },
+        "wire_version": {
+          "const": 1
+        },
+        "language_contract": {
+          "$ref": "#/$defs/analysis_contract"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/fingerprint"
+        },
+        "payload": {
+          "$ref": "#/$defs/analysis_payload"
+        }
+      }
+    }
+  }
+}

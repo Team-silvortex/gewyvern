@@ -826,6 +826,9 @@ name = "gewylang-ir"
 version = "2.0.0"
 dependencies = [
  "gewylang-contract",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]
