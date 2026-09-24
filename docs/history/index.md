@@ -14,6 +14,7 @@ For `gewyvern`, the middle numeric component is treated as the **minor** line:
 - `v1.0.0`
 - `v1.20.x`
 - `v2.0.0`
+- `v2.1.x`
 
 The rule from here forward is simple:
 
@@ -75,6 +76,9 @@ background cleanup.
 - [docs/history/v2.0.0-release-notes.md](docs/history/v2.0.0-release-notes.md)
   Formal release note for the protocolized Gewyvern, Leserpent, and Leselang
   infrastructure release.
+- [docs/history/v2.1.x.md](v2.1.x.md)
+  Post-release maintenance line, including the `2.1.2` workspace and test-layout
+  cleanup without removing supported runtime or compatibility contracts.
 - [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md)
   Forward-looking minor-line plan from `0.15.x` through `0.20.x`, intended to
   make `v1.0.0` the direct next step after the final pre-`1.0` seal.

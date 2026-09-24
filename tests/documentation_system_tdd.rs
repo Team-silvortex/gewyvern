@@ -119,9 +119,13 @@ fn architecture_shelf_defines_one_protocolized_debugging_fabric() {
         );
     }
 
+    let (minor_line, _) = env!("CARGO_PKG_VERSION")
+        .rsplit_once('.')
+        .expect("workspace version must be semantic");
+    let priorities_heading = format!("## Current {minor_line}.x Priorities");
     for invariant in [
         "## Compatibility Bridge Rule",
-        "## Current 2.0.x Priorities",
+        priorities_heading.as_str(),
         "Horizon 2: Remove Boundary Debt",
         "A shared checkout does not imply shared\nauthority",
         "Managed persistence must not become a second authority",

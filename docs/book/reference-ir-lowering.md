@@ -370,7 +370,7 @@ scripts/history/render_minor_line_ir_snapshot.sh \
 
 ## Stability Guidance
 
-For the `0.13.*` baseline and the current `2.0.x` maturity track, the intended
+For the `0.13.*` baseline and the current `2.1.x` maturity track, the intended
 practical stability is:
 
 - the existence of focused IR inspection is deliberate

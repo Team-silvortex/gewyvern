@@ -1,6 +1,6 @@
 # Architecture Evolution
 
-This page describes how the released `2.0.x` architecture should deepen
+This page describes how the released `2.1.x` architecture should deepen
 without dissolving its boundaries. It is directional guidance, not a promise
 that a feature belongs to a particular version.
 
@@ -37,7 +37,7 @@ Every improvement should shorten, strengthen, or clarify this loop.
 
 ### Horizon 1: Protect The Released Loop
 
-Current `2.0.x` work should:
+Current `2.1.x` work should:
 
 - preserve machine and wire compatibility
 - keep Linux evidence collection reliable and bounded

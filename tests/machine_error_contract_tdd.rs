@@ -52,6 +52,9 @@ impl Sandbox {
             command.env_remove(key);
         }
         command
+            .env("LC_ALL", "C")
+            .env("LC_MESSAGES", "C")
+            .env("LANG", "C")
             .env("HOME", self.path("home"))
             .env("USERPROFILE", self.path("home"))
             .env("GEWY_CONFIG_HOME", self.path("config"))

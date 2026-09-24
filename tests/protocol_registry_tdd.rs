@@ -1,3 +1,112 @@
+// Share fixture compilation and linking without dropping protocol coverage.
+#[path = "support/mod.rs"]
+mod support;
+
+#[path = "protocol_registry_cases/arp_protocol_registry_tdd.rs"]
+mod arp_protocol_registry_tdd;
+#[path = "protocol_registry_cases/bgp_protocol_registry_tdd.rs"]
+mod bgp_protocol_registry_tdd;
+#[path = "protocol_registry_cases/cassandra_protocol_registry_tdd.rs"]
+mod cassandra_protocol_registry_tdd;
+#[path = "protocol_registry_cases/coap_protocol_registry_tdd.rs"]
+mod coap_protocol_registry_tdd;
+#[path = "protocol_registry_cases/consul_protocol_registry_tdd.rs"]
+mod consul_protocol_registry_tdd;
+#[path = "protocol_registry_cases/dhcp_protocol_registry_tdd.rs"]
+mod dhcp_protocol_registry_tdd;
+#[path = "protocol_registry_cases/dhcpv6_protocol_registry_tdd.rs"]
+mod dhcpv6_protocol_registry_tdd;
+#[path = "protocol_registry_cases/discovery_protocol_registry_tdd.rs"]
+mod discovery_protocol_registry_tdd;
+#[path = "protocol_registry_cases/dns_protocol_registry_tdd.rs"]
+mod dns_protocol_registry_tdd;
+#[path = "protocol_registry_cases/elasticsearch_protocol_registry_tdd.rs"]
+mod elasticsearch_protocol_registry_tdd;
+#[path = "protocol_registry_cases/etcd_protocol_registry_tdd.rs"]
+mod etcd_protocol_registry_tdd;
+#[path = "protocol_registry_cases/gre_protocol_registry_tdd.rs"]
+mod gre_protocol_registry_tdd;
+#[path = "protocol_registry_cases/grpc_protocol_registry_tdd.rs"]
+mod grpc_protocol_registry_tdd;
+#[path = "protocol_registry_cases/http3_hy2_protocol_registry_tdd.rs"]
+mod http3_hy2_protocol_registry_tdd;
+#[path = "protocol_registry_cases/icmp_protocol_registry_tdd.rs"]
+mod icmp_protocol_registry_tdd;
+#[path = "protocol_registry_cases/icmpv6_ndp_protocol_registry_tdd.rs"]
+mod icmpv6_ndp_protocol_registry_tdd;
+#[path = "protocol_registry_cases/ipsec_protocol_registry_tdd.rs"]
+mod ipsec_protocol_registry_tdd;
+#[path = "protocol_registry_cases/jaeger_protocol_registry_tdd.rs"]
+mod jaeger_protocol_registry_tdd;
+#[path = "protocol_registry_cases/llmnr_protocol_registry_tdd.rs"]
+mod llmnr_protocol_registry_tdd;
+#[path = "protocol_registry_cases/loki_protocol_registry_tdd.rs"]
+mod loki_protocol_registry_tdd;
+#[path = "protocol_registry_cases/mongodb_protocol_registry_tdd.rs"]
+mod mongodb_protocol_registry_tdd;
+#[path = "protocol_registry_cases/mssql_protocol_registry_tdd.rs"]
+mod mssql_protocol_registry_tdd;
+#[path = "protocol_registry_cases/nbns_protocol_registry_tdd.rs"]
+mod nbns_protocol_registry_tdd;
+#[path = "protocol_registry_cases/ntp_protocol_registry_tdd.rs"]
+mod ntp_protocol_registry_tdd;
+#[path = "protocol_registry_cases/ospf_protocol_registry_tdd.rs"]
+mod ospf_protocol_registry_tdd;
+#[path = "protocol_registry_cases/otlp_protocol_registry_tdd.rs"]
+mod otlp_protocol_registry_tdd;
+#[path = "protocol_registry_cases/overlay_protocol_registry_tdd.rs"]
+mod overlay_protocol_registry_tdd;
+#[path = "protocol_registry_cases/prometheus_protocol_registry_tdd.rs"]
+mod prometheus_protocol_registry_tdd;
+#[path = "protocol_registry_cases/protocol_registry_gap_tdd.rs"]
+mod protocol_registry_gap_tdd;
+#[path = "protocol_registry_cases/quic_protocol_registry_tdd.rs"]
+mod quic_protocol_registry_tdd;
+#[path = "protocol_registry_cases/radius_protocol_registry_tdd.rs"]
+mod radius_protocol_registry_tdd;
+#[path = "protocol_registry_cases/redis_blocking_pop_protocol_registry_tdd.rs"]
+mod redis_blocking_pop_protocol_registry_tdd;
+#[path = "protocol_registry_cases/redis_list_move_protocol_registry_tdd.rs"]
+mod redis_list_move_protocol_registry_tdd;
+#[path = "protocol_registry_cases/redis_protocol_registry_tdd.rs"]
+mod redis_protocol_registry_tdd;
+#[path = "protocol_registry_cases/redis_pubsub_protocol_registry_tdd.rs"]
+mod redis_pubsub_protocol_registry_tdd;
+#[path = "protocol_registry_cases/redis_set_protocol_registry_tdd.rs"]
+mod redis_set_protocol_registry_tdd;
+#[path = "protocol_registry_cases/redis_stream_protocol_registry_tdd.rs"]
+mod redis_stream_protocol_registry_tdd;
+#[path = "protocol_registry_cases/remote_access_protocol_registry_tdd.rs"]
+mod remote_access_protocol_registry_tdd;
+#[path = "protocol_registry_cases/rip_protocol_registry_tdd.rs"]
+mod rip_protocol_registry_tdd;
+#[path = "protocol_registry_cases/s3_protocol_registry_tdd.rs"]
+mod s3_protocol_registry_tdd;
+#[path = "protocol_registry_cases/sip_protocol_registry_tdd.rs"]
+mod sip_protocol_registry_tdd;
+#[path = "protocol_registry_cases/smtp_protocol_registry_tdd.rs"]
+mod smtp_protocol_registry_tdd;
+#[path = "protocol_registry_cases/snmp_manage_protocol_registry_tdd.rs"]
+mod snmp_manage_protocol_registry_tdd;
+#[path = "protocol_registry_cases/snmp_protocol_registry_tdd.rs"]
+mod snmp_protocol_registry_tdd;
+#[path = "protocol_registry_cases/snmp_result_protocol_registry_tdd.rs"]
+mod snmp_result_protocol_registry_tdd;
+#[path = "protocol_registry_cases/stream_messaging_protocol_registry_tdd.rs"]
+mod stream_messaging_protocol_registry_tdd;
+#[path = "protocol_registry_cases/stun_protocol_registry_tdd.rs"]
+mod stun_protocol_registry_tdd;
+#[path = "protocol_registry_cases/syslog_protocol_registry_tdd.rs"]
+mod syslog_protocol_registry_tdd;
+#[path = "protocol_registry_cases/tftp_protocol_registry_tdd.rs"]
+mod tftp_protocol_registry_tdd;
+#[path = "protocol_registry_cases/web_app_protocol_registry_tdd.rs"]
+mod web_app_protocol_registry_tdd;
+#[path = "protocol_registry_cases/wireguard_protocol_registry_tdd.rs"]
+mod wireguard_protocol_registry_tdd;
+#[path = "protocol_registry_cases/zookeeper_protocol_registry_tdd.rs"]
+mod zookeeper_protocol_registry_tdd;
+
 use gewyvern::dsl::compile_file;
 use gewyvern::protocol_profiles::{
     protocol_default_entry, protocol_dsl_path, protocol_entries, protocol_surface,

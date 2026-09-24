@@ -1,4 +1,4 @@
-# Leserpent v2.0.x
+# Leserpent v2.1.x
 
 <p align="center">
   <a href="README.md">Gewyvern</a> ·
@@ -69,10 +69,12 @@ does not require a remote connection before local Orchestra can be used.
 
 | Goal | Community artifact |
 | --- | --- |
-| Operate from an Apple Silicon Mac | `Leserpent-2.0.0-macos-arm64-adhoc.zip` |
-| Host the Linux control plane and Web console | `leserpent-control-2.0.0-linux-x86_64.tar.gz` |
-| Install Gewyvern on Debian or Ubuntu | `gewyvern_2.0.0-1_amd64.deb` |
-| Install Gewyvern on an RPM-based x86-64 host | `gewyvern-2.0.0-1.x86_64.rpm` |
+| Operate from an Apple Silicon Mac | `Leserpent-<version>-macos-arm64-adhoc.zip` |
+| Host the Linux control plane and Web console | `leserpent-control-<version>-linux-x86_64.tar.gz` |
+| Install Gewyvern on Debian or Ubuntu | `gewyvern_<version>-1_amd64.deb` |
+| Install Gewyvern on an RPM-based x86-64 host | `gewyvern-<version>-1.x86_64.rpm` |
+
+`<version>` is the shared version declared in the root `Cargo.toml`.
 
 The macOS community archive is ad-hoc signed and not Apple-notarized. Verify all
 downloads with the `SHA256SUMS` file attached to the same release.
@@ -132,5 +134,6 @@ Linux host. See [packaging](docs/packaging.md) and
 - [Native CLI reference](docs/leserpent-cli.md)
 - [GUI function chains](docs/leserpent-gui-function-chains.md)
 - [Leselang language](docs/leselang-language.md)
-- [2.0.0 release notes](docs/history/v2.0.0-release-notes.md)
+- [Current maintenance notes](docs/history/v2.1.x.md)
+- [2.0.0 release baseline](docs/history/v2.0.0-release-notes.md)
 - [Implementation and compatibility-bridge notes](apps/leserpent/README.md)

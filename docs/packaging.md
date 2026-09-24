@@ -114,7 +114,7 @@ artifact. It records:
 
 The current policy values are intentionally conservative:
 
-- `release_line` matches the configured active minor line (`v2.0.x`)
+- `release_line` matches the configured active minor line (`v2.1.x`)
 - `layout_version = 1`
 - `config_schema_version = 1`
 - `upgrade_policy = "copy-forward-without-overwrite"`
@@ -150,13 +150,15 @@ native package paths cannot silently drift.
 
 ## Container Runner Reliability
 
-The packaged container validators use one shared Docker runner from:
+The packaged container validators use the shared Rust Docker runner in:
 
-- `scripts/packaging/container_validation_common.sh`
+- `src/validation_harness/container_packaging.rs`
 
-That runner gives each validation container a deterministic gewyvern-prefixed
-name, applies a per-container timeout, and best-effort removes the container if
-the command times out. Override the timeout with:
+The shell entrypoints only dispatch to the native validator; the obsolete
+shell-only runner has been removed. The native runner gives each validation
+container a unique gewyvern-prefixed name and owns cleanup through
+`DockerContainerCleanup`. On validation hosts with `timeout` installed, it
+applies the per-container limit configured by:
 
 - `GEWY_CONTAINER_VALIDATION_TIMEOUT_SECONDS`
 

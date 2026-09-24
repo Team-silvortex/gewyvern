@@ -233,7 +233,7 @@ Reject changes that:
 - use UI clicking as the only automation contract
 - make a hosted account necessary for existing self-hosted behavior
 
-## Current 2.0.x Priorities
+## Current 2.1.x Priorities
 
 The released architecture is feature-complete for its declared scope. Current
 coordination therefore prioritizes:

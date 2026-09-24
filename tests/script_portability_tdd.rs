@@ -205,6 +205,46 @@ fn documented_shell_entrypoints_are_executable() {
 }
 
 #[test]
+fn protocol_registry_cases_share_one_cargo_integration_target() {
+    let tests = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let mut targets = fs::read_dir(&tests)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.is_file())
+        .filter_map(|path| {
+            let name = path.file_name()?.to_str()?;
+            (name.ends_with("protocol_registry_tdd.rs") || name == "protocol_registry_gap_tdd.rs")
+                .then(|| name.to_string())
+        })
+        .collect::<Vec<_>>();
+    targets.sort();
+    assert_eq!(targets, ["protocol_registry_tdd.rs"]);
+
+    let harness = read_repo_file("tests/protocol_registry_tdd.rs");
+    let mut case_count = 0;
+    for entry in fs::read_dir(tests.join("protocol_registry_cases")).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
+            continue;
+        }
+        case_count += 1;
+        let stem = path.file_stem().unwrap().to_str().unwrap();
+        let source = fs::read_to_string(&path).unwrap();
+        assert!(harness.contains(&format!("mod {stem};")), "{stem}");
+        assert!(
+            harness.contains(&format!("protocol_registry_cases/{stem}.rs")),
+            "{stem}"
+        );
+        assert!(!source.contains("mod support;"), "{stem}");
+    }
+    assert!(
+        case_count >= 52,
+        "protocol registry case shelf became vacuous"
+    );
+    assert!(harness.contains("mod support;"));
+}
+
+#[test]
 fn container_entrypoints_default_to_a_bounded_remote_linux_workspace() {
     let dispatcher = read_repo_file("scripts/remote/container_execution.sh");
     let runner = read_repo_file("scripts/remote/run_on_linux_host.sh");

@@ -7,7 +7,7 @@ defines the invariant destination; this page defines ordered delivery gates.
 The delivery sequence was capability-gated, not date-gated. Its completed gates
 remain the maintenance baseline for the released system.
 
-Current implementation checkpoint: shared release `v2.0.0`. The
+Current implementation checkpoint: shared release `v2.1.2`. The
 [project status tensor](project-status-system.md) remains authoritative for
 per-feature maturity, evidence, dependencies, and next gates.
 

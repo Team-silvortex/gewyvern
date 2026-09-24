@@ -1,4 +1,4 @@
-# gewyvern v2.0.x
+# gewyvern v2.1.x
 
 [![CI](https://github.com/Team-silvortex/gewyvern/actions/workflows/ci.yml/badge.svg)](https://github.com/Team-silvortex/gewyvern/actions/workflows/ci.yml)
 
@@ -103,8 +103,8 @@ session data.
 
 ## Status
 
-- project version: `2.0.x`
-- stage: `2.0.0` stable community release, with the Gewyvern debugger core and
+- project version: `2.1.x`
+- stage: stable community release, with the Gewyvern debugger core and
   Rust Leserpent/Leselang control plane shipped as one protocolized system
 - transport support: TCP + UDP
 - protocol registry coverage: 70 protocol families and 361 package entries
@@ -152,7 +152,7 @@ is [project/product/open-source-core.json](project/product/open-source-core.json
 `gewyvern` is no longer just a convergence story. The current line is:
 
 - historical validation baseline: `v0.10.0`
-- current release line: `v2.0.x`, with `v2.0.0` as the current shared release
+- current release line: `v2.1.x`, with `v2.1.2` as the current shared release
 - completed seal: the ten-slot `v1.20.0` through `v1.20.9` stabilization window
 - current focus: preserve the released contracts, improve operator experience,
   and expand community validation without moving existing capabilities behind
@@ -172,6 +172,7 @@ Leserpent/Leselang architecture.
 Primary release-line shelves:
 
 - [ROADMAP.md](ROADMAP.md)
+- [Current maintenance notes](docs/history/v2.1.x.md)
 - [docs/history/v2.0.0-release-notes.md](docs/history/v2.0.0-release-notes.md)
 - [project/release/leserpent-2-patch-seal.json](project/release/leserpent-2-patch-seal.json)
 - [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md)

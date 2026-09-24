@@ -1,7 +1,7 @@
 # Project Status Tensor
 
 This page defines the machine-readable project management protocol used by the
-released `2.0.x` line and its later evolution.
+released `2.1.x` line and its later evolution.
 
 The source of truth is [project/status/catalog.json](../project/status/catalog.json).
 Its protocol schema is

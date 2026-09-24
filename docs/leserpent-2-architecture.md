@@ -5,7 +5,7 @@ This document is the authoritative released architecture for the
 history and continuing maintenance gates live in the
 [Leserpent 2.0 roadmap](leserpent-2-roadmap.md).
 
-The current implementation checkpoint is the shared `v2.0.0` release. The
+The current implementation checkpoint is the shared `v2.1.2` release. The
 frozen in-scope capability set is implemented; explicitly excluded post-release
 tracks remain outside this contract.
 

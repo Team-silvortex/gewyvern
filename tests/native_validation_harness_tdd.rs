@@ -1043,6 +1043,16 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(packaging.contains("GEWY_DEB_SMOKE_IMAGE"));
     assert!(packaging.contains("GEWY_RPM_SMOKE_IMAGE"));
     assert!(packaging.contains("timeout_seconds"));
+    assert!(packaging.contains("GEWY_CONTAINER_VALIDATION_TIMEOUT_SECONDS"));
+    assert!(packaging.contains("validate_positive_u16_timeout(&timeout_seconds)?"));
+    assert!(packaging.contains("status.code() == Some(124)"));
+    assert!(packaging.contains("cleanup.remove()"));
+    assert!(
+        !Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("scripts/packaging/container_validation_common.sh")
+            .exists(),
+        "the unused shell implementation must not shadow the native Docker runner"
+    );
     assert!(packaging.contains("docker"));
     assert!(packaging.contains("docker_create_package_container"));
     assert!(packaging.contains("docker_copy_package"));

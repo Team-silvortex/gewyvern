@@ -155,18 +155,6 @@ fn install_smoke_validates_packaged_compat_artifacts() {
 }
 
 #[test]
-fn container_validation_runner_is_bounded_and_cleans_up() {
-    let common = read_repo_file("scripts/packaging/container_validation_common.sh");
-
-    assert!(common.contains("container_validation_docker_run()"));
-    assert!(common.contains("GEWY_CONTAINER_VALIDATION_TIMEOUT_SECONDS:-900"));
-    assert!(common.contains("docker run --name \"${container_name}\" --rm"));
-    assert!(common.contains("docker rm -f \"${container_name}\""));
-    assert!(common.contains("rpm -Uvh /packages/$(basename \"${package_path}\")"));
-    assert!(common.contains("|| dnf install -y /packages/$(basename \"${package_path}\")"));
-}
-
-#[test]
 fn docs_record_the_install_compatibility_contract() {
     let packaging = read_repo_file("docs/packaging.md");
     let layout = read_repo_file("docs/book/reference-runtime-layout.md");

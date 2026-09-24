@@ -1,6 +1,6 @@
 # Architecture Blueprint
 
-This is the canonical system-level architecture for the active `2.0.x` line.
+This is the canonical system-level architecture for the active `2.1.x` line.
 It describes Gewyvern, GewyLang, Leserpent, and Leselang as one system while
 preserving their independent product and process boundaries.
 

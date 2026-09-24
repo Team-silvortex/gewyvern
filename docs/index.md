@@ -14,7 +14,7 @@ that owns your question; do not scan the repository by filename.
 - Remote operator: [disposable deployment lab](book/tutorial-remote-deployment-lab.md)
 - System architect: [canonical architecture blueprint](architecture-blueprint.md)
 - Contributor: [project module](modules/project.md)
-- Current release: [v2.0.0 release notes](history/v2.0.0-release-notes.md)
+- Current release: [v2.1.x maintenance notes](history/v2.1.x.md)
 - Architecture change protocol: [coordination](architecture-coordination.md)
 - Historical delivery record: [Leserpent 2.0 roadmap](leserpent-2-roadmap.md)
 - Sequential reading: [book](book/index.md)

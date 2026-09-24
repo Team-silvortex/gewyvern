@@ -1344,7 +1344,7 @@ cargo run --quiet --bin gewyvern_validate -- leserpent-benchmark
 bash scripts/perf/benchmark_summary.sh
 bash scripts/perf/trim_workspace_disk.sh --dry-run
 bash scripts/perf/trim_workspace_disk.sh
-bash scripts/history/render_minor_line_ir_snapshot.sh v0.15.x
+bash scripts/history/render_minor_line_ir_snapshot.sh http=dsl/http_request_path.gewy
 ```
 
 Use `leserpent-benchmark` for the Leserpent 2 release workload. It

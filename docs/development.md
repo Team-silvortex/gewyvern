@@ -84,7 +84,7 @@ Before cutting a release, use `cargo dev version check` to verify that Cargo,
 product version. Preview a deliberate version change before applying it:
 
 ```bash
-cargo dev version set 2.0.0 --dry-run
+cargo dev version set 2.1.2 --dry-run
 ```
 
 Removing `--dry-run` applies the update transactionally. It does not create a
@@ -127,6 +127,17 @@ cargo test --test protocol_runtime_ir_tdd syslog_protocol_runtime_ir_tdd::
 Do not place another `*_protocol_runtime_ir_tdd.rs` file directly under
 `tests/`: Cargo would treat it as another crate and repeat code generation,
 fixture compilation, and linking.
+
+Protocol registry coverage follows the same layout. Its 52 protocol/gap
+modules live under `tests/protocol_registry_cases/` and are registered in the
+existing `tests/protocol_registry_tdd.rs` target. The consolidation retains all
+407 registry tests while eliminating 52 separately linked test executables.
+Keep new protocol cases on that shared target and use a module filter for
+narrow runs:
+
+```bash
+cargo test --test protocol_registry_tdd dns_protocol_registry_tdd::
+```
 
 Package or atomically install the Linux x86-64 Leserpent control service:
 
@@ -336,6 +347,27 @@ The default contributor commands remain:
 - `bash scripts/perf/trim_workspace_disk.sh --dry-run`: preview rebuildable disk usage
 - `bash scripts/perf/trim_workspace_disk.sh`: reclaim local workspace disk from build artifacts and caches
 - `cargo test --workspace`: run the full suite before finishing
+
+## Workspace Hygiene
+
+Build outputs and test sources have different retention rules. Rust `target/`,
+.NET `bin/`, `obj/`, and `TestResults/`, frontend `node_modules/`, Python bytecode
+and caches, and generated `artifacts/` bundles can be recreated. Remove them
+only when no build, validation, or application is using those paths. The trim
+script covers build/dependency caches; separately inspect release bundles under
+`artifacts/` before removing them. Do not follow output symlinks into another
+workspace or remove a caller-supplied shared Cargo target cache implicitly.
+
+Remote `~/.cache/gewyvern/` target caches, mirrored workspaces, and completed
+one-off proof workspaces are also disposable after checking active processes
+and releasing workspace locks. Preserve checked-in `docs/fixtures/` evidence,
+runtime state, databases, credentials, installed applications, and Git history.
+Pruning a cache means the next build may be cold; it does not retire a feature.
+
+Old protocol and migration tests remain valid while their contracts are
+supported. Consolidate duplicated test compilation rather than deleting that
+coverage. Remove an implementation only after checking callers, native
+replacements, release tooling, and status-tensor evidence paths together.
 
 ## Linux Bring-Up
 

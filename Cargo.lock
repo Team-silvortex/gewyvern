@@ -610,7 +610,7 @@ dependencies = [
 
 [[package]]
 name = "etragon"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -804,7 +804,7 @@ dependencies = [
 
 [[package]]
 name = "gewyc"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "gewyvern",
  "silvortex-bounded-io",
@@ -812,18 +812,18 @@ dependencies = [
 
 [[package]]
 name = "gewylang-compiler"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "gewylang-syntax",
 ]
 
 [[package]]
 name = "gewylang-contract"
-version = "2.0.0"
+version = "2.1.2"
 
 [[package]]
 name = "gewylang-ir"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "gewylang-contract",
  "serde",
@@ -833,7 +833,7 @@ dependencies = [
 
 [[package]]
 name = "gewylang-syntax"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "gewylang-contract",
  "libc",
@@ -841,7 +841,7 @@ dependencies = [
 
 [[package]]
 name = "gewyvern"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "gewylang-compiler",
  "gewylang-contract",
@@ -865,14 +865,14 @@ dependencies = [
 
 [[package]]
 name = "gewyvern-dev"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "ring",
 ]
 
 [[package]]
 name = "gewyvern-install-contract"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "ring",
  "serde",
@@ -1087,7 +1087,7 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "leselang-command"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "leselang-hir",
  "leselang-host-contract",
@@ -1098,7 +1098,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-hir"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "leselang-host-contract",
  "leselang-syntax",
@@ -1107,7 +1107,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-host-contract"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -1116,7 +1116,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-observe"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "leselang-command",
  "leselang-hir",
@@ -1131,7 +1131,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-syntax"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -1139,7 +1139,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-ui"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "leselang-command",
  "leselang-hir",
@@ -1151,7 +1151,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-vm"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "leselang-command",
  "leselang-hir",
@@ -1165,7 +1165,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-adapters"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "gewyvern-install-contract",
  "leserpent-domain",
@@ -1186,7 +1186,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-cli"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "leselang-command",
  "leselang-hir",
@@ -1207,7 +1207,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-domain"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "http",
  "leselang-host-contract",
@@ -1218,7 +1218,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-frontend-package"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "ring",
  "serde",
@@ -1228,7 +1228,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-protocol"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "gewyvern-install-contract",
  "leselang-ui",
@@ -1243,7 +1243,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-runtime"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "leselang-command",
  "leselang-hir",
@@ -1257,7 +1257,7 @@ dependencies = [
 
 [[package]]
 name = "leserpentd"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "leselang-hir",
  "leselang-observe",
@@ -2189,14 +2189,14 @@ dependencies = [
 
 [[package]]
 name = "silvortex-bounded-io"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "libc",
 ]
 
 [[package]]
 name = "silvortex-identity"
-version = "2.0.0"
+version = "2.1.2"
 dependencies = [
  "serde",
  "serde_json",

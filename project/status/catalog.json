@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "project": "gewyvern",
-  "checkpoint": "v2.0.0-community-release",
+  "checkpoint": "v2.1.2-community-release",
   "calibration": {
     "model": "priority-weighted-strength-v1",
     "as_of": "2026-09-04"
