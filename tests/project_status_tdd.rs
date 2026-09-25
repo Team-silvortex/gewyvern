@@ -8195,6 +8195,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(two_zero_seal.contract.stability, ContractStability::Stable);
     assert!(
         two_zero_seal
+            .next_gate
+            .contains("Later 2.x maintenance releases")
+    );
+    assert!(
+        two_zero_seal
             .contract
             .surfaces
             .iter()

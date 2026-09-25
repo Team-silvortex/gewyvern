@@ -41,7 +41,8 @@ http = "1"
 rusqlite = { version = "=0.39.0", features = ["bundled", "limits"] }
 signal-hook = "0.3"
 time = { version = "0.3", features = ["formatting", "parsing"] }
-rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+# RUSTSEC-2026-0285: reject handshakes crossing encryption-level boundaries.
+rustls = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12"] }
 tungstenite = { version = "0.29", default-features = false, features = ["handshake"] }
 socket2 = "0.6.5"
 
@@ -66,6 +67,7 @@ gewylang-ir = { path = "crates/gewylang-ir" }
 gewylang-syntax = { path = "crates/gewylang-syntax" }
 gewyvern-install-contract = { path = "crates/gewyvern-install-contract" }
 rcgen = "0.14"
+semver = "1"
 silvortex-bounded-io = { path = "crates/silvortex-bounded-io" }
 zeroize = "1"
 

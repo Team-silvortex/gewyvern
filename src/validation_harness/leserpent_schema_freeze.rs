@@ -580,20 +580,24 @@ fn load_and_validate_patch_seal(
         ));
     }
 
-    let current = env!("CARGO_PKG_VERSION");
-    let target_prerelease = format!("{}-", seal.target_release);
-    let target_build = format!("{}+", seal.target_release);
-    if current != seal.target_release
-        && !current.starts_with(&target_prerelease)
-        && !current.starts_with(&target_build)
-        && !seal.patch_slots.iter().any(|slot| slot.version == current)
-    {
+    validate_patch_seal_product_version(&seal, env!("CARGO_PKG_VERSION"))?;
+
+    Ok(seal)
+}
+
+fn validate_patch_seal_product_version(
+    seal: &PatchSeal,
+    current: &str,
+) -> Result<(), ValidationError> {
+    // Later 2.x releases inherit the historical seal without renumbering its slots.
+    let is_two_series = semver::Version::parse(current).is_ok_and(|version| version.major == 2);
+    if !is_two_series && !seal.patch_slots.iter().any(|slot| slot.version == current) {
         return Err(ValidationError::new(format!(
-            "current product version {current} is outside the frozen patch-seal window"
+            "current product version {current} is outside the frozen patch-seal window and its 2.x maintenance line"
         )));
     }
 
-    Ok(seal)
+    Ok(())
 }
 
 fn is_normalized_identifier(value: &str) -> bool {
@@ -1033,6 +1037,56 @@ mod tests {
         assert_eq!(seal.patch_slots[0].version, "1.20.0");
         assert_eq!(seal.patch_slots[9].version, "1.20.9");
         assert_eq!(seal.target_release, "2.0.0");
+    }
+
+    #[test]
+    fn patch_seal_accepts_historical_slots_and_later_two_series_releases() {
+        let root = repo_root();
+        let scope = load_and_validate_scope_freeze(&root.join(SCOPE_FREEZE_PATH), &root).unwrap();
+        let seal = load_and_validate_patch_seal(&root.join(PATCH_SEAL_PATH), &scope).unwrap();
+
+        for version in [
+            "1.20.0",
+            "1.20.9",
+            "2.0.0",
+            "2.0.0-rc.1",
+            "2.0.0+build.7",
+            "2.0.1",
+            "2.1.2",
+            "2.20.9-rc.1+build.7",
+            "2.99.0",
+        ] {
+            assert!(
+                validate_patch_seal_product_version(&seal, version).is_ok(),
+                "release {version} must retain the frozen 2.0 baseline"
+            );
+        }
+    }
+
+    #[test]
+    fn patch_seal_rejects_unrelated_or_malformed_product_versions() {
+        let root = repo_root();
+        let scope = load_and_validate_scope_freeze(&root.join(SCOPE_FREEZE_PATH), &root).unwrap();
+        let seal = load_and_validate_patch_seal(&root.join(PATCH_SEAL_PATH), &scope).unwrap();
+
+        for version in [
+            "1.19.9",
+            "1.20.0-rc.1",
+            "1.20.10",
+            "1.21.0",
+            "3.0.0",
+            "20.0.0",
+            "2.0",
+            "2.01.0",
+            "2.0.0-",
+            "2.0.0-01",
+            "not-a-version",
+        ] {
+            assert!(
+                validate_patch_seal_product_version(&seal, version).is_err(),
+                "release {version} must not bypass the frozen 2.0 boundary"
+            );
+        }
     }
 
     #[test]

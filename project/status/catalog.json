@@ -3618,7 +3618,7 @@
         { "kind": "release", "path": "project/status/evidence/gewyvern_v2_release_gate_20260830.json", "state": "present" },
         { "kind": "release", "path": "target/validation/leserpent-2-release", "state": "planned" }
       ],
-      "next_gate": "Preserve the frozen 2.0 contracts and ship-ready release-gate baseline; expand the independent physical-host and kernel matrix with community evidence, and keep Apple notarization, future hosted-account proof, and long-tail language review on their explicit post-2.0 tracks."
+      "next_gate": "Preserve the frozen 2.0 contracts and ship-ready release-gate baseline; expand the independent physical-host and kernel matrix with community evidence, and keep Apple notarization, future hosted-account proof, and long-tail language review on their explicit post-2.0 tracks. Later 2.x maintenance releases must validate this baseline without renumbering the ten historical patch slots or relaxing the closure-work whitelist."
     },
     {
       "id": "leserpent-2/release-assurance/continuous-proof",

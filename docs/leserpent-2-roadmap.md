@@ -88,7 +88,11 @@ The authoritative machine-readable schedule is
 [`project/release/leserpent-2-patch-seal.json`](../project/release/leserpent-2-patch-seal.json).
 `gewyvern_validate leserpent-schema-freeze` rejects missing or reordered slots,
 unknown closure work, duplicate focus areas, incomplete closure-family coverage,
-and product versions outside the `1.20.x -> 2.0.0` window.
+and product versions outside the ten historical `1.20.x` slots or the `2.x`
+release family. Later `2.x` maintenance releases, including valid prerelease and
+build-metadata versions, inherit the same frozen `2.0.0` baseline. They do not
+renumber the historical slots or relax the closure-work whitelist; unrelated
+major lines and malformed versions remain rejected.
 
 The retained `1.20.5` Linux polish proof now covers Rust 1.95 quality gates,
 DEB/RPM and runtime smoke, both NativeAOT control proofs, catalog-bound language
