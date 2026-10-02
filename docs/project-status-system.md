@@ -17,7 +17,7 @@ architecture x module x feature -> status cell
 ```
 
 - **Architecture** identifies a product or durable system boundary, such as
-  Gewyvern Core, GewyLang, Shared Native Foundation, Leserpent 1.x,
+  Gewyvern Core, GewyLang, Leselang, Shared Native Foundation, Leserpent 1.x,
   Leserpent 2.0, or Etragon.
 - **Module** identifies the implementation and ownership boundary.
 - **Feature** identifies the independently judged capability.
@@ -28,7 +28,7 @@ implicitly planned work.
 Schema v3 carries a `coverage_requirements` manifest and a dated `calibration`
 record. Coverage maps authoritative architecture ownership boundaries, roadmap
 gates, and continuous proof shelves onto concrete cells. The manifest covers
-Gewyvern Core, GewyLang, the shared native foundation, the Leserpent 1.x
+Gewyvern Core, GewyLang, Leselang, the shared native foundation, the Leserpent 1.x
 bridge, Leserpent 2, the Etragon sidecar, and status governance itself.
 Validation is exhaustive and
 bidirectional: every architecture with a cell must declare a requirement, every
@@ -134,6 +134,13 @@ Independence answers whether a part can be used outside its current assembly:
 The `standalone` query reports non-deferred, non-internal cells only after they
 reach at least stabilizing maturity. A planned or deferred standalone component
 remains visible in the catalog but is not reported as currently usable.
+
+For Leselang, frontend dependency independence and full runtime embedding are
+separate cells. `leselang/language-vm/host-neutral-embedding` is a planned target
+with no completed runtime proof; mature Leserpent VM integration must not be
+counted as that proof. Its [embedding contract](leselang-embedding.md) requires
+an unrelated headless consumer. The distant nuis OS / sirius kernel shell is a
+deferred direction, not implemented status or a Leserpent release gate.
 
 ## Native Commands
 

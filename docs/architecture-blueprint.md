@@ -11,6 +11,7 @@ Use the deeper pages only after this one:
 - [Leserpent 2 architecture](leserpent-2-architecture.md)
 - [GewyLang system](gewylang-system.md)
 - [Leselang language](leselang-language.md)
+- [Leselang independent embedding](leselang-embedding.md)
 - [architecture change protocol](architecture-coordination.md)
 - [post-2.0 evolution](architecture-evolution.md)
 
@@ -83,8 +84,10 @@ frontend may request an operation, but it cannot define or bypass its policy.
 
 Owned by Leselang and the shared Leserpent command/query domain.
 
-Leselang is a narrow, hostable Rust automation language for control and GUI
-semantics. Its source model is synchronous. External work suspends as a typed,
+Leselang targets an independent embeddable Rust control language; Leserpent is
+its first reference host, and GUI is one host profile. This blueprint describes
+that product integration, not the limit of the language. Its source model is
+synchronous. External work suspends as a typed,
 journaled effect and resumes through an explicit continuation instead of
 exposing ambient `async` state to the program.
 
@@ -169,9 +172,13 @@ layer:
   dependency is `gewylang-contract`; serialization and SHA-256 remain
   product-independent implementation dependencies.
 
-`leselang-syntax -> leselang-host-contract + leselang-hir` is now a standalone
-frontend closure. `leselang-command` remains the explicit Leserpent binding,
-while VM/UI product result extraction remains staged work. Likewise,
+The `leselang-hir` dependency closure, including `leselang-syntax` and
+`leselang-host-contract`, has no Gewyvern/Leserpent product dependencies.
+That does not yet make the entire language host-neutral: HIR and host values
+still name runtime/UI operations. `leselang-command` remains the explicit
+Leserpent binding, while VM/UI/observe product result extraction remains staged
+work. The [embedding architecture](leselang-embedding.md) defines an unrelated
+host proof and a separately tracked standalone-core target. Likewise,
 `gewylang-contract -> gewylang-syntax -> gewylang-compiler`, together with the
 parallel `gewylang-contract -> gewylang-ir` contract leaf, is a standalone
 language-owned boundary. `gewyvern::dsl` remains its source-compatible facade

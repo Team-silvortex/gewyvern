@@ -7,7 +7,7 @@ defines the invariant destination; this page defines ordered delivery gates.
 The delivery sequence was capability-gated, not date-gated. Its completed gates
 remain the maintenance baseline for the released system.
 
-Current implementation checkpoint: shared release `v2.1.2`. The
+Current implementation checkpoint: shared release `v2.1.3`. The
 [project status tensor](project-status-system.md) remains authoritative for
 per-feature maturity, evidence, dependencies, and next gates.
 
@@ -366,7 +366,8 @@ debugger document now models stackless synchronous
 effect waiting and re-entry with bounded logical frames, sanitized summaries,
 and no continuation token or local-value exposure. The `leselang-observe`
 composition boundary now converts an authoritatively validated suspended VM
-effect into that projection, rejects torn revisions, and proves that
+effect into that projection, keeps debugger-session revisions independent of
+target-resource revisions, and proves that
 continuation tokens, principals, capabilities, idempotency keys, and absolute
 scheduler deadlines never reach serialized UI state. `DebuggerCancel` now uses
 the shared command plan with `debugger.control`, revision/session fencing,

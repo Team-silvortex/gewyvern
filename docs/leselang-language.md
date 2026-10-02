@@ -1,15 +1,20 @@
 # Leselang Language Contract
 
 This reference is the authoritative, model-oriented contract for the currently
-implemented Leselang slice. The broader destination is defined by the
-[Leserpent 2.0 architecture](leserpent-2-architecture.md); unimplemented roadmap
-syntax is not part of this contract.
+implemented Leselang slice. The independent language destination is defined by
+the [embedding architecture](leselang-embedding.md); the
+[Leserpent 2.0 architecture](leserpent-2-architecture.md) describes its first
+product host. Unimplemented roadmap syntax is not part of this contract.
 
-Leselang is not a general-purpose language runtime. It is the narrow,
-protocolized GUI and control automation language that Leserpent hosts: source lowers
-to typed effects, renderer-neutral UI presentation operations, canonical
-exports, and durable continuation re-entry. The long-term host shape is a
-hostable Rust crate, not a process-global interpreter. By design, no GUI framework is automatically compatible with this crate.
+Leselang is an independent embeddable control language in its target design.
+Leserpent is the first reference host. Its current profile provides
+protocolized GUI and control automation: source lowers to typed effects,
+renderer-neutral UI presentation operations, canonical exports, and durable
+continuation re-entry. GUI is one host profile, not the language's ceiling;
+the future nuis OS / sirius kernel shell is a deferred host profile, not a
+current capability. The long-term host shape is a hostable Rust crate with
+independently owned VM instances, not a process-global interpreter. By design,
+no GUI framework is automatically compatible with this crate.
 Each host needs a developer-owned adapter that implements the protocol standard.
 Alternatively, a generated framework binding may be emitted by dedicated tooling
 from the same schema. The current Rust UI contract exposes `UiAdapterManifest`
@@ -18,14 +23,17 @@ should cross only the protocol or narrow FFI boundary. Host event loops, async
 runtimes, threads, widget object models, and hand-written framework shortcuts
 stay outside the language contract.
 
-The repository boundary is executable rather than aspirational. The
+Part of the repository boundary is already executable. The
 `leselang-syntax`, `leselang-host-contract`, and `leselang-hir` dependency
 closures contain no Leserpent or Gewyvern product crate. The host contract owns
 only stable identities, principals, revisions, capabilities, filters, and
 bounded effect inputs. `leselang-command` is deliberately a Leserpent adapter;
 the current VM, UI, and observe crates still consume product command/result
-types and remain the next extraction seam. CI checks these dependency closures
-so product policy cannot leak back into the independent frontend.
+types and remain the next extraction seam. HIR still enumerates concrete
+runtime/UI effects, and the host contract still includes runtime filters and
+deployment validation. Zero product dependencies do not yet mean host-neutral
+semantics or a fully independent VM. CI checks the frontend dependency closure;
+the embedding architecture defines the larger extraction gate.
 
 Status: **Gate 2 execution and syntax contracts stable at 1.0.0**. The current
 vertical slice parses, lowers, authorizes, suspends,
@@ -70,7 +78,8 @@ fn main() = runtime.list(
 
 `runtime.list` returns a runtime list and requires the `runtime.read`
 capability. Each optional filter accepts a string or `none`; empty strings are
-normalized to `none` during HIR lowering.
+normalized to `none` during HIR lowering. Filter strings are limited to 128 UTF-8
+bytes and may not contain control characters, matching the wire/recovery contract.
 
 The canonical single-runtime query is:
 
@@ -1115,16 +1124,35 @@ template.
 
 ## Grammar
 
+This is the implemented grammar, not a template for copying another language.
+New constructs follow the [agent-first syntax rules](leselang-embedding.md#agent-first-syntax):
+regular typed composition, explicit effects, repairable diagnostics and safe
+re-entry take precedence over Bash/Lua/JavaScript syntax compatibility.
+Unimplemented design examples must not be treated as accepted source.
+
 ```ebnf
 program       = function, EOF ;
-function      = "fn", identifier, "(", ")", "=", call ;
-call          = effect-call | all-call ;
+function      = "fn", identifier, "(", ")", "=", expression ;
+expression    = string | integer | boolean | "none" | identifier | call ;
+call          = effect-call | all-call | seq-call | repeat-call
+              | bind-call | choose-call | binary-call | unary-call | field-call ;
 effect-call   = identifier, ".", identifier, "(", [ arguments ], ")" ;
 all-call      = "all", "(", branch, ",", branch, { ",", branch }, [ "," ], ")" ;
+seq-call      = "seq", "(", branch, { ",", branch }, [ "," ], ")" ;
+repeat-call   = "repeat", "(", "times", ":", integer, ",", "body", ":", call, [ "," ], ")" ;
 branch        = identifier, ":", call ;
 arguments     = argument, { ",", argument }, [ "," ] ;
 argument      = identifier, ":", value ;
-value         = string | "none" | call ;
+value         = expression ;
+bind-call     = "bind", "(", identifier, ":", expression, ",", "body", ":", expression, [ "," ], ")" ;
+choose-call   = "choose", "(", "when", ":", expression, ",", "then", ":", expression, ",", "otherwise", ":", expression, [ "," ], ")" ;
+binary-call   = binary-op, "(", "left", ":", expression, ",", "right", ":", expression, [ "," ], ")" ;
+unary-call    = ( "not" | "len" ), "(", "value", ":", expression, [ "," ], ")" ;
+field-call    = "field", "(", "value", ":", expression, ",", "name", ":", string, [ "," ], ")" ;
+binary-op     = "add" | "sub" | "mul" | "div" | "rem" | "eq" | "ne"
+              | "lt" | "le" | "gt" | "ge" | "and" | "or" | "concat" ;
+boolean       = "true" | "false" ;
+integer       = "0" | nonzero-digit, { digit } ;
 identifier    = ( letter | "_" ), { letter | digit | "_" } ;
 string        = '"', { character | escape }, '"' ;
 escape        = "\\", ( '"' | "\\" | "n" | "r" | "t" ) ;
@@ -1133,6 +1161,26 @@ escape        = "\\", ( '"' | "\\" | "n" | "r" | "t" ) ;
 Whitespace and `//` line comments are retained as lossless tokens, including
 their byte spans. Reassembling token text must reproduce the original source.
 Source is UTF-8 and limited to 256 KiB.
+
+Integer literals are canonical unsigned 64-bit decimals; signs, leading zeroes,
+fractions, alternate bases, and overflow are rejected. Computation accepts the
+full `u64` range, while `repeat.times` remains an integer literal from 1 through
+64. The grammar shows canonical argument order; named arguments may be reordered
+without changing evaluation order. `true` and `false` are literals in value
+positions and cannot name locals; existing function and named-step labels may
+still use these words. `none` and `fn` retain their existing reserved status.
+Bare value identifiers resolve only to enclosing immutable bindings. See
+[control flow](leselang-control-flow.md) for typed calculation, `bind`, lazy
+`choose`, short-circuit logic, limits, and remaining language gaps. Atomic host
+operations accept pure expressions and locals as arguments, retaining their
+existing string/`none` types and domain limits. This also works inside bounded
+`seq`/`repeat` and flat `all`: every selected member is fully prepared before
+any effect starts. See [computed groups](leselang-control-flow.md#computed-groups)
+for whole-group failure, scope, expansion and recovery rules.
+One atomic host result can also be bound and projected with a type-checked
+`field(value: result, name: "...")`, followed by a pure scalar body. See
+[result bindings](leselang-control-flow.md#result-bindings) for the exact field
+table, durable local environment, schema-2 continuation and single-suspension limit.
 
 Serialized syntax trees validate source bounds, exact token coverage and EOF,
 UTF-8-safe token/diagnostic/AST spans, and call depth before acceptance.
@@ -1162,9 +1210,12 @@ remain on UTF-8 character boundaries. A parallel continuation corpus mutates
 encoded VM images and requires deterministic fail-closed decoding or canonical
 roundtrip.
 
-The implemented surface deliberately excludes general expressions, local
-bindings, arbitrary mutation, loops, unstructured concurrency, raw HTTP, shell
-execution, and host-language reflection. Synchronous source semantics do not expose
+The implemented surface excludes result-driven host successors, group-result
+bindings, arbitrary mutation, data-dependent loops, unstructured concurrency,
+raw HTTP, shell execution, and host-language reflection. Pure scalar computation
+and bindings are available before host suspension or after one captured atomic
+result, not between group steps or across multiple host suspensions.
+Synchronous source semantics do not expose
 `async`/`await`; `all` is the explicit structured-concurrency form.
 
 The frontend accepts structured declarations such as:
@@ -1185,6 +1236,9 @@ the final branch returns the durable aggregate result in declaration order.
 SQLite recovery resumes unfinished branches without recreating completed work.
 Nested `all` remains outside the current language surface and fails with
 `LSV1002` before sequence allocation or journal mutation.
+Mixing `all` with `seq`/`repeat` is also outside this execution slice. `seq` and
+`repeat` can nest with each other, lowering to at most 64 ordered atomic effects.
+They require the union of all capabilities before the first effect is emitted.
 
 ## HIR And Authorization
 
@@ -1212,20 +1266,30 @@ command semantics or reinterpret presentation operations as commands.
 `CommandPlan` JSON carries its own schema version, round-trips canonically, and
 is rejected before decoding when it exceeds 64 KiB.
 
-The stackless VM advances through six protocol states:
+The stackless VM advances through eight protocol states:
 
 - `Done`: evaluation completed with bounded output
 - `Effect`: the host must execute a typed request and resume the continuation
+- `Effects`: a parallel `all` batch exposes its named requests
+- `Waiting`: a parallel group is awaiting other branch completions
 - `Yield`: cooperative suspension reserved by the protocol
 - `Cancelled`: terminal requested cancellation or trusted deadline expiry
 - `Failed`: terminal classified effect failure or exhausted semantic retries
 - `Fault`: evaluation stopped with a stable VM diagnostic
 
-For the current slice, `start` emits one typed query, command, or presentation
-operation. The operation carries a continuation token and expected revision.
+For an atomic effect or sequential flow, `start` emits one typed query, command,
+or presentation operation. The operation carries a continuation token and expected revision.
+Successful sequential re-entry returns the next `Step::Effect`, or an ordered
+`Value::Structured` at the end. The full bounded graph is persisted atomically;
+later operations cannot be leased or directly resumed ahead of their predecessors.
+Group recovery requires the VM journal, not restoration of one isolated branch image.
 Read-only queries and successfully applied local presentation operations may use
 the direct embedded `resume` path. Mutating commands must be leased and completed
 through `acknowledge_effect`; direct mutation resume fails closed.
+An atomic result-binding program also starts as one `Effect`, but successful
+re-entry evaluates the saved pure body and commits its scalar output or typed
+fault. Its enclosing scalar locals and body use continuation schema 2; legacy
+schema-1 atomic/group images retain their wire form. Journal schema 7 is unchanged.
 
 `Vm::start_timed` accepts scheduler `now_ms` and a bounded timeout, persists the
 resulting absolute deadline, and requires `resume_at`, `claim_effect`, or
@@ -1242,6 +1306,10 @@ the first record, while command reuse or principal-scoped idempotency conflicts
 fail closed. The queryable audit record deliberately excludes the continuation
 token and idempotency key, and is removed when bounded journal retention removes
 the corresponding continuation.
+
+Debugger session revisions advance independently of target-resource revisions.
+Cancellation checks the current session revision and the projected effect identity;
+advancing the GUI debugger never rewrites a command's expected resource revision.
 
 Workers classify execution errors as `Transient` or `Permanent` through
 `Vm::report_effect_error`. Permanent errors immediately become a durable
@@ -1313,6 +1381,11 @@ provides the executable durable graph lifecycle for one-level source `all`,
 including atomic startup, ordered progress, final aggregation, restart recovery,
 and whole-group retention. Nested `all` still fails closed with `LSV1002` before
 sequence allocation.
+Schema 7 adds a checked execution-order column for `seq` and `repeat` graphs.
+Existing schema 1 through 6 graphs migrate as parallel. Recovery rejects an
+order/plan mismatch or a pending sequence with out-of-order completions or
+dispatch history on blocked steps. A sequential failure closes its remaining
+steps and the group in the same transaction.
 The journal
 uses full synchronous commits and a five-second lock
 timeout, rejects symbolic-link final paths, and creates Unix files with `0600`

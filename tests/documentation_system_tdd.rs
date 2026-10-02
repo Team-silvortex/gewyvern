@@ -28,13 +28,23 @@ fn leselang_reference_separates_current_contract_from_roadmap_design() {
         "fn main() = runtime.list(",
         "runtime.read",
         "protocolized GUI and control automation",
-        "not a general-purpose language runtime",
+        "independent embeddable control language",
+        "Leserpent is the first reference host",
+        "Zero product dependencies do not yet mean host-neutral",
         "hostable Rust crate",
         "narrow FFI boundary",
         "no GUI framework is automatically compatible",
         "developer-owned adapter",
         "generated framework binding",
         "UiAdapterManifest",
+        "bind-call",
+        "choose-call",
+        "field-call",
+        "result bindings",
+        "single-suspension limit",
+        "computed groups",
+        "128 UTF-8",
+        "durable local",
         "Effect",
         "64 KiB",
         "durable continuation guarantee",
@@ -52,6 +62,51 @@ fn leselang_reference_separates_current_contract_from_roadmap_design() {
     assert!(reference.contains("do not expose\n`async`/`await`"));
     assert!(module.contains("(../leselang-language.md)"));
     assert!(roadmap.contains("(leselang-language.md)"));
+}
+
+#[test]
+fn leselang_embedding_separates_language_hosts_and_future_shell() {
+    let root = repository_root();
+    let embedding = fs::read_to_string(root.join("docs/leselang-embedding.md"))
+        .expect("Leselang embedding architecture must exist");
+    for invariant in [
+        "fully independent of Gewyvern and Leserpent",
+        "GUI automation is one host profile",
+        "## Agent-First Syntax",
+        "capability references, not syntax or",
+        "generation, validation, composition and recovery",
+        "edited source must not silently reuse an old continuation",
+        "Untrusted GUI text and host results remain data",
+        "this section introduces no new syntax",
+        "shell for nuis OS and sirius kernel",
+        "does not require an OS implementation now",
+        "host/profile -> language contracts and core",
+        "explicit developer-owned adapters or schema-generated bindings",
+        "VM fuel cannot preempt arbitrary",
+        "never host stack frames or native object pointers",
+        "not full semantic independence",
+        "current VM still links SQLite and product types",
+        "Two independent host schemas",
+        "leselang/language-vm/host-neutral-embedding",
+        "OS integration is a deferred direction",
+    ] {
+        assert!(
+            embedding.contains(invariant),
+            "Leselang embedding architecture lacks boundary: {invariant}"
+        );
+    }
+    for path in [
+        "docs/leselang-language.md",
+        "docs/leserpent-2-architecture.md",
+        "docs/architecture-blueprint.md",
+        "docs/architecture-evolution.md",
+    ] {
+        let source = fs::read_to_string(root.join(path)).expect("architecture page must exist");
+        assert!(source.contains("(leselang-embedding.md)"), "{path}");
+        assert!(!source.contains("the \"JavaScript\" of Leserpent automation only"));
+    }
+    let module = fs::read_to_string(root.join("docs/modules/leselang.md")).unwrap();
+    assert!(module.contains("(../leselang-embedding.md)"));
 }
 
 #[test]
@@ -372,8 +427,9 @@ fn leserpent_next_major_has_one_architecture_and_one_delivery_roadmap() {
     for invariant in [
         "Non-Negotiable Invariants",
         "GUI, CLI, and Leselang",
-        "protocolized GUI/control automation runtime",
-        "not a general-purpose VM",
+        "Leserpent is the first reference host of Leselang",
+        "Full VM independence is not yet implemented",
+        "renderer-neutral UI semantics belong to an optional host profile",
         "Rust crate",
         "FFI boundary",
         "No GUI framework becomes compatible automatically",

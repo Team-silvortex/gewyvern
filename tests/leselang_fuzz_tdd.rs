@@ -66,7 +66,7 @@ fn deterministic_utf8_parser_hir_vm_fuzz_shelf() {
         );
         assert!(matches!(
             step,
-            Step::Effect(_) | Step::Effects(_) | Step::Fault(_)
+            Step::Done(_) | Step::Effect(_) | Step::Effects(_) | Step::Fault(_)
         ));
     }
     assert!(lowered >= 5, "valid seed programs did not reach the VM");
@@ -93,11 +93,25 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
         panic!("seed program must yield one effect");
     };
     let seed = encode_continuation(&request.continuation).unwrap();
+    let program = lower(&parse(r#"fn main() = bind(offset: 1, body: bind(r: runtime.list(), body: add(left: field(value: r, name: "revision"), right: offset)))"#)).unwrap();
+    let Step::Effect(request) = Vm::new(100).start(
+        &program,
+        Principal::new("fuzz-operator").unwrap(),
+        CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+        None,
+    ) else {
+        panic!("result-binding seed must suspend");
+    };
+    let binding_seed = encode_continuation(&request.continuation).unwrap();
     let mut random = DeterministicRandom::new(FUZZ_SEED ^ 0x564d);
     let mut accepted = 0usize;
 
-    for _ in 0..CONTINUATION_CASES {
-        let candidate = mutate_bytes(&seed, &mut random);
+    let mut binding_accepted = 0;
+    for index in 0..CONTINUATION_CASES {
+        let candidate = mutate_bytes(
+            if index % 2 == 0 { &seed } else { &binding_seed },
+            &mut random,
+        );
         let first = decode_continuation(&candidate);
         let second = decode_continuation(&candidate);
         assert_eq!(
@@ -107,6 +121,9 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
         );
         if let Ok(image) = first {
             accepted += 1;
+            if image.result_binding.is_some() {
+                binding_accepted += 1;
+            }
             let canonical = encode_continuation(&image).unwrap();
             assert_eq!(decode_continuation(&canonical).unwrap(), image);
         }
@@ -114,6 +131,10 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     assert!(
         accepted > 0,
         "mutation shelf never retained a valid continuation"
+    );
+    assert!(
+        binding_accepted > 0,
+        "mutation shelf lost every result-binding continuation"
     );
     assert!(decode_continuation(&vec![b' '; 64 * 1024 + 1]).is_err());
     println!(
@@ -163,6 +184,27 @@ fn source_corpus(random: &mut DeterministicRandom) -> Vec<String> {
         "fn main() = runtime.refresh(runtime_id: \"runtime-a\")".to_string(),
         "fn main() = debugger.cancel(session_id: \"session-a\")".to_string(),
         "fn main() = all(left: runtime.list(), right: runtime.list(role: \"edge\"))".to_string(),
+        "fn main() = seq(first: runtime.list(), next: runtime.history(runtime_id: \"runtime-a\"))"
+            .to_string(),
+        "fn main() = repeat(times: 3, body: runtime.list())".to_string(),
+        "fn main() = repeat(times: 64, body: repeat(times: 64, body: runtime.list()))".to_string(),
+        "fn main() = repeat(times: 18446744073709551616, body: runtime.list())".to_string(),
+        "fn main() = bind(count: add(left: 2, right: 3), body: choose(when: ge(left: count, right: 5), then: count, otherwise: 0))".to_string(),
+        "fn main() = choose(when: true, then: 1, otherwise: div(left: 1, right: 0))".to_string(),
+        "fn main() = and(left: false, right: eq(left: div(left: 1, right: 0), right: 0))".to_string(),
+        "fn main() = bind(count: runtime.list(), body: count)".to_string(),
+        "fn main() = bind(r: runtime.list(), body: field(value: r, name: \"count\"))".to_string(),
+        "fn main() = bind(r: runtime.list(), body: field(value: r, name: \"__proto__\"))".to_string(),
+        "fn main() = bind(r: runtime.list(), body: add(left: field(value: r, name: \"revision\"), right: 1))".to_string(),
+        "fn main() = bind(role: none, body: runtime.list(role: role))".to_string(),
+        "fn main() = runtime.list(environment: concat(left: \"pro\", right: \"d\"))".to_string(),
+        "fn main() = ui.focus(node_id: concat(left: \"runtime-\", right: \"a\"))".to_string(),
+        "fn main() = bind(node: true, body: ui.focus(node_id: node))".to_string(),
+        "fn main() = bind(role: none, body: seq(a: runtime.list(role: role), b: runtime.list()))".to_string(),
+        "fn main() = repeat(times: 3, body: runtime.list(role: concat(left: \"ed\", right: \"ge\")))".to_string(),
+        "fn main() = all(a: runtime.list(role: concat(left: \"ed\", right: \"ge\")), b: runtime.list())".to_string(),
+        "fn main() = seq(a: runtime.list(), b: runtime.list(role: concat(left: \"bad\", right: \"\\t\")))".to_string(),
+        "fn main() = concat(left: \"界面\", right: \"🙂\")".to_string(),
         String::new(),
         "\0\u{10ffff}🙂//\nfn".to_string(),
         "x".repeat(MAX_SOURCE_BYTES + 1),

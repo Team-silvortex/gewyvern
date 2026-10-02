@@ -4,8 +4,10 @@ This tutorial proves one core Leserpent rule: a native control, a CLI operation,
 and canonical Leselang are views of the same typed intent. It starts with local
 exports that cannot execute or contact a daemon.
 
-Leselang is protocolized GUI and control automation, not a general-purpose
-language and not a second privileged control plane.
+This tutorial covers Leselang's protocolized GUI and control automation host
+profile, not a second privileged control plane. The independent language and
+future non-GUI hosts are described in the
+[embedding architecture](../leselang-embedding.md).
 
 ## What You Will Do
 
@@ -171,6 +173,50 @@ The live loop:
 
 Do not treat `Run live` as an arbitrary source console. It is a bounded
 authority-owned debugger path over the same presentation protocol.
+
+## Step 7: Compose An Ordered Flow
+
+An authority-bound debugger session can now run several presentation operations
+as one synchronous program:
+
+```leselang
+fn main() = seq(
+  reveal: ui.scroll_into_view(node_id: "runtime-runtime-a-refresh"),
+  focus: ui.focus(node_id: "runtime-runtime-a-refresh"),
+  verify: repeat(
+    times: 2,
+    body: ui.assert_focused(node_id: "runtime-runtime-a-refresh"),
+  ),
+)
+```
+
+Use the stable node ID exported from your own window. Each operation waits for
+its matching acknowledgement before the next is exposed. A failure stops the
+rest of the flow. This example does not click the refresh button or mutate the
+runtime. Repetition is not a delay; use a supported `ui.wait_*` effect to wait
+for a predicate. See [control flow](../leselang-control-flow.md) for budgets,
+journal recovery, naming rules, pure `bind`/`choose`, and the single-result
+calculation supported by [result bindings](../leselang-control-flow.md#result-bindings).
+Result-driven subsequent host calls remain unsupported.
+
+You can also compute a target and reuse it throughout a bounded group:
+
+```leselang
+fn main() = bind(
+  node: concat(left: "runtime-runtime-a-", right: "refresh"),
+  body: seq(
+    focus: ui.focus(node_id: node),
+    verify: ui.assert_focused(node_id: node),
+  ),
+)
+```
+
+This focuses the existing exported node; it does not create one or click it.
+The same node validation, capability check and matching GUI acknowledgements
+apply. All parameters are prepared before the first operation, then only the
+resolved requests are persisted. A later parameter error prevents the entire
+group from starting; retries do not recompute its targets. Earlier operation
+results cannot yet become parameters for later steps.
 
 ## Completion Checkpoint
 

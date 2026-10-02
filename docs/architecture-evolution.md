@@ -31,7 +31,10 @@ incident
   -> replay and comparison
 ```
 
-Every improvement should shorten, strengthen, or clarify this loop.
+Improvements to the Gewyvern/Leserpent assembly should shorten, strengthen, or
+clarify this loop. This is not a restriction on independent language consumers:
+Leselang's [embedding architecture](leselang-embedding.md) owns its host-neutral
+direction and future OS shell profile without expanding Leserpent's scope.
 
 ## Evolution Horizons
 
@@ -137,13 +140,16 @@ binary.
 - GewyLang remains a reusable authoring and lowering toolchain.
 - `leserpentd` remains a standalone authority service.
 - Leserpent CLI remains a standalone operator surface.
-- Leselang crates remain hostable by Rust and adaptable through generated
-  protocol or narrow FFI boundaries.
+- Leselang targets a fully independent embeddable control language, with
+  Leserpent as its first reference host rather than a required dependency.
+  Runtime extraction, optional GUI profiles, and a distant nuis OS / sirius
+  kernel shell follow the embedding contract, not the product release gates.
 - Avalonia, mobile, and Web remain replaceable renderers.
 - Etragon remains an optional standalone advisory service.
 
-Independent publication may come later. Architectural independence is enforced
-now through one-way contracts and tests.
+Independent publication may come later. Existing dependency-closure tests
+enforce the extracted language frontends; the Leselang VM, UI, and observe
+crates still need product-type extraction before full independence is proved.
 
 ## Monolith Reduction
 

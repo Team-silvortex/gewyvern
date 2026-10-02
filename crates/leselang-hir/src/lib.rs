@@ -1,11 +1,19 @@
 #![forbid(unsafe_code)]
 
+pub mod computation;
+mod computed_group;
+mod control_flow;
+pub mod host_call;
+pub mod result_field;
+
+use control_flow::{lower_repeat, lower_sequence};
+
 use std::collections::{BTreeSet, HashSet};
 
 use leselang_host_contract::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
     CAPABILITY_RUNTIME_REFRESH, HostContractError, validate_debugger_session_id,
-    validate_deployment_intent,
+    validate_deployment_intent, validate_runtime_filter_value,
 };
 pub use leselang_host_contract::{
     CAPABILITY_UI_PRESENTATION, CapabilitySet, RuntimeId, RuntimeListFilter,
@@ -14,6 +22,7 @@ use leselang_syntax::{Expression, Span, SyntaxTree, format as format_syntax, par
 use serde::{Deserialize, Serialize};
 
 pub const MAX_ALL_BRANCHES: usize = 64;
+pub const MAX_SEQUENCE_STEPS: usize = 64;
 pub const MAX_BRANCH_NAME_BYTES: usize = 64;
 pub const MAX_CANONICAL_EFFECT_NODES: usize = 16 * 1024;
 pub const MAX_EFFECT_NESTING_DEPTH: usize = leselang_syntax::MAX_CALL_DEPTH;
@@ -126,6 +135,9 @@ pub struct HirBranch {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Effect {
+    Compute {
+        expression: Box<computation::Computation>,
+    },
     RuntimeList {
         filter: RuntimeListFilter,
     },
@@ -389,11 +401,15 @@ pub enum Effect {
     All {
         branches: Vec<HirBranch>,
     },
+    Sequence {
+        steps: Vec<HirBranch>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Type {
+    Scalar(computation::ScalarType),
     RuntimeList,
     RuntimeInspect,
     RuntimeHistory,
@@ -518,6 +534,9 @@ struct LoweredEffect {
 }
 
 fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic>> {
+    if computation::is_computation(expression) {
+        return computation::lower_computation(expression);
+    }
     let Expression::Call {
         callee,
         arguments,
@@ -602,6 +621,8 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.assert_accessible_description"
         | "ui.wait_accessible_description" => lower_atomic_effect(callee, arguments, *span),
         "all" => lower_all(arguments, *span),
+        "seq" => lower_sequence(arguments, *span),
+        "repeat" => lower_repeat(arguments, *span),
         _ => Err(vec![Diagnostic {
             code: "LSH1003".to_string(),
             message: format!("unknown effect or structured form '{callee}'"),
@@ -658,7 +679,10 @@ fn lower_atomic_effect(
         let value = match &argument.value {
             Expression::String { value, .. } => Some(value.clone()),
             Expression::None { .. } => None,
-            Expression::Call { .. } => {
+            Expression::Call { .. }
+            | Expression::Integer { .. }
+            | Expression::Boolean { .. }
+            | Expression::Reference { .. } => {
                 diagnostics.push(Diagnostic {
                     code: "LSH1102".to_string(),
                     message: "filter arguments require a string or 'none'".to_string(),
@@ -667,6 +691,21 @@ fn lower_atomic_effect(
                 continue;
             }
         };
+        if callee == "runtime.list"
+            && matches!(argument.name.as_str(), "environment" | "cluster" | "role")
+            && value
+                .as_deref()
+                .is_some_and(|value| !validate_runtime_filter_value(value))
+        {
+            diagnostics.push(Diagnostic {
+                code: "LSH1109".to_string(),
+                message:
+                    "runtime.list filters must be control-free strings of at most 128 bytes or none"
+                        .to_string(),
+                span: Some(argument.span),
+            });
+            continue;
+        }
         match (callee, argument.name.as_str()) {
             ("runtime.list", "environment") => filter.environment = value,
             ("runtime.list", "cluster") => filter.cluster = value,
@@ -3320,6 +3359,10 @@ fn lower_atomic_effect(
 }
 
 pub fn canonical_source(effect: &Effect) -> Result<String, CanonicalSourceError> {
+    canonical_program(effect).map(|(source, _)| source)
+}
+
+fn canonical_program(effect: &Effect) -> Result<(String, HirProgram), CanonicalSourceError> {
     validate_canonical_effect_shape(effect)?;
     let source = format!("fn main() = {}", canonical_effect_source(effect, 0));
     let formatted = format_syntax(&parse(&source)).map_err(CanonicalSourceError::Syntax)?;
@@ -3327,7 +3370,7 @@ pub fn canonical_source(effect: &Effect) -> Result<String, CanonicalSourceError>
     if round_trip.function.effect != *effect {
         return Err(CanonicalSourceError::RoundTripMismatch);
     }
-    Ok(formatted)
+    Ok((formatted, round_trip))
 }
 
 fn validate_canonical_effect_shape(effect: &Effect) -> Result<(), CanonicalSourceError> {
@@ -3353,11 +3396,19 @@ fn validate_canonical_effect_shape(effect: &Effect) -> Result<(), CanonicalSourc
                 span: None,
             }]));
         }
-        if let Effect::All { branches } = effect {
-            if !(2..=MAX_ALL_BRANCHES).contains(&branches.len()) {
+        if let Effect::Compute { expression } = effect {
+            computation::validate_shape(expression)?;
+        }
+        if let Effect::All { branches } | Effect::Sequence { steps: branches } = effect {
+            let minimum = if matches!(effect, Effect::Sequence { .. }) {
+                1
+            } else {
+                2
+            };
+            if !(minimum..=MAX_ALL_BRANCHES).contains(&branches.len()) {
                 return Err(CanonicalSourceError::InvalidEffect(vec![Diagnostic {
                     code: "LSH1201".to_string(),
-                    message: "all requires between 2 and 64 named branches".to_string(),
+                    message: "structured form has an invalid number of steps".to_string(),
                     span: None,
                 }]));
             }
@@ -3374,6 +3425,7 @@ fn validate_canonical_effect_shape(effect: &Effect) -> Result<(), CanonicalSourc
 
 fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
     match effect {
+        Effect::Compute { expression } => computation::source(expression),
         Effect::RuntimeList { filter } => format!(
             "runtime.list(\n{}environment: {},\n{}cluster: {},\n{}role: {},\n{})",
             indent(depth + 1),
@@ -3875,8 +3927,12 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             quote(expected),
             indent(depth),
         ),
-        Effect::All { branches } => {
-            let mut source = String::from("all(\n");
+        Effect::All { branches } | Effect::Sequence { steps: branches } => {
+            let mut source = String::from(if matches!(effect, Effect::Sequence { .. }) {
+                "seq(\n"
+            } else {
+                "all(\n"
+            });
             for branch in branches {
                 source.push_str(&indent(depth + 1));
                 source.push_str(&branch.name);
@@ -4070,6 +4126,14 @@ fn lower_all(
     arguments: &[leselang_syntax::NamedArgument],
     span: Span,
 ) -> Result<LoweredEffect, Vec<Diagnostic>> {
+    lower_all_with(arguments, span, &mut lower_effect)
+}
+
+fn lower_all_with(
+    arguments: &[leselang_syntax::NamedArgument],
+    span: Span,
+    lower: &mut impl FnMut(&Expression) -> Result<LoweredEffect, Vec<Diagnostic>>,
+) -> Result<LoweredEffect, Vec<Diagnostic>> {
     if !(2..=MAX_ALL_BRANCHES).contains(&arguments.len()) {
         return Err(vec![Diagnostic {
             code: "LSH1201".to_string(),
@@ -4098,7 +4162,15 @@ fn lower_all(
             });
             continue;
         }
-        match lower_effect(&argument.value) {
+        match lower(&argument.value) {
+            Ok(lowered) if matches!(&lowered.effect, Effect::Compute { expression } if !matches!(expression.as_ref(), computation::Computation::Call { .. })) =>
+            {
+                diagnostics.push(Diagnostic {
+                    code: "LSH1406".to_string(),
+                    message: "all branches require host calls, not general computation".to_string(),
+                    span: Some(argument.span),
+                });
+            }
             Ok(lowered) => {
                 for capability in lowered.required_capabilities {
                     if !capabilities.contains(&capability) {
@@ -4128,11 +4200,25 @@ fn expression_span(expression: &Expression) -> Span {
     match expression {
         Expression::Call { span, .. }
         | Expression::String { span, .. }
+        | Expression::Integer { span, .. }
+        | Expression::Boolean { span, .. }
+        | Expression::Reference { span, .. }
         | Expression::None { span } => *span,
     }
 }
 
 pub fn authorize(program: &HirProgram, capabilities: &CapabilitySet) -> Result<(), Diagnostic> {
+    if computation::contains_computation(&program.function.effect)
+        && canonical_program(&program.function.effect).map_or(true, |(_, checked)| {
+            checked.function.result_type != program.function.result_type
+        })
+    {
+        return Err(Diagnostic {
+            code: "LSH1405".to_string(),
+            message: "invalid computation HIR".to_string(),
+            span: None,
+        });
+    }
     let required = required_capabilities_for_effect(&program.function.effect);
     let declared = program
         .function
@@ -4163,84 +4249,19 @@ fn required_capabilities_for_effect(effect: &Effect) -> BTreeSet<&'static str> {
     let mut required = BTreeSet::new();
     let mut pending = vec![effect];
     while let Some(effect) = pending.pop() {
-        let capability = match effect {
-            Effect::RuntimeList { .. }
-            | Effect::RuntimeInspect { .. }
-            | Effect::RuntimeHistory { .. }
-            | Effect::RuntimeLogs { .. } => CAPABILITY_RUNTIME_READ,
-            Effect::RuntimeRefresh { .. } | Effect::RuntimeCapabilitiesRefresh { .. } => {
-                CAPABILITY_RUNTIME_REFRESH
+        if let Some(operation) = host_call::HostOperation::for_effect(effect) {
+            required.insert(operation.required_capability());
+        } else {
+            match effect {
+                Effect::Compute { expression } => {
+                    required.extend(expression.required_capabilities())
+                }
+                Effect::All { branches } | Effect::Sequence { steps: branches } => {
+                    pending.extend(branches.iter().map(|branch| &branch.effect));
+                }
+                _ => {}
             }
-            Effect::RuntimeDeploy { .. } => CAPABILITY_RUNTIME_DEPLOY,
-            Effect::DebuggerCancel { .. } => CAPABILITY_DEBUGGER_CONTROL,
-            Effect::UiActivate { .. }
-            | Effect::UiFocus { .. }
-            | Effect::UiNavigateFocus { .. }
-            | Effect::UiScrollIntoView { .. }
-            | Effect::UiAssertVisible { .. }
-            | Effect::UiAssertHidden { .. }
-            | Effect::UiWaitHidden { .. }
-            | Effect::UiAssertRealized { .. }
-            | Effect::UiWaitRealized { .. }
-            | Effect::UiWaitVisible { .. }
-            | Effect::UiWaitEnabled { .. }
-            | Effect::UiWaitDisabled { .. }
-            | Effect::UiOpenWindow { .. }
-            | Effect::UiCloseWindow { .. }
-            | Effect::UiAssertWindowOpen { .. }
-            | Effect::UiWaitWindowOpen { .. }
-            | Effect::UiAssertWindowClosed { .. }
-            | Effect::UiWaitWindowClosed { .. }
-            | Effect::UiWaitFocused { .. }
-            | Effect::UiAssertFocused { .. }
-            | Effect::UiWaitUnfocused { .. }
-            | Effect::UiAssertUnfocused { .. }
-            | Effect::UiAssertEnabled { .. }
-            | Effect::UiAssertDisabled { .. }
-            | Effect::UiAssertChildCount { .. }
-            | Effect::UiWaitChildCount { .. }
-            | Effect::UiSetSelection { .. }
-            | Effect::UiAssertSelection { .. }
-            | Effect::UiWaitSelection { .. }
-            | Effect::UiAssertText { .. }
-            | Effect::UiWaitText { .. }
-            | Effect::UiAssertAutomationId { .. }
-            | Effect::UiWaitAutomationId { .. }
-            | Effect::UiAssertNodeKind { .. }
-            | Effect::UiWaitNodeKind { .. }
-            | Effect::UiAssertActionKind { .. }
-            | Effect::UiWaitActionKind { .. }
-            | Effect::UiAssertActionLabel { .. }
-            | Effect::UiWaitActionLabel { .. }
-            | Effect::UiAssertActionAvailable { .. }
-            | Effect::UiWaitActionAvailable { .. }
-            | Effect::UiAssertActionUnavailableReason { .. }
-            | Effect::UiWaitActionUnavailableReason { .. }
-            | Effect::UiSubmitForm { .. }
-            | Effect::UiCancelForm { .. }
-            | Effect::UiSetFormValue { .. }
-            | Effect::UiAssertFormValue { .. }
-            | Effect::UiWaitFormValue { .. }
-            | Effect::UiAssertFormField { .. }
-            | Effect::UiWaitFormField { .. }
-            | Effect::UiAssertFormFieldInputKind { .. }
-            | Effect::UiWaitFormFieldInputKind { .. }
-            | Effect::UiAssertFormFieldRequired { .. }
-            | Effect::UiWaitFormFieldRequired { .. }
-            | Effect::UiAssertFormFieldMaxLength { .. }
-            | Effect::UiWaitFormFieldMaxLength { .. }
-            | Effect::UiAssertFormFieldPlaceholder { .. }
-            | Effect::UiWaitFormFieldPlaceholder { .. }
-            | Effect::UiAssertAccessibleName { .. }
-            | Effect::UiWaitAccessibleName { .. }
-            | Effect::UiAssertAccessibleDescription { .. }
-            | Effect::UiWaitAccessibleDescription { .. } => CAPABILITY_UI_PRESENTATION,
-            Effect::All { branches } => {
-                pending.extend(branches.iter().map(|branch| &branch.effect));
-                continue;
-            }
-        };
-        required.insert(capability);
+        }
     }
     required
 }

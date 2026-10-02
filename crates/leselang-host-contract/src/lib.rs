@@ -174,7 +174,7 @@ impl<'de> Deserialize<'de> for RuntimeListFilter {
         ]
         .into_iter()
         .flatten()
-        .any(|value| value.len() > MAX_RUNTIME_FILTER_BYTES || value.chars().any(char::is_control))
+        .any(|value| !validate_runtime_filter_value(value))
         {
             return Err(de::Error::custom("invalid runtime list filter"));
         }
@@ -194,6 +194,10 @@ impl RuntimeListFilter {
             role: normalize_filter_value(self.role),
         }
     }
+}
+
+pub fn validate_runtime_filter_value(value: &str) -> bool {
+    value.len() <= MAX_RUNTIME_FILTER_BYTES && !value.chars().any(char::is_control)
 }
 
 /// Validates the debugger session identity used across language-host boundaries.
@@ -318,6 +322,31 @@ mod tests {
             "role": null,
         });
         assert!(serde_json::from_value::<RuntimeListFilter>(oversized_filter).is_err());
+    }
+
+    #[test]
+    fn filter_source_validation_matches_wire_byte_and_control_character_limits() {
+        for (value, valid) in [
+            (String::new(), true),
+            (" production ".into(), true),
+            ("x".repeat(MAX_RUNTIME_FILTER_BYTES), true),
+            ("x".repeat(MAX_RUNTIME_FILTER_BYTES + 1), false),
+            ("bad\0value".into(), false),
+            ("bad\tvalue".into(), false),
+            ("\u{754c}".repeat(42), true),
+            ("\u{754c}".repeat(43), false),
+        ] {
+            assert_eq!(validate_runtime_filter_value(&value), valid);
+            for field in ["environment", "cluster", "role"] {
+                let mut wire =
+                    serde_json::json!({ "environment": null, "cluster": null, "role": null });
+                wire[field] = serde_json::json!(value);
+                assert_eq!(
+                    serde_json::from_value::<RuntimeListFilter>(wire).is_ok(),
+                    valid
+                );
+            }
+        }
     }
 
     #[test]

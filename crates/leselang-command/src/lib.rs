@@ -259,7 +259,9 @@ pub fn lower_effect(
         | Effect::UiWaitAccessibleDescription { .. } => {
             return Err(LoweringError::FrontendLocalEffect);
         }
-        Effect::All { .. } => return Err(LoweringError::StructuredEffectRequiresExpansion),
+        Effect::All { .. } | Effect::Sequence { .. } | Effect::Compute { .. } => {
+            return Err(LoweringError::StructuredEffectRequiresExpansion);
+        }
     };
     if !context.capabilities.contains(required_capability) {
         return Err(LoweringError::MissingCapability {
@@ -345,7 +347,9 @@ pub fn lower_effect(
         | Effect::UiWaitAccessibleDescription { .. } => {
             return Err(LoweringError::FrontendLocalEffect);
         }
-        Effect::All { .. } => return Err(LoweringError::StructuredEffectRequiresExpansion),
+        Effect::All { .. } | Effect::Sequence { .. } | Effect::Compute { .. } => {
+            return Err(LoweringError::StructuredEffectRequiresExpansion);
+        }
     };
     Ok(plan)
 }

@@ -1101,6 +1101,345 @@ mod tests {
     }
 
     #[test]
+    fn sequential_gui_program_reenters_one_native_operation_at_a_time() {
+        let root = TempRoot::new("sequential-presentation");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-sequence");
+        request.source = r#"fn main() = seq(
+            focus: ui.focus(node_id: "runtime-a"),
+            verify: repeat(times: 2, body: ui.assert_visible(node_id: "runtime-a"))
+        )"#
+        .into();
+        let mut view = authority.start_session(request).unwrap().session;
+        assert!(matches!(
+            view.pending_presentation,
+            Some(PresentationOperation::Focus { .. })
+        ));
+        for index in 0..3 {
+            assert_eq!(view.projection.state, DebuggerState::WaitingEffect);
+            let mut acknowledgement = presentation_acknowledgement(
+                "session-sequence",
+                DebuggerPresentationOutcome::Applied {
+                    node_id: "runtime-a".into(),
+                    focused_node_id: None,
+                },
+            );
+            acknowledgement.effect_id = authority.sessions["session-sequence"]
+                .request
+                .effect_id
+                .clone();
+            acknowledgement.expected_revision = view.projection.revision;
+            let response = authority
+                .acknowledge_presentation(acknowledgement.clone())
+                .unwrap();
+            assert_eq!(
+                authority.acknowledge_presentation(acknowledgement).unwrap(),
+                response
+            );
+            view = response.session;
+            assert_eq!(view.projection.revision, Revision(8 + index));
+            if index < 2 {
+                assert!(matches!(
+                    view.pending_presentation,
+                    Some(PresentationOperation::AssertVisible { .. })
+                ));
+            }
+        }
+        assert_eq!(view.projection.state, DebuggerState::Completed);
+        assert!(view.pending_presentation.is_none());
+        assert_eq!(authority.sessions["session-sequence"].vm.pending_count(), 0);
+    }
+
+    #[test]
+    fn computed_condition_selects_one_gui_flow_through_native_acknowledgements() {
+        let root = TempRoot::new("computed-presentation");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-computed");
+        request.source = r#"fn main() = bind(count: add(left: 2, right: 3), body:
+            choose(when: eq(left: count, right: 5),
+                then: seq(focus: ui.focus(node_id: "runtime-a"), verify: ui.assert_visible(node_id: "runtime-a")),
+                otherwise: seq(unselected: ui.focus(node_id: "never"))))"#.into();
+        let mut view = authority.start_session(request).unwrap().session;
+        assert!(
+            matches!(view.pending_presentation, Some(PresentationOperation::Focus { ref node_id }) if node_id == "runtime-a")
+        );
+        for _ in 0..2 {
+            let mut acknowledgement = presentation_acknowledgement(
+                "session-computed",
+                DebuggerPresentationOutcome::Applied {
+                    node_id: "runtime-a".into(),
+                    focused_node_id: None,
+                },
+            );
+            acknowledgement.effect_id = authority.sessions["session-computed"]
+                .request
+                .effect_id
+                .clone();
+            acknowledgement.expected_revision = view.projection.revision;
+            view = authority
+                .acknowledge_presentation(acknowledgement)
+                .unwrap()
+                .session;
+        }
+        assert_eq!(view.projection.state, DebuggerState::Completed);
+        assert_eq!(authority.sessions["session-computed"].vm.pending_count(), 0);
+        let mut pure = start_request("session-pure");
+        pure.source = "fn main() = add(left: 2, right: 3)".into();
+        assert_eq!(
+            authority.start_session(pure).unwrap_err().code(),
+            "debugger_session_not_suspended"
+        );
+    }
+
+    #[test]
+    fn computed_node_arguments_use_the_existing_native_acknowledgement_fence() {
+        let root = TempRoot::new("computed-arguments");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-arguments");
+        request.source = r#"fn main() = bind(node: concat(left: "runtime-", right: "a"), body: ui.focus(node_id: node))"#.into();
+        let started = authority.start_session(request.clone()).unwrap();
+        assert_eq!(authority.start_session(request).unwrap(), started);
+        assert!(
+            matches!(&started.session.pending_presentation, Some(PresentationOperation::Focus { node_id }) if node_id == "runtime-a")
+        );
+        let mut acknowledgement = presentation_acknowledgement(
+            "session-arguments",
+            DebuggerPresentationOutcome::Applied {
+                node_id: "wrong-node".into(),
+                focused_node_id: None,
+            },
+        );
+        assert_eq!(
+            authority
+                .acknowledge_presentation(acknowledgement.clone())
+                .unwrap_err()
+                .code(),
+            "debugger_presentation_conflict"
+        );
+        acknowledgement.outcome = DebuggerPresentationOutcome::Applied {
+            node_id: "runtime-a".into(),
+            focused_node_id: None,
+        };
+        let completed = authority
+            .acknowledge_presentation(acknowledgement.clone())
+            .unwrap();
+        assert_eq!(
+            authority.acknowledge_presentation(acknowledgement).unwrap(),
+            completed
+        );
+        assert_eq!(completed.session.projection.state, DebuggerState::Completed);
+        assert_eq!(
+            authority.sessions["session-arguments"].vm.pending_count(),
+            0
+        );
+
+        let mut invalid = start_request("session-invalid-arguments");
+        invalid.source =
+            r#"fn main() = ui.focus(node_id: concat(left: "bad", right: " node"))"#.into();
+        assert!(authority.start_session(invalid).is_err());
+        assert!(!authority.sessions.contains_key("session-invalid-arguments"));
+        assert!(
+            !journal_artifacts_exist(
+                &authority
+                    .journal_root
+                    .join("session-invalid-arguments.sqlite")
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn native_navigation_result_reenters_typed_computation_without_exposing_locals() {
+        let root = TempRoot::new("result-binding");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-result-binding");
+        request.source = r#"fn main() = bind(expected: "runtime-b", body:
+            bind(moved: ui.navigate_focus(node_id: "runtime-a", direction: "next"), body:
+                eq(left: field(value: moved, name: "focused_node_id"), right: expected)))"#
+            .into();
+        let started = authority.start_session(request).unwrap();
+        assert!(matches!(
+            started.session.pending_presentation,
+            Some(PresentationOperation::NavigateFocus { .. })
+        ));
+        let image = authority.sessions["session-result-binding"]
+            .request
+            .continuation
+            .clone();
+        assert!(image.result_binding.is_some());
+        let mut acknowledgement = presentation_acknowledgement(
+            "session-result-binding",
+            DebuggerPresentationOutcome::Applied {
+                node_id: "wrong-origin".into(),
+                focused_node_id: Some("runtime-b".into()),
+            },
+        );
+        assert_eq!(
+            authority
+                .acknowledge_presentation(acknowledgement.clone())
+                .unwrap_err()
+                .code(),
+            "debugger_presentation_conflict"
+        );
+        assert_eq!(
+            authority.sessions["session-result-binding"]
+                .vm
+                .pending_count(),
+            1
+        );
+        acknowledgement.outcome = DebuggerPresentationOutcome::Applied {
+            node_id: "runtime-a".into(),
+            focused_node_id: Some("runtime-b".into()),
+        };
+        let completed = authority
+            .acknowledge_presentation(acknowledgement.clone())
+            .unwrap();
+        assert_eq!(
+            authority.acknowledge_presentation(acknowledgement).unwrap(),
+            completed
+        );
+        assert_eq!(completed.session.projection.state, DebuggerState::Completed);
+        let encoded = serde_json::to_string(&completed).unwrap();
+        assert!(!encoded.contains("result_binding"));
+        assert!(!encoded.contains("focused_node_id"));
+        let session = authority
+            .sessions
+            .get_mut("session-result-binding")
+            .unwrap();
+        assert_eq!(session.vm.pending_count(), 0);
+        assert_eq!(
+            session.vm.resume_at(
+                &image,
+                image.deadline_at_ms.unwrap() - 1,
+                EffectResult::Presentation(PresentationResult::Focus {
+                    node_id: "ignored-replay".into()
+                })
+            ),
+            Step::Done(leselang_vm::Value::Scalar {
+                value: leselang_vm::ScalarValue::Boolean(true)
+            })
+        );
+    }
+
+    #[test]
+    fn computed_group_arguments_advance_native_steps_without_rebinding_targets() {
+        let root = TempRoot::new("computed-group-arguments");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-group-arguments");
+        request.source = r#"fn main() = bind(node: concat(left: "runtime-", right: "a"), body: seq(
+            focus: ui.focus(node_id: node),
+            verify: repeat(times: 2, body: ui.assert_visible(node_id: node))))"#
+            .into();
+        let mut view = authority.start_session(request).unwrap().session;
+        let mut previous_acknowledgement: Option<DebuggerPresentationAcknowledgeRequest> = None;
+        for index in 0..3 {
+            if let Some(mut stale) = previous_acknowledgement.take() {
+                // A stale coordinate with a changed payload is not an idempotent replay.
+                stale.outcome = DebuggerPresentationOutcome::Applied {
+                    node_id: "wrong-target".into(),
+                    focused_node_id: None,
+                };
+                assert_eq!(
+                    authority
+                        .acknowledge_presentation(stale)
+                        .unwrap_err()
+                        .code(),
+                    "debugger_presentation_conflict"
+                );
+            }
+            assert!(matches!(&view.pending_presentation,
+                Some(PresentationOperation::Focus { node_id } | PresentationOperation::AssertVisible { node_id }) if node_id == "runtime-a"));
+            let mut acknowledgement = presentation_acknowledgement(
+                "session-group-arguments",
+                DebuggerPresentationOutcome::Applied {
+                    node_id: "runtime-a".into(),
+                    focused_node_id: None,
+                },
+            );
+            acknowledgement.effect_id = authority.sessions["session-group-arguments"]
+                .request
+                .effect_id
+                .clone();
+            acknowledgement.expected_revision = view.projection.revision;
+            let response = authority
+                .acknowledge_presentation(acknowledgement.clone())
+                .unwrap();
+            assert_eq!(
+                authority
+                    .acknowledge_presentation(acknowledgement.clone())
+                    .unwrap(),
+                response
+            );
+            previous_acknowledgement = Some(acknowledgement);
+            view = response.session;
+            assert_eq!(view.projection.revision, Revision(8 + index));
+        }
+        assert_eq!(view.projection.state, DebuggerState::Completed);
+        assert_eq!(
+            authority.sessions["session-group-arguments"]
+                .vm
+                .pending_count(),
+            0
+        );
+
+        let mut invalid = start_request("session-invalid-group");
+        invalid.source = r#"fn main() = seq(first: ui.focus(node_id: "runtime-a"), later: ui.focus(node_id: concat(left: "bad", right: " node")))"#.into();
+        assert!(authority.start_session(invalid).is_err());
+        assert!(!authority.sessions.contains_key("session-invalid-group"));
+        assert!(
+            !journal_artifacts_exist(&authority.journal_root.join("session-invalid-group.sqlite"))
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn sequential_gui_cancellation_uses_current_session_revision_and_fences_remaining_steps() {
+        let root = TempRoot::new("sequential-cancel");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-sequence-cancel");
+        request.source =
+            r#"fn main() = repeat(times: 3, body: ui.focus(node_id: "runtime-a"))"#.into();
+        authority.start_session(request).unwrap();
+        let mut ack = presentation_acknowledgement(
+            "session-sequence-cancel",
+            DebuggerPresentationOutcome::Applied {
+                node_id: "runtime-a".into(),
+                focused_node_id: None,
+            },
+        );
+        ack.effect_id = authority.sessions["session-sequence-cancel"]
+            .request
+            .effect_id
+            .clone();
+        let view = authority.acknowledge_presentation(ack).unwrap().session;
+        assert_eq!(view.projection.revision, Revision(8));
+        let mut command = cancel_command("session-sequence-cancel", false);
+        assert!(authority.cancel(command.clone()).is_err());
+        command.expected_revision = Some(view.projection.revision);
+        let cancelled = authority.cancel(command.clone()).unwrap();
+        assert_eq!(cancelled.session.projection.state, DebuggerState::Cancelled);
+        assert_eq!(authority.cancel(command).unwrap(), cancelled);
+        assert_eq!(
+            authority.sessions["session-sequence-cancel"]
+                .vm
+                .pending_count(),
+            0
+        );
+        let path = authority.sessions["session-sequence-cancel"]
+            .journal_path
+            .clone();
+        drop(authority);
+        let mut recovered = Vm::open_journal(path, DEFAULT_FUEL).unwrap();
+        assert_eq!(recovered.pending_count(), 0);
+        assert!(
+            recovered
+                .claim_effect(now_ms().unwrap(), 100)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
     fn focus_navigation_requires_and_reenters_with_the_adapter_destination() {
         let root = TempRoot::new("focus-navigation");
         let mut authority = DebuggerAuthority::open(&root.0).unwrap();
@@ -1198,7 +1537,7 @@ mod tests {
         completed.source = "fn main() = true".into();
         assert_eq!(
             authority.start_session(completed).unwrap_err().code(),
-            "debugger_source_invalid"
+            "debugger_session_not_suspended"
         );
         assert!(!root.0.join("session-complete.sqlite").exists());
 
@@ -1242,7 +1581,7 @@ mod tests {
 
         let retired_journal = authority.sessions["session-00"].journal_path.clone();
         let mut invalid = start_request("session-invalid");
-        invalid.source = "fn main() = true".into();
+        invalid.source = "fn main() = add(left: true, right: 1)".into();
         assert_eq!(
             authority.start_session(invalid).unwrap_err().code(),
             "debugger_source_invalid"

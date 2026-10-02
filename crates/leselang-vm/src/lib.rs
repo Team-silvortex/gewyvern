@@ -35,7 +35,12 @@ use leserpent_domain::{
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
+mod computation;
 mod journal;
+mod result_binding;
+
+pub use leselang_hir::computation::ScalarValue;
+pub use result_binding::{ResultBinding, ScalarBinding};
 
 pub use journal::{
     JOURNAL_SCHEMA_VERSION, MAX_JOURNAL_ENTRY_BYTES, MAX_JOURNAL_RECORDS, MAX_JOURNAL_TOTAL_BYTES,
@@ -43,6 +48,7 @@ pub use journal::{
 use journal::{Journal, MergeProgress};
 
 pub const CONTINUATION_SCHEMA_VERSION: u32 = 1;
+pub const RESULT_BINDING_CONTINUATION_SCHEMA_VERSION: u32 = 2;
 pub const MAX_CONTINUATION_BYTES: usize = 64 * 1024;
 pub const DEFAULT_FUEL: u64 = 1_000;
 pub const MAX_EXECUTION_FUEL: u64 = 1_000_000;
@@ -83,6 +89,8 @@ pub struct ContinuationImage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deadline_at_ms: Option<u64>,
     pub max_output_items: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result_binding: Option<Box<ResultBinding>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -823,12 +831,29 @@ pub struct CompactionReport {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct MergePlan {
     pub branches: Vec<String>,
+    #[serde(default, skip_serializing_if = "ExecutionOrder::is_parallel")]
+    pub order: ExecutionOrder,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecutionOrder {
+    #[default]
+    Parallel,
+    Sequential,
+}
+
+impl ExecutionOrder {
+    fn is_parallel(&self) -> bool {
+        *self == Self::Parallel
+    }
 }
 
 impl MergePlan {
     pub fn new(branches: impl IntoIterator<Item = impl Into<String>>) -> Result<Self, Fault> {
         let plan = Self {
             branches: branches.into_iter().map(Into::into).collect(),
+            order: ExecutionOrder::Parallel,
         };
         validate_merge_plan(&plan)?;
         Ok(plan)
@@ -878,6 +903,9 @@ pub struct MergeWait {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Value {
+    Scalar {
+        value: ScalarValue,
+    },
     RuntimeList {
         revision: Revision,
         runtimes: Vec<RuntimeProjection>,
@@ -1294,14 +1322,61 @@ impl Vm {
         if let Err(error) = authorize(program, &capabilities) {
             return fault(&error.code, error.message);
         }
-        if let Effect::All { branches } = &program.function.effect {
-            return self.start_all(
+        let mut fuel_remaining = self.fuel_limit;
+        let (effect, result_binding) = if let Effect::Compute { expression } =
+            &program.function.effect
+        {
+            if !principal.is_valid() {
+                return fault("LSV1402", "invalid computation principal");
+            }
+            match computation::evaluate(expression, &mut fuel_remaining) {
+                Ok(computation::Outcome::Scalar(value)) => {
+                    return Step::Done(Value::Scalar { value });
+                }
+                Ok(computation::Outcome::Host(effect)) => (effect, None),
+                Ok(computation::Outcome::BoundHost { effect, binding }) => (effect, Some(binding)),
+                Ok(computation::Outcome::Result(_)) => {
+                    return fault("LSV1402", "unexpected unprojected result");
+                }
+                Err(error) => return Step::Fault(error),
+            }
+        } else {
+            (std::borrow::Cow::Borrowed(&program.function.effect), None)
+        };
+        let effect = effect.as_ref();
+        let effect_result_type = if let Some(binding) = &result_binding {
+            if let Err(error) = binding.validate(effect) {
+                return Step::Fault(error);
+            }
+            let Some(operation) = leselang_hir::host_call::HostOperation::for_effect(effect) else {
+                return Step::Fault(result_binding::invalid());
+            };
+            operation.result_type()
+        } else {
+            program.function.result_type
+        };
+        if fuel_remaining == 0 {
+            return fault("LSV1001", "execution fuel exhausted before host operation");
+        }
+        if let Effect::Sequence { .. } = effect
+            && canonical_source(effect).is_err()
+        {
+            return fault("LSV1002", "invalid sequential control flow");
+        }
+        if let Effect::All { branches } | Effect::Sequence { steps: branches } = effect {
+            return self.start_group(
                 branches,
+                if matches!(effect, Effect::Sequence { .. }) {
+                    ExecutionOrder::Sequential
+                } else {
+                    ExecutionOrder::Parallel
+                },
                 principal,
                 capabilities,
                 expected_revision,
                 deadline_ms,
                 deadline_at_ms,
+                fuel_remaining,
             );
         }
 
@@ -1309,19 +1384,27 @@ impl Vm {
             Ok(sequence) => sequence,
             Err(error) => return Step::Fault(error),
         };
-        let request = match self.build_effect_request(
-            &program.function.effect,
-            program.function.result_type,
+        let mut request = match self.build_effect_request(
+            effect,
+            effect_result_type,
             sequence,
             principal,
             capabilities,
             expected_revision,
             deadline_ms,
             deadline_at_ms,
+            fuel_remaining,
         ) {
             Ok(request) => request,
             Err(error) => return Step::Fault(error),
         };
+        if let Some(binding) = result_binding {
+            request.continuation.schema_version = RESULT_BINDING_CONTINUATION_SCHEMA_VERSION;
+            request.continuation.result_binding = Some(binding);
+            if let Err(error) = validate_effect_request(&request) {
+                return Step::Fault(error);
+            }
+        }
         if let Err(error) = self
             .journal
             .record_pending(&request.continuation, Some(&request))
@@ -1335,37 +1418,51 @@ impl Vm {
         Step::Effect(Box::new(request))
     }
 
-    fn start_all(
+    #[allow(clippy::too_many_arguments)]
+    fn start_group(
         &mut self,
         branches: &[leselang_hir::HirBranch],
+        order: ExecutionOrder,
         principal: Principal,
         capabilities: CapabilitySet,
         expected_revision: Option<Revision>,
         deadline_ms: u64,
         deadline_at_ms: Option<u64>,
+        fuel_remaining: u64,
     ) -> Step {
-        if branches
-            .iter()
-            .any(|branch| matches!(branch.effect, Effect::All { .. }))
-        {
-            return fault("LSV1002", "nested structured all is not yet supported");
+        if branches.iter().any(|branch| {
+            matches!(
+                branch.effect,
+                Effect::All { .. } | Effect::Sequence { .. } | Effect::Compute { .. }
+            )
+        }) {
+            return fault(
+                "LSV1002",
+                "nested structured execution is not yet supported",
+            );
         }
-        let plan = match MergePlan::new(branches.iter().map(|branch| branch.name.clone())) {
-            Ok(plan) => plan,
-            Err(error) => return Step::Fault(error),
+        let plan = MergePlan {
+            branches: branches.iter().map(|branch| branch.name.clone()).collect(),
+            order,
         };
+        if let Err(error) = validate_merge_plan(&plan) {
+            return Step::Fault(error);
+        }
+        if order == ExecutionOrder::Sequential && branches.len() as u64 > fuel_remaining {
+            return fault("LSV1001", "sequential control flow exceeds execution fuel");
+        }
         let group_sequence = match self.allocate_sequence() {
             Ok(sequence) => sequence,
             Err(error) => return Step::Fault(error),
         };
         let merge_token = ContinuationToken(format!("merge-{group_sequence}"));
         let mut named = Vec::with_capacity(branches.len());
-        for branch in branches {
+        for (index, branch) in branches.iter().enumerate() {
             let sequence = match self.allocate_sequence() {
                 Ok(sequence) => sequence,
                 Err(error) => return Step::Fault(error),
             };
-            let request = match self.build_effect_request(
+            let mut request = match self.build_effect_request(
                 &branch.effect,
                 branch.result_type,
                 sequence,
@@ -1374,10 +1471,15 @@ impl Vm {
                 expected_revision,
                 deadline_ms,
                 deadline_at_ms,
+                fuel_remaining,
             ) {
                 Ok(request) => request,
                 Err(error) => return Step::Fault(error),
             };
+            if order == ExecutionOrder::Sequential {
+                request.continuation.fuel_remaining -= index as u64;
+                request.budget.fuel_remaining = request.continuation.fuel_remaining;
+            }
             named.push(NamedEffectRequest {
                 branch: branch.name.clone(),
                 request,
@@ -1396,6 +1498,9 @@ impl Vm {
                 branch.request.continuation.clone(),
             );
         }
+        if order == ExecutionOrder::Sequential {
+            return Step::Effect(Box::new(named.remove(0).request));
+        }
         Step::Effects(Box::new(StructuredEffectBatch {
             merge_token,
             branches: named,
@@ -1413,6 +1518,7 @@ impl Vm {
         expected_revision: Option<Revision>,
         deadline_ms: u64,
         deadline_at_ms: Option<u64>,
+        fuel_remaining: u64,
     ) -> Result<EffectRequest, Fault> {
         let image = ContinuationImage {
             schema_version: CONTINUATION_SCHEMA_VERSION,
@@ -1421,10 +1527,11 @@ impl Vm {
             expected_revision,
             result_type,
             pending_effect: effect.clone(),
-            fuel_remaining: self.fuel_limit - 1,
+            fuel_remaining: fuel_remaining - 1,
             deadline_ms,
             deadline_at_ms,
             max_output_items: DEFAULT_MAX_OUTPUT_ITEMS,
+            result_binding: None,
         };
         let (required_capability, operation) = match effect {
             Effect::UiActivate { node_id } => (
@@ -2561,7 +2668,11 @@ impl Vm {
         let (authoritative, record) = self.journal.cancel_audited(image, &step, audit, now_ms)?;
         if matches!(authoritative, Step::Cancelled(_)) {
             self.pending.remove(&image.token);
-            self.completed.insert(image.token.clone(), authoritative);
+            self.completed
+                .insert(image.token.clone(), authoritative.clone());
+            if let Step::Fault(error) = self.visible_step(&image.token, authoritative) {
+                return Err(error);
+            }
         }
         Ok(record)
     }
@@ -2619,9 +2730,10 @@ impl Vm {
         Ok(None)
     }
 
-    fn visible_step(&self, branch_token: &ContinuationToken, branch_step: Step) -> Step {
+    fn visible_step(&mut self, branch_token: &ContinuationToken, branch_step: Step) -> Step {
         match self.journal.merge_progress(branch_token) {
             Ok(MergeProgress::Standalone) => branch_step,
+            Ok(MergeProgress::Next(request)) => Step::Effect(request),
             Ok(MergeProgress::Pending {
                 merge_token,
                 completed_branches,
@@ -2631,7 +2743,16 @@ impl Vm {
                 completed_branches,
                 total_branches,
             }),
-            Ok(MergeProgress::Completed { merge_token, step }) => {
+            Ok(MergeProgress::Completed {
+                merge_token,
+                step,
+                branch_tokens,
+            }) => {
+                for token in branch_tokens {
+                    if self.pending.remove(&token).is_some() {
+                        self.completed.entry(token).or_insert_with(|| step.clone());
+                    }
+                }
                 debug_assert!(
                     self.journal
                         .merge_result(&merge_token)
@@ -2718,6 +2839,10 @@ fn validate_restorable_image(image: &ContinuationImage) -> Result<(), Fault> {
 }
 
 fn validate_continuation_encoding_size(image: &ContinuationImage) -> Result<(), Fault> {
+    if let Some(binding) = &image.result_binding {
+        // Bound the recursive body before entering the serializer, including native callers.
+        binding.validate_structure()?;
+    }
     validate_json_size_capped(image, MAX_CONTINUATION_BYTES, "continuation")
 }
 
@@ -2787,12 +2912,17 @@ fn validate_pending_effect_contract(image: &ContinuationImage) -> Result<(), Fau
 }
 
 fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
-    if image.schema_version != CONTINUATION_SCHEMA_VERSION {
+    let expected_version = if image.result_binding.is_some() {
+        RESULT_BINDING_CONTINUATION_SCHEMA_VERSION
+    } else {
+        CONTINUATION_SCHEMA_VERSION
+    };
+    if image.schema_version != expected_version {
         return Err(Fault {
             code: "LSV2001".to_string(),
             message: format!(
                 "unsupported continuation version {}, expected {}",
-                image.schema_version, CONTINUATION_SCHEMA_VERSION
+                image.schema_version, expected_version
             ),
         });
     }
@@ -2879,10 +3009,11 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiWaitAccessibleName { .. } => Type::UiWaitAccessibleName,
         Effect::UiAssertAccessibleDescription { .. } => Type::UiAssertAccessibleDescription,
         Effect::UiWaitAccessibleDescription { .. } => Type::UiWaitAccessibleDescription,
-        Effect::All { .. } => {
+        Effect::All { .. } | Effect::Sequence { .. } | Effect::Compute { .. } => {
             return Err(Fault {
                 code: "LSV2015".to_string(),
-                message: "structured all cannot be restored as a single continuation".to_string(),
+                message: "structured control flow cannot be restored as a single continuation"
+                    .to_string(),
             });
         }
     };
@@ -2891,6 +3022,9 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
             code: "LSV2016".to_string(),
             message: "continuation result type does not match its pending effect".to_string(),
         });
+    }
+    if let Some(binding) = &image.result_binding {
+        binding.validate(&image.pending_effect)?;
     }
     if image.fuel_remaining > MAX_EXECUTION_FUEL {
         return Err(Fault {
@@ -4629,7 +4763,12 @@ pub fn merge_declared(
 }
 
 pub(crate) fn validate_merge_plan(plan: &MergePlan) -> Result<(), Fault> {
-    if !(2..=MAX_MERGE_BRANCHES).contains(&plan.branches.len()) {
+    let minimum = if plan.order == ExecutionOrder::Sequential {
+        1
+    } else {
+        2
+    };
+    if !(minimum..=MAX_MERGE_BRANCHES).contains(&plan.branches.len()) {
         return Err(Fault {
             code: "LSV2401".to_string(),
             message: "structured merge plan is invalid or exceeds runtime bounds".to_string(),
@@ -4722,6 +4861,9 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         });
     }
     match value {
+        Value::Scalar { value } if !matches!(value, ScalarValue::String(text) if text.len() > leselang_hir::computation::MAX_SCALAR_STRING_BYTES) => {
+            Ok(1)
+        }
         Value::RuntimeList { runtimes, .. } if runtimes.len() <= DEFAULT_MAX_OUTPUT_ITEMS => {
             Ok(runtimes.len())
         }
@@ -4952,7 +5094,7 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         {
             Ok(1)
         }
-        Value::Structured { fields } if (2..=MAX_MERGE_BRANCHES).contains(&fields.len()) => {
+        Value::Structured { fields } if (1..=MAX_MERGE_BRANCHES).contains(&fields.len()) => {
             let mut names = BTreeSet::new();
             let mut output_items = 0usize;
             for field in fields {
@@ -5036,6 +5178,37 @@ fn validate_effect_identity(
 }
 
 fn step_from_effect_result(
+    image: &ContinuationImage,
+    operation: Option<&EffectOperation>,
+    result: EffectResult,
+) -> Step {
+    let step = atomic_step_from_effect_result(image, operation, result);
+    let Some(binding) = &image.result_binding else {
+        return step;
+    };
+    let Step::Done(value) = step else {
+        return step;
+    };
+    let checked = validate_value(&value, 0).and_then(|items| {
+        if items > image.max_output_items || image.max_output_items == 0 {
+            return Err(Fault {
+                code: "LSV2102".into(),
+                message: "bound result exceeds the output item limit".into(),
+            });
+        }
+        validate_json_size_capped(&value, MAX_JOURNAL_ENTRY_BYTES, "bound host result")
+    });
+    if let Err(error) = checked {
+        return Step::Fault(error);
+    }
+    let mut fuel_remaining = image.fuel_remaining;
+    match computation::resume(binding, &value, &mut fuel_remaining) {
+        Ok(value) => Step::Done(Value::Scalar { value }),
+        Err(error) => Step::Fault(error),
+    }
+}
+
+fn atomic_step_from_effect_result(
     image: &ContinuationImage,
     operation: Option<&EffectOperation>,
     result: EffectResult,
@@ -12448,8 +12621,15 @@ mod tests {
         ));
 
         let large_value = "x".repeat(MAX_CONTINUATION_BYTES);
-        let source = format!("fn main() = runtime.list(environment: \"{large_value}\")");
-        let large_program = lower(&parse(&source)).unwrap();
+        // Untrusted HIR must still be bounded even though source rejects oversized filters.
+        let mut large_program = program();
+        large_program.function.effect = Effect::RuntimeList {
+            filter: RuntimeListFilter {
+                environment: Some(large_value.clone()),
+                cluster: None,
+                role: None,
+            },
+        };
         let step = Vm::default().start(
             &large_program,
             Principal {

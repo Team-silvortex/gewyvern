@@ -134,7 +134,7 @@ fn project_status_catalog_is_protocolized_and_valid() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     catalog.validate(&root).expect("catalog must validate");
     assert_eq!(catalog.calibration.model, STATUS_CALIBRATION_MODEL);
-    assert_eq!(catalog.calibration.as_of, "2026-09-04");
+    assert_eq!(catalog.calibration.as_of, "2026-10-02");
     assert!(catalog.dimensions.architectures.len() >= 7);
     assert!(catalog.dimensions.modules.len() >= 24);
     assert!(catalog.dimensions.features.len() >= 26);
@@ -171,6 +171,81 @@ fn project_status_catalog_is_protocolized_and_valid() {
             .filter(|cell| cell.architecture == "leserpent-1x")
             .all(|cell| cell.lifecycle == Lifecycle::Bridge)
     );
+}
+
+#[test]
+fn leselang_computation_evidence_does_not_claim_durable_dataflow_completion() {
+    let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
+    let cell = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/language-vm/script-control-flow")
+        .unwrap();
+    assert_eq!(cell.maturity, Maturity::Developing);
+    assert_eq!(cell.contract.stability, ContractStability::Evolving);
+    assert_eq!(cell.contract.version, "0.5.0");
+    assert!(cell.completion < 100);
+    for surface in [
+        "typed-scalar-computation",
+        "immutable-lexical-bindings",
+        "lazy-typed-conditional",
+        "selected-branch-only-journal-recovery",
+        "computed-atomic-host-arguments",
+        "resolved-arguments-only-journal-recovery",
+        "bounded-whole-group-argument-materialization",
+        "later-argument-failure-prevents-entire-group",
+        "runtime-filter-source-wire-validation-parity",
+        "typed-atomic-result-scalar-projection",
+        "schema-v2-result-binding-continuation",
+        "durable-scalar-local-environment",
+        "result-binding-first-commit-replay",
+    ] {
+        assert!(cell.contract.surfaces.iter().any(|entry| entry == surface));
+    }
+    assert!(cell.next_gate.contains("multiple suspensions"));
+    assert!(cell.evidence.iter().any(|entry| entry.path
+        == "crates/leselang-vm/tests/computation.rs"
+        && entry.state == EvidenceState::Present));
+    assert!(cell.evidence.iter().any(|entry| entry.path
+        == "crates/leselang-hir/tests/host_arguments.rs"
+        && entry.state == EvidenceState::Present));
+    assert!(cell.evidence.iter().any(|entry| entry.path
+        == "crates/leselang-vm/tests/computed_groups.rs"
+        && entry.state == EvidenceState::Present));
+    assert!(cell.next_gate.contains("not from earlier step results"));
+    assert!(cell.evidence.iter().any(|entry| entry.path
+        == "crates/leselang-vm/tests/result_binding.rs"
+        && entry.state == EvidenceState::Present));
+}
+
+#[test]
+fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
+    let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
+    catalog
+        .validate(repository_root())
+        .expect("catalog must validate");
+    let cell = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .expect("independent embedding must be tracked");
+    assert_eq!(cell.lifecycle, Lifecycle::Target);
+    assert_eq!(cell.priority, Priority::Active);
+    assert_eq!(cell.maturity, Maturity::Planned);
+    assert_eq!(cell.completion, 0);
+    assert_eq!(cell.contract.stability, ContractStability::Draft);
+    assert_eq!(cell.independence, Independence::ReusableLibrary);
+    assert!(cell.evidence.iter().any(|evidence| {
+        evidence.kind == EvidenceKind::Test && evidence.state == EvidenceState::Planned
+    }));
+    assert!(!cell.evidence.iter().any(|evidence| {
+        evidence.kind == EvidenceKind::Test && evidence.state == EvidenceState::Present
+    }));
+    assert!(
+        cell.next_gate
+            .contains("zero Gewyvern/Leserpent product dependencies")
+    );
+    assert!(cell.next_gate.contains("shell remains deferred"));
 }
 
 #[test]
@@ -9714,15 +9789,15 @@ fn native_status_cli_exposes_human_and_machine_views() {
         serde_json::from_slice(&summary.stdout).expect("summary must be JSON");
     assert_eq!(payload["schema_version"], STATUS_SCHEMA_VERSION);
     assert_eq!(payload["calibration"]["model"], STATUS_CALIBRATION_MODEL);
-    assert_eq!(payload["calibration"]["as_of"], "2026-09-04");
+    assert_eq!(payload["calibration"]["as_of"], "2026-10-02");
     assert_eq!(payload["deferred_cell_count"], 2);
     assert!(payload["overall_score"].is_u64());
     assert!(payload["portfolio_score"].is_u64());
-    assert_eq!(payload["coverage"]["requirement_count"], 35);
+    assert_eq!(payload["coverage"]["requirement_count"], 37);
     assert_eq!(payload["coverage"]["architecture_count"], 8);
-    assert_eq!(payload["coverage"]["ownership_boundary_count"], 26);
+    assert_eq!(payload["coverage"]["ownership_boundary_count"], 27);
     assert_eq!(payload["coverage"]["roadmap_gate_count"], 7);
-    assert_eq!(payload["coverage"]["proof_shelf_count"], 2);
+    assert_eq!(payload["coverage"]["proof_shelf_count"], 3);
     assert_eq!(payload["weakest"].as_array().unwrap().len(), 3);
     assert!(payload["lifecycles"].as_array().unwrap().len() >= 3);
     assert!(payload["architectures"].as_array().unwrap().len() >= 6);
@@ -9737,6 +9812,10 @@ fn native_status_cli_exposes_human_and_machine_views() {
     assert!(developing.status.success());
     let payload: serde_json::Value =
         serde_json::from_slice(&developing.stdout).expect("developing view must be JSON");
+    assert!(payload.as_array().unwrap().iter().any(|cell| {
+        cell["id"] == "leserpent-2/language-vm/script-control-flow"
+            && cell["maturity"] == "developing"
+    }));
     assert!(
         payload
             .as_array()

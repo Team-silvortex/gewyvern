@@ -108,11 +108,18 @@ pub fn execute_debugger_cancel(
 ) -> Result<DebuggerMutationResult, ObserveError> {
     let inspection = inspect_debugger_cancel_plan(plan, projection)?;
     encode_continuation(image).map_err(ObserveError::InvalidDebuggerContinuation)?;
+    let effect_id = image
+        .token
+        .as_str()
+        .strip_prefix("continuation-")
+        .map(|sequence| format!("effect-{sequence}"));
     if image.program_counter != projection.program_counter
         || image.fuel_remaining != projection.fuel_remaining
-        || image
-            .expected_revision
-            .is_some_and(|revision| revision != projection.revision)
+        || projection
+            .pending_effect
+            .as_ref()
+            .map(|effect| effect.effect_id.as_str())
+            != effect_id.as_deref()
     {
         return Err(ObserveError::DebuggerSessionMismatch);
     }
@@ -246,6 +253,7 @@ fn sanitize_display(value: &str, max_bytes: usize) -> String {
 
 /// Builds the public debugger state for one suspended synchronous VM effect.
 /// Authentication and continuation fields are intentionally never copied.
+/// `revision` belongs to the debugger session, not the effect's target resource.
 pub fn waiting_debugger_projection(
     request: &EffectRequest,
     session_id: impl Into<String>,
@@ -253,15 +261,6 @@ pub fn waiting_debugger_projection(
     now_ms: u64,
 ) -> Result<DebuggerProjection, ObserveError> {
     validate_effect_request(request).map_err(ObserveError::InvalidEffectRequest)?;
-
-    if let Some(expected) = request.continuation.expected_revision
-        && expected != revision
-    {
-        return Err(ObserveError::RevisionMismatch {
-            expected,
-            actual: revision,
-        });
-    }
 
     let (kind, runtime_id, display) = match &request.continuation.pending_effect {
         Effect::RuntimeList { .. } => (DebuggerEffectKind::RuntimeList, None, "runtime list"),
@@ -560,7 +559,7 @@ pub fn waiting_debugger_projection(
             None,
             "UI wait accessible description",
         ),
-        Effect::All { .. } => {
+        Effect::All { .. } | Effect::Sequence { .. } | Effect::Compute { .. } => {
             return Err(ObserveError::InvalidEffectRequest(Fault {
                 code: "LSO1001".to_string(),
                 message: "structured effect cannot be suspended as one request".to_string(),
@@ -711,16 +710,15 @@ mod tests {
     }
 
     #[test]
-    fn rejects_a_torn_control_plane_revision() {
-        let error =
-            waiting_debugger_projection(&inspect_request(), "session-a", Revision(8), 1_250)
-                .unwrap_err();
+    fn debugger_session_revision_is_independent_of_the_effect_target_revision() {
+        let request = inspect_request();
+        let projection =
+            waiting_debugger_projection(&request, "session-a", Revision(8), 1_250).unwrap();
+        assert_eq!(projection.revision, Revision(8));
+        assert_eq!(request.continuation.expected_revision, Some(Revision(7)));
         assert_eq!(
-            error,
-            ObserveError::RevisionMismatch {
-                expected: Revision(7),
-                actual: Revision(8),
-            }
+            projection.pending_effect.unwrap().effect_id,
+            request.effect_id
         );
     }
 
@@ -954,5 +952,16 @@ mod tests {
             execute_debugger_cancel(&stale, &projection, &request.continuation, &mut vm, 1_250,),
             Err(ObserveError::RevisionMismatch { .. })
         ));
+        let mut wrong_effect = projection.clone();
+        wrong_effect.pending_effect.as_mut().unwrap().effect_id = "effect-999".into();
+        let plan = plan_debugger_cancel(
+            "session-a",
+            &debugger_context(false, Confirmation::Confirmed),
+        )
+        .unwrap();
+        assert_eq!(
+            execute_debugger_cancel(&plan, &wrong_effect, &request.continuation, &mut vm, 1_250),
+            Err(ObserveError::DebuggerSessionMismatch)
+        );
     }
 }

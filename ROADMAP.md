@@ -1,7 +1,7 @@
 # gewyvern Roadmap
 
 This roadmap treats `v2.1.x` as the active stable line.
-The current shared community release is `v2.1.2`.
+The current shared community release is `v2.1.3`.
 
 `gewyvern` is no longer on the road to `1.0.0` or `2.0.0`; both seals are now
 release history. The current question is how to preserve the released Gewyvern

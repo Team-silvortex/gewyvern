@@ -5,7 +5,7 @@ This document is the authoritative released architecture for the
 history and continuing maintenance gates live in the
 [Leserpent 2.0 roadmap](leserpent-2-roadmap.md).
 
-The current implementation checkpoint is the shared `v2.1.2` release. The
+The current implementation checkpoint is the shared `v2.1.3` release. The
 frozen in-scope capability set is implemented; explicitly excluded post-release
 tracks remain outside this contract.
 
@@ -56,13 +56,18 @@ extension; the free self-hosted implementation and its existing local/remote
 control surfaces remain intact. The machine contract is
 `project/product/open-source-core.json`.
 
-Leselang is not a general-purpose VM, application runtime, or DartVM-style
-language platform. Its target is a protocolized GUI/control automation runtime:
-the "JavaScript" of Leserpent automation only in the narrow sense that GUI
-interaction and code control share one inspectable, serializable program
-contract. The product form is a Rust crate that owns parsing, HIR, effect
-typing, stackless VM execution, and the renderer-neutral UI presentation
-protocol. No GUI framework becomes compatible automatically. A framework is
+Leserpent is the first reference host of Leselang, an independently evolving
+embeddable control language. This released product contract does not limit the
+language to Leserpent or GUI automation. Its independent runtime extraction
+and distant nuis OS / sirius kernel shell direction are defined in the
+[Leselang embedding architecture](leselang-embedding.md), outside the frozen
+2.0 product scope. Full VM independence is not yet implemented.
+
+Within the Leserpent host profile, GUI interaction and code control share one
+inspectable, serializable program contract. The target core is a Rust crate
+owning parsing, HIR, effect typing, stackless execution and re-entry;
+renderer-neutral UI semantics belong to an optional host profile.
+No GUI framework becomes compatible automatically. A framework is
 compatible only after a developer-owned adapter implements the Leselang UI
 protocol standard, or after a dedicated generator emits that framework's
 generated binding from the same schema in the style of protobuf-like interface
@@ -71,8 +76,9 @@ generation. That compatibility is expressed by an explicit
 presentation-atom support before it is treated as a Leselang UI adapter.
 Rust-native GUI frameworks may use the crate as their source of truth; C#,
 TypeScript, mobile, and future non-Rust hosts should cross only the generated
-protocol or narrow FFI boundary. The crate must not grow a GC, JIT, host object
-heap, ambient thread pool, or general app runtime just to look like a larger VM.
+protocol or narrow FFI boundary. Neither this host nor the future shell implies
+a GC, JIT, host object heap, ambient thread pool, or general app runtime as a
+prerequisite. Such mechanisms need independent requirements and evidence.
 
 ## Non-Negotiable Invariants
 
@@ -2864,7 +2870,7 @@ Model-generated programs are untrusted input. Before execution they pass:
 6. dry-run and human confirmation when required
 7. runtime fuel, deadline, memory, output, and concurrency limits
 
-Leselang cannot dynamically load native libraries, invoke shell commands,
+The Leserpent host profile cannot dynamically load native libraries, invoke shell commands,
 reflect over host types, construct raw HTTP requests, or execute generated
 Rust/C#/XAML/JavaScript. Such behavior exists only as an explicitly installed
 and capability-gated adapter.

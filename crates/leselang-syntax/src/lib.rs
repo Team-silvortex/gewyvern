@@ -18,6 +18,8 @@ pub enum TokenKind {
     Fn,
     Ident,
     String,
+    Integer,
+    Boolean,
     None,
     LeftParen,
     RightParen,
@@ -69,6 +71,18 @@ pub enum Expression {
     },
     String {
         value: String,
+        span: Span,
+    },
+    Integer {
+        value: u64,
+        span: Span,
+    },
+    Boolean {
+        value: bool,
+        span: Span,
+    },
+    Reference {
+        name: String,
         span: Span,
     },
     None {
@@ -274,6 +288,9 @@ fn format_expression(expression: &Expression, indent: usize, output: &mut String
             output.push(')');
         }
         Expression::String { value, .. } => format_string(value, output),
+        Expression::Integer { value, .. } => output.push_str(&value.to_string()),
+        Expression::Boolean { value, .. } => output.push_str(if *value { "true" } else { "false" }),
+        Expression::Reference { name, .. } => output.push_str(name),
         Expression::None { .. } => output.push_str("none"),
     }
 }
@@ -286,7 +303,11 @@ fn expression_is_inline(expression: &Expression) -> bool {
                     .first()
                     .is_none_or(|argument| expression_is_inline(&argument.value))
         }
-        Expression::String { .. } | Expression::None { .. } => true,
+        Expression::String { .. }
+        | Expression::Integer { .. }
+        | Expression::Boolean { .. }
+        | Expression::Reference { .. }
+        | Expression::None { .. } => true,
     }
 }
 
@@ -345,6 +366,13 @@ fn lex(source: &str) -> (Vec<Token>, Vec<Diagnostic>) {
     while cursor < bytes.len() {
         let start = cursor;
         let kind = match bytes[cursor] {
+            byte if byte.is_ascii_digit() => {
+                cursor += 1;
+                while cursor < bytes.len() && bytes[cursor].is_ascii_digit() {
+                    cursor += 1;
+                }
+                TokenKind::Integer
+            }
             byte if byte.is_ascii_whitespace() => {
                 cursor += 1;
                 while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
@@ -395,6 +423,7 @@ fn lex(source: &str) -> (Vec<Token>, Vec<Diagnostic>) {
                 match &source[start..cursor] {
                     "fn" => TokenKind::Fn,
                     "none" => TokenKind::None,
+                    "true" | "false" => TokenKind::Boolean,
                     _ => TokenKind::Ident,
                 }
             }
@@ -464,7 +493,7 @@ impl<'a> Parser<'a> {
         self.expect(TokenKind::LeftParen, "LSE1003", "expected '('")?;
         self.expect(TokenKind::RightParen, "LSE1004", "expected ')'")?;
         self.expect(TokenKind::Equal, "LSE1005", "expected '='")?;
-        let body = self.parse_call(0)?;
+        let body = self.parse_value(0)?;
         let end = expression_span(&body).end;
         if self.peek().kind != TokenKind::Eof {
             let token = self.peek().clone();
@@ -500,7 +529,7 @@ impl<'a> Parser<'a> {
         while self.peek().kind != TokenKind::RightParen && self.peek().kind != TokenKind::Eof {
             let (name, name_span) = self.expect_ident("LSE1105", "expected argument name")?;
             self.expect(TokenKind::Colon, "LSE1106", "expected ':'")?;
-            let value = self.parse_value(depth)?;
+            let value = self.parse_value(depth + 1)?;
             let span = Span {
                 start: name_span.start,
                 end: expression_span(&value).end,
@@ -525,6 +554,31 @@ impl<'a> Parser<'a> {
     fn parse_value(&mut self, call_depth: usize) -> Option<Expression> {
         let token = self.peek().clone();
         match token.kind {
+            TokenKind::Boolean => {
+                self.bump();
+                Some(Expression::Boolean {
+                    value: &self.source[token.span.start..token.span.end] == "true",
+                    span: token.span,
+                })
+            }
+            TokenKind::Integer => {
+                self.bump();
+                let text = &self.source[token.span.start..token.span.end];
+                match text.parse::<u64>() {
+                    Ok(value) if text == value.to_string() => Some(Expression::Integer {
+                        value,
+                        span: token.span,
+                    }),
+                    _ => {
+                        self.error(
+                            "LSE1111",
+                            "expected a canonical unsigned 64-bit integer",
+                            token.span,
+                        );
+                        None
+                    }
+                }
+            }
             TokenKind::String => {
                 self.bump();
                 match decode_string(&self.source[token.span.start..token.span.end]) {
@@ -542,11 +596,25 @@ impl<'a> Parser<'a> {
                 self.bump();
                 Some(Expression::None { span: token.span })
             }
-            TokenKind::Ident => self.parse_call(call_depth + 1),
+            TokenKind::Ident => {
+                let next = self.tokens[self.cursor + 1..]
+                    .iter()
+                    .find(|token| !matches!(token.kind, TokenKind::Whitespace | TokenKind::Comment))
+                    .map(|token| token.kind);
+                if matches!(next, Some(TokenKind::LeftParen | TokenKind::Dot)) {
+                    self.parse_call(call_depth)
+                } else {
+                    self.bump();
+                    Some(Expression::Reference {
+                        name: self.source[token.span.start..token.span.end].to_string(),
+                        span: token.span,
+                    })
+                }
+            }
             _ => {
                 self.error(
                     "LSE1109",
-                    "expected string, 'none', or nested call",
+                    "expected a literal, local reference, or named call",
                     token.span,
                 );
                 None
@@ -555,7 +623,14 @@ impl<'a> Parser<'a> {
     }
 
     fn expect_ident(&mut self, code: &str, message: &str) -> Option<(String, Span)> {
-        let token = self.expect(TokenKind::Ident, code, message)?;
+        // Boolean values do not reserve existing function or named-step labels.
+        let token = if self.peek().kind == TokenKind::Boolean {
+            let token = self.peek().clone();
+            self.bump();
+            token
+        } else {
+            self.expect(TokenKind::Ident, code, message)?
+        };
         Some((
             self.source[token.span.start..token.span.end].to_string(),
             token.span,
@@ -600,6 +675,9 @@ fn expression_span(expression: &Expression) -> Span {
     match expression {
         Expression::Call { span, .. }
         | Expression::String { span, .. }
+        | Expression::Integer { span, .. }
+        | Expression::Boolean { span, .. }
+        | Expression::Reference { span, .. }
         | Expression::None { span } => *span,
     }
 }
