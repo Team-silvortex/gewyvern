@@ -79,6 +79,11 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci --prefix apps/leserpent
 
+      - name: Audit frontend dependencies
+        run: |
+          npm audit --prefix apps/leserpent --json
+          npm audit --prefix apps/leserpent --omit=dev --json
+
       - name: Validate language packs
         run: npm run verify:language-packs --prefix apps/leserpent
 
@@ -99,3 +104,81 @@ jobs:
 
       - name: Build Leserpent desktop
         run: dotnet build apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj --no-restore --configuration Release -p:ContinuousIntegrationBuild=true
+
+  release-packaging:
+    name: Current artifact release packaging gate
+    needs: [rust, product-surfaces]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GEWY_DOCKER_EXECUTION: local
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal
+
+      - name: Select Rust toolchain
+        run: rustup default 1.98.0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Check Docker and evidence prerequisites
+        run: |
+          docker info
+          command -v jq
+          command -v curl
+          mkdir -p target/validation
+          git rev-parse HEAD > target/validation/ci-source-commit.txt
+          rustc --version > target/validation/ci-toolchain.txt
+          dotnet --version >> target/validation/ci-toolchain.txt
+          docker version >> target/validation/ci-toolchain.txt
+
+      - name: Validate version and status metadata
+        run: |
+          cargo dev version check
+          cargo run --quiet --locked --bin gewyvern_status -- validate
+          cargo test --locked --test project_status_tdd
+
+      - name: Rebuild and validate current deb and rpm artifacts
+        run: >-
+          cargo run --quiet --locked --bin gewyvern_validate --
+          --json --json-out target/validation/ci-release-gate.json release-gate
+
+      - name: Require all default stages and a consistent publication
+        run: |
+          set -euo pipefail
+          jq -e '
+            .schema_version == 1 and .command == "release-gate" and .ok == true and
+            .extra.stages.build_packages == true and
+            .extra.stages.release_container_check == true and
+            .extra.stages.three_module_stack_smoke == true and
+            .extra.stages.debugger_cross_validation == true and
+            .extra.stages.pathological_container_validation == true and
+            .extra.remote == null and
+            .extra.gate_posture == "local_only" and .extra.ship_signal == "remote_missing"
+          ' target/validation/ci-release-gate.json
+          publication_id=$(jq -er '
+            select(.schema_version == 2) | .publication_id |
+            select(type == "string" and test("^[0-9]+-[0-9]+-[0-9]+$"))
+          ' target/validation/release-gate-artifacts.json)
+          test "$(sed -n 's/^publication_id=//p' target/validation/release-gate-artifacts.txt)" = "$publication_id"
+          # A local packaged gate is evidence, not a physical-host or Apple ship signal.
+
+      - name: Preserve current artifacts and validation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-packaging-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/packages/**/*.deb
+            target/packages/**/*.rpm
+            target/packages/build-manifest.txt
+            target/packages/build-timings.txt
+            target/validation/
+          if-no-files-found: error
+          retention-days: 14

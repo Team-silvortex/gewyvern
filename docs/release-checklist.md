@@ -101,6 +101,21 @@ cargo test --test project_status_tdd
 
 ## Rebuild Current Artifacts
 
+### CI Evidence Boundary
+
+The `Current artifact release packaging gate` job in `.github/workflows/ci.yml`
+runs the full default native `release-gate` from the checked-out source after
+both source-quality jobs pass. It retains the current deb/rpm packages, build
+manifest, source commit, final JSON and component evidence, and checks the
+JSON/text artifact-index publication IDs match. It also runs the explicit
+version/status checks before packaging. A quality-only run is not equivalent.
+
+This job intentionally preserves `local_only / remote_missing`: hosted Linux
+CI does not prove a physical host, Apple signing or optional combined Leserpent
+shelves. Archive accepted evidence beyond CI retention before publication.
+See [the 2.1.2 coverage audit](history/v2.1.2-release-gate-audit.md) for the
+baseline gaps, repository repair and exact remaining external proof boundaries.
+
 Always rebuild the native packages before calling the release path green:
 
 ```bash
