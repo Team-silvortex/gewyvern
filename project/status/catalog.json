@@ -3641,6 +3641,8 @@
       "blockers": [],
       "consumers": ["every-leserpent-2-gate", "release-assurance", "ci"],
       "evidence": [
+        { "kind": "source", "path": ".github/workflows/ci.yml", "state": "present" },
+        { "kind": "documentation", "path": "docs/history/v2.1.2-release-gate-audit.md", "state": "present" },
         { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
         { "kind": "documentation", "path": "docs/book/tutorials.md", "state": "present" },
         { "kind": "documentation", "path": "docs/book/tutorial-first-run.md", "state": "present" },
