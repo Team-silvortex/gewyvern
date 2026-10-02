@@ -16,7 +16,10 @@ use crate::{
     validate_effect_request, validate_image, validate_merge_plan, validate_value,
 };
 
-pub const JOURNAL_SCHEMA_VERSION: u32 = 7;
+mod group_binding;
+mod successor;
+
+pub const JOURNAL_SCHEMA_VERSION: u32 = 10;
 pub const MAX_JOURNAL_RECORDS: usize = 10_000;
 pub const MAX_JOURNAL_ENTRY_BYTES: usize = 8 * 1024 * 1024;
 pub const MAX_JOURNAL_TOTAL_BYTES: usize = 64 * 1024 * 1024;
@@ -37,7 +40,10 @@ pub(crate) struct JournalCompaction {
 
 pub(crate) enum MergeProgress {
     Standalone,
-    Next(Box<EffectRequest>),
+    Next {
+        request: Box<EffectRequest>,
+        completed_tokens: Vec<ContinuationToken>,
+    },
     Pending {
         merge_token: ContinuationToken,
         completed_branches: usize,
@@ -45,7 +51,7 @@ pub(crate) enum MergeProgress {
     },
     Completed {
         merge_token: ContinuationToken,
-        step: Step,
+        step: Box<Step>,
         branch_tokens: Vec<ContinuationToken>,
     },
 }
@@ -267,6 +273,28 @@ impl Journal {
         match self {
             Self::Ephemeral(_) => Ok(true),
             Self::Sqlite(journal) => journal.completed_exists(token),
+        }
+    }
+
+    pub fn completed_step(&self, token: &ContinuationToken) -> Result<Option<Step>, Fault> {
+        match self {
+            Self::Ephemeral(journal) => Ok(journal
+                .dispatches
+                .get(token)
+                .and_then(|dispatch| dispatch.terminal_step.clone())),
+            Self::Sqlite(journal) => {
+                let bytes: Option<Vec<u8>> = journal.connection.query_row(
+                    "SELECT terminal_step FROM vm_effects WHERE token = ?1 AND state = 'completed'",
+                    [token.as_str()], |row| row.get(0),
+                ).optional().map_err(|error| journal_error("LSV4031", "failed to replay completed effect", error))?;
+                bytes
+                    .map(|bytes| {
+                        let step: Step = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
+                        validate_terminal_step(&step)?;
+                        Ok(step)
+                    })
+                    .transpose()
+            }
         }
     }
 
@@ -596,7 +624,7 @@ impl EphemeralJournal {
         }
         let plan = group.plan.clone();
         let branch_tokens = group.branch_tokens.clone();
-        if plan.order == ExecutionOrder::Sequential
+        if plan.order.is_sequential()
             && let Some(stop) = sequence_stop(branch_tokens.iter().filter_map(|token| {
                 self.dispatches
                     .get(token)
@@ -648,7 +676,7 @@ impl EphemeralJournal {
 
     fn sequence_ready(&self, token: &ContinuationToken) -> bool {
         self.merge_groups.values().all(|group| {
-            if group.plan.order != ExecutionOrder::Sequential {
+            if !group.plan.order.is_sequential() {
                 return true;
             }
             let Some(position) = group
@@ -678,18 +706,30 @@ impl EphemeralJournal {
         if let Some(step) = &group.terminal_step {
             return MergeProgress::Completed {
                 merge_token: merge_token.clone(),
-                step: step.clone(),
+                step: Box::new(step.clone()),
                 branch_tokens: group.branch_tokens.clone(),
             };
         }
-        if group.plan.order == ExecutionOrder::Sequential
+        if group.plan.order.is_sequential()
             && let Some(dispatch) = group
                 .branch_tokens
                 .iter()
                 .filter_map(|token| self.dispatches.get(token))
                 .find(|dispatch| !dispatch.acknowledged)
         {
-            return MergeProgress::Next(Box::new(dispatch.request.clone()));
+            return MergeProgress::Next {
+                request: Box::new(dispatch.request.clone()),
+                completed_tokens: group
+                    .branch_tokens
+                    .iter()
+                    .filter(|token| {
+                        self.dispatches
+                            .get(*token)
+                            .is_some_and(|dispatch| dispatch.acknowledged)
+                    })
+                    .cloned()
+                    .collect(),
+            };
         }
         MergeProgress::Pending {
             merge_token: merge_token.clone(),
@@ -988,10 +1028,12 @@ impl SqliteJournal {
                      COMMIT;",
                 )
                 .map_err(|error| journal_error("LSV4003", "failed to migrate journal", error))?;
-        } else if !matches!(version, 4 | 5 | 6 | JOURNAL_SCHEMA_VERSION) {
+        } else if !matches!(version, 4 | 5 | 6 | 7 | 8 | 9 | JOURNAL_SCHEMA_VERSION) {
             return Err(journal_fault(
                 "LSV4004",
-                format!("unsupported journal version {version}, expected 1 through 7"),
+                format!(
+                    "unsupported journal version {version}, expected 1 through {JOURNAL_SCHEMA_VERSION}"
+                ),
             ));
         }
 
@@ -1061,6 +1103,34 @@ impl SqliteJournal {
                  PRAGMA user_version = 7;
                  COMMIT;"
             ).map_err(|error| journal_error("LSV4003", "failed to migrate control flow journal", error))?;
+        }
+
+        if version < 8 {
+            connection
+                .execute_batch("BEGIN IMMEDIATE; PRAGMA user_version = 8; COMMIT;")
+                .map_err(|error| {
+                    journal_error("LSV4003", "failed to migrate result-chain journal", error)
+                })?;
+        }
+
+        if version < 9 {
+            connection
+                .execute_batch("BEGIN IMMEDIATE; PRAGMA user_version = 9; COMMIT;")
+                .map_err(|error| {
+                    journal_error("LSV4003", "failed to migrate dataflow journal", error)
+                })?;
+        }
+
+        if version < 10 {
+            connection
+                .execute_batch("BEGIN IMMEDIATE; PRAGMA user_version = 10; COMMIT;")
+                .map_err(|error| {
+                    journal_error(
+                        "LSV4003",
+                        "failed to migrate conditional-exit journal",
+                        error,
+                    )
+                })?;
         }
 
         Ok(Self { connection })
@@ -1141,9 +1211,11 @@ impl SqliteJournal {
                     "journal deadline does not match continuation image",
                 ));
             }
+            group_binding::validate_owner(&self.connection, &image)?;
 
             match state.as_str() {
                 "pending" => {
+                    successor::validate_record(&self.connection, &image, None)?;
                     pending.insert(image.token.clone(), image);
                 }
                 "completed" => {
@@ -1152,6 +1224,7 @@ impl SqliteJournal {
                     })?;
                     let step: Step = decode_bounded(&step_bytes, MAX_JOURNAL_ENTRY_BYTES)?;
                     validate_terminal_step(&step)?;
+                    successor::validate_record(&self.connection, &image, Some(&step))?;
                     completed.insert(image.token, step);
                 }
                 _ => return Err(journal_fault("LSV4007", "invalid journal record state")),
@@ -1220,8 +1293,11 @@ impl SqliteJournal {
 
     fn merge_progress(&self, branch_token: &ContinuationToken) -> Result<MergeProgress, Fault> {
         type RawProgress = (String, String, Option<Vec<u8>>, i64, i64, String);
-        let progress: Option<RawProgress> = self
-            .connection
+        // Progress, current request and completed prefix must describe the same commit.
+        let transaction = self.connection.unchecked_transaction().map_err(|error| {
+            journal_error("LSV4033", "failed to snapshot merge progress", error)
+        })?;
+        let progress: Option<RawProgress> = transaction
             .query_row(
                 "SELECT g.token, g.state, g.terminal_step,
                         SUM(CASE WHEN e.state = 'completed' THEN 1 ELSE 0 END),
@@ -1257,8 +1333,7 @@ impl SqliteJournal {
         match (state.as_str(), terminal) {
             ("pending", None) if completed_branches < total_branches => {
                 if order == "sequential" {
-                    let bytes: Vec<u8> = self
-                        .connection
+                    let bytes: Vec<u8> = transaction
                         .query_row(
                             "SELECT d.request FROM vm_merge_branches b
                          JOIN vm_effects e ON e.token = b.branch_token
@@ -1273,7 +1348,25 @@ impl SqliteJournal {
                         })?;
                     let request: EffectRequest = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
                     validate_effect_request(&request)?;
-                    return Ok(MergeProgress::Next(Box::new(request)));
+                    let mut statement = transaction.prepare(
+                        "SELECT b.branch_token FROM vm_merge_branches b JOIN vm_effects e ON e.token = b.branch_token
+                         WHERE b.group_token = ?1 AND e.state = 'completed' ORDER BY b.position",
+                    ).map_err(|error| journal_error("LSV4033", "failed to inspect completed prefix", error))?;
+                    let completed_tokens = statement
+                        .query_map([merge_token.as_str()], |row| {
+                            Ok(ContinuationToken(row.get(0)?))
+                        })
+                        .map_err(|error| {
+                            journal_error("LSV4033", "failed to load completed prefix", error)
+                        })?
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|error| {
+                            journal_error("LSV4033", "invalid completed prefix", error)
+                        })?;
+                    return Ok(MergeProgress::Next {
+                        request: Box::new(request),
+                        completed_tokens,
+                    });
                 }
                 Ok(MergeProgress::Pending {
                     merge_token,
@@ -1284,7 +1377,7 @@ impl SqliteJournal {
             ("completed", Some(bytes)) if completed_branches == total_branches => {
                 let step: Step = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
                 validate_terminal_step(&step)?;
-                let mut statement = self.connection.prepare(
+                let mut statement = transaction.prepare(
                     "SELECT branch_token FROM vm_merge_branches WHERE group_token = ?1 ORDER BY position"
                 ).map_err(|error| journal_error("LSV4033", "failed to read completed group", error))?;
                 let branch_tokens = statement
@@ -1300,7 +1393,7 @@ impl SqliteJournal {
                     })?;
                 Ok(MergeProgress::Completed {
                     merge_token,
-                    step,
+                    step: Box::new(step),
                     branch_tokens,
                 })
             }
@@ -2256,12 +2349,12 @@ fn delete_completed_merge_group(
     transaction: &rusqlite::Transaction<'_>,
     group_token: &str,
 ) -> Result<usize, Fault> {
-    let group_bytes: i64 = transaction
+    let (group_bytes, plan_bytes): (i64, Vec<u8>) = transaction
         .query_row(
-            "SELECT length(plan) + length(terminal_step)
+            "SELECT length(plan) + length(terminal_step), plan
              FROM vm_merge_groups WHERE token = ?1 AND state = 'completed'",
             [group_token],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .map_err(|error| journal_error("LSV4030", "failed to size completed merge group", error))?;
     let branches = {
@@ -2297,7 +2390,9 @@ fn delete_completed_merge_group(
                 journal_error("LSV4030", "failed to read merge group deletion", error)
             })?
     };
-    if !(2..=crate::MAX_MERGE_BRANCHES).contains(&branches.len())
+    let plan: MergePlan = decode_bounded(&plan_bytes, MAX_CONTINUATION_BYTES)?;
+    validate_merge_plan(&plan)?;
+    if branches.len() != plan.branches.len()
         || branches.iter().any(|(_, _, state)| state != "completed")
     {
         return Err(journal_fault(
@@ -2567,7 +2662,7 @@ fn finalize_merge_group(
             .map_err(|error| journal_error("LSV4033", "failed to read merge completion", error))?
     };
     let plan: MergePlan = decode_bounded(&plan_bytes, MAX_CONTINUATION_BYTES)?;
-    if plan.order == ExecutionOrder::Sequential {
+    if plan.order.is_sequential() {
         let terminal_steps = branches
             .iter()
             .filter_map(|(_, _, terminal)| terminal.as_ref())
@@ -2653,8 +2748,11 @@ fn finalize_merge_group(
 
 fn execution_order_label(order: ExecutionOrder) -> &'static str {
     match order {
-        ExecutionOrder::Parallel => "parallel",
-        ExecutionOrder::Sequential => "sequential",
+        ExecutionOrder::Parallel | ExecutionOrder::BoundParallel => "parallel",
+        ExecutionOrder::Sequential
+        | ExecutionOrder::BoundSequential
+        | ExecutionOrder::ResultChain
+        | ExecutionOrder::Dataflow => "sequential",
     }
 }
 
@@ -2769,10 +2867,7 @@ fn load_record(
         .map_err(|error| journal_error("LSV4005", "failed to read journal record", error))
 }
 
-fn load_dispatch(
-    transaction: &rusqlite::Transaction<'_>,
-    token: &str,
-) -> Result<Option<DispatchRecord>, Fault> {
+fn load_dispatch(transaction: &Connection, token: &str) -> Result<Option<DispatchRecord>, Fault> {
     transaction
         .query_row(
             "SELECT request, state, attempt, lease_expires_at_ms, ready_at_ms, retry_count,
@@ -3098,6 +3193,14 @@ fn validate_merge_graph_input(
             ));
         }
     }
+    if let Some(binding) = &plan.result_binding {
+        binding.validate_requests(group_token, plan, branches)?;
+    } else if branches
+        .iter()
+        .any(|(_, request)| request.continuation.group_result.is_some())
+    {
+        return Err(crate::group_binding::invalid());
+    }
     Ok(())
 }
 
@@ -3193,7 +3296,13 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<(), Fault> {
             ));
         }
         let all_completed = branches.iter().all(|branch| branch.2 == "completed");
-        if plan.order == ExecutionOrder::Sequential && state == "pending" {
+        if matches!(
+            plan.order,
+            ExecutionOrder::ResultChain | ExecutionOrder::Dataflow
+        ) {
+            successor::validate_chain(connection, &token)?;
+        }
+        if plan.order.is_sequential() && state == "pending" {
             let first_pending = branches
                 .iter()
                 .position(|branch| branch.2 == "pending")
@@ -3237,11 +3346,12 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<(), Fault> {
                 ));
             }
         }
-        match (state.as_str(), terminal_bytes) {
-            ("pending", None) if !all_completed => {}
+        let terminal = match (state.as_str(), terminal_bytes) {
+            ("pending", None) if !all_completed => None,
             ("completed", Some(bytes)) if all_completed => {
                 let terminal: Step = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
                 validate_terminal_step(&terminal)?;
+                Some(terminal)
             }
             _ => {
                 return Err(journal_fault(
@@ -3249,7 +3359,8 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<(), Fault> {
                     "merge group state conflicts with its branch graph",
                 ));
             }
-        }
+        };
+        group_binding::validate_records(connection, &token, &plan, terminal.as_ref())?;
     }
     Ok(())
 }

@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "project": "gewyvern",
-  "checkpoint": "v2.1.3-community-release",
+  "checkpoint": "v2.1.4-community-release",
   "calibration": {
     "model": "priority-weighted-strength-v1",
     "as_of": "2026-10-02"
@@ -270,7 +270,7 @@
       {
         "id": "script-control-flow",
         "label": "Script control flow",
-        "summary": "Sequential automation, bounded repetition, typed computation, immutable locals, whole-group argument preparation and one captured atomic result with durable scalar locals; result-driven host successors remain pending."
+        "summary": "Sequential automation, bounded repetition and pure scalar loops, typed computation, explicit scalar/text conversion and pure arithmetic/parse recovery, immutable locals, whole-group preparation, typed named group results with pure bodies, bounded atomic result chains and conditional exits with durable frames; group-driven host effects, effectful loops and host-effect recovery remain pending."
       },
       {
         "id": "effect-reentry",
@@ -2026,14 +2026,14 @@
       "lifecycle": "current",
       "priority": "active",
       "maturity": "developing",
-      "completion": 60,
+      "completion": 80,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-control-flow-contract",
-        "version": "0.5.0",
+        "version": "0.12.0",
         "stability": "evolving",
-        "surfaces": ["named-seq-expression", "canonical-u64-literals", "bounded-repeat-expression", "bounded-flat-sequence-hir", "whole-flow-capability-union", "sequential-journal-order", "predecessor-dispatch-fence", "blocked-direct-resume-rejection", "shared-fuel-deadline-budget", "fail-stop-successor-closure", "restart-safe-sequence-reentry", "sequence-group-compaction", "journal-v6-to-v7-migration", "native-presentation-sequential-acknowledgement", "independent-debugger-session-revision", "current-effect-cancellation-fence", "typed-scalar-computation", "immutable-lexical-bindings", "lazy-typed-conditional", "short-circuit-boolean-logic", "checked-u64-arithmetic", "bounded-string-operations", "canonical-computation-roundtrip", "whole-branch-type-and-capability-preflight", "computation-fuel-transfer-to-host-graph", "selected-branch-only-journal-recovery", "computed-native-gui-flow-proof", "computed-atomic-host-arguments", "fixed-typed-host-operation-signatures", "literal-computed-argument-validation-parity", "invalid-argument-no-journal-no-identity", "resolved-arguments-only-journal-recovery", "computed-argument-native-acknowledgement-fence", "bounded-whole-group-argument-materialization", "computed-repeat-expanded-node-preflight", "later-argument-failure-prevents-entire-group", "computed-parallel-preparation-budget", "computed-group-native-acknowledgement-fence", "runtime-filter-source-wire-validation-parity", "typed-atomic-result-scalar-projection", "schema-v2-result-binding-continuation", "durable-scalar-local-environment", "result-binding-first-commit-replay", "result-binding-native-acknowledgement", "result-binding-legacy-image-compatibility"]
+        "surfaces": ["named-seq-expression", "canonical-u64-literals", "bounded-repeat-expression", "bounded-flat-sequence-hir", "whole-flow-capability-union", "sequential-journal-order", "predecessor-dispatch-fence", "blocked-direct-resume-rejection", "shared-fuel-deadline-budget", "fail-stop-successor-closure", "restart-safe-sequence-reentry", "sequence-group-compaction", "journal-v6-to-v7-migration", "native-presentation-sequential-acknowledgement", "independent-debugger-session-revision", "current-effect-cancellation-fence", "typed-scalar-computation", "immutable-lexical-bindings", "lazy-typed-conditional", "short-circuit-boolean-logic", "checked-u64-arithmetic", "bounded-string-operations", "canonical-computation-roundtrip", "whole-branch-type-and-capability-preflight", "computation-fuel-transfer-to-host-graph", "selected-branch-only-journal-recovery", "computed-native-gui-flow-proof", "computed-atomic-host-arguments", "fixed-typed-host-operation-signatures", "literal-computed-argument-validation-parity", "invalid-argument-no-journal-no-identity", "resolved-arguments-only-journal-recovery", "computed-argument-native-acknowledgement-fence", "bounded-whole-group-argument-materialization", "computed-repeat-expanded-node-preflight", "later-argument-failure-prevents-entire-group", "computed-parallel-preparation-budget", "computed-group-native-acknowledgement-fence", "runtime-filter-source-wire-validation-parity", "typed-atomic-result-scalar-projection", "schema-v2-result-binding-continuation", "durable-scalar-local-environment", "result-binding-first-commit-replay", "result-binding-native-acknowledgement", "result-binding-legacy-image-compatibility", "bounded-pure-scalar-loop", "condition-first-explicit-loop-limit-fault", "loop-shared-fuel-no-hir-expansion", "result-loop-durable-terminal-replay", "result-loop-native-acknowledgement", "schema-v3-atomic-successor-continuation", "transactional-result-successor-admission", "successor-original-authority-budget-transfer", "result-chain-first-commit-replay", "result-chain-whole-unit-retention", "journal-v7-to-v8-migration", "successor-native-acknowledgement-fence", "schema-v4-typed-result-projection-frame", "bounded-multi-step-atomic-dataflow", "transactional-dataflow-append", "cross-worker-completed-prefix-reconciliation", "single-snapshot-chain-progress", "cumulative-output-before-successor-admission", "journal-v8-to-v9-migration", "multi-capture-native-presentation-proof", "schema-v5-conditional-exit-continuation", "typed-early-return-or-atomic-continuation", "first-commit-conditional-branch-replay", "scalar-projection-cumulative-output-fence", "journal-v9-to-v10-migration", "native-conditional-completion", "explicit-scalar-text-conversion", "strict-ascii-u64-parsing", "strict-boolean-text-parsing", "conversion-shared-fuel-and-string-bounds", "redacted-conversion-faults", "conversion-before-group-admission", "native-numeric-result-to-form-text", "typed-pure-calculation-recovery", "lazy-same-type-fallback", "closed-arithmetic-parse-recovery-set", "recovery-shared-fuel-no-refund", "recovery-resource-and-host-failure-fence", "durable-recovered-result-first-commit-replay", "native-recovery-form-default-proof", "typed-named-group-member-projection", "pure-scalar-group-result-binding", "schema-v6-whole-group-recovery", "bound-group-shared-fuel-reservation", "transactional-group-scalar-completion", "group-result-first-commit-replay", "single-step-sequence-retention", "native-group-result-acknowledgement"]
       },
       "depends_on": ["leselang/language-syntax/lossless-frontend", "leselang/language-hir/typed-effects", "leserpent-2/language-vm/effect-reentry"],
       "blockers": [],
@@ -2046,6 +2046,10 @@
         { "kind": "source", "path": "crates/leselang-hir/src/computed_group.rs", "state": "present" },
         { "kind": "source", "path": "crates/leselang-hir/src/result_field.rs", "state": "present" },
         { "kind": "source", "path": "crates/leselang-vm/src/result_binding.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leselang-vm/src/group_binding.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leselang-vm/src/journal/group_binding.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leselang-vm/src/successor.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leselang-vm/src/journal/successor.rs", "state": "present" },
         { "kind": "source", "path": "crates/leselang-host-contract/src/lib.rs", "state": "present" },
         { "kind": "source", "path": "crates/leselang-vm/src/computation.rs", "state": "present" },
         { "kind": "source", "path": "crates/leselang-vm/src/journal.rs", "state": "present" },
@@ -2059,10 +2063,24 @@
         { "kind": "test", "path": "crates/leselang-vm/tests/computed_groups.rs", "state": "present" },
         { "kind": "test", "path": "crates/leselang-hir/tests/result_binding.rs", "state": "present" },
         { "kind": "test", "path": "crates/leselang-vm/tests/result_binding.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-hir/tests/iteration.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-vm/tests/iteration.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-hir/tests/successor.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-vm/tests/successor.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-hir/tests/dataflow.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-vm/tests/dataflow.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-hir/tests/conditional_exit.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-vm/tests/conditional_exit.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-hir/tests/conversions.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-vm/tests/conversions.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-hir/tests/recovery.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-vm/tests/recovery.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-hir/tests/group_binding.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-vm/tests/group_binding.rs", "state": "present" },
         { "kind": "test", "path": "crates/leselang-vm/tests/computation.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpentd/src/debugger.rs", "state": "present" }
       ],
-      "next_gate": "Extend the single atomic-result/pure-body slice to result-driven host successors across multiple suspensions, group result binding and additional typed projections, followed by bounded collection/data-dependent loops, reusable functions and explicit recovery. Current groups prepare every parameter before the first suspension, not from earlier step results. General computation as group members, mixed all/seq, multi-presentation debugger batches and a full shell remain unimplemented."
+      "next_gate": "Extend pure group result binding to group-driven host effects and additional typed projections, followed by bounded collection/effectful loops, reusable functions and explicit host-effect recovery/cleanup. Named members now feed pure scalar bodies after whole-group success with schema-6 owner fencing, shared fuel and atomic first-commit replay. Pure arithmetic/parse recovery supports lazy typed fallbacks without catching authority, resource or host failures or refunding fuel. Conditional scalar exits preserve atomic completion and raw-output budgets. Pure scalar loops run under shared fuel without mid-loop suspension. Current groups prepare every parameter before the first suspension, not from earlier step results. Group capture inside atomic chains, general computation as group members, mixed all/seq, multi-presentation debugger batches and a full shell remain unimplemented."
     },
     {
       "id": "leserpent-2/language-vm/effect-reentry",

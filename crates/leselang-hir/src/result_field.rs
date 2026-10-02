@@ -15,6 +15,14 @@ pub enum ResultField {
 }
 
 impl ResultField {
+    pub const ALL: [Self; 5] = [
+        Self::Revision,
+        Self::Count,
+        Self::NodeId,
+        Self::FocusedNodeId,
+        Self::MaxLength,
+    ];
+
     pub fn name(self) -> &'static str {
         match self {
             Self::Revision => "revision",

@@ -148,12 +148,24 @@ repository move.
 
 Pure scalar computation, immutable `bind`, lazy `choose` and whole-group computed
 host arguments now precede host suspension alongside `seq`, bounded `repeat`
-and flat `all`. One atomic result can now re-enter a pure scalar body using typed
-field projections and durable scalar locals. Result-driven host successors and
-general environments across multiple suspensions remain pending, followed by
-collection iteration, budgeted
-data-dependent loops with exit/skip semantics,
-reusable functions, and explicit error recovery/cleanup. These are core language
+and flat `all`. Bounded pure `loop` adds condition-first scalar-state iteration
+under the same fuel budget, before suspension or after one captured result.
+Atomic results can re-enter pure scalar bodies or continue bounded multi-step
+chains using typed field projections and durable lexical frames, without copying
+raw host objects into continuations. Chains keep original authority and shared
+budgets, with atomic admission and replay. Mixed pure/suspending branches can
+return a typed scalar early or continue through another capture; cold branches
+still undergo type/capability checks. Explicit `to_string`, `parse_integer` and
+`parse_boolean` bridge scalar calculations and text-based host parameters with
+strict formats, shared fuel and redacted conversion faults, never implicit
+coercion or a host-validator bypass. Pure `recover` selects a lazy same-type
+fallback for local arithmetic/parse failures without refunding fuel or catching
+host, authority, resource-limit or cancellation failures. Named group-result
+binding now exposes statically typed `member`/`field` projections to a pure scalar
+body after the whole group succeeds, with shared fuel and atomic journal replay.
+Group-driven host effects and additional projections remain pending, followed by
+collection iteration, effectful loops with exit/skip semantics,
+reusable functions, and explicit host-effect recovery/cleanup. These are core language
 semantics, not GUI macros or complete control flow; see the
 [implemented control-flow contract](leselang-control-flow.md) for exact limits.
 

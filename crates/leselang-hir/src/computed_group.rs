@@ -15,7 +15,7 @@ pub(super) fn lower(
     callee: &str,
     arguments: &[NamedArgument],
     span: Span,
-    scope: &mut Vec<(String, Type)>,
+    scope: &mut Vec<(String, computation::LocalType)>,
     visited: &mut usize,
     depth: usize,
 ) -> Result<(Computation, Type), Vec<Diagnostic>> {

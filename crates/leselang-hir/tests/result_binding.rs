@@ -55,7 +55,7 @@ fn atomic_results_have_typed_read_only_projections_and_canonical_roundtrips() {
 }
 
 #[test]
-fn field_names_types_purity_and_single_suspension_boundary_are_checked_statically() {
+fn field_names_types_purity_and_result_binding_boundaries_are_checked_statically() {
     for expression in [
         r#"bind(r: runtime.list(), body: field(value: r, name: "node_id"))"#,
         r#"bind(r: runtime.list(), body: field(value: r, name: "runtimes"))"#,
@@ -70,11 +70,9 @@ fn field_names_types_purity_and_single_suspension_boundary_are_checked_staticall
         r#"bind(r: runtime.list(), body: r)"#,
         r#"bind(r: runtime.list(), body: bind(r: 1, body: r))"#,
         r#"bind(r: runtime.list(), body: choose(when: true, then: 1, otherwise: field(value: r, name: "missing")))"#,
-        r#"bind(r: seq(read: runtime.list()), body: 1)"#,
-        r#"bind(r: all(a: runtime.list(), b: runtime.list()), body: 1)"#,
+        r#"bind(r: seq(read: runtime.list()), body: runtime.list())"#,
+        r#"bind(r: all(a: runtime.list(), b: runtime.list()), body: runtime.list())"#,
         r#"bind(r: choose(when: true, then: runtime.list(), otherwise: runtime.list()), body: 1)"#,
-        r#"bind(r: runtime.list(), body: bind(other: runtime.list(), body: 1))"#,
-        r#"bind(r: ui.navigate_focus(node_id: "a", direction: "next"), body: ui.focus(node_id: field(value: r, name: "focused_node_id")))"#,
         r#"seq(step: bind(r: runtime.list(), body: 1))"#,
         r#"all(a: bind(r: runtime.list(), body: 1), b: runtime.list())"#,
         r#"repeat(times: 2, body: bind(r: runtime.list(), body: 1))"#,

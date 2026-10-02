@@ -18,7 +18,7 @@ adapter or generated framework binding against the Leselang UI protocol. The
 3. [Renderer-neutral UI IR contract](../leselang-ui.md)
 4. [Leserpent 2.0 architecture](../leserpent-2-architecture.md)
 5. [Gate-based delivery roadmap](../leserpent-2-roadmap.md)
-6. [Sequential control flow and remaining script-language gaps](../leselang-control-flow.md)
+6. [Computation, pure recovery, bounded loops, atomic chains and named group results](../leselang-control-flow.md)
 7. [Independent embedding architecture and extraction gates](../leselang-embedding.md)
 
 ## Contracts

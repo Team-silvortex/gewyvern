@@ -183,7 +183,7 @@ fn leselang_computation_evidence_does_not_claim_durable_dataflow_completion() {
         .unwrap();
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.contract.stability, ContractStability::Evolving);
-    assert_eq!(cell.contract.version, "0.5.0");
+    assert_eq!(cell.contract.version, "0.12.0");
     assert!(cell.completion < 100);
     for surface in [
         "typed-scalar-computation",
@@ -199,10 +199,58 @@ fn leselang_computation_evidence_does_not_claim_durable_dataflow_completion() {
         "schema-v2-result-binding-continuation",
         "durable-scalar-local-environment",
         "result-binding-first-commit-replay",
+        "bounded-pure-scalar-loop",
+        "condition-first-explicit-loop-limit-fault",
+        "loop-shared-fuel-no-hir-expansion",
+        "result-loop-durable-terminal-replay",
+        "result-loop-native-acknowledgement",
+        "schema-v3-atomic-successor-continuation",
+        "transactional-result-successor-admission",
+        "successor-original-authority-budget-transfer",
+        "result-chain-first-commit-replay",
+        "result-chain-whole-unit-retention",
+        "journal-v7-to-v8-migration",
+        "successor-native-acknowledgement-fence",
+        "schema-v4-typed-result-projection-frame",
+        "bounded-multi-step-atomic-dataflow",
+        "transactional-dataflow-append",
+        "cross-worker-completed-prefix-reconciliation",
+        "single-snapshot-chain-progress",
+        "cumulative-output-before-successor-admission",
+        "journal-v8-to-v9-migration",
+        "multi-capture-native-presentation-proof",
+        "schema-v5-conditional-exit-continuation",
+        "typed-early-return-or-atomic-continuation",
+        "first-commit-conditional-branch-replay",
+        "scalar-projection-cumulative-output-fence",
+        "journal-v9-to-v10-migration",
+        "native-conditional-completion",
+        "explicit-scalar-text-conversion",
+        "strict-ascii-u64-parsing",
+        "strict-boolean-text-parsing",
+        "conversion-shared-fuel-and-string-bounds",
+        "redacted-conversion-faults",
+        "conversion-before-group-admission",
+        "native-numeric-result-to-form-text",
+        "typed-pure-calculation-recovery",
+        "lazy-same-type-fallback",
+        "closed-arithmetic-parse-recovery-set",
+        "recovery-shared-fuel-no-refund",
+        "recovery-resource-and-host-failure-fence",
+        "durable-recovered-result-first-commit-replay",
+        "native-recovery-form-default-proof",
+        "typed-named-group-member-projection",
+        "pure-scalar-group-result-binding",
+        "schema-v6-whole-group-recovery",
+        "bound-group-shared-fuel-reservation",
+        "transactional-group-scalar-completion",
+        "group-result-first-commit-replay",
+        "single-step-sequence-retention",
+        "native-group-result-acknowledgement",
     ] {
         assert!(cell.contract.surfaces.iter().any(|entry| entry == surface));
     }
-    assert!(cell.next_gate.contains("multiple suspensions"));
+    assert!(cell.next_gate.contains("group result binding"));
     assert!(cell.evidence.iter().any(|entry| entry.path
         == "crates/leselang-vm/tests/computation.rs"
         && entry.state == EvidenceState::Present));
@@ -216,6 +264,34 @@ fn leselang_computation_evidence_does_not_claim_durable_dataflow_completion() {
     assert!(cell.evidence.iter().any(|entry| entry.path
         == "crates/leselang-vm/tests/result_binding.rs"
         && entry.state == EvidenceState::Present));
+    assert!(cell.evidence.iter().any(|entry| entry.path
+        == "crates/leselang-hir/tests/iteration.rs"
+        && entry.state == EvidenceState::Present));
+    assert!(cell.evidence.iter().any(|entry| entry.path
+        == "crates/leselang-vm/tests/iteration.rs"
+        && entry.state == EvidenceState::Present));
+    assert!(cell.next_gate.contains("without mid-loop suspension"));
+    for path in [
+        "crates/leselang-hir/tests/successor.rs",
+        "crates/leselang-vm/tests/successor.rs",
+        "crates/leselang-hir/tests/dataflow.rs",
+        "crates/leselang-vm/tests/dataflow.rs",
+        "crates/leselang-hir/tests/conditional_exit.rs",
+        "crates/leselang-vm/tests/conditional_exit.rs",
+        "crates/leselang-hir/tests/conversions.rs",
+        "crates/leselang-vm/tests/conversions.rs",
+        "crates/leselang-hir/tests/recovery.rs",
+        "crates/leselang-hir/tests/group_binding.rs",
+        "crates/leselang-vm/tests/group_binding.rs",
+        "crates/leselang-vm/tests/recovery.rs",
+    ] {
+        assert!(
+            cell.evidence
+                .iter()
+                .any(|entry| entry.path == path && entry.state == EvidenceState::Present)
+        );
+    }
+    assert!(cell.next_gate.contains("host-effect recovery"));
 }
 
 #[test]

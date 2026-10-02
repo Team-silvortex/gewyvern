@@ -3,13 +3,43 @@ use std::borrow::Cow;
 use leselang_hir::computation::{
     BinaryOperator, Computation, GroupKind, MAX_SCALAR_STRING_BYTES, ScalarValue, UnaryOperator,
 };
+use leselang_hir::host_call::HostOperation;
 use leselang_hir::{Effect, HirBranch};
 
+use crate::result_binding::{ProjectedBinding, ProjectedResult};
 use crate::{Fault, ResultBinding, ScalarBinding, Value};
+
+#[derive(Clone, Copy)]
+pub(super) enum ResultView<'a> {
+    Raw {
+        value: &'a Value,
+        operation: HostOperation,
+    },
+    Projected(&'a ProjectedResult),
+    Group(&'a Value),
+}
+
+impl ResultView<'_> {
+    fn field(self, field: leselang_hir::result_field::ResultField) -> Result<ScalarValue, Fault> {
+        match self {
+            Self::Raw { value, .. } => crate::result_binding::project(value, field),
+            Self::Projected(result) => result.field(field),
+            Self::Group(_) => Err(invalid()),
+        }
+    }
+
+    fn snapshot(self) -> Result<ProjectedResult, Fault> {
+        match self {
+            Self::Raw { value, operation } => ProjectedResult::capture(operation, value),
+            Self::Projected(result) => Ok(result.clone()),
+            Self::Group(_) => Err(invalid()),
+        }
+    }
+}
 
 pub(super) enum Outcome<'a> {
     Scalar(ScalarValue),
-    Result(&'a Value),
+    Result(ResultView<'a>),
     Host(Cow<'a, Effect>),
     BoundHost {
         effect: Cow<'a, Effect>,
@@ -20,7 +50,7 @@ pub(super) enum Outcome<'a> {
 #[derive(Clone)]
 enum LocalValue<'a> {
     Scalar(ScalarValue),
-    Result(&'a Value),
+    Result(ResultView<'a>),
 }
 
 fn error(code: &str, message: &str) -> Fault {
@@ -65,6 +95,15 @@ fn scalar(outcome: Outcome<'_>) -> Result<ScalarValue, Fault> {
 pub(super) fn resume(
     binding: &ResultBinding,
     value: &Value,
+    operation: HostOperation,
+    fuel: &mut u64,
+) -> Result<ScalarValue, Fault> {
+    scalar(resume_outcome(binding, value, operation, fuel)?)
+}
+
+pub(super) fn resume_group(
+    binding: &ResultBinding,
+    value: &Value,
     fuel: &mut u64,
 ) -> Result<ScalarValue, Fault> {
     let mut scope = Vec::with_capacity(binding.locals.len() + 1);
@@ -72,8 +111,47 @@ pub(super) fn resume(
         charge(fuel, 1 + string_cost(&local.value))?;
         scope.push((local.name.clone(), LocalValue::Scalar(local.value.clone())));
     }
-    scope.push((binding.name.clone(), LocalValue::Result(value)));
+    scope.push((
+        binding.name.clone(),
+        LocalValue::Result(ResultView::Group(value)),
+    ));
     scalar(evaluate_inner(&binding.body, fuel, &mut scope)?)
+}
+
+pub(super) fn resume_outcome<'a>(
+    binding: &'a ResultBinding,
+    value: &'a Value,
+    operation: HostOperation,
+    fuel: &mut u64,
+) -> Result<Outcome<'a>, Fault> {
+    let mut scope = Vec::with_capacity(binding.locals.len() + 1);
+    for local in &binding.locals {
+        charge(fuel, 1 + string_cost(&local.value))?;
+        scope.push((local.name.clone(), LocalValue::Scalar(local.value.clone())));
+    }
+    for result in &binding.results {
+        charge_projection(fuel, &result.result)?;
+        scope.push((
+            result.name.clone(),
+            LocalValue::Result(ResultView::Projected(&result.result)),
+        ));
+    }
+    scope.push((
+        binding.name.clone(),
+        LocalValue::Result(ResultView::Raw { value, operation }),
+    ));
+    evaluate_inner(&binding.body, fuel, &mut scope)
+}
+
+fn charge_projection(fuel: &mut u64, result: &ProjectedResult) -> Result<(), Fault> {
+    charge(
+        fuel,
+        1 + result
+            .fields
+            .iter()
+            .map(|field| 1 + string_cost(&field.value))
+            .sum::<u64>(),
+    )
 }
 
 fn evaluate_inner<'a>(
@@ -98,7 +176,7 @@ fn evaluate_inner<'a>(
                     charge(fuel, string_cost(value))?;
                     value.clone()
                 }
-                LocalValue::Result(value) => return Ok(Outcome::Result(value)),
+                LocalValue::Result(value) => return Ok(Outcome::Result(*value)),
             }
         }
         Computation::Bind { name, value, body } => {
@@ -107,21 +185,32 @@ fn evaluate_inner<'a>(
                 Outcome::Result(value) => LocalValue::Result(value),
                 Outcome::Host(effect) => {
                     let mut locals = Vec::with_capacity(scope.len());
+                    let mut results = Vec::new();
                     for (name, value) in scope.iter() {
-                        let LocalValue::Scalar(value) = value else {
-                            return Err(invalid());
-                        };
-                        charge(fuel, 1 + string_cost(value))?;
-                        locals.push(ScalarBinding {
-                            name: name.clone(),
-                            value: value.clone(),
-                        });
+                        match value {
+                            LocalValue::Scalar(value) => {
+                                charge(fuel, 1 + string_cost(value))?;
+                                locals.push(ScalarBinding {
+                                    name: name.clone(),
+                                    value: value.clone(),
+                                });
+                            }
+                            LocalValue::Result(value) => {
+                                let result = value.snapshot()?;
+                                charge_projection(fuel, &result)?;
+                                results.push(ProjectedBinding {
+                                    name: name.clone(),
+                                    result,
+                                });
+                            }
+                        }
                     }
                     return Ok(Outcome::BoundHost {
                         effect,
                         binding: Box::new(ResultBinding {
                             name: name.clone(),
                             locals,
+                            results,
                             body: body.as_ref().clone(),
                         }),
                     });
@@ -133,11 +222,70 @@ fn evaluate_inner<'a>(
             scope.pop();
             return result;
         }
+        Computation::Loop {
+            name,
+            initial,
+            condition,
+            next,
+            limit,
+        } => {
+            let initial = scalar(evaluate_inner(initial, fuel, scope)?)?;
+            let state_type = initial.scalar_type();
+            let slot = scope.len();
+            scope.push((name.clone(), LocalValue::Scalar(initial)));
+            let result = (|| {
+                for iteration in 0..=*limit {
+                    let ScalarValue::Boolean(keep_going) =
+                        scalar(evaluate_inner(condition, fuel, scope)?)?
+                    else {
+                        return Err(invalid());
+                    };
+                    if !keep_going {
+                        return Ok(());
+                    }
+                    if iteration == *limit {
+                        return Err(error("LSV1406", "loop iteration limit exhausted"));
+                    }
+                    let next = scalar(evaluate_inner(next, fuel, scope)?)?;
+                    if next.scalar_type() != state_type {
+                        return Err(invalid());
+                    }
+                    scope.get_mut(slot).ok_or_else(invalid)?.1 = LocalValue::Scalar(next);
+                }
+                Err(invalid())
+            })();
+            // Restore the enclosing scope on both normal exit and calculation failure.
+            let (_, state) = scope.pop().ok_or_else(invalid)?;
+            result?;
+            let LocalValue::Scalar(state) = state else {
+                return Err(invalid());
+            };
+            state
+        }
+        Computation::Member {
+            group,
+            name,
+            operation,
+        } => {
+            let Some((_, LocalValue::Result(ResultView::Group(Value::Structured { fields })))) =
+                scope.iter().find(|(bound, _)| bound == group)
+            else {
+                return Err(invalid());
+            };
+            let field = fields
+                .iter()
+                .find(|field| field.name == *name)
+                .ok_or_else(invalid)?;
+            return Ok(Outcome::Result(ResultView::Raw {
+                value: &field.value,
+                operation: *operation,
+            }));
+        }
         Computation::Field { value, field } => {
             let Outcome::Result(value) = evaluate_inner(value, fuel, scope)? else {
                 return Err(invalid());
             };
-            let value = crate::result_binding::project(value, *field)?;
+            let value = value.field(*field)?;
             charge(fuel, string_cost(&value))?;
             value
         }
@@ -150,6 +298,16 @@ fn evaluate_inner<'a>(
                 return Err(invalid());
             };
             return evaluate_inner(if when { then } else { otherwise }, fuel, scope);
+        }
+        Computation::Recover { value, fallback } => {
+            match evaluate_inner(value, fuel, scope).and_then(scalar) {
+                Ok(value) => value,
+                // Only language data errors are recoverable, never resource or host failures.
+                Err(fault) if matches!(fault.code.as_str(), "LSV1401" | "LSV1408") => {
+                    scalar(evaluate_inner(fallback, fuel, scope)?)?
+                }
+                Err(fault) => return Err(fault),
+            }
         }
         Computation::Host { effect } => return Ok(Outcome::Host(Cow::Borrowed(effect))),
         Computation::Group {
@@ -211,6 +369,36 @@ fn evaluate_inner<'a>(
                 (UnaryOperator::Len, ScalarValue::String(value)) => {
                     ScalarValue::Integer(value.chars().count() as u64)
                 }
+                (UnaryOperator::ToString, value) => {
+                    let value = match value {
+                        ScalarValue::Integer(value) => value.to_string(),
+                        ScalarValue::Boolean(value) => value.to_string(),
+                        ScalarValue::String(value) => value,
+                        ScalarValue::None => return Err(invalid()),
+                    };
+                    let value = ScalarValue::String(value);
+                    charge(fuel, string_cost(&value))?;
+                    value
+                }
+                (UnaryOperator::ParseInteger, ScalarValue::String(value)) => {
+                    // Reject Rust's optional '+' and all non-decimal spellings explicitly.
+                    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+                        return Err(invalid_integer_text());
+                    }
+                    ScalarValue::Integer(value.parse::<u64>().map_err(|_| invalid_integer_text())?)
+                }
+                (UnaryOperator::ParseBoolean, ScalarValue::String(value)) => {
+                    ScalarValue::Boolean(match value.as_str() {
+                        "true" => true,
+                        "false" => false,
+                        _ => {
+                            return Err(error(
+                                "LSV1408",
+                                "invalid boolean text: expected true or false",
+                            ));
+                        }
+                    })
+                }
                 _ => return Err(invalid()),
             }
         }
@@ -235,6 +423,13 @@ fn evaluate_inner<'a>(
         }
     };
     Ok(Outcome::Scalar(value))
+}
+
+fn invalid_integer_text() -> Fault {
+    error(
+        "LSV1408",
+        "invalid integer text: expected ASCII decimal within u64",
+    )
 }
 
 fn binary(op: BinaryOperator, left: ScalarValue, right: ScalarValue) -> Result<ScalarValue, Fault> {

@@ -103,15 +103,147 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
         panic!("result-binding seed must suspend");
     };
     let binding_seed = encode_continuation(&request.continuation).unwrap();
+    let program = lower(&parse(r#"fn main() = bind(r: runtime.list(), body: loop(n: 0, while: lt(left: n, right: field(value: r, name: "count")), next: add(left: n, right: 1), limit: 16))"#)).unwrap();
+    let Step::Effect(request) = Vm::new(100).start(
+        &program,
+        Principal::new("fuzz-operator").unwrap(),
+        CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+        None,
+    ) else {
+        panic!("loop result-binding seed must suspend");
+    };
+    let loop_seed = encode_continuation(&request.continuation).unwrap();
+    let program = lower(&parse(r#"fn main() = bind(r: runtime.list(), body: choose(when: eq(left: field(value: r, name: "count"), right: 0), then: runtime.list(role: "empty"), otherwise: runtime.list(role: "populated")))"#)).unwrap();
+    let Step::Effect(request) = Vm::new(100).start(
+        &program,
+        Principal::new("fuzz-operator").unwrap(),
+        CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+        None,
+    ) else {
+        panic!("successor seed must suspend");
+    };
+    let successor_seed = encode_continuation(&request.continuation).unwrap();
+    let program = lower(&parse(r#"fn main() = bind(first: runtime.list(), body: bind(second: runtime.list(), body: add(left: field(value: first, name: "count"), right: field(value: second, name: "count"))))"#)).unwrap();
+    let mut vm = Vm::new(100);
+    let Step::Effect(first) = vm.start(
+        &program,
+        Principal::new("fuzz-operator").unwrap(),
+        CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+        None,
+    ) else {
+        panic!("dataflow seed must suspend");
+    };
+    let dataflow_seed = encode_continuation(&first.continuation).unwrap();
+    let Step::Effect(second) = vm.resume(
+        &first.continuation,
+        leselang_vm::EffectResult::Query(leserpent_domain::QueryResult::RuntimeList {
+            revision: leserpent_domain::Revision(7),
+            runtimes: vec![],
+        }),
+    ) else {
+        panic!("dataflow seed must capture a projection");
+    };
+    let projection_seed = encode_continuation(&second.continuation).unwrap();
+    let program = lower(&parse(
+        r#"fn main() = bind(first: runtime.list(), body:
+        choose(when: false, then: 0, otherwise: bind(second: runtime.list(), body:
+            choose(when: eq(left: field(value: second, name: "count"), right: 0), then: 1,
+                otherwise: bind(third: runtime.list(), body: 2)))))"#,
+    ))
+    .unwrap();
+    let mut vm = Vm::new(200);
+    let Step::Effect(first) = vm.start(
+        &program,
+        Principal::new("fuzz-operator").unwrap(),
+        CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+        None,
+    ) else {
+        panic!("conditional seed must suspend");
+    };
+    let conditional_seed = encode_continuation(&first.continuation).unwrap();
+    let Step::Effect(second) = vm.resume(
+        &first.continuation,
+        leselang_vm::EffectResult::Query(leserpent_domain::QueryResult::RuntimeList {
+            revision: leserpent_domain::Revision(7),
+            runtimes: vec![],
+        }),
+    ) else {
+        panic!("conditional seed must capture a projection");
+    };
+    let conditional_projection_seed = encode_continuation(&second.continuation).unwrap();
+    let program = lower(&parse(r#"fn main() = bind(r: runtime.list(), body:
+        choose(when: parse_boolean(value: "true"),
+            then: to_string(value: parse_integer(value: to_string(value: field(value: r, name: "count")))),
+            otherwise: "none"))"#)).unwrap();
+    let Step::Effect(request) = Vm::new(100).start(
+        &program,
+        Principal::new("fuzz-operator").unwrap(),
+        CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+        None,
+    ) else {
+        panic!("conversion seed must suspend");
+    };
+    let conversion_seed = encode_continuation(&request.continuation).unwrap();
+    let program = lower(&parse(
+        r#"fn main() = bind(r: runtime.list(), body:
+        recover(value: div(left: 1, right: field(value: r, name: "count")),
+            fallback: recover(value: parse_integer(value: "bad"), fallback: 7)))"#,
+    ))
+    .unwrap();
+    let Step::Effect(request) = Vm::new(100).start(
+        &program,
+        Principal::new("fuzz-operator").unwrap(),
+        CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+        None,
+    ) else {
+        panic!("recovery seed must suspend");
+    };
+    let recovery_seed = encode_continuation(&request.continuation).unwrap();
+    let program = lower(&parse(
+        r#"fn main() = bind(g: seq(read: runtime.list()),
+        body: field(value: member(value: g, name: "read"), name: "count"))"#,
+    ))
+    .unwrap();
+    let Step::Effect(request) = Vm::new(100).start(
+        &program,
+        Principal::new("fuzz-operator").unwrap(),
+        CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+        None,
+    ) else {
+        panic!("group-result seed must suspend");
+    };
+    let group_seed = encode_continuation(&request.continuation).unwrap();
+    let seeds = [
+        seed,
+        binding_seed,
+        loop_seed,
+        successor_seed,
+        dataflow_seed,
+        projection_seed,
+        conditional_seed,
+        conditional_projection_seed,
+        conversion_seed,
+        recovery_seed,
+        group_seed,
+    ];
     let mut random = DeterministicRandom::new(FUZZ_SEED ^ 0x564d);
     let mut accepted = 0usize;
 
     let mut binding_accepted = 0;
+    let mut loop_accepted = 0;
+    let mut successor_accepted = 0;
+    let mut projection_accepted = 0;
+    let mut conditional_accepted = 0;
+    let mut conversion_accepted = 0;
+    let mut recovery_accepted = 0;
+    let mut group_accepted = 0;
     for index in 0..CONTINUATION_CASES {
-        let candidate = mutate_bytes(
-            if index % 2 == 0 { &seed } else { &binding_seed },
-            &mut random,
-        );
+        // Keep every schema represented before exercising deterministic mutations.
+        let candidate = if index < seeds.len() {
+            seeds[index].clone()
+        } else {
+            mutate_bytes(&seeds[index % seeds.len()], &mut random)
+        };
         let first = decode_continuation(&candidate);
         let second = decode_continuation(&candidate);
         assert_eq!(
@@ -121,10 +253,54 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
         );
         if let Ok(image) = first {
             accepted += 1;
+            if image.schema_version == leselang_vm::GROUP_RESULT_CONTINUATION_SCHEMA_VERSION {
+                group_accepted += 1;
+                assert!(Vm::default().restore(image.clone()).is_err());
+            }
+            if image.schema_version == leselang_vm::SUCCESSOR_CONTINUATION_SCHEMA_VERSION {
+                successor_accepted += 1;
+                assert!(Vm::default().restore(image.clone()).is_err());
+            }
+            if image.schema_version == leselang_vm::DATAFLOW_CONTINUATION_SCHEMA_VERSION {
+                assert!(Vm::default().restore(image.clone()).is_err());
+                if image
+                    .result_binding
+                    .as_ref()
+                    .is_some_and(|binding| !binding.results.is_empty())
+                {
+                    projection_accepted += 1;
+                }
+            }
+            if image.schema_version == leselang_vm::CONDITIONAL_CONTINUATION_SCHEMA_VERSION {
+                assert!(Vm::default().restore(image.clone()).is_err());
+                conditional_accepted += 1;
+            }
             if image.result_binding.is_some() {
                 binding_accepted += 1;
             }
+            if image.result_binding.as_ref().is_some_and(|binding| {
+                matches!(
+                    binding.body,
+                    leselang_hir::computation::Computation::Loop { .. }
+                )
+            }) {
+                loop_accepted += 1;
+            }
             let canonical = encode_continuation(&image).unwrap();
+            if image.result_binding.as_ref().is_some_and(|binding| {
+                matches!(
+                    binding.body,
+                    leselang_hir::computation::Computation::Recover { .. }
+                )
+            }) {
+                recovery_accepted += 1;
+            }
+            if std::str::from_utf8(&canonical)
+                .unwrap()
+                .contains("\"operator\":\"parse_integer\"")
+            {
+                conversion_accepted += 1;
+            }
             assert_eq!(decode_continuation(&canonical).unwrap(), image);
         }
     }
@@ -135,6 +311,34 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     assert!(
         binding_accepted > 0,
         "mutation shelf lost every result-binding continuation"
+    );
+    assert!(
+        loop_accepted > 0,
+        "mutation shelf lost every loop continuation"
+    );
+    assert!(
+        successor_accepted > 0,
+        "mutation shelf lost every successor continuation"
+    );
+    assert!(
+        projection_accepted > 0,
+        "mutation shelf lost every projected-result frame"
+    );
+    assert!(
+        conditional_accepted >= 2,
+        "conditional seeds did not reach the decoder"
+    );
+    assert!(
+        conversion_accepted > 0,
+        "conversion seed did not reach the decoder"
+    );
+    assert!(
+        recovery_accepted > 0,
+        "recovery seed did not reach the decoder"
+    );
+    assert!(
+        group_accepted > 0,
+        "group-result seed did not reach the decoder"
     );
     assert!(decode_continuation(&vec![b' '; 64 * 1024 + 1]).is_err());
     println!(
@@ -187,14 +391,43 @@ fn source_corpus(random: &mut DeterministicRandom) -> Vec<String> {
         "fn main() = seq(first: runtime.list(), next: runtime.history(runtime_id: \"runtime-a\"))"
             .to_string(),
         "fn main() = repeat(times: 3, body: runtime.list())".to_string(),
+        r#"fn main() = bind(g: seq(read: runtime.list()), body: field(value: member(value: g, name: "read"), name: "count"))"#.to_string(),
+        r#"fn main() = bind(g: all(a: runtime.list(), b: runtime.list()), body: field(value: member(value: g, name: "b"), name: "revision"))"#.to_string(),
+        r#"fn main() = bind(g: repeat(times: 2, body: runtime.list()), body: field(value: member(value: g, name: "iteration_2"), name: "count"))"#.to_string(),
+        r#"fn main() = bind(g: seq(read: runtime.list()), body: member(value: g, name: "read"))"#.to_string(),
+        r#"fn main() = bind(g: seq(read: runtime.list()), body: field(value: member(value: g, name: "missing"), name: "count"))"#.to_string(),
         "fn main() = repeat(times: 64, body: repeat(times: 64, body: runtime.list()))".to_string(),
         "fn main() = repeat(times: 18446744073709551616, body: runtime.list())".to_string(),
+        "fn main() = to_string(value: 18446744073709551615)".to_string(),
+        "fn main() = to_string(value: true)".to_string(),
+        "fn main() = to_string(value: none)".to_string(),
+        "fn main() = recover(value: div(left: 1, right: 0), fallback: 7)".to_string(),
+        "fn main() = recover(fallback: div(left: 1, right: 0), value: 7)".to_string(),
+        "fn main() = recover(value: parse_boolean(value: \"bad\"), fallback: false)".to_string(),
+        "fn main() = recover(value: 1, fallback: false)".to_string(),
+        "fn main() = recover(value: 1, fallback: bind(r: runtime.list(), body: 1))".to_string(),
+        "fn main() = bind(r: runtime.list(), body: recover(value: div(left: 1, right: field(value: r, name: \"count\")), fallback: 7))".to_string(),
+        "fn main() = parse_integer(value: \"00042\")".to_string(),
+        "fn main() = parse_integer(value: \"18446744073709551616\")".to_string(),
+        "fn main() = parse_boolean(value: \"false\")".to_string(),
+        "fn main() = parse_boolean(value: \"False\")".to_string(),
+        "fn main() = ui.focus(node_id: to_string(value: add(left: 40, right: 2)))".to_string(),
+        "fn main() = bind(r: runtime.list(), body: runtime.list(role: to_string(value: field(value: r, name: \"count\"))))".to_string(),
         "fn main() = bind(count: add(left: 2, right: 3), body: choose(when: ge(left: count, right: 5), then: count, otherwise: 0))".to_string(),
+        "fn main() = loop(n: 0, while: lt(left: n, right: 3), next: add(left: n, right: 1), limit: 3)".to_string(),
+        "fn main() = loop(n: none, while: false, next: n, limit: 0)".to_string(),
+        "fn main() = loop(n: 0, while: true, next: n, limit: 1025)".to_string(),
+        "fn main() = loop(n: 0, while: false, next: bind(r: runtime.list(), body: 0), limit: 0)".to_string(),
+        "fn main() = bind(r: runtime.list(), body: loop(n: 0, while: lt(left: n, right: field(value: r, name: \"count\")), next: add(left: n, right: 1), limit: 16))".to_string(),
         "fn main() = choose(when: true, then: 1, otherwise: div(left: 1, right: 0))".to_string(),
         "fn main() = and(left: false, right: eq(left: div(left: 1, right: 0), right: 0))".to_string(),
         "fn main() = bind(count: runtime.list(), body: count)".to_string(),
         "fn main() = bind(r: runtime.list(), body: field(value: r, name: \"count\"))".to_string(),
         "fn main() = bind(r: runtime.list(), body: field(value: r, name: \"__proto__\"))".to_string(),
+        "fn main() = bind(r: runtime.list(), body: choose(when: eq(left: field(value: r, name: \"count\"), right: 0), then: runtime.list(role: \"empty\"), otherwise: runtime.list()))".to_string(),
+        "fn main() = bind(r: runtime.list(), body: bind(s: runtime.list(), body: runtime.list()))".to_string(),
+        "fn main() = bind(r: runtime.list(), body: bind(s: runtime.list(), body: add(left: field(value: r, name: \"count\"), right: field(value: s, name: \"count\"))))".to_string(),
+        "fn main() = bind(r: runtime.list(), body: choose(when: true, then: 0, otherwise: bind(s: runtime.list(), body: 0)))".to_string(),
         "fn main() = bind(r: runtime.list(), body: add(left: field(value: r, name: \"revision\"), right: 1))".to_string(),
         "fn main() = bind(role: none, body: runtime.list(role: role))".to_string(),
         "fn main() = runtime.list(environment: concat(left: \"pro\", right: \"d\"))".to_string(),

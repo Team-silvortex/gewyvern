@@ -78,7 +78,8 @@ background cleanup.
   infrastructure release.
 - [docs/history/v2.1.x.md](v2.1.x.md)
   Post-release maintenance line, including the `2.1.2` workspace cleanup and
-  `2.1.3` bounded Leselang computation, control flow, and durable result bindings.
+  `2.1.3` bounded Leselang computation, followed by `2.1.4` durable dataflow,
+  pure recovery, and named group-result bindings.
 - [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md)
   Forward-looking minor-line plan from `0.15.x` through `0.20.x`, intended to
   make `v1.0.0` the direct next step after the final pre-`1.0` seal.

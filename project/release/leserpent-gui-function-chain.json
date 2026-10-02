@@ -455,7 +455,7 @@
             { "stage": "semantic", "path": "crates/leselang-vm/src/lib.rs", "contains": "pub enum PresentationOperation" },
             { "stage": "transport", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteDebuggerClient.cs", "contains": "public async Task<RemoteDebuggerPresentationResult> AdvancePresentationAsync(" },
             { "stage": "authority", "path": "crates/leserpentd/src/debugger.rs", "contains": "pub fn acknowledge_presentation(" },
-            { "stage": "persistence", "path": "crates/leselang-vm/src/lib.rs", "contains": "self.journal.record_completed(image, &step)" },
+            { "stage": "persistence", "path": "crates/leselang-vm/src/successor.rs", "contains": "self.journal.record_completed(image, &step)" },
             { "stage": "projection", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteDebuggerClient.cs", "contains": "private static RemoteDebuggerSession DecodeSession(" },
             { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteDebuggerWindow.cs", "contains": "\"status.live_completed\"" },
             { "stage": "automation", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/AvaloniaDocumentRenderer.cs", "contains": "ApplyPresentationAsync(" }

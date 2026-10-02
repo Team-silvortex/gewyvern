@@ -38,10 +38,12 @@ fn leselang_reference_separates_current_contract_from_roadmap_design() {
         "generated framework binding",
         "UiAdapterManifest",
         "bind-call",
+        "loop-call",
         "choose-call",
+        "recover-call",
         "field-call",
         "result bindings",
-        "single-suspension limit",
+        "bounded result chains",
         "computed groups",
         "128 UTF-8",
         "durable local",
@@ -62,6 +64,292 @@ fn leselang_reference_separates_current_contract_from_roadmap_design() {
     assert!(reference.contains("do not expose\n`async`/`await`"));
     assert!(module.contains("(../leselang-language.md)"));
     assert!(roadmap.contains("(leselang-language.md)"));
+}
+
+#[test]
+fn leselang_successor_documentation_preserves_atomicity_and_authority_boundaries() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    for invariant in [
+        "## Result-Driven Successor",
+        "schema-3 representation",
+        "schema 3",
+        "Journal schema 8",
+        "one\ntransaction",
+        "original authority envelope",
+        "Vm::restore_request",
+        "without reevaluating",
+        "third suspension",
+        "as one unit",
+    ] {
+        assert!(
+            source.contains(invariant),
+            "missing successor boundary: {invariant}"
+        );
+    }
+    let mut examples = 0;
+    for block in source.split("```leselang\n").skip(1) {
+        leselang_hir::lower(&leselang_syntax::parse(block.split("```").next().unwrap())).unwrap();
+        examples += 1;
+    }
+    assert!(examples >= 8);
+}
+
+#[test]
+fn leselang_dataflow_documentation_keeps_typed_frames_and_finite_boundaries_explicit() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    for invariant in [
+        "## Durable Result Chains",
+        "schema 4",
+        "typed result\nprojections",
+        "Journal schema 9",
+        "64 KiB",
+        "16-level scope limit",
+        "64 steps",
+        "mixed exits use",
+        "does not replenish",
+        "before admitting another effect",
+        "as one unit",
+    ] {
+        assert!(
+            source.contains(invariant),
+            "missing dataflow contract: {invariant}"
+        );
+    }
+    let section = source.split("## Durable Result Chains").nth(1).unwrap();
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(
+        program.function.result_type,
+        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+    );
+}
+
+#[test]
+fn leselang_conditional_exit_contract_keeps_recovery_and_budget_boundaries_explicit() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    for invariant in [
+        "## Conditional Exits",
+        "schema 5",
+        "Journal schema 10",
+        "same scalar",
+        "cannot have a child",
+        "never reevaluates its predicate",
+        "before scalar projection",
+        "LSV2404",
+        "type, scope and capability preflight",
+        "Image-only restore",
+        "without rewriting old images",
+        "private result frames",
+    ] {
+        assert!(
+            source.contains(invariant),
+            "missing conditional-exit contract: {invariant}"
+        );
+    }
+    let example = source
+        .split("## Conditional Exits")
+        .nth(1)
+        .unwrap()
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(
+        program.function.result_type,
+        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+    );
+}
+
+#[test]
+fn named_group_result_contract_keeps_static_members_and_whole_journal_recovery_explicit() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Named Group Result Bindings")
+        .nth(1)
+        .unwrap()
+        .split("## Result-Driven Successor")
+        .next()
+        .unwrap();
+    for invariant in [
+        "literal step",
+        "pure scalar body",
+        "schema 6",
+        "bound_parallel",
+        "bound_sequential",
+        "64 KiB",
+        "complete original journal",
+        "Vm::restore_request(request)",
+        "LSV1409",
+        "one transaction",
+        "before projection",
+        "single-member sequences",
+        "schema 10",
+    ] {
+        assert!(
+            section.contains(invariant),
+            "missing group-result boundary: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(
+        program.function.result_type,
+        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+    );
+    assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
+}
+
+#[test]
+fn leselang_conversion_contract_connects_computation_to_validated_host_text() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Explicit Scalar Conversions")
+        .nth(1)
+        .unwrap()
+        .split("## Bounded Pure Loops")
+        .next()
+        .unwrap();
+    for invariant in [
+        "to_string",
+        "parse_integer",
+        "parse_boolean",
+        "non-empty ASCII decimal",
+        "Leading zeros in text",
+        "LSV1408",
+        "never the input",
+        "4096-byte",
+        "shared fuel",
+        "original host validators",
+        "all-or-nothing",
+        "unknown operators",
+        "journal schema 10",
+        "no storage-layout migration",
+    ] {
+        assert!(
+            section.contains(invariant),
+            "missing conversion boundary: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(
+        program.function.result_type,
+        leselang_hir::Type::UiSetFormValue
+    );
+    assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
+}
+
+#[test]
+fn leselang_recovery_documentation_keeps_data_errors_separate_from_host_failures() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Pure Calculation Recovery")
+        .nth(1)
+        .unwrap()
+        .split("## Result Bindings")
+        .next()
+        .unwrap();
+    for invariant in [
+        "same scalar type",
+        "enclosing scope",
+        "even when cold",
+        "LSH1411",
+        "set is closed",
+        "LSV1401",
+        "LSV1408",
+        "never refunded",
+        "not recoverable",
+        "host failure",
+        "journal schema 10",
+        "duplicate results replay",
+        "not implement recovery around host effects",
+    ] {
+        assert!(
+            section.contains(invariant),
+            "missing recovery boundary: {invariant}"
+        );
+    }
+    let examples = section
+        .split("```leselang\n")
+        .skip(1)
+        .map(|block| {
+            leselang_hir::lower(&leselang_syntax::parse(block.split("```").next().unwrap()))
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(examples.len(), 2);
+    assert_eq!(
+        examples[0].function.result_type,
+        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Integer)
+    );
+    assert!(examples[0].function.required_capabilities.is_empty());
+    assert_eq!(
+        examples[1].function.result_type,
+        leselang_hir::Type::UiSetFormValue
+    );
+    assert_eq!(
+        examples[1].function.required_capabilities,
+        ["ui.presentation"]
+    );
+}
+
+#[test]
+fn leselang_loop_documentation_is_executable_and_keeps_the_pure_boundary_explicit() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    for invariant in [
+        "## Bounded Pure Loops",
+        "0 through 1024",
+        "state transitions, not condition checks",
+        "LSV1406",
+        "does not receive fresh fuel",
+        "no mid-loop checkpoint or host effect",
+        "This does not add effectful loops",
+    ] {
+        assert!(
+            source.contains(invariant),
+            "missing loop boundary: {invariant}"
+        );
+    }
+    let mut examples = 0;
+    for block in source.split("```leselang\n").skip(1) {
+        let program = block.split("```").next().unwrap();
+        if program.contains("loop(") {
+            leselang_hir::lower(&leselang_syntax::parse(program)).unwrap();
+            examples += 1;
+        }
+    }
+    assert!(
+        examples >= 2,
+        "pure and result-bound loop examples must compile"
+    );
 }
 
 #[test]

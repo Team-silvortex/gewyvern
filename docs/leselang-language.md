@@ -1135,7 +1135,7 @@ program       = function, EOF ;
 function      = "fn", identifier, "(", ")", "=", expression ;
 expression    = string | integer | boolean | "none" | identifier | call ;
 call          = effect-call | all-call | seq-call | repeat-call
-              | bind-call | choose-call | binary-call | unary-call | field-call ;
+              | bind-call | loop-call | choose-call | recover-call | binary-call | unary-call | field-call | member-call ;
 effect-call   = identifier, ".", identifier, "(", [ arguments ], ")" ;
 all-call      = "all", "(", branch, ",", branch, { ",", branch }, [ "," ], ")" ;
 seq-call      = "seq", "(", branch, { ",", branch }, [ "," ], ")" ;
@@ -1145,10 +1145,14 @@ arguments     = argument, { ",", argument }, [ "," ] ;
 argument      = identifier, ":", value ;
 value         = expression ;
 bind-call     = "bind", "(", identifier, ":", expression, ",", "body", ":", expression, [ "," ], ")" ;
+loop-call     = "loop", "(", identifier, ":", expression, ",", "while", ":", expression, ",", "next", ":", expression, ",", "limit", ":", integer, [ "," ], ")" ;
 choose-call   = "choose", "(", "when", ":", expression, ",", "then", ":", expression, ",", "otherwise", ":", expression, [ "," ], ")" ;
+recover-call  = "recover", "(", "value", ":", expression, ",", "fallback", ":", expression, [ "," ], ")" ;
 binary-call   = binary-op, "(", "left", ":", expression, ",", "right", ":", expression, [ "," ], ")" ;
-unary-call    = ( "not" | "len" ), "(", "value", ":", expression, [ "," ], ")" ;
+unary-call    = unary-op, "(", "value", ":", expression, [ "," ], ")" ;
+unary-op      = "not" | "len" | "to_string" | "parse_integer" | "parse_boolean" ;
 field-call    = "field", "(", "value", ":", expression, ",", "name", ":", string, [ "," ], ")" ;
+member-call   = "member", "(", "value", ":", identifier, ",", "name", ":", string, [ "," ], ")" ;
 binary-op     = "add" | "sub" | "mul" | "div" | "rem" | "eq" | "ne"
               | "lt" | "le" | "gt" | "ge" | "and" | "or" | "concat" ;
 boolean       = "true" | "false" ;
@@ -1165,11 +1169,12 @@ Source is UTF-8 and limited to 256 KiB.
 Integer literals are canonical unsigned 64-bit decimals; signs, leading zeroes,
 fractions, alternate bases, and overflow are rejected. Computation accepts the
 full `u64` range, while `repeat.times` remains an integer literal from 1 through
-64. The grammar shows canonical argument order; named arguments may be reordered
+64 and `loop.limit` from 0 through 1024. The grammar shows canonical argument order; named arguments may be reordered
 without changing evaluation order. `true` and `false` are literals in value
 positions and cannot name locals; existing function and named-step labels may
 still use these words. `none` and `fn` retain their existing reserved status.
-Bare value identifiers resolve only to enclosing immutable bindings. See
+Bare value identifiers resolve only to lexical bindings, including the current
+loop-local scalar state. Enclosing bindings remain immutable. See
 [control flow](leselang-control-flow.md) for typed calculation, `bind`, lazy
 `choose`, short-circuit logic, limits, and remaining language gaps. Atomic host
 operations accept pure expressions and locals as arguments, retaining their
@@ -1178,9 +1183,34 @@ existing string/`none` types and domain limits. This also works inside bounded
 any effect starts. See [computed groups](leselang-control-flow.md#computed-groups)
 for whole-group failure, scope, expansion and recovery rules.
 One atomic host result can also be bound and projected with a type-checked
-`field(value: result, name: "...")`, followed by a pure scalar body. See
+`field(value: result, name: "...")`, followed by a pure scalar body or another atomic capture. See
 [result bindings](leselang-control-flow.md#result-bindings) for the exact field
-table, durable local environment, schema-2 continuation and single-suspension limit.
+table and durable local environment. Pure bodies use schema 2, an uncaptured tail
+uses schema 3, and [bounded result chains](leselang-control-flow.md#durable-result-chains)
+use schema 4 with typed projection frames across suspensions. Mixed scalar
+return/continue branches use [schema 5](leselang-control-flow.md#conditional-exits).
+Named `seq`/`repeat`/flat `all` results can be bound for a pure scalar body using
+`member(value: group, name: "step")` and the existing typed `field` projections.
+[Group-result bindings](leselang-control-flow.md#named-group-result-bindings)
+use schema 6 and require complete journal recovery; isolated member restoration
+is rejected. This does not allow group-driven host effects or result-dependent
+parameters inside the prepared group.
+The [bounded pure loop contract](leselang-control-flow.md#bounded-pure-loops)
+defines condition-first exit, typed next-state updates, explicit limit faults,
+and shared fuel; loops can run before suspension or in a captured result's pure body.
+The [explicit scalar conversions](leselang-control-flow.md#explicit-scalar-conversions)
+connect typed calculations to string-valued host parameters without implicit
+coercion. `to_string` accepts integers, booleans and strings, never `none` or raw
+host objects. `parse_integer` accepts non-empty ASCII decimal text within `u64`
+(including leading zeros in text, not source literals); `parse_boolean` accepts
+exactly `"true"` or `"false"`. Invalid text faults with `LSV1408` without echoing
+the input. String bounds, shared fuel and host-argument validation still apply.
+The [pure calculation recovery contract](leselang-control-flow.md#pure-calculation-recovery)
+adds `recover(value: ..., fallback: ...)` for same-type pure scalars. Only local
+arithmetic (`LSV1401`) and text parsing (`LSV1408`) failures select the lazy
+fallback; resource limits, authorization, deadlines, cancellation and host errors
+are not intercepted. Failed work consumes the shared fuel and is never refunded.
+Both sides remain type-checked; this is not effectful retry, rollback or cleanup.
 
 Serialized syntax trees validate source bounds, exact token coverage and EOF,
 UTF-8-safe token/diagnostic/AST spans, and call depth before acceptance.
@@ -1210,11 +1240,12 @@ remain on UTF-8 character boundaries. A parallel continuation corpus mutates
 encoded VM images and requires deterministic fail-closed decoding or canonical
 roundtrip.
 
-The implemented surface excludes result-driven host successors, group-result
-bindings, arbitrary mutation, data-dependent loops, unstructured concurrency,
+The implemented surface excludes group-result
+bindings, arbitrary mutation, effectful or collection loops, unstructured concurrency,
 raw HTTP, shell execution, and host-language reflection. Pure scalar computation
 and bindings are available before host suspension or after one captured atomic
-result, not between group steps or across multiple host suspensions.
+result, including multiple atomic captures in bounded chains, not between
+precomputed group steps or inside effectful loops.
 Synchronous source semantics do not expose
 `async`/`await`; `all` is the explicit structured-concurrency form.
 
@@ -1288,8 +1319,17 @@ the direct embedded `resume` path. Mutating commands must be leased and complete
 through `acknowledge_effect`; direct mutation resume fails closed.
 An atomic result-binding program also starts as one `Effect`, but successful
 re-entry evaluates the saved pure body and commits its scalar output or typed
-fault. Its enclosing scalar locals and body use continuation schema 2; legacy
-schema-1 atomic/group images retain their wire form. Journal schema 7 is unchanged.
+fault. Its enclosing scalar locals and body use continuation schema 2. An atomic
+tail body uses schema 3 and atomically admits one schema-1 successor with the
+original authority, remaining fuel and deadline. Its final value is the successor's
+typed result. Further captures use schema 4, saving only exported scalar result
+projections and lexical locals for the remaining body. Their final result may be
+a computed scalar or the final atomic host value. Schema 5 permits a conditional
+scalar early return instead of another capture, with the same final scalar type
+on both branches and type/capability checks even on cold branches.
+Image-only restoration cannot recover the original authority;
+use the journal or the trusted-host `Vm::restore_request` API. Legacy schema-1/2/3/4
+images retain their wire forms; the current journal schema is 10.
 
 `Vm::start_timed` accepts scheduler `now_ms` and a bounded timeout, persists the
 resulting absolute deadline, and requires `resume_at`, `claim_effect`, or
@@ -1386,6 +1426,32 @@ Existing schema 1 through 6 graphs migrate as parallel. Recovery rejects an
 order/plan mismatch or a pending sequence with out-of-order completions or
 dispatch history on blocked steps. A sequential failure closes its remaining
 steps and the group in the same transaction.
+Schema 8 adds result-driven two-effect chains without changing the existing
+table layout: their plan uses `result_chain` with sequential dispatch ordering.
+The first completion and chosen successor are committed together. Recovery
+requires the original request and validates shared authority/budgets and exact
+two-step membership; it never recomputes a committed successor. Schema 7 migrates
+to 8, while old readers reject the newer journal version.
+Schema 9 extends the same storage with bounded multi-step `dataflow` plans and
+schema-4 typed projection frames. Each appended step is transactional, inherits
+authority/budgets, and leaves only one eligible current effect. Recovery validates
+adjacent frames and never recomputes a committed decision. Progress reads use a
+single database snapshot so competing workers reconcile completed prefixes.
+Existing schema-8 two-effect plans migrate unchanged.
+Schema 10 adds conditional scalar exits for schema-5 frames. It validates the
+final scalar type and graph position, distinguishing early completion from a raw
+host result with a committed successor without reevaluating the predicate.
+The current completion and group close atomically; competing workers replay the
+winner. Raw output counts are checked before scalar projection so early returns
+and schema-4 final scalar bodies cannot hide cumulative overflow. Schema-9
+journals migrate without rewriting continuations or plans.
+Schema-6 bound groups use `bound_parallel` / `bound_sequential` plans within the
+existing schema-10 layout. Their bounded pure body and scalar environment are
+group metadata, while each atomic member names its owner. Recovery validates
+all original requests, member types, authority and budgets together. The final
+member and calculated scalar/fault commit atomically; replay never recomputes a
+committed body. Old readers reject these explicit wire markers. See the
+[group-result contract](leselang-control-flow.md#named-group-result-bindings).
 The journal
 uses full synchronous commits and a five-second lock
 timeout, rejects symbolic-link final paths, and creates Unix files with `0600`

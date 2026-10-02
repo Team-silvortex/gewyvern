@@ -392,18 +392,7 @@ pub fn run_pathological_container_validation(
             .unwrap_or_else(|_| docker_logs(&cfg.gw_name).unwrap_or_default()),
     )?;
     let runtime_log = fs::read_to_string(cfg.out_dir.join("runtime.log"))?;
-    if !runtime_log.contains("socket_session_run_failed") {
-        return Err(ValidationError::new(
-            "runtime log did not preserve expected socket resilience evidence",
-        ));
-    }
-    if !runtime_log.contains("unexpected_token")
-        && !runtime_log.contains("fact_line_exceeded_65536_bytes")
-    {
-        return Err(ValidationError::new(
-            "runtime log did not preserve expected pathological input class evidence",
-        ));
-    }
+    validate_pathology_runtime_log(&runtime_log)?;
 
     fs::write(
         cfg.out_dir.join("summary.txt"),
@@ -442,6 +431,38 @@ pub fn run_pathological_container_validation(
             "log_evidence".to_string(),
         ],
     })
+}
+
+fn validate_pathology_runtime_log(runtime_log: &str) -> Result<(), ValidationError> {
+    let mut has_session_failure = false;
+    for line in runtime_log.lines() {
+        let fields = line
+            .split_ascii_whitespace()
+            .take_while(|field| !field.starts_with("msg="));
+        if !fields
+            .clone()
+            .any(|field| field == "event=socket_session_run_failed")
+        {
+            continue;
+        }
+        has_session_failure = true;
+        // Match our error class, not parser-specific wording such as "unexpected token".
+        if fields
+            .filter_map(|field| field.strip_prefix("error="))
+            .any(|error| {
+                error.starts_with("ParseFailed(InvalidJson(")
+                    || (error.starts_with("LimitExceeded(")
+                        && error.contains("fact_line_exceeded_65536_bytes"))
+            })
+        {
+            return Ok(());
+        }
+    }
+    Err(ValidationError::new(if has_session_failure {
+        "runtime log did not preserve expected pathological input class evidence"
+    } else {
+        "runtime log did not preserve expected socket resilience evidence"
+    }))
 }
 
 pub fn run_juice_shop_container_validation(
@@ -2505,8 +2526,57 @@ fn validate_env_path(name: &str, value: String) -> Result<PathBuf, ValidationErr
 
 #[cfg(test)]
 mod tests {
-    use super::{validate_admin_token, validate_docker_cli_arg_value, validate_env_path};
+    use super::{
+        validate_admin_token, validate_docker_cli_arg_value, validate_env_path,
+        validate_pathology_runtime_log,
+    };
     use std::path::PathBuf;
+
+    #[test]
+    fn pathology_log_accepts_current_json_parser_rejections() {
+        let error = crate::socket_input::SocketInputError::ParseFailed(
+            crate::export::fact_from_json(r#"{"facts":[{"kind":"truncated""#).unwrap_err(),
+        );
+        let field = format!("{error:?}").replace('"', "'").replace(' ', "_");
+        let log = format!(
+            "level=ERROR target=serve event=socket_session_run_failed error={field} \
+             consecutive_failures=1 total_failures=1 msg=socket session failure\n"
+        );
+        assert!(validate_pathology_runtime_log(&log).is_ok());
+    }
+
+    #[test]
+    fn pathology_log_accepts_oversized_line_rejections() {
+        assert!(
+            validate_pathology_runtime_log(
+                "event=socket_session_run_failed \
+                 error=LimitExceeded('fact_line_exceeded_65536_bytes') msg=socket session failure"
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn pathology_log_requires_failure_event_and_class_on_same_record() {
+        let log = "event=socket_session_run_failed error=ReadFailed('timeout')\n\
+                   event=message error=ParseFailed(InvalidJson('EOF'))";
+        assert!(validate_pathology_runtime_log(log).is_err());
+    }
+
+    #[test]
+    fn pathology_log_rejects_missing_or_unrelated_failure_evidence() {
+        for log in [
+            "",
+            "event=socket_service_recovered msg=socket service recovered",
+            "event=socket_session_run_failed error=ReadFailed('timeout')",
+            "event=socket_session_run_failed error=LimitExceeded('fact_count_exceeded')",
+            "event=message msg=event=socket_session_run_failed error=ParseFailed(InvalidJson('EOF'))",
+            "event=socket_session_run_failed msg=error=ParseFailed(InvalidJson('EOF'))",
+            "event=socket_session_run_failed msg=unexpected_token fact_line_exceeded_65536_bytes",
+        ] {
+            assert!(validate_pathology_runtime_log(log).is_err(), "{log}");
+        }
+    }
 
     #[test]
     fn validates_env_path_with_valid_value() {

@@ -1,6 +1,7 @@
 use leselang_hir::computation::{Computation, MAX_SCALAR_STRING_BYTES, ScalarValue};
+use leselang_hir::host_call::HostOperation;
 use leselang_hir::result_field::ResultField;
-use leselang_hir::{Effect, MAX_BRANCH_NAME_BYTES, MAX_EFFECT_NESTING_DEPTH, canonical_source};
+use leselang_hir::{Effect, MAX_BRANCH_NAME_BYTES, MAX_EFFECT_NESTING_DEPTH, Type};
 use serde::{Deserialize, Serialize};
 
 use crate::{Fault, Value};
@@ -17,7 +18,72 @@ pub struct ScalarBinding {
 pub struct ResultBinding {
     pub name: String,
     pub locals: Vec<ScalarBinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub results: Vec<ProjectedBinding>,
     pub body: Computation,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectedBinding {
+    pub name: String,
+    pub result: ProjectedResult,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectedResult {
+    pub operation: HostOperation,
+    pub fields: Vec<ProjectedField>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectedField {
+    pub field: ResultField,
+    pub value: ScalarValue,
+}
+
+impl ProjectedResult {
+    pub(super) fn capture(operation: HostOperation, value: &Value) -> Result<Self, Fault> {
+        let fields = ResultField::ALL
+            .into_iter()
+            .filter(|field| field.result_type(operation.result_type()).is_some())
+            .map(|field| {
+                Ok(ProjectedField {
+                    field,
+                    value: project(value, field)?,
+                })
+            })
+            .collect::<Result<Vec<_>, Fault>>()?;
+        let result = Self { operation, fields };
+        result.validate()?;
+        Ok(result)
+    }
+
+    fn validate(&self) -> Result<(), Fault> {
+        let expected = ResultField::ALL
+            .into_iter()
+            .filter_map(|field| {
+                field
+                    .result_type(self.operation.result_type())
+                    .map(|ty| (field, ty))
+            })
+            .collect::<Vec<_>>();
+        if self.fields.len() != expected.len() || self.fields.iter().zip(expected).any(|(stored, (field, ty))| {
+            stored.field != field || stored.value.scalar_type() != ty
+                || matches!(&stored.value, ScalarValue::String(value) if value.len() > MAX_SCALAR_STRING_BYTES)
+        }) { return Err(invalid()); }
+        Ok(())
+    }
+
+    pub(super) fn field(&self, field: ResultField) -> Result<ScalarValue, Fault> {
+        self.fields
+            .iter()
+            .find(|stored| stored.field == field)
+            .map(|stored| stored.value.clone())
+            .ok_or_else(invalid)
+    }
 }
 
 pub(super) fn invalid() -> Fault {
@@ -28,8 +94,21 @@ pub(super) fn invalid() -> Fault {
 }
 
 impl ResultBinding {
+    pub(super) fn schema_version(&self) -> u32 {
+        if !self.body.is_pure() && !self.body.is_result_chain() {
+            crate::CONDITIONAL_CONTINUATION_SCHEMA_VERSION
+        } else if !self.results.is_empty() || (!self.body.is_pure() && !self.body.is_atomic_tail())
+        {
+            crate::DATAFLOW_CONTINUATION_SCHEMA_VERSION
+        } else if self.body.is_pure() {
+            crate::RESULT_BINDING_CONTINUATION_SCHEMA_VERSION
+        } else {
+            crate::SUCCESSOR_CONTINUATION_SCHEMA_VERSION
+        }
+    }
+
     pub(super) fn validate_structure(&self) -> Result<(), Fault> {
-        if self.locals.len() > MAX_EFFECT_NESTING_DEPTH
+        if self.locals.len().saturating_add(self.results.len()) > MAX_EFFECT_NESTING_DEPTH
             || self.name.len() > MAX_BRANCH_NAME_BYTES
             || self.locals.iter().any(|local| {
                 local.name.len() > MAX_BRANCH_NAME_BYTES
@@ -38,17 +117,23 @@ impl ResultBinding {
         {
             return Err(invalid());
         }
+        for result in &self.results {
+            if result.name.len() > MAX_BRANCH_NAME_BYTES {
+                return Err(invalid());
+            }
+            result.result.validate()?;
+        }
         self.body.validate_structure().map_err(|_| invalid())?;
-        if !self.body.is_pure() {
+        if !self.body.is_result_flow() {
             return Err(invalid());
         }
         Ok(())
     }
 
-    pub(super) fn validate(&self, pending: &Effect) -> Result<(), Fault> {
+    pub(super) fn validate(&self, pending: &Effect) -> Result<Type, Fault> {
         self.validate_structure()?;
         // Reconstruct the lexical scope for the normal type/canonical validator.
-        // No saved environment can smuggle a second effect into result handling.
+        // The normal type checker also fences groups and effectful operands.
         let mut expression = Computation::Bind {
             name: self.name.clone(),
             value: Box::new(Computation::Host {
@@ -56,6 +141,19 @@ impl ResultBinding {
             }),
             body: Box::new(self.body.clone()),
         };
+        if !self.results.is_empty() {
+            let scope = self
+                .locals
+                .iter()
+                .map(|local| (local.name.clone(), Type::Scalar(local.value.scalar_type())))
+                .chain(
+                    self.results
+                        .iter()
+                        .map(|result| (result.name.clone(), result.result.operation.result_type())),
+                )
+                .collect::<Vec<_>>();
+            return expression.validate_in_scope(&scope).map_err(|_| invalid());
+        }
         for local in self.locals.iter().rev() {
             expression = Computation::Bind {
                 name: local.name.clone(),
@@ -65,11 +163,7 @@ impl ResultBinding {
                 body: Box::new(expression),
             };
         }
-        canonical_source(&Effect::Compute {
-            expression: Box::new(expression),
-        })
-        .map_err(|_| invalid())?;
-        Ok(())
+        expression.validate_in_scope(&[]).map_err(|_| invalid())
     }
 }
 
