@@ -11,9 +11,9 @@ use crate::{
     ContinuationToken, DEFAULT_MAX_OUTPUT_ITEMS, DebuggerAuditContext, DebuggerAuditRecord,
     DispatchLease, EffectError, EffectRequest, ExecutionOrder, Fault, MAX_CONTINUATION_BYTES,
     MAX_DISPATCH_ATTEMPTS, MAX_DISPATCH_LEASE_MS, MAX_SEMANTIC_RETRIES, MergePlan, RetentionPolicy,
-    RetryDisposition, Step, continuation_age_order, encode_json_capped, merge_declared,
-    valid_continuation_token, validate_continuation_encoding_size, validate_effect_error,
-    validate_effect_request, validate_image, validate_merge_plan, validate_value,
+    RetryDisposition, Step, continuation_age_order, encode_json_capped, valid_continuation_token,
+    validate_continuation_encoding_size, validate_effect_error, validate_effect_request,
+    validate_image, validate_merge_plan, validate_value,
 };
 
 mod group_binding;
@@ -647,10 +647,10 @@ impl EphemeralJournal {
             return Ok(());
         }
         let mut completions = Vec::with_capacity(branch_tokens.len());
-        for (branch, token) in plan.branches.iter().zip(branch_tokens) {
+        for (branch, token) in plan.branches.iter().zip(&branch_tokens) {
             let Some(step) = self
                 .dispatches
-                .get(&token)
+                .get(token)
                 .and_then(|dispatch| dispatch.terminal_step.clone())
             else {
                 return Ok(());
@@ -660,7 +660,18 @@ impl EphemeralJournal {
                 outcome: terminal_step_outcome(step)?,
             });
         }
-        let merged = merge_declared(&plan, completions, DEFAULT_MAX_OUTPUT_ITEMS)?;
+        let merged =
+            if group_binding::needs_successor(&plan) || plan.order.captures_group_successor() {
+                let prefix = group_binding::merge_prefix(&plan, completions)?;
+                let Some(terminal) =
+                    group_binding::admit_ephemeral(self, &group_token, &plan, &prefix)?
+                else {
+                    return Ok(());
+                };
+                terminal
+            } else {
+                group_binding::finish(&plan, completions)?
+            };
         self.merge_groups
             .get_mut(&group_token)
             .ok_or_else(|| journal_fault("LSV4033", "located merge group disappeared"))?
@@ -710,7 +721,12 @@ impl EphemeralJournal {
                 branch_tokens: group.branch_tokens.clone(),
             };
         }
-        if group.plan.order.is_sequential()
+        if (group.plan.order.is_sequential()
+            || group
+                .plan
+                .result_binding
+                .as_ref()
+                .is_some_and(|binding| binding.has_successor(&group.plan)))
             && let Some(dispatch) = group
                 .branch_tokens
                 .iter()
@@ -1332,7 +1348,29 @@ impl SqliteJournal {
             .map_err(|_| journal_fault("LSV4007", "merge branch count is invalid"))?;
         match (state.as_str(), terminal) {
             ("pending", None) if completed_branches < total_branches => {
-                if order == "sequential" {
+                // One pending request may be the last parallel member or its admitted successor.
+                let successor_ready = if order == "parallel"
+                    && completed_branches + 1 == total_branches
+                {
+                    let bytes: Vec<u8> = transaction
+                        .query_row(
+                            "SELECT plan FROM vm_merge_groups WHERE token = ?1",
+                            [merge_token.as_str()],
+                            |row| row.get(0),
+                        )
+                        .map_err(|error| {
+                            journal_error("LSV4033", "failed to inspect parallel successor", error)
+                        })?;
+                    let plan: MergePlan = decode_bounded(&bytes, MAX_CONTINUATION_BYTES)?;
+                    plan.order.has_group_successor()
+                        && plan
+                            .result_binding
+                            .as_ref()
+                            .is_some_and(|binding| binding.has_successor(&plan))
+                } else {
+                    false
+                };
+                if order == "sequential" || successor_ready {
                     let bytes: Vec<u8> = transaction
                         .query_row(
                             "SELECT d.request FROM vm_merge_branches b
@@ -2725,7 +2763,21 @@ fn finalize_merge_group(
             })
         })
         .collect::<Result<Vec<_>, Fault>>()?;
-    let merged = merge_declared(&plan, completions, DEFAULT_MAX_OUTPUT_ITEMS)?;
+    let merged = if group_binding::needs_successor(&plan) || plan.order.captures_group_successor() {
+        let prefix = group_binding::merge_prefix(&plan, completions)?;
+        let Some(terminal) = group_binding::admit_successor(
+            transaction,
+            &ContinuationToken(group_token.clone()),
+            &plan,
+            &prefix,
+        )?
+        else {
+            return Ok(());
+        };
+        terminal
+    } else {
+        group_binding::finish(&plan, completions)?
+    };
     validate_terminal_step(&merged)?;
     let merged_bytes = encode_json_capped(&merged, MAX_JOURNAL_ENTRY_BYTES, "merge result")?;
     ensure_growth(transaction, merged_bytes.len())?;
@@ -2748,11 +2800,20 @@ fn finalize_merge_group(
 
 fn execution_order_label(order: ExecutionOrder) -> &'static str {
     match order {
-        ExecutionOrder::Parallel | ExecutionOrder::BoundParallel => "parallel",
+        ExecutionOrder::Parallel
+        | ExecutionOrder::BoundParallel
+        | ExecutionOrder::ParallelGroupTail
+        | ExecutionOrder::ParallelGroupCapture
+        | ExecutionOrder::ParallelGroupDataflow
+        | ExecutionOrder::ParallelGroupConditional => "parallel",
         ExecutionOrder::Sequential
         | ExecutionOrder::BoundSequential
+        | ExecutionOrder::GroupTail
+        | ExecutionOrder::GroupCapture
         | ExecutionOrder::ResultChain
-        | ExecutionOrder::Dataflow => "sequential",
+        | ExecutionOrder::Dataflow
+        | ExecutionOrder::GroupDataflow
+        | ExecutionOrder::GroupConditional => "sequential",
     }
 }
 
@@ -3230,6 +3291,7 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<(), Fault> {
             .map_err(|error| journal_error("LSV4005", "failed to read merge graph", error))?
     };
 
+    let mut successor_reservations = BTreeSet::new();
     for (token, plan_bytes, state, terminal_bytes, order) in groups {
         let token = ContinuationToken(token);
         if !valid_continuation_token(&token) {
@@ -3253,6 +3315,13 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<(), Fault> {
         let plan: MergePlan = decode_bounded(&plan_bytes, MAX_CONTINUATION_BYTES)?;
         validate_merge_plan(&plan)
             .map_err(|_| journal_fault("LSV4007", "merge group plan is invalid"))?;
+        if let Some(binding) = &plan.result_binding {
+            for sequence in binding.reserved_sequences() {
+                if !successor_reservations.insert(sequence) {
+                    return Err(crate::group_binding::invalid());
+                }
+            }
+        }
         if execution_order_label(plan.order) != order {
             return Err(journal_fault(
                 "LSV4007",

@@ -1,12 +1,15 @@
 use std::borrow::Cow;
 
 use leselang_hir::computation::{
-    BinaryOperator, Computation, GroupKind, MAX_SCALAR_STRING_BYTES, ScalarValue, UnaryOperator,
+    BinaryOperator, Computation, GroupKind, MAX_SCALAR_STRING_BYTES, OptionalStringValue,
+    ScalarValue, UnaryOperator,
 };
 use leselang_hir::host_call::HostOperation;
 use leselang_hir::{Effect, HirBranch};
 
-use crate::result_binding::{ProjectedBinding, ProjectedResult};
+use crate::result_binding::{
+    ProjectedBinding, ProjectedGroup, ProjectedGroupBinding, ProjectedResult,
+};
 use crate::{Fault, ResultBinding, ScalarBinding, Value};
 
 #[derive(Clone, Copy)]
@@ -16,7 +19,11 @@ pub(super) enum ResultView<'a> {
         operation: HostOperation,
     },
     Projected(&'a ProjectedResult),
-    Group(&'a Value),
+    Group {
+        value: &'a Value,
+        branches: &'a [HirBranch],
+    },
+    ProjectedGroup(&'a ProjectedGroup),
 }
 
 impl ResultView<'_> {
@@ -24,7 +31,7 @@ impl ResultView<'_> {
         match self {
             Self::Raw { value, .. } => crate::result_binding::project(value, field),
             Self::Projected(result) => result.field(field),
-            Self::Group(_) => Err(invalid()),
+            Self::Group { .. } | Self::ProjectedGroup(_) => Err(invalid()),
         }
     }
 
@@ -32,7 +39,15 @@ impl ResultView<'_> {
         match self {
             Self::Raw { value, operation } => ProjectedResult::capture(operation, value),
             Self::Projected(result) => Ok(result.clone()),
-            Self::Group(_) => Err(invalid()),
+            Self::Group { .. } | Self::ProjectedGroup(_) => Err(invalid()),
+        }
+    }
+
+    fn snapshot_group(self) -> Result<ProjectedGroup, Fault> {
+        match self {
+            Self::Group { value, branches } => ProjectedGroup::capture(branches, value),
+            Self::ProjectedGroup(group) => Ok(group.clone()),
+            _ => Err(invalid()),
         }
     }
 }
@@ -72,10 +87,9 @@ fn charge(fuel: &mut u64, cost: u64) -> Result<(), Fault> {
 }
 
 fn string_cost(value: &ScalarValue) -> u64 {
-    match value {
-        ScalarValue::String(value) => value.len().div_ceil(64) as u64,
-        _ => 0,
-    }
+    value
+        .text()
+        .map_or(0, |value| value.len().div_ceil(64) as u64)
 }
 
 pub(super) fn evaluate<'a>(
@@ -104,8 +118,18 @@ pub(super) fn resume(
 pub(super) fn resume_group(
     binding: &ResultBinding,
     value: &Value,
+    branches: &[HirBranch],
     fuel: &mut u64,
 ) -> Result<ScalarValue, Fault> {
+    scalar(resume_group_outcome(binding, value, branches, fuel)?)
+}
+
+pub(super) fn resume_group_outcome<'a>(
+    binding: &'a ResultBinding,
+    value: &'a Value,
+    branches: &'a [HirBranch],
+    fuel: &mut u64,
+) -> Result<Outcome<'a>, Fault> {
     let mut scope = Vec::with_capacity(binding.locals.len() + 1);
     for local in &binding.locals {
         charge(fuel, 1 + string_cost(&local.value))?;
@@ -113,9 +137,9 @@ pub(super) fn resume_group(
     }
     scope.push((
         binding.name.clone(),
-        LocalValue::Result(ResultView::Group(value)),
+        LocalValue::Result(ResultView::Group { value, branches }),
     ));
-    scalar(evaluate_inner(&binding.body, fuel, &mut scope)?)
+    evaluate_inner(&binding.body, fuel, &mut scope)
 }
 
 pub(super) fn resume_outcome<'a>(
@@ -136,6 +160,13 @@ pub(super) fn resume_outcome<'a>(
             LocalValue::Result(ResultView::Projected(&result.result)),
         ));
     }
+    for group in &binding.groups {
+        charge_group_projection(fuel, &group.group)?;
+        scope.push((
+            group.name.clone(),
+            LocalValue::Result(ResultView::ProjectedGroup(&group.group)),
+        ));
+    }
     scope.push((
         binding.name.clone(),
         LocalValue::Result(ResultView::Raw { value, operation }),
@@ -152,6 +183,14 @@ fn charge_projection(fuel: &mut u64, result: &ProjectedResult) -> Result<(), Fau
             .map(|field| 1 + string_cost(&field.value))
             .sum::<u64>(),
     )
+}
+
+fn charge_group_projection(fuel: &mut u64, group: &ProjectedGroup) -> Result<(), Fault> {
+    charge(fuel, 1)?;
+    for member in &group.members {
+        charge_projection(fuel, &member.result)?;
+    }
+    Ok(())
 }
 
 fn evaluate_inner<'a>(
@@ -186,6 +225,7 @@ fn evaluate_inner<'a>(
                 Outcome::Host(effect) => {
                     let mut locals = Vec::with_capacity(scope.len());
                     let mut results = Vec::new();
+                    let mut groups = Vec::new();
                     for (name, value) in scope.iter() {
                         match value {
                             LocalValue::Scalar(value) => {
@@ -193,6 +233,16 @@ fn evaluate_inner<'a>(
                                 locals.push(ScalarBinding {
                                     name: name.clone(),
                                     value: value.clone(),
+                                });
+                            }
+                            LocalValue::Result(
+                                value @ (ResultView::Group { .. } | ResultView::ProjectedGroup(_)),
+                            ) => {
+                                let group = value.snapshot_group()?;
+                                charge_group_projection(fuel, &group)?;
+                                groups.push(ProjectedGroupBinding {
+                                    name: name.clone(),
+                                    group,
                                 });
                             }
                             LocalValue::Result(value) => {
@@ -211,6 +261,7 @@ fn evaluate_inner<'a>(
                             name: name.clone(),
                             locals,
                             results,
+                            groups,
                             body: body.as_ref().clone(),
                         }),
                     });
@@ -267,19 +318,43 @@ fn evaluate_inner<'a>(
             name,
             operation,
         } => {
-            let Some((_, LocalValue::Result(ResultView::Group(Value::Structured { fields })))) =
+            let Some((_, LocalValue::Result(view))) =
                 scope.iter().find(|(bound, _)| bound == group)
             else {
                 return Err(invalid());
             };
-            let field = fields
-                .iter()
-                .find(|field| field.name == *name)
-                .ok_or_else(invalid)?;
-            return Ok(Outcome::Result(ResultView::Raw {
-                value: &field.value,
-                operation: *operation,
-            }));
+            return match view {
+                ResultView::Group {
+                    value: Value::Structured { fields },
+                    branches,
+                } => {
+                    if !branches.iter().any(|branch| {
+                        branch.name == *name
+                            && HostOperation::for_effect(&branch.effect) == Some(*operation)
+                    }) {
+                        return Err(invalid());
+                    }
+                    let field = fields
+                        .iter()
+                        .find(|field| field.name == *name)
+                        .ok_or_else(invalid)?;
+                    Ok(Outcome::Result(ResultView::Raw {
+                        value: &field.value,
+                        operation: *operation,
+                    }))
+                }
+                ResultView::ProjectedGroup(saved) => {
+                    let member = saved
+                        .members
+                        .iter()
+                        .find(|member| {
+                            member.name == *name && member.result.operation == *operation
+                        })
+                        .ok_or_else(invalid)?;
+                    Ok(Outcome::Result(ResultView::Projected(&member.result)))
+                }
+                _ => Err(invalid()),
+            };
         }
         Computation::Field { value, field } => {
             let Outcome::Result(value) = evaluate_inner(value, fuel, scope)? else {
@@ -365,6 +440,15 @@ fn evaluate_inner<'a>(
             let value = scalar(evaluate_inner(value, fuel, scope)?)?;
             charge(fuel, string_cost(&value))?;
             match (operator, value) {
+                (UnaryOperator::OptionalString, ScalarValue::String(value)) => {
+                    ScalarValue::OptionalString(OptionalStringValue(Some(value)))
+                }
+                (UnaryOperator::OptionalString, ScalarValue::None) => {
+                    ScalarValue::OptionalString(OptionalStringValue(None))
+                }
+                (UnaryOperator::HasValue, ScalarValue::OptionalString(value)) => {
+                    ScalarValue::Boolean(value.0.is_some())
+                }
                 (UnaryOperator::Not, ScalarValue::Boolean(value)) => ScalarValue::Boolean(!value),
                 (UnaryOperator::Len, ScalarValue::String(value)) => {
                     ScalarValue::Integer(value.chars().count() as u64)
@@ -374,7 +458,7 @@ fn evaluate_inner<'a>(
                         ScalarValue::Integer(value) => value.to_string(),
                         ScalarValue::Boolean(value) => value.to_string(),
                         ScalarValue::String(value) => value,
-                        ScalarValue::None => return Err(invalid()),
+                        ScalarValue::None | ScalarValue::OptionalString(_) => return Err(invalid()),
                     };
                     let value = ScalarValue::String(value);
                     charge(fuel, string_cost(&value))?;
@@ -409,6 +493,14 @@ fn evaluate_inner<'a>(
         } => {
             let left = scalar(evaluate_inner(left, fuel, scope)?)?;
             match (operator, &left) {
+                (BinaryOperator::ValueOr, ScalarValue::OptionalString(value))
+                    if value.0.is_some() =>
+                {
+                    charge(fuel, string_cost(&left))?;
+                    return Ok(Outcome::Scalar(ScalarValue::String(
+                        value.0.as_ref().ok_or_else(invalid)?.clone(),
+                    )));
+                }
                 (BinaryOperator::And, ScalarValue::Boolean(false)) => {
                     return Ok(Outcome::Scalar(left));
                 }
@@ -419,7 +511,11 @@ fn evaluate_inner<'a>(
             }
             let right = scalar(evaluate_inner(right, fuel, scope)?)?;
             charge(fuel, string_cost(&left) + string_cost(&right))?;
-            binary(*operator, left, right)?
+            let value = binary(*operator, left, right)?;
+            if *operator == BinaryOperator::CharAt {
+                charge(fuel, string_cost(&value))?;
+            }
+            value
         }
     };
     Ok(Outcome::Scalar(value))
@@ -443,8 +539,22 @@ fn binary(op: BinaryOperator, left: ScalarValue, right: ScalarValue) -> Result<S
         }));
     }
     match (op, left, right) {
+        (ValueOr, OptionalString(value), String(fallback)) if value.0.is_none() => {
+            Ok(String(fallback))
+        }
         (And, Boolean(left), Boolean(right)) => Ok(Boolean(left && right)),
         (Or, Boolean(left), Boolean(right)) => Ok(Boolean(left || right)),
+        (Contains, String(left), String(right)) => Ok(Boolean(left.contains(&right))),
+        (StartsWith, String(left), String(right)) => Ok(Boolean(left.starts_with(&right))),
+        (EndsWith, String(left), String(right)) => Ok(Boolean(left.ends_with(&right))),
+        (CharAt, String(left), Integer(index)) => {
+            // Check the platform conversion; indices are Unicode scalars, never UTF-8 bytes.
+            let value = usize::try_from(index)
+                .ok()
+                .and_then(|index| left.chars().nth(index))
+                .map(|value| value.to_string());
+            Ok(OptionalString(OptionalStringValue(value)))
+        }
         (Concat, String(mut left), String(right)) => {
             if left.len().saturating_add(right.len()) > MAX_SCALAR_STRING_BYTES {
                 return Err(error("LSV1403", "computed string exceeds 4096 bytes"));

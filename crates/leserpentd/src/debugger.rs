@@ -1672,6 +1672,491 @@ mod tests {
     }
 
     #[test]
+    fn native_pure_helpers_connect_result_projection_to_correlated_form_actions() {
+        let root = TempRoot::new("pure-helpers");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-helpers");
+        request.source =
+            r#"fn next_count(count: integer) = to_string(value: add(left: count, right: 1))
+            fn main() = bind(counted: ui.assert_child_count(node_id: "rows", count: "7"),
+                body: ui.set_form_value(node_id: "form", field: "replicas",
+                    value: next_count(count: field(value: counted, name: "count"))))"#
+                .into();
+        let started = authority.start_session(request).unwrap();
+        assert!(matches!(&started.session.pending_presentation,
+            Some(PresentationOperation::AssertChildCount { node_id, count }) if node_id == "rows" && *count == 7));
+        let mut first_ack = presentation_acknowledgement(
+            "session-helpers",
+            DebuggerPresentationOutcome::Applied {
+                node_id: "rows".into(),
+                focused_node_id: None,
+            },
+        );
+        first_ack.effect_id = authority.sessions["session-helpers"]
+            .request
+            .effect_id
+            .clone();
+        first_ack.expected_revision = started.session.projection.revision;
+        let advanced = authority
+            .acknowledge_presentation(first_ack.clone())
+            .unwrap();
+        assert!(matches!(&advanced.session.pending_presentation,
+            Some(PresentationOperation::SetFormValue { node_id, field, value })
+                if node_id == "form" && field == "replicas" && value == "8"));
+        assert_eq!(
+            authority.acknowledge_presentation(first_ack).unwrap(),
+            advanced
+        );
+        let current = &authority.sessions["session-helpers"].request;
+        let mut final_ack = presentation_acknowledgement(
+            "session-helpers",
+            DebuggerPresentationOutcome::Applied {
+                node_id: "wrong-form".into(),
+                focused_node_id: None,
+            },
+        );
+        final_ack.effect_id = current.effect_id.clone();
+        final_ack.expected_revision = advanced.session.projection.revision;
+        assert_eq!(
+            authority
+                .acknowledge_presentation(final_ack.clone())
+                .unwrap_err()
+                .code(),
+            "debugger_presentation_conflict"
+        );
+        final_ack.outcome = DebuggerPresentationOutcome::Applied {
+            node_id: "form".into(),
+            focused_node_id: None,
+        };
+        let terminal = authority
+            .acknowledge_presentation(final_ack.clone())
+            .unwrap();
+        assert_eq!(terminal.session.projection.state, DebuggerState::Completed);
+        assert_eq!(
+            authority.acknowledge_presentation(final_ack).unwrap(),
+            terminal
+        );
+        assert_eq!(authority.sessions["session-helpers"].vm.pending_count(), 0);
+        assert!(
+            !serde_json::to_string(&advanced)
+                .unwrap()
+                .contains("result_binding")
+        );
+    }
+
+    #[test]
+    fn native_boolean_projections_select_actions_with_correlated_acknowledgements() {
+        for (selection, requirement, destination) in [
+            ("selected", "optional", "run"),
+            ("unselected", "required", "skip"),
+        ] {
+            let root = TempRoot::new("boolean-projections");
+            let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+            let mut request = start_request("session-booleans");
+            request.source = format!(
+                r#"fn target(selected: boolean, required: boolean) =
+                    choose(when: and(left: selected, right: not(value: required)), then: "run", otherwise: "skip")
+                fn main() = bind(selection: ui.set_selection(node_id: "toggle", state: "{selection}"), body:
+                    bind(requirement: ui.assert_form_field_required(node_id: "form", field: "name", state: "{requirement}"),
+                        body: ui.focus(node_id: target(selected: field(value: selection, name: "selected"),
+                            required: field(value: requirement, name: "required")))))"#
+            );
+            let mut response = authority.start_session(request).unwrap();
+            assert!(matches!(
+                response.session.pending_presentation,
+                Some(PresentationOperation::SetSelection { .. })
+            ));
+            for (index, node) in ["toggle", "form", destination].into_iter().enumerate() {
+                let mut acknowledgement = presentation_acknowledgement(
+                    "session-booleans",
+                    DebuggerPresentationOutcome::Applied {
+                        node_id: node.into(),
+                        focused_node_id: None,
+                    },
+                );
+                acknowledgement.effect_id = authority.sessions["session-booleans"]
+                    .request
+                    .effect_id
+                    .clone();
+                acknowledgement.expected_revision = response.session.projection.revision;
+                let mut wrong = acknowledgement.clone();
+                wrong.outcome = DebuggerPresentationOutcome::Applied {
+                    node_id: "wrong-target".into(),
+                    focused_node_id: None,
+                };
+                assert_eq!(
+                    authority
+                        .acknowledge_presentation(wrong)
+                        .unwrap_err()
+                        .code(),
+                    "debugger_presentation_conflict"
+                );
+                let advanced = authority
+                    .acknowledge_presentation(acknowledgement.clone())
+                    .unwrap();
+                assert_eq!(
+                    authority.acknowledge_presentation(acknowledgement).unwrap(),
+                    advanced
+                );
+                response.session = advanced.session;
+                assert_eq!(
+                    response.session.projection.revision,
+                    Revision(8 + index as u64)
+                );
+                if index == 0 {
+                    assert!(matches!(
+                        response.session.pending_presentation,
+                        Some(PresentationOperation::AssertFormFieldRequired { .. })
+                    ));
+                } else if index == 1 {
+                    assert!(matches!(&response.session.pending_presentation,
+                        Some(PresentationOperation::Focus { node_id }) if node_id == destination));
+                }
+            }
+            assert_eq!(response.session.projection.state, DebuggerState::Completed);
+            assert!(response.session.pending_presentation.is_none());
+            assert_eq!(authority.sessions["session-booleans"].vm.pending_count(), 0);
+            assert!(
+                !serde_json::to_string(&response)
+                    .unwrap()
+                    .contains("result_binding")
+            );
+        }
+    }
+
+    #[test]
+    fn native_text_receipts_feed_form_fields_without_exposing_private_frames() {
+        let root = TempRoot::new("text-projections");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-text");
+        request.source = r#"fn suffix(text: string) = concat(left: text, right: "-copy")
+            fn main() = bind(written: ui.set_form_value(node_id: "form", field: "name", value: "alpha"), body:
+                bind(alias: written, body:
+                    bind(checked: ui.wait_form_value(node_id: field(value: written, name: "node_id"), field: field(value: alias, name: "field"), expected: field(value: alias, name: "value")), body:
+                        bind(last: ui.set_form_value(node_id: "form", field: "label", value: suffix(text: field(value: checked, name: "expected"))), body:
+                            eq(left: field(value: last, name: "value"), right: suffix(text: field(value: written, name: "value")))))))"#.into();
+        let mut view = authority.start_session(request).unwrap().session;
+        let first = authority.sessions["session-text"]
+            .request
+            .continuation
+            .clone();
+        for index in 0..3 {
+            let current = &authority.sessions["session-text"].request;
+            if index > 0 {
+                assert!(
+                    current
+                        .continuation
+                        .result_binding
+                        .as_ref()
+                        .unwrap()
+                        .results
+                        .iter()
+                        .all(|saved| saved.result.projection_version == 3)
+                );
+            }
+            if index == 1 {
+                assert!(
+                    matches!(&view.pending_presentation, Some(PresentationOperation::WaitFormValue { field, expected, .. }) if field == "name" && expected == "alpha")
+                );
+            } else if index == 2 {
+                assert!(
+                    matches!(&view.pending_presentation, Some(PresentationOperation::SetFormValue { field, value, .. }) if field == "label" && value == "alpha-copy")
+                );
+            }
+            let mut ack = presentation_acknowledgement(
+                "session-text",
+                DebuggerPresentationOutcome::Applied {
+                    node_id: "wrong-node".into(),
+                    focused_node_id: None,
+                },
+            );
+            ack.effect_id = current.effect_id.clone();
+            ack.expected_revision = view.projection.revision;
+            assert_eq!(
+                authority
+                    .acknowledge_presentation(ack.clone())
+                    .unwrap_err()
+                    .code(),
+                "debugger_presentation_conflict"
+            );
+            ack.outcome = DebuggerPresentationOutcome::Applied {
+                node_id: "form".into(),
+                focused_node_id: None,
+            };
+            let response = authority.acknowledge_presentation(ack.clone()).unwrap();
+            assert_eq!(authority.acknowledge_presentation(ack).unwrap(), response);
+            assert_eq!(response.session.projection.revision, Revision(8 + index));
+            let public = serde_json::to_string(&response).unwrap();
+            assert!(!public.contains("result_binding") && !public.contains("projection_version"));
+            view = response.session;
+        }
+        assert_eq!(view.projection.state, DebuggerState::Completed);
+        assert!(view.pending_presentation.is_none());
+        let session = authority.sessions.get_mut("session-text").unwrap();
+        assert_eq!(session.vm.pending_count(), 0);
+        assert_eq!(
+            session.vm.resume_at(
+                &first,
+                now_ms().unwrap(),
+                EffectResult::Presentation(PresentationResult::Focus {
+                    node_id: "ignored".into()
+                })
+            ),
+            Step::Done(leselang_vm::Value::Scalar {
+                value: leselang_vm::ScalarValue::Boolean(true)
+            })
+        );
+    }
+
+    #[test]
+    fn native_kind_receipts_drive_typed_successors_without_exposing_private_frames() {
+        let root = TempRoot::new("kind-projections");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-kind");
+        request.source = r#"fn destination(kind: string) = choose(when: eq(left: kind, right: "runtime_refresh"), then: "run", otherwise: "skip")
+            fn main() = bind(first: ui.assert_action_kind(node_id: "action", kind: "runtime_refresh"), body:
+                bind(alias: first, body: bind(second: ui.wait_action_kind(node_id: "action", kind: field(value: alias, name: "kind")), body:
+                    bind(last: ui.focus(node_id: destination(kind: field(value: second, name: "kind"))), body:
+                        eq(left: field(value: first, name: "kind"), right: field(value: second, name: "kind"))))))"#.into();
+        let mut view = authority.start_session(request).unwrap().session;
+        for (index, node) in ["action", "action", "run"].into_iter().enumerate() {
+            let current = &authority.sessions["session-kind"].request;
+            if index > 0 {
+                assert!(
+                    current
+                        .continuation
+                        .result_binding
+                        .as_ref()
+                        .unwrap()
+                        .results
+                        .iter()
+                        .all(|saved| saved.result.projection_version == 4)
+                );
+            }
+            if index == 1 {
+                assert!(
+                    matches!(&view.pending_presentation, Some(PresentationOperation::WaitActionKind { expected_kind, .. })
+                    if *expected_kind == leselang_hir::UiSemanticActionKind::RuntimeRefresh)
+                );
+            } else if index == 2 {
+                assert!(
+                    matches!(&view.pending_presentation, Some(PresentationOperation::Focus { node_id }) if node_id == "run")
+                );
+            }
+            let mut ack = presentation_acknowledgement(
+                "session-kind",
+                DebuggerPresentationOutcome::Applied {
+                    node_id: "wrong".into(),
+                    focused_node_id: None,
+                },
+            );
+            ack.effect_id = current.effect_id.clone();
+            ack.expected_revision = view.projection.revision;
+            assert_eq!(
+                authority
+                    .acknowledge_presentation(ack.clone())
+                    .unwrap_err()
+                    .code(),
+                "debugger_presentation_conflict"
+            );
+            ack.outcome = DebuggerPresentationOutcome::Applied {
+                node_id: node.into(),
+                focused_node_id: None,
+            };
+            let response = authority.acknowledge_presentation(ack.clone()).unwrap();
+            assert_eq!(authority.acknowledge_presentation(ack).unwrap(), response);
+            assert_eq!(
+                response.session.projection.revision,
+                Revision(8 + index as u64)
+            );
+            let public = serde_json::to_string(&response).unwrap();
+            assert!(!public.contains("result_binding") && !public.contains("projection_version"));
+            view = response.session;
+        }
+        assert_eq!(view.projection.state, DebuggerState::Completed);
+        assert!(view.pending_presentation.is_none());
+        assert_eq!(authority.sessions["session-kind"].vm.pending_count(), 0);
+    }
+
+    #[test]
+    fn native_text_inspection_selects_form_prefix_without_private_frames() {
+        for (text, prefix) in [
+            ("ready!", "r"),
+            ("Ready!", "default"),
+            ("other", "default"),
+            ("", "default"),
+        ] {
+            let root = TempRoot::new("text-inspection");
+            let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+            let mut request = start_request("session-text-inspection");
+            request.source = format!(
+                r#"fn ready(text: string) = and(left: starts_with(left: text, right: "ready"), right: and(left: contains(left: text, right: "ad"), right: ends_with(left: text, right: "!")))
+                fn main() = bind(first: ui.assert_text(node_id: "status", expected: {}), body:
+                    bind(last: ui.set_form_value(node_id: "form", field: "prefix", value: choose(when: ready(text: field(value: first, name: "expected")), then: value_or(left: char_at(left: field(value: first, name: "expected"), right: 0), right: "default"), otherwise: "default")), body:
+                        eq(left: field(value: last, name: "value"), right: {})))"#,
+                serde_json::to_string(text).unwrap(),
+                serde_json::to_string(prefix).unwrap()
+            );
+            let mut view = authority.start_session(request).unwrap().session;
+            let first = authority.sessions["session-text-inspection"]
+                .request
+                .continuation
+                .clone();
+            for (index, node) in ["status", "form"].into_iter().enumerate() {
+                if index == 1 {
+                    assert!(
+                        matches!(&view.pending_presentation, Some(PresentationOperation::SetFormValue { value, .. }) if value == prefix)
+                    );
+                }
+                let current = &authority.sessions["session-text-inspection"].request;
+                let mut ack = presentation_acknowledgement(
+                    "session-text-inspection",
+                    DebuggerPresentationOutcome::Applied {
+                        node_id: "wrong".into(),
+                        focused_node_id: None,
+                    },
+                );
+                ack.effect_id = current.effect_id.clone();
+                ack.expected_revision = view.projection.revision;
+                assert_eq!(
+                    authority
+                        .acknowledge_presentation(ack.clone())
+                        .unwrap_err()
+                        .code(),
+                    "debugger_presentation_conflict"
+                );
+                ack.outcome = DebuggerPresentationOutcome::Applied {
+                    node_id: node.into(),
+                    focused_node_id: None,
+                };
+                let response = authority.acknowledge_presentation(ack.clone()).unwrap();
+                assert_eq!(authority.acknowledge_presentation(ack).unwrap(), response);
+                assert_eq!(
+                    response.session.projection.revision,
+                    Revision(8 + index as u64)
+                );
+                let public = serde_json::to_string(&response).unwrap();
+                assert!(
+                    !public.contains("result_binding") && !public.contains("projection_version")
+                );
+                view = response.session;
+            }
+            assert_eq!(view.projection.state, DebuggerState::Completed);
+            assert!(view.pending_presentation.is_none());
+            let session = authority
+                .sessions
+                .get_mut("session-text-inspection")
+                .unwrap();
+            assert_eq!(session.vm.pending_count(), 0);
+            assert_eq!(
+                session.vm.resume_at(
+                    &first,
+                    now_ms().unwrap(),
+                    EffectResult::Presentation(PresentationResult::Focus {
+                        node_id: "ignored".into()
+                    })
+                ),
+                Step::Done(leselang_vm::Value::Scalar {
+                    value: leselang_vm::ScalarValue::Boolean(true)
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn native_nullable_receipts_preserve_none_empty_and_explicit_defaults() {
+        for expected in [None, Some(""), Some("hint")] {
+            let root = TempRoot::new("optional-projections");
+            let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+            let mut request = start_request("session-optional");
+            let text = expected.map_or_else(
+                || "none".into(),
+                |text| serde_json::to_string(text).unwrap(),
+            );
+            request.source = format!(
+                r#"fn defaulted(value: optional_string) = value_or(left: value, right: "default")
+                fn main() = bind(first: ui.assert_form_field_placeholder(node_id: "form", field: "name", expected: {text}), body:
+                    bind(second: ui.wait_form_field_placeholder(node_id: "form", field: "name", expected: field(value: first, name: "optional_expected")), body:
+                        bind(last: ui.set_form_value(node_id: "form", field: "label", value: defaulted(value: field(value: second, name: "optional_expected"))), body:
+                            has_value(value: field(value: first, name: "optional_expected")))))"#
+            );
+            let mut view = authority.start_session(request).unwrap().session;
+            let first = authority.sessions["session-optional"]
+                .request
+                .continuation
+                .clone();
+            for index in 0..3 {
+                let current = &authority.sessions["session-optional"].request;
+                if index > 0 {
+                    assert!(
+                        current
+                            .continuation
+                            .result_binding
+                            .as_ref()
+                            .unwrap()
+                            .results
+                            .iter()
+                            .all(|saved| saved.result.projection_version == 5)
+                    );
+                }
+                if index == 1 {
+                    assert!(
+                        matches!(&view.pending_presentation, Some(PresentationOperation::WaitFormFieldPlaceholder { expected: value, .. }) if value.as_deref() == expected)
+                    );
+                } else if index == 2 {
+                    assert!(
+                        matches!(&view.pending_presentation, Some(PresentationOperation::SetFormValue { value, .. }) if value == expected.unwrap_or("default"))
+                    );
+                }
+                let mut ack = presentation_acknowledgement(
+                    "session-optional",
+                    DebuggerPresentationOutcome::Applied {
+                        node_id: "wrong".into(),
+                        focused_node_id: None,
+                    },
+                );
+                ack.effect_id = current.effect_id.clone();
+                ack.expected_revision = view.projection.revision;
+                assert_eq!(
+                    authority
+                        .acknowledge_presentation(ack.clone())
+                        .unwrap_err()
+                        .code(),
+                    "debugger_presentation_conflict"
+                );
+                ack.outcome = DebuggerPresentationOutcome::Applied {
+                    node_id: "form".into(),
+                    focused_node_id: None,
+                };
+                let response = authority.acknowledge_presentation(ack.clone()).unwrap();
+                assert_eq!(authority.acknowledge_presentation(ack).unwrap(), response);
+                assert_eq!(response.session.projection.revision, Revision(8 + index));
+                let public = serde_json::to_string(&response).unwrap();
+                assert!(
+                    !public.contains("result_binding") && !public.contains("projection_version")
+                );
+                view = response.session;
+            }
+            assert_eq!(view.projection.state, DebuggerState::Completed);
+            assert!(view.pending_presentation.is_none());
+            let session = authority.sessions.get_mut("session-optional").unwrap();
+            assert_eq!(session.vm.pending_count(), 0);
+            assert_eq!(
+                session.vm.resume_at(
+                    &first,
+                    now_ms().unwrap(),
+                    EffectResult::Presentation(PresentationResult::Focus {
+                        node_id: "ignored".into()
+                    })
+                ),
+                Step::Done(leselang_vm::Value::Scalar {
+                    value: leselang_vm::ScalarValue::Boolean(expected.is_some())
+                })
+            );
+        }
+    }
+
+    #[test]
     fn native_recovery_fills_form_defaults_without_swallowing_presentation_rejection() {
         for (node, value, rejected) in [("7", "7", false), ("bad", "3", false), ("bad", "", true)] {
             let root = TempRoot::new("recovery");
@@ -1830,6 +2315,402 @@ mod tests {
         let public = serde_json::to_string(&view).unwrap();
         assert!(!public.contains("group_result"));
         assert!(!public.contains("result_binding"));
+    }
+
+    #[test]
+    fn native_group_results_drive_a_correlated_atomic_tail_without_public_frames() {
+        let root = TempRoot::new("group-tail");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-group-tail");
+        request.source = r#"fn main() = bind(g: seq(
+            move: ui.navigate_focus(node_id: "runtime-a", direction: "next"),
+            verify: ui.assert_visible(node_id: "runtime-b")), body:
+            ui.focus(node_id: field(value: member(value: g, name: "move"), name: "focused_node_id")))"#.into();
+        let mut view = authority.start_session(request).unwrap().session;
+        let first = authority.sessions["session-group-tail"]
+            .request
+            .continuation
+            .clone();
+        assert_eq!(first.schema_version, 7);
+        for (index, node) in ["runtime-a", "runtime-b", "runtime-b"]
+            .into_iter()
+            .enumerate()
+        {
+            if index == 2 {
+                assert!(matches!(&view.pending_presentation,
+                    Some(PresentationOperation::Focus { node_id }) if node_id == "runtime-b"));
+            }
+            let current = &authority.sessions["session-group-tail"].request;
+            assert_eq!(current.continuation.schema_version, 7);
+            assert_eq!(current.continuation.group_result, first.group_result);
+            let mut ack = presentation_acknowledgement(
+                "session-group-tail",
+                DebuggerPresentationOutcome::Applied {
+                    node_id: "wrong-node".into(),
+                    focused_node_id: None,
+                },
+            );
+            ack.effect_id = current.effect_id.clone();
+            ack.expected_revision = view.projection.revision;
+            assert_eq!(
+                authority
+                    .acknowledge_presentation(ack.clone())
+                    .unwrap_err()
+                    .code(),
+                "debugger_presentation_conflict"
+            );
+            ack.outcome = DebuggerPresentationOutcome::Applied {
+                node_id: node.into(),
+                focused_node_id: (index == 0).then(|| "runtime-b".into()),
+            };
+            let response = authority.acknowledge_presentation(ack.clone()).unwrap();
+            assert_eq!(authority.acknowledge_presentation(ack).unwrap(), response);
+            assert_eq!(
+                response.session.projection.revision,
+                Revision(8 + index as u64)
+            );
+            let public = serde_json::to_string(&response).unwrap();
+            assert!(!public.contains("group_result"));
+            assert!(!public.contains("result_binding"));
+            view = response.session;
+        }
+        assert_eq!(view.projection.state, DebuggerState::Completed);
+        assert!(view.pending_presentation.is_none());
+        let session = authority.sessions.get_mut("session-group-tail").unwrap();
+        assert_eq!(session.vm.pending_count(), 0);
+        assert_eq!(
+            session.vm.resume_at(
+                &first,
+                now_ms().unwrap(),
+                EffectResult::Presentation(PresentationResult::Focus {
+                    node_id: "ignored".into()
+                })
+            ),
+            Step::Done(leselang_vm::Value::UiFocus {
+                node_id: "runtime-b".into()
+            })
+        );
+    }
+
+    #[test]
+    fn native_debugger_fences_parallel_group_tails_before_creating_session_journals() {
+        for body in [
+            r#"ui.focus(node_id: "runtime-b")"#,
+            r#"bind(r: ui.focus(node_id: "runtime-b"), body: true)"#,
+            r#"bind(r: ui.focus(node_id: "runtime-b"), body: bind(s: ui.focus(node_id: "runtime-b"), body: true))"#,
+            r#"choose(when: true, then: true, otherwise: bind(r: ui.focus(node_id: "runtime-b"), body: true))"#,
+        ] {
+            let root = TempRoot::new("parallel-group-tail");
+            let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+            let mut request = start_request("session-parallel-tail");
+            request.source = format!(
+                r#"fn main() = bind(g: all(a: ui.focus(node_id: "runtime-a"), b: ui.focus(node_id: "runtime-b")), body: {body})"#
+            );
+            lower(&parse(&request.source)).unwrap();
+            assert_eq!(
+                authority.start_session(request.clone()).unwrap_err().code(),
+                "debugger_session_not_suspended"
+            );
+            assert!(authority.sessions.is_empty());
+            assert_eq!(fs::read_dir(&root.0).unwrap().count(), 0);
+            request.source = r#"fn main() = ui.focus(node_id: "runtime-a")"#.into();
+            assert_eq!(
+                authority
+                    .start_session(request)
+                    .unwrap()
+                    .session
+                    .projection
+                    .state,
+                DebuggerState::WaitingEffect
+            );
+        }
+    }
+
+    #[test]
+    fn native_group_conditional_exits_finish_without_extra_ui_steps() {
+        for stop_at in 0..=2 {
+            let root = TempRoot::new("group-conditional");
+            let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+            let mut request = start_request("session-group-conditional");
+            request.source = r#"fn main() = bind(g: seq(
+                move: ui.navigate_focus(node_id: "runtime-a", direction: "next"),
+                check: ui.assert_visible(node_id: "runtime-a")), body:
+                bind(alias: g, body:
+                    choose(when: eq(left: field(value: member(value: alias, name: "move"), name: "focused_node_id"), right: "runtime-home"), then: 0, otherwise:
+                        bind(first: ui.navigate_focus(node_id: "runtime-a", direction: "next"), body:
+                            choose(when: eq(left: field(value: first, name: "focused_node_id"), right: "runtime-home"), then: 1, otherwise:
+                                bind(last: ui.assert_visible(node_id: field(value: first, name: "focused_node_id")), body: 2))))))"#.into();
+            let mut view = authority.start_session(request).unwrap().session;
+            let first = authority.sessions["session-group-conditional"]
+                .request
+                .continuation
+                .clone();
+            assert_eq!(first.schema_version, 11);
+            for index in 0..2 + stop_at {
+                let current = &authority.sessions["session-group-conditional"].request;
+                assert_eq!(current.continuation.schema_version, 11);
+                assert_eq!(current.continuation.group_result, first.group_result);
+                if index >= 2 {
+                    let saved = current.continuation.result_binding.as_ref().unwrap();
+                    assert_eq!(saved.body.is_pure(), index == 3);
+                    assert_eq!(saved.groups.len(), 2);
+                }
+                let mut ack = presentation_acknowledgement(
+                    "session-group-conditional",
+                    DebuggerPresentationOutcome::Applied {
+                        node_id: "wrong-node".into(),
+                        focused_node_id: None,
+                    },
+                );
+                ack.effect_id = current.effect_id.clone();
+                ack.expected_revision = view.projection.revision;
+                assert_eq!(
+                    authority
+                        .acknowledge_presentation(ack.clone())
+                        .unwrap_err()
+                        .code(),
+                    "debugger_presentation_conflict"
+                );
+                ack.outcome = DebuggerPresentationOutcome::Applied {
+                    node_id: if index == 3 { "runtime-b" } else { "runtime-a" }.into(),
+                    focused_node_id: matches!(index, 0 | 2).then(|| {
+                        if (index == 0 && stop_at == 0) || (index == 2 && stop_at == 1) {
+                            "runtime-home".into()
+                        } else {
+                            "runtime-b".into()
+                        }
+                    }),
+                };
+                let response = authority.acknowledge_presentation(ack.clone()).unwrap();
+                assert_eq!(authority.acknowledge_presentation(ack).unwrap(), response);
+                assert_eq!(response.session.projection.revision, Revision(8 + index));
+                let public = serde_json::to_string(&response).unwrap();
+                assert!(!public.contains("group_result"));
+                assert!(!public.contains("result_binding"));
+                view = response.session;
+            }
+            assert_eq!(view.projection.state, DebuggerState::Completed);
+            assert!(view.pending_presentation.is_none());
+            let session = authority
+                .sessions
+                .get_mut("session-group-conditional")
+                .unwrap();
+            assert_eq!(session.vm.pending_count(), 0);
+            assert_eq!(
+                session.vm.resume_at(
+                    &first,
+                    now_ms().unwrap(),
+                    EffectResult::Presentation(PresentationResult::Focus {
+                        node_id: "ignored".into()
+                    }),
+                ),
+                Step::Done(leselang_vm::Value::Scalar {
+                    value: leselang_vm::ScalarValue::Integer(stop_at),
+                }),
+            );
+        }
+    }
+
+    #[test]
+    fn native_group_dataflow_preserves_correlated_ui_steps_and_private_frames() {
+        for failed in [false, true] {
+            let root = TempRoot::new("group-dataflow");
+            let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+            let mut request = start_request("session-group-dataflow");
+            let final_body = if failed {
+                "div(left: 1, right: 0)"
+            } else {
+                r#"eq(left: field(value: verified, name: "node_id"), right: field(value: member(value: alias, name: "move"), name: "focused_node_id"))"#
+            };
+            request.source = format!(
+                r#"fn main() = bind(g: seq(
+                move: ui.navigate_focus(node_id: "runtime-a", direction: "next"),
+                check: ui.assert_visible(node_id: "runtime-b")), body:
+                bind(focused: ui.focus(node_id: field(value: member(value: g, name: "move"), name: "focused_node_id")), body:
+                    bind(alias: g, body: bind(verified: ui.assert_visible(node_id: field(value: focused, name: "node_id")), body: {final_body}))))"#
+            );
+            let mut view = authority.start_session(request).unwrap().session;
+            let first = authority.sessions["session-group-dataflow"]
+                .request
+                .continuation
+                .clone();
+            assert_eq!(first.schema_version, 10);
+            for (index, node) in ["runtime-a", "runtime-b", "runtime-b", "runtime-b"]
+                .into_iter()
+                .enumerate()
+            {
+                let current = &authority.sessions["session-group-dataflow"].request;
+                assert_eq!(current.continuation.schema_version, 10);
+                assert_eq!(current.continuation.group_result, first.group_result);
+                if index >= 2 {
+                    let saved = current.continuation.result_binding.as_ref().unwrap();
+                    assert_eq!(saved.body.is_pure(), index == 3);
+                    assert!(!saved.groups.is_empty());
+                }
+                let mut ack = presentation_acknowledgement(
+                    "session-group-dataflow",
+                    DebuggerPresentationOutcome::Applied {
+                        node_id: "wrong-node".into(),
+                        focused_node_id: None,
+                    },
+                );
+                ack.effect_id = current.effect_id.clone();
+                ack.expected_revision = view.projection.revision;
+                assert_eq!(
+                    authority
+                        .acknowledge_presentation(ack.clone())
+                        .unwrap_err()
+                        .code(),
+                    "debugger_presentation_conflict"
+                );
+                ack.outcome = DebuggerPresentationOutcome::Applied {
+                    node_id: node.into(),
+                    focused_node_id: (index == 0).then(|| "runtime-b".into()),
+                };
+                let response = authority.acknowledge_presentation(ack.clone()).unwrap();
+                assert_eq!(authority.acknowledge_presentation(ack).unwrap(), response);
+                assert_eq!(
+                    response.session.projection.revision,
+                    Revision(8 + index as u64)
+                );
+                let public = serde_json::to_string(&response).unwrap();
+                assert!(!public.contains("group_result"));
+                assert!(!public.contains("result_binding"));
+                view = response.session;
+            }
+            assert_eq!(
+                view.projection.state,
+                if failed {
+                    DebuggerState::Failed
+                } else {
+                    DebuggerState::Completed
+                }
+            );
+            assert!(view.pending_presentation.is_none());
+            let session = authority
+                .sessions
+                .get_mut("session-group-dataflow")
+                .unwrap();
+            assert_eq!(session.vm.pending_count(), 0);
+            let replay = session.vm.resume_at(
+                &first,
+                now_ms().unwrap(),
+                EffectResult::Presentation(PresentationResult::Focus {
+                    node_id: "ignored".into(),
+                }),
+            );
+            if failed {
+                assert!(matches!(replay, Step::Fault(fault) if fault.code == "LSV1401"));
+            } else {
+                assert_eq!(
+                    replay,
+                    Step::Done(leselang_vm::Value::Scalar {
+                        value: leselang_vm::ScalarValue::Boolean(true)
+                    })
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn native_group_capture_keeps_private_member_frames_and_commits_a_final_scalar() {
+        for failed in [false, true] {
+            let root = TempRoot::new("group-capture");
+            let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+            let mut request = start_request("session-group-capture");
+            let body = if failed {
+                "div(left: 1, right: 0)"
+            } else {
+                r#"eq(left: field(value: focused, name: "node_id"), right: field(value: member(value: g, name: "move"), name: "focused_node_id"))"#
+            };
+            request.source = format!(
+                r#"fn main() = bind(g: seq(
+                move: ui.navigate_focus(node_id: "runtime-a", direction: "next"),
+                verify: ui.assert_visible(node_id: "runtime-b")), body:
+                bind(focused: ui.focus(node_id: field(value: member(value: g, name: "move"), name: "focused_node_id")), body: {body}))"#
+            );
+            let mut view = authority.start_session(request).unwrap().session;
+            let first = authority.sessions["session-group-capture"]
+                .request
+                .continuation
+                .clone();
+            assert_eq!(first.schema_version, 8);
+            for (index, node) in ["runtime-a", "runtime-b", "runtime-b"]
+                .into_iter()
+                .enumerate()
+            {
+                let current = &authority.sessions["session-group-capture"].request;
+                assert_eq!(current.continuation.schema_version, 8);
+                assert_eq!(current.continuation.group_result, first.group_result);
+                if index == 2 {
+                    assert!(
+                        current
+                            .continuation
+                            .result_binding
+                            .as_ref()
+                            .is_some_and(|binding| !binding.groups.is_empty())
+                    );
+                }
+                let mut ack = presentation_acknowledgement(
+                    "session-group-capture",
+                    DebuggerPresentationOutcome::Applied {
+                        node_id: "wrong-node".into(),
+                        focused_node_id: None,
+                    },
+                );
+                ack.effect_id = current.effect_id.clone();
+                ack.expected_revision = view.projection.revision;
+                assert_eq!(
+                    authority
+                        .acknowledge_presentation(ack.clone())
+                        .unwrap_err()
+                        .code(),
+                    "debugger_presentation_conflict"
+                );
+                ack.outcome = DebuggerPresentationOutcome::Applied {
+                    node_id: node.into(),
+                    focused_node_id: (index == 0).then(|| "runtime-b".into()),
+                };
+                let response = authority.acknowledge_presentation(ack.clone()).unwrap();
+                assert_eq!(authority.acknowledge_presentation(ack).unwrap(), response);
+                assert_eq!(
+                    response.session.projection.revision,
+                    Revision(8 + index as u64)
+                );
+                let public = serde_json::to_string(&response).unwrap();
+                assert!(!public.contains("group_result"));
+                assert!(!public.contains("result_binding"));
+                view = response.session;
+            }
+            assert_eq!(
+                view.projection.state,
+                if failed {
+                    DebuggerState::Failed
+                } else {
+                    DebuggerState::Completed
+                }
+            );
+            assert!(view.pending_presentation.is_none());
+            let session = authority.sessions.get_mut("session-group-capture").unwrap();
+            assert_eq!(session.vm.pending_count(), 0);
+            let result = session.vm.resume_at(
+                &first,
+                now_ms().unwrap(),
+                EffectResult::Presentation(PresentationResult::Focus {
+                    node_id: "ignored".into(),
+                }),
+            );
+            if failed {
+                assert!(matches!(result, Step::Fault(fault) if fault.code == "LSV1401"));
+            } else {
+                assert_eq!(
+                    result,
+                    Step::Done(leselang_vm::Value::Scalar {
+                        value: leselang_vm::ScalarValue::Boolean(true)
+                    })
+                );
+            }
+        }
     }
 
     #[test]

@@ -15,6 +15,264 @@ fn repository_root() -> PathBuf {
 }
 
 #[test]
+fn leselang_boolean_projection_contract_keeps_acknowledgements_and_upgrade_fences_explicit() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Boolean GUI Projections")
+        .nth(1)
+        .unwrap()
+        .split("## Text GUI Projections")
+        .next()
+        .unwrap();
+    for invariant in [
+        "successful correlated acknowledgement",
+        "not an arbitrary UI read",
+        "projection_version: 2",
+        "unversioned v1 wire shape",
+        "never synthesizes absent booleans",
+        "both cold conditional paths",
+        "committed raw result",
+        "LSV1405",
+        "LSV3003",
+        "journal schema 10 remain unchanged",
+        "shared fuel",
+    ] {
+        assert!(
+            section.contains(invariant),
+            "missing boolean projection boundary: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(program.function.result_type, leselang_hir::Type::UiFocus);
+    assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
+}
+
+#[test]
+fn leselang_text_projection_contract_matches_typed_hir_and_legacy_budget_fences() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Text GUI Projections")
+        .nth(1)
+        .unwrap()
+        .split("## Kind GUI Projections")
+        .next()
+        .unwrap();
+    let normalized = section.replace('\n', " ");
+    for invariant in [
+        "successful correlated acknowledgement",
+        "acknowledged expectation",
+        "submitted value",
+        "live-property query",
+        "not exported",
+        "256 bytes",
+        "128 bytes",
+        "1024 bytes",
+        "4096 bytes",
+        "LSV1404",
+        "projection_version: 3",
+        "canonical order",
+        "v1 and explicit v2 frames remain byte-exact",
+        "never synthesizes missing text fields",
+        "Cold branches",
+        "LSV1405",
+        "committed raw receipt",
+        "shared fuel",
+        "64 KiB",
+        "LSV3002",
+        "one transaction",
+        "Continuation schemas 1-11 and journal schema 10 remain unchanged",
+        "secret-handling",
+        "no public private frames",
+    ] {
+        assert!(
+            normalized.contains(invariant),
+            "missing text-projection contract: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(
+        program.function.result_type,
+        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+    );
+    assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
+}
+
+#[test]
+fn leselang_kind_projection_contract_keeps_token_domains_legacy_and_authority_fences_explicit() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Kind GUI Projections")
+        .nth(1)
+        .unwrap()
+        .split("## Optional GUI Projections")
+        .next()
+        .unwrap();
+    let normalized = section.replace('\n', " ");
+    for invariant in [
+        "canonical enum token string",
+        "successful correlated acknowledgement",
+        "not a live-property query",
+        "no case folding",
+        "ordinal conversion",
+        "own operation domain",
+        "LSV1404",
+        "projection_version: 4",
+        "Legacy v1/v2/v3 frames stay byte-exact",
+        "never synthesizes missing kind fields",
+        "cold branches and conditional aliases",
+        "high-bit",
+        "LSV1405",
+        "committed raw receipt",
+        "shared fuel",
+        "64 KiB",
+        "absolute deadline",
+        "current-effect cancellation",
+        "one transaction",
+        "Continuation schemas 1-11 and journal schema 10 remain unchanged",
+        "without exposing private frames",
+        "nullable projections",
+    ] {
+        assert!(
+            normalized.contains(invariant),
+            "missing kind-projection contract: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(program.function.result_type, leselang_hir::Type::UiFocus);
+    assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
+}
+
+#[test]
+fn leselang_optional_projection_contract_distinguishes_missing_empty_and_cold_defaults() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Optional GUI Projections")
+        .nth(1)
+        .unwrap()
+        .split("## Named Group Result Bindings")
+        .next()
+        .unwrap();
+    let normalized = section.replace('\n', " ");
+    for invariant in [
+        "distinct scalar type",
+        "Absent and empty are different",
+        "evaluates the fallback only when absent",
+        "no implicit lifting or unwrapping",
+        "acknowledged nullable expectation",
+        "not a live-property query",
+        "optional-text host arguments",
+        "projection_version: 5",
+        "v1-v4 frames remain byte-exact",
+        "Missing payload is rejected",
+        "committed raw receipt",
+        "1024 bytes",
+        "4096 bytes",
+        "256 bytes",
+        "LSV1404",
+        "LSV1405",
+        "shared fuel",
+        "64 KiB",
+        "one transaction",
+        "Continuation schemas 1-11 and journal schema 10 remain unchanged",
+        "without exposing private frames",
+    ] {
+        assert!(
+            normalized.contains(invariant),
+            "missing optional-projection contract: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(
+        program.function.result_type,
+        leselang_hir::Type::UiSetFormValue
+    );
+    assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
+}
+
+#[test]
+fn leselang_pure_function_contract_keeps_types_hygiene_and_durable_bounds_explicit() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Reusable Pure Functions")
+        .nth(1)
+        .unwrap()
+        .split("## Explicit Scalar Conversions")
+        .next()
+        .unwrap();
+    for invariant in [
+        "32 declarations",
+        "8 parameters",
+        "parameter declaration order",
+        "hygienic expansion",
+        "before cloning",
+        "1024-node",
+        "16-level",
+        "shared fuel",
+        "unused helpers",
+        "recursion",
+        "unchanged",
+        "restart needs no source",
+        "LSH1504",
+    ] {
+        assert!(
+            section.contains(invariant),
+            "missing helper boundary: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(
+        program.function.result_type,
+        leselang_hir::Type::UiSetFormValue
+    );
+    assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
+    let reference =
+        fs::read_to_string(repository_root().join("docs/leselang-language.md")).unwrap();
+    assert!(reference.contains("helper-call"));
+    assert!(reference.contains("parameter     ="));
+    assert!(!reference.contains("excludes group-result\nbindings"));
+}
+
+#[test]
 fn leselang_reference_separates_current_contract_from_roadmap_design() {
     let root = repository_root();
     let reference = fs::read_to_string(root.join("docs/leselang-language.md"))
@@ -216,6 +474,313 @@ fn named_group_result_contract_keeps_static_members_and_whole_journal_recovery_e
         leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
     );
     assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
+}
+
+#[test]
+fn sequential_group_tail_contract_matches_typed_hir_and_transactional_limits() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Sequential Group Tails")
+        .nth(1)
+        .unwrap()
+        .split("## Result-Driven Successor")
+        .next()
+        .unwrap();
+    for invariant in [
+        "63 members",
+        "schema 7",
+        "group_tail",
+        "successor_sequence",
+        "reservation is not a dispatch",
+        "one transaction",
+        "complete journal",
+        "LSV1409",
+        "original principal",
+        "shared fuel",
+        "before projection",
+        "LSV1404",
+        "schema 10",
+        "Parallel `all` tails",
+        "further result capture",
+        "one logical record",
+    ] {
+        assert!(
+            section.contains(invariant),
+            "missing group-tail boundary: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(program.function.result_type, leselang_hir::Type::UiFocus);
+    assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
+}
+
+#[test]
+fn captured_sequential_successor_contract_preserves_raw_receipts_and_closed_member_frames() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Captured Sequential Successors")
+        .nth(1)
+        .unwrap()
+        .split("## Parallel Group Successors")
+        .next()
+        .unwrap();
+    for invariant in [
+        "one captured atomic successor",
+        "pure scalar body",
+        "schema 8",
+        "group_capture",
+        "63-member prefix",
+        "`groups`",
+        "projection version",
+        "cold branches",
+        "shared fuel",
+        "64 KiB",
+        "LSV3002",
+        "raw receipt",
+        "before scalar projection",
+        "LSV2404",
+        "one transaction",
+        "complete journal",
+        "LSV1409",
+        "schema 10",
+        "second",
+        "parallel `all`",
+    ] {
+        assert!(
+            section.contains(invariant),
+            "missing captured-group boundary: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(
+        program.function.result_type,
+        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+    );
+    assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
+}
+
+#[test]
+fn parallel_group_successor_contract_keeps_barrier_budget_and_native_batch_boundaries() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Parallel Group Successors")
+        .nth(1)
+        .unwrap()
+        .split("## Group Result Chains")
+        .next()
+        .unwrap();
+    let normalized = section.replace('\n', " ");
+    for invariant in [
+        "one atomic tail",
+        "pure scalar body",
+        "2 to 63",
+        "schema 9",
+        "parallel_group_tail",
+        "parallel_group_capture",
+        "all-success",
+        "out of order",
+        "declared member order",
+        "one transaction",
+        "exactly one request",
+        "one journal snapshot",
+        "original authority",
+        "shared fuel",
+        "64 KiB",
+        "LSV3002",
+        "before scalar projection",
+        "durable `LSV2404`",
+        "8 MiB",
+        "every individual receipt",
+        "complete owned",
+        "committed successful prefix",
+        "LSV1409",
+        "Journal schema 10",
+        "Rust batch API",
+        "single-presentation channel",
+        "debugger_session_not_suspended",
+        "before creating a session",
+        "schema-10 chain contract",
+        "Multi-request",
+    ] {
+        assert!(
+            normalized.contains(invariant),
+            "missing parallel-tail contract: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(
+        program.function.result_type,
+        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Integer)
+    );
+    assert_eq!(
+        program.function.required_capabilities,
+        ["runtime.read", "ui.presentation"]
+    );
+}
+
+#[test]
+fn group_result_chain_contract_matches_typed_hir_and_owned_transaction_boundaries() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Group Result Chains")
+        .nth(1)
+        .unwrap()
+        .split("## Group Conditional Exits")
+        .next()
+        .unwrap();
+    let normalized = section.replace('\n', " ");
+    for invariant in [
+        "multiple captured atomic successors",
+        "longest cold chain",
+        "64 graph slots",
+        "62 prefix members",
+        "additional_successor_sequences",
+        "Unused reservations",
+        "one successor is pending",
+        "schema 10",
+        "group_dataflow",
+        "parallel_group_dataflow",
+        "journal schema 10 is unchanged",
+        "versioned",
+        "legacy v1",
+        "raw receipt and next request commit in one transaction",
+        "original authority",
+        "shared fuel",
+        "before every admission",
+        "before scalar projection",
+        "LSV2404",
+        "LSV3002",
+        "8 MiB",
+        "64 KiB",
+        "complete owned journal",
+        "frame continuity",
+        "LSV1409",
+        "retention unit",
+        "native single-presentation debugger",
+        "Rust batch API",
+        "mixed scalar early exits",
+        "effectful loops",
+        "cold branches",
+    ] {
+        assert!(
+            normalized.contains(invariant),
+            "missing group-chain contract: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(
+        program.function.result_type,
+        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+    );
+    assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
+}
+
+#[test]
+fn group_conditional_exit_contract_keeps_cold_paths_and_atomic_replay_explicit() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Group Conditional Exits")
+        .nth(1)
+        .unwrap()
+        .split("## Result-Driven Successor")
+        .next()
+        .unwrap();
+    let normalized = section.replace('\n', " ");
+    for invariant in [
+        "before the first capture or between captures",
+        "same scalar type",
+        "schema 11",
+        "group_conditional",
+        "parallel_group_conditional",
+        "Journal schema 10 is unchanged",
+        "schemas 1-10",
+        "longest cold path",
+        "64 graph slots",
+        "type and capability preflight",
+        "Unused reservations",
+        "all-success barrier",
+        "pending or failed member",
+        "raw receipt and scalar exit commit in one transaction",
+        "first committed exit or successor",
+        "original authority",
+        "shared fuel",
+        "before any scalar exit or admission",
+        "LSV2404",
+        "LSV3002",
+        "8 MiB",
+        "64 KiB",
+        "complete owned journal",
+        "without reevaluating source",
+        "can return without another suspension",
+        "mandatory capture",
+        "schema downgrades",
+        "LSV1409",
+        "retention unit",
+        "native single-presentation debugger",
+        "Rust batch API",
+        "before creating a session",
+        "effectful guards/operands",
+    ] {
+        assert!(
+            normalized.contains(invariant),
+            "missing group-conditional contract: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(
+        program.function.result_type,
+        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+    );
+    assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
+    let leselang_hir::Effect::Compute { expression } = program.function.effect else {
+        panic!()
+    };
+    let leselang_hir::computation::Computation::Bind { body, .. } = *expression else {
+        panic!()
+    };
+    assert!(body.is_result_flow());
+    assert!(!body.is_result_chain());
+    assert_eq!(body.atomic_flow_bound(), Some(2));
 }
 
 #[test]
@@ -790,6 +1355,68 @@ fn leserpent_next_major_has_one_architecture_and_one_delivery_roadmap() {
     assert!(project.contains("(../leserpent-2-roadmap.md)"));
     assert!(root_roadmap.contains("(docs/leserpent-2-architecture.md)"));
     assert!(root_roadmap.contains("(docs/leserpent-2-roadmap.md)"));
+}
+
+#[test]
+fn leselang_text_inspection_contract_preserves_unicode_fuel_and_durable_boundaries() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Bounded Text Inspection")
+        .nth(1)
+        .unwrap()
+        .split("## Bounded Pure Loops")
+        .next()
+        .unwrap();
+    let normalized = section.split_whitespace().collect::<Vec<_>>().join(" ");
+    for invariant in [
+        "contains",
+        "starts_with",
+        "ends_with",
+        "char_at",
+        "exact and case-sensitive",
+        "Unicode normalization",
+        "zero-based Unicode scalar-value",
+        "grapheme clusters",
+        "u64::MAX",
+        "present-empty",
+        "left-to-right",
+        "operators are eager",
+        "shared fuel",
+        "complete UTF-8 byte length",
+        "materialization block",
+        "4096-byte",
+        "original host validators",
+        "all-or-nothing",
+        "v1-v5",
+        "1 through 11",
+        "journal schema 10",
+        "Unknown operators",
+        "without source/helper tables",
+        "64 KiB",
+        "rollback",
+        "first-commit replay",
+        "private frames",
+        "not a new desktop scalar inspector",
+    ] {
+        assert!(
+            normalized.contains(invariant),
+            "missing text inspection boundary: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(
+        program.function.result_type,
+        leselang_hir::Type::UiSetFormValue
+    );
+    assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
 }
 
 fn collect_markdown(directory: &Path, output: &mut Vec<PathBuf>) {

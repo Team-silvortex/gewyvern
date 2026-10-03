@@ -18,6 +18,7 @@ pub(super) fn lower(
     scope: &mut Vec<(String, computation::LocalType)>,
     visited: &mut usize,
     depth: usize,
+    functions: &mut functions::FunctionTemplates,
 ) -> Result<(Computation, Type), Vec<Diagnostic>> {
     let mut lower_member = |expression: &Expression| {
         let Expression::Call { callee, .. } = expression else {
@@ -34,8 +35,13 @@ pub(super) fn lower(
                 expression_span(expression),
             ));
         }
-        let (value, result_type) =
-            computation::lower_expression(expression, scope, visited, depth + 1)?;
+        let (value, result_type) = computation::lower_expression_with_functions(
+            expression,
+            scope,
+            visited,
+            depth + 1,
+            functions,
+        )?;
         let effect = into_effect(value);
         let required_capabilities = required_capabilities_for_effect(&effect)
             .into_iter()

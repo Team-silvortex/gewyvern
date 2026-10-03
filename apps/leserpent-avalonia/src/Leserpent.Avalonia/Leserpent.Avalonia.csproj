@@ -3,6 +3,8 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <RuntimeIdentifiers>osx-arm64;linux-x64</RuntimeIdentifiers>
+    <!-- Keep the portable restore graph while copying only host assets in the dev workflow. -->
+    <RuntimeIdentifier Condition="'$(LeserpentUseHostRuntime)' == 'true' And '$(PublishAot)' != 'true' And '$(RuntimeIdentifier)' == '' And ('$(NETCoreSdkRuntimeIdentifier)' == 'osx-arm64' Or '$(NETCoreSdkRuntimeIdentifier)' == 'linux-x64')">$(NETCoreSdkRuntimeIdentifier)</RuntimeIdentifier>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>

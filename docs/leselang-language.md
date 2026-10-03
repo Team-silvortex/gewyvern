@@ -1131,11 +1131,15 @@ re-entry take precedence over Bash/Lua/JavaScript syntax compatibility.
 Unimplemented design examples must not be treated as accepted source.
 
 ```ebnf
-program       = function, EOF ;
-function      = "fn", identifier, "(", ")", "=", expression ;
+program       = function, { function }, EOF ;
+function      = "fn", identifier, "(", [ parameters ], ")", "=", expression ;
+parameters    = parameter, { ",", parameter }, [ "," ] ;
+parameter     = identifier, ":", scalar-type ;
+scalar-type   = "integer" | "boolean" | "string" | "none" | "optional_string" ;
 expression    = string | integer | boolean | "none" | identifier | call ;
 call          = effect-call | all-call | seq-call | repeat-call
-              | bind-call | loop-call | choose-call | recover-call | binary-call | unary-call | field-call | member-call ;
+              | bind-call | loop-call | choose-call | recover-call | binary-call | unary-call | field-call | member-call | helper-call ;
+helper-call   = identifier, "(", [ arguments ], ")" ;
 effect-call   = identifier, ".", identifier, "(", [ arguments ], ")" ;
 all-call      = "all", "(", branch, ",", branch, { ",", branch }, [ "," ], ")" ;
 seq-call      = "seq", "(", branch, { ",", branch }, [ "," ], ")" ;
@@ -1150,11 +1154,12 @@ choose-call   = "choose", "(", "when", ":", expression, ",", "then", ":", expres
 recover-call  = "recover", "(", "value", ":", expression, ",", "fallback", ":", expression, [ "," ], ")" ;
 binary-call   = binary-op, "(", "left", ":", expression, ",", "right", ":", expression, [ "," ], ")" ;
 unary-call    = unary-op, "(", "value", ":", expression, [ "," ], ")" ;
-unary-op      = "not" | "len" | "to_string" | "parse_integer" | "parse_boolean" ;
+unary-op      = "not" | "len" | "to_string" | "parse_integer" | "parse_boolean" | "optional_string" | "has_value" ;
 field-call    = "field", "(", "value", ":", expression, ",", "name", ":", string, [ "," ], ")" ;
 member-call   = "member", "(", "value", ":", identifier, ",", "name", ":", string, [ "," ], ")" ;
 binary-op     = "add" | "sub" | "mul" | "div" | "rem" | "eq" | "ne"
-              | "lt" | "le" | "gt" | "ge" | "and" | "or" | "concat" ;
+              | "lt" | "le" | "gt" | "ge" | "and" | "or" | "concat" | "value_or"
+              | "contains" | "starts_with" | "ends_with" | "char_at" ;
 boolean       = "true" | "false" ;
 integer       = "0" | nonzero-digit, { digit } ;
 identifier    = ( letter | "_" ), { letter | digit | "_" } ;
@@ -1171,8 +1176,9 @@ fractions, alternate bases, and overflow are rejected. Computation accepts the
 full `u64` range, while `repeat.times` remains an integer literal from 1 through
 64 and `loop.limit` from 0 through 1024. The grammar shows canonical argument order; named arguments may be reordered
 without changing evaluation order. `true` and `false` are literals in value
-positions and cannot name locals; existing function and named-step labels may
-still use these words. `none` and `fn` retain their existing reserved status.
+positions and cannot name locals; legacy single-function and named-step labels may
+still use these words, but new helper names and parameters cannot. `none` and `fn`
+retain their existing reserved status outside parameter type annotations.
 Bare value identifiers resolve only to lexical bindings, including the current
 loop-local scalar state. Enclosing bindings remain immutable. See
 [control flow](leselang-control-flow.md) for typed calculation, `bind`, lazy
@@ -1193,8 +1199,28 @@ Named `seq`/`repeat`/flat `all` results can be bound for a pure scalar body usin
 `member(value: group, name: "step")` and the existing typed `field` projections.
 [Group-result bindings](leselang-control-flow.md#named-group-result-bindings)
 use schema 6 and require complete journal recovery; isolated member restoration
-is rejected. This does not allow group-driven host effects or result-dependent
-parameters inside the prepared group.
+is rejected. Sequential groups can instead drive
+[one atomic tail](leselang-control-flow.md#sequential-group-tails) using schema 7:
+at most 63 prefix members, then one result-dependent operation. Its final prefix
+acknowledgement and concrete tail request commit together with original authority
+and shared budgets. [Schema 8](leselang-control-flow.md#captured-sequential-successors)
+allows that successor to be captured for a pure scalar body, preserving bounded
+typed member projections across the suspension. Parallel `all` prefixes support
+the same one-tail/one-capture forms using
+[schema 9](leselang-control-flow.md#parallel-group-successors): 2 to 63 independent
+members, then an all-success barrier and one atomic successor. The Rust batch API
+supports this; native multi-request debugger presentation remains pending.
+[Schema 10](leselang-control-flow.md#group-result-chains) carries group/result
+frames across multiple captured successors, ending in a pure scalar. Prefix plus
+longest cold chain fits in 64 slots; each receipt and next request commit together
+under the original authority/shared budgets. Sequential chains use the native
+debugger's existing single-presentation channel.
+[Schema 11](leselang-control-flow.md#group-conditional-exits) permits same-type
+scalar exits before the first group successor or between captures. A lazy branch
+can stop or continue, but cold paths still reserve the longest graph and all
+capabilities. The prefix all-success barrier, transactional raw receipts, shared
+budgets and whole-journal recovery remain unchanged. Result-dependent parameters
+inside the prepared prefix remain unsupported.
 The [bounded pure loop contract](leselang-control-flow.md#bounded-pure-loops)
 defines condition-first exit, typed next-state updates, explicit limit faults,
 and shared fuel; loops can run before suspension or in a captured result's pure body.
@@ -1212,8 +1238,60 @@ fallback; resource limits, authorization, deadlines, cancellation and host error
 are not intercepted. Failed work consumes the shared fuel and is never refunded.
 Both sides remain type-checked; this is not effectful retry, rollback or cleanup.
 
+[Text GUI projections](leselang-control-flow.md#text-gui-projections) expose the
+acknowledged `expected` text, form `field` key and submitted `value` for a closed
+operation table. They are strings for helpers, conditions and subsequent arguments,
+not live GUI-property queries or nullable/enum coercions. New exporting captures
+use projection vocabulary v3, except form-input-kind results, which also export
+`kind` and use v4; old v1/v2/v3 frames retain their exact fields and bytes.
+The normal 256-byte form-value, 128-byte field-key and 1024-byte text domains,
+shared fuel, raw-output limits and 64 KiB image/plan bound still apply. Continuation
+schemas 1-11 and journal schema 10 need no migration.
+
+[Kind GUI projections](leselang-control-flow.md#kind-gui-projections) expose `kind`
+as the acknowledged canonical token string for node-kind, action-kind and
+form-input-kind assertion/wait pairs. Helpers, branches, group members and later
+arguments can reuse it, but the receiving operation's enum domain still applies;
+there is no case folding, ordinal conversion or arbitrary property query. Closed
+v4 frames preserve v1/v2/v3 without synthesizing absent kinds; restoration validates
+the exact token domain and its committed raw receipt. Existing authority, shared
+fuel, image/output bounds and transactional replay remain unchanged.
+
+[Optional GUI projections](leselang-control-flow.md#optional-gui-projections) add a
+distinct `optional_string` scalar, explicit `optional_string(value: string-or-none)`
+construction, `has_value(value: optional)` and lazy `value_or(left: optional,
+right: string)`. Absent and present-empty remain different. Only the four placeholder/
+unavailability assertion/wait results export `optional_expected`, and only their
+optional-text arguments accept it directly. Other host domains and implicit coercions
+are unchanged. V5 preserves v1-v4 closed frames; explicit null/string payloads,
+original 1024/4096-byte bounds, shared fuel, raw-receipt checks and atomic replay
+are required. This is not a general union/container type or arbitrary GUI query.
+
+[Bounded text inspection](leselang-control-flow.md#bounded-text-inspection) adds
+exact `contains`, `starts_with` and `ends_with` predicates with string `left`/`right`
+inputs. `char_at(left: string, right: integer)` returns a distinct optional string
+at a zero-based Unicode scalar position, never a byte offset or grapheme index;
+out-of-range access is absent. Matching is case-sensitive without normalization
+or regular expressions. Both operands are pure and eager, while enclosing lazy
+operators retain their rules. Complete input scans and character materialization
+share the original fuel, 4096-byte string bound and host validators. Existing
+binary HIR and continuation/projection/journal versions remain unchanged.
+
+[Reusable pure functions](leselang-control-flow.md#reusable-pure-functions) add
+typed named scalar parameters and inferred scalar results, with a parameterless
+`main` entry for multi-function programs. All definitions are checked, including
+unused/cold code; recursion, closures, implicit coercion and effectful helpers are
+rejected. The limits are 32 declarations and 8 parameters per helper. Arguments
+evaluate once in declaration order. Hygienic HIR expansion preserves the existing
+node/depth, shared fuel, string, authority and journal boundaries. Helpers can
+consume explicit scalar projections and prepare host arguments, not receive raw
+host objects or replace a group's atomic member with general computation.
+
 Serialized syntax trees validate source bounds, exact token coverage and EOF,
-UTF-8-safe token/diagnostic/AST spans, and call depth before acceptance.
+UTF-8-safe token/diagnostic/AST spans, declaration/parameter limits, and call depth
+before acceptance. `SyntaxTree.function` selects `main` when present, with other
+declarations in `helpers`; new empty fields are omitted from legacy single-function
+serialization.
 `token_text` and `reconstruct` return `Option`, so even a caller that later
 mutates public token spans receives failure rather than a slicing panic. The
 single oversized-source rejection-tree shape remains round-trip compatible.
@@ -1221,7 +1299,7 @@ single oversized-source rejection-tree shape remains round-trip compatible.
 ## Canonical Formatting
 
 `leselang_syntax::format` is the single canonical source formatter. It removes
-comments and trivia, preserves declared argument and `all` branch order, keeps
+comments and trivia, preserves declaration, parameter, argument and `all` branch order, keeps
 zero- and single-argument calls on one line, and renders wider calls with
 two-space indentation plus trailing commas. Output ends with exactly one
 newline and is rejected if escaping would expand it beyond 256 KiB.
@@ -1240,12 +1318,14 @@ remain on UTF-8 character boundaries. A parallel continuation corpus mutates
 encoded VM images and requires deterministic fail-closed decoding or canonical
 roundtrip.
 
-The implemented surface excludes group-result
-bindings, arbitrary mutation, effectful or collection loops, unstructured concurrency,
+The implemented surface excludes effectful helper functions, arbitrary mutation,
+effectful or collection loops, unstructured concurrency,
 raw HTTP, shell execution, and host-language reflection. Pure scalar computation
 and bindings are available before host suspension or after one captured atomic
-result, including multiple atomic captures in bounded chains, not between
-precomputed group steps or inside effectful loops.
+result, including multiple atomic captures in bounded chains, or after a whole
+sequential or parallel prefix to prepare one atomic tail or a bounded captured chain
+ending in a pure scalar body or a typed conditional scalar exit, not between precomputed group steps or
+inside effectful loops.
 Synchronous source semantics do not expose
 `async`/`await`; `all` is the explicit structured-concurrency form.
 
@@ -1327,6 +1407,20 @@ projections and lexical locals for the remaining body. Their final result may be
 a computed scalar or the final atomic host value. Schema 5 permits a conditional
 scalar early return instead of another capture, with the same final scalar type
 on both branches and type/capability checks even on cold branches.
+`field(value: result, name: "selected")` exports a boolean from selection results;
+`required` exports a boolean from form-field requirement results. They can feed
+pure helpers, decisions and subsequent atomic arguments without implicit text
+coercion. These are confirmed operation states, not arbitrary UI reads. New
+selection captures carry `projection_version: 2`; requirement captures also export
+a form `field` key and now use v3. Their older v2 frames and unversioned v1
+frames keep their old closed field set and never synthesize absent booleans.
+See [boolean GUI projections](leselang-control-flow.md#boolean-gui-projections)
+for the exact operation table, compatibility and cold-path validation rules.
+Non-nullable verified text/form results export `expected`, `field` and/or `value`
+according to the [v3 text table](leselang-control-flow.md#text-gui-projections).
+Missing legacy text fields are rejected, never reconstructed from old raw receipts.
+Wrong replies cannot admit a successor; saved strings are checked against committed
+raw results, remain private projection frames and consume the original shared budgets.
 Image-only restoration cannot recover the original authority;
 use the journal or the trusted-host `Vm::restore_request` API. Legacy schema-1/2/3/4
 images retain their wire forms; the current journal schema is 10.
@@ -1452,6 +1546,48 @@ all original requests, member types, authority and budgets together. The final
 member and calculated scalar/fault commit atomically; replay never recomputes a
 committed body. Old readers reject these explicit wire markers. See the
 [group-result contract](leselang-control-flow.md#named-group-result-bindings).
+Schema-7 sequential group tails also use the schema-10 journal layout with
+`group_tail` plans. A reserved successor identity becomes a concrete request only
+when the last prefix acknowledgement and tail append commit together. Prefix and
+tail share one owner, authority/budgets and retention unit; recovery validates
+the reservation and replays committed work without re-evaluation. Legacy schema-6
+pure plans omit the new reservation field. Isolated schema-7 image/request restore
+fails closed. See [sequential group tails](leselang-control-flow.md#sequential-group-tails).
+Schema-8 `group_capture` plans retain one captured successor after a sequential
+prefix. Its binding saves only typed member projections in an optional `groups`
+environment; old bindings omit that field. The raw successor receipt and final
+scalar/calculation fault commit together, after cumulative raw-output checks.
+Recovery verifies projections against the committed prefix, never recalculates
+the final body, and requires the complete owned journal. The schema-10 layout and
+whole-unit retention are unchanged. See
+[captured sequential successors](leselang-control-flow.md#captured-sequential-successors).
+Schema-9 `parallel_group_tail` / `parallel_group_capture` plans use the same
+schema-10 journal layout. Parallel members can finish out of order; the last
+successful receipt and one reserved successor commit atomically after an
+all-success barrier. Raw cumulative overflow saves a replayable terminal instead
+of blocking the last commit forever. Original authority/shared budgets, complete
+journal recovery, committed-prefix projection validation and whole-unit retention
+are unchanged. The native single-presentation debugger rejects parallel starts
+before creating journals; the Rust batch API supports the language form. See
+[parallel group successors](leselang-control-flow.md#parallel-group-successors).
+Continuation-schema-10 `group_dataflow` / `parallel_group_dataflow` plans extend
+those groups to multiple captures without changing journal schema 10. A bounded
+list reserves all possible successor identities, but only the selected next step
+is materialized. Each raw receipt and successor append or final scalar commits
+together after cumulative raw-output checks. Recovery verifies every frame against
+the successful prefix and preceding capture receipts, keeps original authority,
+fuel/deadline budgets, and replays rather than recalculating. Sequential chains
+use the native debugger; parallel prefixes remain Rust-batch-only. See
+[group result chains](leselang-control-flow.md#group-result-chains).
+Continuation-schema-11 `group_conditional` / `parallel_group_conditional` plans
+allow a same-type scalar exit before/between captured successors. The selected
+exit or next request commits with the raw receipt after cumulative-output checks.
+Recovery validates a scalar terminal only where the saved body can return without
+another suspension, never before a mandatory capture, and does not reevaluate
+source. Longest-path reservations, original authority/shared budgets, the parallel
+all-success barrier and whole-unit retention are unchanged. Journal schema 10
+needs no migration; schemas 1-10 retain their earlier boundaries. See
+[group conditional exits](leselang-control-flow.md#group-conditional-exits).
 The journal
 uses full synchronous commits and a five-second lock
 timeout, rejects symbolic-link final paths, and creates Unix files with `0600`

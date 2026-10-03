@@ -46,7 +46,7 @@ fn named_members_are_typed_and_canonical_for_sequences_parallel_groups_and_repea
 }
 
 #[test]
-fn group_members_cannot_escape_static_names_types_or_pure_scalar_bodies() {
+fn group_members_cannot_escape_static_names_types_or_bounded_body_shapes() {
     for expression in [
         r#"member(value: missing, name: "a")"#,
         r#"bind(g: 1, body: member(value: g, name: "a"))"#,
@@ -57,8 +57,8 @@ fn group_members_cannot_escape_static_names_types_or_pure_scalar_bodies() {
         r#"bind(g: seq(a: runtime.list()), body: field(value: member(value: choose(when: true, then: g, otherwise: g), name: "a"), name: "count"))"#,
         r#"bind(g: seq(a: runtime.list()), body: member(value: g, name: "a"))"#,
         r#"bind(g: seq(a: runtime.list()), body: g)"#,
-        r#"bind(g: seq(a: runtime.list()), body: runtime.list())"#,
-        r#"bind(g: seq(a: runtime.list()), body: bind(r: runtime.list(), body: true))"#,
+        r#"bind(g: all(a: runtime.list(), b: runtime.list()), body: seq(c: runtime.list()))"#,
+        r#"bind(g: seq(a: runtime.list()), body: bind(r: runtime.list(), body: bind(next: seq(a: runtime.list()), body: true)))"#,
         r#"bind(r: runtime.list(), body: bind(g: seq(a: runtime.list()), body: true))"#,
         r#"bind(g: choose(when: true, then: seq(a: runtime.list()), otherwise: seq(b: runtime.list())), body: true)"#,
         r#"bind(g: all(a: seq(read: runtime.list()), b: runtime.list()), body: true)"#,

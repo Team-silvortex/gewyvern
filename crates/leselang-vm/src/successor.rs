@@ -47,6 +47,12 @@ pub(super) fn validate_pair(
                 | DATAFLOW_CONTINUATION_SCHEMA_VERSION
                 | CONDITIONAL_CONTINUATION_SCHEMA_VERSION
         ),
+        GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION
+        | GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION => {
+            second.schema_version == first.schema_version
+                && first.group_result.is_some()
+                && first.group_result == second.group_result
+        }
         _ => false,
     };
     if !schema_valid
@@ -74,21 +80,30 @@ pub(super) fn validate_pair(
         return Err(invalid());
     }
     if let Some(binding) = &second.result_binding {
+        if binding
+            .groups
+            .iter()
+            .any(|group| !prior.groups.iter().any(|old| old.group == group.group))
+            || prior.groups.iter().any(|old| !binding.groups.contains(old))
+        {
+            return Err(invalid());
+        }
         let operation = leselang_hir::host_call::HostOperation::for_effect(&first.pending_effect)
             .ok_or_else(invalid)?;
-        let current = result_binding::ProjectedResult::capture(operation, value)?;
-        if !binding
-            .results
-            .iter()
-            .any(|saved| saved.name == prior.name && saved.result == current)
+        let mut contains_current = false;
+        for saved in &binding.results {
+            // Old chains keep their exact v1 frame; do not synthesize absent fields on replay.
+            let current = saved.result.matches_capture(operation, value)?;
+            contains_current |= saved.name == prior.name && current;
+            if !current && !prior.results.iter().any(|old| old.result == saved.result) {
+                return Err(invalid());
+            }
+        }
+        if !contains_current
             || prior
                 .results
                 .iter()
                 .any(|saved| !binding.results.contains(saved))
-            || binding.results.iter().any(|saved| {
-                saved.result != current
-                    && !prior.results.iter().any(|old| old.result == saved.result)
-            })
         {
             return Err(invalid());
         }
@@ -167,6 +182,14 @@ impl Vm {
             } else {
                 raw
             }
+        } else if matches!(
+            image.schema_version,
+            GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION
+                | PARALLEL_GROUP_CONTINUATION_SCHEMA_VERSION
+                | GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION
+                | GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION
+        ) {
+            atomic_step_from_effect_result(image, operation, result)
         } else {
             step_from_effect_result(image, operation, result)
         };

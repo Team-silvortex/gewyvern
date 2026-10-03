@@ -29,6 +29,7 @@ pub(crate) enum ArgumentDomain {
 impl ArgumentDomain {
     pub(crate) fn accepts(self, ty: ScalarType) -> bool {
         ty == ScalarType::String
+            || (ty == ScalarType::OptionalString && matches!(self, Self::OptionalText))
             || (ty == ScalarType::None
                 && matches!(self, Self::Filter | Self::Target | Self::OptionalText))
     }
@@ -37,7 +38,7 @@ impl ArgumentDomain {
         if !self.accepts(value.scalar_type()) {
             return false;
         }
-        let ScalarValue::String(value) = value else {
+        let Some(value) = value.text() else {
             return true;
         };
         if value.len() > MAX_SCALAR_STRING_BYTES {
@@ -45,13 +46,13 @@ impl ArgumentDomain {
         }
         match self {
             Self::Filter => validate_runtime_filter_value(value),
-            Self::Runtime => RuntimeId::new(value.clone()).is_ok(),
+            Self::Runtime => RuntimeId::new(value).is_ok(),
             Self::Pipeline => validate_deployment_intent(value, None).is_ok(),
             Self::Target => validate_deployment_intent("deploy", Some(value)).is_ok(),
             Self::Session => validate_debugger_session_id(value).is_ok(),
             Self::Node => validate_ui_node_id(value),
-            Self::Direction => matches!(value.as_str(), "next" | "previous" | "first" | "last"),
-            Self::Selection => matches!(value.as_str(), "selected" | "unselected"),
+            Self::Direction => matches!(value, "next" | "previous" | "first" | "last"),
+            Self::Selection => matches!(value, "selected" | "unselected"),
             Self::Count => parse_child_count(value).is_some(),
             Self::Text | Self::OptionalText => validate_ui_expected_text(value),
             Self::NodeKind => parse_semantic_node_kind(value).is_some(),
@@ -312,6 +313,28 @@ impl HostOperation {
         let mut literals = Vec::with_capacity(arguments.len());
         for (name, value) in arguments {
             let value = match value {
+                ScalarValue::OptionalString(text) => {
+                    let parameter = self
+                        .parameters()
+                        .iter()
+                        .find(|parameter| parameter.name == name)
+                        .ok_or_else(|| invalid_argument("unknown host argument", None))?;
+                    if !parameter.domain.accepts(ScalarType::OptionalString)
+                        || !parameter.domain.validate(value)
+                    {
+                        return Err(invalid_argument(
+                            "optional string requires an optional text argument",
+                            None,
+                        ));
+                    }
+                    match &text.0 {
+                        Some(text) => Expression::String {
+                            value: text.clone(),
+                            span,
+                        },
+                        None => Expression::None { span },
+                    }
+                }
                 ScalarValue::String(value) if value.len() <= MAX_SCALAR_STRING_BYTES => {
                     Expression::String {
                         value: value.clone(),

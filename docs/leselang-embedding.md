@@ -163,9 +163,80 @@ fallback for local arithmetic/parse failures without refunding fuel or catching
 host, authority, resource-limit or cancellation failures. Named group-result
 binding now exposes statically typed `member`/`field` projections to a pure scalar
 body after the whole group succeeds, with shared fuel and atomic journal replay.
-Group-driven host effects and additional projections remain pending, followed by
-collection iteration, effectful loops with exit/skip semantics,
-reusable functions, and explicit host-effect recovery/cleanup. These are core language
+A sequential group can instead drive one atomic tail (up to 63 prefix members
+plus one tail), admitting it transactionally with the final prefix acknowledgement.
+The reserved identity, original authority/budgets and whole-group recovery prevent
+replay from recalculating or dispatching it twice.
+That successor can now be captured for a pure scalar body using schema 8. Bounded,
+versioned named-member projections preserve the earlier group/alias environment;
+raw receipts stay in the journal, and final calculation commits with the successor
+receipt only after cumulative output checks.
+Flat parallel `all` prefixes now support those same single-successor forms with
+schema 9 and an all-success barrier. Their 2 to 63 prefix members remain
+independently leaseable and can finish out of order. Exactly one tail is admitted
+with the final successful receipt, under the original authority/shared budgets;
+cumulative raw-output overflow is a durable terminal. Complete journal recovery
+also verifies that every prefix member succeeded before a tail was admitted.
+This is a Rust batch API capability, not native multi-presentation GUI support.
+Continuation schema 10 extends sequential/parallel groups to multiple captured
+atomic successors with a final pure scalar. Prefix plus longest cold chain stays
+within 64 slots; all possible successor identities are reserved, while only one
+selected successor is pending at a time. Each receipt and next request or final
+scalar commits transactionally under original authority/shared budgets. Closed
+group/result frames are validated against committed successful predecessors on
+whole-journal recovery; isolated restoration is rejected. The database remains
+at journal schema 10. Sequential chains work through the native single-presentation
+channel; parallel starts retain the batch preflight fence.
+Continuation schema 11 adds typed conditional scalar exits before the first group
+capture or between captures. Every path returns the same scalar type, while cold
+branches still undergo type/capability checks and reserve the longest graph.
+The raw receipt and selected scalar or successor commit together after cumulative
+output checks, under original authority/shared budgets. A scalar exit does not
+bypass the parallel prefix's all-success barrier. Recovery verifies that the saved
+body can return without another suspension, replays without recalculation, and
+rejects detached restoration. Journal schema 10 is unchanged. Sequential native
+debugger flows support these exits without extra presentation requests; parallel
+prefixes remain Rust-batch-only.
+Reusable pure helpers now declare typed scalar parameters and infer scalar results;
+all declarations are checked, recursion is forbidden, and bounded hygienic expansion
+uses existing HIR nodes and durable bodies rather than product-specific macros.
+Selection and form-requirement results also export typed booleans for decisions
+and helpers; versioned closed projection frames preserve old journals without
+synthesizing missing fields. Their current operation vocabulary is still a host
+adapter concern, not a guarantee of arbitrary GUI-property access.
+Confirmed text/form results now export closed string fields for `expected`,
+`field` and submitted `value`, usable in helpers, conditional exits and subsequent
+host arguments. These are acknowledged request data, not new live GUI-property
+queries. Projection vocabulary v3 preserves v1/v2 frames without synthesizing
+missing fields, including through aliases and cold branches. Strings keep original
+operation domains, shared copy fuel, raw-output fences and the 64 KiB image/plan
+limit; saved text must match committed raw receipts. Continuation schemas 1-11 and
+journal schema 10 remain unchanged. Native sequential form chains support this
+without exposing private frames. Node/action/form-input kind assertion/wait pairs
+now also export canonical `kind` token strings through closed vocabulary v4.
+Tokens share source/wire spelling and the receiving operation's domain validation;
+no case folding, enum ordinals or arbitrary properties are added. Legacy v1/v2/v3
+frames stay exact without synthesized fields, including cold aliases/group members;
+saved kinds must match committed raw receipts under the same budgets and transaction.
+Native sequential kind-driven waits/decisions do not expose private frames.
+Typed `optional_string` values now distinguish absent from present-empty text.
+Explicit construction, `has_value` and lazy `value_or` support pure helpers/loops;
+only four placeholder/unavailability operations export `optional_expected` and
+their optional-text arguments accept it directly. Closed projection v5 preserves
+v1-v4 without synthesized fields, and explicit null/string payloads reject missing
+data. Original text/size/fuel/authority bounds, raw-receipt matching and transactional
+replay also apply to optional locals/frames. Native defaults preserve absent/empty
+semantics without exposing private frames. Arbitrary credential objects, dynamic
+properties and generic nullable/container types remain unsupported.
+Bounded `contains`/`starts_with`/`ends_with` predicates now inspect exact strings;
+`char_at` returns one optional Unicode scalar at a zero-based index, not a byte
+or grapheme offset. Out-of-range access is absent, with no implicit unwrap.
+Pure helpers/loops and saved result/group bodies reuse the existing binary HIR,
+complete-input scan/copy fuel, host validators and transactional replay. The
+Rust native debugger proves text-selected form prefixes through the existing
+correlated acknowledgement channel, not direct GUI introspection or a new ABI.
+Collection iteration remains pending, followed by effectful loops with exit/skip semantics,
+effectful reusable functions, and explicit host-effect recovery/cleanup. These are core language
 semantics, not GUI macros or complete control flow; see the
 [implemented control-flow contract](leselang-control-flow.md) for exact limits.
 

@@ -44,7 +44,8 @@ mod successor;
 pub use group_binding::GroupResultBinding;
 pub use leselang_hir::computation::ScalarValue;
 pub use result_binding::{
-    ProjectedBinding, ProjectedField, ProjectedResult, ResultBinding, ScalarBinding,
+    ProjectedBinding, ProjectedField, ProjectedGroup, ProjectedGroupBinding, ProjectedResult,
+    ResultBinding, ScalarBinding,
 };
 
 pub use journal::{
@@ -58,6 +59,11 @@ pub const SUCCESSOR_CONTINUATION_SCHEMA_VERSION: u32 = 3;
 pub const DATAFLOW_CONTINUATION_SCHEMA_VERSION: u32 = 4;
 pub const CONDITIONAL_CONTINUATION_SCHEMA_VERSION: u32 = 5;
 pub const GROUP_RESULT_CONTINUATION_SCHEMA_VERSION: u32 = 6;
+pub const GROUP_TAIL_CONTINUATION_SCHEMA_VERSION: u32 = 7;
+pub const GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION: u32 = 8;
+pub const PARALLEL_GROUP_CONTINUATION_SCHEMA_VERSION: u32 = 9;
+pub const GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION: u32 = 10;
+pub const GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION: u32 = 11;
 pub const MAX_CONTINUATION_BYTES: usize = 64 * 1024;
 pub const DEFAULT_FUEL: u64 = 1_000;
 pub const MAX_EXECUTION_FUEL: u64 = 1_000_000;
@@ -859,6 +865,14 @@ pub enum ExecutionOrder {
     Dataflow,
     BoundParallel,
     BoundSequential,
+    GroupTail,
+    GroupCapture,
+    ParallelGroupTail,
+    ParallelGroupCapture,
+    GroupDataflow,
+    ParallelGroupDataflow,
+    GroupConditional,
+    ParallelGroupConditional,
 }
 
 impl ExecutionOrder {
@@ -867,11 +881,45 @@ impl ExecutionOrder {
     }
 
     fn is_parallel(&self) -> bool {
-        matches!(self, Self::Parallel | Self::BoundParallel)
+        matches!(
+            self,
+            Self::Parallel
+                | Self::BoundParallel
+                | Self::ParallelGroupTail
+                | Self::ParallelGroupCapture
+                | Self::ParallelGroupDataflow
+                | Self::ParallelGroupConditional
+        )
     }
 
     fn is_sequential(&self) -> bool {
         !self.is_parallel()
+    }
+
+    fn has_group_successor(&self) -> bool {
+        matches!(
+            self,
+            Self::GroupTail
+                | Self::GroupCapture
+                | Self::ParallelGroupTail
+                | Self::ParallelGroupCapture
+                | Self::GroupDataflow
+                | Self::ParallelGroupDataflow
+                | Self::GroupConditional
+                | Self::ParallelGroupConditional
+        )
+    }
+
+    fn captures_group_successor(&self) -> bool {
+        matches!(
+            self,
+            Self::GroupCapture
+                | Self::ParallelGroupCapture
+                | Self::GroupDataflow
+                | Self::ParallelGroupDataflow
+                | Self::GroupConditional
+                | Self::ParallelGroupConditional
+        )
     }
 }
 
@@ -1496,6 +1544,18 @@ impl Vm {
                 order,
                 Some(Box::new(GroupResultBinding {
                     pending,
+                    // Only a shape/size marker here; reserve the real identity after all prefix IDs.
+                    successor_sequence: if binding.body.is_pure() {
+                        None
+                    } else {
+                        Some(1)
+                    },
+                    additional_successor_sequences: (2..=binding
+                        .body
+                        .atomic_flow_bound()
+                        .unwrap_or(0)
+                        as u64)
+                        .collect(),
                     binding,
                     fuel_remaining: body_fuel,
                 })),
@@ -1503,7 +1563,43 @@ impl Vm {
         } else {
             (order, None)
         };
-        let plan = MergePlan {
+        let order = if result_binding
+            .as_ref()
+            .is_some_and(|binding| binding.successor_sequence.is_some())
+        {
+            let captures = result_binding
+                .as_ref()
+                .is_some_and(|binding| binding.binding.body.is_atomic_capture());
+            if result_binding
+                .as_ref()
+                .is_some_and(|binding| binding.is_conditional())
+            {
+                if order.is_parallel() {
+                    ExecutionOrder::ParallelGroupConditional
+                } else {
+                    ExecutionOrder::GroupConditional
+                }
+            } else if result_binding
+                .as_ref()
+                .is_some_and(|binding| binding.is_dataflow())
+            {
+                if order.is_parallel() {
+                    ExecutionOrder::ParallelGroupDataflow
+                } else {
+                    ExecutionOrder::GroupDataflow
+                }
+            } else {
+                match (order.is_parallel(), captures) {
+                    (false, false) => ExecutionOrder::GroupTail,
+                    (false, true) => ExecutionOrder::GroupCapture,
+                    (true, false) => ExecutionOrder::ParallelGroupTail,
+                    (true, true) => ExecutionOrder::ParallelGroupCapture,
+                }
+            }
+        } else {
+            order
+        };
+        let mut plan = MergePlan {
             branches: branches.iter().map(|branch| branch.name.clone()).collect(),
             order,
             result_binding,
@@ -1544,13 +1640,41 @@ impl Vm {
                 request.budget.fuel_remaining = request.continuation.fuel_remaining;
             }
             if plan.result_binding.is_some() {
-                request.continuation.schema_version = GROUP_RESULT_CONTINUATION_SCHEMA_VERSION;
+                request.continuation.schema_version = match order {
+                    ExecutionOrder::GroupConditional | ExecutionOrder::ParallelGroupConditional => {
+                        GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION
+                    }
+                    ExecutionOrder::GroupDataflow | ExecutionOrder::ParallelGroupDataflow => {
+                        GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION
+                    }
+                    ExecutionOrder::ParallelGroupTail | ExecutionOrder::ParallelGroupCapture => {
+                        PARALLEL_GROUP_CONTINUATION_SCHEMA_VERSION
+                    }
+                    ExecutionOrder::GroupCapture => GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION,
+                    ExecutionOrder::GroupTail => GROUP_TAIL_CONTINUATION_SCHEMA_VERSION,
+                    _ => GROUP_RESULT_CONTINUATION_SCHEMA_VERSION,
+                };
                 request.continuation.group_result = Some(merge_token.clone());
             }
             named.push(NamedEffectRequest {
                 branch: branch.name.clone(),
                 request,
             });
+        }
+        if order.has_group_successor() {
+            let sequence = match self.allocate_sequence() {
+                Ok(sequence) => sequence,
+                Err(error) => return Step::Fault(error),
+            };
+            if let Some(binding) = &mut plan.result_binding {
+                binding.successor_sequence = Some(sequence);
+                for reserved in &mut binding.additional_successor_sequences {
+                    *reserved = match self.allocate_sequence() {
+                        Ok(sequence) => sequence,
+                        Err(error) => return Step::Fault(error),
+                    };
+                }
+            }
         }
         let graph = named
             .iter()
@@ -3010,23 +3134,50 @@ fn validate_pending_effect_contract(image: &ContinuationImage) -> Result<(), Fau
 }
 
 fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
+    if let Some(binding) = &image.result_binding {
+        binding.validate_structure()?;
+    }
     let expected_version = if let Some(owner) = &image.group_result {
         let sequence = owner
             .as_str()
             .strip_prefix("merge-")
             .and_then(|value| value.parse::<u64>().ok());
-        if image.result_binding.is_some()
-            || sequence.is_none_or(|value| {
-                value == 0
-                    || value > MAX_EFFECT_SEQUENCE
-                    || owner.as_str() != format!("merge-{value}")
-            })
-        {
+        if image.result_binding.as_ref().is_some_and(|binding| {
+            !matches!(
+                image.schema_version,
+                GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION
+                    | PARALLEL_GROUP_CONTINUATION_SCHEMA_VERSION
+                    | GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION
+                    | GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION
+            ) || binding.groups.is_empty()
+                || !(binding.body.is_pure()
+                    || (image.schema_version == GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION
+                        && binding.body.is_result_chain())
+                    || (image.schema_version == GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION
+                        && binding.body.is_result_flow()))
+        }) || sequence.is_none_or(|value| {
+            value == 0 || value > MAX_EFFECT_SEQUENCE || owner.as_str() != format!("merge-{value}")
+        }) {
             return Err(group_binding::invalid());
         }
-        GROUP_RESULT_CONTINUATION_SCHEMA_VERSION
+        match image.schema_version {
+            GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION => {
+                GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION
+            }
+            GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION => {
+                GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION
+            }
+            PARALLEL_GROUP_CONTINUATION_SCHEMA_VERSION => {
+                PARALLEL_GROUP_CONTINUATION_SCHEMA_VERSION
+            }
+            GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION => GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION,
+            GROUP_TAIL_CONTINUATION_SCHEMA_VERSION => GROUP_TAIL_CONTINUATION_SCHEMA_VERSION,
+            _ => GROUP_RESULT_CONTINUATION_SCHEMA_VERSION,
+        }
     } else if let Some(binding) = &image.result_binding {
-        binding.validate_structure()?;
+        if !binding.groups.is_empty() {
+            return Err(group_binding::invalid());
+        }
         binding.schema_version()
     } else {
         CONTINUATION_SCHEMA_VERSION
@@ -4810,6 +4961,31 @@ pub fn merge_declared(
     completions: Vec<BranchCompletion>,
     max_output_items: usize,
 ) -> Result<Step, Fault> {
+    if plan.order.captures_group_successor()
+        || (plan.order.has_group_successor()
+            && plan
+                .result_binding
+                .as_ref()
+                .is_none_or(|binding| !binding.has_successor(plan)))
+    {
+        return Err(group_binding::invalid());
+    }
+    merge_declared_inner(plan, completions, max_output_items, true)
+}
+
+pub(crate) fn merge_group_prefix(
+    plan: &MergePlan,
+    completions: Vec<BranchCompletion>,
+) -> Result<Step, Fault> {
+    merge_declared_inner(plan, completions, DEFAULT_MAX_OUTPUT_ITEMS, false)
+}
+
+fn merge_declared_inner(
+    plan: &MergePlan,
+    completions: Vec<BranchCompletion>,
+    max_output_items: usize,
+    finish_binding: bool,
+) -> Result<Step, Fault> {
     validate_merge_plan(plan)?;
     if max_output_items > DEFAULT_MAX_OUTPUT_ITEMS {
         return Err(Fault {
@@ -4850,12 +5026,7 @@ pub fn merge_declared(
         by_branch.insert(completion.branch, completion.outcome);
     }
     if output_items > max_output_items {
-        return Err(Fault {
-            code: "LSV2404".to_string(),
-            message: format!(
-                "structured merge returned {output_items} items, limit is {max_output_items}"
-            ),
-        });
+        return Err(merge_output_fault(output_items, max_output_items));
     }
 
     let mut fields = Vec::with_capacity(plan.branches.len());
@@ -4888,8 +5059,18 @@ pub fn merge_declared(
         terminal
     } else if matches!(
         plan.order,
-        ExecutionOrder::ResultChain | ExecutionOrder::Dataflow
-    ) {
+        ExecutionOrder::ResultChain
+            | ExecutionOrder::Dataflow
+            | ExecutionOrder::GroupTail
+            | ExecutionOrder::GroupCapture
+            | ExecutionOrder::ParallelGroupTail
+            | ExecutionOrder::ParallelGroupCapture
+            | ExecutionOrder::GroupDataflow
+            | ExecutionOrder::ParallelGroupDataflow
+            | ExecutionOrder::GroupConditional
+            | ExecutionOrder::ParallelGroupConditional
+    ) && finish_binding
+    {
         Step::Done(*fields.pop().ok_or_else(successor::invalid)?.value)
     } else {
         Step::Done(Value::Structured { fields })
@@ -4898,16 +5079,35 @@ pub fn merge_declared(
         validate_value(value, 1)?;
     }
     encode_json_capped(&step, MAX_JOURNAL_ENTRY_BYTES, "structured merge output")?;
-    if let (Some(binding), Step::Done(value)) = (&plan.result_binding, &step) {
+    if finish_binding
+        && !plan.order.has_group_successor()
+        && let (Some(binding), Step::Done(value)) = (&plan.result_binding, &step)
+    {
         return Ok(binding.finish(value));
     }
     Ok(step)
 }
 
+fn merge_output_fault(items: usize, limit: usize) -> Fault {
+    Fault {
+        code: "LSV2404".into(),
+        message: format!("structured merge returned {items} items, limit is {limit}"),
+    }
+}
+
 pub(crate) fn validate_merge_plan(plan: &MergePlan) -> Result<(), Fault> {
     if matches!(
         plan.order,
-        ExecutionOrder::BoundParallel | ExecutionOrder::BoundSequential
+        ExecutionOrder::BoundParallel
+            | ExecutionOrder::BoundSequential
+            | ExecutionOrder::GroupTail
+            | ExecutionOrder::GroupCapture
+            | ExecutionOrder::ParallelGroupTail
+            | ExecutionOrder::ParallelGroupCapture
+            | ExecutionOrder::GroupDataflow
+            | ExecutionOrder::ParallelGroupDataflow
+            | ExecutionOrder::GroupConditional
+            | ExecutionOrder::ParallelGroupConditional
     ) != plan.result_binding.is_some()
     {
         return Err(group_binding::invalid());
@@ -4926,7 +5126,12 @@ pub(crate) fn validate_merge_plan(plan: &MergePlan) -> Result<(), Fault> {
     }
     let minimum = if matches!(
         plan.order,
-        ExecutionOrder::Sequential | ExecutionOrder::BoundSequential
+        ExecutionOrder::Sequential
+            | ExecutionOrder::BoundSequential
+            | ExecutionOrder::GroupTail
+            | ExecutionOrder::GroupCapture
+            | ExecutionOrder::GroupDataflow
+            | ExecutionOrder::GroupConditional
     ) {
         1
     } else {
@@ -5028,7 +5233,11 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         });
     }
     match value {
-        Value::Scalar { value } if !matches!(value, ScalarValue::String(text) if text.len() > leselang_hir::computation::MAX_SCALAR_STRING_BYTES) => {
+        Value::Scalar { value }
+            if !value.text().is_some_and(|text| {
+                text.len() > leselang_hir::computation::MAX_SCALAR_STRING_BYTES
+            }) =>
+        {
             Ok(1)
         }
         Value::RuntimeList { runtimes, .. } if runtimes.len() <= DEFAULT_MAX_OUTPUT_ITEMS => {

@@ -1069,6 +1069,14 @@ use `packages.development.lock.json`, while `PublishAot=true` selects
 `packages.lock.json` with the pinned IL compiler, linker, and RID packs. This
 prevents a normal IDE or probe restore from rewriting the release graph.
 
+For normal development, `cargo dev check --scope desktop` and
+`cargo dev build --scope desktop` select only the current macOS arm64 or Linux
+x64 runtime's native assets. This avoids copying the full cross-platform Skia
+and HarfBuzz runtime tree into every development output. The checked portable
+restore graph remains shared across hosts. To use the same compact output
+directly with .NET, add `-p:LeserpentUseHostRuntime=true` to `dotnet build`;
+explicit runtime selections take precedence.
+
 ```bash
 RID=osx-arm64 # or linux-x64
 

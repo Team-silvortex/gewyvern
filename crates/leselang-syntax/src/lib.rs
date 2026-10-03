@@ -5,6 +5,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 pub const MAX_SOURCE_BYTES: usize = 256 * 1024;
 pub const MAX_CALL_DEPTH: usize = 16;
+pub const MAX_FUNCTIONS: usize = 32;
+pub const MAX_FUNCTION_PARAMETERS: usize = 8;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Span {
@@ -51,13 +53,24 @@ pub struct SyntaxTree {
     source: String,
     pub tokens: Vec<Token>,
     pub function: Option<Function>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub helpers: Vec<Function>,
     pub diagnostics: Vec<Diagnostic>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Function {
     pub name: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub parameters: Vec<Parameter>,
     pub body: Expression,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Parameter {
+    pub name: String,
+    pub type_name: String,
     pub span: Span,
 }
 
@@ -120,6 +133,8 @@ struct SyntaxTreeWire {
     source: String,
     tokens: Vec<Token>,
     function: Option<Function>,
+    #[serde(default)]
+    helpers: Vec<Function>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -133,6 +148,7 @@ impl<'de> Deserialize<'de> for SyntaxTree {
             source: wire.source,
             tokens: wire.tokens,
             function: wire.function,
+            helpers: wire.helpers,
             diagnostics: wire.diagnostics,
         };
         tree.validate_serialized_shape().map_err(D::Error::custom)?;
@@ -144,6 +160,7 @@ impl SyntaxTree {
     fn validate_serialized_shape(&self) -> Result<(), &'static str> {
         if self.source.len() > MAX_SOURCE_BYTES {
             let rejected_shape = self.function.is_none()
+                && self.helpers.is_empty()
                 && self.tokens.as_slice()
                     == [Token {
                         kind: TokenKind::Eof,
@@ -191,8 +208,19 @@ impl SyntaxTree {
         for diagnostic in &self.diagnostics {
             validate_span(&self.source, diagnostic.span)?;
         }
-        if let Some(function) = &self.function {
+        if self.helpers.len() >= MAX_FUNCTIONS
+            || (self.function.is_none() && !self.helpers.is_empty())
+        {
+            return Err("invalid syntax tree function count");
+        }
+        for function in self.function.iter().chain(&self.helpers) {
             validate_span(&self.source, function.span)?;
+            if function.parameters.len() > MAX_FUNCTION_PARAMETERS {
+                return Err("syntax tree parameter count exceeds limit");
+            }
+            for parameter in &function.parameters {
+                validate_span(&self.source, parameter.span)?;
+            }
             validate_expression_spans(&self.source, &function.body, 0)?;
         }
         Ok(())
@@ -239,9 +267,44 @@ pub fn format(tree: &SyntaxTree) -> Result<String, Vec<Diagnostic>> {
             span: Span { start: 0, end: 0 },
         }]);
     };
-    let mut output = format!("fn {}() = ", function.name);
-    format_expression(&function.body, 0, &mut output);
-    output.push('\n');
+    if tree.helpers.len() >= MAX_FUNCTIONS {
+        return Err(vec![Diagnostic {
+            code: "LSE1201".into(),
+            message: "function count exceeds limit".into(),
+            span: function.span,
+        }]);
+    }
+    let mut output = String::new();
+    let mut declarations = std::iter::once(function)
+        .chain(&tree.helpers)
+        .collect::<Vec<_>>();
+    declarations.sort_by_key(|declaration| declaration.span.start);
+    for (index, declaration) in declarations.into_iter().enumerate() {
+        if declaration.parameters.len() > MAX_FUNCTION_PARAMETERS {
+            return Err(vec![Diagnostic {
+                code: "LSE1202".into(),
+                message: "function parameter count exceeds limit".into(),
+                span: declaration.span,
+            }]);
+        }
+        if index > 0 {
+            output.push('\n');
+        }
+        output.push_str("fn ");
+        output.push_str(&declaration.name);
+        output.push('(');
+        for (position, parameter) in declaration.parameters.iter().enumerate() {
+            if position > 0 {
+                output.push_str(", ");
+            }
+            output.push_str(&parameter.name);
+            output.push_str(": ");
+            output.push_str(&parameter.type_name);
+        }
+        output.push_str(") = ");
+        format_expression(&declaration.body, 0, &mut output);
+        output.push('\n');
+    }
     if output.len() > MAX_SOURCE_BYTES {
         return Err(vec![Diagnostic {
             code: "LSE2002".to_string(),
@@ -335,6 +398,7 @@ pub fn parse(source: &str) -> SyntaxTree {
                 span: Span { start: 0, end: 0 },
             }],
             function: None,
+            helpers: Vec::new(),
             diagnostics: vec![Diagnostic {
                 code: "LSE0001".to_string(),
                 message: format!("source exceeds {MAX_SOURCE_BYTES} bytes"),
@@ -348,12 +412,42 @@ pub fn parse(source: &str) -> SyntaxTree {
 
     let (tokens, mut diagnostics) = lex(source);
     let mut parser = Parser::new(source, &tokens);
-    let function = parser.parse_function();
+    let mut function = parser.parse_function();
+    let mut helpers = Vec::new();
+    if function.is_some() {
+        while parser.peek().kind == TokenKind::Fn {
+            if helpers.len() + 1 >= MAX_FUNCTIONS {
+                let span = parser.peek().span;
+                parser.error("LSE1201", "function count exceeds limit", span);
+                break;
+            }
+            let Some(helper) = parser.parse_function() else {
+                break;
+            };
+            helpers.push(helper);
+        }
+        if parser.peek().kind != TokenKind::Eof && parser.diagnostics.is_empty() {
+            let span = parser.peek().span;
+            parser.error("LSE1006", "unexpected token after function body", span);
+        }
+    }
+    if function
+        .as_ref()
+        .is_some_and(|function| function.name != "main")
+        && let Some(index) = helpers.iter().position(|function| function.name == "main")
+    {
+        let main = helpers.remove(index);
+        if let Some(first) = function.replace(main) {
+            helpers.push(first);
+            helpers.sort_by_key(|function| function.span.start);
+        }
+    }
     diagnostics.extend(parser.diagnostics);
     SyntaxTree {
         source: source.to_string(),
         tokens,
         function,
+        helpers,
         diagnostics,
     }
 }
@@ -491,20 +585,47 @@ impl<'a> Parser<'a> {
             .start;
         let name = self.expect_ident("LSE1002", "expected function name")?;
         self.expect(TokenKind::LeftParen, "LSE1003", "expected '('")?;
+        let mut parameters = Vec::new();
+        while self.peek().kind != TokenKind::RightParen && self.peek().kind != TokenKind::Eof {
+            if parameters.len() >= MAX_FUNCTION_PARAMETERS {
+                let span = self.peek().span;
+                self.error("LSE1202", "function parameter count exceeds limit", span);
+                return None;
+            }
+            let (name, name_span) =
+                self.expect_ident("LSE1004", "expected parameter name or ')'")?;
+            self.expect(
+                TokenKind::Colon,
+                "LSE1203",
+                "expected ':' after parameter name",
+            )?;
+            let (type_name, type_span) = if self.peek().kind == TokenKind::None {
+                let token = self.peek().clone();
+                self.bump();
+                ("none".to_string(), token.span)
+            } else {
+                self.expect_ident("LSE1204", "expected scalar parameter type")?
+            };
+            parameters.push(Parameter {
+                name,
+                type_name,
+                span: Span {
+                    start: name_span.start,
+                    end: type_span.end,
+                },
+            });
+            if self.peek().kind != TokenKind::Comma {
+                break;
+            }
+            self.bump();
+        }
         self.expect(TokenKind::RightParen, "LSE1004", "expected ')'")?;
         self.expect(TokenKind::Equal, "LSE1005", "expected '='")?;
         let body = self.parse_value(0)?;
         let end = expression_span(&body).end;
-        if self.peek().kind != TokenKind::Eof {
-            let token = self.peek().clone();
-            self.error(
-                "LSE1006",
-                "unexpected token after function body",
-                token.span,
-            );
-        }
         Some(Function {
             name: name.0,
+            parameters,
             body,
             span: Span { start, end },
         })

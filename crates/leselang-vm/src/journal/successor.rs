@@ -449,7 +449,7 @@ fn completed_prefix(
         .collect()
 }
 
-fn request_for(connection: &Connection, token: &str) -> Result<EffectRequest, Fault> {
+pub(super) fn request_for(connection: &Connection, token: &str) -> Result<EffectRequest, Fault> {
     let dispatch = load_dispatch(connection, token)?.ok_or_else(invalid)?;
     let request = decode_bounded(&dispatch.request, MAX_JOURNAL_ENTRY_BYTES)?;
     validate_effect_request(&request)?;

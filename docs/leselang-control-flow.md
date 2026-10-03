@@ -4,7 +4,7 @@ This is the implemented sequential-control contract, not a claim of Bash languag
 parity. It extends the [language contract](leselang-language.md) without shell
 execution, hidden coercions, or source-level async/await.
 
-The post-2.0 control-flow contract is evolving at version `0.12.0`; it does not
+The post-2.0 control-flow contract is evolving at version `0.23.0`; it does not
 reclassify the older stable atomic-effect contract as a complete language.
 
 These are language-core mechanisms, not Leserpent-only GUI macros. Their
@@ -15,8 +15,9 @@ independent hosts without claiming that extraction is complete.
 ## Calculation And Decisions
 
 Basic computation is executable, not source-text substitution. Scalars are
-unsigned 64-bit integers, booleans, strings bounded to 4096 UTF-8 bytes, and
-`none`. A pure program finishes as `Step::Done(Value::Scalar { .. })` without
+unsigned 64-bit integers, booleans, strings bounded to 4096 UTF-8 bytes,
+`none`, and distinct [optional strings](#optional-gui-projections).
+A pure program finishes as `Step::Done(Value::Scalar { .. })` without
 allocating an effect identity or journal record.
 
 ```leselang
@@ -61,6 +62,8 @@ The primitive operations are:
 | `to_string` | `value`: integer, boolean or string | string; decimal integer, lowercase boolean, or unchanged text |
 | `parse_integer` | `value`: string | integer; non-empty ASCII decimal within `u64`, leading zeros accepted |
 | `parse_boolean` | `value`: string | boolean; exactly `"true"` or `"false"` |
+| `contains`, `starts_with`, `ends_with` | `left`: text string, `right`: pattern string | boolean; exact, case-sensitive matching, empty pattern always matches |
+| `char_at` | `left`: string, `right`: integer index | optional string; zero-based Unicode scalar-value access, absent when out of range |
 
 There are no signed integers, floats, infix operators, implicit truthiness or
 implicit conversions in this slice. Unknown, duplicate or extra arguments are
@@ -119,6 +122,71 @@ the source condition again. A program that never suspends has no durable
 continuation. A result-binding program saves its scalar environment and bounded
 body alongside the selected atomic request.
 
+## Reusable Pure Functions
+
+```leselang
+fn next_count(count: integer) = to_string(value: add(left: count, right: 1))
+
+fn main() = bind(
+  counted: ui.assert_child_count(node_id: "rows", count: "7"),
+  body: ui.set_form_value(
+    node_id: "form",
+    field: "replicas",
+    value: next_count(count: field(value: counted, name: "count")),
+  ),
+)
+```
+
+This requests the form text `"8"` after the host confirms seven children.
+The helper declares scalar parameter types (`integer`, `boolean`, `string`,
+`none` or `optional_string`) and infers its scalar return type from its body. No implicit conversion,
+default parameter, positional argument, function value or closure is introduced.
+A multi-function program requires exactly one parameterless `main`; it may appear
+before or after helpers. Forward references are allowed. The legacy single-function
+entry and its serialized syntax shape remain unchanged.
+
+There are at most **32 declarations**, including the entry, and **8 parameters**
+per helper. Names use the existing bounded ASCII identifier rules; helper names
+cannot replace builtins, and parameters cannot duplicate or shadow active locals
+inside their own definition. A helper sees only its parameters and definition-local
+bindings, never a caller's locals or raw host result. Pass an explicit typed `field`
+projection instead. All definitions are type-checked, including unused helpers
+and cold branches. Direct, mutual and cold-branch recursion are rejected, as are
+calls from a helper to `main`.
+
+Bodies and arguments must be pure scalar computations. Helpers may compose other
+helpers, pure loops, conversions, recovery and conditional calculations, but cannot
+suspend, contain a host operation or return a result object. Every call must provide
+exactly the declared named parameters, each once, with matching scalar types.
+Arguments run once in **parameter declaration order**, regardless of their source
+order, before the body. Unused parameters still evaluate. An argument fault prevents
+body evaluation; an unselected enclosing branch evaluates neither call nor arguments.
+
+Lowering uses hygienic expansion into existing HIR `bind` nodes, not source-text
+substitution. Fresh parameter/local names prevent caller capture and preserve
+separate lexical scopes across repeated calls. The complete expanded graph retains
+the **1024-node** and **16-level** bounds; helper bodies are bounded before cloning,
+so a small source DAG cannot trigger unbounded expansion. Expanded helpers and the
+entry must also fit the existing 256 KiB canonical source limit; literal repetition
+cannot bypass that bound through short calls. Inlined calculations and
+string copies consume the same shared fuel, with no per-call refill. Helpers in
+group arguments preserve whole-group all-or-nothing preparation and host validators.
+
+Syntax formatting preserves declaration and parameter order. HIR canonical export
+emits the expanded single-entry program; recompiling it reproduces the same HIR.
+Saved residual bodies contain only existing computation nodes, not helper tables
+or source references. Continuation schemas 1 through 6 and journal schema 10 are
+unchanged; restart needs no source helper definitions. Completion and successor
+replay retain their original authority, fuel and deadline. The native debugger
+uses the same correlated presentation acknowledgement path, not a new helper API.
+
+Declaration/signature faults use `LSH1501`, helper recursion uses `LSH1502`, non-pure
+helper bodies use `LSH1503`, and invalid named/typed call arguments use `LSH1504`.
+Expansion limits remain `LSH1405`. Syntax count limits use `LSE1201` and `LSE1202`;
+malformed parameter separators/types use `LSE1203` and `LSE1204`. Diagnostics carry
+source spans. This slice adds reusable **pure** functions, not effectful function
+frames, recursive calls, imports, higher-order values or a general shell.
+
 ## Explicit Scalar Conversions
 
 Conversions bridge typed calculations and string-valued host arguments, without
@@ -166,6 +234,88 @@ and remaining fuel. After completion, duplicate results replay the committed
 value, fault or successor instead of rerunning conversion. Older readers reject
 unknown operators rather than discarding them; already-materialized atomic
 requests and the wire encodings of `not`/`len` are unchanged.
+
+## Bounded Text Inspection
+
+```leselang
+fn ready(text: string) = and(
+  left: starts_with(left: text, right: "ready"),
+  right: and(
+    left: contains(left: text, right: "ad"),
+    right: ends_with(left: text, right: "!"),
+  ),
+)
+
+fn main() = bind(
+  status: ui.assert_text(node_id: "status", expected: "ready!"),
+  body: ui.set_form_value(
+    node_id: "form",
+    field: "prefix",
+    value: choose(
+      when: ready(text: field(value: status, name: "expected")),
+      then: value_or(
+        left: char_at(left: field(value: status, name: "expected"), right: 0),
+        right: "default",
+      ),
+      otherwise: "default",
+    ),
+  ),
+)
+```
+
+After the host confirms `"ready!"`, this requests form text `"r"`. Use real
+host-exported node/field IDs and `ui.presentation`. These operators inspect
+provided strings or acknowledged projections, not live GUI objects.
+
+`contains`, `starts_with` and `ends_with` take exactly two named string inputs:
+`left` is the text, `right` is the pattern. Matching is **exact and case-sensitive**,
+with no regular expressions, locale rules, case folding or Unicode normalization.
+An empty pattern returns `true` for all three, including empty text; a non-empty
+pattern cannot match empty text. Matching is lossless UTF-8 text inspection.
+For example, precomposed U+00E9 and the U+0065/U+0301 sequence are different strings.
+
+`char_at(left: text, right: index)` takes a string and an unsigned integer.
+Indices are **zero-based Unicode scalar-value** positions, consistent with `len`,
+not UTF-8 byte offsets or grapheme clusters. A found scalar becomes a present
+`optional_string` containing its one-to-four-byte UTF-8 encoding. A combining
+mark after a base letter is a separate scalar at index 1. Empty text, an index
+equal to or beyond `len`, and `u64::MAX` return an absent optional string, without
+wrapping or truncating the index on narrower platforms. No successful `char_at`
+returns a present-empty string. Use `has_value` or lazy `value_or` explicitly;
+there is no implicit unwrap or conversion into a host string parameter.
+
+Both operands are pure, type-checked even in cold branches, and evaluated once
+in **left-to-right** order regardless of their named source order. These four
+operators are eager, even for empty patterns or empty input: an error in the
+right operand still propagates. Enclosing `choose`, `and`, `or` and `value_or`
+retain their existing laziness. An absent character is a successful result, so
+`recover` does not replace it. Existing arithmetic/parse faults may be recovered;
+fuel, size and host-validation failures cannot.
+
+Input copies and scans consume the **shared fuel**, charging each input's complete
+UTF-8 byte length in the existing started 64-byte blocks, even when a match or
+character occurs early. A present character also pays one materialization block;
+absence has no text materialization cost. Indices cannot turn a bounded scan
+into index-proportional allocation or iteration. Every input still fits the
+4096-byte scalar bound before inspection; returning a boolean or short character
+does not bypass it. Pure helpers and loops reuse these budgets without refills.
+There is no collection type or effectful loop in this slice.
+
+Text-derived host arguments retain their **original host validators**, including
+control-character rejection and narrower form-value limits. Whole-group argument
+preparation remains all-or-nothing. Sequential/parallel result groups keep their
+barrier and reserved-successor rules; inspection cannot dispatch a successor early.
+
+These operators use the existing closed binary HIR node. Old operator wire bytes,
+projection versions **v1-v5**, continuation schemas **1 through 11** and **journal
+schema 10** are unchanged; no database migration is needed. Unknown operators
+and wrong-typed saved operands are rejected. Saved bodies and optional character
+locals resume without source/helper tables under the original authority, deadline,
+cancellation and remaining fuel. Raw receipt validation, the 64 KiB image/plan
+bound, transactional successor/terminal writes, rollback and first-commit replay
+remain in force. The Rust native debugger proves text predicates driving a form
+prefix through correlated acknowledgements, without exposing private frames;
+this is not a new desktop scalar inspector or actual desktop-control test.
 
 ## Bounded Pure Loops
 
@@ -336,8 +486,15 @@ implicit execution of `field(value: host.call(), ...)`.
 | `ui.navigate_focus` | `focused_node_id`, the actual destination | string |
 | `ui.assert_child_count`, `ui.wait_child_count` | `count` | integer |
 | `ui.assert_form_field_max_length`, `ui.wait_form_field_max_length` | `max_length` | integer |
+| `ui.set_selection`, `ui.assert_selection`, `ui.wait_selection` | `selected` | boolean |
+| `ui.assert_form_field_required`, `ui.wait_form_field_required` | `required` | boolean |
+| Non-nullable text, automation-ID, action-label, accessibility, form-value and form-label assertions/waits listed below | `expected`, the acknowledged expectation | string |
+| `ui.set_form_value` and all current `ui.assert_form_*` / `ui.wait_form_*` results | `field`, the form field key | string |
+| `ui.set_form_value` | `value`, the acknowledged submitted value | string |
+| Node-kind, action-kind and form-input-kind assertions/waits listed below | `kind`, the acknowledged canonical enum token | string |
+| Placeholder and action-unavailability assertions/waits listed below | `optional_expected`, the acknowledged nullable expectation | optional_string |
 
-Only these fields are exported. Collections, arbitrary record fields, nullable
+Only these fields are exported. Collections, arbitrary record fields, arbitrary nullable
 metadata and command-result properties are not exposed by this slice. Commands
 can still be bound with an unused result and a scalar body; their capability,
 confirmation, revision, lease and acknowledgement requirements do not change.
@@ -368,6 +525,276 @@ Atomic result-bound bodies cannot capture a group or replace a group member. Fur
 atomic captures use the durable chain rules below. Use an outer `choose` to
 select a result-binding program, rather than hiding effects in operands or host
 arguments.
+
+## Boolean GUI Projections
+
+```leselang
+fn destination(selected: boolean, required: boolean) = choose(
+  when: and(left: selected, right: not(value: required)),
+  then: "run-action",
+  otherwise: "next-field",
+)
+fn main() = bind(
+  selection: ui.set_selection(node_id: "runtime-row", state: "selected"),
+  body: bind(
+    requirement: ui.assert_form_field_required(
+      node_id: "settings-form", field: "name", state: "optional",
+    ),
+    body: ui.focus(node_id: destination(
+      selected: field(value: selection, name: "selected"),
+      required: field(value: requirement, name: "required"),
+    )),
+  ),
+)
+```
+
+`selected` is `true` for an acknowledged `selected` state and `false` for
+`unselected`. `required` is `true` for `required` and `false` for `optional`.
+These are booleans, not the host argument strings: use them directly in `choose`,
+boolean logic, pure helpers and pure loops, or use explicit `to_string` when a
+host parameter needs text. A successful correlated acknowledgement is required;
+wrong node/state replies and rejected assertions do not become `false`.
+This is not an arbitrary UI read or a new query operation. In particular, an
+assertion still fails when its expected state does not match the host.
+Named group members export the same fields under the current group-flow rules.
+Raw form objects, nullable metadata, credential objects and dynamic properties remain private.
+
+When persisted across another suspension, selection-only results use a closed
+projection frame with `projection_version: 2`. Requirement results now also
+export a form `field` key and use the [v3 text vocabulary](#text-gui-projections);
+their older v2 frames remain valid without that key. Operations without booleans
+or text additions retain the unversioned v1 wire shape.
+Unversioned v1 frames retain exactly the original five-field vocabulary;
+the new reader never synthesizes absent booleans from an operation's name or
+old request. A v1 frame can coexist with a new v2 frame in one chain.
+Aliases and both cold conditional paths are checked against the actual stored
+field set before restore or successor admission. Absent-field access, unsupported
+numeric versions, extra/duplicate/reordered projection fields and incorrect scalar
+types fail with `LSV1405`. Invalid JSON shapes and unknown object properties fail
+with the existing codec error `LSV3003`; oversized images retain `LSV3002`.
+Recovery also checks each saved boolean against its committed raw result.
+Old readers reject the new field/explicit-version forms rather than discarding
+them. Continuation schemas 1-6 and journal schema 10 remain unchanged.
+Copying/restoring the additional scalar costs the same shared fuel, and all
+authority, deadline, output and 64 KiB continuation limits still apply.
+
+## Text GUI Projections
+
+```leselang
+fn suffix(text: string) = concat(left: text, right: "-copy")
+fn main() = bind(
+  written: ui.set_form_value(node_id: "settings-form", field: "name", value: "alpha"),
+  body: bind(
+    checked: ui.wait_form_value(
+      node_id: field(value: written, name: "node_id"),
+      field: field(value: written, name: "field"),
+      expected: field(value: written, name: "value"),
+    ),
+    body: bind(
+      copied: ui.set_form_value(
+        node_id: "settings-form", field: "label",
+        value: suffix(text: field(value: checked, name: "expected")),
+      ),
+      body: eq(left: field(value: copied, name: "value"), right:
+        suffix(text: field(value: written, name: "value")),
+      ),
+    ),
+  ),
+)
+```
+
+The new fields are **strings**, not implicit booleans, numbers or host objects.
+They expose only data in a **successful correlated acknowledgement**:
+
+| Field | Exact Exporting Operations |
+| --- | --- |
+| `expected` | `ui.assert_text`, `ui.wait_text`, `ui.assert_automation_id`, `ui.wait_automation_id`, `ui.assert_action_label`, `ui.wait_action_label`, `ui.assert_form_value`, `ui.wait_form_value`, `ui.assert_form_field`, `ui.wait_form_field`, `ui.assert_accessible_name`, `ui.wait_accessible_name`, `ui.assert_accessible_description`, `ui.wait_accessible_description` |
+| `field` | `ui.set_form_value`, plus assert/wait pairs for `form_value`, `form_field`, `form_field_input_kind`, `form_field_required`, `form_field_max_length`, `form_field_placeholder` |
+| `value` | `ui.set_form_value` only |
+
+`expected` is the **acknowledged expectation**, and `value` is the **acknowledged
+submitted value**. Neither is a new live-property query or a promise to read
+arbitrary current GUI text. An assertion/wait must still succeed against its
+expected value; a wrong node, field, expectation or submitted-value reply creates
+no successor. An optional placeholder/unavailability `expected` is **not exported**,
+even when a particular request passes a string. There is no implicit string/`none`
+union or default; use the separate typed [optional projection](#optional-gui-projections).
+The separate [kind vocabulary](#kind-gui-projections)
+exports only canonical kind tokens. Arbitrary credentials/record properties remain unsupported.
+
+These fields work through immutable aliases, pure helpers, explicit conversions,
+conditional scalar exits and named group members. The same type/capability and
+all-success rules apply. Strings retain their operation-specific byte limits:
+form values are at most **256 bytes**, form keys **128 bytes**, and general
+expected text **1024 bytes**; automation IDs keep their identifier validator.
+The generic scalar ceiling remains **4096 bytes**, not permission to exceed a
+narrower host-argument limit. Feeding a valid long text projection into a form
+value still rejects `LSV1404` before creating another request. Empty/Unicode text
+is not trimmed or coerced, and raw cumulative-output checks remain in force.
+
+Captured results that export these string fields use **`projection_version: 3`**,
+except form-input-kind assertions/waits, which also export `kind` and now use v4,
+and placeholder assertions/waits, which export `optional_expected` and use v5.
+Their older v3 frames retain their exact fields without the newer projections.
+V3 is the frozen V2 vocabulary plus `expected`, `field`, `value`, in that canonical
+order after the old fields. Each operation stores exactly its own exported subset.
+Unversioned **v1 and explicit v2 frames remain byte-exact** and can coexist with
+new v3 frames in one chain; aliases preserve the original version and field set.
+The reader **never synthesizes missing text fields** from a retained raw receipt
+or request. Cold branches and conditional aliases use the actual closed field
+sets, so missing legacy fields reject `LSV1405` before restore/admission. Unsupported
+versions, wrong types, duplicate/missing/reordered fields and unknown properties
+fail closed. Recovery checks every saved string against its **committed raw receipt**.
+Older readers reject v3/new-field forms rather than dropping data.
+
+Copying/restoring these strings consumes **shared fuel**. The complete image/plan
+still fits **64 KiB**; selected group/alias growth commits `LSV3002` without a
+phantom request, while an unselected cold branch creates no frames. Raw receipts,
+new frames and the next request or final scalar retain the existing **one transaction**
+boundary. Authority, revision, absolute deadline and raw-output budgets are unchanged.
+**Continuation schemas 1-11 and journal schema 10 remain unchanged**; this is a
+projection-vocabulary extension, not another continuation or database migration.
+
+The native single-presentation debugger supports sequential text-driven form
+steps with the same effect identity/session-revision checks and **no public private
+frames**. Arbitrary GUI-property reads, automatic adapter discovery, secret
+extraction, native parallel batches and a desktop scalar inspector are not added.
+Explicit caller-provided source/values still follow the host's secret-handling
+rules; the vocabulary is not a credential-redaction mechanism.
+
+## Kind GUI Projections
+
+```leselang
+fn destination(kind: string) = choose(
+  when: eq(left: kind, right: "runtime_refresh"), then: "run", otherwise: "skip",
+)
+fn main() = bind(
+  checked: ui.assert_action_kind(node_id: "refresh-action", kind: "runtime_refresh"),
+  body: bind(
+    waited: ui.wait_action_kind(
+      node_id: "refresh-action", kind: field(value: checked, name: "kind"),
+    ),
+    body: ui.focus(node_id: destination(kind: field(value: waited, name: "kind"))),
+  ),
+)
+```
+
+`kind` exports a **canonical enum token string** from a **successful correlated
+acknowledgement**. It is the acknowledged requested kind, **not a live-property query**
+or a new scalar enum type. Only these six operations export it:
+
+| Operations | Exact Canonical Tokens |
+| --- | --- |
+| `ui.assert_node_kind`, `ui.wait_node_kind` | `column`, `heading`, `text`, `runtime_card`, `runtime_workspace`, `section`, `history_entry`, `log_entry`, `debugger_workspace`, `debugger_frame`, `action` |
+| `ui.assert_action_kind`, `ui.wait_action_kind` | `runtime_inspect`, `runtime_refresh`, `runtime_capabilities_refresh`, `runtime_deploy`, `debugger_cancel` |
+| `ui.assert_form_field_input_kind`, `ui.wait_form_field_input_kind` | `path_token`, `trimmed_text` |
+
+Tokens share the existing source/wire enum spelling. There is **no case folding,
+trimming, alias or ordinal conversion**. They can feed helpers, comparisons,
+conditional exits, group-member projections and computed host arguments. Each
+receiving argument still validates its **own operation domain**: a node kind such
+as `heading` passed to an action-kind argument rejects `LSV1404` before a successor
+is admitted. Wrong-node or wrong-kind acknowledgements similarly create no successor.
+Raw `expected_kind` / `input_kind` property names and arbitrary enum properties
+are not projected. Nullable metadata uses the separate optional vocabulary below.
+Selection/requirement remain booleans, not kind tokens.
+
+Captures exporting `kind` use **`projection_version: 4`**. V4 is the frozen V3
+vocabulary followed by `kind`; each operation stores exactly its own exported
+subset in canonical order. **Legacy v1/v2/v3 frames stay byte-exact**, including
+form-input-kind v3 frames that contain `field` but no `kind`. Mixed-version chains
+preserve each frame's original version, and recovery **never synthesizes missing
+kind fields** from a raw receipt or pending request. Both **cold branches and
+conditional aliases** are checked against actual field sets, including the
+high-bit `kind` availability flag. Older readers reject v4 rather than dropping data.
+
+Unknown/wrong-domain tokens, unsupported versions, wrong types, duplicate/missing/
+reordered fields and unknown properties reject `LSV1405` before restoration. A
+valid-looking same-domain forged token still fails recovery against its **committed
+raw receipt**. Token copies/restoration consume **shared fuel**; raw cumulative
+output, the **64 KiB** image/plan bound, authority, revision, absolute deadline and
+current-effect cancellation stay unchanged. Receipts, frames and the next request
+or scalar result retain **one transaction** and first-commit replay, including
+write-failure rollback with no phantom successor.
+**Continuation schemas 1-11 and journal schema 10 remain unchanged**.
+
+The native sequential debugger supports kind-driven waits/decisions with correlated
+effect identities and session revisions, **without exposing private frames**.
+This does not add arbitrary GUI reads, native parallel batches, new enum families,
+generic nullable projections or a desktop scalar inspector.
+
+## Optional GUI Projections
+
+```leselang
+fn defaulted(value: optional_string) = value_or(left: value, right: "No hint")
+fn main() = bind(
+  checked: ui.assert_form_field_placeholder(node_id: "form", field: "name", expected: none),
+  body: bind(
+    waited: ui.wait_form_field_placeholder(
+      node_id: "form", field: "name",
+      expected: field(value: checked, name: "optional_expected"),
+    ),
+    body: ui.set_form_value(
+      node_id: "form", field: "label",
+      value: defaulted(value: field(value: waited, name: "optional_expected")),
+    ),
+  ),
+)
+```
+
+`optional_string` is a **distinct scalar type**, not a string/`none` coercion or a
+general union/container type. `optional_string(value: none)` constructs an absent
+value; `optional_string(value: "")` constructs a present empty string. **Absent and
+empty are different**. Constructors accept only pure string/`none` values and
+literal constructors normalize to typed literals for canonical round trips.
+`has_value(value: optional)` returns a boolean. `value_or(left: optional, right:
+fallback)` returns a string and **evaluates the fallback only when absent**.
+Both operands must be pure and correctly typed, including a cold fallback; this
+does not catch host/resource failures or introduce effectful recovery.
+
+Typed helpers and pure loop state may use `optional_string`; same-type `eq`/`ne`
+distinguish absent, empty and text. There is **no implicit lifting or unwrapping**:
+plain strings/`none` cannot substitute for an optional helper parameter, and an
+optional value cannot be passed to `concat`, `to_string`, a condition or a normal
+string host argument. Use `has_value`/`value_or` explicitly. The existing `none`
+literal, type and wire form are unchanged.
+
+Exactly four successful correlated acknowledgements export `optional_expected`:
+`ui.assert_form_field_placeholder`, `ui.wait_form_field_placeholder`,
+`ui.assert_action_unavailable_reason`, `ui.wait_action_unavailable_reason`.
+It is the **acknowledged nullable expectation**, **not a live-property query**.
+The older `expected` string projection remains unsupported for these operations.
+Only their existing **optional-text host arguments** accept the new typed optional
+value directly and resolve it to the same concrete string/`none` request as before.
+Filters/targets and other nullable domains are not automatically broadened.
+Wrong absent/empty/text acknowledgements create no successor.
+
+These captures use **`projection_version: 5`**. V5 is frozen V4 plus
+`optional_expected`, with exact operation subsets and canonical order. **Legacy
+v1-v4 frames remain byte-exact**, without synthesized optional fields; an absent
+field is not a present field holding an absent value. Cold branches, group members
+and conditional aliases use actual field sets, including the high-bit flag.
+New scalar payloads are explicit `{"kind":"optional_string","value":null}` or
+the same tag with a string `value`. **Missing payload is rejected**, as are wrong
+types, unknown properties, unsupported versions and malformed field layouts.
+Malformed scalar JSON retains codec error `LSV3003`; semantically invalid saved
+projections reject `LSV1405`. Recovery checks even valid-looking
+absent/empty replacements against the **committed raw receipt**.
+
+Optional text retains **1024 bytes** and original control-character validation;
+generic optional scalars retain **4096 bytes**. Unwrapping does not bypass a
+receiving form value's **256 bytes** limit (`LSV1404`). Optional copies, fields,
+locals and restoration consume **shared fuel**, including contained string bytes.
+Raw output limits, the **64 KiB** image/plan bound, authority, revision, absolute
+deadline and cancellation remain unchanged. Receipts, frames and a successor or
+final scalar retain **one transaction**, rollback on injected write failures and
+first-commit replay. **Continuation schemas 1-11 and journal schema 10 remain unchanged**.
+Older readers reject new optional values/fields instead of silently losing data.
+
+The native sequential debugger supports absent/empty/text-driven waits and explicit
+form defaults **without exposing private frames**. Generic options, collections,
+arbitrary GUI reads, effectful loops, native parallel batches and a desktop scalar
+inspector are not added.
 
 ## Named Group Result Bindings
 
@@ -400,9 +827,14 @@ group stays parallel; its body waits for all members. Sequential failures still
 close blocked successors. Wrong replies, host errors, cancellation or deadlines
 do not run the body, even if it contains a pure `recover` fallback.
 
-This slice requires a pure scalar body. It permits scalar calculation, aliases,
-`choose`, bounded pure `loop`, conversions and `recover`, but no group-driven
-host effects, raw group/member return, capture inside an atomic result chain,
+The schema-6 slice requires a pure scalar body. It permits scalar calculation, aliases,
+`choose`, bounded pure `loop`, conversions and `recover`. Sequential groups can
+instead drive [one atomic tail](#sequential-group-tails) using schema 7. Neither
+form captures the tail; [schema 8](#captured-sequential-successors) allows one
+captured successor followed by a pure scalar body. Parallel `all` groups use
+[schema 9](#parallel-group-successors) for the same single-successor forms after
+an all-success barrier. No form
+permits raw group/member return, capture inside an atomic result chain,
 dynamic names, mixed `all`/`seq` or inferred group shape across `choose`. Every
 group argument is prepared before dispatch, not from an earlier member's result.
 Capability preflight includes every member, even when its result is unused.
@@ -425,6 +857,12 @@ fault commit in one transaction. Failed commits may retry pure calculation;
 successful commits replay the saved outcome without rerunning the body. Raw
 aggregate item/byte limits apply before projection. Retention removes the whole
 completed group, including single-member sequences, as one logical record.
+Journal group budget overflow commits with the triggering raw receipt rather than
+leaving it permanently pending: parallel aggregate item overflow saves `LSV2404`,
+and an oversized aggregate saves `LSV3002` at the 8 MiB terminal-entry limit.
+This also applies to existing schema-6, schema-7 and schema-8 owned group paths
+and unbound journal groups; public `merge_declared` still reports its ordinary
+bounded merge error. It does not change old wire markers or refund fuel.
 
 The SQLite journal remains schema 10 because the table layout is unchanged.
 Old readers reject schema 6 and the new order markers rather than silently
@@ -433,6 +871,397 @@ representation. The native debugger supports sequential presentation groups
 through its existing correlated acknowledgement channel; the scalar is available
 through the Rust VM, not a new desktop inspector. Flat `all` remains available
 through the Rust batch API, not the debugger's single-presentation channel.
+
+## Sequential Group Tails
+
+```leselang
+fn main() = bind(
+  checked: seq(
+    move: ui.navigate_focus(node_id: "runtime-a", direction: "next"),
+    verify: ui.assert_visible(node_id: "runtime-b"),
+  ),
+  body: ui.focus(node_id:
+    field(value: member(value: checked, name: "move"), name: "focused_node_id"),
+  ),
+)
+```
+
+After every prefix member succeeds, the named group results may drive exactly
+one atomic tail. Its parameters and lazy `choose` predicate can read statically
+typed members, including `selected` / `required` booleans. Scalar locals, group
+or member aliases, pure helpers, conversions, `recover` and bounded pure loops
+may prepare the tail. A conditional tail must choose atomic effects of the same
+result type; its cold branch still undergoes type and capability preflight.
+The final value is the tail's own typed host result, not the raw prefix aggregate.
+
+This is limited to sequential `seq`, bounded `repeat` and their flattened or
+computed members. The prefix has at most **63 members**, leaving one of the 64
+graph slots for the tail. Pure group bodies keep their existing 64-member limit.
+Parallel `all` tails use [schema 9](#parallel-group-successors). Mixed scalar/effect exits, nested
+tail groups and effectful loops are compile errors (`LSH1412`); unsupported cold
+branches are rejected too. Prefix arguments remain fully prepared before the
+first suspension, not result-dependent between its members.
+A further result capture uses the separate [schema-8 form](#captured-sequential-successors),
+not an unbounded extension of a schema-7 tail.
+
+Continuation **schema 7** marks every prefix and tail image with the same group
+owner. The merge plan uses `group_tail` and an explicit `successor_sequence`
+reservation. The VM reserves this identity after the prefix identities at
+startup, but a reservation is not a dispatch: no tail request or lease exists
+before the whole prefix completes. Each image still contains only its concrete
+atomic operation, not a group snapshot or a durable raw-result frame.
+
+The final prefix acknowledgement and tail admission commit in **one transaction**.
+The tail is appended to the original sequential graph using the reserved identity
+and a collision-free `successor` / `successor_N` branch name. Write failures roll
+back both changes, allowing a retry with that same reservation. Competing workers
+and repeated acknowledgements replay the first committed tail, never recalculate
+its arguments or create another dispatch. Restart requires the **complete journal**;
+`Vm::restore` and `Vm::restore_request` reject isolated prefix and tail images
+with `LSV1409`. Public merging cannot bypass this transactional admission.
+
+The tail inherits the original principal, capability grants, target revision,
+output limit and absolute deadline. Prefix effects, scalar restoration, body
+calculation and tail admission consume shared fuel; recovery never refills it.
+Raw cumulative output is checked before projection and again with the tail.
+Wrong replies, revision mismatch, host failure, cancellation or expiry seal the
+unit without creating a tail. Pure arithmetic/parse recovery does not catch these
+failures. If tail preparation fails, the final prefix result and calculation
+fault (including host-argument rejection `LSV1404`) commit together and replay
+after restart. Command tails retain confirmation and correlated-lease requirements.
+
+Retention protects the live group and removes a completed prefix plus tail as
+one logical record. Reopen validates the original requests, owner links, prefix
+signature, reserved identity/watermark, tail type, authority, budgets and saved
+terminal result without running source code. The journal remains **schema 10**;
+there is no table-layout migration. Existing schema-6 pure group plans omit
+`successor_sequence` and retain their old bytes. Old readers reject schema 7,
+`group_tail` or the strict reservation field instead of silently dropping the tail.
+The native debugger uses its existing revision- and identity-correlated presentation
+channel; the public session view does not expose private group metadata.
+
+## Captured Sequential Successors
+
+```leselang
+fn main() = bind(
+  checked: seq(
+    move: ui.navigate_focus(node_id: "runtime-a", direction: "next"),
+    verify: ui.assert_visible(node_id: "runtime-b"),
+  ),
+  body: bind(
+    focused: ui.focus(node_id:
+      field(value: member(value: checked, name: "move"), name: "focused_node_id"),
+    ),
+    body: eq(
+      left: field(value: focused, name: "node_id"),
+      right: field(value: member(value: checked, name: "move"), name: "focused_node_id"),
+    ),
+  ),
+)
+```
+
+A sequential prefix can now drive **one captured atomic successor**, followed
+by a **pure scalar body**. That final calculation can read both the successor's
+typed fields and the earlier named group members, including immutable group and
+member aliases, scalar locals, booleans, pure helpers, conversions, bounded pure
+loops and `recover`. Lazy `choose` can select different captured atomic operation
+types if their final scalar types agree. Every path must perform that one capture
+before returning; pure early exits, an uncaptured/captured mixture and tail groups
+remain unsupported. A second post-group suspension now uses
+[schema 10](#group-result-chains). The parallel `all` form
+uses the separate [schema-9 barrier contract](#parallel-group-successors).
+The **63-member prefix + one successor** graph limit is unchanged.
+
+Continuation **schema 8** and the `group_capture` plan distinguish this form from
+schema-6 pure groups and schema-7 uncaptured tails. All prefix/successor images
+retain one group owner. Only the successor carries a result binding with a
+`groups` environment: a bounded list of named member projections, not raw runtime
+lists, node trees, handles or arbitrary objects. Each member preserves its exact
+operation, closed field set and projection version. Group/member aliases retain
+their declared names and types; missing fields are never synthesized, including
+through aliases and cold branches. Legacy bindings omit the empty `groups` field
+and preserve existing schema-1 through schema-7 bytes.
+
+The successor admission uses the same reserved identity and final-prefix
+transaction as an uncaptured tail. Snapshotting each member/alias and restoring
+the final environment consume **shared fuel**; there is no restart refill.
+The complete successor image must fit **64 KiB**. Oversized snapshots fail with
+`LSV3002` before a successor dispatch is inserted. A preparation fault commits
+with the last raw prefix receipt and is replayed after restart.
+
+The successor's **raw receipt** is retained in its effect record. Raw prefix plus
+successor output is checked **before scalar projection** (`LSV2404` on cumulative
+overflow). The raw receipt and final scalar or calculation fault then commit in
+**one transaction**. Failed writes leave the successor pending; successful commits,
+competing workers and duplicate acknowledgements replay the saved scalar/fault
+without rerunning calculation. Pure `recover` still catches only arithmetic/parse
+errors, never host rejection, expiry, cancellation, authority or resource faults.
+Mutating successors still require confirmation and correlated acknowledgement.
+
+Recovery requires the **complete journal**. Reopen compares each saved group or
+member projection with the original committed prefix, validates the successor
+type, original authority/budgets and final scalar type, and never re-evaluates
+source. Isolated schema-8 images and requests fail with `LSV1409`; public merging
+cannot run this owned calculation outside the journal. The live prefix, capture
+and scalar remain one protected retention unit. Journal **schema 10** and the
+table layout are unchanged; old readers reject schema 8, `group_capture` or the
+strict `groups` field. The native debugger advances through the existing correlated
+presentation channel without publishing private projection frames.
+
+## Parallel Group Successors
+
+```leselang
+fn main() = bind(
+  inventory: all(
+    edge: runtime.list(role: "edge"),
+    worker: runtime.list(role: "worker"),
+  ),
+  body: bind(
+    focused: ui.focus(node_id: to_string(value:
+      field(value: member(value: inventory, name: "edge"), name: "count"),
+    )),
+    body: add(
+      left: field(value: member(value: inventory, name: "worker"), name: "count"),
+      right: field(value: member(value: inventory, name: "edge"), name: "count"),
+    ),
+  ),
+)
+```
+
+A flat parallel `all` prefix can drive **one atomic tail** or **one captured
+successor followed by a pure scalar body**. The prefix contains **2 to 63
+members**, reserving the 64th graph slot for the successor. Pure schema-6 parallel
+groups still permit 64 members. Computed arguments, scalar locals, group/member
+aliases, closed boolean projections, pure helpers and lazy typed selection retain
+the sequential forms' rules. Every prefix argument and every cold branch's type
+and capability requirements are checked before any dispatch. Members cannot
+calculate their parameters from earlier replies; no nested tail group, mixed
+pure/host exits or effectful loop is admitted. Multiple post-group captures use
+the separate [schema-10 chain contract](#group-result-chains).
+
+Continuation **schema 9** and the explicit `parallel_group_tail` /
+`parallel_group_capture` plan markers preserve a **parallel prefix + all-success
+barrier + one atomic successor**. Every prefix member is independently ready and
+leaseable. Replies may arrive out of order; named member order still follows the
+declared signature, not completion timing. A failed, cancelled or expired member
+does not create a tail. Other prefix members remain independent and the group
+waits for their terminal replies, retaining the existing parallel `all` policy
+rather than turning it into sequential fail-stop. Multiple failures are selected
+in declared member order, not by the fastest worker.
+
+The reserved successor identity has no effect/dispatch row before the barrier.
+The **last successful prefix receipt and successor admission commit in one
+transaction**; competing workers create exactly one request and duplicate prefix
+acknowledgements expose that same request. Progress reads the barrier and the
+admitted successor in one journal snapshot. The SQL execution-order marker remains
+`parallel`: after admission all prefix receipts are already committed and only
+the successor is pending, so no new table layout or migration is required.
+
+The successor inherits the **original authority, revision, deadline and output
+budget**. Parallel requests do not each grant another calculation budget: one
+effect unit per prefix member is reserved from **shared fuel**, and preparation,
+projection snapshot/restore, the successor and final calculation consume what
+remains. Reopening with a different VM fuel setting never refills that budget.
+The bounded plan and successor image must each fit **64 KiB**. Oversized member
+snapshots commit `LSV3002` with the last raw prefix receipt and dispatch nothing.
+
+All **raw prefix and successor output is checked before scalar projection**.
+Cumulative overflow commits a durable `LSV2404` terminal, including when the last
+parallel reply crosses the limit before tail admission. It is not left as a
+permanent failed-commit/retry loop. An oversized merged prefix or captured raw
+aggregate similarly commits `LSV3002` at the **8 MiB** terminal-entry byte limit,
+even if every individual receipt fits. The successor's raw receipt and final scalar
+or calculation fault also commit in one transaction. Failed writes roll back
+both admission/completion and the triggering receipt; successful writes replay
+the first saved result without re-running source or calculation. Command tails
+still require confirmation and correlated lease acknowledgement.
+
+Captured successors use the same bounded, versioned `groups` projection frames
+as schema 8, including immutable aliases. Recovery requires the **complete owned
+journal**, verifies exact member signatures and saved projections against the
+**committed successful prefix**, and rejects an admitted tail with any missing or
+unsuccessful prefix receipt. Isolated schema-9 images/requests reject `LSV1409`;
+public merging cannot bypass captured calculation ownership. Prefix, successor
+and terminal scalar remain one protected retention unit. **Journal schema 10**
+and schema-1 through schema-8 wire bytes are unchanged; old readers reject schema
+9 and the new plan markers.
+
+This is supported through the **Rust batch API**, not an automatic GUI batching
+promise. The native debugger still exposes a **single-presentation channel** and
+rejects these parallel starts with `debugger_session_not_suspended` during
+ephemeral preflight, before creating a session or SQLite journal. Multi-request
+debugger presentation/acknowledgement remains pending.
+
+## Group Result Chains
+
+```leselang
+fn main() = bind(
+  g: seq(
+    move: ui.navigate_focus(node_id: "runtime-a", direction: "next"),
+    check: ui.assert_visible(node_id: "runtime-b"),
+  ),
+  body: bind(
+    focused: ui.focus(node_id:
+      field(value: member(value: g, name: "move"), name: "focused_node_id"),
+    ),
+    body: bind(
+      verified: ui.assert_visible(node_id: field(value: focused, name: "node_id")),
+      body: eq(
+        left: field(value: verified, name: "node_id"),
+        right: field(value: member(value: g, name: "move"), name: "focused_node_id"),
+      ),
+    ),
+  ),
+)
+```
+
+A whole named sequential or flat parallel group can drive **multiple captured
+atomic successors**, followed by a pure scalar result. Each successor can use
+typed fields from the original group and earlier captures. Pure preparation,
+scalar locals, immutable group/member/result aliases, helpers, conversions,
+bounded pure loops and pure calculation recovery keep their existing rules.
+Lazy `choose` may select different atomic operations or chain lengths, but every
+non-pure path must suspend before returning: **mixed scalar early exits between
+suspensions remain unsupported** by schema 10, and use the separate
+[schema-11 conditional contract](#group-conditional-exits). Nested/dynamic tail
+groups, effectful operands, effectful helpers and effectful loops are not admitted.
+The flat prefix still prepares every member before its first suspension, never
+from earlier member replies. All cold branches are type/capability-checked first.
+
+The **prefix plus longest cold chain fits in 64 graph slots**. For two captures
+this leaves at most 62 prefix members; sequential prefixes require at least one
+member and parallel prefixes at least two. All possible successor identities are
+reserved at group admission. `successor_sequence` retains the first reservation;
+the optional `additional_successor_sequences` list stores subsequent reservations.
+Unused reservations on shorter paths have no effect/dispatch rows and cannot be
+reused by unrelated work. Only **one successor is pending at a time**. The original
+parallel all-success barrier and independent prefix leases are unchanged.
+
+Continuation **schema 10** with `group_dataflow` / `parallel_group_dataflow`
+plans owns the complete prefix and admitted chain. This is a continuation version,
+not a new database migration: **journal schema 10 is unchanged**, as are schema-1
+through schema-9 wire forms. Old readers reject the new image/plan markers.
+Successor bindings retain closed, versioned `groups` and atomic-result projection
+frames, not raw host objects. Boolean availability masks and legacy v1 fields are
+preserved exactly, including through new aliases between captures.
+
+The **raw receipt and next request commit in one transaction**. Competing or
+duplicate acknowledgements expose the same chosen successor. The final raw
+receipt and scalar/calculation fault also commit together; failed writes leave
+the current step pending and create no successor. Every step inherits the
+**original authority, revision, absolute deadline and output budget** and consumes
+the remaining **shared fuel** for calculation and projection snapshot/restore.
+Restarting with more fuel never refills the chain. Commands still require explicit
+confirmation and correlated lease acknowledgement.
+
+All **raw cumulative output is checked before every admission and before scalar
+projection**, including earlier captures whose returned objects are not used.
+Item overflow commits `LSV2404`; an aggregate over the **8 MiB** terminal-entry
+limit or a saved image/plan over **64 KiB** commits `LSV3002`. Preparation or final
+calculation faults are durable too, and cannot leave an invisible next request.
+Pure recovery never catches host, authority, cancellation or resource failures.
+
+Recovery requires the **complete owned journal**. It validates every successful
+prefix receipt, reserved identity, original envelope, decreasing fuel, projection
+frame against committed raw receipts, and frame continuity between captures.
+An admitted successor with an unsuccessful/missing predecessor is rejected.
+Committed requests and scalar/fault results replay without reevaluating source.
+Isolated schema-10 image/request restoration rejects `LSV1409`, and public merging
+cannot run the owned capture body. The live prefix and chain remain one protected
+retention unit; completed units compact together, including unused reservations.
+
+The **native single-presentation debugger supports sequential group chains**
+through its existing correlated acknowledgement/revision channel without exposing
+private frames. Parallel prefixes remain a **Rust batch API** feature: native
+multi-request debugger starts are rejected before creating a session or journal.
+This is not a new GUI batching, at-most-once external effect, or full-shell claim.
+
+## Group Conditional Exits
+
+```leselang
+fn main() = bind(
+  g: seq(
+    move: ui.navigate_focus(node_id: "runtime-a", direction: "next"),
+    check: ui.assert_visible(node_id: "runtime-a"),
+  ),
+  body: choose(
+    when: eq(
+      left: field(value: member(value: g, name: "move"), name: "focused_node_id"),
+      right: "runtime-home",
+    ),
+    then: true,
+    otherwise: bind(
+      focused: ui.focus(node_id:
+        field(value: member(value: g, name: "move"), name: "focused_node_id"),
+      ),
+      body: choose(
+        when: eq(left: field(value: focused, name: "node_id"), right: "runtime-b"),
+        then: true,
+        otherwise: bind(
+          verified: ui.assert_visible(node_id: field(value: focused, name: "node_id")),
+          body: eq(left: field(value: verified, name: "node_id"), right:
+            field(value: member(value: g, name: "move"), name: "focused_node_id"),
+          ),
+        ),
+      ),
+    ),
+  ),
+)
+```
+
+A successful whole sequential or flat parallel prefix can now return a typed
+scalar **before the first capture or between captures**. Lazy `choose` decides
+between a pure scalar exit and another captured atomic operation, using typed
+group/member/result projections and immutable aliases. Every exit has the
+**same scalar type**. Pure helpers, conversions, loops and local calculation
+recovery retain their existing bounded rules. No raw-host/scalar mixed returns,
+effectful guards/operands, nested tail groups, effectful functions or effectful
+loops are admitted, even on a cold branch.
+
+Continuation **schema 11** and `group_conditional` / `parallel_group_conditional`
+plan markers identify this flow. **Journal schema 10 is unchanged**; schemas 1-10
+keep their prior wire forms and semantic boundaries. Old readers reject the new
+markers. A purely scalar group body still uses schema 6, and a group chain without
+mixed scalar exits retains its existing schema rather than being upgraded.
+
+The **prefix plus longest cold path fits in 64 graph slots**, even when the chosen
+exit needs no successor. All cold branches undergo **type and capability preflight**;
+every possible successor identity is reserved before dispatch. Unused reservations
+remain rowless and cannot be reused by unrelated work. Only one selected successor
+is pending at a time. A parallel prefix retains its **all-success barrier**: an
+early-exit condition in one reply cannot bypass another pending or failed member.
+
+The **raw receipt and scalar exit commit in one transaction**, just like the raw
+receipt and next request on a continuing path. Duplicate acknowledgements and
+conflicting workers replay the **first committed exit or successor**, not a new
+decision. Failed writes leave the current request pending and create no child.
+Every path keeps the **original authority, revision, absolute deadline and output
+budget**, with **shared fuel** that is not refilled on restart. Commands still need
+confirmation and a correlated lease acknowledgement.
+
+**Raw cumulative output is checked before any scalar exit or admission**, including
+unused earlier replies. Item overflow commits `LSV2404`; the **8 MiB** terminal
+payload and **64 KiB** saved-image/plan limits commit `LSV3002`. An unselected
+branch does not allocate its projection frames or execute its calculations, but
+its types, permissions and longest-path reservations are still checked. Calculation
+and selected-frame preparation faults commit durably without phantom work. Pure
+recovery never catches host, cancellation, authority, deadline or resource faults.
+
+Recovery requires the **complete owned journal**, validates all successful prefix
+receipts and projection-frame continuity, and replays committed requests/scalars
+**without reevaluating source**. A scalar terminal is only valid at a saved body
+that **can return without another suspension**, not before a mandatory capture.
+Missing predecessors, schema downgrades, changed envelopes and reused reservations
+are rejected. Isolated image/request restoration rejects `LSV1409`. Live groups
+remain one protected retention unit; completed early exits compact as a whole,
+including unused reservations.
+
+The **native single-presentation debugger supports sequential conditional flows**
+through its existing correlated acknowledgement/revision channel, exposing no
+private frames and no extra UI request after a scalar exit. Parallel prefixes
+remain **Rust batch API** only; native multi-request starts are rejected before
+creating a session or journal, even if their chosen body would return immediately.
+This does not claim at-most-once external effects, automatic rollback or a full shell.
 
 ## Result-Driven Successor
 
@@ -520,7 +1349,11 @@ effectful loops, recursive calls and unprojected result returns remain rejected.
 
 Continuation **schema 4** stores bounded lexical frames with typed result
 projections. Each saved result contains its declared atomic operation type and
-exactly the exported scalar fields, in canonical order. Raw host objects and
+exactly the scalar fields exported by its projection vocabulary version, in
+canonical order. See [boolean GUI projections](#boolean-gui-projections) and
+[text GUI projections](#text-gui-projections) and [kind GUI projections](#kind-gui-projections)
+and [optional GUI projections](#optional-gui-projections) for v1-v5 compatibility and
+absent-field rejection. Raw host objects and
 collections are not copied; no arbitrary credential or GUI-handle field is exposed.
 Explicit scalar literals remain journaled locals, so host secret-handling rules
 still apply. A large inventory
@@ -799,10 +1632,15 @@ recovery, whole-group computed host arguments and captured atomic results with
 durable scalar/projection locals are implemented.
 Bounded multi-step result chains and conditional early exits now have transactional
 admission/completion and replay. Named group-result binding now supports pure
-scalar bodies with whole-group journal recovery. The next work is group-driven
-host effects, additional typed projections, collection iteration,
+scalar bodies and sequential/parallel groups driving one atomic tail or multiple
+captured successors, with typed scalar exits before/between captures and whole-group
+journal recovery. Selection/requirement booleans now have versioned durable
+projections, alongside confirmed text/form strings and canonical node/action/input-kind
+token projections, plus typed optional strings and four nullable metadata projections.
+Generic nullable/container types and collection iteration remain pending, followed by
 bounded effectful loops with exit/skip semantics,
-reusable functions, and explicit host-effect recovery/cleanup. These are semantic requirements, not prescribed
+effectful reusable functions, and explicit host-effect recovery/cleanup. Pure typed
+helpers are implemented with bounded hygienic HIR expansion. These are semantic requirements, not prescribed
 keywords or a Bash compatibility checklist. Their syntax must satisfy the
 [agent-first design rules](leselang-embedding.md#agent-first-syntax); none of
 these unimplemented constructs should be generated as if supported.

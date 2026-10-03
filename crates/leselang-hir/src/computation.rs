@@ -14,6 +14,44 @@ pub enum ScalarType {
     Boolean,
     String,
     None,
+    OptionalString,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct OptionalStringValue(pub Option<String>);
+
+impl<'de> Deserialize<'de> for OptionalStringValue {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl serde::de::Visitor<'_> for Visitor {
+            type Value = OptionalStringValue;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("an explicit null or bounded string")
+            }
+
+            fn visit_unit<E: serde::de::Error>(self) -> Result<Self::Value, E> {
+                Ok(OptionalStringValue(None))
+            }
+
+            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
+                if value.len() > MAX_SCALAR_STRING_BYTES {
+                    return Err(E::custom("optional string exceeds 4096 bytes"));
+                }
+                self.visit_string(value.to_owned())
+            }
+
+            fn visit_string<E: serde::de::Error>(self, value: String) -> Result<Self::Value, E> {
+                if value.len() > MAX_SCALAR_STRING_BYTES {
+                    return Err(E::custom("optional string exceeds 4096 bytes"));
+                }
+                Ok(OptionalStringValue(Some(value)))
+            }
+        }
+        // deserialize_any rejects a missing enum payload instead of treating it as null.
+        deserializer.deserialize_any(Visitor)
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -28,6 +66,7 @@ pub enum ScalarValue {
     Boolean(bool),
     String(String),
     None,
+    OptionalString(OptionalStringValue),
 }
 
 impl ScalarValue {
@@ -37,6 +76,15 @@ impl ScalarValue {
             Self::Boolean(_) => ScalarType::Boolean,
             Self::String(_) => ScalarType::String,
             Self::None => ScalarType::None,
+            Self::OptionalString(_) => ScalarType::OptionalString,
+        }
+    }
+
+    pub fn text(&self) -> Option<&str> {
+        match self {
+            Self::String(value) => Some(value),
+            Self::OptionalString(value) => value.0.as_deref(),
+            _ => None,
         }
     }
 }
@@ -58,6 +106,11 @@ pub enum BinaryOperator {
     And,
     Or,
     Concat,
+    ValueOr,
+    Contains,
+    StartsWith,
+    EndsWith,
+    CharAt,
 }
 
 impl BinaryOperator {
@@ -77,6 +130,11 @@ impl BinaryOperator {
             Self::And => "and",
             Self::Or => "or",
             Self::Concat => "concat",
+            Self::ValueOr => "value_or",
+            Self::Contains => "contains",
+            Self::StartsWith => "starts_with",
+            Self::EndsWith => "ends_with",
+            Self::CharAt => "char_at",
         }
     }
 
@@ -96,6 +154,11 @@ impl BinaryOperator {
             Self::And,
             Self::Or,
             Self::Concat,
+            Self::ValueOr,
+            Self::Contains,
+            Self::StartsWith,
+            Self::EndsWith,
+            Self::CharAt,
         ]
         .into_iter()
         .find(|op| op.name() == name)
@@ -110,6 +173,8 @@ pub enum UnaryOperator {
     ToString,
     ParseInteger,
     ParseBoolean,
+    OptionalString,
+    HasValue,
 }
 
 impl UnaryOperator {
@@ -120,6 +185,8 @@ impl UnaryOperator {
             Self::ToString => "to_string",
             Self::ParseInteger => "parse_integer",
             Self::ParseBoolean => "parse_boolean",
+            Self::OptionalString => "optional_string",
+            Self::HasValue => "has_value",
         }
     }
 
@@ -130,6 +197,8 @@ impl UnaryOperator {
             Self::ToString,
             Self::ParseInteger,
             Self::ParseBoolean,
+            Self::OptionalString,
+            Self::HasValue,
         ]
         .into_iter()
         .find(|operator| operator.name() == name)
@@ -138,6 +207,10 @@ impl UnaryOperator {
     fn result_type(self, input: Type) -> Option<ScalarType> {
         use ScalarType::{Boolean, Integer, String};
         match (self, input) {
+            (Self::OptionalString, Type::Scalar(String | ScalarType::None)) => {
+                Some(ScalarType::OptionalString)
+            }
+            (Self::HasValue, Type::Scalar(ScalarType::OptionalString)) => Some(Boolean),
             (Self::Not, Type::Scalar(Boolean)) | (Self::ParseBoolean, Type::Scalar(String)) => {
                 Some(Boolean)
             }
@@ -152,6 +225,8 @@ impl UnaryOperator {
             Self::Not => "boolean",
             Self::Len | Self::ParseInteger | Self::ParseBoolean => "string",
             Self::ToString => "integer, boolean or string",
+            Self::OptionalString => "string or none",
+            Self::HasValue => "optional_string",
         }
     }
 }
@@ -237,6 +312,13 @@ pub enum Computation {
 pub struct ComputedArgument {
     pub name: String,
     pub value: Computation,
+}
+
+/// A bounded named group signature supplied by a validated embedding environment.
+#[derive(Clone)]
+pub struct GroupLocalType {
+    pub name: String,
+    pub members: Vec<(String, HostOperation)>,
 }
 
 #[derive(Clone)]
@@ -327,6 +409,24 @@ impl Computation {
         }
     }
 
+    /// One captured atomic suspension followed by a pure body, with pure preparation/selection.
+    pub fn is_atomic_capture(&self) -> bool {
+        match self {
+            Self::Bind { value, body, .. } if value.is_pure() => body.is_atomic_capture(),
+            Self::Bind { value, body, .. } => {
+                matches!(value.as_ref(), Self::Host { .. } | Self::Call { .. })
+                    && value.is_atomic_tail()
+                    && body.is_pure()
+            }
+            Self::Choose {
+                when,
+                then,
+                otherwise,
+            } => when.is_pure() && then.is_atomic_capture() && otherwise.is_atomic_capture(),
+            _ => false,
+        }
+    }
+
     /// A bounded atomic chain, excluding effectful operands and dynamic groups.
     /// Every non-pure branch must reach an atomic suspension before returning.
     pub fn is_result_chain(&self) -> bool {
@@ -347,6 +447,41 @@ impl Computation {
                 otherwise,
             } => when.is_pure() && then.is_result_chain() && otherwise.is_result_chain(),
             _ => false,
+        }
+    }
+
+    /// Maximum atomic suspensions on any path of a statically bounded result chain.
+    /// Pure preparation does not consume a graph slot; cold branches still reserve slots.
+    pub fn atomic_chain_bound(&self) -> Option<usize> {
+        if !self.is_pure() && !self.is_result_chain() {
+            return None;
+        }
+        self.atomic_flow_bound()
+    }
+
+    /// Includes scalar early exits while reserving the longest possible cold path.
+    pub fn atomic_flow_bound(&self) -> Option<usize> {
+        if !self.is_result_flow() {
+            return None;
+        }
+        if self.is_pure() {
+            return Some(0);
+        }
+        match self {
+            Self::Host { .. } | Self::Call { .. } if self.is_atomic_tail() => Some(1),
+            Self::Bind { value, body, .. } if value.is_pure() => body.atomic_flow_bound(),
+            Self::Bind { value, body, .. } if value.is_atomic_tail() => {
+                body.atomic_flow_bound()?.checked_add(1)
+            }
+            Self::Choose {
+                when,
+                then,
+                otherwise,
+            } if when.is_pure() => Some(
+                then.atomic_flow_bound()?
+                    .max(otherwise.atomic_flow_bound()?),
+            ),
+            _ => None,
         }
     }
 
@@ -399,12 +534,37 @@ impl Computation {
         &self,
         scope: &[(String, Type)],
     ) -> Result<Type, CanonicalSourceError> {
+        self.validate_in_group_scope(scope, &[])
+    }
+
+    /// Revalidates a residual body using closed, statically named group-member signatures.
+    pub fn validate_in_group_scope(
+        &self,
+        scope: &[(String, Type)],
+        groups: &[GroupLocalType],
+    ) -> Result<Type, CanonicalSourceError> {
         validate_shape(self)?;
         let mut names = HashSet::new();
-        if scope.len() > MAX_EFFECT_NESTING_DEPTH
+        let scope_len = scope.len().saturating_add(groups.len());
+        if scope_len > MAX_EFFECT_NESTING_DEPTH
             || scope
                 .iter()
                 .any(|(name, _)| !valid_local(name) || !names.insert(name))
+            || groups.iter().any(|group| {
+                let mut members = HashSet::new();
+                !valid_local(&group.name)
+                    || !names.insert(&group.name)
+                    || group.members.is_empty()
+                    || group.members.len() >= MAX_SEQUENCE_STEPS
+                    || group.members.iter().any(|(name, _)| {
+                        name.is_empty()
+                            || name.len() > MAX_BRANCH_NAME_BYTES
+                            || !name.bytes().all(|byte| {
+                                byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-')
+                            })
+                            || !members.insert(name)
+                    })
+            })
         {
             return Err(CanonicalSourceError::RoundTripMismatch);
         }
@@ -414,14 +574,24 @@ impl Computation {
         let function = tree
             .function
             .ok_or(CanonicalSourceError::RoundTripMismatch)?;
+        let mut visited = scope_len;
         let (roundtrip, ty) = lower_expression(
             &function.body,
             &mut scope
                 .iter()
                 .map(|(name, ty)| (name.clone(), LocalType::from(*ty)))
+                .chain(groups.iter().map(|group| {
+                    (
+                        group.name.clone(),
+                        LocalType {
+                            ty: Type::Structured,
+                            members: Some(group.members.clone()),
+                        },
+                    )
+                }))
                 .collect(),
-            &mut scope.len(),
-            scope.len(),
+            &mut visited,
+            scope_len,
         )
         .map_err(CanonicalSourceError::InvalidEffect)?;
         if roundtrip != *self {
@@ -544,7 +714,15 @@ fn invalid(code: &str, message: impl Into<String>, span: Span) -> Vec<Diagnostic
 }
 
 pub(super) fn lower_computation(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic>> {
-    let (expression, result_type) = lower_expression(expression, &mut Vec::new(), &mut 0, 0)?;
+    lower_computation_with_functions(expression, &mut functions::FunctionTemplates::default())
+}
+
+pub(super) fn lower_computation_with_functions(
+    expression: &Expression,
+    functions: &mut functions::FunctionTemplates,
+) -> Result<LoweredEffect, Vec<Diagnostic>> {
+    let (expression, result_type) =
+        lower_expression_with_functions(expression, &mut Vec::new(), &mut 0, 0, functions)?;
     validate_shape(&expression).map_err(|error| match error {
         CanonicalSourceError::InvalidEffect(errors) => errors,
         _ => invalid(
@@ -615,6 +793,22 @@ pub(super) fn lower_expression(
     visited: &mut usize,
     depth: usize,
 ) -> Result<(Computation, Type), Vec<Diagnostic>> {
+    lower_expression_with_functions(
+        expression,
+        scope,
+        visited,
+        depth,
+        &mut functions::FunctionTemplates::default(),
+    )
+}
+
+pub(super) fn lower_expression_with_functions(
+    expression: &Expression,
+    scope: &mut Vec<(String, LocalType)>,
+    visited: &mut usize,
+    depth: usize,
+    functions: &mut functions::FunctionTemplates,
+) -> Result<(Computation, Type), Vec<Diagnostic>> {
     *visited += 1;
     let span = expression_span(expression);
     if *visited > MAX_COMPUTATION_NODES || depth > MAX_EFFECT_NESTING_DEPTH {
@@ -654,10 +848,10 @@ pub(super) fn lower_expression(
         return Err(invalid("LSH1401", "invalid computation", span));
     };
     if matches!(callee.as_str(), "seq" | "repeat" | "all") {
-        return computed_group::lower(callee, arguments, span, scope, visited, depth);
+        return computed_group::lower(callee, arguments, span, scope, visited, depth, functions);
     }
     if callee == "loop" {
-        return lower_loop(arguments, span, scope, visited, depth);
+        return lower_loop(arguments, span, scope, visited, depth, functions);
     }
     if callee == "bind" {
         if arguments.len() != 2 || arguments.iter().filter(|arg| arg.name == "body").count() != 1 {
@@ -678,7 +872,8 @@ pub(super) fn lower_expression(
                 binding.span,
             ));
         }
-        let (value, value_type) = lower_expression(&binding.value, scope, visited, depth + 1)?;
+        let (value, value_type) =
+            lower_expression_with_functions(&binding.value, scope, visited, depth + 1, functions)?;
         let captures_result = !value.is_pure();
         let members = group_members(&value, scope);
         let captures_group = captures_result && members.is_some();
@@ -706,13 +901,31 @@ pub(super) fn lower_expression(
                 members,
             },
         ));
-        let lowered_body = lower_expression(body, scope, visited, depth + 1);
+        let lowered_body =
+            lower_expression_with_functions(body, scope, visited, depth + 1, functions);
         scope.pop();
         let (body, result_type) = lowered_body?;
-        if captures_group && (!body.is_pure() || !matches!(result_type, Type::Scalar(_))) {
+        if captures_group
+            && !((body.is_pure() && matches!(result_type, Type::Scalar(_)))
+                || body.is_atomic_tail()
+                || (body.is_result_flow() && matches!(result_type, Type::Scalar(_))))
+        {
             return Err(invalid(
                 "LSH1412",
-                "a captured group requires a pure scalar body",
+                "a captured group requires a pure scalar body, one atomic tail, or a bounded scalar result flow",
+                span,
+            ));
+        }
+        if captures_group
+            && !body.is_pure()
+            && group_members(&value, scope).is_none_or(|members| {
+                body.atomic_flow_bound()
+                    .is_none_or(|bound| members.len().saturating_add(bound) > MAX_SEQUENCE_STEPS)
+            })
+        {
+            return Err(invalid(
+                "LSH1412",
+                "a result-driven group and its longest atomic chain must fit in 64 steps",
                 span,
             ));
         }
@@ -770,7 +983,8 @@ pub(super) fn lower_expression(
     }
     if callee == "field" {
         let args = named(arguments, &["value", "name"], span)?;
-        let (value, input_type) = lower_expression(args[0], scope, visited, depth + 1)?;
+        let (value, input_type) =
+            lower_expression_with_functions(args[0], scope, visited, depth + 1, functions)?;
         let Expression::String { value: name, .. } = args[1] else {
             return Err(invalid(
                 "LSH1409",
@@ -800,7 +1014,8 @@ pub(super) fn lower_expression(
     }
     if callee == "choose" {
         let args = named(arguments, &["when", "then", "otherwise"], span)?;
-        let (when, when_type) = lower_expression(args[0], scope, visited, depth + 1)?;
+        let (when, when_type) =
+            lower_expression_with_functions(args[0], scope, visited, depth + 1, functions)?;
         if when_type != Type::Scalar(ScalarType::Boolean) || !when.is_pure() {
             return Err(invalid(
                 "LSH1402",
@@ -808,8 +1023,10 @@ pub(super) fn lower_expression(
                 expression_span(args[0]),
             ));
         }
-        let (then, then_type) = lower_expression(args[1], scope, visited, depth + 1)?;
-        let (otherwise, otherwise_type) = lower_expression(args[2], scope, visited, depth + 1)?;
+        let (then, then_type) =
+            lower_expression_with_functions(args[1], scope, visited, depth + 1, functions)?;
+        let (otherwise, otherwise_type) =
+            lower_expression_with_functions(args[2], scope, visited, depth + 1, functions)?;
         if then_type != otherwise_type {
             return Err(invalid(
                 "LSH1404",
@@ -828,8 +1045,10 @@ pub(super) fn lower_expression(
     }
     if callee == "recover" {
         let args = named(arguments, &["value", "fallback"], span)?;
-        let (value, value_type) = lower_expression(args[0], scope, visited, depth + 1)?;
-        let (fallback, fallback_type) = lower_expression(args[1], scope, visited, depth + 1)?;
+        let (value, value_type) =
+            lower_expression_with_functions(args[0], scope, visited, depth + 1, functions)?;
+        let (fallback, fallback_type) =
+            lower_expression_with_functions(args[1], scope, visited, depth + 1, functions)?;
         if !matches!(value_type, Type::Scalar(_))
             || value_type != fallback_type
             || !value.is_pure()
@@ -851,8 +1070,10 @@ pub(super) fn lower_expression(
     }
     if let Some(operator) = BinaryOperator::parse(callee) {
         let args = named(arguments, &["left", "right"], span)?;
-        let (left, left_type) = lower_expression(args[0], scope, visited, depth + 1)?;
-        let (right, right_type) = lower_expression(args[1], scope, visited, depth + 1)?;
+        let (left, left_type) =
+            lower_expression_with_functions(args[0], scope, visited, depth + 1, functions)?;
+        let (right, right_type) =
+            lower_expression_with_functions(args[1], scope, visited, depth + 1, functions)?;
         let left_type = scalar(&left, left_type, expression_span(args[0]))?;
         let right_type = scalar(&right, right_type, expression_span(args[1]))?;
         let result_type = binary_type(operator, left_type, right_type).ok_or_else(|| {
@@ -876,7 +1097,8 @@ pub(super) fn lower_expression(
     }
     if let Some(operator) = UnaryOperator::parse(callee) {
         let args = named(arguments, &["value"], span)?;
-        let (value, value_type) = lower_expression(args[0], scope, visited, depth + 1)?;
+        let (value, value_type) =
+            lower_expression_with_functions(args[0], scope, visited, depth + 1, functions)?;
         let output = operator
             .result_type(value_type)
             .filter(|_| value.is_pure())
@@ -887,6 +1109,27 @@ pub(super) fn lower_expression(
                     span,
                 )
             })?;
+        if operator == UnaryOperator::OptionalString
+            && let Computation::Literal { value } = &value
+        {
+            let text = match value {
+                ScalarValue::String(text) => Some(text.clone()),
+                ScalarValue::None => None,
+                _ => {
+                    return Err(invalid(
+                        "LSH1402",
+                        "optional_string requires string or none",
+                        span,
+                    ));
+                }
+            };
+            return Ok((
+                Computation::Literal {
+                    value: ScalarValue::OptionalString(OptionalStringValue(text)),
+                },
+                Type::Scalar(output),
+            ));
+        }
         return Ok((
             Computation::Unary {
                 operator,
@@ -894,6 +1137,9 @@ pub(super) fn lower_expression(
             },
             Type::Scalar(output),
         ));
+    }
+    if functions.contains(callee) {
+        return functions::lower_call(callee, arguments, span, scope, visited, depth, functions);
     }
     if let Some(operation) = HostOperation::parse(callee)
         && has_computed_arguments(arguments)
@@ -913,7 +1159,13 @@ pub(super) fn lower_expression(
             let Some(argument) = arguments.iter().find(|arg| arg.name == parameter.name) else {
                 continue;
             };
-            let (value, ty) = lower_expression(&argument.value, scope, visited, depth + 1)?;
+            let (value, ty) = lower_expression_with_functions(
+                &argument.value,
+                scope,
+                visited,
+                depth + 1,
+                functions,
+            )?;
             if !parameter.domain.accepts(scalar(&value, ty, argument.span)?)
                 || matches!(&value, Computation::Literal { value } if !parameter.domain.validate(value))
             {
@@ -957,6 +1209,7 @@ fn lower_loop(
     scope: &mut Vec<(String, LocalType)>,
     visited: &mut usize,
     depth: usize,
+    functions: &mut functions::FunctionTemplates,
 ) -> Result<(Computation, Type), Vec<Diagnostic>> {
     let reserved = ["while", "next", "limit"];
     let binding = arguments
@@ -989,11 +1242,13 @@ fn lower_loop(
             expression_span(args[3]),
         ));
     }
-    let (initial, state_type) = lower_expression(args[0], scope, visited, depth + 1)?;
+    let (initial, state_type) =
+        lower_expression_with_functions(args[0], scope, visited, depth + 1, functions)?;
     scalar(&initial, state_type, expression_span(args[0]))?;
     scope.push((binding.name.clone(), state_type.into()));
     let lowered = (|| {
-        let (condition, condition_type) = lower_expression(args[1], scope, visited, depth + 1)?;
+        let (condition, condition_type) =
+            lower_expression_with_functions(args[1], scope, visited, depth + 1, functions)?;
         if scalar(&condition, condition_type, expression_span(args[1]))? != ScalarType::Boolean {
             return Err(invalid(
                 "LSH1402",
@@ -1001,7 +1256,8 @@ fn lower_loop(
                 expression_span(args[1]),
             ));
         }
-        let (next, next_type) = lower_expression(args[2], scope, visited, depth + 1)?;
+        let (next, next_type) =
+            lower_expression_with_functions(args[2], scope, visited, depth + 1, functions)?;
         scalar(&next, next_type, expression_span(args[2]))?;
         if next_type != state_type {
             return Err(invalid(
@@ -1029,6 +1285,12 @@ fn lower_loop(
 fn binary_type(op: BinaryOperator, left: ScalarType, right: ScalarType) -> Option<ScalarType> {
     use BinaryOperator::*;
     use ScalarType::{Boolean, Integer, String};
+    if op == ValueOr {
+        return (left == ScalarType::OptionalString && right == String).then_some(String);
+    }
+    if op == CharAt {
+        return (left == String && right == Integer).then_some(ScalarType::OptionalString);
+    }
     if left != right {
         return None;
     }
@@ -1036,13 +1298,14 @@ fn binary_type(op: BinaryOperator, left: ScalarType, right: ScalarType) -> Optio
         (Eq | Ne, _) => Some(Boolean),
         (And | Or, Boolean) => Some(Boolean),
         (Concat, String) => Some(String),
+        (Contains | StartsWith | EndsWith, String) => Some(Boolean),
         (Add | Sub | Mul | Div | Rem, Integer) => Some(Integer),
         (Lt | Le | Gt | Ge, Integer) => Some(Boolean),
         _ => None,
     }
 }
 
-fn valid_local(name: &str) -> bool {
+pub(super) fn valid_local(name: &str) -> bool {
     let mut bytes = name.bytes();
     name.len() <= MAX_BRANCH_NAME_BYTES
         && bytes
@@ -1050,6 +1313,14 @@ fn valid_local(name: &str) -> bool {
             .is_some_and(|byte| byte.is_ascii_alphabetic() || byte == b'_')
         && bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
         && !matches!(name, "body" | "fn" | "true" | "false" | "none")
+}
+
+pub(super) fn is_builtin(name: &str) -> bool {
+    matches!(
+        name,
+        "all" | "seq" | "repeat" | "bind" | "loop" | "choose" | "recover" | "field" | "member"
+    ) || BinaryOperator::parse(name).is_some()
+        || UnaryOperator::parse(name).is_some()
 }
 
 pub(crate) fn contains_computation(effect: &Effect) -> bool {
@@ -1070,11 +1341,18 @@ pub(super) fn validate_shape(expression: &Computation) -> Result<(), CanonicalSo
     let mut pending = vec![(expression, 0usize)];
     let mut visited = 0;
     while let Some((expression, depth)) = pending.pop() {
-        visited += 1;
-        let invalid_value = match expression {
+        // Folded optional literals still render as a constructor plus its payload.
+        let literal_extra = usize::from(matches!(
+            expression,
             Computation::Literal {
-                value: ScalarValue::String(value),
-            } => value.len() > MAX_SCALAR_STRING_BYTES,
+                value: ScalarValue::OptionalString(_)
+            }
+        ));
+        visited += 1 + literal_extra;
+        let invalid_value = match expression {
+            Computation::Literal { value } => value
+                .text()
+                .is_some_and(|value| value.len() > MAX_SCALAR_STRING_BYTES),
             Computation::Local { name } | Computation::Bind { name, .. } => !valid_local(name),
             Computation::Member { group, name, .. } => {
                 !valid_local(group) || name.len() > MAX_BRANCH_NAME_BYTES
@@ -1119,7 +1397,10 @@ pub(super) fn validate_shape(expression: &Computation) -> Result<(), CanonicalSo
             }
             _ => false,
         };
-        if visited > MAX_COMPUTATION_NODES || depth > MAX_EFFECT_NESTING_DEPTH || invalid_value {
+        if visited > MAX_COMPUTATION_NODES
+            || depth.saturating_add(literal_extra) > MAX_EFFECT_NESTING_DEPTH
+            || invalid_value
+        {
             return Err(CanonicalSourceError::InvalidEffect(invalid(
                 "LSH1405",
                 "invalid or oversized computation",
@@ -1168,6 +1449,10 @@ pub(super) fn source(expression: &Computation) -> String {
             ScalarValue::Boolean(value) => value.to_string(),
             ScalarValue::String(value) => quote(value),
             ScalarValue::None => "none".to_string(),
+            ScalarValue::OptionalString(value) => format!(
+                "optional_string(value: {})",
+                value.0.as_deref().map_or_else(|| "none".into(), quote)
+            ),
         },
         Computation::Local { name } => name.clone(),
         Computation::Member { group, name, .. } => {

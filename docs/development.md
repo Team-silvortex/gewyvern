@@ -84,7 +84,7 @@ Before cutting a release, use `cargo dev version check` to verify that Cargo,
 product version. Preview a deliberate version change before applying it:
 
 ```bash
-cargo dev version set 2.1.4 --dry-run
+cargo dev version set 2.1.5 --dry-run
 ```
 
 Removing `--dry-run` applies the update transactionally. It does not create a
@@ -109,9 +109,25 @@ The native workflow always uses Cargo's lock file. Development and test
 profiles retain line tables for backtraces while omitting variable-level debug
 information, reducing Rust code generation, link time, and cache size. Set
 `CARGO_PROFILE_DEV_DEBUG=2` or `CARGO_PROFILE_TEST_DEBUG=2` temporarily when a
-full debugger session needs local variables. The workflow reuses a fresh .NET
-assets graph with `--no-restore`, performs a locked restore when project or
-lock inputs changed, and reports each stage's elapsed time. Narrow an iteration
+full debugger session needs local variables. Development builds retain
+incremental compilation; test builds disable it to avoid accumulating large
+compiler-state caches across the workspace's many test targets and patch
+versions. Cargo still reuses compiled dependencies and unchanged test binaries.
+Set `CARGO_PROFILE_TEST_INCREMENTAL=true` temporarily for a focused test-edit
+loop if faster recompilation matters more than disk usage.
+
+The workflow reuses a fresh .NET assets graph with `--no-restore`, performs a
+locked restore when project or lock inputs changed or an expanded NuGet package
+was removed, and reports each stage's elapsed time. A successful restoring build
+records a content-bound confirmation under each project's `obj/`, so NuGet's
+unchanged asset-file timestamps do not trigger another restore on every edit.
+Development builds check the development lock graph independently of the
+NativeAOT release graph.
+
+Desktop `check` and `build` opt into `LeserpentUseHostRuntime=true`: macOS arm64
+and Linux x64 builds copy only the current host's native libraries while keeping
+the portable locked restore graph. Direct framework-neutral builds and the
+NativeAOT packaging workflow retain their existing behavior. Narrow an iteration
 with `--scope core`, `--scope control`, or `--scope desktop`; both `check` and
 `build` accept `--restore` or `--dry-run`, while only `build` accepts
 `--release` for optimized output.
@@ -357,6 +373,31 @@ only when no build, validation, or application is using those paths. The trim
 script covers build/dependency caches; separately inspect release bundles under
 `artifacts/` before removing them. Do not follow output symlinks into another
 workspace or remove a caller-supplied shared Cargo target cache implicitly.
+
+When `target/debug/incremental/` dominates disk usage, removing only that
+directory while no compiler is running preserves compiled dependencies,
+executables, and `target/validation/` evidence. The next changed development
+build recreates its incremental state. Use
+`cargo clean --profile dev --dry-run` to preview a broader reset.
+`cargo clean --profile dev` clears debug build outputs while preserving release
+outputs and validation evidence.
+Prefer targeted test packages and targets during iteration, and reserve full
+workspace test runs for integration and release checks.
+
+.NET stores expanded NuGet packages in a shared user cache. Keep the package
+directory shared across builds instead of adding per-run `NUGET_PACKAGES`
+directories. The repository enables `updatePackageLastAccessTime` to help review
+unused package versions, but up-to-date restores do not refresh those timestamps;
+check active asset and lock graphs before pruning a version. Remove its
+`.nupkg.metadata` completion marker first, then remove the whole version directory
+while no restore or build uses it. The developer workflow will restore a missing
+package on its next build. See
+[NuGet cache management](https://learn.microsoft.com/en-us/nuget/consume-packages/managing-the-global-packages-and-cache-folders).
+
+Use `dotnet workload clean` with the SDK installation that owns the workloads to
+collect orphaned workload components. Installed Android workloads are toolchain
+inputs; preserve their active packs instead of deleting individual files inside
+them or clearing all NuGet packages after every build.
 
 Remote `~/.cache/gewyvern/` target caches, mirrored workspaces, and completed
 one-off proof workspaces are also disposable after checking active processes

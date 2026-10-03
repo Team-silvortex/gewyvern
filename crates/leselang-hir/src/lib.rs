@@ -3,6 +3,7 @@
 pub mod computation;
 mod computed_group;
 mod control_flow;
+mod functions;
 pub mod host_call;
 pub mod result_field;
 
@@ -103,6 +104,39 @@ pub enum UiSemanticActionKind {
 pub enum UiFormInputKind {
     PathToken,
     TrimmedText,
+}
+
+impl UiSemanticNodeKind {
+    /// Parse the exact source/wire token; aliases and case folding are not accepted.
+    pub fn from_token(value: &str) -> Option<Self> {
+        parse_semantic_node_kind(value)
+    }
+
+    pub fn as_str(self) -> &'static str {
+        semantic_node_kind_source(self)
+    }
+}
+
+impl UiSemanticActionKind {
+    /// Parse the exact source/wire token; aliases and case folding are not accepted.
+    pub fn from_token(value: &str) -> Option<Self> {
+        parse_semantic_action_kind(value)
+    }
+
+    pub fn as_str(self) -> &'static str {
+        semantic_action_kind_source(self)
+    }
+}
+
+impl UiFormInputKind {
+    /// Parse the exact source/wire token; aliases and case folding are not accepted.
+    pub fn from_token(value: &str) -> Option<Self> {
+        parse_form_input_kind(value)
+    }
+
+    pub fn as_str(self) -> &'static str {
+        form_input_kind_source(self)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -516,6 +550,9 @@ pub fn lower(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnostic>> {
             span: None,
         }]);
     };
+    if !tree.helpers.is_empty() || !function.parameters.is_empty() {
+        return functions::lower_program(tree);
+    }
     let lowered = lower_effect(&function.body)?;
     Ok(HirProgram {
         function: HirFunction {

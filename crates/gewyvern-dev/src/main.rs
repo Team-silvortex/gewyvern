@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::thread;
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 
 use ring::digest::{Context, SHA256, digest};
 
@@ -17,6 +17,13 @@ const CONTROL_BUNDLE_MANIFEST: &str = "bundle-manifest.toml";
 const CONTROL_BUNDLE_SUMS: &str = "SHA256SUMS";
 const MAX_CONTROL_BUNDLE_FILES: usize = 4_096;
 const MAX_CONTROL_BUNDLE_BYTES: u64 = 1024 * 1024 * 1024;
+const DOTNET_RESTORE_CONFIRMATION: &str = "gewyvern-dev.restore-confirmed";
+const CONTROL_DEVELOPMENT_PROJECTS: &[&str] = &["apps/leserpent/src/Leserpent/Leserpent.csproj"];
+const DESKTOP_DEVELOPMENT_PROJECTS: &[&str] = &[
+    "apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj",
+    "apps/leserpent-avalonia/src/Leserpent.RemoteClient/Leserpent.RemoteClient.csproj",
+    "apps/leserpent-avalonia/src/Leserpent.RendererCore/Leserpent.RendererCore.csproj",
+];
 
 const USAGE: &str = r#"Usage:
   cargo dev doctor
@@ -501,6 +508,7 @@ struct ProcessSpec {
     program: OsString,
     arguments: Vec<OsString>,
     current_dir: PathBuf,
+    dotnet_restore_outputs: Vec<PathBuf>,
 }
 
 impl ProcessSpec {
@@ -515,7 +523,27 @@ impl ProcessSpec {
             program: program.into(),
             arguments: arguments.into_iter().map(Into::into).collect(),
             current_dir: current_dir.to_path_buf(),
+            dotnet_restore_outputs: Vec::new(),
         }
+    }
+
+    fn track_dotnet_restore(mut self, projects: &[&str]) -> Self {
+        if self
+            .arguments
+            .iter()
+            .any(|argument| argument == "-p:RestoreLockedMode=true")
+        {
+            self.dotnet_restore_outputs = projects
+                .iter()
+                .filter_map(|project| {
+                    self.current_dir
+                        .join(project)
+                        .parent()
+                        .map(|parent| parent.join("obj/project.assets.json"))
+                })
+                .collect();
+        }
+        self
     }
 
     fn command(&self) -> Command {
@@ -579,18 +607,16 @@ fn compile_specs(root: &Path, options: &BuildOptions, check_only: bool) -> Vec<P
         add_dotnet_restore_mode(
             &mut arguments,
             root,
-            &["apps/leserpent/src/Leserpent/Leserpent.csproj"],
+            CONTROL_DEVELOPMENT_PROJECTS,
             options.restore,
         );
         if options.release {
             arguments.extend(["-c", "Release"]);
         }
-        specs.push(ProcessSpec::new(
-            "leserpent-control",
-            "dotnet",
-            arguments,
-            root,
-        ));
+        specs.push(
+            ProcessSpec::new("leserpent-control", "dotnet", arguments, root)
+                .track_dotnet_restore(CONTROL_DEVELOPMENT_PROJECTS),
+        );
     }
     if matches!(options.scope, BuildScope::Desktop | BuildScope::All) {
         let mut arguments = vec![
@@ -599,26 +625,21 @@ fn compile_specs(root: &Path, options: &BuildOptions, check_only: bool) -> Vec<P
             "--nologo",
             "--verbosity",
             "minimal",
+            "-p:LeserpentUseHostRuntime=true",
         ];
         add_dotnet_restore_mode(
             &mut arguments,
             root,
-            &[
-                "apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj",
-                "apps/leserpent-avalonia/src/Leserpent.RemoteClient/Leserpent.RemoteClient.csproj",
-                "apps/leserpent-avalonia/src/Leserpent.RendererCore/Leserpent.RendererCore.csproj",
-            ],
+            DESKTOP_DEVELOPMENT_PROJECTS,
             options.restore,
         );
         if options.release {
             arguments.extend(["-c", "Release"]);
         }
-        specs.push(ProcessSpec::new(
-            "leserpent-desktop",
-            "dotnet",
-            arguments,
-            root,
-        ));
+        specs.push(
+            ProcessSpec::new("leserpent-desktop", "dotnet", arguments, root)
+                .track_dotnet_restore(DESKTOP_DEVELOPMENT_PROJECTS),
+        );
     }
     specs
 }
@@ -640,6 +661,7 @@ fn dotnet_restore_is_fresh(root: &Path, projects: &[&str]) -> bool {
     let shared_inputs = [
         root.join("Directory.Build.props"),
         root.join("Directory.Build.targets"),
+        root.join("Directory.Packages.props"),
         root.join("global.json"),
         root.join("NuGet.Config"),
     ];
@@ -652,11 +674,29 @@ fn dotnet_restore_is_fresh(root: &Path, projects: &[&str]) -> bool {
         let Ok(assets_modified) = fs::metadata(&assets).and_then(|value| value.modified()) else {
             return false;
         };
-        let local_inputs = [
-            project,
-            project_dir.join("packages.lock.json"),
-            project_dir.join("packages.development.lock.json"),
-        ];
+        let Ok(bytes) = fs::read(&assets) else {
+            return false;
+        };
+        let Ok(graph) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+            return false;
+        };
+        if !dotnet_package_cache_is_available(&graph) {
+            return false;
+        }
+        let assets_modified = dotnet_confirmed_restore_time(&assets, &bytes, assets_modified);
+        let development_lock = project_dir.join("packages.development.lock.json");
+        let active_lock = if development_lock.is_file() {
+            let restored_lock = graph
+                .pointer("/project/restore/restoreLockProperties/nuGetLockFilePath")
+                .and_then(serde_json::Value::as_str);
+            if restored_lock.map(Path::new) != Some(development_lock.as_path()) {
+                return false;
+            }
+            development_lock
+        } else {
+            project_dir.join("packages.lock.json")
+        };
+        let local_inputs = [project, active_lock];
         shared_inputs
             .iter()
             .chain(local_inputs.iter())
@@ -666,6 +706,77 @@ fn dotnet_restore_is_fresh(root: &Path, projects: &[&str]) -> bool {
                     .and_then(|value| value.modified())
                     .is_ok_and(|modified| modified <= assets_modified)
             })
+    })
+}
+
+fn dotnet_confirmed_restore_time(assets: &Path, bytes: &[u8], modified: SystemTime) -> SystemTime {
+    let confirmation = assets.with_file_name(DOTNET_RESTORE_CONFIRMATION);
+    let Ok(signature) = fs::read(&confirmation) else {
+        return modified;
+    };
+    if signature.as_slice() != digest(&SHA256, bytes).as_ref() {
+        return modified;
+    }
+    fs::metadata(confirmation)
+        .and_then(|metadata| metadata.modified())
+        .map(|confirmed| confirmed.max(modified))
+        .unwrap_or(modified)
+}
+
+fn confirm_dotnet_restores(assets_files: &[PathBuf], started: SystemTime) -> Result<(), String> {
+    // A successful no-change NuGet restore can leave the assets file's time unchanged.
+    for assets in assets_files {
+        let bytes = fs::read(assets)
+            .map_err(|error| format!("failed to read {}: {error}", assets.display()))?;
+        let confirmation = assets.with_file_name(DOTNET_RESTORE_CONFIRMATION);
+        fs::write(&confirmation, digest(&SHA256, &bytes).as_ref())
+            .map_err(|error| format!("failed to record {}: {error}", confirmation.display()))?;
+        File::options()
+            .write(true)
+            .open(&confirmation)
+            .and_then(|file| file.set_times(fs::FileTimes::new().set_modified(started)))
+            .map_err(|error| format!("failed to timestamp {}: {error}", confirmation.display()))?;
+    }
+    Ok(())
+}
+
+fn dotnet_package_cache_is_available(graph: &serde_json::Value) -> bool {
+    let Some(folders) = graph
+        .get("packageFolders")
+        .and_then(serde_json::Value::as_object)
+    else {
+        return false;
+    };
+    let Some(libraries) = graph
+        .get("libraries")
+        .and_then(serde_json::Value::as_object)
+    else {
+        return false;
+    };
+    libraries.values().all(|library| {
+        match library.get("type").and_then(serde_json::Value::as_str) {
+            Some("project") => true,
+            Some("package") => {
+                let Some(path) = library.get("path").and_then(serde_json::Value::as_str) else {
+                    return false;
+                };
+                let path = Path::new(path);
+                if path.as_os_str().is_empty()
+                    || !path
+                        .components()
+                        .all(|component| matches!(component, std::path::Component::Normal(_)))
+                {
+                    return false;
+                }
+                folders.keys().any(|folder| {
+                    Path::new(folder)
+                        .join(path)
+                        .join(".nupkg.metadata")
+                        .is_file()
+                })
+            }
+            _ => false,
+        }
     })
 }
 
@@ -681,13 +792,14 @@ fn run_parallel(specs: Vec<ProcessSpec>, dry_run: bool) -> Result<(), String> {
     }
 
     let started = Instant::now();
-    let mut children: Vec<(ProcessSpec, Child, Instant)> = Vec::new();
+    let mut children: Vec<(ProcessSpec, Child, Instant, SystemTime)> = Vec::new();
     for spec in specs {
         eprintln!("[start:{}] {}", spec.label, spec.rendered());
+        let restore_started = SystemTime::now();
         match spec.command().spawn() {
-            Ok(child) => children.push((spec, child, Instant::now())),
+            Ok(child) => children.push((spec, child, Instant::now(), restore_started)),
             Err(error) => {
-                for (_, child, _) in &mut children {
+                for (_, child, _, _) in &mut children {
                     let _ = child.kill();
                     let _ = child.wait();
                 }
@@ -698,13 +810,13 @@ fn run_parallel(specs: Vec<ProcessSpec>, dry_run: bool) -> Result<(), String> {
 
     let stage_count = children.len();
     let (sender, receiver) = mpsc::channel();
-    for (spec, mut child, stage_started) in children {
+    for (spec, mut child, stage_started, restore_started) in children {
         let sender = sender.clone();
         let label = spec.label;
         thread::spawn(move || {
             let result = child
                 .wait()
-                .map(|status| (spec, status, stage_started.elapsed()))
+                .map(|status| (spec, status, stage_started.elapsed(), restore_started))
                 .map_err(|error| format!("failed to wait for {label}: {error}"));
             let _ = sender.send(result);
         });
@@ -712,7 +824,7 @@ fn run_parallel(specs: Vec<ProcessSpec>, dry_run: bool) -> Result<(), String> {
     drop(sender);
     let mut failures = Vec::new();
     for _ in 0..stage_count {
-        let (spec, status, elapsed) = receiver
+        let (spec, status, elapsed, restore_started) = receiver
             .recv()
             .map_err(|error| format!("workflow stage monitor failed: {error}"))??;
         eprintln!(
@@ -723,6 +835,10 @@ fn run_parallel(specs: Vec<ProcessSpec>, dry_run: bool) -> Result<(), String> {
         );
         if !status.success() {
             failures.push(format!("{} ({status})", spec.label));
+        } else if let Err(error) =
+            confirm_dotnet_restores(&spec.dotnet_restore_outputs, restore_started)
+        {
+            eprintln!("[cache:{}] {error}", spec.label);
         }
     }
     eprintln!(
@@ -1953,6 +2069,9 @@ mod tests {
         assert!(!specs[1].rendered().contains("Leserpent.SecurityTests"));
         assert!(specs[1].rendered().contains("RestoreLockedMode=true"));
         assert!(specs[2].rendered().contains("Leserpent.Avalonia.csproj"));
+        assert!(specs[2].rendered().contains("LeserpentUseHostRuntime=true"));
+        assert_eq!(specs[1].dotnet_restore_outputs.len(), 1);
+        assert_eq!(specs[2].dotnet_restore_outputs.len(), 3);
     }
 
     #[test]
@@ -2222,7 +2341,7 @@ mod tests {
         fs::create_dir_all(assets.parent().unwrap()).unwrap();
         fs::write(&project, b"<Project />").unwrap();
         fs::write(&lock, b"{}").unwrap();
-        fs::write(&assets, b"{}").unwrap();
+        fs::write(&assets, br#"{"libraries":{},"packageFolders":{}}"#).unwrap();
         fs::write(&nuget_config, b"<configuration />").unwrap();
 
         let input_time = UNIX_EPOCH + Duration::from_secs(10);
@@ -2250,6 +2369,123 @@ mod tests {
             .set_times(FileTimes::new().set_modified(UNIX_EPOCH + Duration::from_secs(30)))
             .unwrap();
         assert!(!dotnet_restore_is_fresh(&root, &["src/App/App.csproj"]));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn dotnet_restore_freshness_rejects_removed_packages() {
+        let root = env::temp_dir().join(format!(
+            "gewyvern-dev-package-cache-test-{}",
+            std::process::id()
+        ));
+        let project_dir = root.join("src/App");
+        let assets = project_dir.join("obj/project.assets.json");
+        let cache = root.join("packages");
+        let metadata = cache.join("example/1.0.0/.nupkg.metadata");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(assets.parent().unwrap()).unwrap();
+        fs::create_dir_all(metadata.parent().unwrap()).unwrap();
+        fs::write(project_dir.join("App.csproj"), b"<Project />").unwrap();
+        fs::write(&metadata, b"{}").unwrap();
+        let mut graph = serde_json::json!({
+            "libraries": {"Example/1.0.0": {"type": "package", "path": "example/1.0.0"}},
+            "packageFolders": {}
+        });
+        graph["packageFolders"][cache.to_str().unwrap()] = serde_json::json!({});
+        fs::write(&assets, serde_json::to_vec(&graph).unwrap()).unwrap();
+        assert!(dotnet_restore_is_fresh(&root, &["src/App/App.csproj"]));
+        fs::remove_file(metadata).unwrap();
+        assert!(!dotnet_restore_is_fresh(&root, &["src/App/App.csproj"]));
+        fs::write(&assets, b"{invalid").unwrap();
+        assert!(!dotnet_restore_is_fresh(&root, &["src/App/App.csproj"]));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn dotnet_restore_confirmation_covers_no_change_without_hiding_later_edits() {
+        let root = env::temp_dir().join(format!(
+            "gewyvern-dev-restore-confirmation-test-{}",
+            std::process::id()
+        ));
+        let project_dir = root.join("src/App");
+        let project = project_dir.join("App.csproj");
+        let assets = project_dir.join("obj/project.assets.json");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(assets.parent().unwrap()).unwrap();
+        fs::write(&project, b"<Project />").unwrap();
+        let bytes = br#"{"libraries":{},"packageFolders":{}}"#;
+        fs::write(&assets, bytes).unwrap();
+        let set_time = |path: &Path, seconds| {
+            File::options()
+                .write(true)
+                .open(path)
+                .unwrap()
+                .set_times(FileTimes::new().set_modified(UNIX_EPOCH + Duration::from_secs(seconds)))
+                .unwrap();
+        };
+        set_time(&project, 20);
+        set_time(&assets, 10);
+        assert!(!dotnet_restore_is_fresh(&root, &["src/App/App.csproj"]));
+        confirm_dotnet_restores(
+            std::slice::from_ref(&assets),
+            UNIX_EPOCH + Duration::from_secs(30),
+        )
+        .unwrap();
+        assert_eq!(fs::read(&assets).unwrap(), bytes);
+        assert_eq!(
+            fs::metadata(&assets).unwrap().modified().unwrap(),
+            UNIX_EPOCH + Duration::from_secs(10)
+        );
+        assert!(dotnet_restore_is_fresh(&root, &["src/App/App.csproj"]));
+        set_time(&project, 40);
+        assert!(!dotnet_restore_is_fresh(&root, &["src/App/App.csproj"]));
+        set_time(&project, 20);
+        fs::write(
+            &assets,
+            br#"{"version":3,"libraries":{},"packageFolders":{}}"#,
+        )
+        .unwrap();
+        set_time(&assets, 10);
+        assert!(!dotnet_restore_is_fresh(&root, &["src/App/App.csproj"]));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn dotnet_restore_freshness_uses_only_the_development_lock_graph() {
+        let root = env::temp_dir().join(format!(
+            "gewyvern-dev-lock-graph-test-{}",
+            std::process::id()
+        ));
+        let project_dir = root.join("src/App");
+        let assets = project_dir.join("obj/project.assets.json");
+        let release_lock = project_dir.join("packages.lock.json");
+        let development_lock = project_dir.join("packages.development.lock.json");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(assets.parent().unwrap()).unwrap();
+        fs::write(project_dir.join("App.csproj"), b"<Project />").unwrap();
+        fs::write(&release_lock, b"{}").unwrap();
+        fs::write(&development_lock, b"{}").unwrap();
+        let mut graph = serde_json::json!({
+            "libraries": {},
+            "packageFolders": {},
+            "project": {"restore": {"restoreLockProperties": {"nuGetLockFilePath": release_lock}}}
+        });
+        fs::write(&assets, serde_json::to_vec(&graph).unwrap()).unwrap();
+        assert!(!dotnet_restore_is_fresh(&root, &["src/App/App.csproj"]));
+        graph["project"]["restore"]["restoreLockProperties"]["nuGetLockFilePath"] =
+            serde_json::json!(development_lock);
+        fs::write(&assets, serde_json::to_vec(&graph).unwrap()).unwrap();
+        assert!(dotnet_restore_is_fresh(&root, &["src/App/App.csproj"]));
+        File::options()
+            .write(true)
+            .open(&release_lock)
+            .unwrap()
+            .set_times(
+                FileTimes::new()
+                    .set_modified(std::time::SystemTime::now() + Duration::from_secs(60)),
+            )
+            .unwrap();
+        assert!(dotnet_restore_is_fresh(&root, &["src/App/App.csproj"]));
         fs::remove_dir_all(root).unwrap();
     }
 
