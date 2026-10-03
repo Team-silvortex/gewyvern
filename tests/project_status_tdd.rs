@@ -183,7 +183,7 @@ fn leselang_computation_evidence_does_not_claim_durable_dataflow_completion() {
         .unwrap();
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.contract.stability, ContractStability::Evolving);
-    assert_eq!(cell.contract.version, "0.23.0");
+    assert_eq!(cell.contract.version, "0.29.0");
     assert!(cell.completion < 100);
     for surface in [
         "typed-scalar-computation",
@@ -328,6 +328,53 @@ fn leselang_computation_evidence_does_not_claim_durable_dataflow_completion() {
         "complete-input-scan-shared-fuel",
         "text-inspection-existing-wire-recovery",
         "native-text-predicate-form-prefix-proof",
+        "bounded-ordered-string-list-data",
+        "closed-size-checked-list-deserialization",
+        "typed-source-order-list-construction",
+        "unicode-split-join-optional-indexing",
+        "bounded-pure-type-preserving-fold",
+        "hygienic-accumulator-item-scope",
+        "collection-copy-scan-iteration-fuel",
+        "durable-list-local-terminal-replay",
+        "native-collection-filter-form-proof",
+        "typed-reusable-effectful-functions",
+        "bounded-normal-return-splicing",
+        "pure-signature-argument-fence",
+        "hygienic-result-group-locals",
+        "cold-return-continuation-preflight",
+        "effectful-function-existing-wire-recovery",
+        "native-effectful-return-form-proof",
+        "prepared-atomic-function-group-members",
+        "uniform-cold-operation-signature",
+        "pure-member-preparation-before-admission",
+        "signature-bounded-iterative-inspection",
+        "repeat-complete-preparation-node-reservation",
+        "resolved-member-only-journal-recovery",
+        "native-prepared-group-projection-to-form-proof",
+        "native-prepared-parallel-preflight-fence",
+        "selected-named-group-exports",
+        "uniform-cold-group-mode-and-ordered-signature",
+        "one-time-pure-group-selection",
+        "closed-group-export-not-union",
+        "selected-group-only-preparation",
+        "selected-group-existing-wire-recovery",
+        "transactional-selected-group-successor-retry",
+        "native-selected-group-to-form-proof",
+        "prepared-atomic-result-binding-values",
+        "shared-capture-member-operation-classifier",
+        "pure-preparation-scope-nonescape",
+        "one-slot-prepared-atomic-capture",
+        "prepared-group-capture-position-validation",
+        "prepared-capture-closed-legacy-field-fence",
+        "transactional-prepared-capture-concurrent-replay",
+        "native-prepared-result-selection-proof",
+        "selected-data-returning-function-calls",
+        "pure-data-fallback-normal-return-join",
+        "selected-call-only-argument-evaluation",
+        "conditional-call-cold-continuation-reservation",
+        "hygienic-selected-call-caller-join",
+        "selected-function-existing-wire-recovery",
+        "native-selected-function-return-proof",
     ] {
         assert!(cell.contract.surfaces.iter().any(|entry| entry == surface));
     }
@@ -363,6 +410,19 @@ fn leselang_computation_evidence_does_not_claim_durable_dataflow_completion() {
         "crates/leselang-vm/tests/conversions.rs",
         "crates/leselang-hir/tests/text_operations.rs",
         "crates/leselang-vm/tests/text_operations.rs",
+        "crates/leselang-hir/tests/string_lists.rs",
+        "crates/leselang-vm/tests/string_lists.rs",
+        "crates/leselang-hir/src/function_flow.rs",
+        "crates/leselang-hir/tests/effectful_functions.rs",
+        "crates/leselang-vm/tests/effectful_functions.rs",
+        "crates/leselang-hir/tests/prepared_groups.rs",
+        "crates/leselang-vm/tests/prepared_groups.rs",
+        "crates/leselang-hir/tests/selected_groups.rs",
+        "crates/leselang-vm/tests/selected_groups.rs",
+        "crates/leselang-hir/tests/prepared_bindings.rs",
+        "crates/leselang-vm/tests/prepared_bindings.rs",
+        "crates/leselang-hir/tests/selected_functions.rs",
+        "crates/leselang-vm/tests/selected_functions.rs",
         "crates/leselang-hir/tests/recovery.rs",
         "crates/leselang-hir/tests/group_binding.rs",
         "crates/leselang-vm/tests/group_binding.rs",
@@ -411,16 +471,64 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         .expect("independent embedding must be tracked");
     assert_eq!(cell.lifecycle, Lifecycle::Target);
     assert_eq!(cell.priority, Priority::Active);
-    assert_eq!(cell.maturity, Maturity::Planned);
-    assert_eq!(cell.completion, 0);
+    assert_eq!(cell.maturity, Maturity::Developing);
+    assert_eq!(cell.completion, 10);
+    assert_eq!(cell.contract.version, "0.9.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.independence, Independence::ReusableLibrary);
     assert!(cell.evidence.iter().any(|evidence| {
         evidence.kind == EvidenceKind::Test && evidence.state == EvidenceState::Planned
     }));
-    assert!(!cell.evidence.iter().any(|evidence| {
-        evidence.kind == EvidenceKind::Test && evidence.state == EvidenceState::Present
-    }));
+    for path in [
+        "crates/leselang-runtime-core/src/lib.rs",
+        "crates/leselang-runtime-core/src/fuel.rs",
+        "crates/leselang-runtime-core/src/clock.rs",
+        "crates/leselang-runtime-core/src/backoff.rs",
+        "crates/leselang-runtime-core/tests/admission.rs",
+        "crates/leselang-runtime-core/tests/observation.rs",
+        "crates/leselang-runtime-core/tests/diagnostics.rs",
+        "crates/leselang-runtime-core/tests/host_ownership.rs",
+        "crates/leselang-runtime-core/tests/terminal_observation.rs",
+        "crates/leselang-runtime-core/tests/fuel.rs",
+        "crates/leselang-runtime-core/tests/clock.rs",
+        "crates/leselang-runtime-core/tests/backoff.rs",
+        "tests/language_independence_tdd.rs",
+        "crates/leselang-vm/tests/admission.rs",
+    ] {
+        assert!(
+            cell.evidence.iter().any(|evidence| {
+                evidence.path == path && evidence.state == EvidenceState::Present
+            })
+        );
+    }
+    for surface in [
+        "product-free-generic-admission-lifecycle",
+        "explicit-host-backpressure-classification",
+        "standalone-normalized-runtime-core-package",
+        "host-callback-unwind-no-admission-replay",
+        "readonly-metadata-only-admission-status",
+        "input-free-admission-debug-no-formatter-callback",
+        "terminal-input-cleanup-unwind-no-rearm",
+        "payload-free-typed-admission-terminal-reason",
+        "explicit-pending-or-terminal-ownership-state",
+        "cleanup-before-output-handoff-unwind-release",
+        "host-uncertainty-not-rejection-or-replay-authority",
+        "public-pure-admission-policy-preflight",
+        "bounded-generated-diagnostics-no-host-error-echo",
+        "verbatim-permanent-host-rejection-boundary",
+        "must-use-admission-handle-and-outcome-diagnostics",
+        "conditional-send-worker-handoff-and-thread-local-hosts",
+        "bounded-independent-callback-overlap-and-sibling-isolation-proof",
+        "product-free-host-granted-fuel-accounting",
+        "atomic-debit-no-underflow-no-implicit-refill",
+        "opaque-nonclone-nonserde-fuel-meter",
+        "allocation-free-portable-scheduler-clock-addition",
+        "explicit-host-clock-domain-and-policy-boundary",
+        "pure-capped-exponential-delay-full-width-arithmetic",
+        "constant-time-overflow-safe-backoff-no-policy-or-state",
+    ] {
+        assert!(cell.contract.surfaces.iter().any(|entry| entry == surface));
+    }
     assert!(
         cell.next_gate
             .contains("zero Gewyvern/Leserpent product dependencies")
@@ -9367,7 +9475,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.50.0");
+    assert_eq!(vm.contract.version, "1.64.0");
     for surface in [
         "typed-debugger-cancel-result",
         "restart-safe-debugger-cancel-dispatch",
@@ -9488,6 +9596,68 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "typed-ui-wait-unfocused-result",
         "fixed-ui-unfocused-wait-deadline",
         "presentation-operation-identity-binding",
+        "serial-engine-multi-root-isolation",
+        "send-engine-independent-host-threads",
+        "long-lived-shared-journal-worker-adoption",
+        "pre-lease-dispatch-image-correspondence",
+        "concurrent-multi-root-branch-claims",
+        "attempt-fenced-cross-worker-reassignment",
+        "retry-unrelated-root-progress",
+        "journal-local-identity-host-namespace-contract",
+        "native-session-collision-cancellation-isolation",
+        "least-attempted-eligible-dispatch-selection",
+        "numeric-admission-order-tiebreak",
+        "restart-persisted-fixed-cohort-attempt-rounds",
+        "exhausted-delivery-unrelated-work-progress",
+        "partial-active-dispatch-order-index",
+        "dispatch-selection-sequential-retry-deadline-gates",
+        "host-configured-pending-dispatch-and-active-lease-limits",
+        "transactional-shared-worker-whole-batch-admission",
+        "typed-idle-versus-lease-backpressure",
+        "authoritative-readonly-scheduler-pressure",
+        "capacity-limited-no-payload-materialization",
+        "bounded-idempotent-request-restore",
+        "admitted-group-tail-drain-under-lowered-capacity",
+        "native-debugger-bounded-dispatch-policy",
+        "transactional-restore-sequence-watermark",
+        "consistent-startup-snapshot-and-legacy-watermark-repair",
+        "cold-group-reservation-and-compaction-identity-preservation",
+        "restore-watermark-write-and-validation-rollback",
+        "nonaliasing-scheduler-and-merge-fault-codes",
+        "host-owned-single-use-root-admission",
+        "host-neutral-admission-core-reference-adapter",
+        "shared-core-fault-clock-and-wire-compatibility",
+        "readonly-admission-status-without-vm-journal-entry",
+        "input-authority-free-admission-handle-diagnostics",
+        "terminal-admission-cleanup-unwind-fence",
+        "pure-shared-admission-policy-preflight",
+        "bounded-admission-exhaustion-no-backpressure-text-echo",
+        "must-use-root-admission-handle-and-outcome-diagnostics",
+        "shared-core-pure-and-reentry-fuel-accounting",
+        "faulting-zero-budget-host-operation-construction",
+        "preserved-reference-fuel-cost-and-wire-contract",
+        "shared-core-deadline-lease-retry-clock-arithmetic",
+        "claim-clock-and-lease-preflight-before-expiry-and-journal",
+        "invalid-claim-no-ready-leased-group-state-change",
+        "invalid-claim-no-sqlite-writer-wait",
+        "full-range-current-clock-observation-and-completion",
+        "readonly-pressure-no-expiry-or-synthetic-lease",
+        "lease-boundary-current-attempt-fence-and-deadline-precedence",
+        "retry-overflow-existing-lease-preservation",
+        "shared-core-admission-and-semantic-retry-delay-arithmetic",
+        "preserved-one-based-counts-and-distinct-retry-budgets",
+        "exact-retry-delays-and-zero-default-fuel-recovery",
+        "shared-core-admission-terminal-reason-observation",
+        "unchanged-legacy-admission-status-and-poll-wire",
+        "terminal-observation-no-vm-or-sqlite-entry",
+        "bounded-pre-admission-exponential-backoff",
+        "vm-free-not-before-admission-polls",
+        "submission-pinned-admission-and-execution-deadline",
+        "admission-clock-regression-no-state-change",
+        "pre-admission-local-cancellation-ownership",
+        "permanent-fault-no-admission-retry",
+        "shared-worker-due-admission-capacity-recheck",
+        "pre-admission-payload-release-on-terminal-outcome",
         "allocation-free-continuation-size-validation",
         "bounded-language-pipeline-benchmark",
     ] {
@@ -9497,6 +9667,43 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
                 .iter()
                 .any(|candidate| candidate == surface),
             "missing VM performance surface {surface}"
+        );
+    }
+    assert!(vm.evidence.iter().any(|entry| entry.path
+        == "crates/leselang-vm/tests/concurrency.rs"
+        && entry.state == EvidenceState::Present));
+    assert!(vm.evidence.iter().any(|entry| entry.path
+        == "crates/leselang-vm/tests/dispatch_scheduling.rs"
+        && entry.state == EvidenceState::Present));
+    assert!(vm.evidence.iter().any(|entry| entry.path
+        == "crates/leselang-vm/tests/backpressure.rs"
+        && entry.state == EvidenceState::Present));
+    assert!(vm.evidence.iter().any(|entry| entry.path
+        == "crates/leselang-vm/tests/clock_boundaries.rs"
+        && entry.state == EvidenceState::Present));
+    assert!(vm.evidence.iter().any(|entry| entry.path
+        == "crates/leselang-vm/tests/retry_backoff.rs"
+        && entry.state == EvidenceState::Present));
+    assert!(vm.evidence.iter().any(|entry| entry.path
+        == "crates/leselang-vm/tests/restore_allocator.rs"
+        && entry.state == EvidenceState::Present));
+    assert!(vm.evidence.iter().any(
+        |entry| entry.path == "crates/leselang-vm/tests/admission.rs"
+            && entry.state == EvidenceState::Present
+    ));
+    for path in [
+        "crates/leselang-runtime-core/src/fuel.rs",
+        "crates/leselang-runtime-core/tests/fuel.rs",
+        "crates/leselang-runtime-core/src/clock.rs",
+        "crates/leselang-runtime-core/tests/clock.rs",
+        "crates/leselang-runtime-core/src/backoff.rs",
+        "crates/leselang-runtime-core/tests/backoff.rs",
+        "crates/leselang-runtime-core/tests/terminal_observation.rs",
+    ] {
+        assert!(
+            vm.evidence
+                .iter()
+                .any(|entry| entry.path == path && entry.state == EvidenceState::Present)
         );
     }
     for cell in [syntax, hir, vm] {

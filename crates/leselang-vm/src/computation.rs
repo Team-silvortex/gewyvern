@@ -1,11 +1,12 @@
 use std::borrow::Cow;
 
 use leselang_hir::computation::{
-    BinaryOperator, Computation, GroupKind, MAX_SCALAR_STRING_BYTES, OptionalStringValue,
-    ScalarValue, UnaryOperator,
+    BinaryOperator, Computation, GroupKind, MAX_SCALAR_STRING_BYTES, MAX_STRING_LIST_ITEMS,
+    OptionalStringValue, ScalarValue, StringListValue, UnaryOperator,
 };
 use leselang_hir::host_call::HostOperation;
 use leselang_hir::{Effect, HirBranch};
+use leselang_runtime_core::Fuel;
 
 use crate::result_binding::{
     ProjectedBinding, ProjectedGroup, ProjectedGroupBinding, ProjectedResult,
@@ -79,22 +80,31 @@ fn invalid() -> Fault {
     error("LSV1402", "computation violates its typed HIR contract")
 }
 
-fn charge(fuel: &mut u64, cost: u64) -> Result<(), Fault> {
-    *fuel = fuel
-        .checked_sub(cost)
-        .ok_or_else(|| error("LSV1001", "computation fuel exhausted"))?;
-    Ok(())
+fn charge(fuel: &mut Fuel, cost: u64) -> Result<(), Fault> {
+    fuel.charge(cost)
+        .map_err(|_| error("LSV1001", "computation fuel exhausted"))
 }
 
 fn string_cost(value: &ScalarValue) -> u64 {
+    if let ScalarValue::StringList(value) = value {
+        return list_cost(value);
+    }
     value
         .text()
         .map_or(0, |value| value.len().div_ceil(64) as u64)
 }
 
+fn list_cost(value: &StringListValue) -> u64 {
+    value
+        .0
+        .iter()
+        .map(|item| 1 + item.len().div_ceil(64) as u64)
+        .sum()
+}
+
 pub(super) fn evaluate<'a>(
     expression: &'a Computation,
-    fuel: &mut u64,
+    fuel: &mut Fuel,
 ) -> Result<Outcome<'a>, Fault> {
     evaluate_inner(expression, fuel, &mut Vec::new())
 }
@@ -110,7 +120,7 @@ pub(super) fn resume(
     binding: &ResultBinding,
     value: &Value,
     operation: HostOperation,
-    fuel: &mut u64,
+    fuel: &mut Fuel,
 ) -> Result<ScalarValue, Fault> {
     scalar(resume_outcome(binding, value, operation, fuel)?)
 }
@@ -119,7 +129,7 @@ pub(super) fn resume_group(
     binding: &ResultBinding,
     value: &Value,
     branches: &[HirBranch],
-    fuel: &mut u64,
+    fuel: &mut Fuel,
 ) -> Result<ScalarValue, Fault> {
     scalar(resume_group_outcome(binding, value, branches, fuel)?)
 }
@@ -128,7 +138,7 @@ pub(super) fn resume_group_outcome<'a>(
     binding: &'a ResultBinding,
     value: &'a Value,
     branches: &'a [HirBranch],
-    fuel: &mut u64,
+    fuel: &mut Fuel,
 ) -> Result<Outcome<'a>, Fault> {
     let mut scope = Vec::with_capacity(binding.locals.len() + 1);
     for local in &binding.locals {
@@ -146,7 +156,7 @@ pub(super) fn resume_outcome<'a>(
     binding: &'a ResultBinding,
     value: &'a Value,
     operation: HostOperation,
-    fuel: &mut u64,
+    fuel: &mut Fuel,
 ) -> Result<Outcome<'a>, Fault> {
     let mut scope = Vec::with_capacity(binding.locals.len() + 1);
     for local in &binding.locals {
@@ -174,7 +184,7 @@ pub(super) fn resume_outcome<'a>(
     evaluate_inner(&binding.body, fuel, &mut scope)
 }
 
-fn charge_projection(fuel: &mut u64, result: &ProjectedResult) -> Result<(), Fault> {
+fn charge_projection(fuel: &mut Fuel, result: &ProjectedResult) -> Result<(), Fault> {
     charge(
         fuel,
         1 + result
@@ -185,7 +195,7 @@ fn charge_projection(fuel: &mut u64, result: &ProjectedResult) -> Result<(), Fau
     )
 }
 
-fn charge_group_projection(fuel: &mut u64, group: &ProjectedGroup) -> Result<(), Fault> {
+fn charge_group_projection(fuel: &mut Fuel, group: &ProjectedGroup) -> Result<(), Fault> {
     charge(fuel, 1)?;
     for member in &group.members {
         charge_projection(fuel, &member.result)?;
@@ -195,7 +205,7 @@ fn charge_group_projection(fuel: &mut u64, group: &ProjectedGroup) -> Result<(),
 
 fn evaluate_inner<'a>(
     expression: &'a Computation,
-    fuel: &mut u64,
+    fuel: &mut Fuel,
     scope: &mut Vec<(String, LocalValue<'a>)>,
 ) -> Result<Outcome<'a>, Fault> {
     charge(fuel, 1)?;
@@ -203,6 +213,20 @@ fn evaluate_inner<'a>(
         Computation::Literal { value } => {
             charge(fuel, string_cost(value))?;
             value.clone()
+        }
+        Computation::Strings { items } => {
+            let mut values = Vec::with_capacity(items.len());
+            let mut remaining = MAX_SCALAR_STRING_BYTES;
+            for item in items {
+                let ScalarValue::String(value) = scalar(evaluate_inner(item, fuel, scope)?)? else {
+                    return Err(invalid());
+                };
+                remaining = remaining.checked_sub(value.len()).ok_or_else(list_limit)?;
+                values.push(value);
+            }
+            let value = ScalarValue::StringList(StringListValue(values));
+            charge(fuel, string_cost(&value))?;
+            value
         }
         Computation::Local { name } => {
             let value = &scope
@@ -313,6 +337,52 @@ fn evaluate_inner<'a>(
             };
             state
         }
+        Computation::Fold {
+            name,
+            item,
+            items,
+            initial,
+            next,
+            limit,
+        } => {
+            let ScalarValue::StringList(items) = scalar(evaluate_inner(items, fuel, scope)?)?
+            else {
+                return Err(invalid());
+            };
+            let initial = scalar(evaluate_inner(initial, fuel, scope)?)?;
+            if items.0.len() as u64 > *limit {
+                return Err(error("LSV1406", "fold iteration limit exhausted"));
+            }
+            charge(fuel, list_cost(&items))?;
+            let state_type = initial.scalar_type();
+            let slot = scope.len();
+            scope.push((name.clone(), LocalValue::Scalar(initial)));
+            scope.push((
+                item.clone(),
+                LocalValue::Scalar(ScalarValue::String(String::new())),
+            ));
+            let result = (|| {
+                for item in items.0 {
+                    charge(fuel, 1 + item.len().div_ceil(64) as u64)?;
+                    scope.get_mut(slot + 1).ok_or_else(invalid)?.1 =
+                        LocalValue::Scalar(ScalarValue::String(item));
+                    let next = scalar(evaluate_inner(next, fuel, scope)?)?;
+                    if next.scalar_type() != state_type {
+                        return Err(invalid());
+                    }
+                    scope.get_mut(slot).ok_or_else(invalid)?.1 = LocalValue::Scalar(next);
+                }
+                Ok(())
+            })();
+            // Neither the item nor the accumulator may leak into an enclosing recovery branch.
+            scope.pop();
+            let (_, state) = scope.pop().ok_or_else(invalid)?;
+            result?;
+            let LocalValue::Scalar(state) = state else {
+                return Err(invalid());
+            };
+            state
+        }
         Computation::Member {
             group,
             name,
@@ -391,13 +461,16 @@ fn evaluate_inner<'a>(
         } => {
             let mut resolved = Vec::with_capacity(branches.len());
             for branch in branches {
+                let operation = branch
+                    .value
+                    .prepared_atomic_operation()
+                    .ok_or_else(invalid)?;
                 let Outcome::Host(effect) = evaluate_inner(&branch.value, fuel, scope)? else {
                     return Err(invalid());
                 };
-                if matches!(
-                    effect.as_ref(),
-                    Effect::Compute { .. } | Effect::Sequence { .. } | Effect::All { .. }
-                ) {
+                if HostOperation::for_effect(&effect) != Some(operation)
+                    || branch.result_type != operation.result_type()
+                {
                     return Err(invalid());
                 }
                 resolved.push(HirBranch {
@@ -453,12 +526,17 @@ fn evaluate_inner<'a>(
                 (UnaryOperator::Len, ScalarValue::String(value)) => {
                     ScalarValue::Integer(value.chars().count() as u64)
                 }
+                (UnaryOperator::Len, ScalarValue::StringList(value)) => {
+                    ScalarValue::Integer(value.0.len() as u64)
+                }
                 (UnaryOperator::ToString, value) => {
                     let value = match value {
                         ScalarValue::Integer(value) => value.to_string(),
                         ScalarValue::Boolean(value) => value.to_string(),
                         ScalarValue::String(value) => value,
-                        ScalarValue::None | ScalarValue::OptionalString(_) => return Err(invalid()),
+                        ScalarValue::None
+                        | ScalarValue::OptionalString(_)
+                        | ScalarValue::StringList(_) => return Err(invalid()),
                     };
                     let value = ScalarValue::String(value);
                     charge(fuel, string_cost(&value))?;
@@ -512,7 +590,14 @@ fn evaluate_inner<'a>(
             let right = scalar(evaluate_inner(right, fuel, scope)?)?;
             charge(fuel, string_cost(&left) + string_cost(&right))?;
             let value = binary(*operator, left, right)?;
-            if *operator == BinaryOperator::CharAt {
+            if matches!(
+                operator,
+                BinaryOperator::CharAt
+                    | BinaryOperator::ItemAt
+                    | BinaryOperator::Split
+                    | BinaryOperator::Join
+                    | BinaryOperator::Append
+            ) {
                 charge(fuel, string_cost(&value))?;
             }
             value
@@ -528,6 +613,13 @@ fn invalid_integer_text() -> Fault {
     )
 }
 
+fn list_limit() -> Fault {
+    error(
+        "LSV1403",
+        "computed string list exceeds 64 entries or 4096 bytes",
+    )
+}
+
 fn binary(op: BinaryOperator, left: ScalarValue, right: ScalarValue) -> Result<ScalarValue, Fault> {
     use BinaryOperator::*;
     use ScalarValue::*;
@@ -539,6 +631,47 @@ fn binary(op: BinaryOperator, left: ScalarValue, right: ScalarValue) -> Result<S
         }));
     }
     match (op, left, right) {
+        (Split, String(left), String(right)) => {
+            let mut items = Vec::new();
+            let mut remaining = MAX_SCALAR_STRING_BYTES;
+            for item in left.split(&right) {
+                if items.len() == MAX_STRING_LIST_ITEMS {
+                    return Err(list_limit());
+                }
+                remaining = remaining.checked_sub(item.len()).ok_or_else(list_limit)?;
+                items.push(item.to_owned());
+            }
+            Ok(StringList(StringListValue(items)))
+        }
+        (Append, StringList(mut left), String(right)) => {
+            let bytes = left.0.iter().map(std::string::String::len).sum::<usize>();
+            if left.0.len() == MAX_STRING_LIST_ITEMS
+                || bytes.saturating_add(right.len()) > MAX_SCALAR_STRING_BYTES
+            {
+                return Err(list_limit());
+            }
+            left.0.push(right);
+            Ok(StringList(left))
+        }
+        (Join, StringList(left), String(right)) => {
+            let bytes = left
+                .0
+                .iter()
+                .map(std::string::String::len)
+                .sum::<usize>()
+                .saturating_add(right.len().saturating_mul(left.0.len().saturating_sub(1)));
+            if bytes > MAX_SCALAR_STRING_BYTES {
+                return Err(error("LSV1403", "computed string exceeds 4096 bytes"));
+            }
+            Ok(String(left.0.join(&right)))
+        }
+        (ItemAt, StringList(left), Integer(index)) => {
+            let value = usize::try_from(index)
+                .ok()
+                .and_then(|index| left.0.get(index))
+                .cloned();
+            Ok(OptionalString(OptionalStringValue(value)))
+        }
         (ValueOr, OptionalString(value), String(fallback)) if value.0.is_none() => {
             Ok(String(fallback))
         }

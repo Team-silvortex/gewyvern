@@ -1135,10 +1135,10 @@ program       = function, { function }, EOF ;
 function      = "fn", identifier, "(", [ parameters ], ")", "=", expression ;
 parameters    = parameter, { ",", parameter }, [ "," ] ;
 parameter     = identifier, ":", scalar-type ;
-scalar-type   = "integer" | "boolean" | "string" | "none" | "optional_string" ;
+scalar-type   = "integer" | "boolean" | "string" | "none" | "optional_string" | "string_list" ;
 expression    = string | integer | boolean | "none" | identifier | call ;
 call          = effect-call | all-call | seq-call | repeat-call
-              | bind-call | loop-call | choose-call | recover-call | binary-call | unary-call | field-call | member-call | helper-call ;
+              | bind-call | loop-call | fold-call | strings-call | choose-call | recover-call | binary-call | unary-call | field-call | member-call | helper-call ;
 helper-call   = identifier, "(", [ arguments ], ")" ;
 effect-call   = identifier, ".", identifier, "(", [ arguments ], ")" ;
 all-call      = "all", "(", branch, ",", branch, { ",", branch }, [ "," ], ")" ;
@@ -1150,6 +1150,8 @@ argument      = identifier, ":", value ;
 value         = expression ;
 bind-call     = "bind", "(", identifier, ":", expression, ",", "body", ":", expression, [ "," ], ")" ;
 loop-call     = "loop", "(", identifier, ":", expression, ",", "while", ":", expression, ",", "next", ":", expression, ",", "limit", ":", integer, [ "," ], ")" ;
+fold-call     = "fold", "(", identifier, ":", expression, ",", "items", ":", expression, ",", "item", ":", string, ",", "next", ":", expression, ",", "limit", ":", integer, [ "," ], ")" ;
+strings-call  = "strings", "(", [ arguments ], ")" ;
 choose-call   = "choose", "(", "when", ":", expression, ",", "then", ":", expression, ",", "otherwise", ":", expression, [ "," ], ")" ;
 recover-call  = "recover", "(", "value", ":", expression, ",", "fallback", ":", expression, [ "," ], ")" ;
 binary-call   = binary-op, "(", "left", ":", expression, ",", "right", ":", expression, [ "," ], ")" ;
@@ -1159,7 +1161,8 @@ field-call    = "field", "(", "value", ":", expression, ",", "name", ":", string
 member-call   = "member", "(", "value", ":", identifier, ",", "name", ":", string, [ "," ], ")" ;
 binary-op     = "add" | "sub" | "mul" | "div" | "rem" | "eq" | "ne"
               | "lt" | "le" | "gt" | "ge" | "and" | "or" | "concat" | "value_or"
-              | "contains" | "starts_with" | "ends_with" | "char_at" ;
+              | "contains" | "starts_with" | "ends_with" | "char_at"
+              | "split" | "join" | "append" | "item_at" ;
 boolean       = "true" | "false" ;
 integer       = "0" | nonzero-digit, { digit } ;
 identifier    = ( letter | "_" ), { letter | digit | "_" } ;
@@ -1174,13 +1177,14 @@ Source is UTF-8 and limited to 256 KiB.
 Integer literals are canonical unsigned 64-bit decimals; signs, leading zeroes,
 fractions, alternate bases, and overflow are rejected. Computation accepts the
 full `u64` range, while `repeat.times` remains an integer literal from 1 through
-64 and `loop.limit` from 0 through 1024. The grammar shows canonical argument order; named arguments may be reordered
-without changing evaluation order. `true` and `false` are literals in value
+64, `loop.limit` from 0 through 1024 and `fold.limit` from 0 through 64. The grammar shows canonical argument order; named arguments may be reordered
+without changing evaluation order, except that `strings` entries are positional
+and follow written source order, not label order. `true` and `false` are literals in value
 positions and cannot name locals; legacy single-function and named-step labels may
 still use these words, but new helper names and parameters cannot. `none` and `fn`
 retain their existing reserved status outside parameter type annotations.
 Bare value identifiers resolve only to lexical bindings, including the current
-loop-local scalar state. Enclosing bindings remain immutable. See
+loop-local scalar state and fold-local accumulator/item. Enclosing bindings remain immutable. See
 [control flow](leselang-control-flow.md) for typed calculation, `bind`, lazy
 `choose`, short-circuit logic, limits, and remaining language gaps. Atomic host
 operations accept pure expressions and locals as arguments, retaining their
@@ -1277,15 +1281,74 @@ operators retain their rules. Complete input scans and character materialization
 share the original fuel, 4096-byte string bound and host validators. Existing
 binary HIR and continuation/projection/journal versions remain unchanged.
 
+[Bounded string collections](leselang-control-flow.md#bounded-string-collections)
+add `strings(...)`, `split`, `append`, `join`, `item_at` and type-preserving pure
+`fold`. A `string_list` has at most 64 entries and 4096 combined UTF-8 bytes;
+constructor labels preserve source order but are not keys. Fold locals are
+lexically scoped, its literal limit is preflighted before iteration, and every
+copy/scan/iteration consumes shared fuel. Closed list payloads, durable locals,
+original host domains and first-commit replay retain existing recovery boundaries.
+This is not nested/generic containers, effectful iteration or multipresentation
+GUI batch support.
+
 [Reusable pure functions](leselang-control-flow.md#reusable-pure-functions) add
 typed named scalar parameters and inferred scalar results, with a parameterless
 `main` entry for multi-function programs. All definitions are checked, including
-unused/cold code; recursion, closures, implicit coercion and effectful helpers are
+unused/cold code; recursion, closures and implicit coercion are
 rejected. The limits are 32 declarations and 8 parameters per helper. Arguments
 evaluate once in declaration order. Hygienic HIR expansion preserves the existing
 node/depth, shared fuel, string, authority and journal boundaries. Helpers can
 consume explicit scalar projections and prepare host arguments, not receive raw
-host objects or replace a group's atomic member with general computation.
+host objects or replace a group's atomic member with result-capturing computation.
+
+[Reusable effectful functions](leselang-control-flow.md#reusable-effectful-functions)
+extend the same declarations to whole-flow/tail calls and explicit result `bind`.
+Bounded normal-return splicing connects each expanded return path to its caller
+with existing HIR nodes, not a hidden call stack. Atomic/group returns use closed
+projections; scalar/list returns can drive later operations. Arguments remain
+pure typed data, evaluated once in declaration order. All cold paths retain type,
+capability, node/depth/text and host-shape checks before admission. Hygienic locals,
+transactional successor admission, original authority/deadline and shared fuel
+survive journal restart without source/function tables or wire migrations.
+Effectful calls inside operands, helper arguments or pure loops/folds/recovery
+remain unsupported. [Prepared atomic members](leselang-control-flow.md#prepared-atomic-members)
+now allow helpers and expanded pure preparation/selection in `seq`/`all`/`repeat`
+when every path yields exactly one operation with the same `HostOperation`
+signature. Entire groups prepare before admission; later faults dispatch nothing,
+and repeat reserves complete expanded preparation bounds before cloning. Only
+resolved requests reach journals, with existing named projections, all-success
+barriers, cancellation/deadline/authority/fuel and transactional replay fences.
+Multi-step/result-capturing helpers, group-returning helpers as members and native
+parallel debugger batches remain unsupported.
+
+[Selected named groups](leselang-control-flow.md#selected-named-groups) now export
+closed member signatures through pure conditional selection, including helper
+group returns. Every cold return must keep the same group mode, ordered member
+names and `HostOperation` signatures. Only selected preparation runs; all cold
+paths still pass type/domain/capability checks. Resolved requests alone reach
+journals, so restart does not reselect or refill fuel. Existing named projections,
+transactional successor replay and parallel all-success barriers remain intact;
+mixed topology, result-dependent nested groups and native parallel GUI batches
+remain unsupported.
+
+[Prepared atomic result bindings](leselang-control-flow.md#prepared-atomic-result-bindings)
+allow pure `bind` preparation and `choose` directly as an atomic capture value.
+Every cold path must yield one uniform `HostOperation`/result signature; the same
+bounded classifier serves captures and prepared group members. Preparation locals
+do not escape. Resolved committed requests are not reselected on restart; future
+captures run from validated predecessor projections. Existing chains, group-owned
+successors, conditional exits, shared budgets and transactional retry remain intact.
+Closed legacy fields cannot be synthesized or accessed through cold choices.
+Hidden captures/multiple effects, pure operand effects, effectful loops and native
+parallel batches remain unsupported.
+
+[Selected data-returning functions](leselang-control-flow.md#selected-data-returning-functions)
+allow pure choices of direct helper calls and pure data fallbacks as a `bind`
+value. Different supported helper topologies join through the same bounded data
+type, not a union of raw results. Only selected arguments run; cold authority and
+return-expansion budgets still apply. Hygienic locals, transactional caller joins,
+parallel barriers and existing recovery schemas remain intact. Arbitrary nested
+effectful binding values and native parallel GUI batches remain unsupported.
 
 Serialized syntax trees validate source bounds, exact token coverage and EOF,
 UTF-8-safe token/diagnostic/AST spans, declaration/parameter limits, and call depth
@@ -1295,6 +1358,13 @@ serialization.
 `token_text` and `reconstruct` return `Option`, so even a caller that later
 mutates public token spans receives failure rather than a slicing panic. The
 single oversized-source rejection-tree shape remains round-trip compatible.
+
+## Execution Concurrency
+
+The [concurrency model](leselang-embedding.md#concurrency-model) separates serial
+engine entry, isolated root executions and structured effect batches. Long-lived
+workers can consume new shared-journal work without rerunning source; independent
+journals still need host-scoped routing and command idempotency namespaces.
 
 ## Canonical Formatting
 
@@ -1318,8 +1388,8 @@ remain on UTF-8 character boundaries. A parallel continuation corpus mutates
 encoded VM images and requires deterministic fail-closed decoding or canonical
 roundtrip.
 
-The implemented surface excludes effectful helper functions, arbitrary mutation,
-effectful or collection loops, unstructured concurrency,
+The implemented surface excludes arbitrary mutation,
+effectful loops and generic collection iteration, unstructured concurrency,
 raw HTTP, shell execution, and host-language reflection. Pure scalar computation
 and bindings are available before host suspension or after one captured atomic
 result, including multiple atomic captures in bounded chains, or after a whole
@@ -1456,6 +1526,12 @@ last classified error and cannot be claimed early; retry exhaustion becomes a
 typed, replayable failure. The original effect request and command idempotency
 key never change.
 
+Root admission and semantic retry share only the pure capped-delay calculation;
+their policies and counters remain distinct. Waiting, lease redelivery and
+semantic retry neither replenish saved fuel nor extend the execution deadline,
+including after reopening with zero default VM fuel. See
+[shared retry arithmetic](leselang-embedding.md#shared-retry-delay-arithmetic).
+
 `merge_declared` is the bounded deterministic merge kernel for future structured
 `all` evaluation. A `MergePlan` declares two to 64 uniquely named branches;
 completions may arrive in any order, but successful `Value::Structured` fields
@@ -1494,6 +1570,65 @@ attempt, and expiration, then commits the terminal step and acknowledgement in
 one transaction. A crashed worker therefore causes bounded redelivery, while a
 late worker cannot overwrite a newer attempt. The `now_ms` argument is scheduler
 time supplied by the trusted runtime host, never by a remote request.
+
+Current-time observation and completion accept the full inclusive portable clock
+range, including `i64::MAX`; only construction of a new future lease requires
+room for its duration. `scheduler_pressure` never reaps due work. At the exact
+lease expiration, completion still requires the current attempt; a competing
+redelivery can fence it out, and a due execution deadline always wins. See
+[scheduler clock boundaries](leselang-embedding.md#shared-scheduler-clock).
+
+Eligible outbox work is ordered by **fewest delivery attempts**, then **numeric
+admission order**, identically in ephemeral and SQLite journals. Expired leases
+and due semantic retries do not monopolize lower-attempt work. Attempt counters
+survive restart, and not-before clocks and sequential barriers still apply.
+An exhausted delivery leaves `LSV4017` visible when no eligible work has remaining
+attempts, rather than blocking healthier work or silently disappearing. This is
+finite-cohort balancing, not global FIFO or per-tenant fairness under continuous
+admission. See [dispatch selection](leselang-embedding.md#dispatch-selection).
+
+Trusted hosts can configure `SchedulerLimits` for pending dispatches and active
+leases. Initial admissions are transactional and whole-batch: `LSV2501` signals
+temporary admission pressure, `LSV2503` an oversized batch, and `LSV2500` invalid
+limits. `try_claim_effect` distinguishes `Leased`, `Idle` and `Backpressured`;
+legacy `claim_effect` reports a full lease quota as `LSV2502`, never an empty
+queue. Pressure does not consume attempts, and admitted continuations still
+drain. Limits are host configuration that must be reapplied consistently to shared
+workers, not script syntax or persisted execution state. See
+[host admission and backpressure](leselang-embedding.md#host-admission-and-backpressure).
+Merge validation retains `LSV2401` through `LSV2404`, distinct from scheduler
+pressure; invalid merge inputs are not automatically retryable.
+
+Hosts can opt into `RootAdmission` for one not-yet-admitted root. Its immutable
+program/authority, total attempt cap and capped backoff permit retry only for
+`LSV2501`. Not-before polls do not enter the VM or touch its journal. The absolute
+deadline is pinned at submission, including queue wait, and is never extended
+by retries. Success, permanent failure, exhaustion or pre-admission cancellation
+consumes the handle; later polls return `Finished`, not another execution.
+`LSV2510` identifies invalid retry policy, `LSV2511` a regressing clock without
+state change, `LSV2512` exhausted attempts and `LSV2513` pre-admission expiry.
+The separate read-only `terminal_reason()` reports `AdmissionEnd` without adding
+fields to existing status/poll JSON or journal images. `Started` records adapter
+acceptance, not output delivery or execution completion; `HostUncertain` records
+callback unwinding, not rejection or permission to replay. Cancellation, observed
+expiry and attempt exhaustion have distinct sticky reasons. Input is consumed
+before cleanup, and undelivered output remains locally owned until cleanup succeeds.
+This is a host API, not new script syntax, a hidden queue, a timer, persisted
+ingress or effect replay. Hosts still bound aggregate ingress and CPU, schedule
+wakeups and own accepted-root cancellation. See
+[bounded host ingress](leselang-embedding.md#bounded-host-ingress).
+
+Restoring a request or bare continuation reserves its numeric identity in the
+shared durable allocator in the same transaction as its records, including
+idempotent duplicate imports. Rejected imports do not advance that watermark.
+Already-open workers therefore observe successful imports without restarting.
+Journal opening validates one consistent snapshot and repairs lagging sequence
+metadata from retained effects and groups while preserving validated cold successor
+reservations; compaction never lowers it. Cold reservations are checked against the
+original watermark before repair, not legitimized by higher imported identities.
+Invalid state leaves metadata unchanged, and exhausted identities never wrap.
+Older deleted identities cannot be reconstructed from
+missing metadata. See [restore and allocator recovery](leselang-embedding.md#restore-and-allocator-recovery).
 
 The journal is schema-versioned. Schema 4 persists indexed absolute deadlines,
 retry counts, and not-before clocks. Schema 5 adds strict merge-group and ordered

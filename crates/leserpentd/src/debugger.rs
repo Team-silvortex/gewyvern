@@ -13,7 +13,7 @@ use leselang_syntax::parse;
 use leselang_ui::{DebuggerFaultSummary, DebuggerProjection, DebuggerState, debugger_document};
 use leselang_vm::{
     CancellationReason, DEFAULT_FUEL, EffectOperation, EffectRequest, EffectResult,
-    PresentationOperation, PresentationResult, Step, Vm,
+    PresentationOperation, PresentationResult, SchedulerLimits, Step, Vm,
 };
 use leserpent_domain::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
@@ -33,6 +33,10 @@ const MAX_RETAINED_DEBUGGER_JOURNALS: usize = 64;
 const MAX_DEBUGGER_SOURCE_BYTES: usize = 64 * 1024;
 const MIN_DEBUGGER_TIMEOUT_MS: u64 = 100;
 const MAX_DEBUGGER_TIMEOUT_MS: u64 = 5 * 60 * 1_000;
+const DEBUGGER_SCHEDULER_LIMITS: SchedulerLimits = SchedulerLimits {
+    max_pending_dispatches: leselang_vm::MAX_MERGE_BRANCHES,
+    max_active_leases: 1,
+};
 
 pub type SharedDebuggerAuthority = Arc<Mutex<DebuggerAuthority>>;
 
@@ -157,7 +161,14 @@ impl DebuggerAuthority {
             code: "debugger_source_invalid",
             message: "Leselang debugger source is invalid",
         })?;
-        let Step::Effect(preflight_effect) = Vm::default().start_timed(
+        let mut preflight =
+            Vm::new_with_limits(DEFAULT_FUEL, DEBUGGER_SCHEDULER_LIMITS).map_err(|_| {
+                DebuggerAuthorityError {
+                    code: "debugger_scheduler_invalid",
+                    message: "debugger scheduler policy is invalid",
+                }
+            })?;
+        let Step::Effect(preflight_effect) = preflight.start_timed(
             &program,
             request.principal.clone(),
             vm_capabilities(),
@@ -198,10 +209,11 @@ impl DebuggerAuthority {
         }
         self.ensure_journal_capacity()?;
         let mut vm =
-            Vm::open_journal(&journal_path, DEFAULT_FUEL).map_err(|_| DebuggerAuthorityError {
-                code: "debugger_journal_unavailable",
-                message: "debugger VM journal could not be opened",
-            })?;
+            Vm::open_journal_with_limits(&journal_path, DEFAULT_FUEL, DEBUGGER_SCHEDULER_LIMITS)
+                .map_err(|_| DebuggerAuthorityError {
+                    code: "debugger_journal_unavailable",
+                    message: "debugger VM journal could not be opened",
+                })?;
         let step = vm.start_timed(
             &program,
             request.principal.clone(),
@@ -2061,6 +2073,647 @@ mod tests {
                 })
             );
         }
+    }
+
+    #[test]
+    fn native_collection_fold_filters_confirmed_text_before_form_acknowledgement() {
+        let root = TempRoot::new("string-list-fold");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-string-list");
+        request.source = r#"fn main() = bind(first: ui.assert_text(node_id: "status", expected: "ready-a,skip,ready-b"), body:
+            bind(selected: fold(output: strings(), items: split(left: field(value: first, name: "expected"), right: ","), item: "part", next: choose(when: starts_with(left: part, right: "ready-"), then: append(left: output, right: part), otherwise: output), limit: 64), body:
+                bind(last: ui.set_form_value(node_id: "form", field: "selected", value: join(left: selected, right: ";")), body: selected)))"#.into();
+        let mut view = authority.start_session(request).unwrap().session;
+        let first = authority.sessions["session-string-list"]
+            .request
+            .continuation
+            .clone();
+        for (index, node) in ["status", "form"].into_iter().enumerate() {
+            if index == 1 {
+                assert!(
+                    matches!(&view.pending_presentation, Some(PresentationOperation::SetFormValue { value, .. }) if value == "ready-a;ready-b")
+                );
+            }
+            let current = &authority.sessions["session-string-list"].request;
+            let mut ack = presentation_acknowledgement(
+                "session-string-list",
+                DebuggerPresentationOutcome::Applied {
+                    node_id: "wrong".into(),
+                    focused_node_id: None,
+                },
+            );
+            ack.effect_id = current.effect_id.clone();
+            ack.expected_revision = view.projection.revision;
+            assert_eq!(
+                authority
+                    .acknowledge_presentation(ack.clone())
+                    .unwrap_err()
+                    .code(),
+                "debugger_presentation_conflict"
+            );
+            ack.outcome = DebuggerPresentationOutcome::Applied {
+                node_id: node.into(),
+                focused_node_id: None,
+            };
+            let response = authority.acknowledge_presentation(ack.clone()).unwrap();
+            assert_eq!(authority.acknowledge_presentation(ack).unwrap(), response);
+            assert_eq!(
+                response.session.projection.revision,
+                Revision(8 + index as u64)
+            );
+            let public = serde_json::to_string(&response).unwrap();
+            assert!(!public.contains("result_binding") && !public.contains("projection_version"));
+            view = response.session;
+        }
+        assert_eq!(view.projection.state, DebuggerState::Completed);
+        assert!(view.pending_presentation.is_none());
+        let session = authority.sessions.get_mut("session-string-list").unwrap();
+        assert_eq!(session.vm.pending_count(), 0);
+        assert_eq!(
+            session.vm.resume_at(
+                &first,
+                now_ms().unwrap(),
+                EffectResult::Presentation(PresentationResult::Focus {
+                    node_id: "ignored".into()
+                })
+            ),
+            Step::Done(leselang_vm::Value::Scalar {
+                value: leselang_vm::ScalarValue::StringList(
+                    leselang_hir::computation::StringListValue(vec![
+                        "ready-a".into(),
+                        "ready-b".into()
+                    ])
+                )
+            })
+        );
+    }
+
+    #[test]
+    fn native_effectful_function_returns_to_caller_form_without_call_frames() {
+        for skip in [false, true] {
+            let root = TempRoot::new("effectful-function");
+            let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+            let mut request = start_request("session-function");
+            request.source = format!(
+                r#"fn host_ready(node: string, skip: boolean) = choose(when: skip, then: false, otherwise:
+                bind(result: ui.assert_text(node_id: node, expected: "ready"), body: starts_with(left: field(value: result, name: "expected"), right: "ready")))
+                fn main() = bind(ok: host_ready(node: "status", skip: {skip}), body:
+                    bind(written: ui.set_form_value(node_id: "form", field: "ready", value: to_string(value: ok)), body: ok))"#
+            );
+            let mut view = authority.start_session(request).unwrap().session;
+            let first = authority.sessions["session-function"]
+                .request
+                .continuation
+                .clone();
+            let nodes: &[&str] = if skip { &["form"] } else { &["status", "form"] };
+            for (index, node) in nodes.iter().enumerate() {
+                if *node == "form" {
+                    assert!(
+                        matches!(&view.pending_presentation, Some(PresentationOperation::SetFormValue { value, .. }) if value == if skip { "false" } else { "true" })
+                    );
+                }
+                let current = &authority.sessions["session-function"].request;
+                let mut ack = presentation_acknowledgement(
+                    "session-function",
+                    DebuggerPresentationOutcome::Applied {
+                        node_id: "wrong".into(),
+                        focused_node_id: None,
+                    },
+                );
+                ack.effect_id = current.effect_id.clone();
+                ack.expected_revision = view.projection.revision;
+                assert_eq!(
+                    authority
+                        .acknowledge_presentation(ack.clone())
+                        .unwrap_err()
+                        .code(),
+                    "debugger_presentation_conflict"
+                );
+                ack.outcome = DebuggerPresentationOutcome::Applied {
+                    node_id: (*node).into(),
+                    focused_node_id: None,
+                };
+                let response = authority.acknowledge_presentation(ack.clone()).unwrap();
+                assert_eq!(authority.acknowledge_presentation(ack).unwrap(), response);
+                assert_eq!(
+                    response.session.projection.revision,
+                    Revision(8 + index as u64)
+                );
+                let public = serde_json::to_string(&response).unwrap();
+                assert!(
+                    !public.contains("result_binding") && !public.contains("projection_version")
+                );
+                view = response.session;
+            }
+            assert_eq!(view.projection.state, DebuggerState::Completed);
+            assert!(view.pending_presentation.is_none());
+            let session = authority.sessions.get_mut("session-function").unwrap();
+            assert_eq!(session.vm.pending_count(), 0);
+            assert_eq!(
+                session.vm.resume_at(
+                    &first,
+                    now_ms().unwrap(),
+                    EffectResult::Presentation(PresentationResult::Focus {
+                        node_id: "ignored".into()
+                    })
+                ),
+                Step::Done(leselang_vm::Value::Scalar {
+                    value: leselang_vm::ScalarValue::Boolean(!skip)
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn native_prepared_helper_group_reaches_form_only_after_all_correlated_receipts() {
+        let root = TempRoot::new("prepared-helper-group");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-prepared-group");
+        request.source = r#"fn check(node: string) = ui.assert_text(node_id: node, expected: concat(left: "re", right: "ady"))
+            fn main() = bind(group: seq(first: check(node: "a"), second: check(node: "b")), body:
+                bind(written: ui.set_form_value(node_id: "form", field: "ready", value: concat(left: field(value: member(value: group, name: "first"), name: "expected"), right: field(value: member(value: group, name: "second"), name: "expected"))), body:
+                    eq(left: field(value: written, name: "value"), right: "readyready")))"#.into();
+        let mut view = authority.start_session(request).unwrap().session;
+        let first = authority.sessions["session-prepared-group"]
+            .request
+            .continuation
+            .clone();
+        for (index, node) in ["a", "b", "form"].into_iter().enumerate() {
+            if node == "form" {
+                assert!(
+                    matches!(&view.pending_presentation, Some(PresentationOperation::SetFormValue { value, .. }) if value == "readyready")
+                );
+            } else {
+                assert!(
+                    matches!(&view.pending_presentation, Some(PresentationOperation::AssertText { node_id, .. }) if node_id == node)
+                );
+            }
+            let current = &authority.sessions["session-prepared-group"].request;
+            let mut ack = presentation_acknowledgement(
+                "session-prepared-group",
+                DebuggerPresentationOutcome::Applied {
+                    node_id: "wrong".into(),
+                    focused_node_id: None,
+                },
+            );
+            ack.effect_id = current.effect_id.clone();
+            ack.expected_revision = view.projection.revision;
+            assert_eq!(
+                authority
+                    .acknowledge_presentation(ack.clone())
+                    .unwrap_err()
+                    .code(),
+                "debugger_presentation_conflict"
+            );
+            ack.outcome = DebuggerPresentationOutcome::Applied {
+                node_id: node.into(),
+                focused_node_id: None,
+            };
+            let response = authority.acknowledge_presentation(ack.clone()).unwrap();
+            assert_eq!(authority.acknowledge_presentation(ack).unwrap(), response);
+            assert_eq!(
+                response.session.projection.revision,
+                Revision(8 + index as u64)
+            );
+            let public = serde_json::to_string(&response).unwrap();
+            assert!(!public.contains("result_binding") && !public.contains("projection_version"));
+            view = response.session;
+        }
+        assert_eq!(view.projection.state, DebuggerState::Completed);
+        assert!(view.pending_presentation.is_none());
+        let session = authority
+            .sessions
+            .get_mut("session-prepared-group")
+            .unwrap();
+        assert_eq!(session.vm.pending_count(), 0);
+        assert_eq!(
+            session.vm.resume_at(
+                &first,
+                now_ms().unwrap(),
+                EffectResult::Presentation(PresentationResult::Focus {
+                    node_id: "ignored".into()
+                })
+            ),
+            Step::Done(leselang_vm::Value::Scalar {
+                value: leselang_vm::ScalarValue::Boolean(true)
+            })
+        );
+    }
+
+    #[test]
+    fn native_selected_group_members_drive_forms_through_correlated_acknowledgements() {
+        for alternate in [false, true] {
+            let root = TempRoot::new("selected-helper-group");
+            let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+            let mut request = start_request("session-selected-group");
+            request.source = format!(
+                r#"fn rows(alternate: boolean) = choose(when: alternate,
+                then: seq(first: ui.focus(node_id: "a"), second: ui.assert_text(node_id: "a", expected: "ready")),
+                otherwise: seq(first: ui.focus(node_id: "b"), second: ui.assert_text(node_id: "b", expected: concat(left: "re", right: "ady"))))
+                fn main() = bind(group: rows(alternate: {alternate}), body:
+                    bind(written: ui.set_form_value(node_id: "form", field: "selected", value: concat(left: field(value: member(value: group, name: "first"), name: "node_id"), right: field(value: member(value: group, name: "second"), name: "expected"))), body: field(value: written, name: "value")))"#
+            );
+            let mut view = authority.start_session(request).unwrap().session;
+            let selected = if alternate { "a" } else { "b" };
+            for (index, node) in [selected, selected, "form"].into_iter().enumerate() {
+                match &view.pending_presentation {
+                    Some(PresentationOperation::Focus { node_id }) if index == 0 => {
+                        assert_eq!(node_id, selected)
+                    }
+                    Some(PresentationOperation::AssertText { node_id, .. }) if index == 1 => {
+                        assert_eq!(node_id, selected)
+                    }
+                    Some(PresentationOperation::SetFormValue { value, .. }) if index == 2 => {
+                        assert_eq!(value, &format!("{selected}ready"))
+                    }
+                    other => panic!("{other:?}"),
+                }
+                let current = &authority.sessions["session-selected-group"].request;
+                let mut ack = presentation_acknowledgement(
+                    "session-selected-group",
+                    DebuggerPresentationOutcome::Applied {
+                        node_id: "wrong".into(),
+                        focused_node_id: None,
+                    },
+                );
+                ack.effect_id = current.effect_id.clone();
+                ack.expected_revision = view.projection.revision;
+                assert_eq!(
+                    authority
+                        .acknowledge_presentation(ack.clone())
+                        .unwrap_err()
+                        .code(),
+                    "debugger_presentation_conflict"
+                );
+                ack.outcome = DebuggerPresentationOutcome::Applied {
+                    node_id: node.into(),
+                    focused_node_id: None,
+                };
+                let response = authority.acknowledge_presentation(ack.clone()).unwrap();
+                assert_eq!(authority.acknowledge_presentation(ack).unwrap(), response);
+                assert_eq!(
+                    response.session.projection.revision,
+                    Revision(8 + index as u64)
+                );
+                let public = serde_json::to_string(&response).unwrap();
+                assert!(
+                    !public.contains("result_binding") && !public.contains("projection_version")
+                );
+                view = response.session;
+            }
+            assert_eq!(view.projection.state, DebuggerState::Completed);
+            assert_eq!(
+                authority.sessions["session-selected-group"]
+                    .vm
+                    .pending_count(),
+                0
+            );
+        }
+    }
+
+    #[test]
+    fn native_selected_parallel_groups_still_fail_preflight_before_session_journals() {
+        let root = TempRoot::new("selected-parallel-group");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-selected-parallel");
+        request.source = r#"fn rows(alternate: boolean) = choose(when: alternate,
+            then: all(first: ui.focus(node_id: "a"), second: ui.focus(node_id: "a")),
+            otherwise: all(first: ui.focus(node_id: "b"), second: ui.focus(node_id: "b")))
+            fn main() = bind(group: rows(alternate: false), body: field(value: member(value: group, name: "first"), name: "node_id"))"#.into();
+        lower(&parse(&request.source)).unwrap();
+        assert_eq!(
+            authority.start_session(request).unwrap_err().code(),
+            "debugger_session_not_suspended"
+        );
+        assert!(authority.sessions.is_empty());
+        assert_eq!(fs::read_dir(&root.0).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn native_prepared_parallel_helpers_fail_preflight_without_creating_journals() {
+        let root = TempRoot::new("prepared-parallel-helpers");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-prepared-parallel");
+        request.source =
+            r#"fn focus(node: string) = ui.focus(node_id: concat(left: node, right: "-prepared"))
+            fn main() = all(first: focus(node: "a"), second: focus(node: "b"))"#
+                .into();
+        lower(&parse(&request.source)).unwrap();
+        assert_eq!(
+            authority.start_session(request.clone()).unwrap_err().code(),
+            "debugger_session_not_suspended"
+        );
+        assert!(authority.sessions.is_empty());
+        assert_eq!(fs::read_dir(&root.0).unwrap().count(), 0);
+        request.source = r#"fn main() = ui.focus(node_id: "a")"#.into();
+        assert_eq!(
+            authority
+                .start_session(request)
+                .unwrap()
+                .session
+                .projection
+                .state,
+            DebuggerState::WaitingEffect
+        );
+    }
+
+    #[test]
+    fn native_prepared_result_selection_keeps_correlated_captures_and_early_exits() {
+        for ready in [false, true] {
+            let root = TempRoot::new("prepared-result-selection");
+            let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+            let mut request = start_request("session-prepared-result");
+            let expected = if ready { "ready" } else { "skip" };
+            request.source = format!(
+                r#"fn main() = bind(seed: ui.assert_text(node_id: "status", expected: "{expected}"), body:
+                bind(selected: bind(target: concat(left: "node-", right: field(value: seed, name: "expected")), body:
+                    choose(when: starts_with(left: target, right: "node-ready"), then: ui.focus(node_id: target), otherwise: ui.focus(node_id: "fallback"))), body:
+                        choose(when: eq(left: field(value: selected, name: "node_id"), right: "fallback"), then: false, otherwise:
+                            bind(written: ui.set_form_value(node_id: "form", field: "target", value: field(value: selected, name: "node_id")), body: true))))"#
+            );
+            let mut view = authority.start_session(request).unwrap().session;
+            let first = authority.sessions["session-prepared-result"]
+                .request
+                .continuation
+                .clone();
+            let nodes = if ready {
+                vec!["status", "node-ready", "form"]
+            } else {
+                vec!["status", "fallback"]
+            };
+            for (index, node) in nodes.into_iter().enumerate() {
+                match &view.pending_presentation {
+                    Some(PresentationOperation::AssertText { node_id, .. }) if index == 0 => {
+                        assert_eq!(node_id, node)
+                    }
+                    Some(PresentationOperation::Focus { node_id }) if index == 1 => {
+                        assert_eq!(node_id, node)
+                    }
+                    Some(PresentationOperation::SetFormValue { value, .. }) if index == 2 => {
+                        assert_eq!(value, "node-ready")
+                    }
+                    other => panic!("{other:?}"),
+                }
+                let current = &authority.sessions["session-prepared-result"].request;
+                let mut ack = presentation_acknowledgement(
+                    "session-prepared-result",
+                    DebuggerPresentationOutcome::Applied {
+                        node_id: "wrong".into(),
+                        focused_node_id: None,
+                    },
+                );
+                ack.effect_id = current.effect_id.clone();
+                ack.expected_revision = view.projection.revision;
+                assert_eq!(
+                    authority
+                        .acknowledge_presentation(ack.clone())
+                        .unwrap_err()
+                        .code(),
+                    "debugger_presentation_conflict"
+                );
+                ack.outcome = DebuggerPresentationOutcome::Applied {
+                    node_id: node.into(),
+                    focused_node_id: None,
+                };
+                let response = authority.acknowledge_presentation(ack.clone()).unwrap();
+                assert_eq!(authority.acknowledge_presentation(ack).unwrap(), response);
+                assert_eq!(
+                    response.session.projection.revision,
+                    Revision(8 + index as u64)
+                );
+                let public = serde_json::to_string(&response).unwrap();
+                assert!(
+                    !public.contains("result_binding") && !public.contains("projection_version")
+                );
+                view = response.session;
+            }
+            assert_eq!(view.projection.state, DebuggerState::Completed);
+            let session = authority
+                .sessions
+                .get_mut("session-prepared-result")
+                .unwrap();
+            assert_eq!(session.vm.pending_count(), 0);
+            assert_eq!(
+                session.vm.resume_at(
+                    &first,
+                    now_ms().unwrap(),
+                    EffectResult::Presentation(PresentationResult::Focus {
+                        node_id: "ignored".into()
+                    })
+                ),
+                Step::Done(leselang_vm::Value::Scalar {
+                    value: leselang_vm::ScalarValue::Boolean(ready)
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn native_session_vm_has_bounded_dispatch_policy_without_changing_sequential_ui() {
+        let root = TempRoot::new("native-scheduler-limits");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-scheduler");
+        request.source = r#"fn main() = bind(group: seq(first: ui.focus(node_id: "first"), second: ui.focus(node_id: "second")), body: true)"#.into();
+        let response = authority.start_session(request).unwrap();
+        assert_eq!(
+            response.session.projection.state,
+            DebuggerState::WaitingEffect
+        );
+        let pressure = authority.sessions["session-scheduler"]
+            .vm
+            .scheduler_pressure(now_ms().unwrap())
+            .unwrap();
+        assert_eq!(pressure.limits, DEBUGGER_SCHEDULER_LIMITS);
+        assert_eq!(pressure.pending_dispatches, 2);
+        assert_eq!(pressure.active_leases, 0);
+    }
+
+    #[test]
+    fn independent_native_sessions_scope_colliding_effect_ids_and_cancellation() {
+        let root = TempRoot::new("isolated-native-sessions");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        for (id, label) in [("session-lane-a", "alpha"), ("session-lane-b", "bravo")] {
+            let mut request = start_request(id);
+            request.source = format!(
+                r#"fn main() = bind(result: ui.assert_text(node_id: "{label}", expected: "{label}"), body: bind(written: ui.set_form_value(node_id: "form-{label}", field: "answer", value: field(value: result, name: "expected")), body: true))"#
+            );
+            authority.start_session(request).unwrap();
+            assert_eq!(authority.sessions[id].request.effect_id, "effect-1");
+        }
+        let first_b = view_session(&authority.sessions["session-lane-b"]).unwrap();
+        let mut ack = presentation_acknowledgement(
+            "session-lane-b",
+            DebuggerPresentationOutcome::Applied {
+                node_id: "alpha".into(),
+                focused_node_id: None,
+            },
+        );
+        assert_eq!(
+            authority
+                .acknowledge_presentation(ack.clone())
+                .unwrap_err()
+                .code(),
+            "debugger_presentation_conflict"
+        );
+        ack.session_id = "session-lane-a".into();
+        let next_a = authority.acknowledge_presentation(ack).unwrap().session;
+        assert_eq!(next_a.projection.revision, Revision(8));
+        assert_eq!(
+            view_session(&authority.sessions["session-lane-b"]).unwrap(),
+            first_b
+        );
+        let mut cancel = cancel_command("session-lane-a", false);
+        cancel.expected_revision = Some(next_a.projection.revision);
+        assert_eq!(
+            authority.cancel(cancel).unwrap().session.projection.state,
+            DebuggerState::Cancelled
+        );
+        assert_eq!(
+            view_session(&authority.sessions["session-lane-b"]).unwrap(),
+            first_b
+        );
+        let ack = presentation_acknowledgement(
+            "session-lane-b",
+            DebuggerPresentationOutcome::Applied {
+                node_id: "bravo".into(),
+                focused_node_id: None,
+            },
+        );
+        let next_b = authority.acknowledge_presentation(ack).unwrap().session;
+        assert!(
+            matches!(&next_b.pending_presentation, Some(PresentationOperation::SetFormValue { value, .. }) if value == "bravo")
+        );
+        let mut ack = presentation_acknowledgement(
+            "session-lane-b",
+            DebuggerPresentationOutcome::Applied {
+                node_id: "form-bravo".into(),
+                focused_node_id: None,
+            },
+        );
+        ack.effect_id = authority.sessions["session-lane-b"]
+            .request
+            .effect_id
+            .clone();
+        ack.expected_revision = next_b.projection.revision;
+        assert_eq!(
+            authority
+                .acknowledge_presentation(ack)
+                .unwrap()
+                .session
+                .projection
+                .state,
+            DebuggerState::Completed
+        );
+    }
+
+    #[test]
+    fn native_selected_data_functions_return_through_correlated_caller_acknowledgements() {
+        for selected in ["single()", "gathered()", "\"ready\""] {
+            let root = TempRoot::new("selected-function-return");
+            let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+            let mut request = start_request("session-selected-function");
+            request.source = format!(
+                r#"fn single() = bind(result: ui.assert_text(node_id: "single", expected: "ready"), body: field(value: result, name: "expected"))
+                fn gathered() = bind(group: seq(first: ui.assert_text(node_id: "left", expected: "re"), second: ui.assert_text(node_id: "right", expected: "ady")), body: concat(left: field(value: member(value: group, name: "first"), name: "expected"), right: field(value: member(value: group, name: "second"), name: "expected")))
+                fn main() = bind(answer: choose(when: false, then: single(), otherwise: {selected}), body:
+                    bind(written: ui.set_form_value(node_id: "form", field: "answer", value: answer), body: eq(left: field(value: written, name: "value"), right: "ready")))"#
+            );
+            let mut view = authority.start_session(request).unwrap().session;
+            let first = authority.sessions["session-selected-function"]
+                .request
+                .continuation
+                .clone();
+            let nodes = match selected {
+                "single()" => vec!["single", "form"],
+                "gathered()" => vec!["left", "right", "form"],
+                _ => vec!["form"],
+            };
+            for (index, node) in nodes.into_iter().enumerate() {
+                if node == "form" {
+                    assert!(
+                        matches!(&view.pending_presentation, Some(PresentationOperation::SetFormValue { value, .. }) if value == "ready")
+                    );
+                } else {
+                    assert!(
+                        matches!(&view.pending_presentation, Some(PresentationOperation::AssertText { node_id, .. }) if node_id == node)
+                    );
+                }
+                let current = &authority.sessions["session-selected-function"].request;
+                let mut ack = presentation_acknowledgement(
+                    "session-selected-function",
+                    DebuggerPresentationOutcome::Applied {
+                        node_id: "wrong".into(),
+                        focused_node_id: None,
+                    },
+                );
+                ack.effect_id = current.effect_id.clone();
+                ack.expected_revision = view.projection.revision;
+                assert_eq!(
+                    authority
+                        .acknowledge_presentation(ack.clone())
+                        .unwrap_err()
+                        .code(),
+                    "debugger_presentation_conflict"
+                );
+                ack.outcome = DebuggerPresentationOutcome::Applied {
+                    node_id: node.into(),
+                    focused_node_id: None,
+                };
+                let response = authority.acknowledge_presentation(ack.clone()).unwrap();
+                assert_eq!(authority.acknowledge_presentation(ack).unwrap(), response);
+                assert_eq!(
+                    response.session.projection.revision,
+                    Revision(8 + index as u64)
+                );
+                let public = serde_json::to_string(&response).unwrap();
+                assert!(!public.contains("result_binding") && !public.contains("call_frame"));
+                view = response.session;
+            }
+            assert_eq!(view.projection.state, DebuggerState::Completed);
+            let session = authority
+                .sessions
+                .get_mut("session-selected-function")
+                .unwrap();
+            assert_eq!(session.vm.pending_count(), 0);
+            assert_eq!(
+                session.vm.resume_at(
+                    &first,
+                    now_ms().unwrap(),
+                    EffectResult::Presentation(PresentationResult::Focus {
+                        node_id: "ignored".into()
+                    })
+                ),
+                Step::Done(leselang_vm::Value::Scalar {
+                    value: leselang_vm::ScalarValue::Boolean(true)
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn native_selected_parallel_data_function_fails_preflight_without_a_journal() {
+        let root = TempRoot::new("selected-parallel-function");
+        let mut authority = DebuggerAuthority::open(&root.0).unwrap();
+        let mut request = start_request("session-selected-parallel-function");
+        let source = |selected| {
+            format!(
+                r#"fn gathered() = bind(group: all(first: ui.focus(node_id: "a"), second: ui.focus(node_id: "b")), body: true)
+            fn main() = bind(answer: choose(when: {selected}, then: gathered(), otherwise: false), body: ui.set_form_value(node_id: "form", field: "answer", value: to_string(value: answer)))"#
+            )
+        };
+        request.source = source(true);
+        lower(&parse(&request.source)).unwrap();
+        assert_eq!(
+            authority.start_session(request.clone()).unwrap_err().code(),
+            "debugger_session_not_suspended"
+        );
+        assert!(authority.sessions.is_empty());
+        assert_eq!(fs::read_dir(&root.0).unwrap().count(), 0);
+        request.source = source(false);
+        let view = authority.start_session(request).unwrap().session;
+        assert!(
+            matches!(view.pending_presentation, Some(PresentationOperation::SetFormValue { value, .. }) if value == "false")
+        );
     }
 
     #[test]

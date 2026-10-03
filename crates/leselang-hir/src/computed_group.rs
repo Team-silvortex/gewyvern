@@ -21,20 +21,6 @@ pub(super) fn lower(
     functions: &mut functions::FunctionTemplates,
 ) -> Result<(Computation, Type), Vec<Diagnostic>> {
     let mut lower_member = |expression: &Expression| {
-        let Expression::Call { callee, .. } = expression else {
-            return Err(invalid(
-                "group members require host calls",
-                expression_span(expression),
-            ));
-        };
-        if HostOperation::parse(callee).is_none()
-            && !matches!(callee.as_str(), "seq" | "repeat" | "all")
-        {
-            return Err(invalid(
-                "general computation must wrap a group or occur inside host arguments",
-                expression_span(expression),
-            ));
-        }
         let (value, result_type) = computation::lower_expression_with_functions(
             expression,
             scope,
@@ -42,6 +28,14 @@ pub(super) fn lower(
             depth + 1,
             functions,
         )?;
+        let nested_group = matches!(expression, Expression::Call { callee, .. }
+            if matches!(callee.as_str(), "seq" | "repeat" | "all"));
+        if !nested_group && value.prepared_atomic_operation().is_none() {
+            return Err(invalid(
+                "group members require one uniform atomic operation after pure preparation",
+                expression_span(expression),
+            ));
+        }
         let effect = into_effect(value);
         let required_capabilities = required_capabilities_for_effect(&effect)
             .into_iter()
@@ -75,9 +69,7 @@ pub(super) fn lower(
     let mut computed = Vec::with_capacity(branches.len());
     for branch in branches {
         let value = match branch.effect {
-            Effect::Compute { expression }
-                if matches!(expression.as_ref(), Computation::Call { .. }) =>
-            {
+            Effect::Compute { expression } if expression.prepared_atomic_operation().is_some() => {
                 *expression
             }
             effect if HostOperation::for_effect(&effect).is_some() => Computation::Host {
@@ -85,7 +77,7 @@ pub(super) fn lower(
             },
             _ => {
                 return Err(invalid(
-                    "computed groups require atomic members; mixed or nested parallel groups are unsupported",
+                    "computed groups require prepared atomic members; mixed or nested parallel groups are unsupported",
                     span,
                 ));
             }
@@ -152,14 +144,7 @@ pub(super) fn validate_repeat_expansion(
                 effects.extend(steps.iter().map(|step| &step.effect))
             }
             Effect::Compute { expression } => {
-                let mut pending = vec![expression.as_ref()];
-                while let Some(expression) = pending.pop() {
-                    nodes += 1;
-                    if nodes > limit {
-                        break;
-                    }
-                    pending.extend(expression.children());
-                }
+                nodes = nodes.saturating_add(functions::shape(expression).0);
             }
             _ => nodes += 2,
         }

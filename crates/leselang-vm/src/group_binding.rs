@@ -1,5 +1,6 @@
 use leselang_hir::host_call::HostOperation;
 use leselang_hir::{Effect, HirBranch, Type};
+use leselang_runtime_core::Fuel;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -312,7 +313,7 @@ impl GroupResultBinding {
         first: &EffectRequest,
         value: &Value,
     ) -> Result<CaptureProgress, Fault> {
-        let mut fuel = self.fuel_remaining;
+        let mut fuel = Fuel::new(self.fuel_remaining);
         let (effect, binding) = match crate::computation::resume_group_outcome(
             &self.binding,
             value,
@@ -332,13 +333,13 @@ impl GroupResultBinding {
             }
             _ => return Err(invalid()),
         };
-        if fuel == 0 {
+        if fuel.remaining() == 0 {
             return Err(Fault {
                 code: "LSV1001".into(),
                 message: "execution fuel exhausted before group successor".into(),
             });
         }
-        self.build_successor(owner, first, &effect, binding, fuel, 0)
+        self.build_successor(owner, first, &effect, binding, fuel.remaining(), 0)
             .map(|request| CaptureProgress::Pending(Box::new(request)))
     }
 
@@ -399,13 +400,13 @@ impl GroupResultBinding {
         let image = &request.continuation;
         let saved = image.result_binding.as_ref().ok_or_else(invalid)?;
         let operation = HostOperation::for_effect(&image.pending_effect).ok_or_else(invalid)?;
-        let mut fuel = image.fuel_remaining;
+        let mut fuel = Fuel::new(image.fuel_remaining);
         match crate::computation::resume_outcome(saved, &tail.value, operation, &mut fuel)? {
             crate::computation::Outcome::Scalar(value) => Ok(CaptureProgress::Done(value)),
             crate::computation::Outcome::BoundHost { effect, binding }
                 if self.is_dataflow() || self.is_conditional() =>
             {
-                if fuel == 0 {
+                if fuel.remaining() == 0 {
                     return Err(Fault {
                         code: "LSV1001".into(),
                         message: "execution fuel exhausted before group successor".into(),
@@ -416,7 +417,7 @@ impl GroupResultBinding {
                     requests.first().ok_or_else(invalid)?,
                     &effect,
                     Some(binding),
-                    fuel,
+                    fuel.remaining(),
                     requests.len() - self.branches()?.len(),
                 )?;
                 crate::successor::validate_pair(
@@ -431,7 +432,7 @@ impl GroupResultBinding {
     }
 
     pub(super) fn finish(&self, value: &Value) -> Step {
-        let mut fuel = self.fuel_remaining;
+        let mut fuel = Fuel::new(self.fuel_remaining);
         match self.branches().and_then(|branches| {
             crate::computation::resume_group(&self.binding, value, branches, &mut fuel)
         }) {
@@ -489,12 +490,9 @@ fn capture_accepts_type_at(
         Computation::Bind { body, .. } if position > 0 => {
             capture_accepts_type_at(body, position - 1, ty)
         }
-        Computation::Bind { value, .. } => match value.as_ref() {
-            Computation::Host { effect } => HostOperation::for_effect(effect)
-                .is_some_and(|operation| operation.result_type() == ty),
-            Computation::Call { operation, .. } => operation.result_type() == ty,
-            _ => false,
-        },
+        Computation::Bind { value, .. } => value
+            .prepared_atomic_operation()
+            .is_some_and(|operation| operation.result_type() == ty),
         Computation::Choose {
             then, otherwise, ..
         } => {

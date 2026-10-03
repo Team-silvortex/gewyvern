@@ -122,7 +122,7 @@ enum PreparedResult {
 
 fn materialize(image: &ContinuationImage, value: &Value) -> Result<PreparedResult, Fault> {
     let binding = image.result_binding.as_ref().ok_or_else(invalid)?;
-    let mut fuel = image.fuel_remaining;
+    let mut fuel = Fuel::new(image.fuel_remaining);
     let operation = leselang_hir::host_call::HostOperation::for_effect(&image.pending_effect)
         .ok_or_else(invalid)?;
     let (effect, binding) = match computation::resume_outcome(binding, value, operation, &mut fuel)?
@@ -132,7 +132,7 @@ fn materialize(image: &ContinuationImage, value: &Value) -> Result<PreparedResul
         computation::Outcome::BoundHost { effect, binding } => (effect, Some(binding)),
         computation::Outcome::Result(_) => return Err(invalid()),
     };
-    if fuel == 0 {
+    if fuel.remaining() == 0 {
         return Err(Fault {
             code: "LSV1001".into(),
             message: "execution fuel exhausted before successor".into(),
@@ -144,7 +144,7 @@ fn materialize(image: &ContinuationImage, value: &Value) -> Result<PreparedResul
     Ok(PreparedResult::Host {
         effect: effect.into_owned(),
         binding,
-        fuel,
+        fuel: fuel.remaining(),
     })
 }
 

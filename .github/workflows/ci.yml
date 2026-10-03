@@ -18,6 +18,23 @@ env:
   DOTNET_NOLOGO: "1"
 
 jobs:
+  leselang-core:
+    name: Standalone Leselang runtime foundation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal
+
+      - name: Package and verify isolated runtime core
+        run: cargo +1.98.0 package -p leselang-runtime-core --locked
+
+      - name: Test normalized standalone package
+        run: cargo +1.98.0 test --manifest-path target/package/leselang-runtime-core-*/Cargo.toml --locked --offline
+
   rust:
     name: Rust quality gates
     runs-on: ubuntu-latest
@@ -107,7 +124,7 @@ jobs:
 
   release-packaging:
     name: Current artifact release packaging gate
-    needs: [rust, product-surfaces]
+    needs: [rust, product-surfaces, leselang-core]
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:

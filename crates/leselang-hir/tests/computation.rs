@@ -68,7 +68,7 @@ fn scalar_types_scopes_and_call_shapes_are_checked_before_execution() {
         "bind(n: runtime.list(), body: n)",
         "seq(a: add(left: 1, right: 2))",
         "all(a: true, b: false)",
-        "repeat(times: 2, body: choose(when: true, then: ui.focus(node_id: \"a\"), otherwise: ui.focus(node_id: \"b\")))",
+        "repeat(times: 2, body: choose(when: true, then: ui.focus(node_id: \"a\"), otherwise: bind(r: ui.focus(node_id: \"b\"), body: ui.focus(node_id: \"c\"))))",
     ] {
         let error = lower(&parse(&format!("fn main() = {expression}"))).unwrap_err();
         assert!(

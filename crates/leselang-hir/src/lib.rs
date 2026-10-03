@@ -3,6 +3,7 @@
 pub mod computation;
 mod computed_group;
 mod control_flow;
+mod function_flow;
 mod functions;
 pub mod host_call;
 pub mod result_field;
@@ -4200,11 +4201,12 @@ fn lower_all_with(
             continue;
         }
         match lower(&argument.value) {
-            Ok(lowered) if matches!(&lowered.effect, Effect::Compute { expression } if !matches!(expression.as_ref(), computation::Computation::Call { .. })) =>
+            Ok(lowered) if matches!(&lowered.effect, Effect::Compute { expression } if expression.prepared_atomic_operation().is_none()) =>
             {
                 diagnostics.push(Diagnostic {
                     code: "LSH1406".to_string(),
-                    message: "all branches require host calls, not general computation".to_string(),
+                    message: "all branches require prepared atomic calls, not result flows"
+                        .to_string(),
                     span: Some(argument.span),
                 });
             }

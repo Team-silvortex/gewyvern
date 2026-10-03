@@ -565,6 +565,221 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
         };
         text_inspection_seeds.push(encode_continuation(&first.continuation).unwrap());
     }
+    let mut collection_seeds = Vec::new();
+    for source in [
+        r#"fn main() = bind(r: ui.assert_text(node_id: "a", expected: "2,3"), body: fold(total: 0, items: split(left: field(value: r, name: "expected"), right: ","), item: "part", next: add(left: total, right: parse_integer(value: part)), limit: 64))"#,
+        r#"fn main() = bind(parts: strings(a: "x", b: ""), body: bind(r: ui.focus(node_id: "a"), body: parts))"#,
+    ] {
+        let program = lower(&parse(source)).unwrap();
+        let mut vm = Vm::new(2000);
+        let Step::Effect(first) = vm.start(
+            &program,
+            Principal::new("fuzz-operator").unwrap(),
+            CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("collection seed must suspend")
+        };
+        collection_seeds.push(encode_continuation(&first.continuation).unwrap());
+    }
+    let mut effectful_function_seeds = Vec::new();
+    for source in [
+        r#"fn host_ready(node: string, skip: boolean) = choose(when: skip, then: false, otherwise: bind(result: ui.assert_text(node_id: node, expected: "ready"), body: starts_with(left: field(value: result, name: "expected"), right: "ready")))
+            fn main() = bind(ok: host_ready(node: "a", skip: false), body: bind(written: ui.set_form_value(node_id: "form", field: "ready", value: to_string(value: ok)), body: ok))"#,
+        r#"fn gathered(node: string) = bind(group: seq(first: ui.assert_text(node_id: node, expected: "x"), second: ui.assert_text(node_id: "b", expected: "y")), body: concat(left: field(value: member(value: group, name: "first"), name: "expected"), right: field(value: member(value: group, name: "second"), name: "expected")))
+            fn main() = bind(value: gathered(node: "a"), body: bind(written: ui.set_form_value(node_id: "form", field: "value", value: value), body: value))"#,
+    ] {
+        let program = lower(&parse(source)).unwrap();
+        let mut vm = Vm::new(2000);
+        let mut step = vm.start(
+            &program,
+            Principal::new("fuzz-operator").unwrap(),
+            CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+            None,
+        );
+        for _ in 0..3 {
+            let Step::Effect(request) = step else { break };
+            let wire = encode_continuation(&request.continuation).unwrap();
+            assert!(!String::from_utf8_lossy(&wire).contains("host_ready"));
+            assert!(!String::from_utf8_lossy(&wire).contains("gathered"));
+            effectful_function_seeds.push(wire);
+            step = vm.resume(&request.continuation, acknowledge_kind(&request));
+        }
+        assert!(matches!(step, Step::Done(_)));
+    }
+    assert_eq!(effectful_function_seeds.len(), 5);
+    let mut prepared_member_seeds = Vec::new();
+    for kind in ["seq", "all"] {
+        let source = format!(
+            r#"fn prepared_member(node: string, alternate: boolean) = choose(when: alternate, then: ui.assert_text(node_id: "alternate", expected: "ready"), otherwise: ui.assert_text(node_id: concat(left: "node-", right: node), expected: "ready"))
+            fn main() = bind(group: {kind}(first: prepared_member(node: "a", alternate: false), second: prepared_member(node: "b", alternate: true)), body: eq(left: field(value: member(value: group, name: "first"), name: "expected"), right: field(value: member(value: group, name: "second"), name: "expected")))"#
+        );
+        let mut vm = Vm::new(2000);
+        let step = vm.start(
+            &lower(&parse(&source)).unwrap(),
+            Principal::new("fuzz-operator").unwrap(),
+            CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+            None,
+        );
+        let requests = match step {
+            Step::Effect(request) => vec![*request],
+            Step::Effects(batch) => batch
+                .branches
+                .into_iter()
+                .map(|branch| branch.request)
+                .collect(),
+            other => panic!("prepared member seed must suspend: {other:?}"),
+        };
+        for request in requests {
+            let wire = encode_continuation(&request.continuation).unwrap();
+            let text = String::from_utf8_lossy(&wire);
+            assert!(
+                !text.contains("prepared_member")
+                    && !text.contains("concat")
+                    && !text.contains("choose")
+            );
+            prepared_member_seeds.push(wire);
+        }
+    }
+    assert_eq!(prepared_member_seeds.len(), 3);
+    let mut selected_group_seeds = Vec::new();
+    for kind in ["seq", "all"] {
+        for alternate in [false, true] {
+            let source = format!(
+                r#"fn selected_rows(alternate: boolean) = choose(when: alternate,
+                then: {kind}(first: ui.assert_text(node_id: "selected-a", expected: "ready"), second: ui.focus(node_id: "selected-a")),
+                otherwise: {kind}(first: ui.assert_text(node_id: "selected-b", expected: "ready"), second: ui.focus(node_id: "selected-b")))
+                fn main() = bind(group: selected_rows(alternate: {alternate}), body: bind(written: ui.set_form_value(node_id: "form", field: "selected", value: field(value: member(value: group, name: "first"), name: "expected")), body: field(value: written, name: "value")))"#
+            );
+            let mut vm = Vm::new(2000);
+            let mut step = vm.start(
+                &lower(&parse(&source)).unwrap(),
+                Principal::new("fuzz-operator").unwrap(),
+                CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+                None,
+            );
+            for _ in 0..3 {
+                let requests = match &step {
+                    Step::Effect(request) => vec![request.as_ref().clone()],
+                    Step::Effects(batch) => batch
+                        .branches
+                        .iter()
+                        .map(|branch| branch.request.clone())
+                        .collect(),
+                    Step::Done(_) => break,
+                    other => panic!("{other:?}"),
+                };
+                for request in requests {
+                    let wire = encode_continuation(&request.continuation).unwrap();
+                    let text = String::from_utf8_lossy(&wire);
+                    assert!(!text.contains("selected_rows") && !text.contains("choose"));
+                    assert!(!text.contains(if alternate {
+                        "selected-b"
+                    } else {
+                        "selected-a"
+                    }));
+                    selected_group_seeds.push(wire);
+                    step = vm.resume(&request.continuation, acknowledge_kind(&request));
+                }
+            }
+            assert!(matches!(step, Step::Done(_)));
+        }
+    }
+    assert_eq!(selected_group_seeds.len(), 12);
+    let mut prepared_binding_seeds = Vec::new();
+    for prefix in ["atomic", "seq", "all"] {
+        let seed = if prefix == "atomic" {
+            r#"ui.assert_text(node_id: "a", expected: "ready")"#.to_string()
+        } else {
+            format!(
+                r#"{prefix}(first: ui.assert_text(node_id: "a", expected: "ready"), second: ui.focus(node_id: "b"))"#
+            )
+        };
+        let result = if prefix == "atomic" {
+            "seed"
+        } else {
+            r#"member(value: seed, name: "first")"#
+        };
+        let source = format!(
+            r#"fn main() = bind(seed: {seed}, body:
+            bind(selected: bind(target: concat(left: "node-", right: field(value: {result}, name: "expected")), body:
+                choose(when: true, then: ui.focus(node_id: target), otherwise: ui.focus(node_id: "cold"))), body:
+                    bind(written: ui.set_form_value(node_id: "form", field: "target", value: field(value: selected, name: "node_id")), body: true)))"#
+        );
+        let mut vm = Vm::new(3000);
+        let mut step = vm.start(
+            &lower(&parse(&source)).unwrap(),
+            Principal::new("fuzz-operator").unwrap(),
+            CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+            None,
+        );
+        for _ in 0..4 {
+            let requests = match &step {
+                Step::Effect(request) => vec![request.as_ref().clone()],
+                Step::Effects(batch) => batch
+                    .branches
+                    .iter()
+                    .map(|branch| branch.request.clone())
+                    .collect(),
+                Step::Done(_) => break,
+                other => panic!("{other:?}"),
+            };
+            for request in requests {
+                let wire = encode_continuation(&request.continuation).unwrap();
+                prepared_binding_seeds.push(wire);
+                step = vm.resume(&request.continuation, acknowledge_kind(&request));
+            }
+        }
+        assert!(matches!(step, Step::Done(_)));
+    }
+    assert_eq!(prepared_binding_seeds.len(), 11);
+    let mut selected_function_seeds = Vec::new();
+    let mut selected_sources = Vec::new();
+    for kind in ["seq", "all"] {
+        for single in [false, true] {
+            selected_sources.push(format!(r#"fn single() = bind(result: ui.assert_text(node_id: "single-node", expected: "ready"), body: field(value: result, name: "expected"))
+                fn gathered() = bind(group: {kind}(first: ui.assert_text(node_id: "group-left", expected: "re"), second: ui.assert_text(node_id: "group-right", expected: "ady")), body: concat(left: field(value: member(value: group, name: "first"), name: "expected"), right: field(value: member(value: group, name: "second"), name: "expected")))
+                fn main() = bind(answer: choose(when: {single}, then: single(), otherwise: gathered()), body: bind(written: ui.set_form_value(node_id: "form", field: "answer", value: answer), body: true))"#));
+        }
+    }
+    for selected in [false, true] {
+        selected_sources.push(format!(r#"fn work() = bind(result: ui.assert_text(node_id: "a", expected: "ready"), body: optional_string(value: field(value: result, name: "expected")))
+            fn main() = bind(answer: choose(when: {selected}, then: work(), otherwise: optional_string(value: none)), body: bind(written: ui.set_form_value(node_id: "form", field: "answer", value: value_or(left: answer, right: "fallback")), body: true))"#));
+    }
+    selected_sources.push(r#"fn work() = bind(result: ui.assert_text(node_id: "a", expected: "x,y"), body: split(left: field(value: result, name: "expected"), right: ","))
+        fn main() = bind(seed: ui.assert_text(node_id: "seed", expected: "ready"), body:
+            bind(answer: choose(when: starts_with(left: field(value: seed, name: "expected"), right: "ready"), then: work(), otherwise: strings(first: "fallback")), body: bind(written: ui.set_form_value(node_id: "form", field: "answer", value: join(left: answer, right: "|")), body: true)))"#.into());
+    for source in selected_sources {
+        let mut vm = Vm::new(3000);
+        let mut step = vm.start(
+            &lower(&parse(&source)).unwrap(),
+            Principal::new("fuzz-operator").unwrap(),
+            CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+            None,
+        );
+        for _ in 0..4 {
+            let mut requests = match &step {
+                Step::Effect(request) => vec![request.as_ref().clone()],
+                Step::Effects(batch) => batch
+                    .branches
+                    .iter()
+                    .map(|branch| branch.request.clone())
+                    .collect(),
+                Step::Done(_) => break,
+                other => panic!("{other:?}"),
+            };
+            requests.reverse();
+            for request in requests {
+                let wire = encode_continuation(&request.continuation).unwrap();
+                assert_eq!(decode_continuation(&wire).unwrap(), request.continuation);
+                assert!(!String::from_utf8_lossy(&wire).contains("gathered"));
+                selected_function_seeds.push(wire);
+                step = vm.resume(&request.continuation, acknowledge_kind(&request));
+            }
+        }
+        assert!(matches!(step, Step::Done(_)));
+    }
+    assert_eq!(selected_function_seeds.len(), 16);
     let seeds = [
         seed,
         binding_seed,
@@ -592,6 +807,12 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     .chain(kind_seeds)
     .chain(optional_seeds)
     .chain(text_inspection_seeds)
+    .chain(collection_seeds)
+    .chain(effectful_function_seeds.iter().cloned())
+    .chain(prepared_member_seeds.iter().cloned())
+    .chain(selected_group_seeds.iter().cloned())
+    .chain(prepared_binding_seeds.iter().cloned())
+    .chain(selected_function_seeds.iter().cloned())
     .collect::<Vec<_>>();
     let mut random = DeterministicRandom::new(FUZZ_SEED ^ 0x564d);
     let mut accepted = 0usize;
@@ -620,6 +841,13 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     let mut kind_projection_accepted = 0;
     let mut optional_projection_accepted = 0;
     let mut text_inspection_accepted = 0;
+    let mut collection_fold_accepted = 0;
+    let mut collection_local_accepted = 0;
+    let mut effectful_function_accepted = 0;
+    let mut prepared_member_accepted = 0;
+    let mut selected_group_accepted = 0;
+    let mut prepared_binding_accepted = 0;
+    let mut selected_function_accepted = 0;
     for index in 0..CONTINUATION_CASES {
         // Keep every schema represented before exercising deterministic mutations.
         let candidate = if index < seeds.len() {
@@ -636,6 +864,36 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
         );
         if let Ok(image) = first {
             accepted += 1;
+            if effectful_function_seeds.contains(&candidate) {
+                effectful_function_accepted += 1;
+            }
+            if prepared_member_seeds.contains(&candidate) {
+                prepared_member_accepted += 1;
+            }
+            if selected_group_seeds.contains(&candidate) {
+                selected_group_accepted += 1;
+            }
+            if prepared_binding_seeds.contains(&candidate) {
+                prepared_binding_accepted += 1;
+            }
+            if selected_function_seeds.contains(&candidate) {
+                selected_function_accepted += 1;
+            }
+            if let Some(binding) = &image.result_binding {
+                if serde_json::to_string(&binding.body)
+                    .unwrap()
+                    .contains("\"kind\":\"fold\"")
+                {
+                    collection_fold_accepted += 1;
+                }
+                if binding
+                    .locals
+                    .iter()
+                    .any(|local| matches!(local.value, leselang_vm::ScalarValue::StringList(_)))
+                {
+                    collection_local_accepted += 1;
+                }
+            }
             if image.result_binding.as_ref().is_some_and(|binding| {
                 let body = serde_json::to_string(&binding.body).unwrap();
                 ["contains", "starts_with", "ends_with", "char_at"]
@@ -884,6 +1142,30 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
         text_inspection_accepted >= 1,
         "saved text predicates and character access did not reach the decoder"
     );
+    assert!(
+        collection_fold_accepted >= 1 && collection_local_accepted >= 1,
+        "stored fold HIR and bounded string-list locals did not reach the decoder"
+    );
+    assert!(
+        effectful_function_accepted >= effectful_function_seeds.len(),
+        "expanded effectful function, group-owned body and caller frames did not reach the decoder"
+    );
+    assert!(
+        prepared_member_accepted >= prepared_member_seeds.len(),
+        "resolved prepared member signatures and sequential/parallel owner frames did not reach the decoder"
+    );
+    assert!(
+        selected_group_accepted >= selected_group_seeds.len(),
+        "selected sequential/parallel graphs and successor projections did not reach the decoder"
+    );
+    assert!(
+        prepared_binding_accepted >= prepared_binding_seeds.len(),
+        "prepared atomic capture bodies and group-owned successors did not reach the decoder"
+    );
+    assert!(
+        selected_function_accepted >= selected_function_seeds.len(),
+        "selected helper normal returns and typed caller frames did not reach the decoder"
+    );
     println!(
         "leselang continuation fuzz valid: seed={} cases={CONTINUATION_CASES} accepted={accepted}",
         FUZZ_SEED ^ 0x564d
@@ -933,10 +1215,45 @@ fn source_corpus(random: &mut DeterministicRandom) -> Vec<String> {
         "fn f(n: integer) = n\nfn main() = f(n: true)".to_string(),
         "fn f(n: string) = n\nfn main() = ui.focus(node_id: f(n: \"a\"))".to_string(),
         "fn f() = runtime.list()\nfn main() = 0".to_string(),
+        r#"fn work(node: string) = choose(when: true, then: ui.focus(node_id: node), otherwise: ui.focus(node_id: "other"))
+            fn main() = all(first: work(node: "a"), second: work(node: "b"))"#.to_string(),
+        r#"fn work(node: string) = ui.focus(node_id: concat(left: "node-", right: node))
+            fn main() = bind(group: repeat(times: 2, body: work(node: "a")), body: field(value: member(value: group, name: "iteration_2"), name: "node_id"))"#.to_string(),
+        r#"fn main() = seq(first: bind(node: "a", body: ui.focus(node_id: node)), second: choose(when: false, then: ui.focus(node_id: "b"), otherwise: ui.focus(node_id: "c")))"#.to_string(),
+        r#"fn work() = bind(r: ui.focus(node_id: "a"), body: ui.focus(node_id: "b"))
+            fn main() = seq(first: work())"#.to_string(),
+        r#"fn work() = seq(first: ui.focus(node_id: "a"), second: ui.focus(node_id: "b"))
+            fn main() = repeat(times: 2, body: work())"#.to_string(),
+        r#"fn focus(node: string) = ui.focus(node_id: node)
+            fn main() = bind(r: focus(node: "a"), body: field(value: r, name: "node_id"))"#.to_string(),
+        r#"fn ready(skip: boolean) = choose(when: skip, then: false, otherwise: bind(r: ui.assert_text(node_id: "a", expected: "ready"), body: eq(left: field(value: r, name: "expected"), right: "ready")))
+            fn main() = bind(ok: ready(skip: false), body: ui.set_form_value(node_id: "form", field: "ready", value: to_string(value: ok)))"#.to_string(),
+        r#"fn count() = bind(r: runtime.list(), body: field(value: r, name: "count"))
+            fn main() = add(left: count(), right: 1)"#.to_string(),
+        r#"fn count() = bind(r: runtime.list(), body: field(value: r, name: "count"))
+            fn identity(n: integer) = n
+            fn main() = identity(n: count())"#.to_string(),
+        r#"fn count() = bind(r: runtime.list(), body: field(value: r, name: "count"))
+            fn main() = loop(n: 0, while: true, next: count(), limit: 0)"#.to_string(),
+        r#"fn recursive() = bind(r: ui.focus(node_id: "a"), body: recursive())
+            fn main() = 0"#.to_string(),
         "fn f() = caller\nfn main() = bind(caller: 1, body: f())".to_string(),
         "fn f(n: integer) = add(left: n, right: n)\nfn main() = bind(r: runtime.list(), body: f(n: field(value: r, name: \"count\")))".to_string(),
         "fn f(n integer) = n\nfn main() = 0".to_string(),
         "fn main() = runtime.list()".to_string(),
+        r#"fn main() = strings(a: "x", b: "")"#.to_string(),
+        r#"fn work() = bind(result: ui.focus(node_id: "a"), body: true)
+            fn main() = bind(answer: choose(when: false, then: work(), otherwise: false), body: answer)"#.to_string(),
+        r#"fn work() = bind(result: ui.focus(node_id: "a"), body: true)
+            fn main() = bind(answer: choose(when: true, then: work(), otherwise: bind(hidden: ui.focus(node_id: "b"), body: true)), body: answer)"#.to_string(),
+        r#"fn main() = fold(total: 0, items: split(left: "2,3", right: ","), item: "part", next: add(left: total, right: parse_integer(value: part)), limit: 2)"#.to_string(),
+        r#"fn identity(parts: string_list) = parts
+            fn main() = join(left: identity(parts: strings(a: "a", b: "b")), right: ",")"#.to_string(),
+        r#"fn main() = item_at(left: strings(a: ""), right: 18446744073709551615)"#.to_string(),
+        r#"fn main() = strings(a: none)"#.to_string(),
+        r#"fn main() = strings(a: "x", a: "y")"#.to_string(),
+        r#"fn main() = fold(total: 0, items: strings(), item: "total", next: total, limit: 0)"#.to_string(),
+        r#"fn main() = fold(total: 0, items: strings(), item: "part", next: total, limit: 65)"#.to_string(),
         r#"fn main() = contains(left: "ready!", right: "ad")"#.to_string(),
         r#"fn main() = starts_with(left: "ready!", right: "")"#.to_string(),
         r#"fn main() = ends_with(left: "e", right: "E")"#.to_string(),
@@ -1021,6 +1338,11 @@ fn source_corpus(random: &mut DeterministicRandom) -> Vec<String> {
         "fn main() = all(a: runtime.list(role: concat(left: \"ed\", right: \"ge\")), b: runtime.list())".to_string(),
         "fn main() = seq(a: runtime.list(), b: runtime.list(role: concat(left: \"bad\", right: \"\\t\")))".to_string(),
         "fn main() = concat(left: \"界面\", right: \"🙂\")".to_string(),
+        r#"fn rows(alternate: boolean) = choose(when: alternate, then: seq(first: ui.focus(node_id: "a")), otherwise: seq(first: ui.focus(node_id: "b")))
+            fn main() = bind(group: rows(alternate: false), body: field(value: member(value: group, name: "first"), name: "node_id"))"#.to_string(),
+        r#"fn main() = bind(group: choose(when: true, then: seq(first: ui.focus(node_id: "a")), otherwise: seq(other: ui.focus(node_id: "b"))), body: true)"#.to_string(),
+        r#"fn main() = bind(result: bind(target: concat(left: "node-", right: "a"), body: choose(when: true, then: ui.focus(node_id: target), otherwise: ui.focus(node_id: "b"))), body: field(value: result, name: "node_id"))"#.to_string(),
+        r#"fn main() = bind(result: choose(when: true, then: ui.focus(node_id: "a"), otherwise: bind(hidden: ui.focus(node_id: "b"), body: ui.focus(node_id: "c"))), body: true)"#.to_string(),
         String::new(),
         "\0\u{10ffff}🙂//\nfn".to_string(),
         "x".repeat(MAX_SOURCE_BYTES + 1),

@@ -9,6 +9,7 @@ license.workspace = true
 leselang-command = { path = "../leselang-command" }
 leselang-hir = { path = "../leselang-hir" }
 leselang-host-contract = { path = "../leselang-host-contract" }
+leselang-runtime-core = { path = "../leselang-runtime-core" }
 leserpent-domain = { path = "../leserpent-domain" }
 rusqlite.workspace = true
 serde.workspace = true

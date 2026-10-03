@@ -27,6 +27,7 @@ use leselang_host_contract::{
     CAPABILITY_RUNTIME_REFRESH, CapabilitySet, CommandOrigin, Confirmation, Principal, Revision,
     RuntimeId, validate_debugger_session_id,
 };
+use leselang_runtime_core::{Fuel, capped_exponential_delay, checked_clock_add};
 use leserpent_domain::{
     Command, CommandEnvelope, CommandId, CommandResult, CommandStatus, DOMAIN_SCHEMA_VERSION,
     IdempotencyKey, MAX_RUNTIME_LOG_QUERY_ENTRIES, Query, QueryEnvelope, QueryResult,
@@ -35,18 +36,26 @@ use leserpent_domain::{
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
+mod admission;
 mod computation;
 mod group_binding;
 mod journal;
 mod result_binding;
+mod scheduling;
 mod successor;
 
+pub use admission::{
+    AdmissionEnd, AdmissionPolicy, AdmissionPoll, AdmissionStatus, AdmissionWait,
+    MAX_ADMISSION_ATTEMPTS, MAX_ADMISSION_DELAY_MS, RootAdmission,
+};
 pub use group_binding::GroupResultBinding;
 pub use leselang_hir::computation::ScalarValue;
+pub use leselang_runtime_core::Fault;
 pub use result_binding::{
     ProjectedBinding, ProjectedField, ProjectedGroup, ProjectedGroupBinding, ProjectedResult,
     ResultBinding, ScalarBinding,
 };
+pub use scheduling::{DispatchClaim, SchedulerLimits, SchedulerPressure};
 
 pub use journal::{
     JOURNAL_SCHEMA_VERSION, MAX_JOURNAL_ENTRY_BYTES, MAX_JOURNAL_RECORDS, MAX_JOURNAL_TOTAL_BYTES,
@@ -68,7 +77,7 @@ pub const MAX_CONTINUATION_BYTES: usize = 64 * 1024;
 pub const DEFAULT_FUEL: u64 = 1_000;
 pub const MAX_EXECUTION_FUEL: u64 = 1_000_000;
 pub const DEFAULT_EFFECT_DEADLINE_MS: u64 = 30_000;
-pub const MAX_EFFECT_DEADLINE_MS: u64 = 24 * 60 * 60 * 1_000;
+pub const MAX_EFFECT_DEADLINE_MS: u64 = leselang_runtime_core::MAX_EXECUTION_TIMEOUT_MS;
 pub const DEFAULT_MAX_OUTPUT_ITEMS: usize = 10_000;
 pub const DEFAULT_DISPATCH_LEASE_MS: u64 = 30_000;
 pub const MAX_DISPATCH_LEASE_MS: u64 = 5 * 60 * 1_000;
@@ -1252,12 +1261,6 @@ pub enum Value {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct Fault {
-    pub code: String,
-    pub message: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CancellationReason {
     Requested,
@@ -1306,12 +1309,15 @@ pub enum Step {
     Fault(Fault),
 }
 
+/// A serially entered engine that may own multiple independent suspended roots.
+/// Separate engines can run on different host threads; shared journals coordinate dispatch.
 pub struct Vm {
     next_effect_id: u64,
     fuel_limit: u64,
     pending: BTreeMap<ContinuationToken, ContinuationImage>,
     completed: BTreeMap<ContinuationToken, Step>,
     journal: Journal,
+    scheduler_limits: SchedulerLimits,
 }
 
 impl Default for Vm {
@@ -1328,10 +1334,28 @@ impl Vm {
             pending: BTreeMap::new(),
             completed: BTreeMap::new(),
             journal: Journal::ephemeral(),
+            scheduler_limits: SchedulerLimits::default(),
         }
     }
 
     pub fn open_journal(path: impl AsRef<Path>, fuel_limit: u64) -> Result<Self, Fault> {
+        Self::open_journal_with_limits(path, fuel_limit, SchedulerLimits::default())
+    }
+
+    pub fn new_with_limits(fuel_limit: u64, limits: SchedulerLimits) -> Result<Self, Fault> {
+        limits.validate()?;
+        let mut vm = Self::new(fuel_limit);
+        vm.scheduler_limits = limits;
+        Ok(vm)
+    }
+
+    /// The host must reapply the same policy to all trusted workers after restart.
+    pub fn open_journal_with_limits(
+        path: impl AsRef<Path>,
+        fuel_limit: u64,
+        limits: SchedulerLimits,
+    ) -> Result<Self, Fault> {
+        limits.validate()?;
         let (journal, snapshot) = Journal::open(path.as_ref())?;
         Ok(Self {
             next_effect_id: snapshot.next_sequence,
@@ -1339,7 +1363,22 @@ impl Vm {
             pending: snapshot.pending,
             completed: snapshot.completed,
             journal,
+            scheduler_limits: limits,
         })
+    }
+
+    /// Lowering capacity does not cancel existing work; it only gates new admission/leases.
+    pub fn set_scheduler_limits(&mut self, limits: SchedulerLimits) -> Result<(), Fault> {
+        limits.validate()?;
+        self.scheduler_limits = limits;
+        Ok(())
+    }
+
+    /// Read-only observation over the full clock range; does not reap due work.
+    /// Unlike a claim, it does not need a representable future lease expiration.
+    pub fn scheduler_pressure(&self, now_ms: u64) -> Result<SchedulerPressure, Fault> {
+        self.journal
+            .scheduler_pressure(now_ms, self.scheduler_limits)
     }
 
     pub fn start(
@@ -1372,6 +1411,9 @@ impl Vm {
             Ok(deadline_at_ms) => deadline_at_ms,
             Err(error) => return Step::Fault(error),
         };
+        if let Err(error) = self.expire_due(now_ms) {
+            return Step::Fault(error);
+        }
         self.start_inner(
             program,
             principal,
@@ -1397,14 +1439,14 @@ impl Vm {
         if let Err(error) = authorize(program, &capabilities) {
             return fault(&error.code, error.message);
         }
-        let mut fuel_remaining = self.fuel_limit;
+        let mut fuel = Fuel::new(self.fuel_limit);
         let (effect, result_binding) = if let Effect::Compute { expression } =
             &program.function.effect
         {
             if !principal.is_valid() {
                 return fault("LSV1402", "invalid computation principal");
             }
-            match computation::evaluate(expression, &mut fuel_remaining) {
+            match computation::evaluate(expression, &mut fuel) {
                 Ok(computation::Outcome::Scalar(value)) => {
                     return Step::Done(Value::Scalar { value });
                 }
@@ -1418,6 +1460,7 @@ impl Vm {
         } else {
             (std::borrow::Cow::Borrowed(&program.function.effect), None)
         };
+        let fuel_remaining = fuel.remaining();
         let effect = effect.as_ref();
         let effect_result_type = if let Some(binding) = &result_binding {
             if let Err(error) = binding.validate(effect) {
@@ -1459,6 +1502,9 @@ impl Vm {
             );
         }
 
+        if let Err(error) = self.journal.check_admission(1, self.scheduler_limits) {
+            return Step::Fault(error);
+        }
         let sequence = match self.allocate_sequence() {
             Ok(sequence) => sequence,
             Err(error) => return Step::Fault(error),
@@ -1484,10 +1530,11 @@ impl Vm {
                 return Step::Fault(error);
             }
         }
-        if let Err(error) = self
-            .journal
-            .record_pending(&request.continuation, Some(&request))
-        {
+        if let Err(error) = self.journal.record_pending(
+            &request.continuation,
+            Some(&request),
+            self.scheduler_limits,
+        ) {
             return Step::Fault(error);
         }
         self.pending.insert(
@@ -1522,9 +1569,10 @@ impl Vm {
             );
         }
         let (order, result_binding) = if let Some(binding) = result_binding {
-            let Some(body_fuel) = fuel_remaining.checked_sub(branches.len() as u64) else {
+            let mut body_fuel = Fuel::new(fuel_remaining);
+            if body_fuel.charge(branches.len() as u64).is_err() {
                 return fault("LSV1001", "bound group exceeds execution fuel");
-            };
+            }
             let (order, pending) = if order.is_sequential() {
                 (
                     ExecutionOrder::BoundSequential,
@@ -1557,7 +1605,7 @@ impl Vm {
                         as u64)
                         .collect(),
                     binding,
-                    fuel_remaining: body_fuel,
+                    fuel_remaining: body_fuel.remaining(),
                 })),
             )
         } else {
@@ -1610,6 +1658,12 @@ impl Vm {
         if order.is_sequential() && branches.len() as u64 > fuel_remaining {
             return fault("LSV1001", "sequential control flow exceeds execution fuel");
         }
+        if let Err(error) = self
+            .journal
+            .check_admission(branches.len(), self.scheduler_limits)
+        {
+            return Step::Fault(error);
+        }
         let group_sequence = match self.allocate_sequence() {
             Ok(sequence) => sequence,
             Err(error) => return Step::Fault(error),
@@ -1636,7 +1690,11 @@ impl Vm {
                 Err(error) => return Step::Fault(error),
             };
             if order.is_sequential() {
-                request.continuation.fuel_remaining -= index as u64;
+                let mut fuel = Fuel::new(request.continuation.fuel_remaining);
+                if fuel.charge(index as u64).is_err() {
+                    return fault("LSV1001", "sequential control flow exceeds execution fuel");
+                }
+                request.continuation.fuel_remaining = fuel.remaining();
                 request.budget.fuel_remaining = request.continuation.fuel_remaining;
             }
             if plan.result_binding.is_some() {
@@ -1680,7 +1738,12 @@ impl Vm {
             .iter()
             .map(|branch| (branch.branch.as_str(), &branch.request))
             .collect::<Vec<_>>();
-        if let Err(error) = self.journal.record_merge_graph(&merge_token, &plan, &graph) {
+        if let Err(error) = self.journal.record_merge_graph_with_limits(
+            &merge_token,
+            &plan,
+            &graph,
+            self.scheduler_limits,
+        ) {
             return Step::Fault(error);
         }
         for branch in &named {
@@ -1710,6 +1773,11 @@ impl Vm {
         deadline_at_ms: Option<u64>,
         fuel_remaining: u64,
     ) -> Result<EffectRequest, Fault> {
+        let mut fuel = Fuel::new(fuel_remaining);
+        fuel.charge(1).map_err(|_| Fault {
+            code: "LSV1001".into(),
+            message: "execution fuel exhausted before host operation".into(),
+        })?;
         let image = ContinuationImage {
             schema_version: CONTINUATION_SCHEMA_VERSION,
             token: ContinuationToken(format!("continuation-{sequence}")),
@@ -1717,7 +1785,7 @@ impl Vm {
             expected_revision,
             result_type,
             pending_effect: effect.clone(),
-            fuel_remaining: fuel_remaining - 1,
+            fuel_remaining: fuel.remaining(),
             deadline_ms,
             deadline_at_ms,
             max_output_items: DEFAULT_MAX_OUTPUT_ITEMS,
@@ -2627,9 +2695,8 @@ impl Vm {
         }
         if let Some(current) = self.pending.get(&image.token) {
             return if current == &image {
-                if let Some(request) = request {
-                    self.journal.record_pending(&image, Some(request))?;
-                }
+                self.journal
+                    .record_pending(&image, request, self.scheduler_limits)?;
                 Ok(())
             } else {
                 Err(Fault {
@@ -2649,7 +2716,8 @@ impl Vm {
         let next_sequence = sequence
             .checked_add(1)
             .ok_or_else(effect_sequence_exhausted_fault)?;
-        self.journal.record_pending(&image, request)?;
+        self.journal
+            .record_pending(&image, request, self.scheduler_limits)?;
         self.next_effect_id = self.next_effect_id.max(next_sequence);
         self.pending.insert(image.token.clone(), image);
         Ok(())
@@ -2711,13 +2779,48 @@ impl Vm {
         self.complete_result(image, None, result)
     }
 
+    /// Lease an eligible effect with the fewest delivery attempts, breaking ties
+    /// by numeric admission order. Not-before clocks and sequence barriers still apply.
     pub fn claim_effect(
         &mut self,
         now_ms: u64,
         lease_ms: u64,
     ) -> Result<Option<DispatchLease>, Fault> {
+        match self.try_claim_effect(now_ms, lease_ms)? {
+            DispatchClaim::Leased(lease) => Ok(Some(*lease)),
+            DispatchClaim::Idle => Ok(None),
+            DispatchClaim::Backpressured(pressure) => Err(pressure.lease_fault()),
+        }
+    }
+
+    /// Distinguishes an idle outbox from eligible work waiting for a host lease slot.
+    /// Invalid clock/lease parameters fail before deadline cleanup or journal entry.
+    pub fn try_claim_effect(&mut self, now_ms: u64, lease_ms: u64) -> Result<DispatchClaim, Fault> {
+        validate_scheduler_time(now_ms)?;
+        journal::validate_lease_clock(now_ms, lease_ms)?;
         self.expire_due(now_ms)?;
-        self.journal.claim_dispatch(now_ms, lease_ms)
+        let claim = self
+            .journal
+            .claim_dispatch(now_ms, lease_ms, self.scheduler_limits)?;
+        if let DispatchClaim::Leased(lease) = &claim {
+            let image = &lease.request.continuation;
+            match self.pending.entry(image.token.clone()) {
+                std::collections::btree_map::Entry::Occupied(entry) => {
+                    if entry.get() != image {
+                        return Err(Fault {
+                            code: "LSV2005".into(),
+                            message: "claimed continuation conflicts with local pending state"
+                                .into(),
+                        });
+                    }
+                }
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    // Another engine may have admitted this request after our startup snapshot.
+                    entry.insert(image.clone());
+                }
+            }
+        }
+        Ok(claim)
     }
 
     pub fn acknowledge_effect(
@@ -2779,14 +2882,11 @@ impl Vm {
             }
             EffectErrorClass::Transient => {
                 let retry_count = lease.retry_count + 1;
-                let delay_ms = retry_delay(policy, retry_count)?;
-                let ready_at_ms = now_ms
-                    .checked_add(delay_ms)
-                    .filter(|ready_at| *ready_at <= i64::MAX as u64)
-                    .ok_or_else(|| Fault {
-                        code: "LSV2203".to_string(),
-                        message: "semantic retry clock overflow".to_string(),
-                    })?;
+                let delay_ms = retry_delay(policy, retry_count);
+                let ready_at_ms = checked_clock_add(now_ms, delay_ms).map_err(|_| Fault {
+                    code: "LSV2203".to_string(),
+                    message: "semantic retry clock overflow".to_string(),
+                })?;
                 RetryDisposition::Scheduled(RetrySchedule {
                     retry_count,
                     ready_at_ms,
@@ -2888,6 +2988,7 @@ impl Vm {
         self.journal.debugger_audit(command_id.as_str())
     }
 
+    /// Local pending cache size, not a shared-journal-wide scheduler statistic.
     pub fn pending_count(&self) -> usize {
         self.pending.len()
     }
@@ -4866,13 +4967,7 @@ fn generated_effect_identity_fault() -> Fault {
 }
 
 fn validate_scheduler_time(now_ms: u64) -> Result<(), Fault> {
-    if now_ms > i64::MAX as u64 {
-        return Err(Fault {
-            code: "LSV2011".to_string(),
-            message: "scheduler clock is out of range".to_string(),
-        });
-    }
-    Ok(())
+    leselang_runtime_core::validate_clock(now_ms)
 }
 
 fn validate_debugger_audit(audit: &DebuggerAuditContext) -> Result<(), Fault> {
@@ -4898,20 +4993,7 @@ fn validate_debugger_audit(audit: &DebuggerAuditContext) -> Result<(), Fault> {
 }
 
 fn validate_effect_clock(now_ms: u64, timeout_ms: u64) -> Result<u64, Fault> {
-    validate_scheduler_time(now_ms)?;
-    if timeout_ms == 0 || timeout_ms > MAX_EFFECT_DEADLINE_MS {
-        return Err(Fault {
-            code: "LSV2012".to_string(),
-            message: format!("effect timeout must be between 1 and {MAX_EFFECT_DEADLINE_MS} ms"),
-        });
-    }
-    now_ms
-        .checked_add(timeout_ms)
-        .filter(|deadline| *deadline <= i64::MAX as u64)
-        .ok_or_else(|| Fault {
-            code: "LSV2011".to_string(),
-            message: "effect absolute deadline is out of range".to_string(),
-        })
+    leselang_runtime_core::validate_execution_deadline(now_ms, timeout_ms)
 }
 
 fn validate_retry_policy(policy: &RetryPolicy) -> Result<(), Fault> {
@@ -4947,13 +5029,12 @@ fn validate_effect_error(error: &EffectError) -> Result<(), Fault> {
     Ok(())
 }
 
-fn retry_delay(policy: &RetryPolicy, retry_count: u32) -> Result<u64, Fault> {
-    let shift = retry_count.saturating_sub(1).min(63);
-    let multiplier = 1_u64.checked_shl(shift).unwrap_or(u64::MAX);
-    Ok(policy
-        .base_delay_ms
-        .saturating_mul(multiplier)
-        .min(policy.max_delay_ms))
+fn retry_delay(policy: &RetryPolicy, retry_count: u32) -> u64 {
+    capped_exponential_delay(
+        policy.base_delay_ms,
+        policy.max_delay_ms,
+        retry_count.saturating_sub(1),
+    )
 }
 
 pub fn merge_declared(
@@ -5233,13 +5314,10 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         });
     }
     match value {
-        Value::Scalar { value }
-            if !value.text().is_some_and(|text| {
-                text.len() > leselang_hir::computation::MAX_SCALAR_STRING_BYTES
-            }) =>
-        {
-            Ok(1)
-        }
+        Value::Scalar { value } if value.is_bounded() => match value {
+            ScalarValue::StringList(value) => Ok(value.0.len().max(1)),
+            _ => Ok(1),
+        },
         Value::RuntimeList { runtimes, .. } if runtimes.len() <= DEFAULT_MAX_OUTPUT_ITEMS => {
             Ok(runtimes.len())
         }
@@ -5568,12 +5646,12 @@ fn step_from_effect_result(
     if let Err(error) = validate_bound_value(image, &value) {
         return Step::Fault(error);
     }
-    let mut fuel_remaining = image.fuel_remaining;
+    let mut fuel = Fuel::new(image.fuel_remaining);
     let Some(operation) = leselang_hir::host_call::HostOperation::for_effect(&image.pending_effect)
     else {
         return Step::Fault(result_binding::invalid());
     };
-    match computation::resume(binding, &value, operation, &mut fuel_remaining) {
+    match computation::resume(binding, &value, operation, &mut fuel) {
         Ok(value) => Step::Done(Value::Scalar { value }),
         Err(error) => Step::Fault(error),
     }
@@ -7741,6 +7819,44 @@ fn fault(code: &str, message: impl Into<String>) -> Step {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn string_list_value_validation_counts_entries_and_fences_in_memory_payloads() {
+        use super::{ScalarValue, Value, validate_value};
+        use leselang_hir::computation::StringListValue;
+        for (items, count) in [
+            (vec![], 1),
+            (vec![String::new(); 64], 64),
+            (vec!["x".repeat(4096)], 1),
+        ] {
+            assert_eq!(
+                validate_value(
+                    &Value::Scalar {
+                        value: ScalarValue::StringList(StringListValue(items))
+                    },
+                    0
+                )
+                .unwrap(),
+                count
+            );
+        }
+        for items in [
+            vec![String::new(); 65],
+            vec!["x".repeat(4097)],
+            vec!["x".repeat(2049); 2],
+        ] {
+            assert_eq!(
+                validate_value(
+                    &Value::Scalar {
+                        value: ScalarValue::StringList(StringListValue(items))
+                    },
+                    0
+                )
+                .unwrap_err()
+                .code,
+                "LSV2403"
+            );
+        }
+    }
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -14129,6 +14245,41 @@ mod tests {
         let lease = recovered.claim_effect(10, 100).unwrap().unwrap();
         let completed = recovered.acknowledge_effect(&lease, 11, runtime_list_result(1));
         assert!(matches!(completed, Step::Done(Value::RuntimeList { .. })));
+    }
+
+    #[test]
+    fn effect_request_construction_rejects_zero_fuel_without_underflow() {
+        let effect = Effect::UiFocus {
+            node_id: "budget-test".into(),
+        };
+        for fuel in 0..=3 {
+            let request = Vm::build_effect_request(
+                &effect,
+                Type::UiFocus,
+                1,
+                Principal::new("operator").unwrap(),
+                CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+                None,
+                DEFAULT_EFFECT_DEADLINE_MS,
+                None,
+                fuel,
+            );
+            if fuel == 0 {
+                let error = request.unwrap_err();
+                assert_eq!(error.code, "LSV1001");
+                assert_eq!(
+                    error.message,
+                    "execution fuel exhausted before host operation"
+                );
+            } else {
+                let request = request.unwrap();
+                assert_eq!(request.continuation.fuel_remaining, fuel - 1);
+                assert_eq!(request.budget.fuel_remaining, fuel - 1);
+                let wire = serde_json::to_value(&request).unwrap();
+                assert_eq!(wire["continuation"]["fuel_remaining"], fuel - 1);
+                assert_eq!(wire["budget"]["fuel_remaining"], fuel - 1);
+            }
+        }
     }
 
     #[test]

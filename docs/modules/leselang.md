@@ -25,9 +25,16 @@ adapter or generated framework binding against the Leselang UI protocol. The
 
 - [Domain and protocol compatibility](../../crates/leserpent-protocol/COMPATIBILITY.md)
 - [Project status tensor](../project-status-system.md)
+- [Host-neutral runtime foundation and standalone package checks](../../crates/leselang-runtime-core/README.md)
 - [GewyLang module](gewylang.md)
 
 Leselang and GewyLang are separate languages. GewyLang defines protocol
 behavior; Leselang controls explicitly adapted hosts, including Leserpent
 orchestration and UI functions today. Full runtime independence remains a
 tracked target, not a completed property of every Leselang crate.
+`leselang-runtime-core` now isolates admission lifecycle, fuel accounting,
+clock/backoff arithmetic and shared faults. Payload-free terminal observations
+distinguish local cancellation, expiry, exhaustion, rejection, acceptance and
+host uncertainty without replay authority or legacy wire changes; cleanup retains
+known reasons and releases undelivered outputs on unwind. It is
+not yet the full evaluator or generic typed host-operation engine.

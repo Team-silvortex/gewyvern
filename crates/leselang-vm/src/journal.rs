@@ -3,15 +3,17 @@ use std::fs;
 use std::path::Path;
 use std::time::Duration;
 
+use leselang_runtime_core::checked_clock_add;
 use rusqlite::limits::Limit;
 use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, params};
 
 use crate::{
     BranchCompletion, BranchOutcome, Cancellation, CancellationReason, ContinuationImage,
     ContinuationToken, DEFAULT_MAX_OUTPUT_ITEMS, DebuggerAuditContext, DebuggerAuditRecord,
-    DispatchLease, EffectError, EffectRequest, ExecutionOrder, Fault, MAX_CONTINUATION_BYTES,
-    MAX_DISPATCH_ATTEMPTS, MAX_DISPATCH_LEASE_MS, MAX_SEMANTIC_RETRIES, MergePlan, RetentionPolicy,
-    RetryDisposition, Step, continuation_age_order, encode_json_capped, valid_continuation_token,
+    DispatchClaim, DispatchLease, EffectError, EffectRequest, ExecutionOrder, Fault,
+    MAX_CONTINUATION_BYTES, MAX_DISPATCH_ATTEMPTS, MAX_DISPATCH_LEASE_MS, MAX_SEMANTIC_RETRIES,
+    MergePlan, RetentionPolicy, RetryDisposition, SchedulerLimits, SchedulerPressure, Step,
+    continuation_age_order, encode_json_capped, valid_continuation_token,
     validate_continuation_encoding_size, validate_effect_error, validate_effect_request,
     validate_image, validate_merge_plan, validate_value,
 };
@@ -24,6 +26,24 @@ pub const MAX_JOURNAL_RECORDS: usize = 10_000;
 pub const MAX_JOURNAL_ENTRY_BYTES: usize = 8 * 1024 * 1024;
 pub const MAX_JOURNAL_TOTAL_BYTES: usize = 64 * 1024 * 1024;
 const JOURNAL_BUSY_TIMEOUT: Duration = Duration::from_secs(5);
+const CLAIM_DISPATCH_SQL: &str =
+    "SELECT d.token, d.request, d.attempt, d.retry_count, e.image
+     FROM vm_dispatches d INDEXED BY vm_dispatch_attempt_order_idx
+     JOIN vm_effects e ON e.token = d.token
+     WHERE e.state = 'pending'
+       AND d.state IN ('ready', 'leased')
+       AND NOT EXISTS (
+         SELECT 1 FROM vm_merge_branches own
+         JOIN vm_merge_groups g ON g.token = own.group_token
+         JOIN vm_merge_branches prior ON prior.group_token = own.group_token AND prior.position < own.position
+         JOIN vm_effects predecessor ON predecessor.token = prior.branch_token
+         WHERE own.branch_token = d.token AND g.execution_order = 'sequential'
+           AND predecessor.state != 'completed'
+       )
+       AND ((d.state = 'ready' AND d.ready_at_ms <= ?1) OR
+            (d.state = 'leased' AND d.lease_expires_at_ms <= ?1))
+     ORDER BY d.attempt ASC, length(d.token) ASC, d.token ASC
+     LIMIT 1";
 
 pub(crate) struct JournalSnapshot {
     pub pending: BTreeMap<ContinuationToken, ContinuationImage>,
@@ -136,7 +156,7 @@ impl Journal {
     }
 
     pub fn open(path: &Path) -> Result<(Self, JournalSnapshot), Fault> {
-        let journal = SqliteJournal::open(path)?;
+        let mut journal = SqliteJournal::open(path)?;
         let snapshot = journal.load()?;
         Ok((Self::Sqlite(journal), snapshot))
     }
@@ -152,10 +172,11 @@ impl Journal {
         &mut self,
         image: &ContinuationImage,
         request: Option<&EffectRequest>,
+        limits: SchedulerLimits,
     ) -> Result<(), Fault> {
         match self {
-            Self::Ephemeral(journal) => journal.record_pending(request),
-            Self::Sqlite(journal) => journal.record_pending(image, request),
+            Self::Ephemeral(journal) => journal.record_pending(request, limits),
+            Self::Sqlite(journal) => journal.record_pending(image, request, limits),
         }
     }
 
@@ -166,22 +187,56 @@ impl Journal {
         plan: &MergePlan,
         branches: &[(&str, &EffectRequest)],
     ) -> Result<(), Fault> {
+        self.record_merge_graph_with_limits(group_token, plan, branches, SchedulerLimits::default())
+    }
+
+    pub fn record_merge_graph_with_limits(
+        &mut self,
+        group_token: &ContinuationToken,
+        plan: &MergePlan,
+        branches: &[(&str, &EffectRequest)],
+        limits: SchedulerLimits,
+    ) -> Result<(), Fault> {
         validate_merge_graph_input(group_token, plan, branches)?;
         match self {
-            Self::Ephemeral(journal) => journal.record_merge_graph(group_token, plan, branches),
-            Self::Sqlite(journal) => journal.record_merge_graph(group_token, plan, branches),
+            Self::Ephemeral(journal) => {
+                journal.record_merge_graph(group_token, plan, branches, limits)
+            }
+            Self::Sqlite(journal) => {
+                journal.record_merge_graph(group_token, plan, branches, limits)
+            }
         }
+    }
+
+    pub fn scheduler_pressure(
+        &self,
+        now_ms: u64,
+        limits: SchedulerLimits,
+    ) -> Result<SchedulerPressure, Fault> {
+        validate_dispatch_clock(now_ms)?;
+        match self {
+            Self::Ephemeral(journal) => Ok(journal.scheduler_pressure(now_ms, limits)),
+            Self::Sqlite(journal) => sql_scheduler_pressure(&journal.connection, now_ms, limits),
+        }
+    }
+
+    pub fn check_admission(&self, additional: usize, limits: SchedulerLimits) -> Result<(), Fault> {
+        limits.check_admission(
+            self.scheduler_pressure(0, limits)?.pending_dispatches,
+            additional,
+        )
     }
 
     pub fn claim_dispatch(
         &mut self,
         now_ms: u64,
         lease_ms: u64,
-    ) -> Result<Option<DispatchLease>, Fault> {
+        limits: SchedulerLimits,
+    ) -> Result<DispatchClaim, Fault> {
         validate_lease_clock(now_ms, lease_ms)?;
         match self {
-            Self::Ephemeral(journal) => journal.claim_dispatch(now_ms, lease_ms),
-            Self::Sqlite(journal) => journal.claim_dispatch(now_ms, lease_ms),
+            Self::Ephemeral(journal) => journal.claim_dispatch(now_ms, lease_ms, limits),
+            Self::Sqlite(journal) => journal.claim_dispatch(now_ms, lease_ms, limits),
         }
     }
 
@@ -202,7 +257,7 @@ impl Journal {
         now_ms: u64,
         step: &Step,
     ) -> Result<Step, Fault> {
-        validate_lease_clock(now_ms, 1)?;
+        validate_dispatch_clock(now_ms)?;
         match self {
             Self::Ephemeral(journal) => journal.acknowledge_dispatch(lease, now_ms, step),
             Self::Sqlite(journal) => journal.acknowledge_dispatch(lease, now_ms, step),
@@ -315,7 +370,33 @@ impl Journal {
 }
 
 impl EphemeralJournal {
-    fn record_pending(&mut self, request: Option<&EffectRequest>) -> Result<(), Fault> {
+    fn scheduler_pressure(&self, now_ms: u64, limits: SchedulerLimits) -> SchedulerPressure {
+        let mut pressure = SchedulerPressure {
+            pending_dispatches: 0,
+            active_leases: 0,
+            limits,
+        };
+        for dispatch in self
+            .dispatches
+            .values()
+            .filter(|dispatch| !dispatch.acknowledged)
+        {
+            pressure.pending_dispatches += 1;
+            if dispatch
+                .lease_expires_at_ms
+                .is_some_and(|expires_at| expires_at > now_ms)
+            {
+                pressure.active_leases += 1;
+            }
+        }
+        pressure
+    }
+
+    fn record_pending(
+        &mut self,
+        request: Option<&EffectRequest>,
+        limits: SchedulerLimits,
+    ) -> Result<(), Fault> {
         let Some(request) = request else {
             return Ok(());
         };
@@ -332,6 +413,7 @@ impl EphemeralJournal {
                 ))
             };
         }
+        limits.check_admission(self.scheduler_pressure(0, limits).pending_dispatches, 1)?;
         self.dispatches.insert(
             token,
             EphemeralDispatch {
@@ -354,6 +436,7 @@ impl EphemeralJournal {
         group_token: &ContinuationToken,
         plan: &MergePlan,
         branches: &[(&str, &EffectRequest)],
+        limits: SchedulerLimits,
     ) -> Result<(), Fault> {
         for (_, request) in branches {
             validate_continuation_encoding_size(&request.continuation)?;
@@ -370,6 +453,10 @@ impl EphemeralJournal {
                 "merge graph token conflicts with pending state",
             ));
         }
+        limits.check_admission(
+            self.scheduler_pressure(0, limits).pending_dispatches,
+            branches.len(),
+        )?;
 
         let branch_tokens = branches
             .iter()
@@ -405,18 +492,36 @@ impl EphemeralJournal {
         &mut self,
         now_ms: u64,
         lease_ms: u64,
-    ) -> Result<Option<DispatchLease>, Fault> {
-        let eligible = self.dispatches.iter().find(|(token, dispatch)| {
-            !dispatch.acknowledged
-                && self.sequence_ready(token)
-                && dispatch.ready_at_ms <= now_ms
-                && dispatch
+        limits: SchedulerLimits,
+    ) -> Result<DispatchClaim, Fault> {
+        let mut eligible: Option<(&ContinuationToken, &EphemeralDispatch)> = None;
+        for (token, dispatch) in &self.dispatches {
+            if dispatch.acknowledged
+                || dispatch.ready_at_ms > now_ms
+                || dispatch
                     .lease_expires_at_ms
-                    .is_none_or(|expires_at| expires_at <= now_ms)
-        });
+                    .is_some_and(|expires_at| expires_at > now_ms)
+            {
+                continue;
+            }
+            let already_preferred = eligible.is_some_and(|(best_token, best)| {
+                best.attempt
+                    .cmp(&dispatch.attempt)
+                    .then_with(|| continuation_age_order(best_token, token))
+                    .is_le()
+            });
+            // Scan graph dependencies only for candidates that can beat the current minimum.
+            if !already_preferred && self.sequence_ready(token) {
+                eligible = Some((token, dispatch));
+            }
+        }
         let Some(token) = eligible.map(|(token, _)| token.clone()) else {
-            return Ok(None);
+            return Ok(DispatchClaim::Idle);
         };
+        let pressure = self.scheduler_pressure(now_ms, limits);
+        if pressure.lease_capacity_exhausted() {
+            return Ok(DispatchClaim::Backpressured(pressure));
+        }
         let dispatch = self
             .dispatches
             .get_mut(&token)
@@ -424,12 +529,12 @@ impl EphemeralJournal {
         dispatch.attempt = next_attempt(dispatch.attempt)?;
         let lease_expires_at_ms = lease_expiration(now_ms, lease_ms)?;
         dispatch.lease_expires_at_ms = Some(lease_expires_at_ms);
-        Ok(Some(DispatchLease {
+        Ok(DispatchClaim::Leased(Box::new(DispatchLease {
             request: dispatch.request.clone(),
             attempt: dispatch.attempt,
             retry_count: dispatch.retry_count,
             lease_expires_at_ms,
-        }))
+        })))
     }
 
     fn record_completed(&mut self, image: &ContinuationImage, step: &Step) -> Result<Step, Fault> {
@@ -1149,18 +1254,35 @@ impl SqliteJournal {
                 })?;
         }
 
+        // Canonical tokens share one prefix and have no leading zeroes, so length/text
+        // order is numeric admission order without casts or a new persisted sequence.
+        connection
+            .execute_batch(
+                "CREATE INDEX IF NOT EXISTS vm_dispatch_attempt_order_idx
+                 ON vm_dispatches(attempt, length(token), token)
+                 WHERE state IN ('ready', 'leased');",
+            )
+            .map_err(|error| {
+                journal_error("LSV4003", "failed to index dispatch ordering", error)
+            })?;
+
         Ok(Self { connection })
     }
 
-    fn load(&self) -> Result<JournalSnapshot, Fault> {
-        let count = journal_record_count(&self.connection)?;
+    fn load(&mut self) -> Result<JournalSnapshot, Fault> {
+        // Validation and allocator repair must observe the same complete graph.
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| journal_error("LSV4005", "failed to lock journal load", error))?;
+        let count = journal_record_count(&transaction)?;
         if count > MAX_JOURNAL_RECORDS {
             return Err(journal_fault(
                 "LSV4006",
                 format!("journal has {count} records, limit is {MAX_JOURNAL_RECORDS}"),
             ));
         }
-        let total_bytes = journal_payload_bytes(&self.connection)?;
+        let total_bytes = journal_payload_bytes(&transaction)?;
         if total_bytes > MAX_JOURNAL_TOTAL_BYTES {
             return Err(journal_fault(
                 "LSV4006",
@@ -1170,16 +1292,7 @@ impl SqliteJournal {
             ));
         }
 
-        let next_sequence: i64 = self
-            .connection
-            .query_row(
-                "SELECT next_sequence FROM vm_metadata WHERE singleton = 1",
-                [],
-                |row| row.get(0),
-            )
-            .map_err(|error| journal_error("LSV4005", "failed to load journal metadata", error))?;
-        let mut statement = self
-            .connection
+        let mut statement = transaction
             .prepare(
                 "SELECT token, state, image, deadline_at_ms, terminal_step
                  FROM vm_effects ORDER BY token ASC",
@@ -1190,6 +1303,7 @@ impl SqliteJournal {
             .map_err(|error| journal_error("LSV4005", "failed to load journal", error))?;
         let mut pending = BTreeMap::new();
         let mut completed = BTreeMap::new();
+        let mut highest_sequence = 0;
 
         while let Some(row) = rows
             .next()
@@ -1206,6 +1320,11 @@ impl SqliteJournal {
                 .map_err(|error| journal_error("LSV4005", "invalid journal image", error))?;
             let image: ContinuationImage = decode_bounded(&image_bytes, MAX_CONTINUATION_BYTES)?;
             validate_image(&image)?;
+            highest_sequence = highest_sequence.max(
+                crate::canonical_continuation_sequence(&image.token).ok_or_else(|| {
+                    journal_fault("LSV4007", "journal continuation sequence is invalid")
+                })?,
+            );
             if image.token.as_str() != token {
                 return Err(journal_fault(
                     "LSV4007",
@@ -1227,11 +1346,11 @@ impl SqliteJournal {
                     "journal deadline does not match continuation image",
                 ));
             }
-            group_binding::validate_owner(&self.connection, &image)?;
+            group_binding::validate_owner(&transaction, &image)?;
 
             match state.as_str() {
                 "pending" => {
-                    successor::validate_record(&self.connection, &image, None)?;
+                    successor::validate_record(&transaction, &image, None)?;
                     pending.insert(image.token.clone(), image);
                 }
                 "completed" => {
@@ -1240,7 +1359,7 @@ impl SqliteJournal {
                     })?;
                     let step: Step = decode_bounded(&step_bytes, MAX_JOURNAL_ENTRY_BYTES)?;
                     validate_terminal_step(&step)?;
-                    successor::validate_record(&self.connection, &image, Some(&step))?;
+                    successor::validate_record(&transaction, &image, Some(&step))?;
                     completed.insert(image.token, step);
                 }
                 _ => return Err(journal_fault("LSV4007", "invalid journal record state")),
@@ -1249,16 +1368,17 @@ impl SqliteJournal {
 
         drop(rows);
         drop(statement);
-        validate_dispatch_records(&self.connection)?;
-        validate_merge_graph_records(&self.connection)?;
-        validate_debugger_audit_records(&self.connection)?;
-
-        let next_sequence = u64::try_from(next_sequence)
-            .map_err(|_| journal_fault("LSV4007", "journal sequence is invalid"))?;
+        validate_dispatch_records(&transaction)?;
+        highest_sequence = highest_sequence.max(validate_merge_graph_records(&transaction)?);
+        validate_debugger_audit_records(&transaction)?;
+        let next_sequence = advance_sequence_watermark(&transaction, highest_sequence)?;
+        transaction
+            .commit()
+            .map_err(|error| journal_error("LSV4005", "failed to commit journal load", error))?;
         Ok(JournalSnapshot {
             pending,
             completed,
-            next_sequence: next_sequence.max(1),
+            next_sequence,
         })
     }
 
@@ -1478,6 +1598,7 @@ impl SqliteJournal {
         &mut self,
         image: &ContinuationImage,
         request: Option<&EffectRequest>,
+        limits: SchedulerLimits,
     ) -> Result<(), Fault> {
         validate_image(image)?;
         if let Some(request) = request {
@@ -1490,6 +1611,8 @@ impl SqliteJournal {
             }
         }
         let image_bytes = encode_json_capped(image, MAX_CONTINUATION_BYTES, "continuation")?;
+        let sequence = crate::canonical_continuation_sequence(&image.token)
+            .ok_or_else(|| journal_fault("LSV4007", "journal continuation sequence is invalid"))?;
         let request_bytes = request
             .map(|request| encode_json_capped(request, MAX_JOURNAL_ENTRY_BYTES, "effect request"))
             .transpose()?;
@@ -1503,6 +1626,7 @@ impl SqliteJournal {
                 if let Some(request) = request {
                     ensure_dispatch_matches(&transaction, image.token.as_str(), request)?;
                 }
+                advance_sequence_watermark(&transaction, sequence)?;
                 return transaction.commit().map_err(|error| {
                     journal_error("LSV4010", "failed to commit pending journal record", error)
                 });
@@ -1518,6 +1642,12 @@ impl SqliteJournal {
                 "LSV4006",
                 format!("journal record limit {MAX_JOURNAL_RECORDS} reached"),
             ));
+        }
+        if request.is_some() {
+            limits.check_admission(
+                sql_scheduler_pressure(&transaction, 0, limits)?.pending_dispatches,
+                1,
+            )?;
         }
         ensure_growth(
             &transaction,
@@ -1551,6 +1681,7 @@ impl SqliteJournal {
                     journal_error("LSV4010", "failed to store effect dispatch", error)
                 })?;
         }
+        advance_sequence_watermark(&transaction, sequence)?;
         transaction
             .commit()
             .map_err(|error| journal_error("LSV4010", "failed to commit pending effect", error))
@@ -1562,6 +1693,7 @@ impl SqliteJournal {
         group_token: &ContinuationToken,
         plan: &MergePlan,
         branches: &[(&str, &EffectRequest)],
+        limits: SchedulerLimits,
     ) -> Result<(), Fault> {
         let plan_bytes = encode_json_capped(plan, MAX_CONTINUATION_BYTES, "merge plan")?;
         let encoded = branches
@@ -1595,6 +1727,10 @@ impl SqliteJournal {
                 format!("journal record limit {MAX_JOURNAL_RECORDS} reached"),
             ));
         }
+        limits.check_admission(
+            sql_scheduler_pressure(&transaction, 0, limits)?.pending_dispatches,
+            branches.len(),
+        )?;
         ensure_growth(&transaction, additional_bytes)?;
 
         let group_conflict: bool = transaction
@@ -1676,6 +1812,13 @@ impl SqliteJournal {
                 )
                 .map_err(|error| journal_error("LSV4032", "failed to link merge branch", error))?;
         }
+        let highest_sequence = branches
+            .iter()
+            .filter_map(|(_, request)| {
+                crate::canonical_continuation_sequence(&request.continuation.token)
+            })
+            .fold(merge_reserved_sequence(group_token, plan), u64::max);
+        advance_sequence_watermark(&transaction, highest_sequence)?;
         transaction
             .commit()
             .map_err(|error| journal_error("LSV4032", "failed to commit merge graph", error))
@@ -1685,7 +1828,8 @@ impl SqliteJournal {
         &mut self,
         now_ms: u64,
         lease_ms: u64,
-    ) -> Result<Option<DispatchLease>, Fault> {
+        limits: SchedulerLimits,
+    ) -> Result<DispatchClaim, Fault> {
         let now = i64::try_from(now_ms)
             .map_err(|_| journal_fault("LSV4015", "dispatch clock is out of range"))?;
         let expires_at = lease_expiration(now_ms, lease_ms)?;
@@ -1695,41 +1839,48 @@ impl SqliteJournal {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| journal_error("LSV4016", "failed to lock dispatch journal", error))?;
+        // Busy workers only inspect eligibility; they do not materialize a queued request/image.
+        if sql_lease_capacity_exhausted(&transaction, now, limits.max_active_leases)? {
+            let eligible: bool = transaction
+                .query_row(
+                    &format!("SELECT EXISTS({CLAIM_DISPATCH_SQL})"),
+                    [now],
+                    |row| row.get(0),
+                )
+                .map_err(|error| {
+                    journal_error("LSV4016", "failed to inspect dispatch readiness", error)
+                })?;
+            let claim = if eligible {
+                DispatchClaim::Backpressured(sql_scheduler_pressure(&transaction, now_ms, limits)?)
+            } else {
+                DispatchClaim::Idle
+            };
+            transaction.commit().map_err(|error| {
+                journal_error(
+                    "LSV4016",
+                    "failed to close capacity-limited dispatch transaction",
+                    error,
+                )
+            })?;
+            return Ok(claim);
+        }
         let candidate = transaction
-            .query_row(
-                "SELECT d.token, d.request, d.attempt, d.retry_count
-                 FROM vm_dispatches d
-                 JOIN vm_effects e ON e.token = d.token
-                 WHERE e.state = 'pending'
-                   AND NOT EXISTS (
-                     SELECT 1 FROM vm_merge_branches own
-                     JOIN vm_merge_groups g ON g.token = own.group_token
-                     JOIN vm_merge_branches prior ON prior.group_token = own.group_token AND prior.position < own.position
-                     JOIN vm_effects predecessor ON predecessor.token = prior.branch_token
-                     WHERE own.branch_token = d.token AND g.execution_order = 'sequential'
-                       AND predecessor.state != 'completed'
-                   )
-                   AND ((d.state = 'ready' AND d.ready_at_ms <= ?1) OR
-                        (d.state = 'leased' AND d.lease_expires_at_ms <= ?1))
-                 ORDER BY d.token ASC
-                 LIMIT 1",
-                [now],
-                |row| {
-                    Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, Vec<u8>>(1)?,
-                        row.get::<_, i64>(2)?,
-                        row.get::<_, i64>(3)?,
-                    ))
-                },
-            )
+            .query_row(CLAIM_DISPATCH_SQL, [now], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Vec<u8>>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, Vec<u8>>(4)?,
+                ))
+            })
             .optional()
             .map_err(|error| journal_error("LSV4016", "failed to select effect dispatch", error))?;
-        let Some((token, request_bytes, attempt, retry_count)) = candidate else {
+        let Some((token, request_bytes, attempt, retry_count, image_bytes)) = candidate else {
             transaction.commit().map_err(|error| {
                 journal_error("LSV4016", "failed to close dispatch transaction", error)
             })?;
-            return Ok(None);
+            return Ok(DispatchClaim::Idle);
         };
         let request: EffectRequest = decode_bounded(&request_bytes, MAX_JOURNAL_ENTRY_BYTES)?;
         validate_effect_request(&request)?;
@@ -1737,6 +1888,18 @@ impl SqliteJournal {
             return Err(journal_fault(
                 "LSV4007",
                 "dispatch token does not match effect request",
+            ));
+        }
+        if image_bytes
+            != encode_json_capped(
+                &request.continuation,
+                MAX_CONTINUATION_BYTES,
+                "continuation",
+            )?
+        {
+            return Err(journal_fault(
+                "LSV4014",
+                "dispatch continuation conflicts with durable journal state",
             ));
         }
         let attempt = u32::try_from(attempt)
@@ -1761,12 +1924,12 @@ impl SqliteJournal {
         transaction
             .commit()
             .map_err(|error| journal_error("LSV4016", "failed to commit effect lease", error))?;
-        Ok(Some(DispatchLease {
+        Ok(DispatchClaim::Leased(Box::new(DispatchLease {
             request,
             attempt,
             retry_count,
             lease_expires_at_ms: expires_at,
-        }))
+        })))
     }
 
     fn record_completed(&mut self, image: &ContinuationImage, step: &Step) -> Result<Step, Fault> {
@@ -3265,7 +3428,7 @@ fn validate_merge_graph_input(
     Ok(())
 }
 
-fn validate_merge_graph_records(connection: &Connection) -> Result<(), Fault> {
+fn validate_merge_graph_records(connection: &Connection) -> Result<u64, Fault> {
     type RawMergeGroup = (String, Vec<u8>, String, Option<Vec<u8>>, String);
     let groups = {
         let mut statement = connection
@@ -3292,6 +3455,7 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<(), Fault> {
     };
 
     let mut successor_reservations = BTreeSet::new();
+    let mut highest_sequence = 0;
     for (token, plan_bytes, state, terminal_bytes, order) in groups {
         let token = ContinuationToken(token);
         if !valid_continuation_token(&token) {
@@ -3315,6 +3479,7 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<(), Fault> {
         let plan: MergePlan = decode_bounded(&plan_bytes, MAX_CONTINUATION_BYTES)?;
         validate_merge_plan(&plan)
             .map_err(|_| journal_fault("LSV4007", "merge group plan is invalid"))?;
+        highest_sequence = highest_sequence.max(merge_reserved_sequence(&token, &plan));
         if let Some(binding) = &plan.result_binding {
             for sequence in binding.reserved_sequences() {
                 if !successor_reservations.insert(sequence) {
@@ -3429,15 +3594,61 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<(), Fault> {
                 ));
             }
         };
+        // Cold reservations require allocation proof from the original watermark;
+        // imported identities must not launder an unallocated reservation.
         group_binding::validate_records(connection, &token, &plan, terminal.as_ref())?;
     }
-    Ok(())
+    Ok(highest_sequence)
 }
 
-fn validate_lease_clock(now_ms: u64, lease_ms: u64) -> Result<(), Fault> {
-    if now_ms > i64::MAX as u64 {
-        return Err(journal_fault("LSV4015", "dispatch clock is out of range"));
+fn merge_reserved_sequence(token: &ContinuationToken, plan: &MergePlan) -> u64 {
+    // Opaque legacy group IDs remain valid; only canonical IDs reserve a sequence.
+    let group_sequence = token.as_str().strip_prefix("merge-").and_then(|suffix| {
+        let sequence = suffix.parse::<u64>().ok()?;
+        (sequence > 0 && sequence <= crate::MAX_EFFECT_SEQUENCE && sequence.to_string() == suffix)
+            .then_some(sequence)
+    });
+    plan.result_binding
+        .iter()
+        .flat_map(|binding| binding.reserved_sequences())
+        .fold(
+            group_sequence
+                .or_else(|| crate::canonical_continuation_sequence(token))
+                .unwrap_or(0),
+            u64::max,
+        )
+}
+
+fn advance_sequence_watermark(connection: &Connection, used_sequence: u64) -> Result<u64, Fault> {
+    let required = used_sequence
+        .checked_add(1)
+        .and_then(|value| i64::try_from(value).ok())
+        .ok_or_else(|| journal_fault("LSV4009", "journal continuation sequence is exhausted"))?;
+    let stored: i64 = connection
+        .query_row(
+            "SELECT next_sequence FROM vm_metadata WHERE singleton = 1",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| journal_error("LSV4008", "failed to load sequence watermark", error))?;
+    if stored < 1 {
+        return Err(journal_fault("LSV4007", "journal sequence is invalid"));
     }
+    if required > stored {
+        connection
+            .execute(
+                "UPDATE vm_metadata SET next_sequence = ?1 WHERE singleton = 1",
+                [required],
+            )
+            .map_err(|error| {
+                journal_error("LSV4008", "failed to store sequence watermark", error)
+            })?;
+    }
+    Ok(stored.max(required) as u64)
+}
+
+pub(super) fn validate_lease_clock(now_ms: u64, lease_ms: u64) -> Result<(), Fault> {
+    validate_dispatch_clock(now_ms)?;
     if lease_ms == 0 || lease_ms > MAX_DISPATCH_LEASE_MS {
         return Err(journal_fault(
             "LSV4015",
@@ -3447,11 +3658,16 @@ fn validate_lease_clock(now_ms: u64, lease_ms: u64) -> Result<(), Fault> {
     lease_expiration(now_ms, lease_ms).map(|_| ())
 }
 
+fn validate_dispatch_clock(now_ms: u64) -> Result<(), Fault> {
+    // Observing or completing work does not require a representable future lease.
+    checked_clock_add(now_ms, 0)
+        .map(|_| ())
+        .map_err(|_| journal_fault("LSV4015", "dispatch clock is out of range"))
+}
+
 fn lease_expiration(now_ms: u64, lease_ms: u64) -> Result<u64, Fault> {
-    now_ms
-        .checked_add(lease_ms)
-        .filter(|value| *value <= i64::MAX as u64)
-        .ok_or_else(|| journal_fault("LSV4015", "dispatch lease expiration is out of range"))
+    checked_clock_add(now_ms, lease_ms)
+        .map_err(|_| journal_fault("LSV4015", "dispatch lease expiration is out of range"))
 }
 
 fn next_attempt(current: u32) -> Result<u32, Fault> {
@@ -3563,6 +3779,49 @@ fn tighten_permissions(_path: &Path) -> Result<(), Fault> {
     Ok(())
 }
 
+fn sql_lease_capacity_exhausted(
+    connection: &Connection,
+    now: i64,
+    limit: usize,
+) -> Result<bool, Fault> {
+    let limit = i64::try_from(limit)
+        .map_err(|_| journal_fault("LSV2500", "active lease limit is out of range"))?;
+    connection
+        .query_row(
+            "SELECT COUNT(*) >= ?2 FROM (
+           SELECT 1 FROM vm_dispatches d CROSS JOIN vm_effects e ON e.token = d.token
+           WHERE d.state = 'leased' AND d.lease_expires_at_ms > ?1 AND e.state = 'pending'
+           LIMIT ?2
+         )",
+            params![now, limit],
+            |row| row.get(0),
+        )
+        .map_err(|error| journal_error("LSV4040", "failed to read active lease capacity", error))
+}
+
+fn sql_scheduler_pressure(
+    connection: &Connection,
+    now_ms: u64,
+    limits: SchedulerLimits,
+) -> Result<SchedulerPressure, Fault> {
+    let now = i64::try_from(now_ms)
+        .map_err(|_| journal_fault("LSV4015", "dispatch clock is out of range"))?;
+    let (pending, active) = connection.query_row(
+        "SELECT COUNT(*), COALESCE(SUM(CASE WHEN d.state = 'leased' AND d.lease_expires_at_ms > ?1 THEN 1 ELSE 0 END), 0)
+         FROM vm_dispatches d JOIN vm_effects e ON e.token = d.token
+         WHERE e.state = 'pending' AND d.state IN ('ready', 'leased')",
+        [now],
+        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+    ).map_err(|error| journal_error("LSV4040", "failed to read scheduler pressure", error))?;
+    Ok(SchedulerPressure {
+        pending_dispatches: usize::try_from(pending)
+            .map_err(|_| journal_fault("LSV4007", "pending dispatch count is invalid"))?,
+        active_leases: usize::try_from(active)
+            .map_err(|_| journal_fault("LSV4007", "active lease count is invalid"))?,
+        limits,
+    })
+}
+
 fn journal_error(code: &str, context: &str, error: impl std::fmt::Display) -> Fault {
     journal_fault(code, format!("{context}: {error}"))
 }
@@ -3571,5 +3830,178 @@ fn journal_fault(code: &str, message: impl Into<String>) -> Fault {
     Fault {
         code: code.to_string(),
         message: message.into(),
+    }
+}
+
+#[cfg(test)]
+mod scheduling_tests {
+    use super::*;
+
+    struct TempRoot(std::path::PathBuf);
+    impl TempRoot {
+        fn new() -> Self {
+            static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+            let root = Self(std::env::temp_dir().join(format!(
+                "leselang-journal-scheduling-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            )));
+            fs::create_dir(&root.0).unwrap();
+            root
+        }
+    }
+    impl Drop for TempRoot {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn simple_batch() -> crate::StructuredEffectBatch {
+        let program = leselang_hir::lower(&leselang_syntax::parse(
+            r#"fn main() = all(left: ui.focus(node_id: "a"), right: ui.focus(node_id: "b"))"#,
+        ))
+        .unwrap();
+        let Step::Effects(batch) = crate::Vm::new(10000).start_timed(
+            &program,
+            crate::Principal::new("operator").unwrap(),
+            crate::CapabilitySet::new(["ui.presentation"]),
+            Some(crate::Revision(7)),
+            100,
+            1000,
+        ) else {
+            panic!()
+        };
+        *batch
+    }
+
+    #[test]
+    fn direct_graph_admission_reserves_numeric_group_and_branch_ids_but_accepts_opaque_groups() {
+        let batch = simple_batch();
+        let plan = MergePlan::new(["left", "right"]).unwrap();
+        let graph = batch
+            .branches
+            .iter()
+            .map(|branch| (branch.branch.as_str(), &branch.request))
+            .collect::<Vec<_>>();
+        for (group, expected) in [
+            ("merge-100", 101),
+            ("continuation-200", 201),
+            ("legacy-group", 4),
+        ] {
+            let root = TempRoot::new();
+            let path = root.0.join("flow.sqlite3");
+            let (mut journal, _) = Journal::open(&path).unwrap();
+            journal
+                .record_merge_graph(&ContinuationToken(group.into()), &plan, &graph)
+                .unwrap();
+            let (_, snapshot) = Journal::open(&path).unwrap();
+            assert_eq!(snapshot.next_sequence, expected);
+            assert_eq!(journal.allocate_sequence(1).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn graph_watermark_failure_rolls_back_every_record_and_allows_a_retry() {
+        let batch = simple_batch();
+        let plan = MergePlan::new(["left", "right"]).unwrap();
+        let graph = batch
+            .branches
+            .iter()
+            .map(|branch| (branch.branch.as_str(), &branch.request))
+            .collect::<Vec<_>>();
+        let root = TempRoot::new();
+        let mut journal = SqliteJournal::open(&root.0.join("flow.sqlite3")).unwrap();
+        journal
+            .connection
+            .execute_batch(
+                "CREATE TRIGGER reject_watermark BEFORE UPDATE ON vm_metadata
+             BEGIN SELECT RAISE(ABORT, 'injected failure'); END;",
+            )
+            .unwrap();
+        assert_eq!(
+            journal
+                .record_merge_graph(
+                    &batch.merge_token,
+                    &plan,
+                    &graph,
+                    SchedulerLimits::default()
+                )
+                .unwrap_err()
+                .code,
+            "LSV4008"
+        );
+        for table in [
+            "vm_effects",
+            "vm_dispatches",
+            "vm_merge_groups",
+            "vm_merge_branches",
+        ] {
+            assert_eq!(
+                journal
+                    .connection
+                    .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row
+                        .get::<_, i64>(0))
+                    .unwrap(),
+                0
+            );
+        }
+        journal
+            .connection
+            .execute_batch("DROP TRIGGER reject_watermark;")
+            .unwrap();
+        journal
+            .record_merge_graph(
+                &batch.merge_token,
+                &plan,
+                &graph,
+                SchedulerLimits::default(),
+            )
+            .unwrap();
+        assert_eq!(journal.load().unwrap().next_sequence, 4);
+    }
+
+    #[test]
+    fn opaque_or_noncanonical_group_tokens_are_not_numeric_reservations() {
+        let plan = MergePlan::new(["left", "right"]).unwrap();
+        for token in [
+            "legacy-group",
+            "merge-0",
+            "merge-01",
+            "merge-+1",
+            "merge-9223372036854775807",
+        ] {
+            assert_eq!(
+                merge_reserved_sequence(&ContinuationToken(token.into()), &plan),
+                0
+            );
+        }
+        assert_eq!(
+            merge_reserved_sequence(&ContinuationToken("merge-99".into()), &plan),
+            99
+        );
+    }
+
+    #[test]
+    fn claim_query_uses_active_attempt_order_index_without_temporary_sort() {
+        let root = TempRoot::new();
+        let journal = SqliteJournal::open(&root.0.join("flow.sqlite3")).unwrap();
+        let mut query = journal
+            .connection
+            .prepare(&format!("EXPLAIN QUERY PLAN {CLAIM_DISPATCH_SQL}"))
+            .unwrap();
+        let plan = query
+            .query_map([100], |row| row.get::<_, String>(3))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(
+            plan.iter()
+                .any(|detail| detail.contains("vm_dispatch_attempt_order_idx")),
+            "claim did not use the active ordering index: {plan:?}"
+        );
+        assert!(
+            plan.iter().all(|detail| !detail.contains("TEMP B-TREE")),
+            "claim performed a temporary sort: {plan:?}"
+        );
     }
 }

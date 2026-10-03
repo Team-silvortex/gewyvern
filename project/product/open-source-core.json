@@ -26,6 +26,7 @@
     { "id": "leselang-host-contract", "source": "crates/leselang-host-contract" },
     { "id": "leselang-syntax", "source": "crates/leselang-syntax" },
     { "id": "leselang-hir", "source": "crates/leselang-hir" },
+    { "id": "leselang-runtime-core", "source": "crates/leselang-runtime-core" },
     { "id": "leselang-vm", "source": "crates/leselang-vm" },
     { "id": "leselang-command", "source": "crates/leselang-command" },
     { "id": "leselang-observe", "source": "crates/leselang-observe" },

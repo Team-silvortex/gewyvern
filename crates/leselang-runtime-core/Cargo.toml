@@ -1,0 +1,13 @@
+[package]
+name = "leselang-runtime-core"
+version.workspace = true
+edition.workspace = true
+description = "Host-neutral lifecycle foundations for embedding Leselang"
+license.workspace = true
+readme = "README.md"
+
+[dependencies]
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

@@ -16,7 +16,8 @@ independent hosts without claiming that extraction is complete.
 
 Basic computation is executable, not source-text substitution. Scalars are
 unsigned 64-bit integers, booleans, strings bounded to 4096 UTF-8 bytes,
-`none`, and distinct [optional strings](#optional-gui-projections).
+`none`, and distinct [optional strings](#optional-gui-projections). The same
+closed data envelope also carries [bounded string lists](#bounded-string-collections).
 A pure program finishes as `Step::Done(Value::Scalar { .. })` without
 allocating an effect identity or journal record.
 
@@ -58,7 +59,7 @@ The primitive operations are:
 | `and`, `or` | `left`, `right`: booleans | boolean; left-to-right short circuit |
 | `not` | `value`: boolean | boolean |
 | `concat` | `left`, `right`: strings | string; combined output must fit 4096 bytes |
-| `len` | `value`: string | integer Unicode scalar-value count, not bytes or grapheme clusters |
+| `len` | `value`: string or string_list | integer Unicode scalar-value count for text, entry count for lists |
 | `to_string` | `value`: integer, boolean or string | string; decimal integer, lowercase boolean, or unchanged text |
 | `parse_integer` | `value`: string | integer; non-empty ASCII decimal within `u64`, leading zeros accepted |
 | `parse_boolean` | `value`: string | boolean; exactly `"true"` or `"false"` |
@@ -114,7 +115,7 @@ use `LSV1405`; exhausted loop iteration limits use `LSV1406`. Invalid successor
 context or missing original authority uses `LSV1407`. Invalid scalar text uses
 `LSV1408`, without echoing the rejected input. Invalid group-result metadata or
 missing complete group context uses `LSV1409`. Computation
-diagnostics use `LSH1401` through `LSH1412` with spans.
+diagnostics use `LSH1401` through `LSH1413` with spans.
 
 Only the selected, fully determined host graph is journaled, with the remaining
 fuel and original deadline. Recovery consumes that graph rather than evaluating
@@ -138,8 +139,8 @@ fn main() = bind(
 ```
 
 This requests the form text `"8"` after the host confirms seven children.
-The helper declares scalar parameter types (`integer`, `boolean`, `string`,
-`none` or `optional_string`) and infers its scalar return type from its body. No implicit conversion,
+The pure helper declares scalar parameter types (`integer`, `boolean`, `string`,
+`none`, `optional_string` or `string_list`) and infers its scalar return type from its body. No implicit conversion,
 default parameter, positional argument, function value or closure is introduced.
 A multi-function program requires exactly one parameterless `main`; it may appear
 before or after helpers. Forward references are allowed. The legacy single-function
@@ -149,14 +150,16 @@ There are at most **32 declarations**, including the entry, and **8 parameters**
 per helper. Names use the existing bounded ASCII identifier rules; helper names
 cannot replace builtins, and parameters cannot duplicate or shadow active locals
 inside their own definition. A helper sees only its parameters and definition-local
-bindings, never a caller's locals or raw host result. Pass an explicit typed `field`
+bindings, never a caller's locals or caller-owned raw host result. Pass an explicit typed `field`
 projection instead. All definitions are type-checked, including unused helpers
 and cold branches. Direct, mutual and cold-branch recursion are rejected, as are
 calls from a helper to `main`.
 
-Bodies and arguments must be pure scalar computations. Helpers may compose other
-helpers, pure loops, conversions, recovery and conditional calculations, but cannot
-suspend, contain a host operation or return a result object. Every call must provide
+Pure helper bodies and all helper arguments must be pure scalar computations.
+Pure helpers may compose other pure helpers, pure loops, conversions, recovery
+and conditional calculations, but cannot suspend or return a result object.
+[Effectful helpers](#reusable-effectful-functions) use the same declaration and
+argument rules in explicit effect-flow positions. Every call must provide
 exactly the declared named parameters, each once, with matching scalar types.
 Arguments run once in **parameter declaration order**, regardless of their source
 order, before the body. Unused parameters still evaluate. An argument fault prevents
@@ -175,17 +178,353 @@ group arguments preserve whole-group all-or-nothing preparation and host validat
 Syntax formatting preserves declaration and parameter order. HIR canonical export
 emits the expanded single-entry program; recompiling it reproduces the same HIR.
 Saved residual bodies contain only existing computation nodes, not helper tables
-or source references. Continuation schemas 1 through 6 and journal schema 10 are
+or source references. Continuation schemas 1-11 and journal schema 10 are
 unchanged; restart needs no source helper definitions. Completion and successor
 replay retain their original authority, fuel and deadline. The native debugger
 uses the same correlated presentation acknowledgement path, not a new helper API.
 
-Declaration/signature faults use `LSH1501`, helper recursion uses `LSH1502`, non-pure
-helper bodies use `LSH1503`, and invalid named/typed call arguments use `LSH1504`.
+Declaration/signature faults use `LSH1501`, helper recursion uses `LSH1502`, invalid
+helper returns/composition use `LSH1503`, and invalid named/typed call arguments use `LSH1504`.
 Expansion limits remain `LSH1405`. Syntax count limits use `LSE1201` and `LSE1202`;
 malformed parameter separators/types use `LSE1203` and `LSE1204`. Diagnostics carry
-source spans. This slice adds reusable **pure** functions, not effectful function
-frames, recursive calls, imports, higher-order values or a general shell.
+source spans. Neither pure nor effectful helpers introduce function frames,
+recursive calls, imports, higher-order values or a general shell.
+
+## Reusable Effectful Functions
+
+```leselang
+fn host_ready(node: string, skip: boolean) = choose(
+  when: skip,
+  then: false,
+  otherwise: bind(
+    result: ui.assert_text(node_id: node, expected: "ready"),
+    body: starts_with(left: field(value: result, name: "expected"), right: "ready"),
+  ),
+)
+
+fn main() = bind(
+  ok: host_ready(node: "status", skip: false),
+  body: bind(
+    written: ui.set_form_value(node_id: "form", field: "ready", value: to_string(value: ok)),
+    body: ok,
+  ),
+)
+```
+
+The helper suspends for the correlated `status` assertion, returns `true`, then
+the caller writes `"true"` to the form and returns that boolean after its receipt.
+With `skip: true`, the helper returns `false` without an assertion; the caller
+still writes `"false"`. **Every normal return** joins the same caller continuation.
+A host failure, rejected receipt, deadline or cancellation does not count as a
+normal return and cannot run the caller's remaining operations.
+
+An effectful helper can be a whole-flow/tail call or the direct value of an
+explicit `bind`. [Selected data-returning functions](#selected-data-returning-functions)
+also admit pure choices of helper calls and data fallbacks as a binding value.
+Its inferred return may be an atomic host result, a named flat
+group, or bounded typed data after result captures. Atomic returns use existing
+`field` projections; named group returns use existing `member` then `field`.
+Returning raw result objects from a captured local remains unsupported. Multiple
+captures, conditional scalar exits and group-owned chains retain their existing
+shape limits; a helper is not permission to combine otherwise unsupported shapes.
+
+Parameters remain **pure typed data**, never result objects or effectful arguments.
+They run once in **parameter declaration order** before the function's first effect,
+even if unused. Callers pass explicit typed projections. Definition-local result,
+group, accumulator and item names are hygienically renamed, so repeated/nested
+calls cannot capture or shadow caller locals, including unused quoted `fold`
+item declarations. All definitions and cold returns
+are type-checked; called cold effects contribute to capability preflight, while
+unused helpers do not grant or require unused authority.
+
+The compiler connects the caller to the expanded function's normal return sites
+using existing HIR `bind`/`choose` nodes. It reserves **every cold return before
+cloning** the caller continuation: the complete graph still fits **1024 nodes**,
+**16 levels** and **256 KiB canonical source**. Recursive expansion cannot bypass
+these limits. Existing host graph slots, result-frame growth, raw-output limits,
+shared fuel and original authority/deadline fences apply without per-call refills.
+SQL failures roll back both predecessor completion and successor admission.
+
+**No hidden call stack** or function table is saved. Canonical HIR export erases
+declarations and recompiles identically; journal restart needs no source/helper
+definitions. **Continuation schemas 1-11 and journal schema 10 remain unchanged**,
+as do projection vocabularies v1-v5. Old single-entry wire records retain their
+shape. The Rust native debugger uses its existing revisioned presentation
+acknowledgements, including wrong-node rejection and first-commit replay, not a
+new GUI or function-call API.
+
+Effectful calls are not operands of arithmetic, conditions, host arguments,
+helper arguments, `recover`, pure `loop` or `fold`. A helper can be a primitive
+`seq`/`all`/`repeat` member only under the
+[prepared atomic member contract](#prepared-atomic-members); multi-step and
+result-capturing helpers cannot replace an atomic member. Arbitrary nested
+effectful `bind` values do not gain an implicit call ABI. Recursion, closures,
+dynamic/higher-order calls and imports remain rejected. **This does not add
+effectful loops** or host-error recovery/cleanup; those need separate lifecycle
+and checkpoint contracts.
+
+## Prepared Atomic Members
+
+```leselang
+fn focus(node: string, alternate: boolean) = bind(
+  target: concat(left: "node-", right: node),
+  body: choose(
+    when: alternate,
+    then: ui.focus(node_id: "alternate"),
+    otherwise: ui.focus(node_id: target),
+  ),
+)
+
+fn main() = seq(
+  first: focus(node: "a", alternate: false),
+  again: repeat(times: 2, body: focus(node: "b", alternate: true)),
+)
+```
+
+This prepares the requests `node-a`, `alternate`, `alternate` before the first
+dispatch. The final member names remain `first`, `again__iteration_1` and
+`again__iteration_2`. Reusable helpers, their expanded pure `bind` preparation and
+lazy `choose` selection can now be members of `seq`, flat `all` and literal-bound
+`repeat`. **Every path produces exactly one atomic operation**, and every cold
+path must have the **same `HostOperation` signature** and result type. Different
+arguments are allowed; data-only exits, captured results, nested groups and
+multi-step helpers are not. Existing primitive nested `seq`/`repeat` flattening
+still works, but a group-returning helper is not an implicit flattened member.
+
+The complete group is prepared synchronously in flattened declaration order.
+Signature arguments run once in parameter declaration order, including unused
+arguments; local preparation and predicates are pure. Each repeated copy pays
+its own preparation cost. Locals are scoped independently and hygienic helper
+names cannot leak into another member or capture caller bindings. Both selected
+and cold paths are type/capability-checked; only selected preparations execute.
+Host arguments still pass their original domain validators.
+
+**A later preparation failure admits no member**, consumes no effect/group
+identity and journals no execution row. All computations share fuel without
+refills. The expanded **1024-node**, **16-level**, **64-effect** and canonical
+source bounds remain in force; repeat counts constructor entries and helper
+preparation before cloning, not just the final host call. Signature inspection
+uses bounded iterative traversal, not an unchecked recursive walk of public HIR.
+
+Only **resolved atomic requests** enter the existing journal graph, never helper
+definitions, preparation expressions or branch decisions. Re-entry does not
+rerun preparation, refund fuel or reset authority, revision or deadline. Native
+sequences use the existing correlated single-presentation acknowledgements;
+parallel groups keep the Rust VM's **all-success barrier**, including out-of-order
+receipts and named `member`/`field` projections. This does not add a native GUI
+batch: parallel debugger starts still fail preflight before session journals.
+
+SQL admission failures roll back execution rows and dispatches. Durable identity
+reservations are deliberately **not reused**, even when execution admission
+fails. First-commit replay, cancellation and deadline fences are unchanged.
+**Continuation schemas 1-11 and journal schema 10 remain unchanged**, with no new
+saved function frames or projection vocabulary. Literal legacy groups keep their
+wire shape. This is bounded precomputation, not result-dependent members,
+effectful iteration, mixed `all`/`seq`, dynamic repetition or hidden concurrency.
+
+## Selected Named Groups
+
+```leselang
+fn rows(alternate: boolean) = choose(
+  when: alternate,
+  then: seq(
+    first: ui.focus(node_id: "a"),
+    second: ui.assert_text(node_id: "a", expected: "ready"),
+  ),
+  otherwise: seq(
+    first: ui.focus(node_id: "b"),
+    second: ui.assert_text(node_id: "b", expected: concat(left: "re", right: "ady")),
+  ),
+)
+
+fn main() = bind(
+  group: rows(alternate: false),
+  body: bind(
+    written: ui.set_form_value(
+      node_id: "form",
+      field: "selected",
+      value: concat(
+        left: field(value: member(value: group, name: "first"), name: "node_id"),
+        right: field(value: member(value: group, name: "second"), name: "expected"),
+      ),
+    ),
+    body: field(value: written, name: "value"),
+  ),
+)
+```
+
+This selects the `b` sequence, waits for both correlated receipts, writes
+`"bready"`, then returns that confirmed value. A direct `bind` of an inline
+`choose` works too. Pure preparation, nested choices and typed helper parameters
+can precede a group. Named exports require the **same group mode**, **same ordered
+member names** and **same `HostOperation` signatures** on every cold return path.
+The export is a **closed signature, not a union**: missing/reordered members,
+different operations or mixed `seq`/`all` modes cannot provide these projections.
+Existing aliases preserve this closed member set; dynamic member names and raw
+captured group returns remain unsupported.
+
+The guard is pure and evaluated once; only the **selected group** prepares its
+arguments, synchronously before any dispatch. Unselected preparation faults stay
+cold, but all branches retain type, literal-domain, capability and expansion
+preflight. A selected guard/preparation/domain/fuel failure allocates no identity
+and journals no execution row. Bounded iterative signature inspection follows
+structurally validated HIR, with existing node/depth/source and 64-effect limits.
+Both literal and prepared atomic groups obey the same signature contract.
+
+Journals contain **resolved requests only**, never the selection guard or helper
+definitions. **Restart does not reselect** or rerun preparation. Named projections
+feed existing pure bodies, atomic tails or bounded captured/conditional chains;
+parallel prefixes retain their **all-success barrier** and out-of-order receipts.
+Original authority/revision/deadline and shared fuel remain attached to the chosen
+graph. Receipt-plus-successor SQL failures roll back and permit retry; first-commit
+replay, cancellation and output/frame limits are unchanged.
+
+**Continuation schemas 1-11 and journal schema 10 remain unchanged**, as do closed
+projection vocabularies v1-v5. Native sequential debugger acknowledgements preserve
+wrong-node rejection, revisions and replay without exposing private frames.
+**Native parallel starts still fail preflight before session journals**; this is
+not GUI batch support. Result-dependent group capture inside an atomic chain,
+group-returning helpers as atomic members, effectful loops and host-error cleanup
+remain unsupported. This adds static selection/composition, not dynamic topology.
+
+## Prepared Atomic Result Bindings
+
+```leselang
+fn main() = bind(
+  seed: ui.assert_text(node_id: "status", expected: "ready"),
+  body: bind(
+    selected: bind(
+      target: concat(left: "node-", right: field(value: seed, name: "expected")),
+      body: choose(
+        when: starts_with(left: target, right: "node-ready"),
+        then: ui.focus(node_id: target),
+        otherwise: ui.focus(node_id: "fallback"),
+      ),
+    ),
+    body: choose(
+      when: eq(left: field(value: selected, name: "node_id"), right: "fallback"),
+      then: false,
+      otherwise: bind(
+        written: ui.set_form_value(
+          node_id: "form",
+          field: "target",
+          value: field(value: selected, name: "node_id"),
+        ),
+        body: true,
+      ),
+    ),
+  ),
+)
+```
+
+After the confirmed `status` receipt, this prepares/selects one focus request,
+captures its correlated result and either exits with `false` or writes the
+confirmed target to the form. `bind` now accepts pure preparation/selection as
+its atomic value, including a choice between atomic helper calls. **Every cold
+path produces exactly one atomic operation**, with the **same `HostOperation`
+signature** and result type. This uses the same bounded iterative classifier as
+prepared group members, not a second call ABI. A value containing result captures,
+multiple effects, a data-only exit or an implicit group cannot pass this rule.
+General effectful function returns still use explicit normal-return splicing.
+
+Preparation and guards are pure; selected helper arguments run once in declaration
+order. Unselected helper arguments stay lazy, including unused arguments, while
+all cold code retains type/domain/capability and expansion checks. Prefix locals
+are scoped to preparation and **do not leak into the continuation**. Only enclosing
+locals/results/groups and the caller body are captured. Domain or fuel failures
+before initial admission allocate no identity and journal no execution row.
+
+Prepared captures compose with existing atomic result chains, scalar early exits
+and group-owned successors. **One capture reserves one atomic slot**, regardless
+of cold alternatives; a group prefix plus the longest successor path still fits
+in 64 steps. Parallel prefixes keep the all-success barrier and out-of-order
+receipts. Group recovery checks the captured operation against the same uniform
+signature, including its position in the saved chain.
+
+The **selected request is resolved before suspension**. Restart or first-commit
+replay never reruns its preparation or reselects that committed request. Future
+captures remain saved HIR and are evaluated only after a validated predecessor
+receipt, under original authority/revision/deadline and shared fuel. SQL failures
+roll back predecessor completion and successor admission together; a retry may
+recalculate an **uncommitted** pure selection from the same immutable inputs.
+Simultaneous workers commit one successor, never duplicate host work.
+
+Saved projections stay closed: **legacy fields are not synthesized**, and even an
+unselected prepared path cannot read a field missing from a v1-v5 frame. Cancellation,
+wrong receipts, deadlines, raw-output and frame limits retain existing fences.
+**Continuation schemas 1-11 and journal schema 10 remain unchanged**; literal
+legacy programs keep their wire shape. Native debugger receipts preserve revisions,
+wrong-node rejection, early completion and first-commit replay without exposing
+private frames. This is not a new GUI endpoint or a parallel presentation batch.
+Pure operands, helper arguments, `loop`/`fold`/`recover` and result-capturing group
+members still cannot hide effects. **No effectful loops or host-error cleanup**
+are introduced by this atomic composition rule.
+
+## Selected Data-Returning Functions
+
+```leselang
+fn single() = bind(
+  result: ui.assert_text(node_id: "status", expected: "ready"),
+  body: field(value: result, name: "expected"),
+)
+
+fn gathered() = bind(
+  group: seq(
+    first: ui.assert_text(node_id: "left", expected: "re"),
+    second: ui.assert_text(node_id: "right", expected: "ady"),
+  ),
+  body: concat(
+    left: field(value: member(value: group, name: "first"), name: "expected"),
+    right: field(value: member(value: group, name: "second"), name: "expected"),
+  ),
+)
+
+fn main() = bind(
+  answer: choose(when: false, then: single(), otherwise: gathered()),
+  body: bind(
+    written: ui.set_form_value(node_id: "form", field: "answer", value: answer),
+    body: eq(left: field(value: written, name: "value"), right: "ready"),
+  ),
+)
+```
+
+This selects the sequential helper, waits for both correlated receipts, then
+writes its returned `"ready"` data to the caller's form. A selected helper may
+own a single capture, a bounded chain or a supported sequential/parallel group;
+different helper topologies can join because **only returned typed data** crosses
+the call boundary. A parallel helper still observes the **all-success barrier**.
+
+The binding value's non-pure source paths must be **`choose` or direct helper
+calls**. Guards are pure; nested choices and **pure data fallbacks** are allowed.
+Every arm has the same bounded data type: integer, boolean, string, none,
+optional string or string list. Raw result/group selection remains under its
+existing uniform operation or closed named-group contract. This does not admit
+arbitrary inline result-capturing `bind` values, impure arguments/operands,
+effectful loop/fold/recovery positions or multi-step atomic group members.
+
+**Only the selected call's arguments run**, once in parameter declaration order,
+including unused parameters. Cold calls still contribute capability requirements;
+all definitions and cold returns are type/domain checked. Helper locals are
+hygienic; a pure fallback's locals do not capture the caller continuation.
+The compiler reserves **every cold return before cloning** the caller under the
+same 1024-node, 16-level and 256-KiB canonical-source limits.
+
+Normal-return splicing uses existing HIR nodes, with **no hidden call stack**.
+The current selection is resolved before suspension; no helper table is saved,
+and committed requests are not reselected on journal restart. Future selectors
+in the caller's remaining HIR still run at their own boundaries. Shared fuel,
+original authority/deadline and closed projection
+fields survive each receipt. SQL failures roll back predecessor completion and
+caller admission together; uncommitted pure work may be recalculated on retry.
+Simultaneous workers commit one successor; first-commit replay never reruns it.
+Host failures, rejected receipts, cancellation and expiry do not join the caller.
+**Continuation schemas 1-11 and journal schema 10 remain unchanged**; projection
+vocabularies v1-v5 and existing prepared-capture/group wire shapes stay intact.
+
+The native debugger proves selected single/sequential helper-to-form paths with
+revisioned, correlated acknowledgements and wrong-node rejection. A selected
+parallel helper still fails preflight before creating a session journal; this is
+not native parallel GUI support or effectful loops/host-error cleanup.
 
 ## Explicit Scalar Conversions
 
@@ -317,6 +656,115 @@ remain in force. The Rust native debugger proves text predicates driving a form
 prefix through correlated acknowledgements, without exposing private frames;
 this is not a new desktop scalar inspector or actual desktop-control test.
 
+## Bounded String Collections
+
+`string_list` is an immutable, ordered list of strings, not a generic container
+or a map. It can be a local, a pure helper parameter/result, a loop accumulator,
+or a durable result-chain terminal. This example filters confirmed text and
+hands the result to the existing form operation:
+
+```leselang
+fn selected(parts: string_list) = fold(
+  output: strings(),
+  items: parts,
+  item: "part",
+  next: choose(
+    when: starts_with(left: part, right: "ready-"),
+    then: append(left: output, right: part),
+    otherwise: output
+  ),
+  limit: 64
+)
+
+fn main() = bind(
+  status: ui.assert_text(node_id: "status", expected: "ready-a,skip,ready-b"),
+  body: bind(
+    values: selected(parts: split(
+      left: field(value: status, name: "expected"), right: ","
+    )),
+    body: bind(
+      written: ui.set_form_value(
+        node_id: "form", field: "selected", value: join(left: values, right: ";")
+      ),
+      body: values
+    )
+  )
+)
+```
+
+`strings()` constructs an empty list; `strings(first: "b", second: "a")`
+constructs `["b", "a"]`. Its bounded, unique local-style labels are positional
+source labels, not stored keys. Entries are evaluated once in **source order**,
+not alphabetical label order. Canonical source renames labels to `item0`,
+`item1`, etc., preserving order. All entries must be pure strings, including
+cold branches; there are no nested lists, implicit conversions or optional items.
+
+Every list has at most **64 entries** and at most **4096 bytes** of combined
+UTF-8 text, including empty entries in the count. Literal lists are checked
+during lowering; computed construction, splitting and appending enforce the same
+limits before growth. Overflow faults with `LSV1403`, not truncation.
+
+| Operation | Input | Result and Semantics |
+| --- | --- | --- |
+| `split(left:, right:)` | string, string delimiter | Exact, case-sensitive non-overlapping split; leading, trailing and consecutive delimiters preserve empty entries. An empty delimiter splits at Unicode scalar boundaries, including empty first/last entries. Splitting empty text with an empty delimiter yields two empty entries. |
+| `append(left:, right:)` | string_list, string | A new ordered list, leaving the original value unchanged. |
+| `join(left:, right:)` | string_list, string delimiter | String with delimiters only between entries; an empty list produces empty text. The 4096-byte output bound is checked before allocation. |
+| `item_at(left:, right:)` | string_list, integer | Zero-based `optional_string`; present-empty stays present. Out-of-range and `u64::MAX` indices are absent, never truncated or allocated proportionally to the index. |
+| `len(value:)` | string_list | Number of entries; existing string `len` still counts Unicode scalars. |
+| `eq` / `ne` | two string_lists | Exact order-sensitive equality; labels are not part of the value. |
+
+`fold(output: initial, items: list, item: "part", next: expression, limit: n)`
+returns the final accumulator. `output` may be any bounded data type supported
+by the scalar envelope, including `optional_string` or `string_list`. `next`
+must be pure and preserve the exact accumulator type. State/item names must be
+distinct valid locals and cannot shadow active bindings. They exist only in
+`next`, not in `items` or `initial`, and never escape into the enclosing scope.
+Pure helpers use hygienically renamed accumulator/item locals.
+
+Evaluation prepares `items` first, then `initial`, exactly once, regardless of
+written named-argument order. The integer-literal `limit` is from **0 through
+64**. If the list exceeds it, `LSV1406` is raised **before the first iteration**;
+an empty list with `limit: 0` returns `initial` without evaluating `next`.
+`next` is still type-checked for empty lists. The loop runs synchronously under
+shared fuel without HIR expansion or mid-loop suspension, in list order.
+`choose` supplies filtering; nested pure folds supply nested aggregation.
+This is not effectful iteration, a host retry mechanism or a hidden GUI batch.
+
+List copying/scanning charges one shared fuel unit per entry plus one per
+started 64-byte block of each entry. Construction and list/string outputs also
+charge materialization; each iteration charges its item before entering `next`.
+Existing expression-node charges apply as well. Empty entries therefore still
+cost fuel. Resource/iteration limits and fuel exhaustion are not caught by
+`recover`; arithmetic/parse recovery retains its closed error set and refunds
+no fuel. On every normal/fault exit, both fold locals are removed.
+
+The existing scalar wire envelope adds `{"kind":"string_list","value":[...]}`.
+The array is required, even when empty; missing/null payloads, non-string entries,
+unknown fields, oversized arrays and oversized combined text are rejected.
+Public value validation also checks in-memory lists before accepting them;
+each entry counts toward its output item accounting (an empty list counts as one).
+Deserialization does not reserve from an untrusted length hint or collect an
+unbounded payload. Canonical literal construction retains its entry-node/depth
+budget. The new `strings` and `fold` HIR nodes are closed, as are binary operators.
+Unknown constructs reject instead of falling back to a permissive interpreter.
+
+List locals and residual fold bodies survive re-entry without source or helper
+tables. Existing continuation schemas **1 through 11**, journal schema **10**
+and projection vocabularies **v1-v5** remain unchanged; no saved host field is
+added or synthesized. This is an additive HIR/value vocabulary, not a promise
+that old runtimes execute new operators. The **64 KiB** image/plan bound,
+original authority, revisions, deadlines, cancellation, raw output budgets,
+transactional rollback and first-commit replay continue to apply. Sequential
+and flat `all` group results may feed a fold only after every prefix succeeds.
+
+Lists are not accepted directly by existing host arguments. Callers must join,
+index/default or otherwise compute the existing string/optional-text domain;
+the original host validators remain authoritative. A bad later parameter
+prevents the whole group from being admitted. The Rust native debugger proves
+the confirmed-text/filter/form chain through correlated acknowledgements and
+does not expose private frames. This is not a live Avalonia or browser-control
+test, a desktop list inspector or multipresentation batch support.
+
 ## Bounded Pure Loops
 
 ```leselang
@@ -385,8 +833,9 @@ After a validated result, its scalar output or fault is committed through the
 existing completion transaction. Restart/retry before that commit may repeat
 pure calculation; a duplicate after commit replays the original outcome. The
 saved remaining fuel, cancellation and trusted scheduler deadline fences still
-apply. This does not add effectful loops, collection iteration, mid-loop host
-suspensions or a scalar inspector to the GUI.
+apply. This does not add effectful loops, mid-loop host
+suspensions or a scalar inspector to the GUI. Collection-driven pure traversal
+uses the separate bounded `fold` construct above.
 
 ## Pure Calculation Recovery
 
@@ -438,7 +887,8 @@ With real host-exported IDs and `ui.presentation`, the successful zero-child
 assertion leads to form text `"1"`. If the assertion itself fails, no fallback
 form action is requested. Converted/recovered parameters still pass the original
 host validators. In a prepared group, an unrecovered later argument failure
-admits no member. General computation cannot become a group member.
+admits no member. Only [prepared atomic members](#prepared-atomic-members) may
+wrap an atomic operation with pure preparation; recovery cannot wrap host effects.
 
 The `recover` HIR node is stored in existing result-binding schemas 2 through 5
 under the original authority, deadline and remaining fuel; atomic/group schema 1
@@ -522,9 +972,10 @@ The native debugger can acknowledge this single presentation and reach its
 normal completed/failed state. The scalar is returned by the Rust VM; this does
 not add a scalar inspector to the desktop or expose locals in public projections.
 Atomic result-bound bodies cannot capture a group or replace a group member. Further
-atomic captures use the durable chain rules below. Use an outer `choose` to
-select a result-binding program, rather than hiding effects in operands or host
-arguments.
+atomic captures use the durable chain rules below. An outer `choose` selects a
+complete result-binding program; a [prepared atomic result binding](#prepared-atomic-result-bindings)
+selects/prepares one uniform atomic call directly as a `bind` value. Neither
+form hides effects in pure operands or host arguments.
 
 ## Boolean GUI Projections
 
@@ -1124,7 +1575,8 @@ Lazy `choose` may select different atomic operations or chain lengths, but every
 non-pure path must suspend before returning: **mixed scalar early exits between
 suspensions remain unsupported** by schema 10, and use the separate
 [schema-11 conditional contract](#group-conditional-exits). Nested/dynamic tail
-groups, effectful operands, effectful helpers and effectful loops are not admitted.
+groups, effectful operands and effectful loops are not admitted. Expanded helpers
+must satisfy this same group-owned flow contract.
 The flat prefix still prepares every member before its first suspension, never
 from earlier member replies. All cold branches are type/capability-checked first.
 
@@ -1215,8 +1667,8 @@ between a pure scalar exit and another captured atomic operation, using typed
 group/member/result projections and immutable aliases. Every exit has the
 **same scalar type**. Pure helpers, conversions, loops and local calculation
 recovery retain their existing bounded rules. No raw-host/scalar mixed returns,
-effectful guards/operands, nested tail groups, effectful functions or effectful
-loops are admitted, even on a cold branch.
+effectful guards/operands, nested tail groups or effectful loops are admitted,
+even on a cold branch. Expanded helpers must obey these same boundaries.
 
 Continuation **schema 11** and `group_conditional` / `parallel_group_conditional`
 plan markers identify this flow. **Journal schema 10 is unchanged**; schemas 1-10
@@ -1536,9 +1988,10 @@ The Leserpent debugger can advance computed sequences through its existing
 single-presentation acknowledgement channel. Flat `all` uses the Rust VM's
 structured batch interface; this does not add multi-presentation batch support
 to that debugger. Mixed `all`/`seq`, nested parallel execution, general
-computation as group members, result-dependent parameters and dynamic repetition
-counts remain unsupported. Use pure `bind`/`choose` inside an atomic argument,
-not as a replacement for the atomic group member.
+result-capturing or multi-step computation as group members, result-dependent
+parameters and dynamic repetition counts remain unsupported.
+[Prepared atomic members](#prepared-atomic-members) may wrap exactly one fixed-type
+operation with pure `bind`/`choose`; they cannot change those dispatch boundaries.
 
 ## Named Sequences
 
@@ -1637,10 +2090,13 @@ captured successors, with typed scalar exits before/between captures and whole-g
 journal recovery. Selection/requirement booleans now have versioned durable
 projections, alongside confirmed text/form strings and canonical node/action/input-kind
 token projections, plus typed optional strings and four nullable metadata projections.
-Generic nullable/container types and collection iteration remain pending, followed by
-bounded effectful loops with exit/skip semantics,
-effectful reusable functions, and explicit host-effect recovery/cleanup. Pure typed
-helpers are implemented with bounded hygienic HIR expansion. These are semantic requirements, not prescribed
+Bounded string collections, pure fold iteration and reusable effectful functions
+are implemented through bounded hygienic HIR expansion. Prepared atomic result
+bindings also compose pure preparation/selection with existing single captures,
+chains, conditional exits and group-owned successors without new wire formats. Generic
+nullable/container types, maps and heterogeneous/nested collections remain pending, followed by
+bounded effectful loops with exit/skip semantics and explicit host-effect
+recovery/cleanup. These are semantic requirements, not prescribed
 keywords or a Bash compatibility checklist. Their syntax must satisfy the
 [agent-first design rules](leselang-embedding.md#agent-first-syntax); none of
 these unimplemented constructs should be generated as if supported.

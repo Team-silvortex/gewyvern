@@ -273,6 +273,288 @@ fn leselang_pure_function_contract_keeps_types_hygiene_and_durable_bounds_explic
 }
 
 #[test]
+fn leselang_effectful_function_contract_preserves_existing_flow_and_wire_boundaries() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Reusable Effectful Functions")
+        .nth(1)
+        .unwrap()
+        .split("## Explicit Scalar Conversions")
+        .next()
+        .unwrap();
+    for invariant in [
+        "Every normal return",
+        "pure typed data",
+        "parameter declaration order",
+        "hygienically renamed",
+        "cold returns",
+        "before\ncloning",
+        "1024 nodes",
+        "16 levels",
+        "256 KiB canonical source",
+        "SQL failures roll back",
+        "No hidden call stack",
+        "Continuation schemas 1-11 and journal schema 10 remain unchanged",
+        "v1-v5",
+        "wrong-node rejection",
+        "effectful loops",
+        "host-error recovery/cleanup",
+    ] {
+        assert!(
+            section.contains(invariant),
+            "missing effectful helper boundary: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(
+        program.function.result_type,
+        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+    );
+    assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
+    let canonical = leselang_hir::canonical_source(&program.function.effect).unwrap();
+    assert_eq!(
+        leselang_hir::lower(&leselang_syntax::parse(&canonical)).unwrap(),
+        program
+    );
+    for path in ["docs/leselang-language.md", "docs/leselang-embedding.md"] {
+        let reference = fs::read_to_string(repository_root().join(path)).unwrap();
+        assert!(reference.contains("normal-return splicing"));
+        assert!(
+            reference.contains("no hidden call stack")
+                || reference.contains("not a hidden call stack")
+        );
+        assert!(!reference.contains("excludes effectful helper functions"));
+    }
+}
+
+#[test]
+fn leselang_prepared_group_members_keep_precomputation_and_dispatch_boundaries_explicit() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Prepared Atomic Members")
+        .nth(1)
+        .unwrap()
+        .split("## Explicit Scalar Conversions")
+        .next()
+        .unwrap();
+    for invariant in [
+        "Every path produces exactly one atomic operation",
+        "same `HostOperation` signature",
+        "parameter declaration order",
+        "before cloning",
+        "bounded iterative traversal",
+        "A later preparation failure admits no member",
+        "resolved atomic requests",
+        "all-success barrier",
+        "not reused",
+        "parallel debugger starts still fail preflight",
+        "1024-node",
+        "16-level",
+        "64-effect",
+        "Continuation schemas 1-11 and journal schema 10 remain unchanged",
+        "result-dependent members",
+    ] {
+        assert!(
+            section.contains(invariant),
+            "missing prepared member boundary: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(program.function.result_type, leselang_hir::Type::Structured);
+    assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
+    let canonical = leselang_hir::canonical_source(&program.function.effect).unwrap();
+    assert_eq!(
+        leselang_hir::lower(&leselang_syntax::parse(&canonical)).unwrap(),
+        program
+    );
+    for path in ["docs/leselang-language.md", "docs/leselang-embedding.md"] {
+        let reference = fs::read_to_string(repository_root().join(path)).unwrap();
+        assert!(reference.contains("Prepared atomic members"));
+        assert!(reference.contains("HostOperation"));
+    }
+}
+
+#[test]
+fn leselang_selected_group_contract_keeps_closed_exports_and_one_time_selection() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Selected Named Groups")
+        .nth(1)
+        .unwrap()
+        .split("## Explicit Scalar Conversions")
+        .next()
+        .unwrap();
+    for invariant in [
+        "same group mode",
+        "same ordered\nmember names",
+        "same `HostOperation` signatures",
+        "closed signature, not a union",
+        "selected group",
+        "Restart does not reselect",
+        "resolved requests only",
+        "all-success barrier",
+        "SQL failures roll back",
+        "Continuation schemas 1-11 and journal schema 10 remain unchanged",
+        "Native parallel starts still fail preflight before session journals",
+        "effectful loops",
+        "not dynamic topology",
+    ] {
+        assert!(
+            section.contains(invariant),
+            "missing selected group boundary: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(
+        program.function.result_type,
+        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::String)
+    );
+    let canonical = leselang_hir::canonical_source(&program.function.effect).unwrap();
+    assert_eq!(
+        leselang_hir::lower(&leselang_syntax::parse(&canonical)).unwrap(),
+        program
+    );
+    for path in ["docs/leselang-language.md", "docs/leselang-embedding.md"] {
+        let reference = fs::read_to_string(repository_root().join(path)).unwrap();
+        assert!(reference.contains("Selected named groups"));
+        assert!(reference.contains("restart does not reselect"));
+    }
+}
+
+#[test]
+fn leselang_prepared_result_binding_contract_keeps_capture_and_recovery_fences() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Prepared Atomic Result Bindings")
+        .nth(1)
+        .unwrap()
+        .split("## Explicit Scalar Conversions")
+        .next()
+        .unwrap();
+    for invariant in [
+        "Every cold\npath produces exactly one atomic operation",
+        "same `HostOperation`\nsignature",
+        "do not leak into the continuation",
+        "One capture reserves one atomic slot",
+        "selected request is resolved before suspension",
+        "uncommitted",
+        "legacy fields are not synthesized",
+        "Simultaneous workers commit one successor",
+        "SQL failures",
+        "all-success barrier",
+        "Continuation schemas 1-11 and journal schema 10 remain unchanged",
+        "No effectful loops or host-error cleanup",
+    ] {
+        assert!(
+            section.contains(invariant),
+            "missing prepared binding boundary: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(
+        program.function.result_type,
+        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+    );
+    let canonical = leselang_hir::canonical_source(&program.function.effect).unwrap();
+    assert_eq!(
+        leselang_hir::lower(&leselang_syntax::parse(&canonical)).unwrap(),
+        program
+    );
+    for path in ["docs/leselang-language.md", "docs/leselang-embedding.md"] {
+        let reference = fs::read_to_string(repository_root().join(path)).unwrap();
+        assert!(reference.contains("Prepared atomic result bindings"));
+        assert!(reference.contains("HostOperation"));
+    }
+}
+
+#[test]
+fn leselang_selected_function_contract_keeps_typed_joins_and_recovery_boundaries() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Selected Data-Returning Functions")
+        .nth(1)
+        .unwrap()
+        .split("## Explicit Scalar Conversions")
+        .next()
+        .unwrap();
+    for invariant in [
+        "only returned typed data",
+        "`choose` or direct helper\ncalls",
+        "pure data fallbacks",
+        "Only the selected call's arguments run",
+        "every cold return before cloning",
+        "no hidden call stack",
+        "uncommitted",
+        "Simultaneous workers commit one successor",
+        "all-success barrier",
+        "Continuation schemas 1-11 and journal schema 10 remain unchanged",
+        "parallel helper still fails preflight",
+    ] {
+        assert!(
+            section.contains(invariant),
+            "missing selected function boundary: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(
+        program.function.result_type,
+        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+    );
+    let canonical = leselang_hir::canonical_source(&program.function.effect).unwrap();
+    assert_eq!(
+        leselang_hir::lower(&leselang_syntax::parse(&canonical)).unwrap(),
+        program
+    );
+    for path in ["docs/leselang-language.md", "docs/leselang-embedding.md"] {
+        assert!(
+            fs::read_to_string(repository_root().join(path))
+                .unwrap()
+                .contains("Selected data-returning functions")
+        );
+    }
+}
+
+#[test]
 fn leselang_reference_separates_current_contract_from_roadmap_design() {
     let root = repository_root();
     let reference = fs::read_to_string(root.join("docs/leselang-language.md"))
@@ -918,6 +1200,83 @@ fn leselang_loop_documentation_is_executable_and_keeps_the_pure_boundary_explici
 }
 
 #[test]
+fn leselang_concurrency_contract_separates_engines_roots_batches_and_host_namespaces() {
+    let source = fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();
+    let section = source
+        .split("## Concurrency Model")
+        .nth(1)
+        .unwrap()
+        .split("## Current Boundary And Next Proof")
+        .next()
+        .unwrap();
+    for invariant in [
+        "multiple isolated execution contexts with bounded host workers",
+        "One mutable engine is entered serially",
+        "one VM can suspend multiple roots",
+        "all-success barrier",
+        "No process-global interpreter lock",
+        "same journal namespace",
+        "does not rerun source or refill fuel",
+        "attempt-fenced leases",
+        "local cache, not a global\nqueue count",
+        "journal-local, not globally unique",
+        "persisted, validated\nadapter-level identity mapping",
+        "resource lane",
+        "fewest delivery attempts",
+        "numeric admission order",
+        "fixed eligible cohort",
+        "without changing wire formats",
+        "reports `LSV4017`",
+        "not a global FIFO or tenant-fairness guarantee",
+        "Host Admission And Backpressure",
+        "trusted host policy",
+        "inside the admission write transaction",
+        "DispatchClaim::Backpressured",
+        "not\n`None`",
+        "does not issue a lease or increment attempts",
+        "Already admitted chains and group tails",
+        "the same limits to all workers in one journal namespace",
+        "outbox bounds, not\na total memory or CPU ceiling",
+        "not persisted in continuation or journal wire formats",
+        "native\nparallel batches still fail preflight",
+        "Scheduler faults use `LSV2500` through `LSV2503`",
+        "`LSV2401` through `LSV2404` retain their meanings",
+        "Restore And Allocator Recovery",
+        "high-water mark in the same transaction",
+        "one consistent write-locked snapshot",
+        "unused cold group\nreservations",
+        "original watermark before repair",
+        "a high imported identity cannot legitimize a forged reservation",
+        "Compaction never lowers the watermark",
+        "Repair cannot reconstruct identities",
+        "does not scan\nthe journal on every allocation",
+        "Bounded Host Ingress",
+        "host-owned, single-use pre-admission handle",
+        "total attempts including the first",
+        "VM-free and journal-free",
+        "pinned at submission",
+        "bounded pure preparation may repeat",
+        "no accepted root receives fresh fuel through this API",
+        "not cloneable or deserializable",
+        "observations, not checkpoint/replay authority",
+        "no hidden queue, timer,\nworker pool or global lock",
+        "Backoff supplies neither jitter nor fairness",
+        "Native debugger starts do not automatically opt into deferred admission",
+    ] {
+        assert!(
+            section.contains(invariant),
+            "missing concurrency boundary: {invariant}"
+        );
+    }
+    let reference =
+        fs::read_to_string(repository_root().join("docs/leselang-language.md")).unwrap();
+    assert!(reference.contains("(leselang-embedding.md#concurrency-model)"));
+    assert!(reference.contains("(leselang-embedding.md#dispatch-selection)"));
+    assert!(reference.contains("(leselang-embedding.md#host-admission-and-backpressure)"));
+    assert!(reference.contains("(leselang-embedding.md#bounded-host-ingress)"));
+}
+
+#[test]
 fn leselang_embedding_separates_language_hosts_and_future_shell() {
     let root = repository_root();
     let embedding = fs::read_to_string(root.join("docs/leselang-embedding.md"))
@@ -941,6 +1300,53 @@ fn leselang_embedding_separates_language_hosts_and_future_shell() {
         "current VM still links SQLite and product types",
         "Two independent host schemas",
         "leselang/language-vm/host-neutral-embedding",
+        "leselang-runtime-core",
+        "AdmissionAdapter<Input>",
+        "standalone package",
+        "not a second scheduler implementation",
+        "typed language-operation schema or complete evaluator acceptance gate",
+        "read-only admission snapshot",
+        "debug output contains scheduling metadata only",
+        "Snapshots can become stale",
+        "Cleanup panics are not swallowed",
+        "payload-free terminal reason",
+        "AdmissionEnd",
+        "legacy `Finished { attempts }`",
+        "Acceptance is not output delivery or execution completion",
+        "not a\nrejection or automatic replay permission",
+        "explicit pending-or-terminal ownership state",
+        "before they enter the return slot",
+        "Only explicit pre-publication pressure can rearm input",
+        "pure policy preflight",
+        "bounded exhaustion diagnostic",
+        "Direct permanent host rejections remain verbatim",
+        "must-use ownership diagnostics",
+        "conditional thread ownership",
+        "Attempts, the observed clock",
+        "These tests cover\nadmission only",
+        "### Shared Fuel Accounting",
+        "host-granted fuel accounting",
+        "validated saved\nremaining fuel",
+        "fuel wire fields remain unchanged",
+        "not a sandbox or callback preemption",
+        "### Shared Scheduler Clock",
+        "portable scheduler-clock arithmetic",
+        "parameter preflight before expiry cleanup",
+        "do not wait for a SQLite writer lock",
+        "overflow-to-pinned-deadline clamp",
+        "No absolute-time wire field or journal schema changes",
+        "Current-time validation is distinct from future-time construction",
+        "one-millisecond future lease",
+        "Pressure observation never\nreaps execution deadlines",
+        "A due execution deadline takes precedence",
+        "Retry overflow remains `LSV2203`",
+        "### Shared Retry Delay Arithmetic",
+        "pure capped exponential delay arithmetic",
+        "without allocation or exponent-sized loops",
+        "does not weaken policy validation",
+        "Admission attempts, delivery attempts and semantic retries remain distinct budgets",
+        "restarting with zero default fuel between retries",
+        "adds no policy or wire fields and is not evaluator independence",
         "OS integration is a deferred direction",
     ] {
         assert!(
@@ -1365,7 +1771,7 @@ fn leselang_text_inspection_contract_preserves_unicode_fuel_and_durable_boundari
         .split("## Bounded Text Inspection")
         .nth(1)
         .unwrap()
-        .split("## Bounded Pure Loops")
+        .split("## Bounded String Collections")
         .next()
         .unwrap();
     let normalized = section.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -1415,6 +1821,64 @@ fn leselang_text_inspection_contract_preserves_unicode_fuel_and_durable_boundari
     assert_eq!(
         program.function.result_type,
         leselang_hir::Type::UiSetFormValue
+    );
+    assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
+}
+
+#[test]
+fn leselang_collection_contract_has_compilable_examples_and_closed_resource_semantics() {
+    let source =
+        fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
+    let section = source
+        .split("## Bounded String Collections")
+        .nth(1)
+        .unwrap()
+        .split("## Bounded Pure Loops")
+        .next()
+        .unwrap();
+    let normalized = section.split_whitespace().collect::<Vec<_>>().join(" ");
+    for invariant in [
+        "string_list",
+        "source order",
+        "64 entries",
+        "4096 bytes",
+        "LSV1403",
+        "LSV1406",
+        "before the first iteration",
+        "0 through",
+        "Unicode scalar boundaries",
+        "present-empty",
+        "hygienically",
+        "items` first",
+        "shared fuel",
+        "mid-loop suspension",
+        "not caught",
+        "array is required",
+        "untrusted length hint",
+        "1 through 11",
+        "v1-v5",
+        "64 KiB",
+        "first-commit replay",
+        "original host validators",
+        "not a live Avalonia",
+        "private frames",
+    ] {
+        assert!(
+            normalized.contains(invariant),
+            "missing collection contract boundary: {invariant}"
+        );
+    }
+    let example = section
+        .split("```leselang\n")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(
+        program.function.result_type,
+        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::StringList)
     );
     assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
 }

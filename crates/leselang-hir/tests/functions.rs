@@ -69,13 +69,15 @@ fn invalid_declarations_are_checked_even_when_unused() {
     assert!(lower(&parse("fn f(n: integer) = n")).is_err());
     assert!(lower(&parse("fn main(n: integer) = n")).is_err());
     for helper in [
-        "fn f() = runtime.list()",
-        "fn f() = bind(r: ui.focus(node_id: \"a\"), body: 0)",
-        "fn f() = choose(when: true, then: 0, otherwise: bind(r: runtime.list(), body: 1))",
+        "fn f() = add(left: runtime.list(), right: 1)",
+        "fn f() = bind(r: ui.focus(node_id: \"a\"), body: r)",
+        "fn f() = choose(when: true, then: 0, otherwise: runtime.list())",
     ] {
         let errors = lower(&parse(&format!("fn main() = 1\n{helper}"))).unwrap_err();
         assert!(
-            errors.iter().any(|error| error.code == "LSH1503"),
+            errors
+                .iter()
+                .any(|error| matches!(error.code.as_str(), "LSH1402" | "LSH1404" | "LSH1408")),
             "{errors:?}"
         );
     }

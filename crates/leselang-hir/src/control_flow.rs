@@ -103,11 +103,9 @@ fn append_steps(
     span: Span,
 ) -> Result<(), Vec<Diagnostic>> {
     match lowered.effect {
-        Effect::Compute { ref expression }
-            if !matches!(expression.as_ref(), computation::Computation::Call { .. }) =>
-        {
+        Effect::Compute { ref expression } if expression.prepared_atomic_operation().is_none() => {
             return Err(invalid(
-                "seq/repeat steps require host calls, not general computation",
+                "seq/repeat steps require prepared atomic calls, not result flows",
                 span,
             ));
         }

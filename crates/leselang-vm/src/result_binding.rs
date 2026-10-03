@@ -334,13 +334,10 @@ impl ResultBinding {
             .saturating_add(self.groups.len())
             > MAX_EFFECT_NESTING_DEPTH
             || self.name.len() > MAX_BRANCH_NAME_BYTES
-            || self.locals.iter().any(|local| {
-                local.name.len() > MAX_BRANCH_NAME_BYTES
-                    || local
-                        .value
-                        .text()
-                        .is_some_and(|value| value.len() > MAX_SCALAR_STRING_BYTES)
-            })
+            || self
+                .locals
+                .iter()
+                .any(|local| local.name.len() > MAX_BRANCH_NAME_BYTES || !local.value.is_bounded())
         {
             return Err(invalid());
         }
@@ -520,6 +517,29 @@ fn validate_projected_accesses<'a>(
                 ) => Some(AvailableProjection::Fields(left & right)),
                 _ => None,
             })
+        }
+        Computation::Strings { items } => {
+            for item in items {
+                validate_projected_accesses(item, scope)?;
+            }
+            Ok(None)
+        }
+        Computation::Fold {
+            name,
+            item,
+            items,
+            initial,
+            next,
+            ..
+        } => {
+            validate_projected_accesses(items, scope)?;
+            validate_projected_accesses(initial, scope)?;
+            scope.push((name.as_str(), None));
+            scope.push((item.as_str(), None));
+            let result = validate_projected_accesses(next, scope);
+            scope.pop();
+            scope.pop();
+            result.map(|_| None)
         }
         Computation::Loop {
             name,

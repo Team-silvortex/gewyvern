@@ -70,10 +70,11 @@ fn parameter_types(function: &Function) -> Result<Vec<(String, ScalarType)>, Vec
                 "string" => ScalarType::String,
                 "none" => ScalarType::None,
                 "optional_string" => ScalarType::OptionalString,
+                "string_list" => ScalarType::StringList,
                 _ => {
                     return Err(invalid(
                         "LSH1501",
-                        "expected integer, boolean, string, none or optional_string parameter type",
+                        "expected integer, boolean, string, none, optional_string or string_list parameter type",
                         parameter.span,
                     ));
                 }
@@ -128,7 +129,9 @@ pub(super) fn lower_program(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnos
                 ));
             }
             match expression {
-                Expression::Call { arguments, .. } => {
+                Expression::Call {
+                    callee, arguments, ..
+                } => {
                     if arguments
                         .len()
                         .saturating_add(visited)
@@ -144,6 +147,15 @@ pub(super) fn lower_program(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnos
                     functions
                         .names
                         .extend(arguments.iter().map(|argument| argument.name.clone()));
+                    // Fold declares its item with a quoted name, even when never referenced.
+                    if callee == "fold"
+                        && let Some(Expression::String { value, .. }) = arguments
+                            .iter()
+                            .find(|argument| argument.name == "item")
+                            .map(|argument| &argument.value)
+                    {
+                        functions.names.insert(value.clone());
+                    }
                     pending.extend(
                         arguments
                             .iter()
@@ -220,10 +232,10 @@ pub(super) fn lower_program(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnos
             0,
             &mut functions,
         )?;
-        if !body.is_pure() || !matches!(result_type, Type::Scalar(_)) {
+        if body.is_pure() && !matches!(result_type, Type::Scalar(_)) {
             return Err(invalid(
                 "LSH1503",
-                "helpers require a pure scalar body",
+                "a pure helper must return bounded data",
                 function.span,
             ));
         }
@@ -279,19 +291,27 @@ pub(super) fn lower_program(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnos
     })
 }
 
-fn shape(expression: &Computation) -> (usize, usize) {
+pub(super) fn shape(expression: &Computation) -> (usize, usize) {
     let mut nodes = 0;
     let mut depth = 0;
     let mut pending = vec![(expression, 0)];
     while let Some((expression, level)) = pending.pop() {
-        let literal_extra = usize::from(matches!(
-            expression,
-            Computation::Literal {
-                value: computation::ScalarValue::OptionalString(_)
+        let (literal_nodes, literal_depth) = match expression {
+            Computation::Literal { value } => value.source_shape_extra(),
+            _ => (0, 0),
+        };
+        nodes += 1 + literal_nodes;
+        depth = depth.max(level + literal_depth);
+        if let Computation::Host { effect } = expression {
+            let mut effects = vec![(effect.as_ref(), level)];
+            while let Some((effect, effect_depth)) = effects.pop() {
+                nodes += 1;
+                depth = depth.max(effect_depth + 1);
+                if let Effect::Sequence { steps } | Effect::All { branches: steps } = effect {
+                    effects.extend(steps.iter().map(|step| (&step.effect, effect_depth + 1)));
+                }
             }
-        ));
-        nodes += 1 + literal_extra;
-        depth = depth.max(level + literal_extra);
+        }
         pending.extend(expression.children().map(|child| (child, level + 1)));
     }
     (nodes, depth)
@@ -396,6 +416,11 @@ fn rename(
 ) -> Result<(), Vec<Diagnostic>> {
     match expression {
         Computation::Literal { .. } => {}
+        Computation::Strings { items } => {
+            for item in items {
+                rename(item, renames, functions)?;
+            }
+        }
         Computation::Local { name } => {
             *name = renames
                 .get(name)
@@ -439,6 +464,34 @@ fn rename(
                 renames.remove(&original);
             }
         }
+        Computation::Fold {
+            name,
+            item,
+            items,
+            initial,
+            next,
+            ..
+        } => {
+            rename(items, renames, functions)?;
+            rename(initial, renames, functions)?;
+            let state_fresh = functions.fresh_name();
+            let item_fresh = functions.fresh_name();
+            let state_previous = renames.insert(name.clone(), state_fresh.clone());
+            let item_previous = renames.insert(item.clone(), item_fresh.clone());
+            let state_original = std::mem::replace(name, state_fresh);
+            let item_original = std::mem::replace(item, item_fresh);
+            rename(next, renames, functions)?;
+            for (original, previous) in [
+                (state_original, state_previous),
+                (item_original, item_previous),
+            ] {
+                if let Some(previous) = previous {
+                    renames.insert(original, previous);
+                } else {
+                    renames.remove(&original);
+                }
+            }
+        }
         Computation::Binary { left, right, .. } => {
             rename(left, renames, functions)?;
             rename(right, renames, functions)?;
@@ -457,12 +510,29 @@ fn rename(
             rename(value, renames, functions)?;
             rename(fallback, renames, functions)?;
         }
-        _ => {
-            return Err(invalid(
-                "LSH1503",
-                "helpers cannot contain host operations or result objects",
-                Span { start: 0, end: 0 },
-            ));
+        Computation::Field { value, .. } => rename(value, renames, functions)?,
+        Computation::Member { group, .. } => {
+            *group = renames
+                .get(group)
+                .ok_or_else(|| {
+                    invalid(
+                        "LSH1503",
+                        "helper cannot capture a caller group",
+                        Span { start: 0, end: 0 },
+                    )
+                })?
+                .clone();
+        }
+        Computation::Host { .. } => {}
+        Computation::Call { arguments, .. } => {
+            for argument in arguments {
+                rename(&mut argument.value, renames, functions)?;
+            }
+        }
+        Computation::Group { branches, .. } => {
+            for branch in branches {
+                rename(&mut branch.value, renames, functions)?;
+            }
         }
     }
     Ok(())

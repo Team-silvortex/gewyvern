@@ -12,6 +12,7 @@ members = [
     "crates/leselang-hir",
     "crates/leselang-host-contract",
     "crates/leselang-observe",
+    "crates/leselang-runtime-core",
     "crates/leselang-syntax",
     "crates/leselang-ui",
     "crates/leselang-vm",
@@ -29,7 +30,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "2.1.5"
+version = "2.1.6"
 edition = "2024"
 license = "MIT"
 

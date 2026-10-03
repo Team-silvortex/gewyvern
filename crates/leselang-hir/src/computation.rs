@@ -5,6 +5,7 @@ use leselang_syntax::NamedArgument;
 
 pub const MAX_COMPUTATION_NODES: usize = 1_024;
 pub const MAX_SCALAR_STRING_BYTES: usize = 4_096;
+pub const MAX_STRING_LIST_ITEMS: usize = 64;
 pub const MAX_LOOP_ITERATIONS: u64 = 1_024;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -15,6 +16,85 @@ pub enum ScalarType {
     String,
     None,
     OptionalString,
+    StringList,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct StringListValue(pub Vec<String>);
+
+impl StringListValue {
+    pub fn is_bounded(&self) -> bool {
+        self.0.len() <= MAX_STRING_LIST_ITEMS
+            && self
+                .0
+                .iter()
+                .try_fold(MAX_SCALAR_STRING_BYTES, |remaining, item| {
+                    remaining.checked_sub(item.len())
+                })
+                .is_some()
+    }
+}
+
+impl<'de> Deserialize<'de> for StringListValue {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct TextSeed(usize);
+        impl<'de> serde::de::DeserializeSeed<'de> for TextSeed {
+            type Value = String;
+            fn deserialize<D: serde::Deserializer<'de>>(
+                self,
+                deserializer: D,
+            ) -> Result<String, D::Error> {
+                struct TextVisitor(usize);
+                impl serde::de::Visitor<'_> for TextVisitor {
+                    type Value = String;
+                    fn expecting(
+                        &self,
+                        formatter: &mut std::fmt::Formatter<'_>,
+                    ) -> std::fmt::Result {
+                        formatter.write_str("a bounded string list entry")
+                    }
+                    fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<String, E> {
+                        if value.len() > self.0 {
+                            return Err(E::custom("string list exceeds 4096 bytes"));
+                        }
+                        Ok(value.to_owned())
+                    }
+                    fn visit_string<E: serde::de::Error>(self, value: String) -> Result<String, E> {
+                        if value.len() > self.0 {
+                            return Err(E::custom("string list exceeds 4096 bytes"));
+                        }
+                        Ok(value)
+                    }
+                }
+                deserializer.deserialize_string(TextVisitor(self.0))
+            }
+        }
+        struct ListVisitor;
+        impl<'de> serde::de::Visitor<'de> for ListVisitor {
+            type Value = StringListValue;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("at most 64 strings totaling at most 4096 bytes")
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut sequence: A,
+            ) -> Result<Self::Value, A::Error> {
+                // Never reserve from an untrusted length hint or collect an unbounded payload.
+                let mut items = Vec::new();
+                let mut remaining = MAX_SCALAR_STRING_BYTES;
+                while let Some(item) = sequence.next_element_seed(TextSeed(remaining))? {
+                    if items.len() == MAX_STRING_LIST_ITEMS {
+                        return Err(serde::de::Error::custom("string list exceeds 64 entries"));
+                    }
+                    remaining -= item.len();
+                    items.push(item);
+                }
+                Ok(StringListValue(items))
+            }
+        }
+        deserializer.deserialize_seq(ListVisitor)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -67,6 +147,7 @@ pub enum ScalarValue {
     String(String),
     None,
     OptionalString(OptionalStringValue),
+    StringList(StringListValue),
 }
 
 impl ScalarValue {
@@ -77,6 +158,7 @@ impl ScalarValue {
             Self::String(_) => ScalarType::String,
             Self::None => ScalarType::None,
             Self::OptionalString(_) => ScalarType::OptionalString,
+            Self::StringList(_) => ScalarType::StringList,
         }
     }
 
@@ -85,6 +167,23 @@ impl ScalarValue {
             Self::String(value) => Some(value),
             Self::OptionalString(value) => value.0.as_deref(),
             _ => None,
+        }
+    }
+
+    pub fn is_bounded(&self) -> bool {
+        match self {
+            Self::StringList(value) => value.is_bounded(),
+            _ => self
+                .text()
+                .is_none_or(|value| value.len() <= MAX_SCALAR_STRING_BYTES),
+        }
+    }
+
+    pub(crate) fn source_shape_extra(&self) -> (usize, usize) {
+        match self {
+            Self::OptionalString(_) => (1, 1),
+            Self::StringList(value) => (value.0.len(), usize::from(!value.0.is_empty())),
+            _ => (0, 0),
         }
     }
 }
@@ -111,6 +210,10 @@ pub enum BinaryOperator {
     StartsWith,
     EndsWith,
     CharAt,
+    Split,
+    Join,
+    Append,
+    ItemAt,
 }
 
 impl BinaryOperator {
@@ -135,6 +238,10 @@ impl BinaryOperator {
             Self::StartsWith => "starts_with",
             Self::EndsWith => "ends_with",
             Self::CharAt => "char_at",
+            Self::Split => "split",
+            Self::Join => "join",
+            Self::Append => "append",
+            Self::ItemAt => "item_at",
         }
     }
 
@@ -159,6 +266,10 @@ impl BinaryOperator {
             Self::StartsWith,
             Self::EndsWith,
             Self::CharAt,
+            Self::Split,
+            Self::Join,
+            Self::Append,
+            Self::ItemAt,
         ]
         .into_iter()
         .find(|op| op.name() == name)
@@ -215,6 +326,7 @@ impl UnaryOperator {
                 Some(Boolean)
             }
             (Self::Len | Self::ParseInteger, Type::Scalar(String)) => Some(Integer),
+            (Self::Len, Type::Scalar(ScalarType::StringList)) => Some(Integer),
             (Self::ToString, Type::Scalar(Integer | Boolean | String)) => Some(String),
             _ => None,
         }
@@ -223,7 +335,8 @@ impl UnaryOperator {
     fn expected_input(self) -> &'static str {
         match self {
             Self::Not => "boolean",
-            Self::Len | Self::ParseInteger | Self::ParseBoolean => "string",
+            Self::Len => "string or string_list",
+            Self::ParseInteger | Self::ParseBoolean => "string",
             Self::ToString => "integer, boolean or string",
             Self::OptionalString => "string or none",
             Self::HasValue => "optional_string",
@@ -251,6 +364,9 @@ pub struct ComputedBranch {
 pub enum Computation {
     Literal {
         value: ScalarValue,
+    },
+    Strings {
+        items: Vec<Self>,
     },
     Local {
         name: String,
@@ -282,6 +398,14 @@ pub enum Computation {
         name: String,
         initial: Box<Self>,
         condition: Box<Self>,
+        next: Box<Self>,
+        limit: u64,
+    },
+    Fold {
+        name: String,
+        item: String,
+        items: Box<Self>,
+        initial: Box<Self>,
         next: Box<Self>,
         limit: u64,
     },
@@ -338,37 +462,82 @@ fn group_members(
     scope: &[(String, LocalType)],
 ) -> Option<Vec<(String, HostOperation)>> {
     match expression {
-        Computation::Host { effect } => match effect.as_ref() {
-            Effect::All { branches } | Effect::Sequence { steps: branches } => branches
-                .iter()
-                .map(|branch| {
-                    Some((
-                        branch.name.clone(),
-                        HostOperation::for_effect(&branch.effect)?,
-                    ))
-                })
-                .collect(),
-            _ => None,
-        },
-        Computation::Group { branches, .. } => branches
-            .iter()
-            .map(|branch| {
-                let operation = match &branch.value {
-                    Computation::Host { effect } => HostOperation::for_effect(effect)?,
-                    Computation::Call { operation, .. } => *operation,
-                    _ => return None,
-                };
-                Some((branch.name.clone(), operation))
-            })
-            .collect(),
+        Computation::Bind { value, body, .. } if value.is_pure() => group_members(body, scope),
         Computation::Local { name } => scope
             .iter()
             .find(|(bound, _)| bound == name)?
             .1
             .members
             .clone(),
+        Computation::Host { .. } | Computation::Group { .. } | Computation::Choose { .. } => {
+            group_signature(expression).map(|(_, members)| members)
+        }
         _ => None,
     }
+}
+
+// Conditional exports are a closed signature, never a union of branch members.
+fn group_signature(expression: &Computation) -> Option<(GroupKind, Vec<(String, HostOperation)>)> {
+    expression.validate_structure().ok()?;
+    let mut pending = vec![expression];
+    let mut signature = None;
+    while let Some(expression) = pending.pop() {
+        let current = match expression {
+            Computation::Bind { value, body, .. } if value.is_pure() => {
+                pending.push(body);
+                continue;
+            }
+            Computation::Choose {
+                when,
+                then,
+                otherwise,
+            } if when.is_pure() => {
+                pending.extend([then.as_ref(), otherwise.as_ref()]);
+                continue;
+            }
+            Computation::Host { effect } => {
+                let (kind, branches) = match effect.as_ref() {
+                    Effect::Sequence { steps } => (GroupKind::Sequence, steps),
+                    Effect::All { branches } => (GroupKind::Parallel, branches),
+                    _ => return None,
+                };
+                let members = branches
+                    .iter()
+                    .map(|branch| {
+                        Some((
+                            branch.name.clone(),
+                            HostOperation::for_effect(&branch.effect)?,
+                        ))
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                (kind, members)
+            }
+            Computation::Group {
+                group_kind,
+                branches,
+            } => {
+                let members = branches
+                    .iter()
+                    .map(|branch| {
+                        Some((
+                            branch.name.clone(),
+                            branch.value.prepared_atomic_operation()?,
+                        ))
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                (*group_kind, members)
+            }
+            _ => return None,
+        };
+        if signature
+            .as_ref()
+            .is_some_and(|signature| *signature != current)
+        {
+            return None;
+        }
+        signature = Some(current);
+    }
+    signature
 }
 
 impl Computation {
@@ -409,14 +578,93 @@ impl Computation {
         }
     }
 
+    /// One statically typed operation after pure preparation/selection, never a capture.
+    /// Validate bounded structure and lexical types before relying on this signature.
+    pub fn prepared_atomic_operation(&self) -> Option<HostOperation> {
+        let mut pending = vec![(self, 0usize, true)];
+        let mut visited = 0usize;
+        let mut signature = None;
+        while let Some((value, depth, atomic)) = pending.pop() {
+            let (extra_nodes, extra_depth) = match value {
+                Self::Literal { value } => value.source_shape_extra(),
+                _ => (0, 0),
+            };
+            visited += 1 + extra_nodes;
+            if visited > MAX_COMPUTATION_NODES || depth + extra_depth > MAX_EFFECT_NESTING_DEPTH {
+                return None;
+            }
+            if !atomic {
+                if matches!(
+                    value,
+                    Self::Host { .. } | Self::Call { .. } | Self::Group { .. }
+                ) {
+                    return None;
+                }
+                for child in value.children() {
+                    if visited + pending.len() >= MAX_COMPUTATION_NODES {
+                        return None;
+                    }
+                    pending.push((child, depth + 1, false));
+                }
+                continue;
+            }
+            let operation = match value {
+                Self::Host { effect } => {
+                    visited += 1;
+                    if visited > MAX_COMPUTATION_NODES || depth >= MAX_EFFECT_NESTING_DEPTH {
+                        return None;
+                    }
+                    HostOperation::for_effect(effect)?
+                }
+                Self::Call {
+                    operation,
+                    arguments,
+                } => {
+                    for argument in arguments {
+                        if visited + pending.len() >= MAX_COMPUTATION_NODES {
+                            return None;
+                        }
+                        pending.push((&argument.value, depth + 1, false));
+                    }
+                    *operation
+                }
+                Self::Bind { value, body, .. } => {
+                    if visited + pending.len() + 2 > MAX_COMPUTATION_NODES {
+                        return None;
+                    }
+                    pending.push((value, depth + 1, false));
+                    pending.push((body, depth + 1, true));
+                    continue;
+                }
+                Self::Choose {
+                    when,
+                    then,
+                    otherwise,
+                } => {
+                    if visited + pending.len() + 3 > MAX_COMPUTATION_NODES {
+                        return None;
+                    }
+                    pending.push((when, depth + 1, false));
+                    pending.push((then, depth + 1, true));
+                    pending.push((otherwise, depth + 1, true));
+                    continue;
+                }
+                _ => return None,
+            };
+            if signature.is_some_and(|expected| expected != operation) {
+                return None;
+            }
+            signature = Some(operation);
+        }
+        signature
+    }
+
     /// One captured atomic suspension followed by a pure body, with pure preparation/selection.
     pub fn is_atomic_capture(&self) -> bool {
         match self {
             Self::Bind { value, body, .. } if value.is_pure() => body.is_atomic_capture(),
             Self::Bind { value, body, .. } => {
-                matches!(value.as_ref(), Self::Host { .. } | Self::Call { .. })
-                    && value.is_atomic_tail()
-                    && body.is_pure()
+                value.prepared_atomic_operation().is_some() && body.is_pure()
             }
             Self::Choose {
                 when,
@@ -436,8 +684,7 @@ impl Computation {
                 if value.is_pure() {
                     body.is_result_chain()
                 } else {
-                    matches!(value.as_ref(), Self::Host { .. } | Self::Call { .. })
-                        && value.is_atomic_tail()
+                    value.prepared_atomic_operation().is_some()
                         && (body.is_pure() || body.is_result_chain())
                 }
             }
@@ -470,7 +717,7 @@ impl Computation {
         match self {
             Self::Host { .. } | Self::Call { .. } if self.is_atomic_tail() => Some(1),
             Self::Bind { value, body, .. } if value.is_pure() => body.atomic_flow_bound(),
-            Self::Bind { value, body, .. } if value.is_atomic_tail() => {
+            Self::Bind { value, body, .. } if value.prepared_atomic_operation().is_some() => {
                 body.atomic_flow_bound()?.checked_add(1)
             }
             Self::Choose {
@@ -493,9 +740,7 @@ impl Computation {
         match self {
             Self::Host { .. } | Self::Call { .. } => self.is_atomic_tail(),
             Self::Bind { value, body, .. } => {
-                (value.is_pure()
-                    || (matches!(value.as_ref(), Self::Host { .. } | Self::Call { .. })
-                        && value.is_atomic_tail()))
+                (value.is_pure() || value.prepared_atomic_operation().is_some())
                     && body.is_result_flow()
             }
             Self::Choose {
@@ -612,12 +857,19 @@ impl Computation {
                 next,
                 ..
             } => [Some(initial), Some(condition), Some(next)],
+            Self::Fold {
+                items,
+                initial,
+                next,
+                ..
+            } => [Some(items), Some(initial), Some(next)],
             Self::Choose {
                 when,
                 then,
                 otherwise,
             } => [Some(when), Some(then), Some(otherwise)],
             Self::Literal { .. }
+            | Self::Strings { .. }
             | Self::Local { .. }
             | Self::Member { .. }
             | Self::Host { .. }
@@ -637,6 +889,13 @@ impl Computation {
             .flatten()
             .chain(arguments.iter().map(|argument| &argument.value))
             .chain(branches.iter().map(|branch| &branch.value))
+            .chain(
+                match self {
+                    Self::Strings { items } => items.as_slice(),
+                    _ => &[],
+                }
+                .iter(),
+            )
     }
 
     /// Includes cold branches. Validate bounded structure before inspecting authority.
@@ -680,7 +939,7 @@ pub(crate) fn is_computation(expression: &Expression) -> bool {
         };
         if matches!(
             callee.as_str(),
-            "bind" | "loop" | "choose" | "recover" | "field" | "member"
+            "bind" | "loop" | "fold" | "strings" | "choose" | "recover" | "field" | "member"
         ) || BinaryOperator::parse(callee).is_some()
             || UnaryOperator::parse(callee).is_some()
             || (HostOperation::parse(callee).is_some() && has_computed_arguments(arguments))
@@ -853,6 +1112,61 @@ pub(super) fn lower_expression_with_functions(
     if callee == "loop" {
         return lower_loop(arguments, span, scope, visited, depth, functions);
     }
+    if callee == "fold" {
+        return lower_fold(arguments, span, scope, visited, depth, functions);
+    }
+    if callee == "strings" {
+        if arguments.len() > MAX_STRING_LIST_ITEMS {
+            return Err(invalid("LSH1405", "string list exceeds 64 entries", span));
+        }
+        let mut names = HashSet::new();
+        let mut items = Vec::with_capacity(arguments.len());
+        for argument in arguments {
+            if !valid_local(&argument.name) || !names.insert(&argument.name) {
+                return Err(invalid(
+                    "LSH1403",
+                    "string list labels must be bounded and unique",
+                    argument.span,
+                ));
+            }
+            let (value, ty) = lower_expression_with_functions(
+                &argument.value,
+                scope,
+                visited,
+                depth + 1,
+                functions,
+            )?;
+            if scalar(&value, ty, argument.span)? != ScalarType::String {
+                return Err(invalid(
+                    "LSH1402",
+                    "string list entries require strings",
+                    argument.span,
+                ));
+            }
+            items.push(value);
+        }
+        let literal = items
+            .iter()
+            .map(|item| match item {
+                Computation::Literal {
+                    value: ScalarValue::String(value),
+                } => Some(value.clone()),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>();
+        let expression = if let Some(items) = literal {
+            let value = StringListValue(items);
+            if !value.is_bounded() {
+                return Err(invalid("LSH1405", "string list exceeds 4096 bytes", span));
+            }
+            Computation::Literal {
+                value: ScalarValue::StringList(value),
+            }
+        } else {
+            Computation::Strings { items }
+        };
+        return Ok((expression, Type::Scalar(ScalarType::StringList)));
+    }
     if callee == "bind" {
         if arguments.len() != 2 || arguments.iter().filter(|arg| arg.name == "body").count() != 1 {
             return Err(invalid(
@@ -875,17 +1189,24 @@ pub(super) fn lower_expression_with_functions(
         let (value, value_type) =
             lower_expression_with_functions(&binding.value, scope, visited, depth + 1, functions)?;
         let captures_result = !value.is_pure();
+        let direct_function_result = captures_result
+            && matches!(&binding.value,
+            Expression::Call { callee, .. } if functions.contains(callee));
         let members = group_members(&value, scope);
         let captures_group = captures_result && members.is_some();
-        let atomic = match &value {
-            Computation::Call { .. } => true,
-            Computation::Host { effect } => HostOperation::for_effect(effect).is_some(),
-            _ => false,
-        };
-        if captures_result && !atomic && !captures_group {
+        let atomic = value
+            .prepared_atomic_operation()
+            .is_some_and(|operation| operation.result_type() == value_type);
+        let function_result = direct_function_result
+            || (captures_result
+                && !atomic
+                && !captures_group
+                && matches!(value_type, Type::Scalar(_))
+                && crate::function_flow::is_data_call_selection(&binding.value, &value, functions));
+        if captures_result && !atomic && !captures_group && !function_result {
             return Err(invalid(
                 "LSH1408",
-                "result binding requires an atomic host call or a flat named group",
+                "result binding requires one prepared atomic operation or a flat named group",
                 binding.span,
             ));
         }
@@ -939,14 +1260,16 @@ pub(super) fn lower_expression_with_functions(
                 span,
             ));
         }
-        return Ok((
+        let expression = if function_result {
+            crate::function_flow::bind_result(binding.name.clone(), value, body, span)?
+        } else {
             Computation::Bind {
                 name: binding.name.clone(),
                 value: Box::new(value),
                 body: Box::new(body),
-            },
-            result_type,
-        ));
+            }
+        };
+        return Ok((expression, result_type));
     }
     if callee == "member" {
         let args = named(arguments, &["value", "name"], span)?;
@@ -1282,6 +1605,98 @@ fn lower_loop(
     ))
 }
 
+fn lower_fold(
+    arguments: &[NamedArgument],
+    span: Span,
+    scope: &mut Vec<(String, LocalType)>,
+    visited: &mut usize,
+    depth: usize,
+    functions: &mut functions::FunctionTemplates,
+) -> Result<(Computation, Type), Vec<Diagnostic>> {
+    let reserved = ["items", "item", "next", "limit"];
+    let binding = arguments
+        .iter()
+        .find(|argument| !reserved.contains(&argument.name.as_str()))
+        .ok_or_else(|| invalid("LSH1413", "fold requires a named initial state", span))?;
+    let args = named(
+        arguments,
+        &[binding.name.as_str(), "items", "item", "next", "limit"],
+        span,
+    )?;
+    let Expression::String { value: item, .. } = args[2] else {
+        return Err(invalid(
+            "LSH1413",
+            "fold item requires a literal local name",
+            expression_span(args[2]),
+        ));
+    };
+    if !valid_local(&binding.name)
+        || !valid_local(item)
+        || item == &binding.name
+        || scope
+            .iter()
+            .any(|(name, _)| name == &binding.name || name == item)
+    {
+        return Err(invalid(
+            "LSH1403",
+            "fold locals must be bounded, distinct and cannot shadow active bindings",
+            span,
+        ));
+    }
+    let Expression::Integer { value: limit, .. } = args[4] else {
+        return Err(invalid(
+            "LSH1413",
+            "fold limit requires an integer literal from 0 through 64",
+            expression_span(args[4]),
+        ));
+    };
+    if *limit > MAX_STRING_LIST_ITEMS as u64 {
+        return Err(invalid(
+            "LSH1413",
+            "fold limit exceeds 64 entries",
+            expression_span(args[4]),
+        ));
+    }
+    // The collection is prepared before the accumulator, independent of argument spelling order.
+    let (items, items_type) =
+        lower_expression_with_functions(args[1], scope, visited, depth + 1, functions)?;
+    if scalar(&items, items_type, expression_span(args[1]))? != ScalarType::StringList {
+        return Err(invalid(
+            "LSH1402",
+            "fold items requires a string_list",
+            expression_span(args[1]),
+        ));
+    }
+    let (initial, state_type) =
+        lower_expression_with_functions(args[0], scope, visited, depth + 1, functions)?;
+    scalar(&initial, state_type, expression_span(args[0]))?;
+    scope.push((binding.name.clone(), state_type.into()));
+    scope.push((item.clone(), Type::Scalar(ScalarType::String).into()));
+    let lowered = lower_expression_with_functions(args[3], scope, visited, depth + 1, functions);
+    scope.pop();
+    scope.pop();
+    let (next, next_type) = lowered?;
+    scalar(&next, next_type, expression_span(args[3]))?;
+    if next_type != state_type {
+        return Err(invalid(
+            "LSH1402",
+            "fold next must preserve its initial state's type",
+            expression_span(args[3]),
+        ));
+    }
+    Ok((
+        Computation::Fold {
+            name: binding.name.clone(),
+            item: item.clone(),
+            items: Box::new(items),
+            initial: Box::new(initial),
+            next: Box::new(next),
+            limit: *limit,
+        },
+        state_type,
+    ))
+}
+
 fn binary_type(op: BinaryOperator, left: ScalarType, right: ScalarType) -> Option<ScalarType> {
     use BinaryOperator::*;
     use ScalarType::{Boolean, Integer, String};
@@ -1291,6 +1706,17 @@ fn binary_type(op: BinaryOperator, left: ScalarType, right: ScalarType) -> Optio
     if op == CharAt {
         return (left == String && right == Integer).then_some(ScalarType::OptionalString);
     }
+    if op == ItemAt {
+        return (left == ScalarType::StringList && right == Integer)
+            .then_some(ScalarType::OptionalString);
+    }
+    if op == Append {
+        return (left == ScalarType::StringList && right == String)
+            .then_some(ScalarType::StringList);
+    }
+    if op == Join {
+        return (left == ScalarType::StringList && right == String).then_some(String);
+    }
     if left != right {
         return None;
     }
@@ -1298,6 +1724,7 @@ fn binary_type(op: BinaryOperator, left: ScalarType, right: ScalarType) -> Optio
         (Eq | Ne, _) => Some(Boolean),
         (And | Or, Boolean) => Some(Boolean),
         (Concat, String) => Some(String),
+        (Split, String) => Some(ScalarType::StringList),
         (Contains | StartsWith | EndsWith, String) => Some(Boolean),
         (Add | Sub | Mul | Div | Rem, Integer) => Some(Integer),
         (Lt | Le | Gt | Ge, Integer) => Some(Boolean),
@@ -1318,7 +1745,17 @@ pub(super) fn valid_local(name: &str) -> bool {
 pub(super) fn is_builtin(name: &str) -> bool {
     matches!(
         name,
-        "all" | "seq" | "repeat" | "bind" | "loop" | "choose" | "recover" | "field" | "member"
+        "all"
+            | "seq"
+            | "repeat"
+            | "bind"
+            | "loop"
+            | "fold"
+            | "strings"
+            | "choose"
+            | "recover"
+            | "field"
+            | "member"
     ) || BinaryOperator::parse(name).is_some()
         || UnaryOperator::parse(name).is_some()
 }
@@ -1341,64 +1778,64 @@ pub(super) fn validate_shape(expression: &Computation) -> Result<(), CanonicalSo
     let mut pending = vec![(expression, 0usize)];
     let mut visited = 0;
     while let Some((expression, depth)) = pending.pop() {
-        // Folded optional literals still render as a constructor plus its payload.
-        let literal_extra = usize::from(matches!(
-            expression,
-            Computation::Literal {
-                value: ScalarValue::OptionalString(_)
-            }
-        ));
-        visited += 1 + literal_extra;
-        let invalid_value = match expression {
-            Computation::Literal { value } => value
-                .text()
-                .is_some_and(|value| value.len() > MAX_SCALAR_STRING_BYTES),
-            Computation::Local { name } | Computation::Bind { name, .. } => !valid_local(name),
-            Computation::Member { group, name, .. } => {
-                !valid_local(group) || name.len() > MAX_BRANCH_NAME_BYTES
-            }
-            Computation::Loop { name, limit, .. } => {
-                !valid_local(name)
-                    || matches!(name.as_str(), "while" | "next" | "limit")
-                    || *limit > MAX_LOOP_ITERATIONS
-            }
-            Computation::Call {
-                operation,
-                arguments,
-            } => {
-                arguments.len() > operation.parameters().len()
-                    || arguments
-                        .iter()
-                        .any(|argument| argument.name.len() > MAX_BRANCH_NAME_BYTES)
-            }
-            Computation::Group {
-                group_kind,
-                branches,
-            } => {
-                let minimum = if *group_kind == GroupKind::Sequence {
-                    1
-                } else {
-                    2
-                };
-                !(minimum..=MAX_ALL_BRANCHES).contains(&branches.len())
-                    || branches.iter().any(|branch| {
-                        branch.name.len() > MAX_BRANCH_NAME_BYTES
-                            || match &branch.value {
-                                Computation::Call { operation, .. } => {
-                                    branch.result_type != operation.result_type()
-                                }
-                                Computation::Host { effect } => HostOperation::for_effect(effect)
-                                    .is_none_or(|operation| {
-                                        branch.result_type != operation.result_type()
-                                    }),
-                                _ => true,
-                            }
-                    })
-            }
-            _ => false,
+        // Literal constructors retain the source node/depth budget after constant folding.
+        let (literal_nodes, literal_depth) = match expression {
+            Computation::Literal { value } => value.source_shape_extra(),
+            _ => (0, 0),
         };
+        visited += 1 + literal_nodes;
+        let invalid_value =
+            match expression {
+                Computation::Literal { value } => !value.is_bounded(),
+                Computation::Strings { items } => items.len() > MAX_STRING_LIST_ITEMS,
+                Computation::Local { name } | Computation::Bind { name, .. } => !valid_local(name),
+                Computation::Member { group, name, .. } => {
+                    !valid_local(group) || name.len() > MAX_BRANCH_NAME_BYTES
+                }
+                Computation::Loop { name, limit, .. } => {
+                    !valid_local(name)
+                        || matches!(name.as_str(), "while" | "next" | "limit")
+                        || *limit > MAX_LOOP_ITERATIONS
+                }
+                Computation::Fold {
+                    name, item, limit, ..
+                } => {
+                    !valid_local(name)
+                        || !valid_local(item)
+                        || name == item
+                        || matches!(name.as_str(), "items" | "item" | "next" | "limit")
+                        || *limit > MAX_STRING_LIST_ITEMS as u64
+                }
+                Computation::Call {
+                    operation,
+                    arguments,
+                } => {
+                    arguments.len() > operation.parameters().len()
+                        || arguments
+                            .iter()
+                            .any(|argument| argument.name.len() > MAX_BRANCH_NAME_BYTES)
+                }
+                Computation::Group {
+                    group_kind,
+                    branches,
+                } => {
+                    let minimum = if *group_kind == GroupKind::Sequence {
+                        1
+                    } else {
+                        2
+                    };
+                    !(minimum..=MAX_ALL_BRANCHES).contains(&branches.len())
+                        || branches.iter().any(|branch| {
+                            branch.name.len() > MAX_BRANCH_NAME_BYTES
+                                || branch.value.prepared_atomic_operation().is_none_or(
+                                    |operation| branch.result_type != operation.result_type(),
+                                )
+                        })
+                }
+                _ => false,
+            };
         if visited > MAX_COMPUTATION_NODES
-            || depth.saturating_add(literal_extra) > MAX_EFFECT_NESTING_DEPTH
+            || depth.saturating_add(literal_depth) > MAX_EFFECT_NESTING_DEPTH
             || invalid_value
         {
             return Err(CanonicalSourceError::InvalidEffect(invalid(
@@ -1453,7 +1890,26 @@ pub(super) fn source(expression: &Computation) -> String {
                 "optional_string(value: {})",
                 value.0.as_deref().map_or_else(|| "none".into(), quote)
             ),
+            ScalarValue::StringList(value) => format!(
+                "strings({})",
+                value
+                    .0
+                    .iter()
+                    .enumerate()
+                    .map(|(index, value)| format!("item{index}: {}", quote(value)))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
         },
+        Computation::Strings { items } => format!(
+            "strings({})",
+            items
+                .iter()
+                .enumerate()
+                .map(|(index, value)| format!("item{index}: {}", source(value)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
         Computation::Local { name } => name.clone(),
         Computation::Member { group, name, .. } => {
             format!("member(value: {group}, name: {})", quote(name))
@@ -1494,6 +1950,20 @@ pub(super) fn source(expression: &Computation) -> String {
             "loop({name}: {}, while: {}, next: {}, limit: {limit})",
             source(initial),
             source(condition),
+            source(next)
+        ),
+        Computation::Fold {
+            name,
+            item,
+            items,
+            initial,
+            next,
+            limit,
+        } => format!(
+            "fold({name}: {}, items: {}, item: {}, next: {}, limit: {limit})",
+            source(initial),
+            source(items),
+            quote(item),
             source(next)
         ),
         Computation::Choose {
