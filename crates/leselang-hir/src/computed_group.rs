@@ -11,16 +11,16 @@ fn invalid(message: &str, span: Span) -> Vec<Diagnostic> {
     }]
 }
 
-pub(super) fn lower(
+pub(super) fn lower<'a>(
     callee: &str,
-    arguments: &[NamedArgument],
+    arguments: &'a [NamedArgument],
     span: Span,
-    scope: &mut Vec<(String, computation::LocalType)>,
+    scope: &mut computation::TypeScope<'_, 'a>,
     visited: &mut usize,
     depth: usize,
     functions: &mut functions::FunctionTemplates,
 ) -> Result<(Computation, Type), Vec<Diagnostic>> {
-    let mut lower_member = |expression: &Expression| {
+    let mut lower_member = |expression: &'a Expression| {
         let (value, result_type) = computation::lower_expression_with_functions(
             expression,
             scope,

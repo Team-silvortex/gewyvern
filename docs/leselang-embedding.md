@@ -424,6 +424,266 @@ GUI dispatcher affinity, resource lanes and callback preemption remain host work
 Native debugger starts do not automatically opt into deferred admission.
 Continuation schemas 1-11 and journal schema 10 remain unchanged.
 
+### Shared Language Values
+
+`leselang-runtime-core` now owns **host-neutral scalar data**: `ScalarType`,
+`ScalarValue`, `OptionalStringValue`, `StringListValue` and the existing text/list
+limits. Integers remain `u64`; booleans, plain text, none, distinct optional text
+and ordered text lists retain their closed tags and payloads. These are data,
+not host operations, resource handles, capabilities or executable expressions.
+The old HIR computation paths and VM scalar path re-export these exact types,
+**not conversion wrappers** or another value implementation.
+
+Optional decoding still requires explicit null/text, not a missing tagged
+payload, and enforces 4096 UTF-8 bytes. Lists retain ordered empty/duplicate
+entries, 64 entries and 4096 combined UTF-8 bytes, with incremental decoding that
+does not reserve from an untrusted size hint. Owned and borrowed serde paths
+follow the same original rules. Tagged value, result, projection, continuation
+and journal bytes remain unchanged; there is no schema migration.
+
+**Plain-string decoding retains its legacy decode-then-validate boundary**.
+Public Rust construction/mutation and serialization do not certify boundedness;
+trusted ingress must call `is_bounded()` and the reference HIR/VM still validates
+before evaluation or dispatch. Receiving host domains retain their narrower
+validators. A surrounding decoder may allocate first, and value formatting or
+serde diagnostics may expose data: hosts still bound ingress and redact logs.
+This extraction does not silently clamp text, coerce missing payloads or grant
+authority through serialized values.
+
+**Source constructor node/depth costs remain HIR-owned**, including helper
+expansion before constant folding. Scopes, cost rules, host-result capture/domains
+and durable frames are not moved into the data module.
+The core's only normal dependency remains serde. Data-codec and cross-layer
+identity tests prove this shared foundation, not a host schema, suspension engine
+or independent evaluator. Continuation schemas 1-11 and journal schema 10 remain
+unchanged.
+
+### Shared Scalar Operations
+
+The runtime core owns **closed scalar operation semantics**: `BinaryOperator`,
+`UnaryOperator`, exact builtin names/wire tags and pure scalar `result_type()`
+signatures. The old HIR imports re-export the same types and use those shared
+signatures. This is 23 binary and seven unary data operations, not a generic
+host-operation schema, string-based host dispatch or a new source language.
+
+`apply_unary()` and `apply_binary()` accept **already evaluated operands** by
+value, with no expression tree, host callback, authority, clock or global state.
+They reject mismatched types and unbounded operands, including directly
+constructed optional/list data and legacy plain-string decoding. Output bounds
+are checked before oversized text/list materialization. Checked `u64`, strict
+ASCII integer/exact boolean parsing, Unicode-scalar character indexing, ordered
+list indexing and explicit optional defaults retain the existing rules. Owned
+text pass-throughs move their buffers without conversion wrappers or cloning.
+
+`ScalarError` carries **no input payload** and has fixed display text. The
+reference adapter maps it to the existing `LSV1401`, `LSV1402`, `LSV1403` and
+`LSV1408` diagnostics, without changing messages or exposing conversion input.
+The adapter's recovery set remains arithmetic/parsing only, never type, size,
+fuel, authority or host failures. No fault DTO or journal schema is migrated.
+
+**Short-circuiting and fuel charging remain evaluator-owned**. Both supplied
+values are checked by the eager scalar API; it does not promise lazy evaluation
+of a right expression. The VM uses the shared left-value decision to skip lazy
+right expressions, preserves exact input/output fuel charges and
+re-enters with saved fuel. Hosts must bound ingress and aggregate repeated work;
+per-operation bounds do not form a memory sandbox or handle allocator failure.
+Standalone type matrices and edge cases plus HIR/VM wire, parity, diagnostic,
+short-circuit and exact fuel-threshold tests prove this boundary, **not full
+expression-evaluator independence** or generic host schemas.
+
+### Shared Scalar Control Decisions
+
+The core's `select_binary_left()` owns the **left-value short-circuit decision**,
+not expression evaluation: false `and`, true `or`, and present optional text
+produce `BinarySelection::Complete`; other cases carry the original left value
+in `NeedsRight`. Present-empty text still completes, bounded optional text moves
+without the former second VM string copy, and non-lazy operations avoid redundant
+left scans. Completed values are bounded; selection contains actual data, so its
+formatting is not a redacted observation interface.
+
+**Deferred values are not validation certificates**. The adapter must preflight
+both expression types, purity and capabilities, including cold paths, before
+evaluation. `NeedsRight` then requires right evaluation/charging and the normal
+eager `apply_binary()` checks on both values. The decision primitive never calls
+a host, invokes a callback or grants authority/fuel through a tagged result.
+
+`LoopBudget` supplies **condition-first typed loop accounting**, with the existing
+0-1024 `MAX_LOOP_ITERATIONS` re-exported by HIR. The initial value remains bounded
+and owned by the adapter; the budget retains only its type, limit, completed
+count and phase. Evaluate/charge the condition first, then `check_condition()`:
+false exits even at the limit, while true at the limit exhausts before another
+next expression is evaluated. A permitted next value must pass `advance()`'s
+same-type and bounds checks before replacing scoped state or increasing the
+completed count. Invalid ordering/type/bounds do not change the counter or refund
+fuel; completion/exhaustion cannot rearm. Diagnostics contain no state payload.
+
+These counters are **move-only, non-default and non-serde**, not saved execution
+authority or an enforceable sandbox. Trusted adapters can explicitly construct
+fresh counters and remain responsible for initial bounds, aggregate work and
+resource policy. The reference VM retains exact condition/next charges, scope
+cleanup on calculation errors, nested-loop independence, original `LSV1406`
+messages and the closed non-resource recovery set. Pure loops still do not
+suspend mid-iteration; durable re-entry recalculates only uncommitted pure bodies
+from validated saved state/fuel and replays already committed results unchanged.
+No source syntax, continuation schema or journal format changes. Fold-body, branch/
+recovery evaluation and host-result frames remain in VM; this is **not a second
+interpreter** or complete expression-evaluator independence.
+
+### Shared Bounded Fold Traversal
+
+The core's `FoldCursor` supplies **owned bounded fold traversal**, not evaluation
+of its body or an execution grant. Construction consumes one evaluated
+`StringListValue`, including on rejection. It checks the 0-64 literal limit,
+collection bounds (64 entries/4096 combined UTF-8 bytes), and complete item count
+against that limit before yielding anything. Excess entries fail upfront,
+**never truncate**. The initial accumulator remains bounded and adapter-owned;
+the cursor sees only its scalar type.
+
+`next_item()` **moves original text buffers in source order**, preserving empty,
+duplicate and Unicode entries. A bounded, same-type next accumulator must pass
+`advance()` before another item can be transferred. Only successful advances
+increase the completed count. Wrong phase/type/bounds leave unvisited items and
+progress unchanged; this does not refund fuel or authorize retry of failed
+expressions or host work. Final `None` closes traversal without rearming. The
+cursor is not an unrestricted `Iterator`, a serialized program counter or replay
+authority. It is move-only, non-default and non-serde; its **metadata-only Debug**
+omits both the unvisited collection and accumulator data. Fixed errors contain
+no input payload. The cursor reuses the owned vector and string buffers without
+allocating a second traversal collection or storing a state value.
+
+The adapter still owns cold type/purity/capability checks, bounded initial state,
+body evaluation, fuel, local slots and cleanup. The reference VM prepares items
+before initial state, then rejects excess count before the original collection
+scan charge or any next-body calculation. Tests captured the exact fuel/error
+behavior before delegation, including zero/maximum limits, Unicode text,
+resource-failure recovery fences and nested/error scope cleanup. Pure uncommitted
+folds may be recalculated under validated saved fuel during durable re-entry;
+committed results still replay without recalculation. No mid-fold suspension,
+callbacks, timers, global locks, authority grant or enforceable sandbox. Trusted
+adapters can construct another cursor explicitly. Source syntax, continuation
+schemas, journal formats and projection vocabulary stay unchanged. This is
+**not complete expression-evaluator independence** or generic container support.
+
+### Shared Bounded List Construction
+
+`StringListBuilder` supplies **shared incremental list bounds** for computed
+`strings`, eager `split`/`append` and bounded list decoding. Owned pushes move
+text buffers; borrowed pushes **check before allocating a copy**. Count or
+aggregate UTF-8 overflow returns the closed `ScalarError::StringListLimit`,
+consumes/drops rejected owned text, and leaves the accepted prefix unchanged.
+Failure is explicit, not silent truncation. An adapter must propagate errors
+instead of publishing a partial prefix; the reference VM and eager operations
+stop before evaluating later entries or returning any list.
+
+`new()`/`Default` construct empty data without allocation or authority. Explicit
+`with_capacity()` rejects counts above 64 before allocation and preserves the
+VM's existing bounded preallocation. `TryFrom<StringListValue>` validates direct
+unchecked data, then adopts its vector/string buffers without cloning or changing
+capacity; malformed input is consumed with a payload-free `UnboundedOperand`.
+These are **logical bounds, not capacity or allocator guarantees**. Hosts still
+own ingress limits, aggregate work and allocation failure. `finish()` moves the
+prefix into the original publicly mutable list type, **not a lasting validation
+certificate**; later mutation/ingress requires explicit boundedness checks.
+Builder `Debug` is metadata-only. No fuel grant, execution frame, callback,
+scheduling or authority is created by constructing or finishing data.
+
+List wire decoding still ignores untrusted length hints and runs the original
+element type/byte seed before the extra-entry count guard, retaining both fixed
+error messages and their precedence. Whole-expression cold type/purity/capability
+checks and HIR literal folding/source costs stay unchanged. The reference VM
+keeps source-order evaluation, first-overflow fail-fast, final copy/materialization
+fuel, non-recoverable `LSV1403` and existing durable re-entry. Tests captured the
+computed-constructor fuel and error order before delegation and cover exact
+UTF-8/count boundaries, unchanged failed prefixes and buffer ownership. No source
+syntax, value/result/projection/continuation/journal bytes or schema changes.
+This is **not full expression-evaluator independence** or a sandbox.
+
+### Shared Borrowed Lexical Frames
+
+`ScopeFrame<Value>` provides **shared borrowed-name lexical bookkeeping** for
+adapter-owned values, without HIR, host-result or persistence dependencies. Reads
+see all visible bindings; active duplicates are rejected without changing them.
+Checked **frame-relative slots** allow direct mutation only within the current
+frame, and popping an empty frame never removes a parent binding. Names borrow
+immutable text; values move without a clone requirement. Nested frames reborrow
+the stack and clean up their own suffix on success or failure.
+
+Drop **detaches the entire suffix before value destructors** run, normally in
+reverse insertion order. Panics propagate under Rust's unwinding rules; a second
+cleanup panic can abort. The must-use guard is move-only, non-default and
+non-serde. Its counts-only `Debug` never invokes a payload formatter; `bindings()`
+is a **data view, not a redacted observation**. Conditional Send allows worker
+handoff for suitable values without excluding GUI-local non-Send values.
+
+This is **not an authority fence or saved execution frame**. Slots can be stale or
+reused after a pop; explicitly forgetting a guard bypasses its cleanup. Interior
+mutability and value destructors remain adapter code. Construction does not check
+an existing prefix's uniqueness or bound its size. Push/lookup scan the visible
+prefix; the adapter still owns bounded name/type/capability preflight, memory/work
+limits, evaluation, fuel, durable capture and recovery. No host evaluation
+callback, timer, global lock or implicit execution permission is introduced.
+
+The reference VM delegates lexical bookkeeping for `bind`, pure `loop`/`fold`
+and scalar/result/group re-entry, removing transient name copies. **Durable
+captures remain owned** and retain original copy/projection fuel, name order,
+fault mappings and continuation/journal bytes. Compatibility tests lock exact
+fuel, failed-name cleanup before recovery and suspension after enclosing scopes
+have ended. This adds no source syntax, host schema or sandbox and is not full
+expression-evaluator independence.
+
+**HIR preflight shares the same lexical guard** across source lowering, helper
+parameters and residual scalar/group scope revalidation. Validated external names
+borrow their original storage; nested locals no longer need temporary name copies.
+Owned HIR and canonical output still outlive source/parameter buffers. Name grammar,
+complete cold-branch typing/purity/capability checks, helper hygiene, declaration
+order and expanded node/depth limits stay HIR-owned. Failed members restore lexical
+state, **not visited-node budgets**; subsequent group diagnostics retain their
+original order and source spans.
+
+**Restored projection preflight uses the same guard**, tracking scalar, saved
+result/group and pending-result names without payload copies. Scalar slots grant
+no result fields; duplicate active names fail under the existing `LSV1405` frame
+diagnostic. Alias/conditional field masks remain closed, including cold branches
+and zero-iteration loop/fold bodies. This does not widen legacy projection versions,
+replace normal HIR/canonical revalidation or bypass original request authority.
+Source/IR/wire schemas and exact evaluation fuel stay unchanged. Sharing storage
+and cleanup is not generic host-schema or complete evaluator independence.
+
+### Shared Ordered Scalar Projections
+
+`ScalarProjectionField<Field>` and `validate_scalar_projection()` provide
+**opaque-key ordered scalar projection validation** without product operations,
+HIR or persistence. Each developer owns the field-key type and trusted ordered
+`(key, ScalarType)` schema. Validation requires exact count/order/keys, all six
+scalar types and per-value language bounds; it does not normalize, reorder,
+truncate or synthesize fields. Keys need only `PartialEq`, not cloning, formatting,
+serde or Send. Fields and schema keys are borrowed without copying payloads.
+
+The **single-pass borrowed schema** needs no Clone/exact-size requirement, second
+collection, full count or size hints. At most `fields.len() + 1` iterator calls
+are made. Native iterator/comparison callbacks remain trusted code: their work
+is not preempted or sandboxed, and panics propagate. Validation does not mutate
+fields or roll back native callback/interior-mutability side effects.
+Host policy still bounds ingress bytes/field counts and aggregate work,
+selects operation/version schemas and defines distinct keys.
+
+**Payload-free projection errors** distinguish count/key/type/bounds failures in
+left-to-right order. The reference adapter maps all to the original `LSV1405`,
+then checks kind tokens and optional UI text: operation-specific domains remain adapter-owned.
+`ProjectedField` is the same core type specialized
+for its closed `ResultField`, not a parallel DTO. Projection v1-v5 JSON remains
+exact, including omission of version 1, and no absent legacy field is filled in.
+Cold field masks, canonical validation, original request authority, raw receipt
+matching, saved fuel and continuation/journal/replay contracts stay unchanged.
+
+These public fields are mutable data, **not a lasting projection certificate**,
+authentic receipt or execution grant. Constructors/serialization and legacy
+plain-string decoding remain unchecked; optional/list decoding retains bounds.
+DTO Debug/serde can expose private keys/values and are not the payload-free error
+surface. Standalone tests use **two unrelated projection schemas**, not the two
+complete host-evaluator acceptance proofs. This is a shared result-data preflight
+foundation, **not a generic host-operation or suspension engine**.
+
 ### Shared Fuel Accounting
 
 `leselang-runtime-core::Fuel` is **host-granted fuel accounting**, independent of
@@ -589,7 +849,9 @@ adapter and should remain outside the standalone core.
 
 The first extracted runtime component is `leselang-runtime-core`: admission
 ownership, finite backoff, fuel accounting, portable clock/deadline and retry-delay arithmetic
-and the shared `Fault` DTO.
+plus shared closed scalar data/operation, bounded control decisions, owned fold
+traversal, incremental list construction and borrowed lexical bookkeeping with
+the `Fault` DTO.
 Its only normal dependency is `serde`, with `serde_json` used only in tests; its
 normal, build and test dependencies contain no other workspace crate. The reference
 VM delegates through an explicit adapter and re-exports the existing public type
@@ -602,8 +864,8 @@ typed language-operation schema or complete evaluator acceptance gate.
 cover Cargo's normalized standalone package and its isolated test build. The
 source manifest currently inherits monorepo version metadata; packaging removes
 that inheritance. Moving source to a new repository requires its own metadata
-and CI, not a blind directory copy. Generic typed operation catalogs, evaluator
-values/suspensions and optional persistence still need separation. The current
+and CI, not a blind directory copy. Generic typed host-operation catalogs, expression evaluation,
+host-result values/suspension frames and optional persistence still need separation. The current
 VM's SQLite backend is not moved into, or required by, this lifecycle crate.
 
 The extraction acceptance gate is:

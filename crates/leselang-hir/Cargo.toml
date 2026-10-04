@@ -7,5 +7,9 @@ license.workspace = true
 
 [dependencies]
 leselang-host-contract = { path = "../leselang-host-contract" }
+leselang-runtime-core = { path = "../leselang-runtime-core" }
 leselang-syntax = { path = "../leselang-syntax" }
 serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

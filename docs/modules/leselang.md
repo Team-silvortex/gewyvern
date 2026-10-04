@@ -33,7 +33,18 @@ behavior; Leselang controls explicitly adapted hosts, including Leserpent
 orchestration and UI functions today. Full runtime independence remains a
 tracked target, not a completed property of every Leselang crate.
 `leselang-runtime-core` now isolates admission lifecycle, fuel accounting,
-clock/backoff arithmetic and shared faults. Payload-free terminal observations
+clock/backoff arithmetic, shared closed scalar data/operations and faults. Scalar/list
+imports are shared types with legacy wire bytes, not parallel implementations;
+expression/constructor expansion costs and host validation stay in HIR/VM.
+Scalar signatures, eager operations, left-value short-circuit decisions and
+condition-first loop budgets, owned fold cursors, incremental list builders and
+borrowed lexical frames are shared; evaluation, preflight, fuel policy, durable
+capture and recovery stay in VM without syntax or wire changes.
+HIR and restored-projection preflight share the lexical guard, not their type,
+node-budget, legacy-field or authority policies.
+Ordered scalar projections share opaque-key schema checks and the VM's field DTO;
+operation domains, authority and receipt/replay checks remain adapter-owned.
+Payload-free terminal observations
 distinguish local cancellation, expiry, exhaustion, rejection, acceptance and
 host uncertainty without replay authority or legacy wire changes; cleanup retains
 known reasons and releases undelivered outputs on unwind. It is

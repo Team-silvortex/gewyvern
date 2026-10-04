@@ -1,12 +1,14 @@
 use std::borrow::Cow;
 
 use leselang_hir::computation::{
-    BinaryOperator, Computation, GroupKind, MAX_SCALAR_STRING_BYTES, MAX_STRING_LIST_ITEMS,
-    OptionalStringValue, ScalarValue, StringListValue, UnaryOperator,
+    BinaryOperator, Computation, GroupKind, ScalarValue, StringListValue, UnaryOperator,
 };
 use leselang_hir::host_call::HostOperation;
 use leselang_hir::{Effect, HirBranch};
-use leselang_runtime_core::Fuel;
+use leselang_runtime_core::{
+    BinarySelection, FoldCursor, FoldError, Fuel, LoopBudget, LoopError, LoopStep, ScalarError,
+    ScopeFrame, StringListBuilder, apply_binary, apply_unary, select_binary_left,
+};
 
 use crate::result_binding::{
     ProjectedBinding, ProjectedGroup, ProjectedGroupBinding, ProjectedResult,
@@ -106,7 +108,9 @@ pub(super) fn evaluate<'a>(
     expression: &'a Computation,
     fuel: &mut Fuel,
 ) -> Result<Outcome<'a>, Fault> {
-    evaluate_inner(expression, fuel, &mut Vec::new())
+    let mut bindings = Vec::new();
+    let mut scope = ScopeFrame::new(&mut bindings);
+    evaluate_inner(expression, fuel, &mut scope)
 }
 
 fn scalar(outcome: Outcome<'_>) -> Result<ScalarValue, Fault> {
@@ -140,15 +144,20 @@ pub(super) fn resume_group_outcome<'a>(
     branches: &'a [HirBranch],
     fuel: &mut Fuel,
 ) -> Result<Outcome<'a>, Fault> {
-    let mut scope = Vec::with_capacity(binding.locals.len() + 1);
+    let mut bindings = Vec::with_capacity(binding.locals.len() + 1);
+    let mut scope = ScopeFrame::new(&mut bindings);
     for local in &binding.locals {
         charge(fuel, 1 + string_cost(&local.value))?;
-        scope.push((local.name.clone(), LocalValue::Scalar(local.value.clone())));
+        scope
+            .push(&local.name, LocalValue::Scalar(local.value.clone()))
+            .map_err(|_| invalid())?;
     }
-    scope.push((
-        binding.name.clone(),
-        LocalValue::Result(ResultView::Group { value, branches }),
-    ));
+    scope
+        .push(
+            &binding.name,
+            LocalValue::Result(ResultView::Group { value, branches }),
+        )
+        .map_err(|_| invalid())?;
     evaluate_inner(&binding.body, fuel, &mut scope)
 }
 
@@ -158,29 +167,38 @@ pub(super) fn resume_outcome<'a>(
     operation: HostOperation,
     fuel: &mut Fuel,
 ) -> Result<Outcome<'a>, Fault> {
-    let mut scope = Vec::with_capacity(binding.locals.len() + 1);
+    let mut bindings = Vec::with_capacity(binding.locals.len() + 1);
+    let mut scope = ScopeFrame::new(&mut bindings);
     for local in &binding.locals {
         charge(fuel, 1 + string_cost(&local.value))?;
-        scope.push((local.name.clone(), LocalValue::Scalar(local.value.clone())));
+        scope
+            .push(&local.name, LocalValue::Scalar(local.value.clone()))
+            .map_err(|_| invalid())?;
     }
     for result in &binding.results {
         charge_projection(fuel, &result.result)?;
-        scope.push((
-            result.name.clone(),
-            LocalValue::Result(ResultView::Projected(&result.result)),
-        ));
+        scope
+            .push(
+                &result.name,
+                LocalValue::Result(ResultView::Projected(&result.result)),
+            )
+            .map_err(|_| invalid())?;
     }
     for group in &binding.groups {
         charge_group_projection(fuel, &group.group)?;
-        scope.push((
-            group.name.clone(),
-            LocalValue::Result(ResultView::ProjectedGroup(&group.group)),
-        ));
+        scope
+            .push(
+                &group.name,
+                LocalValue::Result(ResultView::ProjectedGroup(&group.group)),
+            )
+            .map_err(|_| invalid())?;
     }
-    scope.push((
-        binding.name.clone(),
-        LocalValue::Result(ResultView::Raw { value, operation }),
-    ));
+    scope
+        .push(
+            &binding.name,
+            LocalValue::Result(ResultView::Raw { value, operation }),
+        )
+        .map_err(|_| invalid())?;
     evaluate_inner(&binding.body, fuel, &mut scope)
 }
 
@@ -206,7 +224,7 @@ fn charge_group_projection(fuel: &mut Fuel, group: &ProjectedGroup) -> Result<()
 fn evaluate_inner<'a>(
     expression: &'a Computation,
     fuel: &mut Fuel,
-    scope: &mut Vec<(String, LocalValue<'a>)>,
+    scope: &mut ScopeFrame<'_, 'a, LocalValue<'a>>,
 ) -> Result<Outcome<'a>, Fault> {
     charge(fuel, 1)?;
     let value = match expression {
@@ -215,25 +233,19 @@ fn evaluate_inner<'a>(
             value.clone()
         }
         Computation::Strings { items } => {
-            let mut values = Vec::with_capacity(items.len());
-            let mut remaining = MAX_SCALAR_STRING_BYTES;
+            let mut values = StringListBuilder::with_capacity(items.len()).map_err(scalar_fault)?;
             for item in items {
                 let ScalarValue::String(value) = scalar(evaluate_inner(item, fuel, scope)?)? else {
                     return Err(invalid());
                 };
-                remaining = remaining.checked_sub(value.len()).ok_or_else(list_limit)?;
-                values.push(value);
+                values.try_push(value).map_err(scalar_fault)?;
             }
-            let value = ScalarValue::StringList(StringListValue(values));
+            let value = ScalarValue::StringList(values.finish());
             charge(fuel, string_cost(&value))?;
             value
         }
         Computation::Local { name } => {
-            let value = &scope
-                .iter()
-                .find(|(bound, _)| bound == name)
-                .ok_or_else(invalid)?
-                .1;
+            let value = scope.get(name).ok_or_else(invalid)?;
             match value {
                 LocalValue::Scalar(value) => {
                     charge(fuel, string_cost(value))?;
@@ -250,12 +262,12 @@ fn evaluate_inner<'a>(
                     let mut locals = Vec::with_capacity(scope.len());
                     let mut results = Vec::new();
                     let mut groups = Vec::new();
-                    for (name, value) in scope.iter() {
+                    for (name, value) in scope.bindings() {
                         match value {
                             LocalValue::Scalar(value) => {
                                 charge(fuel, 1 + string_cost(value))?;
                                 locals.push(ScalarBinding {
-                                    name: name.clone(),
+                                    name: (*name).to_owned(),
                                     value: value.clone(),
                                 });
                             }
@@ -265,7 +277,7 @@ fn evaluate_inner<'a>(
                                 let group = value.snapshot_group()?;
                                 charge_group_projection(fuel, &group)?;
                                 groups.push(ProjectedGroupBinding {
-                                    name: name.clone(),
+                                    name: (*name).to_owned(),
                                     group,
                                 });
                             }
@@ -273,7 +285,7 @@ fn evaluate_inner<'a>(
                                 let result = value.snapshot()?;
                                 charge_projection(fuel, &result)?;
                                 results.push(ProjectedBinding {
-                                    name: name.clone(),
+                                    name: (*name).to_owned(),
                                     result,
                                 });
                             }
@@ -292,10 +304,9 @@ fn evaluate_inner<'a>(
                 }
                 Outcome::BoundHost { .. } => return Err(invalid()),
             };
-            scope.push((name.clone(), value));
-            let result = evaluate_inner(body, fuel, scope);
-            scope.pop();
-            return result;
+            let mut local = scope.nested();
+            local.push(name, value).map_err(|_| invalid())?;
+            return evaluate_inner(body, fuel, &mut local);
         }
         Computation::Loop {
             name,
@@ -305,33 +316,25 @@ fn evaluate_inner<'a>(
             limit,
         } => {
             let initial = scalar(evaluate_inner(initial, fuel, scope)?)?;
-            let state_type = initial.scalar_type();
-            let slot = scope.len();
-            scope.push((name.clone(), LocalValue::Scalar(initial)));
-            let result = (|| {
-                for iteration in 0..=*limit {
-                    let ScalarValue::Boolean(keep_going) =
-                        scalar(evaluate_inner(condition, fuel, scope)?)?
-                    else {
-                        return Err(invalid());
-                    };
-                    if !keep_going {
-                        return Ok(());
-                    }
-                    if iteration == *limit {
-                        return Err(error("LSV1406", "loop iteration limit exhausted"));
-                    }
-                    let next = scalar(evaluate_inner(next, fuel, scope)?)?;
-                    if next.scalar_type() != state_type {
-                        return Err(invalid());
-                    }
-                    scope.get_mut(slot).ok_or_else(invalid)?.1 = LocalValue::Scalar(next);
+            let mut budget = LoopBudget::new(initial.scalar_type(), *limit).map_err(loop_fault)?;
+            let mut local = scope.nested();
+            let slot = local
+                .push(name, LocalValue::Scalar(initial))
+                .map_err(|_| invalid())?;
+            loop {
+                let ScalarValue::Boolean(keep_going) =
+                    scalar(evaluate_inner(condition, fuel, &mut local)?)?
+                else {
+                    return Err(invalid());
+                };
+                if budget.check_condition(keep_going).map_err(loop_fault)? == LoopStep::Done {
+                    break;
                 }
-                Err(invalid())
-            })();
-            // Restore the enclosing scope on both normal exit and calculation failure.
-            let (_, state) = scope.pop().ok_or_else(invalid)?;
-            result?;
+                let next = scalar(evaluate_inner(next, fuel, &mut local)?)?;
+                budget.advance(&next).map_err(loop_fault)?;
+                *local.get_local_mut(slot).ok_or_else(invalid)? = LocalValue::Scalar(next);
+            }
+            let (_, state) = local.pop().ok_or_else(invalid)?;
             let LocalValue::Scalar(state) = state else {
                 return Err(invalid());
             };
@@ -350,34 +353,27 @@ fn evaluate_inner<'a>(
                 return Err(invalid());
             };
             let initial = scalar(evaluate_inner(initial, fuel, scope)?)?;
-            if items.0.len() as u64 > *limit {
-                return Err(error("LSV1406", "fold iteration limit exhausted"));
+            let items_cost = list_cost(&items);
+            let mut cursor =
+                FoldCursor::new(items, initial.scalar_type(), *limit).map_err(fold_fault)?;
+            charge(fuel, items_cost)?;
+            let mut local = scope.nested();
+            let slot = local
+                .push(name, LocalValue::Scalar(initial))
+                .map_err(|_| invalid())?;
+            let item_slot = local
+                .push(item, LocalValue::Scalar(ScalarValue::String(String::new())))
+                .map_err(|_| invalid())?;
+            while let Some(item) = cursor.next_item().map_err(fold_fault)? {
+                charge(fuel, 1 + item.len().div_ceil(64) as u64)?;
+                *local.get_local_mut(item_slot).ok_or_else(invalid)? =
+                    LocalValue::Scalar(ScalarValue::String(item));
+                let next = scalar(evaluate_inner(next, fuel, &mut local)?)?;
+                cursor.advance(&next).map_err(fold_fault)?;
+                *local.get_local_mut(slot).ok_or_else(invalid)? = LocalValue::Scalar(next);
             }
-            charge(fuel, list_cost(&items))?;
-            let state_type = initial.scalar_type();
-            let slot = scope.len();
-            scope.push((name.clone(), LocalValue::Scalar(initial)));
-            scope.push((
-                item.clone(),
-                LocalValue::Scalar(ScalarValue::String(String::new())),
-            ));
-            let result = (|| {
-                for item in items.0 {
-                    charge(fuel, 1 + item.len().div_ceil(64) as u64)?;
-                    scope.get_mut(slot + 1).ok_or_else(invalid)?.1 =
-                        LocalValue::Scalar(ScalarValue::String(item));
-                    let next = scalar(evaluate_inner(next, fuel, scope)?)?;
-                    if next.scalar_type() != state_type {
-                        return Err(invalid());
-                    }
-                    scope.get_mut(slot).ok_or_else(invalid)?.1 = LocalValue::Scalar(next);
-                }
-                Ok(())
-            })();
-            // Neither the item nor the accumulator may leak into an enclosing recovery branch.
-            scope.pop();
-            let (_, state) = scope.pop().ok_or_else(invalid)?;
-            result?;
+            local.pop();
+            let (_, state) = local.pop().ok_or_else(invalid)?;
             let LocalValue::Scalar(state) = state else {
                 return Err(invalid());
             };
@@ -388,9 +384,7 @@ fn evaluate_inner<'a>(
             name,
             operation,
         } => {
-            let Some((_, LocalValue::Result(view))) =
-                scope.iter().find(|(bound, _)| bound == group)
-            else {
+            let Some(LocalValue::Result(view)) = scope.get(group) else {
                 return Err(invalid());
             };
             return match view {
@@ -512,57 +506,11 @@ fn evaluate_inner<'a>(
         Computation::Unary { operator, value } => {
             let value = scalar(evaluate_inner(value, fuel, scope)?)?;
             charge(fuel, string_cost(&value))?;
-            match (operator, value) {
-                (UnaryOperator::OptionalString, ScalarValue::String(value)) => {
-                    ScalarValue::OptionalString(OptionalStringValue(Some(value)))
-                }
-                (UnaryOperator::OptionalString, ScalarValue::None) => {
-                    ScalarValue::OptionalString(OptionalStringValue(None))
-                }
-                (UnaryOperator::HasValue, ScalarValue::OptionalString(value)) => {
-                    ScalarValue::Boolean(value.0.is_some())
-                }
-                (UnaryOperator::Not, ScalarValue::Boolean(value)) => ScalarValue::Boolean(!value),
-                (UnaryOperator::Len, ScalarValue::String(value)) => {
-                    ScalarValue::Integer(value.chars().count() as u64)
-                }
-                (UnaryOperator::Len, ScalarValue::StringList(value)) => {
-                    ScalarValue::Integer(value.0.len() as u64)
-                }
-                (UnaryOperator::ToString, value) => {
-                    let value = match value {
-                        ScalarValue::Integer(value) => value.to_string(),
-                        ScalarValue::Boolean(value) => value.to_string(),
-                        ScalarValue::String(value) => value,
-                        ScalarValue::None
-                        | ScalarValue::OptionalString(_)
-                        | ScalarValue::StringList(_) => return Err(invalid()),
-                    };
-                    let value = ScalarValue::String(value);
-                    charge(fuel, string_cost(&value))?;
-                    value
-                }
-                (UnaryOperator::ParseInteger, ScalarValue::String(value)) => {
-                    // Reject Rust's optional '+' and all non-decimal spellings explicitly.
-                    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
-                        return Err(invalid_integer_text());
-                    }
-                    ScalarValue::Integer(value.parse::<u64>().map_err(|_| invalid_integer_text())?)
-                }
-                (UnaryOperator::ParseBoolean, ScalarValue::String(value)) => {
-                    ScalarValue::Boolean(match value.as_str() {
-                        "true" => true,
-                        "false" => false,
-                        _ => {
-                            return Err(error(
-                                "LSV1408",
-                                "invalid boolean text: expected true or false",
-                            ));
-                        }
-                    })
-                }
-                _ => return Err(invalid()),
+            let value = apply_unary(*operator, value).map_err(scalar_fault)?;
+            if *operator == UnaryOperator::ToString {
+                charge(fuel, string_cost(&value))?;
             }
+            value
         }
         Computation::Binary {
             operator,
@@ -570,26 +518,18 @@ fn evaluate_inner<'a>(
             right,
         } => {
             let left = scalar(evaluate_inner(left, fuel, scope)?)?;
-            match (operator, &left) {
-                (BinaryOperator::ValueOr, ScalarValue::OptionalString(value))
-                    if value.0.is_some() =>
-                {
-                    charge(fuel, string_cost(&left))?;
-                    return Ok(Outcome::Scalar(ScalarValue::String(
-                        value.0.as_ref().ok_or_else(invalid)?.clone(),
-                    )));
+            let left = match select_binary_left(*operator, left).map_err(scalar_fault)? {
+                BinarySelection::Complete(value) => {
+                    if *operator == BinaryOperator::ValueOr {
+                        charge(fuel, string_cost(&value))?;
+                    }
+                    return Ok(Outcome::Scalar(value));
                 }
-                (BinaryOperator::And, ScalarValue::Boolean(false)) => {
-                    return Ok(Outcome::Scalar(left));
-                }
-                (BinaryOperator::Or, ScalarValue::Boolean(true)) => {
-                    return Ok(Outcome::Scalar(left));
-                }
-                _ => {}
-            }
+                BinarySelection::NeedsRight(left) => left,
+            };
             let right = scalar(evaluate_inner(right, fuel, scope)?)?;
             charge(fuel, string_cost(&left) + string_cost(&right))?;
-            let value = binary(*operator, left, right)?;
+            let value = apply_binary(*operator, left, right).map_err(scalar_fault)?;
             if matches!(
                 operator,
                 BinaryOperator::CharAt
@@ -606,115 +546,29 @@ fn evaluate_inner<'a>(
     Ok(Outcome::Scalar(value))
 }
 
-fn invalid_integer_text() -> Fault {
-    error(
-        "LSV1408",
-        "invalid integer text: expected ASCII decimal within u64",
-    )
-}
-
-fn list_limit() -> Fault {
-    error(
-        "LSV1403",
-        "computed string list exceeds 64 entries or 4096 bytes",
-    )
-}
-
-fn binary(op: BinaryOperator, left: ScalarValue, right: ScalarValue) -> Result<ScalarValue, Fault> {
-    use BinaryOperator::*;
-    use ScalarValue::*;
-    if matches!(op, Eq | Ne) && left.scalar_type() == right.scalar_type() {
-        return Ok(Boolean(if op == Eq {
-            left == right
-        } else {
-            left != right
-        }));
+fn scalar_fault(failure: ScalarError) -> Fault {
+    let code = match failure {
+        ScalarError::TypeMismatch | ScalarError::UnboundedOperand => return invalid(),
+        ScalarError::IntegerArithmetic => "LSV1401",
+        ScalarError::InvalidIntegerText | ScalarError::InvalidBooleanText => "LSV1408",
+        ScalarError::StringLimit | ScalarError::StringListLimit => "LSV1403",
+    };
+    Fault {
+        code: code.to_owned(),
+        message: failure.to_string(),
     }
-    match (op, left, right) {
-        (Split, String(left), String(right)) => {
-            let mut items = Vec::new();
-            let mut remaining = MAX_SCALAR_STRING_BYTES;
-            for item in left.split(&right) {
-                if items.len() == MAX_STRING_LIST_ITEMS {
-                    return Err(list_limit());
-                }
-                remaining = remaining.checked_sub(item.len()).ok_or_else(list_limit)?;
-                items.push(item.to_owned());
-            }
-            Ok(StringList(StringListValue(items)))
-        }
-        (Append, StringList(mut left), String(right)) => {
-            let bytes = left.0.iter().map(std::string::String::len).sum::<usize>();
-            if left.0.len() == MAX_STRING_LIST_ITEMS
-                || bytes.saturating_add(right.len()) > MAX_SCALAR_STRING_BYTES
-            {
-                return Err(list_limit());
-            }
-            left.0.push(right);
-            Ok(StringList(left))
-        }
-        (Join, StringList(left), String(right)) => {
-            let bytes = left
-                .0
-                .iter()
-                .map(std::string::String::len)
-                .sum::<usize>()
-                .saturating_add(right.len().saturating_mul(left.0.len().saturating_sub(1)));
-            if bytes > MAX_SCALAR_STRING_BYTES {
-                return Err(error("LSV1403", "computed string exceeds 4096 bytes"));
-            }
-            Ok(String(left.0.join(&right)))
-        }
-        (ItemAt, StringList(left), Integer(index)) => {
-            let value = usize::try_from(index)
-                .ok()
-                .and_then(|index| left.0.get(index))
-                .cloned();
-            Ok(OptionalString(OptionalStringValue(value)))
-        }
-        (ValueOr, OptionalString(value), String(fallback)) if value.0.is_none() => {
-            Ok(String(fallback))
-        }
-        (And, Boolean(left), Boolean(right)) => Ok(Boolean(left && right)),
-        (Or, Boolean(left), Boolean(right)) => Ok(Boolean(left || right)),
-        (Contains, String(left), String(right)) => Ok(Boolean(left.contains(&right))),
-        (StartsWith, String(left), String(right)) => Ok(Boolean(left.starts_with(&right))),
-        (EndsWith, String(left), String(right)) => Ok(Boolean(left.ends_with(&right))),
-        (CharAt, String(left), Integer(index)) => {
-            // Check the platform conversion; indices are Unicode scalars, never UTF-8 bytes.
-            let value = usize::try_from(index)
-                .ok()
-                .and_then(|index| left.chars().nth(index))
-                .map(|value| value.to_string());
-            Ok(OptionalString(OptionalStringValue(value)))
-        }
-        (Concat, String(mut left), String(right)) => {
-            if left.len().saturating_add(right.len()) > MAX_SCALAR_STRING_BYTES {
-                return Err(error("LSV1403", "computed string exceeds 4096 bytes"));
-            }
-            left.push_str(&right);
-            Ok(String(left))
-        }
-        (op, Integer(left), Integer(right)) => {
-            let value = match op {
-                Lt => return Ok(Boolean(left < right)),
-                Le => return Ok(Boolean(left <= right)),
-                Gt => return Ok(Boolean(left > right)),
-                Ge => return Ok(Boolean(left >= right)),
-                Add => left.checked_add(right),
-                Sub => left.checked_sub(right),
-                Mul => left.checked_mul(right),
-                Div => left.checked_div(right),
-                Rem => left.checked_rem(right),
-                _ => return Err(invalid()),
-            };
-            value.map(Integer).ok_or_else(|| {
-                error(
-                    "LSV1401",
-                    "integer overflow, underflow, or division by zero",
-                )
-            })
-        }
-        _ => Err(invalid()),
+}
+
+fn loop_fault(failure: LoopError) -> Fault {
+    match failure {
+        LoopError::IterationLimit => error("LSV1406", "loop iteration limit exhausted"),
+        _ => invalid(),
+    }
+}
+
+fn fold_fault(failure: FoldError) -> Fault {
+    match failure {
+        FoldError::IterationLimit => error("LSV1406", "fold iteration limit exhausted"),
+        _ => invalid(),
     }
 }

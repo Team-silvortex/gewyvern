@@ -1,346 +1,22 @@
 use super::*;
 use crate::host_call::{HostOperation, invalid_argument};
 use crate::result_field::ResultField;
+use leselang_runtime_core::ScopeFrame;
 use leselang_syntax::NamedArgument;
 
 pub const MAX_COMPUTATION_NODES: usize = 1_024;
-pub const MAX_SCALAR_STRING_BYTES: usize = 4_096;
-pub const MAX_STRING_LIST_ITEMS: usize = 64;
-pub const MAX_LOOP_ITERATIONS: u64 = 1_024;
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ScalarType {
-    Integer,
-    Boolean,
-    String,
-    None,
-    OptionalString,
-    StringList,
-}
+pub use leselang_runtime_core::{
+    BinaryOperator, MAX_LOOP_ITERATIONS, MAX_SCALAR_STRING_BYTES, MAX_STRING_LIST_ITEMS,
+    OptionalStringValue, ScalarType, ScalarValue, StringListValue, UnaryOperator,
+};
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-#[serde(transparent)]
-pub struct StringListValue(pub Vec<String>);
-
-impl StringListValue {
-    pub fn is_bounded(&self) -> bool {
-        self.0.len() <= MAX_STRING_LIST_ITEMS
-            && self
-                .0
-                .iter()
-                .try_fold(MAX_SCALAR_STRING_BYTES, |remaining, item| {
-                    remaining.checked_sub(item.len())
-                })
-                .is_some()
-    }
-}
-
-impl<'de> Deserialize<'de> for StringListValue {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct TextSeed(usize);
-        impl<'de> serde::de::DeserializeSeed<'de> for TextSeed {
-            type Value = String;
-            fn deserialize<D: serde::Deserializer<'de>>(
-                self,
-                deserializer: D,
-            ) -> Result<String, D::Error> {
-                struct TextVisitor(usize);
-                impl serde::de::Visitor<'_> for TextVisitor {
-                    type Value = String;
-                    fn expecting(
-                        &self,
-                        formatter: &mut std::fmt::Formatter<'_>,
-                    ) -> std::fmt::Result {
-                        formatter.write_str("a bounded string list entry")
-                    }
-                    fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<String, E> {
-                        if value.len() > self.0 {
-                            return Err(E::custom("string list exceeds 4096 bytes"));
-                        }
-                        Ok(value.to_owned())
-                    }
-                    fn visit_string<E: serde::de::Error>(self, value: String) -> Result<String, E> {
-                        if value.len() > self.0 {
-                            return Err(E::custom("string list exceeds 4096 bytes"));
-                        }
-                        Ok(value)
-                    }
-                }
-                deserializer.deserialize_string(TextVisitor(self.0))
-            }
-        }
-        struct ListVisitor;
-        impl<'de> serde::de::Visitor<'de> for ListVisitor {
-            type Value = StringListValue;
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("at most 64 strings totaling at most 4096 bytes")
-            }
-            fn visit_seq<A: serde::de::SeqAccess<'de>>(
-                self,
-                mut sequence: A,
-            ) -> Result<Self::Value, A::Error> {
-                // Never reserve from an untrusted length hint or collect an unbounded payload.
-                let mut items = Vec::new();
-                let mut remaining = MAX_SCALAR_STRING_BYTES;
-                while let Some(item) = sequence.next_element_seed(TextSeed(remaining))? {
-                    if items.len() == MAX_STRING_LIST_ITEMS {
-                        return Err(serde::de::Error::custom("string list exceeds 64 entries"));
-                    }
-                    remaining -= item.len();
-                    items.push(item);
-                }
-                Ok(StringListValue(items))
-            }
-        }
-        deserializer.deserialize_seq(ListVisitor)
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-#[serde(transparent)]
-pub struct OptionalStringValue(pub Option<String>);
-
-impl<'de> Deserialize<'de> for OptionalStringValue {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct Visitor;
-        impl serde::de::Visitor<'_> for Visitor {
-            type Value = OptionalStringValue;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("an explicit null or bounded string")
-            }
-
-            fn visit_unit<E: serde::de::Error>(self) -> Result<Self::Value, E> {
-                Ok(OptionalStringValue(None))
-            }
-
-            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                if value.len() > MAX_SCALAR_STRING_BYTES {
-                    return Err(E::custom("optional string exceeds 4096 bytes"));
-                }
-                self.visit_string(value.to_owned())
-            }
-
-            fn visit_string<E: serde::de::Error>(self, value: String) -> Result<Self::Value, E> {
-                if value.len() > MAX_SCALAR_STRING_BYTES {
-                    return Err(E::custom("optional string exceeds 4096 bytes"));
-                }
-                Ok(OptionalStringValue(Some(value)))
-            }
-        }
-        // deserialize_any rejects a missing enum payload instead of treating it as null.
-        deserializer.deserialize_any(Visitor)
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(
-    tag = "kind",
-    content = "value",
-    rename_all = "snake_case",
-    deny_unknown_fields
-)]
-pub enum ScalarValue {
-    Integer(u64),
-    Boolean(bool),
-    String(String),
-    None,
-    OptionalString(OptionalStringValue),
-    StringList(StringListValue),
-}
-
-impl ScalarValue {
-    pub fn scalar_type(&self) -> ScalarType {
-        match self {
-            Self::Integer(_) => ScalarType::Integer,
-            Self::Boolean(_) => ScalarType::Boolean,
-            Self::String(_) => ScalarType::String,
-            Self::None => ScalarType::None,
-            Self::OptionalString(_) => ScalarType::OptionalString,
-            Self::StringList(_) => ScalarType::StringList,
-        }
-    }
-
-    pub fn text(&self) -> Option<&str> {
-        match self {
-            Self::String(value) => Some(value),
-            Self::OptionalString(value) => value.0.as_deref(),
-            _ => None,
-        }
-    }
-
-    pub fn is_bounded(&self) -> bool {
-        match self {
-            Self::StringList(value) => value.is_bounded(),
-            _ => self
-                .text()
-                .is_none_or(|value| value.len() <= MAX_SCALAR_STRING_BYTES),
-        }
-    }
-
-    pub(crate) fn source_shape_extra(&self) -> (usize, usize) {
-        match self {
-            Self::OptionalString(_) => (1, 1),
-            Self::StringList(value) => (value.0.len(), usize::from(!value.0.is_empty())),
-            _ => (0, 0),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum BinaryOperator {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Rem,
-    Eq,
-    Ne,
-    Lt,
-    Le,
-    Gt,
-    Ge,
-    And,
-    Or,
-    Concat,
-    ValueOr,
-    Contains,
-    StartsWith,
-    EndsWith,
-    CharAt,
-    Split,
-    Join,
-    Append,
-    ItemAt,
-}
-
-impl BinaryOperator {
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Add => "add",
-            Self::Sub => "sub",
-            Self::Mul => "mul",
-            Self::Div => "div",
-            Self::Rem => "rem",
-            Self::Eq => "eq",
-            Self::Ne => "ne",
-            Self::Lt => "lt",
-            Self::Le => "le",
-            Self::Gt => "gt",
-            Self::Ge => "ge",
-            Self::And => "and",
-            Self::Or => "or",
-            Self::Concat => "concat",
-            Self::ValueOr => "value_or",
-            Self::Contains => "contains",
-            Self::StartsWith => "starts_with",
-            Self::EndsWith => "ends_with",
-            Self::CharAt => "char_at",
-            Self::Split => "split",
-            Self::Join => "join",
-            Self::Append => "append",
-            Self::ItemAt => "item_at",
-        }
-    }
-
-    fn parse(name: &str) -> Option<Self> {
-        [
-            Self::Add,
-            Self::Sub,
-            Self::Mul,
-            Self::Div,
-            Self::Rem,
-            Self::Eq,
-            Self::Ne,
-            Self::Lt,
-            Self::Le,
-            Self::Gt,
-            Self::Ge,
-            Self::And,
-            Self::Or,
-            Self::Concat,
-            Self::ValueOr,
-            Self::Contains,
-            Self::StartsWith,
-            Self::EndsWith,
-            Self::CharAt,
-            Self::Split,
-            Self::Join,
-            Self::Append,
-            Self::ItemAt,
-        ]
-        .into_iter()
-        .find(|op| op.name() == name)
-    }
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum UnaryOperator {
-    Not,
-    Len,
-    ToString,
-    ParseInteger,
-    ParseBoolean,
-    OptionalString,
-    HasValue,
-}
-
-impl UnaryOperator {
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Not => "not",
-            Self::Len => "len",
-            Self::ToString => "to_string",
-            Self::ParseInteger => "parse_integer",
-            Self::ParseBoolean => "parse_boolean",
-            Self::OptionalString => "optional_string",
-            Self::HasValue => "has_value",
-        }
-    }
-
-    fn parse(name: &str) -> Option<Self> {
-        [
-            Self::Not,
-            Self::Len,
-            Self::ToString,
-            Self::ParseInteger,
-            Self::ParseBoolean,
-            Self::OptionalString,
-            Self::HasValue,
-        ]
-        .into_iter()
-        .find(|operator| operator.name() == name)
-    }
-
-    fn result_type(self, input: Type) -> Option<ScalarType> {
-        use ScalarType::{Boolean, Integer, String};
-        match (self, input) {
-            (Self::OptionalString, Type::Scalar(String | ScalarType::None)) => {
-                Some(ScalarType::OptionalString)
-            }
-            (Self::HasValue, Type::Scalar(ScalarType::OptionalString)) => Some(Boolean),
-            (Self::Not, Type::Scalar(Boolean)) | (Self::ParseBoolean, Type::Scalar(String)) => {
-                Some(Boolean)
-            }
-            (Self::Len | Self::ParseInteger, Type::Scalar(String)) => Some(Integer),
-            (Self::Len, Type::Scalar(ScalarType::StringList)) => Some(Integer),
-            (Self::ToString, Type::Scalar(Integer | Boolean | String)) => Some(String),
-            _ => None,
-        }
-    }
-
-    fn expected_input(self) -> &'static str {
-        match self {
-            Self::Not => "boolean",
-            Self::Len => "string or string_list",
-            Self::ParseInteger | Self::ParseBoolean => "string",
-            Self::ToString => "integer, boolean or string",
-            Self::OptionalString => "string or none",
-            Self::HasValue => "optional_string",
-        }
+// Source expansion cost belongs to HIR, not the host-neutral data contract.
+pub(crate) fn source_shape_extra(value: &ScalarValue) -> (usize, usize) {
+    match value {
+        ScalarValue::OptionalString(_) => (1, 1),
+        ScalarValue::StringList(value) => (value.0.len(), usize::from(!value.0.is_empty())),
+        _ => (0, 0),
     }
 }
 
@@ -445,11 +121,12 @@ pub struct GroupLocalType {
     pub members: Vec<(String, HostOperation)>,
 }
 
-#[derive(Clone)]
 pub(super) struct LocalType {
     ty: Type,
     members: Option<Vec<(String, HostOperation)>>,
 }
+
+pub(super) type TypeScope<'scope, 'names> = ScopeFrame<'scope, 'names, LocalType>;
 
 impl From<Type> for LocalType {
     fn from(ty: Type) -> Self {
@@ -459,16 +136,11 @@ impl From<Type> for LocalType {
 
 fn group_members(
     expression: &Computation,
-    scope: &[(String, LocalType)],
+    scope: &TypeScope<'_, '_>,
 ) -> Option<Vec<(String, HostOperation)>> {
     match expression {
         Computation::Bind { value, body, .. } if value.is_pure() => group_members(body, scope),
-        Computation::Local { name } => scope
-            .iter()
-            .find(|(bound, _)| bound == name)?
-            .1
-            .members
-            .clone(),
+        Computation::Local { name } => scope.get(name)?.members.clone(),
         Computation::Host { .. } | Computation::Group { .. } | Computation::Choose { .. } => {
             group_signature(expression).map(|(_, members)| members)
         }
@@ -586,7 +258,7 @@ impl Computation {
         let mut signature = None;
         while let Some((value, depth, atomic)) = pending.pop() {
             let (extra_nodes, extra_depth) = match value {
-                Self::Literal { value } => value.source_shape_extra(),
+                Self::Literal { value } => source_shape_extra(value),
                 _ => (0, 0),
             };
             visited += 1 + extra_nodes;
@@ -820,25 +492,23 @@ impl Computation {
             .function
             .ok_or(CanonicalSourceError::RoundTripMismatch)?;
         let mut visited = scope_len;
-        let (roundtrip, ty) = lower_expression(
-            &function.body,
-            &mut scope
-                .iter()
-                .map(|(name, ty)| (name.clone(), LocalType::from(*ty)))
-                .chain(groups.iter().map(|group| {
-                    (
-                        group.name.clone(),
-                        LocalType {
-                            ty: Type::Structured,
-                            members: Some(group.members.clone()),
-                        },
-                    )
-                }))
-                .collect(),
-            &mut visited,
-            scope_len,
-        )
-        .map_err(CanonicalSourceError::InvalidEffect)?;
+        let mut bindings = scope
+            .iter()
+            .map(|(name, ty)| (name.as_str(), LocalType::from(*ty)))
+            .chain(groups.iter().map(|group| {
+                (
+                    group.name.as_str(),
+                    LocalType {
+                        ty: Type::Structured,
+                        members: Some(group.members.clone()),
+                    },
+                )
+            }))
+            .collect();
+        let mut lexical = ScopeFrame::new(&mut bindings);
+        let (roundtrip, ty) =
+            lower_expression(&function.body, &mut lexical, &mut visited, scope_len)
+                .map_err(CanonicalSourceError::InvalidEffect)?;
         if roundtrip != *self {
             return Err(CanonicalSourceError::RoundTripMismatch);
         }
@@ -980,8 +650,10 @@ pub(super) fn lower_computation_with_functions(
     expression: &Expression,
     functions: &mut functions::FunctionTemplates,
 ) -> Result<LoweredEffect, Vec<Diagnostic>> {
+    let mut bindings = Vec::new();
+    let mut scope = ScopeFrame::new(&mut bindings);
     let (expression, result_type) =
-        lower_expression_with_functions(expression, &mut Vec::new(), &mut 0, 0, functions)?;
+        lower_expression_with_functions(expression, &mut scope, &mut 0, 0, functions)?;
     validate_shape(&expression).map_err(|error| match error {
         CanonicalSourceError::InvalidEffect(errors) => errors,
         _ => invalid(
@@ -1046,9 +718,9 @@ fn scalar(
     }
 }
 
-pub(super) fn lower_expression(
-    expression: &Expression,
-    scope: &mut Vec<(String, LocalType)>,
+pub(super) fn lower_expression<'a>(
+    expression: &'a Expression,
+    scope: &mut TypeScope<'_, 'a>,
     visited: &mut usize,
     depth: usize,
 ) -> Result<(Computation, Type), Vec<Diagnostic>> {
@@ -1061,9 +733,9 @@ pub(super) fn lower_expression(
     )
 }
 
-pub(super) fn lower_expression_with_functions(
-    expression: &Expression,
-    scope: &mut Vec<(String, LocalType)>,
+pub(super) fn lower_expression_with_functions<'a>(
+    expression: &'a Expression,
+    scope: &mut TypeScope<'_, 'a>,
     visited: &mut usize,
     depth: usize,
     functions: &mut functions::FunctionTemplates,
@@ -1095,9 +767,8 @@ pub(super) fn lower_expression_with_functions(
     }
     if let Expression::Reference { name, .. } = expression {
         return scope
-            .iter()
-            .find(|(bound, _)| bound == name)
-            .map(|(_, ty)| (Computation::Local { name: name.clone() }, ty.ty))
+            .get(name)
+            .map(|ty| (Computation::Local { name: name.clone() }, ty.ty))
             .ok_or_else(|| invalid("LSH1403", format!("undefined local '{name}'"), span));
     }
     let Expression::Call {
@@ -1179,7 +850,7 @@ pub(super) fn lower_expression_with_functions(
             .iter()
             .find(|arg| arg.name != "body")
             .ok_or_else(|| invalid("LSH1401", "bind requires a local name", span))?;
-        if !valid_local(&binding.name) || scope.iter().any(|(name, _)| name == &binding.name) {
+        if !valid_local(&binding.name) || scope.get(&binding.name).is_some() {
             return Err(invalid(
                 "LSH1403",
                 "local name must be bounded and cannot shadow an active binding",
@@ -1215,17 +886,25 @@ pub(super) fn lower_expression_with_functions(
             .find(|arg| arg.name == "body")
             .ok_or_else(|| invalid("LSH1401", "missing bind body", span))?
             .value;
-        scope.push((
-            binding.name.clone(),
-            LocalType {
-                ty: value_type,
-                members,
-            },
-        ));
-        let lowered_body =
-            lower_expression_with_functions(body, scope, visited, depth + 1, functions);
-        scope.pop();
-        let (body, result_type) = lowered_body?;
+        let (body, result_type) = {
+            let mut local = scope.nested();
+            local
+                .push(
+                    &binding.name,
+                    LocalType {
+                        ty: value_type,
+                        members,
+                    },
+                )
+                .map_err(|_| {
+                    invalid(
+                        "LSH1403",
+                        "local name must be bounded and cannot shadow an active binding",
+                        binding.span,
+                    )
+                })?;
+            lower_expression_with_functions(body, &mut local, visited, depth + 1, functions)?
+        };
         if captures_group
             && !((body.is_pure() && matches!(result_type, Type::Scalar(_)))
                 || body.is_atomic_tail()
@@ -1283,9 +962,8 @@ pub(super) fn lower_expression_with_functions(
             ));
         };
         let operation = scope
-            .iter()
-            .find(|(bound, _)| bound == group)
-            .and_then(|(_, ty)| ty.members.as_ref())
+            .get(group)
+            .and_then(|ty| ty.members.as_ref())
             .and_then(|members| members.iter().find(|(member, _)| member == name))
             .map(|(_, operation)| *operation)
             .ok_or_else(|| {
@@ -1399,7 +1077,7 @@ pub(super) fn lower_expression_with_functions(
             lower_expression_with_functions(args[1], scope, visited, depth + 1, functions)?;
         let left_type = scalar(&left, left_type, expression_span(args[0]))?;
         let right_type = scalar(&right, right_type, expression_span(args[1]))?;
-        let result_type = binary_type(operator, left_type, right_type).ok_or_else(|| {
+        let result_type = operator.result_type(left_type, right_type).ok_or_else(|| {
             invalid(
                 "LSH1402",
                 format!(
@@ -1422,8 +1100,7 @@ pub(super) fn lower_expression_with_functions(
         let args = named(arguments, &["value"], span)?;
         let (value, value_type) =
             lower_expression_with_functions(args[0], scope, visited, depth + 1, functions)?;
-        let output = operator
-            .result_type(value_type)
+        let output = unary_type(operator, value_type)
             .filter(|_| value.is_pure())
             .ok_or_else(|| {
                 invalid(
@@ -1526,10 +1203,10 @@ pub(super) fn lower_expression_with_functions(
     ))
 }
 
-fn lower_loop(
-    arguments: &[NamedArgument],
+fn lower_loop<'a>(
+    arguments: &'a [NamedArgument],
     span: Span,
-    scope: &mut Vec<(String, LocalType)>,
+    scope: &mut TypeScope<'_, 'a>,
     visited: &mut usize,
     depth: usize,
     functions: &mut functions::FunctionTemplates,
@@ -1544,7 +1221,7 @@ fn lower_loop(
         &[binding.name.as_str(), "while", "next", "limit"],
         span,
     )?;
-    if !valid_local(&binding.name) || scope.iter().any(|(name, _)| name == &binding.name) {
+    if !valid_local(&binding.name) || scope.get(&binding.name).is_some() {
         return Err(invalid(
             "LSH1403",
             "loop state name must be bounded and cannot shadow an active binding",
@@ -1568,10 +1245,17 @@ fn lower_loop(
     let (initial, state_type) =
         lower_expression_with_functions(args[0], scope, visited, depth + 1, functions)?;
     scalar(&initial, state_type, expression_span(args[0]))?;
-    scope.push((binding.name.clone(), state_type.into()));
-    let lowered = (|| {
+    let (condition, next) = {
+        let mut local = scope.nested();
+        local.push(&binding.name, state_type.into()).map_err(|_| {
+            invalid(
+                "LSH1403",
+                "loop state name must be bounded and cannot shadow an active binding",
+                binding.span,
+            )
+        })?;
         let (condition, condition_type) =
-            lower_expression_with_functions(args[1], scope, visited, depth + 1, functions)?;
+            lower_expression_with_functions(args[1], &mut local, visited, depth + 1, functions)?;
         if scalar(&condition, condition_type, expression_span(args[1]))? != ScalarType::Boolean {
             return Err(invalid(
                 "LSH1402",
@@ -1580,7 +1264,7 @@ fn lower_loop(
             ));
         }
         let (next, next_type) =
-            lower_expression_with_functions(args[2], scope, visited, depth + 1, functions)?;
+            lower_expression_with_functions(args[2], &mut local, visited, depth + 1, functions)?;
         scalar(&next, next_type, expression_span(args[2]))?;
         if next_type != state_type {
             return Err(invalid(
@@ -1589,10 +1273,8 @@ fn lower_loop(
                 expression_span(args[2]),
             ));
         }
-        Ok((condition, next))
-    })();
-    scope.pop();
-    let (condition, next) = lowered?;
+        (condition, next)
+    };
     Ok((
         Computation::Loop {
             name: binding.name.clone(),
@@ -1605,10 +1287,10 @@ fn lower_loop(
     ))
 }
 
-fn lower_fold(
-    arguments: &[NamedArgument],
+fn lower_fold<'a>(
+    arguments: &'a [NamedArgument],
     span: Span,
-    scope: &mut Vec<(String, LocalType)>,
+    scope: &mut TypeScope<'_, 'a>,
     visited: &mut usize,
     depth: usize,
     functions: &mut functions::FunctionTemplates,
@@ -1633,9 +1315,8 @@ fn lower_fold(
     if !valid_local(&binding.name)
         || !valid_local(item)
         || item == &binding.name
-        || scope
-            .iter()
-            .any(|(name, _)| name == &binding.name || name == item)
+        || scope.get(&binding.name).is_some()
+        || scope.get(item).is_some()
     {
         return Err(invalid(
             "LSH1403",
@@ -1670,12 +1351,22 @@ fn lower_fold(
     let (initial, state_type) =
         lower_expression_with_functions(args[0], scope, visited, depth + 1, functions)?;
     scalar(&initial, state_type, expression_span(args[0]))?;
-    scope.push((binding.name.clone(), state_type.into()));
-    scope.push((item.clone(), Type::Scalar(ScalarType::String).into()));
-    let lowered = lower_expression_with_functions(args[3], scope, visited, depth + 1, functions);
-    scope.pop();
-    scope.pop();
-    let (next, next_type) = lowered?;
+    let (next, next_type) = {
+        let mut local = scope.nested();
+        for (name, ty) in [
+            (binding.name.as_str(), state_type),
+            (item.as_str(), Type::Scalar(ScalarType::String)),
+        ] {
+            local.push(name, ty.into()).map_err(|_| {
+                invalid(
+                    "LSH1403",
+                    "fold locals must be bounded, distinct and cannot shadow active bindings",
+                    span,
+                )
+            })?;
+        }
+        lower_expression_with_functions(args[3], &mut local, visited, depth + 1, functions)?
+    };
     scalar(&next, next_type, expression_span(args[3]))?;
     if next_type != state_type {
         return Err(invalid(
@@ -1697,37 +1388,9 @@ fn lower_fold(
     ))
 }
 
-fn binary_type(op: BinaryOperator, left: ScalarType, right: ScalarType) -> Option<ScalarType> {
-    use BinaryOperator::*;
-    use ScalarType::{Boolean, Integer, String};
-    if op == ValueOr {
-        return (left == ScalarType::OptionalString && right == String).then_some(String);
-    }
-    if op == CharAt {
-        return (left == String && right == Integer).then_some(ScalarType::OptionalString);
-    }
-    if op == ItemAt {
-        return (left == ScalarType::StringList && right == Integer)
-            .then_some(ScalarType::OptionalString);
-    }
-    if op == Append {
-        return (left == ScalarType::StringList && right == String)
-            .then_some(ScalarType::StringList);
-    }
-    if op == Join {
-        return (left == ScalarType::StringList && right == String).then_some(String);
-    }
-    if left != right {
-        return None;
-    }
-    match (op, left) {
-        (Eq | Ne, _) => Some(Boolean),
-        (And | Or, Boolean) => Some(Boolean),
-        (Concat, String) => Some(String),
-        (Split, String) => Some(ScalarType::StringList),
-        (Contains | StartsWith | EndsWith, String) => Some(Boolean),
-        (Add | Sub | Mul | Div | Rem, Integer) => Some(Integer),
-        (Lt | Le | Gt | Ge, Integer) => Some(Boolean),
+fn unary_type(operator: UnaryOperator, input: Type) -> Option<ScalarType> {
+    match input {
+        Type::Scalar(input) => operator.result_type(input),
         _ => None,
     }
 }
@@ -1780,7 +1443,7 @@ pub(super) fn validate_shape(expression: &Computation) -> Result<(), CanonicalSo
     while let Some((expression, depth)) = pending.pop() {
         // Literal constructors retain the source node/depth budget after constant folding.
         let (literal_nodes, literal_depth) = match expression {
-            Computation::Literal { value } => value.source_shape_extra(),
+            Computation::Literal { value } => source_shape_extra(value),
             _ => (0, 0),
         };
         visited += 1 + literal_nodes;
@@ -2005,5 +1668,58 @@ pub(super) fn source(expression: &Computation) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
+    }
+}
+
+#[cfg(test)]
+mod scope_tests {
+    use super::*;
+
+    #[test]
+    fn failed_lowering_cleans_locals_without_copying_parent_names_or_refunding_nodes() {
+        for body in [
+            "bind(tmp: outer, body: bind(inner: tmp, body: missing))",
+            r#"loop(tmp: outer, while: true, next: "bad", limit: 1)"#,
+            "loop(tmp: outer, while: 1, next: tmp, limit: 0)",
+            r#"fold(tmp: outer, items: strings(a: "x"), item: "entry", next: missing, limit: 1)"#,
+            r#"fold(tmp: outer, items: strings(a: "x"), item: "entry", next: entry, limit: 1)"#,
+        ] {
+            let tree = parse(&format!("fn main() = {body}"));
+            let good = parse("fn main() = bind(tmp: outer, body: tmp)");
+            let name = String::from("outer");
+            let mut bindings = vec![(name.as_str(), Type::Scalar(ScalarType::Integer).into())];
+            let mut scope = ScopeFrame::new(&mut bindings);
+            let mut visited = 1;
+            assert!(
+                lower_expression(
+                    &tree.function.as_ref().unwrap().body,
+                    &mut scope,
+                    &mut visited,
+                    1
+                )
+                .is_err(),
+                "{body}"
+            );
+            let spent = visited;
+            assert!(spent > 1);
+            assert_eq!(scope.len(), 1);
+            assert_eq!(scope.local_len(), 0);
+            assert_eq!(scope.bindings()[0].0.as_ptr(), name.as_ptr());
+            assert_eq!(
+                scope.get("outer").unwrap().ty,
+                Type::Scalar(ScalarType::Integer)
+            );
+            let (_, ty) = lower_expression(
+                &good.function.as_ref().unwrap().body,
+                &mut scope,
+                &mut visited,
+                1,
+            )
+            .unwrap();
+            assert_eq!(ty, Type::Scalar(ScalarType::Integer));
+            assert_eq!(visited, spent + 3);
+            assert_eq!(scope.len(), 1);
+            assert_eq!(scope.local_len(), 0);
+        }
     }
 }

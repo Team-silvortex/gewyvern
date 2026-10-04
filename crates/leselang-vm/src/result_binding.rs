@@ -1,9 +1,8 @@
-use leselang_hir::computation::{
-    Computation, GroupLocalType, MAX_SCALAR_STRING_BYTES, ScalarValue,
-};
+use leselang_hir::computation::{Computation, GroupLocalType, ScalarValue};
 use leselang_hir::host_call::HostOperation;
 use leselang_hir::result_field::ResultField;
 use leselang_hir::{Effect, MAX_BRANCH_NAME_BYTES, MAX_EFFECT_NESTING_DEPTH, Type};
+use leselang_runtime_core::{ScalarProjectionField, ScopeFrame, validate_scalar_projection};
 use serde::{Deserialize, Serialize};
 
 use crate::{Fault, Value};
@@ -143,12 +142,8 @@ fn is_legacy_projection(version: &u32) -> bool {
     *version == 1
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ProjectedField {
-    pub field: ResultField,
-    pub value: ScalarValue,
-}
+/// Legacy adapter specialization of the shared scalar field DTO, without conversion.
+pub type ProjectedField = ScalarProjectionField<ResultField>;
 
 impl ProjectedResult {
     pub(super) fn capture(operation: HostOperation, value: &Value) -> Result<Self, Fault> {
@@ -210,33 +205,21 @@ impl ProjectedResult {
     fn validate(&self) -> Result<(), Fault> {
         let expected = projection_fields(self.projection_version)?
             .iter()
-            .copied()
             .filter_map(|field| {
                 field
                     .result_type(self.operation.result_type())
                     .map(|ty| (field, ty))
             });
-        if self.fields.len() != expected.clone().count()
-            || self
-                .fields
-                .iter()
-                .zip(expected)
-                .any(|(stored, (field, ty))| {
-                    stored.field != field
-                        || stored.value.scalar_type() != ty
-                        || stored
-                            .value
-                            .text()
-                            .is_some_and(|value| value.len() > MAX_SCALAR_STRING_BYTES)
-                        || (field == ResultField::Kind
-                            && !valid_kind_token(self.operation, &stored.value))
-                        || (field == ResultField::OptionalExpected
-                            && stored
-                                .value
-                                .text()
-                                .is_some_and(|text| !leselang_hir::validate_ui_expected_text(text)))
-                })
-        {
+        validate_scalar_projection(&self.fields, expected).map_err(|_| invalid())?;
+        // Shape is shared; operation-specific value domains remain adapter policy.
+        if self.fields.iter().any(|stored| {
+            (stored.field == ResultField::Kind && !valid_kind_token(self.operation, &stored.value))
+                || (stored.field == ResultField::OptionalExpected
+                    && stored
+                        .value
+                        .text()
+                        .is_some_and(|text| !leselang_hir::validate_ui_expected_text(text)))
+        }) {
             return Err(invalid());
         }
         Ok(())
@@ -363,12 +346,17 @@ impl ResultBinding {
     pub(super) fn validate(&self, pending: &Effect) -> Result<Type, Fault> {
         self.validate_structure()?;
         if !self.results.is_empty() || !self.groups.is_empty() {
-            let mut scope = self
-                .results
-                .iter()
-                .map(|saved| {
-                    (
-                        saved.name.as_str(),
+            let mut bindings =
+                Vec::with_capacity(self.locals.len() + self.results.len() + self.groups.len() + 1);
+            let mut scope = ScopeFrame::new(&mut bindings);
+            // Scalar names also occupy the frame, without granting result fields.
+            for local in &self.locals {
+                scope.push(&local.name, None).map_err(|_| invalid())?;
+            }
+            for saved in &self.results {
+                scope
+                    .push(
+                        &saved.name,
                         Some(AvailableProjection::Fields(
                             saved
                                 .result
@@ -377,18 +365,19 @@ impl ResultBinding {
                                 .fold(0, |mask, field| mask | field_bit(field.field)),
                         )),
                     )
-                })
-                .collect::<Vec<_>>();
-            scope.extend(self.groups.iter().map(|group| {
-                (
-                    group.name.as_str(),
-                    Some(AvailableProjection::Group(&group.group)),
+                    .map_err(|_| invalid())?;
+            }
+            for group in &self.groups {
+                scope
+                    .push(&group.name, Some(AvailableProjection::Group(&group.group)))
+                    .map_err(|_| invalid())?;
+            }
+            scope
+                .push(
+                    &self.name,
+                    available_fields(pending).map(AvailableProjection::Fields),
                 )
-            }));
-            scope.push((
-                self.name.as_str(),
-                available_fields(pending).map(AvailableProjection::Fields),
-            ));
+                .map_err(|_| invalid())?;
             validate_projected_accesses(&self.body, &mut scope)?;
         }
         // Reconstruct the lexical scope for the normal type/canonical validator.
@@ -475,19 +464,17 @@ enum AvailableProjection<'a> {
     Group(&'a ProjectedGroup),
 }
 
-type ProjectionScope<'a> = Vec<(&'a str, Option<AvailableProjection<'a>>)>;
+type ProjectionScope<'scope, 'values> =
+    ScopeFrame<'scope, 'values, Option<AvailableProjection<'values>>>;
 
 // A legacy frame is a closed field set, even when its operation now exports more.
 // Follow aliases and both conditional paths without evaluating or replaying host work.
 fn validate_projected_accesses<'a>(
     expression: &'a Computation,
-    scope: &mut ProjectionScope<'a>,
+    scope: &mut ProjectionScope<'_, 'a>,
 ) -> Result<Option<AvailableProjection<'a>>, Fault> {
     match expression {
-        Computation::Local { name } => Ok(scope
-            .iter()
-            .find(|(bound, _)| *bound == name)
-            .and_then(|(_, fields)| *fields)),
+        Computation::Local { name } => Ok(scope.get(name).copied().flatten()),
         Computation::Field { value, field } => {
             if !matches!(validate_projected_accesses(value, scope)?, Some(AvailableProjection::Fields(fields)) if fields & field_bit(*field) != 0)
             {
@@ -497,10 +484,9 @@ fn validate_projected_accesses<'a>(
         }
         Computation::Bind { name, value, body } => {
             let fields = validate_projected_accesses(value, scope)?;
-            scope.push((name.as_str(), fields));
-            let result = validate_projected_accesses(body, scope);
-            scope.pop();
-            result
+            let mut local = scope.nested();
+            local.push(name, fields).map_err(|_| invalid())?;
+            validate_projected_accesses(body, &mut local)
         }
         Computation::Choose {
             when,
@@ -534,12 +520,10 @@ fn validate_projected_accesses<'a>(
         } => {
             validate_projected_accesses(items, scope)?;
             validate_projected_accesses(initial, scope)?;
-            scope.push((name.as_str(), None));
-            scope.push((item.as_str(), None));
-            let result = validate_projected_accesses(next, scope);
-            scope.pop();
-            scope.pop();
-            result.map(|_| None)
+            let mut local = scope.nested();
+            local.push(name, None).map_err(|_| invalid())?;
+            local.push(item, None).map_err(|_| invalid())?;
+            validate_projected_accesses(next, &mut local).map(|_| None)
         }
         Computation::Loop {
             name,
@@ -549,11 +533,10 @@ fn validate_projected_accesses<'a>(
             ..
         } => {
             validate_projected_accesses(initial, scope)?;
-            scope.push((name.as_str(), None));
-            let result = validate_projected_accesses(condition, scope)
-                .and_then(|_| validate_projected_accesses(next, scope));
-            scope.pop();
-            result.map(|_| None)
+            let mut local = scope.nested();
+            local.push(name, None).map_err(|_| invalid())?;
+            validate_projected_accesses(condition, &mut local)?;
+            validate_projected_accesses(next, &mut local).map(|_| None)
         }
         Computation::Binary { left, right, .. } => {
             validate_projected_accesses(left, scope)?;
@@ -594,9 +577,7 @@ fn validate_projected_accesses<'a>(
             name,
             operation,
         } => {
-            if let Some((_, Some(AvailableProjection::Group(saved)))) =
-                scope.iter().find(|(bound, _)| *bound == group)
-            {
+            if let Some(Some(AvailableProjection::Group(saved))) = scope.get(group) {
                 let member = saved
                     .members
                     .iter()

@@ -1103,8 +1103,10 @@ name = "leselang-hir"
 version = "2.1.6"
 dependencies = [
  "leselang-host-contract",
+ "leselang-runtime-core",
  "leselang-syntax",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

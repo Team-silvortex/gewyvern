@@ -98,6 +98,7 @@ fn leselang_frontend_and_host_contract_have_no_product_dependency() {
         "leselang-hir",
         &[
             "leselang-host-contract",
+            "leselang-runtime-core",
             "leselang-syntax",
             "silvortex-identity",
         ],

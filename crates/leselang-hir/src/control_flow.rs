@@ -16,10 +16,10 @@ pub(super) fn lower_sequence(
     lower_sequence_with(arguments, span, &mut lower_effect)
 }
 
-pub(super) fn lower_sequence_with(
-    arguments: &[NamedArgument],
+pub(super) fn lower_sequence_with<'a>(
+    arguments: &'a [NamedArgument],
     span: Span,
-    lower: &mut impl FnMut(&Expression) -> Result<LoweredEffect, Vec<Diagnostic>>,
+    lower: &mut impl FnMut(&'a Expression) -> Result<LoweredEffect, Vec<Diagnostic>>,
 ) -> Result<LoweredEffect, Vec<Diagnostic>> {
     if arguments.is_empty() || arguments.len() > MAX_SEQUENCE_STEPS {
         return Err(invalid("seq requires between 1 and 64 named steps", span));
@@ -46,10 +46,10 @@ pub(super) fn lower_repeat(
     lower_repeat_with(arguments, span, &mut lower_effect)
 }
 
-pub(super) fn lower_repeat_with(
-    arguments: &[NamedArgument],
+pub(super) fn lower_repeat_with<'a>(
+    arguments: &'a [NamedArgument],
     span: Span,
-    lower: &mut impl FnMut(&Expression) -> Result<LoweredEffect, Vec<Diagnostic>>,
+    lower: &mut impl FnMut(&'a Expression) -> Result<LoweredEffect, Vec<Diagnostic>>,
 ) -> Result<LoweredEffect, Vec<Diagnostic>> {
     if arguments.len() != 2 {
         return Err(invalid("repeat requires exactly 'times' and 'body'", span));

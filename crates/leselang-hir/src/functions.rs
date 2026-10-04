@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use leselang_runtime_core::ScopeFrame;
 use leselang_syntax::{Function, MAX_FUNCTION_PARAMETERS, MAX_FUNCTIONS, NamedArgument};
 
 use super::*;
-use crate::computation::{Computation, LocalType, MAX_COMPUTATION_NODES, ScalarType};
+use crate::computation::{Computation, LocalType, MAX_COMPUTATION_NODES, ScalarType, TypeScope};
 
 struct Template {
     parameters: Vec<(String, ScalarType)>,
@@ -221,17 +222,20 @@ pub(super) fn lower_program(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnos
             })?;
         let function = declared[&name];
         let parameters = parameter_types(function)?;
-        let mut scope = parameters
-            .iter()
-            .map(|(name, ty)| (name.clone(), LocalType::from(Type::Scalar(*ty))))
-            .collect();
-        let (body, result_type) = computation::lower_expression_with_functions(
-            &function.body,
-            &mut scope,
-            &mut 0,
-            0,
-            &mut functions,
-        )?;
+        let (body, result_type) = {
+            let mut bindings = parameters
+                .iter()
+                .map(|(name, ty)| (name.as_str(), LocalType::from(Type::Scalar(*ty))))
+                .collect();
+            let mut scope = ScopeFrame::new(&mut bindings);
+            computation::lower_expression_with_functions(
+                &function.body,
+                &mut scope,
+                &mut 0,
+                0,
+                &mut functions,
+            )?
+        };
         if body.is_pure() && !matches!(result_type, Type::Scalar(_)) {
             return Err(invalid(
                 "LSH1503",
@@ -297,7 +301,7 @@ pub(super) fn shape(expression: &Computation) -> (usize, usize) {
     let mut pending = vec![(expression, 0)];
     while let Some((expression, level)) = pending.pop() {
         let (literal_nodes, literal_depth) = match expression {
-            Computation::Literal { value } => value.source_shape_extra(),
+            Computation::Literal { value } => computation::source_shape_extra(value),
             _ => (0, 0),
         };
         nodes += 1 + literal_nodes;
@@ -317,11 +321,11 @@ pub(super) fn shape(expression: &Computation) -> (usize, usize) {
     (nodes, depth)
 }
 
-pub(super) fn lower_call(
+pub(super) fn lower_call<'a>(
     name: &str,
-    arguments: &[NamedArgument],
+    arguments: &'a [NamedArgument],
     span: Span,
-    scope: &mut Vec<(String, LocalType)>,
+    scope: &mut TypeScope<'_, 'a>,
     visited: &mut usize,
     depth: usize,
     functions: &mut FunctionTemplates,

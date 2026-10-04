@@ -4167,10 +4167,10 @@ fn lower_all(
     lower_all_with(arguments, span, &mut lower_effect)
 }
 
-fn lower_all_with(
-    arguments: &[leselang_syntax::NamedArgument],
+fn lower_all_with<'a>(
+    arguments: &'a [leselang_syntax::NamedArgument],
     span: Span,
-    lower: &mut impl FnMut(&Expression) -> Result<LoweredEffect, Vec<Diagnostic>>,
+    lower: &mut impl FnMut(&'a Expression) -> Result<LoweredEffect, Vec<Diagnostic>>,
 ) -> Result<LoweredEffect, Vec<Diagnostic>> {
     if !(2..=MAX_ALL_BRANCHES).contains(&arguments.len()) {
         return Err(vec![Diagnostic {

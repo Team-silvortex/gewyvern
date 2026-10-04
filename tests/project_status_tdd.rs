@@ -473,7 +473,7 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
     assert_eq!(cell.priority, Priority::Active);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
-    assert_eq!(cell.contract.version, "0.9.0");
+    assert_eq!(cell.contract.version, "0.17.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.independence, Independence::ReusableLibrary);
     assert!(cell.evidence.iter().any(|evidence| {
@@ -489,6 +489,31 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         "crates/leselang-runtime-core/tests/diagnostics.rs",
         "crates/leselang-runtime-core/tests/host_ownership.rs",
         "crates/leselang-runtime-core/tests/terminal_observation.rs",
+        "crates/leselang-runtime-core/src/value.rs",
+        "crates/leselang-runtime-core/tests/values.rs",
+        "crates/leselang-hir/tests/value_contract.rs",
+        "crates/leselang-vm/tests/value_contract.rs",
+        "crates/leselang-runtime-core/src/scalar_ops.rs",
+        "crates/leselang-runtime-core/tests/scalar_operations.rs",
+        "crates/leselang-hir/tests/operator_contract.rs",
+        "crates/leselang-vm/tests/scalar_operations.rs",
+        "crates/leselang-runtime-core/src/control.rs",
+        "crates/leselang-runtime-core/tests/control.rs",
+        "crates/leselang-vm/tests/control_boundaries.rs",
+        "crates/leselang-runtime-core/src/fold.rs",
+        "crates/leselang-runtime-core/tests/fold.rs",
+        "crates/leselang-vm/tests/fold_boundaries.rs",
+        "crates/leselang-runtime-core/src/collection.rs",
+        "crates/leselang-runtime-core/tests/collection.rs",
+        "crates/leselang-vm/tests/list_construction.rs",
+        "crates/leselang-runtime-core/src/scope.rs",
+        "crates/leselang-runtime-core/tests/scope.rs",
+        "crates/leselang-vm/tests/scope_boundaries.rs",
+        "crates/leselang-hir/tests/scope_preflight.rs",
+        "crates/leselang-vm/tests/projection_scope.rs",
+        "crates/leselang-runtime-core/src/projection.rs",
+        "crates/leselang-runtime-core/tests/projection.rs",
+        "crates/leselang-vm/tests/projection_contract.rs",
         "crates/leselang-runtime-core/tests/fuel.rs",
         "crates/leselang-runtime-core/tests/clock.rs",
         "crates/leselang-runtime-core/tests/backoff.rs",
@@ -526,6 +551,42 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         "explicit-host-clock-domain-and-policy-boundary",
         "pure-capped-exponential-delay-full-width-arithmetic",
         "constant-time-overflow-safe-backoff-no-policy-or-state",
+        "product-free-closed-scalar-type-and-value-contract",
+        "optional-and-list-bounded-decode-parity",
+        "legacy-plain-string-and-direct-construction-validation-boundary",
+        "product-free-closed-scalar-operator-semantics",
+        "bounded-eager-scalar-operation-api",
+        "payload-free-scalar-errors-and-reference-fault-mapping",
+        "evaluator-owned-laziness-fuel-and-recovery-policy",
+        "product-free-left-value-short-circuit-selection",
+        "owned-optional-short-circuit-no-second-copy",
+        "condition-first-typed-loop-budget",
+        "move-only-nonserde-loop-counter-no-state-payload",
+        "deferred-left-not-a-validation-certificate",
+        "product-free-owned-bounded-fold-cursor",
+        "source-order-text-buffer-move-without-clone",
+        "upfront-fold-count-no-truncation",
+        "typed-fold-advance-before-next-item",
+        "metadata-only-fold-debug-no-state-payload",
+        "product-free-incremental-string-list-builder",
+        "atomic-rejected-push-prefix-preservation",
+        "owned-buffer-move-and-borrowed-preallocation-check",
+        "bounded-explicit-list-reservation-not-length-hints",
+        "finished-mutable-data-not-a-bounds-certificate",
+        "product-free-borrowed-lexical-scope-frame",
+        "frame-relative-mutation-and-parent-pop-fence",
+        "detached-suffix-before-value-drop-unwind",
+        "borrowed-name-no-transient-copy",
+        "scope-metadata-debug-without-payload-formatters",
+        "scope-slots-and-drop-guard-not-authority",
+        "shared-lexical-guard-hir-and-restored-projection-preflight",
+        "cold-checks-node-budgets-and-legacy-fields-remain-adapter-owned",
+        "product-free-opaque-key-scalar-projection-fields",
+        "borrowed-exact-ordered-projection-validation",
+        "six-scalar-types-and-per-value-bounds",
+        "bounded-schema-iteration-without-clone-or-size-hints",
+        "payload-free-projection-errors-not-execution-grants",
+        "legacy-projected-field-alias-and-v1-v5-parity",
     ] {
         assert!(cell.contract.surfaces.iter().any(|entry| entry == surface));
     }
@@ -9354,7 +9415,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leselang/language-hir/typed-effects")
         .expect("Leselang HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.65.0");
+    assert_eq!(hir.contract.version, "0.69.0");
     for surface in [
         "debugger-cancel-effect",
         "ui-activate-effect",
@@ -9460,6 +9521,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "canonical-effect-roundtrip",
         "single-allocation-name-deduplication",
         "bounded-language-pipeline-benchmark",
+        "shared-core-typed-scalar-and-container-values",
+        "legacy-value-import-and-serde-wire-compatibility",
+        "hir-owned-literal-constructor-expansion-accounting",
+        "shared-core-closed-scalar-operator-signatures",
+        "legacy-operator-tags-and-type-preflight-parity",
+        "shared-core-scalar-loop-bound-with-legacy-import",
+        "shared-borrowed-lexical-preflight-frame",
+        "helper-and-residual-prefix-name-borrowing",
+        "failed-lowering-local-cleanup-without-node-refund",
+        "owned-canonical-hir-and-unchanged-group-diagnostics",
     ] {
         assert!(
             hir.contract
@@ -9470,12 +9541,33 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         );
     }
 
+    assert!(hir.evidence.iter().any(|entry| entry.path
+        == "crates/leselang-runtime-core/src/value.rs"
+        && entry.state == EvidenceState::Present));
+    assert!(hir.evidence.iter().any(|entry| entry.path
+        == "crates/leselang-hir/tests/value_contract.rs"
+        && entry.state == EvidenceState::Present));
+    for path in [
+        "crates/leselang-runtime-core/src/scalar_ops.rs",
+        "crates/leselang-hir/tests/operator_contract.rs",
+        "crates/leselang-runtime-core/src/control.rs",
+        "crates/leselang-hir/tests/iteration.rs",
+        "crates/leselang-runtime-core/src/scope.rs",
+        "crates/leselang-hir/tests/scope_preflight.rs",
+    ] {
+        assert!(
+            hir.evidence
+                .iter()
+                .any(|entry| entry.path == path && entry.state == EvidenceState::Present)
+        );
+    }
+
     let vm = catalog
         .cells
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.64.0");
+    assert_eq!(vm.contract.version, "1.72.0");
     for surface in [
         "typed-debugger-cancel-result",
         "restart-safe-debugger-cancel-dispatch",
@@ -9650,6 +9742,30 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "shared-core-admission-terminal-reason-observation",
         "unchanged-legacy-admission-status-and-poll-wire",
         "terminal-observation-no-vm-or-sqlite-entry",
+        "shared-core-runtime-scalar-values",
+        "no-scalar-wire-or-journal-schema-change",
+        "shared-core-scalar-operation-delegation",
+        "unchanged-lazy-operands-and-exact-scalar-fuel-thresholds",
+        "legacy-scalar-fault-codes-messages-and-recovery-set",
+        "shared-core-left-value-short-circuit-selection",
+        "optional-result-move-with-original-fuel-charge",
+        "shared-condition-first-loop-budget",
+        "unchanged-loop-error-precedence-scope-cleanup-and-reentry",
+        "shared-core-owned-bounded-fold-cursor",
+        "fold-original-item-buffers-and-typed-progress",
+        "unchanged-fold-fuel-error-order-scope-cleanup-and-reentry",
+        "shared-core-incremental-list-construction",
+        "preserved-list-preallocation-fail-fast-entry-order",
+        "unchanged-list-fuel-diagnostic-decoder-wire",
+        "shared-borrowed-lexical-frame-delegation",
+        "scope-guard-cleanup-bind-loop-fold-and-reentry",
+        "owned-durable-capture-with-original-fuel-and-wire",
+        "shared-restored-projection-scope-guard",
+        "scalar-result-group-pending-name-collision-fence",
+        "unchanged-cold-legacy-field-mask-preflight",
+        "shared-core-ordered-scalar-projection-validator",
+        "legacy-projected-field-direct-specialization",
+        "operation-domain-and-v1-v5-restoration-parity",
         "bounded-pre-admission-exponential-backoff",
         "vm-free-not-before-admission-polls",
         "submission-pinned-admission-and-execution-deadline",
@@ -9699,6 +9815,31 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "crates/leselang-runtime-core/src/backoff.rs",
         "crates/leselang-runtime-core/tests/backoff.rs",
         "crates/leselang-runtime-core/tests/terminal_observation.rs",
+        "crates/leselang-runtime-core/src/value.rs",
+        "crates/leselang-runtime-core/tests/values.rs",
+        "crates/leselang-vm/tests/value_contract.rs",
+        "crates/leselang-runtime-core/src/scalar_ops.rs",
+        "crates/leselang-runtime-core/tests/scalar_operations.rs",
+        "crates/leselang-vm/tests/scalar_operations.rs",
+        "crates/leselang-runtime-core/src/control.rs",
+        "crates/leselang-runtime-core/tests/control.rs",
+        "crates/leselang-vm/tests/control_boundaries.rs",
+        "crates/leselang-runtime-core/src/fold.rs",
+        "crates/leselang-runtime-core/tests/fold.rs",
+        "crates/leselang-vm/tests/fold_boundaries.rs",
+        "crates/leselang-runtime-core/src/collection.rs",
+        "crates/leselang-runtime-core/tests/collection.rs",
+        "crates/leselang-vm/tests/list_construction.rs",
+        "crates/leselang-runtime-core/src/scope.rs",
+        "crates/leselang-runtime-core/tests/scope.rs",
+        "crates/leselang-vm/tests/scope_boundaries.rs",
+        "crates/leselang-vm/tests/projection_scope.rs",
+        "crates/leselang-runtime-core/src/projection.rs",
+        "crates/leselang-runtime-core/tests/projection.rs",
+        "crates/leselang-vm/tests/projection_contract.rs",
+        "crates/leselang-vm/tests/string_lists.rs",
+        "crates/leselang-vm/tests/iteration.rs",
+        "crates/leselang-vm/tests/recovery.rs",
     ] {
         assert!(
             vm.evidence

@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
-//! Host-neutral admission, fuel accounting and scheduler-clock foundations.
-//! Evaluation, policies, charging rules and authority belong to the adapter.
+//! Host-neutral admission, scalar/projection/control, lexical, fuel and clock foundations.
+//! Expression evaluation, policies, charging rules and authority belong to the adapter.
 //!
 //! This is a runtime foundation, not yet the independent Leselang evaluator.
 
@@ -11,11 +11,30 @@ use serde::{Deserialize, Serialize};
 
 mod backoff;
 mod clock;
+mod collection;
+mod control;
+mod fold;
 mod fuel;
+mod projection;
+mod scalar_ops;
+mod scope;
+mod value;
 
 pub use backoff::capped_exponential_delay;
 pub use clock::{ClockError, MAX_CLOCK_MS, checked_clock_add};
+pub use collection::StringListBuilder;
+pub use control::{
+    BinarySelection, LoopBudget, LoopError, LoopStep, MAX_LOOP_ITERATIONS, select_binary_left,
+};
+pub use fold::{FoldCursor, FoldError};
 pub use fuel::{Fuel, FuelExhausted};
+pub use projection::{ProjectionError, ScalarProjectionField, validate_scalar_projection};
+pub use scalar_ops::{BinaryOperator, ScalarError, UnaryOperator, apply_binary, apply_unary};
+pub use scope::{ScopeError, ScopeFrame};
+pub use value::{
+    MAX_SCALAR_STRING_BYTES, MAX_STRING_LIST_ITEMS, OptionalStringValue, ScalarType, ScalarValue,
+    StringListValue,
+};
 
 pub const MAX_ADMISSION_ATTEMPTS: u32 = 32;
 pub const MAX_ADMISSION_DELAY_MS: u64 = 60 * 60 * 1000;

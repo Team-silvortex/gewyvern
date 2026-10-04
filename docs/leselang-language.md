@@ -1291,6 +1291,58 @@ original host domains and first-commit replay retain existing recovery boundarie
 This is not nested/generic containers, effectful iteration or multipresentation
 GUI batch support.
 
+The existing Rust scalar/list types and byte/count limits now come from
+`leselang-runtime-core`; old HIR computation imports and VM scalar imports are
+direct re-exports, not conversion wrappers. This changes no source syntax or
+value/result/projection/continuation/journal bytes. Public Rust construction and
+legacy plain-string decoding still require explicit boundedness validation;
+optional/list decoding keeps its original limits. Constructor expansion costs
+remain HIR-owned, and host argument validation/authority remain mandatory. See
+[shared language values](leselang-embedding.md#shared-language-values).
+
+The closed unary/binary operator types, signatures and bounded eager scalar
+operations are also shared by HIR/VM through that core. Source syntax, lazy
+`and`/`or`/`value_or`, exact fuel charges and recoverable fault codes stay unchanged;
+expression control and host effects are not moved into the scalar API. See
+[shared scalar operations](leselang-embedding.md#shared-scalar-operations).
+
+Left-value short-circuit decisions and condition-first scalar-loop budgets now
+share that core too. HIR keeps cold type/purity checks, and VM keeps expression
+evaluation, exact fuel charges, lexical cleanup and durable re-entry. Optional
+defaults avoid a redundant result copy; loop bounds, errors and wire stay unchanged.
+See [shared control decisions](leselang-embedding.md#shared-scalar-control-decisions).
+
+Bounded fold traversal now uses that core's owned `FoldCursor`: it rejects excess
+items without truncation and moves text in source order, advancing only after a
+bounded same-type accumulator is accepted. VM still owns body evaluation, exact
+fuel, both local slots and recovery; no fold syntax or wire changes. See
+[shared fold traversal](leselang-embedding.md#shared-bounded-fold-traversal).
+
+Computed `strings`, `split`/`append` and list decoding now share the core's
+`StringListBuilder` count/UTF-8 rules. Source order, first-fault behavior, bounded
+preallocation, exact fuel and legacy decoder diagnostics remain unchanged.
+Finished lists are still ordinary mutable Rust data, not execution grants or
+lasting bounds certificates. See
+[shared list construction](leselang-embedding.md#shared-bounded-list-construction).
+
+Temporary lexical bookkeeping now uses the core's borrowed-name `ScopeFrame`.
+Nested frames clean up on normal/error exit and confine direct mutation/pop to
+their own bindings. Durable captures still own names and data under the original
+fuel and wire rules. This adds no syntax, replay authority or sandbox; preflight,
+evaluation and recovery remain adapter-owned. See
+[shared lexical frames](leselang-embedding.md#shared-borrowed-lexical-frames).
+
+HIR source/helper/residual checks and restored-projection checks use that same
+lexical guard. Cold branches, zero-iteration bodies and legacy field masks keep
+their original validation; failures clean local names without refunding node
+budgets. HIR and durable output remain owned, with unchanged source and wire rules.
+
+Ordered scalar projection data/checks now share that core through opaque developer
+keys. The VM's `ProjectedField` is a direct specialization; closed v1-v5 JSON,
+legacy masks, saved fuel and replay remain unchanged. Schema checks do not grant
+authority or authenticate host receipts; operation domains stay in the adapter.
+See [shared scalar projections](leselang-embedding.md#shared-ordered-scalar-projections).
+
 [Reusable pure functions](leselang-control-flow.md#reusable-pure-functions) add
 typed named scalar parameters and inferred scalar results, with a parameterless
 `main` entry for multi-function programs. All definitions are checked, including
