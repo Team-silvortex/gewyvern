@@ -6,8 +6,9 @@ use leselang_hir::computation::{
 use leselang_hir::host_call::HostOperation;
 use leselang_hir::{Effect, HirBranch};
 use leselang_runtime_core::{
-    BinarySelection, FoldCursor, FoldError, Fuel, LoopBudget, LoopError, LoopStep, ScalarError,
-    ScopeFrame, StringListBuilder, apply_binary, apply_unary, select_binary_left,
+    BinarySelection, CalculationFailure, FoldCursor, FoldError, Fuel, LoopBudget, LoopError,
+    LoopStep, ScalarError, ScopeFrame, StringListBuilder, apply_binary, apply_unary,
+    select_binary_left,
 };
 
 use crate::result_binding::{
@@ -71,6 +72,8 @@ enum LocalValue<'a> {
     Result(ResultView<'a>),
 }
 
+type EvaluationFailure = CalculationFailure<Fault>;
+
 fn error(code: &str, message: &str) -> Fault {
     Fault {
         code: code.to_string(),
@@ -110,7 +113,7 @@ pub(super) fn evaluate<'a>(
 ) -> Result<Outcome<'a>, Fault> {
     let mut bindings = Vec::new();
     let mut scope = ScopeFrame::new(&mut bindings);
-    evaluate_inner(expression, fuel, &mut scope)
+    evaluate_inner(expression, fuel, &mut scope).map_err(calculation_fault)
 }
 
 fn scalar(outcome: Outcome<'_>) -> Result<ScalarValue, Fault> {
@@ -158,7 +161,7 @@ pub(super) fn resume_group_outcome<'a>(
             LocalValue::Result(ResultView::Group { value, branches }),
         )
         .map_err(|_| invalid())?;
-    evaluate_inner(&binding.body, fuel, &mut scope)
+    evaluate_inner(&binding.body, fuel, &mut scope).map_err(calculation_fault)
 }
 
 pub(super) fn resume_outcome<'a>(
@@ -199,7 +202,7 @@ pub(super) fn resume_outcome<'a>(
             LocalValue::Result(ResultView::Raw { value, operation }),
         )
         .map_err(|_| invalid())?;
-    evaluate_inner(&binding.body, fuel, &mut scope)
+    evaluate_inner(&binding.body, fuel, &mut scope).map_err(calculation_fault)
 }
 
 fn charge_projection(fuel: &mut Fuel, result: &ProjectedResult) -> Result<(), Fault> {
@@ -225,7 +228,7 @@ fn evaluate_inner<'a>(
     expression: &'a Computation,
     fuel: &mut Fuel,
     scope: &mut ScopeFrame<'_, 'a, LocalValue<'a>>,
-) -> Result<Outcome<'a>, Fault> {
+) -> Result<Outcome<'a>, EvaluationFailure> {
     charge(fuel, 1)?;
     let value = match expression {
         Computation::Literal { value } => {
@@ -233,12 +236,13 @@ fn evaluate_inner<'a>(
             value.clone()
         }
         Computation::Strings { items } => {
-            let mut values = StringListBuilder::with_capacity(items.len()).map_err(scalar_fault)?;
+            let mut values = StringListBuilder::with_capacity(items.len())
+                .map_err(CalculationFailure::Scalar)?;
             for item in items {
                 let ScalarValue::String(value) = scalar(evaluate_inner(item, fuel, scope)?)? else {
-                    return Err(invalid());
+                    return Err(invalid().into());
                 };
-                values.try_push(value).map_err(scalar_fault)?;
+                values.try_push(value).map_err(CalculationFailure::Scalar)?;
             }
             let value = ScalarValue::StringList(values.finish());
             charge(fuel, string_cost(&value))?;
@@ -302,7 +306,7 @@ fn evaluate_inner<'a>(
                         }),
                     });
                 }
-                Outcome::BoundHost { .. } => return Err(invalid()),
+                Outcome::BoundHost { .. } => return Err(invalid().into()),
             };
             let mut local = scope.nested();
             local.push(name, value).map_err(|_| invalid())?;
@@ -325,7 +329,7 @@ fn evaluate_inner<'a>(
                 let ScalarValue::Boolean(keep_going) =
                     scalar(evaluate_inner(condition, fuel, &mut local)?)?
                 else {
-                    return Err(invalid());
+                    return Err(invalid().into());
                 };
                 if budget.check_condition(keep_going).map_err(loop_fault)? == LoopStep::Done {
                     break;
@@ -336,7 +340,7 @@ fn evaluate_inner<'a>(
             }
             let (_, state) = local.pop().ok_or_else(invalid)?;
             let LocalValue::Scalar(state) = state else {
-                return Err(invalid());
+                return Err(invalid().into());
             };
             state
         }
@@ -350,7 +354,7 @@ fn evaluate_inner<'a>(
         } => {
             let ScalarValue::StringList(items) = scalar(evaluate_inner(items, fuel, scope)?)?
             else {
-                return Err(invalid());
+                return Err(invalid().into());
             };
             let initial = scalar(evaluate_inner(initial, fuel, scope)?)?;
             let items_cost = list_cost(&items);
@@ -375,7 +379,7 @@ fn evaluate_inner<'a>(
             local.pop();
             let (_, state) = local.pop().ok_or_else(invalid)?;
             let LocalValue::Scalar(state) = state else {
-                return Err(invalid());
+                return Err(invalid().into());
             };
             state
         }
@@ -385,7 +389,7 @@ fn evaluate_inner<'a>(
             operation,
         } => {
             let Some(LocalValue::Result(view)) = scope.get(group) else {
-                return Err(invalid());
+                return Err(invalid().into());
             };
             return match view {
                 ResultView::Group {
@@ -396,7 +400,7 @@ fn evaluate_inner<'a>(
                         branch.name == *name
                             && HostOperation::for_effect(&branch.effect) == Some(*operation)
                     }) {
-                        return Err(invalid());
+                        return Err(invalid().into());
                     }
                     let field = fields
                         .iter()
@@ -417,12 +421,12 @@ fn evaluate_inner<'a>(
                         .ok_or_else(invalid)?;
                     Ok(Outcome::Result(ResultView::Projected(&member.result)))
                 }
-                _ => Err(invalid()),
+                _ => Err(invalid().into()),
             };
         }
         Computation::Field { value, field } => {
             let Outcome::Result(value) = evaluate_inner(value, fuel, scope)? else {
-                return Err(invalid());
+                return Err(invalid().into());
             };
             let value = value.field(*field)?;
             charge(fuel, string_cost(&value))?;
@@ -434,18 +438,20 @@ fn evaluate_inner<'a>(
             otherwise,
         } => {
             let ScalarValue::Boolean(when) = scalar(evaluate_inner(when, fuel, scope)?)? else {
-                return Err(invalid());
+                return Err(invalid().into());
             };
             return evaluate_inner(if when { then } else { otherwise }, fuel, scope);
         }
         Computation::Recover { value, fallback } => {
-            match evaluate_inner(value, fuel, scope).and_then(scalar) {
+            match evaluate_inner(value, fuel, scope)
+                .and_then(|outcome| scalar(outcome).map_err(CalculationFailure::External))
+            {
                 Ok(value) => value,
                 // Only language data errors are recoverable, never resource or host failures.
-                Err(fault) if matches!(fault.code.as_str(), "LSV1401" | "LSV1408") => {
+                Err(failure) if failure.is_recoverable() => {
                     scalar(evaluate_inner(fallback, fuel, scope)?)?
                 }
-                Err(fault) => return Err(fault),
+                Err(failure) => return Err(failure),
             }
         }
         Computation::Host { effect } => return Ok(Outcome::Host(Cow::Borrowed(effect))),
@@ -460,12 +466,12 @@ fn evaluate_inner<'a>(
                     .prepared_atomic_operation()
                     .ok_or_else(invalid)?;
                 let Outcome::Host(effect) = evaluate_inner(&branch.value, fuel, scope)? else {
-                    return Err(invalid());
+                    return Err(invalid().into());
                 };
                 if HostOperation::for_effect(&effect) != Some(operation)
                     || branch.result_type != operation.result_type()
                 {
-                    return Err(invalid());
+                    return Err(invalid().into());
                 }
                 resolved.push(HirBranch {
                     name: branch.name.clone(),
@@ -506,7 +512,7 @@ fn evaluate_inner<'a>(
         Computation::Unary { operator, value } => {
             let value = scalar(evaluate_inner(value, fuel, scope)?)?;
             charge(fuel, string_cost(&value))?;
-            let value = apply_unary(*operator, value).map_err(scalar_fault)?;
+            let value = apply_unary(*operator, value).map_err(CalculationFailure::Scalar)?;
             if *operator == UnaryOperator::ToString {
                 charge(fuel, string_cost(&value))?;
             }
@@ -518,18 +524,19 @@ fn evaluate_inner<'a>(
             right,
         } => {
             let left = scalar(evaluate_inner(left, fuel, scope)?)?;
-            let left = match select_binary_left(*operator, left).map_err(scalar_fault)? {
-                BinarySelection::Complete(value) => {
-                    if *operator == BinaryOperator::ValueOr {
-                        charge(fuel, string_cost(&value))?;
+            let left =
+                match select_binary_left(*operator, left).map_err(CalculationFailure::Scalar)? {
+                    BinarySelection::Complete(value) => {
+                        if *operator == BinaryOperator::ValueOr {
+                            charge(fuel, string_cost(&value))?;
+                        }
+                        return Ok(Outcome::Scalar(value));
                     }
-                    return Ok(Outcome::Scalar(value));
-                }
-                BinarySelection::NeedsRight(left) => left,
-            };
+                    BinarySelection::NeedsRight(left) => left,
+                };
             let right = scalar(evaluate_inner(right, fuel, scope)?)?;
             charge(fuel, string_cost(&left) + string_cost(&right))?;
-            let value = apply_binary(*operator, left, right).map_err(scalar_fault)?;
+            let value = apply_binary(*operator, left, right).map_err(CalculationFailure::Scalar)?;
             if matches!(
                 operator,
                 BinaryOperator::CharAt
@@ -544,6 +551,13 @@ fn evaluate_inner<'a>(
         }
     };
     Ok(Outcome::Scalar(value))
+}
+
+fn calculation_fault(failure: EvaluationFailure) -> Fault {
+    match failure {
+        CalculationFailure::Scalar(failure) => scalar_fault(failure),
+        CalculationFailure::External(fault) => fault,
+    }
 }
 
 fn scalar_fault(failure: ScalarError) -> Fault {
@@ -570,5 +584,97 @@ fn fold_fault(failure: FoldError) -> Fault {
     match failure {
         FoldError::IterationLimit => error("LSV1406", "fold iteration limit exhausted"),
         _ => invalid(),
+    }
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use super::*;
+
+    #[test]
+    fn external_fault_codes_never_enter_the_scalar_recovery_channel() {
+        for code in ["LSV1401", "LSV1408", "LSV1403", "LSV1001", "custom"] {
+            let original = error(code, "original host payload");
+            let pointer = original.message.as_ptr();
+            let failure: EvaluationFailure = original.clone().into();
+            assert!(!failure.is_recoverable());
+            assert_eq!(calculation_fault(failure), original);
+            let moved: EvaluationFailure = original.into();
+            assert_eq!(calculation_fault(moved).message.as_ptr(), pointer);
+        }
+    }
+
+    #[test]
+    fn inner_evaluation_retains_typed_failures_until_the_outer_fault_boundary() {
+        for (operator, operand, expected, code, recoverable) in [
+            (
+                UnaryOperator::ParseInteger,
+                ScalarValue::String("secret".into()),
+                ScalarError::InvalidIntegerText,
+                "LSV1408",
+                true,
+            ),
+            (
+                UnaryOperator::ParseBoolean,
+                ScalarValue::String("secret".into()),
+                ScalarError::InvalidBooleanText,
+                "LSV1408",
+                true,
+            ),
+            (
+                UnaryOperator::Not,
+                ScalarValue::Integer(0),
+                ScalarError::TypeMismatch,
+                "LSV1402",
+                false,
+            ),
+        ] {
+            let expression = Computation::Unary {
+                operator,
+                value: Box::new(Computation::Literal { value: operand }),
+            };
+            let mut bindings = Vec::new();
+            let mut scope = ScopeFrame::new(&mut bindings);
+            let mut fuel = Fuel::new(100);
+            let Err(failure) = evaluate_inner(&expression, &mut fuel, &mut scope) else {
+                panic!()
+            };
+            assert!(matches!(&failure, CalculationFailure::Scalar(error) if *error == expected));
+            assert_eq!(failure.is_recoverable(), recoverable);
+            let fault = calculation_fault(failure);
+            assert_eq!(fault.code, code);
+            assert!(!fault.message.contains("secret"));
+        }
+    }
+
+    #[test]
+    fn forged_effects_and_exhausted_fuel_do_not_run_calculation_fallbacks() {
+        let expression = Computation::Recover {
+            value: Box::new(Computation::Host {
+                effect: Box::new(Effect::UiFocus {
+                    node_id: "a".into(),
+                }),
+            }),
+            fallback: Box::new(Computation::Literal {
+                value: ScalarValue::Integer(7),
+            }),
+        };
+        let mut bindings = Vec::new();
+        let mut scope = ScopeFrame::new(&mut bindings);
+        let mut fuel = Fuel::new(100);
+        let Err(failure) = evaluate_inner(&expression, &mut fuel, &mut scope) else {
+            panic!()
+        };
+        assert!(matches!(&failure, CalculationFailure::External(_)));
+        assert!(!failure.is_recoverable());
+        assert_eq!(calculation_fault(failure).code, "LSV1402");
+        assert_eq!(fuel.remaining(), 98);
+        let mut fuel = Fuel::new(0);
+        let Err(failure) = evaluate_inner(&expression, &mut fuel, &mut scope) else {
+            panic!()
+        };
+        assert!(!failure.is_recoverable());
+        assert_eq!(calculation_fault(failure).code, "LSV1001");
+        assert_eq!(fuel.remaining(), 0);
     }
 }

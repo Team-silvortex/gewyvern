@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
-//! Host-neutral admission, scalar/projection/control, lexical, fuel and clock foundations.
-//! Expression evaluation, policies, charging rules and authority belong to the adapter.
+//! Host-neutral admission, scalar/projection/control/recovery and structural accounting foundations.
+//! Evaluation, fallback execution, charging rules and authority belong to the adapter.
 //!
 //! This is a runtime foundation, not yet the independent Leselang evaluator.
 
@@ -9,18 +9,31 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+mod argument_typing;
 mod backoff;
+mod catalog;
 mod clock;
 mod collection;
 mod control;
 mod fold;
 mod fuel;
 mod projection;
+mod recovery;
+mod scalar_contract;
 mod scalar_ops;
 mod scope;
+mod signature;
+mod structure;
 mod value;
 
+pub use argument_typing::{
+    ArgumentTypeError, OperationTypeError, ScalarArgumentDomain, ScalarArgumentType,
+    check_argument_type,
+};
 pub use backoff::capped_exponential_delay;
+pub use catalog::{
+    OperationCatalog, OperationCatalogError, OperationCatalogLimits, OperationSchema,
+};
 pub use clock::{ClockError, MAX_CLOCK_MS, checked_clock_add};
 pub use collection::StringListBuilder;
 pub use control::{
@@ -29,8 +42,15 @@ pub use control::{
 pub use fold::{FoldCursor, FoldError};
 pub use fuel::{Fuel, FuelExhausted};
 pub use projection::{ProjectionError, ScalarProjectionField, validate_scalar_projection};
+pub use recovery::CalculationFailure;
+pub use scalar_contract::{ScalarContractError, ScalarTypeSet};
 pub use scalar_ops::{BinaryOperator, ScalarError, UnaryOperator, apply_binary, apply_unary};
 pub use scope::{ScopeError, ScopeFrame};
+pub use signature::{
+    NamedArgumentBindings, NamedArgumentError, NamedParameter, bind_named_arguments,
+    validate_named_arguments,
+};
+pub use structure::{StructureBudget, StructureError};
 pub use value::{
     MAX_SCALAR_STRING_BYTES, MAX_STRING_LIST_ITEMS, OptionalStringValue, ScalarType, ScalarValue,
     StringListValue,

@@ -32,6 +32,7 @@ Leselang and GewyLang are separate languages. GewyLang defines protocol
 behavior; Leselang controls explicitly adapted hosts, including Leserpent
 orchestration and UI functions today. Full runtime independence remains a
 tracked target, not a completed property of every Leselang crate.
+2.3.0 targets repository extraction only after complete unrelated-host and compatibility gates.
 `leselang-runtime-core` now isolates admission lifecycle, fuel accounting,
 clock/backoff arithmetic, shared closed scalar data/operations and faults. Scalar/list
 imports are shared types with legacy wire bytes, not parallel implementations;
@@ -44,8 +45,16 @@ HIR and restored-projection preflight share the lexical guard, not their type,
 node-budget, legacy-field or authority policies.
 Ordered scalar projections share opaque-key schema checks and the VM's field DTO;
 operation domains, authority and receipt/replay checks remain adapter-owned.
-Payload-free terminal observations
-distinguish local cancellation, expiry, exhaustion, rejection, acceptance and
+Typed calculation recovery keeps external failures separate without inspecting
+codes; fallback evaluation, shared budgets and durable recovery remain VM-owned.
+HIR shape/signature walks share checked structural arithmetic; source weights,
+separate graph limits, cold checks and diagnostics remain adapter policy.
+Native catalogs share versioned operation selection, named shape and argument order;
+shared control IR supports pure/call dataflow and explicit flat named group typing;
+declared captures and closed group exports do not certify actual replies.
+Accepted scalar alternatives share borrowed type/bounds checks with projections;
+no coercion, implicit nullability, authority or lasting value certificate is added.
+Payload-free terminals distinguish cancellation, expiry, exhaustion, rejection, acceptance and
 host uncertainty without replay authority or legacy wire changes; cleanup retains
-known reasons and releases undelivered outputs on unwind. It is
-not yet the full evaluator or generic typed host-operation engine.
+known reasons and releases undelivered outputs on unwind.
+Full source/effect typing, evaluation and suspension remain to be separated.

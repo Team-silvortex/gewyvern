@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{ScalarType, ScalarValue};
+use crate::{ScalarContractError, ScalarType, ScalarTypeSet, ScalarValue};
 
 /// One scalar projection with an opaque, developer-defined field key.
 ///
@@ -86,12 +86,12 @@ pub fn validate_scalar_projection<'schema, Field: PartialEq + 'schema>(
         if &stored.field != key {
             return Err(ProjectionError::FieldKey);
         }
-        if stored.value.scalar_type() != ty {
-            return Err(ProjectionError::FieldType);
-        }
-        if !stored.value.is_bounded() {
-            return Err(ProjectionError::UnboundedValue);
-        }
+        ScalarTypeSet::only(ty)
+            .validate(&stored.value)
+            .map_err(|error| match error {
+                ScalarContractError::TypeMismatch => ProjectionError::FieldType,
+                ScalarContractError::UnboundedValue => ProjectionError::UnboundedValue,
+            })?;
     }
     if expected.next().is_some() {
         return Err(ProjectionError::FieldCount);

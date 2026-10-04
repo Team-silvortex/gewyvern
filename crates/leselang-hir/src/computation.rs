@@ -1,7 +1,7 @@
 use super::*;
 use crate::host_call::{HostOperation, invalid_argument};
 use crate::result_field::ResultField;
-use leselang_runtime_core::ScopeFrame;
+use leselang_runtime_core::{ArgumentTypeError, ScopeFrame, StructureBudget, check_argument_type};
 use leselang_syntax::NamedArgument;
 
 pub const MAX_COMPUTATION_NODES: usize = 1_024;
@@ -20,99 +20,12 @@ pub(crate) fn source_shape_extra(value: &ScalarValue) -> (usize, usize) {
     }
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum GroupKind {
-    Sequence,
-    Parallel,
-}
+pub use crate::ir::GroupKind;
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ComputedBranch {
-    pub name: String,
-    pub value: Computation,
-    pub result_type: Type,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub enum Computation {
-    Literal {
-        value: ScalarValue,
-    },
-    Strings {
-        items: Vec<Self>,
-    },
-    Local {
-        name: String,
-    },
-    Field {
-        value: Box<Self>,
-        field: ResultField,
-    },
-    Member {
-        group: String,
-        name: String,
-        operation: HostOperation,
-    },
-    Binary {
-        operator: BinaryOperator,
-        left: Box<Self>,
-        right: Box<Self>,
-    },
-    Unary {
-        operator: UnaryOperator,
-        value: Box<Self>,
-    },
-    Bind {
-        name: String,
-        value: Box<Self>,
-        body: Box<Self>,
-    },
-    Loop {
-        name: String,
-        initial: Box<Self>,
-        condition: Box<Self>,
-        next: Box<Self>,
-        limit: u64,
-    },
-    Fold {
-        name: String,
-        item: String,
-        items: Box<Self>,
-        initial: Box<Self>,
-        next: Box<Self>,
-        limit: u64,
-    },
-    Choose {
-        when: Box<Self>,
-        then: Box<Self>,
-        otherwise: Box<Self>,
-    },
-    Recover {
-        value: Box<Self>,
-        fallback: Box<Self>,
-    },
-    Host {
-        effect: Box<Effect>,
-    },
-    Call {
-        operation: HostOperation,
-        arguments: Vec<ComputedArgument>,
-    },
-    Group {
-        group_kind: GroupKind,
-        branches: Vec<ComputedBranch>,
-    },
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ComputedArgument {
-    pub name: String,
-    pub value: Computation,
-}
+/// Reference-host specializations of the shared control IR, without conversion.
+pub type Computation = crate::ir::Computation<ResultField, HostOperation, Effect, Type>;
+pub type ComputedBranch = crate::ir::ComputedBranch<Computation, Type>;
+pub type ComputedArgument = crate::ir::ComputedArgument<Computation>;
 
 /// A bounded named group signature supplied by a validated embedding environment.
 #[derive(Clone)]
@@ -218,20 +131,6 @@ impl Computation {
         validate_shape(self)
     }
 
-    pub fn is_pure(&self) -> bool {
-        let mut pending = vec![self];
-        while let Some(expression) = pending.pop() {
-            if matches!(
-                expression,
-                Self::Host { .. } | Self::Call { .. } | Self::Group { .. }
-            ) {
-                return false;
-            }
-            pending.extend(expression.children());
-        }
-        true
-    }
-
     /// Recognizes one atomic tail effect, with only pure preparation and selection.
     /// Callers must validate structure and lexical types before using this classification.
     pub fn is_atomic_tail(&self) -> bool {
@@ -254,17 +153,14 @@ impl Computation {
     /// Validate bounded structure and lexical types before relying on this signature.
     pub fn prepared_atomic_operation(&self) -> Option<HostOperation> {
         let mut pending = vec![(self, 0usize, true)];
-        let mut visited = 0usize;
+        let mut budget = StructureBudget::new(MAX_COMPUTATION_NODES, MAX_EFFECT_NESTING_DEPTH);
         let mut signature = None;
         while let Some((value, depth, atomic)) = pending.pop() {
             let (extra_nodes, extra_depth) = match value {
                 Self::Literal { value } => source_shape_extra(value),
                 _ => (0, 0),
             };
-            visited += 1 + extra_nodes;
-            if visited > MAX_COMPUTATION_NODES || depth + extra_depth > MAX_EFFECT_NESTING_DEPTH {
-                return None;
-            }
+            budget.visit(depth, extra_nodes, extra_depth).ok()?;
             if !atomic {
                 if matches!(
                     value,
@@ -273,19 +169,14 @@ impl Computation {
                     return None;
                 }
                 for child in value.children() {
-                    if visited + pending.len() >= MAX_COMPUTATION_NODES {
-                        return None;
-                    }
+                    budget.check_pending(pending.len(), 1).ok()?;
                     pending.push((child, depth + 1, false));
                 }
                 continue;
             }
             let operation = match value {
                 Self::Host { effect } => {
-                    visited += 1;
-                    if visited > MAX_COMPUTATION_NODES || depth >= MAX_EFFECT_NESTING_DEPTH {
-                        return None;
-                    }
+                    budget.visit(depth, 0, 1).ok()?;
                     HostOperation::for_effect(effect)?
                 }
                 Self::Call {
@@ -293,17 +184,13 @@ impl Computation {
                     arguments,
                 } => {
                     for argument in arguments {
-                        if visited + pending.len() >= MAX_COMPUTATION_NODES {
-                            return None;
-                        }
+                        budget.check_pending(pending.len(), 1).ok()?;
                         pending.push((&argument.value, depth + 1, false));
                     }
                     *operation
                 }
                 Self::Bind { value, body, .. } => {
-                    if visited + pending.len() + 2 > MAX_COMPUTATION_NODES {
-                        return None;
-                    }
+                    budget.check_pending(pending.len(), 2).ok()?;
                     pending.push((value, depth + 1, false));
                     pending.push((body, depth + 1, true));
                     continue;
@@ -313,9 +200,7 @@ impl Computation {
                     then,
                     otherwise,
                 } => {
-                    if visited + pending.len() + 3 > MAX_COMPUTATION_NODES {
-                        return None;
-                    }
+                    budget.check_pending(pending.len(), 3).ok()?;
                     pending.push((when, depth + 1, false));
                     pending.push((then, depth + 1, true));
                     pending.push((otherwise, depth + 1, true));
@@ -512,60 +397,51 @@ impl Computation {
         if roundtrip != *self {
             return Err(CanonicalSourceError::RoundTripMismatch);
         }
+        if self.is_pure()
+            && crate::pure_reference::infer(self, scope, groups)
+                .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
+                != ty
+        {
+            return Err(CanonicalSourceError::RoundTripMismatch);
+        }
+        if let Self::Call {
+            operation,
+            arguments,
+        } = self
+            && crate::pure_reference::infer_call(*operation, arguments, scope, groups)
+                .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
+                != ty
+        {
+            return Err(CanonicalSourceError::RoundTripMismatch);
+        }
+        let prepared_call = !matches!(self, Self::Call { .. })
+            && self.prepared_atomic_operation().is_some()
+            && crate::prepared_typing::call_leaves_only(self);
+        if prepared_call
+            && crate::pure_reference::infer_prepared(self, scope, groups)
+                .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
+                != ty
+        {
+            return Err(CanonicalSourceError::RoundTripMismatch);
+        }
+        if !prepared_call
+            && !matches!(self, Self::Call { .. })
+            && !self.is_pure()
+            && crate::flow_typing::call_flow_nodes_only(self)
+            && crate::pure_reference::infer_flow(self, scope, groups)
+                .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
+                != ty
+        {
+            return Err(CanonicalSourceError::RoundTripMismatch);
+        }
+        if crate::flow_typing::group_flow_nodes_only(self)
+            && crate::pure_reference::infer_group_flow(self, scope, groups)
+                .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
+                != ty
+        {
+            return Err(CanonicalSourceError::RoundTripMismatch);
+        }
         Ok(ty)
-    }
-
-    pub(crate) fn children(&self) -> impl Iterator<Item = &Self> {
-        let children: [Option<&Self>; 3] = match self {
-            Self::Binary { left, right, .. } => [Some(left), Some(right), None],
-            Self::Unary { value, .. } | Self::Field { value, .. } => [Some(value), None, None],
-            Self::Bind { value, body, .. } => [Some(value), Some(body), None],
-            Self::Recover { value, fallback } => [Some(value), Some(fallback), None],
-            Self::Loop {
-                initial,
-                condition,
-                next,
-                ..
-            } => [Some(initial), Some(condition), Some(next)],
-            Self::Fold {
-                items,
-                initial,
-                next,
-                ..
-            } => [Some(items), Some(initial), Some(next)],
-            Self::Choose {
-                when,
-                then,
-                otherwise,
-            } => [Some(when), Some(then), Some(otherwise)],
-            Self::Literal { .. }
-            | Self::Strings { .. }
-            | Self::Local { .. }
-            | Self::Member { .. }
-            | Self::Host { .. }
-            | Self::Call { .. }
-            | Self::Group { .. } => [None, None, None],
-        };
-        let arguments: &[ComputedArgument] = match self {
-            Self::Call { arguments, .. } => arguments,
-            _ => &[],
-        };
-        let branches: &[ComputedBranch] = match self {
-            Self::Group { branches, .. } => branches,
-            _ => &[],
-        };
-        children
-            .into_iter()
-            .flatten()
-            .chain(arguments.iter().map(|argument| &argument.value))
-            .chain(branches.iter().map(|branch| &branch.value))
-            .chain(
-                match self {
-                    Self::Strings { items } => items.as_slice(),
-                    _ => &[],
-                }
-                .iter(),
-            )
     }
 
     /// Includes cold branches. Validate bounded structure before inspecting authority.
@@ -1147,18 +1023,14 @@ pub(super) fn lower_expression_with_functions<'a>(
         if arguments.len() > operation.parameters().len() {
             return Err(invalid_argument("too many host arguments", Some(span)));
         }
-        operation.validate_names(
-            &arguments
-                .iter()
-                .map(|arg| arg.name.as_str())
-                .collect::<Vec<_>>(),
-            Some(span),
-        )?;
+        let names = arguments
+            .iter()
+            .map(|arg| arg.name.as_str())
+            .collect::<Vec<_>>();
+        let bindings = operation.bind_names(&names, Some(span))?;
         let mut lowered = Vec::with_capacity(arguments.len());
-        for parameter in operation.parameters() {
-            let Some(argument) = arguments.iter().find(|arg| arg.name == parameter.name) else {
-                continue;
-            };
+        for (parameter, index) in bindings.iter() {
+            let argument = &arguments[index];
             let (value, ty) = lower_expression_with_functions(
                 &argument.value,
                 scope,
@@ -1166,13 +1038,22 @@ pub(super) fn lower_expression_with_functions<'a>(
                 depth + 1,
                 functions,
             )?;
-            if !parameter.domain.accepts(scalar(&value, ty, argument.span)?)
-                || matches!(&value, Computation::Literal { value } if !parameter.domain.validate(value))
-            {
-                return Err(invalid_argument(
-                    format!("invalid {} argument '{}'", operation.name(), parameter.name),
-                    Some(argument.span),
-                ));
+            let facts = value.scalar_argument_type(match ty {
+                Type::Scalar(ty) => Some(ty),
+                _ => None,
+            });
+            if let Err(error) = check_argument_type(&parameter.domain, facts) {
+                return Err(match error {
+                    ArgumentTypeError::Impure | ArgumentTypeError::NonScalar => invalid(
+                        "LSH1402",
+                        "expected a pure scalar expression, not a host operation",
+                        argument.span,
+                    ),
+                    _ => invalid_argument(
+                        format!("invalid {} argument '{}'", operation.name(), parameter.name),
+                        Some(argument.span),
+                    ),
+                });
             }
             lowered.push(ComputedArgument {
                 name: argument.name.clone(),
@@ -1396,13 +1277,7 @@ fn unary_type(operator: UnaryOperator, input: Type) -> Option<ScalarType> {
 }
 
 pub(super) fn valid_local(name: &str) -> bool {
-    let mut bytes = name.bytes();
-    name.len() <= MAX_BRANCH_NAME_BYTES
-        && bytes
-            .next()
-            .is_some_and(|byte| byte.is_ascii_alphabetic() || byte == b'_')
-        && bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
-        && !matches!(name, "body" | "fn" | "true" | "false" | "none")
+    crate::pure_typing::valid_local_name(name)
 }
 
 pub(super) fn is_builtin(name: &str) -> bool {
@@ -1439,14 +1314,14 @@ pub(crate) fn contains_computation(effect: &Effect) -> bool {
 
 pub(super) fn validate_shape(expression: &Computation) -> Result<(), CanonicalSourceError> {
     let mut pending = vec![(expression, 0usize)];
-    let mut visited = 0;
+    let mut budget = StructureBudget::new(MAX_COMPUTATION_NODES, MAX_EFFECT_NESTING_DEPTH);
     while let Some((expression, depth)) = pending.pop() {
         // Literal constructors retain the source node/depth budget after constant folding.
         let (literal_nodes, literal_depth) = match expression {
             Computation::Literal { value } => source_shape_extra(value),
             _ => (0, 0),
         };
-        visited += 1 + literal_nodes;
+        let shape = budget.visit(depth, literal_nodes, literal_depth);
         let invalid_value =
             match expression {
                 Computation::Literal { value } => !value.is_bounded(),
@@ -1497,10 +1372,7 @@ pub(super) fn validate_shape(expression: &Computation) -> Result<(), CanonicalSo
                 }
                 _ => false,
             };
-        if visited > MAX_COMPUTATION_NODES
-            || depth.saturating_add(literal_depth) > MAX_EFFECT_NESTING_DEPTH
-            || invalid_value
-        {
+        if shape.is_err() || invalid_value {
             return Err(CanonicalSourceError::InvalidEffect(invalid(
                 "LSH1405",
                 "invalid or oversized computation",
@@ -1510,9 +1382,7 @@ pub(super) fn validate_shape(expression: &Computation) -> Result<(), CanonicalSo
         if let Computation::Host { effect } = expression {
             let mut effects = vec![(effect.as_ref(), depth)];
             while let Some((effect, effect_depth)) = effects.pop() {
-                visited += 1;
-                if visited > MAX_COMPUTATION_NODES
-                    || effect_depth >= MAX_EFFECT_NESTING_DEPTH
+                if budget.visit(effect_depth, 0, 1).is_err()
                     || matches!(effect, Effect::Compute { .. })
                 {
                     return Err(CanonicalSourceError::InvalidEffect(invalid(

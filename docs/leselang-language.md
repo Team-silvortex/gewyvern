@@ -1343,6 +1343,36 @@ legacy masks, saved fuel and replay remain unchanged. Schema checks do not grant
 authority or authenticate host receipts; operation domains stay in the adapter.
 See [shared scalar projections](leselang-embedding.md#shared-ordered-scalar-projections).
 
+Calculation recovery now uses a core-owned typed arithmetic/parse class, not
+fault-code strings. External/type/resource failures remain outside it; fallback
+laziness, scope cleanup, exact shared fuel, diagnostics and durable wire stay
+unchanged. See [typed recovery](leselang-embedding.md#shared-typed-calculation-recovery).
+
+Computation-shape, prepared-signature and canonical effect-shape checks now share
+checked node/depth arithmetic through `StructureBudget`. Limits, folded source
+weights, separate graph budgets, cold checks and diagnostics stay HIR-owned;
+structure/signature inspection is not full type or authority validation. No syntax
+or wire changes. See [structural accounting](leselang-embedding.md#shared-structural-walk-accounting).
+
+Host parameter metadata and named-shape preflight now share `NamedParameter` and
+`validate_named_arguments`. Missing required names differ from explicit none;
+names fail before values are calculated. Operation domains, schema selection,
+capabilities and declaration-order evaluation remain in the reference host, with
+unchanged diagnostics and wire. See [named host signatures](leselang-embedding.md#shared-named-host-signatures).
+
+Accepted scalar alternatives now use core `ScalarTypeSet` metadata and borrowed
+type-before-bounds checks, also shared by singleton ordered projection fields.
+There is no implicit coercion/nullability or wider receiving-host domain. None,
+optional absence and present-empty text retain their types and wire. These checks
+do not grant authority or enter calculation recovery. See
+[scalar contracts](leselang-embedding.md#shared-accepted-scalar-contracts).
+
+Computed source calls now share a borrowed declaration-order argument-binding
+view. Reordered names and optional omission preserve canonical HIR, diagnostics,
+fuel and continuation bytes; noncanonical stored HIR/residual order is still
+rejected rather than normalized. The view does not evaluate values or grant
+dispatch authority. See [argument binding](leselang-embedding.md#shared-borrowed-argument-binding).
+
 [Reusable pure functions](leselang-control-flow.md#reusable-pure-functions) add
 typed named scalar parameters and inferred scalar results, with a parameterless
 `main` entry for multi-function programs. All definitions are checked, including

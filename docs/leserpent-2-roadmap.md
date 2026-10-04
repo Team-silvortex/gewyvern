@@ -11,6 +11,10 @@ Current implementation checkpoint: shared release `v2.1.6`. The
 [project status tensor](project-status-system.md) remains authoritative for
 per-feature maturity, evidence, dependencies, and next gates.
 
+The post-release [Leselang 2.3.0 extraction target](leselang-embedding.md#230-repository-extraction-target)
+is a separate acceptance-gated refactoring track, not a claim of current full VM
+independence or a rewrite of the completed 2.0 delivery record.
+
 `v2.0.0` completes the frozen core delivery described here. The ordered
 `1.20.0` through `1.20.9` slots below are retained as release evidence rather
 than renumbered into the new stable line.

@@ -195,7 +195,7 @@ impl UnaryOperator {
     }
 }
 
-/// Payload-free scalar failure; adapters own diagnostic codes and recovery policy.
+/// Payload-free scalar failure; adapters own codes and fallback execution policy.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ScalarError {
     TypeMismatch,
@@ -205,6 +205,16 @@ pub enum ScalarError {
     InvalidBooleanText,
     StringLimit,
     StringListLimit,
+}
+
+impl ScalarError {
+    /// The language's closed pure-calculation recovery set, not host retry policy.
+    pub const fn is_recoverable(self) -> bool {
+        matches!(
+            self,
+            Self::IntegerArithmetic | Self::InvalidIntegerText | Self::InvalidBooleanText
+        )
+    }
 }
 
 impl std::fmt::Display for ScalarError {

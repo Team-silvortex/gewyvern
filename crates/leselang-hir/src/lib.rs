@@ -1,11 +1,17 @@
 #![forbid(unsafe_code)]
 
+pub mod call_typing;
 pub mod computation;
 mod computed_group;
 mod control_flow;
+pub mod flow_typing;
 mod function_flow;
 mod functions;
 pub mod host_call;
+pub mod ir;
+pub mod prepared_typing;
+mod pure_reference;
+pub mod pure_typing;
 pub mod result_field;
 
 use control_flow::{lower_repeat, lower_sequence};
@@ -3412,25 +3418,25 @@ fn canonical_program(effect: &Effect) -> Result<(String, HirProgram), CanonicalS
 }
 
 fn validate_canonical_effect_shape(effect: &Effect) -> Result<(), CanonicalSourceError> {
+    use leselang_runtime_core::{StructureBudget, StructureError};
+
     let mut pending = vec![(effect, 0usize)];
-    let mut visited = 0usize;
+    let mut budget = StructureBudget::new(MAX_CANONICAL_EFFECT_NODES, MAX_EFFECT_NESTING_DEPTH - 1);
     while let Some((effect, depth)) = pending.pop() {
-        if depth >= MAX_EFFECT_NESTING_DEPTH {
-            return Err(CanonicalSourceError::InvalidEffect(vec![Diagnostic {
-                code: "LSH1204".to_string(),
-                message: format!(
-                    "effect nesting exceeds the {MAX_EFFECT_NESTING_DEPTH}-level limit"
+        if let Err(error) = budget.visit(depth, 0, 0) {
+            let (code, message) = match error {
+                StructureError::DepthLimit => (
+                    "LSH1204",
+                    format!("effect nesting exceeds the {MAX_EFFECT_NESTING_DEPTH}-level limit"),
                 ),
-                span: None,
-            }]));
-        }
-        visited += 1;
-        if visited > MAX_CANONICAL_EFFECT_NODES {
-            return Err(CanonicalSourceError::InvalidEffect(vec![Diagnostic {
-                code: "LSH1205".to_string(),
-                message: format!(
-                    "effect graph exceeds the {MAX_CANONICAL_EFFECT_NODES}-node limit"
+                StructureError::NodeLimit => (
+                    "LSH1205",
+                    format!("effect graph exceeds the {MAX_CANONICAL_EFFECT_NODES}-node limit"),
                 ),
+            };
+            return Err(CanonicalSourceError::InvalidEffect(vec![Diagnostic {
+                code: code.to_string(),
+                message,
                 span: None,
             }]));
         }
@@ -7059,5 +7065,108 @@ mod tests {
             Err(CanonicalSourceError::InvalidEffect(errors))
                 if errors.iter().any(|error| error.code == "LSH1204")
         ));
+    }
+}
+
+#[cfg(test)]
+mod structure_budget_tests {
+    use super::*;
+
+    fn graph(nodes: usize) -> Effect {
+        if nodes == 1 {
+            return Effect::UiFocus {
+                node_id: "target".into(),
+            };
+        }
+        let children = (nodes - 1).min(MAX_ALL_BRANCHES);
+        Effect::Sequence {
+            steps: (0..children)
+                .map(|index| {
+                    let effect =
+                        graph((nodes - 1) / children + usize::from(index < (nodes - 1) % children));
+                    let result_type = if matches!(&effect, Effect::Sequence { .. }) {
+                        Type::Structured
+                    } else {
+                        Type::UiFocus
+                    };
+                    HirBranch {
+                        name: format!("step_{index}"),
+                        effect,
+                        result_type,
+                    }
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn canonical_effect_node_limit_remains_inclusive_with_legacy_diagnostic() {
+        validate_canonical_effect_shape(&graph(MAX_CANONICAL_EFFECT_NODES)).unwrap();
+        let CanonicalSourceError::InvalidEffect(errors) =
+            validate_canonical_effect_shape(&graph(MAX_CANONICAL_EFFECT_NODES + 1)).unwrap_err()
+        else {
+            panic!("expected an effect shape diagnostic")
+        };
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].code, "LSH1205");
+        assert_eq!(
+            errors[0].message,
+            format!("effect graph exceeds the {MAX_CANONICAL_EFFECT_NODES}-node limit")
+        );
+        assert_eq!(errors[0].span, None);
+    }
+
+    #[test]
+    fn effect_and_computation_graphs_keep_separate_limits_and_depth_conventions() {
+        let mut exact_depth = graph(1);
+        for _ in 1..MAX_EFFECT_NESTING_DEPTH {
+            exact_depth = Effect::Sequence {
+                steps: vec![HirBranch {
+                    name: "step".into(),
+                    effect: exact_depth,
+                    result_type: Type::Structured,
+                }],
+            };
+        }
+        validate_canonical_effect_shape(&exact_depth).unwrap();
+        let too_deep = Effect::Sequence {
+            steps: vec![HirBranch {
+                name: "step".into(),
+                effect: exact_depth,
+                result_type: Type::Structured,
+            }],
+        };
+        assert!(matches!(
+            validate_canonical_effect_shape(&too_deep),
+            Err(CanonicalSourceError::InvalidEffect(errors))
+                if errors[0].code == "LSH1204" && errors[0].span.is_none()
+        ));
+        fn computation(leaves: usize) -> computation::Computation {
+            use computation::{BinaryOperator, Computation, ScalarValue};
+            if leaves == 1 {
+                return Computation::Literal {
+                    value: ScalarValue::Integer(1),
+                };
+            }
+            Computation::Binary {
+                operator: BinaryOperator::Add,
+                left: Box::new(computation(leaves / 2)),
+                right: Box::new(computation(leaves - leaves / 2)),
+            }
+        }
+        let branches = (0..2)
+            .map(|index| HirBranch {
+                name: format!("step_{index}"),
+                effect: Effect::Compute {
+                    expression: Box::new(computation::Computation::Unary {
+                        operator: computation::UnaryOperator::Not,
+                        value: Box::new(computation(computation::MAX_COMPUTATION_NODES / 2)),
+                    }),
+                },
+                result_type: Type::Scalar(computation::ScalarType::Integer),
+            })
+            .collect();
+        // This is shape-only: type-invalid unary nodes still require full HIR preflight.
+        validate_canonical_effect_shape(&Effect::Sequence { steps: branches }).unwrap();
     }
 }

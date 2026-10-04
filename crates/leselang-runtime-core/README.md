@@ -2,7 +2,9 @@
 
 Host-neutral scalar, lifecycle, accounting and clock foundations for the future standalone
 Leselang runtime. The current components are **bounded pre-admission scheduling**,
-**typed scalar/projection/control decisions, lexical bookkeeping and fuel/clock/backoff
+**typed scalar/projection/control/recovery decisions, native operation catalogs,
+named host-parameter binding, scalar-type metadata and native argument typing,
+lexical/structural bookkeeping and fuel/clock/backoff
 arithmetic**, not a parser, expression evaluator, complete embedded language,
 durable queue or GUI adapter.
 
@@ -151,7 +153,8 @@ entries and absence versus present-empty text retain their original semantics.
 Owned text pass-throughs move buffers instead of cloning them.
 
 `ScalarError` is a closed, payload-free error with fixed display messages, not
-an execution receipt or recovery grant. The reference adapter retains the exact
+an execution receipt or recovery grant. `is_recoverable()` recognizes only checked
+arithmetic and integer/boolean parsing. The reference adapter retains the exact
 `LSV1401`/`LSV1402`/`LSV1403`/`LSV1408` codes and messages. Arithmetic/parsing may
 be caught by its existing `recover`; type, bounds, fuel and host failures may not.
 
@@ -333,6 +336,233 @@ Tests prove two unrelated projection schemas, boundary/ownership behavior and
 reference parity, **not** two independent host evaluators or a complete generic
 operation/suspension engine. The package still has only serde as a normal dependency.
 
+## Typed Calculation Recovery
+
+`CalculationFailure<External>` separates explicit language scalar failures from
+opaque adapter errors. Only `Scalar(IntegerArithmetic | InvalidIntegerText |
+InvalidBooleanText)` is recoverable. Every `External` stays non-recoverable,
+even with a matching diagnostic code/message or a `ScalarError` as its payload.
+`From<External>` and `?` preserve the external channel; promotion to `Scalar`
+requires explicit construction. Type/bounds failures in the scalar channel also
+remain non-recoverable. This is classification, not external retry or authority.
+
+The enum is move-only, non-serde and non-default. External errors need no Clone,
+Debug, serialization or Send bound; ownership is conditionally Send and GUI-local
+errors remain usable. Queries do not run callbacks, execute fallbacks, spend/refund
+fuel or drop payloads. Debug shows tags only and never calls an external formatter.
+Pattern matching exposes the original error; caller logging and native destructors
+retain their own behavior. Cleanup panics propagate, not fabricated outcomes.
+Trusted adapters must maintain error provenance and can construct variants: this
+type does not sandbox native code or authenticate arbitrary host reports.
+
+The reference evaluator carries these types through pure work and `recover`,
+without inspecting fault strings. Only at its outer evaluation/re-entry boundary
+does it map unhandled scalar failures to the unchanged `LSV1401/1402/1403/1408`
+codes/messages; external faults move through verbatim. A selected fallback avoids
+creating/discarding scalar fault strings. Cold purity/type checks, lexical cleanup,
+selected-only fallback evaluation, exact remaining-fuel charges, host validation,
+continuation/projection/journal bytes and first-commit replay remain unchanged.
+The adapter still evaluates expressions and chooses whether a recovery construct
+exists; this primitive is not a full evaluator or host-effect recovery engine.
+
+## Structural Walk Accounting
+
+`StructureBudget` checks host-granted inclusive node/depth limits using checked
+`usize` arithmetic. `visit(depth, extra_nodes, extra_depth)` charges one physical
+node plus caller-owned source expansion weights; depth is checked first. Node or
+depth overflow rejects even at `usize::MAX`, rather than wrapping or saturating
+into acceptance. Rejection leaves the successful count unchanged, but the adapter
+must reject the graph, not skip its invalid/cold branch or refund prior visits.
+
+`check_pending(pending, additional)` bounds a caller's physical-node frontier before
+enqueueing. It is a read-only observation, not a queue, reservation or proof of
+future folded-node/depth validity. Each visit still needs its complete weights.
+The meter holds only limits and counters: no graph, callbacks, host payloads,
+allocation, traversal or deduplication. Cyclic/repeated edges cost a visit every
+time if the caller follows the protocol. Native traversal/callbacks, queue memory
+and safe child-depth arithmetic remain caller-owned. Zero limits are explicit;
+there is no default grant, clone, serde handle or execution/re-entry authority.
+
+The HIR computation-shape validator, prepared atomic-signature inspector and
+canonical effect-shape validator use this core arithmetic with their original
+limits, traversal order and diagnostics. Folded optional/list constructors retain
+HIR-owned source weights. Embedded host nodes still share their computation
+budget; outer effect graphs and each computation retain separate budgets and
+their original depth conventions. Helper/source lowering still owns its visited
+counter and hygienic expansion policy. No source syntax or durable bytes change.
+
+These are structural checks, not type/purity/capability validation, a lasting graph
+certificate, cycle detection, evaluator fuel, memory metering or a sandbox.
+Prepared signatures still require full HIR preflight before use. Tests prove
+overflow safety, exact legacy boundaries and two unrelated native walk layouts,
+not two complete host evaluators or a generic HIR engine.
+
+## Named Host Signatures
+
+`NamedParameter<Key, Domain>` is native, developer-owned parameter metadata:
+an opaque key, opaque domain descriptor and required-presence flag. Its required
+and optional constructors work in const schemas without interpreting domains.
+Required presence is distinct from an eventual null/none value. Construction and
+cloning do not validate a signature; public metadata remains mutable. Debug can
+expose private metadata, and no automatic serde wire/registered-operation format
+is supplied. Hosts own protocol codecs and compatibility policy.
+
+`validate_named_arguments(names, parameters)` borrows both slices without
+allocation, cloning, hashing, formatting keys or imposing domain traits. It rejects
+excessive counts before comparisons, duplicate schema keys, duplicate/unknown
+submitted keys left to right, then missing required keys in declaration order.
+Supplied names can be reordered; optional names can be omitted. Fixed typed errors
+retain only positions, never submitted names or domain payloads. Domain descriptors
+are not read; no values are evaluated, coerced, reordered or supplied as defaults.
+
+Work is quadratic in caller-bounded slice lengths, not a CPU or memory quota.
+Hosts must bound schema/argument counts and ingress bytes. Native PartialEq must
+be a stable equivalence relation and may execute code, mutate interior state or
+unwind; those effects are not preempted or rolled back. No Clone/Hash/Debug/serde/
+Send bound is required, so opaque GUI-local schemas are usable on their owner thread.
+Conditional thread ownership follows the key/domain types, not a global lock.
+
+All 70 reference HIR host operations directly specialize this metadata type and
+delegate named-shape checks. Operation/domain/capability tables, declaration-order
+value evaluation, receiving-host validation, exact `LSH1407` messages/spans,
+fuel, canonical HIR and continuation/journal bytes remain unchanged. A name error
+still fails before its supplied value is evaluated. Missing required names remain
+distinct from explicitly supplied none or present-empty optional text.
+
+This is a named-signature substrate, not type/value/domain validation, operation
+registration, authority, a lasting schema certificate, automatic GUI adaptation
+or generic effect execution/suspension. Two unrelated native-schema tests prove
+parameter reuse, not two complete independent host evaluators.
+
+## Borrowed Argument Binding
+
+`bind_named_arguments(names, parameters)` first runs the existing named-shape
+preflight, preserving every error tag, position and priority. Core-owned binding
+allocates nothing; native key comparisons may allocate. Its private-field
+`NamedArgumentBindings` view borrows both slices without allocating a plan,
+copying keys/domains or imposing Clone/Debug/serde/Send bounds on host metadata.
+Forward `iter()` yields original parameter references plus original input indices
+in declaration order, skipping absent optional parameters. It does not reorder
+input data, supply defaults, own/evaluate values or check types/domains/authority.
+The host must pair indices with the same submitted values and finish all preflight
+before publishing effects. Reverse/repeated walks inspect metadata, not execution.
+
+The borrow prevents direct slice mutation during use, not interior mutation or
+schema/authority changes. Native PartialEq must remain a stable equivalence
+relation: iteration compares again, at most names.len() * parameters.len() times
+per walk. Comparisons may be expensive, mutate state or unwind; no preemption or
+rollback is provided. Hosts still bound counts, bytes and aggregate preparation.
+Debug reports only slice counts and never invokes key/domain formatters. There
+is no serde/snapshot format or reusable execution grant; conditional thread
+transfer depends on borrowed metadata being Sync, allowing GUI-local non-Send hosts.
+
+Reference source HIR now consumes this shared binding view for computed host
+arguments, preserving declaration-order lowering, diagnostics/spans, optional
+omission, exact fuel and wire. Raw value resolution retains submitted order;
+noncanonical reordered HIR/residual frames remain rejected, never silently fixed.
+Unrelated GUI/device schemas demonstrate binding reuse, not generic evaluation,
+suspension, automatic adaptation or a complete independent host.
+
+## Native Operation Catalog
+
+`OperationSchema<Key, Parameter, Domain, Result, Capability>` declares native keys,
+parameters, opaque result descriptors and a required capability label. No product
+enums or callback types are required. `OperationCatalog::new(version, schemas,
+limits)` borrows declarations; version must be nonzero and explicit inclusive
+count limits may be zero. Validation order is version, total operation count,
+every parameter count, duplicate operations, then duplicate parameters. Required
+parameters describe future calls, not inputs needed to register a schema.
+
+`lookup(key, version)` rejects incompatible versions before native Borrow/equality;
+owned string keys accept str queries without allocation or normalization.
+`authorize(key, version, granted)` then checks required-label membership in trusted
+host grants. The original schema is returned; `bind_arguments(names)` delegates to
+shared named-shape and borrowed declaration-order binding. None of these checks
+evaluates values, validates native domains/results or grants execution authority.
+Hosts still fence resources, revisions, deadlines, result identity and replay.
+
+Closed errors contain indices only; Debug displays version/counts without native
+formatters. There is no serde, Clone requirement, implicit registry, callback
+dispatch, storage or authority certificate. Core work allocates nothing; registration
+is quadratic and lookup linear in host-bounded counts. Hosts bound key bytes/native
+work and maintain stable PartialEq/Borrow equivalence. Native comparisons can run
+code or unwind without rollback/preemption. Borrowing fences direct mutation, not
+interior state; Send/Sync depend on borrowed metadata, permitting GUI-local hosts.
+
+All 70 reference operation names/signatures/result tags now use one shared catalog
+declaration table, preserving wire and diagnostics. Its internal version 1 and
+local table positions are not wire opcodes or a protocol version bump. Unrelated
+GUI/device tests prove catalog reuse, not generic typed HIR/evaluation/suspension.
+
+## Accepted Scalar Contracts
+
+`ScalarTypeSet` declares explicit alternatives from the six closed `ScalarType`
+tags. Const `empty()` denies all, `only(type)` accepts one type and `with(type)`
+returns an idempotent union. No coercion, implicit nullability, accept-all default,
+raw-bit constructor or serde codec is provided. Fixed canonical iteration and
+Debug expose at most six tags without payloads or allocation. This copyable
+metadata is not a capability, execution budget or versioned schema certificate.
+
+`validate(&value)` borrows the value, checks type before language bounds and
+returns closed payload-free `ScalarContractError::{TypeMismatch, UnboundedValue}`.
+Strings/optional text keep 4096 UTF-8 bytes; lists keep 64 entries and 4096 aggregate
+bytes. None, absent optional text and present-empty text retain distinct data.
+There is no parsing, cloning, normalization, truncation, fuel charge or native
+domain callback. These failures do not enter pure calculation recovery.
+
+Reference parameter domains use typed argument preflight below; ordered projection
+fields reuse this contract, preserving accepted-type matrices, diagnostic precedence, host
+domain fences and continuation wire. Hosts still select/version their schemas,
+validate node/text/device domains, authority and aggregate ingress/resource bounds,
+and recheck mutable values. Direct constructors and plain-string decoding remain
+unchecked; validation cannot prevent prior allocation or preempt native work.
+
+Unrelated GUI/device schemas demonstrate named metadata plus type preflight,
+not complete independent evaluation, dispatch or suspension. The full generic
+host-operation engine remains pending.
+
+## Native Argument Typing
+
+`ScalarArgumentDomain` lets a developer declare accepted scalar alternatives and
+a native literal-domain predicate, without product operation/result enums.
+`ScalarTypeSet` implements the trait for type-and-bounds-only domains. No default
+silently approves undeclared domains. Native methods are trusted adapter code,
+not script callbacks; hosts bound their work and own unwinding/side effects.
+Calling a domain predicate directly is not complete scalar admission.
+
+`ScalarArgumentType` borrows a direct literal or reports dynamic expression facts.
+`None` type means a non-scalar result, distinct from `ScalarType::None`; a missing
+literal is an unknown value, not optional absence. Facts are unchecked, supplied
+by a trusted bounded IR checker. They are not a checked expression or wire handle;
+Debug reports type/purity/literal presence only, never payload text.
+
+`check_argument_type` checks purity, scalar type, accepted alternatives, literal
+type consistency, language bounds, then the native literal predicate. It does not
+evaluate, parse/coerce, clone, allocate, charge fuel or grant execution authority.
+Impure/non-scalar arguments never call any domain method; mismatched/unbounded
+literals never reach the predicate. Closed `ArgumentTypeError` values are static
+failures, not recoverable calculation errors.
+
+`OperationSchema::check_argument_types(names, facts)` first checks length alignment,
+then the existing complete named-shape preflight, then argument types in declaration
+order. Errors preserve both declaration and original submission indices, including
+omitted optional parameters. No defaults are constructed; required presence is not
+non-nullness. The core borrows slices and allocates nothing; native equivalence
+must remain stable and counts/key bytes/native work remain caller-bounded.
+
+The shared HIR's `scalar_argument_type` bridge borrows literals and classifies purity
+including cold children; it does not infer the supplied type, resolve locals or
+validate native fields/effects. Reference lowering uses the bridge and core checker
+with unchanged diagnostics, accepted-type matrices, fuel, authority and durable bytes.
+Dynamic argument type success deliberately invokes no literal predicate: evaluate
+and recheck actual values/domains before dispatch, and recheck any mutated data.
+Catalog version/capability preflight remains separate from type checking.
+
+Two unrelated GUI/device declarations and native IRs exercise the same checks.
+These are typed signature/IR bridge proofs, not generic whole-language source
+lowering, result acceptance, dispatch or suspension. Runtime-core's standalone
+package tests exercise native domains without any workspace/product dependency.
+
 ## Fuel Accounting
 
 `Fuel` is a constant-size, host-granted meter: `new(remaining)`, `remaining()` and
@@ -445,8 +675,12 @@ CI job checks the packaged build and tests separately from product quality gates
 
 ## Remaining Extraction Work
 
-Generic typed host-operation schemas, the evaluator/value/suspension engine,
+Native declarations, catalog preflight and argument typing are shared; full generic typed HIR,
+the evaluator/value/suspension engine,
 optional journal backends and language-wide unrelated-host proofs remain to be
 separated. The existing VM, UI and observation crates still use product command
 and result types. FFI and the future operating-system shell are not implemented
 by this crate. The embedding status target remains developing, not released.
+The [2.3.0 extraction target](../../docs/leselang-embedding.md#230-repository-extraction-target)
+requires complete unrelated-host vertical proofs, optional persistence and preserved
+Leserpent compatibility before moving source into an independently buildable repository.

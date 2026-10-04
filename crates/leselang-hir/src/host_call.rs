@@ -2,7 +2,13 @@
 
 use super::*;
 use crate::computation::{MAX_SCALAR_STRING_BYTES, ScalarType, ScalarValue};
+use leselang_runtime_core::{
+    NamedArgumentBindings, NamedParameter, OperationCatalog, OperationCatalogError,
+    OperationCatalogLimits, OperationSchema, ScalarArgumentDomain, ScalarArgumentType,
+    ScalarTypeSet, check_argument_type,
+};
 use leselang_syntax::NamedArgument;
+use std::sync::OnceLock;
 
 #[derive(Clone, Copy)]
 pub(crate) enum ArgumentDomain {
@@ -27,23 +33,33 @@ pub(crate) enum ArgumentDomain {
 }
 
 impl ArgumentDomain {
+    const fn scalar_types(self) -> ScalarTypeSet {
+        let text = ScalarTypeSet::only(ScalarType::String);
+        match self {
+            Self::Filter | Self::Target => text.with(ScalarType::None),
+            Self::OptionalText => text.with(ScalarType::None).with(ScalarType::OptionalString),
+            _ => text,
+        }
+    }
+
     pub(crate) fn accepts(self, ty: ScalarType) -> bool {
-        ty == ScalarType::String
-            || (ty == ScalarType::OptionalString && matches!(self, Self::OptionalText))
-            || (ty == ScalarType::None
-                && matches!(self, Self::Filter | Self::Target | Self::OptionalText))
+        self.scalar_types().contains(ty)
     }
 
     pub(crate) fn validate(self, value: &ScalarValue) -> bool {
-        if !self.accepts(value.scalar_type()) {
-            return false;
-        }
+        check_argument_type(&self, ScalarArgumentType::literal(value)).is_ok()
+    }
+}
+
+impl ScalarArgumentDomain for ArgumentDomain {
+    fn scalar_types(&self) -> ScalarTypeSet {
+        (*self).scalar_types()
+    }
+
+    fn accepts_literal(&self, value: &ScalarValue) -> bool {
         let Some(value) = value.text() else {
             return true;
         };
-        if value.len() > MAX_SCALAR_STRING_BYTES {
-            return false;
-        }
         match self {
             Self::Filter => validate_runtime_filter_value(value),
             Self::Runtime => RuntimeId::new(value).is_ok(),
@@ -66,26 +82,14 @@ impl ArgumentDomain {
     }
 }
 
-pub(crate) struct Parameter {
-    pub name: &'static str,
-    pub domain: ArgumentDomain,
-    pub required: bool,
-}
+pub(crate) type Parameter = NamedParameter<&'static str, ArgumentDomain>;
 
 const fn required(name: &'static str, domain: ArgumentDomain) -> Parameter {
-    Parameter {
-        name,
-        domain,
-        required: true,
-    }
+    Parameter::required(name, domain)
 }
 
 const fn optional(name: &'static str, domain: ArgumentDomain) -> Parameter {
-    Parameter {
-        name,
-        domain,
-        required: false,
-    }
+    Parameter::optional(name, domain)
 }
 
 use ArgumentDomain::*;
@@ -150,6 +154,47 @@ const PLACEHOLDER: &[Parameter] = &[
     required("expected", OptionalText),
 ];
 
+pub(crate) struct ReferenceResult {
+    operation: HostOperation,
+    pub(crate) ty: Type,
+}
+
+pub(crate) type ReferenceSchema = OperationSchema<
+    'static,
+    &'static str,
+    &'static str,
+    ArgumentDomain,
+    ReferenceResult,
+    &'static str,
+>;
+type ReferenceCatalog = OperationCatalog<
+    'static,
+    &'static str,
+    &'static str,
+    ArgumentDomain,
+    ReferenceResult,
+    &'static str,
+>;
+
+const REFERENCE_CATALOG_VERSION: u32 = 1;
+
+fn operation_catalog() -> Option<&'static ReferenceCatalog> {
+    static CATALOG: OnceLock<Result<ReferenceCatalog, OperationCatalogError>> = OnceLock::new();
+    CATALOG
+        .get_or_init(|| {
+            OperationCatalog::new(
+                REFERENCE_CATALOG_VERSION,
+                OPERATION_SCHEMAS,
+                OperationCatalogLimits {
+                    max_operations: OPERATION_SCHEMAS.len(),
+                    max_parameters_per_operation: 3,
+                },
+            )
+        })
+        .as_ref()
+        .ok()
+}
+
 macro_rules! operations {
     ($($variant:ident => ($name:literal, $capability:ident, $parameters:ident)),+ $(,)?) => {
         #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -159,23 +204,29 @@ macro_rules! operations {
 
         impl HostOperation {
             pub fn name(self) -> &'static str {
-                match self { $(Self::$variant => $name),+ }
+                self.schema().key
             }
 
             pub fn result_type(self) -> Type {
-                match self { $(Self::$variant => Type::$variant),+ }
+                self.schema().result.ty
             }
 
             pub fn required_capability(self) -> &'static str {
-                match self { $(Self::$variant => $capability),+ }
+                self.schema().required_capability
             }
 
             pub(crate) fn parse(name: &str) -> Option<Self> {
-                match name { $($name => Some(Self::$variant)),+, _ => None }
+                operation_catalog()?.lookup(name, REFERENCE_CATALOG_VERSION).ok()
+                    .map(|schema| schema.result.operation)
             }
 
             pub(crate) fn parameters(self) -> &'static [Parameter] {
-                match self { $(Self::$variant => $parameters),+ }
+                self.schema().parameters
+            }
+
+            pub(crate) fn schema(self) -> &'static ReferenceSchema {
+                // Enum/table order is emitted together; this index is never a protocol ID.
+                &OPERATION_SCHEMAS[self as usize]
             }
 
             pub fn for_effect(effect: &Effect) -> Option<Self> {
@@ -186,8 +237,22 @@ macro_rules! operations {
             }
         }
 
+        const OPERATION_SCHEMAS: &[ReferenceSchema] = &[
+            $(OperationSchema {
+                key: $name,
+                parameters: $parameters,
+                result: ReferenceResult { operation: HostOperation::$variant, ty: Type::$variant },
+                required_capability: $capability,
+            }),+
+        ];
+
         #[cfg(test)]
         const OPERATIONS: &[HostOperation] = &[$(HostOperation::$variant),+];
+
+        #[cfg(test)]
+        const LEGACY_OPERATION_SIGNATURES: &[(HostOperation, &str, Type, &str, &[Parameter])] = &[
+            $((HostOperation::$variant, $name, Type::$variant, $capability, $parameters)),+
+        ];
     };
 }
 
@@ -278,22 +343,17 @@ impl HostOperation {
         names: &[&str],
         span: Option<Span>,
     ) -> Result<(), Vec<Diagnostic>> {
-        let parameters = self.parameters();
-        if names.len() > parameters.len()
-            || names.iter().enumerate().any(|(index, name)| {
-                names[..index].contains(name)
-                    || !parameters.iter().any(|parameter| parameter.name == *name)
-            })
-            || parameters
-                .iter()
-                .any(|parameter| parameter.required && !names.contains(&parameter.name))
-        {
-            return Err(invalid_argument(
-                format!("invalid named arguments for {}", self.name()),
-                span,
-            ));
-        }
-        Ok(())
+        self.bind_names(names, span).map(|_| ())
+    }
+
+    pub(crate) fn bind_names<'a>(
+        self,
+        names: &'a [&'a str],
+        span: Option<Span>,
+    ) -> Result<NamedArgumentBindings<'a, &'a str, ArgumentDomain>, Vec<Diagnostic>> {
+        self.schema().bind_arguments(names).map_err(|_| {
+            invalid_argument(format!("invalid named arguments for {}", self.name()), span)
+        })
     }
 
     /// Resolve data into an existing atomic effect, using the literal path's domain validators.
@@ -363,6 +423,166 @@ impl HostOperation {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use leselang_runtime_core::validate_named_arguments;
+
+    #[test]
+    fn reference_catalog_is_valid_and_every_operation_uses_its_original_schema_row() {
+        let catalog = operation_catalog().expect("generated catalog must validate");
+        assert_eq!(catalog.version(), REFERENCE_CATALOG_VERSION);
+        for operation in OPERATIONS {
+            let schema = catalog
+                .lookup(operation.name(), REFERENCE_CATALOG_VERSION)
+                .unwrap();
+            assert!(std::ptr::eq(schema, operation.schema()));
+            assert_eq!(schema.result.operation, *operation);
+            assert!(
+                catalog
+                    .authorize(
+                        operation.name(),
+                        REFERENCE_CATALOG_VERSION,
+                        &[operation.required_capability()]
+                    )
+                    .is_ok()
+            );
+            assert_eq!(
+                catalog
+                    .authorize(operation.name(), REFERENCE_CATALOG_VERSION, &[])
+                    .unwrap_err(),
+                OperationCatalogError::CapabilityDenied
+            );
+            assert_eq!(
+                catalog
+                    .lookup(operation.name(), REFERENCE_CATALOG_VERSION + 1)
+                    .unwrap_err(),
+                OperationCatalogError::UnsupportedVersion
+            );
+        }
+    }
+
+    #[test]
+    fn operation_metadata_and_wire_tags_keep_the_legacy_seventy_operation_contract() {
+        assert_eq!(LEGACY_OPERATION_SIGNATURES.len(), 70);
+        for &(operation, name, result, capability, parameters) in LEGACY_OPERATION_SIGNATURES {
+            assert_eq!(operation.name(), name);
+            assert_eq!(operation.result_type(), result);
+            assert_eq!(operation.required_capability(), capability);
+            assert_eq!(operation.parameters().len(), parameters.len());
+            for (actual, expected) in operation.parameters().iter().zip(parameters) {
+                assert_eq!(actual.name, expected.name);
+                assert_eq!(actual.required, expected.required);
+                assert_eq!(
+                    std::mem::discriminant(&actual.domain),
+                    std::mem::discriminant(&expected.domain)
+                );
+            }
+            assert_eq!(HostOperation::parse(name), Some(operation));
+            assert_eq!(
+                serde_json::to_value(operation).unwrap(),
+                serde_json::json!(name)
+            );
+            assert_eq!(
+                serde_json::from_value::<HostOperation>(serde_json::json!(name)).unwrap(),
+                operation
+            );
+            assert_eq!(HostOperation::parse(&name.to_uppercase()), None);
+            assert_eq!(HostOperation::parse(&format!("{name} ")), None);
+        }
+        for unknown in ["", "device.move", "ui.private", "runtime.list.extra"] {
+            assert_eq!(HostOperation::parse(unknown), None);
+        }
+    }
+
+    #[test]
+    fn every_host_signature_binds_reordered_names_to_original_parameter_metadata() {
+        for operation in OPERATIONS {
+            for required_only in [false, true] {
+                let names: Vec<_> = operation
+                    .parameters()
+                    .iter()
+                    .rev()
+                    .filter(|parameter| !required_only || parameter.required)
+                    .map(|parameter| parameter.name)
+                    .collect();
+                let bindings = operation.bind_names(&names, None).unwrap();
+                let expected: Vec<_> = operation
+                    .parameters()
+                    .iter()
+                    .filter_map(|parameter| {
+                        names
+                            .iter()
+                            .position(|name| *name == parameter.name)
+                            .map(|index| (parameter, index))
+                    })
+                    .collect();
+                let actual: Vec<_> = bindings.iter().collect();
+                assert_eq!(actual.len(), expected.len());
+                for ((parameter, index), (original, original_index)) in actual.iter().zip(expected)
+                {
+                    assert!(std::ptr::eq(*parameter, original));
+                    assert_eq!(*index, original_index);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn every_host_parameter_keeps_its_closed_legacy_scalar_type_admission() {
+        for operation in OPERATIONS {
+            for parameter in operation.parameters() {
+                for ty in [
+                    ScalarType::Integer,
+                    ScalarType::Boolean,
+                    ScalarType::String,
+                    ScalarType::None,
+                    ScalarType::OptionalString,
+                    ScalarType::StringList,
+                ] {
+                    let expected = ty == ScalarType::String
+                        || (ty == ScalarType::OptionalString
+                            && matches!(parameter.domain, OptionalText))
+                        || (ty == ScalarType::None
+                            && matches!(parameter.domain, Filter | Target | OptionalText));
+                    assert_eq!(
+                        parameter.domain.accepts(ty),
+                        expected,
+                        "{} {} {ty:?}",
+                        operation.name(),
+                        parameter.name
+                    );
+                    assert_eq!(
+                        check_argument_type(
+                            &parameter.domain,
+                            ScalarArgumentType::expression(Some(ty), true)
+                        )
+                        .is_ok(),
+                        expected,
+                        "shared checker: {} {} {ty:?}",
+                        operation.name(),
+                        parameter.name
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn every_host_signature_is_the_core_metadata_type_not_a_conversion_wrapper() {
+        for operation in OPERATIONS {
+            let schema: &[NamedParameter<&str, ArgumentDomain>] = operation.parameters();
+            assert!(std::ptr::eq(
+                schema.as_ptr(),
+                operation.parameters().as_ptr()
+            ));
+            validate_named_arguments(
+                &schema
+                    .iter()
+                    .map(|parameter| parameter.name)
+                    .collect::<Vec<_>>(),
+                schema,
+            )
+            .unwrap();
+        }
+    }
 
     fn sample(domain: ArgumentDomain) -> ScalarValue {
         ScalarValue::String(
@@ -408,6 +628,19 @@ mod tests {
         assert_eq!(OPERATIONS.len(), 70);
         for &operation in OPERATIONS {
             let values = arguments(operation);
+            operation
+                .schema()
+                .check_argument_types(
+                    &values
+                        .iter()
+                        .map(|(name, _)| name.as_str())
+                        .collect::<Vec<_>>(),
+                    &values
+                        .iter()
+                        .map(|(_, value)| ScalarArgumentType::literal(value))
+                        .collect::<Vec<_>>(),
+                )
+                .unwrap();
             let source_args = values
                 .iter()
                 .map(|(name, value)| format!("{name}: {}", literal(value)))

@@ -863,6 +863,12 @@ and journal errors remain outside this construct. A host error named `LSV1408`
 is still a host failure, not a local parse failure. This is not catch-all,
 exception-object binding, implicit retry, rollback or cleanup.
 
+The runtime carries a typed scalar-versus-external failure class through this
+calculation, rather than comparing diagnostic strings. `LSV1401`/`LSV1408` remain
+the outward codes, not permission to recover an arbitrary error. Unhandled errors
+are converted at the evaluation/re-entry boundary; selected recovery avoids that
+temporary diagnostic allocation. See [typed recovery](leselang-embedding.md#shared-typed-calculation-recovery).
+
 The recovery expression, failed value and selected fallback share the remaining
 fuel; failed work is never refunded. Fallback failures propagate normally. An
 explicit enclosing `recover` may catch a fallback's arithmetic/parse failure,
@@ -1904,6 +1910,16 @@ inspector and does not expose private result frames in public UI projections.
 
 ## Computed Host Arguments
 
+Named-shape preflight uses the core's generic parameter metadata before calculation.
+Missing keys are not explicit none values; domains, schema selection and authority remain
+host-owned. See [named host signatures](leselang-embedding.md#shared-named-host-signatures).
+Accepted scalar types and language bounds share core preflight without coercion;
+receiving-host formats and exact fuel remain unchanged. See
+[scalar contracts](leselang-embedding.md#shared-accepted-scalar-contracts).
+Computed source arguments bind through a shared borrowed declaration-order view;
+this does not reorder submitted raw values or repair noncanonical saved frames.
+See [argument binding](leselang-embedding.md#shared-borrowed-argument-binding).
+
 ```leselang
 fn main() = bind(
   node: concat(left: "runtime-", right: "a"),
@@ -2042,6 +2058,11 @@ The syntax formatter preserves `repeat`. The HIR canonical exporter emits its
 equivalent flat `seq`; parsing that export reconstructs exactly the same HIR.
 
 ## Execution Safety
+
+HIR shape/signature checks share the runtime core's checked structural counters.
+Original limits, folded source weights and separate computation/effect budgets
+remain HIR policy; a structural pass is not lexical/type/purity/capability approval.
+See [structural accounting](leselang-embedding.md#shared-structural-walk-accounting).
 
 These rules govern host-effect groups. Pure loops do not allocate effect
 identities or journal their individual scalar transitions.
