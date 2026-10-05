@@ -138,22 +138,29 @@ pub(super) fn validate_repeat_expansion(
         .ok_or_else(|| invalid("repeat count must be positive", span))?;
     let mut effects = vec![effect];
     let mut nodes = 0usize;
+    let oversized = || {
+        vec![Diagnostic {
+            code: "LSH1405".into(),
+            message: "repeated computation exceeds the expanded node limit".into(),
+            span: Some(span),
+        }]
+    };
     while let Some(effect) = effects.pop() {
         match effect {
             Effect::Sequence { steps } | Effect::All { branches: steps } => {
                 effects.extend(steps.iter().map(|step| &step.effect))
             }
             Effect::Compute { expression } => {
-                nodes = nodes.saturating_add(functions::shape(expression).0);
+                nodes = nodes.saturating_add(
+                    functions::source_cost(expression)
+                        .map_err(|_| oversized())?
+                        .nodes,
+                );
             }
             _ => nodes += 2,
         }
         if nodes > limit {
-            return Err(vec![Diagnostic {
-                code: "LSH1405".into(),
-                message: "repeated computation exceeds the expanded node limit".into(),
-                span: Some(span),
-            }]);
+            return Err(oversized());
         }
     }
     Ok(())

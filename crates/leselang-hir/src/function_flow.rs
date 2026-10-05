@@ -70,14 +70,30 @@ pub(super) fn bind_result(
     body: Computation,
     span: Span,
 ) -> Result<Computation, Vec<Diagnostic>> {
-    let (value_nodes, mut depth) = functions::shape(&value);
-    let (body_nodes, body_depth) = functions::shape(&body);
+    let oversized = |_| {
+        invalid(
+            "LSH1405",
+            "composed helper exceeds computation bounds",
+            span,
+        )
+    };
+    let value_cost = functions::source_cost(&value).map_err(oversized)?;
+    let body_cost = functions::source_cost(&body).map_err(oversized)?;
+    let mut depth = value_cost.depth;
+    let body_depth = body_cost.depth;
     let mut returns = 0usize;
     let mut pending = vec![(&value, 0usize)];
     while let Some((value, level)) = pending.pop() {
         if value.is_pure() {
             returns += 1;
-            depth = depth.max(level + 1 + functions::shape(value).1.max(body_depth));
+            depth = depth.max(
+                level
+                    + 1
+                    + functions::source_cost(value)
+                        .map_err(oversized)?
+                        .depth
+                        .max(body_depth),
+            );
             continue;
         }
         match value {
@@ -90,7 +106,14 @@ pub(super) fn bind_result(
             }
             Computation::Host { .. } | Computation::Call { .. } | Computation::Group { .. } => {
                 returns += 1;
-                depth = depth.max(level + 1 + functions::shape(value).1.max(body_depth));
+                depth = depth.max(
+                    level
+                        + 1
+                        + functions::source_cost(value)
+                            .map_err(oversized)?
+                            .depth
+                            .max(body_depth),
+                );
             }
             _ => {
                 return Err(invalid(
@@ -102,7 +125,9 @@ pub(super) fn bind_result(
         }
     }
     // Reserve every cold return path before cloning its continuation.
-    let nodes = value_nodes.saturating_add(returns.saturating_mul(body_nodes.saturating_add(1)));
+    let nodes = value_cost
+        .nodes
+        .saturating_add(returns.saturating_mul(body_cost.nodes.saturating_add(1)));
     if nodes > MAX_COMPUTATION_NODES || depth > MAX_EFFECT_NESTING_DEPTH {
         return Err(invalid(
             "LSH1405",

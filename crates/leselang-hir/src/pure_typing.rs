@@ -156,7 +156,7 @@ pub(crate) fn valid_local_name(name: &str) -> bool {
         && !matches!(name, "body" | "fn" | "true" | "false" | "none")
 }
 
-fn valid_member_name(name: &str) -> bool {
+pub(crate) fn valid_member_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= MAX_LOCAL_NAME_BYTES
         && name

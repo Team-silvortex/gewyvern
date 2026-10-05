@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use leselang_runtime_core::ScopeFrame;
 use leselang_syntax::{Function, MAX_FUNCTION_PARAMETERS, MAX_FUNCTIONS, NamedArgument};
@@ -7,9 +7,7 @@ use super::*;
 use crate::computation::{Computation, LocalType, MAX_COMPUTATION_NODES, ScalarType, TypeScope};
 
 struct Template {
-    parameters: Vec<(String, ScalarType)>,
-    body: Computation,
-    result_type: Type,
+    prepared: crate::helper_templates::HelperTemplate<Computation, Type>,
     nodes: usize,
     depth: usize,
 }
@@ -45,44 +43,112 @@ fn invalid(code: &str, message: &str, span: Span) -> Vec<Diagnostic> {
     }]
 }
 
+fn parameter_diagnostics(
+    error: crate::helper_source::HelperParameterError,
+    span: Span,
+) -> Vec<Diagnostic> {
+    use crate::helper_source::HelperParameterError;
+    let message = match error {
+        HelperParameterError::InvalidName { .. } | HelperParameterError::DuplicateName { .. } => {
+            "parameter names must be bounded and unique"
+        }
+        HelperParameterError::UnknownType { .. } => {
+            "expected integer, boolean, string, none, optional_string or string_list parameter type"
+        }
+        _ => "function parameter count exceeds limit",
+    };
+    invalid("LSH1501", message, span)
+}
+
 fn parameter_types(function: &Function) -> Result<Vec<(String, ScalarType)>, Vec<Diagnostic>> {
-    if function.parameters.len() > MAX_FUNCTION_PARAMETERS {
-        return Err(invalid(
-            "LSH1501",
-            "function parameter count exceeds limit",
-            function.span,
-        ));
-    }
-    let mut names = HashSet::new();
-    function
-        .parameters
-        .iter()
-        .map(|parameter| {
-            if !computation::valid_local(&parameter.name) || !names.insert(&parameter.name) {
-                return Err(invalid(
-                    "LSH1501",
-                    "parameter names must be bounded and unique",
-                    parameter.span,
-                ));
-            }
-            let ty = match parameter.type_name.as_str() {
-                "integer" => ScalarType::Integer,
-                "boolean" => ScalarType::Boolean,
-                "string" => ScalarType::String,
-                "none" => ScalarType::None,
-                "optional_string" => ScalarType::OptionalString,
-                "string_list" => ScalarType::StringList,
-                _ => {
-                    return Err(invalid(
-                        "LSH1501",
-                        "expected integer, boolean, string, none, optional_string or string_list parameter type",
-                        parameter.span,
-                    ));
-                }
-            };
-            Ok((parameter.name.clone(), ty))
+    use crate::helper_source::HelperParameterError;
+    crate::helper_source::helper_parameters(function, MAX_FUNCTION_PARAMETERS)
+        .map(|parameters| {
+            parameters
+                .into_iter()
+                .map(|parameter| (parameter.name.to_owned(), parameter.domain))
+                .collect()
         })
-        .collect()
+        .map_err(|error| {
+            let span = match error {
+                HelperParameterError::InvalidName { index }
+                | HelperParameterError::DuplicateName { index }
+                | HelperParameterError::UnknownType { index } => function.parameters[index].span,
+                _ => function.span,
+            };
+            parameter_diagnostics(error, span)
+        })
+}
+
+fn declaration_error(
+    error: crate::helper_declarations::HelperDeclarationError<std::convert::Infallible>,
+    fallback: Span,
+) -> Vec<Diagnostic> {
+    use crate::helper_declarations::HelperDeclarationError;
+    match error {
+        HelperDeclarationError::InvalidLimits | HelperDeclarationError::FunctionLimit => {
+            invalid("LSH1501", "function count exceeds limit", fallback)
+        }
+        HelperDeclarationError::InvalidEntry => invalid(
+            "LSH1501",
+            "function names must be bounded, unique and not builtins",
+            fallback,
+        ),
+        HelperDeclarationError::InvalidName { span, .. }
+        | HelperDeclarationError::ReservedName { span, .. }
+        | HelperDeclarationError::DuplicateName { span, .. } => invalid(
+            "LSH1501",
+            "function names must be bounded, unique and not builtins",
+            span,
+        ),
+        HelperDeclarationError::Parameters { span, error, .. } => {
+            parameter_diagnostics(error, span)
+        }
+        HelperDeclarationError::Source { span, .. } => invalid(
+            "LSH1405",
+            "function source exceeds computation bounds",
+            span,
+        ),
+        HelperDeclarationError::MissingEntry { span } => invalid(
+            "LSH1501",
+            "a multi-function program requires exactly one main",
+            span,
+        ),
+        HelperDeclarationError::EntryParameters { span, .. } => {
+            invalid("LSH1501", "main cannot have parameters", span)
+        }
+        HelperDeclarationError::Policy { error, .. } => match error {},
+    }
+}
+
+fn dependency_error(
+    error: crate::helper_dependencies::HelperDependencyError,
+    fallback: Span,
+) -> Vec<Diagnostic> {
+    use crate::helper_dependencies::HelperDependencyError;
+    match error {
+        HelperDependencyError::EntryCall { span, .. } => {
+            invalid("LSH1502", "helpers cannot call main", span)
+        }
+        HelperDependencyError::Cycle { .. } => invalid(
+            "LSH1502",
+            "recursive helper functions are not supported",
+            fallback,
+        ),
+        HelperDependencyError::Source { span, .. } => invalid(
+            "LSH1405",
+            "function source exceeds computation bounds",
+            span,
+        ),
+        HelperDependencyError::InvalidName { span, .. }
+        | HelperDependencyError::DuplicateName { span, .. }
+        | HelperDependencyError::EntryConflict { span, .. } => invalid(
+            "LSH1501",
+            "function names must be bounded, unique and not builtins",
+            span,
+        ),
+        _ => invalid("LSH1501", "function count exceeds limit", fallback),
+    }
 }
 
 pub(super) fn lower_program(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnostic>> {
@@ -95,132 +161,36 @@ pub(super) fn lower_program(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnos
         .first()
         .map(|function| function.span)
         .unwrap_or(Span { start: 0, end: 0 });
-    if declarations.len() > MAX_FUNCTIONS {
-        return Err(invalid("LSH1501", "function count exceeds limit", span));
-    }
-    let mut declared = BTreeMap::new();
+    let accepted = crate::helper_declarations::accept_helper_declarations(
+        &declarations,
+        "main",
+        crate::helper_declarations::HelperDeclarationLimits {
+            max_functions: MAX_FUNCTIONS,
+            max_parameters: MAX_FUNCTION_PARAMETERS,
+            max_source_nodes: MAX_COMPUTATION_NODES,
+            max_source_depth: MAX_EFFECT_NESTING_DEPTH,
+        },
+        |name| Ok::<_, std::convert::Infallible>(computation::is_builtin(name)),
+    )
+    .map_err(|error| declaration_error(error, span))?;
     let mut functions = FunctionTemplates::default();
-    for function in declarations {
-        if !computation::valid_local(&function.name)
-            || computation::is_builtin(&function.name)
-            || declared.insert(function.name.clone(), function).is_some()
-        {
-            return Err(invalid(
-                "LSH1501",
-                "function names must be bounded, unique and not builtins",
-                function.span,
-            ));
-        }
-        parameter_types(function)?;
-        functions.names.extend(
-            function
-                .parameters
-                .iter()
-                .map(|parameter| parameter.name.clone()),
-        );
-        let mut pending = vec![(&function.body, 0usize)];
-        let mut visited = 0;
-        while let Some((expression, depth)) = pending.pop() {
-            visited += 1;
-            if visited > MAX_COMPUTATION_NODES || depth > MAX_EFFECT_NESTING_DEPTH {
-                return Err(invalid(
-                    "LSH1405",
-                    "function source exceeds computation bounds",
-                    expression_span(expression),
-                ));
-            }
-            match expression {
-                Expression::Call {
-                    callee, arguments, ..
-                } => {
-                    if arguments
-                        .len()
-                        .saturating_add(visited)
-                        .saturating_add(pending.len())
-                        > MAX_COMPUTATION_NODES
-                    {
-                        return Err(invalid(
-                            "LSH1405",
-                            "function source exceeds computation bounds",
-                            expression_span(expression),
-                        ));
-                    }
-                    functions
-                        .names
-                        .extend(arguments.iter().map(|argument| argument.name.clone()));
-                    // Fold declares its item with a quoted name, even when never referenced.
-                    if callee == "fold"
-                        && let Some(Expression::String { value, .. }) = arguments
-                            .iter()
-                            .find(|argument| argument.name == "item")
-                            .map(|argument| &argument.value)
-                    {
-                        functions.names.insert(value.clone());
-                    }
-                    pending.extend(
-                        arguments
-                            .iter()
-                            .map(|argument| (&argument.value, depth + 1)),
-                    );
-                }
-                Expression::Reference { name, .. } => {
-                    functions.names.insert(name.clone());
-                }
-                _ => {}
-            }
-        }
-    }
-    let main = declared.remove("main").ok_or_else(|| {
-        invalid(
-            "LSH1501",
-            "a multi-function program requires exactly one main",
-            span,
-        )
-    })?;
-    if !main.parameters.is_empty() {
-        return Err(invalid("LSH1501", "main cannot have parameters", main.span));
-    }
-    let mut dependencies = BTreeMap::new();
-    for (name, function) in &declared {
-        let mut required = BTreeSet::new();
-        let mut pending = vec![&function.body];
-        while let Some(expression) = pending.pop() {
-            if let Expression::Call {
-                callee,
-                arguments,
-                span,
-            } = expression
-            {
-                if callee == "main" {
-                    return Err(invalid("LSH1502", "helpers cannot call main", *span));
-                }
-                if declared.contains_key(callee) {
-                    required.insert(callee.clone());
-                }
-                pending.extend(arguments.iter().map(|argument| &argument.value));
-            }
-        }
-        dependencies.insert(name.clone(), required);
-    }
-    // Compile the complete acyclic declaration graph, including unused helpers.
-    while functions.templates.len() < declared.len() {
-        let name = dependencies
-            .iter()
-            .find(|(name, required)| {
-                !functions.contains(name)
-                    && required
-                        .iter()
-                        .all(|dependency| functions.contains(dependency))
-            })
-            .map(|(name, _)| name.clone())
-            .ok_or_else(|| {
-                invalid(
-                    "LSH1502",
-                    "recursive helper functions are not supported",
-                    span,
-                )
-            })?;
-        let function = declared[&name];
+    functions
+        .names
+        .extend(accepted.reserved_names().map(str::to_owned));
+    let main = accepted.entry();
+    let order = crate::helper_dependencies::helper_dependency_order(
+        accepted.helpers(),
+        "main",
+        crate::helper_dependencies::HelperDependencyLimits {
+            max_helpers: MAX_FUNCTIONS - 1,
+            max_source_nodes: MAX_COMPUTATION_NODES,
+            max_source_depth: MAX_EFFECT_NESTING_DEPTH,
+        },
+    )
+    .map_err(|error| dependency_error(error, span))?;
+    // Lower each ready helper before asking for the next, preserving error priority.
+    for function in order {
+        let function = function.map_err(|error| dependency_error(error, span))?;
         let parameters = parameter_types(function)?;
         let (body, result_type) = {
             let mut bindings = parameters
@@ -256,15 +226,32 @@ pub(super) fn lower_program(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnos
                 function.span,
             )
         })?;
-        let (nodes, depth) = shape(&body);
+        let cost = source_cost(&body).map_err(|_| {
+            invalid(
+                "LSH1405",
+                "expanded helper exceeds computation or canonical source bounds",
+                function.span,
+            )
+        })?;
+        let prepared = crate::helper_templates::HelperTemplate::new(
+            parameters,
+            body,
+            result_type,
+            template_limits(),
+        )
+        .map_err(|_| {
+            invalid(
+                "LSH1405",
+                "expanded helper exceeds computation or canonical source bounds",
+                function.span,
+            )
+        })?;
         functions.templates.insert(
-            name,
+            function.name.clone(),
             Template {
-                parameters,
-                body,
-                result_type,
-                nodes,
-                depth,
+                prepared,
+                nodes: cost.nodes,
+                depth: cost.depth,
             },
         );
     }
@@ -295,30 +282,45 @@ pub(super) fn lower_program(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnos
     })
 }
 
-pub(super) fn shape(expression: &Computation) -> (usize, usize) {
-    let mut nodes = 0;
-    let mut depth = 0;
-    let mut pending = vec![(expression, 0)];
-    while let Some((expression, level)) = pending.pop() {
-        let (literal_nodes, literal_depth) = match expression {
-            Computation::Literal { value } => computation::source_shape_extra(value),
-            _ => (0, 0),
-        };
-        nodes += 1 + literal_nodes;
-        depth = depth.max(level + literal_depth);
-        if let Computation::Host { effect } = expression {
-            let mut effects = vec![(effect.as_ref(), level)];
-            while let Some((effect, effect_depth)) = effects.pop() {
-                nodes += 1;
-                depth = depth.max(effect_depth + 1);
-                if let Effect::Sequence { steps } | Effect::All { branches: steps } = effect {
-                    effects.extend(steps.iter().map(|step| (&step.effect, effect_depth + 1)));
+fn template_limits() -> crate::helper_templates::HelperTemplateLimits {
+    crate::helper_templates::HelperTemplateLimits {
+        max_nodes: MAX_COMPUTATION_NODES,
+        max_depth: MAX_EFFECT_NESTING_DEPTH,
+        max_bindings: crate::pure_typing::MAX_TYPE_INFERENCE_BINDINGS,
+        max_parameters: MAX_FUNCTION_PARAMETERS,
+    }
+}
+
+pub(super) fn source_cost(
+    expression: &Computation,
+) -> Result<
+    crate::helper_expansion::HelperExpansionCost,
+    crate::source_cost::SourceCostError<leselang_runtime_core::StructureError>,
+> {
+    let limits = crate::source_cost::SourceCostLimits {
+        max_nodes: crate::pure_typing::MAX_TYPE_INFERENCE_NODES,
+        max_depth: crate::pure_typing::MAX_TYPE_INFERENCE_DEPTH,
+    };
+    crate::source_cost::measure_source_cost(expression, limits, |effect| {
+        let mut effects = vec![(effect, 1)];
+        let mut budget =
+            leselang_runtime_core::StructureBudget::new(limits.max_nodes, limits.max_depth);
+        let mut depth = 0;
+        while let Some((effect, effect_depth)) = effects.pop() {
+            budget.visit(effect_depth, 0, 0)?;
+            depth = depth.max(effect_depth);
+            if let Effect::Sequence { steps } | Effect::All { branches: steps } = effect {
+                for step in steps {
+                    budget.check_pending(effects.len(), 1)?;
+                    effects.push((&step.effect, effect_depth + 1));
                 }
             }
         }
-        pending.extend(expression.children().map(|child| (child, level + 1)));
-    }
-    (nodes, depth)
+        Ok(crate::source_cost::SourceCostExtra {
+            nodes: budget.visited(),
+            depth,
+        })
+    })
 }
 
 pub(super) fn lower_call<'a>(
@@ -334,210 +336,163 @@ pub(super) fn lower_call<'a>(
         .templates
         .get(name)
         .ok_or_else(|| invalid("LSH1504", "unknown helper", span))?;
-    let parameters = template.parameters.clone();
-    if arguments.len() != parameters.len()
-        || parameters.iter().any(|(name, _)| {
-            arguments
-                .iter()
-                .filter(|argument| argument.name == *name)
-                .count()
-                != 1
-        })
-    {
-        return Err(invalid(
+    let parameters = template.prepared.parameters().to_vec();
+    let signature = parameters
+        .iter()
+        .map(|(name, ty)| leselang_runtime_core::NamedParameter::required(name.as_str(), *ty))
+        .collect::<Vec<_>>();
+    let lowered = crate::helper_source::lower_preflighted_helper_arguments(
+        arguments,
+        &signature,
+        crate::helper_source::HelperSourceLimits {
+            source: crate::source_call::SourceCallLimits {
+                max_source_nodes: MAX_COMPUTATION_NODES,
+                max_source_depth: MAX_EFFECT_NESTING_DEPTH,
+                max_lowered_nodes: MAX_COMPUTATION_NODES,
+                max_lowered_depth: MAX_EFFECT_NESTING_DEPTH,
+                max_arguments: crate::source_call::MAX_SOURCE_CALL_ARGUMENTS,
+            },
+            max_parameters: MAX_FUNCTION_PARAMETERS,
+        },
+        |argument| {
+            let (value, ty) = computation::lower_expression_with_functions(
+                &argument.value,
+                scope,
+                visited,
+                depth + 1,
+                functions,
+            )?;
+            Ok((
+                value,
+                match ty {
+                    Type::Scalar(ty) => Some(ty),
+                    _ => None,
+                },
+            ))
+        },
+    )
+    .map_err(|error| match error {
+        crate::helper_source::HelperSourceError::Lowering { error, .. } => error,
+        crate::helper_source::HelperSourceError::Argument { argument_index, .. } => invalid(
+            "LSH1504",
+            "helper arguments must be pure scalars of the declared type",
+            arguments[argument_index].span,
+        ),
+        crate::helper_source::HelperSourceError::Output { argument_index, .. } => invalid(
+            "LSH1405",
+            "expanded helper exceeds computation bounds",
+            arguments[argument_index].span,
+        ),
+        _ => invalid(
             "LSH1504",
             "helper arguments must match its named parameters exactly",
             span,
-        ));
-    }
-    let mut values = Vec::with_capacity(parameters.len());
-    for (name, ty) in &parameters {
-        let argument = arguments
-            .iter()
-            .find(|argument| argument.name == *name)
-            .ok_or_else(|| invalid("LSH1504", "missing helper argument", span))?;
-        let (value, value_type) = computation::lower_expression_with_functions(
-            &argument.value,
-            scope,
-            visited,
-            depth + 1,
-            functions,
-        )?;
-        if !value.is_pure() || value_type != Type::Scalar(*ty) {
-            return Err(invalid(
-                "LSH1504",
-                "helper arguments must be pure scalars of the declared type",
-                argument.span,
-            ));
-        }
-        values.push(value);
-    }
+        ),
+    })?;
+    let values = lowered
+        .into_iter()
+        .map(|argument| argument.value)
+        .collect::<Vec<_>>();
     let template = &functions.templates[name];
-    if visited
-        .saturating_add(template.nodes)
-        .saturating_add(parameters.len())
-        > MAX_COMPUTATION_NODES
-        || depth
-            .saturating_add(template.depth)
-            .saturating_add(parameters.len())
-            > MAX_EFFECT_NESTING_DEPTH
-        || values.iter().enumerate().any(|(position, value)| {
-            depth
-                .saturating_add(position + 1)
-                .saturating_add(shape(value).1)
-                > MAX_EFFECT_NESTING_DEPTH
-        })
-    {
-        return Err(invalid(
+    crate::helper_expansion::reserve_helper_expansion(
+        visited,
+        depth,
+        crate::helper_expansion::HelperExpansionCost {
+            nodes: template.nodes,
+            depth: template.depth,
+        },
+        parameters.len(),
+        crate::helper_expansion::HelperExpansionLimits {
+            max_nodes: MAX_COMPUTATION_NODES,
+            max_depth: MAX_EFFECT_NESTING_DEPTH,
+            max_parameters: MAX_FUNCTION_PARAMETERS,
+        },
+        |index| {
+            values
+                .get(index)
+                .ok_or(crate::source_cost::SourceCostError::Structure(
+                    leselang_runtime_core::StructureError::NodeLimit,
+                ))
+                .and_then(|value| source_cost(value).map(|cost| cost.depth))
+        },
+    )
+    .map_err(|_| {
+        invalid(
             "LSH1405",
             "expanded helper exceeds computation bounds",
             span,
-        ));
-    }
-    *visited += template.nodes + parameters.len();
-    let mut body = template.body.clone();
-    let result_type = template.result_type;
+        )
+    })?;
+    let body = template
+        .prepared
+        .materialize(template_limits(), |body| {
+            Ok::<_, std::convert::Infallible>(body.clone())
+        })
+        .map_err(|_| {
+            invalid(
+                "LSH1405",
+                "expanded helper exceeds computation bounds",
+                span,
+            )
+        })?;
+    let result_type = *template.prepared.result_type();
     // Arguments stay in caller scope; parameter and body locals get fresh names.
-    let mut renames = BTreeMap::new();
-    for (name, _) in &parameters {
-        renames.insert(name.clone(), functions.fresh_name());
-    }
-    rename(&mut body, &mut renames, functions)?;
-    for ((name, _), value) in parameters.into_iter().zip(values).rev() {
-        body = Computation::Bind {
-            name: renames[&name].clone(),
-            value: Box::new(value),
-            body: Box::new(body),
-        };
-    }
+    let parameter_names = parameters
+        .iter()
+        .map(|(name, _)| (name.as_str(), functions.fresh_name()))
+        .collect::<Vec<_>>();
+    let aliases = parameter_names
+        .iter()
+        .map(|(name, alias)| (*name, alias.as_str()))
+        .collect::<Vec<_>>();
+    let body = crate::helper_hygiene::hygienic_helper_body(
+        body,
+        &aliases,
+        &[],
+        crate::helper_hygiene::HelperHygieneLimits {
+            max_nodes: MAX_COMPUTATION_NODES,
+            max_depth: MAX_EFFECT_NESTING_DEPTH,
+            max_bindings: crate::pure_typing::MAX_TYPE_INFERENCE_BINDINGS,
+            max_reserved_names: 0,
+        },
+        || Ok::<_, Vec<Diagnostic>>(functions.fresh_name()),
+    )
+    .map_err(|error| match error {
+        crate::helper_hygiene::HelperHygieneError::Capture { group } => invalid(
+            "LSH1503",
+            if group {
+                "helper cannot capture a caller group"
+            } else {
+                "helper cannot capture caller locals"
+            },
+            Span { start: 0, end: 0 },
+        ),
+        crate::helper_hygiene::HelperHygieneError::Native(error) => error,
+        _ => invalid(
+            "LSH1405",
+            "expanded helper exceeds computation bounds",
+            span,
+        ),
+    })?;
+    let body = crate::helper_bindings::bind_helper_arguments(
+        body,
+        parameter_names
+            .into_iter()
+            .zip(values)
+            .map(|((_, name), value)| crate::helper_bindings::HelperBinding { name, value })
+            .collect(),
+        crate::helper_bindings::HelperBindingLimits {
+            max_nodes: MAX_COMPUTATION_NODES,
+            max_depth: MAX_EFFECT_NESTING_DEPTH,
+            max_parameters: MAX_FUNCTION_PARAMETERS,
+        },
+    )
+    .map_err(|_| {
+        invalid(
+            "LSH1405",
+            "expanded helper exceeds computation bounds",
+            span,
+        )
+    })?;
     Ok((body, result_type))
-}
-
-fn rename(
-    expression: &mut Computation,
-    renames: &mut BTreeMap<String, String>,
-    functions: &mut FunctionTemplates,
-) -> Result<(), Vec<Diagnostic>> {
-    match expression {
-        Computation::Literal { .. } => {}
-        Computation::Strings { items } => {
-            for item in items {
-                rename(item, renames, functions)?;
-            }
-        }
-        Computation::Local { name } => {
-            *name = renames
-                .get(name)
-                .ok_or_else(|| {
-                    invalid(
-                        "LSH1503",
-                        "helper cannot capture caller locals",
-                        Span { start: 0, end: 0 },
-                    )
-                })?
-                .clone();
-        }
-        Computation::Bind { name, value, body } => {
-            rename(value, renames, functions)?;
-            let fresh = functions.fresh_name();
-            let previous = renames.insert(name.clone(), fresh.clone());
-            let original = std::mem::replace(name, fresh);
-            rename(body, renames, functions)?;
-            if let Some(previous) = previous {
-                renames.insert(original, previous);
-            } else {
-                renames.remove(&original);
-            }
-        }
-        Computation::Loop {
-            name,
-            initial,
-            condition,
-            next,
-            ..
-        } => {
-            rename(initial, renames, functions)?;
-            let fresh = functions.fresh_name();
-            let previous = renames.insert(name.clone(), fresh.clone());
-            let original = std::mem::replace(name, fresh);
-            rename(condition, renames, functions)?;
-            rename(next, renames, functions)?;
-            if let Some(previous) = previous {
-                renames.insert(original, previous);
-            } else {
-                renames.remove(&original);
-            }
-        }
-        Computation::Fold {
-            name,
-            item,
-            items,
-            initial,
-            next,
-            ..
-        } => {
-            rename(items, renames, functions)?;
-            rename(initial, renames, functions)?;
-            let state_fresh = functions.fresh_name();
-            let item_fresh = functions.fresh_name();
-            let state_previous = renames.insert(name.clone(), state_fresh.clone());
-            let item_previous = renames.insert(item.clone(), item_fresh.clone());
-            let state_original = std::mem::replace(name, state_fresh);
-            let item_original = std::mem::replace(item, item_fresh);
-            rename(next, renames, functions)?;
-            for (original, previous) in [
-                (state_original, state_previous),
-                (item_original, item_previous),
-            ] {
-                if let Some(previous) = previous {
-                    renames.insert(original, previous);
-                } else {
-                    renames.remove(&original);
-                }
-            }
-        }
-        Computation::Binary { left, right, .. } => {
-            rename(left, renames, functions)?;
-            rename(right, renames, functions)?;
-        }
-        Computation::Unary { value, .. } => rename(value, renames, functions)?,
-        Computation::Choose {
-            when,
-            then,
-            otherwise,
-        } => {
-            rename(when, renames, functions)?;
-            rename(then, renames, functions)?;
-            rename(otherwise, renames, functions)?;
-        }
-        Computation::Recover { value, fallback } => {
-            rename(value, renames, functions)?;
-            rename(fallback, renames, functions)?;
-        }
-        Computation::Field { value, .. } => rename(value, renames, functions)?,
-        Computation::Member { group, .. } => {
-            *group = renames
-                .get(group)
-                .ok_or_else(|| {
-                    invalid(
-                        "LSH1503",
-                        "helper cannot capture a caller group",
-                        Span { start: 0, end: 0 },
-                    )
-                })?
-                .clone();
-        }
-        Computation::Host { .. } => {}
-        Computation::Call { arguments, .. } => {
-            for argument in arguments {
-                rename(&mut argument.value, renames, functions)?;
-            }
-        }
-        Computation::Group { branches, .. } => {
-            for branch in branches {
-                rename(&mut branch.value, renames, functions)?;
-            }
-        }
-    }
-    Ok(())
 }

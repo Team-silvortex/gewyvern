@@ -13,11 +13,8 @@ pub use leselang_runtime_core::{
 
 // Source expansion cost belongs to HIR, not the host-neutral data contract.
 pub(crate) fn source_shape_extra(value: &ScalarValue) -> (usize, usize) {
-    match value {
-        ScalarValue::OptionalString(_) => (1, 1),
-        ScalarValue::StringList(value) => (value.0.len(), usize::from(!value.0.is_empty())),
-        _ => (0, 0),
-    }
+    let extra = crate::source_cost::literal_source_extra(value);
+    (extra.nodes, extra.depth)
 }
 
 pub use crate::ir::GroupKind;
@@ -518,6 +515,34 @@ fn invalid(code: &str, message: impl Into<String>, span: Span) -> Vec<Diagnostic
     }]
 }
 
+fn projection_source_diagnostics(
+    error: crate::projection_source::ProjectionSourceError<Vec<Diagnostic>>,
+    at: Span,
+) -> Vec<Diagnostic> {
+    use crate::projection_source::ProjectionSourceError;
+    match error {
+        ProjectionSourceError::Names { span } => invalid(
+            "LSH1401",
+            "expected exactly the named arguments: value, name",
+            span,
+        ),
+        ProjectionSourceError::FieldName { span } => {
+            invalid("LSH1409", "field name must be a string literal", span)
+        }
+        ProjectionSourceError::MemberShape { span } => invalid(
+            "LSH1412",
+            "member requires a bound group reference and a literal step name",
+            span,
+        ),
+        ProjectionSourceError::Native { error, .. } => error,
+        _ => invalid(
+            "LSH1405",
+            "computation exceeds its node or nesting limit",
+            at,
+        ),
+    }
+}
+
 fn scalar_source_diagnostics(
     error: crate::scalar_source::ScalarSourceError<Vec<Diagnostic>>,
     at: Span,
@@ -560,6 +585,89 @@ fn scalar_source_diagnostics(
             ),
             span,
         ),
+        ScalarSourceError::Condition { span } => {
+            invalid("LSH1402", "choose when requires a boolean", span)
+        }
+        ScalarSourceError::BranchTypes { span } => invalid(
+            "LSH1404",
+            "choose branches must have the same result type",
+            span,
+        ),
+        ScalarSourceError::RecoveryTypes { span } => invalid(
+            "LSH1411",
+            "recover value and fallback must be pure expressions of the same scalar type",
+            span,
+        ),
+        ScalarSourceError::StringCount { span } => {
+            invalid("LSH1405", "string list exceeds 64 entries", span)
+        }
+        ScalarSourceError::StringLabels { span } => invalid(
+            "LSH1403",
+            "string list labels must be bounded and unique",
+            span,
+        ),
+        ScalarSourceError::StringItem { span } => {
+            invalid("LSH1402", "string list entries require strings", span)
+        }
+        ScalarSourceError::StringBytes { span } => {
+            invalid("LSH1405", "string list exceeds 4096 bytes", span)
+        }
+        ScalarSourceError::BindingShape { span } => {
+            invalid("LSH1401", "bind requires one named value and 'body'", span)
+        }
+        ScalarSourceError::Bindings { span, .. } => invalid(
+            "LSH1403",
+            "local name must be bounded and cannot shadow an active binding",
+            span,
+        ),
+        ScalarSourceError::LoopLimit {
+            span,
+            exceeds_bound,
+        } => invalid(
+            "LSH1410",
+            if exceeds_bound {
+                "loop limit exceeds 1024 iterations"
+            } else {
+                "loop limit must be an integer literal from 0 through 1024"
+            },
+            span,
+        ),
+        ScalarSourceError::LoopCondition { span } => {
+            invalid("LSH1402", "loop while requires a boolean", span)
+        }
+        ScalarSourceError::LoopState { span } => invalid(
+            "LSH1402",
+            "loop next must preserve the initial state's scalar type",
+            span,
+        ),
+        ScalarSourceError::FoldItem { span } => {
+            invalid("LSH1413", "fold item requires a literal local name", span)
+        }
+        ScalarSourceError::FoldBindings { span, .. } => invalid(
+            "LSH1403",
+            "fold locals must be bounded, distinct and cannot shadow active bindings",
+            span,
+        ),
+        ScalarSourceError::FoldLimit {
+            span,
+            exceeds_bound,
+        } => invalid(
+            "LSH1413",
+            if exceeds_bound {
+                "fold limit exceeds 64 entries"
+            } else {
+                "fold limit requires an integer literal from 0 through 64"
+            },
+            span,
+        ),
+        ScalarSourceError::FoldItems { span } => {
+            invalid("LSH1402", "fold items requires a string_list", span)
+        }
+        ScalarSourceError::FoldState { span } => invalid(
+            "LSH1402",
+            "fold next must preserve its initial state's type",
+            span,
+        ),
         _ => invalid(
             "LSH1405",
             "computation exceeds its node or nesting limit",
@@ -600,48 +708,6 @@ pub(super) fn lower_computation_with_functions(
         result_type,
         required_capabilities,
     })
-}
-
-fn named<'a>(
-    arguments: &'a [NamedArgument],
-    names: &[&str],
-    span: Span,
-) -> Result<Vec<&'a Expression>, Vec<Diagnostic>> {
-    if arguments.len() != names.len()
-        || names
-            .iter()
-            .any(|name| arguments.iter().filter(|arg| arg.name == *name).count() != 1)
-    {
-        return Err(invalid(
-            "LSH1401",
-            format!("expected exactly the named arguments: {}", names.join(", ")),
-            span,
-        ));
-    }
-    Ok(names
-        .iter()
-        .filter_map(|name| {
-            arguments
-                .iter()
-                .find(|arg| arg.name == *name)
-                .map(|arg| &arg.value)
-        })
-        .collect())
-}
-
-fn scalar(
-    value: &Computation,
-    result_type: Type,
-    span: Span,
-) -> Result<ScalarType, Vec<Diagnostic>> {
-    match result_type {
-        Type::Scalar(scalar) if value.is_pure() => Ok(scalar),
-        _ => Err(invalid(
-            "LSH1402",
-            "expected a pure scalar expression, not a host operation",
-            span,
-        )),
-    }
 }
 
 pub(super) fn lower_expression<'a>(
@@ -717,71 +783,11 @@ pub(super) fn lower_expression_with_functions<'a>(
     if callee == "fold" {
         return lower_fold(arguments, span, scope, visited, depth, functions);
     }
-    if callee == "strings" {
-        if arguments.len() > MAX_STRING_LIST_ITEMS {
-            return Err(invalid("LSH1405", "string list exceeds 64 entries", span));
-        }
-        let mut names = HashSet::new();
-        let mut items = Vec::with_capacity(arguments.len());
-        for argument in arguments {
-            if !valid_local(&argument.name) || !names.insert(&argument.name) {
-                return Err(invalid(
-                    "LSH1403",
-                    "string list labels must be bounded and unique",
-                    argument.span,
-                ));
-            }
-            let (value, ty) = lower_expression_with_functions(
-                &argument.value,
-                scope,
-                visited,
-                depth + 1,
-                functions,
-            )?;
-            if scalar(&value, ty, argument.span)? != ScalarType::String {
-                return Err(invalid(
-                    "LSH1402",
-                    "string list entries require strings",
-                    argument.span,
-                ));
-            }
-            items.push(value);
-        }
-        let literal = items
-            .iter()
-            .map(|item| match item {
-                Computation::Literal {
-                    value: ScalarValue::String(value),
-                } => Some(value.clone()),
-                _ => None,
-            })
-            .collect::<Option<Vec<_>>>();
-        let expression = if let Some(items) = literal {
-            let value = StringListValue(items);
-            if !value.is_bounded() {
-                return Err(invalid("LSH1405", "string list exceeds 4096 bytes", span));
-            }
-            Computation::Literal {
-                value: ScalarValue::StringList(value),
-            }
-        } else {
-            Computation::Strings { items }
-        };
-        return Ok((expression, Type::Scalar(ScalarType::StringList)));
-    }
     if callee == "bind" {
-        if arguments.len() != 2 || arguments.iter().filter(|arg| arg.name == "body").count() != 1 {
-            return Err(invalid(
-                "LSH1401",
-                "bind requires one named value and 'body'",
-                span,
-            ));
-        }
-        let binding = arguments
-            .iter()
-            .find(|arg| arg.name != "body")
-            .ok_or_else(|| invalid("LSH1401", "bind requires a local name", span))?;
-        if !valid_local(&binding.name) || scope.get(&binding.name).is_some() {
+        let source = crate::scalar_source::binding_source(expression)
+            .map_err(|error| scalar_source_diagnostics(error, span))?;
+        let binding = source.binding;
+        if scope.get(&binding.name).is_some() {
             return Err(invalid(
                 "LSH1403",
                 "local name must be bounded and cannot shadow an active binding",
@@ -812,11 +818,6 @@ pub(super) fn lower_expression_with_functions<'a>(
                 binding.span,
             ));
         }
-        let body = &arguments
-            .iter()
-            .find(|arg| arg.name == "body")
-            .ok_or_else(|| invalid("LSH1401", "missing bind body", span))?
-            .value;
         let (body, result_type) = {
             let mut local = scope.nested();
             local
@@ -834,7 +835,7 @@ pub(super) fn lower_expression_with_functions<'a>(
                         binding.span,
                     )
                 })?;
-            lower_expression_with_functions(body, &mut local, visited, depth + 1, functions)?
+            lower_expression_with_functions(source.body, &mut local, visited, depth + 1, functions)?
         };
         if captures_group
             && !((body.is_pure() && matches!(result_type, Type::Scalar(_)))
@@ -873,29 +874,17 @@ pub(super) fn lower_expression_with_functions<'a>(
         let expression = if function_result {
             crate::function_flow::bind_result(binding.name.clone(), value, body, span)?
         } else {
-            Computation::Bind {
-                name: binding.name.clone(),
-                value: Box::new(value),
-                body: Box::new(body),
-            }
+            source.construct(value, body)
         };
         return Ok((expression, result_type));
     }
     if callee == "member" {
-        let args = named(arguments, &["value", "name"], span)?;
-        let (Expression::Reference { name: group, .. }, Expression::String { value: name, .. }) =
-            (args[0], args[1])
-        else {
-            return Err(invalid(
-                "LSH1412",
-                "member requires a bound group reference and a literal step name",
-                span,
-            ));
-        };
+        let source = crate::projection_source::member_source(arguments, span)
+            .map_err(|error| projection_source_diagnostics(error, span))?;
         let operation = scope
-            .get(group)
+            .get(source.group)
             .and_then(|ty| ty.members.as_ref())
-            .and_then(|members| members.iter().find(|(member, _)| member == name))
+            .and_then(|members| members.iter().find(|(member, _)| member == source.name))
             .map(|(_, operation)| *operation)
             .ok_or_else(|| {
                 invalid(
@@ -904,26 +893,16 @@ pub(super) fn lower_expression_with_functions<'a>(
                     span,
                 )
             })?;
-        return Ok((
-            Computation::Member {
-                group: group.clone(),
-                name: name.clone(),
-                operation,
-            },
-            operation.result_type(),
-        ));
+        return Ok((source.construct(operation), operation.result_type()));
     }
     if callee == "field" {
-        let args = named(arguments, &["value", "name"], span)?;
+        let source = crate::projection_source::field_source(arguments, span)
+            .map_err(|error| projection_source_diagnostics(error, span))?;
         let (value, input_type) =
-            lower_expression_with_functions(args[0], scope, visited, depth + 1, functions)?;
-        let Expression::String { value: name, .. } = args[1] else {
-            return Err(invalid(
-                "LSH1409",
-                "field name must be a string literal",
-                expression_span(args[1]),
-            ));
-        };
+            lower_expression_with_functions(source.value, scope, visited, depth + 1, functions)?;
+        let name = source
+            .literal_name()
+            .map_err(|error| projection_source_diagnostics(error, span))?;
         let field = ResultField::parse(name)
             .ok_or_else(|| invalid("LSH1409", "unknown result field", span))?;
         let result_type = field
@@ -936,69 +915,31 @@ pub(super) fn lower_expression_with_functions<'a>(
                     span,
                 )
             })?;
-        return Ok((
-            Computation::Field {
-                value: Box::new(value),
-                field,
-            },
-            Type::Scalar(result_type),
-        ));
+        return Ok((source.construct(value, field), Type::Scalar(result_type)));
     }
     if callee == "choose" {
-        let args = named(arguments, &["when", "then", "otherwise"], span)?;
-        let (when, when_type) =
-            lower_expression_with_functions(args[0], scope, visited, depth + 1, functions)?;
-        if when_type != Type::Scalar(ScalarType::Boolean) || !when.is_pure() {
-            return Err(invalid(
-                "LSH1402",
-                "choose when requires a boolean",
-                expression_span(args[0]),
-            ));
-        }
-        let (then, then_type) =
-            lower_expression_with_functions(args[1], scope, visited, depth + 1, functions)?;
-        let (otherwise, otherwise_type) =
-            lower_expression_with_functions(args[2], scope, visited, depth + 1, functions)?;
-        if then_type != otherwise_type {
-            return Err(invalid(
-                "LSH1404",
-                "choose branches must have the same result type",
-                span,
-            ));
-        }
-        return Ok((
-            Computation::Choose {
-                when: Box::new(when),
-                then: Box::new(then),
-                otherwise: Box::new(otherwise),
+        return crate::scalar_source::lower_choose_form(
+            expression,
+            |child| {
+                let (value, ty) =
+                    lower_expression_with_functions(child, scope, visited, depth + 1, functions)
+                        .map_err(|error| crate::scalar_source::ScalarSourceError::Native {
+                            span: expression_span(child),
+                            error,
+                        })?;
+                let pure = value.is_pure();
+                Ok((
+                    crate::scalar_source::Operand {
+                        value,
+                        scalar_type: None,
+                        pure,
+                    },
+                    ty,
+                ))
             },
-            then_type,
-        ));
-    }
-    if callee == "recover" {
-        let args = named(arguments, &["value", "fallback"], span)?;
-        let (value, value_type) =
-            lower_expression_with_functions(args[0], scope, visited, depth + 1, functions)?;
-        let (fallback, fallback_type) =
-            lower_expression_with_functions(args[1], scope, visited, depth + 1, functions)?;
-        if !matches!(value_type, Type::Scalar(_))
-            || value_type != fallback_type
-            || !value.is_pure()
-            || !fallback.is_pure()
-        {
-            return Err(invalid(
-                "LSH1411",
-                "recover value and fallback must be pure expressions of the same scalar type",
-                span,
-            ));
-        }
-        return Ok((
-            Computation::Recover {
-                value: Box::new(value),
-                fallback: Box::new(fallback),
-            },
-            value_type,
-        ));
+            |ty| *ty == Type::Scalar(ScalarType::Boolean),
+        )
+        .map_err(|error| scalar_source_diagnostics(error, span));
     }
     if functions.contains(callee) {
         return functions::lower_call(callee, arguments, span, scope, visited, depth, functions);
@@ -1103,41 +1044,61 @@ fn lower_loop<'a>(
     depth: usize,
     functions: &mut functions::FunctionTemplates,
 ) -> Result<(Computation, Type), Vec<Diagnostic>> {
-    let reserved = ["while", "next", "limit"];
-    let binding = arguments
-        .iter()
-        .find(|argument| !reserved.contains(&argument.name.as_str()))
-        .ok_or_else(|| invalid("LSH1410", "loop requires a named initial state", span))?;
-    let args = named(
-        arguments,
-        &[binding.name.as_str(), "while", "next", "limit"],
-        span,
-    )?;
-    if !valid_local(&binding.name) || scope.get(&binding.name).is_some() {
+    use crate::scalar_source::{Operand, ScalarSourceError};
+    let source =
+        crate::scalar_source::loop_source(arguments, span).map_err(|error| match error {
+            ScalarSourceError::LoopShape {
+                span,
+                missing_state: true,
+            } => invalid("LSH1410", "loop requires a named initial state", span),
+            ScalarSourceError::LoopShape {
+                span,
+                missing_state: false,
+            } => {
+                let name = arguments
+                    .iter()
+                    .find(|argument| !["while", "next", "limit"].contains(&argument.name.as_str()))
+                    .map(|argument| argument.name.as_str())
+                    .unwrap_or("");
+                invalid(
+                    "LSH1401",
+                    format!("expected exactly the named arguments: {name}, while, next, limit"),
+                    span,
+                )
+            }
+            ScalarSourceError::Bindings { span, .. } => invalid(
+                "LSH1403",
+                "loop state name must be bounded and cannot shadow an active binding",
+                span,
+            ),
+            _ => scalar_source_diagnostics(error, span),
+        })?;
+    let binding = source.binding;
+    if scope.get(&binding.name).is_some() {
         return Err(invalid(
             "LSH1403",
             "loop state name must be bounded and cannot shadow an active binding",
             binding.span,
         ));
     }
-    let Expression::Integer { value: limit, .. } = args[3] else {
-        return Err(invalid(
-            "LSH1410",
-            "loop limit must be an integer literal from 0 through 1024",
-            expression_span(args[3]),
-        ));
-    };
-    if *limit > MAX_LOOP_ITERATIONS {
-        return Err(invalid(
-            "LSH1410",
-            "loop limit exceeds 1024 iterations",
-            expression_span(args[3]),
-        ));
-    }
+    let limit = source
+        .limit()
+        .map_err(|error| scalar_source_diagnostics(error, span))?;
     let (initial, state_type) =
-        lower_expression_with_functions(args[0], scope, visited, depth + 1, functions)?;
-    scalar(&initial, state_type, expression_span(args[0]))?;
-    let (condition, next) = {
+        lower_expression_with_functions(&binding.value, scope, visited, depth + 1, functions)?;
+    let (initial, scalar_type) = crate::scalar_source::scalar_operand(
+        Operand {
+            pure: initial.is_pure(),
+            value: initial,
+            scalar_type: match state_type {
+                Type::Scalar(ty) => Some(ty),
+                _ => None,
+            },
+        },
+        expression_span(&binding.value),
+    )
+    .map_err(|error| scalar_source_diagnostics(error, span))?;
+    let body = {
         let mut local = scope.nested();
         local.push(&binding.name, state_type.into()).map_err(|_| {
             invalid(
@@ -1146,37 +1107,25 @@ fn lower_loop<'a>(
                 binding.span,
             )
         })?;
-        let (condition, condition_type) =
-            lower_expression_with_functions(args[1], &mut local, visited, depth + 1, functions)?;
-        if scalar(&condition, condition_type, expression_span(args[1]))? != ScalarType::Boolean {
-            return Err(invalid(
-                "LSH1402",
-                "loop while requires a boolean",
-                expression_span(args[1]),
-            ));
-        }
-        let (next, next_type) =
-            lower_expression_with_functions(args[2], &mut local, visited, depth + 1, functions)?;
-        scalar(&next, next_type, expression_span(args[2]))?;
-        if next_type != state_type {
-            return Err(invalid(
-                "LSH1402",
-                "loop next must preserve the initial state's scalar type",
-                expression_span(args[2]),
-            ));
-        }
-        (condition, next)
+        crate::scalar_source::lower_loop_body(&source, scalar_type, |child| {
+            let (value, ty) =
+                lower_expression_with_functions(child, &mut local, visited, depth + 1, functions)
+                    .map_err(|error| ScalarSourceError::Native {
+                    span: expression_span(child),
+                    error,
+                })?;
+            Ok(Operand {
+                pure: value.is_pure(),
+                value,
+                scalar_type: match ty {
+                    Type::Scalar(ty) => Some(ty),
+                    _ => None,
+                },
+            })
+        })
+        .map_err(|error| scalar_source_diagnostics(error, span))?
     };
-    Ok((
-        Computation::Loop {
-            name: binding.name.clone(),
-            initial: Box::new(initial),
-            condition: Box::new(condition),
-            next: Box::new(next),
-            limit: *limit,
-        },
-        state_type,
-    ))
+    Ok((source.construct(initial, body, limit), state_type))
 }
 
 fn lower_fold<'a>(
@@ -1187,97 +1136,103 @@ fn lower_fold<'a>(
     depth: usize,
     functions: &mut functions::FunctionTemplates,
 ) -> Result<(Computation, Type), Vec<Diagnostic>> {
-    let reserved = ["items", "item", "next", "limit"];
-    let binding = arguments
-        .iter()
-        .find(|argument| !reserved.contains(&argument.name.as_str()))
-        .ok_or_else(|| invalid("LSH1413", "fold requires a named initial state", span))?;
-    let args = named(
-        arguments,
-        &[binding.name.as_str(), "items", "item", "next", "limit"],
-        span,
-    )?;
-    let Expression::String { value: item, .. } = args[2] else {
-        return Err(invalid(
-            "LSH1413",
-            "fold item requires a literal local name",
-            expression_span(args[2]),
-        ));
-    };
-    if !valid_local(&binding.name)
-        || !valid_local(item)
-        || item == &binding.name
-        || scope.get(&binding.name).is_some()
-        || scope.get(item).is_some()
-    {
-        return Err(invalid(
-            "LSH1403",
-            "fold locals must be bounded, distinct and cannot shadow active bindings",
-            span,
-        ));
-    }
-    let Expression::Integer { value: limit, .. } = args[4] else {
-        return Err(invalid(
-            "LSH1413",
-            "fold limit requires an integer literal from 0 through 64",
-            expression_span(args[4]),
-        ));
-    };
-    if *limit > MAX_STRING_LIST_ITEMS as u64 {
-        return Err(invalid(
-            "LSH1413",
-            "fold limit exceeds 64 entries",
-            expression_span(args[4]),
-        ));
-    }
+    use crate::scalar_source::{Operand, ScalarSourceError};
+    let source =
+        crate::scalar_source::fold_source(arguments, span).map_err(|error| match error {
+            ScalarSourceError::FoldShape {
+                span,
+                missing_state: true,
+            } => invalid("LSH1413", "fold requires a named initial state", span),
+            ScalarSourceError::FoldShape {
+                span,
+                missing_state: false,
+            } => {
+                let name = arguments
+                    .iter()
+                    .find(|argument| {
+                        !["items", "item", "next", "limit"].contains(&argument.name.as_str())
+                    })
+                    .map(|argument| argument.name.as_str())
+                    .unwrap_or("");
+                invalid(
+                    "LSH1401",
+                    format!(
+                        "expected exactly the named arguments: {name}, items, item, next, limit"
+                    ),
+                    span,
+                )
+            }
+            _ => scalar_source_diagnostics(error, span),
+        })?;
+    source
+        .check_scope(scope, None)
+        .map_err(|error| scalar_source_diagnostics(error, span))?;
+    let limit = source
+        .limit()
+        .map_err(|error| scalar_source_diagnostics(error, span))?;
     // The collection is prepared before the accumulator, independent of argument spelling order.
     let (items, items_type) =
-        lower_expression_with_functions(args[1], scope, visited, depth + 1, functions)?;
-    if scalar(&items, items_type, expression_span(args[1]))? != ScalarType::StringList {
-        return Err(invalid(
-            "LSH1402",
-            "fold items requires a string_list",
-            expression_span(args[1]),
-        ));
-    }
-    let (initial, state_type) =
-        lower_expression_with_functions(args[0], scope, visited, depth + 1, functions)?;
-    scalar(&initial, state_type, expression_span(args[0]))?;
+        lower_expression_with_functions(source.items, scope, visited, depth + 1, functions)?;
+    let items = crate::scalar_source::fold_items(
+        Operand {
+            pure: items.is_pure(),
+            value: items,
+            scalar_type: match items_type {
+                Type::Scalar(ty) => Some(ty),
+                _ => None,
+            },
+        },
+        expression_span(source.items),
+    )
+    .map_err(|error| scalar_source_diagnostics(error, span))?;
+    let (initial, state_type) = lower_expression_with_functions(
+        &source.binding.value,
+        scope,
+        visited,
+        depth + 1,
+        functions,
+    )?;
+    let (initial, scalar_type) = crate::scalar_source::scalar_operand(
+        Operand {
+            pure: initial.is_pure(),
+            value: initial,
+            scalar_type: match state_type {
+                Type::Scalar(ty) => Some(ty),
+                _ => None,
+            },
+        },
+        expression_span(&source.binding.value),
+    )
+    .map_err(|error| scalar_source_diagnostics(error, span))?;
     let (next, next_type) = {
         let mut local = scope.nested();
         for (name, ty) in [
-            (binding.name.as_str(), state_type),
-            (item.as_str(), Type::Scalar(ScalarType::String)),
+            (source.binding.name.as_str(), state_type),
+            (source.item, Type::Scalar(ScalarType::String)),
         ] {
             local.push(name, ty.into()).map_err(|_| {
-                invalid(
-                    "LSH1403",
-                    "fold locals must be bounded, distinct and cannot shadow active bindings",
+                scalar_source_diagnostics(
+                    source.binding_error(crate::pure_typing::PureTypeError::ShadowedBinding),
                     span,
                 )
             })?;
         }
-        lower_expression_with_functions(args[3], &mut local, visited, depth + 1, functions)?
+        lower_expression_with_functions(source.next, &mut local, visited, depth + 1, functions)?
     };
-    scalar(&next, next_type, expression_span(args[3]))?;
-    if next_type != state_type {
-        return Err(invalid(
-            "LSH1402",
-            "fold next must preserve its initial state's type",
-            expression_span(args[3]),
-        ));
-    }
-    Ok((
-        Computation::Fold {
-            name: binding.name.clone(),
-            item: item.clone(),
-            items: Box::new(items),
-            initial: Box::new(initial),
-            next: Box::new(next),
-            limit: *limit,
+    let next = crate::scalar_source::fold_next(
+        Operand {
+            pure: next.is_pure(),
+            value: next,
+            scalar_type: match next_type {
+                Type::Scalar(ty) => Some(ty),
+                _ => None,
+            },
         },
-        state_type,
-    ))
+        scalar_type,
+        expression_span(source.next),
+    )
+    .map_err(|error| scalar_source_diagnostics(error, span))?;
+    Ok((source.construct(items, initial, next, limit), state_type))
 }
 
 pub(super) fn valid_local(name: &str) -> bool {
