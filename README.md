@@ -152,7 +152,7 @@ is [project/product/open-source-core.json](project/product/open-source-core.json
 `gewyvern` is no longer just a convergence story. The current line is:
 
 - historical validation baseline: `v0.10.0`
-- current release line: `v2.1.x`, with `v2.1.6` as the current shared release
+- current release line: `v2.1.x`, with `v2.1.9` as the current shared release
 - completed seal: the ten-slot `v1.20.0` through `v1.20.9` stabilization window
 - current focus: preserve the released contracts, improve operator experience,
   and expand community validation without moving existing capabilities behind

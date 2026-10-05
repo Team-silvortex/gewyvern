@@ -525,9 +525,11 @@ cleanup on calculation errors, nested-loop independence, original `LSV1406`
 messages and the closed non-resource recovery set. Pure loops still do not
 suspend mid-iteration; durable re-entry recalculates only uncommitted pure bodies
 from validated saved state/fuel and replays already committed results unchanged.
-No source syntax, continuation schema or journal format changes. Fold-body, branch/
-recovery evaluation and host-result frames remain in VM; this is **not a second
-interpreter** or complete expression-evaluator independence.
+No source syntax, continuation schema or journal format changes. These counters
+alone are **not a second
+interpreter** or complete expression-evaluator independence;
+shared pure execution below now owns fold bodies and pure branches/recovery,
+while effect-position control and durable host-result frames remain in VM.
 
 ### Shared Bounded Fold Traversal
 
@@ -709,7 +711,8 @@ allocating its scalar fault code/message. Cold purity/type validation, lexical
 cleanup, fallback laziness, shared fuel without refunds, original host validation,
 durable JSON/schema versions and first-commit recovery stay unchanged.
 This class **does not implement fallback evaluation or host-effect recovery**;
-full expression evaluation and policy still belong to the reference adapter.
+the shared pure executor below evaluates scalar fallbacks, while effect dispatch,
+host-effect recovery and durable policy still belong to the reference adapter.
 
 ### Shared Structural Walk Accounting
 
@@ -985,8 +988,9 @@ a native preparation path combines catalog selection, named binding, pure argume
 inference and signature typing. An isolated five-crate workspace verifies the
 same public API without product sources or SQLite. These are **pure inference and
 typed preparation proofs, not complete source-to-effect language pipelines**.
-Generic source lowering, full effect-flow typing, host-result acceptance, evaluation and
-suspension/recovery frames remain pending; the production VM still requires SQLite.
+Generic source lowering, full effect-flow typing, complete reply-lifecycle acceptance
+and suspension/recovery frames remain pending; the production VM still requires SQLite.
+Received-value validation and pure execution are shared by the later layers below.
 
 ### Shared Bounded Atomic Call Inference
 
@@ -1145,8 +1149,9 @@ temporary lexical storage without replaying effects or mutating caller scopes.
 Two native profiles, cold rejection/unwind/clone tests and an isolated five-crate
 source subset verify this layer. This is **type observation, not an independent
 source-to-effect or suspension engine**. Opaque-host adaptation,
-generic source lowering, actual host-result acceptance, evaluation and optional
-persistence remain extraction gates.
+generic source lowering, complete actual-reply lifecycle, effect dispatch/suspension
+and optional persistence remain extraction gates. Later layers below add native
+received-value checks and shared pure execution without closing those vertical gates.
 
 ### Shared Flat Named Group Typing
 
@@ -1195,6 +1200,362 @@ typing, declared-type forgery rejection, closed members, budgets and unwind.
 This is **group type metadata, not actual group replies or execution scheduling**.
 Opaque-host adaptation, generic source lowering, actual reply acceptance, execution,
 suspension and optional persistence remain incomplete independent-runtime gates.
+
+### Shared Received Host Results
+
+`leselang-runtime-core::HostResultDomain<Reply>` adds **actual received-result
+type and value validation**, separately from HIR's declaration-to-query-type
+mapping. A developer supplies `matches_type` and `validate_value` for its original
+native result descriptor. Neither method has an accept-all default.
+`validate_host_result` checks the **result kind before native value validation**;
+`OperationSchema::check_result` uses the same borrowed declaration selected during
+static call inference. A matching type alone never accepts a stale or invalid value.
+
+`ScalarTypeSet` implements the protocol using explicit alternatives and existing
+language bounds for all six scalar kinds. None, absent optional text and empty
+text remain distinct; no parsing, coercion, implicit nullability or synthesis is
+performed. Core-owned work borrows only: **no reply or schema buffer is copied**,
+normalized, truncated or formatted. No expression is evaluated or fuel charged.
+Native descriptors, replies and errors need no Clone, Debug, serde or Send;
+unsized replies, GUI-local ownership and native trait objects are supported.
+
+`HostResultError` preserves **TypeMismatch versus InvalidValue(original_error)**.
+Debug/Display never format native errors and Error exposes no private source chain.
+The native error is moved unchanged to the owning adapter, not translated by its
+diagnostic code, cloned, serialized or promoted into pure calculation recovery.
+Explicit extraction may expose private payloads; adapter logging must redact them.
+Native callbacks may allocate, mutate interior state or unwind. The core does not
+roll back those changes, preempt callbacks, install retries or replay an effect.
+Hosts bound raw ingress, native work and aggregate resources before validation.
+
+The reference VM **revalidates bound raw results before projection or successor
+materialization** using this protocol and the existing closed Value kind mapping.
+The original raw result/request/revision correlation checks stay mandatory and
+precede this gate. Existing per-value/output-item/serialized-byte validation
+remains native policy, with exact native fault codes/messages. The added wrong-kind
+guard maps to `LSV2103`. Projection v1-v5, continuation schemas 1-11, journal 10,
+saved fuel, authority and transactional first-commit replay remain unchanged.
+
+Successful validation is **not an authentic receipt, lasting value certificate,
+accepted continuation or execution authority**. Version/capability lookup, evaluated
+arguments, pending-effect identity, deadlines, stale-reply fences, group barriers
+and durable replay remain adapter-owned. This API does not correlate an operation
+or execution ID on behalf of the host and is not a complete generic reply lifecycle.
+
+Two unrelated native schemas combine shared Call inference with received-result
+validation; runtime-core ownership/bounds/unwind tests and reference VM regressions
+cover this boundary. These are **static-call/received-value proofs, not complete
+independent source-to-effect or suspension pipelines**. Generic source lowering,
+opaque-host adaptation, effect evaluation, suspension and optional durable recovery remain
+the extraction gates; no independent repository move is claimed.
+
+### Shared Bounded Pure Execution
+
+`leselang-hir::pure_evaluation::evaluate_pure_in_scope` now executes the original
+generic `ir::Computation` directly. All twelve pure forms share one synchronous
+implementation: literals, string lists, locals, fields, members, bindings,
+conditionals, scalar recovery, loops, folds and unary/binary operators. No second
+tree, product command/result type, SQLite backend, thread or global lock is needed.
+
+`PureEvaluationEnvironment` projects **actual native result values**, unlike
+`PureTypeEnvironment`'s static metadata queries. The developer owns exact field/
+member exports, group identity and operation matching. Borrowed views or GUI-local
+`Rc` values need only Clone for lexical reads, not Send/serde/Debug; native slots
+and errors impose no such bounds. Native cloning/projection may allocate, mutate
+interior state or unwind, and must not dispatch effects. Language fuel cannot
+preempt or meter that native work. Received-result validation remains a separate,
+mandatory host gate; a scalar projection is not an authenticated receipt.
+
+Explicit `PureEvaluationLimits` bound physical nodes, depth and active bindings,
+with fixed ceilings of 16,384/64/1,024. The entire physical tree, including cold
+arms, and prefix names/uniqueness/scalar bounds are checked **before native queries,
+native value cloning or fuel charges**. Host/Call/Group are rejected even cold.
+This is structural preflight, **not cold static type checking**: hosts separately
+call `infer_pure_type` before execution. Source expansion and prior allocations
+are not metered by this API. Native scalar projections are bounds-checked before
+language copying, and the caller's visible lexical prefix is never cloned or mutated.
+
+Selected nodes and text/list work retain the reference fuel schedule. Short-circuit
+operands and unselected conditional arms do not execute; zero-limit loops check
+the condition before next-state evaluation. Fold evaluates collection before initial
+state, rejects insufficient limits without truncation, and moves each item in order.
+Only typed arithmetic/parse failures enter scalar fallback. Fuel, structural,
+binding, loop/fold and native failures remain external, with no code-string inference,
+refund or retry. Payload-free fault/value formatting never calls native formatters.
+Lexical guards clean temporary bindings on ordinary failure and native unwind.
+
+The existing VM **delegates pure operand, loop, fold, list and operator execution**
+to this module and uses `PureValue<ResultView>` directly as its lexical value.
+It no longer duplicates those algorithms or converts/copies the prefix into a
+second evaluator's scope. Effect-position control now uses the shared effect walker;
+native effect materialization, group admission and durable capture stay in the reference adapter. Original fault
+mapping, authorization, fuel, continuation schemas 1-11, journal 10, projections
+v1-v5 and transactional receipt/successor replay remain unchanged.
+
+`crates/leselang-hir/tests/pure_evaluation.rs` proves an editor's static type check,
+actual received-result validation and continuing computation, plus an unrelated
+borrowed device-group host with different native slots. Tests cover laziness,
+exact fuel, resource/recovery separation, bounded recursion, lexical cleanup and
+native unwind. Reference VM regressions execute the same engine. This is **shared
+pure execution, not complete source-to-effect suspension or durable host-neutral VM**;
+those vertical extraction gates remain open.
+
+### Shared Atomic Call Preparation
+
+`leselang-hir::call_evaluation::prepare_call_in_scope` connects the original shared
+Call IR, native catalog and actual lexical values without product types. One
+aggregate physical budget includes the call root and the entire argument forest.
+Whole forest/prefix preflight precedes native catalog comparisons; exact version,
+trusted capability labels and complete named shape precede value execution.
+Cold static typing remains a separate `infer_call_type` gate, not something this
+dynamic preparation API certifies. Limits reuse the pure executor's fixed safety
+ceilings and the 64-argument ceiling.
+
+Arguments execute once in declaration order, preserving original parameter and
+submission positions. Optional omission stays omission, not an inserted null or
+default. **All values are evaluated before native domain callbacks**. Each value
+then passes explicit scalar type, bounds and native domain checks, without coercion
+or implicit nullability. The existing guarded lexical frame is reused directly;
+there is no per-argument prefix clone or repeat physical-tree walk.
+
+`PreparedCall` retains the original borrowed schema row, borrowed declaration names
+and moved scalar buffers. It is must-use, non-Clone and non-serde; metadata-only
+formatting does not print names, values, capabilities or native schemas. Extracted
+parts are mutable data, not lasting validation certificates. The owning host must
+still check live authority, revision/deadline policy and pending-effect correlation,
+and validate the actual returned value against the original result declaration.
+This module never dispatches effects or creates receipts, identities or journal rows.
+
+The catalog entry charges one call-root fuel unit. The already-selected-signature
+entry `evaluate_call_arguments_in_scope` counts that physical root but leaves its
+execution charge to the caller. Both preserve the reference argument evaluation
+and scalar-copy fuel schedule. Typed scalar failures retain their recovery class;
+native failures remain opaque and external. Failure returns no partially prepared
+request. Native projection/domain callbacks can mutate or unwind; they are not
+preempted, rolled back or retried. Lexical guards remove temporary locals on unwind.
+
+The reference VM now delegates computed argument preparation through this same
+engine. Legacy literal resolution, canonical input gates, fault mapping, execution
+authorization and durable continuation/journal formats remain adapter-owned and
+unchanged. The selected-signature API does not replace catalog authorization.
+
+`crates/leselang-hir/tests/call_evaluation.rs` joins static call inference, actual
+value preparation, caller-owned invocation, received-result validation and a pure
+tail for a GUI-local editor, plus an unrelated numeric device schema. It covers
+declaration order, original row identity, aggregate limits, denied grants/version,
+optional presence, typed failures, fuel and native unwind. This is **atomic call
+preparation, not full effect dispatch, suspension or durable host-neutral execution**.
+Generic source lowering and complete unrelated-host vertical proofs remain open.
+
+### Shared Native Source Call Bridge
+
+`leselang-hir::source_call::lower_source_call` connects the original parsed
+`Expression::Call` to a developer-owned `OperationCatalog` and the shared IR.
+It does not add a parser, operation-name switch, private syntax tree or product
+operation defaults. `SourceCallHost` supplies trusted exact version and grants;
+native string-borrowable keys can be non-Clone and non-Debug. The returned
+`LoweredSourceCall` borrows the **original schema and AST argument names**.
+
+The complete physical source call, including all cold operands, is bounded before
+any native catalog lookup. Counts, nesting, call/argument/reference names and text
+sizes have explicit limits with fixed safety ceilings. AST bounds do not establish
+source/span authenticity; callers retain the parser and validated SyntaxTree
+decoding boundary rather than trusting forged AST data. Native lookup then checks
+exact version, operation and capability; the selected parameter count and **all
+submitted names precede operand lowering**. Required/optional presence remains
+distinct from an explicit `none` value. A limit applies to every physical AST call,
+including constructors inside operands, not just the selected outer operation.
+
+The native operand callback receives the original borrowed `NamedArgument` in
+parameter declaration order. It returns a native shared-IR node and a trusted
+inferred scalar type; this bridge does not infer that type or verify lexical
+bindings. One separate produced-IR node/depth budget spans the call root and all
+argument trees. Structural purity and bounds precede shared type/literal-domain
+checks; preflight reuses established purity without a repeated tree walk. A certainly
+exhausted generated node budget rejects before the next native operand callback.
+Lowering and domain checks are sequential in declaration order, preserving the
+reference adapter's error precedence; they are not an all-output atomic
+transaction. Dynamic values require domain validation after evaluation.
+
+Each prepared argument retains **original submitted and declaration positions**.
+Language names are borrowed until `into_arguments` materializes them once; native
+nodes move without a second IR, Clone, serde or Debug requirement. A failed callback,
+generated-shape check or domain check releases partial output. Native query, equality,
+callback and destructor work can allocate, mutate or unwind; it is neither retried,
+preempted nor rolled back. The callback's lexical scope, source-expansion accounting
+and any external effects remain its responsibility. Diagnostics expose closed tags
+and positions, not native errors or private submitted names.
+
+The reference computed-call lowerer delegates its former signature-order parameter
+loop to this bridge. Its private preflighted entry preserves the existing parser,
+helper expansion, lexical checking, diagnostics/spans and source costs; the public
+entry additionally applies whole-source cold physical preflight. Literal operations
+still use their legacy resolver. This adds no schema, continuation or journal format.
+
+Native tests parse a numeric device call, retain exact AST/schema identity and
+submission positions, then prepare its actual computed values through the shared
+executor. An unrelated text/panel schema proves optional omission versus explicit
+none and buffer-preserving IR handoff. Other tests cover version/grant/name failures,
+cold AST rejection before native queries, separate aggregate source/generated budgets,
+forged native facts, cleanup and native unwind. This is an **atomic source-call bridge,
+not full source lowering or type inference**: shared scalar lowering below covers
+literals/operators, while the host still supplies other operand lowering,
+opcode mapping, complete cold type checking, helpers, opaque effects and live authority.
+It is not execution, suspension, persistence or a complete extraction proof.
+
+### Shared Scalar Source Lowering
+
+`leselang-hir::scalar_source::lower_scalar_source` lowers parsed scalar literals
+and all **23 binary and 7 unary operators** into the original generic control IR.
+The reference compiler delegates the same one-form construction, including named
+operand rules and core operator signatures. No second grammar, product opcode
+default or parallel expression tree is introduced. Its private entry retains
+legacy lexical/helper checks, diagnostic codes/spans/order and source accounting;
+the public bounded entry adds whole-source preflight, not a new reference error order.
+
+The complete cold physical AST and **all reserved operator named signatures precede
+native source extensions**. Binary operands lower in left/right signature order,
+regardless of submitted order; both short-circuit operands are lowered and typed.
+Lowering does not perform arithmetic or parse text, so division by zero and invalid
+integer text remain execution faults rather than new compile-time calculations.
+Named preflight does not allocate a separate operand vector for each cold operator.
+
+Locals, fields, control and helpers require an explicit trusted extension receiving
+the **original borrowed AST expression**. It returns native IR plus an inferred
+scalar-type observation. Produced IR is checked for physical purity, bounded names,
+literals, nodes and depth; a literal must agree with its reported type. Dynamic
+observations **do not replace complete lexical cold type inference**. A forged
+observation for an unbound local can pass this construction boundary but must fail
+the shared pure type checker before evaluation. Native opcodes, fields, helper
+expansion, binding scopes and opaque-effect typing remain developer-owned.
+
+One aggregate generated-IR budget charges primitive constructors before folding
+and every physical native extension node. An exhausted minimum node/depth budget
+rejects before the next extension callback. **Optional literal buffers move without
+a second copy; folding does not refund source construction cost**. Hidden native
+expansion and allocations are not automatically metered or preempted. Native errors
+remain available by matching, with payload-free formatting; failure/unwind releases
+partial native IR without retries, rollback or a budget refund.
+
+Tests cover every scalar type combination, all operators, original AST identity,
+native field-to-type-check-to-value execution, buffer identity, cold rejection,
+aggregate expansion limits and cleanup. The source-call device proof now uses this
+shared scalar lowerer rather than a test-only mini grammar. This is **shared scalar
+source construction, not a complete generic source compiler or type certificate**.
+Ingress/span authenticity, all cold typing, native callback work and live authority
+remain host-owned. No continuation, journal, wire format or dispatch policy changes.
+
+### Shared Effect Control And Capture
+
+`leselang-hir::effect_evaluation::evaluate_effects_in_scope` executes Bind/Choose
+control directly over the original shared IR. Pure forms and scalar recovery
+reuse the pure executor; there is no second tree, product effect type, mandatory
+journal, global lock or background thread. `EffectEvaluationEnvironment` supplies
+three explicit non-dispatching hooks: cold effect preflight, selected request
+preparation and lexical capture. Request/capture/result types need no Clone,
+serde, Debug or Send implementation; GUI-local native slots and borrowed IR work.
+
+Whole physical tree/prefix checks precede every native hook. Then **all cold effect
+schemas precede fuel and actual value queries**. Shared node/depth/binding ceilings,
+64-argument and 64-member ceilings include cold branches, argument forests and
+group members. Conditions and recovery operands must be physically pure. This is
+not static type inference: the host checks all cold types separately. Opaque Host
+payload graphs are not counted or inspected by the language walk; their ingress,
+authority, graph limits and codecs remain adapter-owned. Cold callbacks are trusted
+schema/policy checks, not permission to invoke effects.
+
+The selected path charges one unit per control/effect root, without double-charging
+prepared calls. Bind moves pure values through one guarded lexical frame; Choose
+evaluates only its selected arm. Group request construction, original member/schema
+identity and result-type checks stay in the adapter. Temporary bindings disappear
+on success, failure and native unwind; scalar recovery never catches an external
+adapter error. Native callbacks must preserve typed failure provenance.
+
+For a bound request, the capture hook receives the original borrowed binding name,
+body and visible lexical values. It owns snapshot/projection bounds, copying and
+fuel. Success returns move-only `Suspended { request, capture }` data, not a journal
+row, accepted reply or replay certificate. Capture failure/unwind drops the prepared
+request; nothing is dispatched, refunded or retried. A suspension inside a binding
+value is explicitly rejected rather than implicitly flattened. Native callback and
+destructor work cannot be preempted or rolled back; a second unwind can abort.
+
+The receiving host correlates and validates the actual reply, restores its captured
+bindings and inserts the accepted result, then re-enters the shared walker for the
+remaining body. That restoration/acceptance protocol remains host-owned; invoking
+the walker again is not itself exactly-once, cancellation or durable restart proof.
+The shared pending-reply handle below supplies the in-memory acceptance and frame
+handoff; native restoration, correlation meaning and policy remain host-owned.
+Native captures may retain live references, so hosts define stable snapshot versus
+live-view semantics. Full generic suspension layouts and durable reply-lifecycle
+ownership remain future work, not replaced by a cloneable language frame.
+
+The reference VM now delegates effect-position control to this module. It keeps its
+canonical HIR/type/authority gates, legacy effect resolver, result/group projections,
+snapshot copying/fuel and continuation schemas 1-11, journal 10 and projections
+v1-v5. Malformed forged recovery operands are rejected before fuel; valid-path
+fuel and wire behavior retain their regression coverage. This is not a new
+continuation format or a second scheduler.
+
+`crates/leselang-hir/tests/effect_evaluation.rs` proves two native requests, capture
+of scalar prefixes and result aliases, actual reply validation and synchronous
+re-entry to a pure tail. A distinct GUI-local opaque-effect host borrows non-Clone
+native slots and changes widget state only in caller-owned invocation. Tests also
+cover cold rejection, lazy selection, typed recovery, capture failure/unwind,
+request release, resource bounds and nested-suspension rejection. These are
+**in-memory control/capture proofs, not independent source-to-effect durable pipelines**.
+
+### Shared Pending Reply Ownership
+
+`leselang-runtime-core::PendingReply` owns an opaque identity, native frame and
+borrowed original `HostResultDomain` declaration. `try_accept` performs **identity,
+live authority, borrowed reply view, type, then value validation** in that order.
+The host implements `ReplyAuthority` from trusted current state, not script-provided
+grants. Identity equality must encode the host's exact owner/generation/correlation;
+the core cannot infer those semantics from an opaque key. `Borrow<View>` supports
+owned native input with an unsized or differently shaped view, without decoding,
+coercion, formatting, cloning or copying the received payload.
+
+Normal rejection returns the **exact original input and keeps the pending frame**.
+The host explicitly decides whether another attempt is appropriate; there is no
+automatic retry, dispatch, fuel refill or scalar recovery. A successful attempt
+closes this handle before returning move-only `AcceptedReply`; `into_parts` moves
+identity, frame and reply and returns the original declaration reference. The
+frame can be non-Clone, GUI-local, borrowed or entirely unrelated to Leserpent.
+Extracted data is not a permanent validation or execution-authority certificate:
+later mutation and native interior state may invalidate the observed checks.
+
+Before any native equality, policy, Borrow, type or domain callback, the handle
+enters a fail-closed state. **Native unwind records HostUncertain and releases the
+frame**, never silently rearming it. `cancel` records Cancelled before native
+cleanup, releases the frame once and rejects later input without callbacks.
+Repeated cancellation preserves the existing terminal reason. Dropping pending
+or unconsumed accepted data uses ordinary native cleanup. Destructor panics still
+propagate, and a second panic during unwinding can abort. Status and Debug expose
+metadata only; reply and native error formatters are never called by them.
+
+This is **single-handle handoff, not durable or global replay authority**. Creating
+another handle for the same key is not globally deduplicated. Hosts bound aggregate
+pending count, ingress and native callback work, own reply provenance, authentication,
+leases, revisions, deadlines, dispatch and external cancellation delivery. There
+is no hidden executor, clock, queue, database, scheduler or cross-thread dispatcher.
+Rust's ordinary conditional thread ownership applies; GUI-local native values need
+neither Send nor Sync. Native work cannot be preempted or rolled back by the core.
+
+The reference VM uses a **borrowed observation checkpoint**, after its existing
+result-binding and durable correlation gates. It passes the original continuation
+and raw value through the shared handle, preserving pointers, saved fuel, Fault
+mapping and wire formats. Its observation-only policy grants no new authority;
+journal transactions, pending maps, leases and restart ownership remain unchanged.
+This is not a migration of persistent frames into the generic core.
+
+The runtime-core tests exercise non-Clone frame/input/error types, exact pointer
+handoff, every native callback unwind, rejection ordering, cancellation, destructor
+unwind and an unsized text view. HIR's two-call native flow and distinct GUI-local
+opaque-effect flow now receive their captures through this handle, then restore
+and synchronously re-enter the shared walker. Wrong identity, revoked policy, wrong
+reply type/value and post-cancellation replies never restore or run the body. These
+are in-memory ownership proofs; generic source lowering, opaque-effect flow typing
+and complete durable suspension remain separate extraction gates.
 
 ### Shared Accepted Scalar Contracts
 
@@ -1253,8 +1614,9 @@ fuel through this extraction. Host ingress still bounds aggregate preparation.
 The adapter/evaluator must debit before bounded work and choose a terminal policy
 for exhaustion; a failed charge leaving the counter unchanged is not a retry or
 refill grant. Fuel does not meter arbitrary native CPU, elapsed time, allocation,
-external side effects or total process usage. The core has no evaluator yet, and
-the reference VM still owns cost rules, continuation validation and durable replay.
+external side effects or total process usage. `leselang-runtime-core` owns only the
+meter; HIR now shares pure copy/control costs and execution, while the reference
+VM retains effect costs, continuation validation and durable replay.
 Continuation schemas 1-11 and journal schema 10 remain unchanged.
 
 ### Shared Scheduler Clock
@@ -1407,9 +1769,12 @@ cover Cargo's normalized standalone package and its isolated test build. The
 source manifest currently inherits monorepo version metadata; packaging removes
 that inheritance. Moving source to a new repository requires its own metadata
 and CI, not a blind directory copy. Native operation declarations/catalog preflight
-are shared, and the control IR supports native argument typing and bounded pure
-type inference, but full generic source lowering, effectful typing and expression evaluation,
-host-result values/suspension frames and optional persistence still need separation. The current
+are shared, and the control IR supports native argument typing, bounded pure
+type inference, shared pure execution, atomic call value preparation and effect
+control with native capture hooks, an atomic source-call bridge, shared literal/operator
+source construction and in-memory pending-reply handoff. Full generic control/helper/field
+source lowering, opaque-effect typing/dispatch, complete suspension and durable
+reply ownership still need separation. The current
 VM's SQLite backend is not moved into, or required by, this lifecycle crate.
 
 The extraction acceptance gate is:

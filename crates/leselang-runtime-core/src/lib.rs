@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Host-neutral admission, scalar/projection/control/recovery and structural accounting foundations.
+//! Host-neutral admission, reply ownership, scalar/control/recovery and accounting foundations.
 //! Evaluation, fallback execution, charging rules and authority belong to the adapter.
 //!
 //! This is a runtime foundation, not yet the independent Leselang evaluator.
@@ -17,8 +17,10 @@ mod collection;
 mod control;
 mod fold;
 mod fuel;
+mod host_result;
 mod projection;
 mod recovery;
+mod reply;
 mod scalar_contract;
 mod scalar_ops;
 mod scope;
@@ -41,8 +43,13 @@ pub use control::{
 };
 pub use fold::{FoldCursor, FoldError};
 pub use fuel::{Fuel, FuelExhausted};
+pub use host_result::{HostResultDomain, HostResultError, validate_host_result};
 pub use projection::{ProjectionError, ScalarProjectionField, validate_scalar_projection};
 pub use recovery::CalculationFailure;
+pub use reply::{
+    AcceptedReply, PendingReply, RejectedReply, ReplyAcceptanceError, ReplyAcceptanceResult,
+    ReplyAuthority, ReplyEnd, ReplyStatus,
+};
 pub use scalar_contract::{ScalarContractError, ScalarTypeSet};
 pub use scalar_ops::{BinaryOperator, ScalarError, UnaryOperator, apply_binary, apply_unary};
 pub use scope::{ScopeError, ScopeFrame};

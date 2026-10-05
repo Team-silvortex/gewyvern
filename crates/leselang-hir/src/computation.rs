@@ -1,7 +1,7 @@
 use super::*;
 use crate::host_call::{HostOperation, invalid_argument};
 use crate::result_field::ResultField;
-use leselang_runtime_core::{ArgumentTypeError, ScopeFrame, StructureBudget, check_argument_type};
+use leselang_runtime_core::{ArgumentTypeError, ScopeFrame, StructureBudget};
 use leselang_syntax::NamedArgument;
 
 pub const MAX_COMPUTATION_NODES: usize = 1_024;
@@ -518,6 +518,56 @@ fn invalid(code: &str, message: impl Into<String>, span: Span) -> Vec<Diagnostic
     }]
 }
 
+fn scalar_source_diagnostics(
+    error: crate::scalar_source::ScalarSourceError<Vec<Diagnostic>>,
+    at: Span,
+) -> Vec<Diagnostic> {
+    use crate::scalar_source::ScalarSourceError;
+    match error {
+        ScalarSourceError::Native { error, .. } => error,
+        ScalarSourceError::Names { span, expected } => invalid(
+            "LSH1401",
+            format!(
+                "expected exactly the named arguments: {}",
+                expected.join(", ")
+            ),
+            span,
+        ),
+        ScalarSourceError::LiteralLimit { span } => {
+            invalid("LSH1405", "scalar string exceeds 4096 bytes", span)
+        }
+        ScalarSourceError::NonScalar { span } => invalid(
+            "LSH1402",
+            "expected a pure scalar expression, not a host operation",
+            span,
+        ),
+        ScalarSourceError::Binary {
+            span,
+            operator,
+            left,
+            right,
+        } => invalid(
+            "LSH1402",
+            format!("{} does not accept {left:?} and {right:?}", operator.name()),
+            span,
+        ),
+        ScalarSourceError::Unary { span, operator } => invalid(
+            "LSH1402",
+            format!(
+                "{} requires a pure {}",
+                operator.name(),
+                operator.expected_input()
+            ),
+            span,
+        ),
+        _ => invalid(
+            "LSH1405",
+            "computation exceeds its node or nesting limit",
+            at,
+        ),
+    }
+}
+
 pub(super) fn lower_computation(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic>> {
     lower_computation_with_functions(expression, &mut functions::FunctionTemplates::default())
 }
@@ -625,21 +675,26 @@ pub(super) fn lower_expression_with_functions<'a>(
             span,
         ));
     }
-    let literal = match expression {
-        Expression::Integer { value, .. } => Some(ScalarValue::Integer(*value)),
-        Expression::Boolean { value, .. } => Some(ScalarValue::Boolean(*value)),
-        Expression::String { value, .. } => {
-            if value.len() > MAX_SCALAR_STRING_BYTES {
-                return Err(invalid("LSH1405", "scalar string exceeds 4096 bytes", span));
-            }
-            Some(ScalarValue::String(value.clone()))
-        }
-        Expression::None { .. } => Some(ScalarValue::None),
-        _ => None,
-    };
-    if let Some(value) = literal {
-        let result_type = Type::Scalar(value.scalar_type());
-        return Ok((Computation::Literal { value }, result_type));
+    if crate::scalar_source::primitive(expression) {
+        let (value, ty) = crate::scalar_source::lower_form(expression, |child| {
+            let (value, ty) =
+                lower_expression_with_functions(child, scope, visited, depth + 1, functions)
+                    .map_err(|error| crate::scalar_source::ScalarSourceError::Native {
+                        span: expression_span(child),
+                        error,
+                    })?;
+            let pure = value.is_pure();
+            Ok(crate::scalar_source::Operand {
+                value,
+                pure,
+                scalar_type: match ty {
+                    Type::Scalar(ty) => Some(ty),
+                    _ => None,
+                },
+            })
+        })
+        .map_err(|error| scalar_source_diagnostics(error, span))?;
+        return Ok((value, Type::Scalar(ty)));
     }
     if let Expression::Reference { name, .. } = expression {
         return scope
@@ -945,125 +1000,81 @@ pub(super) fn lower_expression_with_functions<'a>(
             value_type,
         ));
     }
-    if let Some(operator) = BinaryOperator::parse(callee) {
-        let args = named(arguments, &["left", "right"], span)?;
-        let (left, left_type) =
-            lower_expression_with_functions(args[0], scope, visited, depth + 1, functions)?;
-        let (right, right_type) =
-            lower_expression_with_functions(args[1], scope, visited, depth + 1, functions)?;
-        let left_type = scalar(&left, left_type, expression_span(args[0]))?;
-        let right_type = scalar(&right, right_type, expression_span(args[1]))?;
-        let result_type = operator.result_type(left_type, right_type).ok_or_else(|| {
-            invalid(
-                "LSH1402",
-                format!(
-                    "{} does not accept {left_type:?} and {right_type:?}",
-                    operator.name()
-                ),
-                span,
-            )
-        })?;
-        return Ok((
-            Computation::Binary {
-                operator,
-                left: Box::new(left),
-                right: Box::new(right),
-            },
-            Type::Scalar(result_type),
-        ));
-    }
-    if let Some(operator) = UnaryOperator::parse(callee) {
-        let args = named(arguments, &["value"], span)?;
-        let (value, value_type) =
-            lower_expression_with_functions(args[0], scope, visited, depth + 1, functions)?;
-        let output = unary_type(operator, value_type)
-            .filter(|_| value.is_pure())
-            .ok_or_else(|| {
-                invalid(
-                    "LSH1402",
-                    format!("{callee} requires a pure {}", operator.expected_input()),
-                    span,
-                )
-            })?;
-        if operator == UnaryOperator::OptionalString
-            && let Computation::Literal { value } = &value
-        {
-            let text = match value {
-                ScalarValue::String(text) => Some(text.clone()),
-                ScalarValue::None => None,
-                _ => {
-                    return Err(invalid(
-                        "LSH1402",
-                        "optional_string requires string or none",
-                        span,
-                    ));
-                }
-            };
-            return Ok((
-                Computation::Literal {
-                    value: ScalarValue::OptionalString(OptionalStringValue(text)),
-                },
-                Type::Scalar(output),
-            ));
-        }
-        return Ok((
-            Computation::Unary {
-                operator,
-                value: Box::new(value),
-            },
-            Type::Scalar(output),
-        ));
-    }
     if functions.contains(callee) {
         return functions::lower_call(callee, arguments, span, scope, visited, depth, functions);
     }
     if let Some(operation) = HostOperation::parse(callee)
         && has_computed_arguments(arguments)
     {
-        if arguments.len() > operation.parameters().len() {
-            return Err(invalid_argument("too many host arguments", Some(span)));
-        }
-        let names = arguments
-            .iter()
-            .map(|arg| arg.name.as_str())
-            .collect::<Vec<_>>();
-        let bindings = operation.bind_names(&names, Some(span))?;
-        let mut lowered = Vec::with_capacity(arguments.len());
-        for (parameter, index) in bindings.iter() {
-            let argument = &arguments[index];
-            let (value, ty) = lower_expression_with_functions(
-                &argument.value,
-                scope,
-                visited,
-                depth + 1,
-                functions,
-            )?;
-            let facts = value.scalar_argument_type(match ty {
-                Type::Scalar(ty) => Some(ty),
-                _ => None,
-            });
-            if let Err(error) = check_argument_type(&parameter.domain, facts) {
-                return Err(match error {
+        use crate::source_call::{SourceCallError, SourceCallLimits, lower_preflighted_arguments};
+        let lowered = lower_preflighted_arguments(
+            arguments,
+            operation.schema(),
+            SourceCallLimits {
+                max_source_nodes: MAX_COMPUTATION_NODES,
+                max_source_depth: MAX_EFFECT_NESTING_DEPTH,
+                max_lowered_nodes: MAX_COMPUTATION_NODES,
+                max_lowered_depth: MAX_EFFECT_NESTING_DEPTH,
+                max_arguments: crate::source_call::MAX_SOURCE_CALL_ARGUMENTS,
+            },
+            |argument| {
+                let (value, ty) = lower_expression_with_functions(
+                    &argument.value,
+                    scope,
+                    visited,
+                    depth + 1,
+                    functions,
+                )?;
+                Ok((
+                    value,
+                    match ty {
+                        Type::Scalar(ty) => Some(ty),
+                        _ => None,
+                    },
+                ))
+            },
+        )
+        .map_err(|error| match error {
+            SourceCallError::Lowering { error, .. } => error,
+            SourceCallError::ArgumentLimit => {
+                invalid_argument("too many host arguments", Some(span))
+            }
+            SourceCallError::Names(_) => invalid_argument(
+                format!("invalid named arguments for {}", operation.name()),
+                Some(span),
+            ),
+            SourceCallError::Argument {
+                parameter_index,
+                argument_index,
+                error,
+            } => {
+                let argument = &arguments[argument_index];
+                match error {
                     ArgumentTypeError::Impure | ArgumentTypeError::NonScalar => invalid(
                         "LSH1402",
                         "expected a pure scalar expression, not a host operation",
                         argument.span,
                     ),
                     _ => invalid_argument(
-                        format!("invalid {} argument '{}'", operation.name(), parameter.name),
+                        format!(
+                            "invalid {} argument '{}'",
+                            operation.name(),
+                            operation.parameters()[parameter_index].name
+                        ),
                         Some(argument.span),
                     ),
-                });
+                }
             }
-            lowered.push(ComputedArgument {
-                name: argument.name.clone(),
-                value,
-            });
-        }
+            _ => invalid(
+                "LSH1405",
+                "computation exceeds its node or nesting limit",
+                span,
+            ),
+        })?;
         return Ok((
             Computation::Call {
                 operation,
-                arguments: lowered,
+                arguments: lowered.into_arguments(),
             },
             operation.result_type(),
         ));
@@ -1267,13 +1278,6 @@ fn lower_fold<'a>(
         },
         state_type,
     ))
-}
-
-fn unary_type(operator: UnaryOperator, input: Type) -> Option<ScalarType> {
-    match input {
-        Type::Scalar(input) => operator.result_type(input),
-        _ => None,
-    }
 }
 
 pub(super) fn valid_local(name: &str) -> bool {

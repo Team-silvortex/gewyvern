@@ -503,7 +503,7 @@ fn capture_accepts_type_at(
     }
 }
 
-fn value_type(value: &Value) -> Type {
+pub(super) fn value_type(value: &Value) -> Type {
     macro_rules! atomic_types {
         ($($variant:ident),+ $(,)?) => {
             match value {

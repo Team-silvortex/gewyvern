@@ -4,6 +4,7 @@ Host-neutral scalar, lifecycle, accounting and clock foundations for the future 
 Leselang runtime. The current components are **bounded pre-admission scheduling**,
 **typed scalar/projection/control/recovery decisions, native operation catalogs,
 named host-parameter binding, scalar-type metadata and native argument typing,
+received host-result type/value validation and single-handle pending-reply ownership,
 lexical/structural bookkeeping and fuel/clock/backoff
 arithmetic**, not a parser, expression evaluator, complete embedded language,
 durable queue or GUI adapter.
@@ -198,10 +199,11 @@ leave it unchanged, not a refund or permission to replay failed work.
 Budgets are allocation-free, move-only, non-default and non-serde. They have no
 fuel grant, timer, global lock, host handle, callback, persistent frame or
 mid-loop suspension. A trusted host can construct a new budget explicitly, so
-this counter is not execution authority. The reference VM uses the shared
-decisions but still owns expressions, lexical state, fuel, cleanup and recovery;
+this counter is not execution authority. HIR's pure executor uses these shared
+decisions and owns pure expressions, lexical state, fuel, cleanup and recovery;
 loop exhaustion remains the non-recoverable `LSV1406` with its original message.
-Fold-body, conditional/recovery evaluation and all host-result frames stay in the
+Pure body/conditional/recovery evaluation now lives in HIR's shared pure executor;
+effect-position control and all durable host-result frames stay in the
 reference interpreter. This is not a second interpreter or a complete independent
 evaluator. Core boundary/ownership tests and reference cold-preflight, exact-fuel,
 scope-cleanup and durable iteration tests cover that division.
@@ -285,7 +287,7 @@ size remain adapter responsibilities. Slots can be stale/reused after a pop, and
 interior-mutability/destructor behavior belongs to the value type. Forgetting the
 guard bypasses cleanup: this is not an authority fence, sandbox, saved frame or
 callback preemption. Push/lookup scan the visible prefix; bounded preflight and
-evaluation/fuel policies still belong to the adapter.
+evaluation/fuel policies belong to HIR's pure executor or the effect adapter.
 
 The reference VM delegates `bind`, `loop`, `fold` and result re-entry lexical
 bookkeeping here, avoiding transient local-name copies. Durable suspension still
@@ -563,6 +565,63 @@ These are typed signature/IR bridge proofs, not generic whole-language source
 lowering, result acceptance, dispatch or suspension. Runtime-core's standalone
 package tests exercise native domains without any workspace/product dependency.
 
+## Received Host Results
+
+`HostResultDomain<Reply>` explicitly adapts actual received values to a native
+result declaration: `matches_type` checks the result kind, then `validate_value`
+checks native bounds, domains and correlation. Neither method has an accept-all
+default. `validate_host_result` borrows both values, rejects a wrong kind before
+the native value callback, and preserves its original error without interpreting
+diagnostic strings. `OperationSchema::check_result` uses the very same result
+declaration returned by static call inference, not a copied schema or type guess.
+
+`ScalarTypeSet` supplies explicit scalar alternatives plus the existing text,
+optional-text and list bounds. There is no coercion, implicit nullability,
+normalization, buffer copy, truncation, fuel charge or hidden effect dispatch.
+Native result kinds and unsized replies need no Clone, Debug, serde or Send;
+GUI-thread-local adapters and borrowed trait objects are supported.
+
+`HostResultError` separates `TypeMismatch` from `InvalidValue(original_error)`.
+Its Debug/Display never invoke native payload formatters, and Error has no native
+source chain. There is no Clone/serde, implicit retry or calculation-recovery
+promotion. Adapters may explicitly extract native errors and must redact them.
+Both callbacks are trusted synchronous native code: allocation, interior mutation
+and unwind are host-owned and not rolled back or preempted. No callback is retried.
+Hosts bound ingress, native work and aggregate resource use before this check.
+
+The reference VM applies this protocol to bound raw values before scalar
+projection or successor materialization, using its existing closed Value kind
+mapping and output/domain/serialized-byte limits. Old raw reply/request/revision
+correlation stays mandatory; native faults keep exact codes/messages. The new
+wrong-kind guard is `LSV2103`. Projection v1-v5, continuations 1-11, journal 10,
+saved fuel, first-commit replay and public wire bytes remain unchanged.
+
+Success observes these data now, not an authentic receipt, lasting certificate,
+accepted continuation or execution permission. Catalog version/grant checks,
+pending-effect identity, deadlines, stale replies and durable replay remain
+adapter-owned. Two native static-call/result proofs and reference VM regressions
+do not constitute complete independent source-to-effect/suspension pipelines.
+
+## Pending Reply Ownership
+
+`PendingReply` holds an opaque identity, native frame and original declaration.
+Acceptance checks identity, trusted `ReplyAuthority`, a borrowed reply view, type
+and value in order. Normal rejection returns the original input and keeps the
+frame; success closes the handle before moving it into `AcceptedReply`. There is
+no implicit retry, copy, execution or fuel charge. Frames, replies and native
+errors require no Clone, Debug, serialization or Send implementation.
+
+Native callback unwind closes as HostUncertain and releases the frame. Cancellation
+closes before cleanup and preserves terminal reasons, even if cleanup unwinds.
+Status/Debug reveal no native data. This is one handle's handoff, not global
+deduplication, durable restart, cancellation delivery or exactly-once effects.
+Hosts own correlation meaning, live policy, provenance, bounds and restoration.
+The reference VM uses a borrowed observation checkpoint, without replacing its
+journal's authority or persistent frame ownership.
+
+See [Shared Pending Reply Ownership](../../docs/leselang-embedding.md#shared-pending-reply-ownership)
+for the protocol and native headless/GUI-local flow proofs.
+
 ## Fuel Accounting
 
 `Fuel` is a constant-size, host-granted meter: `new(remaining)`, `remaining()` and
@@ -676,7 +735,7 @@ CI job checks the packaged build and tests separately from product quality gates
 ## Remaining Extraction Work
 
 Native declarations, catalog preflight and argument typing are shared; full generic typed HIR,
-the evaluator/value/suspension engine,
+effect dispatch, native suspension frames,
 optional journal backends and language-wide unrelated-host proofs remain to be
 separated. The existing VM, UI and observation crates still use product command
 and result types. FFI and the future operating-system shell are not implemented
@@ -684,3 +743,12 @@ by this crate. The embedding status target remains developing, not released.
 The [2.3.0 extraction target](../../docs/leselang-embedding.md#230-repository-extraction-target)
 requires complete unrelated-host vertical proofs, optional persistence and preserved
 Leserpent compatibility before moving source into an independently buildable repository.
+HIR's [shared pure executor](../../docs/leselang-embedding.md#shared-bounded-pure-execution)
+already reuses these scalar/control/scope/fuel primitives for both unrelated native
+hosts and the reference VM; it is not implemented in this dependency-free crate.
+HIR's [atomic call preparation](../../docs/leselang-embedding.md#shared-atomic-call-preparation)
+also shares these primitives for actual argument evaluation and native domain checks;
+catalog authorization and preparation are not effect dispatch or suspension proofs.
+HIR's [effect control/capture hooks](../../docs/leselang-embedding.md#shared-effect-control-and-capture)
+also reuse these lexical/fuel primitives, with native request construction and
+snapshot formats remaining adapter-owned. No complete reply lifecycle is added here.

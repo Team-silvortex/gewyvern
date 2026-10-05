@@ -1,14 +1,23 @@
 use std::borrow::Cow;
 
-use leselang_hir::computation::{
-    BinaryOperator, Computation, GroupKind, ScalarValue, StringListValue, UnaryOperator,
+use leselang_hir::call_evaluation::{CallEvaluationError, CallEvaluationLimits};
+use leselang_hir::call_typing::{CallTypeError, MAX_CALL_ARGUMENTS};
+use leselang_hir::computation::{Computation, GroupKind, ScalarValue};
+use leselang_hir::effect_evaluation::{
+    EffectEvaluationEnvironment, EffectEvaluationFault, EffectEvaluationLimits,
+    EffectEvaluationOutcome, evaluate_effects_in_scope,
 };
 use leselang_hir::host_call::HostOperation;
+use leselang_hir::pure_evaluation::{
+    PureEvaluationEnvironment, PureEvaluationFailure, PureEvaluationFault, PureEvaluationLimits,
+    PureValue, scalar_copy_cost as string_cost,
+};
+use leselang_hir::pure_typing::{
+    MAX_TYPE_INFERENCE_BINDINGS, MAX_TYPE_INFERENCE_DEPTH, MAX_TYPE_INFERENCE_NODES,
+};
 use leselang_hir::{Effect, HirBranch};
 use leselang_runtime_core::{
-    BinarySelection, CalculationFailure, FoldCursor, FoldError, Fuel, LoopBudget, LoopError,
-    LoopStep, ScalarError, ScopeFrame, StringListBuilder, apply_binary, apply_unary,
-    select_binary_left,
+    CalculationFailure, FoldError, Fuel, LoopError, ScalarError, ScopeFrame,
 };
 
 use crate::result_binding::{
@@ -56,9 +65,64 @@ impl ResultView<'_> {
     }
 }
 
+struct ResultEnvironment<'a>(std::marker::PhantomData<&'a Value>);
+
+impl<'a> PureEvaluationEnvironment<leselang_hir::result_field::ResultField, HostOperation>
+    for ResultEnvironment<'a>
+{
+    type Result = ResultView<'a>;
+    type Error = Fault;
+
+    fn field(
+        &self,
+        result: &Self::Result,
+        field: &leselang_hir::result_field::ResultField,
+    ) -> Result<ScalarValue, Fault> {
+        result.field(*field)
+    }
+
+    fn member(
+        &self,
+        group: &Self::Result,
+        name: &str,
+        operation: &HostOperation,
+    ) -> Result<Self::Result, Fault> {
+        match group {
+            ResultView::Group {
+                value: Value::Structured { fields },
+                branches,
+            } => {
+                if !branches.iter().any(|branch| {
+                    branch.name == name
+                        && HostOperation::for_effect(&branch.effect) == Some(*operation)
+                }) {
+                    return Err(invalid());
+                }
+                let field = fields
+                    .iter()
+                    .find(|field| field.name == name)
+                    .ok_or_else(invalid)?;
+                Ok(ResultView::Raw {
+                    value: &field.value,
+                    operation: *operation,
+                })
+            }
+            ResultView::ProjectedGroup(saved) => {
+                let member = saved
+                    .members
+                    .iter()
+                    .find(|member| member.name == name && member.result.operation == *operation)
+                    .ok_or_else(invalid)?;
+                Ok(ResultView::Projected(&member.result))
+            }
+            _ => Err(invalid()),
+        }
+    }
+}
+
 pub(super) enum Outcome<'a> {
     Scalar(ScalarValue),
-    Result(ResultView<'a>),
+    Result,
     Host(Cow<'a, Effect>),
     BoundHost {
         effect: Cow<'a, Effect>,
@@ -66,11 +130,7 @@ pub(super) enum Outcome<'a> {
     },
 }
 
-#[derive(Clone)]
-enum LocalValue<'a> {
-    Scalar(ScalarValue),
-    Result(ResultView<'a>),
-}
+type LocalValue<'a> = PureValue<ResultView<'a>>;
 
 type EvaluationFailure = CalculationFailure<Fault>;
 
@@ -88,23 +148,6 @@ fn invalid() -> Fault {
 fn charge(fuel: &mut Fuel, cost: u64) -> Result<(), Fault> {
     fuel.charge(cost)
         .map_err(|_| error("LSV1001", "computation fuel exhausted"))
-}
-
-fn string_cost(value: &ScalarValue) -> u64 {
-    if let ScalarValue::StringList(value) = value {
-        return list_cost(value);
-    }
-    value
-        .text()
-        .map_or(0, |value| value.len().div_ceil(64) as u64)
-}
-
-fn list_cost(value: &StringListValue) -> u64 {
-    value
-        .0
-        .iter()
-        .map(|item| 1 + item.len().div_ceil(64) as u64)
-        .sum()
 }
 
 pub(super) fn evaluate<'a>(
@@ -224,333 +267,221 @@ fn charge_group_projection(fuel: &mut Fuel, group: &ProjectedGroup) -> Result<()
     Ok(())
 }
 
+impl<'a>
+    EffectEvaluationEnvironment<
+        'a,
+        leselang_hir::result_field::ResultField,
+        HostOperation,
+        Effect,
+        leselang_hir::Type,
+    > for ResultEnvironment<'a>
+{
+    type Request = Cow<'a, Effect>;
+    type Capture = Box<ResultBinding>;
+
+    fn preflight_effect(&self, _: &'a Computation) -> Result<(), Fault> {
+        // The reference VM enters only after canonical HIR/type/authority gates.
+        // Opaque effect graphs and cold signatures retain those product validators.
+        Ok(())
+    }
+
+    fn prepare_effect(
+        &self,
+        expression: &'a Computation,
+        scope: &mut ScopeFrame<'_, 'a, LocalValue<'a>>,
+        fuel: &mut Fuel,
+    ) -> Result<Self::Request, EvaluationFailure> {
+        match expression {
+            Computation::Host { effect } => Ok(Cow::Borrowed(effect)),
+            Computation::Group {
+                group_kind,
+                branches,
+            } => {
+                let mut resolved = Vec::with_capacity(branches.len());
+                for branch in branches {
+                    let operation = branch
+                        .value
+                        .prepared_atomic_operation()
+                        .ok_or_else(invalid)?;
+                    let Outcome::Host(effect) = evaluate_inner(&branch.value, fuel, scope)? else {
+                        return Err(invalid().into());
+                    };
+                    if HostOperation::for_effect(&effect) != Some(operation)
+                        || branch.result_type != operation.result_type()
+                    {
+                        return Err(invalid().into());
+                    }
+                    resolved.push(HirBranch {
+                        name: branch.name.clone(),
+                        effect: effect.into_owned(),
+                        result_type: branch.result_type,
+                    });
+                }
+                Ok(Cow::Owned(match group_kind {
+                    GroupKind::Sequence => Effect::Sequence { steps: resolved },
+                    GroupKind::Parallel => Effect::All { branches: resolved },
+                }))
+            }
+            Computation::Call {
+                operation,
+                arguments,
+            } => {
+                let values = operation
+                    .evaluate_computed_arguments(
+                        arguments,
+                        scope,
+                        self,
+                        fuel,
+                        CallEvaluationLimits {
+                            pure: PureEvaluationLimits {
+                                max_nodes: MAX_TYPE_INFERENCE_NODES,
+                                max_depth: MAX_TYPE_INFERENCE_DEPTH,
+                                max_bindings: MAX_TYPE_INFERENCE_BINDINGS,
+                            },
+                            max_arguments: MAX_CALL_ARGUMENTS,
+                        },
+                    )
+                    .map_err(|failure| call_failure(failure, *operation))?;
+                let effect = operation.resolve(&values).map_err(|diagnostics| {
+                    let code = diagnostics
+                        .first()
+                        .map_or("LSH1407", |diagnostic| diagnostic.code.as_str());
+                    error(
+                        "LSV1404",
+                        &format!(
+                            "computed arguments rejected by {} ({code})",
+                            operation.name()
+                        ),
+                    )
+                })?;
+                Ok(Cow::Owned(effect))
+            }
+            _ => Err(invalid().into()),
+        }
+    }
+
+    fn capture(
+        &self,
+        name: &'a str,
+        body: &'a Computation,
+        scope: &ScopeFrame<'_, 'a, LocalValue<'a>>,
+        fuel: &mut Fuel,
+    ) -> Result<Self::Capture, Fault> {
+        let mut locals = Vec::with_capacity(scope.len());
+        let mut results = Vec::new();
+        let mut groups = Vec::new();
+        for (name, value) in scope.bindings() {
+            match value {
+                LocalValue::Scalar(value) => {
+                    charge(fuel, 1 + string_cost(value))?;
+                    locals.push(ScalarBinding {
+                        name: (*name).to_owned(),
+                        value: value.clone(),
+                    });
+                }
+                LocalValue::Result(
+                    value @ (ResultView::Group { .. } | ResultView::ProjectedGroup(_)),
+                ) => {
+                    let group = value.snapshot_group()?;
+                    charge_group_projection(fuel, &group)?;
+                    groups.push(ProjectedGroupBinding {
+                        name: (*name).to_owned(),
+                        group,
+                    });
+                }
+                LocalValue::Result(value) => {
+                    let result = value.snapshot()?;
+                    charge_projection(fuel, &result)?;
+                    results.push(ProjectedBinding {
+                        name: (*name).to_owned(),
+                        result,
+                    });
+                }
+            }
+        }
+        Ok(Box::new(ResultBinding {
+            name: name.to_owned(),
+            locals,
+            results,
+            groups,
+            body: body.clone(),
+        }))
+    }
+}
+
 fn evaluate_inner<'a>(
     expression: &'a Computation,
     fuel: &mut Fuel,
     scope: &mut ScopeFrame<'_, 'a, LocalValue<'a>>,
 ) -> Result<Outcome<'a>, EvaluationFailure> {
-    charge(fuel, 1)?;
-    let value = match expression {
-        Computation::Literal { value } => {
-            charge(fuel, string_cost(value))?;
-            value.clone()
+    evaluate_effects_in_scope(
+        expression,
+        scope,
+        &ResultEnvironment(std::marker::PhantomData),
+        fuel,
+        EffectEvaluationLimits {
+            pure: PureEvaluationLimits {
+                max_nodes: MAX_TYPE_INFERENCE_NODES,
+                max_depth: MAX_TYPE_INFERENCE_DEPTH,
+                max_bindings: MAX_TYPE_INFERENCE_BINDINGS,
+            },
+            max_arguments: MAX_CALL_ARGUMENTS,
+            max_branches: leselang_hir::MAX_ALL_BRANCHES,
+        },
+    )
+    .map(|outcome| match outcome {
+        EffectEvaluationOutcome::Value(PureValue::Scalar(value)) => Outcome::Scalar(value),
+        EffectEvaluationOutcome::Value(PureValue::Result(_)) => Outcome::Result,
+        EffectEvaluationOutcome::Request(effect) => Outcome::Host(effect),
+        EffectEvaluationOutcome::Suspended { request, capture } => Outcome::BoundHost {
+            effect: request,
+            binding: capture,
+        },
+    })
+    .map_err(|failure| match failure {
+        CalculationFailure::Scalar(error) => CalculationFailure::Scalar(error),
+        CalculationFailure::External(EffectEvaluationFault::Pure(failure)) => {
+            pure_failure(CalculationFailure::External(failure))
         }
-        Computation::Strings { items } => {
-            let mut values = StringListBuilder::with_capacity(items.len())
-                .map_err(CalculationFailure::Scalar)?;
-            for item in items {
-                let ScalarValue::String(value) = scalar(evaluate_inner(item, fuel, scope)?)? else {
-                    return Err(invalid().into());
-                };
-                values.try_push(value).map_err(CalculationFailure::Scalar)?;
-            }
-            let value = ScalarValue::StringList(values.finish());
-            charge(fuel, string_cost(&value))?;
-            value
+        CalculationFailure::External(EffectEvaluationFault::Native(fault)) => {
+            CalculationFailure::External(fault)
         }
-        Computation::Local { name } => {
-            let value = scope.get(name).ok_or_else(invalid)?;
-            match value {
-                LocalValue::Scalar(value) => {
-                    charge(fuel, string_cost(value))?;
-                    value.clone()
-                }
-                LocalValue::Result(value) => return Ok(Outcome::Result(*value)),
-            }
-        }
-        Computation::Bind { name, value, body } => {
-            let value = match evaluate_inner(value, fuel, scope)? {
-                Outcome::Scalar(value) => LocalValue::Scalar(value),
-                Outcome::Result(value) => LocalValue::Result(value),
-                Outcome::Host(effect) => {
-                    let mut locals = Vec::with_capacity(scope.len());
-                    let mut results = Vec::new();
-                    let mut groups = Vec::new();
-                    for (name, value) in scope.bindings() {
-                        match value {
-                            LocalValue::Scalar(value) => {
-                                charge(fuel, 1 + string_cost(value))?;
-                                locals.push(ScalarBinding {
-                                    name: (*name).to_owned(),
-                                    value: value.clone(),
-                                });
-                            }
-                            LocalValue::Result(
-                                value @ (ResultView::Group { .. } | ResultView::ProjectedGroup(_)),
-                            ) => {
-                                let group = value.snapshot_group()?;
-                                charge_group_projection(fuel, &group)?;
-                                groups.push(ProjectedGroupBinding {
-                                    name: (*name).to_owned(),
-                                    group,
-                                });
-                            }
-                            LocalValue::Result(value) => {
-                                let result = value.snapshot()?;
-                                charge_projection(fuel, &result)?;
-                                results.push(ProjectedBinding {
-                                    name: (*name).to_owned(),
-                                    result,
-                                });
-                            }
-                        }
-                    }
-                    return Ok(Outcome::BoundHost {
-                        effect,
-                        binding: Box::new(ResultBinding {
-                            name: name.clone(),
-                            locals,
-                            results,
-                            groups,
-                            body: body.as_ref().clone(),
-                        }),
-                    });
-                }
-                Outcome::BoundHost { .. } => return Err(invalid().into()),
-            };
-            let mut local = scope.nested();
-            local.push(name, value).map_err(|_| invalid())?;
-            return evaluate_inner(body, fuel, &mut local);
-        }
-        Computation::Loop {
-            name,
-            initial,
-            condition,
-            next,
-            limit,
-        } => {
-            let initial = scalar(evaluate_inner(initial, fuel, scope)?)?;
-            let mut budget = LoopBudget::new(initial.scalar_type(), *limit).map_err(loop_fault)?;
-            let mut local = scope.nested();
-            let slot = local
-                .push(name, LocalValue::Scalar(initial))
-                .map_err(|_| invalid())?;
-            loop {
-                let ScalarValue::Boolean(keep_going) =
-                    scalar(evaluate_inner(condition, fuel, &mut local)?)?
-                else {
-                    return Err(invalid().into());
-                };
-                if budget.check_condition(keep_going).map_err(loop_fault)? == LoopStep::Done {
-                    break;
-                }
-                let next = scalar(evaluate_inner(next, fuel, &mut local)?)?;
-                budget.advance(&next).map_err(loop_fault)?;
-                *local.get_local_mut(slot).ok_or_else(invalid)? = LocalValue::Scalar(next);
-            }
-            let (_, state) = local.pop().ok_or_else(invalid)?;
-            let LocalValue::Scalar(state) = state else {
-                return Err(invalid().into());
-            };
-            state
-        }
-        Computation::Fold {
-            name,
-            item,
-            items,
-            initial,
-            next,
-            limit,
-        } => {
-            let ScalarValue::StringList(items) = scalar(evaluate_inner(items, fuel, scope)?)?
-            else {
-                return Err(invalid().into());
-            };
-            let initial = scalar(evaluate_inner(initial, fuel, scope)?)?;
-            let items_cost = list_cost(&items);
-            let mut cursor =
-                FoldCursor::new(items, initial.scalar_type(), *limit).map_err(fold_fault)?;
-            charge(fuel, items_cost)?;
-            let mut local = scope.nested();
-            let slot = local
-                .push(name, LocalValue::Scalar(initial))
-                .map_err(|_| invalid())?;
-            let item_slot = local
-                .push(item, LocalValue::Scalar(ScalarValue::String(String::new())))
-                .map_err(|_| invalid())?;
-            while let Some(item) = cursor.next_item().map_err(fold_fault)? {
-                charge(fuel, 1 + item.len().div_ceil(64) as u64)?;
-                *local.get_local_mut(item_slot).ok_or_else(invalid)? =
-                    LocalValue::Scalar(ScalarValue::String(item));
-                let next = scalar(evaluate_inner(next, fuel, &mut local)?)?;
-                cursor.advance(&next).map_err(fold_fault)?;
-                *local.get_local_mut(slot).ok_or_else(invalid)? = LocalValue::Scalar(next);
-            }
-            local.pop();
-            let (_, state) = local.pop().ok_or_else(invalid)?;
-            let LocalValue::Scalar(state) = state else {
-                return Err(invalid().into());
-            };
-            state
-        }
-        Computation::Member {
-            group,
-            name,
-            operation,
-        } => {
-            let Some(LocalValue::Result(view)) = scope.get(group) else {
-                return Err(invalid().into());
-            };
-            return match view {
-                ResultView::Group {
-                    value: Value::Structured { fields },
-                    branches,
-                } => {
-                    if !branches.iter().any(|branch| {
-                        branch.name == *name
-                            && HostOperation::for_effect(&branch.effect) == Some(*operation)
-                    }) {
-                        return Err(invalid().into());
-                    }
-                    let field = fields
-                        .iter()
-                        .find(|field| field.name == *name)
-                        .ok_or_else(invalid)?;
-                    Ok(Outcome::Result(ResultView::Raw {
-                        value: &field.value,
-                        operation: *operation,
-                    }))
-                }
-                ResultView::ProjectedGroup(saved) => {
-                    let member = saved
-                        .members
-                        .iter()
-                        .find(|member| {
-                            member.name == *name && member.result.operation == *operation
-                        })
-                        .ok_or_else(invalid)?;
-                    Ok(Outcome::Result(ResultView::Projected(&member.result)))
-                }
-                _ => Err(invalid().into()),
-            };
-        }
-        Computation::Field { value, field } => {
-            let Outcome::Result(value) = evaluate_inner(value, fuel, scope)? else {
-                return Err(invalid().into());
-            };
-            let value = value.field(*field)?;
-            charge(fuel, string_cost(&value))?;
-            value
-        }
-        Computation::Choose {
-            when,
-            then,
-            otherwise,
-        } => {
-            let ScalarValue::Boolean(when) = scalar(evaluate_inner(when, fuel, scope)?)? else {
-                return Err(invalid().into());
-            };
-            return evaluate_inner(if when { then } else { otherwise }, fuel, scope);
-        }
-        Computation::Recover { value, fallback } => {
-            match evaluate_inner(value, fuel, scope)
-                .and_then(|outcome| scalar(outcome).map_err(CalculationFailure::External))
-            {
-                Ok(value) => value,
-                // Only language data errors are recoverable, never resource or host failures.
-                Err(failure) if failure.is_recoverable() => {
-                    scalar(evaluate_inner(fallback, fuel, scope)?)?
-                }
-                Err(failure) => return Err(failure),
-            }
-        }
-        Computation::Host { effect } => return Ok(Outcome::Host(Cow::Borrowed(effect))),
-        Computation::Group {
-            group_kind,
-            branches,
-        } => {
-            let mut resolved = Vec::with_capacity(branches.len());
-            for branch in branches {
-                let operation = branch
-                    .value
-                    .prepared_atomic_operation()
-                    .ok_or_else(invalid)?;
-                let Outcome::Host(effect) = evaluate_inner(&branch.value, fuel, scope)? else {
-                    return Err(invalid().into());
-                };
-                if HostOperation::for_effect(&effect) != Some(operation)
-                    || branch.result_type != operation.result_type()
-                {
-                    return Err(invalid().into());
-                }
-                resolved.push(HirBranch {
-                    name: branch.name.clone(),
-                    effect: effect.into_owned(),
-                    result_type: branch.result_type,
-                });
-            }
-            let effect = match group_kind {
-                GroupKind::Sequence => Effect::Sequence { steps: resolved },
-                GroupKind::Parallel => Effect::All { branches: resolved },
-            };
-            return Ok(Outcome::Host(Cow::Owned(effect)));
-        }
-        Computation::Call {
-            operation,
-            arguments,
-        } => {
-            let mut values = Vec::with_capacity(arguments.len());
-            for argument in arguments {
-                let value = scalar(evaluate_inner(&argument.value, fuel, scope)?)?;
-                charge(fuel, string_cost(&value))?;
-                values.push((argument.name.clone(), value));
-            }
-            let effect = operation.resolve(&values).map_err(|diagnostics| {
-                let code = diagnostics
-                    .first()
-                    .map_or("LSH1407", |diagnostic| diagnostic.code.as_str());
-                error(
-                    "LSV1404",
-                    &format!(
-                        "computed arguments rejected by {} ({code})",
-                        operation.name()
-                    ),
-                )
-            })?;
-            return Ok(Outcome::Host(Cow::Owned(effect)));
-        }
-        Computation::Unary { operator, value } => {
-            let value = scalar(evaluate_inner(value, fuel, scope)?)?;
-            charge(fuel, string_cost(&value))?;
-            let value = apply_unary(*operator, value).map_err(CalculationFailure::Scalar)?;
-            if *operator == UnaryOperator::ToString {
-                charge(fuel, string_cost(&value))?;
-            }
-            value
-        }
-        Computation::Binary {
-            operator,
-            left,
-            right,
-        } => {
-            let left = scalar(evaluate_inner(left, fuel, scope)?)?;
-            let left =
-                match select_binary_left(*operator, left).map_err(CalculationFailure::Scalar)? {
-                    BinarySelection::Complete(value) => {
-                        if *operator == BinaryOperator::ValueOr {
-                            charge(fuel, string_cost(&value))?;
-                        }
-                        return Ok(Outcome::Scalar(value));
-                    }
-                    BinarySelection::NeedsRight(left) => left,
-                };
-            let right = scalar(evaluate_inner(right, fuel, scope)?)?;
-            charge(fuel, string_cost(&left) + string_cost(&right))?;
-            let value = apply_binary(*operator, left, right).map_err(CalculationFailure::Scalar)?;
-            if matches!(
-                operator,
-                BinaryOperator::CharAt
-                    | BinaryOperator::ItemAt
-                    | BinaryOperator::Split
-                    | BinaryOperator::Join
-                    | BinaryOperator::Append
-            ) {
-                charge(fuel, string_cost(&value))?;
-            }
-            value
-        }
-    };
-    Ok(Outcome::Scalar(value))
+        CalculationFailure::External(_) => invalid().into(),
+    })
+}
+
+fn pure_failure(failure: PureEvaluationFailure<Fault>) -> EvaluationFailure {
+    match failure {
+        CalculationFailure::Scalar(error) => CalculationFailure::Scalar(error),
+        CalculationFailure::External(failure) => CalculationFailure::External(match failure {
+            PureEvaluationFault::Native(fault) => fault,
+            PureEvaluationFault::FuelExhausted => error("LSV1001", "computation fuel exhausted"),
+            PureEvaluationFault::Loop(failure) => loop_fault(failure),
+            PureEvaluationFault::Fold(failure) => fold_fault(failure),
+            _ => invalid(),
+        }),
+    }
+}
+
+fn call_failure(
+    failure: CallEvaluationError<Fault>,
+    operation: HostOperation,
+) -> EvaluationFailure {
+    match failure {
+        CallEvaluationError::Evaluation { failure, .. } => pure_failure(failure),
+        CallEvaluationError::Scope(failure) => pure_failure(CalculationFailure::External(failure)),
+        CallEvaluationError::FuelExhausted => error("LSV1001", "computation fuel exhausted").into(),
+        CallEvaluationError::Argument { .. }
+        | CallEvaluationError::Preflight(CallTypeError::Names(_)) => error(
+            "LSV1404",
+            &format!(
+                "computed arguments rejected by {} (LSH1407)",
+                operation.name()
+            ),
+        )
+        .into(),
+        _ => invalid().into(),
+    }
 }
 
 fn calculation_fault(failure: EvaluationFailure) -> Fault {
@@ -590,6 +521,7 @@ fn fold_fault(failure: FoldError) -> Fault {
 #[cfg(test)]
 mod recovery_tests {
     use super::*;
+    use leselang_hir::computation::UnaryOperator;
 
     #[test]
     fn external_fault_codes_never_enter_the_scalar_recovery_channel() {
@@ -668,7 +600,21 @@ mod recovery_tests {
         assert!(matches!(&failure, CalculationFailure::External(_)));
         assert!(!failure.is_recoverable());
         assert_eq!(calculation_fault(failure).code, "LSV1402");
-        assert_eq!(fuel.remaining(), 98);
+        assert_eq!(fuel.remaining(), 100);
+        drop(scope);
+        let expression = Computation::Recover {
+            value: Box::new(Computation::Unary {
+                operator: leselang_hir::computation::UnaryOperator::ParseInteger,
+                value: Box::new(Computation::Literal {
+                    value: ScalarValue::String("invalid".into()),
+                }),
+            }),
+            fallback: Box::new(Computation::Literal {
+                value: ScalarValue::Integer(7),
+            }),
+        };
+        let mut bindings = Vec::new();
+        let mut scope = ScopeFrame::new(&mut bindings);
         let mut fuel = Fuel::new(0);
         let Err(failure) = evaluate_inner(&expression, &mut fuel, &mut scope) else {
             panic!()

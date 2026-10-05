@@ -39,22 +39,22 @@ imports are shared types with legacy wire bytes, not parallel implementations;
 expression/constructor expansion costs and host validation stay in HIR/VM.
 Scalar signatures, eager operations, left-value short-circuit decisions and
 condition-first loop budgets, owned fold cursors, incremental list builders and
-borrowed lexical frames are shared; evaluation, preflight, fuel policy, durable
-capture and recovery stay in VM without syntax or wire changes.
+borrowed lexical frames are shared; HIR now executes pure IR for native hosts and VM;
+effect dispatch, fuel grants, durable capture and recovery remain adapter-owned.
 HIR and restored-projection preflight share the lexical guard, not their type,
 node-budget, legacy-field or authority policies.
-Ordered scalar projections share opaque-key schema checks and the VM's field DTO;
-operation domains, authority and receipt/replay checks remain adapter-owned.
+Ordered scalar projections share opaque-key schema checks and the VM's field DTO.
 Typed calculation recovery keeps external failures separate without inspecting
-codes; fallback evaluation, shared budgets and durable recovery remain VM-owned.
+codes; pure fallbacks share the executor, while durable recovery remains VM-owned.
 HIR shape/signature walks share checked structural arithmetic; source weights,
 separate graph limits, cold checks and diagnostics remain adapter policy.
-Native catalogs share versioned operation selection, named shape and argument order;
-shared control IR supports pure/call dataflow and explicit flat named group typing;
-declared captures and closed group exports do not certify actual replies.
+Native catalogs share versioned selection and typed pure/call/group dataflow;
+literal/operator source lowering, call binding, value preparation and effect control are shared;
+received results share type-before-value checks, not authentic receipt certificates;
+raw receipt identity, authority, output limits and replay remain adapter-owned.
 Accepted scalar alternatives share borrowed type/bounds checks with projections;
 no coercion, implicit nullability, authority or lasting value certificate is added.
 Payload-free terminals distinguish cancellation, expiry, exhaustion, rejection, acceptance and
 host uncertainty without replay authority or legacy wire changes; cleanup retains
 known reasons and releases undelivered outputs on unwind.
-Full source/effect typing, evaluation and suspension remain to be separated.
+Reply handoff is shared; full source/opaque-effect typing and durable suspension remain open.

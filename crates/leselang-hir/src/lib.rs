@@ -1,18 +1,23 @@
 #![forbid(unsafe_code)]
 
+pub mod call_evaluation;
 pub mod call_typing;
 pub mod computation;
 mod computed_group;
 mod control_flow;
+pub mod effect_evaluation;
 pub mod flow_typing;
 mod function_flow;
 mod functions;
 pub mod host_call;
 pub mod ir;
 pub mod prepared_typing;
+pub mod pure_evaluation;
 mod pure_reference;
 pub mod pure_typing;
 pub mod result_field;
+pub mod scalar_source;
+pub mod source_call;
 
 use control_flow::{lower_repeat, lower_sequence};
 

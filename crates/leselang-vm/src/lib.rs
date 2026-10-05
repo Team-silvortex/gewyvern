@@ -39,6 +39,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 mod admission;
 mod computation;
 mod group_binding;
+mod host_result;
 mod journal;
 mod result_binding;
 mod scheduling;
@@ -57,6 +58,7 @@ pub use result_binding::{
 };
 pub use scheduling::{DispatchClaim, SchedulerLimits, SchedulerPressure};
 
+use host_result::{accept_bound_value, validate_bound_value};
 pub use journal::{
     JOURNAL_SCHEMA_VERSION, MAX_JOURNAL_ENTRY_BYTES, MAX_JOURNAL_RECORDS, MAX_JOURNAL_TOTAL_BYTES,
 };
@@ -1452,7 +1454,7 @@ impl Vm {
                 }
                 Ok(computation::Outcome::Host(effect)) => (effect, None),
                 Ok(computation::Outcome::BoundHost { effect, binding }) => (effect, Some(binding)),
-                Ok(computation::Outcome::Result(_)) => {
+                Ok(computation::Outcome::Result) => {
                     return fault("LSV1402", "unexpected unprojected result");
                 }
                 Err(error) => return Step::Fault(error),
@@ -5643,30 +5645,19 @@ fn step_from_effect_result(
     let Step::Done(value) = step else {
         return step;
     };
-    if let Err(error) = validate_bound_value(image, &value) {
-        return Step::Fault(error);
-    }
+    let (image, value) = match accept_bound_value(image, &value) {
+        Ok(accepted) => accepted,
+        Err(error) => return Step::Fault(error),
+    };
     let mut fuel = Fuel::new(image.fuel_remaining);
     let Some(operation) = leselang_hir::host_call::HostOperation::for_effect(&image.pending_effect)
     else {
         return Step::Fault(result_binding::invalid());
     };
-    match computation::resume(binding, &value, operation, &mut fuel) {
+    match computation::resume(binding, value, operation, &mut fuel) {
         Ok(value) => Step::Done(Value::Scalar { value }),
         Err(error) => Step::Fault(error),
     }
-}
-
-fn validate_bound_value(image: &ContinuationImage, value: &Value) -> Result<(), Fault> {
-    validate_value(value, 0).and_then(|items| {
-        if items > image.max_output_items || image.max_output_items == 0 {
-            return Err(Fault {
-                code: "LSV2102".into(),
-                message: "bound result exceeds the output item limit".into(),
-            });
-        }
-        validate_json_size_capped(value, MAX_JOURNAL_ENTRY_BYTES, "bound host result")
-    })
 }
 
 fn atomic_step_from_effect_result(

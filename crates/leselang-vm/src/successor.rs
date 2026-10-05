@@ -130,7 +130,7 @@ fn materialize(image: &ContinuationImage, value: &Value) -> Result<PreparedResul
         computation::Outcome::Scalar(value) => return Ok(PreparedResult::Scalar(value)),
         computation::Outcome::Host(effect) => (effect, None),
         computation::Outcome::BoundHost { effect, binding } => (effect, Some(binding)),
-        computation::Outcome::Result(_) => return Err(invalid()),
+        computation::Outcome::Result => return Err(invalid()),
     };
     if fuel.remaining() == 0 {
         return Err(Fault {

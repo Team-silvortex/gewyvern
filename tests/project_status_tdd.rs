@@ -473,13 +473,23 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
     assert_eq!(cell.priority, Priority::Active);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
-    assert_eq!(cell.contract.version, "0.30.0");
+    assert_eq!(cell.contract.version, "0.37.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.independence, Independence::ReusableLibrary);
     assert!(cell.evidence.iter().any(|evidence| {
         evidence.kind == EvidenceKind::Test && evidence.state == EvidenceState::Planned
     }));
     for path in [
+        "crates/leselang-hir/src/scalar_source.rs",
+        "crates/leselang-hir/tests/scalar_source.rs",
+        "crates/leselang-hir/src/effect_evaluation.rs",
+        "crates/leselang-hir/tests/effect_evaluation.rs",
+        "crates/leselang-hir/src/source_call.rs",
+        "crates/leselang-hir/tests/source_call.rs",
+        "crates/leselang-hir/src/call_evaluation.rs",
+        "crates/leselang-hir/tests/call_evaluation.rs",
+        "crates/leselang-hir/src/pure_evaluation.rs",
+        "crates/leselang-hir/tests/pure_evaluation.rs",
         "crates/leselang-runtime-core/src/lib.rs",
         "crates/leselang-runtime-core/src/fuel.rs",
         "crates/leselang-runtime-core/src/clock.rs",
@@ -558,6 +568,12 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         "crates/leselang-hir/tests/group_typing.rs",
         "crates/leselang-hir/tests/group_reference.rs",
         "crates/leselang-runtime-core/tests/fuel.rs",
+        "crates/leselang-runtime-core/src/host_result.rs",
+        "crates/leselang-runtime-core/tests/host_result.rs",
+        "crates/leselang-runtime-core/src/reply.rs",
+        "crates/leselang-runtime-core/tests/reply.rs",
+        "crates/leselang-hir/tests/host_result.rs",
+        "crates/leselang-vm/src/host_result.rs",
         "crates/leselang-runtime-core/tests/clock.rs",
         "crates/leselang-runtime-core/tests/backoff.rs",
         "tests/language_independence_tdd.rs",
@@ -570,6 +586,29 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         );
     }
     for surface in [
+        "product-free-literal-and-thirty-operator-source-construction",
+        "cold-source-and-operator-names-before-native-extensions",
+        "original-ast-native-extension-with-trusted-type-observations",
+        "pure-bounded-generated-ir-and-exact-literal-type-facts",
+        "aggregate-constructor-budget-before-optional-folding",
+        "optional-literal-buffer-move-without-second-copy",
+        "shared-scalar-source-to-native-call-value-proof",
+        "scalar-source-construction-not-complete-lexical-control-helper-compiler",
+        "product-free-atomic-native-source-call-bridge",
+        "whole-cold-source-shape-before-native-catalog-queries",
+        "trusted-exact-version-grants-and-names-before-source-operands",
+        "original-ast-schema-and-submission-position-preservation",
+        "separate-aggregate-source-and-produced-pure-ir-budgets",
+        "native-source-lowering-failure-and-unwind-output-release",
+        "atomic-source-bridge-not-complete-generic-operand-lowering",
+        "product-free-in-memory-pending-reply-ownership",
+        "identity-before-authority-borrow-type-and-value-validation",
+        "original-declaration-and-moved-frame-reply-handoff",
+        "rejected-input-return-with-pending-frame-retention",
+        "native-unwind-terminal-uncertainty-without-rearm",
+        "cancel-before-native-frame-cleanup",
+        "single-handle-handoff-not-durable-or-global-replay-authority",
+        "reference-borrowed-reply-checkpoint-after-existing-journal-gates",
         "product-free-generic-admission-lifecycle",
         "explicit-host-backpressure-classification",
         "standalone-normalized-runtime-core-package",
@@ -717,6 +756,35 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         "borrowed-name-operation-type-views-without-native-payload-clone",
         "closed-mode-order-name-operation-joins-not-union",
         "group-typing-not-evaluation-suspension-or-durable-recovery",
+        "product-free-received-result-domain-protocol",
+        "type-before-native-value-validation-without-coercion",
+        "same-original-declaration-for-static-call-and-actual-result",
+        "borrowed-opaque-and-unsized-replies-without-core-copy",
+        "explicit-native-error-provenance-and-payload-free-formatting",
+        "native-unwind-no-automatic-retry-or-calculation-recovery",
+        "reference-bound-raw-result-revalidation-before-projection",
+        "received-value-check-not-authentic-receipt-or-replay-authority",
+        "shared-host-neutral-pure-ir-execution",
+        "bounded-physical-and-prefix-preflight-before-native-values",
+        "shared-pure-value-lexical-frame-without-prefix-clone",
+        "pure-execution-not-source-effect-suspension-independence",
+        "shared-native-catalog-to-actual-call-preparation",
+        "exact-version-grants-and-named-shape-before-value-execution",
+        "aggregate-root-and-argument-forest-runtime-limits",
+        "declaration-order-once-values-before-native-domains",
+        "moved-scalars-and-borrowed-original-parameter-names",
+        "direct-value-scope-without-per-argument-prefix-copy",
+        "explicit-root-fuel-and-selected-signature-adapter-boundary",
+        "typed-call-failures-without-native-payload-formatting",
+        "call-preparation-not-effect-dispatch-or-suspension",
+        "shared-effect-control-bind-choose-and-pure-recovery",
+        "whole-flow-physical-prefix-before-native-hooks",
+        "all-cold-effect-preflight-before-values-and-fuel",
+        "non-dispatching-native-request-and-capture-protocol",
+        "move-only-payload-free-effect-outcomes-and-faults",
+        "capture-failure-request-release-without-retry",
+        "native-captured-prefix-and-result-alias-reentry-proof",
+        "in-memory-control-hooks-not-complete-durable-pipelines",
     ] {
         assert!(cell.contract.surfaces.iter().any(|entry| entry == surface));
     }
@@ -9559,8 +9627,28 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leselang/language-hir/typed-effects")
         .expect("Leselang HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.81.0");
+    assert_eq!(hir.contract.version, "0.87.0");
     for surface in [
+        "shared-native-scalar-literal-and-operator-source-lowering",
+        "closed-operator-named-signature-before-native-source-extensions",
+        "reference-literal-and-operator-construction-delegation",
+        "optional-literal-buffer-handoff-without-source-cost-refund",
+        "shared-native-source-call-binding",
+        "physical-source-before-native-catalog-and-grant-queries",
+        "signature-order-native-lowering-with-submission-indices",
+        "separate-shared-produced-ir-forest-budget",
+        "reference-computed-source-argument-loop-delegation",
+        "shared-native-pending-reply-frame-acceptance",
+        "explicit-correlation-policy-before-native-reply-queries",
+        "once-only-accepted-capture-handoff",
+        "shared-host-neutral-effect-control-walker",
+        "cold-physical-and-native-schema-before-control-execution",
+        "adapter-owned-move-only-request-and-lexical-capture",
+        "shared-host-neutral-atomic-call-value-preparation",
+        "whole-call-forest-and-prefix-preflight-before-native-values",
+        "original-schema-and-submission-position-preservation",
+        "shared-host-neutral-twelve-node-pure-ir-execution",
+        "reference-pure-evaluation-without-second-tree-or-prefix-copy",
         "shared-native-reference-operation-catalog",
         "source-name-and-signature-resolution-through-host-schema",
         "unchanged-seventy-operation-names-result-tags-and-wire",
@@ -9738,6 +9826,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         == "crates/leselang-hir/tests/value_contract.rs"
         && entry.state == EvidenceState::Present));
     for path in [
+        "crates/leselang-hir/src/scalar_source.rs",
+        "crates/leselang-hir/tests/scalar_source.rs",
         "crates/leselang-runtime-core/src/scalar_ops.rs",
         "crates/leselang-hir/tests/operator_contract.rs",
         "crates/leselang-runtime-core/src/control.rs",
@@ -9795,8 +9885,19 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.73.0");
+    assert_eq!(vm.contract.version, "1.78.0");
     for surface in [
+        "borrowed-shared-reply-acceptance-observation-checkpoint",
+        "original-bound-frame-value-pointer-and-fuel-preservation",
+        "unchanged-durable-reply-authority-and-native-fault-mapping",
+        "shared-native-effect-control-and-capture-hooks",
+        "legacy-projected-capture-and-root-fuel-delegation",
+        "forged-recovery-physical-rejection-before-fuel",
+        "shared-computed-host-argument-preparation",
+        "unchanged-signature-order-copy-fuel-and-host-domain-faults",
+        "legacy-literal-resolution-after-shared-value-preparation",
+        "shared-native-pure-executor-delegation",
+        "direct-shared-pure-value-lexical-scope",
         "typed-debugger-cancel-result",
         "restart-safe-debugger-cancel-dispatch",
         "typed-presentation-envelope",
@@ -9995,6 +10096,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "legacy-projected-field-direct-specialization",
         "operation-domain-and-v1-v5-restoration-parity",
         "typed-calculation-error-provenance",
+        "shared-core-received-result-type-before-value-validation",
+        "unchanged-native-result-faults-bounds-fuel-and-replay",
         "recovery-without-fault-string-classification",
         "deferred-scalar-fault-diagnostics",
         "unchanged-recovery-fuel-wire-and-replay",

@@ -338,6 +338,46 @@ pub(crate) fn invalid_argument(message: impl Into<String>, span: Option<Span>) -
 }
 
 impl HostOperation {
+    /// Reference adapter for shared, whole-forest argument preparation.
+    /// The caller owns call-root fuel and canonical/type/authority preflight;
+    /// resolving the returned data still uses the legacy literal-path validators.
+    pub fn evaluate_computed_arguments<'expression, Environment>(
+        self,
+        arguments: &'expression [crate::computation::ComputedArgument],
+        scope: &mut leselang_runtime_core::ScopeFrame<
+            '_,
+            'expression,
+            crate::pure_evaluation::PureValue<Environment::Result>,
+        >,
+        environment: &Environment,
+        fuel: &mut leselang_runtime_core::Fuel,
+        limits: crate::call_evaluation::CallEvaluationLimits,
+    ) -> Result<
+        Vec<(String, ScalarValue)>,
+        crate::call_evaluation::CallEvaluationError<Environment::Error>,
+    >
+    where
+        Environment: crate::pure_evaluation::PureEvaluationEnvironment<
+                crate::result_field::ResultField,
+                Self,
+            >,
+    {
+        let prepared = crate::call_evaluation::evaluate_call_arguments_in_scope(
+            arguments,
+            self.schema(),
+            scope,
+            environment,
+            fuel,
+            limits,
+        )?;
+        Ok(prepared
+            .into_parts()
+            .1
+            .into_iter()
+            .map(|argument| (argument.name.to_owned(), argument.value))
+            .collect())
+    }
+
     pub(crate) fn validate_names(
         self,
         names: &[&str],

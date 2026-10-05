@@ -160,12 +160,57 @@ fn shared_argument_typing_uses_native_domains_and_the_reference_ir_bridge() {
     assert!(checker.contains("pub fn check_argument_types("));
     let lower =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
-    assert!(lower.contains("value.scalar_argument_type(match ty"));
-    assert!(lower.contains("check_argument_type(&parameter.domain, facts)"));
+    assert!(lower.contains("lower_preflighted_arguments("));
+    assert!(lower.contains("Type::Scalar(ty) => Some(ty)"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/source_call.rs")).unwrap();
+    assert!(source.contains("check_argument_type(&parameter.domain, facts)"));
+    assert!(source.contains("is_pure: true"));
     let domains =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/host_call.rs")).unwrap();
     assert!(domains.contains("impl ScalarArgumentDomain for ArgumentDomain"));
     assert!(domains.contains("check_argument_type(&self, ScalarArgumentType::literal(value))"));
+}
+
+#[test]
+fn native_source_call_bridge_uses_original_ast_catalog_and_shared_ir_without_product_types() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/source_call.rs")).unwrap();
+    for product in [
+        "HostOperation",
+        "ResultField",
+        "crate::Type",
+        "leserpent",
+        "sqlite",
+    ] {
+        assert!(
+            !source.contains(product),
+            "source call bridge leaked {product}"
+        );
+    }
+    assert!(source.contains("use leselang_syntax::{Expression, NamedArgument, Span};"));
+    assert!(source.contains("use crate::ir::{Computation, ComputedArgument};"));
+    assert!(source.contains("pub fn lower_source_call"));
+    let public = source.split_once("pub fn lower_source_call").unwrap().1;
+    assert!(
+        public.find("preflight(expression, limits)?;").unwrap()
+            < public
+                .find(".authorize(callee.as_str(), host.version, host.granted)")
+                .unwrap()
+    );
+    assert!(
+        public.find(".bind_arguments(&names)").unwrap() < public.find("lower(argument)").unwrap()
+    );
+    assert!(public.contains("preflight_with_budget(&value, 1, &mut budget)"));
+    assert!(public.find(".check_pending(0, 1)").unwrap() < public.find("lower(argument)").unwrap());
+    assert!(!source.contains(".scalar_argument_type("));
+    assert!(!source.contains("pub enum Expression"));
+    assert!(!source.contains(".clone()"));
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
+    assert!(reference.contains("lowered.into_arguments()"));
+    assert!(!reference.contains("let bindings = operation.bind_names(&names"));
 }
 
 #[test]
@@ -386,4 +431,298 @@ fn leselang_runtime_core_has_no_workspace_or_build_dependency_even_in_its_tests(
     assert!(standalone_job.contains("cargo +1.98.0 package -p leselang-runtime-core --locked"));
     assert!(standalone_job.contains("cargo +1.98.0 test --manifest-path target/package/leselang-runtime-core-*/Cargo.toml --locked --offline"));
     assert!(workflow.contains("needs: [rust, product-surfaces, leselang-core]"));
+}
+
+#[test]
+fn actual_result_validation_is_product_free_and_shared_by_reference_raw_value_binding() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/host_result.rs"))
+            .unwrap();
+    for product in [
+        "leselang_hir",
+        "HostOperation",
+        "ResultField",
+        "leserpent",
+        "sqlite",
+    ] {
+        assert!(
+            !source.contains(product),
+            "host-result validation leaked {product}"
+        );
+    }
+    assert!(source.contains("pub trait HostResultDomain<Reply: ?Sized>"));
+    assert!(source.contains("pub fn validate_host_result"));
+    assert!(
+        source.find("if !domain.matches_type(reply)").unwrap()
+            < source.find(".validate_value(reply)").unwrap()
+    );
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-vm/src/host_result.rs")).unwrap();
+    assert!(reference.contains("impl HostResultDomain<Value> for BoundResultDomain"));
+    assert!(reference.contains("PendingReply::new(image.token.as_str(), image, &declaration)"));
+    assert!(reference.contains(".try_accept(&image.token.as_str(), value, &ResultObservation)"));
+    assert!(
+        reference.contains(
+            "ReplyAcceptanceError::Result(HostResultError::InvalidValue(error)) => error"
+        )
+    );
+    assert!(reference.contains("crate::group_binding::value_type(reply)"));
+    let vm = std::fs::read_to_string(root.join("crates/leselang-vm/src/lib.rs")).unwrap();
+    assert!(vm.contains("use host_result::{accept_bound_value, validate_bound_value};"));
+    assert!(vm.contains("match accept_bound_value(image, &value)"));
+    assert!(!vm.contains("fn validate_bound_value("));
+}
+
+#[test]
+fn pending_reply_ownership_is_product_free_and_closes_before_native_callbacks() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/reply.rs")).unwrap();
+    for product in [
+        "leselang_hir",
+        "ContinuationImage",
+        "leserpent",
+        "sqlite",
+        "serde",
+    ] {
+        // Documentation names serde only to reject the requirement; no import/derive is allowed.
+        if product == "serde" {
+            assert!(!source.contains("use serde"));
+            assert!(!source.contains("Serialize, Deserialize"));
+        } else {
+            assert!(
+                !source.contains(product),
+                "reply ownership leaked {product}"
+            );
+        }
+    }
+    assert!(source.contains("pub trait ReplyAuthority<Identity>"));
+    assert!(source.contains("Reply: Borrow<View>"));
+    let attempt = source.split_once("pub fn try_accept").unwrap().1;
+    let close = attempt
+        .find("State::Terminal(ReplyEnd::HostUncertain)")
+        .unwrap();
+    let identity = attempt
+        .find("&waiting.identity != actual_identity")
+        .unwrap();
+    let authority = attempt
+        .find("authority.authorize(&waiting.identity)")
+        .unwrap();
+    let value = attempt
+        .find("validate_host_result(waiting.declaration, reply.borrow())")
+        .unwrap();
+    assert!(close < identity && identity < authority && authority < value);
+    assert!(attempt.contains("self.state = State::Waiting(waiting)"));
+    assert!(
+        attempt
+            .find("self.state = State::Terminal(ReplyEnd::Accepted)")
+            .unwrap()
+            < attempt.find("Ok(AcceptedReply {").unwrap()
+    );
+    let proofs =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/effect_evaluation.rs"))
+            .unwrap();
+    assert!(proofs.contains("PendingReply::new((7, 1), capture"));
+    assert!(proofs.contains("PendingReply::new(1u64, capture"));
+    assert!(proofs.contains("ReplyAcceptanceError::Closed(ReplyEnd::Cancelled)"));
+}
+
+#[test]
+fn shared_pure_execution_is_product_free_and_used_by_the_reference_vm() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/pure_evaluation.rs")).unwrap();
+    for product in [
+        "crate::Type",
+        "HostOperation",
+        "ResultField",
+        "leserpent",
+        "sqlite",
+    ] {
+        assert!(
+            !source.contains(product),
+            "shared pure execution leaked {product}"
+        );
+    }
+    assert!(source.contains("use crate::ir::Computation;"));
+    assert!(source.contains("pub trait PureEvaluationEnvironment<Field, Operation>"));
+    assert!(source.contains("pub fn evaluate_pure_in_scope"));
+    assert!(source.contains("preflight_with_budget(expression, 0, &mut budget)"));
+    assert!(source.contains("Err(failure) if failure.is_recoverable()"));
+    assert!(!source.contains("pub enum Computation"));
+    let vm = std::fs::read_to_string(root.join("crates/leselang-vm/src/computation.rs")).unwrap();
+    assert!(vm.contains("type LocalValue<'a> = PureValue<ResultView<'a>>"));
+    assert!(vm.contains("evaluate_effects_in_scope("));
+    let control =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_evaluation.rs")).unwrap();
+    assert!(control.contains("evaluate_preflighted_in_scope("));
+    assert!(vm.contains("PureEvaluationFault::Native(fault) => fault"));
+    for duplicated in [
+        "LoopBudget::new",
+        "FoldCursor::new",
+        "StringListBuilder::with_capacity",
+        "apply_binary(",
+        "apply_unary(",
+    ] {
+        assert!(
+            !vm.contains(duplicated),
+            "reference VM duplicated {duplicated}"
+        );
+    }
+}
+
+#[test]
+fn shared_call_preparation_connects_native_catalogs_and_values_to_the_reference_vm() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/call_evaluation.rs")).unwrap();
+    for product in [
+        "crate::Type",
+        "HostOperation",
+        "ResultField",
+        "leserpent",
+        "sqlite",
+    ] {
+        assert!(
+            !source.contains(product),
+            "call preparation leaked {product}"
+        );
+    }
+    for shared in [
+        "use crate::ir::{Computation, ComputedArgument};",
+        "pub fn prepare_call_in_scope",
+        "pub fn evaluate_call_arguments_in_scope",
+        "pub struct PreparedCall",
+        "preflight_value_scope",
+        "preflight_arguments_with_budget",
+        "evaluate_preflighted_in_scope",
+        "check_argument_type",
+    ] {
+        assert!(
+            source.contains(shared),
+            "missing shared call boundary {shared}"
+        );
+    }
+    assert!(
+        source
+            .find("let names = preflight(arguments, scope, limits)?;")
+            .unwrap()
+            < source.find("evaluate_arguments(arguments, &names").unwrap()
+    );
+    assert!(!source.contains("bindings.to_vec()"));
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/host_call.rs")).unwrap();
+    assert!(reference.contains("pub fn evaluate_computed_arguments"));
+    assert!(reference.contains("crate::call_evaluation::evaluate_call_arguments_in_scope("));
+    let vm = std::fs::read_to_string(root.join("crates/leselang-vm/src/computation.rs")).unwrap();
+    assert!(vm.contains(".evaluate_computed_arguments("));
+    assert!(!vm.contains("for argument in arguments"));
+    assert!(
+        vm.contains("CallEvaluationError::Evaluation { failure, .. } => pure_failure(failure)")
+    );
+    assert!(vm.contains("operation.resolve(&values)"));
+}
+
+#[test]
+fn shared_effect_control_drives_reference_vm_with_explicit_non_dispatching_capture_hooks() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_evaluation.rs")).unwrap();
+    for product in [
+        "crate::Type",
+        "HostOperation",
+        "ResultField",
+        "leserpent",
+        "sqlite",
+    ] {
+        assert!(!source.contains(product), "effect control leaked {product}");
+    }
+    for boundary in [
+        "pub trait EffectEvaluationEnvironment",
+        "pub enum EffectEvaluationOutcome",
+        "pub fn evaluate_effects_in_scope",
+        "fn preflight_effect(",
+        "fn prepare_effect(",
+        "fn capture(",
+        "let mut local = scope.nested();",
+        "evaluate_preflighted_in_scope(",
+        "EffectEvaluationFault::NestedSuspension",
+    ] {
+        assert!(
+            source.contains(boundary),
+            "missing effect control boundary {boundary}"
+        );
+    }
+    assert!(
+        source
+            .find("let effects = preflight(expression, scope, limits)?;")
+            .unwrap()
+            < source.find(".preflight_effect(effect)").unwrap()
+    );
+    assert!(!source.contains("pub enum Computation"));
+    assert!(!source.contains("bindings.to_vec()"));
+    let vm = std::fs::read_to_string(root.join("crates/leselang-vm/src/computation.rs")).unwrap();
+    assert!(vm.contains("evaluate_effects_in_scope("));
+    assert!(vm.contains("type Capture = Box<ResultBinding>;"));
+    assert!(vm.contains("charge_group_projection(fuel, &group)?"));
+    assert!(!vm.contains("Computation::Bind { name, value, body } =>"));
+    assert!(!vm.contains("Err(failure) if failure.is_recoverable()"));
+}
+
+#[test]
+fn shared_scalar_source_construction_is_product_free_and_delegated_by_reference_compiler() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/scalar_source.rs")).unwrap();
+    for product in [
+        "crate::Type",
+        "HostOperation",
+        "ResultField",
+        "leserpent",
+        "sqlite",
+    ] {
+        assert!(!source.contains(product), "scalar source leaked {product}");
+    }
+    for boundary in [
+        "pub fn lower_scalar_source",
+        "pub(crate) fn lower_form",
+        "preflight(expression, limits)",
+        "preflight_names(expression)",
+        "preflight_with_budget(&value",
+        "BinaryOperator::parse",
+        "UnaryOperator::parse",
+        "ScalarSourceError::InconsistentLiteral",
+        "type OperandResult",
+        "if depth > max_depth",
+    ] {
+        assert!(
+            source.contains(boundary),
+            "missing scalar source boundary {boundary}"
+        );
+    }
+    let public = source.split_once("pub fn lower_scalar_source").unwrap().1;
+    assert!(
+        public.find("preflight(expression, limits)").unwrap()
+            < public.find("preflight_names(expression)").unwrap()
+    );
+    assert!(
+        public.find("preflight_names(expression)").unwrap()
+            < public.find("let output = build(").unwrap()
+    );
+    assert!(!source.contains("apply_binary("));
+    assert!(!source.contains("apply_unary("));
+    assert!(!source.contains("Some(text.clone())"));
+    assert!(!source.contains("pub enum Computation"));
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
+    assert!(reference.contains("crate::scalar_source::primitive(expression)"));
+    assert!(reference.contains("crate::scalar_source::lower_form(expression"));
+    assert!(!reference.contains("fn unary_type("));
+    assert!(!reference.contains("if let Some(operator) = BinaryOperator::parse(callee)"));
+    assert!(!reference.contains("Some(text.clone())"));
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/source_call.rs")).unwrap();
+    assert!(proof.contains("leselang_hir::scalar_source::lower_scalar_source"));
+    assert!(!proof.contains("fn node(expression: &Expression)"));
 }
