@@ -115,7 +115,7 @@ fn member_shape<'name>(
         })
 }
 
-fn physical<Field, Operation, HostEffect, IrResult, Error>(
+pub(crate) fn physical<Field, Operation, HostEffect, IrResult, Error>(
     expression: &Node<Field, Operation, HostEffect, IrResult>,
     limits: GroupExportLimits,
 ) -> Result<(), GroupExportError<Error>> {

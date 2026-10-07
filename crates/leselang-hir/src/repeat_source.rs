@@ -147,7 +147,7 @@ pub trait RepeatSourceAdapter<'source, Field, Operation, HostEffect, IrResult> {
     ) -> Result<(), Self::Error>;
 }
 
-fn header<Error>(
+pub(crate) fn header<Error>(
     expression: &Expression,
     maximum: usize,
 ) -> Result<(usize, &NamedArgument), RepeatSourceError<Error>> {
@@ -178,7 +178,7 @@ fn header<Error>(
     Ok((value as usize, body))
 }
 
-fn cold_headers<Error>(
+pub(crate) fn cold_headers<Error>(
     expression: &Expression,
     maximum: usize,
 ) -> Result<(), RepeatSourceError<Error>> {
@@ -197,7 +197,7 @@ fn cold_headers<Error>(
     Ok(())
 }
 
-fn shape<Field, Operation, HostEffect, IrResult>(
+pub(crate) fn shape<Field, Operation, HostEffect, IrResult>(
     node: &Node<Field, Operation, HostEffect, IrResult>,
     limits: SourceCallLimits,
 ) -> Result<RepeatSourceShape, StructureError> {
@@ -218,7 +218,7 @@ fn shape<Field, Operation, HostEffect, IrResult>(
     })
 }
 
-fn reserve(
+pub(crate) fn reserve(
     nodes: usize,
     depth: usize,
     count: usize,

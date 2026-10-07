@@ -898,10 +898,17 @@ mod counter {
             input,
             LIMITS,
             |_, argument| {
-                if matches!(&argument.value, Expression::Call { callee, .. } if callee == "seq") {
-                    let Ir::Group { branches, .. } = compile_sequence(&argument.value, host)
-                        .map_err(|_| PrivateError("nested source rejected"))?
-                    else {
+                if let Expression::Call { callee, .. } = &argument.value
+                    && matches!(callee.as_str(), "seq" | "repeat")
+                {
+                    let nested = if callee == "seq" {
+                        compile_sequence(&argument.value, host)
+                            .map_err(|_| PrivateError("nested source rejected"))?
+                    } else {
+                        compile_repeated_sequence(&argument.value, host, false)
+                            .map_err(|_| PrivateError("nested repeat rejected"))?
+                    };
+                    let Ir::Group { branches, .. } = nested else {
                         panic!()
                     };
                     return Ok(SequenceSourceMember::Sequence { branches });
@@ -945,6 +952,147 @@ mod counter {
             },
         )
     }
+
+    struct NativeRepeat<'host, 'catalog, 'schema> {
+        host:
+            &'host SourceCallHost<'catalog, 'schema, &'static str, ScalarTypeSet, Declaration, u8>,
+        corrupt: bool,
+    }
+    impl<'source, 'schema>
+        leselang_hir::repeat_sequence_source::RepeatSequenceSourceAdapter<
+            'source,
+            (),
+            &'static str,
+            (),
+            &'schema Schema<'schema>,
+        > for NativeRepeat<'_, '_, 'schema>
+    {
+        type Error = PrivateError;
+        fn lower_sequence(
+            &mut self,
+            body: &'source leselang_syntax::NamedArgument,
+        ) -> Result<
+            Vec<leselang_hir::ir::ComputedBranch<Ir<'schema>, &'schema Schema<'schema>>>,
+            PrivateError,
+        > {
+            let Ir::Group { branches, .. } = compile_sequence(&body.value, self.host)
+                .map_err(|_| PrivateError("native template rejected"))?
+            else {
+                panic!()
+            };
+            Ok(branches)
+        }
+        fn host_cost(
+            &mut self,
+            _: &(),
+        ) -> Result<leselang_hir::source_cost::SourceCostExtra, PrivateError> {
+            Err(PrivateError("opaque effects are not registered"))
+        }
+        fn materialize_sequence(
+            &mut self,
+            _: usize,
+            _: &'source leselang_syntax::NamedArgument,
+            original: &[leselang_hir::ir::ComputedBranch<Ir<'schema>, &'schema Schema<'schema>>],
+        ) -> Result<
+            Vec<leselang_hir::ir::ComputedBranch<Ir<'schema>, &'schema Schema<'schema>>>,
+            PrivateError,
+        > {
+            let mut copy = original.to_vec();
+            if self.corrupt {
+                let Ir::Call { arguments, .. } = &mut copy[1].value else {
+                    panic!()
+                };
+                arguments[0].value = Ir::Literal {
+                    value: ScalarValue::Integer(12),
+                };
+            }
+            Ok(copy)
+        }
+        fn admit_member(
+            &mut self,
+            _: usize,
+            _: usize,
+            _: &'source leselang_syntax::NamedArgument,
+            original: &leselang_hir::ir::ComputedBranch<Ir<'schema>, &'schema Schema<'schema>>,
+            candidate: &leselang_hir::ir::ComputedBranch<Ir<'schema>, &'schema Schema<'schema>>,
+        ) -> Result<(), PrivateError> {
+            let (
+                Ir::Call {
+                    operation,
+                    arguments,
+                },
+                Ir::Call {
+                    operation: expected,
+                    arguments: original_args,
+                },
+            ) = (&candidate.value, &original.value)
+            else {
+                return Err(PrivateError("not registered atomic calls"));
+            };
+            let schema = self
+                .host
+                .catalog
+                .authorize(operation, self.host.version, self.host.granted)
+                .map_err(|_| PrivateError("live native declaration rejected"))?;
+            if operation != expected
+                || !std::ptr::eq(schema, original.result_type)
+                || !std::ptr::eq(schema, candidate.result_type)
+                || arguments.len() != original_args.len()
+            {
+                return Err(PrivateError("wrong native declaration"));
+            }
+            let environment = Environment {
+                catalog: self.host.catalog,
+                version: self.host.version,
+                grants: self.host.granted,
+                events: RefCell::new(Vec::new()),
+            };
+            let scalar = |value: &Ir<'schema>| {
+                let mut values = Vec::new();
+                let mut scope = ScopeFrame::new(&mut values);
+                let mut fuel = Fuel::new(256);
+                match leselang_hir::pure_evaluation::evaluate_pure_in_scope(
+                    value,
+                    &mut scope,
+                    &environment,
+                    &mut fuel,
+                    PURE,
+                ) {
+                    Ok(PureValue::Scalar(value)) => Ok(value),
+                    _ => Err(PrivateError("native scalar corroboration failed")),
+                }
+            };
+            for (argument, expected) in arguments.iter().zip(original_args) {
+                if argument.name != expected.name
+                    || scalar(&argument.value)? != scalar(&expected.value)?
+                {
+                    return Err(PrivateError("changed native argument semantics"));
+                }
+            }
+            Ok(())
+        }
+    }
+    fn compile_repeated_sequence<'schema>(
+        input: &Expression,
+        host: &SourceCallHost<'_, 'schema, &'static str, ScalarTypeSet, Declaration, u8>,
+        corrupt: bool,
+    ) -> leselang_hir::repeat_sequence_source::RepeatSequenceResult<Ir<'schema>, PrivateError> {
+        leselang_hir::repeat_sequence_source::lower_repeat_sequence_source(
+            input,
+            leselang_hir::repeat_sequence_source::RepeatSequenceSourceLimits {
+                repeat: leselang_hir::repeat_source::RepeatSourceLimits {
+                    source: LIMITS.source,
+                    expanded: leselang_hir::source_cost::SourceCostLimits {
+                        max_nodes: 256,
+                        max_depth: 32,
+                    },
+                    max_repetitions: 64,
+                },
+                max_branches: 64,
+            },
+            &mut NativeRepeat { host, corrupt },
+        )
+    }
     impl PureEvaluationEnvironment<(), &'static str> for Environment<'_> {
         type Result = ();
         type Error = PrivateError;
@@ -953,6 +1101,181 @@ mod counter {
         }
         fn member(&self, _: &(), _: &str, _: &&'static str) -> Result<(), PrivateError> {
             Err(PrivateError("no received group"))
+        }
+    }
+    impl leselang_hir::pure_typing::PureTypeEnvironment<(), &'static str> for Environment<'_> {
+        type Result = ();
+        fn field_type(&self, _: &(), _: &()) -> Option<ScalarType> {
+            None
+        }
+        fn member_result(&self, _: &(), _: &str, _: &&'static str) -> Option<()> {
+            None
+        }
+    }
+    struct SequentialEnvironment<'host, 'schema> {
+        inner: &'host Environment<'schema>,
+        owner: u64,
+    }
+    impl<'expression, 'schema: 'expression>
+        leselang_hir::sequence_evaluation::SequenceEvaluationEnvironment<
+            'expression,
+            (),
+            &'static str,
+            (),
+            &'schema Schema<'schema>,
+        > for SequentialEnvironment<'_, 'schema>
+    {
+        type Identity = (u64, usize);
+        type Declaration = Declaration;
+        type Request = PreparedCall<'schema, &'static str, ScalarTypeSet, Declaration, u8>;
+        type Error = PrivateError;
+        fn preflight_member(
+            &self,
+            _: usize,
+            branch: &'expression leselang_hir::ir::ComputedBranch<
+                Ir<'schema>,
+                &'schema Schema<'schema>,
+            >,
+        ) -> Result<(), PrivateError> {
+            use leselang_hir::call_typing::{CallTypeHost, CallTypeLimits, infer_call_type};
+            self.inner.events.borrow_mut().push("sequence preflight");
+            let declaration = infer_call_type(
+                &branch.value,
+                &[],
+                &CallTypeHost {
+                    catalog: self.inner.catalog,
+                    version: self.inner.version,
+                    granted: self.inner.grants,
+                    environment: self.inner,
+                },
+                CallTypeLimits {
+                    pure: leselang_hir::pure_typing::TypeInferenceLimits {
+                        max_nodes: PURE.max_nodes,
+                        max_depth: PURE.max_depth,
+                        max_bindings: PURE.max_bindings,
+                    },
+                    max_arguments: 64,
+                },
+            )
+            .map_err(|_| PrivateError("cold sequence schema or type rejected"))?;
+            if !std::ptr::eq(declaration, &branch.result_type.result) {
+                return Err(PrivateError("wrong sequence declaration"));
+            }
+            Ok(())
+        }
+        fn prepare_member(
+            &self,
+            index: usize,
+            branch: &'expression leselang_hir::ir::ComputedBranch<
+                Ir<'schema>,
+                &'schema Schema<'schema>,
+            >,
+            fuel: &mut Fuel,
+        ) -> Result<
+            leselang_hir::sequence_evaluation::PreparedSequenceMember<
+                'expression,
+                (u64, usize),
+                Declaration,
+                Self::Request,
+            >,
+            PrivateError,
+        > {
+            self.inner.events.borrow_mut().push("sequence prepare");
+            let Ir::Call {
+                operation,
+                arguments,
+            } = &branch.value
+            else {
+                return Err(PrivateError("not a registered atomic call"));
+            };
+            let schema = self
+                .inner
+                .catalog
+                .authorize(operation, self.inner.version, self.inner.grants)
+                .map_err(|_| PrivateError("live sequence schema rejected"))?;
+            if !std::ptr::eq(schema, branch.result_type) {
+                return Err(PrivateError("live original sequence declaration changed"));
+            }
+            let mut values = Vec::new();
+            let mut scope = ScopeFrame::new(&mut values);
+            let request = evaluate_call_arguments_in_scope(
+                arguments,
+                schema,
+                &mut scope,
+                self.inner,
+                fuel,
+                CallEvaluationLimits {
+                    pure: PURE,
+                    max_arguments: 64,
+                },
+            )
+            .map_err(|_| PrivateError("actual sequence argument rejected"))?;
+            Ok(leselang_hir::sequence_evaluation::PreparedSequenceMember {
+                identity: (self.owner, index),
+                declaration: &schema.result,
+                request,
+            })
+        }
+    }
+    struct SequenceAuthority<'ir, 'host, 'schema> {
+        environment: &'host Environment<'schema>,
+        owner: u64,
+        branches: &'ir [leselang_hir::ir::ComputedBranch<Ir<'schema>, &'schema Schema<'schema>>],
+    }
+    #[derive(Default)]
+    struct NativeCounters {
+        left: u64,
+        right: u64,
+        calls: Vec<&'static str>,
+    }
+    impl NativeCounters {
+        fn invoke(
+            &mut self,
+            request: PreparedCall<'_, &'static str, ScalarTypeSet, Declaration, u8>,
+        ) -> Result<ScalarValue, PrivateError> {
+            let (schema, arguments) = request.into_parts();
+            let ScalarValue::Integer(value) = arguments
+                .into_iter()
+                .next()
+                .ok_or(PrivateError("missing native counter input"))?
+                .value
+            else {
+                return Err(PrivateError("wrong native counter input"));
+            };
+            let counter = match schema.key {
+                "counter.left" => &mut self.left,
+                "counter.right" => &mut self.right,
+                _ => return Err(PrivateError("unknown native counter operation")),
+            };
+            *counter = counter
+                .checked_add(value)
+                .ok_or(PrivateError("native counter overflow"))?;
+            self.calls.push(schema.key);
+            Ok(ScalarValue::Integer(*counter))
+        }
+    }
+    impl ReplyAuthority<(u64, usize)> for SequenceAuthority<'_, '_, '_> {
+        type Error = PrivateError;
+        fn authorize(&self, &(owner, index): &(u64, usize)) -> Result<(), PrivateError> {
+            if owner != self.owner {
+                return Err(PrivateError("wrong execution generation"));
+            }
+            let branch = self
+                .branches
+                .get(index)
+                .ok_or(PrivateError("wrong sequence index"))?;
+            let Ir::Call { operation, .. } = &branch.value else {
+                return Err(PrivateError("wrong original call"));
+            };
+            let schema = self
+                .environment
+                .catalog
+                .authorize(operation, self.environment.version, self.environment.grants)
+                .map_err(|_| PrivateError("reply version or grant revoked"))?;
+            if !std::ptr::eq(schema, branch.result_type) {
+                return Err(PrivateError("reply original declaration changed"));
+            }
+            Ok(())
         }
     }
     struct Request<'a> {
@@ -1395,5 +1718,475 @@ mod counter {
         assert_eq!(*environment.events.borrow(), ["group"]);
         assert_eq!(fuel.remaining(), 100);
         assert!(scope.is_empty());
+    }
+
+    #[test]
+    fn parsed_repeated_sequence_preserves_native_rows_values_exact_fuel_and_rejects_changed_semantics()
+     {
+        let parameters = [NamedParameter::required(
+            "value",
+            ScalarTypeSet::only(ScalarType::Integer),
+        )];
+        let schemas = [
+            OperationSchema {
+                key: "counter.left",
+                parameters: &parameters,
+                required_capability: 31,
+                result: Declaration { maximum: 100 },
+            },
+            OperationSchema {
+                key: "counter.right",
+                parameters: &parameters,
+                required_capability: 32,
+                result: Declaration { maximum: 200 },
+            },
+        ];
+        let catalog = OperationCatalog::new(
+            7,
+            &schemas,
+            OperationCatalogLimits {
+                max_operations: 2,
+                max_parameters_per_operation: 1,
+            },
+        )
+        .unwrap();
+        let host = SourceCallHost {
+            catalog: &catalog,
+            version: 7,
+            granted: &[31, 32],
+        };
+        let input = expression(
+            "repeat(times: 2, body: seq(inner: seq(left: counter.left(value: add(left: 40, right: 2))), right: counter.right(value: 11)))",
+        );
+        assert!(matches!(
+            compile_repeated_sequence(&input, &host, true),
+            Err(
+                leselang_hir::repeat_sequence_source::RepeatSequenceSourceError::Admission {
+                    iteration: 2,
+                    member: 1,
+                    error: PrivateError("changed native argument semantics"),
+                    ..
+                }
+            )
+        ));
+        let output = compile_repeated_sequence(&input, &host, false).unwrap();
+        let Ir::Group { branches, .. } = &output else {
+            panic!()
+        };
+        assert_eq!(
+            branches
+                .iter()
+                .map(|branch| branch.name.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "iteration_1__inner__left",
+                "iteration_1__right",
+                "iteration_2__inner__left",
+                "iteration_2__right"
+            ]
+        );
+        let environment = Environment {
+            catalog: &catalog,
+            version: 7,
+            grants: &[31, 32],
+            events: RefCell::new(Vec::new()),
+        };
+        let mut values = Vec::new();
+        let mut scope = ScopeFrame::new(&mut values);
+        let mut fuel = Fuel::new(100);
+        let EffectEvaluationOutcome::Request(request) =
+            evaluate_effects_in_scope(&output, &mut scope, &environment, &mut fuel, EFFECT)
+                .unwrap()
+        else {
+            panic!()
+        };
+        assert_eq!(fuel.remaining(), 87);
+        assert_eq!(request.calls.len(), 4);
+        for (index, call) in request.calls.iter().enumerate() {
+            assert!(std::ptr::eq(
+                branches[index].result_type,
+                &schemas[index % 2]
+            ));
+            assert!(std::ptr::eq(call.schema(), &schemas[index % 2]));
+            assert_eq!(
+                call.arguments()[0].value,
+                ScalarValue::Integer(if index % 2 == 0 { 42 } else { 11 })
+            );
+            assert!(
+                call.schema()
+                    .check_result(&ScalarValue::Boolean(true))
+                    .is_err()
+            );
+        }
+        assert!(
+            request.calls[0]
+                .schema()
+                .check_result(&ScalarValue::Integer(150))
+                .is_err()
+        );
+        request.calls[1]
+            .schema()
+            .check_result(&ScalarValue::Integer(150))
+            .unwrap();
+        for (version, grants) in [(8, &[31, 32][..]), (7, &[31][..])] {
+            let environment = Environment {
+                catalog: &catalog,
+                version,
+                grants,
+                events: RefCell::new(Vec::new()),
+            };
+            let mut fuel = Fuel::new(100);
+            assert!(
+                evaluate_effects_in_scope(&output, &mut scope, &environment, &mut fuel, EFFECT)
+                    .is_err()
+            );
+            assert_eq!(fuel.remaining(), 100);
+            assert_eq!(*environment.events.borrow(), ["group"]);
+        }
+        assert!(scope.is_empty());
+    }
+
+    #[test]
+    fn parsed_nested_repeat_runs_one_native_request_per_accepted_reply_with_exact_fuel() {
+        use leselang_hir::sequence_evaluation::*;
+        let parameters = [NamedParameter::required(
+            "value",
+            ScalarTypeSet::only(ScalarType::Integer),
+        )];
+        let schemas = [
+            OperationSchema {
+                key: "counter.left",
+                parameters: &parameters,
+                required_capability: 31,
+                result: Declaration { maximum: 100 },
+            },
+            OperationSchema {
+                key: "counter.right",
+                parameters: &parameters,
+                required_capability: 32,
+                result: Declaration { maximum: 200 },
+            },
+        ];
+        let catalog = OperationCatalog::new(
+            7,
+            &schemas,
+            OperationCatalogLimits {
+                max_operations: 2,
+                max_parameters_per_operation: 1,
+            },
+        )
+        .unwrap();
+        let host = SourceCallHost {
+            catalog: &catalog,
+            version: 7,
+            granted: &[31, 32],
+        };
+        let input = expression(
+            "seq(start: counter.left(value: 1), nested: repeat(times: 2, body: seq(inner: seq(left: counter.left(value: add(left: 40, right: 2))), right: counter.right(value: 11))))",
+        );
+        let output = compile_sequence(&input, &host).unwrap();
+        let Ir::Group { branches, .. } = &output else {
+            panic!()
+        };
+        let environment = Environment {
+            catalog: &catalog,
+            version: 7,
+            grants: &[31, 32],
+            events: RefCell::new(Vec::new()),
+        };
+        let native = SequentialEnvironment {
+            inner: &environment,
+            owner: 53,
+        };
+        let authority = SequenceAuthority {
+            environment: &environment,
+            owner: 53,
+            branches,
+        };
+        let mut session = SequenceEvaluation::start(
+            &output,
+            &native,
+            Fuel::new(100),
+            SequenceEvaluationLimits {
+                max_nodes: 256,
+                max_depth: 32,
+                max_branches: 64,
+            },
+        )
+        .unwrap();
+        assert_eq!(*environment.events.borrow(), ["sequence preflight"; 5]);
+        assert_eq!(session.fuel_remaining(), 99);
+        let mut counters = NativeCounters::default();
+        for (index, expected) in [1, 42, 11, 42, 11].into_iter().enumerate() {
+            let SequencePoll::Request {
+                index: position,
+                request,
+            } = session.poll(&native).unwrap()
+            else {
+                panic!()
+            };
+            assert_eq!(position, index);
+            assert!(std::ptr::eq(request.schema(), branches[index].result_type));
+            assert_eq!(request.arguments()[0].value, ScalarValue::Integer(expected));
+            let fuel = session.fuel_remaining();
+            let events = environment.events.borrow().clone();
+            for _ in 0..2 {
+                assert!(
+                    matches!(session.poll(&native).unwrap(), SequencePoll::Awaiting { index: waiting } if waiting == index)
+                );
+            }
+            assert_eq!(*environment.events.borrow(), events);
+            assert_eq!(session.fuel_remaining(), fuel);
+            assert_eq!(counters.calls.len(), index);
+
+            // Invocation is outside the language; the prepared request is consumed once.
+            let schema = request.schema();
+            let result = counters
+                .invoke(request)
+                .unwrap_or_else(|_| panic!("native invocation rejected"));
+            let expected_reply = [1, 43, 11, 85, 22][index];
+            assert_eq!(result, ScalarValue::Integer(expected_reply));
+            assert!(matches!(
+                session
+                    .try_accept::<_, ScalarValue, _>(
+                        &(54, index),
+                        ScalarValue::Integer(expected_reply),
+                        &authority
+                    )
+                    .unwrap_err()
+                    .error,
+                SequenceReplyError::Reply(ReplyAcceptanceError::IdentityMismatch)
+            ));
+            assert!(
+                session
+                    .try_accept::<_, ScalarValue, _>(
+                        &(53, index),
+                        ScalarValue::Boolean(true),
+                        &authority
+                    )
+                    .is_err()
+            );
+            let accepted = session
+                .try_accept::<_, ScalarValue, _>(&(53, index), result, &authority)
+                .unwrap();
+            let (position, original, identity, domain, reply) = accepted.into_parts();
+            assert_eq!(position, index);
+            assert!(std::ptr::eq(original, &branches[index]));
+            assert!(std::ptr::eq(domain, &schema.result));
+            assert_eq!(identity, (53, index));
+            assert_eq!(reply, ScalarValue::Integer(expected_reply));
+            assert_eq!(session.fuel_remaining(), fuel);
+            assert!(
+                session
+                    .try_accept::<_, ScalarValue, _>(
+                        &(53, index),
+                        ScalarValue::Integer(expected),
+                        &authority
+                    )
+                    .is_err()
+            );
+            assert_eq!(counters.calls.len(), index + 1);
+        }
+        assert_eq!(session.fuel_remaining(), 85);
+        assert_eq!(
+            session.status(),
+            SequenceStatus::Terminal(SequenceEnd::Completed)
+        );
+        assert!(matches!(
+            session.poll(&native).unwrap(),
+            SequencePoll::Terminal(SequenceEnd::Completed)
+        ));
+        assert!(!session.cancel());
+        assert_eq!(
+            environment
+                .events
+                .borrow()
+                .iter()
+                .filter(|&&event| event == "sequence prepare")
+                .count(),
+            5
+        );
+        assert_eq!(
+            counters.calls,
+            [
+                "counter.left",
+                "counter.left",
+                "counter.right",
+                "counter.left",
+                "counter.right"
+            ]
+        );
+        assert_eq!((counters.left, counters.right), (85, 22));
+    }
+
+    #[test]
+    fn parsed_sequence_revocation_cancellation_and_stale_replies_never_invoke_a_successor() {
+        use leselang_hir::sequence_evaluation::*;
+        let parameters = [NamedParameter::required(
+            "value",
+            ScalarTypeSet::only(ScalarType::Integer),
+        )];
+        let schemas = [
+            OperationSchema {
+                key: "counter.left",
+                parameters: &parameters,
+                required_capability: 31,
+                result: Declaration { maximum: 100 },
+            },
+            OperationSchema {
+                key: "counter.right",
+                parameters: &parameters,
+                required_capability: 32,
+                result: Declaration { maximum: 200 },
+            },
+        ];
+        let catalog = OperationCatalog::new(
+            7,
+            &schemas,
+            OperationCatalogLimits {
+                max_operations: 2,
+                max_parameters_per_operation: 1,
+            },
+        )
+        .unwrap();
+        let host = SourceCallHost {
+            catalog: &catalog,
+            version: 7,
+            granted: &[31, 32],
+        };
+        let output = compile_sequence(
+            &expression("seq(left: counter.left(value: 42), right: counter.right(value: 11))"),
+            &host,
+        )
+        .unwrap();
+        let Ir::Group { branches, .. } = &output else {
+            panic!()
+        };
+        let environment = Environment {
+            catalog: &catalog,
+            version: 7,
+            grants: &[31, 32],
+            events: RefCell::new(Vec::new()),
+        };
+        let native = SequentialEnvironment {
+            inner: &environment,
+            owner: 81,
+        };
+        let authority = SequenceAuthority {
+            environment: &environment,
+            owner: 81,
+            branches,
+        };
+        let limits = SequenceEvaluationLimits {
+            max_nodes: 256,
+            max_depth: 32,
+            max_branches: 64,
+        };
+        let mut session =
+            SequenceEvaluation::start(&output, &native, Fuel::new(100), limits).unwrap();
+        let SequencePoll::Request { request, .. } = session.poll(&native).unwrap() else {
+            panic!()
+        };
+        let mut counters = NativeCounters::default();
+        assert_eq!(
+            counters
+                .invoke(request)
+                .unwrap_or_else(|_| panic!("native invocation rejected")),
+            ScalarValue::Integer(42)
+        );
+        let revoked = Environment {
+            catalog: &catalog,
+            version: 8,
+            grants: &[31, 32],
+            events: RefCell::new(Vec::new()),
+        };
+        let policy = SequenceAuthority {
+            environment: &revoked,
+            owner: 81,
+            branches,
+        };
+        assert!(matches!(
+            session
+                .try_accept::<_, ScalarValue, _>(&(81, 0), ScalarValue::Integer(42), &policy)
+                .unwrap_err()
+                .error,
+            SequenceReplyError::Reply(ReplyAcceptanceError::Authority(_))
+        ));
+        assert_eq!(session.status(), SequenceStatus::Awaiting { index: 0 });
+        assert_eq!(session.fuel_remaining(), 97);
+        drop(
+            session
+                .try_accept::<_, ScalarValue, _>(&(81, 0), ScalarValue::Integer(42), &authority)
+                .unwrap(),
+        );
+        let revoked = Environment {
+            catalog: &catalog,
+            version: 7,
+            grants: &[31],
+            events: RefCell::new(Vec::new()),
+        };
+        assert!(
+            session
+                .poll(&SequentialEnvironment {
+                    inner: &revoked,
+                    owner: 81
+                })
+                .is_err()
+        );
+        assert_eq!(
+            session.status(),
+            SequenceStatus::Terminal(SequenceEnd::Failed)
+        );
+        assert_eq!(session.fuel_remaining(), 96);
+        assert!(matches!(
+            session.poll(&native).unwrap(),
+            SequencePoll::Terminal(SequenceEnd::Failed)
+        ));
+        assert_eq!(counters.calls, ["counter.left"]);
+        assert_eq!((counters.left, counters.right), (42, 0));
+
+        let mut cancelled =
+            SequenceEvaluation::start(&output, &native, Fuel::new(100), limits).unwrap();
+        let SequencePoll::Request { request, .. } = cancelled.poll(&native).unwrap() else {
+            panic!()
+        };
+        let late_reply = counters
+            .invoke(request)
+            .unwrap_or_else(|_| panic!("native invocation rejected"));
+        assert!(cancelled.cancel());
+        assert!(
+            cancelled
+                .try_accept::<_, ScalarValue, _>(&(81, 0), late_reply, &authority)
+                .is_err()
+        );
+        assert!(matches!(
+            cancelled.poll(&native).unwrap(),
+            SequencePoll::Terminal(SequenceEnd::Cancelled)
+        ));
+        assert_eq!(counters.calls, ["counter.left", "counter.left"]);
+        assert_eq!((counters.left, counters.right), (84, 0));
+        assert!(!cancelled.cancel());
+
+        for (version, grants) in [(8, &[31, 32][..]), (7, &[31][..])] {
+            let invalid = Environment {
+                catalog: &catalog,
+                version,
+                grants,
+                events: RefCell::new(Vec::new()),
+            };
+            assert!(
+                SequenceEvaluation::start(
+                    &output,
+                    &SequentialEnvironment {
+                        inner: &invalid,
+                        owner: 81
+                    },
+                    Fuel::new(100),
+                    limits
+                )
+                .is_err()
+            );
+            assert!(!invalid.events.borrow().contains(&"sequence prepare"));
+        }
     }
 }

@@ -44,6 +44,9 @@ pub(super) fn lower<'a>(
     if callee == "seq" {
         return lower_sequence_nested(expression, span, scope, visited, depth, functions);
     }
+    if callee == "repeat" {
+        return lower_repeat_sequence(expression, span, scope, visited, depth, functions);
+    }
     let mut lower_member = |expression: &'a Expression| {
         let (value, result_type) = computation::lower_expression_with_functions(
             expression,
@@ -72,7 +75,6 @@ pub(super) fn lower<'a>(
         })
     };
     let lowered = match callee.as_str() {
-        "repeat" => control_flow::lower_repeat_with(arguments, span, &mut lower_member),
         "all" => lower_all_with(arguments, span, &mut lower_member),
         _ => return Err(invalid("unknown computed group", span)),
     }?;
@@ -157,39 +159,7 @@ fn lower_sequence_nested<'a>(
             if !nested {
                 return Ok(SequenceSourceMember::Atomic { value, result_type });
             }
-            let branches = match value {
-                Computation::Group {
-                    group_kind: GroupKind::Sequence,
-                    branches,
-                } => branches,
-                Computation::Host { effect } => {
-                    let Effect::Sequence { steps } = *effect else {
-                        return Err(invalid(
-                            "expected a lowered sequential child",
-                            argument.span,
-                        ));
-                    };
-                    steps
-                        .into_iter()
-                        .map(|branch| ComputedBranch {
-                            name: branch.name,
-                            value: match branch.effect {
-                                Effect::Compute { expression } => *expression,
-                                effect => Computation::Host {
-                                    effect: Box::new(effect),
-                                },
-                            },
-                            result_type: branch.result_type,
-                        })
-                        .collect()
-                }
-                _ => {
-                    return Err(invalid(
-                        "expected a lowered sequential child",
-                        argument.span,
-                    ));
-                }
-            };
+            let branches = sequence_branches(value, argument.span)?;
             Ok(SequenceSourceMember::Sequence { branches })
         },
         |_, _, argument, branch| {
@@ -265,6 +235,37 @@ fn lower_sequence_nested<'a>(
         }
     })?;
     finish_flat_group(value, span)
+}
+
+fn sequence_branches(
+    value: Computation,
+    span: Span,
+) -> Result<Vec<ComputedBranch>, Vec<Diagnostic>> {
+    match value {
+        Computation::Group {
+            group_kind: GroupKind::Sequence,
+            branches,
+        } => Ok(branches),
+        Computation::Host { effect } => {
+            let Effect::Sequence { steps } = *effect else {
+                return Err(invalid("expected a lowered sequential child", span));
+            };
+            Ok(steps
+                .into_iter()
+                .map(|branch| ComputedBranch {
+                    name: branch.name,
+                    value: match branch.effect {
+                        Effect::Compute { expression } => *expression,
+                        effect => Computation::Host {
+                            effect: Box::new(effect),
+                        },
+                    },
+                    result_type: branch.result_type,
+                })
+                .collect())
+        }
+        _ => Err(invalid("expected a lowered sequential child", span)),
+    }
 }
 
 fn lower_flat<'a>(
@@ -600,6 +601,184 @@ fn lower_repeat_flat<'source>(
             message: "repeated computation exceeds its node or nesting limit".into(),
             span: Some(span),
         }],
+    })?;
+    finish_flat_group(value, span)
+}
+
+impl<'source>
+    crate::repeat_sequence_source::RepeatSequenceSourceAdapter<
+        'source,
+        crate::result_field::ResultField,
+        HostOperation,
+        Effect,
+        Type,
+    > for RepeatAdapter<'_, '_, 'source>
+{
+    type Error = Vec<Diagnostic>;
+    fn lower_sequence(
+        &mut self,
+        body: &'source leselang_syntax::NamedArgument,
+    ) -> Result<Vec<ComputedBranch>, Self::Error> {
+        let (value, _) = crate::repeat_source::RepeatSourceAdapter::lower_body(self, body)?;
+        sequence_branches(value, body.span)
+    }
+    fn host_cost(
+        &mut self,
+        effect: &Effect,
+    ) -> Result<crate::source_cost::SourceCostExtra, Self::Error> {
+        crate::repeat_source::RepeatSourceAdapter::host_cost(self, effect)
+    }
+    fn materialize_sequence(
+        &mut self,
+        _: usize,
+        _: &'source leselang_syntax::NamedArgument,
+        original: &[ComputedBranch],
+    ) -> Result<Vec<ComputedBranch>, Self::Error> {
+        Ok(original.to_vec())
+    }
+    fn admit_member(
+        &mut self,
+        _: usize,
+        _: usize,
+        body: &'source leselang_syntax::NamedArgument,
+        original: &ComputedBranch,
+        candidate: &ComputedBranch,
+    ) -> Result<(), Self::Error> {
+        crate::repeat_source::RepeatSourceAdapter::admit(self, 1, body, original, candidate)
+    }
+}
+
+fn lower_repeat_sequence<'source>(
+    expression: &'source Expression,
+    span: Span,
+    scope: &mut computation::TypeScope<'_, 'source>,
+    visited: &mut usize,
+    depth: usize,
+    functions: &mut functions::FunctionTemplates,
+) -> Result<(Computation, Type), Vec<Diagnostic>> {
+    use crate::repeat_sequence_source::{
+        RepeatSequenceSourceError, RepeatSequenceSourceLimits, lower_repeat_sequence_source,
+    };
+    use crate::repeat_source::{RepeatSourceError, RepeatSourceLimits};
+    let value = lower_repeat_sequence_source(
+        expression,
+        RepeatSequenceSourceLimits {
+            repeat: RepeatSourceLimits {
+                source: crate::source_call::SourceCallLimits {
+                    max_source_nodes: MAX_COMPUTATION_NODES,
+                    max_source_depth: MAX_EFFECT_NESTING_DEPTH,
+                    max_lowered_nodes: MAX_COMPUTATION_NODES,
+                    max_lowered_depth: MAX_EFFECT_NESTING_DEPTH,
+                    max_arguments: crate::source_call::MAX_SOURCE_CALL_ARGUMENTS,
+                },
+                expanded: crate::source_cost::SourceCostLimits {
+                    max_nodes: MAX_COMPUTATION_NODES,
+                    max_depth: MAX_EFFECT_NESTING_DEPTH,
+                },
+                max_repetitions: MAX_SEQUENCE_STEPS,
+            },
+            max_branches: MAX_SEQUENCE_STEPS,
+        },
+        &mut RepeatAdapter {
+            scope,
+            visited,
+            depth,
+            functions,
+        },
+    )
+    .map_err(|error| {
+        let diagnostic = |code: &str, message: &str, span| {
+            vec![Diagnostic {
+                code: code.into(),
+                message: message.into(),
+                span: Some(span),
+            }]
+        };
+        match error {
+            RepeatSequenceSourceError::Admission { error, .. }
+            | RepeatSequenceSourceError::Repeat(RepeatSourceError::Native { error, .. })
+            | RepeatSequenceSourceError::Repeat(RepeatSourceError::Cost {
+                error: crate::source_cost::SourceCostError::Observation { error, .. },
+                ..
+            }) => error,
+            RepeatSequenceSourceError::Width { .. } => {
+                diagnostic("LSH1301", "expanded control flow exceeds 64 effects", span)
+            }
+            RepeatSequenceSourceError::Name { .. }
+            | RepeatSequenceSourceError::NamesChanged { .. } => diagnostic(
+                "LSH1301",
+                "expanded step names must be unique and at most 64 bytes",
+                span,
+            ),
+            RepeatSequenceSourceError::Parallel { span } => diagnostic(
+                "LSH1301",
+                "all cannot be nested inside sequential control flow",
+                span,
+            ),
+            RepeatSequenceSourceError::Repeat(
+                RepeatSourceError::Names { span } | RepeatSourceError::NotRepeat { span },
+            ) => diagnostic(
+                "LSH1301",
+                "repeat requires exactly 'times' and 'body'",
+                span,
+            ),
+            RepeatSequenceSourceError::Repeat(RepeatSourceError::Count { span }) => diagnostic(
+                "LSH1301",
+                "repeat times must be an integer from 1 through 64",
+                span,
+            ),
+            RepeatSequenceSourceError::Group(crate::group_source::GroupSourceError::Arity {
+                kind,
+                span,
+            }) => diagnostic(
+                if kind == GroupKind::Sequence {
+                    "LSH1301"
+                } else {
+                    "LSH1201"
+                },
+                if kind == GroupKind::Sequence {
+                    "seq requires between 1 and 64 named steps"
+                } else {
+                    "all requires between 2 and 64 named branches"
+                },
+                span,
+            ),
+            RepeatSequenceSourceError::Group(
+                crate::group_source::GroupSourceError::MemberName { span, .. }
+                | crate::group_source::GroupSourceError::DuplicateMember { span, .. },
+            ) => diagnostic(
+                "LSH1301",
+                "group member name must be a unique bounded identifier",
+                span,
+            ),
+            RepeatSequenceSourceError::Candidate { span, .. }
+            | RepeatSequenceSourceError::Body { span } => invalid(
+                "repeat body requires one uniform atomic operation after pure preparation",
+                span,
+            ),
+            RepeatSequenceSourceError::Repeat(
+                RepeatSourceError::Output {
+                    error: leselang_runtime_core::StructureError::NodeLimit,
+                    ..
+                }
+                | RepeatSourceError::Cost {
+                    error:
+                        crate::source_cost::SourceCostError::Structure(
+                            leselang_runtime_core::StructureError::NodeLimit,
+                        ),
+                    ..
+                },
+            ) => diagnostic(
+                "LSH1405",
+                "repeated computation exceeds the expanded node limit",
+                span,
+            ),
+            _ => diagnostic(
+                "LSH1405",
+                "repeated computation exceeds its node or nesting limit",
+                span,
+            ),
+        }
     })?;
     finish_flat_group(value, span)
 }

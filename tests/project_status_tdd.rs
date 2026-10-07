@@ -473,7 +473,7 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
     assert_eq!(cell.priority, Priority::Active);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
-    assert_eq!(cell.contract.version, "0.58.0");
+    assert_eq!(cell.contract.version, "0.61.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.independence, Independence::ReusableLibrary);
     assert!(cell.evidence.iter().any(|evidence| {
@@ -521,7 +521,12 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         "crates/leselang-hir/tests/repeat_source.rs",
         "crates/leselang-hir/src/sequence_source.rs",
         "crates/leselang-hir/tests/sequence_source.rs",
+        "crates/leselang-hir/src/repeat_sequence_source.rs",
+        "crates/leselang-hir/tests/repeat_sequence_source.rs",
+        "crates/leselang-hir/src/sequence_evaluation.rs",
+        "crates/leselang-hir/tests/sequence_evaluation.rs",
         "crates/leselang-hir/src/effect_evaluation.rs",
+        "crates/leselang-hir/src/effect_reentry.rs",
         "crates/leselang-hir/tests/effect_evaluation.rs",
         "crates/leselang-hir/src/source_call.rs",
         "crates/leselang-hir/tests/source_call.rs",
@@ -751,6 +756,24 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         "bounded-expanded-labels-and-total-shifted-sequence-output",
         "all-flat-sequence-candidates-before-native-admission",
         "reference-nested-sequence-wire-and-two-native-result-domain-fuel-parity",
+        "shared-owned-native-repeat-sequence-source",
+        "cold-repeat-and-group-headers-before-sequence-template-lowering",
+        "complete-flattened-repeat-forest-physical-and-source-reservation",
+        "bounded-final-repeat-labels-before-once-native-sequence-factories",
+        "exact-instance-width-label-shape-cost-before-positioned-native-admission",
+        "reference-nested-repeat-wire-and-native-value-fuel-parity",
+        "shared-borrowed-sequential-reply-session",
+        "cold-whole-sequence-shape-and-declarations-before-fuel-and-preparation",
+        "one-outstanding-native-request-without-eager-member-preparation",
+        "exact-reply-acceptance-before-once-ordered-successor-preparation",
+        "owned-sequence-fuel-and-cancel-unwind-terminal-ownership",
+        "parsed-nested-repeat-native-invocation-reentry-and-cancellation-proof",
+        "shared-accepted-binding-reentry-with-core-owned-original-sites",
+        "whole-original-body-and-current-cold-schema-preflight-before-restoration",
+        "bounded-owned-prefix-before-once-reply-projection-and-body-entry",
+        "move-only-accepted-frame-without-rearm-retry-or-native-ir-copy",
+        "parsed-native-binding-invocation-reply-restoration-and-exact-fuel-proof",
+        "gui-local-unsized-domain-and-fail-closed-restoration-proof",
         "whole-cold-choice-signatures-before-native-child-hooks",
         "bounded-pure-when-before-explicit-boolean-corroboration",
         "aggregate-shifted-cold-branches-before-fallible-native-type-comparison",
@@ -998,6 +1021,11 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         "bounded flat native group source assembly",
         "bounded flat native repeat source assembly",
         "bounded native sequential source composition",
+        "owned repeat-sequence source assembly",
+        "borrowed sequential reply sessions",
+        "accepted binding re-entry with core-owned original borrowed name/body",
+        "in-memory binding re-entry, not a complete generic compiler or durable VM",
+        "an in-memory sequential vertical slice, not a complete independent language/VM",
         "remaining complete generic host-result/group child source compilation",
         "independent pure scalar return corroboration",
         "route-only capture fences preserving nonescaping pure locals",
@@ -9828,7 +9856,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leselang/language-hir/typed-effects")
         .expect("Leselang HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.108.0");
+    assert_eq!(hir.contract.version, "0.111.0");
     for surface in [
         "shared-scalar-choose-recover-and-list-source-construction",
         "cold-control-signatures-and-list-labels-before-source-extensions",
@@ -9910,6 +9938,24 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "bounded-expanded-labels-and-total-shifted-sequence-output",
         "all-flat-sequence-candidates-before-native-admission",
         "reference-nested-sequence-wire-and-two-native-result-domain-fuel-parity",
+        "shared-owned-native-repeat-sequence-source",
+        "cold-repeat-and-group-headers-before-sequence-template-lowering",
+        "complete-flattened-repeat-forest-physical-and-source-reservation",
+        "bounded-final-repeat-labels-before-once-native-sequence-factories",
+        "exact-instance-width-label-shape-cost-before-positioned-native-admission",
+        "reference-nested-repeat-wire-and-native-value-fuel-parity",
+        "shared-borrowed-sequential-reply-session",
+        "cold-whole-sequence-shape-and-declarations-before-fuel-and-preparation",
+        "one-outstanding-native-request-without-eager-member-preparation",
+        "exact-reply-acceptance-before-once-ordered-successor-preparation",
+        "owned-sequence-fuel-and-cancel-unwind-terminal-ownership",
+        "parsed-nested-repeat-native-invocation-reentry-and-cancellation-proof",
+        "shared-accepted-binding-reentry-with-core-owned-original-sites",
+        "whole-original-body-and-current-cold-schema-preflight-before-restoration",
+        "bounded-owned-prefix-before-once-reply-projection-and-body-entry",
+        "move-only-accepted-frame-without-rearm-retry-or-native-ir-copy",
+        "parsed-native-binding-invocation-reply-restoration-and-exact-fuel-proof",
+        "gui-local-unsized-domain-and-fail-closed-restoration-proof",
         "whole-cold-choice-signatures-before-native-child-hooks",
         "bounded-pure-when-before-explicit-boolean-corroboration",
         "aggregate-shifted-cold-branches-before-fallible-native-type-comparison",
@@ -10173,6 +10219,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "crates/leselang-hir/tests/repeat_source.rs",
         "crates/leselang-hir/src/sequence_source.rs",
         "crates/leselang-hir/tests/sequence_source.rs",
+        "crates/leselang-hir/src/repeat_sequence_source.rs",
+        "crates/leselang-hir/tests/repeat_sequence_source.rs",
+        "crates/leselang-hir/src/sequence_evaluation.rs",
+        "crates/leselang-hir/tests/sequence_evaluation.rs",
+        "crates/leselang-hir/src/effect_reentry.rs",
         "crates/leselang-runtime-core/src/scalar_ops.rs",
         "crates/leselang-hir/tests/operator_contract.rs",
         "crates/leselang-runtime-core/src/control.rs",

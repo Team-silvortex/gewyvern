@@ -49,7 +49,7 @@ codes; pure fallbacks share the executor, while durable recovery remains VM-owne
 HIR shape/signature walks share checked structural arithmetic; source weights,
 separate graph limits, cold checks and diagnostics remain adapter policy.
 Native catalogs share versioned selection and typed pure/call/group dataflow;
-scalar/control/projection source, native result-binding/choice/flat-group/bounded-repeat/owned-sequence orchestration and source-cost measurement, helper signatures/arguments/hygiene/declarations/dependencies/wrappers/templates/expansion/normal-return composition/lowered-body admission, closed group exports, call preparation and effect control are shared;
+scalar/control/projection source, native result-binding/choice/flat-group/bounded-repeat/owned-sequence/repeat-sequence orchestration and source-cost measurement, helper signatures/arguments/hygiene/declarations/dependencies/wrappers/templates/expansion/normal-return composition/lowered-body admission, closed group exports, call preparation and effect control are shared;
 received results share type-before-value checks, not authentic receipt certificates;
 raw receipt identity, authority, output limits and replay remain adapter-owned.
 Accepted scalar alternatives share borrowed type/bounds checks with projections;
@@ -57,4 +57,4 @@ no coercion, implicit nullability, authority or lasting value certificate is add
 Payload-free terminals distinguish cancellation, expiry, exhaustion, rejection, acceptance and
 host uncertainty without replay authority or legacy wire changes; cleanup retains
 known reasons and releases undelivered outputs on unwind.
-Reply handoff is shared; full source/opaque-effect typing and durable suspension remain open.
+Reply handoff, parsed sequential sessions and accepted binding re-entry are shared; full source/opaque-effect typing and durable suspension remain open.

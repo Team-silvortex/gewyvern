@@ -762,14 +762,20 @@ fn malformed_source_error_is_redacted_and_never_grants_a_native_default() {
 mod counter {
     use super::*;
     use leselang_hir::call_evaluation::{
-        CallEvaluationHost, CallEvaluationLimits, prepare_call_in_scope,
+        CallEvaluationHost, CallEvaluationLimits, PreparedCall, evaluate_call_arguments_in_scope,
+        prepare_call_in_scope,
     };
+    use leselang_hir::effect_evaluation::*;
+    use leselang_hir::effect_reentry::*;
     use leselang_hir::pure_evaluation::{
         PureEvaluationEnvironment, PureEvaluationLimits, PureValue, evaluate_pure_in_scope,
+        scalar_copy_cost,
     };
     use leselang_hir::scalar_source::{ScalarSourceLimits, lower_scalar_source_with_scope};
     use leselang_hir::source_call::{SourceCallHost, SourceSchema, lower_source_call};
     use leselang_runtime_core::*;
+    use std::borrow::Borrow;
+    use std::cell::RefCell;
 
     struct ReplyDeclaration {
         maximum: u64,
@@ -894,6 +900,302 @@ mod counter {
         fn member(&self, _: &(), _: &str, _: &&'static str) -> Result<(), PrivateError> {
             Err(PrivateError("no members"))
         }
+    }
+
+    struct NativeReply(ScalarValue);
+    impl Borrow<ScalarValue> for NativeReply {
+        fn borrow(&self) -> &ScalarValue {
+            &self.0
+        }
+    }
+    struct Execution<'host, 'schema> {
+        host: SourceCallHost<'host, 'schema, &'static str, ScalarTypeSet, ReplyDeclaration, u8>,
+        events: RefCell<Vec<&'static str>>,
+        actual: Cell<u64>,
+    }
+    impl PureEvaluationEnvironment<(), &'static str> for Execution<'_, '_> {
+        type Result = ();
+        type Error = PrivateError;
+        fn field(&self, _: &(), _: &()) -> Result<ScalarValue, PrivateError> {
+            Err(PrivateError("no fields"))
+        }
+        fn member(&self, _: &(), _: &str, _: &&'static str) -> Result<(), PrivateError> {
+            Err(PrivateError("no members"))
+        }
+    }
+    const EXECUTION_LIMITS: EffectEvaluationLimits = EffectEvaluationLimits {
+        pure: PureEvaluationLimits {
+            max_nodes: 256,
+            max_depth: 32,
+            max_bindings: 8,
+        },
+        max_arguments: 64,
+        max_branches: 64,
+    };
+    impl<'expression, 'schema> EffectEvaluationEnvironment<'expression, (), &'static str, (), ()>
+        for Execution<'_, 'schema>
+    {
+        type Request = PreparedCall<'schema, &'static str, ScalarTypeSet, ReplyDeclaration, u8>;
+        type Capture = RestoredEffectBindings<'expression, ()>;
+        fn preflight_effect(&self, expression: &Counter) -> Result<(), PrivateError> {
+            let Counter::Call {
+                operation,
+                arguments,
+            } = expression
+            else {
+                return Err(PrivateError("unsupported effect"));
+            };
+            let schema = self
+                .host
+                .catalog
+                .authorize(operation, self.host.version, self.host.granted)
+                .map_err(|_| PrivateError("cold catalog rejected"))?;
+            let names = arguments
+                .iter()
+                .map(|arg| arg.name.as_str())
+                .collect::<Vec<_>>();
+            schema
+                .bind_arguments(&names)
+                .map_err(|_| PrivateError("cold arguments rejected"))?;
+            Ok(())
+        }
+        fn prepare_effect(
+            &self,
+            expression: &'expression Counter,
+            scope: &mut ScopeFrame<'_, 'expression, PureValue<()>>,
+            fuel: &mut Fuel,
+        ) -> Result<Self::Request, CalculationFailure<PrivateError>> {
+            let Counter::Call {
+                operation,
+                arguments,
+            } = expression
+            else {
+                return Err(PrivateError("unsupported effect").into());
+            };
+            self.events.borrow_mut().push(operation);
+            let schema = self
+                .host
+                .catalog
+                .authorize(operation, self.host.version, self.host.granted)
+                .map_err(|_| PrivateError("live catalog rejected"))?;
+            evaluate_call_arguments_in_scope(
+                arguments,
+                schema,
+                scope,
+                self,
+                fuel,
+                CallEvaluationLimits {
+                    pure: EXECUTION_LIMITS.pure,
+                    max_arguments: 64,
+                },
+            )
+            .map_err(|_| PrivateError("native argument evaluation failed").into())
+        }
+        fn capture(
+            &self,
+            _: &'expression str,
+            _: &'expression Counter,
+            scope: &ScopeFrame<'_, 'expression, PureValue<()>>,
+            fuel: &mut Fuel,
+        ) -> Result<Self::Capture, PrivateError> {
+            let mut values = Vec::new();
+            for (name, value) in scope.bindings() {
+                let cost = match value {
+                    PureValue::Scalar(value) => scalar_copy_cost(value),
+                    _ => 0,
+                };
+                fuel.charge(1 + cost)
+                    .map_err(|_| PrivateError("capture fuel exhausted"))?;
+                values.push((*name, value.clone()));
+            }
+            Ok(values)
+        }
+    }
+    impl ReplyAuthority<(u64, &'static str)> for Execution<'_, '_> {
+        type Error = PrivateError;
+        fn authorize(&self, identity: &(u64, &'static str)) -> Result<(), PrivateError> {
+            if identity.0 != 17 {
+                return Err(PrivateError("wrong execution owner"));
+            }
+            self.host
+                .catalog
+                .authorize(&identity.1, self.host.version, self.host.granted)
+                .map(|_| ())
+                .map_err(|_| PrivateError("live reply policy rejected"))
+        }
+    }
+    impl<'expression>
+        EffectReentryEnvironment<
+            'expression,
+            (),
+            &'static str,
+            (),
+            (),
+            (u64, &'static str),
+            ReplyDeclaration,
+            NativeReply,
+        > for Execution<'_, '_>
+    {
+        fn restore_capture(
+            &self,
+            _: &(u64, &'static str),
+            _: &ReplyDeclaration,
+            capture: RestoredEffectBindings<'expression, ()>,
+            _: &mut Fuel,
+            _: EffectEvaluationLimits,
+        ) -> Result<RestoredEffectBindings<'expression, ()>, CalculationFailure<PrivateError>>
+        {
+            Ok(capture)
+        }
+        fn bind_reply(
+            &self,
+            identity: &(u64, &'static str),
+            declaration: &ReplyDeclaration,
+            reply: NativeReply,
+            _: &mut Fuel,
+        ) -> Result<PureValue<()>, CalculationFailure<PrivateError>> {
+            let original = self
+                .host
+                .catalog
+                .authorize(&identity.1, self.host.version, self.host.granted)
+                .map_err(|_| PrivateError("live reentry policy rejected"))?;
+            if !std::ptr::eq(declaration, &original.result) {
+                return Err(PrivateError("changed result declaration").into());
+            }
+            Ok(PureValue::Scalar(reply.0))
+        }
+    }
+    impl Execution<'_, '_> {
+        fn invoke(
+            &self,
+            request: PreparedCall<'_, &'static str, ScalarTypeSet, ReplyDeclaration, u8>,
+        ) -> NativeReply {
+            self.host
+                .catalog
+                .authorize(&request.schema().key, self.host.version, self.host.granted)
+                .unwrap();
+            match request.schema().key {
+                "counter.read" => NativeReply(ScalarValue::Integer(self.actual.get())),
+                "counter.write" => {
+                    let ScalarValue::Integer(value) = request.arguments()[0].value else {
+                        panic!()
+                    };
+                    self.actual.set(value);
+                    NativeReply(ScalarValue::Integer(self.actual.get()))
+                }
+                _ => panic!(),
+            }
+        }
+    }
+
+    #[test]
+    fn parsed_binding_invokes_native_calls_accepts_original_domains_and_reenters_with_exact_fuel() {
+        let checks = Rc::new(Cell::new(0));
+        let parameters = [NamedParameter::required(
+            "value",
+            ScalarTypeSet::only(ScalarType::Integer),
+        )];
+        let schemas = [
+            OperationSchema {
+                key: "counter.read",
+                parameters: &[],
+                required_capability: 31,
+                result: ReplyDeclaration {
+                    maximum: 100,
+                    checks: checks.clone(),
+                },
+            },
+            OperationSchema {
+                key: "counter.write",
+                parameters: &parameters,
+                required_capability: 32,
+                result: ReplyDeclaration {
+                    maximum: 100,
+                    checks: checks.clone(),
+                },
+            },
+        ];
+        let catalog = OperationCatalog::new(
+            7,
+            &schemas,
+            OperationCatalogLimits {
+                max_operations: 2,
+                max_parameters_per_operation: 1,
+            },
+        )
+        .unwrap();
+        let source = expression(
+            "bind(ticket: counter.read(), body: counter.write(value: add(left: ticket, right: 1)))",
+        );
+        let mut compiler = Compiler {
+            host: SourceCallHost {
+                catalog: &catalog,
+                version: 7,
+                granted: &[31, 32],
+            },
+            events: Vec::new(),
+        };
+        let (expression, declared) =
+            lower_binding_source(&source, &[], LIMITS, &mut compiler).unwrap();
+        let execution = Execution {
+            host: SourceCallHost {
+                catalog: &catalog,
+                version: 7,
+                granted: &[31, 32],
+            },
+            events: RefCell::new(Vec::new()),
+            actual: Cell::new(41),
+        };
+        let mut values = Vec::new();
+        let mut fuel = Fuel::new(100);
+        let outcome = evaluate_resumable_effects_in_scope(
+            &expression,
+            &mut ScopeFrame::new(&mut values),
+            &execution,
+            &mut fuel,
+            EXECUTION_LIMITS,
+        )
+        .unwrap();
+        let ResumableEffectOutcome::Suspended {
+            request,
+            continuation,
+        } = outcome
+        else {
+            panic!()
+        };
+        assert!(std::ptr::eq(request.schema(), &schemas[0]));
+        assert_eq!(fuel.remaining(), 98);
+        let mut pending =
+            PendingReply::new((17, "counter.read"), continuation, &request.schema().result);
+        let reply = execution.invoke(request);
+        let accepted = pending
+            .try_accept(&(17, "counter.read"), reply, &execution)
+            .unwrap();
+        let ResumableEffectOutcome::Request(request) =
+            resume_accepted_effects(accepted, &execution, &mut fuel, EXECUTION_LIMITS).unwrap()
+        else {
+            panic!()
+        };
+        assert!(std::ptr::eq(request.schema(), declared));
+        assert_eq!(request.arguments()[0].value, ScalarValue::Integer(42));
+        assert_eq!(fuel.remaining(), 94);
+        let mut terminal = PendingReply::new((17, "counter.write"), (), &request.schema().result);
+        let reply = execution.invoke(request);
+        let (_, (), original, reply) = terminal
+            .try_accept(&(17, "counter.write"), reply, &execution)
+            .unwrap()
+            .into_parts();
+        assert!(std::ptr::eq(original, &schemas[1].result));
+        assert_eq!(reply.0, ScalarValue::Integer(42));
+        assert_eq!(execution.actual.get(), 42);
+        assert_eq!(
+            *execution.events.borrow(),
+            ["counter.read", "counter.write"]
+        );
+        assert_eq!(checks.get(), 2);
+        assert!(values.is_empty());
+        assert_eq!(pending.status(), ReplyStatus::Terminal(ReplyEnd::Accepted));
+        assert_eq!(terminal.status(), ReplyStatus::Terminal(ReplyEnd::Accepted));
     }
 
     #[test]

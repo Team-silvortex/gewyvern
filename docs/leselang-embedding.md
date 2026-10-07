@@ -1797,7 +1797,8 @@ sandboxed or preempted; adapters guard their own frames and bound ingress first.
 The reference computed flat-repeat path delegates here, moves the first instance
 and explicitly clones later reference IR in its native adapter, without an Effect
 round trip. Labels, canonical wire, result types, authority and existing expansion
-limits remain covered; nested group/repeat flattening keeps the old outer path.
+limits remain covered; direct nested Seq/Repeat bodies use the separate owned
+repeat-sequence entry below.
 An unrelated counter host prepares original-schema values with exact fuel and
 reply-domain checks, rejecting changed same-sized values/declarations and stale
 live policy before returning a request. This is **bounded repeat source assembly,
@@ -1840,12 +1841,65 @@ span and matchable payload, but never format secrets or expose private source ch
 The reference computed nested-Seq path delegates here, moving native computed
 children directly and opening legacy opaque Sequence wrappers only at its adapter.
 Opaque-only wire shape, generated names, canonical bytes, cold authority and existing
-limits stay compatible. The separate nested-repeat/parallel expansion paths remain
-adapter-owned. An unrelated parsed counter host proves two distinct native result
+limits stay compatible. Nested-repeat composition uses the shared entry below;
+parallel nesting policy remains adapter-owned. An unrelated parsed counter host proves two distinct native result
 domains, preserved row identity, actual values and exact fuel, with stale versions,
 missing later grants and forged rows rejected before preparation. This is **owned
 sequential source composition, not complete child compilation, effect dispatch,
 received-result acceptance or suspension ownership**.
+
+### Shared Owned Repeat-Sequence Source
+
+`repeat_sequence_source::lower_repeat_sequence_source` composes a repeat whose
+direct body is Seq/Repeat. Its child compiler supplies a nonempty, already-flat
+owned member vector; no synthetic group result declaration is inferred. Direct
+All is refused, not serialized. Recursion remains explicit child-compiler policy.
+`RepeatSequenceSourceLimits` separates source/physical bounds, folded/native source
+costs, repetition count and total expanded branch count. Inclusive ceilings are
+16,384 nodes, depth 64 and 64 repetitions/expanded branches; zero capacity denies entry.
+
+**All cold repeat and group headers precede one sequence-template lowering**.
+Exact times/body names, positive literal counts, every cold Seq/All/Repeat header,
+whole AST/name/text/operand bounds and minimum output capacity are checked before
+the adapter. The original borrowed body NamedArgument and spans are preserved.
+
+**Reserve the complete flattened member forest before every factory**. One final
+Group root is charged plus count times the template forest, for both physical and
+folded/native source costs. Removed intermediate Group roots are not repeatedly
+charged. Whole shifted depth and total expanded width must fit. Template labels
+must be unique bounded identifiers, and the longest final
+`iteration_N__child` label fits 64 bytes before allocation or copying.
+
+**The first template moves; later factories borrow its exact unprefixed rows**.
+`materialize_sequence` runs once for 2 through count, never receiving a previous
+copy or prefixed intermediate tree. Every instance preserves width, ordered labels,
+aggregate physical node count/depth and measured source cost. These are aggregate
+bounds, not per-row semantic/schema certificates. All instances and atomic candidates
+precede `admit_member`, which visits iteration order then declaration order with
+the exact original and candidate row; iteration one supplies the same row twice.
+Native operations, fields, opaque effects, result declarations, Boxes and operand
+buffers need no core Clone/PartialEq/Debug/serde/Send bound. Branch vectors are
+consumed into one bounded result vector; only generated language labels are joined.
+
+Admission must corroborate faithful values/native identity, complete typing, original
+declarations, closed opaque graphs, cost accuracy and live versions/grants. No prior
+receipts, type/runtime frames, dispatch or scheduling are installed implicitly.
+Failure/unwind stops later hooks and drops consumed parts once without partial
+output, retry, rollback or source/fuel refund. Native payloads remain matchable by
+iteration/member/phase/span but never formatted or exposed through private source
+chains. Callback work/allocation/Drop/unwind is trusted, not sandboxed or preempted;
+bound ingress first, guard native scopes and revalidate live policy before use.
+
+The reference computed nested-repeat path delegates here and explicitly materializes
+later reference rows in its adapter. Computed Seq/Repeat no longer round-trip through
+the product Effect tree; opaque-only final wire wrappers remain compatible. Tests
+cover names, source costs, canonical bytes, diagnostics and cold authority. An
+unrelated parsed counter host preserves two distinct result domains and exact native
+row identity, prepares real repeated values with exact execution fuel, rejects
+same-shape/cost argument changes during admission, and rejects stale versions or
+missing later grants before request preparation. This is **owned repeat-sequence
+assembly, not complete child compilation, dispatch, reply acceptance or suspension
+ownership**.
 
 ### Shared Scalar Source Loops
 
@@ -2623,6 +2677,118 @@ reply type/value and post-cancellation replies never restore or run the body. Th
 are in-memory ownership proofs; generic source lowering, opaque-effect flow typing
 and complete durable suspension remain separate extraction gates.
 
+### Shared Sequential Reply Sessions
+
+`sequence_evaluation::SequenceEvaluation::start` enters one borrowed flat Seq,
+including flattened nested Seq/Repeat output. The session owns a single fuel meter,
+not the native IR, a scheduler, a database or a copied effect tree. Native field,
+operation, opaque effect, result declaration, identity, request and received value
+need no Clone/Debug/serde/Send/Sync bound. Unsized native domains and borrowed reply
+views are supported. Ordinary Rust ownership defines thread and GUI affinity.
+
+**Whole cold shape and declarations precede fuel and preparation**. Inclusive
+limits are 16,384 physical nodes, depth 64 and 64 members; zero capacity refuses
+entry. Names, literals, operand bounds, complete physical depth and every atomic
+candidate are checked before any native hook. All members then undergo mandatory
+native cold typing/schema/domain/opaque-graph/version/grant preflight. Shape is not
+a type, schema or execution-authority certificate. One Group root is charged only
+after all cold rows pass; the host bounds ingress before constructing native IR.
+
+**Exactly one member may await a reply**. `poll` prepares only the ready original
+row, charging its root once, then installs its opaque identity and borrowed original
+result domain through `PendingReply`. The host evaluates its actual arguments with
+the same meter and revalidates live policy. Waiting/terminal polls run no callbacks,
+charge nothing and never return the request again. Dispatch is caller-owned;
+returning prepared data is neither delivery nor evidence that an effect occurred.
+
+**Accepted replies advance before handoff, never implicitly prepare successors**.
+`try_accept` uses identity, live authority, borrowed view, type and native value
+validation in that order. Success hands off the original row/declaration borrows
+and moves received input once, then marks the next row Ready or the session Completed.
+Wrong identity, denied authority or rejected result returns the unchanged input and
+retains the waiting row; no successor is prepared, result coerced or fuel refilled.
+Early, old and terminal replies cannot advance the session. Completed means all
+rows handed off accepted replies, not durable commits or consumed final output.
+
+Cancellation seals state before native identity cleanup. Preparation errors/fuel
+exhaustion close as Failed; preparation or acceptance unwind closes as HostUncertain
+before callbacks can replay. Existing terminal reasons survive repeated cancellation
+and cleanup unwind. Native allocation, work, mutation, Drop and callbacks remain
+trusted, unmetered except explicit host charging, and cannot be preempted or rolled
+back; a second destructor panic can abort. Metadata/Debug never formats native
+payloads or exposes private error chains. No implicit retry or budget refund exists.
+
+The parsed unrelated counter proof compiles nested Seq/Repeat through the shared
+source entries, cold-types actual native calls, invokes one consumed request at a
+time, validates two distinct original result domains, accepts replies and advances
+with exact fuel. Stale generations, wrong result types, revoked catalog versions,
+missing successor grants and cancellation never invoke a later member. Separate
+tests cover move-only GUI-local data, exact pointers, unsized domains, ceilings,
+rejection order and every reply callback unwind. This is **a parsed sequential
+in-memory vertical slice, not the complete independent language/VM gate**.
+
+The released reference VM still owns its journal, durable sequencing and saved
+continuation formats; this session does not replace or wrap that scheduler. Hosts
+own authentic receipt provenance, generation uniqueness, external cancellation
+delivery, aggregate pending limits and result aggregation. Recreating a session for
+the same group is not globally deduplicated. Sequence result aliases/aggregation,
+parallel barriers, complete helper/opaque-host source typing and durable restart
+remain separate extraction work. Binding restoration is supplied by the following
+entry, not implicitly by this sequence lifecycle.
+
+### Shared Accepted Binding Re-entry
+
+`evaluate_resumable_effects_in_scope` is an additive entry to the same synchronous
+effect walker. A suspension returns a move-only `EffectContinuation` containing
+the **original borrowed binding name/body**, separately from opaque native capture.
+Only the shared walker constructs it; capture metadata cannot redirect the code
+or binding during restoration. The old `evaluate_effects_in_scope` entry retains
+its outcome, fuel and behavior by consuming this outcome through `into_legacy`.
+Neither entry dispatches, clones native IR or changes reference wire formats.
+
+Put the continuation in `PendingReply` with the exact native identity and original
+result declaration. Identity, live authority, borrowed reply view, type and value
+checks still precede acceptance. Normal rejection returns the unchanged payload
+and keeps the continuation pending. Cancellation or callback unwind cannot yield
+an accepted continuation; late input cannot restore variables or prepare a body.
+
+`effect_reentry::resume_accepted_effects` consumes the accepted frame once. It
+**preflights the whole original body and current cold schemas before restoration**,
+then calls the native `restore_capture` hook. Before reply projection it reserves
+one binding slot, charges one fuel unit per restored prefix entry and checks names,
+duplicates, scalar bounds, quota and reply-name shadowing. The native `bind_reply`
+hook consumes the actual received payload into a scalar or native result view.
+Mapped scalar bounds are checked before entry to the original body; native view
+compatibility remains explicit adapter policy. Schema hooks are
+not repeated by the internal preflighted walker in the same re-entry attempt.
+
+Restored values move into a locally owned lexical scope. Result aliases preserve
+native view identity, and all owned variables are released on normal return,
+failure or unwind. Request/capture/reply/identity/declaration/IR need no Clone,
+Debug, serde or Send bound; native result views retain the existing Clone contract
+for explicit local reads, not for copying incoming payloads. Unsized original
+declarations and GUI-local move-only native slots are supported. Formatting never
+prints captured variables, names, native payloads or private errors.
+
+Native hooks own snapshot integrity, result-view type compatibility, live dispatch
+and opaque size/work policy. They must bound native restoration before allocation
+and charge their own restore/copy/projection costs with the supplied meter; the
+core's prefix charge does not preempt or pay for arbitrary native work. Accepted
+input is an observation, not authentic receipt or durable replay authority. Errors
+or panics consume the frame without rearming, implicit retries or fuel refunds;
+native mutation/Drop cannot be rolled back and a second cleanup panic can abort.
+
+The parsed unrelated counter proof now compiles a native result binding, invokes
+a consumed read request, accepts its actual reply through the original domain,
+restores the bound value and prepares/invokes a write with exact cumulative fuel.
+The two-call alias flow reaches a pure tail with identical legacy fuel and native
+pointer identity. A distinct GUI-local host consumes a text reply through an
+unsized native domain. Adversarial tests cover redirected capture metadata,
+invalid prefixes, zero quotas, stale cold policy, exhaustion, projection failures,
+unwind and cancellation. This is **in-memory accepted binding re-entry, not a
+complete generic compiler or durable VM**. It does not add sequence aggregation,
+parallel barriers, opaque-host source typing or persistent continuation layouts.
+
 ### Shared Accepted Scalar Contracts
 
 `ScalarTypeSet` is **explicit closed scalar-type alternatives** for native schemas.
@@ -2853,7 +3019,10 @@ flat native group source assembly with all-member output checks before admission
 bounded flat repeat source assembly with complete physical/source reservations,
 explicit once-ordered native factories and exact output shape/cost admission,
 owned sequential source composition with explicit child sequences and native admission,
-and in-memory pending-reply handoff.
+owned repeat-sequence source assembly with complete forest reservations and positional admission,
+borrowed sequential reply sessions with once-ordered native request preparation,
+one owned fuel meter, reply-gated re-entry and cancellation, in-memory pending-reply handoff,
+and accepted binding re-entry with core-owned original sites and bounded native restoration.
 Full generic host-result/group child source compilation, complete helper body/return lowering and
 registry lifecycle/opaque-native cost observation and validation policy,
 opaque-effect typing/dispatch, complete suspension and durable

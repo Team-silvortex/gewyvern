@@ -5,6 +5,7 @@ use std::fmt;
 use leselang_runtime_core::{CalculationFailure, Fuel, ScalarValue, ScopeFrame, StructureBudget};
 
 use crate::call_typing::{CallTypeError, MAX_CALL_ARGUMENTS, preflight_arguments_with_budget};
+use crate::effect_reentry::{EffectContinuation, ResumableEffectOutcome};
 use crate::flow_typing::MAX_TYPED_GROUP_BRANCHES;
 use crate::ir::{Computation, GroupKind};
 use crate::pure_evaluation::{
@@ -137,7 +138,9 @@ fn pure_failure<Native>(failure: PureEvaluationFailure<Native>) -> EffectEvaluat
     }
 }
 
-fn native_failure<Native>(failure: CalculationFailure<Native>) -> EffectEvaluationFailure<Native> {
+pub(crate) fn native_failure<Native>(
+    failure: CalculationFailure<Native>,
+) -> EffectEvaluationFailure<Native> {
     match failure {
         CalculationFailure::Scalar(error) => CalculationFailure::Scalar(error),
         CalculationFailure::External(error) => EffectEvaluationFault::Native(error).into(),
@@ -148,7 +151,15 @@ fn invalid<Native>() -> EffectEvaluationFailure<Native> {
     EffectEvaluationFault::Pure(PureEvaluationFault::InvalidContract).into()
 }
 
-fn preflight<'expression, Field, Operation, HostEffect, IrResult, NativeResult, NativeError>(
+pub(crate) fn preflight<
+    'expression,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    NativeResult,
+    NativeError,
+>(
     expression: &'expression Node<Field, Operation, HostEffect, IrResult>,
     scope: &ScopeFrame<'_, 'expression, PureValue<NativeResult>>,
     limits: EffectEvaluationLimits,
@@ -284,6 +295,38 @@ pub fn evaluate_effects_in_scope<'expression, Field, Operation, HostEffect, IrRe
 where
     Environment: EffectEvaluationEnvironment<'expression, Field, Operation, HostEffect, IrResult>,
 {
+    evaluate_resumable_effects_in_scope(expression, scope, environment, fuel, limits)
+        .map(ResumableEffectOutcome::into_legacy)
+}
+
+/// Additive entry retaining the original binding site alongside native capture.
+/// The move-only continuation can be placed in a `PendingReply` and consumed by
+/// `resume_accepted_effects`. All preflight, evaluation and capture costs match
+/// the legacy entry. This does not dispatch or create durable replay authority.
+pub fn evaluate_resumable_effects_in_scope<
+    'expression,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Environment,
+>(
+    expression: &'expression Node<Field, Operation, HostEffect, IrResult>,
+    scope: &mut ScopeFrame<'_, 'expression, PureValue<Environment::Result>>,
+    environment: &Environment,
+    fuel: &mut Fuel,
+    limits: EffectEvaluationLimits,
+) -> crate::effect_reentry::EffectControlResult<
+    'expression,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Environment,
+>
+where
+    Environment: EffectEvaluationEnvironment<'expression, Field, Operation, HostEffect, IrResult>,
+{
     let effects = preflight(expression, scope, limits)?;
     for effect in effects {
         environment
@@ -299,17 +342,19 @@ where
     )
 }
 
-fn evaluate<'expression, Field, Operation, HostEffect, IrResult, Environment>(
+pub(crate) fn evaluate<'expression, Field, Operation, HostEffect, IrResult, Environment>(
     expression: &'expression Node<Field, Operation, HostEffect, IrResult>,
     scope: &mut ScopeFrame<'_, 'expression, PureValue<Environment::Result>>,
     environment: &Environment,
     fuel: &mut Fuel,
     max_bindings: usize,
-) -> EffectEvaluationResult<
-    Environment::Result,
-    Environment::Request,
-    Environment::Capture,
-    Environment::Error,
+) -> crate::effect_reentry::EffectControlResult<
+    'expression,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Environment,
 >
 where
     Environment: EffectEvaluationEnvironment<'expression, Field, Operation, HostEffect, IrResult>,
@@ -328,7 +373,7 @@ where
                 fuel,
                 max_bindings,
             )
-            .map(EffectEvaluationOutcome::Value)
+            .map(ResumableEffectOutcome::Value)
             .map_err(pure_failure);
         }
     }
@@ -344,18 +389,21 @@ where
                 return Err(invalid());
             }
             match value {
-                EffectEvaluationOutcome::Value(value) => {
+                ResumableEffectOutcome::Value(value) => {
                     let mut local = scope.nested();
                     local.push(name, value).map_err(|_| invalid())?;
                     evaluate(body, &mut local, environment, fuel, max_bindings)
                 }
-                EffectEvaluationOutcome::Request(request) => {
+                ResumableEffectOutcome::Request(request) => {
                     let capture = environment
                         .capture(name, body, scope, fuel)
                         .map_err(EffectEvaluationFault::Native)?;
-                    Ok(EffectEvaluationOutcome::Suspended { request, capture })
+                    Ok(ResumableEffectOutcome::Suspended {
+                        request,
+                        continuation: EffectContinuation::new(name, body, capture),
+                    })
                 }
-                EffectEvaluationOutcome::Suspended { .. } => {
+                ResumableEffectOutcome::Suspended { .. } => {
                     Err(EffectEvaluationFault::NestedSuspension.into())
                 }
             }
@@ -382,7 +430,7 @@ where
         Computation::Host { .. } | Computation::Call { .. } | Computation::Group { .. } => {
             environment
                 .prepare_effect(expression, scope, fuel)
-                .map(EffectEvaluationOutcome::Request)
+                .map(ResumableEffectOutcome::Request)
                 .map_err(native_failure)
         }
         _ => Err(invalid()),

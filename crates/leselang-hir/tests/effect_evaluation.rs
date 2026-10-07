@@ -6,6 +6,7 @@ use leselang_hir::call_evaluation::{
     CallEvaluationError, CallEvaluationLimits, PreparedCall, evaluate_call_arguments_in_scope,
 };
 use leselang_hir::effect_evaluation::*;
+use leselang_hir::effect_reentry::*;
 use leselang_hir::ir::{Computation, ComputedArgument};
 use leselang_hir::pure_evaluation::*;
 use leselang_runtime_core::*;
@@ -59,6 +60,17 @@ enum CaptureMode {
     Reject,
     Unwind,
 }
+#[derive(Clone, Copy)]
+enum ReentryMode {
+    Accept,
+    Reject,
+    Unwind,
+    Duplicate,
+    Shadow,
+    BadName,
+    TooMany,
+    Unbounded,
+}
 struct Counter<'schema> {
     catalog: OperationCatalog<'schema, u32, &'schema str, ScalarTypeSet, Declaration, u8>,
     grants: &'schema [u8],
@@ -66,6 +78,9 @@ struct Counter<'schema> {
     selected: RefCell<Vec<u32>>,
     request_drops: Rc<Cell<usize>>,
     capture_mode: Cell<CaptureMode>,
+    restore_mode: Cell<ReentryMode>,
+    reply_mode: Cell<ReentryMode>,
+    tamper_capture: Cell<bool>,
 }
 impl<'schema> Counter<'schema> {
     fn new(schemas: &'schema [Schema<'schema>], grants: &'schema [u8]) -> Self {
@@ -84,6 +99,9 @@ impl<'schema> Counter<'schema> {
             selected: RefCell::new(Vec::new()),
             request_drops: Rc::new(Cell::new(0)),
             capture_mode: Cell::new(CaptureMode::Accept),
+            restore_mode: Cell::new(ReentryMode::Accept),
+            reply_mode: Cell::new(ReentryMode::Accept),
+            tamper_capture: Cell::new(false),
         }
     }
 }
@@ -217,10 +235,92 @@ impl<'expression, 'schema> EffectEvaluationEnvironment<'expression, u8, u32, Opa
             bindings.push((*name, value.clone()));
         }
         Ok(Capture {
-            name,
-            body,
+            name: if self.tamper_capture.get() {
+                "not-original"
+            } else {
+                name
+            },
+            body: if self.tamper_capture.get() {
+                body.children().next().unwrap_or(body)
+            } else {
+                body
+            },
             bindings,
         })
+    }
+}
+impl<'expression>
+    EffectReentryEnvironment<'expression, u8, u32, Opaque, (), (u64, u32), Declaration, Rc<Reply>>
+    for Counter<'_>
+{
+    fn restore_capture(
+        &self,
+        _: &(u64, u32),
+        _: &Declaration,
+        mut capture: Capture<'expression>,
+        _: &mut Fuel,
+        limits: EffectEvaluationLimits,
+    ) -> Result<RestoredEffectBindings<'expression, Rc<Reply>>, CalculationFailure<NativeError>>
+    {
+        self.events.borrow_mut().push("restore");
+        if let (Some((_, PureValue::Result(first))), Some((_, PureValue::Result(alias)))) = (
+            capture.bindings.iter().find(|(name, _)| *name == "first"),
+            capture.bindings.iter().find(|(name, _)| *name == "alias"),
+        ) {
+            assert!(Rc::ptr_eq(first, alias));
+            self.events.borrow_mut().push("restored-alias");
+        }
+        match self.restore_mode.get() {
+            ReentryMode::Reject => return Err(NativeError("private restore failure").into()),
+            ReentryMode::Unwind => panic!("native restore unwind"),
+            ReentryMode::Duplicate => capture.bindings.extend([
+                ("duplicate", PureValue::Scalar(ScalarValue::None)),
+                ("duplicate", PureValue::Scalar(ScalarValue::None)),
+            ]),
+            ReentryMode::Shadow => capture
+                .bindings
+                .push(("reply", PureValue::Scalar(ScalarValue::None))),
+            ReentryMode::BadName => capture
+                .bindings
+                .push(("bad name", PureValue::Scalar(ScalarValue::None))),
+            ReentryMode::TooMany => {
+                for _ in 0..limits.pure.max_bindings {
+                    capture
+                        .bindings
+                        .push(("extra", PureValue::Scalar(ScalarValue::None)));
+                }
+            }
+            ReentryMode::Unbounded => capture.bindings.push((
+                "large",
+                PureValue::Scalar(ScalarValue::String("x".repeat(MAX_SCALAR_STRING_BYTES + 1))),
+            )),
+            ReentryMode::Accept => {}
+        }
+        Ok(capture.bindings)
+    }
+    fn bind_reply(
+        &self,
+        identity: &(u64, u32),
+        declaration: &Declaration,
+        reply: Rc<Reply>,
+        _: &mut Fuel,
+    ) -> Result<PureValue<Rc<Reply>>, CalculationFailure<NativeError>> {
+        self.events.borrow_mut().push("bind-reply");
+        let schema = self
+            .catalog
+            .authorize(&identity.1, 7, self.grants)
+            .map_err(|_| NativeError("private reentry schema"))?;
+        if !std::ptr::eq(declaration, &schema.result) {
+            return Err(NativeError("changed reply declaration").into());
+        }
+        match self.reply_mode.get() {
+            ReentryMode::Reject => Err(NativeError("private reply projection").into()),
+            ReentryMode::Unwind => panic!("native reply projection unwind"),
+            ReentryMode::Unbounded => Ok(PureValue::Scalar(ScalarValue::String(
+                "x".repeat(MAX_SCALAR_STRING_BYTES + 1),
+            ))),
+            _ => Ok(PureValue::Result(reply)),
+        }
     }
 }
 fn integer(value: u64) -> Ir {
@@ -291,6 +391,410 @@ fn suspended<'expression, 'schema>(
         panic!()
     };
     (request, capture)
+}
+type ResumableCounterOutcome<'expression, 'schema> =
+    ResumableEffectOutcome<'expression, Ir, Rc<Reply>, Request<'schema>, Capture<'expression>>;
+fn continuation<'expression, 'schema>(
+    outcome: ResumableCounterOutcome<'expression, 'schema>,
+) -> (
+    Request<'schema>,
+    EffectContinuation<'expression, Ir, Capture<'expression>>,
+) {
+    let ResumableEffectOutcome::Suspended {
+        request,
+        continuation,
+    } = outcome
+    else {
+        panic!()
+    };
+    (request, continuation)
+}
+
+#[test]
+fn shared_accepted_reentry_preserves_alias_identity_exact_fuel_and_original_binding_sites() {
+    let expression = bind(
+        "prefix",
+        integer(5),
+        bind(
+            "first",
+            call(1, integer(5)),
+            bind(
+                "alias",
+                local("first"),
+                bind(
+                    "second",
+                    call(2, add(field("alias", 0), local("prefix"))),
+                    add(field("second", 0), local("prefix")),
+                ),
+            ),
+        ),
+    );
+    let parameters = parameters();
+    let schemas = schemas(&parameters);
+    let host = Counter::new(&schemas, &[3]);
+    let mut bindings = Vec::new();
+    let mut fuel = Fuel::new(100);
+    let (first, frame) = continuation(
+        evaluate_resumable_effects_in_scope(
+            &expression,
+            &mut ScopeFrame::new(&mut bindings),
+            &host,
+            &mut fuel,
+            LIMITS,
+        )
+        .unwrap(),
+    );
+    let Ir::Bind { body, .. } = &expression else {
+        panic!()
+    };
+    let Ir::Bind { body: original, .. } = body.as_ref() else {
+        panic!()
+    };
+    assert!(std::ptr::eq(frame.body(), original.as_ref()));
+    assert_eq!(frame.name(), "first");
+    assert_eq!(fuel.remaining(), 94);
+    let policy = ReplyPolicy {
+        host: &host,
+        live: Cell::new(true),
+    };
+    let mut pending = PendingReply::new((7, 1), frame, &first.prepared.schema().result);
+    let actual = Rc::new(Reply { kind: 1, value: 10 });
+    let weak = Rc::downgrade(&actual);
+    let accepted = pending.try_accept(&(7, 1), actual, &policy).unwrap();
+    let (second, frame2) =
+        continuation(resume_accepted_effects(accepted, &host, &mut fuel, LIMITS).unwrap());
+    assert_eq!(pending.status(), ReplyStatus::Terminal(ReplyEnd::Accepted));
+    assert_eq!(fuel.remaining(), 82);
+    assert_eq!(
+        second.prepared.arguments()[0].value,
+        ScalarValue::Integer(15)
+    );
+    let mut pending2 = PendingReply::new((7, 2), frame2, &second.prepared.schema().result);
+    let accepted = pending2
+        .try_accept(&(7, 2), Rc::new(Reply { kind: 2, value: 30 }), &policy)
+        .unwrap();
+    assert!(matches!(
+        resume_accepted_effects(accepted, &host, &mut fuel, LIMITS).unwrap(),
+        ResumableEffectOutcome::Value(PureValue::Scalar(ScalarValue::Integer(35)))
+    ));
+    assert_eq!(fuel.remaining(), 75);
+    assert!(weak.upgrade().is_none());
+    assert!(bindings.is_empty());
+    assert_eq!(*host.selected.borrow(), [1, 2]);
+    assert_eq!(
+        host.events
+            .borrow()
+            .iter()
+            .filter(|e| **e == "restore")
+            .count(),
+        2
+    );
+    assert_eq!(
+        host.events
+            .borrow()
+            .iter()
+            .filter(|e| **e == "bind-reply")
+            .count(),
+        2
+    );
+    assert!(host.events.borrow().contains(&"restored-alias"));
+}
+
+#[test]
+fn native_capture_metadata_cannot_redirect_the_core_owned_reply_binding_or_body() {
+    let expression = bind("reply", call(1, integer(5)), field("reply", 0));
+    let parameters = parameters();
+    let schemas = schemas(&parameters);
+    let host = Counter::new(&schemas, &[3]);
+    host.tamper_capture.set(true);
+    let mut bindings = Vec::new();
+    let mut fuel = Fuel::new(100);
+    let (request, frame) = continuation(
+        evaluate_resumable_effects_in_scope(
+            &expression,
+            &mut ScopeFrame::new(&mut bindings),
+            &host,
+            &mut fuel,
+            LIMITS,
+        )
+        .unwrap(),
+    );
+    let Ir::Bind { body, .. } = &expression else {
+        panic!()
+    };
+    assert!(std::ptr::eq(frame.body(), body.as_ref()));
+    assert_eq!(frame.name(), "reply");
+    assert_eq!(format!("{frame:?}"), "EffectContinuation");
+    let mut pending = PendingReply::new((7, 1), frame, &request.prepared.schema().result);
+    let policy = ReplyPolicy {
+        host: &host,
+        live: Cell::new(true),
+    };
+    let accepted = pending
+        .try_accept(&(7, 1), Rc::new(Reply { kind: 1, value: 42 }), &policy)
+        .unwrap();
+    assert!(matches!(
+        resume_accepted_effects(accepted, &host, &mut fuel, LIMITS).unwrap(),
+        ResumableEffectOutcome::Value(PureValue::Scalar(ScalarValue::Integer(42)))
+    ));
+}
+
+#[test]
+fn projection_unwind_releases_restored_aliases_and_actual_reply_without_rearming() {
+    let expression = bind(
+        "first",
+        call(1, integer(1)),
+        bind(
+            "alias",
+            local("first"),
+            bind("second", call(2, field("alias", 0)), field("second", 0)),
+        ),
+    );
+    let parameters = parameters();
+    let schemas = schemas(&parameters);
+    let host = Counter::new(&schemas, &[3]);
+    let policy = ReplyPolicy {
+        host: &host,
+        live: Cell::new(true),
+    };
+    let mut bindings = Vec::new();
+    let mut fuel = Fuel::new(100);
+    let (first, frame) = continuation(
+        evaluate_resumable_effects_in_scope(
+            &expression,
+            &mut ScopeFrame::new(&mut bindings),
+            &host,
+            &mut fuel,
+            LIMITS,
+        )
+        .unwrap(),
+    );
+    let mut pending = PendingReply::new((7, 1), frame, &first.prepared.schema().result);
+    let reply = Rc::new(Reply { kind: 1, value: 10 });
+    let first_weak = Rc::downgrade(&reply);
+    let accepted = pending.try_accept(&(7, 1), reply, &policy).unwrap();
+    let (second, frame) =
+        continuation(resume_accepted_effects(accepted, &host, &mut fuel, LIMITS).unwrap());
+    assert!(first_weak.upgrade().is_some());
+    let mut pending = PendingReply::new((7, 2), frame, &second.prepared.schema().result);
+    let reply = Rc::new(Reply { kind: 2, value: 20 });
+    let second_weak = Rc::downgrade(&reply);
+    let accepted = pending.try_accept(&(7, 2), reply, &policy).unwrap();
+    host.reply_mode.set(ReentryMode::Unwind);
+    host.events.borrow_mut().clear();
+    let before = fuel.remaining();
+    assert!(
+        catch_unwind(AssertUnwindSafe(|| resume_accepted_effects(
+            accepted, &host, &mut fuel, LIMITS
+        )))
+        .is_err()
+    );
+    assert_eq!(fuel.remaining(), before - 2);
+    assert_eq!(
+        *host.events.borrow(),
+        ["restore", "restored-alias", "bind-reply"]
+    );
+    assert!(first_weak.upgrade().is_none());
+    assert!(second_weak.upgrade().is_none());
+    assert!(bindings.is_empty());
+    assert_eq!(pending.status(), ReplyStatus::Terminal(ReplyEnd::Accepted));
+    assert!(!pending.cancel());
+}
+
+#[test]
+fn reentry_bounds_and_current_cold_schemas_stop_before_restore_projection_and_fuel() {
+    let expression = bind("reply", call(1, integer(1)), call(2, field("reply", 0)));
+    let parameters = parameters();
+    let schemas = schemas(&parameters);
+    let host = Counter::new(&schemas, &[3]);
+    let denied = Counter::new(&schemas, &[]);
+    for (limits, target) in [
+        (
+            EffectEvaluationLimits {
+                pure: PureEvaluationLimits {
+                    max_nodes: 0,
+                    ..LIMITS.pure
+                },
+                ..LIMITS
+            },
+            &host,
+        ),
+        (
+            EffectEvaluationLimits {
+                pure: PureEvaluationLimits {
+                    max_bindings: 0,
+                    ..LIMITS.pure
+                },
+                ..LIMITS
+            },
+            &host,
+        ),
+        (LIMITS, &denied),
+    ] {
+        let mut bindings = Vec::new();
+        let mut fuel = Fuel::new(100);
+        let (request, frame) = continuation(
+            evaluate_resumable_effects_in_scope(
+                &expression,
+                &mut ScopeFrame::new(&mut bindings),
+                &host,
+                &mut fuel,
+                LIMITS,
+            )
+            .unwrap(),
+        );
+        let mut pending = PendingReply::new((7, 1), frame, &request.prepared.schema().result);
+        let policy = ReplyPolicy {
+            host: &host,
+            live: Cell::new(true),
+        };
+        let accepted = pending
+            .try_accept(&(7, 1), Rc::new(Reply { kind: 1, value: 42 }), &policy)
+            .unwrap();
+        target.events.borrow_mut().clear();
+        let before = fuel.remaining();
+        assert!(resume_accepted_effects(accepted, target, &mut fuel, limits).is_err());
+        assert_eq!(fuel.remaining(), before);
+        assert!(
+            !target
+                .events
+                .borrow()
+                .iter()
+                .any(|e| matches!(*e, "restore" | "bind-reply" | "prepare"))
+        );
+        assert_eq!(pending.status(), ReplyStatus::Terminal(ReplyEnd::Accepted));
+    }
+}
+
+#[test]
+fn invalid_restored_prefixes_stop_before_reply_projection_or_body_execution() {
+    for mode in [
+        ReentryMode::Duplicate,
+        ReentryMode::Shadow,
+        ReentryMode::BadName,
+        ReentryMode::TooMany,
+        ReentryMode::Unbounded,
+    ] {
+        let expression = bind("reply", call(1, integer(1)), field("reply", 0));
+        let parameters = parameters();
+        let schemas = schemas(&parameters);
+        let host = Counter::new(&schemas, &[3]);
+        host.restore_mode.set(mode);
+        let mut bindings = Vec::new();
+        let mut fuel = Fuel::new(100);
+        let (request, frame) = continuation(
+            evaluate_resumable_effects_in_scope(
+                &expression,
+                &mut ScopeFrame::new(&mut bindings),
+                &host,
+                &mut fuel,
+                LIMITS,
+            )
+            .unwrap(),
+        );
+        let policy = ReplyPolicy {
+            host: &host,
+            live: Cell::new(true),
+        };
+        let mut pending = PendingReply::new((7, 1), frame, &request.prepared.schema().result);
+        let reply = Rc::new(Reply { kind: 1, value: 42 });
+        let weak = Rc::downgrade(&reply);
+        let accepted = pending.try_accept(&(7, 1), reply, &policy).unwrap();
+        host.events.borrow_mut().clear();
+        assert!(resume_accepted_effects(accepted, &host, &mut fuel, LIMITS).is_err());
+        assert_eq!(*host.events.borrow(), ["restore"]);
+        assert!(weak.upgrade().is_none());
+    }
+}
+
+#[test]
+fn restoration_and_projection_failure_or_unwind_never_rearm_or_enter_the_body() {
+    for (restore, reply_mode) in [
+        (ReentryMode::Reject, ReentryMode::Accept),
+        (ReentryMode::Unwind, ReentryMode::Accept),
+        (ReentryMode::Accept, ReentryMode::Reject),
+        (ReentryMode::Accept, ReentryMode::Unwind),
+        (ReentryMode::Accept, ReentryMode::Unbounded),
+    ] {
+        let expression = bind("reply", call(1, integer(1)), field("reply", 0));
+        let parameters = parameters();
+        let schemas = schemas(&parameters);
+        let host = Counter::new(&schemas, &[3]);
+        host.restore_mode.set(restore);
+        host.reply_mode.set(reply_mode);
+        let mut bindings = Vec::new();
+        let mut fuel = Fuel::new(100);
+        let (request, frame) = continuation(
+            evaluate_resumable_effects_in_scope(
+                &expression,
+                &mut ScopeFrame::new(&mut bindings),
+                &host,
+                &mut fuel,
+                LIMITS,
+            )
+            .unwrap(),
+        );
+        let policy = ReplyPolicy {
+            host: &host,
+            live: Cell::new(true),
+        };
+        let mut pending = PendingReply::new((7, 1), frame, &request.prepared.schema().result);
+        let actual = Rc::new(Reply { kind: 1, value: 42 });
+        let weak = Rc::downgrade(&actual);
+        let accepted = pending.try_accept(&(7, 1), actual, &policy).unwrap();
+        host.events.borrow_mut().clear();
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            resume_accepted_effects(accepted, &host, &mut fuel, LIMITS)
+        }));
+        assert!(result.is_err() || result.unwrap().is_err());
+        assert!(!host.events.borrow().contains(&"field"));
+        assert_eq!(pending.status(), ReplyStatus::Terminal(ReplyEnd::Accepted));
+        assert!(!pending.cancel());
+        assert!(weak.upgrade().is_none());
+        assert!(bindings.is_empty());
+    }
+}
+
+#[test]
+fn restoration_prefix_fuel_is_charged_before_projection_without_refund() {
+    let expression = bind(
+        "prefix",
+        integer(1),
+        bind("reply", call(1, integer(1)), field("reply", 0)),
+    );
+    let parameters = parameters();
+    let schemas = schemas(&parameters);
+    let host = Counter::new(&schemas, &[3]);
+    let mut bindings = Vec::new();
+    let (request, frame) = continuation(
+        evaluate_resumable_effects_in_scope(
+            &expression,
+            &mut ScopeFrame::new(&mut bindings),
+            &host,
+            &mut Fuel::new(100),
+            LIMITS,
+        )
+        .unwrap(),
+    );
+    let policy = ReplyPolicy {
+        host: &host,
+        live: Cell::new(true),
+    };
+    let mut pending = PendingReply::new((7, 1), frame, &request.prepared.schema().result);
+    let accepted = pending
+        .try_accept(&(7, 1), Rc::new(Reply { kind: 1, value: 42 }), &policy)
+        .unwrap();
+    host.events.borrow_mut().clear();
+    let mut fuel = Fuel::new(0);
+    let failure = resume_accepted_effects(accepted, &host, &mut fuel, LIMITS).unwrap_err();
+    assert!(matches!(
+        failure,
+        CalculationFailure::External(EffectEvaluationFault::Pure(
+            PureEvaluationFault::FuelExhausted
+        ))
+    ));
+    assert_eq!(*host.events.borrow(), ["restore"]);
+    assert_eq!(fuel.remaining(), 0);
 }
 
 #[test]
@@ -841,6 +1345,12 @@ impl<'expression>
     }
 }
 struct WidgetReply;
+struct WidgetInput(String);
+impl std::borrow::Borrow<str> for WidgetInput {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
 impl HostResultDomain<str> for WidgetReply {
     type Error = NativeError;
     fn matches_type(&self, _: &str) -> bool {
@@ -851,6 +1361,128 @@ impl HostResultDomain<str> for WidgetReply {
             .then_some(())
             .ok_or(NativeError("private widget reply"))
     }
+}
+
+impl<'expression, Declaration: ?Sized>
+    EffectReentryEnvironment<
+        'expression,
+        WidgetField,
+        WidgetOperation,
+        WidgetAction,
+        WidgetResultTag,
+        u64,
+        Declaration,
+        WidgetInput,
+    > for Widget
+{
+    fn restore_capture(
+        &self,
+        _: &u64,
+        _: &Declaration,
+        capture: WidgetCapture<'expression>,
+        _: &mut Fuel,
+        _: EffectEvaluationLimits,
+    ) -> Result<RestoredEffectBindings<'expression, Rc<String>>, CalculationFailure<NativeError>>
+    {
+        Ok(capture.bindings)
+    }
+    fn bind_reply(
+        &self,
+        _: &u64,
+        _: &Declaration,
+        reply: WidgetInput,
+        _: &mut Fuel,
+    ) -> Result<PureValue<Rc<String>>, CalculationFailure<NativeError>> {
+        Ok(PureValue::Result(Rc::new(reply.0)))
+    }
+}
+
+#[test]
+fn shared_gui_reentry_accepts_a_move_only_text_payload_and_unsized_native_domain() {
+    let state = Rc::new(Cell::new(false));
+    let expression = WidgetIr::Bind {
+        name: "reply".into(),
+        value: Box::new(WidgetIr::Host {
+            effect: Box::new(WidgetAction(state.clone())),
+        }),
+        body: Box::new(WidgetIr::Field {
+            value: Box::new(WidgetIr::Local {
+                name: "reply".into(),
+            }),
+            field: WidgetField,
+        }),
+    };
+    let mut bindings = Vec::new();
+    let mut fuel = Fuel::new(100);
+    let outcome = evaluate_resumable_effects_in_scope(
+        &expression,
+        &mut ScopeFrame::new(&mut bindings),
+        &Widget,
+        &mut fuel,
+        LIMITS,
+    )
+    .unwrap();
+    let ResumableEffectOutcome::Suspended {
+        request,
+        continuation,
+    } = outcome
+    else {
+        panic!()
+    };
+    assert!(!state.get());
+    request.0.set(true);
+    let domain: &dyn HostResultDomain<str, Error = NativeError> = &WidgetReply;
+    let mut pending = PendingReply::new(1, continuation, domain);
+    let accepted = pending
+        .try_accept(&1, WidgetInput(String::from("ready")), request)
+        .unwrap();
+    assert!(
+        matches!(resume_accepted_effects(accepted, &Widget, &mut fuel, LIMITS).unwrap(),
+        ResumableEffectOutcome::Value(PureValue::Scalar(ScalarValue::String(value))) if value == "ready")
+    );
+    assert_eq!(fuel.remaining(), 95);
+    assert!(state.get());
+    assert!(bindings.is_empty());
+    assert_eq!(pending.status(), ReplyStatus::Terminal(ReplyEnd::Accepted));
+}
+
+#[test]
+fn cancelled_core_owned_continuation_never_restores_or_projects_late_input() {
+    let expression = bind("reply", call(1, integer(1)), field("reply", 0));
+    let parameters = parameters();
+    let schemas = schemas(&parameters);
+    let host = Counter::new(&schemas, &[3]);
+    let mut bindings = Vec::new();
+    let mut fuel = Fuel::new(100);
+    let (request, frame) = continuation(
+        evaluate_resumable_effects_in_scope(
+            &expression,
+            &mut ScopeFrame::new(&mut bindings),
+            &host,
+            &mut fuel,
+            LIMITS,
+        )
+        .unwrap(),
+    );
+    let policy = ReplyPolicy {
+        host: &host,
+        live: Cell::new(true),
+    };
+    let mut pending = PendingReply::new((7, 1), frame, &request.prepared.schema().result);
+    assert!(pending.cancel());
+    let reply = Rc::new(Reply { kind: 1, value: 42 });
+    let pointer = Rc::as_ptr(&reply);
+    host.events.borrow_mut().clear();
+    let before = fuel.remaining();
+    let rejected = pending.try_accept(&(7, 1), reply, &policy).unwrap_err();
+    assert_eq!(Rc::as_ptr(&rejected.reply), pointer);
+    assert!(matches!(
+        rejected.error,
+        ReplyAcceptanceError::Closed(ReplyEnd::Cancelled)
+    ));
+    assert!(host.events.borrow().is_empty());
+    assert_eq!(fuel.remaining(), before);
+    assert!(!pending.cancel());
 }
 
 #[test]

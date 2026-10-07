@@ -999,7 +999,7 @@ fn shared_flat_group_source_keeps_cold_output_before_explicit_native_admission()
     for boundary in [
         "lower_flat_group_source(",
         "operation.result_type() == branch.result_type",
-        "control_flow::lower_repeat_with",
+        "lower_repeat_sequence_source(",
         "lower_sequence_source(",
         "lower_all_with",
         "branch.name",
@@ -1111,7 +1111,7 @@ fn shared_flat_repeat_source_reserves_complete_output_before_explicit_native_fac
         "candidate.value.prepared_atomic_operation() == operation",
         "functions::host_source_extra",
         "finish_flat_group(value, span)",
-        "control_flow::lower_repeat_with",
+        "lower_repeat_sequence_source(",
     ] {
         assert!(
             reference.contains(boundary),
@@ -1225,6 +1225,322 @@ fn shared_owned_sequence_source_moves_native_children_without_effect_round_trips
     ));
     assert!(host.contains("assert_eq!(fuel.remaining(), 93)"));
     assert!(host.contains("compile_sequence(&argument.value, host)"));
+}
+
+#[test]
+fn shared_repeat_sequence_source_reserves_whole_forests_before_native_factories_and_admission() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/repeat_sequence_source.rs"))
+            .unwrap();
+    for forbidden in [
+        "leselang_host_contract",
+        "leserpent",
+        "rusqlite",
+        "use serde",
+        "serde::",
+        "Clone +",
+        "PartialEq +",
+        "Debug +",
+        "Send +",
+        ".clone()",
+        "panic!",
+        "unreachable!",
+        ".expect(",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "repeat-sequence coupling {forbidden}"
+        );
+    }
+    let entry = source
+        .split_once("pub fn lower_repeat_sequence_source")
+        .unwrap()
+        .1;
+    for pair in [
+        "header(expression, bounds.max_repetitions)",
+        "preflight(expression, bounds.source)",
+        "cold_headers(expression, bounds.max_repetitions)",
+        "group_headers(expression, limits.max_branches)",
+        ".lower_sequence(body)",
+        "let expanded_width = width",
+        "expected.nodes - 1",
+        "MAX_LOCAL_NAME_BYTES",
+        "let cost = measure_source_cost",
+        "cost.nodes - 1",
+        "Vec::with_capacity(count)",
+        ".materialize_sequence(iteration, body, original)",
+        "actual != expected",
+        "branch.name != original.name",
+        "actual != cost",
+        ".admit_member(index + 1, member, body, original, candidate)",
+        "Vec::with_capacity(expanded_width)",
+    ]
+    .windows(2)
+    {
+        assert!(
+            entry.find(pair[0]).unwrap() < entry.find(pair[1]).unwrap(),
+            "incorrect repeat-sequence order {pair:?}"
+        );
+    }
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computed_group.rs")).unwrap();
+    assert!(reference.contains("lower_repeat_sequence_source("));
+    assert!(reference.contains("Ok(original.to_vec())"));
+    assert!(reference.contains("sequence_branches(value, body.span)"));
+    assert!(!reference.contains("control_flow::lower_repeat_with"));
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/repeat_sequence_source.rs"))
+            .unwrap();
+    for boundary in [
+        "original_template_rows_move_once_and_factories_precede_all_ordered_admission",
+        "all_four_native_slots_boxes_and_operand_buffers_require_no_clone_debug_serde_or_send",
+        "flattened_physical_reservation_does_not_recharge_removed_group_roots",
+        "opaque_source_reservation_is_complete_before_any_instance_factory",
+        "changed_width_labels_shape_cost_or_candidate_stops_later_factories_and_all_admission",
+        "native_unwind_releases_consumed_instances_and_restores_frames_without_replay",
+        "reference_nested_repeat_names_wire_authority_and_expansion_diagnostics_remain_compatible",
+    ] {
+        assert!(
+            proof.contains(boundary),
+            "missing repeat-sequence proof {boundary}"
+        );
+    }
+    let host =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/group_source.rs")).unwrap();
+    assert!(host.contains("parsed_repeated_sequence_preserves_native_rows_values_exact_fuel_and_rejects_changed_semantics"));
+    assert!(host.contains("assert_eq!(fuel.remaining(), 87)"));
+    assert!(host.contains("changed native argument semantics"));
+}
+
+#[test]
+fn shared_sequence_sessions_gate_each_request_on_the_original_accepted_reply_without_product_state()
+{
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/sequence_evaluation.rs"))
+            .unwrap();
+    let production = source
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for forbidden in [
+        "leserpent_domain",
+        "leserpent_runtime",
+        "leselang_vm",
+        "rusqlite",
+        "serde::",
+        ".clone()",
+        "panic!",
+        "unreachable!",
+        ".expect(",
+        "Identity: Clone",
+        "Declaration: Clone",
+        "Request: Clone",
+        "Node: Clone",
+        "IrResult: Clone",
+    ] {
+        assert!(
+            !production.contains(forbidden),
+            "standalone sequence session gained {forbidden}"
+        );
+    }
+    for required in [
+        "SequenceEvaluationEnvironment",
+        "PreparedSequenceMember",
+        "PendingReply::new",
+        "SequenceSession",
+        "SequenceEvaluationLimits",
+        "SequenceStatus",
+        "SequenceEnd::HostUncertain",
+        "SequenceEnd::Cancelled",
+        "SequenceEnd::Completed",
+        "SequenceEnd::Failed",
+        "Reply: Borrow<View>",
+        "Declaration: HostResultDomain<View>",
+        "Identity: PartialEq",
+        "No native Clone/Debug/serde/Send/Sync bound",
+        "no retry, fuel refund or automatic restoration",
+    ] {
+        assert!(
+            source.contains(required),
+            "sequence session lost {required}"
+        );
+    }
+    let start = source
+        .split_once("pub fn start<Environment>")
+        .unwrap()
+        .1
+        .split_once("pub fn poll<Environment>")
+        .unwrap()
+        .0;
+    let physical = start.find("physical(").unwrap();
+    let candidates = start.find("atomic_candidate(&branch.value)").unwrap();
+    let cold = start.find(".preflight_member(index, branch)").unwrap();
+    let charge = start.find("fuel.charge(1)").unwrap();
+    assert!(physical < candidates && candidates < cold && cold < charge);
+    let poll = source
+        .split_once("pub fn poll<Environment>")
+        .unwrap()
+        .1
+        .split_once("pub fn status")
+        .unwrap()
+        .0;
+    let close = poll
+        .find("self.state = State::Terminal(SequenceEnd::HostUncertain)")
+        .unwrap();
+    let charge = poll.find("self.fuel.charge(1)").unwrap();
+    let prepare = poll.find("environment.prepare_member(").unwrap();
+    let waiting = poll.find("PendingReply::new(").unwrap();
+    assert!(close < charge && charge < prepare && prepare < waiting);
+    assert!(poll.find("SequencePoll::Awaiting").unwrap() < close);
+    let receive = source
+        .split_once("pub fn try_accept<")
+        .unwrap()
+        .1
+        .split_once("pub fn cancel")
+        .unwrap()
+        .0;
+    assert!(
+        receive.find("std::mem::replace").unwrap() < receive.find("pending.try_accept").unwrap()
+    );
+    assert!(receive.find("pending.try_accept").unwrap() < receive.find("self.next += 1").unwrap());
+    assert!(!receive.contains("prepare_member"));
+    let cancel = source.split_once("pub fn cancel").unwrap().1;
+    assert!(cancel.find("std::mem::replace").unwrap() < cancel.find("drop(old)").unwrap());
+    let tests =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/sequence_evaluation.rs"))
+            .unwrap();
+    for proof in [
+        "cold_shape_limits_and_candidates_precede_all_native_hooks",
+        "move_only_native_rows_replies_and_requests_preserve_pointers_without_eager_work",
+        "rejected_identity_authority_type_and_value_preserve_input_and_pending_member",
+        "preparation_failure_or_unwind_is_terminal_without_fuel_refund_or_retry",
+        "every_reply_callback_unwind_releases_identity_and_closes_without_rearming",
+        "unsized_native_domain_and_text_reply_view_need_no_cloning_or_serialization",
+    ] {
+        assert!(tests.contains(proof), "sequence lifecycle lost {proof}");
+    }
+    let native =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/group_source.rs")).unwrap();
+    for proof in [
+        "parsed_nested_repeat_runs_one_native_request_per_accepted_reply_with_exact_fuel",
+        "parsed_sequence_revocation_cancellation_and_stale_replies_never_invoke_a_successor",
+        "NativeCounters",
+        ".invoke(request)",
+        "session.fuel_remaining(), 85",
+        "(counters.left, counters.right), (85, 22)",
+        "SequenceEnd::Cancelled",
+        "SequenceEnd::Failed",
+    ] {
+        assert!(
+            native.contains(proof),
+            "parsed native sequence lost {proof}"
+        );
+    }
+}
+
+#[test]
+fn shared_accepted_binding_reentry_preserves_original_sites_and_validation_order_without_product_state()
+ {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_reentry.rs")).unwrap();
+    let production = source
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for forbidden in [
+        "leserpent_domain",
+        "leserpent_runtime",
+        "leselang_vm",
+        "rusqlite",
+        "serde::",
+        ".clone()",
+        "panic!",
+        "unreachable!",
+        ".expect(",
+        "Identity: Clone",
+        "Capture: Clone",
+        "Reply: Clone",
+        "Node: Clone",
+    ] {
+        assert!(
+            !production.contains(forbidden),
+            "binding reentry gained {forbidden}"
+        );
+    }
+    for required in [
+        "EffectContinuation",
+        "pub(crate) fn new",
+        "AcceptedReply",
+        "Declaration: ?Sized",
+        "EffectReentryEnvironment",
+        "ResumableEffectOutcome",
+        "resume_accepted_effects",
+        "preflight_value_scope",
+    ] {
+        assert!(source.contains(required), "binding reentry lost {required}");
+    }
+    let resume = source
+        .split_once("pub fn resume_accepted_effects<")
+        .unwrap()
+        .1;
+    let physical = resume.find("preflight(body,").unwrap();
+    let cold = resume.find(".preflight_effect(effect)").unwrap();
+    let restore = resume.find(".restore_capture(").unwrap();
+    let quota = resume
+        .find("scope.len() >= limits.pure.max_bindings")
+        .unwrap();
+    let charge = resume.find("fuel.charge(scope.len() as u64)").unwrap();
+    let prefix = resume.find("preflight_value_scope(&scope,").unwrap();
+    let shadow = resume.find("scope.get(name)").unwrap();
+    let projection = resume.find(".bind_reply(").unwrap();
+    let insert = resume.find(".push(name, value)").unwrap();
+    let mapped = resume.rfind("preflight_value_scope(&scope,").unwrap();
+    let body = resume.rfind("evaluate(").unwrap();
+    assert!(
+        physical < cold && cold < restore && restore < quota && quota < charge && charge < prefix
+    );
+    assert!(
+        prefix < shadow
+            && shadow < projection
+            && projection < insert
+            && insert < mapped
+            && mapped < body
+    );
+    let walker =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_evaluation.rs")).unwrap();
+    assert!(walker.contains("EffectContinuation::new(name, body, capture)"));
+    assert!(walker.contains(".map(ResumableEffectOutcome::into_legacy)"));
+    let tests =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/effect_evaluation.rs"))
+            .unwrap();
+    for proof in [
+        "shared_accepted_reentry_preserves_alias_identity_exact_fuel_and_original_binding_sites",
+        "native_capture_metadata_cannot_redirect_the_core_owned_reply_binding_or_body",
+        "projection_unwind_releases_restored_aliases_and_actual_reply_without_rearming",
+        "reentry_bounds_and_current_cold_schemas_stop_before_restore_projection_and_fuel",
+        "invalid_restored_prefixes_stop_before_reply_projection_or_body_execution",
+        "restoration_and_projection_failure_or_unwind_never_rearm_or_enter_the_body",
+        "restoration_prefix_fuel_is_charged_before_projection_without_refund",
+        "shared_gui_reentry_accepts_a_move_only_text_payload_and_unsized_native_domain",
+        "cancelled_core_owned_continuation_never_restores_or_projects_late_input",
+    ] {
+        assert!(tests.contains(proof), "binding reentry lost proof {proof}");
+    }
+    let parsed =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/binding_source.rs")).unwrap();
+    for proof in [
+        "parsed_binding_invokes_native_calls_accepts_original_domains_and_reenters_with_exact_fuel",
+        "execution.invoke(request)",
+        "execution.actual.get(), 42",
+        "fuel.remaining(), 94",
+    ] {
+        assert!(parsed.contains(proof), "parsed binding chain lost {proof}");
+    }
 }
 
 #[test]
