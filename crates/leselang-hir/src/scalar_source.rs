@@ -449,7 +449,7 @@ pub(crate) fn lower_loop_body<'source, Node, Error>(
     Ok(LoopBody { condition, next })
 }
 
-fn preflight_bindings<'source, Error>(
+pub(crate) fn preflight_bindings<'source, Error>(
     expression: &'source Expression,
     scope: &mut ScopeFrame<'_, 'source, ScalarType>,
     max_bindings: usize,

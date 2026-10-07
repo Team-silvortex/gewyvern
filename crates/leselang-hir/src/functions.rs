@@ -206,46 +206,55 @@ pub(super) fn lower_program(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnos
                 &mut functions,
             )?
         };
-        if body.is_pure() && !matches!(result_type, Type::Scalar(_)) {
-            return Err(invalid(
-                "LSH1503",
-                "a pure helper must return bounded data",
-                function.span,
-            ));
-        }
-        body.validate_in_scope(
-            &parameters
-                .iter()
-                .map(|(name, ty)| (name.clone(), Type::Scalar(*ty)))
-                .collect::<Vec<_>>(),
-        )
-        .map_err(|_| {
-            invalid(
-                "LSH1405",
-                "expanded helper exceeds computation or canonical source bounds",
-                function.span,
-            )
-        })?;
-        let cost = source_cost(&body).map_err(|_| {
-            invalid(
-                "LSH1405",
-                "expanded helper exceeds computation or canonical source bounds",
-                function.span,
-            )
-        })?;
-        let prepared = crate::helper_templates::HelperTemplate::new(
+        let scalar_result = match result_type {
+            Type::Scalar(ty) => Some(ty),
+            _ => None,
+        };
+        let source_limits = source_cost_limits();
+        let admitted = crate::helper_body::LoweredHelperBody {
             parameters,
-            body,
+            expression: body,
             result_type,
-            template_limits(),
+            scalar_result,
+        }
+        .prepare(
+            crate::helper_body::HelperBodyLimits {
+                template: template_limits(),
+                source_cost: source_limits,
+            },
+            |body, parameters, result_type, _| {
+                let checked = body.validate_in_scope(
+                    &parameters
+                        .iter()
+                        .map(|(name, ty)| (name.clone(), Type::Scalar(*ty)))
+                        .collect::<Vec<_>>(),
+                )?;
+                if checked != *result_type {
+                    return Err(crate::CanonicalSourceError::RoundTripMismatch);
+                }
+                Ok(())
+            },
+            |effect| host_source_extra(effect, source_limits),
         )
-        .map_err(|_| {
-            invalid(
-                "LSH1405",
-                "expanded helper exceeds computation or canonical source bounds",
-                function.span,
-            )
+        .map_err(|error| {
+            if matches!(
+                error,
+                crate::helper_body::HelperBodyError::PureResultRequired
+            ) {
+                invalid(
+                    "LSH1503",
+                    "a pure helper must return bounded data",
+                    function.span,
+                )
+            } else {
+                invalid(
+                    "LSH1405",
+                    "expanded helper exceeds computation or canonical source bounds",
+                    function.span,
+                )
+            }
         })?;
+        let (prepared, cost) = admitted.into_parts();
         functions.templates.insert(
             function.name.clone(),
             Template {
@@ -297,29 +306,40 @@ pub(super) fn source_cost(
     crate::helper_expansion::HelperExpansionCost,
     crate::source_cost::SourceCostError<leselang_runtime_core::StructureError>,
 > {
-    let limits = crate::source_cost::SourceCostLimits {
+    let limits = source_cost_limits();
+    crate::source_cost::measure_source_cost(expression, limits, |effect| {
+        host_source_extra(effect, limits)
+    })
+}
+
+fn source_cost_limits() -> crate::source_cost::SourceCostLimits {
+    crate::source_cost::SourceCostLimits {
         max_nodes: crate::pure_typing::MAX_TYPE_INFERENCE_NODES,
         max_depth: crate::pure_typing::MAX_TYPE_INFERENCE_DEPTH,
-    };
-    crate::source_cost::measure_source_cost(expression, limits, |effect| {
-        let mut effects = vec![(effect, 1)];
-        let mut budget =
-            leselang_runtime_core::StructureBudget::new(limits.max_nodes, limits.max_depth);
-        let mut depth = 0;
-        while let Some((effect, effect_depth)) = effects.pop() {
-            budget.visit(effect_depth, 0, 0)?;
-            depth = depth.max(effect_depth);
-            if let Effect::Sequence { steps } | Effect::All { branches: steps } = effect {
-                for step in steps {
-                    budget.check_pending(effects.len(), 1)?;
-                    effects.push((&step.effect, effect_depth + 1));
-                }
+    }
+}
+
+pub(super) fn host_source_extra(
+    effect: &Effect,
+    limits: crate::source_cost::SourceCostLimits,
+) -> Result<crate::source_cost::SourceCostExtra, leselang_runtime_core::StructureError> {
+    let mut effects = vec![(effect, 1)];
+    let mut budget =
+        leselang_runtime_core::StructureBudget::new(limits.max_nodes, limits.max_depth);
+    let mut depth = 0;
+    while let Some((effect, effect_depth)) = effects.pop() {
+        budget.visit(effect_depth, 0, 0)?;
+        depth = depth.max(effect_depth);
+        if let Effect::Sequence { steps } | Effect::All { branches: steps } = effect {
+            for step in steps {
+                budget.check_pending(effects.len(), 1)?;
+                effects.push((&step.effect, effect_depth + 1));
             }
         }
-        Ok(crate::source_cost::SourceCostExtra {
-            nodes: budget.visited(),
-            depth,
-        })
+    }
+    Ok(crate::source_cost::SourceCostExtra {
+        nodes: budget.visited(),
+        depth,
     })
 }
 

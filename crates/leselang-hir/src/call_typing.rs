@@ -129,6 +129,15 @@ fn preflight_arguments<'expression, Field, Operation, HostEffect, IrResult, Resu
         .collect())
 }
 
+pub(crate) fn valid_argument_name(name: &str) -> bool {
+    let mut bytes = name.bytes();
+    name.len() <= MAX_LOCAL_NAME_BYTES
+        && bytes
+            .next()
+            .is_some_and(|byte| byte.is_ascii_alphabetic() || byte == b'_')
+        && bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+}
+
 pub(crate) fn preflight_arguments_with_budget<Field, Operation, HostEffect, IrResult>(
     arguments: &Arguments<Field, Operation, HostEffect, IrResult>,
     depth: usize,
@@ -139,13 +148,7 @@ pub(crate) fn preflight_arguments_with_budget<Field, Operation, HostEffect, IrRe
         return Err(CallTypeError::ArgumentLimit);
     }
     for (argument_index, argument) in arguments.iter().enumerate() {
-        let mut bytes = argument.name.bytes();
-        if argument.name.len() > MAX_LOCAL_NAME_BYTES
-            || !bytes
-                .next()
-                .is_some_and(|byte| byte.is_ascii_alphabetic() || byte == b'_')
-            || !bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
-        {
+        if !valid_argument_name(&argument.name) {
             return Err(CallTypeError::InvalidArgumentName { argument_index });
         }
         preflight_with_budget(&argument.value, depth, budget).map_err(|error| {

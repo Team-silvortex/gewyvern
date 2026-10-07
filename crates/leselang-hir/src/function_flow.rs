@@ -70,6 +70,33 @@ pub(super) fn bind_result(
     body: Computation,
     span: Span,
 ) -> Result<Computation, Vec<Diagnostic>> {
+    let plan = crate::helper_returns::HelperReturns::new(
+        name,
+        value,
+        body,
+        crate::helper_returns::HelperReturnLimits {
+            max_nodes: MAX_COMPUTATION_NODES,
+            max_depth: MAX_EFFECT_NESTING_DEPTH,
+        },
+    )
+    .map_err(|error| {
+        if matches!(
+            error,
+            crate::helper_returns::HelperReturnError::UnsupportedBoundary
+        ) {
+            invalid(
+                "LSH1503",
+                "helper return cannot compose at this effect boundary",
+                span,
+            )
+        } else {
+            invalid(
+                "LSH1405",
+                "composed helper exceeds computation bounds",
+                span,
+            )
+        }
+    })?;
     let oversized = |_| {
         invalid(
             "LSH1405",
@@ -77,52 +104,20 @@ pub(super) fn bind_result(
             span,
         )
     };
-    let value_cost = functions::source_cost(&value).map_err(oversized)?;
-    let body_cost = functions::source_cost(&body).map_err(oversized)?;
+    let value_cost = functions::source_cost(plan.value()).map_err(oversized)?;
+    let body_cost = functions::source_cost(plan.continuation()).map_err(oversized)?;
     let mut depth = value_cost.depth;
     let body_depth = body_cost.depth;
-    let mut returns = 0usize;
-    let mut pending = vec![(&value, 0usize)];
-    while let Some((value, level)) = pending.pop() {
-        if value.is_pure() {
-            returns += 1;
-            depth = depth.max(
-                level
-                    + 1
-                    + functions::source_cost(value)
-                        .map_err(oversized)?
-                        .depth
-                        .max(body_depth),
-            );
-            continue;
-        }
-        match value {
-            Computation::Bind { body, .. } => pending.push((body, level + 1)),
-            Computation::Choose {
-                then, otherwise, ..
-            } => {
-                pending.push((then, level + 1));
-                pending.push((otherwise, level + 1));
-            }
-            Computation::Host { .. } | Computation::Call { .. } | Computation::Group { .. } => {
-                returns += 1;
-                depth = depth.max(
-                    level
-                        + 1
-                        + functions::source_cost(value)
-                            .map_err(oversized)?
-                            .depth
-                            .max(body_depth),
-                );
-            }
-            _ => {
-                return Err(invalid(
-                    "LSH1503",
-                    "helper return cannot compose at this effect boundary",
-                    span,
-                ));
-            }
-        }
+    let returns = plan.shape().returns;
+    for (value, level) in plan.return_sites() {
+        depth = depth.max(
+            level
+                + 1
+                + functions::source_cost(value)
+                    .map_err(oversized)?
+                    .depth
+                    .max(body_depth),
+        );
     }
     // Reserve every cold return path before cloning its continuation.
     let nodes = value_cost
@@ -135,11 +130,11 @@ pub(super) fn bind_result(
             span,
         ));
     }
-    let bytes = computation::source(&value).len().saturating_add(
+    let bytes = computation::source(plan.value()).len().saturating_add(
         returns.saturating_mul(
-            computation::source(&body)
+            computation::source(plan.continuation())
                 .len()
-                .saturating_add(name.len())
+                .saturating_add(plan.name().len())
                 .saturating_add(16),
         ),
     );
@@ -150,44 +145,11 @@ pub(super) fn bind_result(
             span,
         ));
     }
-    let expression = connect(value, &name, &body);
+    let expression = plan
+        .connect(|body, _| Ok::<_, std::convert::Infallible>(body.clone()))
+        .map_err(|_| invalid("LSH1405", "invalid composed helper structure", span))?;
     expression
         .validate_structure()
         .map_err(|_| invalid("LSH1405", "invalid composed helper structure", span))?;
     Ok(expression)
-}
-
-fn connect(value: Computation, name: &str, body: &Computation) -> Computation {
-    if value.is_pure() {
-        return Computation::Bind {
-            name: name.into(),
-            value: Box::new(value),
-            body: Box::new(body.clone()),
-        };
-    }
-    match value {
-        Computation::Bind {
-            name: local,
-            value,
-            body: continuation,
-        } => Computation::Bind {
-            name: local,
-            value,
-            body: Box::new(connect(*continuation, name, body)),
-        },
-        Computation::Choose {
-            when,
-            then,
-            otherwise,
-        } => Computation::Choose {
-            when,
-            then: Box::new(connect(*then, name, body)),
-            otherwise: Box::new(connect(*otherwise, name, body)),
-        },
-        value => Computation::Bind {
-            name: name.into(),
-            value: Box::new(value),
-            body: Box::new(body.clone()),
-        },
-    }
 }

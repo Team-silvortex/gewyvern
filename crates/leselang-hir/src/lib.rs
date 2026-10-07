@@ -1,7 +1,9 @@
 #![forbid(unsafe_code)]
 
+pub mod binding_source;
 pub mod call_evaluation;
 pub mod call_typing;
+pub mod choice_source;
 pub mod computation;
 mod computed_group;
 mod control_flow;
@@ -9,11 +11,15 @@ pub mod effect_evaluation;
 pub mod flow_typing;
 mod function_flow;
 mod functions;
+pub mod group_exports;
+pub mod group_source;
 pub mod helper_bindings;
+pub mod helper_body;
 pub mod helper_declarations;
 pub mod helper_dependencies;
 pub mod helper_expansion;
 pub mod helper_hygiene;
+pub mod helper_returns;
 pub mod helper_source;
 pub mod helper_templates;
 pub mod host_call;
@@ -23,8 +29,10 @@ pub mod projection_source;
 pub mod pure_evaluation;
 mod pure_reference;
 pub mod pure_typing;
+pub mod repeat_source;
 pub mod result_field;
 pub mod scalar_source;
+pub mod sequence_source;
 pub mod source_call;
 pub mod source_cost;
 

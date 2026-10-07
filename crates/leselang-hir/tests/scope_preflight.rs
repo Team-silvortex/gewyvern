@@ -44,6 +44,31 @@ fn failed_group_member_restores_names_before_later_diagnostics() {
 }
 
 #[test]
+fn failed_parallel_lowering_collects_only_remaining_sibling_diagnostics() {
+    let errors = lower(&parse(
+        r#"fn main() = all(
+            a: ui.focus(node_id: "ok"),
+            b: bind(tmp: "b", body: ui.focus(node_id: missing)),
+            c: 1,
+            d: bind(tmp: "d", body: ui.focus(node_id: other)))"#,
+    ))
+    .unwrap_err();
+    assert_eq!(errors.len(), 3);
+    assert_eq!(errors[0].message, "undefined local 'missing'");
+    assert_eq!(errors[1].code, "LSH1406");
+    assert_eq!(errors[2].message, "undefined local 'other'");
+
+    let errors = lower(&parse(
+        r#"fn main() = seq(
+            a: bind(tmp: "a", body: ui.focus(node_id: missing)),
+            b: bind(tmp: "b", body: ui.focus(node_id: other)))"#,
+    ))
+    .unwrap_err();
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].message, "undefined local 'missing'");
+}
+
+#[test]
 fn external_scalar_scope_is_unchanged_on_success_and_cold_failure() {
     let environment = vec![("saved".into(), Type::Scalar(ScalarType::Integer))];
     let original = environment.clone();

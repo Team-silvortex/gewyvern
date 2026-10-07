@@ -722,8 +722,8 @@ fn shared_scalar_source_construction_is_product_free_and_delegated_by_reference_
         std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
     assert!(reference.contains("crate::scalar_source::primitive(expression)"));
     assert!(reference.contains("crate::scalar_source::lower_form(expression"));
-    assert!(reference.contains("crate::scalar_source::lower_choose_form("));
-    assert!(reference.contains("crate::scalar_source::binding_source(expression)"));
+    assert!(reference.contains("crate::choice_source::lower_choice_source("));
+    assert!(reference.contains("crate::binding_source::lower_binding_source("));
     assert!(reference.contains("source.construct(value, body)"));
     assert!(!reference.contains("if callee == \"recover\""));
     assert!(!reference.contains("if callee == \"strings\""));
@@ -794,6 +794,437 @@ fn shared_scalar_source_bindings_keep_explicit_policy_and_read_only_native_scope
     ] {
         assert!(proof.contains(boundary));
     }
+}
+
+#[test]
+fn shared_native_binding_source_keeps_explicit_stages_bounds_and_product_policy() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/binding_source.rs")).unwrap();
+    for boundary in [
+        "pub struct BindingSourceLimits",
+        "pub enum BindingSourcePhase",
+        "pub enum BindingSourceError<Error>",
+        "pub struct BindingSourceForm",
+        "pub trait BindingSourceAdapter",
+        "type Value;",
+        "type Result;",
+        "type Error;",
+        "metadata: &mut Self::Value",
+        "preflight_bindings(expression, &mut scope, limits.max_bindings)",
+        "physical(&value, 1, &mut budget)",
+        "budget.check_pending(0, 1)",
+        "physical(&body, 1, &mut budget)",
+        "physical(&output, 0, &mut budget)",
+        "max_lowered_depth == 0",
+    ] {
+        assert!(
+            source.contains(boundary),
+            "missing binding boundary {boundary}"
+        );
+    }
+    for forbidden in [
+        "leselang_host_contract",
+        "leserpent",
+        "rusqlite",
+        "use serde",
+        "serde::",
+        "Default",
+        "std::sync",
+        "Clone +",
+        "Debug +",
+    ] {
+        assert!(!source.contains(forbidden), "native coupling {forbidden}");
+    }
+    let public = source.split_once("pub fn lower_binding_source").unwrap().1;
+    let sequence = [
+        "preflight(expression, limits.source)",
+        "binding_source(expression)",
+        "preflight_bindings(expression, &mut scope, limits.max_bindings)",
+        ".lower_value(source.binding())",
+        "physical(&value, 1, &mut budget)",
+        ".lower_body(&source, &value, &mut metadata)",
+        "physical(&body, 1, &mut budget)",
+        ".finish(&source, value, metadata, body, result)",
+        "physical(&output, 0, &mut budget)",
+    ];
+    for pair in sequence.windows(2) {
+        assert!(public.find(pair[0]).unwrap() < public.find(pair[1]).unwrap());
+    }
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
+    for boundary in [
+        "crate::binding_source::lower_binding_source(",
+        "struct BindingAdapter",
+        "let mut local = self.scope.nested()",
+        "metadata.members.take()",
+        "metadata.group_member_count.is_none_or",
+        "source.construct(value, body)",
+        "source.span()",
+        "crate::function_flow::bind_result(",
+        "computation exceeds its node or nesting limit",
+    ] {
+        assert!(
+            reference.contains(boundary),
+            "missing reference binding policy {boundary}"
+        );
+    }
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/binding_source.rs")).unwrap();
+    for boundary in [
+        "original_source_metadata_native_buffers_and_phase_order_are_preserved",
+        "generated_value_budget_reserves_body_and_stops_body_hook",
+        "generated_body_uses_same_aggregate_budget_before_finish_hook",
+        "rewritten_finish_output_is_rechecked_without_partial_result",
+        "shifted_body_and_rewritten_output_depth_are_checked_at_their_own_phases",
+        "whole_cold_source_nodes_and_depth_fail_before_value_lowering",
+        "native_unwind_releases_owned_parts_and_guarded_frames_once",
+        "all_four_move_only_ir_slots_child_boxes_and_vectors_move_without_clone",
+        "parsed_native_result_binding_uses_original_schemas_received_values_and_exact_fuel",
+        "native_versions_grants_and_undefined_initializer_names_stop_before_later_phases",
+        "reference_pure_atomic_group_and_helper_bindings_keep_canonical_wire_and_authority",
+        "reference_cold_type_shadow_group_export_and_capture_flow_fail_closed",
+        "check_result(&reply)",
+        "prepare_call_in_scope",
+        "catch_unwind",
+        "std::ptr::eq",
+    ] {
+        assert!(proof.contains(boundary), "missing binding proof {boundary}");
+    }
+}
+
+#[test]
+fn shared_native_choice_source_requires_explicit_queries_after_cold_bounds() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/choice_source.rs")).unwrap();
+    for forbidden in [
+        "leselang_host_contract",
+        "leserpent",
+        "rusqlite",
+        "use serde",
+        "serde::",
+        "PartialEq +",
+        "Clone +",
+        "Debug +",
+        "Send +",
+    ] {
+        assert!(!source.contains(forbidden), "choice coupling {forbidden}");
+    }
+    let public = source.split_once("pub fn lower_choice_source").unwrap().1;
+    for pair in [
+        "preflight(expression, limits)",
+        "cold_names(expression)",
+        "child(ChoiceSourcePhase::When",
+        "preflight_with_budget(&when",
+        "boolean(&when, &when_type)",
+        "child(ChoiceSourcePhase::Then",
+        "physical(&then, 1, &mut budget)",
+        "child(ChoiceSourcePhase::Otherwise",
+        "physical(&otherwise, 1, &mut budget)",
+        "same(&then_type, &otherwise_type)",
+    ]
+    .windows(2)
+    {
+        assert!(public.find(pair[0]).unwrap() < public.find(pair[1]).unwrap());
+    }
+    assert!(source.contains("!matches!(value, ScalarValue::Boolean(_))"));
+    assert!(source.contains("drop(when_type)"));
+    assert!(source.contains(".check_pending(0, 3)"));
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
+    assert!(reference.contains("crate::choice_source::lower_choice_source("));
+    assert!(!reference.contains("crate::scalar_source::lower_choose_form("));
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/choice_source.rs")).unwrap();
+    for boundary in [
+        "all_four_native_slots_and_original_boxes_and_vector_buffers_move_unchanged",
+        "every_native_unwind_releases_owned_parts_and_guarded_frames_without_retry",
+        "forged_boolean_metadata_cannot_accept_an_integer_literal",
+        "std::ptr::eq",
+        "catch_unwind",
+        "parsed_native_choice_checks_both_schemas_but_prepares_only_selected_call_with_exact_fuel",
+        "native_choice_never_confers_future_version_or_cold_branch_grants",
+        "evaluate_effects_in_scope",
+        "check_result(&ScalarValue::Integer(101))",
+    ] {
+        assert!(proof.contains(boundary), "missing choice proof {boundary}");
+    }
+}
+
+#[test]
+fn shared_flat_group_source_keeps_cold_output_before_explicit_native_admission() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/group_source.rs")).unwrap();
+    for forbidden in [
+        "leselang_host_contract",
+        "leserpent",
+        "rusqlite",
+        "use serde",
+        "serde::",
+        "PartialEq +",
+        "Clone +",
+        "Debug +",
+        "Send +",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "group source coupling {forbidden}"
+        );
+    }
+    let public = source
+        .split_once("pub fn lower_flat_group_source")
+        .unwrap()
+        .1;
+    for pair in [
+        "header(expression, limits.max_branches)",
+        "preflight(expression, limits.source)",
+        "cold_headers(expression, limits.max_branches)",
+        "lower(index, argument)",
+        "physical(&value, 1, &mut budget)",
+        "atomic_candidate(&value)",
+        "branches.push(ComputedBranch",
+        "admit(index, argument, branch)",
+    ]
+    .windows(2)
+    {
+        assert!(public.find(pair[0]).unwrap() < public.find(pair[1]).unwrap());
+    }
+    assert!(source.contains("arguments.len() - index - 1"));
+    assert!(source.contains("argument.name.to_owned()"));
+    assert!(!source.contains(".clone()"));
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computed_group.rs")).unwrap();
+    for boundary in [
+        "lower_flat_group_source(",
+        "operation.result_type() == branch.result_type",
+        "control_flow::lower_repeat_with",
+        "lower_sequence_source(",
+        "lower_all_with",
+        "branch.name",
+        "effect: *effect",
+        "GroupSourceError::DuplicateMember { kind, span: at, .. }",
+        "phase: GroupSourcePhase::Lower",
+        "arguments.iter().skip(index + 1)",
+        "only collect bounded sibling diagnostics",
+    ] {
+        assert!(
+            reference.contains(boundary),
+            "missing group reference policy {boundary}"
+        );
+    }
+    assert!(!reference.contains("arguments[index]"));
+    let diagnostics =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/scope_preflight.rs")).unwrap();
+    assert!(
+        diagnostics
+            .contains("failed_parallel_lowering_collects_only_remaining_sibling_diagnostics")
+    );
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/group_source.rs")).unwrap();
+    for boundary in [
+        "original_named_arguments_move_only_results_and_two_stage_order_are_preserved",
+        "aggregate_later_output_is_bounded_before_any_admission_hook",
+        "matching_result_observations_cannot_replace_uniform_atomic_operation_admission",
+        "native_unwind_releases_all_consumed_parts_and_scopes_once_without_retry",
+        "reference_nested_cold_error_indices_never_index_the_root_member_array",
+        "parsed_native_groups_preserve_original_rows_prepare_real_values_and_exact_fuel_without_dispatch",
+        "missing_later_grants_stale_versions_and_wrong_rows_fail_before_value_preparation",
+        "evaluate_effects_in_scope",
+        "check_result(&ScalarValue::Integer(101))",
+        "std::ptr::eq",
+        "catch_unwind",
+    ] {
+        assert!(
+            proof.contains(boundary),
+            "missing flat group proof {boundary}"
+        );
+    }
+}
+
+#[test]
+fn shared_flat_repeat_source_reserves_complete_output_before_explicit_native_factories() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/repeat_source.rs")).unwrap();
+    for forbidden in [
+        "leselang_host_contract",
+        "leserpent",
+        "rusqlite",
+        "use serde",
+        "serde::",
+        "PartialEq +",
+        "Clone +",
+        "Debug +",
+        "Send +",
+        ".clone()",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "repeat source coupling {forbidden}"
+        );
+    }
+    let entry = source
+        .split_once("pub fn lower_flat_repeat_source")
+        .unwrap()
+        .1;
+    for pair in [
+        "header(expression, limits.max_repetitions)",
+        "preflight(expression, limits.source)",
+        "cold_headers(expression, limits.max_repetitions)",
+        ".lower_body(body)",
+        "let expected = shape(&value",
+        "let cost = measure_source_cost",
+        "cost.nodes,",
+        "Vec::with_capacity(count)",
+        ".materialize(iteration, body, &branches[0])",
+        "actual != expected",
+        "actual != cost",
+        ".admit(index + 1, body, &branches[0], branch)",
+    ]
+    .windows(2)
+    {
+        assert!(entry.find(pair[0]).unwrap() < entry.find(pair[1]).unwrap());
+    }
+    for boundary in [
+        "checked_mul(count)",
+        "checked_add(1)",
+        "for iteration in 2..=count",
+        "atomic_candidate(&value)",
+        "name: \"iteration_1\".into()",
+        "format!(\"iteration_{iteration}\")",
+        "No native Clone/PartialEq/Debug/serde/Send",
+    ] {
+        assert!(
+            source.contains(boundary),
+            "missing repeat boundary {boundary}"
+        );
+    }
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computed_group.rs")).unwrap();
+    for boundary in [
+        "lower_flat_repeat_source(",
+        "struct RepeatAdapter",
+        "original.value.clone()",
+        "candidate.result_type == original.result_type",
+        "candidate.value.prepared_atomic_operation() == operation",
+        "functions::host_source_extra",
+        "finish_flat_group(value, span)",
+        "control_flow::lower_repeat_with",
+    ] {
+        assert!(
+            reference.contains(boundary),
+            "missing repeat reference policy {boundary}"
+        );
+    }
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/repeat_source.rs")).unwrap();
+    for boundary in [
+        "original_body_result_buffers_and_once_factory_admission_order_are_preserved",
+        "complete_shifted_physical_reservation_precedes_every_factory",
+        "folded_constructor_and_opaque_source_costs_are_reserved_before_factories",
+        "equal_node_count_with_changed_depth_cannot_reuse_the_reserved_shape",
+        "same_sized_native_result_observations_do_not_become_declarations",
+        "native_unwind_drops_all_consumed_instances_and_restores_scopes_once",
+        "late_native_cost_failure_and_unwind_drop_every_instance_without_admission",
+        "parsed_native_repeat_prepares_original_schema_values_and_exact_fuel_without_dispatch",
+        "wrong_copy_declarations_changed_values_and_stale_live_policy_cannot_return_partial_requests",
+        "evaluate_effects_in_scope",
+        "std::ptr::eq",
+        "check_result(&ScalarValue::Integer(101))",
+    ] {
+        assert!(proof.contains(boundary), "missing repeat proof {boundary}");
+    }
+}
+
+#[test]
+fn shared_owned_sequence_source_moves_native_children_without_effect_round_trips() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/sequence_source.rs")).unwrap();
+    for forbidden in [
+        "leselang_host_contract",
+        "leserpent",
+        "rusqlite",
+        "use serde",
+        "serde::",
+        "Clone +",
+        "PartialEq +",
+        "Debug +",
+        "Send +",
+        ".clone()",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "sequence source coupling {forbidden}"
+        );
+    }
+    let entry = source.split_once("pub fn lower_sequence_source").unwrap().1;
+    for pair in [
+        "header(expression, limits.max_branches)",
+        "preflight(expression, limits.source)",
+        "cold_headers(expression, limits.max_branches)",
+        "lower(index, argument)",
+        "members.is_empty()",
+        "MAX_LOCAL_NAME_BYTES",
+        "physical(&branch.value, 1, &mut budget)",
+        "atomic_candidate(&branch.value)",
+        "admit(index, member, argument, branch)",
+    ]
+    .windows(2)
+    {
+        assert!(entry.find(pair[0]).unwrap() < entry.find(pair[1]).unwrap());
+    }
+    for boundary in [
+        "SequenceSourceMember::Sequence { branches } if nested",
+        "branches.push(branch)",
+        "origins.push((index, member))",
+        "previous.name == branch.name",
+        "arguments.len() - index - 1",
+        "never formatted or exposed in source chains",
+    ] {
+        assert!(
+            source.contains(boundary),
+            "missing sequence boundary {boundary}"
+        );
+    }
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computed_group.rs")).unwrap();
+    let sequence = reference
+        .split_once("fn lower_sequence_nested")
+        .unwrap()
+        .1
+        .split_once("fn lower_flat")
+        .unwrap()
+        .0;
+    assert!(sequence.contains("lower_sequence_source("));
+    assert!(!sequence.contains("into_effect("));
+    assert!(!sequence.contains(".clone()"));
+    assert!(!sequence.contains("control_flow::lower_sequence_with"));
+    assert!(sequence.contains("Effect::Sequence { steps }"));
+    assert!(sequence.contains("operation.result_type() == branch.result_type"));
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/sequence_source.rs")).unwrap();
+    for boundary in [
+        "original_rows_order_labels_and_move_only_results_survive_flattening",
+        "whole_shifted_output_reserves_future_roots_before_later_lowering",
+        "joined_names_are_bounded_before_allocation_and_collisions_before_admission",
+        "native_unwind_drops_all_consumed_rows_once_and_never_retries",
+        "reference_nested_sequences_keep_canonical_wire_authority_and_diagnostics",
+    ] {
+        assert!(
+            proof.contains(boundary),
+            "missing owned sequence proof {boundary}"
+        );
+    }
+    let host =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/group_source.rs")).unwrap();
+    assert!(host.contains(
+        "parsed_nested_sequence_preserves_two_native_schemas_values_fuel_and_live_rejection"
+    ));
+    assert!(host.contains("assert_eq!(fuel.remaining(), 93)"));
+    assert!(host.contains("compile_sequence(&argument.value, host)"));
 }
 
 #[test]
@@ -1620,8 +2051,8 @@ fn shared_source_cost_walk_bounds_cold_trees_before_borrowed_native_observations
         std::fs::read_to_string(root.join("crates/leselang-hir/src/function_flow.rs")).unwrap();
     let repeat =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/computed_group.rs")).unwrap();
-    assert!(flow.contains("functions::source_cost(&value).map_err(oversized)?"));
-    assert!(flow.contains("functions::source_cost(&body).map_err(oversized)?"));
+    assert!(flow.contains("functions::source_cost(plan.value()).map_err(oversized)?"));
+    assert!(flow.contains("functions::source_cost(plan.continuation()).map_err(oversized)?"));
     assert!(repeat.contains("functions::source_cost(expression)"));
     assert!(!flow.contains("functions::shape("));
     assert!(!repeat.contains("functions::shape("));
@@ -1651,6 +2082,134 @@ fn shared_source_cost_walk_bounds_cold_trees_before_borrowed_native_observations
         assert!(
             proof.contains(boundary),
             "missing source-cost proof {boundary}"
+        );
+    }
+}
+
+#[test]
+fn shared_helper_normal_returns_admit_all_cold_copies_without_native_clone_authority() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/helper_returns.rs")).unwrap();
+    for boundary in [
+        "pub struct HelperReturnLimits",
+        "pub struct HelperReturnShape",
+        "pub enum HelperReturnError<Error>",
+        "pub struct HelperReturns<Node>",
+        "MAX_TYPE_INFERENCE_NODES",
+        "MAX_TYPE_INFERENCE_DEPTH",
+        "budget.check_pending(pending.len(), 1)?",
+        "let analysis = analyze(&value, continuation_shape)",
+        "checked_mul(returns)",
+        "checked_add(nodes)",
+        "UnsupportedBoundary",
+        "exposed_names(&value, &route)",
+        "names_are_valid(&value)",
+        "names_are_valid(&continuation)",
+        "names_are_valid(&body)",
+        "names_conflict(&continuation, &name, &reserved)",
+        "pub fn return_sites",
+        "pub fn connect<Error>",
+        "factory(&self.continuation, current)",
+        "actual != self.continuation_shape",
+        "names_conflict(&body, &self.name, &self.exposed_names)",
+        "Host failures are not returns",
+        "Pure",
+        "locals do not escape",
+        "not formatting or source chains",
+        "source costs",
+        "No callbacks",
+    ] {
+        assert!(
+            source.contains(boundary),
+            "missing helper return boundary {boundary}"
+        );
+    }
+    let admit = source
+        .split_once("pub fn new(")
+        .unwrap()
+        .1
+        .split_once("pub fn return_sites")
+        .unwrap()
+        .0;
+    let analysis = admit.find("let analysis = analyze(").unwrap();
+    assert!(admit.find("preflight(&value, limits)").unwrap() < analysis);
+    assert!(admit.find("preflight(&continuation, limits)").unwrap() < analysis);
+    assert!(admit.find("limits.max_nodes").unwrap() < analysis);
+    let copy = source.split_once("pub fn connect<Error>").unwrap().1;
+    let callback = copy.find("factory(&self.continuation, current)").unwrap();
+    assert!(callback < copy.find("preflight(&body, self.limits)").unwrap());
+    assert!(
+        copy.find("actual != self.continuation_shape").unwrap()
+            < copy.find("connect(self.value, self.route").unwrap()
+    );
+    for coupling in [
+        "crate::Type",
+        "HostOperation",
+        "ResultField",
+        "Effect::",
+        "Leserpent",
+        "sqlite",
+        "Mutex",
+        "serde::",
+        "body.clone()",
+        "Field: Clone",
+        "Operation: Clone",
+        "HostEffect: Clone",
+        "IrResult: Clone",
+        "Fuel::",
+        "saturating_add(",
+        "panic!(",
+        "unreachable!(",
+        ".expect(",
+        ".unwrap(",
+    ] {
+        assert!(
+            !source.contains(coupling),
+            "unexpected helper return coupling {coupling}"
+        );
+    }
+    let modules = std::fs::read_to_string(root.join("crates/leselang-hir/src/lib.rs")).unwrap();
+    assert!(modules.contains("pub mod helper_returns;"));
+    let adapter =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/function_flow.rs")).unwrap();
+    assert!(adapter.contains("crate::helper_returns::HelperReturns::new("));
+    assert!(adapter.contains("for (value, level) in plan.return_sites()"));
+    assert!(
+        adapter.find("if bytes > MAX_SOURCE_BYTES").unwrap()
+            < adapter.find(".connect(|body, _|").unwrap()
+    );
+    assert!(adapter.contains("body.clone()"));
+    assert!(adapter.contains(".validate_structure()"));
+    assert!(!adapter.contains("fn connect("));
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/helper_returns.rs")).unwrap();
+    for boundary in [
+        "every_cold_normal_return_is_admitted_before_left_to_right_factories",
+        "whole_pure_control_subtrees_are_single_returns_not_rewritten_inside",
+        "unsupported_cold_recover_loop_fold_and_operand_effect_boundaries_are_rejected",
+        "complete_cold_input_frontiers_are_bounded_before_return_analysis",
+        "all_cold_return_copies_are_reserved_not_only_the_selected_branch",
+        "pure_terminal_and_initializer_binders_do_not_capture_the_continuation",
+        "cold_lexical_names_are_bounded_before_route_name_copy_or_factory_capture_hashing",
+        "value_binders_cannot_capture_caller_locals_groups_or_unused_cold_names",
+        "equal_node_count_but_changed_depth_is_not_a_reserved_continuation",
+        "move_only_all_four_native_slots_boxes_vectors_and_buffers_move_unchanged",
+        "factory_error_moves_private_error_and_drops_original_and_partial_native_values_once",
+        "factory_unwind_drops_partial_owned_inputs_without_retry_or_reservation_refund",
+        "physical_admission_does_not_certify_folded_source_weights_or_native_semantics",
+        "unrelated_device_host_preserves_explicit_bind_typing_value_and_exact_fuel",
+        "reference_adapter_preserves_canonical_wire_capabilities_and_cold_return_diagnostics",
+        "bounded_normal_return_corpus_matches_legacy_desugaring_and_exact_shape",
+        "native_execution_failure_never_enters_a_normal_return_or_scalar_recovery",
+        "before.remaining(), after.remaining()",
+        "serde_json::to_vec",
+        "catch_unwind",
+        "arguments.as_ptr()",
+    ] {
+        assert!(
+            proof.contains(boundary),
+            "missing helper return proof {boundary}"
         );
     }
 }
@@ -1797,6 +2356,240 @@ fn shared_helper_expansion_reservation_preserves_source_costs_without_execution_
 }
 
 #[test]
+fn shared_closed_group_exports_preflight_cold_routes_before_explicit_native_identity_hooks() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/group_exports.rs")).unwrap();
+    for boundary in [
+        "pub struct GroupExportLimits",
+        "pub struct GroupExport<'name, Operation>",
+        "pub struct GroupExports<'name, Operation>",
+        "pub enum GroupExportPhase",
+        "pub enum GroupExportError<Error>",
+        "MAX_GROUP_EXPORT_MEMBERS: usize = 64",
+        "arguments.len() <= MAX_CALL_ARGUMENTS",
+        "valid_argument_name(&argument.name)",
+        "limits.max_nodes > MAX_TYPE_INFERENCE_NODES",
+        "limits.max_depth > MAX_TYPE_INFERENCE_DEPTH",
+        "limits.max_groups > MAX_TYPE_INFERENCE_NODES",
+        "limits.max_members > MAX_GROUP_EXPORT_MEMBERS",
+        "check_pending(pending.len(), 1)",
+        "let mut known: Option<&Node",
+        "!atomic_candidate(&branch.value)",
+        "left.name != right.name",
+        "signature = Some(current)",
+        "name: &member.name",
+        "branch(member)",
+        "same(&expected.operation, &current.operation)",
+        "No native Clone/Debug/serde/Send/PartialEq bound",
+        "not full source lowering, flow typing",
+        "Native errors are matchable but redacted",
+    ] {
+        assert!(
+            source.contains(boundary),
+            "missing group export boundary {boundary}"
+        );
+    }
+    let observe = source
+        .split_once("pub fn observe_group_exports<")
+        .unwrap()
+        .1;
+    let gates = [
+        "return Err(GroupExportError::InvalidLimits)",
+        "physical(expression, limits)?",
+        "let leaves = routes(expression, limits)?",
+        "for (group_index, node)",
+        "host(effect)",
+        "if !member_shape(",
+        "if let Some(expected) = &signature",
+        "same(&expected.operation, &current.operation)",
+        "signature = Some(current)",
+    ];
+    for pair in gates.windows(2) {
+        assert!(observe.find(pair[0]).unwrap() < observe.find(pair[1]).unwrap());
+    }
+    for coupling in [
+        ".clone()",
+        "Operation: Clone",
+        "Export: Clone",
+        "Export: PartialEq",
+        "crate::Type",
+        "ResultField",
+        "HostOperation",
+        "OperationCatalog",
+        "serde::",
+        "sqlite",
+        "Fuel::",
+        "Mutex",
+        "canonical_source",
+        "catch_unwind",
+    ] {
+        assert!(
+            !source.contains(coupling),
+            "unexpected group export coupling {coupling}"
+        );
+    }
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
+    let adapter = reference
+        .split_once("fn group_signature(")
+        .unwrap()
+        .1
+        .split_once("impl Computation")
+        .unwrap()
+        .0;
+    assert!(
+        adapter
+            .find("expression.validate_structure().ok()?")
+            .unwrap()
+            < adapter
+                .find("crate::group_exports::observe_group_exports(")
+                .unwrap()
+    );
+    assert!(adapter.contains("branch.value.prepared_atomic_operation().ok_or(())"));
+    assert!(adapter.contains("HostOperation::for_effect(&branch.effect).ok_or(())?"));
+    assert!(adapter.contains("|left, right| Ok(left == right)"));
+    assert!(!adapter.contains("let mut pending"));
+    assert!(reference.contains("let group_member_count = members.as_ref().map(Vec::len);"));
+    assert!(reference.contains("group_member_count.is_none_or(|count|"));
+    assert_eq!(reference.matches("group_members(&value,").count(), 1);
+    let modules = std::fs::read_to_string(root.join("crates/leselang-hir/src/lib.rs")).unwrap();
+    assert!(modules.contains("pub mod group_exports;"));
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/group_exports.rs")).unwrap();
+    for boundary in [
+        "all_known_cold_group_kinds_names_and_order_match_before_native_queries",
+        "cold_call_argument_names_and_count_are_bounded_before_native_operation_queries",
+        "zero_loop_and_fold_do_not_hide_effectful_preparation",
+        "opaque_observers_borrow_original_graphs_once_and_join_rightmost_first",
+        "native_operation_schema_identity_is_explicit_not_same_spelling_or_result_tag",
+        "original_branch_return_declaration_is_available_for_native_corroboration",
+        "move_only_observations_keep_buffers_without_clone_debug_serde_send_or_equality",
+        "all_four_move_only_ir_slots_remain_original_borrowed_objects",
+        "branch_error_releases_partial_owned_observations_without_retry_or_consuming_ir",
+        "native_unwind_stops_later_hooks_and_drops_observations_without_partial_output",
+        "distinct_embedded_host_formats_can_preserve_original_native_schema_identity",
+        "parsed_native_source_calls_feed_closed_exports_and_prepare_values_with_exact_schema_and_fuel",
+        "parsed_reference_helper_groups_preserve_canonical_wire_and_all_cold_authority",
+        "reference_cold_group_reordering_result_forgery_and_nonflat_helpers_are_rejected",
+    ] {
+        assert!(
+            proof.contains(boundary),
+            "missing group export proof {boundary}"
+        );
+    }
+}
+
+#[test]
+fn shared_lowered_helper_body_admission_corroborates_cold_types_before_native_cost_and_storage() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/helper_body.rs")).unwrap();
+    for boundary in [
+        "pub struct LoweredHelperBody<Node, ResultType>",
+        "pub struct HelperBody<Node, ResultType>",
+        "pub struct HelperBodyLimits",
+        "pub enum HelperBodyError<Validation, Cost>",
+        "pub fn into_parts(self)",
+        "validate: impl FnOnce(",
+        "host_cost: impl FnMut(&HostEffect)",
+        "limits.source_cost.max_nodes > MAX_TYPE_INFERENCE_NODES",
+        "limits.source_cost.max_depth > MAX_TYPE_INFERENCE_DEPTH",
+        "PureResultMismatch",
+        "struct ClosedScalarParameters;",
+        "type Result = ();",
+        "PureType::Scalar(*ty)",
+        "max_bindings: limits.template.max_bindings",
+        "template.result_type()",
+        "self.scalar_result",
+        "No inferred type is trusted solely",
+        "No native Clone/Debug/serde/Send bound",
+        "Cost limits/failure do not undo earlier validation work",
+        "Native errors remain matchable, not formatting or source chains",
+    ] {
+        assert!(
+            source.contains(boundary),
+            "missing body admission boundary {boundary}"
+        );
+    }
+    let prepare = source
+        .split_once("pub fn prepare<Validation, Cost>")
+        .unwrap()
+        .1;
+    let gates = [
+        "limits.source_cost.max_nodes >",
+        "let template = HelperTemplate::new(",
+        "if template.body().is_pure()",
+        "let inferred = infer_pure_type(",
+        "if inferred != declared",
+        "validate(",
+        "let source_cost = measure_source_cost(",
+        "Ok(HelperBody {",
+    ];
+    for pair in gates.windows(2) {
+        assert!(prepare.find(pair[0]).unwrap() < prepare.find(pair[1]).unwrap());
+    }
+    for coupling in [
+        ".clone()",
+        "Field: Clone",
+        "Operation: Clone",
+        "ResultType: Clone",
+        "crate::Type",
+        "ResultField",
+        "HostOperation",
+        "OperationCatalog",
+        "serde::",
+        "sqlite",
+        "Fuel::",
+        "Mutex",
+        "canonical_source",
+        "catch_unwind",
+    ] {
+        assert!(
+            !source.contains(coupling),
+            "unexpected body admission coupling {coupling}"
+        );
+    }
+    let modules = std::fs::read_to_string(root.join("crates/leselang-hir/src/lib.rs")).unwrap();
+    assert!(modules.contains("pub mod helper_body;"));
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/functions.rs")).unwrap();
+    let gates = [
+        "computation::lower_expression_with_functions(",
+        "crate::helper_body::LoweredHelperBody",
+        "let checked = body.validate_in_scope(",
+        "if checked != *result_type",
+        "let (prepared, cost) = admitted.into_parts();",
+        "functions.templates.insert(",
+    ];
+    for pair in gates.windows(2) {
+        assert!(reference.find(pair[0]).unwrap() < reference.find(pair[1]).unwrap());
+    }
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/helper_body.rs")).unwrap();
+    for boundary in [
+        "every_scalar_domain_is_independently_inferred_before_native_validation",
+        "forged_pure_return_observation_is_denied_before_any_native_callback",
+        "zero_loop_and_fold_next_bodies_are_still_typed",
+        "cold_physical_and_lexical_preflight_precedes_purity_and_callbacks",
+        "pure_native_projection_cannot_invent_a_result_from_scalar_parameters",
+        "native_validation_corroborates_result_metadata_after_shared_scalar_inference",
+        "all_move_only_native_slots_and_owned_buffers_are_handed_off_unchanged",
+        "complete_cold_host_validation_precedes_rightmost_first_cost_observations",
+        "validation_error_prevents_cost_and_partial_registry_entry_and_drops_inputs_once",
+        "cost_error_retains_private_error_without_retry_refund_or_partial_output",
+        "validation_and_cost_unwind_drop_owned_inputs_once_without_catching_or_retrying",
+        "parsed_scalar_helper_admission_materialization_binding_and_returns_keep_value_and_exact_fuel",
+        "reference_helpers_preserve_canonical_wire_authority_and_unused_cold_rejection",
+    ] {
+        assert!(
+            proof.contains(boundary),
+            "missing body admission proof {boundary}"
+        );
+    }
+}
+
+#[test]
 fn shared_owned_helper_templates_preflight_once_factories_without_native_copy_or_authority() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
@@ -1886,8 +2679,15 @@ fn shared_owned_helper_templates_preflight_once_factories_without_native_copy_or
     );
     let checked = reference.find("body.validate_in_scope(").unwrap();
     let stored = reference
-        .find("crate::helper_templates::HelperTemplate::new(")
+        .find("let (prepared, cost) = admitted.into_parts();")
         .unwrap();
+    assert!(
+        reference
+            .find("crate::helper_body::LoweredHelperBody")
+            .unwrap()
+            < checked
+    );
+    assert!(checked < reference.find("if checked != *result_type").unwrap());
     assert!(checked < stored);
     assert!(stored < reference.find("functions.templates.insert(").unwrap());
     assert!(

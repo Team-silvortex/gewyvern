@@ -61,65 +61,202 @@ fn group_members(
 // Conditional exports are a closed signature, never a union of branch members.
 fn group_signature(expression: &Computation) -> Option<(GroupKind, Vec<(String, HostOperation)>)> {
     expression.validate_structure().ok()?;
-    let mut pending = vec![expression];
-    let mut signature = None;
-    while let Some(expression) = pending.pop() {
-        let current = match expression {
-            Computation::Bind { value, body, .. } if value.is_pure() => {
-                pending.push(body);
-                continue;
-            }
-            Computation::Choose {
-                when,
-                then,
-                otherwise,
-            } if when.is_pure() => {
-                pending.extend([then.as_ref(), otherwise.as_ref()]);
-                continue;
-            }
-            Computation::Host { effect } => {
-                let (kind, branches) = match effect.as_ref() {
-                    Effect::Sequence { steps } => (GroupKind::Sequence, steps),
-                    Effect::All { branches } => (GroupKind::Parallel, branches),
-                    _ => return None,
-                };
-                let members = branches
-                    .iter()
-                    .map(|branch| {
-                        Some((
-                            branch.name.clone(),
-                            HostOperation::for_effect(&branch.effect)?,
-                        ))
+    let signature = crate::group_exports::observe_group_exports(
+        expression,
+        crate::group_exports::GroupExportLimits {
+            max_nodes: MAX_COMPUTATION_NODES,
+            max_depth: MAX_EFFECT_NESTING_DEPTH,
+            max_groups: MAX_COMPUTATION_NODES,
+            max_members: MAX_ALL_BRANCHES,
+        },
+        |effect| {
+            let (kind, branches) = match effect {
+                Effect::Sequence { steps } => (GroupKind::Sequence, steps),
+                Effect::All { branches } => (GroupKind::Parallel, branches),
+                _ => return Err(()),
+            };
+            let members = branches
+                .iter()
+                .map(|branch| {
+                    Ok(crate::group_exports::GroupExport {
+                        name: branch.name.as_str(),
+                        operation: HostOperation::for_effect(&branch.effect).ok_or(())?,
                     })
-                    .collect::<Option<Vec<_>>>()?;
-                (kind, members)
-            }
-            Computation::Group {
-                group_kind,
-                branches,
-            } => {
-                let members = branches
-                    .iter()
-                    .map(|branch| {
-                        Some((
-                            branch.name.clone(),
-                            branch.value.prepared_atomic_operation()?,
-                        ))
-                    })
-                    .collect::<Option<Vec<_>>>()?;
-                (*group_kind, members)
-            }
-            _ => return None,
-        };
-        if signature
-            .as_ref()
-            .is_some_and(|signature| *signature != current)
-        {
-            return None;
+                })
+                .collect::<Result<Vec<_>, ()>>()?;
+            Ok(crate::group_exports::GroupExports { kind, members })
+        },
+        |branch| branch.value.prepared_atomic_operation().ok_or(()),
+        |left, right| Ok(left == right),
+    )
+    .ok()?;
+    Some((
+        signature.kind,
+        signature
+            .members
+            .into_iter()
+            .map(|member| (member.name.to_owned(), member.operation))
+            .collect(),
+    ))
+}
+
+struct BindingValue {
+    ty: Type,
+    members: Option<Vec<(String, HostOperation)>>,
+    group_member_count: Option<usize>,
+    captures_result: bool,
+    captures_group: bool,
+    function_result: bool,
+}
+
+struct BindingAdapter<'adapter, 'scope, 'source> {
+    scope: &'adapter mut TypeScope<'scope, 'source>,
+    visited: &'adapter mut usize,
+    depth: usize,
+    functions: &'adapter mut functions::FunctionTemplates,
+}
+
+impl<'source>
+    crate::binding_source::BindingSourceAdapter<'source, ResultField, HostOperation, Effect, Type>
+    for BindingAdapter<'_, '_, 'source>
+{
+    type Value = BindingValue;
+    type Result = Type;
+    type Error = Vec<Diagnostic>;
+
+    fn lower_value(
+        &mut self,
+        binding: &'source NamedArgument,
+    ) -> Result<(Computation, BindingValue), Vec<Diagnostic>> {
+        let (value, value_type) = lower_expression_with_functions(
+            &binding.value,
+            self.scope,
+            self.visited,
+            self.depth + 1,
+            self.functions,
+        )?;
+        let captures_result = !value.is_pure();
+        let direct_function_result = captures_result
+            && matches!(&binding.value,
+            Expression::Call { callee, .. } if self.functions.contains(callee));
+        let members = group_members(&value, self.scope);
+        let group_member_count = members.as_ref().map(Vec::len);
+        let captures_group = captures_result && members.is_some();
+        let atomic = value
+            .prepared_atomic_operation()
+            .is_some_and(|operation| operation.result_type() == value_type);
+        let function_result = direct_function_result
+            || (captures_result
+                && !atomic
+                && !captures_group
+                && matches!(value_type, Type::Scalar(_))
+                && crate::function_flow::is_data_call_selection(
+                    &binding.value,
+                    &value,
+                    self.functions,
+                ));
+        if captures_result && !atomic && !captures_group && !function_result {
+            return Err(invalid(
+                "LSH1408",
+                "result binding requires one prepared atomic operation or a flat named group",
+                binding.span,
+            ));
         }
-        signature = Some(current);
+        Ok((
+            value,
+            BindingValue {
+                ty: value_type,
+                members,
+                group_member_count,
+                captures_result,
+                captures_group,
+                function_result,
+            },
+        ))
     }
-    signature
+
+    fn lower_body(
+        &mut self,
+        source: &crate::binding_source::BindingSourceForm<'source>,
+        _: &Computation,
+        metadata: &mut BindingValue,
+    ) -> Result<(Computation, Type), Vec<Diagnostic>> {
+        let binding = source.binding();
+        let mut local = self.scope.nested();
+        local
+            .push(
+                &binding.name,
+                LocalType {
+                    ty: metadata.ty,
+                    members: metadata.members.take(),
+                },
+            )
+            .map_err(|_| {
+                invalid(
+                    "LSH1403",
+                    "local name must be bounded and cannot shadow an active binding",
+                    binding.span,
+                )
+            })?;
+        lower_expression_with_functions(
+            source.body(),
+            &mut local,
+            self.visited,
+            self.depth + 1,
+            self.functions,
+        )
+    }
+
+    fn finish(
+        &mut self,
+        source: &crate::binding_source::BindingSourceForm<'source>,
+        value: Computation,
+        metadata: BindingValue,
+        body: Computation,
+        result_type: Type,
+    ) -> Result<(Computation, Type), Vec<Diagnostic>> {
+        let span = source.span();
+        if metadata.captures_group
+            && !((body.is_pure() && matches!(result_type, Type::Scalar(_)))
+                || body.is_atomic_tail()
+                || (body.is_result_flow() && matches!(result_type, Type::Scalar(_))))
+        {
+            return Err(invalid(
+                "LSH1412",
+                "a captured group requires a pure scalar body, one atomic tail, or a bounded scalar result flow",
+                span,
+            ));
+        }
+        if metadata.captures_group
+            && !body.is_pure()
+            && metadata.group_member_count.is_none_or(|count| {
+                body.atomic_flow_bound()
+                    .is_none_or(|bound| count.saturating_add(bound) > MAX_SEQUENCE_STEPS)
+            })
+        {
+            return Err(invalid(
+                "LSH1412",
+                "a result-driven group and its longest atomic chain must fit in 64 steps",
+                span,
+            ));
+        }
+        if metadata.captures_result
+            && !((body.is_result_flow() && matches!(result_type, Type::Scalar(_)))
+                || body.is_result_chain())
+        {
+            return Err(invalid(
+                "LSH1408",
+                "a captured host result requires a pure scalar body or a bounded atomic result chain",
+                span,
+            ));
+        }
+        let expression = if metadata.function_result {
+            crate::function_flow::bind_result(source.binding().name.clone(), value, body, span)?
+        } else {
+            source.construct(value, body)
+        };
+        Ok((expression, result_type))
+    }
 }
 
 impl Computation {
@@ -775,7 +912,7 @@ pub(super) fn lower_expression_with_functions<'a>(
         return Err(invalid("LSH1401", "invalid computation", span));
     };
     if matches!(callee.as_str(), "seq" | "repeat" | "all") {
-        return computed_group::lower(callee, arguments, span, scope, visited, depth, functions);
+        return computed_group::lower(expression, scope, visited, depth, functions);
     }
     if callee == "loop" {
         return lower_loop(arguments, span, scope, visited, depth, functions);
@@ -784,99 +921,42 @@ pub(super) fn lower_expression_with_functions<'a>(
         return lower_fold(arguments, span, scope, visited, depth, functions);
     }
     if callee == "bind" {
-        let source = crate::scalar_source::binding_source(expression)
-            .map_err(|error| scalar_source_diagnostics(error, span))?;
-        let binding = source.binding;
-        if scope.get(&binding.name).is_some() {
-            return Err(invalid(
-                "LSH1403",
-                "local name must be bounded and cannot shadow an active binding",
-                binding.span,
-            ));
-        }
-        let (value, value_type) =
-            lower_expression_with_functions(&binding.value, scope, visited, depth + 1, functions)?;
-        let captures_result = !value.is_pure();
-        let direct_function_result = captures_result
-            && matches!(&binding.value,
-            Expression::Call { callee, .. } if functions.contains(callee));
-        let members = group_members(&value, scope);
-        let captures_group = captures_result && members.is_some();
-        let atomic = value
-            .prepared_atomic_operation()
-            .is_some_and(|operation| operation.result_type() == value_type);
-        let function_result = direct_function_result
-            || (captures_result
-                && !atomic
-                && !captures_group
-                && matches!(value_type, Type::Scalar(_))
-                && crate::function_flow::is_data_call_selection(&binding.value, &value, functions));
-        if captures_result && !atomic && !captures_group && !function_result {
-            return Err(invalid(
-                "LSH1408",
-                "result binding requires one prepared atomic operation or a flat named group",
-                binding.span,
-            ));
-        }
-        let (body, result_type) = {
-            let mut local = scope.nested();
-            local
-                .push(
-                    &binding.name,
-                    LocalType {
-                        ty: value_type,
-                        members,
-                    },
-                )
-                .map_err(|_| {
-                    invalid(
-                        "LSH1403",
-                        "local name must be bounded and cannot shadow an active binding",
-                        binding.span,
-                    )
-                })?;
-            lower_expression_with_functions(source.body, &mut local, visited, depth + 1, functions)?
-        };
-        if captures_group
-            && !((body.is_pure() && matches!(result_type, Type::Scalar(_)))
-                || body.is_atomic_tail()
-                || (body.is_result_flow() && matches!(result_type, Type::Scalar(_))))
-        {
-            return Err(invalid(
-                "LSH1412",
-                "a captured group requires a pure scalar body, one atomic tail, or a bounded scalar result flow",
+        let prefix = scope
+            .bindings()
+            .iter()
+            .map(|(name, _)| *name)
+            .collect::<Vec<_>>();
+        return crate::binding_source::lower_binding_source(
+            expression,
+            &prefix,
+            crate::binding_source::BindingSourceLimits {
+                source: crate::source_call::SourceCallLimits {
+                    max_source_nodes: MAX_COMPUTATION_NODES,
+                    max_source_depth: MAX_EFFECT_NESTING_DEPTH,
+                    max_lowered_nodes: MAX_COMPUTATION_NODES,
+                    max_lowered_depth: MAX_EFFECT_NESTING_DEPTH,
+                    max_arguments: crate::source_call::MAX_SOURCE_CALL_ARGUMENTS,
+                },
+                max_bindings: crate::pure_typing::MAX_TYPE_INFERENCE_BINDINGS,
+            },
+            &mut BindingAdapter {
+                scope,
+                visited,
+                depth,
+                functions,
+            },
+        )
+        .map_err(|error| match error {
+            crate::binding_source::BindingSourceError::Source(error) => {
+                scalar_source_diagnostics(error, span)
+            }
+            crate::binding_source::BindingSourceError::Native { error, .. } => error,
+            crate::binding_source::BindingSourceError::Output { .. } => invalid(
+                "LSH1405",
+                "computation exceeds its node or nesting limit",
                 span,
-            ));
-        }
-        if captures_group
-            && !body.is_pure()
-            && group_members(&value, scope).is_none_or(|members| {
-                body.atomic_flow_bound()
-                    .is_none_or(|bound| members.len().saturating_add(bound) > MAX_SEQUENCE_STEPS)
-            })
-        {
-            return Err(invalid(
-                "LSH1412",
-                "a result-driven group and its longest atomic chain must fit in 64 steps",
-                span,
-            ));
-        }
-        if captures_result
-            && !((body.is_result_flow() && matches!(result_type, Type::Scalar(_)))
-                || body.is_result_chain())
-        {
-            return Err(invalid(
-                "LSH1408",
-                "a captured host result requires a pure scalar body or a bounded atomic result chain",
-                span,
-            ));
-        }
-        let expression = if function_result {
-            crate::function_flow::bind_result(binding.name.clone(), value, body, span)?
-        } else {
-            source.construct(value, body)
-        };
-        return Ok((expression, result_type));
+            ),
+        });
     }
     if callee == "member" {
         let source = crate::projection_source::member_source(arguments, span)
@@ -918,28 +998,47 @@ pub(super) fn lower_expression_with_functions<'a>(
         return Ok((source.construct(value, field), Type::Scalar(result_type)));
     }
     if callee == "choose" {
-        return crate::scalar_source::lower_choose_form(
+        use crate::choice_source::ChoiceSourceError;
+        return crate::choice_source::lower_choice_source(
             expression,
-            |child| {
-                let (value, ty) =
-                    lower_expression_with_functions(child, scope, visited, depth + 1, functions)
-                        .map_err(|error| crate::scalar_source::ScalarSourceError::Native {
-                            span: expression_span(child),
-                            error,
-                        })?;
-                let pure = value.is_pure();
-                Ok((
-                    crate::scalar_source::Operand {
-                        value,
-                        scalar_type: None,
-                        pure,
-                    },
-                    ty,
-                ))
+            crate::source_call::SourceCallLimits {
+                max_source_nodes: MAX_COMPUTATION_NODES,
+                max_source_depth: MAX_EFFECT_NESTING_DEPTH,
+                max_lowered_nodes: MAX_COMPUTATION_NODES,
+                max_lowered_depth: MAX_EFFECT_NESTING_DEPTH,
+                max_arguments: crate::source_call::MAX_SOURCE_CALL_ARGUMENTS,
             },
-            |ty| *ty == Type::Scalar(ScalarType::Boolean),
+            |_, child| lower_expression_with_functions(child, scope, visited, depth + 1, functions),
+            |_, ty| Ok(*ty == Type::Scalar(ScalarType::Boolean)),
+            |left, right| Ok(left == right),
         )
-        .map_err(|error| scalar_source_diagnostics(error, span));
+        .map_err(|error| match error {
+            ChoiceSourceError::Source(error) => scalar_source_diagnostics(
+                crate::scalar_source::ScalarSourceError::Source(error),
+                span,
+            ),
+            ChoiceSourceError::Native { error, .. } => error,
+            ChoiceSourceError::Names { span } => invalid(
+                "LSH1401",
+                "expected exactly the named arguments: when, then, otherwise",
+                span,
+            ),
+            ChoiceSourceError::Condition { span }
+            | ChoiceSourceError::ProducedWhen {
+                span,
+                error: crate::pure_typing::PureTypeError::Impure,
+            } => invalid("LSH1402", "choose when requires a boolean", span),
+            ChoiceSourceError::BranchTypes { span } => invalid(
+                "LSH1404",
+                "choose branches must have the same result type",
+                span,
+            ),
+            ChoiceSourceError::Output { .. } | ChoiceSourceError::ProducedWhen { .. } => invalid(
+                "LSH1405",
+                "computation exceeds its node or nesting limit",
+                span,
+            ),
+        });
     }
     if functions.contains(callee) {
         return functions::lower_call(callee, arguments, span, scope, visited, depth, functions);
