@@ -209,8 +209,86 @@ fn native_source_call_bridge_uses_original_ast_catalog_and_shared_ir_without_pro
     assert!(!source.contains(".clone()"));
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
-    assert!(reference.contains("lowered.into_arguments()"));
+    assert!(reference.contains("return lowered\n            .finish_call("));
     assert!(!reference.contains("let bindings = operation.bind_names(&names"));
+}
+
+#[test]
+fn prepared_native_calls_delegate_owned_construction_and_require_fresh_whole_call_admission() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/source_call.rs")).unwrap();
+    let finish = source
+        .split_once("pub fn finish_call")
+        .unwrap()
+        .1
+        .split_once("impl<Key, Domain")
+        .unwrap()
+        .0;
+    assert!(finish.contains("map: impl FnOnce("));
+    assert!(finish.contains("admit: impl FnOnce("));
+    assert!(
+        finish
+            .find("preflight_with_budget(&argument.value, 1, &mut budget)")
+            .unwrap()
+            < finish.find("map(schema)").unwrap()
+    );
+    assert!(
+        finish.find("let call = Computation::Call").unwrap()
+            < finish.find("admit(&call, &output, schema)").unwrap()
+    );
+    assert!(finish.contains("arguments: self.into_arguments()"));
+    assert!(finish.contains("Ok((call, output))"));
+    for forbidden in [".clone()", "serde", "Fuel", "HostOperation", "crate::Type"] {
+        assert!(
+            !finish.contains(forbidden),
+            "native call completion leaked {forbidden}"
+        );
+    }
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
+    assert!(reference.contains("SourceCallFinishLimits"));
+    assert!(reference.contains("std::ptr::eq(schema, operation.schema())"));
+    assert!(reference.contains("crate::pure_reference::infer_source_call_in_scope("));
+    assert!(!reference.contains("arguments: lowered.into_arguments()"));
+    let native =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/pure_reference.rs")).unwrap();
+    let native = native
+        .split_once("pub(crate) fn infer_source_call_in_scope")
+        .unwrap()
+        .1
+        .split_once("fn limits()")
+        .unwrap()
+        .0;
+    assert!(native.contains("scope\n        .bindings()"));
+    assert!(native.contains("local.members().map(ReferenceMembers::External)"));
+    assert!(native.contains("max_bindings: crate::pure_typing::MAX_TYPE_INFERENCE_BINDINGS"));
+    assert!(native.contains("check_call_arguments("));
+    for recursive in [
+        "validate_in_type_scope",
+        "canonical_source",
+        "lower_expression",
+        ".clone()",
+    ] {
+        assert!(
+            !native.contains(recursive),
+            "source admission reentered/copied {recursive}"
+        );
+    }
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/source_call_finish.rs"))
+            .unwrap();
+    for claim in [
+        "exact_original_operands_schema_and_move_only_outputs_reach_once_only_admission",
+        "complete_cold_forest_uses_one_current_root_node_and_depth_budget",
+        "fresh_lexical_admission_rejects_forged_prepared_scalar_facts",
+        "original_schema_borrow_does_not_freeze_live_native_domains_version_or_grants",
+        "native_admission_unwind_releases_whole_owned_output_without_refunding_external_work",
+        "unrelated_numeric_and_panel_hosts_complete_original_calls_and_prepare_actual_values",
+        "reference_computed_call_keeps_full_width_group_scope_and_canonical_wire_policy",
+    ] {
+        assert!(proof.contains(claim), "missing native call proof: {claim}");
+    }
 }
 
 #[test]
@@ -357,7 +435,7 @@ fn group_dataflow_keeps_one_engine_and_checks_cold_rows_before_native_exports() 
     assert!(source.contains("pub fn infer_group_flow_type"));
     assert!(source.contains("pub struct GroupMemberType"));
     assert!(source.contains("preflight_call_leaves_with_budget"));
-    assert!(source.contains("std::ptr::eq(first.schema, call.schema)"));
+    assert!(source.contains("std::ptr::eq(row, schema)"));
     assert!(
         source
             .find("for (group_index, group) in physical.groups")
@@ -374,6 +452,92 @@ fn group_dataflow_keeps_one_engine_and_checks_cold_rows_before_native_exports() 
                 .unwrap()
     );
     assert!(reference.contains("crate::flow_typing::group_flow_nodes_only(self)"));
+}
+
+#[test]
+fn opaque_host_dataflow_uses_the_same_engine_with_explicit_cold_admission_and_borrowed_types() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let flow =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/flow_typing.rs")).unwrap();
+    for marker in [
+        "pub trait HostFlowEnvironment<'expression",
+        "pub struct HostFlowTypeLimits",
+        "pub fn infer_host_flow_type",
+        "fn host_result_type(&self, effect: &'expression HostEffect)",
+        "fn infer_with_policies",
+        "host_limit: Some(limits.max_hosts)",
+        "HostAdmission { host_index }",
+        "HostResultType { host_index }",
+        "host_limit: None",
+        "hosts: &NoHosts",
+    ] {
+        assert!(
+            flow.contains(marker),
+            "missing opaque host boundary {marker}"
+        );
+    }
+    for product in [
+        "crate::Type",
+        "HostOperation",
+        "ResultField",
+        "serde::",
+        "evaluate_",
+        "canonical_source(",
+    ] {
+        assert!(!flow.contains(product), "opaque flow leaked {product}");
+    }
+    let assembly = flow.split_once("fn infer_with_policies").unwrap().1;
+    let physical = assembly.find("let physical = preflight(").unwrap();
+    let calls = assembly.find(".select(operation)").unwrap();
+    let admission = assembly.find("policies.hosts.admit(effect)").unwrap();
+    let clone = assembly.find("bindings.to_vec()").unwrap();
+    assert!(physical < calls && calls < admission && admission < clone);
+    let product =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
+    assert!(
+        product.find("if roundtrip != *self").unwrap()
+            < product
+                .find("crate::pure_reference::infer_host_flow")
+                .unwrap()
+    );
+    assert!(product.contains("crate::flow_typing::host_flow_nodes_only(self"));
+    let adapter =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/pure_reference.rs")).unwrap();
+    assert!(adapter.contains("infer_host_flow_type("));
+    let native = adapter
+        .split_once("fn admit_host")
+        .unwrap()
+        .1
+        .split_once("impl<'a> PureTypeEnvironment")
+        .unwrap()
+        .0;
+    assert!(native.contains("HostOperation::for_effect(effect)"));
+    assert!(!native.contains("validate_in_type_scope") && !native.contains("canonical_source("));
+    let proof = std::fs::read_to_string(root.join("crates/leselang-hir/tests/host_flow_typing.rs"))
+        .unwrap();
+    for boundary in [
+        "cold_native_admission_precedes_prefix_clone_and_guard_or_field_queries",
+        "all_cold_call_policy_checks_precede_opaque_admission_and_semantic_queries",
+        "hidden_native_graph_foreign_owner_schema_version_and_grants_need_explicit_admission",
+        "guards_call_arguments_and_projection_loop_fold_recovery_operands_stay_pure_even_cold",
+        "native_hook_unwind_drops_temporary_scope_without_prefix_mutation_or_retry",
+        "result_metadata_can_borrow_the_original_nonclone_opaque_declaration",
+        "unrelated_gui_host_uses_nonclone_slots_and_original_owned_declaration_identity",
+        "exact_large_prefix_ceiling_and_active_growth_are_not_residual_small_product_limits",
+    ] {
+        assert!(proof.contains(boundary));
+    }
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/host_flow_reference.rs"))
+            .unwrap();
+    for boundary in [
+        "mixed_native_host_and_computed_call_chains_keep_native_types_wire_and_authority",
+        "native_graph_host_wrappers_and_new_groups_keep_their_existing_source_policy",
+        "native_raw_receipt_and_effectful_operand_restrictions_do_not_become_typing_permissions",
+        "forged_native_payload_and_literal_call_nodes_are_still_rejected_by_canonical_admission",
+    ] {
+        assert!(proof.contains(boundary));
+    }
 }
 
 #[test]
@@ -431,6 +595,179 @@ fn leselang_runtime_core_has_no_workspace_or_build_dependency_even_in_its_tests(
     assert!(standalone_job.contains("cargo +1.98.0 package -p leselang-runtime-core --locked"));
     assert!(standalone_job.contains("cargo +1.98.0 test --manifest-path target/package/leselang-runtime-core-*/Cargo.toml --locked --offline"));
     assert!(workflow.contains("needs: [rust, product-surfaces, leselang-core]"));
+}
+
+#[test]
+fn mixed_host_groups_share_atomic_walk_typing_and_exact_native_declaration_admission() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let flow =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/flow_typing.rs")).unwrap();
+    for marker in [
+        "pub trait HostGroupFlowEnvironment",
+        "pub struct HostGroupFlowTypeLimits",
+        "pub fn infer_host_group_flow_type",
+        "preflight_atomic_leaves_with_budget",
+        "group_hosts: &NoGroupHosts",
+        "std::ptr::eq(row, schema)",
+    ] {
+        assert!(
+            flow.contains(marker),
+            "missing mixed group boundary {marker}"
+        );
+    }
+    for coupling in [
+        "crate::Type",
+        "HostOperation",
+        "ResultField",
+        "canonical_source(",
+        "validate_in_type_scope",
+        "evaluate_",
+        "serde::",
+    ] {
+        assert!(
+            !flow.contains(coupling),
+            "mixed group typing leaked {coupling}"
+        );
+    }
+    let assembly = flow.split_once("fn infer_with_policies").unwrap().1;
+    assert!(
+        assembly.find("policies.hosts.admit(effect)").unwrap()
+            < assembly
+                .find("policies.group_hosts.operation(effect)")
+                .unwrap()
+    );
+    assert!(
+        assembly
+            .find(".admit(effect, operation, &schema.result)")
+            .unwrap()
+            < assembly.find("bindings.to_vec()").unwrap()
+    );
+    assert!(
+        assembly.find("std::ptr::eq(row, schema)").unwrap()
+            < assembly.find("bindings.to_vec()").unwrap()
+    );
+    let prepared =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/prepared_typing.rs")).unwrap();
+    assert!(prepared.contains(
+        "preflight_atomic_leaves_with_budget(expression, depth, budget, max_arguments, false)"
+    ));
+    assert!(prepared.contains("Computation::Host { .. } if allow_hosts"));
+    assert!(prepared.contains("call_index: call_count"));
+    let product =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
+    assert!(
+        product.find("if roundtrip != *self").unwrap()
+            < product
+                .find("crate::pure_reference::infer_host_group_flow")
+                .unwrap()
+    );
+    let adapter =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/pure_reference.rs")).unwrap();
+    assert!(adapter.contains("infer_host_group_flow_type("));
+    assert!(adapter.contains("std::ptr::eq(declaration, &operation.schema().result)"));
+    assert!(adapter.contains("std::ptr::eq(operation, &operation.schema().result.operation)"));
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/host_group_typing.rs"))
+            .unwrap();
+    for boundary in [
+        "mixed_sequence_parallel_exports_borrow_original_names_and_host_call_operations",
+        "pure_preparation_and_conditional_host_call_paths_require_one_original_schema_row",
+        "native_pair_admission_rejects_equal_lookalike_keys_foreign_results_and_missing_mapping",
+        "group_member_pure_initializers_and_cold_call_positions_do_not_count_host_leaves_as_calls",
+        "native_mapping_pair_declaration_and_construction_unwind_never_publish_or_retry_members",
+        "unrelated_gui_profile_borrows_nonclone_operation_effect_and_result_declarations",
+    ] {
+        assert!(proof.contains(boundary));
+    }
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/host_group_reference.rs"))
+            .unwrap();
+    assert!(
+        proof.contains(
+            "mixed_flat_sequence_parallel_groups_keep_product_types_wire_and_capabilities"
+        )
+    );
+    assert!(proof.contains(
+        "forged_group_result_operation_and_native_payload_are_rejected_before_shared_type_exports"
+    ));
+}
+
+#[test]
+fn flat_native_graph_types_reuse_shared_protocols_and_original_closed_member_observations() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let adapter =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/pure_reference.rs")).unwrap();
+    for marker in [
+        "pub(crate) fn flat_native_group(",
+        "pub(crate) fn supports_host_flow(",
+        "operation.schema().result.ty != branch.result_type",
+        "branch.name.as_str()",
+        "members: Some(ReferenceMembers::Computed { kind, members })",
+        "native_group_type_observations_borrow_names_and_exact_canonical_operation_rows",
+        "native_and_computed_group_joins_ignore_payloads_but_never_union_exports",
+    ] {
+        assert!(
+            adapter.contains(marker),
+            "missing flat native graph boundary {marker}"
+        );
+    }
+    assert!(
+        adapter
+            .split_whitespace()
+            .collect::<String>()
+            .contains("&HostOperation::for_effect(&branch.effect)?.schema().result.operation")
+    );
+    let product =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
+    assert!(product.contains("crate::pure_reference::flat_native_group(effect)"));
+    assert_eq!(
+        product
+            .matches("crate::pure_reference::supports_host_flow")
+            .count(),
+        2
+    );
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/native_group_flow.rs"))
+            .unwrap();
+    for marker in [
+        "independent_gui_graph_exports_borrow_original_names_operations_and_nonclone_declarations",
+        "native_and_computed_gui_groups_join_only_the_same_original_closed_signature",
+        "every_cold_native_graph_admission_precedes_prefix_clones_and_member_queries",
+        "host_language_limits_do_not_replace_inclusive_private_graph_limits_or_live_policy",
+        "changed_native_graph_metadata_needs_fresh_admission_without_a_cached_certificate",
+        "nested_opaque_graphs_are_not_accepted_as_atomic_computed_members",
+        "native_graph_hook_unwind_does_not_retry_publish_or_mutate_the_borrowed_prefix",
+        "call_policy_and_impure_cold_guards_precede_all_opaque_graph_queries",
+    ] {
+        assert!(proof.contains(marker));
+    }
+    for coupling in [
+        "leserpent",
+        "HostOperation",
+        "Effect::",
+        "canonical_source",
+        "serde::",
+        "tokio",
+    ] {
+        assert!(
+            !proof.contains(coupling),
+            "independent graph proof leaked {coupling}"
+        );
+    }
+    let proof = std::fs::read_to_string(
+        root.join("crates/leselang-hir/tests/native_group_flow_reference.rs"),
+    )
+    .unwrap();
+    for marker in [
+        "flat_native_group_captures_and_result_driven_successors_keep_wire_and_authority",
+        "native_and_computed_group_choices_share_one_closed_ordered_signature",
+        "native_group_aliases_pure_selection_and_helpers_keep_closed_exports",
+        "mode_order_names_and_operation_mismatches_do_not_union_native_and_computed_exports",
+        "cold_forged_native_graph_metadata_and_payloads_fail_canonical_admission",
+        "an_opaque_group_cannot_masquerade_as_an_atomic_computed_member",
+    ] {
+        assert!(proof.contains(marker));
+    }
 }
 
 #[test]
@@ -2007,12 +2344,12 @@ fn shared_projection_source_keeps_native_export_queries_bounded_and_reference_co
         "preflight(expression, limits)",
         "preflight_names(expression)",
         ".check_pending(0, 1)",
-        "preflight_with_budget(&value, 1, &mut budget)",
+        "preflight_with_budget(&value, 1, budget)",
         "let PureType::Result(result) = input_type",
         "valid_local_name(self.group)",
         "valid_member_name(self.name)",
         "source.construct(operation)",
-        "source.construct(value, field)",
+        "self.construct(value, field)",
     ] {
         assert!(
             source.contains(boundary),
@@ -2030,9 +2367,14 @@ fn shared_projection_source_keeps_native_export_queries_bounded_and_reference_co
                 .or_else(|| public.find(".member(source.group"))
                 .unwrap()
     );
+    let finish = source.split_once("fn finish_with_budget").unwrap().1;
     assert!(
-        public.find("preflight_with_budget(&value").unwrap()
-            < public.find(".field(&result").unwrap()
+        finish.find("preflight_with_budget(&value").unwrap()
+            < finish.find("export(&input, key)").unwrap()
+    );
+    assert!(
+        public.find("source.finish_with_budget(").unwrap()
+            < public.find(".field(result, name)").unwrap()
     );
     for coupling in [
         "crate::Type",
@@ -2060,8 +2402,8 @@ fn shared_projection_source_keeps_native_export_queries_bounded_and_reference_co
         .unwrap()
         .0;
     assert!(lowerer.contains("crate::projection_source::field_source(arguments, span)"));
-    assert!(lowerer.contains("crate::projection_source::member_source(arguments, span)"));
-    assert!(lowerer.contains(".literal_name()"));
+    assert!(lowerer.contains("lower_bound_projection_source("));
+    assert!(lowerer.contains(".lower_preflighted("));
     assert!(!lowerer.contains("Computation::Field {"));
     assert!(!lowerer.contains("Computation::Member {"));
     assert!(!reference.contains("fn named"));
@@ -2080,6 +2422,300 @@ fn shared_projection_source_keeps_native_export_queries_bounded_and_reference_co
         "source_construction_does_not_require_clone_or_debug_for_result_observations",
     ] {
         assert!(proof.contains(boundary));
+    }
+}
+
+#[test]
+fn reference_field_frontend_uses_shared_consuming_stages_without_changing_public_preflight() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/projection_source.rs")).unwrap();
+    let production = source.split_once("#[cfg(test)]").unwrap().0;
+    let staged = production
+        .split_once("pub(crate) fn lower_preflighted")
+        .unwrap()
+        .1
+        .split_once("fn finish_with_budget")
+        .unwrap()
+        .0;
+    assert!(
+        staged.find(".check_pending(0, 1)").unwrap() < staged.find("lower(self.value)").unwrap()
+    );
+    assert!(
+        staged.find("lower(self.value)").unwrap()
+            < staged.find("self.finish_with_budget(").unwrap()
+    );
+    let finish = production
+        .split_once("fn finish_with_budget")
+        .unwrap()
+        .1
+        .split_once("pub fn construct")
+        .unwrap()
+        .0;
+    assert!(
+        finish.find("decode(self.literal_name()?)").unwrap()
+            < finish.find("preflight_with_budget(&value").unwrap()
+    );
+    assert!(
+        finish.find("preflight_with_budget(&value").unwrap()
+            < finish.find("export(&input, key)").unwrap()
+    );
+    assert!(finish.contains("self.construct(value, field)"));
+    for coupling in [
+        ".clone()",
+        "evaluate_",
+        "validate_in_type_scope",
+        "ResultField",
+        "HostOperation",
+        "Field: Clone",
+        "Input: Clone",
+    ] {
+        assert!(
+            !production.contains(coupling),
+            "unexpected field coupling {coupling}"
+        );
+    }
+    let public = production
+        .split_once("pub fn lower_projection_source")
+        .unwrap()
+        .1;
+    assert!(
+        public.find("preflight_names(expression)").unwrap()
+            < public.find(".lower_value(source.value)").unwrap()
+    );
+    assert!(public.contains("source.finish_with_budget("));
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
+    let field = reference
+        .split_once("if callee == \"field\"")
+        .unwrap()
+        .1
+        .split_once("if callee == \"choose\"")
+        .unwrap()
+        .0;
+    for boundary in [
+        ".lower_preflighted(",
+        "lower_expression_with_functions(child, scope, visited, depth + 1, functions)",
+        "ResultField::parse(name)",
+        "field.result_type(*input_type)",
+    ] {
+        assert!(
+            field.contains(boundary),
+            "missing field boundary {boundary}"
+        );
+    }
+    for duplication in [
+        ".literal_name()",
+        "source.construct(",
+        "value.is_pure()",
+        "Computation::Field {",
+    ] {
+        assert!(!field.contains(duplication));
+    }
+    assert!(
+        reference
+            .contains("field_stages_charge_original_child_once_without_lowering_name_metadata")
+    );
+    for proof in [
+        "exact_original_ast_name_input_buffer_and_move_only_slots_pass_once",
+        "native_child_failure_precedes_nonliteral_metadata_and_is_redacted",
+        "closed_name_failure_precedes_impure_input_without_an_export_query",
+        "entire_input_purity_and_one_root_budget_precede_native_export",
+        "export_error_or_unwind_drops_original_input_and_key_without_retry",
+    ] {
+        assert!(source.contains(proof));
+    }
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/field_source_reference.rs"))
+            .unwrap();
+    for boundary in [
+        "field_metadata_errors_preserve_child_before_name_before_native_export_order",
+        "lookalike_native_records_do_not_supply_foreign_field_exports",
+        "field_does_not_hide_effects_in_cold_pure_input_branches",
+        "helper_local_result_names_never_escape_their_original_lexical_prefix",
+        "canonical_source",
+        "serde_json::to_vec",
+        "authorize",
+    ] {
+        assert!(proof.contains(boundary));
+    }
+}
+
+#[test]
+fn native_host_source_owns_once_preparation_admission_and_construction_without_product_policy() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/host_source.rs")).unwrap();
+    let public = source
+        .split_once("pub fn lower_host_source")
+        .unwrap()
+        .1
+        .split_once("pub(crate) fn lower_preflighted_host_source")
+        .unwrap()
+        .0;
+    assert!(
+        public.find("preflight(expression, limits)").unwrap()
+            < public
+                .find("lower_preflighted_host_source(expression")
+                .unwrap()
+    );
+    let core = source
+        .split_once("pub(crate) fn lower_preflighted_host_source")
+        .unwrap()
+        .1;
+    assert!(core.find(".visit(0, 0, 0)").unwrap() < core.find("prepare(expression)").unwrap());
+    assert!(
+        core.find("prepare(expression)").unwrap()
+            < core.find("admit(expression, &effect, &ty)").unwrap()
+    );
+    assert!(
+        core.find("admit(expression, &effect, &ty)").unwrap()
+            < core.find("Computation::Host").unwrap()
+    );
+    assert!(core.contains("Box::new(effect)"));
+    for coupling in [
+        "crate::Type",
+        "HostOperation",
+        "ResultField",
+        ".clone()",
+        "canonical_source(",
+        "validate_in_type_scope",
+        "evaluate_",
+        "Clone +",
+        "Send +",
+        "serde::",
+    ] {
+        assert!(
+            !source.contains(coupling),
+            "unexpected host source coupling {coupling}"
+        );
+    }
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
+    let lowerer = reference
+        .split_once("pub(super) fn lower_expression_with_functions")
+        .unwrap()
+        .1
+        .split_once("fn lower_loop")
+        .unwrap()
+        .0;
+    let host = lowerer
+        .split_once("crate::host_source::lower_preflighted_host_source(")
+        .unwrap()
+        .1;
+    for boundary in [
+        "lower_effect(source)?",
+        "contains_computation(effect)",
+        "HostOperation::parse(callee)",
+        "HostOperation::for_effect(effect)",
+        "operation.map(HostOperation::result_type) == Some(*result)",
+        "HostSourceError::Preparation",
+        "HostSourceError::Admission",
+    ] {
+        assert!(
+            host.contains(boundary),
+            "missing native host policy {boundary}"
+        );
+    }
+    assert!(!lowerer.contains("Computation::Host {"));
+    assert!(
+        lowerer.find(".finish_call(").unwrap()
+            < lowerer.find("lower_preflighted_host_source(").unwrap()
+    );
+    assert!(reference.contains(
+        "native_host_source_charges_one_original_root_and_never_visits_literal_metadata"
+    ));
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/host_source.rs")).unwrap();
+    for boundary in [
+        "original_ast_payload_buffer_and_move_only_type_pass_once_into_one_host_root",
+        "whole_cold_source_names_text_arguments_and_physical_limits_precede_native_work",
+        "one_language_root_never_certifies_foreign_result_or_unbounded_opaque_graphs",
+        "unrelated_numeric_and_panel_hosts_use_the_same_entry_without_product_payloads",
+        "native_preparation_or_admission_unwind_drops_owned_parts_without_retry",
+        "native_observations_after_handoff_are_not_saved_admission_certificates",
+        "Rc::ptr_eq",
+        "std::ptr::eq",
+    ] {
+        assert!(proof.contains(boundary));
+    }
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/host_source_reference.rs"))
+            .unwrap();
+    for boundary in [
+        "native_leaf_errors_keep_original_messages_priority_and_shifted_source_spans",
+        "helper_native_host_unwrapping_preserves_the_direct_atomic_product_bytes",
+        "literal_host_bridge_does_not_replace_the_computed_argument_call_path",
+        "native_host_leaves_still_supply_closed_group_members_and_projected_result_bindings",
+        "canonical_source",
+        "authorize",
+        "serde_json::to_vec",
+    ] {
+        assert!(proof.contains(boundary));
+    }
+}
+
+#[test]
+fn reference_member_frontend_uses_shared_bounds_and_exact_borrowed_native_group_exports() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
+    let member = source
+        .split_once("if callee == \"member\"")
+        .unwrap()
+        .1
+        .split_once("if callee == \"field\"")
+        .unwrap()
+        .0;
+    for boundary in [
+        "lower_bound_projection_source(",
+        "BoundProjectionSourceLimits",
+        "PureType::Result(MemberSourceType::Bound(local))",
+        "Type::Scalar(ty) => PureType::Scalar(ty)",
+        "max_bindings: crate::pure_typing::MAX_TYPE_INFERENCE_BINDINGS",
+        "PureType::Result(MemberSourceType::Selected(ty))",
+        "member is not exported by this bound group",
+    ] {
+        assert!(
+            member.contains(boundary),
+            "missing reference member boundary {boundary}"
+        );
+    }
+    for legacy in [
+        "member_source(arguments",
+        "scope.get(",
+        ".clone()",
+        "Computation::Member {",
+    ] {
+        assert!(
+            !member.contains(legacy),
+            "member frontend retained {legacy}"
+        );
+    }
+    let adapter = source
+        .split_once("fn member(\n")
+        .unwrap()
+        .1
+        .split_once("impl From<Type>")
+        .unwrap()
+        .0;
+    assert!(adapter.contains("MemberSourceType::Bound(local)"));
+    assert!(adapter.contains("local.members().and_then"));
+    assert!(adapter.contains("MemberSourceType::Selected(operation.result_type())"));
+    assert!(!adapter.contains(".clone()"));
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/member_source_reference.rs"))
+            .unwrap();
+    for claim in [
+        "reference_member_source_preserves_exact_native_slot_without_a_synthetic_local",
+        "same_named_member_in_a_different_group_does_not_authorize_a_foreign_native_operation",
+        "same_result_field_type_does_not_allow_substitution_of_another_native_operation",
+        "scalar_record_missing_and_expired_helper_scopes_do_not_supply_member_exports",
+        "member_header_diagnostics_keep_legacy_root_spans_and_never_lower_metadata_as_values",
+        "full_width_group_last_member_and_source_metadata_limits_preserve_wire_and_authority",
+        "field_child_error_precedence_is_unchanged_when_member_lowering_delegates_to_shared_core",
+    ] {
+        assert!(proof.contains(claim), "missing native member proof {claim}");
     }
 }
 
@@ -2396,7 +3032,7 @@ fn shared_helper_dependencies_keep_borrowed_bounded_lazy_planning_separate_from_
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/functions.rs")).unwrap();
     for boundary in [
-        "crate::helper_registry::assemble_helper_registry(",
+        "crate::program_source::assemble_preflighted_program(",
         "max_helpers: MAX_FUNCTIONS - 1",
         "max_source_nodes: MAX_COMPUTATION_NODES",
         "max_source_depth: MAX_EFFECT_NESTING_DEPTH",
@@ -2415,13 +3051,21 @@ fn shared_helper_dependencies_keep_borrowed_bounded_lazy_planning_separate_from_
     }
     assert!(!reference.contains("BTreeSet"));
     assert!(!reference.contains("let mut dependencies = BTreeMap"));
-    let lowerer = reference.split_once("assemble_helper_registry(").unwrap().1;
+    let lowerer = reference
+        .split_once("assemble_preflighted_program(")
+        .unwrap()
+        .1;
     assert!(
         lowerer.find("lower_preflighted_helper_body(").unwrap()
             < lowerer.find("lower_expression_with_functions(").unwrap()
     );
     let assembly =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/helper_registry.rs")).unwrap();
+    let program =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/program_source.rs")).unwrap();
+    assert!(program.contains(
+        "assemble_helper_registry(declarations, limits.helpers, state, prepare, register)"
+    ));
     assert!(assembly.contains("helper_dependency_order("));
     assert!(assembly.contains("for function in order"));
     assert!(
@@ -3559,10 +4203,10 @@ fn shared_helper_body_source_owns_closed_signature_and_original_counter_before_a
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/functions.rs")).unwrap();
     let body = reference
-        .split_once("assemble_helper_registry(")
+        .split_once("assemble_preflighted_program(")
         .unwrap()
         .1
-        .split_once("let mut lowered =")
+        .split_once("|main, functions|")
         .unwrap()
         .0;
     for boundary in [
@@ -3977,10 +4621,10 @@ fn shared_owned_helper_registry_keeps_lazy_preparation_and_complete_native_state
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/functions.rs")).unwrap();
     let assembly = reference
-        .split_once("crate::helper_registry::assemble_helper_registry(")
+        .split_once("crate::program_source::assemble_preflighted_program(")
         .unwrap()
         .1
-        .split_once("let mut lowered =")
+        .split_once("let (main, lowered, _functions)")
         .unwrap()
         .0;
     for boundary in [
@@ -4000,11 +4644,10 @@ fn shared_owned_helper_registry_keeps_lazy_preparation_and_complete_native_state
         );
     }
     assert!(
-        reference.contains("let mut functions = crate::helper_registry::assemble_helper_registry(")
+        reference.contains("let assembled = crate::program_source::assemble_preflighted_program(")
     );
     assert!(
-        reference
-            .contains("computation::lower_computation_with_functions(&main.body, &mut functions)")
+        reference.contains("computation::lower_computation_with_functions(&main.body, functions)")
     );
     assert!(!reference.contains("for function in order"));
     assert!(!reference.contains("helper_dependency_order("));
@@ -4033,6 +4676,167 @@ fn shared_owned_helper_registry_keeps_lazy_preparation_and_complete_native_state
         assert!(
             proof.contains(evidence),
             "missing registry proof {evidence}"
+        );
+    }
+}
+
+#[test]
+fn shared_program_assembly_owns_complete_state_entry_and_mandatory_final_admission() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/program_source.rs")).unwrap();
+    for boundary in [
+        "pub struct ProgramSourceLimits",
+        "pub enum ProgramSourceError<Lowering, Registration, Entry, Admission>",
+        "pub struct ProgramSource<'source, Output, State>",
+        "entry: &'source Function",
+        "output: Output",
+        "state: State",
+        "pub fn into_parts(self) -> (&'source Function, Output, State)",
+        "pub fn assemble_program<",
+        "pub(crate) fn assemble_preflighted_program<",
+        "declarations: &HelperDeclarations<'source>",
+        "lower_entry: impl FnOnce",
+        "admit: impl FnOnce",
+        "&Output, &mut State",
+        "max_source_nodes: limits.max_entry_source_nodes",
+        "max_source_depth: limits.max_entry_source_depth",
+        "max_arguments: limits.max_entry_arguments",
+        "preflight::<Entry>(&declarations.entry().body, source)",
+        "Native output is opaque: the host MUST",
+        "not transactional rollback of external storage",
+        "State may move between assembly stages",
+        "no stable-address or pinning promise",
+        "not a complete generic recursive compiler or independent VM",
+    ] {
+        assert!(
+            source.contains(boundary),
+            "missing program assembly boundary {boundary}"
+        );
+    }
+    let public = source
+        .split_once("pub fn assemble_program<")
+        .unwrap()
+        .1
+        .split_once("pub(crate) fn assemble_preflighted_program<")
+        .unwrap()
+        .0;
+    assert!(
+        public.find("!valid_limits(source)").unwrap() < public.find("preflight::<Entry>").unwrap()
+    );
+    assert!(
+        public.find("preflight::<Entry>").unwrap()
+            < public.find("assemble_preflighted_program(").unwrap()
+    );
+    let assembly = source
+        .split_once("pub(crate) fn assemble_preflighted_program<")
+        .unwrap()
+        .1;
+    let gates = [
+        "!valid_limits(entry_limits(limits))",
+        "assemble_helper_registry(declarations, limits.helpers, state, prepare, register)",
+        ".map_err(ProgramSourceError::Helpers)",
+        "let entry = declarations.entry()",
+        "lower_entry(entry, &mut state)",
+        "admit(entry, &output, &mut state)",
+        "Ok(ProgramSource",
+    ];
+    for pair in gates.windows(2) {
+        assert!(assembly.find(pair[0]).unwrap() < assembly.find(pair[1]).unwrap());
+    }
+    for coupling in [
+        ".clone()",
+        ".collect",
+        "crate::Type",
+        "ResultField",
+        "HostOperation",
+        "OperationCatalog",
+        "serde::",
+        "sqlite",
+        "Fuel::",
+        "catch_unwind",
+        "RefCell",
+        "Mutex",
+        "RwLock",
+        "Arc<",
+        "BTreeMap",
+        "State: Clone",
+        "Output: Clone",
+        "Output: Send",
+        "std::mem::take",
+    ] {
+        assert!(
+            !source.contains(coupling),
+            "unexpected program assembly coupling {coupling}"
+        );
+    }
+    let modules = std::fs::read_to_string(root.join("crates/leselang-hir/src/lib.rs")).unwrap();
+    assert!(modules.contains("pub mod program_source;"));
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/functions.rs")).unwrap();
+    let assembly = reference
+        .split_once("let assembled = crate::program_source::assemble_preflighted_program(")
+        .unwrap()
+        .1
+        .split_once("let (main, lowered, _functions) = assembled.into_parts()")
+        .unwrap()
+        .0;
+    for boundary in [
+        "helpers: crate::helper_registry::HelperRegistryLimits",
+        "|function, functions|",
+        "|function, admitted, functions|",
+        "|main, functions|",
+        "computation::lower_computation_with_functions(&main.body, functions)",
+        "|main, lowered, _|",
+        "canonical_source(&lowered.effect)",
+        "ProgramSourceError::Helpers(error)",
+        "ProgramSourceError::Entry { error, .. }",
+        "ProgramSourceError::Admission { error, .. }",
+    ] {
+        assert!(
+            assembly.contains(boundary),
+            "missing reference program assembly {boundary}"
+        );
+    }
+    assert!(
+        assembly.find("|function, admitted, functions|").unwrap()
+            < assembly.find("|main, functions|").unwrap()
+    );
+    assert!(
+        assembly.find("|main, functions|").unwrap() < assembly.find("|main, lowered, _|").unwrap()
+    );
+    assert_eq!(
+        assembly
+            .matches("canonical_source(&lowered.effect)")
+            .count(),
+        1
+    );
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/program_source.rs")).unwrap();
+    for evidence in [
+        "original_custom_entry_runs_after_every_ready_helper_then_whole_output_admission_once",
+        "all_entry_source_ceilings_precede_helper_entry_and_admission_callbacks",
+        "cold_entry_names_text_arity_frontier_and_depth_fail_before_any_native_helper_work",
+        "current_helper_ceilings_and_dependency_errors_never_reach_the_entry",
+        "late_cycle_drops_completed_helper_state_without_entry_lowering_or_partial_program",
+        "ready_helper_native_errors_keep_original_payload_span_and_precede_later_cycle",
+        "entry_error_and_unwind_drop_owned_registry_without_admission_retry_or_counter_refund",
+        "final_admission_error_and_unwind_drop_original_output_and_state_without_partial_handoff",
+        "once_entry_and_admission_closures_move_private_buffers_into_and_out_of_original_state",
+        "empty_helper_zero_policies_still_lower_and_admit_a_parameterless_leaf_entry",
+        "zero_entry_nodes_reject_before_helpers_even_when_the_helper_policy_is_empty",
+        "unknown_entry_calls_and_stale_native_output_need_explicit_fresh_host_policy",
+        "unrelated_scalar_program_composes_registry_entry_admission_and_value_with_exact_fuel",
+        "reference_program_assembly_keeps_canonical_wire_capabilities_and_helper_before_entry_errors",
+        "std::ptr::eq",
+        "as_ptr()",
+        "catch_unwind",
+        "fuel.remaining(), 97",
+        "serde_json::to_vec",
+    ] {
+        assert!(
+            proof.contains(evidence),
+            "missing program assembly proof {evidence}"
         );
     }
 }
@@ -4137,8 +4941,8 @@ fn shared_helper_declaration_admission_borrows_complete_forests_without_product_
         "crate::helper_declarations::accept_helper_declarations(",
         "computation::is_builtin(name)",
         "accepted.reserved_names().map(str::to_owned)",
-        "let main = accepted.entry()",
-        "crate::helper_registry::assemble_helper_registry(",
+        "let (main, lowered, _functions) = assembled.into_parts()",
+        "crate::program_source::assemble_preflighted_program(",
         "parameter_diagnostics(error, span)",
     ] {
         assert!(
@@ -4150,7 +4954,7 @@ fn shared_helper_declaration_admission_borrows_complete_forests_without_product_
     assert!(!reference.contains("let mut pending = vec![(&function.body"));
     assert!(
         reference.find("accept_helper_declarations(").unwrap()
-            < reference.find("assemble_helper_registry(").unwrap()
+            < reference.find("assemble_preflighted_program(").unwrap()
     );
     let proof =
         std::fs::read_to_string(root.join("crates/leselang-hir/tests/helper_declarations.rs"))
@@ -4179,6 +4983,145 @@ fn shared_helper_declaration_admission_borrows_complete_forests_without_product_
         assert!(
             proof.contains(boundary),
             "missing declaration proof {boundary}"
+        );
+    }
+}
+
+#[test]
+fn native_graph_inspection_borrows_original_slots_and_stays_separate_from_native_typing() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/native_graph.rs")).unwrap();
+    let compact = source.split_whitespace().collect::<String>();
+    for boundary in [
+        "pub struct NativeGraphLimits",
+        "pub enum NativeGraphShape<'graph, Branch>",
+        "members: &'graph [Branch]",
+        "pub struct NativeGraphSummary",
+        "pub enum NativeGraphPhase",
+        "pub enum NativeGraphError<Error>",
+        "Node: ?Sized + 'graph",
+        "limits.max_nodes > MAX_NATIVE_GRAPH_NODES",
+        "limits.max_depth > MAX_NATIVE_GRAPH_DEPTH",
+        "limits.max_members > MAX_NATIVE_GRAPH_MEMBERS",
+        "let node_index = budget.visited()",
+        "frames.last_mut()",
+        "frame.members.get(frame.next)",
+        "NativeGraphPhase::View",
+        "NativeGraphPhase::Child",
+        "NativeGraphPhase::Leaf",
+        "No quota silently expands",
+        "one borrowed sibling cursor per open group",
+        "this entry does not promise that all physical errors precede inline leaf work",
+        "without retries or partial summary",
+    ] {
+        assert!(
+            source.contains(boundary),
+            "missing graph boundary {boundary}"
+        );
+    }
+    assert!(
+        compact
+            .contains("pubfninspect_native_graph<'graph,Node:?Sized+'graph,Branch:'graph,Error>")
+    );
+    assert!(compact.contains("letminimum=ifkind==GroupKind::Sequence{1}else{2}"));
+    let inspection = source
+        .split_once("pub fn inspect_native_graph")
+        .unwrap()
+        .1
+        .split_whitespace()
+        .collect::<String>();
+    assert!(inspection.find("budget.visit(").unwrap() < inspection.find("view(node)").unwrap());
+    assert!(
+        inspection.find("limits.max_members).contains").unwrap()
+            < inspection.find("child(member)").unwrap()
+    );
+    assert!(inspection.find("leaf(node)").unwrap() < inspection.find("child(member)").unwrap());
+    for coupling in [
+        ".clone()",
+        "pending.extend",
+        "serde::",
+        "use serde",
+        "crate::Type",
+        "HostOperation",
+        "OperationCatalog",
+        "ResultField",
+        "infer_pure_type",
+        "evaluate_pure",
+        "canonical_source",
+        "Fuel::",
+        "Send +",
+        "PartialEq +",
+    ] {
+        assert!(
+            !source.contains(coupling),
+            "unexpected graph coupling {coupling}"
+        );
+    }
+    let reference = std::fs::read_to_string(root.join("crates/leselang-hir/src/lib.rs")).unwrap();
+    assert!(reference.contains("pub mod native_graph;"));
+    let adapter = reference
+        .split_once("fn validate_canonical_effect_shape")
+        .unwrap()
+        .1
+        .split_once("fn canonical_effect_source")
+        .unwrap()
+        .0;
+    for boundary in [
+        "inspect_native_graph(",
+        "max_nodes: MAX_CANONICAL_EFFECT_NODES",
+        "max_depth: MAX_EFFECT_NESTING_DEPTH - 1",
+        "max_members: MAX_ALL_BRANCHES",
+        "ir::GroupKind::Parallel",
+        "ir::GroupKind::Sequence",
+        "|branch: &HirBranch| Ok(&branch.effect)",
+        "computation::validate_shape(expression)",
+        "\"LSH1201\"",
+        "\"LSH1204\"",
+        "\"LSH1205\"",
+        "NativeGraphError::Native { error, .. } => error",
+        "span: None",
+    ] {
+        assert!(
+            adapter.contains(boundary),
+            "missing product graph adapter {boundary}"
+        );
+    }
+    assert!(!adapter.contains("pending"));
+    assert!(!adapter.contains("StructureBudget::new"));
+    assert!(reference.contains(
+        "shared_native_walk_preserves_inline_computation_error_before_later_group_errors"
+    ));
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/native_graph.rs")).unwrap();
+    for boundary in [
+        "nested_gui_graphs_borrow_original_nonclone_slices_slots_and_declaration_order",
+        "node_depth_and_member_limits_are_inclusive_and_zero_has_no_expanding_default",
+        "invalid_group_arity_stops_before_any_original_child_mapping",
+        "repeated_original_edges_count_per_occurrence_without_deduplication",
+        "cyclic_native_views_are_bounded_without_recursive_calls_or_cycle_certificates",
+        "private_native_errors_keep_positions_and_phase_but_never_format_the_payload",
+        "native_callback_unwind_never_retries_consumes_graphs_or_publishes_partial_counts",
+        "inline_leaf_checks_preserve_first_failure_without_claiming_whole_cold_admission",
+        "successful_counts_do_not_certify_changed_graphs_leaf_payloads_or_live_grants",
+        "depth_before_nodes_and_original_payload_free_debug_are_not_native_formatters",
+        "unsized_gui_local_nodes_and_nonclone_branch_slots_need_no_box_conversion",
+    ] {
+        assert!(proof.contains(boundary), "missing graph proof {boundary}");
+    }
+    let product_proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/native_graph_reference.rs"))
+            .unwrap();
+    for boundary in [
+        "existing_nested_native_parallel_profiles_keep_canonical_wire_order_and_capability_checks",
+        "physical_native_graph_counts_do_not_certify_names_types_or_private_payload_domains",
+        "shared_structure_inspection_does_not_enable_nested_exports_or_forbidden_sequence_profiles",
+        "compute_leaf_structure_stays_separate_from_its_semantic_type_and_native_graph_budget",
+        "graph_arity_and_depth_keep_legacy_diagnostics_before_source_formatting",
+    ] {
+        assert!(
+            product_proof.contains(boundary),
+            "missing product graph proof {boundary}"
         );
     }
 }

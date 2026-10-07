@@ -155,7 +155,7 @@ const PLACEHOLDER: &[Parameter] = &[
 ];
 
 pub(crate) struct ReferenceResult {
-    operation: HostOperation,
+    pub(crate) operation: HostOperation,
     pub(crate) ty: Type,
 }
 

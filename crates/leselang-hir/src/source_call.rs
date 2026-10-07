@@ -29,6 +29,63 @@ pub struct SourceCallLimits {
     pub max_arguments: usize,
 }
 
+/// Current physical IR policy, not the earlier source budget or an authority
+/// certificate. One budget covers the call root and the complete operand forest.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SourceCallFinishLimits {
+    pub max_nodes: usize,
+    pub max_depth: usize,
+    pub max_arguments: usize,
+}
+
+/// Native mapping/admission failures are recoverable by matching, never exposed
+/// through formatting or error source chains. No native trait bounds are needed.
+pub enum SourceCallFinishError<Mapping, Admission> {
+    InvalidLimits,
+    ArgumentLimit,
+    ParameterLimit,
+    Root(StructureError),
+    Output {
+        argument_index: usize,
+        error: PureTypeError,
+    },
+    Mapping(Mapping),
+    Admission(Admission),
+}
+
+impl<Mapping, Admission> fmt::Display for SourceCallFinishError<Mapping, Admission> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::InvalidLimits => "source call completion limits exceed safety ceilings",
+            Self::ArgumentLimit => "source call completion has too many arguments",
+            Self::ParameterLimit => "source call completion schema has too many parameters",
+            Self::Root(_) => "source call completion root exceeds its limits",
+            Self::Output { .. } => "source call completion operand shape is invalid",
+            Self::Mapping(_) => "native source call operation mapping failed",
+            Self::Admission(_) => "native source call admission failed",
+        })
+    }
+}
+impl<Mapping, Admission> fmt::Debug for SourceCallFinishError<Mapping, Admission> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, formatter)
+    }
+}
+impl<Mapping, Admission> std::error::Error for SourceCallFinishError<Mapping, Admission> {}
+
+pub type SourceCallFinishResult<
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Output,
+    Mapping,
+    Admission,
+> = Result<
+    (Computation<Field, Operation, HostEffect, IrResult>, Output),
+    SourceCallFinishError<Mapping, Admission>,
+>;
+
 pub type SourceSchema<'schema, Key, Domain, Result, Capability> =
     OperationSchema<'schema, Key, &'schema str, Domain, Result, Capability>;
 
@@ -128,7 +185,8 @@ impl<'source, 'schema, Key, Domain, Result, Capability, Node>
         &self.arguments
     }
 
-    /// Materialize bounded language names once, moving the exact native nodes.
+    /// Low-level handoff, not final admission. Materialize bounded language names
+    /// once, moving the exact native nodes.
     pub fn into_arguments(self) -> Vec<ComputedArgument<Node>> {
         self.arguments
             .into_iter()
@@ -137,6 +195,75 @@ impl<'source, 'schema, Key, Domain, Result, Capability, Node>
                 value: argument.value,
             })
             .collect()
+    }
+}
+
+impl<'source, 'schema, Key, Domain, Result, Capability, Field, Operation, HostEffect, IrResult>
+    LoweredSourceCall<
+        'source,
+        'schema,
+        Key,
+        Domain,
+        Result,
+        Capability,
+        Computation<Field, Operation, HostEffect, IrResult>,
+    >
+{
+    /// Consume the original prepared operands into one call. Current cold shape
+    /// checks precede the once-only mapper; the core constructs the exact call
+    /// before mandatory once-only native admission. Mapping cannot replace the
+    /// operands. Admission must establish native row/result identity, full lexical
+    /// typing, canonical form and current host policy, not trust cached facts.
+    ///
+    /// This does not invoke, charge/refund fuel, retry, roll back native work or
+    /// issue an execution receipt. Native interior mutation/work/Drop are trusted;
+    /// failures and unwinds release owned output without returning partial IR.
+    pub fn finish_call<Output, Mapping, Admission>(
+        self,
+        limits: SourceCallFinishLimits,
+        map: impl FnOnce(
+            &'schema SourceSchema<'schema, Key, Domain, Result, Capability>,
+        ) -> std::result::Result<(Operation, Output), Mapping>,
+        admit: impl FnOnce(
+            &Computation<Field, Operation, HostEffect, IrResult>,
+            &Output,
+            &'schema SourceSchema<'schema, Key, Domain, Result, Capability>,
+        ) -> std::result::Result<(), Admission>,
+    ) -> SourceCallFinishResult<Field, Operation, HostEffect, IrResult, Output, Mapping, Admission>
+    {
+        if limits.max_nodes > MAX_TYPE_INFERENCE_NODES
+            || limits.max_depth > MAX_TYPE_INFERENCE_DEPTH
+            || limits.max_arguments > MAX_SOURCE_CALL_ARGUMENTS
+        {
+            return Err(SourceCallFinishError::InvalidLimits);
+        }
+        if self.schema.parameters.len() > limits.max_arguments {
+            return Err(SourceCallFinishError::ParameterLimit);
+        }
+        if self.arguments.len() > limits.max_arguments {
+            return Err(SourceCallFinishError::ArgumentLimit);
+        }
+        let mut budget = StructureBudget::new(limits.max_nodes, limits.max_depth);
+        budget.visit(0, 0, 0).map_err(SourceCallFinishError::Root)?;
+        budget
+            .check_pending(0, self.arguments.len())
+            .map_err(SourceCallFinishError::Root)?;
+        for argument in &self.arguments {
+            preflight_with_budget(&argument.value, 1, &mut budget).map_err(|error| {
+                SourceCallFinishError::Output {
+                    argument_index: argument.argument_index,
+                    error,
+                }
+            })?;
+        }
+        let schema = self.schema;
+        let (operation, output) = map(schema).map_err(SourceCallFinishError::Mapping)?;
+        let call = Computation::Call {
+            operation,
+            arguments: self.into_arguments(),
+        };
+        admit(&call, &output, schema).map_err(SourceCallFinishError::Admission)?;
+        Ok((call, output))
     }
 }
 impl<Key, Domain, Result, Capability, Node> fmt::Debug

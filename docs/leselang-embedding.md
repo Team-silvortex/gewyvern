@@ -1455,6 +1455,49 @@ literals/operators, while the host still supplies other operand lowering,
 opcode mapping, complete cold type checking, helpers, opaque effects and live authority.
 It is not execution, suspension, persistence or a complete extraction proof.
 
+### Shared Native Source Call Completion
+
+`source_call::LoweredSourceCall::finish_call` consumes prepared native operands
+into the original generic `Computation::Call`. `SourceCallFinishLimits` supplies
+**current whole-call limits**: one root plus the complete cold operand forest,
+with inclusive node/depth ceilings of 16384/64 and argument/parameter ceiling 64.
+The selected schema's optional parameters count even when omitted. Zero nodes
+rejects before callbacks; a parameterless call permits one node, zero depth and
+zero arguments. Earlier source budgets are not reinterpreted as current IR policy.
+
+The complete current physical checks precede **once-only native operation mapping**.
+Mapping receives the original borrowed schema and returns an owned native operation
+and result observation. The core, not the mapper, constructs the call from the
+exact original operands in declaration order; language names materialize once,
+optional omission stays absent, and native nodes/buffers are not cloned or rebuilt.
+There are no native Clone/Debug/serde/Send bounds, operation defaults or new codecs.
+The existing `into_arguments` remains a low-level handoff, not final admission.
+
+**Mandatory once-only whole-call admission** sees the constructed call, original
+schema and exact result observation. The host must independently confirm native
+operation/schema/result identity, complete cold lexical typing, canonical form,
+current version/grants and its remaining native policy. Cached scalar observations
+and a successful structural walk are not type certificates or dispatch authority.
+Schema borrowing does not freeze interior domain state or live authority. Native
+callbacks, queries, equality, allocation and destructors remain trusted bounded
+adapter work, not an in-process sandbox or an external-side-effect transaction.
+
+Only admitted owned call/result pairs return. Mapping/admission failure or unwind
+releases the original operands and any constructed native outputs; no partial call,
+retry, dispatch, fuel charge/refund or rollback is added. Closed diagnostics retain
+native errors for explicit matching without formatting private payloads/source chains.
+The reference computed-call compiler delegates construction to this finisher and
+uses its exact current private type scope, preserving 64-member groups and existing
+diagnostics/source accounting. Final reference authorization remains separate.
+
+Move-only native tests prove original schema/buffer identity, current narrowed
+forest limits, optional omissions, failure/unwind cleanup and private errors.
+Unrelated numeric-device and text-panel calls pass fresh native admission and
+prepare actual values through the existing shared evaluator. Forged scalar facts,
+foreign same-shaped rows/results and changed domains/version/grants are rejected
+by explicit native admission. This is **native call completion, not complete generic
+source compilation**, effect execution, durable suspension or automatic authorization.
+
 ### Shared Scalar Source Lowering
 
 `leselang-hir::scalar_source::lower_scalar_source` lowers parsed scalar literals
@@ -2592,6 +2635,66 @@ ordering, private errors, unwind and late-cycle cleanup without refunds. This is
 generic leaf lowering, opaque flow typing, native storage lifecycle and durable
 suspension ownership remain open.
 
+### Shared Program Assembly
+
+`program_source::assemble_program` connects an admitted declaration forest to
+the shared helper registry and an **explicit once-only native entry lowerer**.
+The original declaration observation selects the parameterless entry; no name,
+AST, registry table or native output is replaced or implicitly copied. Entry names
+need not be `main`. All helpers, including unused ones, prepare/register in the
+existing lazy ready order before entry lowering starts.
+
+**Public entry source preflight precedes native helper work**. Entry source
+node/depth/argument ceilings are checked before any callback, then the complete
+cold entry body is checked for physical bounds, call/reference/argument names and
+literal text. The helper registry applies its own current ceilings and gates.
+This preflight does not validate native schemas, unknown-call authority, cold
+typing or the authenticity of source spans; keep parser/decoded-AST admission and
+bounded ingress in front of this API. Entry source limits have no output or native
+work budget meaning. Zero entry nodes denies the root; zero depth permits leaves.
+
+**Complete registry -> entry lowering -> mandatory final admission**. A helper
+failure or late dependency cycle prevents entry compilation. The entry lowerer
+runs exactly once with the original Function and the complete owned state; final
+admission runs once with that same entry, the original borrowed output and that
+state. No state/output is handed back until final admission succeeds. Native
+output is opaque: hooks must independently bound generated output and native
+graphs before growth, corroborate complete cold types/results/costs, canonical
+bytes, current schemas/versions/grants and any reported capability list. Neither
+the declaration observation nor successful assembly is execution authority.
+
+The returned `ProgramSource` retains the **original entry, native output and
+owned state together** with read-only observations and an explicit `into_parts`
+handoff. Native buffers are move-only without Clone/Debug/serde/Send requirements;
+Debug prints only the type name. **State may move between assembly stages**:
+this is logical owned-state continuity, not a stable-address or pinning guarantee.
+Self-referential host state needs a caller-owned pinned allocation.
+
+Entry/native admission failure or unwind drops core-owned output and state
+without partial program return, retries, private-error formatting/source chains
+or hidden refunds. This is **not transactional rollback of external storage or
+native side effects**; caller aliases, interior mutation, allocation/work and
+Drop/unwind remain trusted. Hooks must not dispatch or publish runtime authority.
+Fresh live checks remain mandatory before output use, dispatch and reply handling.
+No new counter, fuel, global storage, scheduler, codec, journal or durable VM is
+installed. This is shared program assembly, not complete generic recursive
+compilation; native leaf/opaque-flow typing and durable recovery remain open.
+
+The multi-function product compiler delegates helper/entry/final-canonical
+ordering to the crate-private preflighted entry. Its parser/declaration boundary
+already bounds source; this preserves ready-helper diagnostics before later entry errors while
+sharing registry, once-only entry lowering and final admission. Existing result
+metadata, capability lists, direct-Host unwrapping, wire and later authorization
+stay unchanged. The legacy single-function compiler retains its existing path.
+Only fully admitted output reaches product `HirProgram` creation in this shared path.
+
+An unrelated scalar host composes declarations -> shared program assembly ->
+helper-body preparation/instances -> entry admission -> evaluation. `base`,
+`plus`, `boot` retain exact source charges 1, 4, 4; result 42 uses fuel 100 -> 97
+and restores the evaluation prefix. Move-only native proofs cover exact borrowed
+entry identity, original buffers, all-cold public entry gates, complete registry
+ordering, mandatory fresh admission, private errors and failure/unwind cleanup.
+
 ### Shared Source Cost Measurement
 
 `source_cost::measure_source_cost` measures the original borrowed language IR with
@@ -3020,6 +3123,222 @@ can still abort. This is **source composition, not a complete independent compil
 or durable VM**. Full leaf/helper/group compilation and opaque typing/recovery
 remain extraction gates; the product frontend and wire contracts are unchanged.
 
+### Shared Opaque Host Flow Typing
+
+`flow_typing::infer_host_flow_type` extends the shared declared-type chain to
+**mixed Host/Call Bind/Choose flow** with explicit `HostFlowEnvironment` and
+`HostFlowTypeLimits`. Existing call-only and group entries still reject opaque
+Host nodes, and the new host entry deliberately rejects newly constructed groups.
+This is a separate opt-in boundary, not implicit admission of every native effect.
+
+**Whole cold structure precedes native work**. The complete language tree and
+bounded unique prefix are checked first, then every cold call's version/grants and
+named schema, then opaque admission once per original Host leaf in source order.
+Only after all admissions finish may prefix type identifiers clone or guard,
+argument, result, field/member and join queries run. Failed cold admission cannot
+be hidden by an unselected branch, an unused binding or a false loop guard.
+Choose types both arms; it never evaluates its guard or dispatches either arm.
+
+**Native admission owns hidden graph safety**. One Host counts as one language
+node; `max_hosts` bounds cold leaves, not private payload allocation, native graph
+size, execution fuel or native callback work. Admission must bound the complete
+native payload and corroborate exact operation/schema/declaration identity and
+current policy. Hooks borrow original effects without Clone/Debug/serde/Send
+requirements. Result metadata may borrow the original nonclone declaration for
+the IR lifetime; only query identifiers need Clone/PartialEq. Closed failures
+include host admission/result positions but never native payloads or source text.
+
+Guards, call arguments, projections and operator/loop/fold/recovery operands
+remain pure, including cold paths. One guarded lexical frame preserves result
+captures, aliases, sibling isolation, forward-reference and shadowing rejection,
+active binding ceilings, and closed external group exports. Explicit host joins
+must retain only common exports, never combine disjoint declarations into a union.
+Physical limits remain inclusive, including 64 recursive depth and 1,024 prefix
+bindings; zero host capacity denies every Host, with no expanding default.
+
+The product uses this chain for atomic native leaves and explicitly adapted flat
+native group wrappers after its existing bounded canonical admission. Mixed
+native/computed-call captures and compatible branches share inference without
+changing native source restrictions, canonical or wire bytes, raw-receipt rejection
+or later capability checks. Mixed computed groups use the explicit combined entry
+below, not the group-rejecting leaf entry. Nested native wrappers retain their
+existing separate policy path.
+No canonical reparse occurs inside host type admission. Unrelated numeric and GUI
+hosts, borrowed nonclone declarations, cold fences and unwind cleanup are tested
+without a product evaluator or authority registry.
+
+This is **opaque leaf flow typing, not complete native graph compilation**. It
+does not classify executable atomic/group flows, validate actual replies, grant
+dispatch authority or create a reusable certificate. Native callbacks may mutate
+state or unwind; neither external work nor policy changes are rolled back. Every
+later admission must recheck current mutable payload/policy. Full native schema
+lowering, nested opaque graph adaptation and durable suspension remain open.
+
+### Shared Mixed Host Group Typing
+
+`flow_typing::infer_host_group_flow_type` explicitly combines flat prepared groups
+with surrounding Host/Call Bind/Choose type flow. `HostGroupFlowEnvironment`
+requires both existing host and group protocols plus **original operation and
+selected declaration pair admission**. Operation observations borrow the native
+payload or canonical native declaration for the IR lifetime; they are never
+reconstructed look-alike keys. Native operation/effect/branch-result slots need
+no Clone/Debug/serde/Send traits. Only ephemeral query identifiers can clone.
+
+**One original schema row on every member path**. Each member has pure Bind/Choose
+preparation ending in one atomic Host or Call on every cold path. Calls and mapped
+hosts must select the same original schema row, not merely equal result tags or
+operation names. Sequence requires one member and Parallel two. Nested groups,
+effectful preparation initializers, scalar exits, captured preparation and impure
+guards/arguments remain rejected. Earlier sequence receipts and sibling locals
+never become member preparation prefixes.
+
+Whole physical IR, prefix, names, group shape and cold budgets are checked before
+native hooks. All cold call schemas/named shapes finish before once-per-Host
+admission. Group hosts then map once to their original operation, select a current
+version/capability/schema row, check the parameter ceiling, and corroborate that
+exact original effect/operation/result-declaration pair. All mappings and uniform
+row checks finish **before prefix clones or semantic type queries**. Host and Call
+positions remain separate, so cold host leaves never shift call error positions.
+
+`HostGroupFlowTypeLimits` explicitly bounds hosts, calls, groups, per-group members
+and one aggregate language node/depth budget. A Host still counts only one language
+node; native admission must bound hidden payloads/graphs, current policy and atomic
+eligibility. No limit silently expands, and zero capacity denies that site class.
+The old call-only/group and opaque-leaf entries retain their rejection rules.
+
+Original branch declarations must match their inferred types before one ordered
+closed group observation is constructed. Original names and operation identities
+reach the existing group member/field protocols unchanged. Failed declarations,
+mapping/pair rejection and callback unwind cannot publish partial group exports,
+replay effects, retry hooks or mutate the caller's prefix. External native work is
+not rolled back; mutable payload/policy needs fresh admission on every later use.
+
+The product adopts this entry after bounded canonical admission for mixed flat
+groups, conditional native/computed member preparation, helper-produced members
+and legal group successors. It borrows canonical native operation/result rows and
+checks their exact identity without reparsing inside host admission. Canonical
+and wire bytes, closed exports, native diagnostics and later capability checks
+remain unchanged. **Type success does not widen executable source profiles**:
+existing bounded capture-chain restrictions still reject otherwise typeable flows.
+
+This is flat mixed group typing, not nested native graph compilation, execution
+classification, actual receipt acceptance, a durable continuation or reusable
+authority certificate. Full native schema lowering, native graph/repeat adaptation
+and durable suspension remain extraction gates.
+
+### Shared Flat Native Group Observations
+
+Flat native `seq/all` wrapped in an opaque Host now use the existing
+`HostFlowEnvironment` boundary, not another language IR or public graph ABI.
+The reference adapter admits only a bounded **closed flat native group**: exact
+mode, valid unique ordered names, atomic original operation rows and matching
+original branch declarations. Nested graphs and Compute members are not admitted
+by this view. Canonical product admission still checks native payload domains
+before this routing; the view alone is not a general native payload validator.
+
+**One member observation representation across native and computed groups**.
+Native names borrow the original branch strings; operations borrow the exact
+canonical native declaration rows. Computed group names/operations retain their
+original IR borrows. Only a bounded reference-counted query identifier is owned;
+native effects, operations and declarations are not cloned or reserialized.
+Same mode, order, names and original row signatures preserve closed exports through
+joins and aliases even when native payload targets differ. Mismatched signatures
+never union exports. A graph Host can be a captured group, but cannot masquerade
+as an atomic member of a newly constructed group.
+
+**Private native graph bounds remain explicit adapter policy**. One Host consumes
+one language node and one host site, not one slot per hidden native member. The
+unrelated GUI proof applies a separate inclusive graph-node ceiling, original
+operation/declaration ownership and current version/grants to every cold graph
+before prefix clones or semantic/member queries. Forged equal-tag declarations,
+invalid cold members and later native graph mutation require fresh admission.
+The generic core never inspects product graph variants or invents execution grants.
+
+Independent move-only GUI graphs and native/computed group choices retain exact
+original name/operation/declaration pointers. Callback unwind retries nothing,
+publishes no partial observation and leaves the borrowed prefix unchanged;
+native external work and Drop cannot be rolled back or preempted. Product proofs
+cover group captures, result-driven successors, helpers, pure aliases, closed
+conditional exports, cold forged metadata, wire parity and capability denial.
+
+This is **flat native graph type observation, not recursive native graph
+compilation**. It changes neither source execution profiles, canonical/wire
+contracts, receipt acceptance, scheduling/barriers nor durable continuations.
+Full native schema lowering, nested native graphs/repeats and durable suspension
+remain extraction gates. The independent embedding maturity is not promoted.
+
+### Shared Borrowed Native Graph Inspection
+
+`native_graph::inspect_native_graph` now owns the bounded **physical native graph
+walk**, with explicit `NativeGraphLimits`, borrowed `NativeGraphShape` views and
+original branch-to-child mapping. Sequence and Parallel views may nest; leaves
+remain native payloads. No second graph/IR tree, public graph codec, implicit
+schema registry or native Clone/Debug/serde/Send/PartialEq bound is introduced.
+Unsized GUI-local nodes are supported through the same explicit borrowed entry.
+
+**Declaration-order DFS with one sibling cursor per open group**. The core retains
+the original member slices and maps each original branch once, immediately before
+its child. It never fills a frontier with every future sibling. Limits bound
+cursor depth; every repeated/shared edge is charged again. Cycles terminate by
+node/depth denial, not deduplication or a separately inferred cycle certificate.
+The inclusive ceilings are 16,384 nodes, root-zero depth 64 and 64 members. Sequence
+requires one member, Parallel two. Zero nodes denies before hooks; zero members
+denies groups, not leaves; zero depth permits only root leaves. No quota expands.
+
+**Physical visit before View; arity before Child; inline Leaf checks**. View and
+edge hooks are trusted structural protocols that must expose the original graph
+without hidden expansion. Their native work/allocation and leaf payload bytes are
+not metered by this walk. Leaf checks run at their occurrence, preserving native
+structural error order. This is deliberately **not whole-cold type admission**:
+complete cold typing, names, declared results, schema identity, grants and closed
+exports remain separate admission gates after complete structural inspection.
+
+The reference canonical effect preflight delegates this walk while retaining its
+16,384-node and 64-level conventions, inclusive arity and `LSH1201/1204/1205` errors.
+Compute leaves retain their separate language shape budget and inline diagnostic
+precedence. Canonical source/wire bytes, later type/domain/capability checks and
+existing source execution profiles remain unchanged. Physical nesting does not
+enable nested result exports or permit Parallel inside sequential control flow.
+
+Errors retain native occurrence/phase/member positions and matchable opaque native
+failures, never payload formatting or private source chains. Unwind retries
+nothing, consumes no borrowed graph and publishes no partial summary. External
+native work/interior mutation/Drop cannot be rolled back or preempted. Counts are
+mutable ephemeral metadata, not original graph identity, runtime fuel, a durable
+continuation, result acceptance or an execution certificate. Fresh graph and live
+policy admission are required after mutation. Nested type/export compilation,
+full native schema lowering and durable suspension remain extraction gates.
+
+### Shared Native Host Source
+
+`host_source::lower_host_source` bounds the complete cold original AST before
+once-only native preparation, then requires **once-only original effect/result
+admission** before constructing the single Host node. The original AST, owned
+opaque effect and native result observation reach admission without a name
+registry, payload/type clone or second IR tree. Native errors retain phase/span
+and matchable payloads, but formatting and source chains never expose those payloads.
+
+**One Host root is not an opaque graph certificate**. Source limits include cold
+native operands, while the generated-language meter checks one root at depth zero.
+It cannot see native payload allocation, nested effect graphs or expansion costs.
+Preparation must bound growth before allocation; the mandatory native hook must
+corroborate exact operation/result/schema identity, whole opaque graphs, literal
+domains, lexical policy and current versions/grants. Returned observations and
+mutable output are not durable validation certificates. Complete cold typing and
+fresh authority/result-domain checks remain mandatory before execution.
+
+The product's private preflighted path preserves original parser/declaration,
+recursive source-counter and native diagnostic order. Literal native metadata is
+not visited again as computation. It retains the nested-computation rejection and
+explicitly matches the original callee operation, produced effect operation and
+declared result type. Computed-argument calls keep their separate shared call path;
+helper Host unwrapping, native group exports, result bindings, canonical/wire bytes
+and later capability gates are unchanged. Failure/unwind drops owned parts without
+partial handoff, retry, dispatch, refunds or rollback of external native work.
+Unrelated numeric and panel adapters prove independent move-only construction.
+This is native leaf source orchestration, not complete generic native schema
+lowering, opaque-flow typing, actual reply acceptance or durable recovery.
+
 ### Shared Bound Native Projection Source
 
 `bound_projection_source::lower_bound_projection_source` consumes an explicit
@@ -3048,6 +3367,39 @@ The recursive control source entry now checks every cold projection header befor
 any native leaf runs, including projections hidden inside unselected branches or
 opaque extensions. Bad field literals/member references therefore fail before
 partial native compilation, not only when that individual projection is lowered.
+
+**Reference member frontend delegates bound source construction**. Its lexical
+prefix borrows the exact original native observations and member signatures; no
+group vector, result declaration or name-only registry is cloned. Scalar/missing
+bindings fail before export queries, and native non-group records supply no members.
+The adapter resolves one declared member from that exact observation and explicitly
+maps its original operation/result type; the shared entry owns cold source/header,
+prefix, physical limits and the single Member node without a synthetic Local.
+Original recursive source accounting is unchanged: group/name operands are metadata,
+not evaluated values or new computation charges. Root diagnostic codes/spans,
+64-member group signatures, helper hygiene, canonical/wire bytes and capability
+checks remain intact. Field lowering retains its existing child-error-first path
+through shared staged construction described below. This does not claim the
+complete compiler frontend has migrated. A member
+type observation still grants neither result acceptance nor dispatch authority.
+
+**Reference field frontend delegates staged source construction**. Both the public
+projection entry and the product's private preflighted path use the same consuming
+field completion: keep the original owned input/type observation, decode literal
+metadata, check the whole pure input against the field root's shared physical
+budget, then query exact native exports once and construct the original Field node.
+No second input tree, result-signature clone or value/effect evaluation is added.
+Public whole cold source/header/literal checks still precede every native callback.
+The private product path retains header-before-child, child-before-name and
+closed-name-before-export diagnostics. Its closed field-name decoder is metadata
+mapping, not a native export query; unknown names therefore keep their legacy error
+even for scalar or impure inputs. Pure/bounds checks precede actual export admission.
+The native adapter owns field vocabulary and type/export policy, while original
+recursive source counters charge the child once and never charge name metadata as
+computation. Partial input/key observations drop on error/unwind without retry,
+dispatch or rollback of external work. Canonical wire/type and capability validation
+remain separate mandatory gates; this is shared projection construction, not
+complete independent recursive compilation, durable recovery or a type certificate.
 
 **Structured native reply to projected control is proven**. A distinct parsed
 device host compiles a record-returning read, binds its accepted native result,

@@ -36,7 +36,65 @@ pub(super) struct LocalType {
     members: Option<Vec<(String, HostOperation)>>,
 }
 
+impl LocalType {
+    pub(super) fn ty(&self) -> Type {
+        self.ty
+    }
+
+    pub(super) fn members(&self) -> Option<&[(String, HostOperation)]> {
+        self.members.as_deref()
+    }
+}
+
 pub(super) type TypeScope<'scope, 'names> = ScopeFrame<'scope, 'names, LocalType>;
+
+enum MemberSourceType<'scope> {
+    Bound(&'scope LocalType),
+    Selected(Type),
+}
+
+struct MemberSourceAdapter<'scope>(std::marker::PhantomData<&'scope LocalType>);
+
+impl<'source, 'scope>
+    crate::bound_projection_source::BoundProjectionSourceEnvironment<
+        'source,
+        ResultField,
+        HostOperation,
+    > for MemberSourceAdapter<'scope>
+{
+    type Result = MemberSourceType<'scope>;
+    type Error = std::convert::Infallible;
+
+    fn field(
+        &mut self,
+        _: &Self::Result,
+        _: &'source str,
+    ) -> Result<Option<(ResultField, ScalarType)>, Self::Error> {
+        Ok(None)
+    }
+
+    fn member(
+        &mut self,
+        result: &Self::Result,
+        _: &'source str,
+        name: &'source str,
+    ) -> Result<Option<(HostOperation, Self::Result)>, Self::Error> {
+        let MemberSourceType::Bound(local) = result else {
+            return Ok(None);
+        };
+        Ok(local.members().and_then(|members| {
+            members
+                .iter()
+                .find(|(member, _)| member == name)
+                .map(|(_, operation)| {
+                    (
+                        *operation,
+                        MemberSourceType::Selected(operation.result_type()),
+                    )
+                })
+        }))
+    }
+}
 
 impl From<Type> for LocalType {
     fn from(ty: Type) -> Self {
@@ -70,11 +128,7 @@ fn group_signature(expression: &Computation) -> Option<(GroupKind, Vec<(String, 
             max_members: MAX_ALL_BRANCHES,
         },
         |effect| {
-            let (kind, branches) = match effect {
-                Effect::Sequence { steps } => (GroupKind::Sequence, steps),
-                Effect::All { branches } => (GroupKind::Parallel, branches),
-                _ => return Err(()),
-            };
+            let (kind, branches) = crate::pure_reference::flat_native_group(effect).ok_or(())?;
             let members = branches
                 .iter()
                 .map(|branch| {
@@ -623,6 +677,22 @@ impl Computation {
         {
             return Err(CanonicalSourceError::RoundTripMismatch);
         }
+        if crate::flow_typing::host_flow_nodes_only(self, crate::pure_reference::supports_host_flow)
+            && crate::pure_reference::infer_host_flow(self, scope, groups)
+                .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
+                != ty
+        {
+            return Err(CanonicalSourceError::RoundTripMismatch);
+        }
+        if crate::flow_typing::host_group_flow_nodes_only(
+            self,
+            crate::pure_reference::supports_host_flow,
+        ) && crate::pure_reference::infer_host_group_flow(self, scope, groups)
+            .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
+            != ty
+        {
+            return Err(CanonicalSourceError::RoundTripMismatch);
+        }
         Ok(ty)
     }
 
@@ -720,6 +790,16 @@ fn projection_source_diagnostics(
             span,
         ),
         ProjectionSourceError::Native { error, .. } => error,
+        ProjectionSourceError::NonResult { .. }
+        | ProjectionSourceError::FieldNotExported { .. }
+        | ProjectionSourceError::Produced {
+            error: crate::pure_typing::PureTypeError::Impure,
+            ..
+        } => invalid(
+            "LSH1409",
+            "field is not exported by this bound result type",
+            at,
+        ),
         _ => invalid(
             "LSH1405",
             "computation exceeds its node or nesting limit",
@@ -1007,43 +1087,110 @@ pub(super) fn lower_expression_with_functions<'a>(
         });
     }
     if callee == "member" {
-        let source = crate::projection_source::member_source(arguments, span)
-            .map_err(|error| projection_source_diagnostics(error, span))?;
-        let operation = scope
-            .get(source.group)
-            .and_then(|ty| ty.members.as_ref())
-            .and_then(|members| members.iter().find(|(member, _)| member == source.name))
-            .map(|(_, operation)| *operation)
-            .ok_or_else(|| {
+        use crate::bound_projection_source::{
+            BoundProjectionSourceError, BoundProjectionSourceLimits, lower_bound_projection_source,
+        };
+        use crate::projection_source::ProjectionSourceError;
+        use crate::pure_typing::PureType;
+
+        // Native observations borrow the exact prefix; group signatures are not
+        // cloned, flattened into a global name registry or inferred from tags.
+        let observed = scope
+            .bindings()
+            .iter()
+            .map(|(_, local)| match local.ty {
+                Type::Scalar(ty) => PureType::Scalar(ty),
+                _ => PureType::Result(MemberSourceType::Bound(local)),
+            })
+            .collect::<Vec<_>>();
+        let prefix = scope
+            .bindings()
+            .iter()
+            .zip(&observed)
+            .map(|((name, _), ty)| (*name, ty))
+            .collect::<Vec<_>>();
+        let (value, ty) = lower_bound_projection_source(
+            expression,
+            &prefix,
+            BoundProjectionSourceLimits {
+                source: crate::source_call::SourceCallLimits {
+                    max_source_nodes: MAX_COMPUTATION_NODES,
+                    max_source_depth: MAX_EFFECT_NESTING_DEPTH,
+                    max_lowered_nodes: MAX_COMPUTATION_NODES,
+                    max_lowered_depth: MAX_EFFECT_NESTING_DEPTH,
+                    max_arguments: crate::source_call::MAX_SOURCE_CALL_ARGUMENTS,
+                },
+                max_bindings: crate::pure_typing::MAX_TYPE_INFERENCE_BINDINGS,
+            },
+            &mut MemberSourceAdapter(std::marker::PhantomData),
+        )
+        .map_err(|error| match error {
+            BoundProjectionSourceError::Projection(ProjectionSourceError::Names { span }) => {
                 invalid(
-                    "LSH1412",
-                    "member is not exported by this bound group",
+                    "LSH1401",
+                    "expected exactly the named arguments: value, name",
                     span,
                 )
-            })?;
-        return Ok((source.construct(operation), operation.result_type()));
+            }
+            BoundProjectionSourceError::Projection(
+                ProjectionSourceError::MemberShape { .. } | ProjectionSourceError::FieldName { .. },
+            )
+            | BoundProjectionSourceError::BoundReference { .. } => invalid(
+                "LSH1412",
+                "member requires a bound group reference and a literal step name",
+                span,
+            ),
+            BoundProjectionSourceError::Unbound { .. }
+            | BoundProjectionSourceError::Projection(
+                ProjectionSourceError::MemberNotExported { .. }
+                | ProjectionSourceError::MemberNames { .. }
+                | ProjectionSourceError::NonResult { .. },
+            ) => invalid(
+                "LSH1412",
+                "member is not exported by this bound group",
+                span,
+            ),
+            BoundProjectionSourceError::Projection(ProjectionSourceError::Native {
+                error, ..
+            }) => match error {},
+            _ => invalid(
+                "LSH1405",
+                "computation exceeds its node or nesting limit",
+                span,
+            ),
+        })?;
+        return match ty {
+            PureType::Result(MemberSourceType::Selected(ty)) => Ok((value, ty)),
+            _ => Err(invalid(
+                "LSH1405",
+                "invalid native member result observation",
+                span,
+            )),
+        };
     }
     if callee == "field" {
         let source = crate::projection_source::field_source(arguments, span)
             .map_err(|error| projection_source_diagnostics(error, span))?;
-        let (value, input_type) =
-            lower_expression_with_functions(source.value, scope, visited, depth + 1, functions)?;
-        let name = source
-            .literal_name()
+        let (value, ty) = source
+            .lower_preflighted(
+                crate::source_call::SourceCallLimits {
+                    max_source_nodes: MAX_COMPUTATION_NODES,
+                    max_source_depth: MAX_EFFECT_NESTING_DEPTH,
+                    max_lowered_nodes: MAX_COMPUTATION_NODES,
+                    max_lowered_depth: MAX_EFFECT_NESTING_DEPTH,
+                    max_arguments: crate::source_call::MAX_SOURCE_CALL_ARGUMENTS,
+                },
+                |child| {
+                    lower_expression_with_functions(child, scope, visited, depth + 1, functions)
+                },
+                |name| {
+                    ResultField::parse(name)
+                        .ok_or_else(|| invalid("LSH1409", "unknown result field", span))
+                },
+                |input_type, field| Ok(field.result_type(*input_type).map(|ty| (field, ty))),
+            )
             .map_err(|error| projection_source_diagnostics(error, span))?;
-        let field = ResultField::parse(name)
-            .ok_or_else(|| invalid("LSH1409", "unknown result field", span))?;
-        let result_type = field
-            .result_type(input_type)
-            .filter(|_| value.is_pure())
-            .ok_or_else(|| {
-                invalid(
-                    "LSH1409",
-                    "field is not exported by this bound result type",
-                    span,
-                )
-            })?;
-        return Ok((source.construct(value, field), Type::Scalar(result_type)));
+        return Ok((value, Type::Scalar(ty)));
     }
     if callee == "choose" {
         use crate::choice_source::ChoiceSourceError;
@@ -1094,7 +1241,10 @@ pub(super) fn lower_expression_with_functions<'a>(
     if let Some(operation) = HostOperation::parse(callee)
         && has_computed_arguments(arguments)
     {
-        use crate::source_call::{SourceCallError, SourceCallLimits, lower_preflighted_arguments};
+        use crate::source_call::{
+            SourceCallError, SourceCallFinishError, SourceCallFinishLimits, SourceCallLimits,
+            lower_preflighted_arguments,
+        };
         let lowered = lower_preflighted_arguments(
             arguments,
             operation.schema(),
@@ -1159,28 +1309,89 @@ pub(super) fn lower_expression_with_functions<'a>(
                 span,
             ),
         })?;
-        return Ok((
-            Computation::Call {
-                operation,
-                arguments: lowered.into_arguments(),
-            },
-            operation.result_type(),
-        ));
+        return lowered
+            .finish_call(
+                SourceCallFinishLimits {
+                    max_nodes: MAX_COMPUTATION_NODES,
+                    max_depth: MAX_EFFECT_NESTING_DEPTH,
+                    max_arguments: crate::source_call::MAX_SOURCE_CALL_ARGUMENTS,
+                },
+                |_| Ok::<_, std::convert::Infallible>((operation, operation.result_type())),
+                |call, result, schema| {
+                    let Computation::Call { arguments, .. } = call else {
+                        return Err(invalid("LSH1405", "invalid computed host call", span));
+                    };
+                    if std::ptr::eq(schema, operation.schema())
+                        && crate::pure_reference::infer_source_call_in_scope(
+                            operation, arguments, scope,
+                        )
+                        .ok()
+                            == Some(*result)
+                    {
+                        Ok(())
+                    } else {
+                        Err(invalid(
+                            "LSH1405",
+                            "computation exceeds its node or nesting limit",
+                            span,
+                        ))
+                    }
+                },
+            )
+            .map_err(|error| match error {
+                SourceCallFinishError::Mapping(error) => match error {},
+                SourceCallFinishError::Admission(error) => error,
+                _ => invalid(
+                    "LSH1405",
+                    "computation exceeds its node or nesting limit",
+                    span,
+                ),
+            });
     }
-    let lowered = lower_effect(expression)?;
-    if contains_computation(&lowered.effect) {
-        return Err(invalid(
-            "LSH1406",
-            "computation must wrap a host group, not occur inside its branches",
-            span,
-        ));
-    }
-    Ok((
-        Computation::Host {
-            effect: Box::new(lowered.effect),
+    crate::host_source::lower_preflighted_host_source(
+        expression,
+        crate::source_call::SourceCallLimits {
+            max_source_nodes: MAX_COMPUTATION_NODES,
+            max_source_depth: MAX_EFFECT_NESTING_DEPTH,
+            max_lowered_nodes: MAX_COMPUTATION_NODES,
+            max_lowered_depth: MAX_EFFECT_NESTING_DEPTH,
+            max_arguments: crate::source_call::MAX_SOURCE_CALL_ARGUMENTS,
         },
-        lowered.result_type,
-    ))
+        |source| {
+            let lowered = lower_effect(source)?;
+            Ok((lowered.effect, lowered.result_type))
+        },
+        |_, effect, result| {
+            if contains_computation(effect) {
+                return Err(invalid(
+                    "LSH1406",
+                    "computation must wrap a host group, not occur inside its branches",
+                    span,
+                ));
+            }
+            let operation = HostOperation::parse(callee);
+            if operation == HostOperation::for_effect(effect)
+                && operation.map(HostOperation::result_type) == Some(*result)
+            {
+                Ok(())
+            } else {
+                Err(invalid(
+                    "LSH1999",
+                    "invalid native host source observation",
+                    span,
+                ))
+            }
+        },
+    )
+    .map_err(|error| match error {
+        crate::host_source::HostSourceError::Preparation { error, .. }
+        | crate::host_source::HostSourceError::Admission { error, .. } => error,
+        _ => invalid(
+            "LSH1405",
+            "computation exceeds its node or nesting limit",
+            span,
+        ),
+    })
 }
 
 fn lower_loop<'a>(
@@ -1650,6 +1861,61 @@ pub(super) fn source(expression: &Computation) -> String {
 #[cfg(test)]
 mod scope_tests {
     use super::*;
+
+    #[test]
+    fn native_host_source_charges_one_original_root_and_never_visits_literal_metadata() {
+        for (body, succeeds) in [
+            ("runtime.list()", true),
+            ("runtime.inspect(runtime_id: \"a\")", true),
+            ("runtime.inspect(runtime_id: 7)", false),
+            ("unknown.call()", false),
+        ] {
+            let tree = parse(&format!("fn main() = {body}"));
+            let mut bindings = Vec::new();
+            let mut scope = ScopeFrame::new(&mut bindings);
+            let mut visited = 0;
+            let result = lower_expression(
+                &tree.function.as_ref().unwrap().body,
+                &mut scope,
+                &mut visited,
+                0,
+            );
+            assert_eq!(result.is_ok(), succeeds, "{body}");
+            assert_eq!(visited, 1, "{body}");
+            assert!(scope.is_empty());
+            if let Ok((value, _)) = result {
+                assert!(matches!(value, Computation::Host { .. }));
+            }
+        }
+    }
+
+    #[test]
+    fn field_stages_charge_original_child_once_without_lowering_name_metadata() {
+        for (body, expected) in [
+            ("field(value: row, name: \"count\")", None),
+            ("field(value: row, name: 1)", Some("LSH1409")),
+            ("field(value: row, name: \"unknown\")", Some("LSH1409")),
+        ] {
+            let tree = parse(&format!("fn main() = {body}"));
+            let mut bindings = vec![("row", Type::RuntimeList.into())];
+            let mut scope = ScopeFrame::new(&mut bindings);
+            let mut visited = 0;
+            let result = lower_expression(
+                &tree.function.as_ref().unwrap().body,
+                &mut scope,
+                &mut visited,
+                0,
+            );
+            assert_eq!(visited, 2);
+            assert_eq!(scope.len(), 1);
+            assert_eq!(scope.local_len(), 0);
+            if let Some(code) = expected {
+                assert_eq!(result.unwrap_err()[0].code, code);
+            } else {
+                assert_eq!(result.unwrap().1, Type::Scalar(ScalarType::Integer));
+            }
+        }
+    }
 
     #[test]
     fn failed_lowering_cleans_locals_without_copying_parent_names_or_refunding_nodes() {

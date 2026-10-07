@@ -157,17 +157,21 @@ pub(super) fn lower_program(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnos
     functions
         .names
         .extend(accepted.reserved_names().map(str::to_owned));
-    let main = accepted.entry();
-    let mut functions = crate::helper_registry::assemble_helper_registry(
+    let assembled = crate::program_source::assemble_preflighted_program(
         &accepted,
-        crate::helper_registry::HelperRegistryLimits {
-            dependencies: crate::helper_dependencies::HelperDependencyLimits {
-                max_helpers: MAX_FUNCTIONS - 1,
-                max_source_nodes: MAX_COMPUTATION_NODES,
-                max_source_depth: MAX_EFFECT_NESTING_DEPTH,
+        crate::program_source::ProgramSourceLimits {
+            max_entry_source_nodes: MAX_COMPUTATION_NODES,
+            max_entry_source_depth: MAX_EFFECT_NESTING_DEPTH,
+            max_entry_arguments: crate::source_call::MAX_SOURCE_CALL_ARGUMENTS,
+            helpers: crate::helper_registry::HelperRegistryLimits {
+                dependencies: crate::helper_dependencies::HelperDependencyLimits {
+                    max_helpers: MAX_FUNCTIONS - 1,
+                    max_source_nodes: MAX_COMPUTATION_NODES,
+                    max_source_depth: MAX_EFFECT_NESTING_DEPTH,
+                },
+                template: template_limits(),
+                source_cost: source_cost_limits(),
             },
-            template: template_limits(),
-            source_cost: source_cost_limits(),
         },
         functions,
         |function, functions| {
@@ -269,44 +273,62 @@ pub(super) fn lower_program(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnos
                 .insert(function.name.clone(), Template { prepared: admitted });
             Ok::<_, std::convert::Infallible>(())
         },
+        |main, functions| {
+            let mut lowered = computation::lower_computation_with_functions(&main.body, functions)?;
+            lowered.effect = match lowered.effect {
+                Effect::Compute { expression } => match *expression {
+                    Computation::Host { effect } => *effect,
+                    expression => Effect::Compute {
+                        expression: Box::new(expression),
+                    },
+                },
+                effect => effect,
+            };
+            Ok::<_, Vec<Diagnostic>>(lowered)
+        },
+        |main, lowered, _| {
+            canonical_source(&lowered.effect).map(|_| ()).map_err(|_| {
+                invalid(
+                    "LSH1405",
+                    "expanded program exceeds canonical source bounds",
+                    main.span,
+                )
+            })
+        },
     )
     .map_err(|error| {
         use crate::helper_registry::HelperRegistryError;
+        use crate::program_source::ProgramSourceError;
         match error {
-            HelperRegistryError::Dependency(error) => dependency_error(error, span),
-            HelperRegistryError::Lowering { error, .. } => error,
-            HelperRegistryError::Registration { error, .. } => match error {},
-            HelperRegistryError::Parameters { span, error } => parameter_diagnostics(error, span),
-            HelperRegistryError::Template { span, .. }
-            | HelperRegistryError::ParameterScopeLimit { span }
-            | HelperRegistryError::Signature { span }
-            | HelperRegistryError::SourceCost { span, .. } => invalid(
+            ProgramSourceError::Helpers(error) => match error {
+                HelperRegistryError::Dependency(error) => dependency_error(error, span),
+                HelperRegistryError::Lowering { error, .. } => error,
+                HelperRegistryError::Registration { error, .. } => match error {},
+                HelperRegistryError::Parameters { span, error } => {
+                    parameter_diagnostics(error, span)
+                }
+                HelperRegistryError::Template { span, .. }
+                | HelperRegistryError::ParameterScopeLimit { span }
+                | HelperRegistryError::Signature { span }
+                | HelperRegistryError::SourceCost { span, .. } => invalid(
+                    "LSH1405",
+                    "expanded helper exceeds computation or canonical source bounds",
+                    span,
+                ),
+                HelperRegistryError::InvalidLimits => {
+                    invalid("LSH1501", "function count exceeds limit", span)
+                }
+            },
+            ProgramSourceError::Entry { error, .. }
+            | ProgramSourceError::Admission { error, .. } => error,
+            ProgramSourceError::InvalidLimits | ProgramSourceError::Source { .. } => invalid(
                 "LSH1405",
-                "expanded helper exceeds computation or canonical source bounds",
+                "function source exceeds computation bounds",
                 span,
             ),
-            HelperRegistryError::InvalidLimits => {
-                invalid("LSH1501", "function count exceeds limit", span)
-            }
         }
     })?;
-    let mut lowered = computation::lower_computation_with_functions(&main.body, &mut functions)?;
-    lowered.effect = match lowered.effect {
-        Effect::Compute { expression } => match *expression {
-            Computation::Host { effect } => *effect,
-            expression => Effect::Compute {
-                expression: Box::new(expression),
-            },
-        },
-        effect => effect,
-    };
-    canonical_source(&lowered.effect).map_err(|_| {
-        invalid(
-            "LSH1405",
-            "expanded program exceeds canonical source bounds",
-            main.span,
-        )
-    })?;
+    let (main, lowered, _functions) = assembled.into_parts();
     Ok(HirProgram {
         function: HirFunction {
             name: main.name.clone(),

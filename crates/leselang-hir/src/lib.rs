@@ -32,8 +32,11 @@ pub mod helper_returns;
 pub mod helper_source;
 pub mod helper_templates;
 pub mod host_call;
+pub mod host_source;
 pub mod ir;
+pub mod native_graph;
 pub mod prepared_typing;
+pub mod program_source;
 pub mod projection_source;
 pub mod pure_evaluation;
 mod pure_reference;
@@ -3451,12 +3454,40 @@ fn canonical_program(effect: &Effect) -> Result<(String, HirProgram), CanonicalS
 }
 
 fn validate_canonical_effect_shape(effect: &Effect) -> Result<(), CanonicalSourceError> {
-    use leselang_runtime_core::{StructureBudget, StructureError};
+    use leselang_runtime_core::StructureError;
+    use native_graph::{
+        NativeGraphError, NativeGraphLimits, NativeGraphShape, inspect_native_graph,
+    };
 
-    let mut pending = vec![(effect, 0usize)];
-    let mut budget = StructureBudget::new(MAX_CANONICAL_EFFECT_NODES, MAX_EFFECT_NESTING_DEPTH - 1);
-    while let Some((effect, depth)) = pending.pop() {
-        if let Err(error) = budget.visit(depth, 0, 0) {
+    inspect_native_graph(
+        effect,
+        NativeGraphLimits {
+            max_nodes: MAX_CANONICAL_EFFECT_NODES,
+            max_depth: MAX_EFFECT_NESTING_DEPTH - 1,
+            max_members: MAX_ALL_BRANCHES,
+        },
+        |effect| {
+            Ok(match effect {
+                Effect::All { branches } => NativeGraphShape::Group {
+                    kind: ir::GroupKind::Parallel,
+                    members: branches,
+                },
+                Effect::Sequence { steps } => NativeGraphShape::Group {
+                    kind: ir::GroupKind::Sequence,
+                    members: steps,
+                },
+                _ => NativeGraphShape::Leaf,
+            })
+        },
+        |branch: &HirBranch| Ok(&branch.effect),
+        |effect| match effect {
+            Effect::Compute { expression } => computation::validate_shape(expression),
+            _ => Ok(()),
+        },
+    )
+    .map(|_| ())
+    .map_err(|error| match error {
+        NativeGraphError::Structure { error, .. } => {
             let (code, message) = match error {
                 StructureError::DepthLimit => (
                     "LSH1204",
@@ -3467,37 +3498,20 @@ fn validate_canonical_effect_shape(effect: &Effect) -> Result<(), CanonicalSourc
                     format!("effect graph exceeds the {MAX_CANONICAL_EFFECT_NODES}-node limit"),
                 ),
             };
-            return Err(CanonicalSourceError::InvalidEffect(vec![Diagnostic {
+            CanonicalSourceError::InvalidEffect(vec![Diagnostic {
                 code: code.to_string(),
                 message,
                 span: None,
-            }]));
+            }])
         }
-        if let Effect::Compute { expression } = effect {
-            computation::validate_shape(expression)?;
-        }
-        if let Effect::All { branches } | Effect::Sequence { steps: branches } = effect {
-            let minimum = if matches!(effect, Effect::Sequence { .. }) {
-                1
-            } else {
-                2
-            };
-            if !(minimum..=MAX_ALL_BRANCHES).contains(&branches.len()) {
-                return Err(CanonicalSourceError::InvalidEffect(vec![Diagnostic {
-                    code: "LSH1201".to_string(),
-                    message: "structured form has an invalid number of steps".to_string(),
-                    span: None,
-                }]));
-            }
-            pending.extend(
-                branches
-                    .iter()
-                    .rev()
-                    .map(|branch| (&branch.effect, depth + 1)),
-            );
-        }
-    }
-    Ok(())
+        NativeGraphError::Arity { .. } => CanonicalSourceError::InvalidEffect(vec![Diagnostic {
+            code: "LSH1201".to_string(),
+            message: "structured form has an invalid number of steps".to_string(),
+            span: None,
+        }]),
+        NativeGraphError::Native { error, .. } => error,
+        NativeGraphError::InvalidLimits => CanonicalSourceError::RoundTripMismatch,
+    })
 }
 
 fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
@@ -7201,5 +7215,49 @@ mod structure_budget_tests {
             .collect();
         // This is shape-only: type-invalid unary nodes still require full HIR preflight.
         validate_canonical_effect_shape(&Effect::Sequence { steps: branches }).unwrap();
+    }
+
+    #[test]
+    fn shared_native_walk_preserves_inline_computation_error_before_later_group_errors() {
+        let expression = computation::Computation::Local {
+            name: String::new(),
+        };
+        let expected = computation::validate_shape(&expression).unwrap_err();
+        let mut steps = vec![
+            HirBranch {
+                name: "computation".into(),
+                effect: Effect::Compute {
+                    expression: Box::new(expression),
+                },
+                result_type: Type::Scalar(computation::ScalarType::Integer),
+            },
+            HirBranch {
+                name: "empty".into(),
+                effect: Effect::Sequence { steps: vec![] },
+                result_type: Type::Structured,
+            },
+        ];
+        let CanonicalSourceError::InvalidEffect(expected) = expected else {
+            panic!("expected computation shape diagnostics")
+        };
+        let CanonicalSourceError::InvalidEffect(actual) =
+            validate_canonical_effect_shape(&Effect::Sequence {
+                steps: steps.clone(),
+            })
+            .unwrap_err()
+        else {
+            panic!("expected computation before group shape diagnostic")
+        };
+        assert_eq!(actual, expected);
+        assert_eq!(actual[0].code, "LSH1405");
+        steps.reverse();
+        let CanonicalSourceError::InvalidEffect(actual) =
+            validate_canonical_effect_shape(&Effect::Sequence { steps }).unwrap_err()
+        else {
+            panic!("expected first group shape diagnostic")
+        };
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].code, "LSH1201");
+        assert_eq!(actual[0].span, None);
     }
 }

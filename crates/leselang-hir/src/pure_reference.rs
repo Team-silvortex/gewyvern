@@ -1,7 +1,9 @@
 use crate::call_typing::{CallTypeError, CallTypeLimits, check_call_arguments};
 use crate::flow_typing::{
     CallFlowEnvironment, CallFlowTypeError, CallFlowTypeLimits, GroupFlowEnvironment,
-    GroupFlowTypeLimits, GroupMemberType, infer_call_flow_type, infer_group_flow_type,
+    GroupFlowTypeLimits, GroupMemberType, HostFlowEnvironment, HostFlowTypeLimits,
+    HostGroupFlowEnvironment, HostGroupFlowTypeLimits, infer_call_flow_type, infer_group_flow_type,
+    infer_host_flow_type, infer_host_group_flow_type,
 };
 use crate::prepared_typing::{
     PreparedCallSchema, PreparedCallSchemas, PreparedCallTypeError, infer_prepared_call_type,
@@ -60,6 +62,35 @@ struct ReferenceEnvironment<'a> {
     _groups: &'a [GroupLocalType],
 }
 
+// Canonical admission has already checked native payload domains. This view
+// corroborates only one closed flat graph, never nested graphs or dispatch.
+pub(crate) fn flat_native_group(
+    effect: &crate::Effect,
+) -> Option<(crate::ir::GroupKind, &[crate::HirBranch])> {
+    let (kind, branches, minimum) = match effect {
+        crate::Effect::Sequence { steps } => (crate::ir::GroupKind::Sequence, steps, 1),
+        crate::Effect::All { branches } => (crate::ir::GroupKind::Parallel, branches, 2),
+        _ => return None,
+    };
+    if !(minimum..=crate::MAX_ALL_BRANCHES).contains(&branches.len())
+        || branches.iter().enumerate().any(|(index, branch)| {
+            !crate::pure_typing::valid_member_name(&branch.name)
+                || branches[..index]
+                    .iter()
+                    .any(|prior| prior.name == branch.name)
+                || HostOperation::for_effect(&branch.effect)
+                    .is_none_or(|operation| operation.schema().result.ty != branch.result_type)
+        })
+    {
+        return None;
+    }
+    Some((kind, branches))
+}
+
+pub(crate) fn supports_host_flow(effect: &crate::Effect) -> bool {
+    HostOperation::for_effect(effect).is_some() || flat_native_group(effect).is_some()
+}
+
 impl<'schema>
     CallFlowEnvironment<'schema, ResultField, HostOperation, crate::host_call::ReferenceResult>
     for ReferenceEnvironment<'_>
@@ -73,6 +104,82 @@ impl<'schema>
             ty: declaration.ty,
             members: None,
         }))
+    }
+}
+
+impl<'expression, 'a>
+    HostFlowEnvironment<
+        'expression,
+        'static,
+        ResultField,
+        HostOperation,
+        crate::host_call::ReferenceResult,
+        crate::Effect,
+    > for ReferenceEnvironment<'a>
+where
+    'expression: 'a,
+{
+    fn admit_host(&self, effect: &'expression crate::Effect) -> bool {
+        // This adapter is called only after bounded canonical product admission.
+        // Never reparse here: source admission would reenter the lowering chain.
+        supports_host_flow(effect)
+    }
+
+    fn host_result_type(
+        &self,
+        effect: &'expression crate::Effect,
+    ) -> Option<PureType<Self::Result>> {
+        if let Some(operation) = HostOperation::for_effect(effect) {
+            let ty = operation.schema().result.ty;
+            return Some(match ty {
+                Type::Scalar(ty) => PureType::Scalar(ty),
+                _ => PureType::Result(ReferenceResult { ty, members: None }),
+            });
+        }
+        let (kind, branches) = flat_native_group(effect)?;
+        let members = branches
+            .iter()
+            .map(|branch| {
+                Some((
+                    branch.name.as_str(),
+                    &HostOperation::for_effect(&branch.effect)?
+                        .schema()
+                        .result
+                        .operation,
+                ))
+            })
+            .collect::<Option<std::rc::Rc<[_]>>>()?;
+        Some(PureType::Result(ReferenceResult {
+            ty: Type::Structured,
+            members: Some(ReferenceMembers::Computed { kind, members }),
+        }))
+    }
+}
+
+impl<'e>
+    HostGroupFlowEnvironment<
+        'e,
+        'static,
+        ResultField,
+        HostOperation,
+        crate::host_call::ReferenceResult,
+        crate::Effect,
+        Type,
+    > for ReferenceEnvironment<'e>
+{
+    fn host_group_operation(&self, effect: &'e crate::Effect) -> Option<&'e HostOperation> {
+        Some(&HostOperation::for_effect(effect)?.schema().result.operation)
+    }
+    fn admit_host_group_operation(
+        &self,
+        effect: &'e crate::Effect,
+        operation: &'e HostOperation,
+        declaration: &'static crate::host_call::ReferenceResult,
+    ) -> bool {
+        HostOperation::for_effect(effect) == Some(*operation)
+            && std::ptr::eq(operation, &operation.schema().result.operation)
+            && std::ptr::eq(declaration, &operation.schema().result)
+            && declaration.ty == operation.result_type()
     }
 }
 
@@ -201,6 +308,44 @@ pub(crate) fn infer_call(
     Ok(result.ty)
 }
 
+// Source admission must not enter canonical round-trip lowering recursively.
+// Borrow the exact native prefix and closed member signatures instead of copying
+// names or using residual-expression depth limits for the ambient type scope.
+pub(crate) fn infer_source_call_in_scope(
+    operation: HostOperation,
+    arguments: &[crate::computation::ComputedArgument],
+    scope: &crate::computation::TypeScope<'_, '_>,
+) -> Result<Type, CallTypeError> {
+    let bindings = scope
+        .bindings()
+        .iter()
+        .map(|(name, local)| {
+            let ty = match local.ty() {
+                Type::Scalar(ty) => PureType::Scalar(ty),
+                ty => PureType::Result(ReferenceResult {
+                    ty,
+                    members: local.members().map(ReferenceMembers::External),
+                }),
+            };
+            (*name, ty)
+        })
+        .collect::<Vec<_>>();
+    let result = check_call_arguments(
+        arguments,
+        operation.schema(),
+        &bindings,
+        &ReferenceEnvironment { _groups: &[] },
+        CallTypeLimits {
+            pure: TypeInferenceLimits {
+                max_bindings: crate::pure_typing::MAX_TYPE_INFERENCE_BINDINGS,
+                ..limits()
+            },
+            max_arguments: 3,
+        },
+    )?;
+    Ok(result.ty)
+}
+
 fn limits() -> TypeInferenceLimits {
     TypeInferenceLimits {
         max_nodes: MAX_COMPUTATION_NODES,
@@ -245,6 +390,66 @@ pub(crate) fn infer_flow(
                 max_arguments: 3,
             },
             max_calls: MAX_COMPUTATION_NODES,
+        },
+    )?;
+    Ok(match result {
+        PureType::Scalar(ty) => Type::Scalar(ty),
+        PureType::Result(result) => result.ty,
+    })
+}
+
+pub(crate) fn infer_host_flow(
+    expression: &Computation,
+    scope: &[(String, Type)],
+    groups: &[GroupLocalType],
+) -> Result<Type, CallFlowTypeError> {
+    let bindings = bindings(scope, groups);
+    let result = infer_host_flow_type(
+        expression,
+        &bindings,
+        &ReferenceEnvironment { _groups: groups },
+        &ReferenceSchemas,
+        HostFlowTypeLimits {
+            flow: CallFlowTypeLimits {
+                call: CallTypeLimits {
+                    pure: limits(),
+                    max_arguments: 3,
+                },
+                max_calls: MAX_COMPUTATION_NODES,
+            },
+            max_hosts: MAX_COMPUTATION_NODES,
+        },
+    )?;
+    Ok(match result {
+        PureType::Scalar(ty) => Type::Scalar(ty),
+        PureType::Result(result) => result.ty,
+    })
+}
+
+pub(crate) fn infer_host_group_flow<'a>(
+    expression: &'a Computation,
+    scope: &'a [(String, Type)],
+    groups: &'a [GroupLocalType],
+) -> Result<Type, CallFlowTypeError> {
+    let bindings = bindings(scope, groups);
+    let result = infer_host_group_flow_type(
+        expression,
+        &bindings,
+        &ReferenceEnvironment { _groups: groups },
+        &ReferenceSchemas,
+        HostGroupFlowTypeLimits {
+            group: GroupFlowTypeLimits {
+                flow: CallFlowTypeLimits {
+                    call: CallTypeLimits {
+                        pure: limits(),
+                        max_arguments: 3,
+                    },
+                    max_calls: MAX_COMPUTATION_NODES,
+                },
+                max_groups: MAX_COMPUTATION_NODES,
+                max_branches: crate::MAX_ALL_BRANCHES,
+            },
+            max_hosts: MAX_COMPUTATION_NODES,
         },
     )?;
     Ok(match result {
@@ -310,4 +515,123 @@ fn bindings<'a>(
             )
         }))
         .collect()
+}
+
+#[cfg(test)]
+mod native_group_tests {
+    use super::*;
+    use crate::{Effect, HirBranch};
+    use leselang_runtime_core::ScalarType;
+
+    fn native(node_id: &str) -> Effect {
+        Effect::Sequence {
+            steps: vec![HirBranch {
+                name: "focus".into(),
+                effect: Effect::UiFocus {
+                    node_id: node_id.into(),
+                },
+                result_type: Type::UiFocus,
+            }],
+        }
+    }
+
+    #[test]
+    fn native_group_type_observations_borrow_names_and_exact_canonical_operation_rows() {
+        let effect = native("a");
+        let environment = ReferenceEnvironment { _groups: &[] };
+        assert!(environment.admit_host(&effect));
+        let PureType::Result(result) = environment.host_result_type(&effect).unwrap() else {
+            panic!()
+        };
+        let ReferenceMembers::Computed { kind, members } = result.members.unwrap() else {
+            panic!()
+        };
+        let Effect::Sequence { steps } = &effect else {
+            panic!()
+        };
+        assert_eq!(kind, crate::ir::GroupKind::Sequence);
+        assert_eq!(members[0].0.as_ptr(), steps[0].name.as_ptr());
+        assert!(std::ptr::eq(
+            members[0].1,
+            &HostOperation::UiFocus.schema().result.operation
+        ));
+    }
+
+    #[test]
+    fn native_and_computed_group_joins_ignore_payloads_but_never_union_exports() {
+        let left = native("a");
+        let right = native("different-target");
+        let operation = HostOperation::UiFocus;
+        let environment = ReferenceEnvironment { _groups: &[] };
+        let observe = |effect| match environment.host_result_type(effect).unwrap() {
+            PureType::Result(result) => result,
+            _ => panic!(),
+        };
+        let computed = environment
+            .group_result_type(
+                crate::ir::GroupKind::Sequence,
+                &[GroupMemberType {
+                    name: "focus",
+                    operation: &operation,
+                    inferred: PureType::Result(ReferenceResult {
+                        ty: Type::UiFocus,
+                        members: None,
+                    }),
+                }],
+            )
+            .unwrap();
+        let joined = environment
+            .join_results(observe(&left), observe(&right))
+            .unwrap();
+        assert!(
+            environment
+                .join_results(joined, computed)
+                .unwrap()
+                .members
+                .is_some()
+        );
+        let mut changed = native("a");
+        let Effect::Sequence { steps } = &mut changed else {
+            panic!()
+        };
+        steps[0].name = "private".into();
+        assert!(
+            environment
+                .join_results(observe(&left), observe(&changed))
+                .unwrap()
+                .members
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn the_native_group_view_rejects_nested_graphs_compute_and_wrong_declarations() {
+        for (effect, result_type) in [
+            (native("a"), Type::Structured),
+            (
+                Effect::Compute {
+                    expression: Box::new(Computation::Literal {
+                        value: leselang_runtime_core::ScalarValue::Boolean(true),
+                    }),
+                },
+                Type::Scalar(ScalarType::Boolean),
+            ),
+            (
+                Effect::UiFocus {
+                    node_id: "a".into(),
+                },
+                Type::RuntimeList,
+            ),
+        ] {
+            let value = Effect::Sequence {
+                steps: vec![HirBranch {
+                    name: "entry".into(),
+                    effect,
+                    result_type,
+                }],
+            };
+            assert!(flat_native_group(&value).is_none());
+            assert!(!supports_host_flow(&value));
+        }
+    }
 }

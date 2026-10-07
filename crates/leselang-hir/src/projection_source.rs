@@ -13,6 +13,9 @@ use crate::source_call::{SourceCallError, SourceCallLimits, preflight, span, val
 
 type Node<Field, Operation, HostEffect, IrResult> =
     Computation<Field, Operation, HostEffect, IrResult>;
+type NativeFieldInput<Node, Input, Error> = Result<(Node, Input), Error>;
+type NativeFieldExport<Field, Error> = Result<Option<(Field, ScalarType)>, Error>;
+type FieldSourceOutput<Node, Error> = Result<(Node, ScalarType), ProjectionSourceError<Error>>;
 
 pub type ProjectionSourceResult<Node, Result, Error> =
     std::result::Result<(Node, PureType<Result>), ProjectionSourceError<Error>>;
@@ -97,6 +100,7 @@ impl<Error> std::error::Error for ProjectionSourceError<Error> {}
 pub(crate) struct FieldSource<'source> {
     pub value: &'source Expression,
     name: &'source Expression,
+    at: Span,
 }
 impl<'source> FieldSource<'source> {
     pub fn literal_name<Error>(&self) -> Result<&'source str, ProjectionSourceError<Error>> {
@@ -106,6 +110,77 @@ impl<'source> FieldSource<'source> {
             });
         };
         Ok(value)
+    }
+
+    // The reference frontend owns cold source/declaration checks and recursive
+    // accounting. Keep child errors before literal/closed-name decoding here;
+    // decoding is metadata mapping, never a native export or value query.
+    pub(crate) fn lower_preflighted<Field, Operation, HostEffect, IrResult, Input, Key, Error>(
+        self,
+        limits: SourceCallLimits,
+        lower: impl FnOnce(
+            &'source Expression,
+        ) -> NativeFieldInput<
+            Node<Field, Operation, HostEffect, IrResult>,
+            Input,
+            Error,
+        >,
+        decode: impl FnOnce(&'source str) -> Result<Key, Error>,
+        export: impl FnOnce(&Input, Key) -> NativeFieldExport<Field, Error>,
+    ) -> FieldSourceOutput<Node<Field, Operation, HostEffect, IrResult>, Error> {
+        if !valid_limits(limits) {
+            return Err(ProjectionSourceError::Source(
+                SourceCallError::InvalidLimits,
+            ));
+        }
+        let mut budget = StructureBudget::new(limits.max_lowered_nodes, limits.max_lowered_depth);
+        budget
+            .visit(0, 0, 1)
+            .map_err(|error| ProjectionSourceError::Generation {
+                span: self.at,
+                error,
+            })?;
+        budget
+            .check_pending(0, 1)
+            .map_err(|error| ProjectionSourceError::Generation {
+                span: self.at,
+                error,
+            })?;
+        let (value, input) = lower(self.value).map_err(|error| ProjectionSourceError::Native {
+            span: span(self.value),
+            error,
+        })?;
+        let at = self.at;
+        self.finish_with_budget(
+            value,
+            input,
+            &mut budget,
+            |name| decode(name).map_err(|error| ProjectionSourceError::Native { span: at, error }),
+            |input, key| {
+                export(input, key)
+                    .map_err(|error| ProjectionSourceError::Native { span: at, error })
+            },
+        )
+    }
+
+    fn finish_with_budget<Field, Operation, HostEffect, IrResult, Input, Key, Error>(
+        self,
+        value: Node<Field, Operation, HostEffect, IrResult>,
+        input: Input,
+        budget: &mut StructureBudget,
+        decode: impl FnOnce(&'source str) -> Result<Key, ProjectionSourceError<Error>>,
+        export: impl FnOnce(&Input, Key) -> NativeFieldExport<Field, ProjectionSourceError<Error>>,
+    ) -> FieldSourceOutput<Node<Field, Operation, HostEffect, IrResult>, Error> {
+        let key = decode(self.literal_name()?)?;
+        preflight_with_budget(&value, 1, budget).map_err(|error| {
+            ProjectionSourceError::Produced {
+                span: span(self.value),
+                error,
+            }
+        })?;
+        let (field, ty) = export(&input, key)?
+            .ok_or(ProjectionSourceError::FieldNotExported { span: self.at })?;
+        Ok((self.construct(value, field), ty))
     }
 
     pub fn construct<Field, Operation, HostEffect, IrResult>(
@@ -145,6 +220,7 @@ pub(crate) fn field_source<Error>(
     Ok(FieldSource {
         value: get("value")?,
         name: get("name")?,
+        at,
     })
 }
 
@@ -265,7 +341,6 @@ where
         .check_pending(0, 1)
         .map_err(|error| ProjectionSourceError::Generation { span: at, error })?;
     let source = field_source(arguments, at)?;
-    let name = source.literal_name()?;
     let input_at = span(source.value);
     let (value, input_type) =
         environment
@@ -274,18 +349,240 @@ where
                 span: input_at,
                 error,
             })?;
-    preflight_with_budget(&value, 1, &mut budget).map_err(|error| {
-        ProjectionSourceError::Produced {
-            span: input_at,
-            error,
+    let (value, ty) =
+        source.finish_with_budget(value, input_type, &mut budget, Ok, |input_type, name| {
+            let PureType::Result(result) = input_type else {
+                return Err(ProjectionSourceError::NonResult { span: input_at });
+            };
+            environment
+                .field(result, name)
+                .map_err(|error| ProjectionSourceError::Native { span: at, error })
+        })?;
+    Ok((value, PureType::Scalar(ty)))
+}
+
+#[cfg(test)]
+mod field_finish_tests {
+    use std::cell::{Cell, RefCell};
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+    use std::rc::Rc;
+
+    use leselang_runtime_core::ScalarValue;
+    use leselang_syntax::parse;
+
+    use super::*;
+
+    // Deliberately move-only, non-Debug and non-Send native metadata.
+    struct Native(Rc<()>, Rc<Cell<usize>>);
+    impl Drop for Native {
+        fn drop(&mut self) {
+            self.1.set(self.1.get() + 1);
         }
-    })?;
-    let PureType::Result(result) = input_type else {
-        return Err(ProjectionSourceError::NonResult { span: input_at });
-    };
-    let (field, ty) = environment
-        .field(&result, name)
-        .map_err(|error| ProjectionSourceError::Native { span: at, error })?
-        .ok_or(ProjectionSourceError::FieldNotExported { span: at })?;
-    Ok((source.construct(value, field), PureType::Scalar(ty)))
+    }
+    struct PrivateError(&'static str);
+    type TestNode = Computation<Native, (), Native, ()>;
+
+    fn limits() -> SourceCallLimits {
+        SourceCallLimits {
+            max_source_nodes: 3,
+            max_source_depth: 1,
+            max_lowered_nodes: 3,
+            max_lowered_depth: 2,
+            max_arguments: 2,
+        }
+    }
+
+    fn source(expression: &Expression) -> FieldSource<'_> {
+        let Expression::Call { arguments, .. } = expression else {
+            panic!()
+        };
+        field_source::<PrivateError>(arguments, span(expression)).unwrap()
+    }
+
+    #[test]
+    fn exact_original_ast_name_input_buffer_and_move_only_slots_pass_once() {
+        let ast = parse("fn main() = field(value: row, name: \"native\")");
+        let source = source(&ast.function.as_ref().unwrap().body);
+        let original = source.value;
+        let name = source.literal_name::<PrivateError>().unwrap();
+        let owner = Rc::new(());
+        let drops = Rc::new(Cell::new(0));
+        let input = Native(owner.clone(), drops.clone());
+        let field = Native(owner.clone(), drops.clone());
+        let local = String::from("row");
+        let buffer = local.as_ptr();
+        let events = RefCell::new(Vec::new());
+        let (node, ty) = source
+            .lower_preflighted(
+                limits(),
+                |expression| {
+                    events.borrow_mut().push("lower");
+                    assert!(std::ptr::eq(expression, original));
+                    Ok((TestNode::Local { name: local }, input))
+                },
+                |selected| {
+                    events.borrow_mut().push("decode");
+                    assert!(std::ptr::eq(selected, name));
+                    Ok::<_, PrivateError>(field)
+                },
+                |input, field| {
+                    events.borrow_mut().push("export");
+                    assert!(Rc::ptr_eq(&input.0, &owner));
+                    assert!(Rc::ptr_eq(&field.0, &owner));
+                    Ok(Some((field, ScalarType::Integer)))
+                },
+            )
+            .unwrap();
+        assert_eq!(*events.borrow(), ["lower", "decode", "export"]);
+        assert_eq!(ty, ScalarType::Integer);
+        assert_eq!(drops.get(), 1);
+        let TestNode::Field { value, field } = &node else {
+            panic!()
+        };
+        let TestNode::Local { name } = value.as_ref() else {
+            panic!()
+        };
+        assert_eq!(name.as_ptr(), buffer);
+        assert!(Rc::ptr_eq(&field.0, &owner));
+        drop(node);
+        assert_eq!(drops.get(), 2);
+    }
+
+    #[test]
+    fn minimum_root_and_child_capacity_precede_native_lowering() {
+        let ast = parse("fn main() = field(value: row, name: \"native\")");
+        for (nodes, depth) in [(0, 2), (1, 2), (3, 0)] {
+            let limits = SourceCallLimits {
+                max_lowered_nodes: nodes,
+                max_lowered_depth: depth,
+                ..limits()
+            };
+            let outcome = source(&ast.function.as_ref().unwrap().body).lower_preflighted(
+                limits,
+                |_| -> Result<(TestNode, ()), PrivateError> { panic!("no capacity") },
+                |_| -> Result<(), PrivateError> { panic!("no decode") },
+                |_, _| -> NativeFieldExport<Native, PrivateError> { panic!("no export") },
+            );
+            assert!(matches!(
+                outcome,
+                Err(ProjectionSourceError::Generation { .. })
+            ));
+        }
+    }
+
+    #[test]
+    fn native_child_failure_precedes_nonliteral_metadata_and_is_redacted() {
+        let ast = parse("fn main() = field(value: missing, name: 1)");
+        let input_at = span(source(&ast.function.as_ref().unwrap().body).value);
+        let error = source(&ast.function.as_ref().unwrap().body)
+            .lower_preflighted(
+                limits(),
+                |_| -> Result<(TestNode, ()), PrivateError> { Err(PrivateError("secret child")) },
+                |_| -> Result<(), PrivateError> { panic!("child failed") },
+                |_, _| -> NativeFieldExport<Native, PrivateError> { panic!("child failed") },
+            )
+            .err()
+            .unwrap();
+        assert!(!format!("{error:?}").contains("secret"));
+        assert!(std::error::Error::source(&error).is_none());
+        let ProjectionSourceError::Native { span, error } = error else {
+            panic!()
+        };
+        assert_eq!(span, input_at);
+        assert_eq!(error.0, "secret child");
+    }
+
+    #[test]
+    fn closed_name_failure_precedes_impure_input_without_an_export_query() {
+        let ast = parse("fn main() = field(value: row, name: \"unknown\")");
+        let drops = Rc::new(Cell::new(0));
+        let outcome = source(&ast.function.as_ref().unwrap().body).lower_preflighted(
+            limits(),
+            |_| {
+                Ok((
+                    TestNode::Host {
+                        effect: Box::new(Native(Rc::new(()), drops.clone())),
+                    },
+                    (),
+                ))
+            },
+            |_| -> Result<(), PrivateError> { Err(PrivateError("unknown name")) },
+            |_, _| -> NativeFieldExport<Native, PrivateError> { panic!("unknown name") },
+        );
+        let Err(ProjectionSourceError::Native { error, .. }) = outcome else {
+            panic!()
+        };
+        assert_eq!(error.0, "unknown name");
+        assert_eq!(drops.get(), 1);
+    }
+
+    #[test]
+    fn entire_input_purity_and_one_root_budget_precede_native_export() {
+        let ast = parse("fn main() = field(value: row, name: \"native\")");
+        for impure in [false, true] {
+            let drops = Rc::new(Cell::new(0));
+            let owner = Rc::new(());
+            let node = if impure {
+                TestNode::Host {
+                    effect: Box::new(Native(owner.clone(), drops.clone())),
+                }
+            } else {
+                TestNode::Strings {
+                    items: vec![TestNode::Literal {
+                        value: ScalarValue::String("one".into()),
+                    }],
+                }
+            };
+            let error = source(&ast.function.as_ref().unwrap().body)
+                .lower_preflighted(
+                    SourceCallLimits {
+                        max_lowered_nodes: 2,
+                        ..limits()
+                    },
+                    |_| Ok((node, Native(owner.clone(), drops.clone()))),
+                    |_| Ok(Native(owner.clone(), drops.clone())),
+                    |_, _| -> NativeFieldExport<Native, PrivateError> {
+                        panic!("invalid complete input")
+                    },
+                )
+                .err()
+                .unwrap();
+            assert!(matches!(error, ProjectionSourceError::Produced { .. }));
+            assert_eq!(drops.get(), if impure { 3 } else { 2 });
+        }
+    }
+
+    #[test]
+    fn export_error_or_unwind_drops_original_input_and_key_without_retry() {
+        let ast = parse("fn main() = field(value: row, name: \"native\")");
+        for unwind in [false, true] {
+            let drops = Rc::new(Cell::new(0));
+            let queries = Cell::new(0);
+            let outcome = catch_unwind(AssertUnwindSafe(|| {
+                source(&ast.function.as_ref().unwrap().body).lower_preflighted(
+                    limits(),
+                    |_| {
+                        Ok((
+                            TestNode::Local { name: "row".into() },
+                            Native(Rc::new(()), drops.clone()),
+                        ))
+                    },
+                    |_| Ok(Native(Rc::new(()), drops.clone())),
+                    |_, _| -> NativeFieldExport<Native, PrivateError> {
+                        queries.set(queries.get() + 1);
+                        if unwind {
+                            panic!("native query unwind")
+                        }
+                        Err(PrivateError("private query error"))
+                    },
+                )
+            }));
+            assert_eq!(outcome.is_err(), unwind);
+            if let Ok(error) = outcome {
+                assert!(matches!(error, Err(ProjectionSourceError::Native { .. })));
+            }
+            assert_eq!(queries.get(), 1);
+            assert_eq!(drops.get(), 2);
+        }
+    }
 }

@@ -168,8 +168,25 @@ pub(crate) fn preflight_call_leaves_with_budget<
     budget: &mut StructureBudget,
     max_arguments: usize,
 ) -> Result<Vec<&'expression Node<Field, Operation, HostEffect, IrResult>>, PreparedCallTypeError> {
+    preflight_atomic_leaves_with_budget(expression, depth, budget, max_arguments, false)
+}
+
+pub(crate) fn preflight_atomic_leaves_with_budget<
+    'expression,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+>(
+    expression: &'expression Node<Field, Operation, HostEffect, IrResult>,
+    depth: usize,
+    budget: &mut StructureBudget,
+    max_arguments: usize,
+    allow_hosts: bool,
+) -> Result<Vec<&'expression Node<Field, Operation, HostEffect, IrResult>>, PreparedCallTypeError> {
     let mut pending = vec![(expression, depth)];
     let mut calls = Vec::new();
+    let mut call_count = 0;
     while let Some((node, depth)) = pending.pop() {
         budget
             .visit(depth, 0, 0)
@@ -178,11 +195,13 @@ pub(crate) fn preflight_call_leaves_with_budget<
             Computation::Call { arguments, .. } => {
                 preflight_arguments_with_budget(arguments, depth + 1, budget, max_arguments)
                     .map_err(|error| PreparedCallTypeError::Call {
-                        call_index: calls.len(),
+                        call_index: call_count,
                         error,
                     })?;
                 calls.push(node);
+                call_count += 1;
             }
+            Computation::Host { .. } if allow_hosts => calls.push(node),
             Computation::Bind { name, value, body } => {
                 if !valid_local_name(name) {
                     return Err(PreparedCallTypeError::Preparation(

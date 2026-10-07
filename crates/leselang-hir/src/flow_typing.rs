@@ -12,7 +12,7 @@ use crate::ir::Computation;
 use crate::ir::GroupKind;
 use crate::prepared_typing::{
     PreparedCallSchemas, PreparedCallTypeError, SelectedPreparedCall,
-    preflight_call_leaves_with_budget,
+    preflight_atomic_leaves_with_budget, preflight_call_leaves_with_budget,
 };
 use crate::pure_typing::{
     MAX_TYPE_INFERENCE_NODES, PureType, PureTypeEnvironment, PureTypeError, infer_in_scope,
@@ -42,6 +42,28 @@ pub trait CallFlowEnvironment<'schema, Field, Operation, ResultDeclaration>:
 pub struct CallFlowTypeLimits {
     pub call: CallTypeLimits,
     pub max_calls: usize,
+}
+
+/// Explicit opaque-host adaptation, separate from call-only and group typing.
+/// Admission must bound/check the complete native payload, schema and current
+/// policy without dispatch. The later query must describe that exact effect,
+/// including any private declarations; neither callback grants execution rights.
+/// An adapter may explicitly admit a bounded native graph with closed member
+/// metadata. This does not make that Host an atomic computed-group member or
+/// change the language-node limits into hidden native graph limits.
+pub trait HostFlowEnvironment<'expression, 'schema, Field, Operation, ResultDeclaration, HostEffect>:
+    CallFlowEnvironment<'schema, Field, Operation, ResultDeclaration>
+{
+    fn admit_host(&self, effect: &'expression HostEffect) -> bool;
+    fn host_result_type(&self, effect: &'expression HostEffect) -> Option<PureType<Self::Result>>;
+}
+
+/// max_hosts counts every cold Host leaf. A leaf is one language node, not a
+/// bound on the opaque native graph, runtime fuel or a dispatch reservation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct HostFlowTypeLimits {
+    pub flow: CallFlowTypeLimits,
+    pub max_hosts: usize,
 }
 
 pub const MAX_TYPED_GROUP_BRANCHES: usize = 64;
@@ -92,6 +114,41 @@ pub struct GroupFlowTypeLimits {
     pub max_branches: usize,
 }
 
+/// Opt-in flat groups containing prepared opaque hosts, calls or both. The
+/// operation must borrow the original native payload/declaration, not a fabricated
+/// look-alike key. Pair admission must corroborate that exact effect/operation/row
+/// result under current native policy, including atomic eligibility and hidden
+/// graph bounds. Type observation is not execution or reply acceptance.
+pub trait HostGroupFlowEnvironment<
+    'expression,
+    'schema,
+    Field,
+    Operation,
+    ResultDeclaration,
+    HostEffect,
+    IrResult,
+>:
+    HostFlowEnvironment<'expression, 'schema, Field, Operation, ResultDeclaration, HostEffect>
+    + GroupFlowEnvironment<'expression, 'schema, Field, Operation, ResultDeclaration, IrResult>
+{
+    fn host_group_operation(
+        &self,
+        effect: &'expression HostEffect,
+    ) -> Option<&'expression Operation>;
+    fn admit_host_group_operation(
+        &self,
+        effect: &'expression HostEffect,
+        operation: &'expression Operation,
+        declaration: &'schema ResultDeclaration,
+    ) -> bool;
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct HostGroupFlowTypeLimits {
+    pub group: GroupFlowTypeLimits,
+    pub max_hosts: usize,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GroupTypeError {
     GroupLimit,
@@ -108,6 +165,19 @@ pub enum GroupTypeError {
     },
     InconsistentOperation {
         branch_index: usize,
+    },
+    MissingOperation {
+        branch_index: usize,
+        host_index: usize,
+    },
+    HostSchema {
+        branch_index: usize,
+        host_index: usize,
+        error: CallTypeError,
+    },
+    HostDeclaration {
+        branch_index: usize,
+        host_index: usize,
     },
     BranchType {
         branch_index: usize,
@@ -126,6 +196,13 @@ pub enum CallFlowTypeError {
     InvalidLimits,
     UnsupportedFlow,
     CallLimit,
+    HostLimit,
+    HostAdmission {
+        host_index: usize,
+    },
+    HostResultType {
+        host_index: usize,
+    },
     Structure(StructureError),
     Pure(PureTypeError),
     ConditionType,
@@ -151,6 +228,11 @@ impl fmt::Display for CallFlowTypeError {
                 formatter.write_str("call flow does not adapt opaque effects or groups")
             }
             Self::CallLimit => formatter.write_str("call flow cold call count exceeds its limit"),
+            Self::HostLimit => formatter.write_str("host flow cold host count exceeds its limit"),
+            Self::HostAdmission { .. } => {
+                formatter.write_str("opaque host type admission rejected")
+            }
+            Self::HostResultType { .. } => formatter.write_str("opaque host has no query type"),
             Self::Structure(_) => formatter.write_str("call flow structure exceeds its limits"),
             Self::Pure(error) => error.fmt(formatter),
             Self::ConditionType => formatter.write_str("call flow condition must be boolean"),
@@ -203,13 +285,65 @@ pub(crate) fn group_flow_nodes_only<Field, Operation, HostEffect, IrResult>(
     group
 }
 
+pub(crate) fn host_flow_nodes_only<Field, Operation, HostEffect, IrResult>(
+    expression: &Node<Field, Operation, HostEffect, IrResult>,
+    supported: impl Fn(&HostEffect) -> bool,
+) -> bool {
+    let mut pending = vec![expression];
+    let mut host = false;
+    while let Some(node) = pending.pop() {
+        match node {
+            Computation::Group { .. } => return false,
+            Computation::Host { effect } => {
+                if !supported(effect) {
+                    return false;
+                }
+                host = true;
+            }
+            _ => {}
+        }
+        pending.extend(node.children().rev());
+    }
+    host
+}
+
+pub(crate) fn host_group_flow_nodes_only<Field, Operation, HostEffect, IrResult>(
+    expression: &Node<Field, Operation, HostEffect, IrResult>,
+    supported: impl Fn(&HostEffect) -> bool,
+) -> bool {
+    let mut pending = vec![expression];
+    let mut group = false;
+    let mut host = false;
+    while let Some(node) = pending.pop() {
+        match node {
+            Computation::Group { .. } => group = true,
+            Computation::Host { effect } => {
+                if !supported(effect) {
+                    return false;
+                }
+                host = true;
+            }
+            _ => {}
+        }
+        pending.extend(node.children().rev());
+    }
+    group && host
+}
+
+#[derive(Clone, Copy)]
+enum AtomicSite {
+    Call(usize),
+    Host(usize),
+}
+
 struct GroupShape {
-    calls: Vec<std::ops::Range<usize>>,
+    leaves: Vec<Vec<AtomicSite>>,
 }
 
 struct Preflight<'expression, Field, Operation, HostEffect, IrResult> {
     calls: Vec<&'expression Node<Field, Operation, HostEffect, IrResult>>,
     groups: Vec<GroupShape>,
+    hosts: Vec<&'expression HostEffect>,
 }
 
 fn preflight<'expression, Field, Operation, HostEffect, IrResult, ResultTag>(
@@ -217,8 +351,11 @@ fn preflight<'expression, Field, Operation, HostEffect, IrResult, ResultTag>(
     bindings: &[(&str, PureType<ResultTag>)],
     limits: CallFlowTypeLimits,
     group_limits: Option<GroupFlowTypeLimits>,
+    host_limit: Option<usize>,
 ) -> Result<Preflight<'expression, Field, Operation, HostEffect, IrResult>, CallFlowTypeError> {
-    if limits.call.max_arguments > MAX_CALL_ARGUMENTS || limits.max_calls > MAX_TYPE_INFERENCE_NODES
+    if limits.call.max_arguments > MAX_CALL_ARGUMENTS
+        || limits.max_calls > MAX_TYPE_INFERENCE_NODES
+        || host_limit.is_some_and(|limit| limit > MAX_TYPE_INFERENCE_NODES)
     {
         return Err(CallFlowTypeError::InvalidLimits);
     }
@@ -233,6 +370,7 @@ fn preflight<'expression, Field, Operation, HostEffect, IrResult, ResultTag>(
     let mut pending = vec![(expression, 0)];
     let mut calls = Vec::new();
     let mut groups = Vec::new();
+    let mut hosts = Vec::new();
     while let Some((node, depth)) = pending.pop() {
         match node {
             Computation::Call { arguments, .. } => {
@@ -323,15 +461,25 @@ fn preflight<'expression, Field, Operation, HostEffect, IrResult, ResultTag>(
                         return Err(failure(GroupTypeError::DuplicateName { branch_index }));
                     }
                 }
-                let mut ranges = Vec::with_capacity(branches.len());
+                let mut members = Vec::with_capacity(branches.len());
                 for (branch_index, branch) in branches.iter().enumerate() {
                     let start = calls.len();
-                    let prepared = preflight_call_leaves_with_budget(
-                        &branch.value,
-                        depth + 1,
-                        &mut budget,
-                        limits.call.max_arguments,
-                    )
+                    let prepared = if host_limit.is_some() {
+                        preflight_atomic_leaves_with_budget(
+                            &branch.value,
+                            depth + 1,
+                            &mut budget,
+                            limits.call.max_arguments,
+                            true,
+                        )
+                    } else {
+                        preflight_call_leaves_with_budget(
+                            &branch.value,
+                            depth + 1,
+                            &mut budget,
+                            limits.call.max_arguments,
+                        )
+                    }
                     .map_err(|error| match error {
                         PreparedCallTypeError::Call { call_index, error } => {
                             CallFlowTypeError::Call {
@@ -344,27 +492,52 @@ fn preflight<'expression, Field, Operation, HostEffect, IrResult, ResultTag>(
                             error,
                         }),
                     })?;
-                    if calls
-                        .len()
-                        .checked_add(prepared.len())
-                        .is_none_or(|count| count > limits.max_calls)
-                    {
-                        return Err(CallFlowTypeError::CallLimit);
+                    let mut leaves = Vec::with_capacity(prepared.len());
+                    for leaf in prepared {
+                        match leaf {
+                            Computation::Call { .. } => {
+                                if calls.len() >= limits.max_calls {
+                                    return Err(CallFlowTypeError::CallLimit);
+                                }
+                                leaves.push(AtomicSite::Call(calls.len()));
+                                calls.push(leaf);
+                            }
+                            Computation::Host { effect } => {
+                                if hosts.len() >= host_limit.unwrap_or(0) {
+                                    return Err(CallFlowTypeError::HostLimit);
+                                }
+                                leaves.push(AtomicSite::Host(hosts.len()));
+                                hosts.push(effect.as_ref());
+                            }
+                            _ => return Err(CallFlowTypeError::UnsupportedFlow),
+                        }
                     }
-                    calls.extend(prepared);
-                    ranges.push(start..calls.len());
+                    members.push(leaves);
                 }
-                groups.push(GroupShape { calls: ranges });
+                groups.push(GroupShape { leaves: members });
             }
-            Computation::Host { .. } => {
-                return Err(CallFlowTypeError::UnsupportedFlow);
+            Computation::Host { effect } => {
+                let Some(limit) = host_limit else {
+                    return Err(CallFlowTypeError::UnsupportedFlow);
+                };
+                budget
+                    .visit(depth, 0, 0)
+                    .map_err(CallFlowTypeError::Structure)?;
+                if hosts.len() >= limit {
+                    return Err(CallFlowTypeError::HostLimit);
+                }
+                hosts.push(effect.as_ref());
             }
             _ => {
                 preflight_with_budget(node, depth, &mut budget).map_err(CallFlowTypeError::Pure)?
             }
         }
     }
-    Ok(Preflight { calls, groups })
+    Ok(Preflight {
+        calls,
+        groups,
+        hosts,
+    })
 }
 
 struct SelectedCall<
@@ -384,6 +557,96 @@ struct Selections<'expression, 'schema, Operation, Schemas: PreparedCallSchemas<
     next: usize,
     groups: Vec<GroupShape>,
     next_group: usize,
+    group_operations: Vec<Vec<&'expression Operation>>,
+    host_count: usize,
+    next_host: usize,
+}
+
+trait HostPolicy<'expression, HostEffect, ResultType> {
+    fn admit(&self, effect: &'expression HostEffect) -> bool;
+    fn result_type(&self, effect: &'expression HostEffect) -> Option<PureType<ResultType>>;
+}
+
+struct NoHosts;
+impl<'expression, HostEffect, ResultType> HostPolicy<'expression, HostEffect, ResultType>
+    for NoHosts
+{
+    fn admit(&self, _: &'expression HostEffect) -> bool {
+        false
+    }
+    fn result_type(&self, _: &'expression HostEffect) -> Option<PureType<ResultType>> {
+        None
+    }
+}
+
+struct HostCallbacks<Admit, ResultType> {
+    admit: Admit,
+    result_type: ResultType,
+}
+impl<'expression, HostEffect: 'expression, ResultType, Admit, Query>
+    HostPolicy<'expression, HostEffect, ResultType> for HostCallbacks<Admit, Query>
+where
+    Admit: Fn(&'expression HostEffect) -> bool,
+    Query: Fn(&'expression HostEffect) -> Option<PureType<ResultType>>,
+{
+    fn admit(&self, effect: &'expression HostEffect) -> bool {
+        (self.admit)(effect)
+    }
+    fn result_type(&self, effect: &'expression HostEffect) -> Option<PureType<ResultType>> {
+        (self.result_type)(effect)
+    }
+}
+
+trait GroupHostPolicy<'expression, 'schema, Operation, HostEffect, Declaration> {
+    fn operation(&self, effect: &'expression HostEffect) -> Option<&'expression Operation>;
+    fn admit(
+        &self,
+        effect: &'expression HostEffect,
+        operation: &'expression Operation,
+        declaration: &'schema Declaration,
+    ) -> bool;
+}
+struct NoGroupHosts;
+impl<'e, 's, Operation, HostEffect, Declaration>
+    GroupHostPolicy<'e, 's, Operation, HostEffect, Declaration> for NoGroupHosts
+{
+    fn operation(&self, _: &'e HostEffect) -> Option<&'e Operation> {
+        None
+    }
+    fn admit(&self, _: &'e HostEffect, _: &'e Operation, _: &'s Declaration) -> bool {
+        false
+    }
+}
+struct GroupHostCallbacks<Operation, Admit> {
+    operation: Operation,
+    admit: Admit,
+}
+impl<'e, 's, Operation: 'e, HostEffect: 'e, Declaration: 's, Select, Admit>
+    GroupHostPolicy<'e, 's, Operation, HostEffect, Declaration>
+    for GroupHostCallbacks<Select, Admit>
+where
+    Select: Fn(&'e HostEffect) -> Option<&'e Operation>,
+    Admit: Fn(&'e HostEffect, &'e Operation, &'s Declaration) -> bool,
+{
+    fn operation(&self, effect: &'e HostEffect) -> Option<&'e Operation> {
+        (self.operation)(effect)
+    }
+    fn admit(
+        &self,
+        effect: &'e HostEffect,
+        operation: &'e Operation,
+        declaration: &'s Declaration,
+    ) -> bool {
+        (self.admit)(effect, operation, declaration)
+    }
+}
+
+struct FlowPolicies<'policy, Groups, Hosts, GroupHosts> {
+    group_limits: Option<GroupFlowTypeLimits>,
+    groups: &'policy Groups,
+    host_limit: Option<usize>,
+    hosts: &'policy Hosts,
+    group_hosts: &'policy GroupHosts,
 }
 
 trait GroupPolicy<'expression, Operation, IrResult, ResultType> {
@@ -444,6 +707,7 @@ fn infer<
     Schemas,
     Environment,
     Groups,
+    Hosts,
 >(
     expression: &'expression Node<Field, Operation, HostEffect, IrResult>,
     scope: &mut ScopeFrame<'_, 'expression, PureType<Environment::Result>>,
@@ -451,11 +715,13 @@ fn infer<
     selections: &mut Selections<'expression, 'schema, Operation, Schemas>,
     limits: CallFlowTypeLimits,
     groups: &Groups,
+    hosts: &Hosts,
 ) -> Result<PureType<Environment::Result>, CallFlowTypeError>
 where
     Schemas: PreparedCallSchemas<'schema, Operation>,
     Environment: CallFlowEnvironment<'schema, Field, Operation, Schemas::Result>,
     Groups: GroupPolicy<'expression, Operation, IrResult, Environment::Result>,
+    Hosts: HostPolicy<'expression, HostEffect, Environment::Result>,
 {
     match expression {
         Computation::Call {
@@ -487,12 +753,20 @@ where
             if scope.len() >= limits.call.pure.max_bindings {
                 return Err(CallFlowTypeError::Pure(PureTypeError::BindingLimit));
             }
-            let ty = infer(value, scope, environment, selections, limits, groups)?;
+            let ty = infer(value, scope, environment, selections, limits, groups, hosts)?;
             let mut local = scope.nested();
             local
                 .push(name, ty)
                 .map_err(|_| CallFlowTypeError::Pure(PureTypeError::ShadowedBinding))?;
-            infer(body, &mut local, environment, selections, limits, groups)
+            infer(
+                body,
+                &mut local,
+                environment,
+                selections,
+                limits,
+                groups,
+                hosts,
+            )
         }
         Computation::Choose {
             when,
@@ -504,8 +778,16 @@ where
             if when.scalar_type() != Some(ScalarType::Boolean) {
                 return Err(CallFlowTypeError::ConditionType);
             }
-            let then = infer(then, scope, environment, selections, limits, groups)?;
-            let otherwise = infer(otherwise, scope, environment, selections, limits, groups)?;
+            let then = infer(then, scope, environment, selections, limits, groups, hosts)?;
+            let otherwise = infer(
+                otherwise,
+                scope,
+                environment,
+                selections,
+                limits,
+                groups,
+                hosts,
+            )?;
             match (then, otherwise) {
                 (PureType::Scalar(left), PureType::Scalar(right)) if left == right => {
                     Ok(PureType::Scalar(left))
@@ -525,21 +807,29 @@ where
             selections.next_group += 1;
             let mut members = Vec::with_capacity(branches.len());
             for (branch_index, branch) in branches.iter().enumerate() {
-                let Some(range) = selections
+                let Some(leaves) = selections
                     .groups
                     .get(group_index)
-                    .and_then(|shape| shape.calls.get(branch_index))
+                    .and_then(|shape| shape.leaves.get(branch_index))
                 else {
                     return Err(CallFlowTypeError::UnsupportedFlow);
                 };
-                let start = range.start;
-                if selections.next != start {
+                let at_start = match leaves.first() {
+                    Some(AtomicSite::Call(index)) => selections.next == *index,
+                    Some(AtomicSite::Host(index)) => selections.next_host == *index,
+                    None => false,
+                };
+                if !at_start {
                     return Err(CallFlowTypeError::UnsupportedFlow);
                 }
-                let Some(selected) = selections.calls.get(start) else {
+                let Some(operation) = selections
+                    .group_operations
+                    .get(group_index)
+                    .and_then(|members| members.get(branch_index))
+                    .copied()
+                else {
                     return Err(CallFlowTypeError::UnsupportedFlow);
                 };
-                let operation = selected.operation;
                 let inferred = infer(
                     &branch.value,
                     scope,
@@ -547,6 +837,7 @@ where
                     selections,
                     limits,
                     groups,
+                    hosts,
                 )?;
                 if !groups.matches(&branch.result_type, &inferred) {
                     return Err(CallFlowTypeError::Group {
@@ -568,7 +859,16 @@ where
                     error: GroupTypeError::ResultType,
                 })
         }
-        Computation::Host { .. } => Err(CallFlowTypeError::UnsupportedFlow),
+        Computation::Host { effect } => {
+            let host_index = selections.next_host;
+            if host_index >= selections.host_count {
+                return Err(CallFlowTypeError::UnsupportedFlow);
+            }
+            selections.next_host += 1;
+            hosts
+                .result_type(effect)
+                .ok_or(CallFlowTypeError::HostResultType { host_index })
+        }
         _ => infer_in_scope(
             expression,
             scope,
@@ -643,18 +943,23 @@ where
     Schemas: PreparedCallSchemas<'schema, Operation>,
     Environment: CallFlowEnvironment<'schema, Field, Operation, Schemas::Result>,
 {
-    infer_with_groups(
+    infer_with_policies(
         expression,
         bindings,
         environment,
         schemas,
         limits,
-        None,
-        &NoGroups,
+        FlowPolicies {
+            group_limits: None,
+            groups: &NoGroups,
+            host_limit: None,
+            hosts: &NoHosts,
+            group_hosts: &NoGroupHosts,
+        },
     )
 }
 
-fn infer_with_groups<
+fn infer_with_policies<
     'expression,
     'schema,
     Field,
@@ -664,21 +969,30 @@ fn infer_with_groups<
     Schemas,
     Environment,
     Groups,
+    Hosts,
+    GroupHosts,
 >(
     expression: &'expression Node<Field, Operation, HostEffect, IrResult>,
     bindings: &[(&'expression str, PureType<Environment::Result>)],
     environment: &Environment,
     schemas: &Schemas,
     limits: CallFlowTypeLimits,
-    group_limits: Option<GroupFlowTypeLimits>,
-    groups: &Groups,
+    policies: FlowPolicies<'_, Groups, Hosts, GroupHosts>,
 ) -> Result<PureType<Environment::Result>, CallFlowTypeError>
 where
     Schemas: PreparedCallSchemas<'schema, Operation>,
     Environment: CallFlowEnvironment<'schema, Field, Operation, Schemas::Result>,
     Groups: GroupPolicy<'expression, Operation, IrResult, Environment::Result>,
+    Hosts: HostPolicy<'expression, HostEffect, Environment::Result>,
+    GroupHosts: GroupHostPolicy<'expression, 'schema, Operation, HostEffect, Schemas::Result>,
 {
-    let physical = preflight(expression, bindings, limits, group_limits)?;
+    let physical = preflight(
+        expression,
+        bindings,
+        limits,
+        policies.group_limits,
+        policies.host_limit,
+    )?;
     let mut selected = Vec::with_capacity(physical.calls.len());
     for (call_index, call) in physical.calls.iter().enumerate() {
         let Computation::Call {
@@ -706,24 +1020,78 @@ where
             schema,
         });
     }
-    for (group_index, group) in physical.groups.iter().enumerate() {
-        for (branch_index, range) in group.calls.iter().enumerate() {
-            let Some(calls) = selected.get(range.clone()) else {
-                return Err(CallFlowTypeError::UnsupportedFlow);
-            };
-            let Some(first) = calls.first() else {
-                return Err(CallFlowTypeError::UnsupportedFlow);
-            };
-            if calls
-                .iter()
-                .any(|call| !std::ptr::eq(first.schema, call.schema))
-            {
-                return Err(CallFlowTypeError::Group {
-                    group_index,
-                    error: GroupTypeError::InconsistentOperation { branch_index },
-                });
-            }
+    for (host_index, effect) in physical.hosts.iter().enumerate() {
+        if !policies.hosts.admit(effect) {
+            return Err(CallFlowTypeError::HostAdmission { host_index });
         }
+    }
+    let mut group_operations = Vec::with_capacity(physical.groups.len());
+    for (group_index, group) in physical.groups.iter().enumerate() {
+        let mut operations = Vec::with_capacity(group.leaves.len());
+        for (branch_index, leaves) in group.leaves.iter().enumerate() {
+            let failure = |error| CallFlowTypeError::Group { group_index, error };
+            let mut original_row: Option<SelectedPreparedCall<'schema, Operation, Schemas>> = None;
+            let mut original_operation = None;
+            for site in leaves {
+                let (operation, schema) = match *site {
+                    AtomicSite::Call(index) => {
+                        let call = selected
+                            .get(index)
+                            .ok_or(CallFlowTypeError::UnsupportedFlow)?;
+                        (call.operation, call.schema)
+                    }
+                    AtomicSite::Host(host_index) => {
+                        let effect = physical
+                            .hosts
+                            .get(host_index)
+                            .copied()
+                            .ok_or(CallFlowTypeError::UnsupportedFlow)?;
+                        let operation =
+                            policies.group_hosts.operation(effect).ok_or_else(|| {
+                                failure(GroupTypeError::MissingOperation {
+                                    branch_index,
+                                    host_index,
+                                })
+                            })?;
+                        let schema = schemas.select(operation).map_err(|error| {
+                            failure(GroupTypeError::HostSchema {
+                                branch_index,
+                                host_index,
+                                error: CallTypeError::Catalog(error),
+                            })
+                        })?;
+                        if schema.parameters.len() > limits.call.max_arguments {
+                            return Err(failure(GroupTypeError::HostSchema {
+                                branch_index,
+                                host_index,
+                                error: CallTypeError::ParameterLimit,
+                            }));
+                        }
+                        if !policies
+                            .group_hosts
+                            .admit(effect, operation, &schema.result)
+                        {
+                            return Err(failure(GroupTypeError::HostDeclaration {
+                                branch_index,
+                                host_index,
+                            }));
+                        }
+                        (operation, schema)
+                    }
+                };
+                if original_row.is_some_and(|row| !std::ptr::eq(row, schema)) {
+                    return Err(failure(GroupTypeError::InconsistentOperation {
+                        branch_index,
+                    }));
+                }
+                original_row = Some(schema);
+                if original_operation.is_none() {
+                    original_operation = Some(operation);
+                }
+            }
+            operations.push(original_operation.ok_or(CallFlowTypeError::UnsupportedFlow)?);
+        }
+        group_operations.push(operations);
     }
     let mut locals = bindings.to_vec();
     let mut scope = ScopeFrame::new(&mut locals);
@@ -732,6 +1100,9 @@ where
         next: 0,
         groups: physical.groups,
         next_group: 0,
+        group_operations,
+        host_count: physical.hosts.len(),
+        next_host: 0,
     };
     let result = infer(
         expression,
@@ -739,9 +1110,12 @@ where
         environment,
         &mut selections,
         limits,
-        groups,
+        policies.groups,
+        policies.hosts,
     )?;
-    if selections.next != selections.calls.len() || selections.next_group != selections.groups.len()
+    if selections.next != selections.calls.len()
+        || selections.next_group != selections.groups.len()
+        || selections.next_host != selections.host_count
     {
         return Err(CallFlowTypeError::UnsupportedFlow);
     }
@@ -829,13 +1203,162 @@ where
                 environment.group_result_type(kind, members)
             },
     };
-    infer_with_groups(
+    infer_with_policies(
         expression,
         bindings,
         environment,
         schemas,
         limits.flow,
-        Some(limits),
-        &policy,
+        FlowPolicies {
+            group_limits: Some(limits),
+            groups: &policy,
+            host_limit: None,
+            hosts: &NoHosts,
+            group_hosts: &NoGroupHosts,
+        },
+    )
+}
+
+/// Infer mixed opaque Host/Call Bind/Choose dataflow over the original IR.
+///
+/// First checks the entire physical tree and prefix without native hooks. All
+/// cold call schemas/named shapes then finish, followed by once-per-leaf opaque
+/// admission in source order, before prefix type cloning or semantic queries.
+/// Result queries run once per reached typing leaf (including both Choose arms).
+/// Pure guards, arguments and projection/operator/loop/fold/recovery operands
+/// remain effect-free. Groups are deliberately unsupported by this entry point;
+/// existing call-only/group APIs continue to reject all opaque Host leaves.
+///
+/// Native payloads are borrowed without Clone/Debug/serde/Send bounds. Query
+/// identifiers alone retain PureTypeEnvironment's Clone/PartialEq requirements.
+/// Native admission must validate hidden graph bounds and exact schema/policy;
+/// the core cannot inspect an opaque graph. Callbacks may unwind or mutate state,
+/// which is not rolled back. Success describes declared types, never native
+/// execution eligibility, replies, a reusable authority certificate or a journal.
+pub fn infer_host_flow_type<
+    'expression,
+    'schema,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Schemas,
+    Environment,
+>(
+    expression: &'expression Node<Field, Operation, HostEffect, IrResult>,
+    bindings: &[(&'expression str, PureType<Environment::Result>)],
+    environment: &Environment,
+    schemas: &Schemas,
+    limits: HostFlowTypeLimits,
+) -> Result<PureType<Environment::Result>, CallFlowTypeError>
+where
+    Schemas: PreparedCallSchemas<'schema, Operation>,
+    Environment:
+        HostFlowEnvironment<'expression, 'schema, Field, Operation, Schemas::Result, HostEffect>,
+{
+    let hosts = HostCallbacks {
+        admit: |effect: &'expression HostEffect| environment.admit_host(effect),
+        result_type: |effect: &'expression HostEffect| environment.host_result_type(effect),
+    };
+    infer_with_policies(
+        expression,
+        bindings,
+        environment,
+        schemas,
+        limits.flow,
+        FlowPolicies {
+            group_limits: None,
+            groups: &NoGroups,
+            host_limit: Some(limits.max_hosts),
+            hosts: &hosts,
+            group_hosts: &NoGroupHosts,
+        },
+    )
+}
+
+/// Infer flat prepared mixed Host/Call groups and surrounding result dataflow.
+///
+/// This opt-in entry reuses the existing physical walk, lexical inference and
+/// closed group exports. Every member must end in one atomic leaf on each cold
+/// path after pure Bind/Choose preparation. Nested groups, captures in preparation,
+/// scalar exits and impure guards/operands remain rejected. Sequence/Parallel
+/// arity and all explicit cold host/call/group/member limits remain inclusive.
+///
+/// Whole physical/prefix checks and all call schemas finish before host hooks.
+/// Each Host is admitted once; group hosts then map once to a borrowed original
+/// operation, select a current schema and corroborate the exact native pair.
+/// Every conditional leaf must select the same original schema row, not merely
+/// equal result tags. All these checks precede prefix cloning and semantic type
+/// queries. The host still bounds hidden graphs and native callback work; a Host
+/// node is not a graph certificate. All native slots remain nonclone-capable.
+///
+/// Original branch declarations are checked before one ordered closed group type
+/// is constructed. No partial members are published, no effects dispatched and
+/// no callback work rolled back or retried on failure/unwind. This is flat mixed
+/// group typing, not execution classification, reply acceptance, nested native
+/// graph compilation, a durable continuation or reusable authority certificate.
+pub fn infer_host_group_flow_type<
+    'expression,
+    'schema,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Schemas,
+    Environment,
+>(
+    expression: &'expression Node<Field, Operation, HostEffect, IrResult>,
+    bindings: &[(&'expression str, PureType<Environment::Result>)],
+    environment: &Environment,
+    schemas: &Schemas,
+    limits: HostGroupFlowTypeLimits,
+) -> Result<PureType<Environment::Result>, CallFlowTypeError>
+where
+    Schemas: PreparedCallSchemas<'schema, Operation>,
+    Environment: HostGroupFlowEnvironment<
+            'expression,
+            'schema,
+            Field,
+            Operation,
+            Schemas::Result,
+            HostEffect,
+            IrResult,
+        >,
+{
+    let groups = GroupCallbacks {
+        matches: |declaration: &IrResult, inferred: &PureType<Environment::Result>| {
+            environment.group_branch_type_matches(declaration, inferred)
+        },
+        construct:
+            |kind: GroupKind,
+             members: &[GroupMemberType<'expression, Operation, Environment::Result>]| {
+                environment.group_result_type(kind, members)
+            },
+    };
+    let hosts = HostCallbacks {
+        admit: |effect: &'expression HostEffect| environment.admit_host(effect),
+        result_type: |effect: &'expression HostEffect| environment.host_result_type(effect),
+    };
+    let group_hosts = GroupHostCallbacks {
+        operation: |effect: &'expression HostEffect| environment.host_group_operation(effect),
+        admit: |effect: &'expression HostEffect,
+                operation: &'expression Operation,
+                declaration: &'schema Schemas::Result| {
+            environment.admit_host_group_operation(effect, operation, declaration)
+        },
+    };
+    infer_with_policies(
+        expression,
+        bindings,
+        environment,
+        schemas,
+        limits.group.flow,
+        FlowPolicies {
+            group_limits: Some(limits.group),
+            groups: &groups,
+            host_limit: Some(limits.max_hosts),
+            hosts: &hosts,
+            group_hosts: &group_hosts,
+        },
     )
 }
