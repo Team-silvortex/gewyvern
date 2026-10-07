@@ -473,16 +473,64 @@ impl Computation {
         self.validate_in_group_scope(scope, &[])
     }
 
+    pub(super) fn validate_in_type_scope(
+        &self,
+        scope: &TypeScope<'_, '_>,
+    ) -> Result<Type, CanonicalSourceError> {
+        if scope.len() > crate::pure_typing::MAX_TYPE_INFERENCE_BINDINGS {
+            return Err(CanonicalSourceError::RoundTripMismatch);
+        }
+        let mut values = Vec::new();
+        let mut groups = Vec::new();
+        for (name, local) in scope.bindings() {
+            if let Some(members) = &local.members {
+                if members.is_empty() || members.len() > MAX_SEQUENCE_STEPS {
+                    return Err(CanonicalSourceError::RoundTripMismatch);
+                }
+                groups.push(GroupLocalType {
+                    name: (*name).to_owned(),
+                    members: members.clone(),
+                });
+            } else {
+                values.push(((*name).to_owned(), local.ty));
+            }
+        }
+        self.validate_scoped(
+            &values,
+            &groups,
+            crate::pure_typing::MAX_TYPE_INFERENCE_BINDINGS,
+            0,
+            MAX_SEQUENCE_STEPS,
+        )
+    }
+
     /// Revalidates a residual body using closed, statically named group-member signatures.
     pub fn validate_in_group_scope(
         &self,
         scope: &[(String, Type)],
         groups: &[GroupLocalType],
     ) -> Result<Type, CanonicalSourceError> {
+        self.validate_scoped(
+            scope,
+            groups,
+            MAX_EFFECT_NESTING_DEPTH,
+            scope.len().saturating_add(groups.len()),
+            MAX_SEQUENCE_STEPS - 1,
+        )
+    }
+
+    fn validate_scoped(
+        &self,
+        scope: &[(String, Type)],
+        groups: &[GroupLocalType],
+        max_bindings: usize,
+        root_depth: usize,
+        max_group_members: usize,
+    ) -> Result<Type, CanonicalSourceError> {
         validate_shape(self)?;
         let mut names = HashSet::new();
         let scope_len = scope.len().saturating_add(groups.len());
-        if scope_len > MAX_EFFECT_NESTING_DEPTH
+        if scope_len > max_bindings
             || scope
                 .iter()
                 .any(|(name, _)| !valid_local(name) || !names.insert(name))
@@ -491,7 +539,7 @@ impl Computation {
                 !valid_local(&group.name)
                     || !names.insert(&group.name)
                     || group.members.is_empty()
-                    || group.members.len() >= MAX_SEQUENCE_STEPS
+                    || group.members.len() > max_group_members
                     || group.members.iter().any(|(name, _)| {
                         name.is_empty()
                             || name.len() > MAX_BRANCH_NAME_BYTES
@@ -526,7 +574,7 @@ impl Computation {
             .collect();
         let mut lexical = ScopeFrame::new(&mut bindings);
         let (roundtrip, ty) =
-            lower_expression(&function.body, &mut lexical, &mut visited, scope_len)
+            lower_expression(&function.body, &mut lexical, &mut visited, root_depth)
                 .map_err(CanonicalSourceError::InvalidEffect)?;
         if roundtrip != *self {
             return Err(CanonicalSourceError::RoundTripMismatch);

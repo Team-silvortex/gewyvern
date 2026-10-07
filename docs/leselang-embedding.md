@@ -2475,6 +2475,123 @@ composition with unchanged result, exact interpreter fuel and lexical cleanup.
 Full effectful helper source lowering, generic host-result bind source, registry
 lifecycle, opaque flow typing and complete suspension ownership remain pending.
 
+### Shared Helper Body Source Preparation
+
+`helper_body_source::lower_helper_body` prepares one original borrowed function
+declaration through explicit native recursion and shared body admission. It is
+**helper source preparation, not a complete independent compiler**. Declaration
+selection, entry/builtin policy, dependency planning and registry lifecycle remain
+caller-owned; native lowering and opaque type/schema rules remain host policy.
+
+**The core owns the exact scalar signature**. All source/output/cost ceilings,
+the declaration name, six closed scalar tokens, declaration-order parameters and
+parameter-prefix capacity pass before callbacks. The lowerer receives the original
+Function and borrowed parameter names, not an invented or normalized signature.
+Its output contains an expression, native return observation and optional scalar
+category, but cannot replace the parameters. Only the core materializes bounded
+declaration names into the admitted template signature.
+
+**Whole cold source checks precede native lowering**. The public entry bounds all
+physical AST nodes, depth, nested call arity, identifier names and literal text,
+including unused branches and zero-limit controls. Inclusive ceilings are 16,384
+nodes, depth 64, 64 call arguments, 1,024 bindings and eight scalar parameters.
+Source shape and generated-template/cost policies are separate; explicit zero
+policies do not silently inherit defaults. Aggregate ingress bytes, parser/span
+authenticity, operation authorization and native callback work remain host-owned.
+
+**One original source counter crosses body recursion and admission**. The lowerer
+runs once with the original mutable counter and must recursively charge that same
+counter, seed exactly the declared scalar prefix, and reject every cold capture
+or denied operation. A successful over-limit callback fails before admission.
+There is no copied meter, precharge estimate, hidden refund or retry. Counter bounds
+are not proof that a trusted native lowerer faithfully traversed the source.
+
+The resulting owned IR goes through `LoweredHelperBody::prepare`: whole physical
+and lexical output checks, independent pure-return inference, **one native
+corroboration**, then original native source-cost measurement. Native validation
+must corroborate actual return metadata/category, canonical bytes and all cold
+opaque effects/schemas. Original native slots, Boxes and result buffers move
+unchanged without native Clone/Debug/serde/Send requirements. No body copy, partial
+cache entry, execution grant, fuel, dispatch or suspension state is created.
+Errors retain native payloads for matching, never formatting or source chains.
+Failure/unwind releases owned output but does not undo earlier native work or
+source charges; input allocation, interior mutation, Drop and unwind remain trusted.
+
+The product helper compiler now delegates source preparation to this shared
+pipeline. Its private preflighted entry relies on the existing declaration/parser
+boundary and retains recursive diagnostic priority rather than rerunning public
+cold lexical checks ahead of older errors. It still shares all header/counter and
+output admission gates, exact parameter seeding, canonical return corroboration
+and body+cost storage. Ready helpers lower before the next dependency observation.
+Existing diagnostics, spans, wire formats and capability checks remain unchanged.
+
+An unrelated scalar host proves declaration -> body preparation -> instance
+completion -> evaluation: body accounting advances 10 -> 13, a distinct caller's
+already charged call/operand counter advances 2 -> 6, the result is 42 and fuel
+advances 100 -> 95 with the caller prefix restored. Move-only native proofs cover
+original declaration/parameter/Box/result identity, once callbacks, private errors,
+unwind and no source-budget refund. Generic recursive leaf lowering, opaque flow
+typing, native storage lifecycle and durable suspension ownership remain open.
+
+### Shared Helper Registry Assembly
+
+`helper_registry::assemble_helper_registry` assembles all admitted helpers around
+an **owned caller-supplied registry state**. It reuses the original borrowed
+declaration observation and its designated entry name, which need not be `main`.
+The entry is neither prepared nor registered here. Concrete storage, lookup,
+generated-name reservations, source fidelity and complete native policy remain
+explicit host choices; no second registry implementation or global cache is made.
+
+**Prepare and register one ready helper before advancing**. Dependency/template/
+source-cost safety ceilings pass before callbacks. Complete physical helper source
+and entry-call checks precede the first native preparation. The dependency cursor
+selects the lexically smallest ready declaration; each current scalar prefix then
+passes parameter and binding limits before once preparation. Only after successful
+registration does the cursor advance. A ready helper's native error keeps priority
+over a later dependency cycle. No eager order collection, pruning of unused
+helpers, unknown-call authorization, skip/resume or default policy is installed.
+
+**Registration requires the exact original declaration signature**. Prepared
+body parameters must match names, types and order, not merely arity or a reported
+return type. Current complete physical/lexical template bounds and cached source
+cost limits pass before the storage callback, with depth checked before nodes.
+Registration receives the original borrowed Function and the original owned
+HelperBody, with body and cost still paired. Native Boxes, signature/result buffers
+and state allocations are not implicitly copied or remapped; no native/state
+Clone/Debug/serde/Send requirements are imposed.
+
+**Return owned state only after complete assembly**. A preparation, signature,
+shape, cost, registration or late-cycle failure returns no partial registry state.
+Error/unwind releases core-owned state and unregistered output without retries,
+native payload formatting/source chains or hidden reservation refunds. This is
+**not transactional rollback of external storage or native side effects**. State
+may contain trusted interior mutability or caller-created aliases; callbacks and
+Drop can mutate external state. Native allocation, work, mutation and unwind remain
+host responsibilities. No execution grants, fuel, dispatch or durable journal are
+created, and callbacks must not publish execution authority.
+
+Preparation must freshly corroborate faithful source accounting and every cold
+native type/schema/canonical policy. Stored result/cost observations are not live
+certificates; materialized copies and dispatch still require fresh validation.
+Existing state entries acquire no implicit admission from this assembly API.
+
+The product compiler now delegates dependency-ordered registry assembly to this
+shared entry. Its original local template storage and name allocator move through
+both callbacks unchanged. Shared helper-body source preparation and native return/
+canonical checks remain in preparation; actual cache insertion is the explicit
+registration callback. Only a complete returned state reaches main lowering.
+Existing diagnostics, spans, wire formats and cold capability policy are retained.
+
+An unrelated scalar host proves declarations -> registry assembly -> helper-body
+source preparation -> instance completion -> entry evaluation. `base`, `plus`,
+then caller-owned `boot` record exact source charges 1, 4, 4; the result is 42,
+fuel advances 100 -> 97 and the evaluation prefix is restored. Move-only native
+proofs cover original body/state buffers, exact signatures, current limits, once
+ordering, private errors, unwind and late-cycle cleanup without refunds. This is
+**shared registry orchestration, not complete generic recursive compilation**;
+generic leaf lowering, opaque flow typing, native storage lifecycle and durable
+suspension ownership remain open.
+
 ### Shared Source Cost Measurement
 
 `source_cost::measure_source_cost` measures the original borrowed language IR with
@@ -2789,6 +2906,341 @@ unwind and cancellation. This is **in-memory accepted binding re-entry, not a
 complete generic compiler or durable VM**. It does not add sequence aggregation,
 parallel barriers, opaque-host source typing or persistent continuation layouts.
 
+### Shared Borrowed Control Sessions
+
+`effect_session::EffectSession` ties the shared effect walker, `PendingReply` and
+accepted binding re-entry into **one owned-fuel in-memory control session**. It
+borrows immutable native IR and owns initial variables, pending/accepted captures
+and received input. It neither translates the IR nor replaces the reference VM,
+journal or group scheduler. Native data needs no Clone/Debug/serde/Send/Sync bound;
+result views retain the pure executor's explicit Clone contract for local reads.
+Unsized original native domains and GUI-local borrowed dispatch are supported.
+
+`new` only stores IR and moves variables/fuel; it runs no callbacks and is not
+admission or an ingress bound. The first `poll` uses the shared whole physical,
+prefix and all-cold native preflight before execution and fuel. Selected request
+preparation is still non-dispatching. `correlate_request` must recheck live policy,
+retain the exact original result domain, encode owner/generation/site identity
+and bound/charge native metadata work. The core installs that pending identity
+before returning the consumed dispatch payload once. Hosts actually invoke it.
+
+**Waiting and terminal polls are inert**: no callbacks, fuel debit or repeated
+request/value handoff. `try_accept` checks identity, live authority, borrowed view,
+type and native value; rejection returns the exact input and keeps waiting. Early,
+duplicate and terminal replies are returned unchanged without native callbacks.
+**Acceptance marks Ready but never restores, prepares or projects output**. The
+accepted input/frame stays owned by the session until the next explicit `poll`.
+Cancellation in this window releases it without executing a successor.
+
+A later ready `poll` reuses original-site binding restoration, or maps a final
+accepted native reply through `bind_reply`. Those hooks own live policy, mutable
+native views and result-view compatibility. Mapped scalar bounds precede final
+output handoff; one Value marks Completed, and later polls return only terminal
+metadata. Completed describes handoff, not an authentic receipt, a durable commit
+or proof that the caller consumed its result. Pure tails use the same session.
+
+**Close before callbacks and owned cleanup**. Preparation, correlation, restoration,
+projection or acceptance unwind seals HostUncertain. Owned initial-prefix drops
+finish before a request can become waiting; final identity drops finish before
+completion. Normal execution/fuel errors close Failed. Cancellation seals Cancelled
+before initial, pending or already accepted payload cleanup, preserving known
+terminal reasons even when native Drop unwinds. No implicit retry, fuel refill or
+refund exists. Debug/errors format only closed metadata, never native payloads.
+
+The parsed native binding proof now drives real read/write calls through this
+session without a caller-managed fuel meter or pending handle. Rejected identity
+retains the actual native reply; it is accepted, restored and used to write 42,
+with exact cumulative fuel. Cancelling after read acceptance never prepares or
+invokes write. A distinct GUI-local host moves a text input after borrowed native
+dispatch, reaches its pure tail, or cancels between acceptance and projection.
+Separate tests cover move-only native identity/IR/request/capture/input, unsized
+domains, pointer preservation, quotas, live revocation, every acceptance callback
+unwind, cleanup panic, final bounds, exhaustion and once-only output.
+
+This is **an in-memory borrowed control session, not a complete independent VM**.
+It adds no global deduplication, receipt provenance, background scheduling,
+parallel barrier, sequence result aggregation or durable restart. The host still
+bounds ingress/aggregate sessions/native work and owns cancellation delivery.
+Native mutation/allocation/Drop cannot be preempted or rolled back; a second panic
+in cleanup can abort. Complete generic source/opaque-host typing and durable
+continuation/recovery formats remain extraction gates, not implicitly completed.
+
+### Shared Recursive Native Control Source
+
+`control_source::lower_control_source` is one recursive **Bind/Choose composition
+entry around explicit native leaves**. It connects source control positions to
+the borrowed session without requiring hosts to manually chain separate binding
+and choice constructors. It does not replace the reference frontend or its VM.
+Scalar operands, fields, native calls, groups and helpers remain explicit leaf
+compilers; recursive control hidden inside a leaf is still that adapter's policy.
+
+**Whole cold checks precede every native hook**: physical source/literal bounds,
+reserved scalar, choice and projection signatures, bounded unique initial names and all
+bind/loop/fold lexical rules. Even an unselected branch cannot hide malformed
+names, shadowing, an excessive active scope or an invalid loop/fold literal limit.
+The shared ceilings remain 16,384 nodes, depth 64, 64 operands and 1,024 active
+names. Bounds apply before callbacks, not before the caller constructs the AST.
+
+**Borrow original native type observations, never clone a type frame**. A binding
+initializer sees only parents. Its body borrows that exact owned observation;
+sibling branches see only parents, and their local names cannot leak. The prefix
+and `ControlSourceScope` expose bounded read-only references, not native runtime
+locals, grants or automatically installed host frames. Native types may be
+non-Clone, non-Debug, non-PartialEq and GUI-local. Interior mutation remains trusted.
+
+Lowering is once-only in Value/Body and When/Then/Otherwise order, independent of
+named submission order or literal truth. **One aggregate shifted output budget
+retains future sibling roots** while checking original native leaf IR. Each shared
+constructor is charged once; native depth is not reset at a new control boundary.
+Conditions independently pass whole bounded pure IR checks before the native
+boolean hook, and an incorrect literal kind cannot be overridden. Branch type
+comparison is explicit and fallible; it cannot silently union group exports.
+
+**Whole-output native admission runs once before handoff**, only after every cold
+child fits. The mandatory `admit` hook corroborates original result observations,
+complete cold typing, versions/grants, opaque graphs and capture compatibility.
+It must reject physically valid but unsupported unfinished nested captures.
+Admission is neither dispatch nor a reply certificate. All native callbacks own
+work/allocation/hidden-expansion policy and cannot be preempted or rolled back.
+Physical accounting is not source-weight accounting, fuel or a native sandbox.
+
+The parsed counter proof now composes read, result-driven choice, another binding
+and a pure tail through this entry and the shared session. Actual read 41 selects
+write 42, then produces 43; the opposite branch writes 0 and produces 1. Only the
+selected native call runs, original catalog rows survive, exact cumulative fuel
+is preserved, wrong identity returns the original reply, and cancellation after
+read acceptance prevents write. Independent cold native typing rejects invalid
+arguments, incompatible branch types, wrong versions/grants and unfinished capture.
+
+Separate move-only tests cover original AST and buffer identity, native type
+borrows, sibling isolation, quota/minimum-root fences, shifted depth, all native
+error/unwind phases and observation cleanup panic. Failure/unwind publishes no
+partial tree, retries nothing and releases owned parts; a second cleanup panic
+can still abort. This is **source composition, not a complete independent compiler
+or durable VM**. Full leaf/helper/group compilation and opaque typing/recovery
+remain extraction gates; the product frontend and wire contracts are unchanged.
+
+### Shared Bound Native Projection Source
+
+`bound_projection_source::lower_bound_projection_source` consumes an explicit
+read-only prefix of borrowed `PureType` observations, directly compatible with
+`ControlSourceScope::bindings()`. It constructs **field/member access from the
+exact bound native result type**, not a second mutable name registry or implicit
+native result-copy factory. The existing projection entry still owns complex
+pure-input lowering; this entry intentionally requires a direct bound reference.
+
+**Missing or scalar bindings never query native exports**. Bound result metadata
+is borrowed unchanged into the explicit field/member hook. Hooks must corroborate
+the original schema/owner/version and exact closed exports; a Result observation
+alone is neither a group certificate nor permission to union look-alike schemas.
+Member queries receive both the original group observation and original AST names,
+and must reject non-groups. Native fields/operations and newly produced member type
+observations move unchanged, with no native Clone/PartialEq/Debug/serde/Send bound.
+
+**Cold projection metadata and minimum output bounds precede every query**. The
+whole source, field/member signatures and literal metadata, bounded unique prefix
+names and inclusive limits are checked first. Field output is exactly Field plus
+Local: two nodes at depth one. Member is one node at depth zero, without a fake
+Local or value-lowering callback. Name literals remain source metadata. Physical
+ceilings are unchanged; hidden native work/allocation and ingress remain host-owned.
+
+The recursive control source entry now checks every cold projection header before
+any native leaf runs, including projections hidden inside unselected branches or
+opaque extensions. Bad field literals/member references therefore fail before
+partial native compilation, not only when that individual projection is lowered.
+
+**Structured native reply to projected control is proven**. A distinct parsed
+device host compiles a record-returning read, binds its accepted native result,
+uses the record's boolean field to select a branch and its numeric field to build
+the selected write argument. Actual count 41 with ready=true writes 42; ready=false
+writes 0 without reading the numeric field. Original catalog/result-domain/layout
+identity and cumulative fuel 100 -> 98 -> 90 or 93 are retained. Incoming input is
+move-only, and field reads clone only an explicit Rc view, not the native snapshot.
+The snapshot is released after parameter preparation. Acceptance does not project
+fields, and cancellation after acceptance releases input without projection/write.
+
+Wrong identities preserve the original input buffer; a foreign record layout is
+rejected by the original native domain. Whole native typing rejects missing fields,
+unbound/scalar aliases, wrong cold parameter types and missing versions/grants
+before any actual call. Post-acceptance grant revocation or native view/schema
+identity changes close Failed before field observation/write, without retry.
+Separate two-schema tests cover all six scalar exports,
+exact group observations, original name/type/slot pointers, quotas, zero/exact
+output limits and native query error/unwind without dropping the borrowed prefix.
+
+This is **bound type-directed projection construction, not result acceptance or a
+complete independent compiler**. Full cold inference/admission, actual value/view
+compatibility, live authority, schema mutation and received-value policy remain
+native host gates. No source operation dispatches effects or grants authentic
+receipts. Errors format closed metadata, not private native payloads; errors/unwind
+publish no partial IR, retry nothing and cannot roll back native side effects.
+Native work/Drop cannot be preempted, and a second cleanup panic may abort. Complete
+helper/group compilation, opaque typing and durable restart remain extraction gates.
+
+### Shared Helper Source Instance
+
+`helper_instance::lower_helper_instance` combines the existing argument,
+expansion-reservation, template, hygiene and parameter-binding contracts for
+**one explicitly selected admitted helper body**. Selection borrows the original
+body and result observation; it is not another registry, native Clone ABI or
+complete declaration compiler. The product retains its recursive frontend and
+now shares the completion stage described below.
+
+**Current-limit cache checks precede argument callbacks**. Closed cached lexical
+shape, body/parameter/binding quotas and caller-reserved identifiers are checked
+first. Required named keys are aligned before any argument lowering. Operands
+compile once in parameter declaration order, borrowing original AST arguments,
+not submission order. Native callbacks own exact caller-scope cold scalar typing.
+Literal facts cannot be replaced by a forged scalar observation.
+
+**Combined output fits before materialization**. One shifted meter includes every
+parameter wrapper, original operand and cached body shape. Every cold operand
+lexical name joins the caller's explicit global/live-prefix reservations, including
+unused names. Fresh parameter and body aliases must avoid these names, original
+body names and each other; arguments are never renamed or substituted.
+
+**Source reservation commits before the single native factory**. The caller's
+counter must already include the original call and all operand source weights.
+Shared reservation adds only the cached source-weighted body and wrappers at the
+explicit caller depth; native operand-depth observations retain folded/opaque
+depth. Invalid reservation leaves the counter unchanged. Once committed, later
+copy, name, hygiene, wrapping or final admission failure/unwind never refunds it.
+Matching physical shape does not prove faithful native semantics or source cost.
+
+Materialization uses an explicit host copying/remapping policy, rechecks physical
+shape and closed lexical scope, then shared hygiene and wrappers move original
+operand slots/buffers unchanged. **Mandatory whole-output admission runs once**
+with the exact original borrowed result observation before handoff. Native types
+need no Clone/PartialEq/Debug/serde/Send. Errors retain matchable native payloads,
+but formatting and source chains expose only closed metadata. There is no dispatch,
+evaluation, receipt, retry, native rollback, fuel refund or persistent helper cache.
+
+A parsed unrelated helper with reordered arguments, a native field operand and a
+local temporary computes 13, observes its field once and restores the caller prefix.
+That host accepts only its exact declared record.count projection, never an unknown
+source/operation fallback or a field export from another binding.
+All six scalar results support zero-parameter instances. Tests retain exact source
+argument/result/native-buffer identity, inclusive joint output/source budgets,
+checked depth overflow, cold-name capture rejection, current-limit cache fencing,
+copy/name/admission error and unwind, same-shape cold type corruption, and once-only
+owned cleanup without dropping cached native payloads.
+
+This is **one helper instance, not a complete independent compiler**. Full source
+recursion, dependency-ordered body/return compilation, registry lifecycle, opaque
+native flow/cost validation, enclosing output/active-prefix limits and live schema,
+authority and result-view compatibility remain host/extraction gates. Host work,
+allocation, interior mutation and Drop cannot be preempted; bound ingress first,
+and a second cleanup panic may abort. Group execution and durable restart are not
+added by this entry.
+
+### Shared Staged Helper Instance Completion
+
+`helper_instance_finish::finish_helper_instance` completes declaration-ordered
+operands that the caller has already recursively compiled. **The reference helper
+frontend now uses this shared completion stage** instead of its separate expansion,
+copy, fresh-name, hygiene and parameter-wrapper pipeline. Cached storage retains
+the original admitted `HelperBody` and its cost together, rather than splitting
+template ownership from duplicate node/depth fields. The original source entry
+delegates to the same implementation without repeating its native argument hooks.
+
+**One original source counter crosses the recursive/completion boundary**.
+Operands, including nested calls to the same helper, finish compiling before the
+borrowed cached body is selected for completion. Their source costs are already in
+the caller counter; body and wrapper costs commit only once. No copied meter,
+precharge approximation, nested-helper ban, native body clone for lookup or second
+registry is introduced. Header/current-limit template checks still precede product
+argument callbacks, and lazy dependency order, diagnostics and fresh alias order
+remain unchanged for existing programs.
+
+**Complete cold output and all scalar facts precede native operand checks**.
+Exact operand count, cached physical/lexical shape, shifted joint output, caller
+prefix and every cold operand name are bounded first. Shared closed scalar/literal
+facts reject mismatches before any native operand hook. Each native operand then
+receives explicit once-only caller-scope admission in declaration order, including
+unused parameters. Their reported scalar observations are not type certificates;
+the host must infer exact actual types, closed exports, versions and live policy.
+All operand admissions precede depth observations and materialization.
+
+The product adapter retains both scalar/native-result bindings and exact named
+group-member signatures when corroborating operands and final output. The live
+prefix uses the language binding quota, not the expression's root depth; a test
+with nine cold nested folds and 18 caller bindings preserves valid compilation.
+The live group prefix also permits the full 64-member source signature, with
+exact last-member lookup rather than a narrowed recovery-only group limit.
+Existing public residual validation keeps its original quota/depth policy. Its original
+global alias allocator continues to protect unused global names, while the shared
+stage explicitly fences the active caller prefix and all operand names. Final
+native admission checks the whole renamed/wrapped tree against the exact original
+return observation; structural equality is not semantic or authority proof.
+
+Tests prove a move-only native field buffer and cached result observation are
+retained, a forged type on an unused native field is denied before depth/copy or
+commit, and wrong cold scalar facts invoke no native hooks. Explicit scalar host
+evaluation returns 42 with fuel 100 -> 95 and restores its caller prefix. Zero/exact
+joint limits, declaration order, atomic budget failure, argument/copy/admission
+error and unwind, no downstream refund, and zero-parameter completion are covered.
+Product nested same-helper operands and group-field arguments retain canonical
+round-trip bytes; malformed unused arguments retain LSH1504 and source spans.
+
+This is **staged instance completion, not a complete independent compiler**.
+Precompiled operands remain unchecked mutable IR with explicit observations;
+original source/selection/signature/order authenticity is caller policy. Complete
+generic helper body/leaf recursion, opaque typing/recovery and durable restart
+remain extraction gates. Native work, allocation, mutation and Drop are trusted,
+not fuel-preempted or sandboxed. Failures publish no partial instance, retry
+nothing, retain closed error formatting and cannot roll back host side effects;
+committed caller reservations remain charged, and a second cleanup panic may abort.
+
+### Shared Bounded Helper Return Join
+
+`helper_join::HelperJoin` combines owned normal-return planning, complete joined
+source-cost bounds, explicit continuation copying and mandatory final admission.
+**The product compiler now delegates return joining to this shared entry**; its
+canonical byte gate, LSH1503/LSH1405 diagnostics, native typing, wire contracts and
+live authority policy remain outside or in their original adapter gates.
+
+**Both cold inputs and combined folded weights precede native observation**.
+Physical shapes, closed lexical names, capture rules and every return route are
+checked first. Complete language/folded costs include each cold continuation copy,
+not just the selected branch. Independent physical and source ceilings remain
+inclusive 16,384 nodes and depth 64. Optional/list constructor weights are retained;
+they are not replaced by physical node counts. Enclosing expansion counters and
+canonical text bytes must still be checked by the caller before consuming the plan.
+
+**Original native cost hooks run once per Host occurrence**: value first, then
+continuation, each in rightmost-first DFS order. Return-depth calculations reuse
+only explicitly observed extra-cost metadata, keyed by the original language node.
+Zero-sized native payloads may share one address; their occurrences are never
+merged by native pointer identity. This bounded temporary cache is dropped before
+handoff, carries no payloads/grants and is not a persistent registry or reservation.
+
+`connect` consumes the plan once. Continuation factories run left-to-right once
+per normal return; each copy retains physical/name/capture checks. Joined language
+and folded source weights are rechecked before **mandatory whole-output admission
+runs once**, receiving the complete output and planned native-inclusive cost.
+Same physical shape, source counts or depth do not certify native/literal identity,
+typing, schema versions or grants. The host must corroborate faithful copies,
+bounded native graphs/costs, canonical bytes and live authority before execution.
+There is no implicit native copy, Clone/Debug/serde/Send requirement or extra IR.
+
+Tests cover zero/exact/overflow limits, bad cold inputs before hooks, combined
+folded costs, distinct zero-sized occurrences, shifted native depth, same-shape
+folded corruption and same-cost cold native grant corruption. A move-only host
+retains all four native slot types and original Boxes/vector/buffer identities.
+A distinct scalar host returns 42 with unchanged fuel, serialized language IR and
+caller prefix. A bounded return corpus matches fresh complete post-copy source
+measurements; existing product helper wire/capability/diagnostic proofs remain.
+
+This is **bounded return joining, not a complete independent compiler** or semantic
+certificate. Complete dependency/body/leaf lowering, opaque flow/recovery typing,
+group execution and durable restart remain extraction gates. The plan owns local
+counts, not a shared counter: caller reservations are neither altered nor refunded.
+No execution, dispatch, replay authority, retry or native rollback is added.
+Observation/copy/admission errors and unwind publish no partial IR and release
+consumed owned inputs once. Errors retain matchable native payloads but expose only
+closed formatting, not native source chains. Host work/allocation/interior mutation
+and Drop are trusted and cannot be preempted; a second cleanup panic may abort.
+
 ### Shared Accepted Scalar Contracts
 
 `ScalarTypeSet` is **explicit closed scalar-type alternatives** for native schemas.
@@ -3022,7 +3474,12 @@ owned sequential source composition with explicit child sequences and native adm
 owned repeat-sequence source assembly with complete forest reservations and positional admission,
 borrowed sequential reply sessions with once-ordered native request preparation,
 one owned fuel meter, reply-gated re-entry and cancellation, in-memory pending-reply handoff,
-and accepted binding re-entry with core-owned original sites and bounded native restoration.
+accepted binding re-entry with core-owned original sites and bounded native restoration,
+and borrowed control sessions owning fuel/pending/accepted input with explicit poll and once-only output,
+plus recursive Bind/Choose source composition with borrowed native type observations,
+one shifted output meter and mandatory whole-output admission.
+Bound native field/member source now borrows exact result observations from that
+prefix, with a parsed structured-reply field/branch/argument/cancel vertical.
 Full generic host-result/group child source compilation, complete helper body/return lowering and
 registry lifecycle/opaque-native cost observation and validation policy,
 opaque-effect typing/dispatch, complete suspension and durable

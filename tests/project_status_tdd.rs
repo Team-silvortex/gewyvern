@@ -459,6 +459,275 @@ fn leselang_computation_evidence_does_not_claim_durable_dataflow_completion() {
 }
 
 #[test]
+fn selected_helper_instances_are_tracked_as_shared_partial_compiler_capabilities() {
+    let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
+    catalog
+        .validate(repository_root())
+        .expect("catalog must validate");
+    for id in [
+        "leselang/language-hir/typed-effects",
+        "leselang/language-vm/host-neutral-embedding",
+    ] {
+        let cell = catalog
+            .cells
+            .iter()
+            .find(|cell| cell.id == id)
+            .expect("language cell must exist");
+        for surface in [
+            "shared-selected-helper-source-instance",
+            "current-limit-cached-template-check-before-argument-callbacks",
+            "whole-cold-operand-and-caller-name-reservations-before-hygiene",
+            "combined-helper-output-bound-before-native-materialization",
+            "committed-source-expansion-before-once-helper-copy-without-refund",
+            "mandatory-whole-instance-native-admission-with-original-result-observation",
+        ] {
+            assert!(
+                cell.contract
+                    .surfaces
+                    .iter()
+                    .any(|candidate| candidate == surface),
+                "missing {id}/{surface}"
+            );
+        }
+        for path in [
+            "crates/leselang-hir/src/helper_instance.rs",
+            "crates/leselang-hir/tests/helper_instance.rs",
+        ] {
+            assert!(
+                cell.evidence
+                    .iter()
+                    .any(|evidence| evidence.path == path
+                        && evidence.state == EvidenceState::Present)
+            );
+        }
+    }
+    let embedding = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(embedding.completion, 10);
+    assert_eq!(embedding.maturity, Maturity::Developing);
+    assert!(
+        embedding
+            .next_gate
+            .contains("one selected instance, not complete recursive helper compilation")
+    );
+}
+
+#[test]
+fn bounded_helper_return_joins_are_tracked_without_claiming_complete_extraction() {
+    let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
+    catalog
+        .validate(repository_root())
+        .expect("catalog must validate");
+    for id in [
+        "leselang/language-hir/typed-effects",
+        "leselang/language-vm/host-neutral-embedding",
+    ] {
+        let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
+        for surface in [
+            "shared-source-bounded-helper-return-join",
+            "whole-cold-joined-folded-weights-before-native-observation",
+            "once-original-host-cost-with-language-node-occurrence-identity",
+            "checked-native-inclusive-cold-continuation-source-bounds",
+            "post-copy-language-weight-check-before-whole-native-admission",
+            "reference-helper-return-compiler-delegation-with-unchanged-wire-authority",
+        ] {
+            assert!(
+                cell.contract
+                    .surfaces
+                    .iter()
+                    .any(|candidate| candidate == surface),
+                "missing {id}/{surface}"
+            );
+        }
+        for path in [
+            "crates/leselang-hir/src/helper_join.rs",
+            "crates/leselang-hir/tests/helper_join.rs",
+        ] {
+            assert!(
+                cell.evidence
+                    .iter()
+                    .any(|entry| entry.path == path && entry.state == EvidenceState::Present)
+            );
+        }
+    }
+    let embedding = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(embedding.maturity, Maturity::Developing);
+    assert_eq!(embedding.completion, 10);
+    assert_eq!(embedding.contract.stability, ContractStability::Draft);
+    assert!(
+        embedding
+            .next_gate
+            .contains("bounded joining, not complete recursive helper compilation")
+    );
+}
+
+#[test]
+fn staged_helper_completion_tracks_actual_product_delegation_without_full_extraction_claims() {
+    let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
+    catalog
+        .validate(repository_root())
+        .expect("catalog must validate");
+    for id in [
+        "leselang/language-hir/typed-effects",
+        "leselang/language-vm/host-neutral-embedding",
+    ] {
+        let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
+        for surface in [
+            "shared-staged-helper-instance-completion",
+            "original-recursive-source-counter-without-copied-meter",
+            "whole-cold-output-and-scalar-facts-before-operand-type-hooks",
+            "once-caller-scope-native-checks-for-unused-helper-operands",
+            "reference-helper-instance-compiler-delegation-with-admitted-body-cost-storage",
+            "exact-caller-group-prefix-and-whole-instance-return-corroboration",
+        ] {
+            assert!(
+                cell.contract
+                    .surfaces
+                    .iter()
+                    .any(|candidate| candidate == surface)
+            );
+        }
+        for path in [
+            "crates/leselang-hir/src/helper_instance_finish.rs",
+            "crates/leselang-hir/tests/helper_instance_finish.rs",
+        ] {
+            assert!(
+                cell.evidence
+                    .iter()
+                    .any(|entry| entry.path == path && entry.state == EvidenceState::Present)
+            );
+        }
+    }
+    let embedding = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(embedding.maturity, Maturity::Developing);
+    assert_eq!(embedding.completion, 10);
+    assert_eq!(embedding.contract.stability, ContractStability::Draft);
+    assert!(
+        embedding
+            .next_gate
+            .contains("staged completion, not complete independent helper compilation")
+    );
+}
+
+#[test]
+fn shared_helper_body_source_preparation_is_tracked_without_claiming_generic_recursion() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    catalog.validate(repository_root()).unwrap();
+    for id in [
+        "leselang/language-hir/typed-effects",
+        "leselang/language-vm/host-neutral-embedding",
+    ] {
+        let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
+        for surface in [
+            "shared-helper-body-source-preparation",
+            "core-owned-exact-declaration-scalar-signature",
+            "whole-cold-helper-source-before-once-native-lowering",
+            "original-source-counter-through-helper-body-recursion",
+            "once-native-body-corroboration-and-source-cost-before-storage",
+            "reference-helper-body-source-delegation-with-preserved-error-priority",
+        ] {
+            assert!(
+                cell.contract
+                    .surfaces
+                    .iter()
+                    .any(|candidate| candidate == surface)
+            );
+        }
+        for path in [
+            "crates/leselang-hir/src/helper_body_source.rs",
+            "crates/leselang-hir/tests/helper_body_source.rs",
+        ] {
+            assert!(
+                cell.evidence
+                    .iter()
+                    .any(|entry| entry.path == path && entry.state == EvidenceState::Present)
+            );
+        }
+    }
+    let embedding = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(embedding.maturity, Maturity::Developing);
+    assert_eq!(embedding.completion, 10);
+    assert_eq!(embedding.contract.stability, ContractStability::Draft);
+    assert!(
+        embedding
+            .next_gate
+            .contains("not a complete generic recursive compiler")
+    );
+}
+
+#[test]
+fn shared_owned_helper_registry_is_tracked_without_claiming_external_storage_rollback() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    catalog.validate(repository_root()).unwrap();
+    for id in [
+        "leselang/language-hir/typed-effects",
+        "leselang/language-vm/host-neutral-embedding",
+    ] {
+        let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
+        for surface in [
+            "shared-owned-helper-registry-assembly",
+            "lazy-ready-helper-prepare-register-before-next-dependency",
+            "exact-declaration-signature-before-native-helper-storage",
+            "current-template-and-cached-source-cost-registry-gates",
+            "owned-state-no-partial-handoff-on-late-cycle-or-native-failure",
+            "reference-helper-registry-compiler-delegation-with-explicit-native-storage",
+        ] {
+            assert!(
+                cell.contract
+                    .surfaces
+                    .iter()
+                    .any(|candidate| candidate == surface)
+            );
+        }
+        for path in [
+            "crates/leselang-hir/src/helper_registry.rs",
+            "crates/leselang-hir/tests/helper_registry.rs",
+        ] {
+            assert!(
+                cell.evidence
+                    .iter()
+                    .any(|entry| { entry.path == path && entry.state == EvidenceState::Present })
+            );
+        }
+    }
+    let embedding = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(embedding.maturity, Maturity::Developing);
+    assert_eq!(embedding.completion, 10);
+    assert_eq!(embedding.contract.stability, ContractStability::Draft);
+    for boundary in [
+        "prepare and register each helper before the next dependency",
+        "return the original owned state only after all helpers succeed",
+        "not transactional rollback of external storage or native side effects",
+        "shared registry orchestration, not complete generic recursive compilation",
+        "native recursive leaf/opaque flow typing",
+    ] {
+        assert!(
+            embedding.next_gate.contains(boundary),
+            "missing registry limit {boundary}"
+        );
+    }
+}
+
+#[test]
 fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     catalog
@@ -473,7 +742,7 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
     assert_eq!(cell.priority, Priority::Active);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
-    assert_eq!(cell.contract.version, "0.61.0");
+    assert_eq!(cell.contract.version, "0.69.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.independence, Independence::ReusableLibrary);
     assert!(cell.evidence.iter().any(|evidence| {
@@ -509,6 +778,16 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         "crates/leselang-hir/tests/helper_returns.rs",
         "crates/leselang-hir/src/helper_body.rs",
         "crates/leselang-hir/tests/helper_body.rs",
+        "crates/leselang-hir/src/helper_body_source.rs",
+        "crates/leselang-hir/tests/helper_body_source.rs",
+        "crates/leselang-hir/src/helper_registry.rs",
+        "crates/leselang-hir/tests/helper_registry.rs",
+        "crates/leselang-hir/src/helper_instance.rs",
+        "crates/leselang-hir/tests/helper_instance.rs",
+        "crates/leselang-hir/src/helper_join.rs",
+        "crates/leselang-hir/tests/helper_join.rs",
+        "crates/leselang-hir/src/helper_instance_finish.rs",
+        "crates/leselang-hir/tests/helper_instance_finish.rs",
         "crates/leselang-hir/src/group_exports.rs",
         "crates/leselang-hir/tests/group_exports.rs",
         "crates/leselang-hir/src/binding_source.rs",
@@ -527,6 +806,13 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         "crates/leselang-hir/tests/sequence_evaluation.rs",
         "crates/leselang-hir/src/effect_evaluation.rs",
         "crates/leselang-hir/src/effect_reentry.rs",
+        "crates/leselang-hir/src/effect_session.rs",
+        "crates/leselang-hir/tests/effect_session.rs",
+        "crates/leselang-hir/src/control_source.rs",
+        "crates/leselang-hir/tests/control_source.rs",
+        "crates/leselang-hir/src/bound_projection_source.rs",
+        "crates/leselang-hir/tests/bound_projection_source.rs",
+        "crates/leselang-hir/tests/bound_projection_session.rs",
         "crates/leselang-hir/tests/effect_evaluation.rs",
         "crates/leselang-hir/src/source_call.rs",
         "crates/leselang-hir/tests/source_call.rs",
@@ -774,6 +1060,24 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         "move-only-accepted-frame-without-rearm-retry-or-native-ir-copy",
         "parsed-native-binding-invocation-reply-restoration-and-exact-fuel-proof",
         "gui-local-unsized-domain-and-fail-closed-restoration-proof",
+        "shared-owned-fuel-borrowed-control-session",
+        "accepted-binding-and-final-reply-ready-before-explicit-poll",
+        "one-shot-native-request-and-final-value-handoff-without-waiting-replay",
+        "cancellation-of-initial-pending-and-accepted-native-state",
+        "fail-closed-control-correlation-restoration-and-prefix-cleanup-unwind",
+        "parsed-native-binding-session-final-output-and-cancellation-proof",
+        "shared-recursive-bind-choose-native-source-entry",
+        "all-cold-scalar-choice-lexical-policy-before-control-leaves",
+        "readonly-original-native-type-scope-without-clone-or-frame-mutation",
+        "aggregate-shifted-control-leaf-output-with-future-root-fences",
+        "once-whole-output-native-admission-before-source-handoff",
+        "parsed-native-control-branch-reply-session-pure-tail-and-cancel-proof",
+        "shared-bound-native-field-member-source",
+        "readonly-original-result-observation-before-export-query",
+        "no-name-only-registry-or-native-result-clone-for-bound-projections",
+        "cold-whole-control-projection-metadata-before-native-leaves",
+        "exact-field-local-and-member-only-output-budget",
+        "parsed-record-reply-field-branch-argument-and-cancellation-proof",
         "whole-cold-choice-signatures-before-native-child-hooks",
         "bounded-pure-when-before-explicit-boolean-corroboration",
         "aggregate-shifted-cold-branches-before-fallible-native-type-comparison",
@@ -1023,8 +1327,14 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         "bounded native sequential source composition",
         "owned repeat-sequence source assembly",
         "borrowed sequential reply sessions",
+        "recursive Bind/Choose source composition",
+        "bound native field/member source",
+        "post-acceptance authority/view-identity rejection before write",
+        "mandatory once-only whole-output native typing/schema/capture admission",
         "accepted binding re-entry with core-owned original borrowed name/body",
         "in-memory binding re-entry, not a complete generic compiler or durable VM",
+        "borrowed control sessions owning initial/pending/accepted native data",
+        "an in-memory borrowed control session, not a complete independent VM",
         "an in-memory sequential vertical slice, not a complete independent language/VM",
         "remaining complete generic host-result/group child source compilation",
         "independent pure scalar return corroboration",
@@ -9856,7 +10166,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leselang/language-hir/typed-effects")
         .expect("Leselang HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.111.0");
+    assert_eq!(hir.contract.version, "0.119.0");
     for surface in [
         "shared-scalar-choose-recover-and-list-source-construction",
         "cold-control-signatures-and-list-labels-before-source-extensions",
@@ -9956,6 +10266,24 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "move-only-accepted-frame-without-rearm-retry-or-native-ir-copy",
         "parsed-native-binding-invocation-reply-restoration-and-exact-fuel-proof",
         "gui-local-unsized-domain-and-fail-closed-restoration-proof",
+        "shared-owned-fuel-borrowed-control-session",
+        "accepted-binding-and-final-reply-ready-before-explicit-poll",
+        "one-shot-native-request-and-final-value-handoff-without-waiting-replay",
+        "cancellation-of-initial-pending-and-accepted-native-state",
+        "fail-closed-control-correlation-restoration-and-prefix-cleanup-unwind",
+        "parsed-native-binding-session-final-output-and-cancellation-proof",
+        "shared-recursive-bind-choose-native-source-entry",
+        "all-cold-scalar-choice-lexical-policy-before-control-leaves",
+        "readonly-original-native-type-scope-without-clone-or-frame-mutation",
+        "aggregate-shifted-control-leaf-output-with-future-root-fences",
+        "once-whole-output-native-admission-before-source-handoff",
+        "parsed-native-control-branch-reply-session-pure-tail-and-cancel-proof",
+        "shared-bound-native-field-member-source",
+        "readonly-original-result-observation-before-export-query",
+        "no-name-only-registry-or-native-result-clone-for-bound-projections",
+        "cold-whole-control-projection-metadata-before-native-leaves",
+        "exact-field-local-and-member-only-output-budget",
+        "parsed-record-reply-field-branch-argument-and-cancellation-proof",
         "whole-cold-choice-signatures-before-native-child-hooks",
         "bounded-pure-when-before-explicit-boolean-corroboration",
         "aggregate-shifted-cold-branches-before-fallible-native-type-comparison",
@@ -10207,6 +10535,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "crates/leselang-hir/tests/helper_returns.rs",
         "crates/leselang-hir/src/helper_body.rs",
         "crates/leselang-hir/tests/helper_body.rs",
+        "crates/leselang-hir/src/helper_body_source.rs",
+        "crates/leselang-hir/tests/helper_body_source.rs",
+        "crates/leselang-hir/src/helper_registry.rs",
+        "crates/leselang-hir/tests/helper_registry.rs",
+        "crates/leselang-hir/src/helper_instance.rs",
+        "crates/leselang-hir/tests/helper_instance.rs",
+        "crates/leselang-hir/src/helper_join.rs",
+        "crates/leselang-hir/tests/helper_join.rs",
+        "crates/leselang-hir/src/helper_instance_finish.rs",
+        "crates/leselang-hir/tests/helper_instance_finish.rs",
         "crates/leselang-hir/src/group_exports.rs",
         "crates/leselang-hir/tests/group_exports.rs",
         "crates/leselang-hir/src/binding_source.rs",
@@ -10224,6 +10562,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "crates/leselang-hir/src/sequence_evaluation.rs",
         "crates/leselang-hir/tests/sequence_evaluation.rs",
         "crates/leselang-hir/src/effect_reentry.rs",
+        "crates/leselang-hir/src/effect_session.rs",
+        "crates/leselang-hir/tests/effect_session.rs",
         "crates/leselang-runtime-core/src/scalar_ops.rs",
         "crates/leselang-hir/tests/operator_contract.rs",
         "crates/leselang-runtime-core/src/control.rs",

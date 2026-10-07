@@ -1,14 +1,17 @@
 #![forbid(unsafe_code)]
 
 pub mod binding_source;
+pub mod bound_projection_source;
 pub mod call_evaluation;
 pub mod call_typing;
 pub mod choice_source;
 pub mod computation;
 mod computed_group;
 mod control_flow;
+pub mod control_source;
 pub mod effect_evaluation;
 pub mod effect_reentry;
+pub mod effect_session;
 pub mod flow_typing;
 mod function_flow;
 mod functions;
@@ -16,10 +19,15 @@ pub mod group_exports;
 pub mod group_source;
 pub mod helper_bindings;
 pub mod helper_body;
+pub mod helper_body_source;
 pub mod helper_declarations;
 pub mod helper_dependencies;
 pub mod helper_expansion;
 pub mod helper_hygiene;
+pub mod helper_instance;
+pub mod helper_instance_finish;
+pub mod helper_join;
+pub mod helper_registry;
 pub mod helper_returns;
 pub mod helper_source;
 pub mod helper_templates;

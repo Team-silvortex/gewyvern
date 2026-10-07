@@ -1,15 +1,15 @@
 use std::collections::BTreeMap;
 
 use leselang_runtime_core::ScopeFrame;
-use leselang_syntax::{Function, MAX_FUNCTION_PARAMETERS, MAX_FUNCTIONS, NamedArgument};
+use leselang_syntax::{MAX_FUNCTION_PARAMETERS, MAX_FUNCTIONS, NamedArgument};
 
 use super::*;
 use crate::computation::{Computation, LocalType, MAX_COMPUTATION_NODES, ScalarType, TypeScope};
+use crate::host_call::HostOperation;
+use crate::result_field::ResultField;
 
 struct Template {
-    prepared: crate::helper_templates::HelperTemplate<Computation, Type>,
-    nodes: usize,
-    depth: usize,
+    prepared: crate::helper_body::HelperBody<Computation, Type>,
 }
 
 #[derive(Default)]
@@ -23,14 +23,14 @@ impl FunctionTemplates {
     pub(super) fn contains(&self, name: &str) -> bool {
         self.templates.contains_key(name)
     }
+}
 
-    fn fresh_name(&mut self) -> String {
-        loop {
-            let name = format!("_lf{}", self.next_name);
-            self.next_name += 1;
-            if self.names.insert(name.clone()) {
-                return name;
-            }
+fn fresh_name(names: &mut HashSet<String>, next_name: &mut usize) -> String {
+    loop {
+        let name = format!("_lf{}", *next_name);
+        *next_name += 1;
+        if names.insert(name.clone()) {
+            return name;
         }
     }
 }
@@ -58,26 +58,6 @@ fn parameter_diagnostics(
         _ => "function parameter count exceeds limit",
     };
     invalid("LSH1501", message, span)
-}
-
-fn parameter_types(function: &Function) -> Result<Vec<(String, ScalarType)>, Vec<Diagnostic>> {
-    use crate::helper_source::HelperParameterError;
-    crate::helper_source::helper_parameters(function, MAX_FUNCTION_PARAMETERS)
-        .map(|parameters| {
-            parameters
-                .into_iter()
-                .map(|parameter| (parameter.name.to_owned(), parameter.domain))
-                .collect()
-        })
-        .map_err(|error| {
-            let span = match error {
-                HelperParameterError::InvalidName { index }
-                | HelperParameterError::DuplicateName { index }
-                | HelperParameterError::UnknownType { index } => function.parameters[index].span,
-                _ => function.span,
-            };
-            parameter_diagnostics(error, span)
-        })
 }
 
 fn declaration_error(
@@ -178,92 +158,138 @@ pub(super) fn lower_program(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnos
         .names
         .extend(accepted.reserved_names().map(str::to_owned));
     let main = accepted.entry();
-    let order = crate::helper_dependencies::helper_dependency_order(
-        accepted.helpers(),
-        "main",
-        crate::helper_dependencies::HelperDependencyLimits {
-            max_helpers: MAX_FUNCTIONS - 1,
-            max_source_nodes: MAX_COMPUTATION_NODES,
-            max_source_depth: MAX_EFFECT_NESTING_DEPTH,
+    let mut functions = crate::helper_registry::assemble_helper_registry(
+        &accepted,
+        crate::helper_registry::HelperRegistryLimits {
+            dependencies: crate::helper_dependencies::HelperDependencyLimits {
+                max_helpers: MAX_FUNCTIONS - 1,
+                max_source_nodes: MAX_COMPUTATION_NODES,
+                max_source_depth: MAX_EFFECT_NESTING_DEPTH,
+            },
+            template: template_limits(),
+            source_cost: source_cost_limits(),
+        },
+        functions,
+        |function, functions| {
+            let source_limits = source_cost_limits();
+            let admitted = crate::helper_body_source::lower_preflighted_helper_body(
+                function,
+                crate::helper_body_source::HelperBodySourceLimits {
+                    max_source_nodes: MAX_COMPUTATION_NODES,
+                    max_source_depth: MAX_EFFECT_NESTING_DEPTH,
+                    max_arguments: crate::source_call::MAX_SOURCE_CALL_ARGUMENTS,
+                    body: crate::helper_body::HelperBodyLimits {
+                        template: template_limits(),
+                        source_cost: source_limits,
+                    },
+                },
+                &mut 0,
+                |function, parameters, visited| {
+                    let mut bindings = parameters
+                        .iter()
+                        .map(|parameter| {
+                            (
+                                parameter.name,
+                                LocalType::from(Type::Scalar(parameter.domain)),
+                            )
+                        })
+                        .collect();
+                    let mut scope = ScopeFrame::new(&mut bindings);
+                    let (body, result_type) = computation::lower_expression_with_functions(
+                        &function.body,
+                        &mut scope,
+                        visited,
+                        0,
+                        functions,
+                    )?;
+                    Ok(crate::helper_body_source::HelperBodyObservation {
+                        expression: body,
+                        result_type,
+                        scalar_result: match result_type {
+                            Type::Scalar(ty) => Some(ty),
+                            _ => None,
+                        },
+                    })
+                },
+                |body, parameters, result_type, _| {
+                    let checked = body.validate_in_scope(
+                        &parameters
+                            .iter()
+                            .map(|(name, ty)| (name.clone(), Type::Scalar(*ty)))
+                            .collect::<Vec<_>>(),
+                    )?;
+                    if checked != *result_type {
+                        return Err(crate::CanonicalSourceError::RoundTripMismatch);
+                    }
+                    Ok(())
+                },
+                |effect| host_source_extra(effect, source_limits),
+            )
+            .map_err(|error| {
+                use crate::helper_body_source::HelperBodySourceError;
+                if let HelperBodySourceError::Lowering(error) = error {
+                    return error;
+                }
+                if let HelperBodySourceError::Parameters(error) = error {
+                    use crate::helper_source::HelperParameterError;
+                    let span = match error {
+                        HelperParameterError::InvalidName { index }
+                        | HelperParameterError::DuplicateName { index }
+                        | HelperParameterError::UnknownType { index } => {
+                            function.parameters[index].span
+                        }
+                        _ => function.span,
+                    };
+                    return parameter_diagnostics(error, span);
+                }
+                if matches!(
+                    error,
+                    HelperBodySourceError::Admission(
+                        crate::helper_body::HelperBodyError::PureResultRequired
+                    )
+                ) {
+                    invalid(
+                        "LSH1503",
+                        "a pure helper must return bounded data",
+                        function.span,
+                    )
+                } else {
+                    invalid(
+                        "LSH1405",
+                        "expanded helper exceeds computation or canonical source bounds",
+                        function.span,
+                    )
+                }
+            })?;
+            Ok(admitted)
+        },
+        |function, admitted, functions| {
+            functions
+                .templates
+                .insert(function.name.clone(), Template { prepared: admitted });
+            Ok::<_, std::convert::Infallible>(())
         },
     )
-    .map_err(|error| dependency_error(error, span))?;
-    // Lower each ready helper before asking for the next, preserving error priority.
-    for function in order {
-        let function = function.map_err(|error| dependency_error(error, span))?;
-        let parameters = parameter_types(function)?;
-        let (body, result_type) = {
-            let mut bindings = parameters
-                .iter()
-                .map(|(name, ty)| (name.as_str(), LocalType::from(Type::Scalar(*ty))))
-                .collect();
-            let mut scope = ScopeFrame::new(&mut bindings);
-            computation::lower_expression_with_functions(
-                &function.body,
-                &mut scope,
-                &mut 0,
-                0,
-                &mut functions,
-            )?
-        };
-        let scalar_result = match result_type {
-            Type::Scalar(ty) => Some(ty),
-            _ => None,
-        };
-        let source_limits = source_cost_limits();
-        let admitted = crate::helper_body::LoweredHelperBody {
-            parameters,
-            expression: body,
-            result_type,
-            scalar_result,
-        }
-        .prepare(
-            crate::helper_body::HelperBodyLimits {
-                template: template_limits(),
-                source_cost: source_limits,
-            },
-            |body, parameters, result_type, _| {
-                let checked = body.validate_in_scope(
-                    &parameters
-                        .iter()
-                        .map(|(name, ty)| (name.clone(), Type::Scalar(*ty)))
-                        .collect::<Vec<_>>(),
-                )?;
-                if checked != *result_type {
-                    return Err(crate::CanonicalSourceError::RoundTripMismatch);
-                }
-                Ok(())
-            },
-            |effect| host_source_extra(effect, source_limits),
-        )
-        .map_err(|error| {
-            if matches!(
-                error,
-                crate::helper_body::HelperBodyError::PureResultRequired
-            ) {
-                invalid(
-                    "LSH1503",
-                    "a pure helper must return bounded data",
-                    function.span,
-                )
-            } else {
-                invalid(
-                    "LSH1405",
-                    "expanded helper exceeds computation or canonical source bounds",
-                    function.span,
-                )
+    .map_err(|error| {
+        use crate::helper_registry::HelperRegistryError;
+        match error {
+            HelperRegistryError::Dependency(error) => dependency_error(error, span),
+            HelperRegistryError::Lowering { error, .. } => error,
+            HelperRegistryError::Registration { error, .. } => match error {},
+            HelperRegistryError::Parameters { span, error } => parameter_diagnostics(error, span),
+            HelperRegistryError::Template { span, .. }
+            | HelperRegistryError::ParameterScopeLimit { span }
+            | HelperRegistryError::Signature { span }
+            | HelperRegistryError::SourceCost { span, .. } => invalid(
+                "LSH1405",
+                "expanded helper exceeds computation or canonical source bounds",
+                span,
+            ),
+            HelperRegistryError::InvalidLimits => {
+                invalid("LSH1501", "function count exceeds limit", span)
             }
-        })?;
-        let (prepared, cost) = admitted.into_parts();
-        functions.templates.insert(
-            function.name.clone(),
-            Template {
-                prepared,
-                nodes: cost.nodes,
-                depth: cost.depth,
-            },
-        );
-    }
+        }
+    })?;
     let mut lowered = computation::lower_computation_with_functions(&main.body, &mut functions)?;
     lowered.effect = match lowered.effect {
         Effect::Compute { expression } => match *expression {
@@ -356,7 +382,18 @@ pub(super) fn lower_call<'a>(
         .templates
         .get(name)
         .ok_or_else(|| invalid("LSH1504", "unknown helper", span))?;
-    let parameters = template.prepared.parameters().to_vec();
+    let cached = template.prepared.template();
+    crate::helper_templates::preflight(cached.parameters(), cached.body(), template_limits())
+        .map_err(
+            |_: crate::helper_templates::HelperTemplateError<std::convert::Infallible>| {
+                invalid(
+                    "LSH1405",
+                    "expanded helper exceeds computation bounds",
+                    span,
+                )
+            },
+        )?;
+    let parameters = cached.parameters().to_vec();
     let signature = parameters
         .iter()
         .map(|(name, ty)| leselang_runtime_core::NamedParameter::required(name.as_str(), *ty))
@@ -409,76 +446,59 @@ pub(super) fn lower_call<'a>(
             span,
         ),
     })?;
+    let argument_spans = lowered
+        .iter()
+        .map(|argument| argument.argument.span)
+        .collect::<Vec<_>>();
     let values = lowered
         .into_iter()
-        .map(|argument| argument.value)
-        .collect::<Vec<_>>();
-    let template = &functions.templates[name];
-    crate::helper_expansion::reserve_helper_expansion(
-        visited,
-        depth,
-        crate::helper_expansion::HelperExpansionCost {
-            nodes: template.nodes,
-            depth: template.depth,
-        },
-        parameters.len(),
-        crate::helper_expansion::HelperExpansionLimits {
-            max_nodes: MAX_COMPUTATION_NODES,
-            max_depth: MAX_EFFECT_NESTING_DEPTH,
-            max_parameters: MAX_FUNCTION_PARAMETERS,
-        },
-        |index| {
-            values
-                .get(index)
-                .ok_or(crate::source_cost::SourceCostError::Structure(
-                    leselang_runtime_core::StructureError::NodeLimit,
-                ))
-                .and_then(|value| source_cost(value).map(|cost| cost.depth))
-        },
-    )
-    .map_err(|_| {
-        invalid(
-            "LSH1405",
-            "expanded helper exceeds computation bounds",
-            span,
+        .map(
+            |argument| crate::helper_instance_finish::HelperInstanceArgument {
+                value: argument.value,
+                scalar_type: Some(argument.parameter.domain),
+            },
         )
-    })?;
-    let body = template
-        .prepared
-        .materialize(template_limits(), |body| {
-            Ok::<_, std::convert::Infallible>(body.clone())
-        })
-        .map_err(|_| {
-            invalid(
-                "LSH1405",
-                "expanded helper exceeds computation bounds",
-                span,
-            )
-        })?;
-    let result_type = *template.prepared.result_type();
-    // Arguments stay in caller scope; parameter and body locals get fresh names.
-    let parameter_names = parameters
+        .collect();
+    let template = &functions.templates[name];
+    let reserved_names = scope
+        .bindings()
         .iter()
-        .map(|(name, _)| (name.as_str(), functions.fresh_name()))
+        .map(|(name, _)| *name)
         .collect::<Vec<_>>();
-    let aliases = parameter_names
-        .iter()
-        .map(|(name, alias)| (*name, alias.as_str()))
-        .collect::<Vec<_>>();
-    let body = crate::helper_hygiene::hygienic_helper_body(
-        body,
-        &aliases,
-        &[],
-        crate::helper_hygiene::HelperHygieneLimits {
-            max_nodes: MAX_COMPUTATION_NODES,
-            max_depth: MAX_EFFECT_NESTING_DEPTH,
-            max_bindings: crate::pure_typing::MAX_TYPE_INFERENCE_BINDINGS,
-            max_reserved_names: 0,
+    let (body, result_type) = crate::helper_instance_finish::finish_helper_instance(
+        crate::helper_instance::SelectedHelper {
+            name,
+            body: &template.prepared,
+            reserved_names: &reserved_names,
+            caller_depth: depth,
         },
-        || Ok::<_, Vec<Diagnostic>>(functions.fresh_name()),
+        values,
+        crate::helper_instance::HelperInstanceLimits {
+            source: crate::source_call::SourceCallLimits {
+                max_source_nodes: MAX_COMPUTATION_NODES,
+                max_source_depth: MAX_EFFECT_NESTING_DEPTH,
+                max_lowered_nodes: MAX_COMPUTATION_NODES,
+                max_lowered_depth: MAX_EFFECT_NESTING_DEPTH,
+                max_arguments: crate::source_call::MAX_SOURCE_CALL_ARGUMENTS,
+            },
+            max_parameters: MAX_FUNCTION_PARAMETERS,
+            max_bindings: crate::pure_typing::MAX_TYPE_INFERENCE_BINDINGS,
+            max_reserved_names: MAX_COMPUTATION_NODES,
+        },
+        visited,
+        &mut InstanceFinisher {
+            scope,
+            names: &mut functions.names,
+            next_name: &mut functions.next_name,
+            argument_spans: &argument_spans,
+            span,
+        },
     )
     .map_err(|error| match error {
-        crate::helper_hygiene::HelperHygieneError::Capture { group } => invalid(
+        crate::helper_instance::HelperInstanceError::Native { error, .. } => error,
+        crate::helper_instance::HelperInstanceError::Hygiene(
+            crate::helper_hygiene::HelperHygieneError::Capture { group },
+        ) => invalid(
             "LSH1503",
             if group {
                 "helper cannot capture a caller group"
@@ -487,32 +507,73 @@ pub(super) fn lower_call<'a>(
             },
             Span { start: 0, end: 0 },
         ),
-        crate::helper_hygiene::HelperHygieneError::Native(error) => error,
+        crate::helper_instance::HelperInstanceError::Hygiene(
+            crate::helper_hygiene::HelperHygieneError::Native(error),
+        ) => error,
         _ => invalid(
             "LSH1405",
             "expanded helper exceeds computation bounds",
             span,
         ),
     })?;
-    let body = crate::helper_bindings::bind_helper_arguments(
-        body,
-        parameter_names
-            .into_iter()
-            .zip(values)
-            .map(|((_, name), value)| crate::helper_bindings::HelperBinding { name, value })
-            .collect(),
-        crate::helper_bindings::HelperBindingLimits {
-            max_nodes: MAX_COMPUTATION_NODES,
-            max_depth: MAX_EFFECT_NESTING_DEPTH,
-            max_parameters: MAX_FUNCTION_PARAMETERS,
-        },
-    )
-    .map_err(|_| {
-        invalid(
-            "LSH1405",
-            "expanded helper exceeds computation bounds",
-            span,
-        )
-    })?;
-    Ok((body, result_type))
+    Ok((body, *result_type))
+}
+
+struct InstanceFinisher<'adapter, 'scope, 'source> {
+    scope: &'adapter TypeScope<'scope, 'source>,
+    names: &'adapter mut HashSet<String>,
+    next_name: &'adapter mut usize,
+    argument_spans: &'adapter [Span],
+    span: Span,
+}
+impl
+    crate::helper_instance_finish::HelperInstanceFinisher<
+        ResultField,
+        HostOperation,
+        Effect,
+        Type,
+        Type,
+    > for InstanceFinisher<'_, '_, '_>
+{
+    type Error = Vec<Diagnostic>;
+    fn admit_argument(
+        &mut self,
+        value: &Computation,
+        expected: ScalarType,
+        index: usize,
+    ) -> Result<(), Self::Error> {
+        if value.validate_in_type_scope(self.scope).ok() != Some(Type::Scalar(expected)) {
+            return Err(invalid(
+                "LSH1504",
+                "helper arguments must be pure scalars of the declared type",
+                self.argument_spans.get(index).copied().unwrap_or(self.span),
+            ));
+        }
+        Ok(())
+    }
+    fn argument_depth(&mut self, value: &Computation) -> Result<usize, Self::Error> {
+        source_cost(value).map(|cost| cost.depth).map_err(|_| {
+            invalid(
+                "LSH1405",
+                "expanded helper exceeds computation bounds",
+                self.span,
+            )
+        })
+    }
+    fn materialize(&mut self, body: &Computation) -> Result<Computation, Self::Error> {
+        Ok(body.clone())
+    }
+    fn fresh_name(&mut self) -> Result<String, Self::Error> {
+        Ok(fresh_name(self.names, self.next_name))
+    }
+    fn admit(&mut self, value: &Computation, result: &Type) -> Result<(), Self::Error> {
+        if value.validate_in_type_scope(self.scope).ok() != Some(*result) {
+            return Err(invalid(
+                "LSH1405",
+                "expanded helper exceeds computation bounds",
+                self.span,
+            ));
+        }
+        Ok(())
+    }
 }

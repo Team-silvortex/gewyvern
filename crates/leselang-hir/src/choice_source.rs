@@ -69,7 +69,9 @@ type Node<Field, Operation, HostEffect, IrResult> =
 pub type ChoiceOperand<Node, Type, Error> = Result<(Node, Type), Error>;
 pub type ChoiceSourceResult<Node, Type, Error> = Result<(Node, Type), ChoiceSourceError<Error>>;
 
-fn operands<Error>(expression: &Expression) -> Result<[&Expression; 3], ChoiceSourceError<Error>> {
+pub(crate) fn operands<Error>(
+    expression: &Expression,
+) -> Result<[&Expression; 3], ChoiceSourceError<Error>> {
     let at = span(expression);
     let Expression::Call {
         callee, arguments, ..
@@ -100,7 +102,7 @@ fn operands<Error>(expression: &Expression) -> Result<[&Expression; 3], ChoiceSo
     Ok([get("when")?, get("then")?, get("otherwise")?])
 }
 
-fn cold_names<Error>(expression: &Expression) -> Result<(), ChoiceSourceError<Error>> {
+pub(crate) fn cold_names<Error>(expression: &Expression) -> Result<(), ChoiceSourceError<Error>> {
     let mut pending = vec![expression];
     while let Some(node) = pending.pop() {
         if let Expression::Call {

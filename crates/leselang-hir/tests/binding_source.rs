@@ -765,12 +765,19 @@ mod counter {
         CallEvaluationHost, CallEvaluationLimits, PreparedCall, evaluate_call_arguments_in_scope,
         prepare_call_in_scope,
     };
+    use leselang_hir::call_typing::{CallTypeHost, CallTypeLimits};
+    use leselang_hir::control_source::*;
     use leselang_hir::effect_evaluation::*;
     use leselang_hir::effect_reentry::*;
+    use leselang_hir::effect_session::*;
+    use leselang_hir::flow_typing::{
+        CallFlowEnvironment, CallFlowTypeLimits, infer_call_flow_type,
+    };
     use leselang_hir::pure_evaluation::{
         PureEvaluationEnvironment, PureEvaluationLimits, PureValue, evaluate_pure_in_scope,
         scalar_copy_cost,
     };
+    use leselang_hir::pure_typing::{PureType, PureTypeEnvironment, TypeInferenceLimits};
     use leselang_hir::scalar_source::{ScalarSourceLimits, lower_scalar_source_with_scope};
     use leselang_hir::source_call::{SourceCallHost, SourceSchema, lower_source_call};
     use leselang_runtime_core::*;
@@ -891,6 +898,117 @@ mod counter {
         }
     }
     struct Environment;
+    impl PureTypeEnvironment<(), &'static str> for Environment {
+        type Result = ();
+        fn field_type(&self, _: &(), _: &()) -> Option<ScalarType> {
+            None
+        }
+        fn member_result(&self, _: &(), _: &str, _: &&'static str) -> Option<()> {
+            None
+        }
+    }
+    impl<'schema> CallFlowEnvironment<'schema, (), &'static str, ReplyDeclaration> for Environment {
+        fn call_result_type(
+            &self,
+            operation: &&'static str,
+            declaration: &'schema ReplyDeclaration,
+        ) -> Option<PureType<()>> {
+            (matches!(*operation, "counter.read" | "counter.write") && declaration.maximum >= 100)
+                .then_some(PureType::Scalar(ScalarType::Integer))
+        }
+    }
+    impl<'source> ControlSourceAdapter<'source, (), &'static str, (), ()> for Compiler<'_, '_> {
+        type Type = ScalarType;
+        type Error = PrivateError;
+        fn lower_leaf(
+            &mut self,
+            source: &'source Expression,
+            scope: ControlSourceScope<'_, 'source, ScalarType>,
+        ) -> Result<(Counter, ScalarType), PrivateError> {
+            let prefix = scope
+                .bindings()
+                .iter()
+                .map(|(name, ty)| (*name, **ty))
+                .collect::<Vec<_>>();
+            if matches!(source, Expression::Call { callee, .. } if callee.starts_with("counter.")) {
+                let (value, _) = self.call(source, &prefix)?;
+                Ok((value, ScalarType::Integer))
+            } else {
+                lower_scalar_source_with_scope(
+                    source,
+                    ScalarSourceLimits {
+                        source: LIMITS.source,
+                        max_bindings: LIMITS.max_bindings,
+                    },
+                    &prefix,
+                    |_, _| -> Result<(Counter, Option<ScalarType>), PrivateError> {
+                        Err(PrivateError("unknown native scalar"))
+                    },
+                )
+                .map_err(|_| PrivateError("native scalar source rejected"))
+            }
+        }
+        fn boolean(&mut self, _: &Counter, ty: &ScalarType) -> Result<bool, PrivateError> {
+            Ok(*ty == ScalarType::Boolean)
+        }
+        fn same(&mut self, left: &ScalarType, right: &ScalarType) -> Result<bool, PrivateError> {
+            Ok(left == right)
+        }
+        fn admit(
+            &mut self,
+            _: &'source Expression,
+            value: &Counter,
+            ty: &ScalarType,
+            scope: ControlSourceScope<'_, 'source, ScalarType>,
+        ) -> Result<(), PrivateError> {
+            let schemas = CallTypeHost {
+                catalog: self.host.catalog,
+                version: self.host.version,
+                granted: self.host.granted,
+                environment: &Environment,
+            };
+            let prefix = scope
+                .bindings()
+                .iter()
+                .map(|(name, ty)| (*name, PureType::Scalar(**ty)))
+                .collect::<Vec<_>>();
+            let inferred = infer_call_flow_type(
+                value,
+                &prefix,
+                &Environment,
+                &schemas,
+                CallFlowTypeLimits {
+                    call: CallTypeLimits {
+                        pure: TypeInferenceLimits {
+                            max_nodes: 256,
+                            max_depth: 32,
+                            max_bindings: 8,
+                        },
+                        max_arguments: 64,
+                    },
+                    max_calls: 64,
+                },
+            )
+            .map_err(|_| PrivateError("whole native cold flow typing rejected"))?;
+            let mut pending = vec![value];
+            while let Some(node) = pending.pop() {
+                if let Counter::Bind { value, .. } = node {
+                    let mut initial = vec![value.as_ref()];
+                    while let Some(child) = initial.pop() {
+                        if matches!(child, Counter::Bind { value, .. } if !value.is_pure()) {
+                            return Err(PrivateError("unfinished nested binding capture"));
+                        }
+                        initial.extend(child.children());
+                    }
+                }
+                pending.extend(node.children());
+            }
+            if inferred != PureType::Scalar(*ty) {
+                return Err(PrivateError("inconsistent whole result observation"));
+            }
+            Ok(())
+        }
+    }
     impl PureEvaluationEnvironment<(), &'static str> for Environment {
         type Result = ();
         type Error = PrivateError;
@@ -1086,6 +1204,419 @@ mod counter {
                 _ => panic!(),
             }
         }
+    }
+
+    impl<'expression, 'schema>
+        EffectSessionEnvironment<'expression, 'schema, (), &'static str, (), ()>
+        for Execution<'_, 'schema>
+    {
+        type Identity = (u64, &'static str);
+        type Declaration = ReplyDeclaration;
+        type Reply = NativeReply;
+        type Dispatch = PreparedCall<'schema, &'static str, ScalarTypeSet, ReplyDeclaration, u8>;
+        fn correlate_request(
+            &self,
+            request: Self::Dispatch,
+            _: &mut Fuel,
+        ) -> EffectCorrelation<
+            'schema,
+            Self::Identity,
+            Self::Declaration,
+            Self::Dispatch,
+            PrivateError,
+        > {
+            let original = self
+                .host
+                .catalog
+                .authorize(&request.schema().key, self.host.version, self.host.granted)
+                .map_err(|_| PrivateError("live native correlation policy"))?;
+            if !std::ptr::eq(original, request.schema()) {
+                return Err(PrivateError("changed native request schema").into());
+            }
+            Ok(CorrelatedEffectRequest {
+                identity: (17, original.key),
+                declaration: &original.result,
+                dispatch: request,
+            })
+        }
+    }
+
+    #[test]
+    fn parsed_binding_session_owns_reply_gated_reentry_final_output_and_cancellation() {
+        let checks = Rc::new(Cell::new(0));
+        let parameters = [NamedParameter::required(
+            "value",
+            ScalarTypeSet::only(ScalarType::Integer),
+        )];
+        let schemas = [
+            OperationSchema {
+                key: "counter.read",
+                parameters: &[],
+                required_capability: 31,
+                result: ReplyDeclaration {
+                    maximum: 100,
+                    checks: checks.clone(),
+                },
+            },
+            OperationSchema {
+                key: "counter.write",
+                parameters: &parameters,
+                required_capability: 32,
+                result: ReplyDeclaration {
+                    maximum: 200,
+                    checks: checks.clone(),
+                },
+            },
+        ];
+        let catalog = OperationCatalog::new(
+            7,
+            &schemas,
+            OperationCatalogLimits {
+                max_operations: 2,
+                max_parameters_per_operation: 1,
+            },
+        )
+        .unwrap();
+        let source = expression(
+            "bind(ticket: counter.read(), body: counter.write(value: add(left: ticket, right: 1)))",
+        );
+        let mut compiler = Compiler {
+            host: SourceCallHost {
+                catalog: &catalog,
+                version: 7,
+                granted: &[31, 32],
+            },
+            events: Vec::new(),
+        };
+        let (expression, declared) =
+            lower_binding_source(&source, &[], LIMITS, &mut compiler).unwrap();
+        let execution = Execution {
+            host: SourceCallHost {
+                catalog: &catalog,
+                version: 7,
+                granted: &[31, 32],
+            },
+            events: RefCell::new(Vec::new()),
+            actual: Cell::new(41),
+        };
+        let mut session =
+            EffectSession::new(&expression, Vec::new(), Fuel::new(100), EXECUTION_LIMITS);
+        let EffectSessionPoll::Request(read) = session.poll(&execution).unwrap() else {
+            panic!()
+        };
+        assert!(std::ptr::eq(read.schema(), &schemas[0]));
+        let reply = execution.invoke(read);
+        let rejected = session
+            .try_accept(&(18, "counter.read"), reply, &execution)
+            .unwrap_err();
+        assert_eq!(session.status(), EffectSessionStatus::Awaiting);
+        assert_eq!(*execution.events.borrow(), ["counter.read"]);
+        assert!(matches!(
+            session.poll(&execution).unwrap(),
+            EffectSessionPoll::Awaiting
+        ));
+        session
+            .try_accept(&(17, "counter.read"), rejected.reply, &execution)
+            .unwrap();
+        assert_eq!(session.status(), EffectSessionStatus::Ready);
+        assert_eq!(session.fuel_remaining(), 98);
+        assert_eq!(*execution.events.borrow(), ["counter.read"]);
+        let EffectSessionPoll::Request(write) = session.poll(&execution).unwrap() else {
+            panic!()
+        };
+        assert!(std::ptr::eq(write.schema(), declared));
+        assert_eq!(write.arguments()[0].value, ScalarValue::Integer(42));
+        assert_eq!(session.fuel_remaining(), 94);
+        let reply = execution.invoke(write);
+        session
+            .try_accept(&(17, "counter.write"), reply, &execution)
+            .unwrap();
+        assert_eq!(session.status(), EffectSessionStatus::Ready);
+        assert!(matches!(
+            session.poll(&execution).unwrap(),
+            EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::Integer(42)))
+        ));
+        assert_eq!(execution.actual.get(), 42);
+        assert_eq!(session.fuel_remaining(), 94);
+        assert!(matches!(
+            session.poll(&execution).unwrap(),
+            EffectSessionPoll::Terminal(EffectSessionEnd::Completed)
+        ));
+        assert_eq!(
+            *execution.events.borrow(),
+            ["counter.read", "counter.write"]
+        );
+        assert_eq!(checks.get(), 2);
+
+        execution.events.borrow_mut().clear();
+        execution.actual.set(41);
+        let mut cancelled =
+            EffectSession::new(&expression, Vec::new(), Fuel::new(100), EXECUTION_LIMITS);
+        let EffectSessionPoll::Request(read) = cancelled.poll(&execution).unwrap() else {
+            panic!()
+        };
+        let reply = execution.invoke(read);
+        cancelled
+            .try_accept(&(17, "counter.read"), reply, &execution)
+            .unwrap();
+        assert!(cancelled.cancel());
+        assert!(matches!(
+            cancelled.poll(&execution).unwrap(),
+            EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+        ));
+        assert_eq!(execution.actual.get(), 41);
+        assert_eq!(*execution.events.borrow(), ["counter.read"]);
+        assert_eq!(cancelled.fuel_remaining(), 98);
+    }
+
+    #[test]
+    fn parsed_recursive_control_source_runs_selected_native_calls_and_pure_tail() {
+        let checks = Rc::new(Cell::new(0));
+        let parameters = [NamedParameter::required(
+            "value",
+            ScalarTypeSet::only(ScalarType::Integer),
+        )];
+        let schemas = [
+            OperationSchema {
+                key: "counter.read",
+                parameters: &[],
+                required_capability: 31,
+                result: ReplyDeclaration {
+                    maximum: 100,
+                    checks: checks.clone(),
+                },
+            },
+            OperationSchema {
+                key: "counter.write",
+                parameters: &parameters,
+                required_capability: 32,
+                result: ReplyDeclaration {
+                    maximum: 200,
+                    checks: checks.clone(),
+                },
+            },
+        ];
+        let catalog = OperationCatalog::new(
+            7,
+            &schemas,
+            OperationCatalogLimits {
+                max_operations: 2,
+                max_parameters_per_operation: 1,
+            },
+        )
+        .unwrap();
+        let source = expression(
+            "bind(ticket: counter.read(), body: choose(when: gt(left: ticket, right: 40), then: bind(next: counter.write(value: add(left: ticket, right: 1)), body: add(left: next, right: 1)), otherwise: bind(next: counter.write(value: 0), body: add(left: next, right: 1))))",
+        );
+        let mut compiler = Compiler {
+            host: SourceCallHost {
+                catalog: &catalog,
+                version: 7,
+                granted: &[31, 32],
+            },
+            events: Vec::new(),
+        };
+        let (program, ty) = lower_control_source(
+            &source,
+            &[],
+            ControlSourceLimits {
+                source: LIMITS.source,
+                max_bindings: LIMITS.max_bindings,
+            },
+            &mut compiler,
+        )
+        .unwrap();
+        assert_eq!(ty, ScalarType::Integer);
+        let execution = Execution {
+            host: SourceCallHost {
+                catalog: &catalog,
+                version: 7,
+                granted: &[31, 32],
+            },
+            events: RefCell::new(Vec::new()),
+            actual: Cell::new(41),
+        };
+        let mut session =
+            EffectSession::new(&program, Vec::new(), Fuel::new(100), EXECUTION_LIMITS);
+        let EffectSessionPoll::Request(read) = session.poll(&execution).unwrap() else {
+            panic!()
+        };
+        assert!(std::ptr::eq(read.schema(), &schemas[0]));
+        assert_eq!(session.fuel_remaining(), 98);
+        let rejected = session
+            .try_accept(&(18, "counter.read"), execution.invoke(read), &execution)
+            .unwrap_err();
+        session
+            .try_accept(&(17, "counter.read"), rejected.reply, &execution)
+            .unwrap();
+        assert_eq!(execution.actual.get(), 41);
+        assert!(matches!(session.status(), EffectSessionStatus::Ready));
+        let EffectSessionPoll::Request(write) = session.poll(&execution).unwrap() else {
+            panic!()
+        };
+        assert!(std::ptr::eq(write.schema(), &schemas[1]));
+        assert_eq!(write.arguments()[0].value, ScalarValue::Integer(42));
+        assert_eq!(session.fuel_remaining(), 88);
+        session
+            .try_accept(&(17, "counter.write"), execution.invoke(write), &execution)
+            .unwrap();
+        assert_eq!(execution.actual.get(), 42);
+        assert!(matches!(
+            session.poll(&execution).unwrap(),
+            EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::Integer(43)))
+        ));
+        assert_eq!(session.fuel_remaining(), 84);
+        assert_eq!(
+            *execution.events.borrow(),
+            ["counter.read", "counter.write"]
+        );
+        assert_eq!(checks.get(), 2);
+        assert!(matches!(
+            session.poll(&execution).unwrap(),
+            EffectSessionPoll::Terminal(EffectSessionEnd::Completed)
+        ));
+
+        execution.actual.set(1);
+        execution.events.borrow_mut().clear();
+        let mut other = EffectSession::new(&program, Vec::new(), Fuel::new(100), EXECUTION_LIMITS);
+        let EffectSessionPoll::Request(read) = other.poll(&execution).unwrap() else {
+            panic!()
+        };
+        other
+            .try_accept(&(17, "counter.read"), execution.invoke(read), &execution)
+            .unwrap();
+        let EffectSessionPoll::Request(write) = other.poll(&execution).unwrap() else {
+            panic!()
+        };
+        assert_eq!(write.arguments()[0].value, ScalarValue::Integer(0));
+        other
+            .try_accept(&(17, "counter.write"), execution.invoke(write), &execution)
+            .unwrap();
+        assert!(matches!(
+            other.poll(&execution).unwrap(),
+            EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::Integer(1)))
+        ));
+        assert_eq!(other.fuel_remaining(), 86);
+        assert_eq!(
+            *execution.events.borrow(),
+            ["counter.read", "counter.write"]
+        );
+
+        execution.actual.set(41);
+        execution.events.borrow_mut().clear();
+        let mut cancelled =
+            EffectSession::new(&program, Vec::new(), Fuel::new(100), EXECUTION_LIMITS);
+        let EffectSessionPoll::Request(read) = cancelled.poll(&execution).unwrap() else {
+            panic!()
+        };
+        cancelled
+            .try_accept(&(17, "counter.read"), execution.invoke(read), &execution)
+            .unwrap();
+        assert!(cancelled.cancel());
+        assert!(matches!(
+            cancelled.poll(&execution).unwrap(),
+            EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+        ));
+        assert_eq!(*execution.events.borrow(), ["counter.read"]);
+        assert_eq!(execution.actual.get(), 41);
+    }
+
+    #[test]
+    fn recursive_control_native_admission_rejects_cold_types_and_unfinished_capture() {
+        let checks = Rc::new(Cell::new(0));
+        let parameters = [NamedParameter::required(
+            "value",
+            ScalarTypeSet::only(ScalarType::Integer),
+        )];
+        let schemas = [
+            OperationSchema {
+                key: "counter.read",
+                parameters: &[],
+                required_capability: 31,
+                result: ReplyDeclaration {
+                    maximum: 100,
+                    checks: checks.clone(),
+                },
+            },
+            OperationSchema {
+                key: "counter.write",
+                parameters: &parameters,
+                required_capability: 32,
+                result: ReplyDeclaration {
+                    maximum: 200,
+                    checks: checks.clone(),
+                },
+            },
+        ];
+        let catalog = OperationCatalog::new(
+            7,
+            &schemas,
+            OperationCatalogLimits {
+                max_operations: 2,
+                max_parameters_per_operation: 1,
+            },
+        )
+        .unwrap();
+        let mut compiler = Compiler {
+            host: SourceCallHost {
+                catalog: &catalog,
+                version: 7,
+                granted: &[31, 32],
+            },
+            events: Vec::new(),
+        };
+        for source in [
+            "choose(when: true, then: counter.read(), otherwise: counter.write(value: false))",
+            "bind(x: bind(y: counter.read(), body: add(left: y, right: 1)), body: x)",
+            "choose(when: true, then: counter.read(), otherwise: false)",
+        ] {
+            assert!(
+                lower_control_source(
+                    &expression(source),
+                    &[],
+                    ControlSourceLimits {
+                        source: LIMITS.source,
+                        max_bindings: 8
+                    },
+                    &mut compiler
+                )
+                .is_err()
+            );
+        }
+        compiler.host.version = 8;
+        assert!(
+            lower_control_source(
+                &expression("counter.read()"),
+                &[],
+                ControlSourceLimits {
+                    source: LIMITS.source,
+                    max_bindings: 8
+                },
+                &mut compiler
+            )
+            .is_err()
+        );
+        compiler.host.version = 7;
+        compiler.host.granted = &[31];
+        assert!(
+            lower_control_source(
+                &expression(
+                    "choose(when: true, then: counter.read(), otherwise: counter.write(value: 0))"
+                ),
+                &[],
+                ControlSourceLimits {
+                    source: LIMITS.source,
+                    max_bindings: 8
+                },
+                &mut compiler
+            )
+            .is_err()
+        );
+        assert_eq!(
+            checks.get(),
+            0,
+            "compilation must not accept or invoke native replies"
+        );
     }
 
     #[test]

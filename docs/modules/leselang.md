@@ -57,4 +57,4 @@ no coercion, implicit nullability, authority or lasting value certificate is add
 Payload-free terminals distinguish cancellation, expiry, exhaustion, rejection, acceptance and
 host uncertainty without replay authority or legacy wire changes; cleanup retains
 known reasons and releases undelivered outputs on unwind.
-Reply handoff, parsed sequential sessions and accepted binding re-entry are shared; full source/opaque-effect typing and durable suspension remain open.
+Reply handoff, parsed sessions, recursive Bind/Choose, bound projections, helper body preparation, owned registry assembly, staged completion and bounded return joins are shared; full leaf/opaque-effect typing and durable suspension remain open.

@@ -63,7 +63,7 @@ impl<Error> std::error::Error for HelperTemplateError<Error> {}
 type Node<Field, Operation, HostEffect, IrResult> =
     Computation<Field, Operation, HostEffect, IrResult>;
 
-fn preflight<Field, Operation, HostEffect, IrResult, Error>(
+pub(crate) fn preflight<Field, Operation, HostEffect, IrResult, Error>(
     parameters: &[(String, ScalarType)],
     body: &Node<Field, Operation, HostEffect, IrResult>,
     limits: HelperTemplateLimits,

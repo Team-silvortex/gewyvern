@@ -185,7 +185,9 @@ pub(crate) fn member_source<Error>(
     Ok(MemberSource { group, name })
 }
 
-fn preflight_names<Error>(expression: &Expression) -> Result<(), ProjectionSourceError<Error>> {
+pub(crate) fn preflight_names<Error>(
+    expression: &Expression,
+) -> Result<(), ProjectionSourceError<Error>> {
     let mut pending = vec![expression];
     while let Some(expression) = pending.pop() {
         if let Expression::Call {

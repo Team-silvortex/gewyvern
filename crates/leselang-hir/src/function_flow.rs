@@ -70,19 +70,29 @@ pub(super) fn bind_result(
     body: Computation,
     span: Span,
 ) -> Result<Computation, Vec<Diagnostic>> {
-    let plan = crate::helper_returns::HelperReturns::new(
+    let source_limits = crate::source_cost::SourceCostLimits {
+        max_nodes: MAX_COMPUTATION_NODES,
+        max_depth: MAX_EFFECT_NESTING_DEPTH,
+    };
+    let plan = crate::helper_join::HelperJoin::new(
         name,
         value,
         body,
-        crate::helper_returns::HelperReturnLimits {
-            max_nodes: MAX_COMPUTATION_NODES,
-            max_depth: MAX_EFFECT_NESTING_DEPTH,
+        crate::helper_join::HelperJoinLimits {
+            output: crate::helper_returns::HelperReturnLimits {
+                max_nodes: MAX_COMPUTATION_NODES,
+                max_depth: MAX_EFFECT_NESTING_DEPTH,
+            },
+            source: source_limits,
         },
+        |effect| functions::host_source_extra(effect, source_limits),
     )
     .map_err(|error| {
         if matches!(
             error,
-            crate::helper_returns::HelperReturnError::UnsupportedBoundary
+            crate::helper_join::HelperJoinError::Plan(
+                crate::helper_returns::HelperReturnError::UnsupportedBoundary
+            )
         ) {
             invalid(
                 "LSH1503",
@@ -97,39 +107,7 @@ pub(super) fn bind_result(
             )
         }
     })?;
-    let oversized = |_| {
-        invalid(
-            "LSH1405",
-            "composed helper exceeds computation bounds",
-            span,
-        )
-    };
-    let value_cost = functions::source_cost(plan.value()).map_err(oversized)?;
-    let body_cost = functions::source_cost(plan.continuation()).map_err(oversized)?;
-    let mut depth = value_cost.depth;
-    let body_depth = body_cost.depth;
     let returns = plan.shape().returns;
-    for (value, level) in plan.return_sites() {
-        depth = depth.max(
-            level
-                + 1
-                + functions::source_cost(value)
-                    .map_err(oversized)?
-                    .depth
-                    .max(body_depth),
-        );
-    }
-    // Reserve every cold return path before cloning its continuation.
-    let nodes = value_cost
-        .nodes
-        .saturating_add(returns.saturating_mul(body_cost.nodes.saturating_add(1)));
-    if nodes > MAX_COMPUTATION_NODES || depth > MAX_EFFECT_NESTING_DEPTH {
-        return Err(invalid(
-            "LSH1405",
-            "composed helper exceeds computation bounds",
-            span,
-        ));
-    }
     let bytes = computation::source(plan.value()).len().saturating_add(
         returns.saturating_mul(
             computation::source(plan.continuation())
@@ -145,11 +123,9 @@ pub(super) fn bind_result(
             span,
         ));
     }
-    let expression = plan
-        .connect(|body, _| Ok::<_, std::convert::Infallible>(body.clone()))
-        .map_err(|_| invalid("LSH1405", "invalid composed helper structure", span))?;
-    expression
-        .validate_structure()
-        .map_err(|_| invalid("LSH1405", "invalid composed helper structure", span))?;
-    Ok(expression)
+    plan.connect(
+        |body, _| Ok(body.clone()),
+        |expression, _| expression.validate_structure(),
+    )
+    .map_err(|_| invalid("LSH1405", "invalid composed helper structure", span))
 }

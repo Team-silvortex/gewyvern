@@ -800,7 +800,9 @@ pub(crate) fn lower_choose_form<
     ))
 }
 
-fn preflight_names<Error>(expression: &Expression) -> Result<(), ScalarSourceError<Error>> {
+pub(crate) fn preflight_names<Error>(
+    expression: &Expression,
+) -> Result<(), ScalarSourceError<Error>> {
     let mut pending = vec![expression];
     while let Some(node) = pending.pop() {
         if let Expression::Call {

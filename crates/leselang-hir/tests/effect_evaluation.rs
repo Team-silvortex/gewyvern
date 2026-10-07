@@ -7,6 +7,7 @@ use leselang_hir::call_evaluation::{
 };
 use leselang_hir::effect_evaluation::*;
 use leselang_hir::effect_reentry::*;
+use leselang_hir::effect_session::*;
 use leselang_hir::ir::{Computation, ComputedArgument};
 use leselang_hir::pure_evaluation::*;
 use leselang_runtime_core::*;
@@ -1444,6 +1445,92 @@ fn shared_gui_reentry_accepts_a_move_only_text_payload_and_unsized_native_domain
     assert!(state.get());
     assert!(bindings.is_empty());
     assert_eq!(pending.status(), ReplyStatus::Terminal(ReplyEnd::Accepted));
+}
+
+impl<'expression>
+    EffectSessionEnvironment<
+        'expression,
+        'static,
+        WidgetField,
+        WidgetOperation,
+        WidgetAction,
+        WidgetResultTag,
+    > for Widget
+{
+    type Identity = u64;
+    type Declaration = WidgetReply;
+    type Reply = WidgetInput;
+    type Dispatch = &'expression WidgetAction;
+    fn correlate_request(
+        &self,
+        request: Self::Dispatch,
+        _: &mut Fuel,
+    ) -> EffectCorrelation<'static, u64, WidgetReply, Self::Dispatch, NativeError> {
+        if request.0.get() {
+            return Err(NativeError("widget request already invoked").into());
+        }
+        Ok(CorrelatedEffectRequest {
+            identity: (request as *const WidgetAction) as usize as u64,
+            declaration: &WidgetReply,
+            dispatch: request,
+        })
+    }
+}
+
+#[test]
+fn gui_local_control_session_owns_borrowed_dispatch_move_only_input_and_cancel_after_acceptance() {
+    for cancel_after_acceptance in [false, true] {
+        let state = Rc::new(Cell::new(false));
+        let expression = WidgetIr::Bind {
+            name: "reply".into(),
+            value: Box::new(WidgetIr::Host {
+                effect: Box::new(WidgetAction(state.clone())),
+            }),
+            body: Box::new(WidgetIr::Field {
+                value: Box::new(WidgetIr::Local {
+                    name: "reply".into(),
+                }),
+                field: WidgetField,
+            }),
+        };
+        let mut session = EffectSession::new(&expression, Vec::new(), Fuel::new(100), LIMITS);
+        let EffectSessionPoll::Request(request) = session.poll(&Widget).unwrap() else {
+            panic!()
+        };
+        assert!(Rc::ptr_eq(&request.0, &state));
+        assert!(!state.get());
+        assert_eq!(session.fuel_remaining(), 98);
+        assert!(matches!(
+            session.poll(&Widget).unwrap(),
+            EffectSessionPoll::Awaiting
+        ));
+        let identity = (request as *const WidgetAction) as usize as u64;
+        request.0.set(true);
+        session
+            .try_accept(&identity, WidgetInput(String::from("ready")), request)
+            .unwrap();
+        assert_eq!(session.status(), EffectSessionStatus::Ready);
+        assert_eq!(session.fuel_remaining(), 98);
+        if cancel_after_acceptance {
+            assert!(session.cancel());
+            assert!(matches!(
+                session.poll(&Widget).unwrap(),
+                EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+            ));
+            assert_eq!(session.fuel_remaining(), 98);
+        } else {
+            assert!(
+                matches!(session.poll(&Widget).unwrap(), EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::String(value))) if value == "ready")
+            );
+            assert_eq!(session.fuel_remaining(), 95);
+            assert!(matches!(
+                session.poll(&Widget).unwrap(),
+                EffectSessionPoll::Terminal(EffectSessionEnd::Completed)
+            ));
+        }
+        assert!(state.get());
+        assert!(!session.cancel());
+    }
 }
 
 #[test]
