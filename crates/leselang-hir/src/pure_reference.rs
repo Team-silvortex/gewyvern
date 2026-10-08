@@ -18,13 +18,41 @@ use crate::{
     result_field::ResultField,
 };
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 enum ReferenceMembers<'a> {
     External(&'a [(String, HostOperation)]),
     Computed {
         kind: crate::ir::GroupKind,
         members: std::rc::Rc<[(&'a str, &'a HostOperation)]>,
     },
+}
+
+impl PartialEq for ReferenceMembers<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::External(left), Self::External(right)) => left == right,
+            (
+                Self::Computed {
+                    kind: left_kind,
+                    members: left,
+                },
+                Self::Computed {
+                    kind: right_kind,
+                    members: right,
+                },
+            ) => crate::native_group_signature::compare_native_group_signatures(
+                (*left_kind, left.as_ref()),
+                (*right_kind, right.as_ref()),
+                crate::MAX_ALL_BRANCHES,
+                |member| -> Result<_, ()> { Ok(member.0) },
+                |member| Ok(member.0),
+                |left, right| Ok(left.1 == right.1),
+            )
+            .unwrap_or(false),
+            // External legacy metadata has no mode; never invent one to bridge variants.
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -67,28 +95,70 @@ struct ReferenceEnvironment<'a> {
 pub(crate) fn flat_native_group(
     effect: &crate::Effect,
 ) -> Option<(crate::ir::GroupKind, &[crate::HirBranch])> {
-    let (kind, branches, minimum) = match effect {
-        crate::Effect::Sequence { steps } => (crate::ir::GroupKind::Sequence, steps, 1),
-        crate::Effect::All { branches } => (crate::ir::GroupKind::Parallel, branches, 2),
+    let (kind, branches) = match effect {
+        crate::Effect::Sequence { steps } => (crate::ir::GroupKind::Sequence, steps),
+        crate::Effect::All { branches } => (crate::ir::GroupKind::Parallel, branches),
         _ => return None,
     };
-    if !(minimum..=crate::MAX_ALL_BRANCHES).contains(&branches.len())
-        || branches.iter().enumerate().any(|(index, branch)| {
-            !crate::pure_typing::valid_member_name(&branch.name)
-                || branches[..index]
-                    .iter()
-                    .any(|prior| prior.name == branch.name)
-                || HostOperation::for_effect(&branch.effect)
-                    .is_none_or(|operation| operation.schema().result.ty != branch.result_type)
-        })
-    {
-        return None;
-    }
-    Some((kind, branches))
+    crate::native_group::admit_native_group_members(
+        kind,
+        branches,
+        crate::MAX_ALL_BRANCHES,
+        |branch| Ok(branch.name.as_str()),
+        |branch| {
+            if HostOperation::for_effect(&branch.effect)
+                .is_none_or(|operation| operation.schema().result.ty != branch.result_type)
+            {
+                Err(())
+            } else {
+                Ok(())
+            }
+        },
+    )
+    .ok()
+    .map(|admitted| (admitted.kind(), admitted.members()))
 }
 
 pub(crate) fn supports_host_flow(effect: &crate::Effect) -> bool {
     HostOperation::for_effect(effect).is_some() || flat_native_group(effect).is_some()
+}
+
+// Fresh flat export observations still require the caller's canonical/domain gate.
+pub(crate) fn native_group_exports(
+    effect: &crate::Effect,
+) -> Option<crate::group_exports::GroupExports<'_, HostOperation>> {
+    let (kind, branches) = match effect {
+        crate::Effect::Sequence { steps } => (crate::ir::GroupKind::Sequence, steps),
+        crate::Effect::All { branches } => (crate::ir::GroupKind::Parallel, branches),
+        _ => return None,
+    };
+    crate::native_group_exports::observe_native_group_exports(
+        kind,
+        branches,
+        crate::MAX_ALL_BRANCHES,
+        |branch| Ok(branch.name.as_str()),
+        |branch| {
+            let operation = HostOperation::for_effect(&branch.effect).ok_or(())?;
+            (operation.schema().result.ty == branch.result_type)
+                .then_some(operation)
+                .ok_or(())
+        },
+        |candidate_kind, original, exports| {
+            if candidate_kind == kind
+                && original.len() == exports.len()
+                && original.iter().zip(exports).all(|(branch, export)| {
+                    std::ptr::eq(branch.name.as_str(), export.name)
+                        && HostOperation::for_effect(&branch.effect) == Some(export.operation)
+                        && export.operation.schema().result.ty == branch.result_type
+                })
+            {
+                Ok(())
+            } else {
+                Err(())
+            }
+        },
+    )
+    .ok()
 }
 
 impl<'schema>
@@ -136,19 +206,13 @@ where
                 _ => PureType::Result(ReferenceResult { ty, members: None }),
             });
         }
-        let (kind, branches) = flat_native_group(effect)?;
-        let members = branches
-            .iter()
-            .map(|branch| {
-                Some((
-                    branch.name.as_str(),
-                    &HostOperation::for_effect(&branch.effect)?
-                        .schema()
-                        .result
-                        .operation,
-                ))
-            })
-            .collect::<Option<std::rc::Rc<[_]>>>()?;
+        let exports = native_group_exports(effect)?;
+        let kind = exports.kind;
+        let members = exports
+            .members
+            .into_iter()
+            .map(|member| (member.name, &member.operation.schema().result.operation))
+            .collect();
         Some(PureType::Result(ReferenceResult {
             ty: Type::Structured,
             members: Some(ReferenceMembers::Computed { kind, members }),
@@ -204,9 +268,19 @@ impl<'a> PureTypeEnvironment<ResultField, HostOperation> for ReferenceEnvironmen
             ReferenceMembers::External(members) => members
                 .iter()
                 .any(|(member, declared)| member == name && declared == operation),
-            ReferenceMembers::Computed { members, .. } => members
-                .iter()
-                .any(|(member, declared)| *member == name && *declared == operation),
+            ReferenceMembers::Computed { kind, members } => {
+                crate::native_group_lookup::lookup_native_group_member(
+                    *kind,
+                    members.as_ref(),
+                    crate::MAX_ALL_BRANCHES,
+                    name,
+                    |member| -> Result<_, ()> { Ok(member.0) },
+                    |member| Ok(member.1 == operation),
+                )
+                .ok()
+                .flatten()
+                .is_some()
+            }
         };
         if !exported {
             return None;
@@ -633,5 +707,193 @@ mod native_group_tests {
             assert!(flat_native_group(&value).is_none());
             assert!(!supports_host_flow(&value));
         }
+    }
+
+    #[test]
+    fn shared_native_member_gate_keeps_original_label_limits_and_requires_prior_payload_admission()
+    {
+        let mut effect = Effect::Sequence {
+            steps: (0..crate::MAX_ALL_BRANCHES)
+                .map(|index| HirBranch {
+                    name: format!("member_{index}"),
+                    effect: Effect::UiFocus {
+                        node_id: "target".into(),
+                    },
+                    result_type: Type::UiFocus,
+                })
+                .collect(),
+        };
+        let (kind, members) = flat_native_group(&effect).unwrap();
+        assert_eq!(kind, crate::ir::GroupKind::Sequence);
+        assert_eq!(members.len(), crate::MAX_ALL_BRANCHES);
+        let Effect::Sequence { steps } = &effect else {
+            panic!()
+        };
+        assert!(std::ptr::eq(members, &steps[..]));
+        crate::canonical_source(&effect).unwrap();
+        let Effect::Sequence { steps } = &mut effect else {
+            panic!()
+        };
+        steps[0].effect = Effect::UiFocus {
+            node_id: String::new(),
+        };
+        // Closed declaration matching is deliberately not native payload admission.
+        assert!(flat_native_group(&effect).is_some());
+        assert!(crate::canonical_source(&effect).is_err());
+        let Effect::Sequence { steps } = &mut effect else {
+            panic!()
+        };
+        steps[63].name = steps[0].name.clone();
+        assert!(flat_native_group(&effect).is_none());
+    }
+
+    #[test]
+    fn shared_native_exports_keep_original_order_canonical_rows_and_closed_flat_profile() {
+        let mut effect = Effect::Sequence {
+            steps: vec![
+                HirBranch {
+                    name: "focus".into(),
+                    effect: Effect::UiFocus {
+                        node_id: "a".into(),
+                    },
+                    result_type: Type::UiFocus,
+                },
+                HirBranch {
+                    name: "activate".into(),
+                    effect: Effect::UiActivate {
+                        node_id: "b".into(),
+                    },
+                    result_type: Type::UiActivate,
+                },
+            ],
+        };
+        let exports = native_group_exports(&effect).unwrap();
+        assert_eq!(exports.kind, crate::ir::GroupKind::Sequence);
+        assert_eq!(
+            exports
+                .members
+                .iter()
+                .map(|member| member.operation)
+                .collect::<Vec<_>>(),
+            [HostOperation::UiFocus, HostOperation::UiActivate]
+        );
+        let Effect::Sequence { steps } = &effect else {
+            panic!()
+        };
+        for (branch, export) in steps.iter().zip(&exports.members) {
+            assert!(std::ptr::eq(branch.name.as_str(), export.name));
+        }
+        drop(exports);
+        let Effect::Sequence { steps } = &mut effect else {
+            panic!()
+        };
+        steps[1].result_type = Type::RuntimeList;
+        assert!(native_group_exports(&effect).is_none());
+        let Effect::Sequence { steps } = &mut effect else {
+            panic!()
+        };
+        steps[1].effect = native("b");
+        steps[1].result_type = Type::Structured;
+        assert!(native_group_exports(&effect).is_none());
+    }
+
+    #[test]
+    fn shared_signature_comparison_preserves_product_tags_and_legacy_external_variant_identity() {
+        let focus = HostOperation::UiFocus;
+        let activate = HostOperation::UiActivate;
+        let left = ReferenceMembers::Computed {
+            kind: crate::ir::GroupKind::Sequence,
+            members: vec![("focus", &focus), ("activate", &activate)].into(),
+        };
+        let names = [String::from("focus"), String::from("activate")];
+        let same = ReferenceMembers::Computed {
+            kind: crate::ir::GroupKind::Sequence,
+            members: vec![(names[0].as_str(), &focus), (names[1].as_str(), &activate)].into(),
+        };
+        assert!(left == same);
+        let changed = ReferenceMembers::Computed {
+            kind: crate::ir::GroupKind::Parallel,
+            members: vec![("focus", &focus), ("activate", &activate)].into(),
+        };
+        assert!(left != changed);
+        let changed = ReferenceMembers::Computed {
+            kind: crate::ir::GroupKind::Sequence,
+            members: vec![("activate", &activate), ("focus", &focus)].into(),
+        };
+        assert!(left != changed);
+        let changed = ReferenceMembers::Computed {
+            kind: crate::ir::GroupKind::Sequence,
+            members: vec![("focus", &focus), ("activate", &focus)].into(),
+        };
+        assert!(left != changed);
+        let external = vec![("focus".into(), focus), ("activate".into(), activate)];
+        let borrowed = ReferenceMembers::External(&external);
+        assert!(borrowed == borrowed.clone());
+        assert!(left != borrowed);
+        let invalid = ReferenceMembers::Computed {
+            kind: crate::ir::GroupKind::Parallel,
+            members: vec![("focus", &focus)].into(),
+        };
+        assert!(invalid != invalid.clone());
+    }
+
+    #[test]
+    fn shared_member_lookup_keeps_closed_operation_tags_and_legacy_external_queries() {
+        let focus = HostOperation::UiFocus;
+        let activate = HostOperation::UiActivate;
+        let environment = ReferenceEnvironment { _groups: &[] };
+        let group = ReferenceResult {
+            ty: Type::Structured,
+            members: Some(ReferenceMembers::Computed {
+                kind: crate::ir::GroupKind::Sequence,
+                members: vec![("focus", &focus), ("activate", &activate)].into(),
+            }),
+        };
+        assert_eq!(
+            environment
+                .member_result(&group, "activate", &activate)
+                .unwrap()
+                .ty,
+            Type::UiActivate
+        );
+        assert!(
+            environment
+                .member_result(&group, "focus", &activate)
+                .is_none()
+        );
+        assert!(
+            environment
+                .member_result(&group, "missing", &focus)
+                .is_none()
+        );
+        let malformed = ReferenceResult {
+            ty: Type::Structured,
+            members: Some(ReferenceMembers::Computed {
+                kind: crate::ir::GroupKind::Sequence,
+                members: vec![("focus", &focus), ("bad tail", &activate)].into(),
+            }),
+        };
+        assert!(
+            environment
+                .member_result(&malformed, "focus", &focus)
+                .is_none()
+        );
+        let external = vec![("focus".into(), focus)];
+        let external = ReferenceResult {
+            ty: Type::Structured,
+            members: Some(ReferenceMembers::External(&external)),
+        };
+        assert_eq!(
+            environment
+                .member_result(&external, "focus", &focus)
+                .unwrap()
+                .ty,
+            Type::UiFocus
+        );
+        assert!(
+            environment
+                .member_result(&external, "focus", &activate)
+                .is_none()
+        );
     }
 }

@@ -3309,6 +3309,196 @@ continuation, result acceptance or an execution certificate. Fresh graph and liv
 policy admission are required after mutation. Nested type/export compilation,
 full native schema lowering and durable suspension remain extraction gates.
 
+### Shared Closed Native Member Admission
+
+`native_group::admit_native_group_members` now admits one original closed member
+slice through inclusive Sequence/Parallel arity, once-borrowed names and explicit
+native member callbacks. This is **member-slice admission, not graph typing**.
+Sequence requires one member, Parallel two; the explicit ceiling is 64 and zero
+denies all groups before hooks. The shared ASCII member-label grammar allows
+digits, hyphens and lexical reserved words; it is not the local-variable grammar.
+
+**All member names precede any native pair admission**. Each original name is
+observed once in declaration order and checked for validity/duplicates before the
+first native member callback. A **fixed bounded borrowed name table** avoids a
+heap collection, repeated name queries or native payload clones. Every original
+member is then admitted once per entry, in declaration order. The returned
+`NativeGroupMembers` exposes the original kind, slice and cached name references,
+not a converted graph, result values or a persisted operation registry.
+
+The product flat native group view and an unrelated GUI host now delegate this
+same gate. Native callbacks still corroborate atomic eligibility and the exact
+original operation/result declaration. Canonical/source/wire and capability
+checks remain separate; Compute or nested native groups do not become atomic
+members. **Complete native graph and payload bounds remain separate gates**,
+including `native_graph::inspect_native_graph` where appropriate. The product
+still requires prior canonical admission; a matching declaration alone does not
+validate native payload domains or later live policy.
+
+**Native name/admission errors retain member index and phase without payload
+formatting** or private source chains. Failure/unwind returns no partially
+admitted view, retries no hook and consumes no borrowed native slots. Callback
+work, allocation, interior mutation, external side effects and Drop are trusted
+adapter policy and cannot be rolled back/preempted. Supplied names are explicit
+native observations, not automatic proof of authenticity. The view is ephemeral,
+not a lasting type/schema/grant, reply acceptance, fuel or execution certificate.
+Full native schema, nested type/export compilation and durable suspension remain
+extraction gates; independent VM maturity is not promoted.
+
+### Shared Fresh Native Export Assembly
+
+`native_group_exports::observe_native_group_exports` assembles one fresh closed
+signature from an original native member slice. **All cold names before operation
+observations** means the shared member preflight checks current inclusive arity,
+the explicit maximum and every once-borrowed name before any native operation
+hook or export allocation. **No cached member view or grant is accepted**. Each
+entry repeats that complete cold pass; Sequence/Parallel keep the same closed
+minimums and 64-member safety ceiling.
+
+Every original member then produces one opaque operation observation, once in
+declaration order. Only the bounded export metadata vector is allocated; native
+graphs are not converted or copied. Names retain their original borrowed buffers,
+and opaque observations need no Clone/Debug/equality/serde/Send traits. The
+**Mandatory once-only whole-signature native admission** receives the original
+kind/member slice and the complete ordered candidate before handoff. The adapter
+must corroborate original names, operation/result/schema identity, atomic
+eligibility and current policy; the shared core cannot infer those native facts.
+
+The product type-observation and source-export paths now delegate the same entry,
+preserving canonical static result rows and product operation tags. An unrelated
+GUI host also uses it with original operation/declaration references; a separate
+device-schema regression confirms no product schema is required. Canonical
+payload domains, private whole-graph bounds, capability policy and existing wire
+formats remain separate. Compute and nested native groups still cannot become
+atomic members, and incompatible native/computed signatures are not unioned.
+
+**Owned observation prefixes release without partial output** on name/operation
+failure, final admission refusal or unwind. Errors retain member positions and
+operation/signature phases without formatting private payloads or source chains.
+No hook is retried and no borrowed native graph is consumed. Native hooks,
+allocation, interior mutation and Drop are trusted adapter behavior; destructors
+may unwind and external effects cannot be rolled back or preempted.
+
+**Mutable export metadata is not current authority**. The returned `GroupExports`
+can be changed after handoff and certifies no future schema, live grant, reply
+acceptance, fuel, dispatch or durable continuation. Fresh admission remains
+required at the relevant later boundary. This is closed export assembly, not
+nested graph typing or a complete independent VM; full native schema and durable
+suspension remain extraction gates.
+
+### Shared Fresh Closed Signature Comparison
+
+`native_group_signature::compare_native_group_signatures` compares two original
+closed member slices without converting native graphs. **Complete left then right
+name preflight precedes every native pair**: each side repeats current inclusive
+arity, the explicit maximum, shared label grammar and duplicate checks before
+native comparison. An invalid left side stops before right hooks. Valid
+mode/count/order differences still finish both cold name passes, then return
+false without touching native operation pairs.
+
+**Same name spelling is not native row identity**. Names with equal contents can
+borrow different original buffers; operation/result/schema equivalence is an
+explicit adapter callback on the original member pairs. Pairs run once in
+declaration order and stop at the first false/error/unwind. **Aliased slices do
+not bypass current comparison**. The same input addresses are not a shortcut or
+a cached certificate. Neither side is consumed, cloned, formatted or serialized;
+two fixed borrowed name tables need no heap collection or native trait bounds.
+**Heterogeneous native member representations remain adapter-owned**: an unsized
+GUI-local operation and a separate device format can be compared by their
+protocol without making either schema a product enum or universal wire type.
+
+Product closed source-export comparison, computed type-member equality and an
+unrelated GUI host now delegate the shared entry. Source export failures retain
+their existing group/member positions and diagnostics, including native comparator
+errors. The product still compares immutable operation tags; its existing external
+metadata variant lacks a group mode and is deliberately not bridged to computed
+groups. Existing canonical wire, private payload limits, flat execution profiles
+and later capability checks remain unchanged. **Different signatures never form
+an implicit union**.
+
+**Side/member errors stay matchable without private formatting** or source chains.
+Invalid member data is an error, not equality; valid structural or explicit native
+mismatches are false. Hook failure/unwind stops without retries or a partial true
+result, but external callback work, interior state, allocation and Drop cannot be
+rolled back or preempted. Supplied names and comparators remain trusted native
+protocols, not automatic authenticity, live-policy or payload validation.
+
+**A true comparison is not future authority**. Changed names, limits, native rows
+or live policy require fresh relevant admission; storing a prior boolean does not
+certify type identity, accepted results, fuel, dispatch or durable suspension.
+This is closed signature comparison, not full native schema or nested graph
+typing, and independent VM maturity remains unchanged.
+
+### Shared Fresh Closed Member Lookup
+
+`native_group_lookup::lookup_native_group_member` queries a fresh original closed
+member slice with an explicit current ceiling. **Invalid ceiling and query precede
+native name hooks**: the maximum is capped at 64 and the query uses the shared
+bounded ASCII member-label grammar. **Complete member names precede selected native
+admission**, including inclusive arity, all once-borrowed names and duplicate
+checks. **A matching prefix cannot hide an invalid or duplicate tail**. The fixed
+borrowed name table needs no heap collection or native Clone/Debug/equality,
+serde or Send bounds; callback work and allocation are still adapter-owned.
+
+**Missing members never query native operations**.
+**One once-owned native admission on the original member** follows a matching
+slot; false returns no
+member without trying another slot, and true returns that same original borrowed
+reference. The adapter must expose original names and corroborate the selected
+operation/result/schema and relevant current policy against the actual query.
+This is not automatic original-name or native-row authenticity, admission of
+other rows or the whole graph, or a nested graph type profile. Complete private
+native graph and payload bounds remain earlier or separate adapter gates.
+
+Product computed member queries and an unrelated GUI test host now delegate the
+same lookup. The product preserves its immutable operation-tag rule; the GUI
+adapter preserves its existing exact operation-row identity rule. Legacy external
+product metadata has no group mode and keeps its old query profile, without an
+invented mode or bridging to computed groups. Existing result declarations,
+canonical wire, diagnostics, native graph limits and later execution/capability
+gates remain unchanged. No native result values are read or replies accepted.
+
+Query/member errors retain the original phase and index with opaque native errors
+matchable by the caller, without private formatting, source chains or serialization.
+Native failure/unwind stops without retry, partial output or consuming borrowed
+members. Once-owned captured hook state is released normally even when a missing
+member prevents invocation. Trusted callbacks, interior mutation and Drop effects
+cannot be rolled back or preempted; cleanup panics are not disguised as success.
+
+**Borrowed selection is not future authority**. A returned member is metadata,
+not a type/grant/receipt/fuel/dispatch certificate or cached admission. Changed
+names, limits, native identity or current policy require fresh relevant checks.
+This is closed member selection, not full native schema or durable suspension;
+independent VM maturity remains unchanged.
+
+### Shared Language Group Shape Preflight
+
+The crate-private `native_group::preflight_native_group_members` now supplies
+**One shape gate for native and language groups**. `group_exports` uses it for
+original IR branches and returned export metadata; `flow_typing` and
+`effect_evaluation` use it before atomic child preparation or native effect hooks.
+The old count/index name loops are removed. **Each original label is borrowed
+once per shape pass**, using the same fixed bounded table and current inclusive
+arity, ceiling, grammar and duplicate policy. Separate passes remain fresh; no
+cached member view or earlier success is reused as an admission certificate.
+
+**Language shape accessors are infallible and non-native**: they only borrow the
+original label, never select operations, inspect payloads or admit native members.
+The original whole-IR physical checks, scopes, group limits and traversal order
+remain in their existing walkers. **Existing diagnostics keep their phase and
+member index**: flow typing retains group/branch positions, export observation
+retains MemberShape and effect execution retains GroupShape. Malformed whole
+group names still precede atomic child preparation; complete physical passes
+still precede native hooks, prefix copies and fuel use.
+
+**Source labels keep their stricter lexical grammar**. Broader IR labels such as
+`1`, `all-4` and `while` remain legal in these existing IR shape profiles, not new
+source spellings or canonical wire forms. Source headers keep their separate
+argument-name checks, and the product's coarse canonical gate is unchanged.
+**Shape success does not admit a native graph or effect**. Exact declarations,
+atomic eligibility, current schema/policy and dispatch/reply checks stay separate;
+no execution, reply acceptance, fuel spending or durable suspension is introduced.
+
 ### Shared Native Host Source
 
 `host_source::lower_host_source` bounds the complete cold original AST before

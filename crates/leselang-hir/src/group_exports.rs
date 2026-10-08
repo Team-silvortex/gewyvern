@@ -8,6 +8,7 @@ use leselang_runtime_core::{
 
 use crate::call_typing::{MAX_CALL_ARGUMENTS, valid_argument_name};
 use crate::ir::{Computation, ComputedBranch, GroupKind};
+use crate::native_group::preflight_native_group_members;
 use crate::pure_typing::{
     MAX_TYPE_INFERENCE_DEPTH, MAX_TYPE_INFERENCE_NODES, valid_local_name, valid_member_name,
 };
@@ -98,21 +99,16 @@ type Branch<Field, Operation, HostEffect, IrResult> =
     ComputedBranch<Node<Field, Operation, HostEffect, IrResult>, IrResult>;
 type Routes<'expression, Node, Error> = Result<Vec<&'expression Node>, GroupExportError<Error>>;
 
-fn member_shape<'name>(
+fn member_shape<'name, Member>(
     kind: GroupKind,
-    count: usize,
-    mut name: impl FnMut(usize) -> &'name str,
+    members: &'name [Member],
     maximum: usize,
+    mut name: impl FnMut(&'name Member) -> &'name str,
 ) -> bool {
-    let minimum = match kind {
-        GroupKind::Sequence => 1,
-        GroupKind::Parallel => 2,
-    };
-    (minimum..=maximum).contains(&count)
-        && (0..count).all(|index| {
-            valid_member_name(name(index))
-                && (0..index).all(|previous| name(previous) != name(index))
-        })
+    preflight_native_group_members(kind, members, maximum, |member| {
+        Ok::<_, std::convert::Infallible>(name(member))
+    })
+    .is_ok()
 }
 
 pub(crate) fn physical<Field, Operation, HostEffect, IrResult, Error>(
@@ -156,12 +152,9 @@ pub(crate) fn physical<Field, Operation, HostEffect, IrResult, Error>(
                 group_kind,
                 branches,
             } => {
-                if !member_shape(
-                    *group_kind,
-                    branches.len(),
-                    |index| &branches[index].name,
-                    limits.max_members,
-                ) {
+                if !member_shape(*group_kind, branches, limits.max_members, |branch| {
+                    branch.name.as_str()
+                }) {
                     return Err(GroupExportError::MemberShape);
                 }
                 true
@@ -351,38 +344,94 @@ pub fn observe_group_exports<'expression, Field, Operation, HostEffect, IrResult
         };
         if !member_shape(
             current.kind,
-            current.members.len(),
-            |index| current.members[index].name,
+            &current.members,
             limits.max_members,
+            |member| member.name,
         ) {
             return Err(GroupExportError::MemberShape);
         }
         if let Some(expected) = &signature {
-            if expected.kind != current.kind
-                || expected.members.len() != current.members.len()
-                || expected
-                    .members
-                    .iter()
-                    .zip(&current.members)
-                    .any(|(left, right)| left.name != right.name)
-            {
-                return Err(GroupExportError::SignatureMismatch);
-            }
-            for (index, (expected, current)) in
-                expected.members.iter().zip(&current.members).enumerate()
-            {
-                if !same(&expected.operation, &current.operation).map_err(|error| {
-                    GroupExportError::Native {
-                        group_index,
-                        phase: GroupExportPhase::Compare { index },
-                        error,
-                    }
-                })? {
-                    return Err(GroupExportError::SignatureMismatch);
+            let matches = crate::native_group_signature::compare_native_group_signatures(
+                (expected.kind, &expected.members),
+                (current.kind, &current.members),
+                limits.max_members,
+                |member| Ok(member.name),
+                |member| Ok(member.name),
+                |expected, current| same(&expected.operation, &current.operation),
+            )
+            .map_err(|error| match error {
+                crate::native_group_signature::NativeGroupSignatureError::Members { .. } => {
+                    GroupExportError::MemberShape
                 }
+                crate::native_group_signature::NativeGroupSignatureError::Native {
+                    member_index,
+                    error,
+                } => GroupExportError::Native {
+                    group_index,
+                    phase: GroupExportPhase::Compare {
+                        index: member_index,
+                    },
+                    error,
+                },
+            })?;
+            if !matches {
+                return Err(GroupExportError::SignatureMismatch);
             }
         }
         signature = Some(current);
     }
     signature.ok_or(GroupExportError::UnsupportedTail)
+}
+
+#[cfg(test)]
+mod shape_tests {
+    use std::cell::{Cell, RefCell};
+    use std::rc::Rc;
+
+    use super::{GroupKind, member_shape};
+
+    #[test]
+    fn closed_export_shape_reads_each_original_label_once_without_native_traits() {
+        struct Member {
+            name: String,
+            native: Rc<Cell<u8>>,
+        }
+        let mut members = ["first", "second", "third"].map(|name| Member {
+            name: name.into(),
+            native: Rc::new(Cell::new(7)),
+        });
+        let seen = RefCell::new(Vec::new());
+        for (maximum, expected) in [(0, false), (2, false), (3, true), (65, false)] {
+            seen.borrow_mut().clear();
+            assert_eq!(
+                member_shape(GroupKind::Sequence, &members, maximum, |member| {
+                    seen.borrow_mut().push(std::ptr::from_ref(member));
+                    member.name.as_str()
+                }),
+                expected
+            );
+            let original = if expected {
+                members.iter().map(std::ptr::from_ref).collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
+            assert_eq!(*seen.borrow(), original);
+        }
+        for last in ["first", "bad tail"] {
+            members[2].name = last.into();
+            seen.borrow_mut().clear();
+            assert!(!member_shape(GroupKind::Sequence, &members, 3, |member| {
+                seen.borrow_mut().push(std::ptr::from_ref(member));
+                member.name.as_str()
+            }));
+            assert_eq!(
+                *seen.borrow(),
+                members.iter().map(std::ptr::from_ref).collect::<Vec<_>>()
+            );
+        }
+        for member in &members {
+            assert_eq!(Rc::strong_count(&member.native), 1);
+            assert_eq!(member.native.get(), 7);
+        }
+    }
 }

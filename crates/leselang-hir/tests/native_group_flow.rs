@@ -93,15 +93,18 @@ impl PartialEq for Metadata<'_, '_> {
                     kind: right_kind,
                     members: right,
                 },
-            ) => {
-                left_kind == right_kind
-                    && left.len() == right.len()
-                    && left.iter().zip(right.iter()).all(|(left, right)| {
-                        left.name == right.name
-                            && std::ptr::eq(left.operation.row, right.operation.row)
-                            && std::ptr::eq(left.declaration, right.declaration)
-                    })
-            }
+            ) => leselang_hir::native_group_signature::compare_native_group_signatures(
+                (*left_kind, left.as_ref()),
+                (*right_kind, right.as_ref()),
+                4,
+                |member| -> Result<_, ()> { Ok(member.name) },
+                |member| Ok(member.name),
+                |left, right| {
+                    Ok(std::ptr::eq(left.operation.row, right.operation.row)
+                        && std::ptr::eq(left.declaration, right.declaration))
+                },
+            )
+            .unwrap_or(false),
             _ => false,
         }
     }
@@ -193,12 +196,18 @@ impl<'e, 's: 'e> PureTypeEnvironment<u8, Operation<'s>> for Gui<'e, 's> {
         operation: &Operation<'s>,
     ) -> Option<Self::Result> {
         self.trace.record("member");
-        let Query::Group { members, .. } = &group.query else {
+        let Query::Group { kind, members } = &group.query else {
             return None;
         };
-        let member = members.iter().find(|member| {
-            member.name == name && std::ptr::eq(member.operation.row, operation.row)
-        })?;
+        let member = leselang_hir::native_group_lookup::lookup_native_group_member(
+            *kind,
+            members.as_ref(),
+            4,
+            name,
+            |member| -> Result<_, ()> { Ok(member.name) },
+            |member| Ok(std::ptr::eq(member.operation.row, operation.row)),
+        )
+        .ok()??;
         self.trace.members.borrow_mut().push((
             member.name.as_ptr() as usize,
             std::ptr::from_ref(member.operation) as usize,
@@ -260,16 +269,22 @@ impl<'e, 's: 'e> HostFlowEnvironment<'e, 's, u8, Operation<'s>, Declaration, Gra
         match graph {
             Graph::Atomic { .. } => self.max_native_nodes.get() >= 1 && self.atomic_valid(graph),
             Graph::Group { kind, members } => {
-                let minimum = if *kind == GroupKind::Sequence { 1 } else { 2 };
-                (minimum..=4).contains(&members.len())
-                    && members.len() < self.max_native_nodes.get()
-                    && members.iter().enumerate().all(|(index, member)| {
-                        !member.name.is_empty() && member.name.len() <= 64
-                            && member.name.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
-                            && !members[..index].iter().any(|prior| prior.name == member.name)
-                            && self.atomic_valid(&member.effect)
-                            && matches!(&member.effect, Graph::Atomic { declaration, .. } if std::ptr::eq(*declaration, member.declaration))
-                    })
+                members.len() < self.max_native_nodes.get()
+                    && leselang_hir::native_group::admit_native_group_members(
+                        *kind,
+                        members,
+                        4,
+                        |member| Ok(member.name.as_str()),
+                        |member| {
+                            if self.atomic_valid(&member.effect)
+                                && matches!(&member.effect, Graph::Atomic { declaration, .. } if std::ptr::eq(*declaration, member.declaration))
+                            {
+                                Ok(())
+                            } else {
+                                Err(())
+                            }
+                        },
+                    ).is_ok()
             }
         }
     }
@@ -277,22 +292,58 @@ impl<'e, 's: 'e> HostFlowEnvironment<'e, 's, u8, Operation<'s>, Declaration, Gra
         self.trace.record("host_type");
         let query = match graph {
             Graph::Atomic { declaration, .. } => Query::Atomic(declaration),
-            Graph::Group { kind, members } => Query::Group {
-                kind: *kind,
-                members: members
-                    .iter()
-                    .map(|member| {
+            Graph::Group { kind, members } => {
+                let exports = leselang_hir::native_group_exports::observe_native_group_exports(
+                    *kind,
+                    members,
+                    4,
+                    |member| Ok(member.name.as_str()),
+                    |member| {
                         let Graph::Atomic { operation, .. } = &member.effect else {
-                            return None;
+                            return Err(());
                         };
-                        Some(Member {
+                        Ok(Member {
                             name: &member.name,
                             operation,
                             declaration: member.declaration,
                         })
-                    })
-                    .collect::<Option<Rc<[_]>>>()?,
-            },
+                    },
+                    |candidate_kind, original, candidate| {
+                        if candidate_kind == *kind
+                            && self.version.get() == 9
+                            && self.granted.get()
+                            && original.len() < self.max_native_nodes.get()
+                            && original.iter().zip(candidate).all(|(member, observed)| {
+                                let Graph::Atomic { operation, .. } = &member.effect else {
+                                    return false;
+                                };
+                                self.atomic_valid(&member.effect)
+                                    && std::ptr::eq(member.name.as_str(), observed.name)
+                                    && std::ptr::eq(member.name.as_str(), observed.operation.name)
+                                    && std::ptr::eq(operation, observed.operation.operation)
+                                    && std::ptr::eq(
+                                        member.declaration,
+                                        observed.operation.declaration,
+                                    )
+                                    && std::ptr::eq(member.declaration, &operation.row.result)
+                            })
+                        {
+                            Ok(())
+                        } else {
+                            Err(())
+                        }
+                    },
+                )
+                .ok()?;
+                Query::Group {
+                    kind: exports.kind,
+                    members: exports
+                        .members
+                        .into_iter()
+                        .map(|member| member.operation)
+                        .collect(),
+                }
+            }
         };
         Some(PureType::Result(self.metadata(query)))
     }

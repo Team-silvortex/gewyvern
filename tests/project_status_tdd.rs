@@ -801,7 +801,7 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
     assert_eq!(cell.priority, Priority::Active);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
-    assert_eq!(cell.contract.version, "0.78.0");
+    assert_eq!(cell.contract.version, "0.83.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.independence, Independence::ReusableLibrary);
     assert!(cell.evidence.iter().any(|evidence| {
@@ -10229,7 +10229,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leselang/language-hir/typed-effects")
         .expect("Leselang HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.128.0");
+    assert_eq!(hir.contract.version, "0.133.0");
     for surface in [
         "shared-scalar-choose-recover-and-list-source-construction",
         "cold-control-signatures-and-list-labels-before-source-extensions",
@@ -11887,7 +11887,7 @@ fn native_call_completion_is_tracked_without_promoting_full_embedding_readiness(
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.78.0");
+    assert_eq!(embedding.contract.version, "0.83.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -11940,7 +11940,7 @@ fn reference_member_delegation_is_tracked_without_claiming_the_entire_compiler_f
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.78.0");
+    assert_eq!(embedding.contract.version, "0.83.0");
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
@@ -11991,7 +11991,7 @@ fn staged_field_delegation_tracks_exact_native_policy_and_remaining_compiler_gat
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.78.0");
+    assert_eq!(embedding.contract.version, "0.83.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -12044,7 +12044,7 @@ fn native_host_source_tracks_owned_leaf_construction_without_claiming_opaque_flo
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.78.0");
+    assert_eq!(embedding.contract.version, "0.83.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -12102,7 +12102,7 @@ fn opaque_host_leaf_flow_typing_is_tracked_without_claiming_complete_native_grap
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.78.0");
+    assert_eq!(embedding.contract.version, "0.83.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -12161,7 +12161,7 @@ fn flat_mixed_host_group_typing_is_tracked_without_claiming_nested_graph_or_exec
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.78.0");
+    assert_eq!(embedding.contract.version, "0.83.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -12218,7 +12218,7 @@ fn flat_native_graph_observations_are_tracked_without_promoting_independent_vm_m
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.78.0");
+    assert_eq!(embedding.contract.version, "0.83.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -12274,7 +12274,324 @@ fn borrowed_native_graph_inspection_tracks_structure_without_certifying_types_or
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.78.0");
+    assert_eq!(embedding.contract.version, "0.83.0");
+    assert_eq!(embedding.contract.stability, ContractStability::Draft);
+    assert_eq!(embedding.maturity, Maturity::Developing);
+    assert_eq!(embedding.completion, 10);
+}
+
+#[test]
+fn closed_native_member_admission_tracks_actual_delegation_without_graph_or_vm_promotion() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    for id in [
+        "leselang/language-hir/typed-effects",
+        "leselang/language-vm/host-neutral-embedding",
+    ] {
+        let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
+        for surface in [
+            "shared-cold-native-group-member-admission",
+            "inclusive-group-arity-and-once-borrowed-member-labels-before-native-pairs",
+            "fixed-bounded-name-table-without-heap-or-native-slot-clones",
+            "original-native-member-slice-and-closed-declaration-order-handoff",
+            "native-member-errors-redacted-with-original-index-and-phase",
+            "product-and-unrelated-gui-flat-member-delegation-without-profile-widening",
+        ] {
+            assert!(
+                cell.contract
+                    .surfaces
+                    .iter()
+                    .any(|candidate| candidate == surface)
+            );
+        }
+        for path in [
+            "crates/leselang-hir/src/native_group.rs",
+            "crates/leselang-hir/tests/native_group.rs",
+            "crates/leselang-hir/src/pure_reference.rs",
+            "crates/leselang-hir/tests/native_group_flow.rs",
+        ] {
+            assert!(
+                cell.evidence
+                    .iter()
+                    .any(|entry| entry.path == path && entry.state == EvidenceState::Present)
+            );
+        }
+        assert!(
+            cell.next_gate.contains(
+                "fixed bounded name table without heap collection or native slot cloning"
+            )
+        );
+        assert!(
+            cell.next_gate
+                .contains("Product and unrelated GUI adapters delegate the same gate")
+        );
+        assert!(cell.next_gate.contains("member-slice admission, not nested type/export compilation, durable suspension or execution authority"));
+    }
+    let embedding = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(embedding.contract.version, "0.83.0");
+    assert_eq!(embedding.contract.stability, ContractStability::Draft);
+    assert_eq!(embedding.maturity, Maturity::Developing);
+    assert_eq!(embedding.completion, 10);
+}
+
+#[test]
+fn fresh_native_export_assembly_tracks_product_and_gui_delegation_without_authority_promotion() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    for id in [
+        "leselang/language-hir/typed-effects",
+        "leselang/language-vm/host-neutral-embedding",
+    ] {
+        let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
+        for surface in [
+            "shared-fresh-closed-native-export-assembly",
+            "complete-current-arity-and-once-borrowed-name-preflight-before-native-operations",
+            "original-member-order-and-move-only-native-export-observations",
+            "mandatory-once-whole-signature-original-row-result-and-live-policy-admission",
+            "native-export-failure-unwind-prefix-cleanup-without-partial-handoff",
+            "product-type-source-and-unrelated-gui-export-delegation-without-profile-widening",
+        ] {
+            assert!(
+                cell.contract
+                    .surfaces
+                    .iter()
+                    .any(|candidate| candidate == surface)
+            );
+        }
+        for path in [
+            "crates/leselang-hir/src/native_group_exports.rs",
+            "crates/leselang-hir/tests/native_group_exports.rs",
+            "crates/leselang-hir/src/pure_reference.rs",
+            "crates/leselang-hir/src/computation.rs",
+            "crates/leselang-hir/tests/native_group_flow.rs",
+        ] {
+            assert!(
+                cell.evidence
+                    .iter()
+                    .any(|entry| entry.path == path && entry.state == EvidenceState::Present)
+            );
+        }
+        assert!(
+            cell.next_gate
+                .contains("mandatory once whole original/candidate signature corroboration")
+        );
+        assert!(
+            cell.next_gate
+                .contains("Product type/source and unrelated GUI adapters delegate it")
+        );
+        assert!(cell.next_gate.contains("closed export assembly, not nested type/export compilation, schema authority or an independent durable VM"));
+        assert!(
+            cell.next_gate
+                .contains("full native schema and durable suspension remain open")
+        );
+    }
+    let embedding = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(embedding.contract.version, "0.83.0");
+    assert_eq!(embedding.contract.stability, ContractStability::Draft);
+    assert_eq!(embedding.maturity, Maturity::Developing);
+    assert_eq!(embedding.completion, 10);
+}
+
+#[test]
+fn fresh_closed_signature_comparison_tracks_actual_delegation_without_schema_or_vm_promotion() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    for id in [
+        "leselang/language-hir/typed-effects",
+        "leselang/language-vm/host-neutral-embedding",
+    ] {
+        let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
+        for surface in [
+            "shared-fresh-closed-native-signature-comparison",
+            "complete-left-and-right-once-borrowed-name-preflight-before-native-pairs",
+            "original-heterogeneous-member-slices-and-declaration-order-native-comparison",
+            "closed-mode-count-and-name-order-mismatch-without-signature-union",
+            "native-signature-side-index-errors-and-unwind-without-retry-or-graph-consumption",
+            "product-source-type-and-unrelated-gui-signature-delegation-without-authority-promotion",
+        ] {
+            assert!(
+                cell.contract
+                    .surfaces
+                    .iter()
+                    .any(|candidate| candidate == surface)
+            );
+        }
+        for path in [
+            "crates/leselang-hir/src/native_group_signature.rs",
+            "crates/leselang-hir/tests/native_group_signature.rs",
+            "crates/leselang-hir/src/group_exports.rs",
+            "crates/leselang-hir/src/pure_reference.rs",
+            "crates/leselang-hir/tests/native_group_flow.rs",
+        ] {
+            assert!(
+                cell.evidence
+                    .iter()
+                    .any(|entry| entry.path == path && entry.state == EvidenceState::Present)
+            );
+        }
+        assert!(
+            cell.next_gate
+                .contains("complete left/right once-borrowed name preflight")
+        );
+        assert!(cell.next_gate.contains(
+            "Product source/type and unrelated GUI adapters delegate the same comparison"
+        ));
+        assert!(cell.next_gate.contains("closed signature agreement, not schema authenticity, current execution authority or nested graph typing"));
+        assert!(
+            cell.next_gate
+                .contains("full native schema and durable suspension remain open")
+        );
+    }
+    let embedding = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(embedding.contract.version, "0.83.0");
+    assert_eq!(embedding.contract.stability, ContractStability::Draft);
+    assert_eq!(embedding.maturity, Maturity::Developing);
+    assert_eq!(embedding.completion, 10);
+}
+
+#[test]
+fn fresh_closed_member_lookup_tracks_actual_selection_without_schema_or_authority_promotion() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    for id in [
+        "leselang/language-hir/typed-effects",
+        "leselang/language-vm/host-neutral-embedding",
+    ] {
+        let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
+        for surface in [
+            "shared-fresh-closed-native-member-lookup",
+            "invalid-query-and-complete-once-borrowed-member-names-before-selection",
+            "original-member-reference-without-native-clone-equality-or-heap-collection",
+            "missing-member-and-rejected-identity-without-native-fallback-queries",
+            "once-owned-selected-native-admission-errors-unwind-and-capture-cleanup",
+            "product-computed-and-unrelated-gui-member-query-delegation-with-legacy-external-profile",
+        ] {
+            assert!(
+                cell.contract
+                    .surfaces
+                    .iter()
+                    .any(|candidate| candidate == surface)
+            );
+        }
+        for path in [
+            "crates/leselang-hir/src/native_group_lookup.rs",
+            "crates/leselang-hir/tests/native_group_lookup.rs",
+            "crates/leselang-hir/src/pure_reference.rs",
+            "crates/leselang-hir/tests/native_group_flow.rs",
+        ] {
+            assert!(
+                cell.evidence
+                    .iter()
+                    .any(|entry| entry.path == path && entry.state == EvidenceState::Present)
+            );
+        }
+        assert!(
+            cell.next_gate
+                .contains("complete once-borrowed member-name preflight")
+        );
+        assert!(
+            cell.next_gate
+                .contains("one once-owned admission of the original selected slot")
+        );
+        assert!(
+            cell.next_gate
+                .contains("Missing members never query native operations")
+        );
+        assert!(cell.next_gate.contains(
+            "product computed/GUI adapters delegate while preserving legacy external metadata rules"
+        ));
+        assert!(cell.next_gate.contains("not automatic original-name/schema authenticity, full graph admission or future execution authority"));
+        assert!(
+            cell.next_gate
+                .contains("full native schema and durable suspension remain open")
+        );
+    }
+    let hir = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-hir/typed-effects")
+        .unwrap();
+    assert_eq!(hir.contract.version, "0.133.0");
+    let embedding = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(embedding.contract.version, "0.83.0");
+    assert_eq!(embedding.contract.stability, ContractStability::Draft);
+    assert_eq!(embedding.maturity, Maturity::Developing);
+    assert_eq!(embedding.completion, 10);
+}
+
+#[test]
+fn shared_language_group_shape_tracks_existing_walkers_without_new_admission_or_vm_promotion() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    for id in [
+        "leselang/language-hir/typed-effects",
+        "leselang/language-vm/host-neutral-embedding",
+    ] {
+        let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
+        for surface in [
+            "shared-cold-language-group-shape-preflight",
+            "once-borrowed-original-ir-and-export-member-labels",
+            "language-type-and-effect-preflight-without-native-member-admission",
+            "original-group-index-and-branch-error-parity",
+            "strict-source-label-and-canonical-profile-separation",
+            "unchanged-physical-cold-query-and-fuel-order-with-current-limits",
+        ] {
+            assert!(
+                cell.contract
+                    .surfaces
+                    .iter()
+                    .any(|candidate| candidate == surface)
+            );
+        }
+        for path in [
+            "crates/leselang-hir/src/native_group.rs",
+            "crates/leselang-hir/src/group_exports.rs",
+            "crates/leselang-hir/src/flow_typing.rs",
+            "crates/leselang-hir/src/effect_evaluation.rs",
+            "crates/leselang-hir/tests/group_exports.rs",
+            "crates/leselang-hir/tests/group_typing.rs",
+            "crates/leselang-hir/tests/effect_evaluation.rs",
+            "crates/leselang-hir/tests/group_source.rs",
+        ] {
+            assert!(
+                cell.evidence
+                    .iter()
+                    .any(|entry| entry.path == path && entry.state == EvidenceState::Present)
+            );
+        }
+        assert!(cell.next_gate.contains(
+            "group_exports, flow_typing and effect_evaluation to the same fresh member preflight"
+        ));
+        assert!(cell.next_gate.contains("preserving original diagnostics, physical-before-native/fuel order and stricter source/canonical profiles"));
+        assert!(cell.next_gate.contains("internal shape-gate consolidation, not new native admission, full native schema or durable VM authority"));
+        assert!(
+            cell.next_gate
+                .contains("full native schema and durable suspension remain open")
+        );
+    }
+    let hir = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-hir/typed-effects")
+        .unwrap();
+    assert_eq!(hir.contract.version, "0.133.0");
+    let embedding = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(embedding.contract.version, "0.83.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);

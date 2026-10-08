@@ -715,11 +715,11 @@ fn flat_native_graph_types_reuse_shared_protocols_and_original_closed_member_obs
         adapter
             .split_whitespace()
             .collect::<String>()
-            .contains("&HostOperation::for_effect(&branch.effect)?.schema().result.operation")
+            .contains("&member.operation.schema().result.operation")
     );
     let product =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
-    assert!(product.contains("crate::pure_reference::flat_native_group(effect)"));
+    assert!(product.contains("crate::pure_reference::native_group_exports(effect)"));
     assert_eq!(
         product
             .matches("crate::pure_reference::supports_host_flow")
@@ -3857,7 +3857,17 @@ fn shared_closed_group_exports_preflight_cold_routes_before_explicit_native_iden
                 .unwrap()
     );
     assert!(adapter.contains("branch.value.prepared_atomic_operation().ok_or(())"));
-    assert!(adapter.contains("HostOperation::for_effect(&branch.effect).ok_or(())?"));
+    assert!(adapter.contains("crate::pure_reference::native_group_exports(effect).ok_or(())"));
+    let native =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/pure_reference.rs")).unwrap();
+    let native = native
+        .split_once("pub(crate) fn native_group_exports")
+        .unwrap()
+        .1
+        .split_once("impl<'schema>")
+        .unwrap()
+        .0;
+    assert!(native.contains("HostOperation::for_effect(&branch.effect).ok_or(())?"));
     assert!(adapter.contains("|left, right| Ok(left == right)"));
     assert!(!adapter.contains("let mut pending"));
     assert!(reference.contains("let group_member_count = members.as_ref().map(Vec::len);"));
@@ -5123,5 +5133,833 @@ fn native_graph_inspection_borrows_original_slots_and_stays_separate_from_native
             product_proof.contains(boundary),
             "missing product graph proof {boundary}"
         );
+    }
+}
+
+#[test]
+fn closed_native_member_admission_is_borrowed_bounded_and_used_by_product_and_gui_adapters() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/native_group.rs")).unwrap();
+    let compact = source.split_whitespace().collect::<String>();
+    for marker in [
+        "pub struct NativeGroupMembers<'group, Branch>",
+        "members: &'group [Branch]",
+        "names: [Option<&'group str>; MAX_NATIVE_GRAPH_MEMBERS]",
+        "pub enum NativeGroupMemberPhase",
+        "pub enum NativeGroupMemberError<Error>",
+        "max_members > MAX_NATIVE_GRAPH_MEMBERS",
+        "GroupKind::Sequence => 1",
+        "GroupKind::Parallel => 2",
+        "let mut names = [None; MAX_NATIVE_GRAPH_MEMBERS]",
+        "valid_member_name(observed)",
+        "names[..member_index].contains(&Some(observed))",
+        "NativeGroupMemberPhase::Name",
+        "NativeGroupMemberPhase::Admission",
+        "member_index",
+        "not infer those facts",
+        "No partially",
+        "no hook is retried",
+        "External native work is not rolled back",
+    ] {
+        assert!(
+            source.contains(marker),
+            "missing native member boundary {marker}"
+        );
+    }
+    let entry = compact
+        .split_once("pubfnadmit_native_group_members")
+        .unwrap()
+        .1
+        .split_once("pub(crate)fnpreflight_native_group_members")
+        .unwrap()
+        .0;
+    assert!(
+        entry.find("preflight_native_group_members(").unwrap()
+            < entry.find("admit(member)").unwrap()
+    );
+    let preflight = compact
+        .split_once("pub(crate)fnpreflight_native_group_members")
+        .unwrap()
+        .1;
+    let ordered = [
+        "max_members>MAX_NATIVE_GRAPH_MEMBERS",
+        "minimum..=max_members",
+        "name(member)",
+        "valid_member_name(observed)",
+        "names[..member_index].contains",
+        "names[member_index]=Some(observed)",
+        "Ok(NativeGroupMembers",
+    ];
+    for pair in ordered.windows(2) {
+        assert!(preflight.find(pair[0]).unwrap() < preflight.find(pair[1]).unwrap());
+    }
+    for coupling in [
+        "Vec<",
+        "Box<",
+        ".clone()",
+        "serde::",
+        "crate::Type",
+        "HostOperation",
+        "OperationCatalog",
+        "ResultField",
+        "Fuel::",
+        "evaluate_pure",
+        "infer_pure_type",
+        "canonical_source",
+        "Send +",
+        "Mutex",
+    ] {
+        assert!(
+            !source.contains(coupling),
+            "unexpected native member coupling {coupling}"
+        );
+    }
+    let modules = std::fs::read_to_string(root.join("crates/leselang-hir/src/lib.rs")).unwrap();
+    assert!(modules.contains("pub mod native_group;"));
+    let adapter =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/pure_reference.rs")).unwrap();
+    let gate = adapter
+        .split_once("pub(crate) fn flat_native_group")
+        .unwrap()
+        .1
+        .split_once("pub(crate) fn supports_host_flow")
+        .unwrap()
+        .0;
+    assert!(gate.contains("crate::native_group::admit_native_group_members("));
+    assert!(gate.contains("operation.schema().result.ty != branch.result_type"));
+    assert!(gate.contains("admitted.kind(), admitted.members()"));
+    assert!(!gate.contains("valid_member_name"));
+    assert!(!gate.contains("branches[..index]"));
+    assert!(adapter.contains(
+        "shared_native_member_gate_keeps_original_label_limits_and_requires_prior_payload_admission"
+    ));
+    let gui = std::fs::read_to_string(root.join("crates/leselang-hir/tests/native_group_flow.rs"))
+        .unwrap();
+    assert!(gui.contains("leselang_hir::native_group::admit_native_group_members("));
+    assert!(gui.contains("members.len() < self.max_native_nodes.get()"));
+    assert!(gui.contains("self.atomic_valid(&member.effect)"));
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/native_group.rs")).unwrap();
+    for marker in [
+        "original_nonclone_names_branch_slots_and_modes_are_borrowed_in_declaration_order",
+        "inclusive_arity_zero_and_safety_ceiling_deny_before_any_hook",
+        "all_names_are_checked_before_any_native_admission_even_if_first_native_row_is_invalid",
+        "labels_follow_member_not_lexical_grammar_and_original_buffers_never_copy",
+        "duplicate_equal_but_distinct_native_buffers_are_rejected_without_native_queries",
+        "native_name_and_admission_errors_keep_original_phase_index_payload_without_formatting",
+        "native_unwind_stops_once_keeps_graphs_and_never_returns_partial_views",
+        "current_native_policy_type_identity_and_atomic_eligibility_are_not_inferred_by_the_core",
+        "successful_view_does_not_certify_changed_live_policy_or_hidden_payload_limits",
+        "callback_observed_names_are_ephemeral_native_metadata_not_automatic_authenticity",
+        "shared_member_admission_composes_with_graph_preflight_but_never_replaces_its_budget",
+        "unsized_gui_operation_views_and_move_only_branches_need_no_box_conversion_or_thread_transfer",
+    ] {
+        assert!(
+            proof.contains(marker),
+            "missing native member proof {marker}"
+        );
+    }
+}
+
+#[test]
+fn fresh_native_export_assembly_is_shared_bounded_and_requires_complete_final_native_admission() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/native_group_exports.rs"))
+            .unwrap();
+    let compact = source.split_whitespace().collect::<String>();
+    for marker in [
+        "pub enum NativeGroupExportPhase",
+        "Operation { member_index: usize }",
+        "Signature",
+        "pub enum NativeGroupExportError<Error>",
+        "Members(NativeGroupMemberError<Error>)",
+        "impl<Error> std::error::Error for NativeGroupExportError<Error>",
+        "pub fn observe_native_group_exports<'group, Branch, Operation, Error>",
+        "members: &'group [Branch]",
+        "No prior NativeGroupMembers view or cached grant is accepted",
+        "not inferred by the core",
+        "No partially observed exports escape",
+        "hooks never retry",
+        "Drop may itself unwind",
+        "mutable ephemeral GroupExports",
+    ] {
+        assert!(
+            source.contains(marker),
+            "missing native export boundary {marker}"
+        );
+    }
+    for marker in [
+        "name:implFnMut(&'groupBranch)->Result<&'groupstr,Error>",
+        "mutoperation:implFnMut(&'groupBranch)->Result<Operation,Error>",
+        "admit:implFnOnce(GroupKind,&'group[Branch],&[GroupExport<'group,Operation>],)->Result<(),Error>",
+    ] {
+        assert!(
+            compact.contains(marker),
+            "missing native export hook {marker}"
+        );
+    }
+    let ordered = [
+        "preflight_native_group_members(kind,members,max_members,name)",
+        "Vec::with_capacity(members.len())",
+        "observed.name(member_index)",
+        "operation(member)",
+        "exports.push(GroupExport{name,operation})",
+        "admit(observed.kind(),observed.members(),&exports)",
+        "Ok(GroupExports",
+    ];
+    for pair in ordered.windows(2) {
+        assert!(compact.find(pair[0]).unwrap() < compact.find(pair[1]).unwrap());
+    }
+    for coupling in [
+        ".clone()",
+        "serde::",
+        "crate::Type",
+        "HostOperation",
+        "ResultField",
+        "Fuel::",
+        "evaluate_pure",
+        "infer_pure_type",
+        "canonical_source",
+        "Send +",
+        "Mutex",
+    ] {
+        assert!(
+            !source.contains(coupling),
+            "unexpected native export coupling {coupling}"
+        );
+    }
+    let modules = std::fs::read_to_string(root.join("crates/leselang-hir/src/lib.rs")).unwrap();
+    assert!(modules.contains("pub mod native_group_exports;"));
+    let entry = compact
+        .split_once("pubfnobserve_native_group_exports")
+        .unwrap()
+        .1;
+    for abrupt in ["panic!(", "expect(", "unwrap("] {
+        assert!(
+            !entry.contains(abrupt),
+            "abrupt native export path {abrupt}"
+        );
+    }
+    let adapter =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/pure_reference.rs")).unwrap();
+    let gate = adapter
+        .split_once("pub(crate) fn native_group_exports")
+        .unwrap()
+        .1
+        .split_once("impl<'schema>")
+        .unwrap()
+        .0;
+    for marker in [
+        "crate::Effect::Sequence",
+        "crate::Effect::All",
+        "_ => return None",
+        "crate::native_group_exports::observe_native_group_exports(",
+        "crate::MAX_ALL_BRANCHES",
+        "HostOperation::for_effect(&branch.effect).ok_or(())?",
+        "operation.schema().result.ty == branch.result_type",
+        "candidate_kind == kind",
+        "original.len() == exports.len()",
+        "std::ptr::eq(branch.name.as_str(), export.name)",
+        "HostOperation::for_effect(&branch.effect) == Some(export.operation)",
+        "export.operation.schema().result.ty == branch.result_type",
+    ] {
+        assert!(
+            gate.contains(marker),
+            "missing product native export gate {marker}"
+        );
+    }
+    assert!(!gate.contains("canonical_source"));
+    assert!(!gate.contains("valid_member_name"));
+    assert!(adapter.contains("let exports = native_group_exports(effect)?;"));
+    assert!(adapter.contains("&member.operation.schema().result.operation"));
+    assert!(adapter.contains(
+        "shared_native_exports_keep_original_order_canonical_rows_and_closed_flat_profile"
+    ));
+    let computation =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
+    let signature = computation
+        .split_once("fn group_signature(")
+        .unwrap()
+        .1
+        .split_once("struct BindingValue")
+        .unwrap()
+        .0;
+    assert!(signature.contains("crate::pure_reference::native_group_exports(effect).ok_or(())"));
+    assert!(!signature.contains("flat_native_group(effect)"));
+    assert!(!signature.contains("HostOperation::for_effect(&branch.effect)"));
+    let gui = std::fs::read_to_string(root.join("crates/leselang-hir/tests/native_group_flow.rs"))
+        .unwrap();
+    for marker in [
+        "leselang_hir::native_group_exports::observe_native_group_exports(",
+        "self.version.get() == 9",
+        "self.granted.get()",
+        "original.len() < self.max_native_nodes.get()",
+        "std::ptr::eq(member.name.as_str(), observed.name)",
+        "std::ptr::eq(operation, observed.operation.operation)",
+        "std::ptr::eq(member.declaration, &operation.row.result)",
+    ] {
+        assert!(
+            gui.contains(marker),
+            "missing independent GUI export gate {marker}"
+        );
+    }
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/native_group_exports.rs"))
+            .unwrap();
+    for marker in [
+        "fresh_names_original_branch_order_and_move_only_observations_reach_one_complete_signature",
+        "current_limits_arity_invalid_and_duplicate_names_precede_any_native_operation",
+        "opaque_name_and_operation_errors_keep_original_positions_without_private_formatting",
+        "late_signature_rejection_drops_every_observation_without_partial_output_or_graph_consumption",
+        "final_native_admission_corroborates_original_name_row_type_atomicity_and_current_policy",
+        "callbacks_and_signature_unwind_stop_without_retry_and_release_owned_prefixes",
+        "cleanup_unwind_does_not_retry_signature_or_consume_borrowed_native_members",
+        "every_entry_rechecks_current_names_and_limits_without_accepting_a_cached_member_view",
+        "signature_admission_is_once_owned_and_success_is_mutable_metadata_not_authority",
+        "unrelated_unsized_gui_and_opaque_device_schemas_need_no_native_clone_equality_or_wire_traits",
+        "explicit_native_noop_admission_is_not_an_automatic_row_or_name_authenticity_proof",
+    ] {
+        assert!(
+            proof.contains(marker),
+            "missing native export proof {marker}"
+        );
+    }
+}
+
+#[test]
+fn fresh_closed_signature_comparison_borrows_both_sides_before_explicit_native_identity_pairs() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/native_group_signature.rs"))
+            .unwrap();
+    let compact = source.split_whitespace().collect::<String>();
+    for marker in [
+        "pub enum NativeGroupSignatureSide",
+        "Left",
+        "Right",
+        "pub enum NativeGroupSignatureError<Error>",
+        "error: NativeGroupMemberError<Error>",
+        "impl<Error> std::error::Error for NativeGroupSignatureError<Error>",
+        "pub fn compare_native_group_signatures<'left, 'right, Left, Right, Error>",
+        "No cached member view, derived equality or pointer shortcut",
+        "false/error/unwind stops without retry",
+        "comparator may bridge different native member/schema representations",
+        "Borrowed graphs are not consumed",
+        "True is ephemeral metadata",
+    ] {
+        assert!(
+            source.contains(marker),
+            "missing signature boundary {marker}"
+        );
+    }
+    for marker in [
+        "left:(GroupKind,&'left[Left])",
+        "right:(GroupKind,&'right[Right])",
+        "left_name:implFnMut(&'leftLeft)->Result<&'leftstr,Error>",
+        "right_name:implFnMut(&'rightRight)->Result<&'rightstr,Error>",
+        "mutsame:implFnMut(&'leftLeft,&'rightRight)->Result<bool,Error>",
+        "(Some(left),Some(right))=>left!=right",
+        "_=>true",
+    ] {
+        assert!(
+            compact.contains(marker),
+            "missing borrowed signature gate {marker}"
+        );
+    }
+    let ordered = [
+        "preflight_native_group_members(left.0,left.1,max_members,left_name)",
+        "preflight_native_group_members(right.0,right.1,max_members,right_name)",
+        "left.kind()!=right.kind()",
+        "left.members().len()!=right.members().len()",
+        "left.name(index),right.name(index)",
+        "same(left,right)",
+        "Ok(true)",
+    ];
+    for pair in ordered.windows(2) {
+        assert!(compact.find(pair[0]).unwrap() < compact.find(pair[1]).unwrap());
+    }
+    for coupling in [
+        "Vec<",
+        "Box<",
+        ".clone()",
+        "serde::",
+        "crate::Type",
+        "HostOperation",
+        "ResultField",
+        "Fuel::",
+        "canonical_source",
+        "infer_pure_type",
+        "Send +",
+        "Mutex",
+        "std::ptr::eq",
+        "ptr_eq(",
+    ] {
+        assert!(
+            !source.contains(coupling),
+            "unexpected signature coupling {coupling}"
+        );
+    }
+    let entry = compact
+        .split_once("pubfncompare_native_group_signatures")
+        .unwrap()
+        .1;
+    for abrupt in ["panic!(", "expect(", "unwrap("] {
+        assert!(!entry.contains(abrupt), "abrupt signature path {abrupt}");
+    }
+    let modules = std::fs::read_to_string(root.join("crates/leselang-hir/src/lib.rs")).unwrap();
+    assert!(modules.contains("pub mod native_group_signature;"));
+    let exports =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/group_exports.rs")).unwrap();
+    assert!(exports.contains("crate::native_group_signature::compare_native_group_signatures("));
+    let export_compact = exports
+        .split_whitespace()
+        .collect::<String>()
+        .replace(",}", "}");
+    assert!(export_compact.contains("NativeGroupSignatureError::Native{member_index,error}"));
+    assert!(export_compact.contains("phase:GroupExportPhase::Compare{index:member_index}"));
+    assert!(exports.contains("same(&expected.operation, &current.operation)"));
+    assert!(!exports.contains("expected.kind != current.kind"));
+    let adapter =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/pure_reference.rs")).unwrap();
+    let equality = adapter
+        .split_once("impl PartialEq for ReferenceMembers")
+        .unwrap()
+        .1
+        .split_once("struct ReferenceResult")
+        .unwrap()
+        .0;
+    for marker in [
+        "Self::External(left), Self::External(right)",
+        "left == right",
+        "crate::native_group_signature::compare_native_group_signatures(",
+        "left.as_ref()",
+        "right.as_ref()",
+        "crate::MAX_ALL_BRANCHES",
+        "|left, right| Ok(left.1 == right.1)",
+        "External legacy metadata has no mode",
+        ".unwrap_or(false)",
+        "_ => false",
+    ] {
+        assert!(
+            equality.contains(marker),
+            "missing product signature gate {marker}"
+        );
+    }
+    assert!(!equality.contains("ptr_eq("));
+    assert!(adapter.contains(
+        "shared_signature_comparison_preserves_product_tags_and_legacy_external_variant_identity"
+    ));
+    let gui = std::fs::read_to_string(root.join("crates/leselang-hir/tests/native_group_flow.rs"))
+        .unwrap();
+    assert!(gui.contains("leselang_hir::native_group_signature::compare_native_group_signatures("));
+    assert!(gui.contains("std::ptr::eq(left.operation.row, right.operation.row)"));
+    assert!(gui.contains("std::ptr::eq(left.declaration, right.declaration)"));
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/native_group_signature.rs"))
+            .unwrap();
+    for marker in [
+        "both_complete_once_borrowed_names_precede_original_pairs_in_declaration_order",
+        "valid_kind_count_and_name_order_mismatches_never_enter_native_comparison",
+        "limits_and_invalid_members_report_original_side_before_any_native_pair",
+        "opaque_name_errors_keep_side_index_and_payload_without_formatting_or_sources",
+        "false_and_opaque_pair_errors_stop_once_at_the_original_member_index",
+        "native_name_and_pair_unwind_stop_without_retry_or_consuming_borrowed_members",
+        "fresh_current_names_limits_and_live_row_policy_cannot_reuse_a_prior_true_result",
+        "aliased_slices_still_query_both_sides_and_every_current_native_pair",
+        "heterogeneous_unsized_gui_and_device_members_need_no_native_clone_equality_or_wire_traits",
+        "explicit_native_comparison_is_not_automatic_schema_identity_or_future_authority",
+    ] {
+        assert!(
+            proof.contains(marker),
+            "missing closed signature proof {marker}"
+        );
+    }
+}
+
+#[test]
+fn fresh_closed_member_lookup_preflights_whole_names_before_once_original_selection() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/native_group_lookup.rs"))
+            .unwrap();
+    let compact = source.split_whitespace().collect::<String>();
+    for marker in [
+        "pub enum NativeGroupLookupError<Error>",
+        "InvalidQuery",
+        "Members(NativeGroupMemberError<Error>)",
+        "impl<Error> std::error::Error for NativeGroupLookupError<Error>",
+        "pub fn lookup_native_group_member<'group, Member, Error>",
+        "duplicate tails after an otherwise matching member",
+        "Missing names return None",
+        "FnOnce native hook",
+        "No cached admitted view",
+        "not a reusable type/grant/receipt/fuel",
+        "not sandboxed or preempted",
+        "callback/cleanup effects cannot be rolled back",
+        "hook state is dropped normally even when there is no match",
+    ] {
+        assert!(
+            source.contains(marker),
+            "missing member lookup boundary {marker}"
+        );
+    }
+    for marker in [
+        "members:&'group[Member]",
+        "max_members:usize",
+        "query_name:&str",
+        "name:implFnMut(&'groupMember)->Result<&'groupstr,Error>",
+        "admit:implFnOnce(&'groupMember)->Result<bool,Error>",
+        "Result<Option<&'groupMember>,NativeGroupLookupError<Error>>",
+        "map_err(NativeGroupLookupError::Members)?",
+        "NativeGroupLookupError::Native{member_index,error",
+    ] {
+        assert!(
+            compact.contains(marker),
+            "missing borrowed lookup gate {marker}"
+        );
+    }
+    let entry = compact
+        .split_once("pubfnlookup_native_group_member")
+        .unwrap()
+        .1;
+    let ordered = [
+        "max_members>MAX_NATIVE_GRAPH_MEMBERS",
+        "!valid_member_name(query_name)",
+        "preflight_native_group_members(kind,members,max_members,name)",
+        "observed.members().iter().enumerate()",
+        "observed.name(member_index)==Some(query_name)",
+        "returnadmit(member)",
+        "accepted.then_some(member)",
+        "Ok(None)",
+    ];
+    for pair in ordered.windows(2) {
+        assert!(entry.find(pair[0]).unwrap() < entry.find(pair[1]).unwrap());
+    }
+    for coupling in [
+        "Vec<",
+        "Box<",
+        ".clone()",
+        "serde::",
+        "crate::Type",
+        "HostOperation",
+        "ResultField",
+        "Fuel::",
+        "canonical_source",
+        "infer_pure_type",
+        "Send +",
+        "Mutex",
+        "std::ptr::eq",
+        "PartialEq",
+        "dispatch(",
+        "evaluate(",
+    ] {
+        assert!(
+            !source.contains(coupling),
+            "unexpected member lookup coupling {coupling}"
+        );
+    }
+    for abrupt in ["panic!(", "expect(", "unwrap("] {
+        assert!(
+            !entry.contains(abrupt),
+            "abrupt member lookup path {abrupt}"
+        );
+    }
+    let modules = std::fs::read_to_string(root.join("crates/leselang-hir/src/lib.rs")).unwrap();
+    assert!(modules.contains("pub mod native_group_lookup;"));
+    let adapter =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/pure_reference.rs")).unwrap();
+    let product = adapter
+        .split_once("fn member_result(")
+        .unwrap()
+        .1
+        .split_once("fn join_results(")
+        .unwrap()
+        .0;
+    let external = product.split_once("ReferenceMembers::Computed").unwrap().0;
+    assert!(external.contains("ReferenceMembers::External(members)"));
+    assert!(
+        external.contains(".any(|(member, declared)| member == name && declared == operation)")
+    );
+    for marker in [
+        "crate::native_group_lookup::lookup_native_group_member(",
+        "*kind",
+        "members.as_ref()",
+        "crate::MAX_ALL_BRANCHES",
+        "|member| -> Result<_, ()> { Ok(member.0) }",
+        "|member| Ok(member.1 == operation)",
+        ".ok()",
+        ".flatten()",
+        ".is_some()",
+        "ty: operation.result_type()",
+        "members: None",
+    ] {
+        assert!(
+            product.contains(marker),
+            "missing product member lookup rule {marker}"
+        );
+    }
+    assert!(
+        adapter.contains(
+            "shared_member_lookup_keeps_closed_operation_tags_and_legacy_external_queries"
+        )
+    );
+    let gui = std::fs::read_to_string(root.join("crates/leselang-hir/tests/native_group_flow.rs"))
+        .unwrap();
+    let gui = gui
+        .split_once("fn member_result(")
+        .unwrap()
+        .1
+        .split_once("fn join_results(")
+        .unwrap()
+        .0;
+    for marker in [
+        "self.trace.record(\"member\")",
+        "leselang_hir::native_group_lookup::lookup_native_group_member(",
+        "|member| -> Result<_, ()> { Ok(member.name) }",
+        "|member| Ok(std::ptr::eq(member.operation.row, operation.row))",
+        ".ok()??",
+        "self.metadata(Query::Atomic(member.declaration))",
+    ] {
+        assert!(
+            gui.contains(marker),
+            "missing GUI member lookup rule {marker}"
+        );
+    }
+    assert!(
+        gui.split_whitespace()
+            .collect::<String>()
+            .contains("*kind,members.as_ref(),4,name,")
+    );
+    assert!(!gui.contains(".clone()"));
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/native_group_lookup.rs"))
+            .unwrap();
+    for marker in [
+        "complete_once_borrowed_names_precede_one_original_selected_member_admission",
+        "invalid_ceiling_query_and_arity_deny_before_name_or_selected_native_hooks",
+        "invalid_or_duplicate_tail_cannot_hide_behind_an_earlier_matching_name",
+        "missing_names_never_query_native_rows_and_rejection_never_falls_back_to_another_slot",
+        "opaque_name_and_selected_errors_keep_original_phase_index_and_redacted_payloads",
+        "native_name_and_admission_unwind_stop_without_retry_or_consuming_borrowed_members",
+        "once_owned_admission_state_cleans_up_even_without_invocation_or_on_unwind",
+        "prior_selection_does_not_certify_changed_names_limits_or_current_native_policy",
+        "inclusive_ceiling_shared_label_grammar_and_unsized_gui_local_slots_need_no_native_traits",
+        "explicit_native_observations_are_not_automatic_original_name_row_or_grant_authenticity",
+    ] {
+        assert!(
+            proof.contains(marker),
+            "missing fresh closed member lookup proof {marker}"
+        );
+    }
+}
+
+#[test]
+fn language_group_shape_preflight_reuses_native_names_without_new_admission_or_source_grammar() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let exports =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/group_exports.rs")).unwrap();
+    let shape = exports
+        .split_once("fn member_shape")
+        .unwrap()
+        .1
+        .split_once("pub(crate) fn physical")
+        .unwrap()
+        .0;
+    let shape_compact = shape.split_whitespace().collect::<String>();
+    for marker in [
+        "members:&'name[Member]",
+        "mutname:implFnMut(&'nameMember)->&'namestr",
+        "preflight_native_group_members(kind,members,maximum,|member|",
+        "Ok::<_,std::convert::Infallible>(name(member))",
+        ".is_ok()",
+    ] {
+        assert!(
+            shape_compact.contains(marker),
+            "missing shared shape boundary {marker}"
+        );
+    }
+    for parallel in [
+        "Vec",
+        ".clone(",
+        ".bytes()",
+        "count:",
+        ".all(",
+        "admit_native_group_members(",
+    ] {
+        assert!(
+            !shape.contains(parallel),
+            "parallel/export native shape implementation {parallel}"
+        );
+    }
+    let physical = exports
+        .split_once("pub(crate) fn physical")
+        .unwrap()
+        .1
+        .split_once("pub(crate) fn atomic_candidate")
+        .unwrap()
+        .0;
+    let compact = physical.split_whitespace().collect::<String>();
+    assert!(compact.contains("member_shape(*group_kind,branches,limits.max_members,|branch|"));
+    assert!(compact.contains("branch.name.as_str()"));
+    let observe = exports
+        .split_once("pub fn observe_group_exports")
+        .unwrap()
+        .1
+        .split_once("#[cfg(test)]")
+        .unwrap()
+        .0;
+    let compact = observe.split_whitespace().collect::<String>();
+    assert!(
+        compact.contains("member_shape(current.kind,&current.members,limits.max_members,|member|")
+    );
+    assert!(compact.contains("member.name"));
+    let flow =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/flow_typing.rs")).unwrap();
+    let flow_preflight = flow
+        .split_once("fn preflight")
+        .unwrap()
+        .1
+        .split_once("fn infer<")
+        .unwrap()
+        .0;
+    let compact = flow_preflight
+        .split_whitespace()
+        .collect::<String>()
+        .replace(",}", "}");
+    for marker in [
+        "preflight_native_group_members(*group_kind,branches,group_limits.max_branches,",
+        "Ok::<_,std::convert::Infallible>(branch.name.as_str())",
+        ".map(|_|())",
+        "NativeGroupMemberError::InvalidName{member_index}",
+        "GroupTypeError::InvalidName{branch_index:member_index}",
+        "NativeGroupMemberError::DuplicateName{member_index}",
+        "GroupTypeError::DuplicateName{branch_index:member_index}",
+        "NativeGroupMemberError::Native{error,..}=>matcherror{}",
+    ] {
+        assert!(
+            compact.contains(marker),
+            "missing existing flow shape diagnostic {marker}"
+        );
+    }
+    let ordered = [
+        "group_index>=group_limits.max_groups",
+        "preflight_native_group_members(",
+        "letmutmembers=Vec::with_capacity(branches.len())",
+        "preflight_atomic_leaves_with_budget(",
+    ];
+    for pair in ordered.windows(2) {
+        assert!(compact.find(pair[0]).unwrap() < compact.find(pair[1]).unwrap());
+    }
+    let effect =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_evaluation.rs")).unwrap();
+    let effect_preflight = effect
+        .split_once("pub(crate) fn preflight")
+        .unwrap()
+        .1
+        .split_once("pub fn evaluate_effects_in_scope")
+        .unwrap()
+        .0;
+    let compact = effect_preflight
+        .split_whitespace()
+        .collect::<String>()
+        .replace(",}", "}");
+    let group = compact
+        .split_once("Computation::Group{group_kind,branches}=>{")
+        .unwrap()
+        .1
+        .split_once("Computation::Choose")
+        .unwrap()
+        .0;
+    for marker in [
+        "preflight_native_group_members(*group_kind,branches,limits.max_branches,",
+        "Ok::<_,std::convert::Infallible>(branch.name.as_str())",
+        ".is_err()",
+        "EffectEvaluationFault::GroupShape.into()",
+    ] {
+        assert!(
+            group.contains(marker),
+            "missing effect shape compatibility {marker}"
+        );
+    }
+    assert!(
+        group.find("preflight_native_group_members(").unwrap()
+            < group.find("effects.push(node)").unwrap()
+    );
+    for pass in [flow_preflight, effect_preflight] {
+        for duplicate in [
+            "branch.name.is_empty()",
+            "branch.name.bytes()",
+            "branches[..",
+            "admit_native_group_members(",
+        ] {
+            assert!(
+                !pass.contains(duplicate),
+                "parallel language shape implementation {duplicate}"
+            );
+        }
+    }
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/group_source.rs")).unwrap();
+    let header = source
+        .split_once("pub(crate) fn header")
+        .unwrap()
+        .1
+        .split_once("pub(crate) fn cold_headers")
+        .unwrap()
+        .0;
+    assert!(header.contains("!valid_argument_name(&argument.name)"));
+    assert!(!header.contains("preflight_native_group_members("));
+    assert!(!header.contains("valid_member_name("));
+    let canonical =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
+    let canonical_shape = canonical
+        .split_once("pub(super) fn validate_shape")
+        .unwrap()
+        .1
+        .split_once("pub(super) fn source")
+        .unwrap()
+        .0;
+    assert!(canonical_shape.contains("branch.name.len() > MAX_BRANCH_NAME_BYTES"));
+    assert!(!canonical_shape.contains("preflight_native_group_members("));
+    for (path, markers) in [
+        (
+            "crates/leselang-hir/src/group_exports.rs",
+            &["closed_export_shape_reads_each_original_label_once_without_native_traits"][..],
+        ),
+        (
+            "crates/leselang-hir/tests/group_typing.rs",
+            &[
+                "shared_group_shape_preserves_exact_indices_and_precedes_atomic_child_preparation",
+                "shared_group_shape_keeps_ir_label_grammar_and_current_inclusive_branch_limits",
+            ][..],
+        ),
+        (
+            "crates/leselang-hir/tests/group_exports.rs",
+            &[
+                "shared_group_shape_accepts_original_ir_labels_and_rechecks_current_export_ceiling",
+                "shared_group_shape_rejects_complete_bad_names_before_tail_or_native_comparison",
+            ][..],
+        ),
+        (
+            "crates/leselang-hir/tests/effect_evaluation.rs",
+            &[
+                "shared_group_shape_rejects_bad_tail_and_arity_before_host_fuel_or_scope_changes",
+                "shared_group_shape_keeps_ir_labels_and_inclusive_ceiling_before_native_policy",
+            ][..],
+        ),
+        (
+            "crates/leselang-hir/tests/group_source.rs",
+            &["source_group_labels_keep_stricter_lexical_grammar_than_ir_member_names"][..],
+        ),
+    ] {
+        let proof = std::fs::read_to_string(root.join(path)).unwrap();
+        for marker in markers {
+            assert!(
+                proof.contains(marker),
+                "missing shared group shape proof {marker}"
+            );
+        }
     }
 }

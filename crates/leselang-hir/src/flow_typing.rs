@@ -10,6 +10,7 @@ use crate::call_typing::{
 };
 use crate::ir::Computation;
 use crate::ir::GroupKind;
+use crate::native_group::{NativeGroupMemberError, preflight_native_group_members};
 use crate::prepared_typing::{
     PreparedCallSchemas, PreparedCallTypeError, SelectedPreparedCall,
     preflight_atomic_leaves_with_budget, preflight_call_leaves_with_budget,
@@ -436,31 +437,31 @@ fn preflight<'expression, Field, Operation, HostEffect, IrResult, ResultTag>(
                 if group_index >= group_limits.max_groups {
                     return Err(failure(GroupTypeError::GroupLimit));
                 }
-                let minimum = if *group_kind == GroupKind::Sequence {
-                    1
-                } else {
-                    2
-                };
-                if branches.len() < minimum || branches.len() > group_limits.max_branches {
-                    return Err(failure(GroupTypeError::Arity));
-                }
-                for (branch_index, branch) in branches.iter().enumerate() {
-                    if branch.name.is_empty()
-                        || branch.name.len() > crate::pure_typing::MAX_LOCAL_NAME_BYTES
-                        || !branch
-                            .name
-                            .bytes()
-                            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
-                    {
-                        return Err(failure(GroupTypeError::InvalidName { branch_index }));
-                    }
-                    if branches[..branch_index]
-                        .iter()
-                        .any(|previous| previous.name == branch.name)
-                    {
-                        return Err(failure(GroupTypeError::DuplicateName { branch_index }));
-                    }
-                }
+                preflight_native_group_members(
+                    *group_kind,
+                    branches,
+                    group_limits.max_branches,
+                    |branch| Ok::<_, std::convert::Infallible>(branch.name.as_str()),
+                )
+                .map(|_| ())
+                .map_err(|error| {
+                    failure(match error {
+                        NativeGroupMemberError::InvalidLimit | NativeGroupMemberError::Arity => {
+                            GroupTypeError::Arity
+                        }
+                        NativeGroupMemberError::InvalidName { member_index } => {
+                            GroupTypeError::InvalidName {
+                                branch_index: member_index,
+                            }
+                        }
+                        NativeGroupMemberError::DuplicateName { member_index } => {
+                            GroupTypeError::DuplicateName {
+                                branch_index: member_index,
+                            }
+                        }
+                        NativeGroupMemberError::Native { error, .. } => match error {},
+                    })
+                })?;
                 let mut members = Vec::with_capacity(branches.len());
                 for (branch_index, branch) in branches.iter().enumerate() {
                     let start = calls.len();

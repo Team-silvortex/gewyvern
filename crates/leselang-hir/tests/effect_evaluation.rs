@@ -1204,6 +1204,119 @@ fn scope_limits_and_physical_budgets_reject_before_callbacks_and_value_clones() 
 }
 
 #[test]
+fn shared_group_shape_rejects_bad_tail_and_arity_before_host_fuel_or_scope_changes() {
+    use leselang_hir::ir::{ComputedBranch, GroupKind};
+    let parameters = parameters();
+    let schemas = schemas(&parameters);
+    let host = Counter::new(&schemas, &[3]);
+    for names in [
+        vec!["first", "bad tail"],
+        vec!["first", "first"],
+        vec!["first"],
+        vec![],
+    ] {
+        let expression = Ir::Group {
+            group_kind: GroupKind::Parallel,
+            branches: names
+                .into_iter()
+                .map(|name| ComputedBranch {
+                    name: name.into(),
+                    value: call(1, integer(1)),
+                    result_type: (),
+                })
+                .collect(),
+        };
+        let original = Rc::new(Reply { kind: 1, value: 10 });
+        let mut bindings = vec![("reply", PureValue::Result(original.clone()))];
+        let mut scope = ScopeFrame::new(&mut bindings);
+        let mut fuel = Fuel::new(100);
+        let failure = evaluate_effects_in_scope(&expression, &mut scope, &host, &mut fuel, LIMITS)
+            .unwrap_err();
+        assert!(matches!(
+            failure,
+            CalculationFailure::External(EffectEvaluationFault::GroupShape)
+        ));
+        assert_eq!(scope.len(), 1);
+        assert_eq!(Rc::strong_count(&original), 2);
+        assert_eq!(fuel.remaining(), 100);
+        assert!(host.events.borrow().is_empty());
+        assert!(host.selected.borrow().is_empty());
+        assert_eq!(host.request_drops.get(), 0);
+    }
+}
+
+#[test]
+fn shared_group_shape_keeps_ir_labels_and_inclusive_ceiling_before_native_policy() {
+    use leselang_hir::ir::{ComputedBranch, GroupKind};
+    let parameters = parameters();
+    let schemas = schemas(&parameters);
+    let host = Counter::new(&schemas, &[3]);
+    let longest = "x".repeat(64);
+    let limits = EffectEvaluationLimits {
+        pure: PureEvaluationLimits {
+            max_nodes: 256,
+            ..LIMITS.pure
+        },
+        max_branches: 64,
+        ..LIMITS
+    };
+    for names in [
+        ["1", "all-4", "while", &longest]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>(),
+        (0..64).map(|index| format!("member_{index}")).collect(),
+    ] {
+        let expression = Ir::Group {
+            group_kind: GroupKind::Parallel,
+            branches: names
+                .into_iter()
+                .map(|name| ComputedBranch {
+                    name,
+                    value: call(1, integer(1)),
+                    result_type: (),
+                })
+                .collect(),
+        };
+        for maximum in [limits.max_branches, 0] {
+            host.events.borrow_mut().clear();
+            let mut bindings = Vec::new();
+            let mut scope = ScopeFrame::new(&mut bindings);
+            let mut fuel = Fuel::new(100);
+            let failure = evaluate_effects_in_scope(
+                &expression,
+                &mut scope,
+                &host,
+                &mut fuel,
+                EffectEvaluationLimits {
+                    max_branches: maximum,
+                    ..limits
+                },
+            )
+            .unwrap_err();
+            if maximum == 0 {
+                assert!(matches!(
+                    failure,
+                    CalculationFailure::External(EffectEvaluationFault::GroupShape)
+                ));
+                assert!(host.events.borrow().is_empty());
+            } else {
+                // This test host deliberately rejects groups after cold shape succeeds.
+                assert!(matches!(
+                    failure,
+                    CalculationFailure::External(EffectEvaluationFault::Native(_))
+                ));
+                assert_eq!(*host.events.borrow(), ["preflight"]);
+            }
+            assert_eq!(fuel.remaining(), 100);
+            assert_eq!(scope.len(), 0);
+            assert!(host.selected.borrow().is_empty());
+            assert_eq!(host.request_drops.get(), 0);
+        }
+    }
+}
+
+#[test]
 fn malformed_group_names_and_impure_conditions_do_not_reach_host_hooks() {
     use leselang_hir::ir::{ComputedBranch, GroupKind};
     let group = Ir::Group {

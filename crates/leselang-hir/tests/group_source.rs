@@ -145,6 +145,25 @@ fn no_hooks(input: &Expression, limits: GroupSourceLimits) {
 }
 
 #[test]
+fn source_group_labels_keep_stricter_lexical_grammar_than_ir_member_names() {
+    for label in ["1", "all-4"] {
+        let mut input = source();
+        let Expression::Call { arguments, .. } = &mut input else {
+            panic!()
+        };
+        arguments[1].name = label.into();
+        let expected_span = arguments[1].span;
+        let adapter = Adapter::new(&input);
+        let failure = lower(&adapter, LIMITS).err().unwrap();
+        assert!(matches!(failure, GroupSourceError::MemberName {
+            kind: GroupKind::Sequence, index: 1, span,
+        } if span == expected_span));
+        assert!(adapter.borrow().events.is_empty());
+        assert_eq!(adapter.borrow().drops.get(), 0);
+    }
+}
+
+#[test]
 fn original_named_arguments_move_only_results_and_two_stage_order_are_preserved() {
     for (text, kind) in [
         (

@@ -7,14 +7,13 @@ use leselang_runtime_core::{CalculationFailure, Fuel, ScalarValue, ScopeFrame, S
 use crate::call_typing::{CallTypeError, MAX_CALL_ARGUMENTS, preflight_arguments_with_budget};
 use crate::effect_reentry::{EffectContinuation, ResumableEffectOutcome};
 use crate::flow_typing::MAX_TYPED_GROUP_BRANCHES;
-use crate::ir::{Computation, GroupKind};
+use crate::ir::Computation;
+use crate::native_group::preflight_native_group_members;
 use crate::pure_evaluation::{
     PureEvaluationEnvironment, PureEvaluationFailure, PureEvaluationFault, PureEvaluationLimits,
     PureValue, evaluate_preflighted_in_scope, preflight_value_scope,
 };
-use crate::pure_typing::{
-    MAX_LOCAL_NAME_BYTES, PureTypeError, preflight_with_budget, valid_local_name,
-};
+use crate::pure_typing::{PureTypeError, preflight_with_budget, valid_local_name};
 
 type Node<Field, Operation, HostEffect, IrResult> =
     Computation<Field, Operation, HostEffect, IrResult>;
@@ -222,27 +221,15 @@ pub(crate) fn preflight<
                 group_kind,
                 branches,
             } => {
-                let minimum = if *group_kind == GroupKind::Sequence {
-                    1
-                } else {
-                    2
-                };
-                if branches.len() < minimum || branches.len() > limits.max_branches {
+                if preflight_native_group_members(
+                    *group_kind,
+                    branches,
+                    limits.max_branches,
+                    |branch| Ok::<_, std::convert::Infallible>(branch.name.as_str()),
+                )
+                .is_err()
+                {
                     return Err(EffectEvaluationFault::GroupShape.into());
-                }
-                for (index, branch) in branches.iter().enumerate() {
-                    if branch.name.is_empty()
-                        || branch.name.len() > MAX_LOCAL_NAME_BYTES
-                        || !branch
-                            .name
-                            .bytes()
-                            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
-                        || branches[..index]
-                            .iter()
-                            .any(|previous| previous.name == branch.name)
-                    {
-                        return Err(EffectEvaluationFault::GroupShape.into());
-                    }
                 }
                 effects.push(node);
             }

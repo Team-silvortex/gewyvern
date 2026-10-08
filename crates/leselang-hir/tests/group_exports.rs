@@ -73,6 +73,107 @@ fn no_hooks(expression: &Data, limits: GroupExportLimits) -> GroupExportError<()
 }
 
 #[test]
+fn shared_group_shape_accepts_original_ir_labels_and_rechecks_current_export_ceiling() {
+    let longest = "x".repeat(64);
+    let input = group(
+        GroupKind::Sequence,
+        &[("1", 17), ("all-4", 18), ("while", 17), (&longest, 18)],
+    );
+    assert!(observe(&input).is_ok());
+    let names = (0..64)
+        .map(|index| format!("member_{index}"))
+        .collect::<Vec<_>>();
+    let members = names
+        .iter()
+        .map(|name| (name.as_str(), 17))
+        .collect::<Vec<_>>();
+    let input = group(GroupKind::Parallel, &members);
+    let exports = observe(&input).unwrap();
+    let Data::Group { branches, .. } = &input else {
+        panic!()
+    };
+    assert_eq!(exports.members.len(), 64);
+    for (branch, export) in branches.iter().zip(&exports.members) {
+        assert!(std::ptr::eq(branch.name.as_str(), export.name));
+    }
+    for maximum in [0, 63] {
+        assert!(matches!(
+            no_hooks(
+                &input,
+                GroupExportLimits {
+                    max_members: maximum,
+                    ..LIMITS
+                }
+            ),
+            GroupExportError::MemberShape
+        ));
+    }
+    assert!(matches!(
+        no_hooks(
+            &input,
+            GroupExportLimits {
+                max_members: 65,
+                ..LIMITS
+            }
+        ),
+        GroupExportError::InvalidLimits
+    ));
+}
+
+#[test]
+fn shared_group_shape_rejects_complete_bad_names_before_tail_or_native_comparison() {
+    for last in ["first", "bad tail"] {
+        let input = Data::Group {
+            group_kind: GroupKind::Sequence,
+            branches: vec![
+                ComputedBranch {
+                    name: "first".into(),
+                    value: integer(0),
+                    result_type: 1,
+                },
+                branch(last, 17),
+            ],
+        };
+        assert!(matches!(
+            no_hooks(&input, LIMITS),
+            GroupExportError::MemberShape
+        ));
+        let input = choose(
+            one(),
+            Data::Host {
+                effect: Box::new(()),
+            },
+        );
+        let visits = Cell::new(0);
+        let failure = observe_group_exports(
+            &input,
+            LIMITS,
+            |_| -> Result<GroupExports<'_, u32>, ()> {
+                visits.set(visits.get() + 1);
+                Ok(GroupExports {
+                    kind: GroupKind::Sequence,
+                    members: vec![
+                        GroupExport {
+                            name: "first",
+                            operation: 17,
+                        },
+                        GroupExport {
+                            name: last,
+                            operation: 18,
+                        },
+                    ],
+                })
+            },
+            |_| -> Result<u32, ()> { panic!("invalid returned shape must stop branch hooks") },
+            |_, _| -> Result<bool, ()> { panic!("invalid returned shape must stop comparison") },
+        )
+        .unwrap_err();
+        assert!(matches!(failure, GroupExportError::MemberShape));
+        assert_eq!(visits.get(), 1);
+    }
+}
+
+#[test]
 fn direct_exports_borrow_original_names_and_keep_declaration_order() {
     let expression = group(GroupKind::Parallel, &[("second", 18), ("first", 17)]);
     let Data::Group { branches, .. } = &expression else {

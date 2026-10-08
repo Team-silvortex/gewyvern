@@ -239,6 +239,107 @@ fn check_policy<'e>(
 }
 
 #[test]
+fn shared_group_shape_preserves_exact_indices_and_precedes_atomic_child_preparation() {
+    let cases = [
+        (
+            vec!["bad.name", "second"],
+            GroupTypeError::InvalidName { branch_index: 0 },
+        ),
+        (
+            vec!["first", "bad tail"],
+            GroupTypeError::InvalidName { branch_index: 1 },
+        ),
+        (
+            vec!["first", "second", "first"],
+            GroupTypeError::DuplicateName { branch_index: 2 },
+        ),
+        (
+            vec!["first", "first", "bad tail"],
+            GroupTypeError::DuplicateName { branch_index: 1 },
+        ),
+    ];
+    for (names, expected) in cases {
+        let expression = group(
+            GroupKind::Sequence,
+            names
+                .into_iter()
+                .map(|name| branch(name, number(0), 1))
+                .collect(),
+        );
+        let environment = Environment::default();
+        assert_eq!(
+            check(&expression, &[], &environment, LIMITS).err(),
+            Some(Error::Group {
+                group_index: 0,
+                error: expected
+            })
+        );
+        assert!(environment.events.borrow().is_empty());
+    }
+}
+
+#[test]
+fn shared_group_shape_keeps_ir_label_grammar_and_current_inclusive_branch_limits() {
+    let longest = "x".repeat(64);
+    let expression = group(
+        GroupKind::Sequence,
+        ["1", "all-4", "while", &longest]
+            .into_iter()
+            .map(|name| branch(name, call(17, number(0)), 1))
+            .collect(),
+    );
+    assert!(check(&expression, &[], &Environment::default(), LIMITS).is_ok());
+    let expression = group(
+        GroupKind::Parallel,
+        (0..64)
+            .map(|index| branch(&format!("member_{index}"), call(17, number(0)), 1))
+            .collect(),
+    );
+    let limits = GroupFlowTypeLimits {
+        flow: CallFlowTypeLimits {
+            max_calls: 64,
+            ..LIMITS.flow
+        },
+        ..LIMITS
+    };
+    let environment = Environment::default();
+    assert!(check(&expression, &[], &environment, limits).is_ok());
+    environment.events.borrow_mut().clear();
+    for maximum in [0, 63] {
+        assert_eq!(
+            check(
+                &expression,
+                &[],
+                &environment,
+                GroupFlowTypeLimits {
+                    max_branches: maximum,
+                    ..limits
+                }
+            )
+            .err(),
+            Some(Error::Group {
+                group_index: 0,
+                error: GroupTypeError::Arity
+            })
+        );
+        assert!(environment.events.borrow().is_empty());
+    }
+    assert!(
+        check(
+            &expression,
+            &[],
+            &environment,
+            GroupFlowTypeLimits {
+                max_branches: 65,
+                ..limits
+            }
+        )
+        .is_err()
+    );
+    assert!(environment.events.borrow().is_empty());
+}
+
+#[test]
 fn sequence_and_parallel_capture_aliases_export_exact_members_to_successors() {
     for kind in [GroupKind::Sequence, GroupKind::Parallel] {
         let environment = Environment::default();

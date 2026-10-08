@@ -127,19 +127,7 @@ fn group_signature(expression: &Computation) -> Option<(GroupKind, Vec<(String, 
             max_groups: MAX_COMPUTATION_NODES,
             max_members: MAX_ALL_BRANCHES,
         },
-        |effect| {
-            let (kind, branches) = crate::pure_reference::flat_native_group(effect).ok_or(())?;
-            let members = branches
-                .iter()
-                .map(|branch| {
-                    Ok(crate::group_exports::GroupExport {
-                        name: branch.name.as_str(),
-                        operation: HostOperation::for_effect(&branch.effect).ok_or(())?,
-                    })
-                })
-                .collect::<Result<Vec<_>, ()>>()?;
-            Ok(crate::group_exports::GroupExports { kind, members })
-        },
+        |effect| crate::pure_reference::native_group_exports(effect).ok_or(()),
         |branch| branch.value.prepared_atomic_operation().ok_or(()),
         |left, right| Ok(left == right),
     )
