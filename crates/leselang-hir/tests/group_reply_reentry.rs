@@ -4,7 +4,8 @@
 use leselang_hir::{
     catalog_group_source::{
         CatalogGroupProgramLimits, CatalogGroupSourceEnvironment, CatalogGroupSourceLimits,
-        compile_catalog_group_program, compile_catalog_group_source,
+        compile_catalog_group_helper_program, compile_catalog_group_program,
+        compile_catalog_group_source,
     },
     catalog_program::CatalogProgramLimits,
     catalog_source::{CatalogSourceEnvironment, CatalogSourceLimits},
@@ -16,6 +17,15 @@ use leselang_hir::{
         EffectContinuation, EffectReentryEnvironment, RestoredEffectBindings,
         ResumableEffectOutcome, resume_accepted_effects,
     },
+    effect_session::{
+        CorrelatedEffectRequest, EffectCorrelation, EffectSessionEnd, EffectSessionEnvironment,
+        EffectSessionPoll, EffectSessionStatus,
+    },
+    effect_stack::{
+        EffectReturnStack, EffectStackLimits, StackedEffectOutcome,
+        evaluate_stacked_effects_in_scope, resume_accepted_stacked_effects,
+    },
+    effect_stack_session::StackedEffectSession,
     flow_typing::{CallFlowEnvironment, GroupFlowEnvironment, GroupMemberType},
     group_reply::{GroupReply, assemble_group_reply},
     ir::{Computation, ComputedBranch, GroupKind},
@@ -543,6 +553,12 @@ fn run_batch<'a>(
     assert!(std::ptr::eq(request, host.group));
     assert_eq!(host.calls.get(), 0);
     assert_eq!(fuel.remaining(), 98);
+    let (reply, fuel) = complete_batch(request, host, fuel);
+    assert_eq!(fuel.remaining(), 92);
+    (continuation, reply, fuel)
+}
+fn complete_batch<'a>(request: &'a Node, host: &Host<'a>, fuel: Fuel) -> (Rc<Rows<'a>>, Fuel) {
+    let initial_fuel = fuel.remaining();
     // Batch lifecycle has its own explicit root charge; the language root is not skipped/refunded.
     let mut session = ParallelEvaluation::start(request, host, fuel, BATCH).unwrap();
     let ParallelPoll::Requests(batch) = session.poll(host).unwrap() else {
@@ -562,13 +578,13 @@ fn run_batch<'a>(
         panic!()
     };
     let mut fuel = session.into_completed_fuel().unwrap();
-    assert_eq!(fuel.remaining(), 95);
+    assert_eq!(fuel.remaining(), initial_fuel - 3);
     let reply = assemble_group_reply(request, rows, BATCH, &mut fuel, |reply, _| {
         host.validate_group(reply)
     })
     .unwrap();
-    assert_eq!(fuel.remaining(), 92);
-    (continuation, Rc::new(reply), fuel)
+    assert_eq!(fuel.remaining(), initial_fuel - 6);
+    (Rc::new(reply), fuel)
 }
 fn with_program(test: impl FnOnce(&Node, &[Schema<'_>])) {
     let schemas = schemas();
@@ -723,6 +739,21 @@ fn selected_member_never_falls_back_to_another_operation_or_stale_native_view() 
 }
 
 fn with_helper_program(test: impl FnOnce(&Node, &[Schema<'_>])) {
+    with_helper_profile(HelperProfile::Entry, test);
+}
+
+fn with_group_return_program(test: impl FnOnce(&Node, &[Schema<'_>])) {
+    with_helper_profile(HelperProfile::GroupReturn, test);
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum HelperProfile {
+    Entry,
+    GroupReturn,
+    NestedReturn,
+    NestedGroupReturn,
+}
+fn with_helper_profile(profile: HelperProfile, test: impl FnOnce(&Node, &[Schema<'_>])) {
     let schemas = schemas();
     let catalog = OperationCatalog::new(
         7,
@@ -733,13 +764,42 @@ fn with_helper_program(test: impl FnOnce(&Node, &[Schema<'_>])) {
         },
     )
     .unwrap();
-    let source = parse(
-        "fn start() = bind(bundle: all(left: counter.left(), right: counter.right()), body: bind(left_record: member(value: bundle, name: \"left\"), body: bind(right_record: member(value: bundle, name: \"right\"), body: choose(when: gt(left: field(value: left_record, name: \"count\"), right: 40), then: sum(right: field(value: right_record, name: \"count\"), left: field(value: left_record, name: \"count\")), otherwise: 0))))\n\
-         fn sum(left: integer, right: integer) = add(left: left, right: right)",
+    let batch = if matches!(
+        profile,
+        HelperProfile::GroupReturn | HelperProfile::NestedGroupReturn
+    ) {
+        "collect()"
+    } else {
+        "all(left: counter.left(), right: counter.right())"
+    };
+    let body = format!(
+        "bind(bundle: {batch}, body: bind(left_record: member(value: bundle, name: \"left\"), body: bind(right_record: member(value: bundle, name: \"right\"), body: choose(when: gt(left: field(value: left_record, name: \"count\"), right: 40), then: sum(right: field(value: right_record, name: \"count\"), left: field(value: left_record, name: \"count\")), otherwise: 0))))"
     );
+    let text = if profile == HelperProfile::NestedReturn {
+        format!(
+            "fn start() = bind(answer: collect(), body: add(left: answer, right: 1))\nfn collect() = {body}\nfn sum(left: integer, right: integer) = add(left: left, right: right)"
+        )
+    } else {
+        format!(
+            "fn start() = {body}\nfn sum(left: integer, right: integer) = add(left: left, right: right){}",
+            if profile == HelperProfile::GroupReturn {
+                "\nfn collect() = all(left: counter.left(), right: counter.right())"
+            } else if profile == HelperProfile::NestedGroupReturn {
+                "\nfn collect() = bind(inner: all(left: counter.left(), right: counter.right()), body: inner)"
+            } else {
+                ""
+            },
+        )
+    };
+    let source = parse(&text);
     assert!(source.diagnostics.is_empty());
     let declarations: Vec<_> = source.function.iter().chain(&source.helpers).collect();
-    let (program, ty): (Node, _) = compile_catalog_group_program(
+    let compiler = if profile != HelperProfile::Entry {
+        compile_catalog_group_helper_program
+    } else {
+        compile_catalog_group_program
+    };
+    let (program, ty): (Node, _) = compiler(
         &declarations,
         "start",
         CatalogGroupProgramLimits {
@@ -763,6 +823,455 @@ fn with_helper_program(test: impl FnOnce(&Node, &[Schema<'_>])) {
     .unwrap();
     assert!(matches!(ty, PureType::Scalar(ScalarType::Integer)));
     test(&program, &schemas);
+}
+
+fn stacked_batch<'a>(
+    program: &'a Node,
+    host: &Host<'a>,
+) -> (EffectReturnStack<'a, Node, ()>, Rc<Rows<'a>>, Fuel) {
+    let mut fuel = Fuel::new(100);
+    let mut bindings = Vec::new();
+    let StackedEffectOutcome::Suspended {
+        request,
+        continuation,
+    } = evaluate_stacked_effects_in_scope(
+        program,
+        &mut ScopeFrame::new(&mut bindings),
+        host,
+        &mut fuel,
+        EffectStackLimits {
+            effects: EFFECT,
+            max_frames: 4,
+        },
+    )
+    .unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(continuation.frame_count(), 2);
+    assert!(std::ptr::eq(request, host.group));
+    assert_eq!(fuel.remaining(), 97);
+    let (reply, fuel) = complete_batch(request, host, fuel);
+    assert_eq!(fuel.remaining(), 91);
+    (continuation, reply, fuel)
+}
+
+#[test]
+fn parsed_helper_internal_group_reply_unwinds_to_original_outer_return_without_new_vm_or_dispatch()
+{
+    with_helper_profile(HelperProfile::NestedReturn, |program, schemas| {
+        let Node::Bind { value: helper, .. } = program else {
+            panic!()
+        };
+        let host = Host::new(helper, schemas);
+        let (continuation, reply, mut fuel) = stacked_batch(program, &host);
+        let mut pending = PendingReply::new(73u64, continuation, &host);
+        let accepted = pending
+            .try_accept::<_, Rows<'_>, _>(&73, reply, &host)
+            .unwrap();
+        let StackedEffectOutcome::Value(PureValue::Scalar(value)) =
+            resume_accepted_stacked_effects(
+                accepted,
+                &host,
+                &mut fuel,
+                EffectStackLimits {
+                    effects: EFFECT,
+                    max_frames: 4,
+                },
+            )
+            .unwrap()
+        else {
+            panic!()
+        };
+        assert_eq!(value, ScalarValue::Integer(49));
+        assert_eq!(host.calls.get(), 2);
+        assert_eq!(host.projections.get(), 1);
+        assert_eq!(host.restores.get(), 2);
+        assert_eq!(host.reads.get(), 3);
+        assert_eq!(fuel.remaining(), 69);
+    });
+}
+
+#[test]
+fn nested_group_helper_return_frames_stop_on_cancel_or_fresh_reentry_revocation() {
+    for phase in 0..2 {
+        with_helper_profile(HelperProfile::NestedReturn, |program, schemas| {
+            let Node::Bind { value: helper, .. } = program else {
+                panic!()
+            };
+            let host = Host::new(helper, schemas);
+            let (continuation, reply, mut fuel) = stacked_batch(program, &host);
+            let mut pending = PendingReply::new(73u64, continuation, &host);
+            if phase == 0 {
+                assert!(pending.cancel());
+            } else {
+                let accepted = pending
+                    .try_accept::<_, Rows<'_>, _>(&73, reply, &host)
+                    .unwrap();
+                host.live.set(false);
+                assert!(
+                    resume_accepted_stacked_effects(
+                        accepted,
+                        &host,
+                        &mut fuel,
+                        EffectStackLimits {
+                            effects: EFFECT,
+                            max_frames: 4
+                        }
+                    )
+                    .is_err()
+                );
+            }
+            assert_eq!(host.calls.get(), 2);
+            assert_eq!(host.projections.get(), 0);
+            assert_eq!(host.restores.get(), 0);
+            assert_eq!(host.reads.get(), 0);
+            assert_eq!(fuel.remaining(), 91);
+        });
+    }
+}
+
+#[test]
+fn parsed_native_group_value_returns_through_outer_frame_without_a_second_reply_projection() {
+    with_helper_profile(HelperProfile::NestedGroupReturn, |program, schemas| {
+        let Node::Bind { value: helper, .. } = program else {
+            panic!()
+        };
+        let host = Host::new(helper, schemas);
+        let (continuation, reply, mut fuel) = stacked_batch(program, &host);
+        let mut pending = PendingReply::new(73u64, continuation, &host);
+        let accepted = pending
+            .try_accept::<_, Rows<'_>, _>(&73, reply, &host)
+            .unwrap();
+        let StackedEffectOutcome::Value(PureValue::Scalar(ScalarValue::Integer(48))) =
+            resume_accepted_stacked_effects(
+                accepted,
+                &host,
+                &mut fuel,
+                EffectStackLimits {
+                    effects: EFFECT,
+                    max_frames: 4,
+                },
+            )
+            .unwrap()
+        else {
+            panic!()
+        };
+        assert_eq!(host.calls.get(), 2);
+        assert_eq!(host.projections.get(), 1);
+        assert_eq!(host.restores.get(), 2);
+        assert_eq!(host.reads.get(), 3);
+        assert_eq!(fuel.remaining(), 71);
+    });
+}
+
+struct GroupDispatch<'a> {
+    request: &'a Node,
+    reserved: Fuel,
+}
+struct SessionHost<'host, 'a> {
+    native: &'host Host<'a>,
+}
+impl<'a> PureEvaluationEnvironment<u8, &'static str> for SessionHost<'_, 'a> {
+    type Result = View<'a>;
+    type Error = Private;
+    fn field(&self, value: &View<'a>, field: &u8) -> Result<ScalarValue, Private> {
+        self.native.field(value, field)
+    }
+    fn member(&self, value: &View<'a>, name: &str, op: &&'static str) -> Result<View<'a>, Private> {
+        self.native.member(value, name, op)
+    }
+}
+impl<'a> EffectEvaluationEnvironment<'a, u8, &'static str, (), usize> for SessionHost<'_, 'a> {
+    type Request = &'a Node;
+    type Capture = ();
+    fn preflight_effect(&self, node: &'a Node) -> Result<(), Private> {
+        self.native.preflight_effect(node)
+    }
+    fn prepare_effect(
+        &self,
+        node: &'a Node,
+        scope: &mut ScopeFrame<'_, 'a, PureValue<View<'a>>>,
+        fuel: &mut Fuel,
+    ) -> Result<&'a Node, CalculationFailure<Private>> {
+        self.native.prepare_effect(node, scope, fuel)
+    }
+    fn capture(
+        &self,
+        name: &'a str,
+        body: &'a Node,
+        scope: &ScopeFrame<'_, 'a, PureValue<View<'a>>>,
+        fuel: &mut Fuel,
+    ) -> Result<(), Private> {
+        self.native.capture(name, body, scope, fuel)
+    }
+}
+impl<'a> EffectReentryEnvironment<'a, u8, &'static str, (), usize, u64, Host<'a>, Rc<Rows<'a>>>
+    for SessionHost<'_, 'a>
+{
+    fn restore_capture(
+        &self,
+        identity: &u64,
+        declaration: &Host<'a>,
+        capture: (),
+        fuel: &mut Fuel,
+        limits: EffectEvaluationLimits,
+    ) -> Result<RestoredEffectBindings<'a, View<'a>>, CalculationFailure<Private>> {
+        self.native
+            .restore_capture(identity, declaration, capture, fuel, limits)
+    }
+    fn bind_reply(
+        &self,
+        identity: &u64,
+        declaration: &Host<'a>,
+        reply: Rc<Rows<'a>>,
+        fuel: &mut Fuel,
+    ) -> Result<PureValue<View<'a>>, CalculationFailure<Private>> {
+        self.native.bind_reply(identity, declaration, reply, fuel)
+    }
+}
+impl<'host, 'a> EffectSessionEnvironment<'a, 'host, u8, &'static str, (), usize>
+    for SessionHost<'host, 'a>
+{
+    type Identity = u64;
+    type Declaration = Host<'a>;
+    type Reply = Rc<Rows<'a>>;
+    type Dispatch = GroupDispatch<'a>;
+    fn correlate_request(
+        &self,
+        request: &'a Node,
+        fuel: &mut Fuel,
+    ) -> EffectCorrelation<'host, u64, Host<'a>, GroupDispatch<'a>, Private> {
+        self.native.preflight_effect(request)?;
+        if !std::ptr::eq(request, self.native.group) {
+            return Err(Private.into());
+        }
+        // This finite fixture prepays the exact native batch/assembly work once.
+        // The submeter spends only reserved units; it cannot refill the root session.
+        fuel.charge(6).map_err(|_| Private)?;
+        Ok(CorrelatedEffectRequest {
+            identity: 73,
+            declaration: self.native,
+            dispatch: GroupDispatch {
+                request,
+                reserved: Fuel::new(6),
+            },
+        })
+    }
+}
+
+#[test]
+fn parsed_group_helpers_use_owned_fuel_stacked_sessions_with_explicit_native_work_reservation() {
+    for profile in [
+        HelperProfile::NestedReturn,
+        HelperProfile::NestedGroupReturn,
+    ] {
+        with_helper_profile(profile, |program, schemas| {
+            let Node::Bind { value: helper, .. } = program else {
+                panic!()
+            };
+            let native = Host::new(helper, schemas);
+            let host = SessionHost { native: &native };
+            let mut session = StackedEffectSession::new(
+                program,
+                Vec::new(),
+                Fuel::new(100),
+                EffectStackLimits {
+                    effects: EFFECT,
+                    max_frames: 4,
+                },
+            );
+            let EffectSessionPoll::Request(dispatch) = session.poll(&host).unwrap() else {
+                panic!()
+            };
+            assert!(std::ptr::eq(dispatch.request, native.group));
+            assert_eq!(session.fuel_remaining(), 91);
+            assert_eq!(native.calls.get(), 0);
+            assert!(matches!(
+                session.poll(&host).unwrap(),
+                EffectSessionPoll::Awaiting
+            ));
+            let (reply, reserved) = complete_batch(dispatch.request, &native, dispatch.reserved);
+            assert_eq!(reserved.remaining(), 0);
+            let pointer = Rc::as_ptr(&reply);
+            let rejected = session
+                .try_accept::<Rows<'_>, _>(&74, reply, &native)
+                .unwrap_err();
+            assert_eq!(Rc::as_ptr(&rejected.reply), pointer);
+            session
+                .try_accept::<Rows<'_>, _>(&73, rejected.reply, &native)
+                .unwrap();
+            assert_eq!(session.status(), EffectSessionStatus::Ready);
+            assert_eq!(session.fuel_remaining(), 91);
+            assert_eq!(native.restores.get(), 0);
+            assert_eq!(native.projections.get(), 0);
+            let EffectSessionPoll::Value(PureValue::Scalar(value)) = session.poll(&host).unwrap()
+            else {
+                panic!()
+            };
+            let (expected, fuel) = if profile == HelperProfile::NestedReturn {
+                (49, 69)
+            } else {
+                (48, 71)
+            };
+            assert_eq!(value, ScalarValue::Integer(expected));
+            assert_eq!(session.fuel_remaining(), fuel);
+            assert_eq!(native.calls.get(), 2);
+            assert_eq!(native.restores.get(), 2);
+            assert_eq!(native.projections.get(), 1);
+            assert_eq!(native.reads.get(), 3);
+            assert!(matches!(
+                session.poll(&host).unwrap(),
+                EffectSessionPoll::Terminal(EffectSessionEnd::Completed)
+            ));
+            assert!(!session.cancel());
+        });
+    }
+}
+
+#[test]
+fn stacked_group_session_cancel_or_revocation_after_acceptance_never_projects_or_restores() {
+    for cancel in [false, true] {
+        with_helper_profile(HelperProfile::NestedReturn, |program, schemas| {
+            let Node::Bind { value: helper, .. } = program else {
+                panic!()
+            };
+            let native = Host::new(helper, schemas);
+            let host = SessionHost { native: &native };
+            let mut session = StackedEffectSession::new(
+                program,
+                Vec::new(),
+                Fuel::new(100),
+                EffectStackLimits {
+                    effects: EFFECT,
+                    max_frames: 4,
+                },
+            );
+            let EffectSessionPoll::Request(dispatch) = session.poll(&host).unwrap() else {
+                panic!()
+            };
+            let (reply, _) = complete_batch(dispatch.request, &native, dispatch.reserved);
+            session
+                .try_accept::<Rows<'_>, _>(&73, reply, &native)
+                .unwrap();
+            if cancel {
+                assert!(session.cancel());
+            } else {
+                native.live.set(false);
+                assert!(session.poll(&host).is_err());
+            }
+            let reason = if cancel {
+                EffectSessionEnd::Cancelled
+            } else {
+                EffectSessionEnd::Failed
+            };
+            assert_eq!(session.status(), EffectSessionStatus::Terminal(reason));
+            assert!(matches!(
+                session.poll(&host).unwrap(),
+                EffectSessionPoll::Terminal(_)
+            ));
+            assert_eq!(session.fuel_remaining(), 91);
+            assert_eq!(native.restores.get(), 0);
+            assert_eq!(native.projections.get(), 0);
+            assert_eq!(native.reads.get(), 0);
+            assert_eq!(native.calls.get(), 2);
+        });
+    }
+}
+
+#[test]
+fn stacked_group_session_exhausted_native_reservation_cannot_publish_partial_work() {
+    with_helper_profile(HelperProfile::NestedReturn, |program, schemas| {
+        let Node::Bind { value: helper, .. } = program else {
+            panic!()
+        };
+        let native = Host::new(helper, schemas);
+        let host = SessionHost { native: &native };
+        let mut session = StackedEffectSession::new(
+            program,
+            Vec::new(),
+            Fuel::new(8),
+            EffectStackLimits {
+                effects: EFFECT,
+                max_frames: 4,
+            },
+        );
+        assert!(session.poll(&host).is_err());
+        assert_eq!(
+            session.status(),
+            EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+        );
+        assert!(matches!(
+            session.poll(&host).unwrap(),
+            EffectSessionPoll::Terminal(EffectSessionEnd::Failed)
+        ));
+        assert_eq!(native.calls.get(), 0);
+        assert_eq!(native.restores.get(), 0);
+        assert_eq!(native.projections.get(), 0);
+        assert!(!session.cancel());
+    });
+}
+
+#[test]
+fn parsed_group_return_helper_reenters_original_control_and_hygienic_tail_with_one_meter() {
+    with_group_return_program(|program, schemas| {
+        let host = Host::new(program, schemas);
+        let (continuation, reply, mut fuel) = run_batch(program, &host);
+        let pointer = Rc::as_ptr(&reply);
+        let mut pending = PendingReply::new(73u64, continuation, &host);
+        let rejected = pending
+            .try_accept::<_, Rows<'_>, _>(&74, reply, &host)
+            .unwrap_err();
+        assert_eq!(Rc::as_ptr(&rejected.reply), pointer);
+        let accepted = pending
+            .try_accept::<_, Rows<'_>, _>(&73, rejected.reply, &host)
+            .unwrap();
+        let ResumableEffectOutcome::Value(PureValue::Scalar(value)) =
+            resume_accepted_effects(accepted, &host, &mut fuel, EFFECT).unwrap()
+        else {
+            panic!()
+        };
+        assert_eq!(value, ScalarValue::Integer(48));
+        assert_eq!(host.calls.get(), 2);
+        assert_eq!(host.restores.get(), 1);
+        assert_eq!(host.projections.get(), 1);
+        assert_eq!(host.reads.get(), 3);
+        assert_eq!(fuel.remaining(), 73);
+    });
+}
+
+#[test]
+fn group_return_helper_does_not_bypass_outer_reply_revocation_or_cancellation() {
+    for phase in 0..3 {
+        with_group_return_program(|program, schemas| {
+            let host = Host::new(program, schemas);
+            let (continuation, reply, mut fuel) = run_batch(program, &host);
+            let mut pending = PendingReply::new(73u64, continuation, &host);
+            match phase {
+                0 => assert!(pending.cancel()),
+                1 => {
+                    host.live.set(false);
+                    let rejected = pending
+                        .try_accept::<_, Rows<'_>, _>(&73, reply, &host)
+                        .unwrap_err();
+                    assert!(matches!(rejected.error, ReplyAcceptanceError::Authority(_)));
+                    assert!(pending.cancel());
+                }
+                _ => {
+                    let accepted = pending
+                        .try_accept::<_, Rows<'_>, _>(&73, reply, &host)
+                        .unwrap();
+                    host.live.set(false);
+                    assert!(resume_accepted_effects(accepted, &host, &mut fuel, EFFECT).is_err());
+                }
+            }
+            assert_eq!(host.calls.get(), 2);
+            assert_eq!(host.restores.get(), 0);
+            assert_eq!(host.projections.get(), 0);
+            assert_eq!(host.reads.get(), 0);
+            assert_eq!(fuel.remaining(), 92);
+        });
+    }
 }
 
 #[test]

@@ -128,6 +128,11 @@ pub(crate) struct CatalogProgramContext<'source> {
     state: RefCell<State>,
     depth: Cell<usize>,
 }
+#[derive(Clone, Copy)]
+pub(crate) struct CatalogProgramGroupProfile {
+    pub limits: CatalogGroupSourceLimits,
+    pub helper_groups: bool,
+}
 struct Depth<'a>(&'a Cell<usize>, usize);
 impl Drop for Depth<'_> {
     fn drop(&mut self) {
@@ -241,6 +246,22 @@ impl<'source> CatalogProgramContext<'source> {
         Capability: PartialEq,
         Environment: CatalogSourceEnvironment<'source, 'schema, Field, Operation, Declaration>,
     {
+        self.body_with(prepared, |source, prefix| {
+            lower_catalog_expression(source, prefix, host, environment, self)
+        })
+    }
+    fn body_with<Field, Operation, HostEffect, IrResult, ResultType, Error>(
+        &self,
+        prepared: &PreparedFunction<'source>,
+        lower: impl Fn(
+            &'source Expression,
+            &[(&'source str, &PureType<ResultType>)],
+        ) -> CatalogSourceResult<
+            Node<Field, Operation, HostEffect, IrResult>,
+            ResultType,
+            Error,
+        >,
+    ) -> CatalogSourceResult<Node<Field, Operation, HostEffect, IrResult>, ResultType, Error> {
         self.charge(prepared.nodes)?;
         let types: Vec<_> = prepared
             .parameters
@@ -248,7 +269,7 @@ impl<'source> CatalogProgramContext<'source> {
             .map(|parameter| (parameter.name, PureType::Scalar(parameter.domain)))
             .collect();
         let prefix: Vec<_> = types.iter().map(|(name, ty)| (*name, ty)).collect();
-        self.compile(&prepared.function.body, &prefix, host, environment)
+        self.with_expansion(|| lower(&prepared.function.body, &prefix))
     }
     pub(crate) fn lower_helper<
         'schema,
@@ -277,6 +298,23 @@ impl<'source> CatalogProgramContext<'source> {
         Capability: PartialEq,
         Environment: CatalogSourceEnvironment<'source, 'schema, Field, Operation, Declaration>,
     {
+        self.lower_helper_with(source, prefix, |source, prefix| {
+            lower_catalog_expression(source, prefix, host, environment, self)
+        })
+    }
+    pub(crate) fn lower_helper_with<Field, Operation, HostEffect, IrResult, ResultType, Error>(
+        &self,
+        source: &'source Expression,
+        prefix: &[(&'source str, &PureType<ResultType>)],
+        lower: impl Fn(
+            &'source Expression,
+            &[(&'source str, &PureType<ResultType>)],
+        ) -> CatalogSourceResult<
+            Node<Field, Operation, HostEffect, IrResult>,
+            ResultType,
+            Error,
+        >,
+    ) -> LocalCall<Node<Field, Operation, HostEffect, IrResult>, ResultType, Error> {
         let prepared = self.function(source)?;
         Some((|| {
             self.charge(prepared.parameters.len())?;
@@ -292,7 +330,7 @@ impl<'source> CatalogProgramContext<'source> {
                     max_parameters: self.limits.max_parameters,
                 },
                 |argument| {
-                    self.compile(&argument.value, prefix, host, environment)
+                    self.with_expansion(|| lower(&argument.value, prefix))
                         .map(|(node, ty)| (node, ty.scalar_type()))
                 },
             )
@@ -302,7 +340,7 @@ impl<'source> CatalogProgramContext<'source> {
                     error: Box::new(error),
                 })
             })?;
-            let (body, ty) = self.body(prepared, host, environment)?;
+            let (body, ty) = self.body_with(prepared, &lower)?;
             let aliases: Vec<String> = prepared
                 .parameters
                 .iter()
@@ -334,7 +372,7 @@ impl<'source> CatalogProgramContext<'source> {
                     max_bindings: control.max_bindings,
                     max_reserved_names: MAX_TYPE_INFERENCE_NODES,
                 },
-                || self.fresh::<Environment::Error>(),
+                || self.fresh::<Error>(),
             )
             .map_err(|error| {
                 rejected(CatalogProgramError::Hygiene {
@@ -423,7 +461,7 @@ where
         host,
         environment,
         None,
-        |program, source| program.compile(source, &[], host, environment),
+        |program, source, prefix| program.compile(source, prefix, host, environment),
     )
 }
 
@@ -446,10 +484,11 @@ pub(crate) fn compile_catalog_program_with_entry<
     limits: CatalogProgramLimits,
     host: &SourceCallHost<'_, 'schema, Operation, Domain, Declaration, Capability>,
     environment: &Environment,
-    entry_groups: Option<CatalogGroupSourceLimits>,
-    finish: impl FnOnce(
+    entry_groups: Option<CatalogProgramGroupProfile>,
+    finish: impl Fn(
         &CatalogProgramContext<'source>,
         &'source Expression,
+        &[(&'source str, &PureType<Environment::Result>)],
     ) -> CatalogSourceResult<
         Node<Field, Operation, HostEffect, IrResult>,
         Environment::Result,
@@ -547,6 +586,7 @@ where
         depth: Cell::new(0),
     };
     let mut cold_calls = 0usize;
+    let mut cold_groups = 0usize;
     let mut entry_nodes = 0usize;
     for function in declarations {
         let parameters = helper_parameters(function, limits.max_parameters)
@@ -563,10 +603,23 @@ where
             preflight_control_source(&function.body, &prefix, limits.expression.control)
                 .map_err(|e| CatalogSourceError::Control(Box::new(e)))?;
         }
-        let groups = entry_groups.filter(|_| std::ptr::eq(*function, accepted.entry()));
-        if let Some(group_limits) = groups {
-            cold_groups_with(&function.body, group_limits, |node| program.is_helper(node))
-                .map_err(|e| CatalogSourceError::Group(Box::new(e)))?;
+        let groups = entry_groups
+            .filter(|profile| profile.helper_groups || std::ptr::eq(*function, accepted.entry()));
+        if let Some(profile) = groups {
+            let count = cold_groups_with(&function.body, profile.limits, |node| {
+                program.is_helper(node)
+            })
+            .map_err(|e| CatalogSourceError::Group(Box::new(e)))?;
+            cold_groups = cold_groups
+                .checked_add(count)
+                .filter(|count| *count <= profile.limits.max_groups)
+                .ok_or_else(|| {
+                    CatalogSourceError::Group(Box::new(
+                        crate::catalog_group_source::CatalogGroupSourceError::GroupLimit {
+                            span: span(&function.body),
+                        },
+                    ))
+                })?;
         }
         let local_call = |node: &Expression| {
             let Expression::Call {
@@ -635,9 +688,17 @@ where
             let _: (
                 Node<Field, Operation, HostEffect, IrResult>,
                 PureType<Environment::Result>,
-            ) = program.body(prepared, host, environment)?;
+            ) = if entry_groups.is_some_and(|profile| profile.helper_groups) {
+                program.body_with(prepared, |source, prefix| finish(&program, source, prefix))?
+            } else {
+                program.body(prepared, host, environment)?
+            };
         }
     }
     program.charge(entry_nodes)?;
-    finish(&program, &accepted.entry().body)
+    if entry_groups.is_some_and(|profile| profile.helper_groups) {
+        program.with_expansion(|| finish(&program, &accepted.entry().body, &[]))
+    } else {
+        finish(&program, &accepted.entry().body, &[])
+    }
 }

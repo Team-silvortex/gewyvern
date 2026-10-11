@@ -1447,6 +1447,52 @@ optional presence, typed failures, fuel and native unwind. This is **atomic call
 preparation, not full effect dispatch, suspension or durable host-neutral execution**.
 Generic source lowering and complete unrelated-host vertical proofs remain open.
 
+### Uniform Atomic Call Execution
+
+`prepared_call_evaluation::prepare_atomic_call_in_scope` executes the existing
+prepared-call IR contract: pure Bind/Choose preparation ending in exactly one
+registered Call on every path. One aggregate physical budget covers all cold
+branches, pure operands and the borrowed value prefix. Physical admission precedes
+native catalog comparisons; every cold terminal call then passes exact version,
+grants and named shape before execution. Every terminal must select the **same
+original schema row**, not merely an equal result type. A different operation in
+an unselected arm is rejected without consuming fuel or projecting native values.
+Host/Group members, effect-valued bindings, scalar tails and hidden effects in
+operands are not admitted by this call-only profile.
+
+Selected execution reuses the shared synchronous control walker and existing
+declaration-ordered argument evaluator. The caller supplies one existing Fuel and
+still-live ScopeFrame: there is no prefix snapshot, continuation capture, extra
+wrapper charge or double call-root charge. Bounded pure loops, scalar recovery and
+lazy operands keep their existing semantics. Values are all evaluated before
+native argument-domain callbacks. Optional arguments remain omitted; returned
+PreparedCall borrows the original catalog schema and owns its evaluated arguments.
+Direct-call cost and failure behavior match the released `prepare_call_in_scope`.
+
+Physical/catalog admission is not cold type inference: hosts still use
+`infer_prepared_call_type` to check types across all paths. Preparation does not
+dispatch effects, allocate identities, grant current execution authority or
+validate returned replies. Native errors move out without formatting private
+payloads or becoming scalar-recoverable. Temporary locals unwind on failure or
+native panic; no fuel refund, rollback or automatic retry is promised. Native
+catalog/projection/domain work, result-view cloning and Drop are host-bounded,
+trusted and non-preemptible.
+
+`crates/leselang-hir/tests/prepared_call_evaluation.rs` proves original declaration
+identity, once-only selected projection, declaration/submission positions, exact
+fuel, cold denials, guarded cleanup, bounded loops/recovery and native unwind with
+non-Clone native slots and opaque errors. A numeric host joins pure Bind/Choose
+members through complete native group preparation into both original Seq and All
+reply protocols. Seq publishes one request per accepted reply; All accepts reverse
+reply order and returns original ordered rows. The same borrowed meter runs
+`100 -> 79 -> 74`, without an additional meter or effect before explicit invocation.
+
+This is **uniform atomic IR preparation, not a new source group-helper profile**.
+Existing catalog group program entries still require direct registered member
+calls; helper expansion inside members remains a subsequent explicit opt-in
+compiler gate. No product VM migration, native scheduling, durable recovery or
+complete independent VM/repository extraction is claimed.
+
 ### Shared Native Source Call Bridge
 
 `leselang-hir::source_call::lower_source_call` connects the original parsed
@@ -3063,6 +3109,111 @@ This is **a flat in-memory parallel reply lifecycle, not the complete independen
 Nested groups, complete generic group-result projection/re-entry, group/helper-program
 composition, product-adapter migration and portable durable recovery remain open.
 
+### Shared Prepared-Operand Sequential Publication
+
+`prepared_sequence::PreparedSequenceSession::start` consumes a complete scoped
+`PreparedNativeGroup` against the exact original flat-Seq IR. Shared whole
+physical/language shape and atomic candidates, original kind/slice/count and row
+correspondence, then **all fresh native preparation admissions** precede every
+correlation hook or additional fuel debit. All once-ordered correlation and pairwise
+distinct native identity checks complete before a session can be handed off.
+Refusal/exhaustion/unwind returns no session or partial request and consumes every
+prepared prefix/suffix without retries or refunds. Native side effects cannot be
+rolled back, and a second cleanup panic may abort.
+
+**Correlation is eager, publication is sequential**. Arguments are already prepared
+once under the live lexical scope, not evaluated from earlier sequence replies.
+A correlation root unit plus one per member, with explicit native work charges,
+uses **the enclosing original fuel meter**. The wrapper owns **no fuel** and creates
+no second meter. Start does not dispatch or publish a request. Compared with the
+legacy lazy preparation entry, this is an opt-in snapshot/precorrelation policy,
+not a silent change to source or existing execution semantics.
+
+Each explicit `poll` requires a fresh native publication hook receiving the exact
+original row, retained identity, original result domain and retained request.
+It checks current schema/grants/provenance before releasing **one outstanding
+request**. Waiting/terminal polls run no hooks; acceptance only returns that member's
+ordered original accepted row and makes its successor Ready. It does not implicitly
+publish a successor, evaluate operands or aggregate a group. A publication refusal
+is terminal Failed; callback unwind seals HostUncertain. The host explicitly bounds
+or prepays native publication policy work and aggregate retained memory/ingress;
+the no-fuel poll signature is not free or preemptible native execution.
+
+Both entries delegate **the same private SequenceReplyCore**, including original
+identity/live authority/type/value rejection, unchanged rejected owned input and
+terminal-before-cleanup fencing. The prepared wrapper locally guards every retained
+future request/identity during poll, acceptance and cancellation, so refusal or
+unwind drops the complete suffix without rearming. Already published requests and
+accepted rows are external ownership; cancellation delivery and aggregation remain
+explicit host orchestration, not rollback or external exactly-once execution.
+Unsized domains/views and move-only native requests need no Clone/Debug/serde/Send
+bounds beyond native identity equality.
+
+The parsed parameterized `seq` helper shares the counter host, captures and complete
+`assemble_group_reply` path with the All proof. It prepares exact `41`/`40` operands,
+publishes member 0, waits for its validated reply, then publishes member 1. Shared
+whole-group assembly and an explicit enclosing poll restore two original scopes
+and produce `83` on **100 -> 78 -> 62**. Cancellation before publication executes
+no call; cancellation or fresh grant revocation after member 0 never invokes member
+1 or the caller. Late correlation denial returns no dispatch. This is a local
+in-memory native proof, not transactional external dispatch, nested group-member
+scheduling, portable durable recovery, product migration or independent VM promotion.
+
+Legacy SequenceSession signatures, lazy preparation order, owned meter handoff and
+fuel costs remain unchanged. This profile deliberately reserves all correlation
+work up front; it cannot consume sequence-result-dependent arguments or free native
+correlation side effects on cancellation.
+
+### Shared Prepared-Operand Parallel Reply Sessions
+
+`prepared_parallel::PreparedParallelSession::start` consumes a complete scoped
+`PreparedNativeGroup` against the exact original flat-All IR. Shared whole
+physical/language shape and atomic candidate admission, original kind/slice/count
+and row-index correspondence, then **all fresh native preparation admissions**
+precede every correlation hook and additional fuel debit. A foreign, missing or
+reordered member set cannot substitute a look-alike group.
+
+Start borrows **the enclosing original fuel meter**, charging one correlation root
+unit and one unit per member before its once-ordered correlation callback. Native
+callbacks consume the already prepared operands, preserve original domains and
+bound/charge their own live correlation and dispatch work. **No argument is
+reevaluated, no operand is copied, and no second meter is created**. Earlier
+scoped preparation costs remain separate, explicit and nonrefundable.
+
+Only after all correlation and distinct identity checks does start return the
+complete native request batch and its reply barrier. Failure, exhaustion or unwind
+consumes prefix/suffix preparations without partial publication or retry; native
+side effects/Drop cannot be rolled back or preempted, and a second cleanup panic
+may abort. Complete local publication is **not atomic external dispatch**.
+
+Both prepared and legacy parallel sessions delegate **the same private
+ParallelReplyCore**: original index/domain and current authority checks, unchanged
+rejected owned inputs, out-of-order acceptance, the complete all-success barrier,
+once-only ordered original-row output and terminal-before-cleanup fencing.
+The prepared wrapper owns **no fuel**. Waiting/terminal polls and acceptance
+neither execute successors nor debit or redeem the enclosing meter. Cancellation
+also closes accepted-but-unpublished results; acceptance unwind seals HostUncertain.
+Native domains may be unsized and replies may borrow an unsized view; no native
+Clone/Debug/serde/Send requirement is added beyond identity equality.
+
+The parsed parameterized counter helper now uses this entry to hand off exact
+`41`/`40` operands, accept member 1 before member 0, and produce ordered accepted
+rows. An explicit enclosing poll uses shared `assemble_group_reply` with fresh
+whole-group policy before one native reply projection and two restored scopes;
+the result is `83` on **100 -> 78 -> 62**, including two prepaid native invocation
+units and explicit correlation/assembly costs. Incorrect member identity and
+reordered outer rows preserve the original input. Cancelling either local barrier
+or enclosing session, revocation after acceptance and late correlation denial
+cannot run caller successors. Cancellation delivery between those two owners
+remains explicit host orchestration, not automatic external cancellation.
+
+Legacy ParallelSession signatures, preparation order, owned-meter handoff and
+fuel costs remain unchanged. Cold types, provenance, live grants, aggregate native
+memory/work/capture limits, authentic receipts and actual dispatch remain adapter
+policy. This is a local in-memory synchronous counter proof, not new scheduling,
+durable recovery, nested group-member support, product migration or independent
+VM maturity promotion.
+
 ### Shared Complete Group Reply Assembly
 
 `group_reply::assemble_group_reply` consumes the complete ordered accepted rows
@@ -3171,6 +3322,73 @@ unwind and cancellation. This is **in-memory accepted binding re-entry, not a
 complete generic compiler or durable VM**. It does not add sequence aggregation,
 parallel barriers, opaque-host source typing or persistent continuation layouts.
 
+### Shared Bounded Return Frames
+
+`effect_stack::evaluate_stacked_effects_in_scope` explicitly opts into **nested binding
+returns** over the same synchronous effect walker. `resume_accepted_stacked_effects`
+consumes an accepted `EffectReturnStack` through the existing native re-entry hooks.
+The legacy single-frame evaluator, re-entry API and `ControlSession` retain their
+original nested-suspension rejection, wire shape, fuel and diagnostic behavior.
+There is no second evaluator, background worker or automatic product migration.
+
+The private stack retains the **original borrowed binding names/bodies**, ordered
+innermost to outermost, and one opaque native capture per pending return. A helper
+can suspend repeatedly, finish its own body and return a scalar/structured value to
+the awaiting caller. Capture hooks snapshot only their exact live lexical prefixes;
+the core does not clone native IR or invent a capture representation. Native result
+views retain the existing Clone contract for explicit reads, not incoming payloads.
+
+`EffectStackLimits` adds an inclusive **0 through 64 pending-frame ceiling** over the
+unchanged `EffectEvaluationLimits`. Active lexical bindings and pending return sites
+have separate bounds. Zero frames permits pure completion or a final request, not
+a suspended binding. Each new frame passes its quota before that frame's capture
+hook; earlier preparation/captures may have occurred and are not rolled back. On
+re-entry, **new and already pending frames share one quota**: older outer frames
+reduce the space available to newly suspended helpers. Lowering policy below the
+retained stack size refuses before restoration, projection or fuel debit.
+
+The **complete pending body forest shares one physical budget**. Every cold body
+and current schema passes before any native restore/projection; per-frame budget
+resets cannot admit an oversized combined forest. Only the innermost frame projects
+the accepted native reply once. Outer frames bind the already computed return value,
+**not a fabricated native reply or result-domain cast**. A final request from an inner
+body adopts the next original return site, without replaying prior source/effects.
+All restoration, prefix charging, name/shadow checks and value binding reuse the
+single-frame primitives with the **same original fuel meter**, without refunds.
+These entries borrow host-held fuel; hosts must retain that root meter between
+replies. They do not enforce continuity against a deliberately substituted meter.
+
+Native restoration must validate each capture's **own provenance and current view**
+independently of the latest accepted leaf's identity/result domain. That domain is
+not the type of an outer logical return value. Adapters own compatible result views,
+framework affinity, live policy and stable-snapshot versus live-reference semantics.
+They must bound **aggregate capture bytes/work across all frames**, not only each
+snapshot: the frame ceiling is not a total native-memory or callback CPU ceiling.
+
+`PendingReply` retains its original identity/authority/type/value acceptance and
+unchanged rejected-input ownership. Cancellation before re-entry consumes all return
+frames without restoration. Error/unwind consumes owned frames without partial
+continuation output, dispatch, retry or refill; earlier native work is not rolled back.
+Debug/errors expose only closed phases/frame counts, not names, captures or native
+payloads. Native callbacks/Drop remain trusted; a second cleanup panic can abort.
+
+The unrelated move-only/unsized scalar host crosses two requests, preserves caller
+and helper scopes, writes 42 and returns 53. The meter follows **100 -> 89 -> 79 -> 69**;
+only two native replies project, while three logical frames restore. The parsed
+helper-internal All proof keeps the original out-of-order reply barrier and complete
+group admission, then returns 49 to the outer caller with remaining fuel 69. Group
+reply projection occurs once, with two frame restorations and no extra native calls.
+An additional parsed helper returns the original group view through an outer frame,
+then projects members there; it still projects the native reply once and leaves fuel 71.
+Quota/forest denial, wrong identity, late revocation, cancellation, bad prefixes and
+native failure/unwind tests verify cleanup without replay or per-frame resets.
+
+This closes bounded **in-memory nested binding return composition**, not nested
+group-member scheduling, recursive helpers, portable durable recovery, independent
+VM acceptance or repository extraction. Hosts opt in and adapt this protocol;
+existing control sessions/product VMs are not silently widened. Embedding maturity
+remains developing, and durable layouts/authority remain separate extraction gates.
+
 ### Shared Borrowed Control Sessions
 
 `effect_session::EffectSession` ties the shared effect walker, `PendingReply` and
@@ -3229,6 +3447,61 @@ bounds ingress/aggregate sessions/native work and owns cancellation delivery.
 Native mutation/allocation/Drop cannot be preempted or rolled back; a second panic
 in cleanup can abort. Complete generic source/opaque-host typing and durable
 continuation/recovery formats remain extraction gates, not implicitly completed.
+
+### Shared Owned-Fuel Nested Control Sessions
+
+`effect_stack_session::StackedEffectSession` (generic `StackedControlSession`)
+explicitly opts into bounded nested binding returns **without caller-managed fuel
+or pending handles**. It uses the **same private SessionCore lifecycle** as the
+legacy single-frame `ControlSession`, not a second state machine or evaluator.
+The original `EffectSessionEnvironment` supplies correlation and native re-entry;
+adapters need no new callback trait or native capture representation.
+
+```rust
+let mut execution = StackedEffectSession::new(
+    &program,
+    initial_bindings,
+    Fuel::new(100),
+    EffectStackLimits { effects: effect_limits, max_frames: 4 },
+);
+// poll prepares/correlates a request; the host explicitly dispatches it.
+// try_accept validates the original input, then only marks Ready.
+// A later poll resumes the exact pending bodies or hands off one final value.
+```
+
+The session **owns immutable limits and the original root meter**. Neither can be
+replaced or refilled after construction, including between repeated helper replies.
+All current/pending frame quotas and whole-body-forest admission reuse the stack
+profile. Construction has no host callbacks and first poll performs admission.
+**Acceptance only marks Ready**: it does not restore/project/run a successor.
+**Waiting and terminal polls are inert**. Wrong identity, authority, type or value
+returns the exact original input while keeping the whole pending stack.
+
+Cancellation seals Cancelled **before whole-stack cleanup**, whether initial,
+awaiting or already accepted. Dropping the session releases all owned frames/input
+without running re-entry, but does not notify or roll back external effects.
+Execution/acceptance cleanup unwind seals HostUncertain; normal faults seal Failed.
+Cancellation cleanup unwind retains its already sealed Cancelled reason.
+Final scalar bounds and native cleanup precede once-only value/request handoff.
+No native Clone/Debug/serde/Send/Sync bound or portable checkpoint is added. Native
+Drop remains trusted, and a second cleanup panic can abort the process.
+
+The move-only scalar host preserves both scopes across read/write and returns 53
+with exact **100 -> 89 -> 79 -> 69** fuel. Parsed flat-group helpers return either
+49 (scalar helper) or 48 (native group passed through the outer frame), projecting
+the authenticated native reply once. This fixture uses **explicit native work
+reservation**: correlation prepays six batch/assembly units from the root meter
+before publishing dispatch; an owned submeter spends only those reserved units.
+It cannot refill the root session or refund unused work. The reservation is this
+finite adapter's reviewed cost policy, **not a generic scheduler or automatic cost
+inference**. Native ingress, aggregate capture bytes and callback CPU still require
+separate host bounds. Acceptance callbacks are not implicit fuel-charged execution.
+
+This closes **owned-fuel in-memory nested binding sessions**, not nested group-member
+scheduling, recursive helpers, portable durable recovery or an independent VM.
+Legacy single-frame APIs/diagnostics remain unchanged; no product VM migration or
+embedding maturity promotion is implied. Hosts still own authentic correlation,
+current capture provenance, live policy, framework affinity and cancellation delivery.
 
 ### Shared Recursive Native Control Source
 
@@ -3495,9 +3768,10 @@ shared loop/fold lexical scopes, malformed exports, native unwind and cleanup.
 
 Legacy call-only expression and acyclic helper-program entries remain group-rejecting;
 their diagnostics/product wire APIs are unchanged. The additive entry-only helper
-program profile below composes flat entry groups with existing helpers. Group-returning
-helpers, nested results, repeat scheduling, product migration and portable durable recovery
-remain open. This flat source-to-re-entry profile is not complete independent VM
+program profile below composes flat entry groups with existing helpers; a separate
+opt-in profile also compiles flat-group helper bodies and return values. Nested result
+scheduling, repeat scheduling, product migration and portable durable recovery remain
+open. This flat source-to-re-entry profile is not complete independent VM
 acceptance or repository extraction.
 
 ### Catalog-Driven Group Entry Programs
@@ -3551,6 +3825,61 @@ compilation, nested result scheduling, complete product migration, durable recov
 or independent VM acceptance. No template-copy callback, AST substitution, evaluator,
 storage, native sandbox or durable authority is introduced. The remaining extraction
 gates stay explicit; this API alone does not promote embedding maturity.
+
+### Catalog-Driven Group Helper Programs
+
+`catalog_group_source::compile_catalog_group_helper_program` is an **explicit opt-in**
+for flat Seq/All in complete acyclic helper bodies, including group return values.
+It retains the same parameterless named entry, scalar helper parameters and original
+host catalog/type protocols. The call-only `compile_catalog_program` and entry-only
+`compile_catalog_group_program` preserve their earlier profiles and diagnostics.
+
+```text
+fn main() = bind(batch: collect(n: 40), body: member(value: batch, name: "left"))
+fn collect(n: integer) = all(left: counter.left(n: inc(n: n)), right: counter.right(n: n))
+fn inc(n: integer) = add(left: n, right: 1)
+```
+
+This remains **one shared helper compiler**: a private language lowering policy
+selects the existing group-flow adapter while preserving shared declaration checks,
+body recompilation, fresh-name hygiene, pure parameter wrappers and nonrefunding
+work/expansion guards. No developer-supplied template-copy/compiler callback or AST
+substitution is introduced. Original native fields, operations, effects and branch
+declarations move without new Clone/Debug/serde/Send requirements; native query
+metadata cannot borrow temporary compiled IR.
+
+Every declaration, including unused helpers and unselected arms, passes cold closed
+references, helper signatures/dependencies and catalog versions/grants/named calls
+**before native mapping or type queries**. Group quotas count the **complete cold
+declaration forest** and separately the **complete expanded output**. Whole physical,
+active lexical and group-flow admission corroborates original branch declarations
+and exact mode/ordered exports. Group results cannot be coerced into scalar operands
+or joined by unioning incompatible exports. Direct members remain registered native
+calls; helper aliases, nested members, repeat, recursive helpers and group/structured
+parameters are not added. Failure or unwind releases owned output once, without retry,
+partial IR or native rollback.
+
+For parameterized helpers, the native adapter must **prepare complete operands while
+their lexical scope is live**, before parameter wrappers release that scope. The
+move-only fixture snapshots both original catalog schemas and values 41/40 from the
+same 100-unit fuel meter, leaving 92; preparation does not dispatch effects. The core
+does not copy locals into requests or define a generic captured-result wire format.
+Native capture, dispatch and live acceptance policy remain explicitly adapter-owned.
+
+The separate parsed zero-parameter group-return helper runs through the original
+parallel reply barrier, complete result assembly, authenticated outer binding/member
+re-entry and hygienic scalar tail. It returns 48 with **exact remaining fuel 73**,
+preserves wrong-identity reply ownership, and stops before tail projection on
+cancellation or live revocation. These are unrelated native hosts, not the product VM.
+
+Compilation is **not nested suspension scheduling**: an initializer that already
+suspended inside its helper still fails with `NestedSuspension` in the shared single-frame effect
+evaluator, without returning a partial continuation or dispatching prepared work.
+This API does not implement nested graph scheduling, portable durable recovery,
+complete product migration or independent VM acceptance, and **does not promote
+embedding maturity**. Native callbacks, resource costs and unwind remain trusted.
+The separate bounded return-frame profile above explicitly composes in-memory
+binding returns; it is not enabled by this compiler entry or by existing sessions.
 
 ### Shared Cursor Purity Inspection
 
@@ -3804,6 +4133,55 @@ native observations, not automatic proof of authenticity. The view is ephemeral,
 not a lasting type/schema/grant, reply acceptance, fuel or execution certificate.
 Full native schema, nested type/export compilation and durable suspension remain
 extraction gates; independent VM maturity is not promoted.
+
+### Shared Complete Scoped Native Group Preparation
+
+`native_group_preparation::prepare_native_group_members` is an opt-in shared
+complete member-slice preparation entry. It delegates to the existing
+`admit_native_group_members` gate: inclusive Seq >=1, All >=2, <=64, **all
+once-observed names and all cold native admissions before any preparation or
+fuel debit**. The allocation-free admission-only API remains unchanged.
+This new entry is not a second graph walker or a scheduler.
+
+The caller lends **one original fuel meter**. One group-root unit and one unit
+per member precede its once-only preparation callback, in declaration order.
+The callback may close over a **still-live lexical ScopeFrame** and delegate to
+`evaluate_call_arguments_in_scope`; actual argument evaluation/copying and native
+work must remain bounded and charged by that adapter. The core neither recreates
+the scope nor resets, refills or refunds a meter. Existing preparation adapters
+retain their exact legacy fuel accounting; this additional cost is opt-in.
+
+Only a **complete move-only PreparedNativeGroup** is handed off. Each private
+core-constructed row links one original member index/reference to its unchanged
+opaque preparation. Read-only inspection or consuming extraction requires no
+native Clone/Debug/serde/Send bound. The adapter must own or safely retain all
+actual operands after lexical cleanup; Rust lifetimes still govern any borrows.
+Extracted preparations are mutable native data, not schema/grant/receipt authority.
+
+Failure, exhaustion or unwind releases the prepared prefix, publishes no partial
+batch and never retries or refunds earlier work. Matchable errors preserve the
+original member position and admission/preparation phase without private payload
+formatting or source chains. Callbacks, allocations and Drop remain trusted native
+work; their external side effects cannot be rolled back or preempted, and a second
+cleanup panic may abort. Complete ingress/IR/type/scope admission, aggregate native
+memory limits, current grants and authentic external dispatch remain host policy.
+
+An unrelated parsed Rust counter host now compiles a parameterized helper with
+flat-All calls, prepares `41` and `40` before parameter cleanup, and drives an
+owned-fuel stacked session. One validated original-group reply restores both
+scopes, computes helper value `81`, then caller value `83`. The fixed meter moves
+**100 -> 81 -> 68**, including an explicit two-unit native invocation reservation;
+acceptance and awaiting/terminal polls do not debit or execute. Wrong identity or
+reordered original rows return the unchanged owned input; cancellation, fresh
+revocation and late preparation refusal cannot execute successors. Projection
+follows the existing bound-reference source profile: bind the member before field
+access. This is a local synchronous host proof, not a real network receipt or a
+concurrent external-dispatch guarantee.
+
+No product VM path is migrated. This generic slice gate does not infer flatness,
+identity uniqueness, authentic schemas, aggregate result domains or durable
+captures. Nested group-member scheduling, portable durable recovery and full
+independent VM extraction remain open; independent VM maturity is not promoted.
 
 ### Shared Fresh Native Export Assembly
 
@@ -4535,10 +4913,13 @@ another GUI framework. Prioritize complete vertical proofs over more isolated he
 | 2.3.0 extraction gate | Two unrelated host schemas pass the same complete language pipeline; exact versions, unknown operations, wrong typed replies and denied capabilities fail before unsafe dispatch; optional durable storage proves restart, stale-reply rejection and no duplicate settled effects |
 | Repository move | Existing Leserpent wire/auth/GUI parity remains green; the complete core has product-free dependency closure, its own source manifests, CI, docs, MIT license and publish boundaries; a clean external consumer builds without monorepo metadata/assets |
 
-Current native catalog/IR tests satisfy registration/selection/binding and generic
-node reuse, not the 2.2.0 vertical gate. Remaining blockers are concrete reference
-lowering/type policy and host operation/result acceptance,
-product-coupled evaluation/recovery frames and mandatory VM SQLite linkage.
+Catalog-only tests prove registration/selection/binding and generic node reuse.
+Additional parsed source/session verticals now prove native typed calls, scoped
+helper/group operands, out-of-order member replies, bounded returns and cancellation
+without the product profile or SQLite. These shared in-memory profiles are not the
+complete independent VM or durable extraction gate. Remaining blockers include
+reference adapter migration/compatibility, product-coupled recovery frames and
+mandatory VM SQLite linkage in the existing backend, plus independent source metadata/CI.
 If any acceptance proof remains missing at 2.3.0, retain the shared implementation
 in this repository and record the blocker instead of shipping a misleading split.
 Physical extraction follows acceptance, not directory relocation alone. FFI

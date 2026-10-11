@@ -2488,7 +2488,7 @@ fn group_entry_program_docs_keep_entry_only_helpers_work_and_live_reentry_bounda
         .split_once("### Catalog-Driven Group Entry Programs")
         .unwrap()
         .1
-        .split_once("### Shared Cursor Purity Inspection")
+        .split_once("### Catalog-Driven Group Helper Programs")
         .unwrap()
         .0;
     let text = section.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -2511,6 +2511,108 @@ fn group_entry_program_docs_keep_entry_only_helpers_work_and_live_reentry_bounda
         assert!(
             text.contains(boundary),
             "group program docs lost {boundary}"
+        );
+    }
+}
+
+#[test]
+fn group_helper_program_docs_distinguish_compilation_from_nested_runtime_acceptance() {
+    let docs = fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split_once("### Catalog-Driven Group Helper Programs")
+        .unwrap()
+        .1
+        .split_once("### Shared Cursor Purity Inspection")
+        .unwrap()
+        .0;
+    let text = section.split_whitespace().collect::<Vec<_>>().join(" ");
+    for boundary in [
+        "compile_catalog_group_helper_program",
+        "explicit opt-in",
+        "one shared helper compiler",
+        "including unused helpers",
+        "before native mapping or type queries",
+        "complete cold declaration forest",
+        "complete expanded output",
+        "metadata cannot borrow temporary compiled IR",
+        "prepare complete operands while their lexical scope is live",
+        "preparation does not dispatch effects",
+        "exact remaining fuel 73",
+        "not nested suspension scheduling",
+        "NestedSuspension",
+        "does not promote embedding maturity",
+    ] {
+        assert!(text.contains(boundary), "group helper docs lost {boundary}");
+    }
+}
+
+#[test]
+fn bounded_return_frame_docs_keep_explicit_host_adaptation_and_legacy_runtime_boundaries() {
+    let docs = fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split_once("### Shared Bounded Return Frames")
+        .unwrap()
+        .1
+        .split_once("### Shared Borrowed Control Sessions")
+        .unwrap()
+        .0;
+    let text = section.split_whitespace().collect::<Vec<_>>().join(" ");
+    for boundary in [
+        "evaluate_stacked_effects_in_scope",
+        "resume_accepted_stacked_effects",
+        "ControlSession",
+        "original nested-suspension rejection",
+        "same synchronous effect walker",
+        "original borrowed binding names/bodies",
+        "0 through 64 pending-frame ceiling",
+        "new and already pending frames share one quota",
+        "complete pending body forest shares one physical budget",
+        "not a fabricated native reply or result-domain cast",
+        "same original fuel meter",
+        "own provenance and current view",
+        "aggregate capture bytes/work across all frames",
+        "100 -> 89 -> 79 -> 69",
+        "group-member scheduling, recursive helpers, portable durable recovery",
+        "existing control sessions/product VMs are not silently widened",
+    ] {
+        assert!(text.contains(boundary), "return frame docs lost {boundary}");
+    }
+}
+
+#[test]
+fn nested_owned_session_docs_preserve_original_lifecycle_and_explicit_native_budget_boundaries() {
+    let docs = fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split_once("### Shared Owned-Fuel Nested Control Sessions")
+        .unwrap()
+        .1
+        .split_once("### Shared Recursive Native Control Source")
+        .unwrap()
+        .0;
+    let text = section.split_whitespace().collect::<Vec<_>>().join(" ");
+    for boundary in [
+        "StackedEffectSession",
+        "StackedControlSession",
+        "same private SessionCore lifecycle",
+        "original `EffectSessionEnvironment`",
+        "owns immutable limits and the original root meter",
+        "replaced or refilled after construction",
+        "Acceptance only marks Ready",
+        "Waiting and terminal polls are inert",
+        "before whole-stack cleanup",
+        "HostUncertain",
+        "100 -> 89 -> 79 -> 69",
+        "explicit native work reservation",
+        "submeter spends only those reserved units",
+        "not a generic scheduler or automatic cost inference",
+        "Legacy single-frame APIs/diagnostics remain unchanged",
+        "no product VM migration",
+        "embedding maturity promotion",
+        "not nested group-member scheduling",
+    ] {
+        assert!(
+            text.contains(boundary),
+            "nested session docs lost {boundary}"
         );
     }
 }
@@ -2548,6 +2650,121 @@ fn group_reply_assembly_documents_native_authority_and_one_meter_reentry_boundar
 }
 
 #[test]
+fn scoped_native_group_preparation_docs_keep_complete_handoff_and_host_authority_explicit() {
+    let docs = fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split_once("### Shared Complete Scoped Native Group Preparation")
+        .unwrap()
+        .1
+        .split_once("### Shared Fresh Native Export Assembly")
+        .unwrap()
+        .0;
+    let text = section.split_whitespace().collect::<Vec<_>>().join(" ");
+    for boundary in [
+        "prepare_native_group_members",
+        "admit_native_group_members",
+        "Seq >=1, All >=2, <=64",
+        "all cold native admissions before any preparation or fuel debit",
+        "allocation-free admission-only API remains unchanged",
+        "one original fuel meter",
+        "One group-root unit and one unit per member",
+        "still-live lexical ScopeFrame",
+        "evaluate_call_arguments_in_scope",
+        "complete move-only PreparedNativeGroup",
+        "own or safely retain all actual operands after lexical cleanup",
+        "publishes no partial batch",
+        "never retries or refunds",
+        "100 -> 81 -> 68",
+        "explicit two-unit native invocation reservation",
+        "local synchronous host proof",
+        "No product VM path is migrated",
+        "independent VM maturity is not promoted",
+    ] {
+        assert!(
+            text.contains(boundary),
+            "scoped preparation docs lost {boundary}"
+        );
+    }
+}
+
+#[test]
+fn prepared_parallel_docs_keep_one_enclosing_meter_shared_lifecycle_and_explicit_cancellation_owners()
+ {
+    let docs = fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split_once("### Shared Prepared-Operand Parallel Reply Sessions")
+        .unwrap()
+        .1
+        .split_once("### Shared Complete Group Reply Assembly")
+        .unwrap()
+        .0;
+    let text = section.split_whitespace().collect::<Vec<_>>().join(" ");
+    for boundary in [
+        "PreparedParallelSession::start",
+        "exact original flat-All IR",
+        "all fresh native preparation admissions",
+        "the enclosing original fuel meter",
+        "one correlation root unit and one unit per member",
+        "no second meter is created",
+        "without partial publication",
+        "not atomic external dispatch",
+        "the same private ParallelReplyCore",
+        "no fuel",
+        "accepted-but-unpublished results",
+        "HostUncertain",
+        "100 -> 78 -> 62",
+        "assemble_group_reply",
+        "Cancellation delivery between those two owners remains explicit host orchestration",
+        "Legacy ParallelSession signatures",
+        "independent VM maturity promotion",
+    ] {
+        assert!(
+            text.contains(boundary),
+            "prepared barrier docs lost {boundary}"
+        );
+    }
+}
+
+#[test]
+fn prepared_sequence_docs_distinguish_eager_correlation_fresh_publication_and_external_ownership() {
+    let docs = fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split_once("### Shared Prepared-Operand Sequential Publication")
+        .unwrap()
+        .1
+        .split_once("### Shared Prepared-Operand Parallel Reply Sessions")
+        .unwrap()
+        .0;
+    let text = section.split_whitespace().collect::<Vec<_>>().join(" ");
+    for boundary in [
+        "PreparedSequenceSession::start",
+        "exact original flat-Seq IR",
+        "all fresh native preparation admissions",
+        "distinct native identity checks",
+        "Correlation is eager, publication is sequential",
+        "the enclosing original fuel meter",
+        "no second meter",
+        "fresh native publication hook",
+        "one outstanding request",
+        "Waiting/terminal polls run no hooks",
+        "does not implicitly publish a successor",
+        "same private SequenceReplyCore",
+        "every retained future request/identity",
+        "accepted rows are external ownership",
+        "100 -> 78 -> 62",
+        "assemble_group_reply",
+        "fresh grant revocation",
+        "Legacy SequenceSession signatures",
+        "independent VM promotion",
+    ] {
+        assert!(
+            text.contains(boundary),
+            "prepared sequence docs lost {boundary}"
+        );
+    }
+}
+
+#[test]
 fn native_parallel_barrier_contract_distinguishes_local_ownership_from_external_dispatch() {
     let docs = fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();
     let section = docs
@@ -2576,6 +2793,41 @@ fn native_parallel_barrier_contract_distinguishes_local_ownership_from_external_
         assert!(
             normalized.contains(boundary),
             "missing parallel barrier boundary {boundary}"
+        );
+    }
+}
+
+#[test]
+fn atomic_call_execution_docs_keep_uniform_ir_separate_from_source_profile_and_runtime_extraction()
+{
+    let docs = fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split("### Uniform Atomic Call Execution")
+        .nth(1)
+        .unwrap()
+        .split("### Shared Native Source Call Bridge")
+        .next()
+        .unwrap();
+    let text = section.split_whitespace().collect::<Vec<_>>().join(" ");
+    for boundary in [
+        "prepare_atomic_call_in_scope",
+        "same original schema row",
+        "Physical admission precedes native catalog comparisons",
+        "there is no prefix snapshot, continuation capture",
+        "double call-root charge",
+        "Values are all evaluated before native argument-domain callbacks",
+        "infer_prepared_call_type",
+        "Temporary locals unwind on failure",
+        "no fuel refund, rollback or automatic retry",
+        "non-preemptible",
+        "100 -> 79 -> 74",
+        "not a new source group-helper profile",
+        "still require direct registered member calls",
+        "complete independent VM/repository extraction",
+    ] {
+        assert!(
+            text.contains(boundary),
+            "atomic execution docs lost {boundary}"
         );
     }
 }

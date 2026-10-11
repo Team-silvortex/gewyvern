@@ -5,7 +5,7 @@ use std::fmt;
 use leselang_runtime_core::{AcceptedReply, CalculationFailure, Fuel, ScopeFrame};
 
 use crate::effect_evaluation::{
-    EffectEvaluationEnvironment, EffectEvaluationFailure, EffectEvaluationFault,
+    ControlOutcome, EffectEvaluationEnvironment, EffectEvaluationFailure, EffectEvaluationFault,
     EffectEvaluationLimits, EffectEvaluationOutcome, evaluate, native_failure, preflight,
 };
 use crate::ir::Computation;
@@ -71,6 +71,25 @@ pub enum ResumableEffectOutcome<'expression, Node: ?Sized, ResultTag, Request, C
         request: Request,
         continuation: EffectContinuation<'expression, Node, Capture>,
     },
+}
+
+impl<'expression, Node: ?Sized, Value, Request, Capture>
+    From<ResumableEffectOutcome<'expression, Node, Value, Request, Capture>>
+    for ControlOutcome<Value, Request, EffectContinuation<'expression, Node, Capture>>
+{
+    fn from(outcome: ResumableEffectOutcome<'expression, Node, Value, Request, Capture>) -> Self {
+        match outcome {
+            ResumableEffectOutcome::Value(value) => Self::Value(value),
+            ResumableEffectOutcome::Request(request) => Self::Request(request),
+            ResumableEffectOutcome::Suspended {
+                request,
+                continuation,
+            } => Self::Suspended {
+                request,
+                continuation,
+            },
+        }
+    }
 }
 
 impl<Node: ?Sized, ResultTag, Request, Capture>
@@ -247,10 +266,43 @@ where
             .preflight_effect(effect)
             .map_err(EffectEvaluationFault::Native)?;
     }
-    let mut bindings = environment
-        .restore_capture(&identity, declaration, capture, fuel, limits)
+    let mut bindings = restore_effect_scope(
+        name,
+        |fuel| environment.restore_capture(&identity, declaration, capture, fuel, limits),
+        fuel,
+        limits,
+    )?;
+    let value = environment
+        .bind_reply(&identity, declaration, reply, fuel)
         .map_err(native_failure)?;
     let mut scope = ScopeFrame::new(&mut bindings);
+    bind_effect_value(name, value, &mut scope, limits)?;
+    evaluate(
+        body,
+        &mut scope,
+        environment,
+        fuel,
+        limits.pure.max_bindings,
+    )
+}
+
+// The caller preflights every original pending body before native restoration.
+pub(crate) fn restore_effect_scope<'expression, Value, Native>(
+    name: &'expression str,
+    restore: impl FnOnce(
+        &mut Fuel,
+    ) -> Result<
+        RestoredEffectBindings<'expression, Value>,
+        CalculationFailure<Native>,
+    >,
+    fuel: &mut Fuel,
+    limits: EffectEvaluationLimits,
+) -> Result<RestoredEffectBindings<'expression, Value>, EffectEvaluationFailure<Native>> {
+    if limits.pure.max_bindings == 0 {
+        return Err(EffectEvaluationFault::Pure(PureEvaluationFault::BindingLimit).into());
+    }
+    let mut bindings = restore(fuel).map_err(native_failure)?;
+    let scope = ScopeFrame::new(&mut bindings);
     if scope.len() >= limits.pure.max_bindings {
         return Err(EffectEvaluationFault::Pure(PureEvaluationFault::BindingLimit).into());
     }
@@ -260,18 +312,19 @@ where
     if scope.get(name).is_some() {
         return Err(EffectEvaluationFault::Pure(PureEvaluationFault::InvalidContract).into());
     }
-    let value = environment
-        .bind_reply(&identity, declaration, reply, fuel)
-        .map_err(native_failure)?;
+    drop(scope);
+    Ok(bindings)
+}
+
+pub(crate) fn bind_effect_value<'expression, Value, Native>(
+    name: &'expression str,
+    value: PureValue<Value>,
+    scope: &mut ScopeFrame<'_, 'expression, PureValue<Value>>,
+    limits: EffectEvaluationLimits,
+) -> Result<(), EffectEvaluationFailure<Native>> {
     scope
         .push(name, value)
         .map_err(|_| EffectEvaluationFault::Pure(PureEvaluationFault::InvalidContract))?;
-    preflight_value_scope(&scope, limits.pure).map_err(EffectEvaluationFault::Pure)?;
-    evaluate(
-        body,
-        &mut scope,
-        environment,
-        fuel,
-        limits.pure.max_bindings,
-    )
+    preflight_value_scope(scope, limits.pure).map_err(EffectEvaluationFault::Pure)?;
+    Ok(())
 }

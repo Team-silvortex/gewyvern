@@ -6,6 +6,8 @@ use std::rc::Rc;
 use leselang_hir::effect_evaluation::*;
 use leselang_hir::effect_reentry::*;
 use leselang_hir::effect_session::*;
+use leselang_hir::effect_stack::{EffectStackFault, EffectStackLimits, MAX_EFFECT_RETURN_FRAMES};
+use leselang_hir::effect_stack_session::*;
 use leselang_hir::ir::{Computation, ComputedArgument};
 use leselang_hir::pure_evaluation::*;
 use leselang_runtime_core::*;
@@ -159,7 +161,7 @@ impl Drop for Capture<'_> {
             .capture_drops
             .set(self.hooks.capture_drops.get() + 1);
         assert!(
-            !self.hooks.capture_drop_panic.get(),
+            !self.hooks.capture_drop_panic.replace(false),
             "native capture drop unwind"
         );
     }
@@ -1036,4 +1038,541 @@ fn session_poll_and_rejection_debug_never_format_native_slots_or_private_payload
             .iter()
             .all(|s| !matches!(s, Stage::Borrow | Stage::Type | Stage::Domain))
     );
+}
+
+const STACK_LIMITS: EffectStackLimits = EffectStackLimits {
+    effects: LIMITS,
+    max_frames: 4,
+};
+fn nested_program() -> Node {
+    bind(
+        "caller",
+        integer(10),
+        bind(
+            "answer",
+            bind(
+                "helper",
+                integer(1),
+                bind(
+                    "read",
+                    call(1, integer(0)),
+                    bind(
+                        "write",
+                        call(2, add(local("read"), local("helper"))),
+                        add(local("write"), integer(1)),
+                    ),
+                ),
+            ),
+            add(local("answer"), local("caller")),
+        ),
+    )
+}
+fn nested_identity_program() -> Node {
+    bind(
+        "outer",
+        bind("inner", call(1, integer(0)), local("inner")),
+        local("outer"),
+    )
+}
+
+#[test]
+fn stacked_session_owns_repeated_request_returns_original_scopes_and_one_meter() {
+    host!(hooks, domains, host);
+    let expression = nested_program();
+    let mut session =
+        StackedEffectSession::new(&expression, Vec::new(), Fuel::new(100), STACK_LIMITS);
+    assert_eq!(session.status(), EffectSessionStatus::Ready);
+    assert!(hooks.events.borrow().is_empty());
+    let first = request(session.poll(&host).unwrap());
+    assert_eq!(first.amount, 0);
+    assert_eq!(
+        (&*first.buffer as *const u8) as usize,
+        host.prepared_pointer.get()
+    );
+    assert_eq!(session.fuel_remaining(), 89);
+    let events = hooks.events.borrow().len();
+    assert!(matches!(
+        session.poll(&host).unwrap(),
+        EffectSessionPoll::Awaiting
+    ));
+    assert_eq!(hooks.events.borrow().len(), events);
+    let reply = host.invoke(first);
+    session
+        .try_accept(&host.identity(1, 1), reply, &host)
+        .unwrap();
+    assert_eq!(session.status(), EffectSessionStatus::Ready);
+    assert_eq!(session.fuel_remaining(), 89);
+    assert!(!hooks.events.borrow().contains(&Stage::Restore));
+    let second = request(session.poll(&host).unwrap());
+    assert_eq!(second.amount, 42);
+    assert_eq!(session.fuel_remaining(), 79);
+    let reply = host.invoke(second);
+    session
+        .try_accept(&host.identity(2, 2), reply, &host)
+        .unwrap();
+    assert!(matches!(
+        session.poll(&host).unwrap(),
+        EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::Integer(53)))
+    ));
+    assert_eq!(session.fuel_remaining(), 69);
+    assert_eq!(host.invocations.get(), 2);
+    assert_eq!(host.actual.get(), 42);
+    assert_eq!(
+        hooks
+            .events
+            .borrow()
+            .iter()
+            .filter(|&&s| s == Stage::Project)
+            .count(),
+        2
+    );
+    assert_eq!(
+        hooks
+            .events
+            .borrow()
+            .iter()
+            .filter(|&&s| s == Stage::Restore)
+            .count(),
+        3
+    );
+    assert_eq!(hooks.capture_drops.get(), 3);
+    assert_eq!(hooks.reply_drops.get(), 2);
+    assert_eq!(hooks.key_drops.get(), 2);
+    let events = hooks.events.borrow().len();
+    assert!(matches!(
+        session.poll(&host).unwrap(),
+        EffectSessionPoll::Terminal(EffectSessionEnd::Completed)
+    ));
+    assert_eq!(hooks.events.borrow().len(), events);
+    assert!(!session.cancel());
+}
+
+#[test]
+fn stacked_session_preserves_original_rejected_input_and_acceptance_is_not_execution() {
+    host!(hooks, domains, host);
+    let expression = nested_identity_program();
+    let mut session =
+        StackedEffectSession::new(&expression, Vec::new(), Fuel::new(100), STACK_LIMITS);
+    let early = host.reply(ScalarValue::Integer(42));
+    let pointer = (&*early.buffer as *const u8) as usize;
+    let rejected = session
+        .try_accept(&host.identity(1, 1), early, &host)
+        .unwrap_err();
+    assert_eq!((&*rejected.reply.buffer as *const u8) as usize, pointer);
+    assert!(hooks.events.borrow().is_empty());
+    let native = request(session.poll(&host).unwrap());
+    drop(rejected);
+    let reply = host.invoke(native);
+    let pointer = (&*reply.buffer as *const u8) as usize;
+    let mut input = reply;
+    for phase in 0..4 {
+        let (serial, value) = match phase {
+            0 => (2, ScalarValue::Integer(42)),
+            1 => {
+                host.version.set(8);
+                (1, ScalarValue::Integer(42))
+            }
+            2 => (1, ScalarValue::String("private input".into())),
+            _ => (1, ScalarValue::Integer(101)),
+        };
+        input.value = value;
+        let rejected = session
+            .try_accept(&host.identity(serial, 1), input, &host)
+            .unwrap_err();
+        assert_eq!((&*rejected.reply.buffer as *const u8) as usize, pointer);
+        assert!(!format!("{rejected:?}").contains("private"));
+        assert_eq!(session.status(), EffectSessionStatus::Awaiting);
+        input = rejected.reply;
+        host.version.set(7);
+    }
+    input.value = ScalarValue::Integer(42);
+    let fuel = session.fuel_remaining();
+    session
+        .try_accept(&host.identity(1, 1), input, &host)
+        .unwrap();
+    assert_eq!(session.fuel_remaining(), fuel);
+    assert!(!hooks.events.borrow().contains(&Stage::Restore));
+    let duplicate = host.reply(ScalarValue::Integer(42));
+    let events = hooks.events.borrow().len();
+    let rejected = session
+        .try_accept(&host.identity(1, 1), duplicate, &host)
+        .unwrap_err();
+    assert!(matches!(
+        rejected.error,
+        EffectSessionReplyError::NotAwaiting(EffectSessionStatus::Ready)
+    ));
+    assert_eq!(hooks.events.borrow().len(), events);
+    assert!(matches!(
+        session.poll(&host).unwrap(),
+        EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::Integer(42)))
+    ));
+}
+
+#[test]
+fn stacked_session_cancel_initial_pending_accepted_or_final_keeps_all_later_polls_inert() {
+    for nested in [false, true] {
+        for stage in 0..3 {
+            host!(hooks, domains, host);
+            let expression = if nested {
+                nested_identity_program()
+            } else {
+                call(1, integer(0))
+            };
+            let mut session =
+                StackedEffectSession::new(&expression, Vec::new(), Fuel::new(100), STACK_LIMITS);
+            if stage > 0 {
+                drop(request(session.poll(&host).unwrap()));
+            }
+            if stage > 1 {
+                session
+                    .try_accept(
+                        &host.identity(1, 1),
+                        host.reply(ScalarValue::Integer(42)),
+                        &host,
+                    )
+                    .unwrap();
+            }
+            let fuel = session.fuel_remaining();
+            hooks.events.borrow_mut().clear();
+            assert!(session.cancel());
+            assert!(!session.cancel());
+            assert!(matches!(
+                session.poll(&host).unwrap(),
+                EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+            ));
+            let input = host.reply(ScalarValue::Integer(42));
+            let pointer = (&*input.buffer as *const u8) as usize;
+            let rejected = session
+                .try_accept(&host.identity(1, 1), input, &host)
+                .unwrap_err();
+            assert_eq!((&*rejected.reply.buffer as *const u8) as usize, pointer);
+            assert!(hooks.events.borrow().is_empty());
+            assert_eq!(session.fuel_remaining(), fuel);
+            assert_eq!(
+                hooks.capture_drops.get(),
+                if nested && stage > 0 { 2 } else { 0 }
+            );
+            assert_eq!(host.invocations.get(), 0);
+        }
+    }
+}
+
+#[test]
+fn stacked_session_drop_releases_every_pending_or_accepted_frame_without_reentry() {
+    for accepted in [false, true] {
+        host!(hooks, domains, host);
+        let expression = nested_identity_program();
+        let mut session =
+            StackedEffectSession::new(&expression, Vec::new(), Fuel::new(100), STACK_LIMITS);
+        drop(request(session.poll(&host).unwrap()));
+        if accepted {
+            session
+                .try_accept(
+                    &host.identity(1, 1),
+                    host.reply(ScalarValue::Integer(42)),
+                    &host,
+                )
+                .unwrap();
+        }
+        drop(session);
+        assert_eq!(hooks.capture_drops.get(), 2);
+        assert_eq!(hooks.key_drops.get(), 1);
+        assert_eq!(hooks.reply_drops.get(), usize::from(accepted));
+        assert!(!hooks.events.borrow().contains(&Stage::Restore));
+        assert_eq!(host.invocations.get(), 0);
+    }
+}
+
+#[test]
+fn stacked_session_limits_are_terminal_and_legacy_session_still_rejects_nested_returns() {
+    for max_frames in [MAX_EFFECT_RETURN_FRAMES + 1, 0, 1] {
+        host!(hooks, domains, host);
+        let expression = nested_identity_program();
+        let mut session = StackedEffectSession::new(
+            &expression,
+            Vec::new(),
+            Fuel::new(100),
+            EffectStackLimits {
+                max_frames,
+                ..STACK_LIMITS
+            },
+        );
+        let error = session.poll(&host).unwrap_err();
+        assert!(matches!(
+            error,
+            CalculationFailure::External(
+                EffectStackFault::InvalidLimits | EffectStackFault::ReturnLimit
+            )
+        ));
+        assert_eq!(
+            session.status(),
+            EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+        );
+        assert!(!hooks.events.borrow().contains(&Stage::Correlate));
+        assert_eq!(host.invocations.get(), 0);
+        let fuel = session.fuel_remaining();
+        assert!(matches!(
+            session.poll(&host).unwrap(),
+            EffectSessionPoll::Terminal(EffectSessionEnd::Failed)
+        ));
+        assert_eq!(session.fuel_remaining(), fuel);
+        assert_eq!(hooks.capture_drops.get(), usize::from(max_frames == 1));
+        if max_frames > MAX_EFFECT_RETURN_FRAMES {
+            assert_eq!(fuel, 100);
+        }
+    }
+    host!(hooks, domains, host);
+    let expression = nested_identity_program();
+    let mut legacy = EffectSession::new(&expression, Vec::new(), Fuel::new(100), LIMITS);
+    assert!(matches!(
+        legacy.poll(&host).unwrap_err(),
+        CalculationFailure::External(EffectEvaluationFault::NestedSuspension)
+    ));
+    assert_eq!(hooks.capture_drops.get(), 1);
+    assert!(!hooks.events.borrow().contains(&Stage::Correlate));
+}
+
+#[test]
+fn stacked_session_every_acceptance_unwind_seals_before_all_frame_cleanup() {
+    for point in [
+        Stage::Equality,
+        Stage::Authority,
+        Stage::Borrow,
+        Stage::Type,
+        Stage::Domain,
+    ] {
+        host!(hooks, domains, host);
+        let expression = nested_identity_program();
+        let mut session =
+            StackedEffectSession::new(&expression, Vec::new(), Fuel::new(100), STACK_LIMITS);
+        drop(request(session.poll(&host).unwrap()));
+        hooks.fault.set((point, Mode::Unwind));
+        assert!(
+            catch_unwind(AssertUnwindSafe(|| session.try_accept(
+                &host.identity(1, 1),
+                host.reply(ScalarValue::Integer(42)),
+                &host
+            )))
+            .is_err()
+        );
+        assert_eq!(
+            session.status(),
+            EffectSessionStatus::Terminal(EffectSessionEnd::HostUncertain)
+        );
+        assert_eq!(hooks.capture_drops.get(), 2);
+        assert_eq!(hooks.key_drops.get(), 1);
+        assert_eq!(hooks.reply_drops.get(), 1);
+        assert!(!session.cancel());
+        let count = hooks.events.borrow().len();
+        assert!(matches!(
+            session.poll(&host).unwrap(),
+            EffectSessionPoll::Terminal(EffectSessionEnd::HostUncertain)
+        ));
+        assert_eq!(hooks.events.borrow().len(), count);
+    }
+}
+
+#[test]
+fn stacked_session_preparation_correlation_restore_and_projection_faults_never_rearm() {
+    for point in [
+        Stage::Preflight,
+        Stage::Prepare,
+        Stage::Capture,
+        Stage::Correlate,
+        Stage::Restore,
+        Stage::Project,
+    ] {
+        for mode in [Mode::Reject, Mode::Unwind] {
+            host!(hooks, domains, host);
+            let expression = nested_identity_program();
+            let mut session =
+                StackedEffectSession::new(&expression, Vec::new(), Fuel::new(100), STACK_LIMITS);
+            if matches!(point, Stage::Restore | Stage::Project) {
+                drop(request(session.poll(&host).unwrap()));
+                session
+                    .try_accept(
+                        &host.identity(1, 1),
+                        host.reply(ScalarValue::Integer(42)),
+                        &host,
+                    )
+                    .unwrap();
+            }
+            hooks.fault.set((point, mode));
+            let outcome = catch_unwind(AssertUnwindSafe(|| session.poll(&host)));
+            let reason = if mode == Mode::Unwind {
+                assert!(outcome.is_err());
+                EffectSessionEnd::HostUncertain
+            } else {
+                let error = outcome.unwrap().unwrap_err();
+                assert!(!format!("{error:?}").contains("private"));
+                EffectSessionEnd::Failed
+            };
+            assert_eq!(session.status(), EffectSessionStatus::Terminal(reason));
+            assert!(!session.cancel());
+            let count = hooks.events.borrow().len();
+            let fuel = session.fuel_remaining();
+            assert!(matches!(
+                session.poll(&host).unwrap(),
+                EffectSessionPoll::Terminal(_)
+            ));
+            assert_eq!(hooks.events.borrow().len(), count);
+            assert_eq!(session.fuel_remaining(), fuel);
+            if matches!(point, Stage::Correlate | Stage::Restore | Stage::Project) {
+                assert_eq!(hooks.capture_drops.get(), 2);
+            }
+            assert_eq!(host.invocations.get(), 0);
+        }
+    }
+}
+
+#[test]
+fn stacked_session_cleanup_unwind_keeps_cancelled_or_host_uncertain_without_partial_handoff() {
+    for accepted in [false, true] {
+        for cancellation in [false, true] {
+            host!(hooks, domains, host);
+            let expression = nested_identity_program();
+            let mut session =
+                StackedEffectSession::new(&expression, Vec::new(), Fuel::new(100), STACK_LIMITS);
+            drop(request(session.poll(&host).unwrap()));
+            if accepted {
+                session
+                    .try_accept(
+                        &host.identity(1, 1),
+                        host.reply(ScalarValue::Integer(42)),
+                        &host,
+                    )
+                    .unwrap();
+            }
+            hooks.capture_drop_panic.set(true);
+            if cancellation {
+                assert!(catch_unwind(AssertUnwindSafe(|| session.cancel())).is_err());
+                assert_eq!(
+                    session.status(),
+                    EffectSessionStatus::Terminal(EffectSessionEnd::Cancelled)
+                );
+            } else if accepted {
+                assert!(catch_unwind(AssertUnwindSafe(|| session.poll(&host))).is_err());
+                assert_eq!(
+                    session.status(),
+                    EffectSessionStatus::Terminal(EffectSessionEnd::HostUncertain)
+                );
+            } else {
+                // Idle polling does not even drop a pending frame.
+                assert!(matches!(
+                    session.poll(&host).unwrap(),
+                    EffectSessionPoll::Awaiting
+                ));
+                assert!(catch_unwind(AssertUnwindSafe(|| session.cancel())).is_err());
+                assert_eq!(
+                    session.status(),
+                    EffectSessionStatus::Terminal(EffectSessionEnd::Cancelled)
+                );
+            }
+            assert_eq!(hooks.capture_drops.get(), 2);
+            assert_eq!(hooks.key_drops.get(), 1);
+            assert_eq!(hooks.reply_drops.get(), usize::from(accepted));
+            assert!(!session.cancel());
+        }
+    }
+}
+
+#[test]
+fn stacked_session_revocation_and_exhaustion_after_acceptance_do_not_refill_or_replay() {
+    for revoke in [false, true] {
+        host!(hooks, domains, host);
+        let expression = nested_identity_program();
+        let mut session = StackedEffectSession::new(
+            &expression,
+            Vec::new(),
+            Fuel::new(if revoke { 100 } else { 4 }),
+            STACK_LIMITS,
+        );
+        drop(request(session.poll(&host).unwrap()));
+        let fuel = session.fuel_remaining();
+        session
+            .try_accept(
+                &host.identity(1, 1),
+                host.reply(ScalarValue::Integer(42)),
+                &host,
+            )
+            .unwrap();
+        if revoke {
+            host.version.set(8);
+        }
+        assert!(session.poll(&host).is_err());
+        assert_eq!(
+            session.status(),
+            EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+        );
+        assert_eq!(session.fuel_remaining(), fuel);
+        assert_eq!(hooks.capture_drops.get(), 2);
+        assert_eq!(host.invocations.get(), 0);
+        assert!(matches!(
+            session.poll(&host).unwrap(),
+            EffectSessionPoll::Terminal(EffectSessionEnd::Failed)
+        ));
+        assert_eq!(session.fuel_remaining(), fuel);
+    }
+}
+
+#[test]
+fn stacked_session_zero_frames_pure_final_reply_bounds_and_debug_remain_native_free() {
+    for phase in 0..3 {
+        let pure = phase == 0;
+        host!(hooks, domains, host);
+        let expression = if pure {
+            integer(42)
+        } else {
+            call(1, integer(0))
+        };
+        let mut session = StackedEffectSession::new(
+            &expression,
+            Vec::new(),
+            Fuel::new(100),
+            EffectStackLimits {
+                max_frames: 0,
+                ..STACK_LIMITS
+            },
+        );
+        if pure {
+            assert!(matches!(
+                session.poll(&host).unwrap(),
+                EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::Integer(42)))
+            ));
+        } else {
+            let outcome = session.poll(&host).unwrap();
+            assert_eq!(format!("{outcome:?}"), "Request");
+            drop(request(outcome));
+            assert_eq!(
+                format!("{session:?}"),
+                "StackedControlSession { status: Awaiting, fuel_remaining: 98 }"
+            );
+            session
+                .try_accept(
+                    &host.identity(1, 1),
+                    host.reply(ScalarValue::Integer(42)),
+                    &host,
+                )
+                .unwrap();
+            assert!(!hooks.events.borrow().contains(&Stage::Project));
+            if phase == 2 {
+                hooks.fault.set((Stage::Project, Mode::Unbounded));
+                assert!(session.poll(&host).is_err());
+                assert_eq!(
+                    session.status(),
+                    EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+                );
+            } else {
+                assert!(matches!(
+                    session.poll(&host).unwrap(),
+                    EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::Integer(42)))
+                ));
+                assert_eq!(
+                    session.status(),
+                    EffectSessionStatus::Terminal(EffectSessionEnd::Completed)
+                );
+            }
+        }
+        assert_eq!(hooks.capture_drops.get(), 0);
+    }
 }

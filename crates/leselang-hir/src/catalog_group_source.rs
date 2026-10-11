@@ -7,11 +7,12 @@ use leselang_syntax::{Expression, Function, NamedArgument, Span};
 
 use crate::call_typing::{CallTypeHost, CallTypeLimits};
 use crate::catalog_program::{
-    CatalogProgramContext, CatalogProgramLimits, compile_catalog_program_with_entry,
+    CatalogProgramContext, CatalogProgramGroupProfile, CatalogProgramLimits,
+    compile_catalog_program_with_entry,
 };
 use crate::catalog_source::{
-    CatalogSourceEnvironment, CatalogSourceError, CatalogSourceLimits, CatalogSourceResult,
-    Compiler, cold_catalog_profile,
+    CatalogLocalSource, CatalogSourceEnvironment, CatalogSourceError, CatalogSourceLimits,
+    CatalogSourceResult, Compiler, cold_catalog_profile,
 };
 use crate::control_source::{
     ControlSourceAdapter, ControlSourceError, ControlSourceScope, lower_preflighted_control_source,
@@ -38,7 +39,8 @@ pub struct CatalogGroupSourceLimits {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CatalogGroupProgramLimits {
     pub program: CatalogProgramLimits,
-    /// Groups are entry-only; helpers retain the existing scalar/call profile.
+    /// Group-site ceiling across the cold declarations and expanded output.
+    /// The explicit entry selects whether helpers may contain groups.
     pub max_groups: usize,
     pub max_branches: usize,
 }
@@ -139,14 +141,14 @@ fn cold_groups<Native>(
     source: &Expression,
     limits: CatalogGroupSourceLimits,
 ) -> Result<(), CatalogGroupSourceError<Native>> {
-    cold_groups_with(source, limits, |_| false)
+    cold_groups_with(source, limits, |_| false).map(|_| ())
 }
 
 pub(crate) fn cold_groups_with<Native>(
     source: &Expression,
     limits: CatalogGroupSourceLimits,
     is_helper: impl Fn(&Expression) -> bool,
-) -> Result<(), CatalogGroupSourceError<Native>> {
+) -> Result<usize, CatalogGroupSourceError<Native>> {
     let mut pending = vec![(source, false)];
     let mut groups = 0;
     while let Some((node, inside_group)) = pending.pop() {
@@ -186,7 +188,7 @@ pub(crate) fn cold_groups_with<Native>(
                 .map(|argument| (&argument.value, inside_group || group)),
         );
     }
-    Ok(())
+    Ok(groups)
 }
 
 struct Groups<'a, Inner, Host, Environment> {
@@ -430,7 +432,7 @@ where
     cold_groups(source, limits)?;
     cold_catalog_profile(source, host, limits.expression, true, |_| Ok(false))
         .map_err(|e| CatalogGroupSourceError::Source(Box::new(e)))?;
-    lower_group_catalog_expression(source, prefix, limits, host, environment, None)
+    lower_group_catalog_expression(source, prefix, limits, host, environment, None, ())
 }
 
 fn lower_group_catalog_expression<
@@ -444,6 +446,7 @@ fn lower_group_catalog_expression<
     Declaration,
     Capability,
     Environment,
+    Locals,
 >(
     source: &'source Expression,
     prefix: &[(&'source str, &PureType<Environment::Result>)],
@@ -451,6 +454,7 @@ fn lower_group_catalog_expression<
     host: &SourceCallHost<'_, 'schema, Operation, Domain, Declaration, Capability>,
     environment: &Environment,
     program: Option<&CatalogProgramContext<'source>>,
+    locals: Locals,
 ) -> CatalogGroupSourceResult<
     Node<Field, Operation, HostEffect, IrResult>,
     Environment::Result,
@@ -462,13 +466,24 @@ where
     Capability: PartialEq,
     Environment:
         CatalogGroupSourceEnvironment<'source, 'schema, Field, Operation, Declaration, IrResult>,
+    Locals: CatalogLocalSource<
+            'source,
+            Field,
+            Operation,
+            HostEffect,
+            IrResult,
+            Environment::Result,
+            Environment::Error,
+        >,
 {
     lower_preflighted_control_source(
         source,
         prefix,
         limits.expression.control,
         &mut Groups {
-            inner: Compiler::new(host, environment, limits.expression).with_program(program),
+            inner: Compiler::new(host, environment, limits.expression)
+                .with_program(program)
+                .with_locals(locals),
             host,
             environment,
             limits,
@@ -533,19 +548,191 @@ where
         limits.program,
         host,
         environment,
-        Some(groups),
-        |program, source| {
+        Some(CatalogProgramGroupProfile {
+            limits: groups,
+            helper_groups: false,
+        }),
+        |program, source, prefix| {
             program.with_expansion(|| {
                 lower_group_catalog_expression(
                     source,
-                    &[],
+                    prefix,
                     groups,
                     host,
                     environment,
                     Some(program),
+                    (),
                 )
                 .map_err(|e| CatalogSourceError::Group(Box::new(e)))
             })
+        },
+    )
+}
+
+struct HelperGroups<'a, 'source, Host, Environment> {
+    program: &'a CatalogProgramContext<'source>,
+    host: &'a Host,
+    environment: &'a Environment,
+    limits: CatalogGroupSourceLimits,
+}
+impl<'source, 'schema, Operation, Domain, Declaration, Capability, Environment>
+    HelperGroups<
+        '_,
+        'source,
+        SourceCallHost<'_, 'schema, Operation, Domain, Declaration, Capability>,
+        Environment,
+    >
+{
+    fn compile<Field, HostEffect, IrResult>(
+        &self,
+        source: &'source Expression,
+        prefix: &[(&'source str, &PureType<Environment::Result>)],
+    ) -> CatalogSourceResult<
+        Node<Field, Operation, HostEffect, IrResult>,
+        Environment::Result,
+        Environment::Error,
+    >
+    where
+        Operation: Borrow<str> + PartialEq,
+        Domain: ScalarArgumentDomain,
+        Capability: PartialEq,
+        Environment: CatalogGroupSourceEnvironment<'source, 'schema, Field, Operation, Declaration, IrResult>,
+    {
+        lower_group_catalog_expression(
+            source,
+            prefix,
+            self.limits,
+            self.host,
+            self.environment,
+            None,
+            self,
+        )
+        .map_err(|e| CatalogSourceError::Group(Box::new(e)))
+    }
+}
+impl<
+    'source,
+    'schema,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Domain,
+    Declaration,
+    Capability,
+    Environment,
+>
+    CatalogLocalSource<
+        'source,
+        Field,
+        Operation,
+        HostEffect,
+        IrResult,
+        Environment::Result,
+        Environment::Error,
+    >
+    for &HelperGroups<
+        '_,
+        'source,
+        SourceCallHost<'_, 'schema, Operation, Domain, Declaration, Capability>,
+        Environment,
+    >
+where
+    Operation: Borrow<str> + PartialEq,
+    Domain: ScalarArgumentDomain,
+    Capability: PartialEq,
+    Environment:
+        CatalogGroupSourceEnvironment<'source, 'schema, Field, Operation, Declaration, IrResult>,
+{
+    fn contains(&self, source: &Expression) -> bool {
+        self.program.is_helper(source)
+    }
+    fn lower(
+        &self,
+        source: &'source Expression,
+        prefix: &[(&'source str, &PureType<Environment::Result>)],
+    ) -> Option<
+        CatalogSourceResult<
+            Node<Field, Operation, HostEffect, IrResult>,
+            Environment::Result,
+            Environment::Error,
+        >,
+    > {
+        self.program
+            .lower_helper_with(source, prefix, |source, prefix| {
+                self.compile(source, prefix)
+            })
+    }
+}
+
+/// Opt in to flat groups in acyclic helper bodies, including group return values.
+/// Original scalar parameter scopes, recompilation, native-slot hygiene and work/
+/// depth guards are shared with the call-only profile. Complete closed declarations
+/// pass before mapping; group quotas cover cold helper sites and expanded output.
+/// Group members remain direct catalog calls, never helper aliases/nested groups.
+/// Native metadata cannot borrow temporary IR; whole group-flow inference must
+/// corroborate the complete moved output. No evaluator/scheduler/capture policy is
+/// added: hosts still prepare operands while their scope is live and explicitly
+/// reject unsupported nested suspension. Existing entry-only APIs are unchanged.
+pub fn compile_catalog_group_helper_program<
+    'source,
+    'schema,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Domain,
+    Declaration,
+    Capability,
+    Environment,
+>(
+    declarations: &[&'source Function],
+    entry: &str,
+    limits: CatalogGroupProgramLimits,
+    host: &SourceCallHost<'_, 'schema, Operation, Domain, Declaration, Capability>,
+    environment: &Environment,
+) -> CatalogSourceResult<
+    Node<Field, Operation, HostEffect, IrResult>,
+    Environment::Result,
+    Environment::Error,
+>
+where
+    Operation: Borrow<str> + PartialEq,
+    Domain: ScalarArgumentDomain,
+    Capability: PartialEq,
+    Environment:
+        CatalogGroupSourceEnvironment<'source, 'schema, Field, Operation, Declaration, IrResult>,
+{
+    if limits.max_groups > MAX_TYPE_INFERENCE_NODES
+        || limits.max_branches > MAX_GROUP_EXPORT_MEMBERS
+    {
+        return Err(CatalogSourceError::Group(Box::new(
+            CatalogGroupSourceError::InvalidLimits,
+        )));
+    }
+    let groups = CatalogGroupSourceLimits {
+        expression: limits.program.expression,
+        max_groups: limits.max_groups,
+        max_branches: limits.max_branches,
+    };
+    compile_catalog_program_with_entry(
+        declarations,
+        entry,
+        limits.program,
+        host,
+        environment,
+        Some(CatalogProgramGroupProfile {
+            limits: groups,
+            helper_groups: true,
+        }),
+        |program, source, prefix| {
+            HelperGroups {
+                program,
+                host,
+                environment,
+                limits: groups,
+            }
+            .compile(source, prefix)
         },
     )
 }

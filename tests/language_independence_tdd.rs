@@ -910,6 +910,83 @@ fn shared_pure_execution_is_product_free_and_used_by_the_reference_vm() {
 }
 
 #[test]
+fn atomic_call_execution_reuses_original_schema_control_and_argument_engines_without_a_new_meter() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/prepared_call_evaluation.rs"))
+            .unwrap();
+    let normalized = source.split_whitespace().collect::<Vec<_>>().join(" ");
+    for boundary in [
+        "preflight_call_leaves_with_budget",
+        "type Capture = Infallible",
+        "evaluate_arguments(",
+        "std::ptr::eq(*original, expression)",
+        "Self::Error::Projection",
+        "Self::Error::Arguments",
+        "ResumableEffectOutcome::Request(request) => Ok(request)",
+    ] {
+        assert!(
+            normalized.contains(boundary),
+            "atomic execution lost {boundary}"
+        );
+    }
+    let entry = normalized
+        .split("pub fn prepare_atomic_call_in_scope")
+        .nth(1)
+        .unwrap();
+    let mut previous = 0;
+    for gate in [
+        "preflight_value_scope(scope, limits.pure)",
+        "preflight_call_leaves_with_budget(expression, 0, &mut budget, limits.max_arguments)",
+        ".authorize(operation, host.version, host.granted)",
+        "preflight_signature(&names, schema, limits.max_arguments)",
+        "std::ptr::eq(row, schema)",
+        "let adapter = Atomic",
+        "evaluate(expression, scope, &adapter, fuel, limits.pure.max_bindings)",
+    ] {
+        let position = entry
+            .find(gate)
+            .unwrap_or_else(|| panic!("missing atomic gate {gate}"));
+        assert!(position > previous, "atomic gate order changed for {gate}");
+        previous = position;
+    }
+    for excluded in [
+        "Fuel::new",
+        "fuel.charge",
+        "bindings.to_vec()",
+        "scope.bindings().to_vec()",
+        "Operation: Clone",
+        "Field: Clone",
+        "Capability: Clone",
+        "ResultTag: Clone",
+        "unsafe",
+        "sqlite",
+        "HostOperation",
+        "serde::",
+        "pub enum Computation",
+    ] {
+        assert!(
+            !source.contains(excluded),
+            "atomic preparation introduced {excluded}"
+        );
+    }
+    let cases =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/prepared_call_evaluation.rs"))
+            .unwrap();
+    for proof in [
+        "uniform_original_schema_prepares_one_selected_call_in_live_scope_without_capture_or_prefix_copy",
+        "direct_call_cost_and_native_argument_failure_match_the_released_entry",
+        "cold_physical_flow_limits_and_prefix_reject_before_native_comparisons_or_execution",
+        "cold_unknown_wrong_version_missing_grant_named_shape_and_equal_result_different_operation_are_denied",
+        "native_projection_errors_remain_move_only_private_and_cannot_be_scalar_recovered",
+        "native_unwind_drops_temporary_bindings_without_capture_retry_or_fuel_reset",
+        "prepared_bind_choose_members_reach_both_original_reply_protocols_without_a_second_meter",
+    ] {
+        assert!(cases.contains(proof));
+    }
+}
+
+#[test]
 fn shared_call_preparation_connects_native_catalogs_and_values_to_the_reference_vm() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
@@ -1712,11 +1789,22 @@ fn shared_sequence_sessions_gate_each_request_on_the_original_accepted_reply_wit
         .split_once("pub fn poll<Environment>")
         .unwrap()
         .0;
-    let physical = start.find("physical(").unwrap();
-    let candidates = start.find("atomic_candidate(&branch.value)").unwrap();
+    let shape = source
+        .split_once("pub(crate) fn admit_sequence_shape")
+        .unwrap()
+        .1
+        .split_once("pub fn start<Environment>")
+        .unwrap()
+        .0;
+    let physical = shape.find("physical(").unwrap();
+    let candidates = shape.find("atomic_candidate(&branch.value)").unwrap();
+    assert!(physical < candidates);
+    let shape = start
+        .find("admit_sequence_shape(expression, limits)")
+        .unwrap();
     let cold = start.find(".preflight_member(index, branch)").unwrap();
     let charge = start.find("fuel.charge(1)").unwrap();
-    assert!(physical < candidates && candidates < cold && cold < charge);
+    assert!(shape < cold && cold < charge);
     let poll = source
         .split_once("pub fn poll<Environment>")
         .unwrap()
@@ -1724,19 +1812,34 @@ fn shared_sequence_sessions_gate_each_request_on_the_original_accepted_reply_wit
         .split_once("pub fn status")
         .unwrap()
         .0;
-    let close = poll
-        .find("self.state = State::Terminal(SequenceEnd::HostUncertain)")
-        .unwrap();
-    let charge = poll.find("self.fuel.charge(1)").unwrap();
-    let prepare = poll.find("environment.prepare_member(").unwrap();
-    let waiting = poll.find("PendingReply::new(").unwrap();
-    assert!(close < charge && charge < prepare && prepare < waiting);
-    assert!(poll.find("SequencePoll::Awaiting").unwrap() < close);
-    let receive = source
-        .split_once("pub fn try_accept<")
+    let compact = poll.split_whitespace().collect::<String>();
+    assert!(
+        compact.find("self.core.publish_with(").unwrap()
+            < compact.find("self.fuel.charge(1)").unwrap()
+    );
+    assert!(
+        compact.find("self.fuel.charge(1)").unwrap()
+            < compact.find(".prepare_member(index,branch,").unwrap()
+    );
+    let publish = source
+        .split_once("pub(crate) fn publish_with<")
         .unwrap()
         .1
-        .split_once("pub fn cancel")
+        .split_once("pub(crate) fn try_accept<")
+        .unwrap()
+        .0;
+    let close = publish
+        .find("self.state = State::Terminal(SequenceEnd::HostUncertain)")
+        .unwrap();
+    let prepare = publish.find("prepare(self.next,").unwrap();
+    let waiting = publish.find("PendingReply::new(").unwrap();
+    assert!(close < prepare && prepare < waiting);
+    assert!(publish.find("SequencePoll::Awaiting").unwrap() < close);
+    let receive = source
+        .split_once("pub(crate) fn try_accept<")
+        .unwrap()
+        .1
+        .split_once("pub(crate) fn cancel")
         .unwrap()
         .0;
     assert!(
@@ -1744,7 +1847,7 @@ fn shared_sequence_sessions_gate_each_request_on_the_original_accepted_reply_wit
     );
     assert!(receive.find("pending.try_accept").unwrap() < receive.find("self.next += 1").unwrap());
     assert!(!receive.contains("prepare_member"));
-    let cancel = source.split_once("pub fn cancel").unwrap().1;
+    let cancel = source.split_once("pub(crate) fn cancel").unwrap().1;
     assert!(cancel.find("std::mem::replace").unwrap() < cancel.find("drop(old)").unwrap());
     let tests =
         std::fs::read_to_string(root.join("crates/leselang-hir/tests/sequence_evaluation.rs"))
@@ -2013,14 +2116,23 @@ fn native_parallel_sessions_share_atomic_adapters_and_close_the_complete_reply_b
         .split_once("pub fn poll<Environment>")
         .unwrap()
         .0;
-    assert!(start.find("physical(").unwrap() < start.find("atomic_candidate").unwrap());
-    assert!(start.find("atomic_candidate").unwrap() < start.find(".preflight_member").unwrap());
-    assert!(start.find(".preflight_member").unwrap() < start.find("fuel.charge(1)").unwrap());
-    let receive = source
-        .split_once("pub fn try_accept<")
+    let shape = source
+        .split_once("pub(crate) fn admit_parallel_shape")
         .unwrap()
         .1
-        .split_once("pub fn cancel")
+        .split_once("pub fn start<Environment>")
+        .unwrap()
+        .0;
+    assert!(shape.find("physical(").unwrap() < shape.find("atomic_candidate").unwrap());
+    assert!(
+        start.find("admit_parallel_shape(").unwrap() < start.find(".preflight_member").unwrap()
+    );
+    assert!(start.find(".preflight_member").unwrap() < start.find("fuel.charge(1)").unwrap());
+    let receive = source
+        .split_once("pub(crate) fn try_accept<")
+        .unwrap()
+        .1
+        .split_once("pub(crate) fn cancel")
         .unwrap()
         .0;
     assert!(
@@ -2105,26 +2217,32 @@ fn shared_accepted_binding_reentry_preserves_original_sites_and_validation_order
     let physical = resume.find("preflight(body,").unwrap();
     let cold = resume.find(".preflight_effect(effect)").unwrap();
     let restore = resume.find(".restore_capture(").unwrap();
-    let quota = resume
+    let restored = source
+        .split_once("pub(crate) fn restore_effect_scope")
+        .unwrap()
+        .1
+        .split_once("pub(crate) fn bind_effect_value")
+        .unwrap()
+        .0;
+    let quota = restored
         .find("scope.len() >= limits.pure.max_bindings")
         .unwrap();
-    let charge = resume.find("fuel.charge(scope.len() as u64)").unwrap();
-    let prefix = resume.find("preflight_value_scope(&scope,").unwrap();
-    let shadow = resume.find("scope.get(name)").unwrap();
+    let charge = restored.find("fuel.charge(scope.len() as u64)").unwrap();
+    let prefix = restored.find("preflight_value_scope(&scope,").unwrap();
+    let shadow = restored.find("scope.get(name)").unwrap();
     let projection = resume.find(".bind_reply(").unwrap();
-    let insert = resume.find(".push(name, value)").unwrap();
-    let mapped = resume.rfind("preflight_value_scope(&scope,").unwrap();
+    let binding = source
+        .split_once("pub(crate) fn bind_effect_value")
+        .unwrap()
+        .1;
+    let insert = binding.find(".push(name, value)").unwrap();
+    let mapped = binding.find("preflight_value_scope(scope,").unwrap();
     let body = resume.rfind("evaluate(").unwrap();
-    assert!(
-        physical < cold && cold < restore && restore < quota && quota < charge && charge < prefix
-    );
-    assert!(
-        prefix < shadow
-            && shadow < projection
-            && projection < insert
-            && insert < mapped
-            && mapped < body
-    );
+    assert!(physical < cold && cold < restore && quota < charge && charge < prefix);
+    assert!(prefix < shadow && insert < mapped);
+    assert!(resume.find("restore_effect_scope(").unwrap() < projection);
+    assert!(projection < resume.find("bind_effect_value(").unwrap());
+    assert!(resume.find("bind_effect_value(").unwrap() < body);
     let walker =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_evaluation.rs")).unwrap();
     assert!(walker.contains("EffectContinuation::new(name, body, capture)"));
@@ -2206,11 +2324,15 @@ fn borrowed_control_session_keeps_reply_ready_and_owned_fuel_without_product_sta
     ] {
         assert!(source.contains(required), "control session lost {required}");
     }
-    let poll = source.split_once("pub fn poll<Environment>").unwrap().1;
+    let poll = source.split_once("pub(crate) fn poll_with<").unwrap().1;
     let close = poll.find("std::mem::replace").unwrap();
     assert!(poll.find("EffectSessionPoll::Awaiting").unwrap() < close);
-    assert!(close < poll.find("evaluate_resumable_effects_in_scope(").unwrap());
-    assert!(close < poll.find("resume_accepted_effects(").unwrap());
+    assert!(close < poll.find("let outcome = begin(").unwrap());
+    assert!(close < poll.find("resume(accepted,").unwrap());
+    let legacy = source.split_once("pub fn poll<Environment>").unwrap().1;
+    assert!(legacy.contains("self.core.poll_with("));
+    assert!(legacy.contains("evaluate_resumable_effects_in_scope("));
+    assert!(legacy.contains("resume_accepted_effects("));
     assert!(
         poll.find("drop(bindings)").unwrap()
             < poll.find("self.state = State::AwaitingFinal").unwrap()
@@ -2219,7 +2341,7 @@ fn borrowed_control_session_keeps_reply_ready_and_owned_fuel_without_product_sta
         poll.find("drop(identity)").unwrap() < poll.find("EffectSessionEnd::Completed").unwrap()
     );
     let receive = source
-        .split_once("pub fn try_accept<")
+        .split_once("pub(crate) fn try_accept<")
         .unwrap()
         .1
         .split_once("impl<Node:")
@@ -2242,10 +2364,10 @@ fn borrowed_control_session_keeps_reply_ready_and_owned_fuel_without_product_sta
         );
     }
     let cancel = source
-        .split_once("pub fn cancel")
+        .split_once("pub(crate) fn cancel")
         .unwrap()
         .1
-        .split_once("pub fn try_accept")
+        .split_once("pub(crate) fn try_accept")
         .unwrap()
         .0;
     assert!(cancel.find("std::mem::replace").unwrap() < cancel.find("drop(old)").unwrap());
@@ -6823,12 +6945,11 @@ fn group_entry_program_reuses_helper_preflight_hygiene_work_and_final_flow_witho
     ] {
         assert!(shared.find(preflight).unwrap() < shared.find("program.body(").unwrap());
     }
-    assert!(
-        shared.find("program.charge(entry_nodes)?").unwrap()
-            < shared.find("finish(&program,").unwrap()
-    );
+    let entry_tail = shared.split_once("program.charge(entry_nodes)?").unwrap().1;
+    assert!(entry_tail.contains("finish(&program,"));
     assert!(program.contains("let _depth = Depth(&self.depth, previous)"));
-    assert!(program.contains("entry_groups.filter(|_| std::ptr::eq(*function, accepted.entry()))"));
+    assert!(program.contains("profile.helper_groups || std::ptr::eq(*function, accepted.entry())"));
+    assert!(entry.contains("helper_groups: false"));
     let original = program
         .split_once("pub fn compile_catalog_program")
         .unwrap()
@@ -6837,7 +6958,7 @@ fn group_entry_program_reuses_helper_preflight_hygiene_work_and_final_flow_witho
         .unwrap()
         .0;
     assert!(original.contains("None,"));
-    assert!(original.contains("program.compile(source, &[], host, environment)"));
+    assert!(original.contains("program.compile(source, prefix, host, environment)"));
     for forbidden in [
         "hygienic_helper_body(",
         "bind_helper_arguments(",
@@ -6872,4 +6993,566 @@ fn group_entry_program_reuses_helper_preflight_hygiene_work_and_final_flow_witho
     ));
     assert!(vertical.contains("helper_tail_never_runs_after_revocation_or_outer_cancellation"));
     assert!(vertical.contains("fuel.remaining(), 73"));
+}
+
+#[test]
+fn group_helper_program_keeps_language_owned_lowering_and_original_native_reentry_protocol() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let group =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/catalog_group_source.rs"))
+            .unwrap();
+    let program =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/catalog_program.rs")).unwrap();
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/catalog_source.rs")).unwrap();
+    let entry = group
+        .split_once("pub fn compile_catalog_group_helper_program")
+        .unwrap()
+        .1;
+    for required in [
+        "compile_catalog_program_with_entry(",
+        "helper_groups: true",
+        "HelperGroups {",
+        ".compile(source, prefix)",
+    ] {
+        assert!(entry.contains(required));
+    }
+    for required in [
+        "fn body_with<",
+        "fn lower_helper_with<",
+        "self.body_with(prepared, &lower)",
+        "self.with_expansion(|| lower(&argument.value, prefix))",
+        "cold_groups = cold_groups",
+        ".checked_add(count)",
+    ] {
+        assert!(
+            program.contains(required),
+            "shared helper compiler lost {required}"
+        );
+    }
+    assert!(source.contains("pub(crate) trait CatalogLocalSource"));
+    assert!(source.contains("self.locals.lower(source, scope.bindings())"));
+    assert!(group.contains(".lower_helper_with(source, prefix,"));
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/catalog_group_source.rs"))
+            .unwrap();
+    for required in [
+        "group_returning_forward_helpers_move_original_slots_through_shared_hygiene",
+        "parameterized_group_helper_prepares_original_operands_before_parameter_scope_is_dropped",
+        "whole_unused_group_helper_headers_references_and_catalog_policy_precede_native_hooks",
+        "cold_group_declaration_forest_and_expanded_helper_groups_have_distinct_total_gates",
+        "group_return_helper_wrappers_keep_inclusive_work_depth_and_whole_output_quotas",
+        "group_return_helpers_cannot_be_scalar_operands_or_union_incompatible_exports",
+        "group_helper_native_failure_or_unwind_drops_unused_validation_without_retry_or_copies",
+        "group_helper_profile_is_opt_in_and_entry_only_or_call_only_boundaries_are_unchanged",
+        "group_helper_compilation_does_not_silently_enable_nested_suspension_scheduling",
+    ] {
+        assert!(proof.contains(required));
+    }
+    let vertical =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/group_reply_reentry.rs"))
+            .unwrap();
+    assert!(vertical.contains(
+        "parsed_group_return_helper_reenters_original_control_and_hygienic_tail_with_one_meter"
+    ));
+    assert!(
+        vertical
+            .contains("group_return_helper_does_not_bypass_outer_reply_revocation_or_cancellation")
+    );
+}
+
+#[test]
+fn nested_return_frames_reuse_one_walker_and_original_reply_protocol_without_a_second_runtime() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_stack.rs")).unwrap();
+    let production = source
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for forbidden in [
+        "leserpent",
+        "leselang_vm",
+        "rusqlite",
+        "serde::",
+        ".clone()",
+        ".unwrap(",
+        ".expect(",
+        "panic!",
+        "match expression",
+        "evaluate_preflighted_in_scope",
+    ] {
+        assert!(
+            !production.contains(forbidden),
+            "return frames gained {forbidden}"
+        );
+    }
+    for required in [
+        "pub struct EffectReturnStack",
+        "pub struct EffectStackLimits",
+        "Declaration: ?Sized",
+        "evaluate_with_profile::<",
+        "preflight_into(",
+        "restore_effect_scope(",
+        "bind_effect_value(",
+        "continuation.frames.extend(frames)",
+        ".checked_sub(frames.len())",
+        "EffectStackFault::ReturnLimit",
+    ] {
+        assert!(source.contains(required), "return frames lost {required}");
+    }
+    let resume = source
+        .split_once("pub fn resume_accepted_stacked_effects<")
+        .unwrap()
+        .1;
+    assert!(
+        resume.find("preflight_into(").unwrap() < resume.find(".preflight_effect(effect)").unwrap()
+    );
+    assert!(
+        resume.find(".preflight_effect(effect)").unwrap()
+            < resume.find("restore_effect_scope(").unwrap()
+    );
+    assert_eq!(resume.matches(".bind_reply(").count(), 1);
+    let walker =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_evaluation.rs")).unwrap();
+    assert!(walker.contains("pub(crate) trait SuspensionProfile"));
+    assert!(walker.contains("evaluate_with_profile::<_, _, _, _, _, SingleFrame>"));
+    assert!(
+        walker.find("Profile::admits(Some(&continuation)").unwrap()
+            < walker.rfind(".capture(name, body, scope, fuel)").unwrap()
+    );
+    let tests =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/effect_stack.rs")).unwrap();
+    for proof in [
+        "nested_helpers_return_through_original_scopes_and_repeated_requests_without_fuel_reset",
+        "request_tail_adopts_the_next_original_return_site_without_replaying_inner_effects",
+        "legacy_single_frame_entry_still_rejects_nested_suspension_before_outer_capture",
+        "return_quota_is_inclusive_shared_across_new_and_pending_frames_and_never_refunds",
+        "newly_suspended_helper_frames_cannot_reset_the_pending_outer_return_quota",
+        "invalid_limits_and_cold_whole_return_forest_denial_precede_restore_projection_and_fuel",
+        "cold_denial_in_a_later_outer_body_precedes_every_inner_restore_and_projection",
+        "wrong_identity_preserves_original_input_and_cancellation_discards_all_return_frames",
+        "live_revocation_after_acceptance_and_cancel_cleanup_unwind_cannot_rearm_frames",
+        "outer_capture_failure_or_unwind_releases_inner_frames_and_prepared_request_once",
+        "restoration_and_projection_failures_unwind_or_bad_outer_prefix_never_replay_dispatch",
+        "zero_frame_pure_and_final_request_paths_remain_available_without_native_debug_or_clone_bounds",
+    ] {
+        assert!(tests.contains(proof));
+    }
+    let group =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/group_reply_reentry.rs"))
+            .unwrap();
+    for proof in [
+        "parsed_helper_internal_group_reply_unwinds_to_original_outer_return_without_new_vm_or_dispatch",
+        "nested_group_helper_return_frames_stop_on_cancel_or_fresh_reentry_revocation",
+        "parsed_native_group_value_returns_through_outer_frame_without_a_second_reply_projection",
+    ] {
+        assert!(group.contains(proof));
+    }
+}
+
+#[test]
+fn prepared_sequence_reuses_original_reply_core_with_complete_correlation_and_fresh_single_publication()
+ {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/prepared_sequence.rs")).unwrap();
+    let shared =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/sequence_evaluation.rs"))
+            .unwrap();
+    let compact = source.split_whitespace().collect::<String>();
+    let production = source
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for forbidden in [
+        "Fuel::new",
+        ".clone()",
+        "serde::",
+        "leselang_vm",
+        "leserpent_domain",
+        "rusqlite",
+        "panic!",
+        ".unwrap(",
+        ".expect(",
+        "unsafe",
+        "Identity: Clone",
+        "Request: Clone",
+    ] {
+        assert!(
+            !production.contains(forbidden),
+            "prepared sequence gained {forbidden}"
+        );
+    }
+    let fields = source
+        .split_once("pub struct PreparedSequenceSession<")
+        .unwrap()
+        .1
+        .split_once("impl<")
+        .unwrap()
+        .0;
+    assert!(fields.contains("core: SequenceReplyCore<"));
+    assert!(fields.contains("prepared: VecDeque<PreparedSequenceMember<"));
+    assert!(!fields.contains("fuel:"));
+    assert!(!fields.contains("state:"));
+    assert_eq!(shared.matches("enum State<").count(), 1);
+    assert_eq!(shared.matches("PendingReply::new(").count(), 1);
+    assert!(shared.contains("core: SequenceReplyCore<"));
+    for boundary in [
+        ".publish_with(",
+        "self.core.try_accept(identity,reply,authority)",
+        "self.core.cancel()",
+        "std::mem::take(&mutself.prepared)",
+    ] {
+        assert!(
+            compact.contains(boundary),
+            "shared sequence boundary lost {boundary}"
+        );
+    }
+    let ordered = [
+        "admit_sequence_shape(group,limits)",
+        "std::ptr::eq(prepared.metadata().members(),branches)",
+        "row.index()!=index",
+        "admit(index,row.original(),row.prepared())",
+        "fuel.charge(1)",
+        "correlate(index,original,operand,fuel)",
+        "ifmember.identity==earlier.identity",
+        "core:SequenceReplyCore::new(branches)",
+    ];
+    for pair in ordered.windows(2) {
+        assert!(compact.find(pair[0]).unwrap() < compact.find(pair[1]).unwrap());
+    }
+    let poll = compact
+        .split_once("pubfnpoll<Error>")
+        .unwrap()
+        .1
+        .split_once("pubfntry_accept<")
+        .unwrap()
+        .0;
+    assert!(
+        poll.find("admit(index,original,").unwrap() < poll.find("prepared.pop_front()").unwrap()
+    );
+    assert!(!poll.contains("fuel.charge"));
+    assert!(!poll.contains("correlate("));
+    let accept = compact
+        .split_once("pubfntry_accept<")
+        .unwrap()
+        .1
+        .split_once("pubfncancel")
+        .unwrap()
+        .0;
+    assert!(!accept.contains("publish_with"));
+    assert!(!accept.contains("admit("));
+    let cancel = compact.split_once("pubfncancel").unwrap().1;
+    assert!(cancel.find("std::mem::take").unwrap() < cancel.find("self.core.cancel()").unwrap());
+    assert!(cancel.find("self.core.cancel()").unwrap() < cancel.find("drop(prepared)").unwrap());
+    let tests =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/prepared_sequence.rs"))
+            .unwrap();
+    for proof in [
+        "complete_scoped_correlation_then_one_request_per_accepted_reply_uses_original_rows_and_one_meter",
+        "shape_foreign_original_rows_and_all_prepared_admission_precede_correlation_and_additional_fuel",
+        "late_correlation_duplicate_identity_and_exhaustion_return_no_session_and_drop_every_operand",
+        "admission_correlation_identity_or_prefix_cleanup_unwind_never_publishes_a_request",
+        "publication_refusal_revocation_or_unwind_closes_before_queued_suffix_cleanup",
+        "rejected_identity_authority_type_and_value_preserve_owned_input_and_all_queued_work",
+        "acceptance_hook_unwind_or_cancel_identity_cleanup_seals_and_releases_all_future_requests",
+        "inclusive_single_and_maximum_width_need_no_poll_meter_and_cancel_unpublished_work",
+        "unsized_original_domain_and_borrowed_text_view_preserve_rejection_buffer",
+    ] {
+        assert!(tests.contains(proof));
+    }
+    let parsed =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/catalog_group_source.rs"))
+            .unwrap();
+    for proof in [
+        "parsed_parameterized_seq_helper_publishes_only_after_each_reply_then_restores_one_root_meter",
+        "parsed_prepared_seq_cancel_or_fresh_revocation_never_invokes_the_second_member_or_caller",
+        "ParamSequence::start(",
+        "sequence.poll(",
+        "self.admit_prepared(original, request)?",
+        "assert_eq!(session.fuel_remaining(), 78)",
+        "assert_eq!(session.fuel_remaining(), 62)",
+    ] {
+        assert!(parsed.contains(proof));
+    }
+}
+
+#[test]
+fn stacked_control_sessions_delegate_owned_fuel_and_all_lifecycle_transitions_to_the_original_core()
+{
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_stack_session.rs"))
+            .unwrap();
+    let production = source
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for forbidden in [
+        "leserpent",
+        "leselang_vm",
+        "rusqlite",
+        "serde::",
+        ".clone()",
+        ".unwrap(",
+        ".expect(",
+        "panic!",
+        "enum State",
+        "PendingReply::new",
+        "Fuel::new",
+        "state:",
+        "fuel: Fuel,\n    limits:",
+    ] {
+        assert!(
+            !production.contains(forbidden),
+            "stacked session gained {forbidden}"
+        );
+    }
+    for required in [
+        "pub struct StackedControlSession",
+        "pub type StackedEffectSession",
+        "Declaration: ?Sized",
+        "SessionCore::new(expression, bindings, fuel)",
+        "self.core.cancel()",
+        "self.core.try_accept(identity, reply, authority)",
+        "self.core.poll_with(",
+        "evaluate_stacked_effects_in_scope(",
+        "resume_accepted_stacked_effects(",
+        "stack_failure",
+    ] {
+        assert!(source.contains(required), "stacked session lost {required}");
+    }
+    let shared =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_session.rs")).unwrap();
+    assert_eq!(shared.matches("enum State<").count(), 1);
+    assert_eq!(shared.matches("fn poll_with<").count(), 1);
+    assert_eq!(shared.matches("fuel: Fuel,\n}").count(), 1);
+    let proofs =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/effect_session.rs")).unwrap();
+    for proof in [
+        "stacked_session_owns_repeated_request_returns_original_scopes_and_one_meter",
+        "stacked_session_preserves_original_rejected_input_and_acceptance_is_not_execution",
+        "stacked_session_cancel_initial_pending_accepted_or_final_keeps_all_later_polls_inert",
+        "stacked_session_drop_releases_every_pending_or_accepted_frame_without_reentry",
+        "stacked_session_limits_are_terminal_and_legacy_session_still_rejects_nested_returns",
+        "stacked_session_every_acceptance_unwind_seals_before_all_frame_cleanup",
+        "stacked_session_preparation_correlation_restore_and_projection_faults_never_rearm",
+        "stacked_session_cleanup_unwind_keeps_cancelled_or_host_uncertain_without_partial_handoff",
+        "stacked_session_revocation_and_exhaustion_after_acceptance_do_not_refill_or_replay",
+        "stacked_session_zero_frames_pure_final_reply_bounds_and_debug_remain_native_free",
+    ] {
+        assert!(proofs.contains(proof));
+    }
+    let group =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/group_reply_reentry.rs"))
+            .unwrap();
+    for proof in [
+        "parsed_group_helpers_use_owned_fuel_stacked_sessions_with_explicit_native_work_reservation",
+        "stacked_group_session_cancel_or_revocation_after_acceptance_never_projects_or_restores",
+        "stacked_group_session_exhausted_native_reservation_cannot_publish_partial_work",
+    ] {
+        assert!(group.contains(proof));
+    }
+}
+
+#[test]
+fn complete_native_group_preparation_reuses_cold_admission_and_one_caller_meter_without_partial_handoff()
+ {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/native_group_preparation.rs"))
+            .unwrap();
+    let production = source
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for forbidden in [
+        "leserpent",
+        "leselang_vm",
+        "rusqlite",
+        "serde::",
+        ".clone()",
+        ".unwrap(",
+        ".expect(",
+        "panic!",
+        "unsafe ",
+        "Fuel::new",
+        "ScopeFrame::new",
+        "StructureBudget::new",
+        "inspect_native_graph(",
+        "evaluate_call_arguments_in_scope(",
+    ] {
+        assert!(
+            !production.contains(forbidden),
+            "native group preparation gained {forbidden}"
+        );
+    }
+    for required in [
+        "pub struct PreparedNativeMember",
+        "pub struct PreparedNativeGroup",
+        "pub enum NativeGroupPreparationError",
+        "pub fn prepare_native_group_members",
+        "fuel: &mut Fuel",
+        "impl FnMut(usize, &'group Branch, &mut Fuel)",
+        "Vec::with_capacity(members.len())",
+        "member_index: Some(member_index)",
+        "let value = prepare(member_index, original, fuel)",
+        "original,",
+        "prepared: value",
+    ] {
+        assert!(production.contains(required), "preparation lost {required}");
+    }
+    let entry = production
+        .split_once("pub fn prepare_native_group_members")
+        .unwrap()
+        .1;
+    assert!(
+        entry.find("admit_native_group_members(").unwrap() < entry.find("fuel.charge(1)").unwrap()
+    );
+    assert!(entry.find("fuel.charge(1)").unwrap() < entry.find("Vec::with_capacity").unwrap());
+    assert!(entry.rfind("fuel.charge(1)").unwrap() < entry.find("let value = prepare(").unwrap());
+    assert!(entry.find("prepared.push(").unwrap() < entry.find("Ok(PreparedNativeGroup").unwrap());
+    assert_eq!(
+        entry
+            .matches("prepare(member_index, original, fuel)")
+            .count(),
+        1
+    );
+    let proofs =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/native_group_preparation.rs"))
+            .unwrap();
+    for proof in [
+        "original_member_slots_and_owned_preparations_are_linked_once_without_native_trait_bounds",
+        "complete_cold_names_and_native_admission_precede_every_prepare_and_fuel_debit",
+        "root_and_each_member_charge_share_one_original_meter_and_drop_exhausted_prefixes",
+        "late_native_failure_or_unwind_drops_owned_prefix_without_partial_handoff_retry_or_refund",
+        "prefix_cleanup_unwind_still_releases_all_other_preparations_without_returning_a_batch",
+        "sequence_parallel_and_inclusive_sixty_four_member_ceiling_use_the_shared_original_name_gate",
+    ] {
+        assert!(proofs.contains(proof));
+    }
+    let group =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/catalog_group_source.rs"))
+            .unwrap();
+    for proof in [
+        "parsed_parameterized_group_helper_prepares_live_operands_and_restores_both_scopes_through_owned_session",
+        "parameterized_group_session_cancellation_revocation_or_late_preparation_refusal_stops_successors",
+        "prepare_native_group_members(",
+        "evaluate_call_arguments_in_scope(",
+        "assert_eq!(waiting_fuel, 81)",
+        "assert_eq!(session.fuel_remaining(), 68)",
+    ] {
+        assert!(group.contains(proof));
+    }
+}
+
+#[test]
+fn prepared_parallel_sessions_reuse_original_reply_core_without_argument_replay_or_a_second_meter()
+{
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/prepared_parallel.rs")).unwrap();
+    let production = source
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for forbidden in [
+        "enum State",
+        "PendingReply::new",
+        "Fuel::new",
+        "fuel: Fuel",
+        "evaluate_pure",
+        "evaluate_call_arguments",
+        "ScopeFrame::new",
+        "leserpent",
+        "leselang_vm",
+        "rusqlite",
+        "serde::",
+        ".clone()",
+        ".unwrap(",
+        ".expect(",
+        "panic!",
+        "unsafe ",
+    ] {
+        assert!(
+            !production.contains(forbidden),
+            "prepared barrier gained {forbidden}"
+        );
+    }
+    for required in [
+        "pub struct PreparedParallelSession",
+        "PreparedNativeGroup",
+        "admit_parallel_shape(group, limits)",
+        "prepared.metadata().members()",
+        "row.index() != index",
+        "admit(index, row.original(), row.prepared())",
+        "fuel: &mut Fuel",
+        "ParallelReplyCore::new(branches)",
+        ".publish_with(fuel,",
+        "row.into_parts()",
+        ".poll_results()",
+        "self.core.try_accept(index, identity, reply, authority)",
+        "self.core.cancel()",
+        "Declaration: ?Sized",
+    ] {
+        assert!(
+            source.contains(required),
+            "prepared barrier lost {required}"
+        );
+    }
+    assert!(
+        source.find("admit_parallel_shape(group, limits)").unwrap()
+            < source.find("admit(index,").unwrap()
+    );
+    assert!(source.find("admit(index,").unwrap() < source.find("fuel.charge(1)").unwrap());
+    assert!(source.find("fuel.charge(1)").unwrap() < source.find("correlate(index,").unwrap());
+    let shared =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/parallel_evaluation.rs"))
+            .unwrap();
+    assert_eq!(shared.matches("enum State<").count(), 1);
+    assert_eq!(shared.matches("enum Member<").count(), 1);
+    assert_eq!(shared.matches("PendingReply::new(").count(), 1);
+    assert_eq!(shared.matches("pub(crate) fn try_accept<").count(), 1);
+    assert!(
+        shared
+            .split_whitespace()
+            .collect::<String>()
+            .contains("self.core.publish_with(&mutself.fuel,")
+    );
+    assert!(shared.contains("self.core.try_accept(index, identity, reply, authority)"));
+    assert!(shared.contains("if !matches!(self.state, State::Ready)"));
+    let proofs =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/prepared_parallel.rs"))
+            .unwrap();
+    for proof in [
+        "complete_scoped_operands_move_once_to_the_original_out_of_order_reply_barrier_without_a_new_meter",
+        "foreign_prepared_rows_shape_and_all_native_admission_fail_before_correlation_or_additional_fuel",
+        "correlation_refusal_duplicate_identity_and_exhaustion_consume_all_preparations_without_partial_handoff",
+        "native_admission_correlation_identity_and_prefix_cleanup_unwind_publish_nothing_and_drop_suffixes",
+        "wrong_member_identity_domain_or_authority_keeps_original_input_and_never_exposes_partial_results",
+        "acceptance_unwind_and_cancel_cleanup_use_the_same_terminal_fencing_as_the_legacy_barrier",
+        "inclusive_maximum_width_preserves_the_original_meter_and_ready_results_cancel_without_handoff",
+        "unsized_original_domains_and_borrowed_reply_views_work_without_payload_or_ir_clone_bounds",
+    ] {
+        assert!(proofs.contains(proof));
+    }
+    let group =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/catalog_group_source.rs"))
+            .unwrap();
+    for proof in [
+        "parsed_parameterized_helper_uses_prepared_original_member_barrier_and_one_enclosing_meter",
+        "prepared_helper_barrier_cancel_revocation_or_late_correlation_denial_never_reenters_caller",
+        "ParamBarrier::start(",
+        "assemble_group_reply(",
+        "assert_eq!(session.fuel_remaining(), 78)",
+        "assert_eq!(session.fuel_remaining(), 62)",
+    ] {
+        assert!(group.contains(proof));
+    }
 }

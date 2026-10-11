@@ -17,8 +17,40 @@ use crate::pure_typing::{PureTypeError, preflight_with_budget, valid_local_name}
 
 type Node<Field, Operation, HostEffect, IrResult> =
     Computation<Field, Operation, HostEffect, IrResult>;
-type EffectSites<'expression, Field, Operation, HostEffect, IrResult> =
+pub(crate) type EffectSites<'expression, Field, Operation, HostEffect, IrResult> =
     Vec<&'expression Node<Field, Operation, HostEffect, IrResult>>;
+
+pub(crate) enum ControlOutcome<Value, Request, Frame> {
+    Value(PureValue<Value>),
+    Request(Request),
+    Suspended {
+        request: Request,
+        continuation: Frame,
+    },
+}
+type ControlResult<Value, Request, Frame, Native> =
+    Result<ControlOutcome<Value, Request, Frame>, EffectEvaluationFailure<Native>>;
+
+pub(crate) trait SuspensionProfile<'expression, Node: ?Sized, Capture> {
+    type Frame;
+    fn admits(frame: Option<&Self::Frame>, max_frames: usize) -> bool;
+    fn append(
+        frame: Option<Self::Frame>,
+        next: EffectContinuation<'expression, Node, Capture>,
+    ) -> Result<Self::Frame, ()>;
+}
+pub(crate) struct SingleFrame;
+impl<'expression, Node: ?Sized + 'expression, Capture> SuspensionProfile<'expression, Node, Capture>
+    for SingleFrame
+{
+    type Frame = EffectContinuation<'expression, Node, Capture>;
+    fn admits(frame: Option<&Self::Frame>, _: usize) -> bool {
+        frame.is_none()
+    }
+    fn append(frame: Option<Self::Frame>, next: Self::Frame) -> Result<Self::Frame, ()> {
+        if frame.is_none() { Ok(next) } else { Err(()) }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct EffectEvaluationLimits {
@@ -166,13 +198,31 @@ pub(crate) fn preflight<
     EffectSites<'expression, Field, Operation, HostEffect, IrResult>,
     EffectEvaluationFailure<NativeError>,
 > {
+    preflight_scope(scope, limits)?;
+    let mut budget = StructureBudget::new(limits.pure.max_nodes, limits.pure.max_depth);
+    let mut effects = Vec::new();
+    preflight_into(expression, limits, &mut budget, &mut effects)?;
+    Ok(effects)
+}
+
+pub(crate) fn preflight_scope<Value, Native>(
+    scope: &ScopeFrame<'_, '_, PureValue<Value>>,
+    limits: EffectEvaluationLimits,
+) -> Result<(), EffectEvaluationFailure<Native>> {
     if limits.max_arguments > MAX_CALL_ARGUMENTS || limits.max_branches > MAX_TYPED_GROUP_BRANCHES {
         return Err(EffectEvaluationFault::Pure(PureEvaluationFault::InvalidLimits).into());
     }
     preflight_value_scope(scope, limits.pure).map_err(EffectEvaluationFault::Pure)?;
-    let mut budget = StructureBudget::new(limits.pure.max_nodes, limits.pure.max_depth);
+    Ok(())
+}
+
+pub(crate) fn preflight_into<'expression, Field, Operation, HostEffect, IrResult, Native>(
+    expression: &'expression Node<Field, Operation, HostEffect, IrResult>,
+    limits: EffectEvaluationLimits,
+    budget: &mut StructureBudget,
+    effects: &mut EffectSites<'expression, Field, Operation, HostEffect, IrResult>,
+) -> Result<(), EffectEvaluationFailure<Native>> {
     let mut pending = vec![(expression, 0)];
-    let mut effects = Vec::new();
     while let Some((node, depth)) = pending.pop() {
         match node {
             Computation::Bind { .. }
@@ -195,7 +245,7 @@ pub(crate) fn preflight<
                 }
             }
             _ => {
-                preflight_with_budget(node, depth, &mut budget).map_err(|error| {
+                preflight_with_budget(node, depth, budget).map_err(|error| {
                     EffectEvaluationFault::Pure(PureEvaluationFault::Preflight(error))
                 })?;
                 continue;
@@ -203,13 +253,8 @@ pub(crate) fn preflight<
         }
         match node {
             Computation::Call { arguments, .. } => {
-                preflight_arguments_with_budget(
-                    arguments,
-                    depth + 1,
-                    &mut budget,
-                    limits.max_arguments,
-                )
-                .map_err(EffectEvaluationFault::CallShape)?;
+                preflight_arguments_with_budget(arguments, depth + 1, budget, limits.max_arguments)
+                    .map_err(EffectEvaluationFault::CallShape)?;
                 effects.push(node);
                 continue;
             }
@@ -234,7 +279,7 @@ pub(crate) fn preflight<
                 effects.push(node);
             }
             Computation::Choose { when, .. } => {
-                preflight_with_budget(when, depth + 1, &mut budget).map_err(|error| {
+                preflight_with_budget(when, depth + 1, budget).map_err(|error| {
                     EffectEvaluationFault::Pure(PureEvaluationFault::Preflight(error))
                 })?;
             }
@@ -254,7 +299,7 @@ pub(crate) fn preflight<
             pending.push((child, depth + 1));
         }
     }
-    Ok(effects)
+    Ok(())
 }
 
 /// Execute the selected control path and return prepared data to its owning host.
@@ -346,6 +391,51 @@ pub(crate) fn evaluate<'expression, Field, Operation, HostEffect, IrResult, Envi
 where
     Environment: EffectEvaluationEnvironment<'expression, Field, Operation, HostEffect, IrResult>,
 {
+    evaluate_with_profile::<_, _, _, _, _, SingleFrame>(
+        expression,
+        scope,
+        environment,
+        fuel,
+        max_bindings,
+        1,
+    )
+    .map(|outcome| match outcome {
+        ControlOutcome::Value(value) => ResumableEffectOutcome::Value(value),
+        ControlOutcome::Request(request) => ResumableEffectOutcome::Request(request),
+        ControlOutcome::Suspended {
+            request,
+            continuation,
+        } => ResumableEffectOutcome::Suspended {
+            request,
+            continuation,
+        },
+    })
+}
+
+pub(crate) fn evaluate_with_profile<
+    'expression,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Environment,
+    Profile,
+>(
+    expression: &'expression Node<Field, Operation, HostEffect, IrResult>,
+    scope: &mut ScopeFrame<'_, 'expression, PureValue<Environment::Result>>,
+    environment: &Environment,
+    fuel: &mut Fuel,
+    max_bindings: usize,
+    max_frames: usize,
+) -> ControlResult<Environment::Result, Environment::Request, Profile::Frame, Environment::Error>
+where
+    Environment: EffectEvaluationEnvironment<'expression, Field, Operation, HostEffect, IrResult>,
+    Profile: SuspensionProfile<
+            'expression,
+            Node<Field, Operation, HostEffect, IrResult>,
+            Environment::Capture,
+        >,
+{
     match expression {
         Computation::Bind { .. }
         | Computation::Choose { .. }
@@ -360,7 +450,7 @@ where
                 fuel,
                 max_bindings,
             )
-            .map(ResumableEffectOutcome::Value)
+            .map(ControlOutcome::Value)
             .map_err(pure_failure);
         }
     }
@@ -368,7 +458,14 @@ where
         .map_err(|_| EffectEvaluationFault::Pure(PureEvaluationFault::FuelExhausted))?;
     match expression {
         Computation::Bind { name, value, body } => {
-            let value = evaluate(value, scope, environment, fuel, max_bindings)?;
+            let value = evaluate_with_profile::<_, _, _, _, _, Profile>(
+                value,
+                scope,
+                environment,
+                fuel,
+                max_bindings,
+                max_frames,
+            )?;
             if scope.len() >= max_bindings {
                 return Err(EffectEvaluationFault::Pure(PureEvaluationFault::BindingLimit).into());
             }
@@ -376,22 +473,52 @@ where
                 return Err(invalid());
             }
             match value {
-                ResumableEffectOutcome::Value(value) => {
+                ControlOutcome::Value(value) => {
                     let mut local = scope.nested();
                     local.push(name, value).map_err(|_| invalid())?;
-                    evaluate(body, &mut local, environment, fuel, max_bindings)
+                    evaluate_with_profile::<_, _, _, _, _, Profile>(
+                        body,
+                        &mut local,
+                        environment,
+                        fuel,
+                        max_bindings,
+                        max_frames,
+                    )
                 }
-                ResumableEffectOutcome::Request(request) => {
+                ControlOutcome::Request(request) => {
+                    if !Profile::admits(None, max_frames) {
+                        return Err(EffectEvaluationFault::NestedSuspension.into());
+                    }
                     let capture = environment
                         .capture(name, body, scope, fuel)
                         .map_err(EffectEvaluationFault::Native)?;
-                    Ok(ResumableEffectOutcome::Suspended {
+                    Ok(ControlOutcome::Suspended {
                         request,
-                        continuation: EffectContinuation::new(name, body, capture),
+                        continuation: Profile::append(
+                            None,
+                            EffectContinuation::new(name, body, capture),
+                        )
+                        .map_err(|_| EffectEvaluationFault::NestedSuspension)?,
                     })
                 }
-                ResumableEffectOutcome::Suspended { .. } => {
-                    Err(EffectEvaluationFault::NestedSuspension.into())
+                ControlOutcome::Suspended {
+                    request,
+                    continuation,
+                } => {
+                    if !Profile::admits(Some(&continuation), max_frames) {
+                        return Err(EffectEvaluationFault::NestedSuspension.into());
+                    }
+                    let capture = environment
+                        .capture(name, body, scope, fuel)
+                        .map_err(EffectEvaluationFault::Native)?;
+                    Ok(ControlOutcome::Suspended {
+                        request,
+                        continuation: Profile::append(
+                            Some(continuation),
+                            EffectContinuation::new(name, body, capture),
+                        )
+                        .map_err(|_| EffectEvaluationFault::NestedSuspension)?,
+                    })
                 }
             }
         }
@@ -406,18 +533,19 @@ where
             else {
                 return Err(invalid());
             };
-            evaluate(
+            evaluate_with_profile::<_, _, _, _, _, Profile>(
                 if selected { then } else { otherwise },
                 scope,
                 environment,
                 fuel,
                 max_bindings,
+                max_frames,
             )
         }
         Computation::Host { .. } | Computation::Call { .. } | Computation::Group { .. } => {
             environment
                 .prepare_effect(expression, scope, fuel)
-                .map(ResumableEffectOutcome::Request)
+                .map(ControlOutcome::Request)
                 .map_err(native_failure)
         }
         _ => Err(invalid()),

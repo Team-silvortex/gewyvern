@@ -194,7 +194,7 @@ fn preflight<'expression, Field, Operation, HostEffect, IrResult, NativeResult, 
         .collect())
 }
 
-fn evaluate_arguments<
+pub(crate) fn evaluate_arguments<
     'expression,
     'schema,
     Field,

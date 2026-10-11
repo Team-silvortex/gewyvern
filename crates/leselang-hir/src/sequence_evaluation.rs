@@ -264,15 +264,13 @@ enum State<'schema, Identity, Declaration: ?Sized> {
 /// use leselang_hir::sequence_evaluation::SequenceEvaluation;
 /// use leselang_runtime_core::ScalarTypeSet;
 /// fn persist(session: SequenceEvaluation<'_, (), u32, (), (), u64, ScalarTypeSet>) {
-///     let encoded = serde_json::to_string(&session).unwrap();
+///     let encoded = serde_json::to_string(&session);
 /// }
 /// ```
 #[must_use = "retain the sequence session until completed, cancelled or deliberately dropped"]
 pub struct SequenceSession<'expression, Node, IrResult, Identity, Declaration: ?Sized> {
-    branches: &'expression [ComputedBranch<Node, IrResult>],
-    next: usize,
+    core: SequenceReplyCore<'expression, Node, IrResult, Identity, Declaration>,
     fuel: Fuel,
-    state: State<'expression, Identity, Declaration>,
 }
 
 pub type SequenceEvaluation<
@@ -305,6 +303,45 @@ pub type SequenceAcceptance<
     SequenceRejected<Reply, AuthorityError, ResultError>,
 >;
 
+#[expect(
+    clippy::type_complexity,
+    reason = "shape admission retains the original native IR slots"
+)]
+pub(crate) fn admit_sequence_shape<Field, Operation, HostEffect, IrResult, Error>(
+    expression: &Node<Field, Operation, HostEffect, IrResult>,
+    limits: SequenceEvaluationLimits,
+) -> Result<&[Branch<Field, Operation, HostEffect, IrResult>], SequenceEvaluationError<Error>> {
+    if limits.max_nodes > MAX_TYPE_INFERENCE_NODES
+        || limits.max_depth > MAX_TYPE_INFERENCE_DEPTH
+        || limits.max_branches > MAX_GROUP_EXPORT_MEMBERS
+    {
+        return Err(SequenceEvaluationError::InvalidLimits);
+    }
+    let Node::Group {
+        group_kind: GroupKind::Sequence,
+        branches,
+    } = expression
+    else {
+        return Err(SequenceEvaluationError::NotSequence);
+    };
+    physical(
+        expression,
+        GroupExportLimits {
+            max_nodes: limits.max_nodes,
+            max_depth: limits.max_depth,
+            max_groups: 1,
+            max_members: limits.max_branches,
+        },
+    )
+    .map_err(SequenceEvaluationError::Shape)?;
+    for (index, branch) in branches.iter().enumerate() {
+        if !atomic_candidate(&branch.value) {
+            return Err(SequenceEvaluationError::Candidate { index });
+        }
+    }
+    Ok(branches)
+}
+
 impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration: ?Sized>
     SequenceEvaluation<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration>
 {
@@ -329,34 +366,7 @@ impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration:
                 Declaration = Declaration,
             >,
     {
-        if limits.max_nodes > MAX_TYPE_INFERENCE_NODES
-            || limits.max_depth > MAX_TYPE_INFERENCE_DEPTH
-            || limits.max_branches > MAX_GROUP_EXPORT_MEMBERS
-        {
-            return Err(SequenceEvaluationError::InvalidLimits);
-        }
-        let Node::Group {
-            group_kind: GroupKind::Sequence,
-            branches,
-        } = expression
-        else {
-            return Err(SequenceEvaluationError::NotSequence);
-        };
-        physical(
-            expression,
-            GroupExportLimits {
-                max_nodes: limits.max_nodes,
-                max_depth: limits.max_depth,
-                max_groups: 1,
-                max_members: limits.max_branches,
-            },
-        )
-        .map_err(SequenceEvaluationError::Shape)?;
-        for (index, branch) in branches.iter().enumerate() {
-            if !atomic_candidate(&branch.value) {
-                return Err(SequenceEvaluationError::Candidate { index });
-            }
-        }
+        let branches = admit_sequence_shape(expression, limits)?;
         for (index, branch) in branches.iter().enumerate() {
             environment
                 .preflight_member(index, branch)
@@ -368,10 +378,8 @@ impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration:
         }
         fuel.charge(1).map_err(|_| SequenceEvaluationError::Fuel)?;
         Ok(Self {
-            branches,
-            next: 0,
+            core: SequenceReplyCore::new(branches),
             fuel,
-            state: State::Ready,
         })
     }
 
@@ -392,39 +400,17 @@ impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration:
                 Declaration = Declaration,
             >,
     {
-        match self.status() {
-            SequenceStatus::Awaiting { index } => return Ok(SequencePoll::Awaiting { index }),
-            SequenceStatus::Terminal(end) => return Ok(SequencePoll::Terminal(end)),
-            SequenceStatus::Ready { .. } => {}
-        }
-        self.state = State::Terminal(SequenceEnd::HostUncertain);
-        if self.fuel.charge(1).is_err() {
-            self.state = State::Terminal(SequenceEnd::Failed);
-            return Err(SequenceEvaluationError::Fuel);
-        }
-        let prepared = match environment.prepare_member(
-            self.next,
-            &self.branches[self.next],
-            &mut self.fuel,
-        ) {
-            Ok(prepared) => prepared,
-            Err(error) => {
-                self.state = State::Terminal(SequenceEnd::Failed);
-                return Err(SequenceEvaluationError::Native {
-                    index: self.next,
+        self.core.publish_with(|index, branch| {
+            self.fuel
+                .charge(1)
+                .map_err(|_| SequenceEvaluationError::Fuel)?;
+            environment
+                .prepare_member(index, branch, &mut self.fuel)
+                .map_err(|error| SequenceEvaluationError::Native {
+                    index,
                     phase: SequencePhase::Prepare,
                     error,
-                });
-            }
-        };
-        self.state = State::Awaiting(PendingReply::new(
-            prepared.identity,
-            (),
-            prepared.declaration,
-        ));
-        Ok(SequencePoll::Request {
-            index: self.next,
-            request: prepared.request,
+                })
         })
     }
 }
@@ -433,11 +419,7 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
     SequenceSession<'expression, Node, IrResult, Identity, Declaration>
 {
     pub fn status(&self) -> SequenceStatus {
-        match &self.state {
-            State::Ready => SequenceStatus::Ready { index: self.next },
-            State::Awaiting(_) => SequenceStatus::Awaiting { index: self.next },
-            State::Terminal(end) => SequenceStatus::Terminal(*end),
-        }
+        self.core.status()
     }
 
     pub const fn fuel_remaining(&self) -> u64 {
@@ -459,6 +441,95 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
     /// view, type, value. Rejection preserves input and waiting state. No next
     /// request is prepared implicitly, even after the last accepted result.
     pub fn try_accept<Reply, View: ?Sized, Authority>(
+        &mut self,
+        identity: &Identity,
+        reply: Reply,
+        authority: &Authority,
+    ) -> SequenceAcceptance<
+        'expression,
+        Node,
+        IrResult,
+        Identity,
+        Declaration,
+        Reply,
+        Authority::Error,
+        Declaration::Error,
+    >
+    where
+        Identity: PartialEq,
+        Reply: Borrow<View>,
+        Declaration: HostResultDomain<View>,
+        Authority: ReplyAuthority<Identity>,
+    {
+        self.core.try_accept(identity, reply, authority)
+    }
+
+    /// Close before dropping pending native identity. Existing terminal reasons
+    /// are preserved, including after a destructor panic or repeated cancellation.
+    pub fn cancel(&mut self) -> bool {
+        self.core.cancel()
+    }
+}
+
+pub(crate) struct SequenceReplyCore<'expression, Node, IrResult, Identity, Declaration: ?Sized> {
+    branches: &'expression [ComputedBranch<Node, IrResult>],
+    next: usize,
+    state: State<'expression, Identity, Declaration>,
+}
+impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
+    SequenceReplyCore<'expression, Node, IrResult, Identity, Declaration>
+{
+    pub(crate) fn new(branches: &'expression [ComputedBranch<Node, IrResult>]) -> Self {
+        Self {
+            branches,
+            next: 0,
+            state: State::Ready,
+        }
+    }
+    pub(crate) fn member_count(&self) -> usize {
+        self.branches.len()
+    }
+    pub(crate) fn status(&self) -> SequenceStatus {
+        match &self.state {
+            State::Ready => SequenceStatus::Ready { index: self.next },
+            State::Awaiting(_) => SequenceStatus::Awaiting { index: self.next },
+            State::Terminal(end) => SequenceStatus::Terminal(*end),
+        }
+    }
+    pub(crate) fn publish_with<Request, Error>(
+        &mut self,
+        prepare: impl FnOnce(
+            usize,
+            &'expression ComputedBranch<Node, IrResult>,
+        ) -> Result<
+            PreparedSequenceMember<'expression, Identity, Declaration, Request>,
+            Error,
+        >,
+    ) -> Result<SequencePoll<Request>, Error> {
+        match self.status() {
+            SequenceStatus::Awaiting { index } => return Ok(SequencePoll::Awaiting { index }),
+            SequenceStatus::Terminal(end) => return Ok(SequencePoll::Terminal(end)),
+            SequenceStatus::Ready { .. } => {}
+        }
+        self.state = State::Terminal(SequenceEnd::HostUncertain);
+        let prepared = match prepare(self.next, &self.branches[self.next]) {
+            Ok(prepared) => prepared,
+            Err(error) => {
+                self.state = State::Terminal(SequenceEnd::Failed);
+                return Err(error);
+            }
+        };
+        self.state = State::Awaiting(PendingReply::new(
+            prepared.identity,
+            (),
+            prepared.declaration,
+        ));
+        Ok(SequencePoll::Request {
+            index: self.next,
+            request: prepared.request,
+        })
+    }
+    pub(crate) fn try_accept<Reply, View: ?Sized, Authority>(
         &mut self,
         identity: &Identity,
         reply: Reply,
@@ -521,7 +592,7 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
 
     /// Close before dropping pending native identity. Existing terminal reasons
     /// are preserved, including after a destructor panic or repeated cancellation.
-    pub fn cancel(&mut self) -> bool {
+    pub(crate) fn cancel(&mut self) -> bool {
         match std::mem::replace(&mut self.state, State::Terminal(SequenceEnd::Cancelled)) {
             State::Terminal(end) => {
                 self.state = State::Terminal(end);
@@ -542,7 +613,7 @@ impl<Node, IrResult, Identity, Declaration: ?Sized> fmt::Debug
         formatter
             .debug_struct("SequenceEvaluation")
             .field("status", &self.status())
-            .field("members", &self.branches.len())
+            .field("members", &self.core.member_count())
             .field("fuel", &self.fuel_remaining())
             .finish()
     }

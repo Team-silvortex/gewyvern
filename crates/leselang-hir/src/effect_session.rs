@@ -8,12 +8,11 @@ use leselang_runtime_core::{
 };
 
 use crate::effect_evaluation::{
-    EffectEvaluationFailure, EffectEvaluationFault, EffectEvaluationLimits,
+    ControlOutcome, EffectEvaluationFailure, EffectEvaluationFault, EffectEvaluationLimits,
     evaluate_resumable_effects_in_scope, native_failure,
 };
 use crate::effect_reentry::{
-    EffectContinuation, EffectReentryEnvironment, RestoredEffectBindings, ResumableEffectOutcome,
-    resume_accepted_effects,
+    EffectContinuation, EffectReentryEnvironment, RestoredEffectBindings, resume_accepted_effects,
 };
 use crate::ir::Computation;
 use crate::pure_evaluation::{PureEvaluationFault, PureValue};
@@ -133,32 +132,40 @@ impl<Reply, AuthorityError, ResultError> fmt::Debug
 pub type EffectSessionAcceptance<Reply, AuthorityError, ResultError> =
     Result<(), EffectSessionRejected<Reply, AuthorityError, ResultError>>;
 
-enum State<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: ?Sized, Reply>
-{
+enum State<
+    'expression,
+    'schema,
+    Node: ?Sized,
+    Value,
+    Continuation,
+    Identity,
+    Declaration: ?Sized,
+    Reply,
+> {
     Initial {
         expression: &'expression Node,
         bindings: RestoredEffectBindings<'expression, Value>,
     },
-    AwaitingBinding(
-        PendingReply<
-            'schema,
-            Identity,
-            EffectContinuation<'expression, Node, Capture>,
-            Declaration,
-        >,
-    ),
+    AwaitingBinding(PendingReply<'schema, Identity, Continuation, Declaration>),
     AwaitingFinal(PendingReply<'schema, Identity, (), Declaration>),
-    AcceptedBinding(
-        AcceptedReply<
-            'schema,
-            Identity,
-            EffectContinuation<'expression, Node, Capture>,
-            Declaration,
-            Reply,
-        >,
-    ),
+    AcceptedBinding(AcceptedReply<'schema, Identity, Continuation, Declaration, Reply>),
     AcceptedFinal(AcceptedReply<'schema, Identity, (), Declaration, Reply>),
     Terminal(EffectSessionEnd),
+}
+
+/// Shared reply-gated lifecycle; execution profiles supply only begin/re-entry.
+pub(crate) struct SessionCore<
+    'expression,
+    'schema,
+    Node: ?Sized,
+    Value,
+    Continuation,
+    Identity,
+    Declaration: ?Sized,
+    Reply,
+> {
+    state: State<'expression, 'schema, Node, Value, Continuation, Identity, Declaration, Reply>,
+    fuel: Fuel,
 }
 
 /// One borrowed control execution with owned fuel and reply/capture state.
@@ -205,8 +212,16 @@ pub struct ControlSession<
     Declaration: ?Sized,
     Reply,
 > {
-    state: State<'expression, 'schema, Node, Value, Capture, Identity, Declaration, Reply>,
-    fuel: Fuel,
+    core: SessionCore<
+        'expression,
+        'schema,
+        Node,
+        Value,
+        EffectContinuation<'expression, Node, Capture>,
+        Identity,
+        Declaration,
+        Reply,
+    >,
     limits: EffectEvaluationLimits,
 }
 pub type EffectSession<
@@ -245,15 +260,56 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
         limits: EffectEvaluationLimits,
     ) -> Self {
         Self {
+            core: SessionCore::new(expression, bindings, fuel),
+            limits,
+        }
+    }
+    pub fn status(&self) -> EffectSessionStatus {
+        self.core.status()
+    }
+    pub const fn fuel_remaining(&self) -> u64 {
+        self.core.fuel_remaining()
+    }
+
+    /// Close before native cleanup; preserve every existing terminal reason.
+    pub fn cancel(&mut self) -> bool {
+        self.core.cancel()
+    }
+
+    /// Acceptance only marks Ready, without restoration, projection or execution.
+    pub fn try_accept<View: ?Sized, Authority>(
+        &mut self,
+        identity: &Identity,
+        reply: Reply,
+        authority: &Authority,
+    ) -> EffectSessionAcceptance<Reply, Authority::Error, Declaration::Error>
+    where
+        Identity: PartialEq,
+        Reply: Borrow<View>,
+        Declaration: HostResultDomain<View>,
+        Authority: ReplyAuthority<Identity>,
+    {
+        self.core.try_accept(identity, reply, authority)
+    }
+}
+
+impl<'expression, 'schema, Node: ?Sized, Value, Continuation, Identity, Declaration: ?Sized, Reply>
+    SessionCore<'expression, 'schema, Node, Value, Continuation, Identity, Declaration, Reply>
+{
+    pub(crate) fn new(
+        expression: &'expression Node,
+        bindings: RestoredEffectBindings<'expression, Value>,
+        fuel: Fuel,
+    ) -> Self {
+        Self {
             state: State::Initial {
                 expression,
                 bindings,
             },
             fuel,
-            limits,
         }
     }
-    pub fn status(&self) -> EffectSessionStatus {
+    pub(crate) fn status(&self) -> EffectSessionStatus {
         match &self.state {
             State::Initial { .. } | State::AcceptedBinding(_) | State::AcceptedFinal(_) => {
                 EffectSessionStatus::Ready
@@ -262,13 +318,13 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
             State::Terminal(end) => EffectSessionStatus::Terminal(*end),
         }
     }
-    pub const fn fuel_remaining(&self) -> u64 {
+    pub(crate) const fn fuel_remaining(&self) -> u64 {
         self.fuel.remaining()
     }
 
     /// Close before pending/accepted/initial native payload cleanup. Repeated
     /// cancellation preserves existing terminal reasons, including cleanup unwind.
-    pub fn cancel(&mut self) -> bool {
+    pub(crate) fn cancel(&mut self) -> bool {
         match std::mem::replace(
             &mut self.state,
             State::Terminal(EffectSessionEnd::Cancelled),
@@ -287,7 +343,7 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
     /// Shared identity -> live authority -> borrowed type/value checks only.
     /// Success stores the moved accepted frame/input without restoring or running.
     /// Ordinary rejection returns the exact input and retains the pending state.
-    pub fn try_accept<View: ?Sized, Authority>(
+    pub(crate) fn try_accept<View: ?Sized, Authority>(
         &mut self,
         identity: &Identity,
         reply: Reply,
@@ -412,6 +468,80 @@ impl<
                 Reply = Reply,
             >,
     {
+        let limits = self.limits;
+        self.core.poll_with(
+            environment,
+            |expression, scope, fuel| {
+                evaluate_resumable_effects_in_scope(expression, scope, environment, fuel, limits)
+                    .map(ControlOutcome::from)
+            },
+            |accepted, fuel| {
+                resume_accepted_effects(accepted, environment, fuel, limits)
+                    .map(ControlOutcome::from)
+            },
+            |error| error,
+        )
+    }
+}
+
+impl<
+    'expression,
+    'schema,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Value,
+    Continuation,
+    Identity,
+    Declaration: ?Sized,
+    Reply,
+>
+    SessionCore<
+        'expression,
+        'schema,
+        Computation<Field, Operation, HostEffect, IrResult>,
+        Value,
+        Continuation,
+        Identity,
+        Declaration,
+        Reply,
+    >
+{
+    pub(crate) fn poll_with<Environment, Failure, Begin, Resume, MapFailure>(
+        &mut self,
+        environment: &Environment,
+        begin: Begin,
+        resume: Resume,
+        map_failure: MapFailure,
+    ) -> Result<EffectSessionPoll<Value, Environment::Dispatch>, Failure>
+    where
+        Environment: EffectSessionEnvironment<
+                'expression,
+                'schema,
+                Field,
+                Operation,
+                HostEffect,
+                IrResult,
+                Result = Value,
+                Identity = Identity,
+                Declaration = Declaration,
+                Reply = Reply,
+            >,
+        Begin: FnOnce(
+            &'expression Computation<Field, Operation, HostEffect, IrResult>,
+            &mut ScopeFrame<'_, 'expression, PureValue<Value>>,
+            &mut Fuel,
+        )
+            -> Result<ControlOutcome<Value, Environment::Request, Continuation>, Failure>,
+        Resume:
+            FnOnce(
+                AcceptedReply<'schema, Identity, Continuation, Declaration, Reply>,
+                &mut Fuel,
+            )
+                -> Result<ControlOutcome<Value, Environment::Request, Continuation>, Failure>,
+        MapFailure: Fn(EffectEvaluationFailure<Environment::Error>) -> Failure,
+    {
         match self.status() {
             EffectSessionStatus::Awaiting => return Ok(EffectSessionPoll::Awaiting),
             EffectSessionStatus::Terminal(end) => return Ok(EffectSessionPoll::Terminal(end)),
@@ -427,47 +557,44 @@ impl<
                     expression,
                     mut bindings,
                 } => {
-                    let outcome = evaluate_resumable_effects_in_scope(
+                    let outcome = begin(
                         expression,
                         &mut ScopeFrame::new(&mut bindings),
-                        environment,
                         &mut self.fuel,
-                        self.limits,
                     );
                     // Native prefix drops must finish before request/value handoff.
                     drop(bindings);
                     outcome?
                 }
-                State::AcceptedBinding(accepted) => {
-                    resume_accepted_effects(accepted, environment, &mut self.fuel, self.limits)?
-                }
+                State::AcceptedBinding(accepted) => resume(accepted, &mut self.fuel)?,
                 State::AcceptedFinal(accepted) => {
                     let (identity, (), declaration, reply) = accepted.into_parts();
                     let value =
                         environment.bind_reply(&identity, declaration, reply, &mut self.fuel);
                     drop(identity);
-                    ResumableEffectOutcome::Value(value.map_err(native_failure)?)
+                    ControlOutcome::Value(value.map_err(native_failure).map_err(&map_failure)?)
                 }
                 _ => {
-                    return Err(
+                    return Err(map_failure(
                         EffectEvaluationFault::Pure(PureEvaluationFault::InvalidContract).into(),
-                    );
+                    ));
                 }
             };
             match outcome {
-                ResumableEffectOutcome::Value(value) => {
+                ControlOutcome::Value(value) => {
                     if matches!(&value, PureValue::Scalar(value) if !value.is_bounded()) {
-                        return Err(
+                        return Err(map_failure(
                             EffectEvaluationFault::Pure(PureEvaluationFault::InvalidScope).into(),
-                        );
+                        ));
                     }
                     self.state = State::Terminal(EffectSessionEnd::Completed);
                     Ok(EffectSessionPoll::Value(value))
                 }
-                ResumableEffectOutcome::Request(request) => {
+                ControlOutcome::Request(request) => {
                     let correlated = environment
                         .correlate_request(request, &mut self.fuel)
-                        .map_err(native_failure)?;
+                        .map_err(native_failure)
+                        .map_err(&map_failure)?;
                     self.state = State::AwaitingFinal(PendingReply::new(
                         correlated.identity,
                         (),
@@ -475,13 +602,14 @@ impl<
                     ));
                     Ok(EffectSessionPoll::Request(correlated.dispatch))
                 }
-                ResumableEffectOutcome::Suspended {
+                ControlOutcome::Suspended {
                     request,
                     continuation,
                 } => {
                     let correlated = environment
                         .correlate_request(request, &mut self.fuel)
-                        .map_err(native_failure)?;
+                        .map_err(native_failure)
+                        .map_err(&map_failure)?;
                     self.state = State::AwaitingBinding(PendingReply::new(
                         correlated.identity,
                         continuation,

@@ -209,11 +209,48 @@ pub(crate) struct Compiler<
     Declaration,
     Capability,
     Environment,
+    Locals = (),
 > {
     host: &'a SourceCallHost<'host, 'schema, Operation, Domain, Declaration, Capability>,
     environment: &'a Environment,
     limits: CatalogSourceLimits,
     program: Option<&'a CatalogProgramContext<'source>>,
+    locals: Locals,
+}
+
+// Internal language profile selection, never a developer-owned recursive hook.
+type LocalSourceResult<Node, ResultType, Error> =
+    Option<CatalogSourceResult<Node, ResultType, Error>>;
+pub(crate) trait CatalogLocalSource<
+    'source,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    ResultType,
+    Error,
+>
+{
+    fn contains(&self, source: &Expression) -> bool;
+    fn lower(
+        &self,
+        source: &'source Expression,
+        prefix: &[(&'source str, &PureType<ResultType>)],
+    ) -> LocalSourceResult<Node<Field, Operation, HostEffect, IrResult>, ResultType, Error>;
+}
+impl<'source, Field, Operation, HostEffect, IrResult, ResultType, Error>
+    CatalogLocalSource<'source, Field, Operation, HostEffect, IrResult, ResultType, Error> for ()
+{
+    fn contains(&self, _: &Expression) -> bool {
+        false
+    }
+    fn lower(
+        &self,
+        _: &'source Expression,
+        _: &[(&'source str, &PureType<ResultType>)],
+    ) -> LocalSourceResult<Node<Field, Operation, HostEffect, IrResult>, ResultType, Error> {
+        None
+    }
 }
 struct Projection<'a, 'schema, Declaration, Environment>(
     &'a Environment,
@@ -244,8 +281,19 @@ where
     }
 }
 
-impl<'source, 'schema, Operation, Domain, Declaration, Capability, Environment>
-    Compiler<'_, 'source, '_, 'schema, Operation, Domain, Declaration, Capability, Environment>
+impl<'source, 'schema, Operation, Domain, Declaration, Capability, Environment, Locals>
+    Compiler<
+        '_,
+        'source,
+        '_,
+        'schema,
+        Operation,
+        Domain,
+        Declaration,
+        Capability,
+        Environment,
+        Locals,
+    >
 {
     fn scalar<Field, HostEffect, IrResult>(
         &self,
@@ -257,6 +305,15 @@ impl<'source, 'schema, Operation, Domain, Declaration, Capability, Environment>
         Domain: ScalarArgumentDomain,
         Capability: PartialEq,
         Environment: CatalogSourceEnvironment<'source, 'schema, Field, Operation, Declaration>,
+        Locals: CatalogLocalSource<
+                'source,
+                Field,
+                Operation,
+                HostEffect,
+                IrResult,
+                Environment::Result,
+                Environment::Error,
+            >,
     {
         let scalar_prefix: Vec<_> = prefix
             .iter()
@@ -270,7 +327,7 @@ impl<'source, 'schema, Operation, Domain, Declaration, Capability, Environment>
             },
             &scalar_prefix,
             |child, local| {
-                if let Some(program) = self.program {
+                if self.program.is_some() || self.locals.contains(child) {
                     let scalar_types: Vec<_> = local
                         .bindings()
                         .iter()
@@ -282,9 +339,11 @@ impl<'source, 'schema, Operation, Domain, Declaration, Capability, Environment>
                         .filter(|(_, ty)| ty.scalar_type().is_none())
                         .collect();
                     extended.extend(scalar_types.iter().map(|(name, ty)| (*name, ty)));
-                    if let Some(lowered) =
-                        program.lower_helper(child, &extended, self.host, self.environment)
-                    {
+                    if let Some(lowered) = self.locals.lower(child, &extended).or_else(|| {
+                        self.program.and_then(|program| {
+                            program.lower_helper(child, &extended, self.host, self.environment)
+                        })
+                    }) {
                         let (node, ty) = lowered?;
                         let PureType::Scalar(ty) = ty else {
                             return Err(CatalogSourceError::NonScalar { span: span(child) });
@@ -334,6 +393,7 @@ impl<'a, 'source, 'host, 'schema, Operation, Domain, Declaration, Capability, En
             environment,
             limits,
             program: None,
+            locals: (),
         }
     }
 
@@ -343,6 +403,45 @@ impl<'a, 'source, 'host, 'schema, Operation, Domain, Declaration, Capability, En
     ) -> Self {
         self.program = program;
         self
+    }
+}
+
+impl<'a, 'source, 'host, 'schema, Operation, Domain, Declaration, Capability, Environment, Locals>
+    Compiler<
+        'a,
+        'source,
+        'host,
+        'schema,
+        Operation,
+        Domain,
+        Declaration,
+        Capability,
+        Environment,
+        Locals,
+    >
+{
+    pub(crate) fn with_locals<Next>(
+        self,
+        locals: Next,
+    ) -> Compiler<
+        'a,
+        'source,
+        'host,
+        'schema,
+        Operation,
+        Domain,
+        Declaration,
+        Capability,
+        Environment,
+        Next,
+    > {
+        Compiler {
+            host: self.host,
+            environment: self.environment,
+            limits: self.limits,
+            program: self.program,
+            locals,
+        }
     }
 }
 
@@ -357,13 +456,34 @@ impl<
     Declaration,
     Capability,
     Environment,
+    Locals,
 > ControlSourceAdapter<'source, Field, Operation, HostEffect, IrResult>
-    for Compiler<'_, 'source, '_, 'schema, Operation, Domain, Declaration, Capability, Environment>
+    for Compiler<
+        '_,
+        'source,
+        '_,
+        'schema,
+        Operation,
+        Domain,
+        Declaration,
+        Capability,
+        Environment,
+        Locals,
+    >
 where
     Operation: Borrow<str> + PartialEq,
     Domain: ScalarArgumentDomain,
     Capability: PartialEq,
     Environment: CatalogSourceEnvironment<'source, 'schema, Field, Operation, Declaration>,
+    Locals: CatalogLocalSource<
+            'source,
+            Field,
+            Operation,
+            HostEffect,
+            IrResult,
+            Environment::Result,
+            Environment::Error,
+        >,
 {
     type Type = PureType<Environment::Result>;
     type Error = CatalogSourceError<Environment::Error>;
@@ -395,6 +515,9 @@ where
             .map_err(|e| CatalogSourceError::Projection(Box::new(e)));
         }
         if !intrinsic(source) {
+            if let Some(lowered) = self.locals.lower(source, scope.bindings()) {
+                return lowered;
+            }
             if let Some(lowered) = self.program.and_then(|program| {
                 program.lower_helper(source, scope.bindings(), self.host, self.environment)
             }) {
@@ -548,6 +671,7 @@ where
             environment,
             limits,
             program: None,
+            locals: (),
         },
     )
     .map_err(|e| CatalogSourceError::Control(Box::new(e)))
@@ -590,6 +714,7 @@ where
             environment,
             limits: program.limits.expression,
             program: Some(program),
+            locals: (),
         },
     )
     .map_err(|e| CatalogSourceError::Control(Box::new(e)))

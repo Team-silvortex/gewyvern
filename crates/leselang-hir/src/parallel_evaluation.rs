@@ -204,9 +204,8 @@ enum State<'schema, Identity, Declaration: ?Sized, Reply> {
 /// ```
 #[must_use = "retain the batch until completed, cancelled or deliberately dropped"]
 pub struct ParallelSession<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply> {
-    branches: &'expression [ComputedBranch<Node, IrResult>],
+    core: ParallelReplyCore<'expression, Node, IrResult, Identity, Declaration, Reply>,
     fuel: Fuel,
-    state: State<'expression, Identity, Declaration, Reply>,
 }
 pub type ParallelEvaluation<
     'expression,
@@ -242,6 +241,48 @@ pub type ParallelEvaluationPoll<
     ParallelEvaluationError<Error>,
 >;
 
+#[expect(
+    clippy::type_complexity,
+    reason = "shape admission retains the original native IR slots"
+)]
+pub(crate) fn admit_parallel_shape<Field, Operation, HostEffect, IrResult, Error>(
+    expression: &Node<Field, Operation, HostEffect, IrResult>,
+    limits: ParallelEvaluationLimits,
+) -> Result<
+    &[ComputedBranch<Node<Field, Operation, HostEffect, IrResult>, IrResult>],
+    ParallelEvaluationError<Error>,
+> {
+    if limits.max_nodes > MAX_TYPE_INFERENCE_NODES
+        || limits.max_depth > MAX_TYPE_INFERENCE_DEPTH
+        || limits.max_branches > MAX_GROUP_EXPORT_MEMBERS
+    {
+        return Err(ParallelEvaluationError::InvalidLimits);
+    }
+    let Computation::Group {
+        group_kind: GroupKind::Parallel,
+        branches,
+    } = expression
+    else {
+        return Err(ParallelEvaluationError::NotParallel);
+    };
+    physical(
+        expression,
+        GroupExportLimits {
+            max_nodes: limits.max_nodes,
+            max_depth: limits.max_depth,
+            max_groups: 1,
+            max_members: limits.max_branches,
+        },
+    )
+    .map_err(ParallelEvaluationError::Shape)?;
+    for (index, branch) in branches.iter().enumerate() {
+        if !atomic_candidate(&branch.value) {
+            return Err(ParallelEvaluationError::Candidate { index });
+        }
+    }
+    Ok(branches)
+}
+
 impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration: ?Sized, Reply>
     ParallelEvaluation<
         'expression,
@@ -271,34 +312,7 @@ impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration:
                 Declaration = Declaration,
             >,
     {
-        if limits.max_nodes > MAX_TYPE_INFERENCE_NODES
-            || limits.max_depth > MAX_TYPE_INFERENCE_DEPTH
-            || limits.max_branches > MAX_GROUP_EXPORT_MEMBERS
-        {
-            return Err(ParallelEvaluationError::InvalidLimits);
-        }
-        let Computation::Group {
-            group_kind: GroupKind::Parallel,
-            branches,
-        } = expression
-        else {
-            return Err(ParallelEvaluationError::NotParallel);
-        };
-        physical(
-            expression,
-            GroupExportLimits {
-                max_nodes: limits.max_nodes,
-                max_depth: limits.max_depth,
-                max_groups: 1,
-                max_members: limits.max_branches,
-            },
-        )
-        .map_err(ParallelEvaluationError::Shape)?;
-        for (index, branch) in branches.iter().enumerate() {
-            if !atomic_candidate(&branch.value) {
-                return Err(ParallelEvaluationError::Candidate { index });
-            }
-        }
+        let branches = admit_parallel_shape(expression, limits)?;
         for (index, branch) in branches.iter().enumerate() {
             environment
                 .preflight_member(index, branch)
@@ -310,9 +324,8 @@ impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration:
         }
         fuel.charge(1).map_err(|_| ParallelEvaluationError::Fuel)?;
         Ok(Self {
-            branches,
+            core: ParallelReplyCore::new(branches),
             fuel,
-            state: State::Ready,
         })
     }
 
@@ -345,11 +358,107 @@ impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration:
                 Declaration = Declaration,
             >,
     {
+        if let Some(outcome) = self.core.poll_results()? {
+            return Ok(outcome);
+        }
+        self.core
+            .publish_with(&mut self.fuel, |index, branch, fuel| {
+                environment
+                    .prepare_member(index, branch, fuel)
+                    .map_err(|error| ParallelEvaluationError::Native {
+                        index,
+                        phase: ParallelPhase::Prepare,
+                        error,
+                    })
+            })
+    }
+}
+
+impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
+    ParallelSession<'expression, Node, IrResult, Identity, Declaration, Reply>
+{
+    pub fn status(&self) -> ParallelStatus {
+        self.core.status()
+    }
+    pub const fn fuel_remaining(&self) -> u64 {
+        self.fuel.remaining()
+    }
+
+    /// Move the original meter only after the complete result batch was handed
+    /// off. ReadyResults, waiting and failed/cancelled states retain ownership.
+    /// This never polls, dispatches, refunds fuel or grants continuation authority.
+    pub fn into_completed_fuel(self) -> Result<Fuel, Self> {
+        if self.status() == ParallelStatus::Terminal(ParallelEnd::Completed) {
+            Ok(self.fuel)
+        } else {
+            Err(self)
+        }
+    }
+    pub fn try_accept<View: ?Sized, Authority>(
+        &mut self,
+        index: usize,
+        identity: &Identity,
+        reply: Reply,
+        authority: &Authority,
+    ) -> ParallelAcceptance<Reply, Authority::Error, Declaration::Error>
+    where
+        Identity: PartialEq,
+        Reply: Borrow<View>,
+        Declaration: HostResultDomain<View>,
+        Authority: ReplyAuthority<Identity>,
+    {
+        self.core.try_accept(index, identity, reply, authority)
+    }
+    pub fn cancel(&mut self) -> bool {
+        self.core.cancel()
+    }
+}
+
+pub(crate) struct ParallelReplyCore<
+    'expression,
+    Node,
+    IrResult,
+    Identity,
+    Declaration: ?Sized,
+    Reply,
+> {
+    branches: &'expression [ComputedBranch<Node, IrResult>],
+    state: State<'expression, Identity, Declaration, Reply>,
+}
+
+impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
+    ParallelReplyCore<'expression, Node, IrResult, Identity, Declaration, Reply>
+{
+    pub(crate) fn new(branches: &'expression [ComputedBranch<Node, IrResult>]) -> Self {
+        Self {
+            branches,
+            state: State::Ready,
+        }
+    }
+    pub(crate) fn member_count(&self) -> usize {
+        self.branches.len()
+    }
+
+    #[expect(
+        clippy::type_complexity,
+        reason = "the shared barrier moves original rows and unsized native domains"
+    )]
+    pub(crate) fn poll_results<Request, Error>(
+        &mut self,
+    ) -> Result<
+        Option<
+            ParallelPoll<
+                Request,
+                ParallelAccepted<'expression, Node, IrResult, Identity, Declaration, Reply>,
+            >,
+        >,
+        ParallelEvaluationError<Error>,
+    > {
         match self.status() {
             ParallelStatus::Awaiting { remaining } => {
-                return Ok(ParallelPoll::Awaiting { remaining });
+                Ok(Some(ParallelPoll::Awaiting { remaining }))
             }
-            ParallelStatus::Terminal(end) => return Ok(ParallelPoll::Terminal(end)),
+            ParallelStatus::Terminal(end) => Ok(Some(ParallelPoll::Terminal(end))),
             ParallelStatus::ReadyResults => {
                 let State::ReadyResults(members) =
                     std::mem::replace(&mut self.state, State::Terminal(ParallelEnd::HostUncertain))
@@ -368,9 +477,38 @@ impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration:
                     ));
                 }
                 self.state = State::Terminal(ParallelEnd::Completed);
-                return Ok(ParallelPoll::Results(results));
+                Ok(Some(ParallelPoll::Results(results)))
             }
-            ParallelStatus::Ready => {}
+            ParallelStatus::Ready => Ok(None),
+        }
+    }
+
+    pub(crate) fn publish_with<Request, Error>(
+        &mut self,
+        fuel: &mut Fuel,
+        mut prepare: impl FnMut(
+            usize,
+            &'expression ComputedBranch<Node, IrResult>,
+            &mut Fuel,
+        ) -> Result<
+            PreparedParallelMember<'expression, Identity, Declaration, Request>,
+            ParallelEvaluationError<Error>,
+        >,
+    ) -> ParallelEvaluationPoll<
+        'expression,
+        Node,
+        IrResult,
+        Identity,
+        Declaration,
+        Reply,
+        Request,
+        Error,
+    >
+    where
+        Identity: PartialEq,
+    {
+        if !matches!(self.state, State::Ready) {
+            return Err(ParallelEvaluationError::InternalState);
         }
         self.state = State::Terminal(ParallelEnd::HostUncertain);
         // Prefixes stay local until the complete batch passes, so errors/unwind
@@ -378,16 +516,8 @@ impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration:
         let batch = (|| {
             let mut prepared = Vec::with_capacity(self.branches.len());
             for (index, branch) in self.branches.iter().enumerate() {
-                self.fuel
-                    .charge(1)
-                    .map_err(|_| ParallelEvaluationError::Fuel)?;
-                let member = environment
-                    .prepare_member(index, branch, &mut self.fuel)
-                    .map_err(|error| ParallelEvaluationError::Native {
-                        index,
-                        phase: ParallelPhase::Prepare,
-                        error,
-                    })?;
+                fuel.charge(1).map_err(|_| ParallelEvaluationError::Fuel)?;
+                let member = prepare(index, branch, fuel)?;
                 prepared.push(member);
             }
             for (index, member) in prepared.iter().enumerate() {
@@ -426,12 +556,8 @@ impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration:
             }
         }
     }
-}
 
-impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
-    ParallelSession<'expression, Node, IrResult, Identity, Declaration, Reply>
-{
-    pub fn status(&self) -> ParallelStatus {
+    pub(crate) fn status(&self) -> ParallelStatus {
         match &self.state {
             State::Ready => ParallelStatus::Ready,
             State::Awaiting { remaining, .. } => ParallelStatus::Awaiting {
@@ -441,22 +567,7 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
             State::Terminal(end) => ParallelStatus::Terminal(*end),
         }
     }
-    pub const fn fuel_remaining(&self) -> u64 {
-        self.fuel.remaining()
-    }
-
-    /// Move the original meter only after the complete result batch was handed
-    /// off. ReadyResults, waiting and failed/cancelled states retain ownership.
-    /// This never polls, dispatches, refunds fuel or grants continuation authority.
-    pub fn into_completed_fuel(self) -> Result<Fuel, Self> {
-        if self.status() == ParallelStatus::Terminal(ParallelEnd::Completed) {
-            Ok(self.fuel)
-        } else {
-            Err(self)
-        }
-    }
-
-    pub fn try_accept<View: ?Sized, Authority>(
+    pub(crate) fn try_accept<View: ?Sized, Authority>(
         &mut self,
         index: usize,
         identity: &Identity,
@@ -523,7 +634,7 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
         }
     }
 
-    pub fn cancel(&mut self) -> bool {
+    pub(crate) fn cancel(&mut self) -> bool {
         match std::mem::replace(&mut self.state, State::Terminal(ParallelEnd::Cancelled)) {
             State::Terminal(end) => {
                 self.state = State::Terminal(end);
@@ -542,7 +653,7 @@ impl<Node, IrResult, Identity, Declaration: ?Sized, Reply> fmt::Debug
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ParallelSession")
             .field("status", &self.status())
-            .field("members", &self.branches.len())
+            .field("members", &self.core.member_count())
             .field("fuel", &self.fuel_remaining())
             .finish()
     }

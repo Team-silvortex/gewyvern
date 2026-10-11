@@ -50,8 +50,8 @@ admission APIs also exist. Flat-All sessions now retain out-of-order accepted re
 behind one complete ordered barrier. Complete original-group assembly and borrowed
 member lookup connect to authenticated enclosing-control re-entry with the same
 owned fuel. Flat-group catalog compilation now owns the complete source expression.
-An additive program entry combines flat entry groups with existing acyclic helpers;
-group-returning helpers, nested groups and native scheduling remain open.
+Explicit program profiles cover entry-only groups and flat-group helper returns,
+sharing hygiene/quotas; uniform atomic Bind/Choose IR joins scoped Seq/All replies with one meter; source members remain direct calls.
 Effect dispatch, grants, native schema/work limits, authentic receipts, durable
 capture and replay remain adapter-owned; no implicit coercion or authority is added.
 See the embedding architecture for individual contracts and extraction gaps,
