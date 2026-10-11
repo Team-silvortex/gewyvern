@@ -5,6 +5,7 @@ use crate::flow_typing::{
     HostGroupFlowEnvironment, HostGroupFlowTypeLimits, infer_call_flow_type, infer_group_flow_type,
     infer_host_flow_type, infer_host_group_flow_type,
 };
+use crate::ir::Computation as ControlComputation;
 use crate::prepared_typing::{
     PreparedCallSchema, PreparedCallSchemas, PreparedCallTypeError, infer_prepared_call_type,
 };
@@ -17,6 +18,106 @@ use crate::{
     host_call::{ArgumentDomain, HostOperation},
     result_field::ResultField,
 };
+
+// Only reference adapters with already bounded/canonical trees may use this
+// routing predicate. It is not a shape/type/authority certificate.
+pub(crate) fn call_flow_nodes_only<Field, Operation, HostEffect, IrResult>(
+    expression: &ControlComputation<Field, Operation, HostEffect, IrResult>,
+) -> bool {
+    let mut pending = vec![expression];
+    while let Some(node) = pending.pop() {
+        if matches!(
+            node,
+            ControlComputation::Host { .. } | ControlComputation::Group { .. }
+        ) {
+            return false;
+        }
+        pending.extend(node.children().rev());
+    }
+    true
+}
+
+pub(crate) fn group_flow_nodes_only<Field, Operation, HostEffect, IrResult>(
+    expression: &ControlComputation<Field, Operation, HostEffect, IrResult>,
+) -> bool {
+    let mut pending = vec![expression];
+    let mut group = false;
+    while let Some(node) = pending.pop() {
+        if matches!(node, ControlComputation::Host { .. }) {
+            return false;
+        }
+        group |= matches!(node, ControlComputation::Group { .. });
+        pending.extend(node.children().rev());
+    }
+    group
+}
+
+pub(crate) fn host_flow_nodes_only<Field, Operation, HostEffect, IrResult>(
+    expression: &ControlComputation<Field, Operation, HostEffect, IrResult>,
+    supported: impl Fn(&HostEffect) -> bool,
+) -> bool {
+    let mut pending = vec![expression];
+    let mut host = false;
+    while let Some(node) = pending.pop() {
+        match node {
+            ControlComputation::Group { .. } => return false,
+            ControlComputation::Host { effect } => {
+                if !supported(effect) {
+                    return false;
+                }
+                host = true;
+            }
+            _ => {}
+        }
+        pending.extend(node.children().rev());
+    }
+    host
+}
+
+pub(crate) fn host_group_flow_nodes_only<Field, Operation, HostEffect, IrResult>(
+    expression: &ControlComputation<Field, Operation, HostEffect, IrResult>,
+    supported: impl Fn(&HostEffect) -> bool,
+) -> bool {
+    let mut pending = vec![expression];
+    let mut group = false;
+    let mut host = false;
+    while let Some(node) = pending.pop() {
+        match node {
+            ControlComputation::Group { .. } => group = true,
+            ControlComputation::Host { effect } => {
+                if !supported(effect) {
+                    return false;
+                }
+                host = true;
+            }
+            _ => {}
+        }
+        pending.extend(node.children().rev());
+    }
+    group && host
+}
+
+// Call/Bind/Choose edges only. Reference callers first validate full structure,
+// canonical source and the old prepared-atomic classification before using this.
+pub(crate) fn call_leaves_only<Field, Operation, HostEffect, IrResult>(
+    expression: &ControlComputation<Field, Operation, HostEffect, IrResult>,
+) -> bool {
+    let mut pending = vec![expression];
+    while let Some(node) = pending.pop() {
+        match node {
+            ControlComputation::Call { .. } => {}
+            ControlComputation::Bind { body, .. } => pending.push(body),
+            ControlComputation::Choose {
+                then, otherwise, ..
+            } => {
+                pending.push(otherwise);
+                pending.push(then);
+            }
+            _ => return false,
+        }
+    }
+    true
+}
 
 #[derive(Clone)]
 enum ReferenceMembers<'a> {

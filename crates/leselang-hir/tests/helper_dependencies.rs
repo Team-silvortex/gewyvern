@@ -503,8 +503,11 @@ fn dependency_planning_is_not_signature_operand_or_native_operation_validation()
         names(helper_dependency_order(&[&function], "launch", LIMITS).unwrap()).unwrap(),
         ["add"]
     );
-    let errors = leselang_hir::lower(&tree("fn add() = 0\nfn main() = 0")).unwrap_err();
-    assert_eq!(errors[0].code, "LSH1501");
+    #[cfg(feature = "leserpent-profile")]
+    {
+        let errors = leselang_hir::lower(&tree("fn add() = 0\nfn main() = 0")).unwrap_err();
+        assert_eq!(errors[0].code, "LSH1501");
+    }
 }
 
 struct PureHost;
@@ -621,6 +624,7 @@ fn parsed_planned_declaration_composes_with_signatures_hygiene_cold_inference_an
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_ready_helper_lowering_error_keeps_precedence_over_later_cycle_detection() {
     for name in ["a", "z"] {
         let good_shape = format!("fn {name}() = add(left: true, right: 1)\nfn main() = 0");
@@ -634,6 +638,7 @@ fn reference_ready_helper_lowering_error_keeps_precedence_over_later_cycle_detec
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_entry_rejection_and_lexical_expansion_preserve_diagnostics_wire_and_authority() {
     let source = "fn z() = main()\nfn a() = choose(when: true, then: main(), otherwise: main())\nfn main() = 0";
     let error = leselang_hir::lower(&tree(source)).unwrap_err().remove(0);

@@ -197,6 +197,7 @@ pub fn lower_helper_body<
 
 // The reference declaration/parser boundary already bounds source. Preserve its
 // recursive diagnostic priority while sharing exact headers, meter and admission.
+#[cfg(feature = "leserpent-profile")]
 pub(crate) fn lower_preflighted_helper_body<
     'source,
     Field,

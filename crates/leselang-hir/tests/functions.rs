@@ -1,3 +1,5 @@
+#![cfg(feature = "leserpent-profile")]
+
 use leselang_hir::computation::ScalarType;
 use leselang_hir::{Effect, HirProgram, Type, authorize, canonical_source, lower};
 use leselang_host_contract::CapabilitySet;

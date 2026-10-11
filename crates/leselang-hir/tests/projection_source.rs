@@ -17,7 +17,9 @@ use leselang_hir::pure_typing::{
 use leselang_hir::scalar_source::{ScalarSourceError, lower_scalar_source};
 use leselang_hir::source_call::{SourceCallError, SourceCallLimits, SourceShapeError};
 use leselang_runtime_core::*;
-use leselang_syntax::{Expression, Span, parse};
+#[cfg(feature = "leserpent-profile")]
+use leselang_syntax::Span;
+use leselang_syntax::{Expression, parse};
 
 // Native slots, declarations and errors have no Clone/Debug/serde/Send contract.
 struct Field {
@@ -321,6 +323,7 @@ fn expression(source: &str) -> Expression {
     assert!(tree.diagnostics.is_empty(), "{:?}", tree.diagnostics);
     tree.function.unwrap().body
 }
+#[cfg(feature = "leserpent-profile")]
 fn span(expression: &Expression) -> Span {
     match expression {
         Expression::Call { span, .. }
@@ -420,6 +423,32 @@ fn original_value_ast_literal_name_and_move_only_field_buffer_are_preserved() {
         assert_eq!(field.buffer.as_ptr() as usize, adapter.buffer_address);
     }
     assert_eq!(host.drops.get(), 2);
+}
+
+#[test]
+fn shared_fixed_projection_signature_keeps_exact_errors_before_native_queries() {
+    let host = Host::new(NAMES);
+    for text in [
+        "field(value: reply, value: unknown)",
+        "field(value: reply, other: \"size\")",
+        "field(value: reply, name: \"size\", extra: unknown)",
+        "member(value: group, value: unknown)",
+        "member(name: \"ready-step\", other: group)",
+    ] {
+        let input = expression(text);
+        let Expression::Call { span: original, .. } = input else {
+            panic!()
+        };
+        let mut adapter = Adapter::new(&host);
+        let output = lower_projection_source(&input, LIMITS, &mut adapter);
+        let Err(ProjectionSourceError::Names { span }) = output else {
+            panic!()
+        };
+        assert_eq!(span, original);
+        assert!(adapter.events.is_empty());
+        assert!(host.queries.borrow().is_empty());
+        assert_eq!(host.drops.get(), 0);
+    }
 }
 
 #[test]
@@ -905,6 +934,7 @@ fn parsed_native_projection_prepares_an_atomic_argument_against_the_original_sch
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_projection_diagnostics_spans_child_order_wire_and_authority_are_unchanged() {
     for (source, code, message, selected) in [
         (

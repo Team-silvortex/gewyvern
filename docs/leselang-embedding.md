@@ -82,6 +82,52 @@ execution. Domain names such as `runtime.deploy` belong to the Leserpent host
 profile, not an ever-growing core opcode list. This is not an untyped
 `call(any_string, any_json)` escape hatch or arbitrary native-library loading.
 
+### Optional Leserpent Profile
+
+`leselang-hir` now has an explicit `leserpent-profile` feature, enabled by default
+for compatibility. It owns the existing fixed operations, product result fields,
+UI DTOs, legacy lowerer/canonical formatter and their root API paths. The
+implementation is included from `leserpent_profile.rs` only when enabled; it is
+not a second IR or lowerer. Existing Leserpent consumers need no API or wire change.
+
+An independent local consumer can omit that profile:
+
+```toml
+[dependencies]
+leselang-hir = { path = "../gewyvern/crates/leselang-hir", default-features = false }
+```
+
+The native dependency closure contains `leselang-syntax`,
+`leselang-runtime-core` and serde, not `leselang-host-contract`,
+`silvortex-identity`, the product VM, SQLite or a daemon. The same public generic
+catalog/compiler, typed IR, pure/effect evaluation and borrowed reply sessions
+remain available. Native operation/result types, authority and reply correlation
+still come from the embedding adapter; disabling the product profile grants none.
+`Effect`, `lower`, `computation`, `host_call` and `result_field` are product APIs,
+not native-profile fallbacks. Compile-fail tests enforce their absence.
+
+**Cargo features are additive**. Another dependency enabling the default profile,
+an explicit `leserpent-profile` grant or `--all-features` brings it back. Use an
+isolated consumer's resolved dependency graph to check the actual embedding
+boundary, rather than treating one manifest flag as a process-wide exclusion.
+There is no runtime switch or security sandbox implied by the build feature.
+
+Run the native tests independently from the default compatibility suite:
+
+```bash
+cargo test --locked --offline --profile lean -p leselang-hir --no-default-features
+cargo test --locked --offline --profile lean -p leselang-hir
+```
+
+Product-only harnesses and reference comparisons require the profile; generic
+cases in mixed harnesses still run without it. The native suite includes parsed
+scalar and structured-result multi-function suspension/re-entry/cancellation
+verticals. CI runs the native suite and strict native-only lint separately from
+the default/all-feature product compatibility gates. This closes the optional HIR
+profile/dependency boundary, **not the complete independent VM or repository extraction gate**.
+Full groups, portable durable recovery, product-adapter migration and independent
+source metadata/distribution remain tracked work.
+
 ## Execution And Safety
 
 Source remains synchronous and function-oriented. External work yields a typed
@@ -861,7 +907,9 @@ without allocation or inspecting native payloads. Forward/reverse/mixed walks ar
 fused and return original references; inspecting children is not evaluation order
 or permission to execute repeatedly. Shared `is_pure` inspects language nodes:
 Host/Call/Group are effectful even if empty or cold; Member is a result reference.
-Its pending frontier allocates, so callers bound structure before inspection.
+Its open branching cursors may allocate, so callers bound structure before inspection.
+Leaves and unary chains need no scratch allocation; wide nodes retain one sibling
+cursor rather than one pending reference per child.
 Opaque native Host graphs are leaves and require separate adapter validation.
 
 IR remains mutable, unchecked data. Purity is **not type or execution authority**,
@@ -919,7 +967,7 @@ separate. The type facts supplied by a malicious adapter are not a security sand
 Shared `Computation::scalar_argument_type` provides the **same cold-aware IR bridge**
 to reference lowering and unrelated native hosts, without inspecting/cloning host
 slots. It borrows direct literals, but trusts the separately inferred type. Its
-purity frontier allocates, so structure must be bounded first. The bridge does not
+branching purity cursor stack may allocate, so structure must be bounded first. The bridge does not
 resolve unknown locals, type native fields or validate opaque effect graphs.
 
 All 70 reference domains use the shared checker; source diagnostics/spans, cold
@@ -2952,9 +3000,123 @@ continuation formats; this session does not replace or wrap that scheduler. Host
 own authentic receipt provenance, generation uniqueness, external cancellation
 delivery, aggregate pending limits and result aggregation. Recreating a session for
 the same group is not globally deduplicated. Sequence result aliases/aggregation,
-parallel barriers, complete helper/opaque-host source typing and durable restart
+nested parallel groups, complete helper/opaque-host source typing and durable restart
 remain separate extraction work. Binding restoration is supplied by the following
 entry, not implicitly by this sequence lifecycle.
+
+### Shared Parallel Reply Barrier
+
+`parallel_evaluation::ParallelEvaluation::start` enters a borrowed flat All with
+2 through 64 atomic candidates. The same `SequenceEvaluationEnvironment` is
+re-exported as `ParallelEvaluationEnvironment`: cold schema/type/opaque policy,
+live preparation, exact identities and original result declarations use the same
+protocol in both modes. No second evaluator, product operation list or scheduler
+is introduced. It works with `leserpent-profile` disabled and requires no SQLite.
+
+Whole physical/language shape and every candidate pass before native cold policy;
+all cold policy passes before the one group-root fuel debit. First `poll` prepares
+all members exactly once in declaration order using one owned meter, charging each
+member root plus explicit native work. All original identities must be pairwise
+distinct. Complete preparation and identity checks precede any request handoff.
+A late preparation failure or insufficient fuel drops the complete local prefix
+and closes Failed, with **no partial batch publication** or refund. Identity
+equality and other native work are trusted, bounded by the host, not preempted.
+
+The returned `Requests` batch belongs to the host. It may schedule members in any
+order and on appropriate GUI/worker lanes. This is **not atomic external dispatch**:
+the language cannot roll back a request already delivered by the host or prevent
+a caller from dropping part of the batch. No threads, source-level async, automatic
+retry, delivery lease, clock/deadline service or global deduplication are created.
+
+`try_accept` takes both the member index and exact opaque identity. Unknown,
+already accepted, early and terminal members are rejected before native hooks.
+For a pending member the shared order remains identity, live authority, borrowed
+reply view, type, then native value validation. Ordinary rejection returns the
+unchanged input and retains the barrier. Replies can arrive out of order, but
+accepted original declarations and move-only replies remain private to the session.
+Waiting polls do not prepare, charge, redispatch or publish a partial result.
+
+After all replies pass, state becomes `ReadyResults`, not Completed. Only a later
+explicit `poll` hands off the complete ordered original-row/declaration/reply
+batch once and closes Completed. It installs no result aliases and does not infer
+an aggregate group value or restore an enclosing continuation. Cancellation can
+discard accepted results even after the barrier is ready, before that handoff.
+Completed means accepted reply ownership was handed off, not a durable commit or
+proof of atomic external success; provenance and native result semantics remain
+host policy. Mutable result data can invalidate earlier checks.
+
+Preparation, pairwise identity comparison or any reply callback unwind seals
+HostUncertain before owned prefixes and sibling results can replay. Cancellation
+seals Cancelled before cleanup; repeated polls/cancellation preserve terminal
+reasons. Native destructors may unwind and two cleanup panics can abort. No native
+Clone/Debug/serde/Send/Sync bound is imposed; identities explicitly require equality,
+and unsized borrowed domains/views are supported. Diagnostic formatting exposes
+closed phases/status only, never native requests, replies or private error chains.
+
+The parsed counter proof compiles an All with two distinct result domains,
+prepares actual operands, invokes consumed requests in reverse order and accepts
+replies into an ordered barrier with exact fuel. Revoked policy, stale generation
+and cancellation retain the gates; preparation itself invokes neither counter.
+Separate proofs cover 64-member inclusive bounds, duplicate identity, move-only
+payload pointers, all acceptance-hook unwinds and partial/ready-barrier cleanup.
+This is **a flat in-memory parallel reply lifecycle, not the complete independent VM**.
+Nested groups, complete generic group-result projection/re-entry, group/helper-program
+composition, product-adapter migration and portable durable recovery remain open.
+
+### Shared Complete Group Reply Assembly
+
+`group_reply::assemble_group_reply` consumes the complete ordered accepted rows
+against their original borrowed flat Seq/All IR. Whole physical/language shape,
+every atomic candidate, inclusive arity, complete count, declaration order and
+exact original row identity pass before fuel or native admission. It never sorts,
+fills a missing member, redirects a row or publishes a partial aggregate. A foreign
+IR, truncated/reordered result or duplicate position fails these cold gates.
+
+After these gates, one assembly root plus one unit per member is charged atomically.
+Mandatory fresh whole-group admission receives the private move-only `GroupReply`
+and the same meter. The host checks expected owner/generation, exact declaration
+correspondence, current schema/type/value bounds and live policy. Original row
+pointer agreement alone does not authenticate a declaration, reply or execution
+generation. Mixed executions of the same IR must be rejected by this native gate.
+Failure/unwind consumes the owned inputs, with no retry, refund or partial output;
+trusted native work/destructors are not preempted and a second cleanup panic can abort.
+
+`GroupReply::lookup` reuses closed bounded member-name lookup and mandatory fresh
+selected-row admission. Unknown or policy-hidden names return no member; invalid
+shape/name/limits and native errors remain errors. It returns the original borrowed
+accepted row without native payload copying, coercion or fallback operation. The
+private object exposes read-only borrows; `into_members` deliberately consumes its
+complete-group representation. Interior native state can still change after checks.
+There are no native Clone/serde/Send/Sync requirements or implicit wire format.
+
+Seq/All sessions expose `into_completed_fuel`: only Completed transfers the original
+owned meter, without refill or refund. Ready, waiting, ReadyResults, Failed, Cancelled
+and HostUncertain return the unchanged session. All must explicitly hand off Results
+before this transfer; Seq must have accepted its last member. Completion is ownership
+handoff, not durable commit or a statement of external success.
+
+The aggregate is data, not authority or a replacement continuation. The owning host
+must still correlate it with the original `EffectContinuation` through `PendingReply`,
+fresh live policy and complete result-domain validation before `resume_accepted_effects`.
+Restoration/projection check live policy again; the aggregate cannot choose another
+binding name/body or revive cancelled work. No automatic dispatch or retry is added.
+
+The native-only `group_reply_reentry` proof now compiles the complete parsed
+Bind/All/member/field/Choose expression through `compile_catalog_group_source`,
+without manually constructing an outer IR binding or supplying its group type.
+It dispatches two move-only native counter record replies in reverse order,
+assembles the group, accepts the original continuation and computes 48. One original
+meter moves through all stages: outer Bind/Group 2, batch root/member lifecycle 3,
+assembly 3, explicit native binding projection 1 and body evaluation 14 units leave
+77 of 100. Both lifecycle roots are explicit; no copied remaining-balance meter is
+created. Wrong outer identity preserves input; revocation before acceptance or
+re-entry prevents restoration, projection and extra calls. Wrong operation/member
+and stale record views cannot bypass closed lookup.
+
+This is a closed flat-group re-entry vertical, not a universal group compiler or
+complete independent VM. Nested group results, generic group/helper source typing,
+product-adapter migration and portable durable recovery remain open. The shared
+assembly checks ownership/shape; native aggregate semantics remain adapter-owned.
 
 ### Shared Accepted Binding Re-entry
 
@@ -3122,6 +3284,304 @@ partial tree, retries nothing and releases owned parts; a second cleanup panic
 can still abort. This is **source composition, not a complete independent compiler
 or durable VM**. Full leaf/helper/group compilation and opaque typing/recovery
 remain extraction gates; the product frontend and wire contracts are unchanged.
+
+### Shared Fixed Source Signatures
+
+The crate-private `source_call::fixed_named_operands` decodes **nonempty fixed
+named signatures without heap allocation**. Scalar unary/binary/recovery/choice
+forms, native control choice and field/member projections now share this one
+metadata gate. It returns a fixed stack array borrowing the **original AST
+operands in semantic protocol order**, not a reordered source tree. The scalar
+constructor no longer builds a temporary operand Vec for each fixed form.
+
+**Exact complete names precede native work**: arity, missing/unknown/duplicate
+arguments and even duplicate internal signature names fail closed without a
+partial view. Empty signatures are deliberately unsupported at this internal
+entry. Callers still perform their existing whole-source physical and cold
+checks first, including malformed unselected children. Each caller maps rejection
+to its original error variant and parent span; unary Value, binary Left/Right,
+recovery Value/Fallback and choice When/Then/Otherwise order are unchanged.
+Native buffers, observations, callbacks, cleanup and type/policy checks do not
+move into this helper. The product frontend uses the same scalar/choice/projection
+constructors, preserving its own source-cost and diagnostic precedence.
+
+This is **private source metadata decoding, not schema or execution authority**.
+Dynamic native call schemas, variadic strings/groups and bind/loop/fold lexical
+rules retain their separate gates. No new grammar, coercion, native trait bound,
+dispatch, fuel grant, cached admission or durable VM is added. Only fixed operand
+scratch allocation is removed; whole compilation is not allocation-free, and no
+end-to-end speedup is inferred without a benchmark. Full native schema and durable
+suspension remain open; independent embedding maturity is unchanged.
+
+### Shared Exact IR Child Cursors
+
+`Computation::children()` now returns a compact borrowed **ExactSizeIterator**
+with the same declaration order, reverse/mixed iteration and original node
+identity. Direct language length/count and forward/reverse skips are constant-time,
+including out-of-range `usize::MAX` skips that seal the cursor without overflow.
+Empty variadic and opaque leaf nodes expose zero children. Construction and
+iteration allocate nothing and impose no native Clone/Debug/serde/Send bounds.
+The current cursor occupies three machine words, not a stable foreign ABI layout.
+
+Shared `binding_source::physical` now uses **pending sibling cursors, not a wide
+node frontier**. Only branching ancestors with remaining siblings retain a cursor;
+unary chains accumulate no frames. The checked integer pending count still fences
+every child's minimum physical root before cursor growth. **Original reverse DFS
+and cumulative budget error priority are preserved**, including existing initial
+charges, shifted depth, cold children and rejection before later native hooks.
+Internal depth increment overflow returns `StructureError::DepthLimit`, after the
+existing pending-root node check; public source/output ceilings are unchanged.
+
+Binding, choice, recursive control, group/sequence source and staged helper
+completion use the existing shared physical entry without a second native tree.
+Wide-node scratch now scales with open branching depth rather than sibling width;
+the physical walk may still allocate its bounded cursor Vec. Exact child counts
+are **structural metadata, not native payload admission or execution authority**.
+Host effects, original operations/result observations, source weights, full cold
+type/policy checks and fuel remain in their existing separate protocols. Other
+walkers may retain their own bounded frontiers; this does not claim that all
+compiler scratch is allocation-free or that opaque graphs are now validated.
+Full native schema and durable suspension remain open; independent VM maturity
+is unchanged. Tests compare the old and new physical walks across budgets and
+cover wide nodes, all child layouts, original opaque slots and arithmetic edges.
+
+### Catalog-Driven Expression Compilation
+
+`catalog_source::compile_catalog_source` is one shared compilation entry for the
+closed **scalar/call Bind/Choose expression profile**. The host implements
+`CatalogSourceEnvironment` for native operation-slot construction and exact
+field/member exports, alongside the existing declared-result type queries. It
+does not provide a recursive source compiler or manually compose scalar, call,
+projection and whole-flow admission stages. Native slots need no Clone/Debug/
+serde/Send; only result query identifiers retain the existing Clone/PartialEq
+contract and may borrow nonclone native declarations.
+
+**Whole cold structure and catalog policy precede native compiler hooks**.
+The shared control preflight checks physical source, intrinsic signatures and
+lexical scopes first. A declaration-order catalog pass then checks every cold
+native call's exact version, known operation, grants and complete parameter names
+before operation mapping, field/member exports or result-type queries. Cold call
+quotas include unselected arms and calls hidden in pure operand positions. The
+host's Borrow/equality methods are still trusted metadata work, not sandboxed.
+Unsupported seq/all/repeat forms fail closed, not as overridable catalog calls.
+
+The compiler owns scalar lexical bind/loop/fold, Bind/Choose result capture, pure
+call operands and direct bound field/member projection. Original catalog schema
+order controls operands, and mapped native slots must retain both key equality
+and exact source-name identity. One aggregate shifted control-output budget and
+final **whole cold call-flow inference** corroborate every constructed type, local
+and call against the same catalog; observations are not trusted output certificates.
+Unknown locals cannot fall back to a global host registry. Nested effects cannot
+be hidden inside pure scalar operands, even if their catalog names are known.
+
+The parsed structured device host now uses this entry instead of its own scalar/
+call/projection/admission orchestration. A separate scalar counter host compiles
+through the same entry and executes with shared `EffectSession`: parameter
+preparation, suspension, wrong/stale reply rejection with original ownership,
+accepted scalar re-entry, once-only completion and cancellation. Native panel
+and counter catalogs also prove different operation names and scalar types
+without changing the parser or IR. Existing live-policy and foreign structured
+result rejection remain in their original execution adapters.
+
+This is a **closed-profile source-to-session vertical proof**, not complete
+independent language/VM acceptance. Multi-function helpers use the separate
+entry below; flat group expressions use the opt-in entry after it. Repeat/nested
+group compilation and scheduling, opaque Host graphs, arbitrary
+result-expression projections and portable durable frames remain open. The
+existing product compiler and wire formats are unchanged. There is no evaluator,
+storage backend or lasting execution authority installed by this source entry.
+Native callbacks/work/interior mutation/Drop remain bounded adapter policy;
+failures and unwind release core-owned partial IR without retry or publication.
+
+### Catalog-Driven Multi-Function Compilation
+
+`catalog_program::compile_catalog_program` extends that expression profile with
+an explicit parameterless entry and acyclic pure/effectful helpers. The same
+`CatalogSourceEnvironment` supplies metadata only: no recursive compiler,
+template-copy callback, new native Clone/serde/Send requirement or global registry
+is introduced. Parameters use the six exact scalar tokens and declaration-order
+pure operands. Helpers can return scalars or original structured result metadata.
+
+**All declarations, including unused helpers, precede native compilation hooks**.
+Shared declaration/signature checks and the entire dependency graph reject
+duplicate/reserved names, missing or parameterized entries, recursion and entry
+calls. Each complete cold source passes physical/intrinsic/lexical gates and all
+helper named signatures/native catalog versions/grants. Native call quotas count
+the declaration forest; final inference also checks every expanded output call.
+Intrinsics and catalog operations cannot be replaced by local declarations.
+Catalog Borrow/equality and other native metadata work remain trusted, not sandboxed.
+
+Bodies compile in **closed parameter scopes**, not caller scopes. Shared hygiene
+renames parameter aliases and local bind/loop/fold/result captures while moving
+original native slots and buffers. Caller arguments retain their own scopes;
+the shared scalar scope supplies typed loop/fold and nested-bind locals to helper
+operands. Intrinsic labels such as `body` are not legal variable reservations.
+Parameter wrappers evaluate pure arguments once in declaration order. Unknown
+locals and caller capture, including unused helper bodies, fail closed.
+
+This implementation deliberately **recompiles bodies instead of cloning native
+templates**. `max_compilation_nodes` charges each compiled body source occurrence
+and every parameter wrapper, including unused-helper checks and nested/repeated
+expansions, without refund. `max_expansion_depth` bounds nested shared expression
+entries; original AST/IR depth, output nodes, active bindings and cold native call
+limits remain separate. These are bounded language-work policies, not exact CPU,
+allocation, opaque native graph, ingress-byte or execution-fuel measurements.
+There is no unbounded expansion or performance-speedup claim. A future template
+cache must preserve explicit native ownership rather than add implicit copies.
+
+Scalar-counter and structured-device multi-function programs compile through
+this entry and run with the same shared `EffectSession`. Tests cover typed/wrong
+replies, original record field projections, pure tails, once-only output,
+cancellation and live capability revocation after accepted input. Neither
+vertical needs product VM, SQLite or a changed parser/wire grammar.
+
+This closes **the acyclic helper portion of the catalog expression profile**,
+not full independent language/VM acceptance. Group/helper-program composition,
+repeat compilation and scheduling, opaque Host graphs, complete product-adapter migration and portable
+durable recovery remain open. The legacy product compiler/diagnostic priority is
+unchanged; no evaluator, persistence backend, dispatch authority or partial
+program is published by this entry. Native failure/unwind releases owned output.
+
+### Catalog-Driven Flat Group Compilation
+
+`catalog_group_source::compile_catalog_group_source` is an additive entry for a
+complete **flat-group control expression**, not manually spliced IR fragments.
+The developer implements `CatalogGroupSourceEnvironment` on top of the same
+operation/export metadata adapter and shared `GroupFlowEnvironment`. The only
+new source hook maps an original selected catalog declaration and observed type
+into a native branch IR slot. It does not compile children, invoke effects or
+clone native templates. Higher-ranked group metadata cannot borrow generated
+temporary IR; it may retain original catalog/owner borrows or owned query data.
+
+Complete cold physical, intrinsic and closed lexical checks precede every native
+mapping/type hook. Unbound references are rejected even in unselected arms,
+later members and loop/fold bodies; member labels never introduce sibling locals.
+This reuses the existing Bind/Loop/Fold scope transitions in a closed opt-in mode,
+without changing open native-alias source adapters. Supplied prefixes retain their
+own bounded names; a bind initializer cannot read its not-yet-installed alias.
+
+All group headers, unique member names, arity and direct-call eligibility then
+pass across the complete cold source, before catalog queries or native slot mapping.
+All catalog names, versions, capabilities, parameter names and call quotas pass
+before operation/branch construction or group export/type queries. Seq needs one
+member and All two; inclusive member ceiling is 64. Every cold group site counts,
+including unselected Choose arms. Nested groups, repeats, helper calls and opaque
+Host leaves remain outside this entry; they cannot masquerade as registered calls.
+
+Existing scalar/call lowering constructs each member with pure operands and the
+same outer lexical prefix. Shared flat assembly enforces one shifted member forest
+budget before native member admission. Each original branch declaration must match
+fresh call-flow inference; complete group-flow inference corroborates mode, ordered
+names, operation identity and member types before constructing closed group metadata.
+The outer shared control builder owns one whole-expression output budget and repeats
+whole group-flow admission. A supplied observation or per-leaf limit cannot replace
+this final gate. Unknown exports, wrong slots/declarations, incompatible Choose groups
+and inconsistent native metadata fail closed, without unioning unrelated members.
+
+Native fields, operations, effects and branch declarations need no Clone/Debug/serde/
+Send; query metadata alone retains its existing Clone/PartialEq protocol. Construction
+may allocate bounded metadata, and native callbacks may mutate or unwind; those costs
+are host-owned, not automatically paid by source/IR quotas or rolled back. Failures
+consume core-owned prefixes once, never publish partial IR or retry native callbacks.
+Closed diagnostics retain typed phase/span/native errors for matching without exposing
+private payloads through formatting or source chains. Output is still mutable data,
+not authority, a receipt, a frozen catalog snapshot or a durable continuation.
+
+The complete parsed counter expression now uses this entry, then the original shared
+parallel barrier, fresh complete result assembly, accepted outer binding and member/
+field re-entry. Its two calls and exact remaining fuel are unchanged. Independent
+move-only declaration tests cover Seq/All, source/IR bounds, complete cold denial,
+shared loop/fold lexical scopes, malformed exports, native unwind and cleanup.
+
+Legacy call-only expression and acyclic helper-program entries remain group-rejecting;
+their diagnostics/product wire APIs are unchanged. The additive entry-only helper
+program profile below composes flat entry groups with existing helpers. Group-returning
+helpers, nested results, repeat scheduling, product migration and portable durable recovery
+remain open. This flat source-to-re-entry profile is not complete independent VM
+acceptance or repository extraction.
+
+### Catalog-Driven Group Entry Programs
+
+`catalog_group_source::compile_catalog_group_program` compiles a complete program
+with an explicit parameterless entry, **flat groups in the entry only**, and the
+existing acyclic scalar-parameter helpers. It is not a second helper compiler.
+Shared declaration/dependency admission, body recompilation, hygienic native-slot
+moves, pure parameter wrappers and nonrefunding work/depth guards are reused.
+The original `compile_catalog_program` remains call-only and group-rejecting;
+its diagnostic priority and the product compiler/wire APIs are unchanged.
+
+Every declaration, including unused helpers, passes **closed cold lexical checks
+before native mapping or type queries**. Parameter scopes reuse Bind/Loop/Fold rules;
+unbound references cannot capture entry locals or hide in unselected arms. All
+helper signatures, entry-call/cycle rules and catalog versions/grants/named calls
+pass across the complete declaration forest before compiling any body. Cold native
+call quotas include unused helpers; final group-flow inference separately counts
+the complete expanded entry. Group quotas count every cold entry site, including
+unselected Choose arms. Helpers may not shadow catalog operations or intrinsics.
+
+Pure helpers may compute native group operands or a result-driven entry tail.
+Ordinary effectful helpers may supply separate entry leaves with scalar or original
+structured results. **Direct group members must still be registered native calls**:
+even a zero-parameter helper returning one call is rejected before native mapping.
+Helper bodies cannot return or contain groups, and nested groups/repeat remain
+unsupported. Structured/group parameters and arbitrary result-expression projections
+are not implicitly added. Effectful helper operands still fail the original pure
+IR gate; native mapping work is not rolled back and no effects are dispatched.
+
+`CatalogGroupProgramLimits` retains one shared `CatalogProgramLimits` plus entry
+group/member ceilings. Compilation charges unused validation and every repeated
+helper body/parameter wrapper without refunds. The group entry enters the same
+expansion guard as an ordinary entry; helper recursion cannot reset it. Shared
+shifted whole-output physical limits, active binding limits, exact branch declarations
+and final whole group-flow admission still apply after expansion. Neither per-leaf
+quotas nor supplied result observations are admission certificates. Group-entry
+errors retain a typed `CatalogSourceError::Group` phase with redacted formatting.
+
+The unrelated counter program parses forward helpers, compiles a flat All entry,
+accepts out-of-order replies behind the original barrier, and resumes a hygienic
+two-parameter helper tail after authenticated group binding. It returns 48 with
+exact remaining fuel 73 from the original 100-unit meter; the existing helper-free
+case still leaves 77. Wrong reply identity preserves the original input. Cancellation
+and live revocation prevent helper-tail projections/restoration without retry or
+new dispatch. Move-only declaration/operation tests also cover ordinary effect helpers,
+closed exports, inclusive work/depth/output limits and native error/unwind cleanup.
+
+This closes **entry-level flat-group/helper composition**, not group-returning helper
+compilation, nested result scheduling, complete product migration, durable recovery
+or independent VM acceptance. No template-copy callback, AST substitution, evaluator,
+storage, native sandbox or durable authority is introduced. The remaining extraction
+gates stay explicit; this API alone does not promote embedding maturity.
+
+### Shared Cursor Purity Inspection
+
+Shared `Computation::is_pure()` now consumes the same exact borrowed child cursors
+through a **pending sibling cursor stack, not a wide node frontier**. Leaves and
+unary chains need no scratch allocation. Only open branching ancestors retain
+cursors, so wide-node scratch depends on open branching depth rather than sibling
+width. Branching may still allocate; a cursor is larger than a single node pointer,
+so this is not a universal memory or end-to-end speedup claim for narrow trees.
+
+The original **reverse DFS and early effect rejection** remain unchanged. Every
+Host/Call/Group is effectful even if empty, invalid or cold; Member remains a pure
+result reference. Guards are not evaluated, loop limits do not skip cold children,
+and opaque native graphs are never inspected. Original fields, operations, effects
+and result metadata need no Clone/Debug/serde/Send bounds and are not consumed.
+
+Reference lowering, helper body/argument preparation and group export checks use
+this shared classification directly, without another native tree or public API.
+`scalar_argument_type` still borrows only direct literals and passes through the
+separately supplied type hint; it does not infer or validate that hint. IR remains
+mutable, and a later mutation requires fresh classification. Purity is **not a
+structural bound, type certificate, native admission or execution authority**.
+Callers still bound ingress and perform full cold type/schema/policy checks before
+dispatch; this walk adds no hidden node/depth ceilings or execution fuel.
+
+Differential tests compare the former frontier walk across all node variants and
+cold control positions, every position in a wide effect-containing list, 65,536
+pure siblings, 4,096 unary links, fresh mutations and opaque nonclone native slots.
+These are structural inspection proofs, not admission of such sizes by an adapter.
+Full native schema and durable suspension remain open; independent VM maturity
+and reference wire formats are unchanged.
 
 ### Shared Opaque Host Flow Typing
 
@@ -3970,10 +4430,12 @@ graphs or native multi-presentation batch protocol are added by this contract.
 
 `leselang-syntax`, `leselang-host-contract`, and `leselang-hir` have no Gewyvern
 or Leserpent product crates in their dependency closures. That is a dependency
-proof, not full semantic independence: reference HIR still names concrete runtime and UI
-effects, though its computation nodes now specialize shared host-parameterized IR.
-The reference lowerer/type rules and host contract still contain runtime selectors and deployment
-validation. `leselang-vm`, `leselang-ui`, and `leselang-observe` still consume
+proof, not full semantic independence: the default `leserpent-profile` HIR still
+names concrete runtime and UI effects, though its computation nodes specialize
+shared host-parameterized IR. Disabling that optional profile removes its product
+DTOs/lowerer and host-contract dependency from the native build. The reference
+lowerer/type rules and host contract still contain runtime selectors and deployment
+validation when enabled. `leselang-vm`, `leselang-ui`, and `leselang-observe` still consume
 Leserpent command/result types. `leselang-command` is intentionally the product
 adapter and should remain outside the standalone core.
 
@@ -4016,6 +4478,8 @@ owned sequential source composition with explicit child sequences and native adm
 owned repeat-sequence source assembly with complete forest reservations and positional admission,
 borrowed sequential reply sessions with once-ordered native request preparation,
 one owned fuel meter, reply-gated re-entry and cancellation, in-memory pending-reply handoff,
+flat parallel sessions with complete local request publication, out-of-order reply
+acceptance and a once-only declaration-ordered result barrier,
 accepted binding re-entry with core-owned original sites and bounded native restoration,
 and borrowed control sessions owning fuel/pending/accepted input with explicit poll and once-only output,
 plus recursive Bind/Choose source composition with borrowed native type observations,
@@ -4027,6 +4491,16 @@ registry lifecycle/opaque-native cost observation and validation policy,
 opaque-effect typing/dispatch, complete suspension and durable
 reply ownership still need separation. The current
 VM's SQLite backend is not moved into, or required by, this lifecycle crate.
+
+The catalog-driven expression entry above now joins shared scalar/control/call/
+projection construction and whole-flow inference without a native recursive
+compiler callback. Structured-device and scalar-counter parsed programs use it
+with shared borrowed sessions through typed replies, re-entry and cancellation.
+The multi-function entry now closes acyclic scalar-parameter helper compilation
+and return capture through the same sessions without native template copying.
+Both verticals also run with `leserpent-profile` disabled and its operation
+contract absent. This closes expression/helper and optional HIR profile boundaries, not the full group/opaque-native,
+product-adapter migration or durable VM acceptance gate below.
 
 The extraction acceptance gate is:
 

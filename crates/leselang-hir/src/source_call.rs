@@ -301,6 +301,29 @@ pub(crate) fn span(expression: &Expression) -> Span {
         | Expression::None { span } => *span,
     }
 }
+// Nonempty fixed signatures only. Borrow original operands in protocol order;
+// malformed arguments or a duplicate signature never produce a partial view.
+pub(crate) fn fixed_named_operands<'source, const N: usize>(
+    arguments: &'source [NamedArgument],
+    expected: &[&str; N],
+) -> Option<[&'source Expression; N]> {
+    if arguments.len() != N {
+        return None;
+    }
+    let mut ordered = [&arguments.first()?.value; N];
+    for (index, (slot, name)) in ordered.iter_mut().zip(expected).enumerate() {
+        if expected.iter().take(index).any(|previous| previous == name) {
+            return None;
+        }
+        let mut matches = arguments.iter().filter(|argument| argument.name == *name);
+        *slot = &matches.next()?.value;
+        if matches.next().is_some() {
+            return None;
+        }
+    }
+    Some(ordered)
+}
+
 pub(crate) fn valid_limits(limits: SourceCallLimits) -> bool {
     limits.max_source_nodes <= MAX_TYPE_INFERENCE_NODES
         && limits.max_lowered_nodes <= MAX_TYPE_INFERENCE_NODES
@@ -554,4 +577,92 @@ where
         schema,
         arguments: lowered,
     })
+}
+
+#[cfg(test)]
+mod fixed_named_tests {
+    use super::fixed_named_operands;
+    use leselang_syntax::{Expression, NamedArgument, parse};
+
+    fn arguments(text: &str) -> Vec<NamedArgument> {
+        let tree = parse(&format!("fn main() = {text}"));
+        assert!(tree.diagnostics.is_empty(), "{:?}", tree.diagnostics);
+        let Expression::Call { arguments, .. } = tree.function.unwrap().body else {
+            panic!("expected a source call");
+        };
+        arguments
+    }
+
+    #[test]
+    fn fixed_signature_views_keep_original_operands_in_all_submission_orders() {
+        for order in [
+            ["when", "then", "otherwise"],
+            ["when", "otherwise", "then"],
+            ["then", "when", "otherwise"],
+            ["then", "otherwise", "when"],
+            ["otherwise", "when", "then"],
+            ["otherwise", "then", "when"],
+        ] {
+            let arguments = arguments(&format!(
+                "choose({}: first, {}: second, {}: third)",
+                order[0], order[1], order[2]
+            ));
+            let buffer = arguments.as_ptr();
+            let expected = ["when", "then", "otherwise"];
+            let operands = fixed_named_operands(&arguments, &expected).unwrap();
+            for (operand, name) in operands.into_iter().zip(expected) {
+                let original = &arguments.iter().find(|arg| arg.name == name).unwrap().value;
+                assert!(std::ptr::eq(operand, original));
+            }
+            assert_eq!(arguments.as_ptr(), buffer);
+            assert_eq!(
+                arguments
+                    .iter()
+                    .map(|arg| arg.name.as_str())
+                    .collect::<Vec<_>>(),
+                order
+            );
+        }
+        let unary = arguments("not(value: original)");
+        assert!(std::ptr::eq(
+            fixed_named_operands(&unary, &["value"]).unwrap()[0],
+            &unary[0].value
+        ));
+        let binary = arguments("add(right: second, left: first)");
+        let [left, right] = fixed_named_operands(&binary, &["left", "right"]).unwrap();
+        assert!(std::ptr::eq(left, &binary[1].value));
+        assert!(std::ptr::eq(right, &binary[0].value));
+    }
+
+    #[test]
+    fn fixed_signature_views_reject_missing_extra_duplicate_and_unknown_names() {
+        for text in [
+            "choose()",
+            "choose(when: true, then: first)",
+            "choose(when: true, then: first, otherwise: second, extra: third)",
+            "choose(when: true, then: first, then: second)",
+            "choose(when: true, otherwise: first, otherwise: second)",
+            "choose(when: true, then: first, unknown: second)",
+            "choose(When: true, then: first, otherwise: second)",
+        ] {
+            assert!(
+                fixed_named_operands(&arguments(text), &["when", "then", "otherwise"]).is_none()
+            );
+        }
+        for text in [
+            "field(value: first, value: second)",
+            "field(value: first, other: second)",
+        ] {
+            assert!(fixed_named_operands(&arguments(text), &["value", "name"]).is_none());
+        }
+        assert!(fixed_named_operands(&arguments("not(other: first)"), &["value"]).is_none());
+    }
+
+    #[test]
+    fn fixed_signature_views_fail_closed_for_empty_or_duplicate_protocols() {
+        assert!(fixed_named_operands(&[], &[]).is_none());
+        let arguments = arguments("call(first: 1, second: 2)");
+        assert!(fixed_named_operands(&arguments, &["first", "first"]).is_none());
+        assert!(fixed_named_operands(&arguments, &["absent", "absent"]).is_none());
+    }
 }

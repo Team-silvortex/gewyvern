@@ -9,10 +9,13 @@ use crate::ir::Computation;
 use crate::pure_typing::{
     PureType, PureTypeError, preflight_with_budget, valid_local_name, valid_member_name,
 };
-use crate::source_call::{SourceCallError, SourceCallLimits, preflight, span, valid_limits};
+use crate::source_call::{
+    SourceCallError, SourceCallLimits, fixed_named_operands, preflight, span, valid_limits,
+};
 
 type Node<Field, Operation, HostEffect, IrResult> =
     Computation<Field, Operation, HostEffect, IrResult>;
+#[cfg(any(test, feature = "leserpent-profile"))]
 type NativeFieldInput<Node, Input, Error> = Result<(Node, Input), Error>;
 type NativeFieldExport<Field, Error> = Result<Option<(Field, ScalarType)>, Error>;
 type FieldSourceOutput<Node, Error> = Result<(Node, ScalarType), ProjectionSourceError<Error>>;
@@ -115,6 +118,7 @@ impl<'source> FieldSource<'source> {
     // The reference frontend owns cold source/declaration checks and recursive
     // accounting. Keep child errors before literal/closed-name decoding here;
     // decoding is metadata mapping, never a native export or value query.
+    #[cfg(any(test, feature = "leserpent-profile"))]
     pub(crate) fn lower_preflighted<Field, Operation, HostEffect, IrResult, Input, Key, Error>(
         self,
         limits: SourceCallLimits,
@@ -199,29 +203,9 @@ pub(crate) fn field_source<Error>(
     arguments: &[NamedArgument],
     at: Span,
 ) -> Result<FieldSource<'_>, ProjectionSourceError<Error>> {
-    if arguments.len() != 2
-        || ["value", "name"].iter().any(|name| {
-            arguments
-                .iter()
-                .filter(|argument| argument.name == *name)
-                .count()
-                != 1
-        })
-    {
-        return Err(ProjectionSourceError::Names { span: at });
-    }
-    let get = |name: &str| {
-        arguments
-            .iter()
-            .find(|argument| argument.name == name)
-            .map(|argument| &argument.value)
-            .ok_or(ProjectionSourceError::Names { span: at })
-    };
-    Ok(FieldSource {
-        value: get("value")?,
-        name: get("name")?,
-        at,
-    })
+    let [value, name] = fixed_named_operands(arguments, &["value", "name"])
+        .ok_or(ProjectionSourceError::Names { span: at })?;
+    Ok(FieldSource { value, name, at })
 }
 
 pub(crate) struct MemberSource<'source> {

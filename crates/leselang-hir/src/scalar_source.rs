@@ -12,7 +12,9 @@ use crate::ir::Computation;
 use crate::pure_typing::{
     MAX_TYPE_INFERENCE_BINDINGS, PureTypeError, preflight_with_budget, valid_local_name,
 };
-use crate::source_call::{SourceCallError, SourceCallLimits, preflight, span, valid_limits};
+use crate::source_call::{
+    SourceCallError, SourceCallLimits, fixed_named_operands, preflight, span, valid_limits,
+};
 
 mod fold;
 pub(crate) use fold::{fold_items, fold_next, fold_source};
@@ -202,7 +204,7 @@ pub struct ScalarSourceScope<'scope, 'names> {
     bindings: &'scope [(&'names str, ScalarType)],
 }
 
-impl ScalarSourceScope<'_, '_> {
+impl<'scope, 'names> ScalarSourceScope<'scope, 'names> {
     pub fn get(&self, name: &str) -> Option<ScalarType> {
         self.bindings
             .iter()
@@ -216,6 +218,10 @@ impl ScalarSourceScope<'_, '_> {
 
     pub fn is_empty(&self) -> bool {
         self.bindings.is_empty()
+    }
+
+    pub(crate) fn bindings(&self) -> &'scope [(&'names str, ScalarType)] {
+        self.bindings
     }
 }
 
@@ -454,6 +460,34 @@ pub(crate) fn preflight_bindings<'source, Error>(
     scope: &mut ScopeFrame<'_, 'source, ScalarType>,
     max_bindings: usize,
 ) -> Result<(), ScalarSourceError<Error>> {
+    preflight_binding_scope(expression, scope, max_bindings, false)
+}
+
+pub(crate) fn preflight_closed_bindings<'source, Error>(
+    expression: &'source Expression,
+    scope: &mut ScopeFrame<'_, 'source, ScalarType>,
+    max_bindings: usize,
+) -> Result<(), ScalarSourceError<Error>> {
+    preflight_binding_scope(expression, scope, max_bindings, true)
+}
+
+// Open native-alias profiles retain their old behavior; closed profiles deny all
+// unbound references while reusing the same Bind/Loop/Fold scope transitions.
+fn preflight_binding_scope<'source, Error>(
+    expression: &'source Expression,
+    scope: &mut ScopeFrame<'_, 'source, ScalarType>,
+    max_bindings: usize,
+    closed: bool,
+) -> Result<(), ScalarSourceError<Error>> {
+    if let Expression::Reference { name, .. } = expression
+        && closed
+        && scope.get(name).is_none()
+    {
+        return Err(ScalarSourceError::Bindings {
+            span: span(expression),
+            error: PureTypeError::UnknownLocal,
+        });
+    }
     if let Expression::Call {
         callee, arguments, ..
     } = expression
@@ -461,7 +495,7 @@ pub(crate) fn preflight_bindings<'source, Error>(
         if callee == "bind" {
             let source = binding_source(expression)?;
             check_binding(&source, scope, max_bindings)?;
-            preflight_bindings(&source.binding.value, scope, max_bindings)?;
+            preflight_binding_scope(&source.binding.value, scope, max_bindings, closed)?;
             let mut local = scope.nested();
             local
                 .push(&source.binding.name, ScalarType::None)
@@ -469,7 +503,7 @@ pub(crate) fn preflight_bindings<'source, Error>(
                     span: source.binding.span,
                     error: PureTypeError::ShadowedBinding,
                 })?;
-            preflight_bindings(source.body, &mut local, max_bindings)?;
+            preflight_binding_scope(source.body, &mut local, max_bindings, closed)?;
         } else if callee == "loop" {
             let source = loop_source(arguments, span(expression))?;
             check_local_binding(
@@ -479,7 +513,7 @@ pub(crate) fn preflight_bindings<'source, Error>(
                 max_bindings,
             )?;
             source.limit()?;
-            preflight_bindings(&source.binding.value, scope, max_bindings)?;
+            preflight_binding_scope(&source.binding.value, scope, max_bindings, closed)?;
             let mut local = scope.nested();
             local
                 .push(&source.binding.name, ScalarType::None)
@@ -487,14 +521,14 @@ pub(crate) fn preflight_bindings<'source, Error>(
                     span: source.binding.span,
                     error: PureTypeError::ShadowedBinding,
                 })?;
-            preflight_bindings(source.condition, &mut local, max_bindings)?;
-            preflight_bindings(source.next, &mut local, max_bindings)?;
+            preflight_binding_scope(source.condition, &mut local, max_bindings, closed)?;
+            preflight_binding_scope(source.next, &mut local, max_bindings, closed)?;
         } else if callee == "fold" {
             let source = fold_source(arguments, span(expression))?;
             source.check_scope(scope, Some(max_bindings))?;
             source.limit()?;
-            preflight_bindings(source.items, scope, max_bindings)?;
-            preflight_bindings(&source.binding.value, scope, max_bindings)?;
+            preflight_binding_scope(source.items, scope, max_bindings, closed)?;
+            preflight_binding_scope(&source.binding.value, scope, max_bindings, closed)?;
             let mut local = scope.nested();
             for (name, ty) in [
                 (source.binding.name.as_str(), ScalarType::None),
@@ -504,59 +538,44 @@ pub(crate) fn preflight_bindings<'source, Error>(
                     .push(name, ty)
                     .map_err(|_| source.binding_error(PureTypeError::ShadowedBinding))?;
             }
-            preflight_bindings(source.next, &mut local, max_bindings)?;
+            preflight_binding_scope(source.next, &mut local, max_bindings, closed)?;
         } else {
             for argument in arguments {
-                preflight_bindings(&argument.value, scope, max_bindings)?;
+                preflight_binding_scope(&argument.value, scope, max_bindings, closed)?;
             }
         }
     }
     Ok(())
 }
 
-fn check_named<Error>(
+fn check_named<Error, const N: usize>(
     arguments: &[NamedArgument],
-    expected: &'static [&'static str],
+    expected: &'static [&'static str; N],
     at: Span,
 ) -> Result<(), ScalarSourceError<Error>> {
-    if arguments.len() != expected.len()
-        || expected.iter().any(|name| {
-            arguments
-                .iter()
-                .filter(|argument| argument.name == *name)
-                .count()
-                != 1
-        })
-    {
+    if fixed_named_operands(arguments, expected).is_none() {
         return Err(ScalarSourceError::Names { span: at, expected });
     }
     Ok(())
 }
 
-fn named<'source, Error>(
+fn named<'source, Error, const N: usize>(
     arguments: &'source [NamedArgument],
-    expected: &'static [&'static str],
+    expected: &'static [&'static str; N],
     at: Span,
-) -> Result<Vec<&'source Expression>, ScalarSourceError<Error>> {
-    check_named(arguments, expected, at)?;
-    Ok(expected
-        .iter()
-        .filter_map(|name| {
-            arguments
-                .iter()
-                .find(|argument| argument.name == *name)
-                .map(|argument| &argument.value)
-        })
-        .collect())
+) -> Result<[&'source Expression; N], ScalarSourceError<Error>> {
+    fixed_named_operands(arguments, expected).ok_or(ScalarSourceError::Names { span: at, expected })
+}
+
+pub(crate) fn primitive_name(name: &str) -> bool {
+    matches!(name, "strings" | "recover")
+        || BinaryOperator::parse(name).is_some()
+        || UnaryOperator::parse(name).is_some()
 }
 
 pub(crate) fn primitive(expression: &Expression) -> bool {
     match expression {
-        Expression::Call { callee, .. } => {
-            matches!(callee.as_str(), "strings" | "recover")
-                || BinaryOperator::parse(callee).is_some()
-                || UnaryOperator::parse(callee).is_some()
-        }
+        Expression::Call { callee, .. } => primitive_name(callee),
         Expression::Reference { .. } => false,
         _ => true,
     }
@@ -810,9 +829,9 @@ pub(crate) fn preflight_names<Error>(
         } = node
         {
             if callee == "choose" {
-                check_named::<Error>(arguments, &["when", "then", "otherwise"], span(node))?;
+                check_named::<Error, 3>(arguments, &["when", "then", "otherwise"], span(node))?;
             } else if callee == "recover" {
-                check_named::<Error>(arguments, &["value", "fallback"], span(node))?;
+                check_named::<Error, 2>(arguments, &["value", "fallback"], span(node))?;
             } else if callee == "strings" {
                 check_string_count::<Error>(arguments, span(node))?;
                 let mut names = HashSet::new();
@@ -820,9 +839,9 @@ pub(crate) fn preflight_names<Error>(
                     check_string_label::<Error>(argument, &mut names)?;
                 }
             } else if BinaryOperator::parse(callee).is_some() {
-                check_named::<Error>(arguments, &["left", "right"], span(node))?;
+                check_named::<Error, 2>(arguments, &["left", "right"], span(node))?;
             } else if UnaryOperator::parse(callee).is_some() {
-                check_named::<Error>(arguments, &["value"], span(node))?;
+                check_named::<Error, 1>(arguments, &["value"], span(node))?;
             }
             pending.extend(arguments.iter().rev().map(|argument| &argument.value));
         }

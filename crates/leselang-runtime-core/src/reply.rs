@@ -107,6 +107,12 @@ pub struct AcceptedReply<'schema, Identity, Frame, Declaration: ?Sized, Reply> {
 impl<'schema, Identity, Frame, Declaration: ?Sized, Reply>
     AcceptedReply<'schema, Identity, Frame, Declaration, Reply>
 {
+    /// Inspect immutable borrows without copying input, transferring ownership,
+    /// validating current native policy or selecting a new continuation.
+    pub fn as_parts(&self) -> (&Identity, &Frame, &'schema Declaration, &Reply) {
+        (&self.identity, &self.frame, self.declaration, &self.reply)
+    }
+
     pub fn into_parts(self) -> (Identity, Frame, &'schema Declaration, Reply) {
         (self.identity, self.frame, self.declaration, self.reply)
     }

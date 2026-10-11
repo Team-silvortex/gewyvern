@@ -2,21 +2,18 @@ use std::borrow::Borrow;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use leselang_hir::bound_projection_source::*;
 use leselang_hir::call_evaluation::*;
-use leselang_hir::call_typing::{CallTypeHost, CallTypeLimits};
+use leselang_hir::catalog_program::{CatalogProgramLimits, compile_catalog_program};
+use leselang_hir::catalog_source::*;
 use leselang_hir::control_source::*;
 use leselang_hir::effect_evaluation::*;
 use leselang_hir::effect_reentry::*;
 use leselang_hir::effect_session::*;
-use leselang_hir::flow_typing::{CallFlowEnvironment, CallFlowTypeLimits, infer_call_flow_type};
+use leselang_hir::flow_typing::CallFlowEnvironment;
 use leselang_hir::ir::Computation;
 use leselang_hir::pure_evaluation::{PureEvaluationEnvironment, PureEvaluationLimits, PureValue};
-use leselang_hir::pure_typing::{PureType, PureTypeEnvironment, TypeInferenceLimits};
-use leselang_hir::scalar_source::{ScalarSourceLimits, lower_scalar_source_with_scope};
-use leselang_hir::source_call::{
-    SourceCallHost, SourceCallLimits, SourceSchema, lower_source_call,
-};
+use leselang_hir::pure_typing::{PureType, PureTypeEnvironment};
+use leselang_hir::source_call::{SourceCallError, SourceCallHost, SourceCallLimits, SourceSchema};
 use leselang_runtime_core::*;
 use leselang_syntax::{Expression, parse};
 
@@ -145,20 +142,22 @@ impl<'schema> CallFlowEnvironment<'schema, u8, &'static str, Domain<'schema>>
         })
     }
 }
-impl<'source, 'schema> BoundProjectionSourceEnvironment<'source, u8, &'static str>
-    for &Host<'_, 'schema>
+impl<'source, 'schema> CatalogSourceEnvironment<'source, 'schema, u8, &'static str, Domain<'schema>>
+    for Host<'_, 'schema>
 {
-    type Result = &'schema Layout;
     type Error = PrivateError;
-    fn field(
-        &mut self,
+    fn source_operation(&self, original: &&'static str) -> Result<&'static str, PrivateError> {
+        Ok(*original)
+    }
+    fn source_field(
+        &self,
         result: &&'schema Layout,
         name: &'source str,
     ) -> Result<Option<(u8, ScalarType)>, PrivateError> {
         Ok(self.field_key(result, name))
     }
-    fn member(
-        &mut self,
+    fn source_member(
+        &self,
         _: &&'schema Layout,
         _: &'source str,
         _: &'source str,
@@ -167,142 +166,23 @@ impl<'source, 'schema> BoundProjectionSourceEnvironment<'source, u8, &'static st
     }
 }
 impl<'schema> Host<'_, 'schema> {
-    fn scalar<'source>(
+    fn compile(
         &self,
-        source: &'source Expression,
-        bindings: &[(&'source str, &PureType<&'schema Layout>)],
-    ) -> Result<(Node, ScalarType), PrivateError> {
-        let prefix = bindings
-            .iter()
-            .map(|(name, ty)| {
-                (
-                    *name,
-                    match ty {
-                        PureType::Scalar(ty) => *ty,
-                        PureType::Result(_) => ScalarType::None,
-                    },
-                )
-            })
-            .collect::<Vec<_>>();
-        let mut projection = self;
-        lower_scalar_source_with_scope(
+        source: &Expression,
+    ) -> CatalogSourceResult<Node, &'schema Layout, PrivateError> {
+        compile_catalog_source(
             source,
-            ScalarSourceLimits {
-                source: SOURCE,
-                max_bindings: 8,
-            },
-            &prefix,
-            |child, _| {
-                let (node, ty) = lower_bound_projection_source(
-                    child,
-                    bindings,
-                    BoundProjectionSourceLimits {
-                        source: SOURCE,
-                        max_bindings: 8,
-                    },
-                    &mut projection,
-                )
-                .map_err(|_| PrivateError("bound native projection source rejected"))?;
-                let PureType::Scalar(ty) = ty else {
-                    return Err(PrivateError("group result is not scalar"));
-                };
-                Ok((node, Some(ty)))
-            },
-        )
-        .map_err(|_| PrivateError("native scalar source rejected"))
-    }
-}
-impl<'source, 'schema> ControlSourceAdapter<'source, u8, &'static str, Rc<()>, ()>
-    for Host<'_, 'schema>
-{
-    type Type = PureType<&'schema Layout>;
-    type Error = PrivateError;
-    fn lower_leaf(
-        &mut self,
-        source: &'source Expression,
-        scope: ControlSourceScope<'_, 'source, Self::Type>,
-    ) -> Result<(Node, Self::Type), PrivateError> {
-        if matches!(source, Expression::Call { callee, .. } if callee.starts_with("device.")) {
-            let lowered = lower_source_call(source, &self.source, SOURCE, |arg| {
-                self.scalar(&arg.value, scope.bindings())
-                    .map(|(node, ty)| (node, Some(ty)))
-            })
-            .map_err(|_| PrivateError("native source catalog rejected"))?;
-            let schema = lowered.schema();
-            let ty = self
-                .call_result_type(&schema.key, &schema.result)
-                .ok_or(PrivateError("missing result observation"))?;
-            return Ok((
-                Node::Call {
-                    operation: schema.key,
-                    arguments: lowered.into_arguments(),
-                },
-                ty,
-            ));
-        }
-        if matches!(source, Expression::Call { callee, .. } if matches!(callee.as_str(), "field" | "member"))
-        {
-            return lower_bound_projection_source(
-                source,
-                scope.bindings(),
-                BoundProjectionSourceLimits {
+            &[],
+            CatalogSourceLimits {
+                control: ControlSourceLimits {
                     source: SOURCE,
                     max_bindings: 8,
                 },
-                &mut &*self,
-            )
-            .map_err(|_| PrivateError("bound projection source rejected"));
-        }
-        self.scalar(source, scope.bindings())
-            .map(|(node, ty)| (node, PureType::Scalar(ty)))
-    }
-    fn boolean(&mut self, _: &Node, ty: &Self::Type) -> Result<bool, PrivateError> {
-        Ok(matches!(ty, PureType::Scalar(ScalarType::Boolean)))
-    }
-    fn same(&mut self, left: &Self::Type, right: &Self::Type) -> Result<bool, PrivateError> {
-        Ok(left == right)
-    }
-    fn admit(
-        &mut self,
-        _: &'source Expression,
-        node: &Node,
-        ty: &Self::Type,
-        scope: ControlSourceScope<'_, 'source, Self::Type>,
-    ) -> Result<(), PrivateError> {
-        let prefix = scope
-            .bindings()
-            .iter()
-            .map(|(name, ty)| (*name, (*ty).clone()))
-            .collect::<Vec<_>>();
-        let host = CallTypeHost {
-            catalog: self.source.catalog,
-            version: self.source.version,
-            granted: self.source.granted,
-            environment: &*self,
-        };
-        let actual = infer_call_flow_type(
-            node,
-            &prefix,
-            &*self,
-            &host,
-            CallFlowTypeLimits {
-                call: CallTypeLimits {
-                    pure: TypeInferenceLimits {
-                        max_nodes: 256,
-                        max_depth: 32,
-                        max_bindings: 8,
-                    },
-                    max_arguments: 64,
-                },
                 max_calls: 64,
             },
+            &self.source,
+            self,
         )
-        .map_err(|_| PrivateError("whole native field flow admission rejected"))?;
-        if &actual == ty {
-            Ok(())
-        } else {
-            Err(PrivateError("wrong result observation"))
-        }
     }
 }
 
@@ -597,16 +477,7 @@ fn with_host(test: impl for<'host, 'schema> FnOnce(&mut Host<'host, 'schema>, &'
 fn parsed_record_reply_fields_drive_native_branch_arguments_with_exact_fuel_and_no_snapshot_copy() {
     with_host(|host, _| {
         let input = expression(PROGRAM);
-        let (program, ty) = lower_control_source(
-            &input,
-            &[],
-            ControlSourceLimits {
-                source: SOURCE,
-                max_bindings: 8,
-            },
-            host,
-        )
-        .unwrap();
+        let (program, ty) = host.compile(&input).unwrap();
         assert!(matches!(ty, PureType::Scalar(ScalarType::Integer)));
         for ready in [true, false] {
             host.current.set(41);
@@ -678,16 +549,7 @@ fn parsed_record_reply_fields_drive_native_branch_arguments_with_exact_fuel_and_
 fn foreign_record_domain_and_cancellation_before_field_projection_preserve_native_reply_ownership()
 {
     with_host(|host, foreign| {
-        let (program, _) = lower_control_source(
-            &expression(PROGRAM),
-            &[],
-            ControlSourceLimits {
-                source: SOURCE,
-                max_bindings: 8,
-            },
-            host,
-        )
-        .unwrap();
+        let (program, _) = host.compile(&expression(PROGRAM)).unwrap();
         let mut session = EffectSession::new(&program, Vec::new(), Fuel::new(100), EXECUTION);
         let EffectSessionPoll::Request(read) = session.poll(host).unwrap() else {
             panic!()
@@ -738,54 +600,20 @@ fn whole_native_source_typing_rejects_foreign_fields_unbound_aliases_and_cold_gr
             "bind(value: device.write(value: 0), body: field(value: value, name: \"count\"))",
             "bind(snapshot: device.read(), body: choose(when: true, then: device.write(value: 0), otherwise: device.write(value: field(value: snapshot, name: \"ready\"))))",
         ] {
-            assert!(
-                lower_control_source(
-                    &expression(text),
-                    &[],
-                    ControlSourceLimits {
-                        source: SOURCE,
-                        max_bindings: 8
-                    },
-                    host
-                )
-                .is_err()
-            );
+            assert!(host.compile(&expression(text)).is_err());
         }
         host.source.granted = &[31];
-        assert!(
-            lower_control_source(
-                &expression(PROGRAM),
-                &[],
-                ControlSourceLimits {
-                    source: SOURCE,
-                    max_bindings: 8
-                },
-                host
-            )
-            .is_err()
-        );
+        assert!(host.compile(&expression(PROGRAM)).is_err());
         host.source.granted = &[31, 32];
         host.source.version = 8;
-        let error = lower_control_source(
-            &expression(PROGRAM),
-            &[],
-            ControlSourceLimits {
-                source: SOURCE,
-                max_bindings: 8,
-            },
-            host,
-        )
-        .err()
-        .unwrap();
-        assert!(!format!("{error:?}").contains("catalog"));
-        let ControlSourceError::Native {
-            error: PrivateError(reason),
-            ..
-        } = error
-        else {
+        let error = host.compile(&expression(PROGRAM)).err().unwrap();
+        let CatalogSourceError::Call { error, .. } = error else {
             panic!()
         };
-        assert_eq!(reason, "native source catalog rejected");
+        assert!(matches!(
+            *error,
+            SourceCallError::Catalog(OperationCatalogError::UnsupportedVersion)
+        ));
         assert!(host.calls.borrow().is_empty());
         assert!(host.queries.borrow().is_empty());
     });
@@ -795,16 +623,7 @@ fn whole_native_source_typing_rejects_foreign_fields_unbound_aliases_and_cold_gr
 fn post_acceptance_live_policy_and_native_view_identity_fail_before_write_without_retry() {
     with_host(|host, foreign| {
         let original = host.layout;
-        let (program, _) = lower_control_source(
-            &expression(PROGRAM),
-            &[],
-            ControlSourceLimits {
-                source: SOURCE,
-                max_bindings: 8,
-            },
-            host,
-        )
-        .unwrap();
+        let (program, _) = host.compile(&expression(PROGRAM)).unwrap();
         for revoke in [true, false] {
             host.layout = original;
             host.source.granted = &[31, 32];
@@ -841,5 +660,122 @@ fn post_acceptance_live_policy_and_native_view_identity_fail_before_write_withou
             assert_eq!(*host.calls.borrow(), ["device.read"]);
             assert_eq!(host.current.get(), 41);
         }
+    });
+}
+
+#[test]
+fn catalog_native_error_payload_is_matchable_but_never_formatted_or_chained() {
+    let error = CatalogSourceError::Mapping {
+        span: leselang_syntax::Span { start: 0, end: 1 },
+        error: PrivateError("sensitive native mapping detail"),
+    };
+    assert!(!format!("{error:?}").contains("sensitive"));
+    assert!(!error.to_string().contains("sensitive"));
+    assert!(std::error::Error::source(&error).is_none());
+    let CatalogSourceError::Mapping {
+        error: PrivateError(reason),
+        ..
+    } = error
+    else {
+        panic!()
+    };
+    assert_eq!(reason, "sensitive native mapping detail");
+}
+
+#[test]
+fn multifunction_record_host_preserves_original_reply_fields_live_policy_and_cancel_ownership() {
+    with_host(|host, _| {
+        let parsed = parse(
+            "fn main() = bind(snapshot: read(), body: choose(when: field(value: snapshot, name: \"ready\"), then: write(value: add(left: field(value: snapshot, name: \"count\"), right: 1)), otherwise: write(value: 0)))\nfn read() = device.read()\nfn write(value: integer) = device.write(value: value)",
+        );
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let declarations: Vec<_> = parsed.function.iter().chain(&parsed.helpers).collect();
+        let (program, ty): (Node, _) = compile_catalog_program(
+            &declarations,
+            "main",
+            CatalogProgramLimits {
+                expression: CatalogSourceLimits {
+                    control: ControlSourceLimits {
+                        source: SOURCE,
+                        max_bindings: 8,
+                    },
+                    max_calls: 64,
+                },
+                max_functions: 32,
+                max_parameters: 8,
+                max_compilation_nodes: 4096,
+                max_expansion_depth: 32,
+            },
+            &host.source,
+            host,
+        )
+        .unwrap();
+        assert!(matches!(ty, PureType::Scalar(ScalarType::Integer)));
+        for ready in [true, false] {
+            host.ready.set(ready);
+            host.current.set(41);
+            host.calls.borrow_mut().clear();
+            host.queries.borrow_mut().clear();
+            let mut session = EffectSession::new(&program, Vec::new(), Fuel::new(1000), EXECUTION);
+            let EffectSessionPoll::Request(read) = session.poll(host).unwrap() else {
+                panic!()
+            };
+            let reply = host.invoke(read);
+            let ReplyData::Record(record) = &reply.data else {
+                panic!()
+            };
+            let weak = Rc::downgrade(record);
+            session
+                .try_accept(&(17, "device.read"), reply, host)
+                .unwrap();
+            assert!(host.queries.borrow().is_empty());
+            let EffectSessionPoll::Request(write) = session.poll(host).unwrap() else {
+                panic!()
+            };
+            assert_eq!(
+                write.arguments()[0].value,
+                ScalarValue::Integer(if ready { 42 } else { 0 })
+            );
+            assert_eq!(weak.strong_count(), 0);
+            session
+                .try_accept(&(17, "device.write"), host.invoke(write), host)
+                .unwrap();
+            assert!(
+                matches!(session.poll(host).unwrap(), EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::Integer(n))) if n == if ready {42} else {0})
+            );
+            assert_eq!(*host.calls.borrow(), ["device.read", "device.write"]);
+        }
+        host.queries.borrow_mut().clear();
+        let mut cancelled = EffectSession::new(&program, Vec::new(), Fuel::new(1000), EXECUTION);
+        let EffectSessionPoll::Request(read) = cancelled.poll(host).unwrap() else {
+            panic!()
+        };
+        let reply = host.invoke(read);
+        let ReplyData::Record(record) = &reply.data else {
+            panic!()
+        };
+        let weak = Rc::downgrade(record);
+        cancelled
+            .try_accept(&(17, "device.read"), reply, host)
+            .unwrap();
+        assert!(cancelled.cancel());
+        assert_eq!(weak.strong_count(), 0);
+        assert!(host.queries.borrow().is_empty());
+        assert!(matches!(
+            cancelled.poll(host).unwrap(),
+            EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+        ));
+        let mut revoked = EffectSession::new(&program, Vec::new(), Fuel::new(1000), EXECUTION);
+        let EffectSessionPoll::Request(read) = revoked.poll(host).unwrap() else {
+            panic!()
+        };
+        revoked
+            .try_accept(&(17, "device.read"), host.invoke(read), host)
+            .unwrap();
+        host.source.granted = &[31];
+        let before = host.calls.borrow().len();
+        assert!(revoked.poll(host).is_err());
+        assert_eq!(host.calls.borrow().len(), before);
+        host.source.granted = &[31, 32];
     });
 }

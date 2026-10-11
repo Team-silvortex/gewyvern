@@ -119,28 +119,6 @@ impl std::error::Error for PreparedCallTypeError {}
 type Node<Field, Operation, HostEffect, IrResult> =
     Computation<Field, Operation, HostEffect, IrResult>;
 
-// Call/Bind/Choose edges only. Reference callers first validate full structure,
-// canonical source and the old prepared-atomic classification before using this.
-pub(crate) fn call_leaves_only<Field, Operation, HostEffect, IrResult>(
-    expression: &Node<Field, Operation, HostEffect, IrResult>,
-) -> bool {
-    let mut pending = vec![expression];
-    while let Some(node) = pending.pop() {
-        match node {
-            Computation::Call { .. } => {}
-            Computation::Bind { body, .. } => pending.push(body),
-            Computation::Choose {
-                then, otherwise, ..
-            } => {
-                pending.push(otherwise);
-                pending.push(then);
-            }
-            _ => return false,
-        }
-    }
-    true
-}
-
 fn preflight<'expression, Field, Operation, HostEffect, IrResult, ResultTag>(
     expression: &'expression Node<Field, Operation, HostEffect, IrResult>,
     bindings: &[(&str, PureType<ResultTag>)],

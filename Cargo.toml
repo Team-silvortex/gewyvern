@@ -84,3 +84,9 @@ debug = "line-tables-only"
 [profile.test]
 debug = "line-tables-only"
 incremental = false
+
+# Opt-in for focused validation when disk space matters more than debugging.
+[profile.lean]
+inherits = "dev"
+debug = 0
+incremental = false

@@ -635,6 +635,7 @@ fn admission_does_not_certify_native_calls_entry_cycles_literals_or_cold_types()
     assert!(accept(&[&entry], "launch", LIMITS).is_ok());
     let cold = tree("fn unused() = choose(when: true, then: 0, otherwise: unbound)\nfn main() = 0");
     assert!(accept(&declarations(&cold), "main", LIMITS).is_ok());
+    #[cfg(feature = "leserpent-profile")]
     assert!(leselang_hir::lower(&cold).is_err());
 }
 
@@ -797,6 +798,7 @@ fn accepted_borrowed_headers_compose_with_shared_templates_hygiene_and_exact_fue
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_declaration_diagnostics_wire_names_and_cold_authority_are_unchanged() {
     let source = "fn work(a: string, b: string) = ui.focus(node_id: concat(left: a, right: b))\nfn main() = work(b: \"b\", a: \"a\")";
     let program = leselang_hir::lower(&tree(source)).unwrap();

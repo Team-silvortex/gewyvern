@@ -861,6 +861,7 @@ fn late_native_cost_failure_and_unwind_drop_every_instance_without_admission() {
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_flat_and_legacy_nested_repeat_keep_labels_wire_authority_and_diagnostics() {
     for body in [
         "repeat(times: 3, body: ui.focus(node_id: concat(left: \"a\", right: \"b\")))",

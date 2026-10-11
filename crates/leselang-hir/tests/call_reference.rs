@@ -1,3 +1,5 @@
+#![cfg(feature = "leserpent-profile")]
+
 use leselang_hir::call_typing::{CallTypeLimits, check_call_arguments};
 use leselang_hir::computation::{Computation, GroupLocalType};
 use leselang_hir::host_call::HostOperation;

@@ -665,6 +665,7 @@ fn native_unwind_drops_all_consumed_rows_once_and_never_retries() {
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_nested_sequences_keep_canonical_wire_authority_and_diagnostics() {
     for body in [
         "seq(inner: seq(one: ui.focus(node_id: node)), tail: runtime.list())",

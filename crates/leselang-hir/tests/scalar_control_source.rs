@@ -589,6 +589,7 @@ fn parsed_panel_call_prepares_control_operand_through_original_native_schema() {
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_control_diagnostics_spans_order_and_effect_branches_are_preserved() {
     for (source, code, message, child) in [
         (

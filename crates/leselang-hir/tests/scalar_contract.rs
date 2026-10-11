@@ -1,3 +1,5 @@
+#![cfg(feature = "leserpent-profile")]
+
 use leselang_hir::computation::{OptionalStringValue, ScalarValue, StringListValue};
 use leselang_hir::host_call::HostOperation;
 use leselang_hir::lower;

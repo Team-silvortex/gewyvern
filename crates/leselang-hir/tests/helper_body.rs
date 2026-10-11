@@ -913,6 +913,7 @@ fn parsed_scalar_helper_admission_materialization_binding_and_returns_keep_value
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_helpers_preserve_canonical_wire_authority_and_unused_cold_rejection() {
     let source = "fn work(n: integer) = add(left: n, right: 1)\nfn main() = ui.focus(node_id: to_string(value: work(n: 41)))";
     let program = leselang_hir::lower(&leselang_syntax::parse(source)).unwrap();

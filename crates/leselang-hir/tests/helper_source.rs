@@ -854,6 +854,7 @@ fn successful_dynamic_observations_do_not_replace_complete_cold_inference() {
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_signature_diagnostics_wire_names_and_authority_remain_compatible() {
     for (source, code, message, location) in [
         (

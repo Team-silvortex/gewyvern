@@ -183,6 +183,18 @@ pub struct SequenceAccepted<'expression, Node, IrResult, Identity, Declaration: 
 impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
     SequenceAccepted<'expression, Node, IrResult, Identity, Declaration, Reply>
 {
+    pub(crate) fn new(
+        index: usize,
+        branch: &'expression ComputedBranch<Node, IrResult>,
+        accepted: AcceptedReply<'expression, Identity, (), Declaration, Reply>,
+    ) -> Self {
+        Self {
+            index,
+            branch,
+            accepted,
+        }
+    }
+
     pub fn into_parts(
         self,
     ) -> (
@@ -193,6 +205,20 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
         Reply,
     ) {
         let (identity, (), declaration, reply) = self.accepted.into_parts();
+        (self.index, self.branch, identity, declaration, reply)
+    }
+
+    /// Read-only original row and owned input borrows, not fresh native admission.
+    pub fn as_parts(
+        &self,
+    ) -> (
+        usize,
+        &'expression ComputedBranch<Node, IrResult>,
+        &Identity,
+        &'expression Declaration,
+        &Reply,
+    ) {
+        let (identity, (), declaration, reply) = self.accepted.as_parts();
         (self.index, self.branch, identity, declaration, reply)
     }
 }
@@ -418,6 +444,17 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
         self.fuel.remaining()
     }
 
+    /// Move the original meter only after all accepted member handoffs. This is
+    /// budget ownership, not a refill, group-result certificate or continuation.
+    /// Other states return the unchanged session without native work or cleanup.
+    pub fn into_completed_fuel(self) -> Result<Fuel, Self> {
+        if self.status() == SequenceStatus::Terminal(SequenceEnd::Completed) {
+            Ok(self.fuel)
+        } else {
+            Err(self)
+        }
+    }
+
     /// Reuse the shared reply order: exact identity, live authority, borrowed
     /// view, type, value. Rejection preserves input and waiting state. No next
     /// request is prepared implicitly, even after the last accepted result.
@@ -466,11 +503,11 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
                 } else {
                     State::Ready
                 };
-                Ok(SequenceAccepted {
+                Ok(SequenceAccepted::new(
                     index,
-                    branch: &self.branches[index],
+                    &self.branches[index],
                     accepted,
-                })
+                ))
             }
             Err(rejected) => {
                 self.state = State::Awaiting(pending);

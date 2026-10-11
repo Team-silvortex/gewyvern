@@ -127,15 +127,44 @@ pub(crate) fn physical<Field, Operation, HostEffect, IrResult>(
     depth: usize,
     budget: &mut StructureBudget,
 ) -> Result<(), StructureError> {
-    let mut pending = vec![(expression, depth)];
-    while let Some((node, depth)) = pending.pop() {
+    let mut frames = Vec::new();
+    let mut queued = 0usize;
+    let mut current = (expression, depth);
+    loop {
+        let (node, depth) = current;
         budget.visit(depth, 0, 0)?;
-        for child in node.children() {
-            budget.check_pending(pending.len(), 1)?;
-            pending.push((child, depth + 1));
+        // Keep the former LIFO order and whole sibling-root budget fence,
+        // but retain one cursor per branching ancestor instead of all siblings.
+        let mut children = node.children().rev();
+        budget.check_pending(queued, children.len())?;
+        if let Some(child) = children.next() {
+            let child_depth = depth.checked_add(1).ok_or(StructureError::DepthLimit)?;
+            queued = queued
+                .checked_add(children.len())
+                .ok_or(StructureError::NodeLimit)?;
+            if children.len() != 0 {
+                frames.push((children, child_depth));
+            }
+            current = (child, child_depth);
+            continue;
         }
+        let mut next = None;
+        while let Some((siblings, sibling_depth)) = frames.last_mut() {
+            if let Some(sibling) = siblings.next() {
+                queued = queued.checked_sub(1).ok_or(StructureError::NodeLimit)?;
+                next = Some((sibling, *sibling_depth));
+                if siblings.len() == 0 {
+                    frames.pop();
+                }
+                break;
+            }
+            frames.pop();
+        }
+        let Some(next) = next else {
+            return Ok(());
+        };
+        current = next;
     }
-    Ok(())
 }
 
 /// Lower exactly one source Bind through once-only Value -> Body -> Finish hooks.
@@ -251,4 +280,236 @@ where
     physical(&output, 0, &mut budget)
         .map_err(|error| output_error(BindingSourcePhase::Finish, error))?;
     Ok((output, result))
+}
+
+#[cfg(test)]
+mod physical_cursor_tests {
+    use super::physical;
+    use crate::ir::{Computation, ComputedArgument, ComputedBranch, GroupKind};
+    use leselang_runtime_core::{
+        BinaryOperator, ScalarValue, StructureBudget, StructureError, UnaryOperator,
+    };
+
+    type Node = Computation<(), (), (), ()>;
+    fn leaf() -> Node {
+        Node::Literal {
+            value: ScalarValue::None,
+        }
+    }
+    fn unary(value: Node) -> Node {
+        Node::Unary {
+            operator: UnaryOperator::Not,
+            value: Box::new(value),
+        }
+    }
+    fn legacy(
+        root: &Node,
+        depth: usize,
+        budget: &mut StructureBudget,
+    ) -> Result<(), StructureError> {
+        let mut pending = vec![(root, depth)];
+        while let Some((node, depth)) = pending.pop() {
+            budget.visit(depth, 0, 0)?;
+            for child in node.children() {
+                budget.check_pending(pending.len(), 1)?;
+                pending.push((child, depth + 1));
+            }
+        }
+        Ok(())
+    }
+    fn cases() -> Vec<Node> {
+        vec![
+            leaf(),
+            Node::Local { name: "x".into() },
+            Node::Member {
+                group: "g".into(),
+                name: "m".into(),
+                operation: (),
+            },
+            Node::Host {
+                effect: Box::new(()),
+            },
+            Node::Field {
+                value: Box::new(leaf()),
+                field: (),
+            },
+            unary(unary(unary(leaf()))),
+            Node::Binary {
+                operator: BinaryOperator::Add,
+                left: Box::new(unary(unary(leaf()))),
+                right: Box::new(Node::Strings {
+                    items: (0..8).map(|_| leaf()).collect(),
+                }),
+            },
+            Node::Bind {
+                name: "x".into(),
+                value: Box::new(unary(leaf())),
+                body: Box::new(leaf()),
+            },
+            Node::Recover {
+                value: Box::new(leaf()),
+                fallback: Box::new(unary(leaf())),
+            },
+            Node::Loop {
+                name: "x".into(),
+                initial: Box::new(leaf()),
+                condition: Box::new(unary(leaf())),
+                next: Box::new(leaf()),
+                limit: 0,
+            },
+            Node::Fold {
+                name: "x".into(),
+                item: "y".into(),
+                items: Box::new(leaf()),
+                initial: Box::new(unary(leaf())),
+                next: Box::new(leaf()),
+                limit: 0,
+            },
+            Node::Choose {
+                when: Box::new(unary(leaf())),
+                then: Box::new(leaf()),
+                otherwise: Box::new(unary(unary(leaf()))),
+            },
+            Node::Strings { items: vec![] },
+            Node::Strings {
+                items: vec![
+                    leaf(),
+                    unary(leaf()),
+                    Node::Strings {
+                        items: vec![leaf(), leaf()],
+                    },
+                ],
+            },
+            Node::Call {
+                operation: (),
+                arguments: (0..3)
+                    .map(|index| ComputedArgument {
+                        name: index.to_string(),
+                        value: unary(leaf()),
+                    })
+                    .collect(),
+            },
+            Node::Group {
+                group_kind: GroupKind::Parallel,
+                branches: (0..3)
+                    .map(|index| ComputedBranch {
+                        name: index.to_string(),
+                        value: unary(leaf()),
+                        result_type: (),
+                    })
+                    .collect(),
+            },
+            Node::Group {
+                group_kind: GroupKind::Sequence,
+                branches: vec![],
+            },
+        ]
+    }
+
+    #[test]
+    fn cursor_physical_walk_matches_legacy_counts_and_error_precedence_across_limits() {
+        for root in cases() {
+            for max_nodes in 0..=28 {
+                for max_depth in 0..=5 {
+                    for depth in 0..=4 {
+                        for prefix in 0..=max_nodes.min(3) {
+                            let mut current = StructureBudget::new(max_nodes, max_depth);
+                            let mut old = StructureBudget::new(max_nodes, max_depth);
+                            for _ in 0..prefix {
+                                current.visit(0, 0, 0).unwrap();
+                                old.visit(0, 0, 0).unwrap();
+                            }
+                            assert_eq!(
+                                physical(&root, depth, &mut current),
+                                legacy(&root, depth, &mut old)
+                            );
+                            assert_eq!(current.visited(), old.visited());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn cursor_physical_walk_keeps_reverse_cold_order_and_whole_sibling_root_fences() {
+        let root = Node::Binary {
+            operator: BinaryOperator::Add,
+            left: Box::new(unary(unary(unary(leaf())))),
+            right: Box::new(Node::Strings {
+                items: (0..10).map(|_| leaf()).collect(),
+            }),
+        };
+        let mut budget = StructureBudget::new(8, 2);
+        assert_eq!(
+            physical(&root, 0, &mut budget),
+            Err(StructureError::NodeLimit)
+        );
+        assert_eq!(budget.visited(), 2);
+        let mut budget = StructureBudget::new(16, 2);
+        assert_eq!(
+            physical(&root, 0, &mut budget),
+            Err(StructureError::DepthLimit)
+        );
+        assert_eq!(budget.visited(), 14);
+    }
+
+    #[test]
+    fn cursor_physical_walk_bounds_wide_nodes_without_clamping_or_consuming_original_ir() {
+        let root = Node::Call {
+            operation: (),
+            arguments: (0..16_383)
+                .map(|index| ComputedArgument {
+                    name: index.to_string(),
+                    value: leaf(),
+                })
+                .collect(),
+        };
+        let Node::Call { arguments, .. } = &root else {
+            panic!()
+        };
+        let buffer = arguments.as_ptr();
+        let mut budget = StructureBudget::new(16_384, 1);
+        assert_eq!(physical(&root, 0, &mut budget), Ok(()));
+        assert_eq!(budget.visited(), 16_384);
+        let mut short = StructureBudget::new(16_383, 1);
+        assert_eq!(
+            physical(&root, 0, &mut short),
+            Err(StructureError::NodeLimit)
+        );
+        assert_eq!(short.visited(), 1);
+        assert_eq!(arguments.as_ptr(), buffer);
+        assert_eq!(root.children().len(), 16_383);
+        let mut shifted = StructureBudget::new(16_387, 3);
+        for _ in 0..3 {
+            shifted.visit(0, 0, 0).unwrap();
+        }
+        assert_eq!(physical(&root, 2, &mut shifted), Ok(()));
+        assert_eq!(shifted.visited(), 16_387);
+    }
+
+    #[test]
+    fn cursor_physical_walk_returns_structured_depth_overflow_and_keeps_node_error_priority() {
+        let mut leaf_budget = StructureBudget::new(1, usize::MAX);
+        assert_eq!(physical(&leaf(), usize::MAX, &mut leaf_budget), Ok(()));
+        let root = unary(leaf());
+        let mut depth = StructureBudget::new(2, usize::MAX);
+        assert_eq!(
+            physical(&root, usize::MAX, &mut depth),
+            Err(StructureError::DepthLimit)
+        );
+        assert_eq!(depth.visited(), 1);
+        let mut nodes = StructureBudget::new(1, usize::MAX);
+        assert_eq!(
+            physical(&root, usize::MAX, &mut nodes),
+            Err(StructureError::NodeLimit)
+        );
+        assert_eq!(nodes.visited(), 1);
+        let mut rejected_root = StructureBudget::new(0, usize::MAX - 1);
+        assert_eq!(
+            physical(&root, usize::MAX, &mut rejected_root),
+            Err(StructureError::DepthLimit)
+        );
+        assert_eq!(rejected_root.visited(), 0);
+    }
 }

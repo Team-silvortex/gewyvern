@@ -1,3 +1,5 @@
+#![cfg(feature = "leserpent-profile")]
+
 use leselang_hir::computation::{Computation, GroupLocalType, ScalarType, ScalarValue};
 use leselang_hir::host_call::HostOperation;
 use leselang_hir::{Effect, MAX_EFFECT_NESTING_DEPTH, Type, authorize, canonical_source, lower};

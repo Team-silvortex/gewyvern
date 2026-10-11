@@ -640,7 +640,7 @@ impl Computation {
         }
         let prepared_call = !matches!(self, Self::Call { .. })
             && self.prepared_atomic_operation().is_some()
-            && crate::prepared_typing::call_leaves_only(self);
+            && crate::pure_reference::call_leaves_only(self);
         if prepared_call
             && crate::pure_reference::infer_prepared(self, scope, groups)
                 .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
@@ -651,28 +651,30 @@ impl Computation {
         if !prepared_call
             && !matches!(self, Self::Call { .. })
             && !self.is_pure()
-            && crate::flow_typing::call_flow_nodes_only(self)
+            && crate::pure_reference::call_flow_nodes_only(self)
             && crate::pure_reference::infer_flow(self, scope, groups)
                 .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
                 != ty
         {
             return Err(CanonicalSourceError::RoundTripMismatch);
         }
-        if crate::flow_typing::group_flow_nodes_only(self)
+        if crate::pure_reference::group_flow_nodes_only(self)
             && crate::pure_reference::infer_group_flow(self, scope, groups)
                 .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
                 != ty
         {
             return Err(CanonicalSourceError::RoundTripMismatch);
         }
-        if crate::flow_typing::host_flow_nodes_only(self, crate::pure_reference::supports_host_flow)
-            && crate::pure_reference::infer_host_flow(self, scope, groups)
-                .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
-                != ty
+        if crate::pure_reference::host_flow_nodes_only(
+            self,
+            crate::pure_reference::supports_host_flow,
+        ) && crate::pure_reference::infer_host_flow(self, scope, groups)
+            .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
+            != ty
         {
             return Err(CanonicalSourceError::RoundTripMismatch);
         }
-        if crate::flow_typing::host_group_flow_nodes_only(
+        if crate::pure_reference::host_group_flow_nodes_only(
             self,
             crate::pure_reference::supports_host_flow,
         ) && crate::pure_reference::infer_host_group_flow(self, scope, groups)

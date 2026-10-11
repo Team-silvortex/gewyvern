@@ -1,3 +1,5 @@
+#![cfg(feature = "leserpent-profile")]
+
 use leselang_hir::computation::{Computation, ScalarValue, UnaryOperator};
 use leselang_hir::ir::GroupKind;
 use leselang_hir::native_graph::{NativeGraphLimits, NativeGraphShape, inspect_native_graph};

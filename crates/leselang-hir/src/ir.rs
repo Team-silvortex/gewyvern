@@ -147,6 +147,124 @@ pub enum Computation<Field, Operation, HostEffect, ResultType> {
     },
 }
 
+struct ChildNodes<'node, Field, Operation, HostEffect, ResultType> {
+    node: &'node Computation<Field, Operation, HostEffect, ResultType>,
+    front: usize,
+    back: usize,
+}
+
+impl<'node, Field, Operation, HostEffect, ResultType>
+    ChildNodes<'node, Field, Operation, HostEffect, ResultType>
+{
+    fn get(
+        &self,
+        index: usize,
+    ) -> Option<&'node Computation<Field, Operation, HostEffect, ResultType>> {
+        use Computation::*;
+        match self.node {
+            Binary { left, right, .. } => [left.as_ref(), right.as_ref()].get(index).copied(),
+            Bind { value, body, .. } => [value.as_ref(), body.as_ref()].get(index).copied(),
+            Recover { value, fallback } => [value.as_ref(), fallback.as_ref()].get(index).copied(),
+            Unary { value, .. } | Field { value, .. } => (index == 0).then_some(value.as_ref()),
+            Loop {
+                initial,
+                condition,
+                next,
+                ..
+            } => [initial.as_ref(), condition.as_ref(), next.as_ref()]
+                .get(index)
+                .copied(),
+            Fold {
+                items,
+                initial,
+                next,
+                ..
+            } => [items.as_ref(), initial.as_ref(), next.as_ref()]
+                .get(index)
+                .copied(),
+            Choose {
+                when,
+                then,
+                otherwise,
+            } => [when.as_ref(), then.as_ref(), otherwise.as_ref()]
+                .get(index)
+                .copied(),
+            Strings { items } => items.get(index),
+            Call { arguments, .. } => arguments.get(index).map(|argument| &argument.value),
+            Group { branches, .. } => branches.get(index).map(|branch| &branch.value),
+            Literal { .. } | Local { .. } | Member { .. } | Host { .. } => None,
+        }
+    }
+}
+
+impl<'node, Field, Operation, HostEffect, ResultType> Iterator
+    for ChildNodes<'node, Field, Operation, HostEffect, ResultType>
+{
+    type Item = &'node Computation<Field, Operation, HostEffect, ResultType>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.front == self.back {
+            return None;
+        }
+        let index = self.front;
+        self.front += 1;
+        self.get(index)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.back - self.front;
+        (remaining, Some(remaining))
+    }
+
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        if n >= self.back - self.front {
+            self.front = self.back;
+            return None;
+        }
+        self.front += n;
+        self.next()
+    }
+
+    fn count(self) -> usize {
+        self.back - self.front
+    }
+
+    fn last(mut self) -> Option<Self::Item> {
+        self.next_back()
+    }
+}
+
+impl<Field, Operation, HostEffect, ResultType> DoubleEndedIterator
+    for ChildNodes<'_, Field, Operation, HostEffect, ResultType>
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.front == self.back {
+            return None;
+        }
+        self.back -= 1;
+        self.get(self.back)
+    }
+
+    fn nth_back(&mut self, n: usize) -> Option<Self::Item> {
+        if n >= self.back - self.front {
+            self.front = self.back;
+            return None;
+        }
+        self.back -= n;
+        self.next_back()
+    }
+}
+
+impl<Field, Operation, HostEffect, ResultType> ExactSizeIterator
+    for ChildNodes<'_, Field, Operation, HostEffect, ResultType>
+{
+}
+
+impl<Field, Operation, HostEffect, ResultType> FusedIterator
+    for ChildNodes<'_, Field, Operation, HostEffect, ResultType>
+{
+}
+
 impl<Field, Operation, HostEffect, ResultType>
     Computation<Field, Operation, HostEffect, ResultType>
 {
@@ -155,7 +273,7 @@ impl<Field, Operation, HostEffect, ResultType>
     /// Purity includes cold children; a direct literal is borrowed without cloning.
     /// The supplied type is not inferred or trusted by this method, and unknown
     /// locals/fields/operations are not validated. Bound structure before this
-    /// purity walk, which allocates its frontier. The receiving schema checks
+    /// purity walk, whose branching cursor stack may allocate. The receiving schema checks
     /// literal/type consistency; evaluated values still require domain preflight.
     pub fn scalar_argument_type(&self, scalar_type: Option<ScalarType>) -> ScalarArgumentType<'_> {
         ScalarArgumentType {
@@ -171,72 +289,68 @@ impl<Field, Operation, HostEffect, ResultType>
     /// Borrow direct language children in declaration order, including cold branches.
     /// This allocation-free structural inspection does not evaluate guards, charge
     /// fuel, inspect native metadata/effect graphs, or approve types/authority.
-    pub fn children(&self) -> impl DoubleEndedIterator<Item = &Self> + FusedIterator {
-        let children: [Option<&Self>; 3] = match self {
-            Self::Binary { left, right, .. } => [Some(left), Some(right), None],
-            Self::Unary { value, .. } | Self::Field { value, .. } => [Some(value), None, None],
-            Self::Bind { value, body, .. } => [Some(value), Some(body), None],
-            Self::Recover { value, fallback } => [Some(value), Some(fallback), None],
-            Self::Loop {
-                initial,
-                condition,
-                next,
-                ..
-            } => [Some(initial), Some(condition), Some(next)],
-            Self::Fold {
-                items,
-                initial,
-                next,
-                ..
-            } => [Some(items), Some(initial), Some(next)],
-            Self::Choose {
-                when,
-                then,
-                otherwise,
-            } => [Some(when), Some(then), Some(otherwise)],
-            Self::Literal { .. }
-            | Self::Strings { .. }
-            | Self::Local { .. }
-            | Self::Member { .. }
-            | Self::Host { .. }
-            | Self::Call { .. }
-            | Self::Group { .. } => [None, None, None],
+    /// Length/count and forward/reverse skips are constant-time metadata queries.
+    /// Exact length is not an ingress bound or proof of native payload validity.
+    pub fn children(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = &Self> + ExactSizeIterator + FusedIterator {
+        let back = match self {
+            Self::Binary { .. } | Self::Bind { .. } | Self::Recover { .. } => 2,
+            Self::Unary { .. } | Self::Field { .. } => 1,
+            Self::Loop { .. } | Self::Fold { .. } | Self::Choose { .. } => 3,
+            Self::Strings { items } => items.len(),
+            Self::Call { arguments, .. } => arguments.len(),
+            Self::Group { branches, .. } => branches.len(),
+            Self::Literal { .. } | Self::Local { .. } | Self::Member { .. } | Self::Host { .. } => {
+                0
+            }
         };
-        let arguments = match self {
-            Self::Call { arguments, .. } => arguments.as_slice(),
-            _ => &[],
-        };
-        let branches = match self {
-            Self::Group { branches, .. } => branches.as_slice(),
-            _ => &[],
-        };
-        let items = match self {
-            Self::Strings { items } => items.as_slice(),
-            _ => &[],
-        };
-        children
-            .into_iter()
-            .flatten()
-            .chain(arguments.iter().map(|argument| &argument.value))
-            .chain(branches.iter().map(|branch| &branch.value))
-            .chain(items.iter())
+        ChildNodes {
+            node: self,
+            front: 0,
+            back,
+        }
     }
 
     /// Classify language nodes only, without native callbacks. Host/Call/Group
     /// nodes are effectful even if empty, invalid or in a cold branch. Member is
     /// a result reference, not a new effect. Bound structure before this walk;
-    /// its pending frontier allocates and this is not a lasting purity certificate.
+    /// only open branching ancestors retain cursors, whose stack may allocate.
+    /// Leaves and unary chains need no scratch allocation. This is not a lasting
+    /// purity certificate, structural bound, or native payload admission.
     pub fn is_pure(&self) -> bool {
-        let mut pending = vec![self];
-        while let Some(expression) = pending.pop() {
+        let mut frames = Vec::new();
+        let mut expression = self;
+        loop {
             if matches!(
                 expression,
                 Self::Host { .. } | Self::Call { .. } | Self::Group { .. }
             ) {
                 return false;
             }
-            pending.extend(expression.children());
+            let mut children = expression.children().rev();
+            if let Some(child) = children.next() {
+                if children.len() != 0 {
+                    frames.push(children);
+                }
+                expression = child;
+                continue;
+            }
+            let mut next = None;
+            while let Some(siblings) = frames.last_mut() {
+                if let Some(sibling) = siblings.next() {
+                    next = Some(sibling);
+                    if siblings.len() == 0 {
+                        frames.pop();
+                    }
+                    break;
+                }
+                frames.pop();
+            }
+            let Some(child) = next else {
+                return true;
+            };
+            expression = child;
         }
-        true
     }
 }

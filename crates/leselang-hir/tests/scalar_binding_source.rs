@@ -711,6 +711,7 @@ fn parsed_native_call_prepares_bound_operand_against_original_catalog_and_prefix
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_binding_diagnostics_and_host_group_function_capture_are_preserved() {
     for (source, code, message, at_binding) in [
         (

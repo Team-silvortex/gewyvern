@@ -1,3 +1,5 @@
+#![cfg(feature = "leserpent-profile")]
+
 use leselang_hir::computation::{Computation, ComputedBranch};
 use leselang_hir::{Effect, HirBranch, Type, authorize, canonical_source, lower};
 use leselang_host_contract::CapabilitySet;

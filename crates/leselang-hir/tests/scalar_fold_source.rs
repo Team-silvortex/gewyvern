@@ -988,6 +988,7 @@ fn parsed_native_call_prepares_fold_value_against_original_schema_and_runtime_pr
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_fold_diagnostics_spans_order_wire_and_host_authority_are_preserved() {
     for (source, code, message, location) in [
         (

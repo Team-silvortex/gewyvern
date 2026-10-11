@@ -121,6 +121,232 @@ fn native_developer_workflow_owns_locked_build_package_and_deploy_routes() {
 }
 
 #[test]
+fn lean_validation_is_opt_in_and_does_not_change_default_profiles() {
+    let workspace = read_repo_file("Cargo.toml");
+    let lean = workspace
+        .split_once("[profile.lean]")
+        .expect("missing disk-constrained profile")
+        .1
+        .split("\n[")
+        .next()
+        .unwrap();
+    assert!(lean.contains("inherits = \"dev\""));
+    assert!(lean.contains("debug = 0"));
+    assert!(lean.contains("incremental = false"));
+    assert!(!lean.contains("debug-assertions = false"));
+    assert!(!lean.contains("overflow-checks = false"));
+    assert!(workspace.matches("debug = \"line-tables-only\"").count() >= 2);
+
+    let development = read_repo_file("docs/development.md");
+    assert!(development.contains("--profile lean -p leselang-hir --test catalog_source"));
+    assert!(development.contains("trim_workspace_disk.sh --apply"));
+    assert!(development.contains("target/validation/"));
+}
+
+#[cfg(unix)]
+struct DiskTrimFixture {
+    base: std::path::PathBuf,
+    root: std::path::PathBuf,
+}
+
+#[cfg(unix)]
+impl DiskTrimFixture {
+    fn new() -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let base =
+            std::env::temp_dir().join(format!("gewyvern disk-trim-{}-{id}", std::process::id()));
+        fs::create_dir(&base).unwrap();
+        let base = fs::canonicalize(base).unwrap();
+        let fixture = Self {
+            root: base.join("repo"),
+            base,
+        };
+        fs::create_dir(&fixture.root).unwrap();
+        fixture.write(
+            "scripts/perf/trim_workspace_disk.sh",
+            &read_repo_file("scripts/perf/trim_workspace_disk.sh"),
+        );
+        fixture.write("Cargo.toml", "[workspace]\n");
+        fixture.write(
+            ".gitignore",
+            "/target/\n/artifacts/\napps/**/bin/\napps/**/obj/\nnode_modules/\n__pycache__/\n!unignored/__pycache__/\n",
+        );
+        fixture.git(&["init", "--quiet"]);
+        for path in [
+            "target/debug/cache",
+            "target/lean/cache",
+            "target/release/keep",
+            "target/validation/keep",
+            "target/package/keep",
+            "artifacts/release/keep",
+            "artifacts/release/__pycache__/keep",
+            "artifacts/Packaged.csproj",
+            "artifacts/bin/keep",
+            "apps/leserpent-avalonia/Leserpent.app/node_modules/keep",
+            "apps/leserpent-avalonia/osx-arm64/__pycache__/keep",
+            "apps/demo/Demo.csproj",
+            "apps/demo/bin/cache",
+            "apps/demo/obj/cache",
+            "apps/tracked/Tracked.csproj",
+            "apps/tracked/bin/keep",
+            "apps/linked/Linked.csproj",
+            "apps/leserpent/src/Leserpent/data/__pycache__/keep",
+            "frontend/node_modules/cache",
+            "python/__pycache__/cache",
+            "unignored/__pycache__/keep",
+        ] {
+            fixture.write(path, "fixture\n");
+        }
+        fixture.git(&["add", "--force", "apps/tracked/bin/keep"]);
+
+        fs::create_dir(fixture.base.join("shared-cargo")).unwrap();
+        fs::write(fixture.base.join("shared-cargo/keep"), "shared\n").unwrap();
+        std::os::unix::fs::symlink(
+            fixture.base.join("shared-cargo"),
+            fixture.root.join("apps/linked/bin"),
+        )
+        .unwrap();
+        fs::create_dir(fixture.base.join("mock-bin")).unwrap();
+        let cargo = fixture.base.join("mock-bin/cargo");
+        fs::write(
+            &cargo,
+            r##"#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$@" >> "$TRIM_TEST_CARGO_LOG"
+profile=''
+target=''
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --profile) profile="$2"; shift ;;
+    --target-dir) target="$2"; shift ;;
+  esac
+  shift
+done
+case "$profile" in
+  dev) rm -rf -- "$target/debug" ;;
+  lean) rm -rf -- "$target/lean" ;;
+  *) exit 3 ;;
+esac
+"##,
+        )
+        .unwrap();
+        fs::set_permissions(cargo, fs::Permissions::from_mode(0o755)).unwrap();
+        fixture
+    }
+
+    fn write(&self, relative: &str, content: &str) {
+        let path = self.root.join(relative);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, content).unwrap();
+    }
+
+    fn git(&self, arguments: &[&str]) {
+        let output = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&self.root)
+            .args(arguments)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+    }
+
+    fn run(&self, arguments: &[&str]) -> std::process::Output {
+        let path = std::env::join_paths(
+            std::iter::once(self.base.join("mock-bin"))
+                .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
+        )
+        .unwrap();
+        std::process::Command::new("bash")
+            .arg(self.root.join("scripts/perf/trim_workspace_disk.sh"))
+            .args(arguments)
+            .env("PATH", path)
+            .env("CARGO_TARGET_DIR", self.base.join("shared-cargo"))
+            .env("TRIM_TEST_CARGO_LOG", self.base.join("cargo.log"))
+            .output()
+            .unwrap()
+    }
+}
+
+#[cfg(unix)]
+impl Drop for DiskTrimFixture {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.base);
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn disk_trim_requires_apply_and_preserves_evidence_shared_and_tracked_paths() {
+    let fixture = DiskTrimFixture::new();
+    for arguments in [&[][..], &["--dry-run"][..]] {
+        let output = fixture.run(arguments);
+        assert!(output.status.success(), "{output:?}");
+        assert!(fixture.root.join("target/debug/cache").exists());
+        assert!(fixture.root.join("apps/demo/bin/cache").exists());
+        assert!(!fixture.base.join("cargo.log").exists());
+    }
+    let output = fixture.run(&["--apply"]);
+    assert!(output.status.success(), "{output:?}");
+    for removed in [
+        "target/debug",
+        "target/lean",
+        "apps/demo/bin",
+        "apps/demo/obj",
+        "frontend/node_modules",
+        "python/__pycache__",
+    ] {
+        assert!(!fixture.root.join(removed).exists(), "{removed}");
+    }
+    for retained in [
+        "target/release/keep",
+        "target/validation/keep",
+        "target/package/keep",
+        "artifacts/release/keep",
+        "artifacts/release/__pycache__/keep",
+        "artifacts/bin/keep",
+        "apps/leserpent-avalonia/Leserpent.app/node_modules/keep",
+        "apps/leserpent-avalonia/osx-arm64/__pycache__/keep",
+        "apps/tracked/bin/keep",
+        "apps/linked/bin/keep",
+        "apps/leserpent/src/Leserpent/data/__pycache__/keep",
+        "unignored/__pycache__/keep",
+    ] {
+        assert!(fixture.root.join(retained).exists(), "{retained}");
+    }
+    assert!(fixture.base.join("shared-cargo/keep").exists());
+    let arguments = fs::read_to_string(fixture.base.join("cargo.log")).unwrap();
+    assert_eq!(arguments.matches("--locked\n--offline\n").count(), 2);
+    assert_eq!(
+        arguments
+            .matches(&format!(
+                "--target-dir\n{}\n",
+                fixture.root.join("target").display()
+            ))
+            .count(),
+        2
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn disk_trim_rejects_unknown_arguments_and_symlinked_cargo_outputs() {
+    let fixture = DiskTrimFixture::new();
+    for arguments in [&["--all"][..], &["--apply", "--dry-run"][..]] {
+        assert_eq!(fixture.run(arguments).status.code(), Some(2));
+    }
+    for relative in ["target/debug", "target/lean", "target"] {
+        let path = fixture.root.join(relative);
+        fs::remove_dir_all(&path).unwrap();
+        std::os::unix::fs::symlink(fixture.base.join("shared-cargo"), &path).unwrap();
+        assert_eq!(fixture.run(&["--apply"]).status.code(), Some(2));
+        assert!(fixture.base.join("shared-cargo/keep").exists());
+        assert!(!fixture.base.join("cargo.log").exists());
+        fs::remove_file(path).unwrap();
+    }
+}
+
+#[test]
 fn protocol_runtime_ir_cases_share_one_cargo_integration_target() {
     let tests = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
     let mut targets = fs::read_dir(&tests)

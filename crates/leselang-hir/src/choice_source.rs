@@ -8,7 +8,9 @@ use leselang_syntax::{Expression, Span};
 use crate::binding_source::physical;
 use crate::ir::Computation;
 use crate::pure_typing::{PureTypeError, preflight_with_budget};
-use crate::source_call::{SourceCallError, SourceCallLimits, preflight, span, valid_limits};
+use crate::source_call::{
+    SourceCallError, SourceCallLimits, fixed_named_operands, preflight, span, valid_limits,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ChoiceSourcePhase {
@@ -79,27 +81,11 @@ pub(crate) fn operands<Error>(
     else {
         return Err(ChoiceSourceError::Names { span: at });
     };
-    let expected = ["when", "then", "otherwise"];
-    if callee != "choose"
-        || arguments.len() != expected.len()
-        || expected.iter().any(|name| {
-            arguments
-                .iter()
-                .filter(|argument| argument.name == *name)
-                .count()
-                != 1
-        })
-    {
+    if callee != "choose" {
         return Err(ChoiceSourceError::Names { span: at });
     }
-    let get = |name| {
-        arguments
-            .iter()
-            .find(|argument| argument.name == name)
-            .map(|argument| &argument.value)
-            .ok_or(ChoiceSourceError::Names { span: at })
-    };
-    Ok([get("when")?, get("then")?, get("otherwise")?])
+    fixed_named_operands(arguments, &["when", "then", "otherwise"])
+        .ok_or(ChoiceSourceError::Names { span: at })
 }
 
 pub(crate) fn cold_names<Error>(expression: &Expression) -> Result<(), ChoiceSourceError<Error>> {

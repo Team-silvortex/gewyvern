@@ -808,6 +808,7 @@ fn parsed_native_call_prepares_loop_value_against_original_schema_and_prefix() {
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_loop_diagnostics_spans_order_wire_and_authority_are_preserved() {
     for (source, code, message, location) in [
         (

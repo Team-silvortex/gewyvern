@@ -151,6 +151,16 @@ fn successful_acceptance_moves_original_frame_reply_and_declaration_once() {
     assert_eq!(pending.status(), ReplyStatus::Terminal(ReplyEnd::Accepted));
     assert_eq!(f.drops.get(), 0);
     assert_eq!(format!("{accepted:?}"), "AcceptedReply");
+    let before = f.events.borrow().clone();
+    let (borrowed_identity, borrowed_frame, borrowed_declaration, borrowed_input) =
+        accepted.as_parts();
+    assert_eq!(borrowed_identity.generation, 4);
+    assert!(Rc::ptr_eq(&borrowed_frame.drops, &f.drops));
+    assert!(std::ptr::eq(borrowed_declaration, &f.declaration));
+    assert_eq!(borrowed_input.body.private.as_ptr(), buffer);
+    assert_eq!(*f.events.borrow(), before);
+    let frame_pointer = borrowed_frame as *const Frame;
+    assert_eq!(accepted.as_parts().1 as *const Frame, frame_pointer);
     let (identity, frame, declaration, reply) = accepted.into_parts();
     assert_eq!(identity.generation, 4);
     assert!(std::ptr::eq(declaration, &f.declaration));

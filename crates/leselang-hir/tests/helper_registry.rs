@@ -896,6 +896,7 @@ fn unrelated_scalar_registry_composes_declarations_bodies_instances_and_entry_wi
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_registry_delegation_preserves_nested_helper_wire_authority_and_ready_error_precedence()
 {
     let source = "fn wrap(n: integer) = add(left: base(n: n), right: 1)\nfn main() = ui.focus(node_id: to_string(value: wrap(n: 40)))\nfn base(n: integer) = add(left: n, right: 1)";

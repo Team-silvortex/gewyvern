@@ -704,6 +704,7 @@ fn zero_parameter_completion_still_copies_and_admits_once_without_operand_hooks(
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_nested_same_helper_operands_groups_and_unused_types_keep_legacy_contracts() {
     let sources = [
         "fn bump(n: integer) = add(left: n, right: 1)\nfn main() = bump(n: bump(n: 40))",
@@ -731,6 +732,7 @@ fn reference_nested_same_helper_operands_groups_and_unused_types_keep_legacy_con
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_deep_fold_prefix_uses_binding_quota_not_expression_root_depth() {
     let mut source = "constant()".to_owned();
     for index in 0..9 {
@@ -761,6 +763,7 @@ fn reference_deep_fold_prefix_uses_binding_quota_not_expression_root_depth() {
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_full_width_caller_group_keeps_exact_last_member_signature() {
     let branches = (0..64)
         .map(|index| format!("b{index}: ui.assert_text(node_id: \"status\", expected: \"ok\")"))

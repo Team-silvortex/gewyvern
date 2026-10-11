@@ -1042,6 +1042,7 @@ fn parsed_dependency_signature_arguments_hygiene_and_wrappers_prepare_an_unrelat
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_wrapper_wire_authority_and_legacy_expansion_bounds_are_preserved() {
     let source = "fn f(n: integer) = ui.focus(node_id: to_string(value: n))\nfn main() = f(n: 7)";
     let program = leselang_hir::lower(&leselang_syntax::parse(source)).unwrap();

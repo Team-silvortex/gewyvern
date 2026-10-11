@@ -866,6 +866,7 @@ fn call_group_and_string_forests_do_not_export_sibling_temporary_bindings() {
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_helper_names_wire_authority_and_child_error_order_remain_compatible() {
     for source in [
         "fn id(n: integer) = n\nfn main() = id(n: 7)",

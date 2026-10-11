@@ -920,6 +920,7 @@ fn unrelated_scalar_program_composes_registry_entry_admission_and_value_with_exa
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_program_assembly_keeps_canonical_wire_capabilities_and_helper_before_entry_errors() {
     for source in [
         "fn work() = ui.focus(node_id: \"target\")\nfn main() = work()",

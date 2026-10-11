@@ -5,8 +5,12 @@ edition.workspace = true
 description = "Typed, capability-aware high-level IR for Leselang"
 license.workspace = true
 
+[features]
+default = ["leserpent-profile"]
+leserpent-profile = ["dep:leselang-host-contract"]
+
 [dependencies]
-leselang-host-contract = { path = "../leselang-host-contract" }
+leselang-host-contract = { path = "../leselang-host-contract", optional = true }
 leselang-runtime-core = { path = "../leselang-runtime-core" }
 leselang-syntax = { path = "../leselang-syntax" }
 serde.workspace = true

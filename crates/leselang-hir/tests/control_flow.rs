@@ -1,3 +1,5 @@
+#![cfg(feature = "leserpent-profile")]
+
 use leselang_hir::{Effect, Type, authorize, canonical_source, lower};
 use leselang_host_contract::CapabilitySet;
 use leselang_syntax::parse;

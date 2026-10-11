@@ -261,6 +261,87 @@ fn all_cold_operator_names_and_physical_source_checks_precede_extensions() {
 }
 
 #[test]
+fn fixed_scalar_operands_borrow_original_ast_in_semantic_order() {
+    for (text, expected, ty) in [
+        (
+            "not(value: condition)",
+            vec!["condition"],
+            ScalarType::Boolean,
+        ),
+        (
+            "add(right: second, left: first)",
+            vec!["first", "second"],
+            ScalarType::Integer,
+        ),
+        (
+            "recover(fallback: second, value: first)",
+            vec!["first", "second"],
+            ScalarType::Integer,
+        ),
+        (
+            "choose(otherwise: third, then: second, when: condition)",
+            vec!["condition", "second", "third"],
+            ScalarType::Integer,
+        ),
+    ] {
+        let input = expression(text);
+        let Expression::Call { arguments, .. } = &input else {
+            panic!()
+        };
+        let original = arguments.as_ptr();
+        let mut seen = Vec::new();
+        let (_, observed): (Node, _) = lower_scalar_source(&input, LIMITS, |child| {
+            let Expression::Reference { name, .. } = child else { panic!() };
+            let original_child = &arguments.iter().find(|argument| {
+                matches!(&argument.value, Expression::Reference { name: original, .. } if original == name)
+            }).unwrap().value;
+            assert!(std::ptr::eq(child, original_child));
+            seen.push(name.as_str());
+            let value = if name == "condition" { ScalarValue::Boolean(true) } else { ScalarValue::Integer(1) };
+            let ty = value.scalar_type();
+            Ok::<_, PrivateError>((Node::Literal { value }, Some(ty)))
+        }).unwrap();
+        assert_eq!(observed, ty);
+        assert_eq!(seen, expected);
+        assert_eq!(arguments.as_ptr(), original);
+    }
+}
+
+#[test]
+fn fixed_scalar_signatures_preserve_exact_diagnostics_before_native_work() {
+    for (text, expected) in [
+        ("not(wrong: first)", &["value"][..]),
+        ("add(left: first, left: second)", &["left", "right"][..]),
+        (
+            "recover(value: first, unknown: second)",
+            &["value", "fallback"][..],
+        ),
+        (
+            "choose(when: first, then: second, then: third)",
+            &["when", "then", "otherwise"][..],
+        ),
+    ] {
+        let input = expression(text);
+        let Expression::Call { span: original, .. } = input else {
+            panic!()
+        };
+        let output: ScalarSourceResult<Node, PrivateError> =
+            lower_scalar_source(&input, LIMITS, |_| {
+                panic!("complete fixed signatures must precede native hooks")
+            });
+        let Err(ScalarSourceError::Names {
+            span,
+            expected: actual,
+        }) = output
+        else {
+            panic!()
+        };
+        assert_eq!(span, original);
+        assert_eq!(actual, expected);
+    }
+}
+
+#[test]
 fn optional_literal_buffer_moves_once_and_fold_cost_is_not_refunded() {
     let source = expression("optional_string(value: caption)");
     let text = String::from("private owned native caption");
@@ -659,6 +740,7 @@ fn native_expansion_depth_rejection_drops_output_without_evaluation() {
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_adapter_keeps_exact_operator_diagnostics_spans_and_child_precedence() {
     for (source, code, message) in [
         (

@@ -937,6 +937,7 @@ fn distinct_embedded_host_formats_can_preserve_original_native_schema_identity()
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn parsed_reference_helper_groups_preserve_canonical_wire_and_all_cold_authority() {
     for kind in ["seq", "all"] {
         let source = format!(
@@ -1294,6 +1295,7 @@ fn parsed_native_source_calls_feed_closed_exports_and_prepare_values_with_exact_
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_cold_group_reordering_result_forgery_and_nonflat_helpers_are_rejected() {
     for cold in [
         "seq(b: runtime.list(), a: runtime.list())",

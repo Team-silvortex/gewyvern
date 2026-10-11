@@ -1,3 +1,5 @@
+#![cfg(feature = "leserpent-profile")]
+
 use leselang_hir::computation::ScalarType;
 use leselang_hir::result_field::ResultField;
 use leselang_hir::{

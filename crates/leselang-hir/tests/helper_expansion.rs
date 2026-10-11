@@ -810,6 +810,7 @@ fn parsed_declarations_to_reserved_templates_hygiene_and_exact_interpreter_fuel(
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_wire_fresh_names_authority_and_expansion_diagnostics_are_unchanged() {
     let source = "fn work(a: string, b: string) = ui.focus(node_id: concat(left: a, right: b))\nfn main() = work(b: \"b\", a: \"a\")";
     let program = leselang_hir::lower(&leselang_syntax::parse(source)).unwrap();

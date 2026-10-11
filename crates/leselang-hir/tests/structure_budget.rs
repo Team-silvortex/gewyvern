@@ -1,3 +1,5 @@
+#![cfg(feature = "leserpent-profile")]
+
 use leselang_hir::computation::{
     BinaryOperator, Computation, MAX_COMPUTATION_NODES, OptionalStringValue, ScalarValue,
     StringListValue, UnaryOperator,

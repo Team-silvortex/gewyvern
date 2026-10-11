@@ -1,3 +1,5 @@
+#![cfg(feature = "leserpent-profile")]
+
 use leselang_hir::computation::{BinaryOperator, Computation, ScalarType, ScalarValue};
 use leselang_hir::{Effect, Type, authorize, canonical_source, lower};
 use leselang_host_contract::CapabilitySet;

@@ -1932,6 +1932,7 @@ mod counter {
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_pure_atomic_group_and_helper_bindings_keep_canonical_wire_and_authority() {
     for source in [
         "fn main() = bind(n: 41, body: add(left: n, right: 1))",
@@ -1961,6 +1962,7 @@ fn reference_pure_atomic_group_and_helper_bindings_keep_canonical_wire_and_autho
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_cold_type_shadow_group_export_and_capture_flow_fail_closed() {
     for source in [
         "fn main() = bind(row: runtime.list(), body: choose(when: true, then: 1, otherwise: add(left: row, right: 1)))",

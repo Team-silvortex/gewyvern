@@ -928,6 +928,7 @@ fn unrelated_device_host_preserves_explicit_bind_typing_value_and_exact_fuel() {
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_adapter_preserves_canonical_wire_capabilities_and_cold_return_diagnostics() {
     let source = r#"fn read(node: string) = choose(when: true, then: bind(r: ui.assert_text(node_id: node, expected: "ok"), body: field(value: r, name: "expected")), otherwise: "skip")
         fn main() = bind(answer: read(node: "status"), body: ui.set_form_value(node_id: "form", field: "value", value: answer))"#;

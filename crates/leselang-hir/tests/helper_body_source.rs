@@ -837,6 +837,7 @@ fn parsed_scalar_source_preparation_instance_and_value_keep_exact_counter_fuel_a
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_body_pipeline_keeps_wire_cold_authority_nested_helpers_and_error_priority() {
     let source = "fn outer(n: integer) = inner(n: inner(n: n))\nfn inner(n: integer) = add(left: n, right: 1)\nfn main() = ui.focus(node_id: to_string(value: outer(n: 40)))";
     let program = leselang_hir::lower(&parse(source)).unwrap();

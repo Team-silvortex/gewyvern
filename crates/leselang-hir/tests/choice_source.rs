@@ -183,6 +183,59 @@ fn original_source_order_and_move_only_type_buffers_are_preserved() {
 }
 
 #[test]
+fn shared_fixed_choice_signature_keeps_all_six_orders_and_original_native_observations() {
+    for order in [
+        [
+            "when: true",
+            "then: device.read()",
+            "otherwise: device.write()",
+        ],
+        [
+            "when: true",
+            "otherwise: device.write()",
+            "then: device.read()",
+        ],
+        [
+            "then: device.read()",
+            "when: true",
+            "otherwise: device.write()",
+        ],
+        [
+            "then: device.read()",
+            "otherwise: device.write()",
+            "when: true",
+        ],
+        [
+            "otherwise: device.write()",
+            "when: true",
+            "then: device.read()",
+        ],
+        [
+            "otherwise: device.write()",
+            "then: device.read()",
+            "when: true",
+        ],
+    ] {
+        let input = expression(&format!("choose({})", order.join(", ")));
+        let adapter = Adapter::new(&input);
+        let (output, ty) = lower(&adapter, LIMITS).unwrap();
+        assert_eq!(
+            adapter.borrow().events,
+            [
+                ChoiceSourcePhase::When,
+                ChoiceSourcePhase::Condition,
+                ChoiceSourcePhase::Then,
+                ChoiceSourcePhase::Otherwise,
+                ChoiceSourcePhase::Compare,
+            ]
+        );
+        assert_eq!(ty.bytes.as_ptr(), adapter.borrow().buffers[1]);
+        drop((output, ty));
+        assert_eq!(adapter.borrow().drops.get(), 5);
+    }
+}
+
+#[test]
 fn all_four_native_slots_and_original_boxes_and_vector_buffers_move_unchanged() {
     let input = source();
     let adapter = Adapter::new(&input);
@@ -686,6 +739,7 @@ fn every_native_unwind_releases_owned_parts_and_guarded_frames_without_retry() {
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_scalar_native_group_and_helper_choices_keep_canonical_wire_and_authority() {
     for text in [
         "fn main() = choose(when: true, then: 1, otherwise: 2)",
@@ -715,6 +769,7 @@ fn reference_scalar_native_group_and_helper_choices_keep_canonical_wire_and_auth
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_cold_unknown_type_and_impure_conditions_keep_diagnostics() {
     for (text, code) in [
         (

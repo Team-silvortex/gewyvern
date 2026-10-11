@@ -33,28 +33,26 @@ behavior; Leselang controls explicitly adapted hosts, including Leserpent
 orchestration and UI functions today. Full runtime independence remains a
 tracked target, not a completed property of every Leselang crate.
 2.3.0 targets repository extraction only after complete unrelated-host and compatibility gates.
+`leselang-hir` defaults to the compatible `leserpent-profile`; independent hosts
+can use `default-features = false` to omit product DTOs, fixed operations and the
+host-contract/identity dependency while keeping generic compilation and sessions.
+Native-only CI and default compatibility tests are separate; Cargo feature
+unification can re-enable the profile, and full independent VM extraction is still open.
 `leselang-runtime-core` now isolates admission lifecycle, fuel accounting,
 clock/backoff arithmetic, shared closed scalar data/operations and faults. Scalar/list
 imports are shared types with legacy wire bytes, not parallel implementations;
 expression/constructor expansion costs and host validation stay in HIR/VM.
-Scalar signatures, eager operations, left-value short-circuit decisions and
-condition-first loop budgets, owned fold cursors, incremental list builders and
-borrowed lexical frames are shared; HIR now executes pure IR for native hosts and VM;
-effect dispatch, fuel grants, durable capture and recovery remain adapter-owned.
-HIR and restored-projection preflight share the lexical guard, not their type,
-node-budget, legacy-field or authority policies.
-Ordered scalar projections share opaque-key schema checks and the VM's field DTO.
-Typed calculation recovery keeps external failures separate without inspecting
-codes; pure fallbacks share the executor, while durable recovery remains VM-owned.
-HIR shape/signature walks share checked structural arithmetic; source weights,
-separate graph limits, cold checks and diagnostics remain adapter policy.
-Native catalogs share versioned selection and typed pure/call/group dataflow;
-scalar/control/projection source, native result-binding/choice/flat-group/bounded-repeat/owned-sequence/repeat-sequence orchestration and source-cost measurement, helper signatures/arguments/hygiene/declarations/dependencies/wrappers/templates/expansion/normal-return composition/lowered-body admission, closed group exports, call preparation and effect control are shared;
-received results share type-before-value checks, not authentic receipt certificates;
-raw receipt identity, authority, output limits and replay remain adapter-owned.
-Accepted scalar alternatives share borrowed type/bounds checks with projections;
-no coercion, implicit nullability, authority or lasting value certificate is added.
-Payload-free terminals distinguish cancellation, expiry, exhaustion, rejection, acceptance and
-host uncertainty without replay authority or legacy wire changes; cleanup retains
-known reasons and releases undelivered outputs on unwind.
-Reply handoff, parsed sessions, Bind/Choose, bound projections/native member and staged field frontends, helper body preparation, registry/program assembly, native call completion/host leaf construction, mixed opaque Host/Call and flat group/native graph observation typing, borrowed native graph inspection/closed member admission/fresh export assembly/signature comparison/member lookup/language group shape preflight, staged completion and bounded return joins are shared; full native schema/nested graph typing and durable suspension remain open.
+Shared HIR owns bounded scalar execution, lexical frames, source construction,
+catalog/type inference, acyclic helper compilation and borrowed reply sessions.
+Parsed unrelated-host verticals cover typed replies, re-entry, cancellation and
+live policy checks without a product VM or SQLite. Generic group/helper/graph
+admission APIs also exist. Flat-All sessions now retain out-of-order accepted replies
+behind one complete ordered barrier. Complete original-group assembly and borrowed
+member lookup connect to authenticated enclosing-control re-entry with the same
+owned fuel. Flat-group catalog compilation now owns the complete source expression.
+An additive program entry combines flat entry groups with existing acyclic helpers;
+group-returning helpers, nested groups and native scheduling remain open.
+Effect dispatch, grants, native schema/work limits, authentic receipts, durable
+capture and replay remain adapter-owned; no implicit coercion or authority is added.
+See the embedding architecture for individual contracts and extraction gaps,
+including nested native graph policy, product migration and durable suspension.

@@ -116,6 +116,17 @@ versions. Cargo still reuses compiled dependencies and unchanged test binaries.
 Set `CARGO_PROFILE_TEST_INCREMENTAL=true` temporarily for a focused test-edit
 loop if faster recompilation matters more than disk usage.
 
+For disk-constrained, focused validation, use the opt-in `lean` profile:
+
+```bash
+cargo test --locked --offline --profile lean -p leselang-hir --test catalog_source
+```
+
+It omits debug information and incremental compiler state while retaining debug
+assertions and overflow checks. Outputs live in `target/lean/`; default
+development/test and release profiles are unchanged. Choose one profile for an
+iteration loop rather than repeatedly building the same targets in both modes.
+
 The workflow reuses a fresh .NET assets graph with `--no-restore`, performs a
 locked restore when project or lock inputs changed or an expanded NuGet package
 was removed, and reports each stage's elapsed time. A successful restoring build
@@ -361,7 +372,7 @@ The default contributor commands remain:
 - `cargo tdd-one <name>`: iterate on one named acceptance test
 - `cargo tdd-rules`: run rule/invariant specs
 - `bash scripts/perf/trim_workspace_disk.sh --dry-run`: preview rebuildable disk usage
-- `bash scripts/perf/trim_workspace_disk.sh`: reclaim local workspace disk from build artifacts and caches
+- `bash scripts/perf/trim_workspace_disk.sh --apply`: reclaim local workspace disk from rebuildable outputs after previewing
 - `cargo test --workspace`: run the full suite before finishing
 
 ## Workspace Hygiene
@@ -370,7 +381,12 @@ Build outputs and test sources have different retention rules. Rust `target/`,
 .NET `bin/`, `obj/`, and `TestResults/`, frontend `node_modules/`, Python bytecode
 and caches, and generated `artifacts/` bundles can be recreated. Remove them
 only when no build, validation, or application is using those paths. The trim
-script covers build/dependency caches; separately inspect release bundles under
+script defaults to preview-only and requires `--apply` to remove ignored,
+untracked cache directories and the local Cargo `dev`/`lean` profile outputs.
+It explicitly selects this checkout's `target/`, regardless of
+`CARGO_TARGET_DIR`, and refuses symlinked Cargo outputs. Release outputs,
+`target/package/`, `target/validation/`, shared dependency caches, and installed
+applications are retained. Separately inspect release bundles under
 `artifacts/` before removing them. Do not follow output symlinks into another
 workspace or remove a caller-supplied shared Cargo target cache implicitly.
 
@@ -378,9 +394,10 @@ When `target/debug/incremental/` dominates disk usage, removing only that
 directory while no compiler is running preserves compiled dependencies,
 executables, and `target/validation/` evidence. The next changed development
 build recreates its incremental state. Use
-`cargo clean --profile dev --dry-run` to preview a broader reset.
-`cargo clean --profile dev` clears debug build outputs while preserving release
-outputs and validation evidence.
+`cargo clean --locked --offline --profile dev --target-dir ./target --dry-run`
+from the repository root to preview a broader reset. Removing `--dry-run`
+clears local debug build outputs while preserving release outputs and
+validation evidence. Use `--profile lean` to reset only the lean outputs.
 Prefer targeted test packages and targets during iteration, and reserve full
 workspace test runs for integration and release checks.
 

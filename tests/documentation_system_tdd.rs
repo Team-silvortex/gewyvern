@@ -15,6 +15,37 @@ fn repository_root() -> PathBuf {
 }
 
 #[test]
+fn optional_leserpent_profile_docs_preserve_default_api_and_native_vm_boundaries() {
+    let embedding =
+        fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();
+    let section = embedding
+        .split_once("### Optional Leserpent Profile\n")
+        .unwrap()
+        .1
+        .split_once("## Execution And Safety\n")
+        .unwrap()
+        .0;
+    for required in [
+        "enabled by default",
+        "default-features = false",
+        "Cargo features are additive",
+        "not a second IR or lowerer",
+        "Compile-fail tests enforce their absence",
+        "generic",
+        "full groups",
+        "not the complete independent VM or repository extraction gate",
+    ] {
+        assert!(
+            section.to_lowercase().contains(&required.to_lowercase()),
+            "{required}"
+        );
+    }
+    let module = fs::read_to_string(repository_root().join("docs/modules/leselang.md")).unwrap();
+    assert!(module.contains("leserpent-profile"));
+    assert!(module.contains("full independent VM extraction is still open"));
+}
+
+#[test]
 fn leselang_boolean_projection_contract_keeps_acknowledgements_and_upgrade_fences_explicit() {
     let source =
         fs::read_to_string(repository_root().join("docs/leselang-control-flow.md")).unwrap();
@@ -1488,6 +1519,30 @@ fn leselang_embedding_separates_language_hosts_and_future_shell() {
         "### Shared Bound Native Projection Source",
         "### Shared Native Host Source",
         "### Shared Opaque Host Flow Typing",
+        "### Shared Fixed Source Signatures",
+        "### Shared Exact IR Child Cursors",
+        "### Shared Cursor Purity Inspection",
+        "### Catalog-Driven Expression Compilation",
+        "### Catalog-Driven Multi-Function Compilation",
+        "catalog_program::compile_catalog_program",
+        "All declarations, including unused helpers, precede native compilation hooks",
+        "closed parameter scopes",
+        "recompiles bodies instead of cloning native",
+        "max_compilation_nodes",
+        "max_expansion_depth",
+        "the acyclic helper portion of the catalog expression profile",
+        "catalog_source::compile_catalog_source",
+        "Whole cold structure and catalog policy precede native compiler hooks",
+        "closed-profile source-to-session vertical proof",
+        "not complete\nindependent language/VM acceptance",
+        "pending sibling cursor stack, not a wide node frontier",
+        "reverse DFS and early effect rejection",
+        "structural bound, type certificate, native admission or execution authority",
+        "this walk adds no hidden node/depth ceilings or execution fuel",
+        "Computation::children()",
+        "structural metadata, not native payload admission or execution authority",
+        "source_call::fixed_named_operands",
+        "private source metadata decoding, not schema or execution authority",
         "flow_typing::infer_host_flow_type",
         "mixed Host/Call Bind/Choose flow",
         "Whole cold structure precedes native work",
@@ -2385,6 +2440,144 @@ fn leselang_collection_contract_has_compilable_examples_and_closed_resource_sema
         leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::StringList)
     );
     assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
+}
+
+#[test]
+fn catalog_group_compilation_documents_closed_full_source_entry_and_remaining_gaps() {
+    let docs = fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split_once("### Catalog-Driven Flat Group Compilation")
+        .unwrap()
+        .1
+        .split_once("### Shared Cursor Purity Inspection")
+        .unwrap()
+        .0;
+    let text = section.split_whitespace().collect::<Vec<_>>().join(" ");
+    for boundary in [
+        "complete **flat-group control expression**",
+        "original selected catalog declaration",
+        "Higher-ranked group metadata cannot borrow generated temporary IR",
+        "Unbound references are rejected even in unselected arms",
+        "without changing open native-alias source adapters",
+        "member labels never introduce sibling locals",
+        "All group headers",
+        "inclusive member ceiling is 64",
+        "one whole-expression output budget",
+        "without unioning unrelated members",
+        "not authority, a receipt",
+        "Legacy call-only expression and acyclic helper-program entries remain group-rejecting",
+        "portable durable recovery remain open",
+        "not complete independent VM",
+    ] {
+        assert!(
+            text.contains(boundary),
+            "group compiler docs lost {boundary}"
+        );
+    }
+    assert!(
+        docs.contains(
+            "without manually constructing an outer IR binding or supplying its group type"
+        )
+    );
+}
+
+#[test]
+fn group_entry_program_docs_keep_entry_only_helpers_work_and_live_reentry_boundaries() {
+    let docs = fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split_once("### Catalog-Driven Group Entry Programs")
+        .unwrap()
+        .1
+        .split_once("### Shared Cursor Purity Inspection")
+        .unwrap()
+        .0;
+    let text = section.split_whitespace().collect::<Vec<_>>().join(" ");
+    for boundary in [
+        "compile_catalog_group_program",
+        "**flat groups in the entry only**",
+        "It is not a second helper compiler",
+        "including unused helpers",
+        "before native mapping or type queries",
+        "Direct group members must still be registered native calls",
+        "zero-parameter helper returning one call is rejected before native mapping",
+        "without refunds",
+        "the same expansion guard as an ordinary entry",
+        "CatalogSourceError::Group",
+        "exact remaining fuel 73",
+        "Cancellation and live revocation prevent helper-tail",
+        "not group-returning helper compilation",
+        "does not promote embedding maturity",
+    ] {
+        assert!(
+            text.contains(boundary),
+            "group program docs lost {boundary}"
+        );
+    }
+}
+
+#[test]
+fn group_reply_assembly_documents_native_authority_and_one_meter_reentry_boundaries() {
+    let docs = fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split_once("### Shared Complete Group Reply Assembly")
+        .unwrap()
+        .1
+        .split_once("### Shared Accepted Binding Re-entry")
+        .unwrap()
+        .0;
+    let text = section.split_whitespace().collect::<Vec<_>>().join(" ");
+    for boundary in [
+        "complete count",
+        "exact original row identity",
+        "before fuel or native admission",
+        "Mandatory fresh whole-group admission",
+        "Mixed executions of the same IR",
+        "without native payload copying",
+        "Unknown or policy-hidden names return no member",
+        "only Completed transfers the original owned meter",
+        "ReadyResults",
+        "data, not authority",
+        "original `EffectContinuation`",
+        "77 of 100",
+        "Both lifecycle roots are explicit",
+        "not a universal group compiler",
+        "portable durable recovery remain open",
+    ] {
+        assert!(text.contains(boundary), "group reply docs lost {boundary}");
+    }
+}
+
+#[test]
+fn native_parallel_barrier_contract_distinguishes_local_ownership_from_external_dispatch() {
+    let docs = fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split("### Shared Parallel Reply Barrier")
+        .nth(1)
+        .unwrap()
+        .split("### Shared Accepted Binding Re-entry")
+        .next()
+        .unwrap();
+    let normalized = section.split_whitespace().collect::<Vec<_>>().join(" ");
+    for boundary in [
+        "2 through 64",
+        "same `SequenceEvaluationEnvironment`",
+        "one owned meter",
+        "no partial batch publication",
+        "not atomic external dispatch",
+        "ReadyResults",
+        "Unknown, already accepted, early and terminal",
+        "unchanged input",
+        "complete ordered original-row/declaration/reply",
+        "HostUncertain",
+        "Cancelled",
+        "a flat in-memory parallel reply lifecycle, not the complete independent VM",
+        "portable durable recovery remain open",
+    ] {
+        assert!(
+            normalized.contains(boundary),
+            "missing parallel barrier boundary {boundary}"
+        );
+    }
 }
 
 fn collect_markdown(directory: &Path, output: &mut Vec<PathBuf>) {

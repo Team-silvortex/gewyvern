@@ -677,6 +677,7 @@ fn unrelated_numeric_and_panel_hosts_complete_original_calls_and_prepare_actual_
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_computed_call_keeps_full_width_group_scope_and_canonical_wire_policy() {
     for width in [63, 64] {
         let branches = (0..width)
@@ -715,6 +716,7 @@ fn reference_computed_call_keeps_full_width_group_scope_and_canonical_wire_polic
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_computed_call_does_not_double_charge_bounded_type_prefix_as_expression_depth() {
     let mut source = "ui.focus(node_id: concat(left: \"a\", right: \"b\"))".to_owned();
     for index in 0..12 {

@@ -776,6 +776,7 @@ fn matching_result_observations_cannot_replace_uniform_atomic_operation_admissio
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_flat_opaque_computed_and_expanded_groups_keep_wire_and_cold_authority() {
     for source in [
         "fn main() = bind(node: \"a\", body: seq(first: ui.focus(node_id: \"a\"), second: runtime.list()))",
@@ -802,6 +803,7 @@ fn reference_flat_opaque_computed_and_expanded_groups_keep_wire_and_cold_authori
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_nested_cold_error_indices_never_index_the_root_member_array() {
     for source in [
         "fn main() = bind(node: \"a\", body: seq(first: ui.focus(node_id: choose(when: true, then: \"a\", otherwise: seq(a: 1, b: 2, b: 3)))))",
@@ -1863,6 +1865,203 @@ mod counter {
             assert_eq!(*environment.events.borrow(), ["group"]);
         }
         assert!(scope.is_empty());
+    }
+
+    #[test]
+    fn parsed_parallel_batch_runs_real_calls_and_closes_an_ordered_reply_barrier() {
+        use leselang_hir::parallel_evaluation::*;
+        let parameters = [NamedParameter::required(
+            "value",
+            ScalarTypeSet::only(ScalarType::Integer),
+        )];
+        let schemas = [
+            OperationSchema {
+                key: "counter.left",
+                parameters: &parameters,
+                required_capability: 31,
+                result: Declaration { maximum: 100 },
+            },
+            OperationSchema {
+                key: "counter.right",
+                parameters: &parameters,
+                required_capability: 32,
+                result: Declaration { maximum: 200 },
+            },
+        ];
+        let catalog = OperationCatalog::new(
+            7,
+            &schemas,
+            OperationCatalogLimits {
+                max_operations: 2,
+                max_parameters_per_operation: 1,
+            },
+        )
+        .unwrap();
+        let host = SourceCallHost {
+            catalog: &catalog,
+            version: 7,
+            granted: &[31, 32],
+        };
+        let input = expression(
+            "all(left: counter.left(value: add(left: 40, right: 2)), right: counter.right(value: 150))",
+        );
+        let output = compile(&input, &host).unwrap();
+        let Ir::Group { branches, .. } = &output else {
+            panic!()
+        };
+        let environment = Environment {
+            catalog: &catalog,
+            version: 7,
+            grants: &[31, 32],
+            events: RefCell::new(Vec::new()),
+        };
+        // The atomic adapter is deliberately identical in Seq and All mode.
+        let native = SequentialEnvironment {
+            inner: &environment,
+            owner: 53,
+        };
+        let authority = SequenceAuthority {
+            environment: &environment,
+            owner: 53,
+            branches,
+        };
+        let limits = ParallelEvaluationLimits {
+            max_nodes: 256,
+            max_depth: 32,
+            max_branches: 64,
+        };
+        let mut session =
+            ParallelEvaluation::start(&output, &native, Fuel::new(100), limits).unwrap();
+        assert_eq!(*environment.events.borrow(), ["sequence preflight"; 2]);
+        let ParallelPoll::Requests(batch) = session.poll(&native).unwrap() else {
+            panic!()
+        };
+        assert_eq!(session.fuel_remaining(), 93);
+        let mut counters = NativeCounters::default();
+        assert!(counters.calls.is_empty());
+        for item in batch.into_iter().rev() {
+            let index = item.index;
+            assert!(std::ptr::eq(
+                item.request.schema(),
+                branches[index].result_type
+            ));
+            let result = counters
+                .invoke(item.request)
+                .unwrap_or_else(|_| panic!("native invocation rejected"));
+            let rejected = session
+                .try_accept::<ScalarValue, _>(index, &(54, index), result.clone(), &authority)
+                .unwrap_err();
+            assert!(matches!(
+                rejected.error,
+                ParallelReplyError::Reply(ReplyAcceptanceError::IdentityMismatch)
+            ));
+            session
+                .try_accept::<ScalarValue, _>(index, &(53, index), result, &authority)
+                .unwrap();
+            if index == 1 {
+                assert!(matches!(
+                    session.poll(&native).unwrap(),
+                    ParallelPoll::Awaiting { remaining: 1 }
+                ));
+            }
+        }
+        assert_eq!(session.status(), ParallelStatus::ReadyResults);
+        let events = environment.events.borrow().clone();
+        let ParallelPoll::Results(results) = session.poll(&native).unwrap() else {
+            panic!()
+        };
+        for (index, result) in results.into_iter().enumerate() {
+            let (position, original, identity, declaration, reply) = result.into_parts();
+            assert_eq!(position, index);
+            assert!(std::ptr::eq(original, &branches[index]));
+            assert!(std::ptr::eq(declaration, &schemas[index].result));
+            assert_eq!(identity, (53, index));
+            assert_eq!(
+                reply,
+                ScalarValue::Integer(if index == 0 { 42 } else { 150 })
+            );
+        }
+        assert_eq!(*environment.events.borrow(), events);
+        assert_eq!(counters.calls, ["counter.right", "counter.left"]);
+        assert_eq!((counters.left, counters.right), (42, 150));
+        assert_eq!(session.fuel_remaining(), 93);
+        assert!(matches!(
+            session.poll(&native).unwrap(),
+            ParallelPoll::Terminal(ParallelEnd::Completed)
+        ));
+
+        let mut session =
+            ParallelEvaluation::start(&output, &native, Fuel::new(100), limits).unwrap();
+        let ParallelPoll::Requests(mut batch) = session.poll(&native).unwrap() else {
+            panic!()
+        };
+        let request = batch.remove(1);
+        let result = ScalarValue::Integer(150);
+        let revoked = Environment {
+            catalog: &catalog,
+            version: 8,
+            grants: &[31, 32],
+            events: RefCell::new(Vec::new()),
+        };
+        let revoked_authority = SequenceAuthority {
+            environment: &revoked,
+            owner: 53,
+            branches,
+        };
+        assert!(matches!(
+            session
+                .try_accept::<ScalarValue, _>(1, &(53, 1), result.clone(), &revoked_authority)
+                .unwrap_err()
+                .error,
+            ParallelReplyError::Reply(ReplyAcceptanceError::Authority(_))
+        ));
+        session
+            .try_accept::<ScalarValue, _>(1, &(53, 1), result, &authority)
+            .unwrap();
+        assert!(session.cancel());
+        drop(request);
+        drop(batch);
+        assert!(matches!(
+            session.poll(&native).unwrap(),
+            ParallelPoll::Terminal(ParallelEnd::Cancelled)
+        ));
+        assert!(
+            session
+                .try_accept::<ScalarValue, _>(0, &(53, 0), ScalarValue::Integer(42), &authority)
+                .is_err()
+        );
+        assert_eq!(counters.calls, ["counter.right", "counter.left"]);
+        assert_eq!(session.fuel_remaining(), 93);
+
+        let mut session = ParallelEvaluation::<_, _, _, _, _, _, ScalarValue>::start(
+            &output,
+            &native,
+            Fuel::new(100),
+            limits,
+        )
+        .unwrap();
+        let missing_later_grant = Environment {
+            catalog: &catalog,
+            version: 7,
+            grants: &[31],
+            events: RefCell::new(Vec::new()),
+        };
+        assert!(matches!(
+            session.poll(&SequentialEnvironment {
+                inner: &missing_later_grant,
+                owner: 53
+            }),
+            Err(ParallelEvaluationError::Native {
+                index: 1,
+                phase: ParallelPhase::Prepare,
+                ..
+            })
+        ));
+        assert!(matches!(
+            session.poll(&native).unwrap(),
+            ParallelPoll::Terminal(ParallelEnd::Failed)
+        ));
+        assert_eq!(counters.calls, ["counter.right", "counter.left"]);
     }
 
     #[test]

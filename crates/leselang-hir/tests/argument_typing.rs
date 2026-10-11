@@ -1,3 +1,5 @@
+#![cfg(feature = "leserpent-profile")]
+
 use std::rc::Rc;
 
 use leselang_hir::host_call::HostOperation;

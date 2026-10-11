@@ -930,6 +930,7 @@ fn body_parameter_types_and_source_expansion_weights_are_not_template_shape_cert
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_repeated_nested_templates_keep_wire_diagnostics_and_cold_authority() {
     let source = "fn a(n: integer) = b(n: n)\nfn b(n: integer) = n\nfn main() = ui.focus(node_id: to_string(value: a(n: 7)))";
     let program = leselang_hir::lower(&leselang_syntax::parse(source)).unwrap();

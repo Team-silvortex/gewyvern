@@ -27,13 +27,19 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install Rust toolchain
-        run: rustup toolchain install 1.98.0 --profile minimal
+        run: rustup toolchain install 1.98.0 --profile minimal --component clippy
 
       - name: Package and verify isolated runtime core
         run: cargo +1.98.0 package -p leselang-runtime-core --locked
 
       - name: Test normalized standalone package
         run: cargo +1.98.0 test --manifest-path target/package/leselang-runtime-core-*/Cargo.toml --locked --offline
+
+      - name: Test host-defined HIR without the Leserpent profile
+        run: cargo +1.98.0 test -p leselang-hir --locked --no-default-features
+
+      - name: Lint native-only HIR and its tests
+        run: cargo +1.98.0 clippy -p leselang-hir --locked --no-default-features --all-targets -- -D warnings
 
   rust:
     name: Rust quality gates
@@ -56,7 +62,9 @@ jobs:
         run: cargo audit --no-yanked -D warnings
 
       - name: Check formatting
-        run: cargo fmt --all -- --check
+        run: |
+          cargo fmt --all -- --check
+          rustfmt +1.98.0 --edition 2024 --check crates/leselang-hir/src/leserpent_profile.rs
 
       - name: Run Clippy
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings

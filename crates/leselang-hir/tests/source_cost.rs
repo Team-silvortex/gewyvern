@@ -937,6 +937,7 @@ fn parsed_folded_operands_compose_with_reservation_templates_hygiene_and_exact_f
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_helper_returns_wire_capabilities_and_cold_repeat_bounds_are_unchanged() {
     for source in [
         "fn work(n: string) = bind(r: ui.focus(node_id: n), body: field(value: r, name: \"node_id\"))\nfn main() = bind(answer: work(n: \"a\"), body: ui.focus(node_id: answer))",

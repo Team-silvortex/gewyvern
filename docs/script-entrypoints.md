@@ -1343,7 +1343,7 @@ Run:
 cargo run --quiet --bin gewyvern_validate -- leserpent-benchmark
 bash scripts/perf/benchmark_summary.sh
 bash scripts/perf/trim_workspace_disk.sh --dry-run
-bash scripts/perf/trim_workspace_disk.sh
+bash scripts/perf/trim_workspace_disk.sh --apply
 bash scripts/history/render_minor_line_ir_snapshot.sh http=dsl/http_request_path.gewy
 ```
 
@@ -1354,15 +1354,18 @@ release-binary-size budgets while retaining `benchmark-summary.json` and
 host class. The shell summary remains the Gewyvern 1.x ignored-benchmark helper.
 
 Use `trim_workspace_disk.sh` when local iteration has left behind large
-rebuildable artifacts. It removes:
+rebuildable artifacts. It only previews by default; `--apply` removes the
+following while builds and applications are idle:
 
-- Rust `target/`
-- frontend `node_modules/`
-- .NET `bin/` and `obj/`
-- Python cache directories such as `__pycache__/`
+- Local Rust `dev` and `lean` profile outputs
+- Ignored, untracked frontend `node_modules/`
+- Ignored, untracked .NET `bin/` and `obj/`
+- Ignored, untracked Python cache directories such as `__pycache__/`
 
-The script intentionally skips source, docs, Git history, and
-`apps/leserpent/src/Leserpent/data`.
+The script intentionally skips source, docs, Git history, release bundles,
+`target/package/`, `target/validation/`, installed applications, shared caches,
+and `apps/leserpent/src/Leserpent/data`. It ignores `CARGO_TARGET_DIR` in favor
+of the checkout's local target directory and refuses symlinked Cargo outputs.
 
 ## Suggested Reading Order
 

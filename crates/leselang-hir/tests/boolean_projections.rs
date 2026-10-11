@@ -1,3 +1,5 @@
+#![cfg(feature = "leserpent-profile")]
+
 use leselang_hir::computation::ScalarType;
 use leselang_hir::{Type, canonical_source, lower};
 use leselang_syntax::parse;

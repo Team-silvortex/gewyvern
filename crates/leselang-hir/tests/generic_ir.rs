@@ -14,6 +14,22 @@ fn integer(value: u64) -> TextIr {
     }
 }
 
+fn legacy_purity<Field, Operation, HostEffect, ResultType>(
+    node: &Computation<Field, Operation, HostEffect, ResultType>,
+) -> bool {
+    let mut pending = vec![node];
+    while let Some(node) = pending.pop() {
+        if matches!(
+            node,
+            Computation::Host { .. } | Computation::Call { .. } | Computation::Group { .. }
+        ) {
+            return false;
+        }
+        pending.extend(node.children());
+    }
+    true
+}
+
 #[test]
 fn unrelated_gui_and_device_catalogs_supply_different_operation_and_result_types_to_one_ir() {
     #[derive(PartialEq)]
@@ -255,6 +271,7 @@ fn all_control_node_variants_keep_exact_tags_field_order_and_strict_data_roundtr
     }
     assert_eq!(cases.len(), 16);
     for (node, expected) in cases {
+        assert_eq!(node.is_pure(), legacy_purity(&node));
         assert_eq!(serde_json::to_string(&node).unwrap(), expected);
         assert_eq!(serde_json::from_str::<TextIr>(&expected).unwrap(), node);
         let with_extra = format!("{},\"private\":true}}", &expected[..expected.len() - 1]);
@@ -379,6 +396,12 @@ fn every_child_layout_preserves_declaration_order_original_borrows_and_fused_rev
         _ => panic!("expected integer"),
     };
     for (node, expected) in cases {
+        assert_eq!(node.children().len(), expected.len());
+        assert_eq!(
+            node.children().size_hint(),
+            (expected.len(), Some(expected.len()))
+        );
+        assert!(std::mem::size_of_val(&node.children()) <= 3 * std::mem::size_of::<usize>());
         let originals: Vec<_> = node.children().collect();
         assert_eq!(
             originals
@@ -391,8 +414,11 @@ fn every_child_layout_preserves_declaration_order_original_borrows_and_fused_rev
             assert!(std::ptr::eq(again, *original));
         }
         let mut reverse = node.children();
-        for n in expected.iter().rev() {
+        for (index, n) in expected.iter().rev().enumerate() {
             assert_eq!(number(reverse.next_back().unwrap()), *n);
+            let remaining = expected.len() - index - 1;
+            assert_eq!(reverse.len(), remaining);
+            assert_eq!(reverse.size_hint(), (remaining, Some(remaining)));
         }
         for _ in 0..3 {
             assert!(reverse.next().is_none());
@@ -400,13 +426,152 @@ fn every_child_layout_preserves_declaration_order_original_borrows_and_fused_rev
         }
         let mut mixed = node.children();
         assert_eq!(number(mixed.next().unwrap()), expected[0]);
+        assert_eq!(mixed.len(), expected.len() - 1);
         if expected.len() > 1 {
             assert_eq!(
                 number(mixed.next_back().unwrap()),
                 *expected.last().unwrap()
             );
+            assert_eq!(mixed.len(), expected.len() - 2);
         }
     }
+}
+
+#[test]
+fn exact_child_cursors_keep_opaque_slots_and_checked_skip_ranges_without_native_traits() {
+    struct Slot(Rc<Cell<usize>>);
+    impl Drop for Slot {
+        fn drop(&mut self) {
+            self.0.set(self.0.get() + 1);
+        }
+    }
+    type Node = Computation<Slot, Slot, Slot, Slot>;
+    let drops = Rc::new(Cell::new(0));
+    let slot = || Slot(drops.clone());
+    let leaf = || Node::Literal {
+        value: ScalarValue::None,
+    };
+    let cases = vec![
+        leaf(),
+        Node::Local {
+            name: "local".into(),
+        },
+        Node::Member {
+            group: "g".into(),
+            name: "m".into(),
+            operation: slot(),
+        },
+        Node::Host {
+            effect: Box::new(slot()),
+        },
+        Node::Field {
+            value: Box::new(leaf()),
+            field: slot(),
+        },
+        Node::Choose {
+            when: Box::new(leaf()),
+            then: Box::new(leaf()),
+            otherwise: Box::new(leaf()),
+        },
+        Node::Strings { items: vec![] },
+        Node::Call {
+            operation: slot(),
+            arguments: vec![],
+        },
+        Node::Group {
+            group_kind: GroupKind::Parallel,
+            branches: vec![],
+        },
+        Node::Strings {
+            items: (0..257).map(|_| leaf()).collect(),
+        },
+        Node::Call {
+            operation: slot(),
+            arguments: (0..257)
+                .map(|index| ComputedArgument {
+                    name: index.to_string(),
+                    value: leaf(),
+                })
+                .collect(),
+        },
+        Node::Group {
+            group_kind: GroupKind::Sequence,
+            branches: (0..257)
+                .map(|index| ComputedBranch {
+                    name: index.to_string(),
+                    value: leaf(),
+                    result_type: slot(),
+                })
+                .collect(),
+        },
+    ];
+    for node in cases {
+        let original: Vec<&Node> = match &node {
+            Node::Field { value, .. } => vec![value],
+            Node::Choose {
+                when,
+                then,
+                otherwise,
+            } => vec![when, then, otherwise],
+            Node::Strings { items } => items.iter().collect(),
+            Node::Call { arguments, .. } => {
+                arguments.iter().map(|argument| &argument.value).collect()
+            }
+            Node::Group { branches, .. } => branches.iter().map(|branch| &branch.value).collect(),
+            _ => vec![],
+        };
+        let before = drops.get();
+        assert_eq!(node.children().len(), original.len());
+        assert_eq!(node.children().count(), original.len());
+        assert_eq!(
+            node.children().last().map(std::ptr::from_ref),
+            original.last().copied().map(std::ptr::from_ref)
+        );
+        for skip in (0..=original.len()).chain(std::iter::once(usize::MAX)) {
+            let mut forward = node.children();
+            assert_eq!(
+                forward.nth(skip).map(std::ptr::from_ref),
+                original.get(skip).copied().map(std::ptr::from_ref)
+            );
+            let remaining = original.len().saturating_sub(skip).saturating_sub(1);
+            assert_eq!(forward.len(), remaining);
+            assert_eq!(forward.size_hint(), (remaining, Some(remaining)));
+            assert_eq!(forward.count(), remaining);
+            let mut backward = node.children();
+            let expected = original
+                .len()
+                .checked_sub(skip)
+                .and_then(|index| index.checked_sub(1))
+                .and_then(|index| original.get(index))
+                .copied();
+            assert_eq!(
+                backward.nth_back(skip).map(std::ptr::from_ref),
+                expected.map(std::ptr::from_ref)
+            );
+            assert_eq!(backward.len(), remaining);
+            assert_eq!(backward.count(), remaining);
+        }
+        let mut mixed = node.children();
+        let (mut front, mut back) = (0, original.len());
+        while front < back {
+            assert!(std::ptr::eq(mixed.next().unwrap(), original[front]));
+            front += 1;
+            if front < back {
+                back -= 1;
+                assert!(std::ptr::eq(mixed.next_back().unwrap(), original[back]));
+            }
+            assert_eq!(mixed.len(), back - front);
+        }
+        for _ in 0..3 {
+            assert!(mixed.next().is_none());
+            assert!(mixed.next_back().is_none());
+            assert!(mixed.nth(usize::MAX).is_none());
+            assert!(mixed.nth_back(usize::MAX).is_none());
+            assert_eq!(mixed.size_hint(), (0, Some(0)));
+        }
+        assert_eq!(drops.get(), before);
+    }
+    assert_eq!(drops.get(), 262);
 }
 
 #[test]
@@ -541,6 +706,7 @@ fn data_decode_and_previous_purity_observations_do_not_authorize_types_versions_
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_lowering_is_a_direct_shared_ir_specialization_with_no_tree_conversion() {
     use leselang_hir::{Effect, Type, host_call::HostOperation, result_field::ResultField};
     type ReferenceIr = Computation<ResultField, HostOperation, Effect, Type>;
@@ -587,4 +753,255 @@ fn thread_transfer_is_conditional_on_host_slots_without_an_interpreter_global_lo
     std::thread::scope(|scope| {
         scope.spawn(|| assert!(node.is_pure())).join().unwrap();
     });
+}
+
+#[test]
+fn cursor_purity_matches_legacy_for_every_cold_control_position_without_type_admission() {
+    for replacement in [
+        integer(7),
+        TextIr::Host {
+            effect: Box::new("opaque".into()),
+        },
+        TextIr::Call {
+            operation: "unknown".into(),
+            arguments: vec![],
+        },
+        TextIr::Group {
+            group_kind: GroupKind::Parallel,
+            branches: vec![],
+        },
+    ] {
+        let expected = matches!(replacement, TextIr::Literal { .. });
+        for selected in 0..3 {
+            let child = |index| {
+                if index == selected {
+                    replacement.clone()
+                } else {
+                    integer(index as u64)
+                }
+            };
+            let boxed = |index| Box::new(child(index));
+            let layouts = [
+                TextIr::Strings {
+                    items: vec![child(0), child(1), child(2)],
+                },
+                TextIr::Field {
+                    value: boxed(0),
+                    field: "unknown".into(),
+                },
+                TextIr::Unary {
+                    operator: UnaryOperator::Not,
+                    value: boxed(0),
+                },
+                TextIr::Binary {
+                    operator: BinaryOperator::Add,
+                    left: boxed(0),
+                    right: boxed(1),
+                },
+                TextIr::Bind {
+                    name: "x".into(),
+                    value: boxed(0),
+                    body: boxed(1),
+                },
+                TextIr::Loop {
+                    name: "x".into(),
+                    initial: boxed(0),
+                    condition: boxed(1),
+                    next: boxed(2),
+                    limit: 0,
+                },
+                TextIr::Fold {
+                    name: "x".into(),
+                    item: "item".into(),
+                    items: boxed(0),
+                    initial: boxed(1),
+                    next: boxed(2),
+                    limit: 0,
+                },
+                TextIr::Choose {
+                    when: boxed(0),
+                    then: boxed(1),
+                    otherwise: boxed(2),
+                },
+                TextIr::Recover {
+                    value: boxed(0),
+                    fallback: boxed(1),
+                },
+            ];
+            for layout in layouts {
+                let contains_replacement = selected < layout.children().len();
+                for when in [false, true] {
+                    let nested = TextIr::Choose {
+                        when: Box::new(TextIr::Literal {
+                            value: ScalarValue::Boolean(when),
+                        }),
+                        then: Box::new(TextIr::Recover {
+                            value: Box::new(integer(1)),
+                            fallback: Box::new(layout.clone()),
+                        }),
+                        otherwise: Box::new(TextIr::Bind {
+                            name: "unused".into(),
+                            value: Box::new(layout.clone()),
+                            body: Box::new(integer(2)),
+                        }),
+                    };
+                    assert_eq!(nested.is_pure(), expected || !contains_replacement);
+                    assert_eq!(nested.is_pure(), legacy_purity(&nested));
+                }
+            }
+        }
+    }
+    for leaf in [
+        integer(0),
+        TextIr::Local {
+            name: "unknown".into(),
+        },
+        TextIr::Member {
+            group: "unknown".into(),
+            name: "unknown".into(),
+            operation: "unknown".into(),
+        },
+        TextIr::Strings { items: vec![] },
+    ] {
+        assert!(leaf.is_pure());
+        assert_eq!(leaf.is_pure(), legacy_purity(&leaf));
+    }
+}
+
+#[test]
+fn cursor_purity_keeps_wide_and_deep_original_nodes_without_hidden_limits_or_stale_results() {
+    let mut wide = TextIr::Strings {
+        items: (0..65_536).map(integer).collect(),
+    };
+    assert!(wide.is_pure());
+    assert_eq!(wide.is_pure(), legacy_purity(&wide));
+    for position in [0, 32_768, 65_535] {
+        let TextIr::Strings { items } = &mut wide else {
+            unreachable!()
+        };
+        items[position] = TextIr::Host {
+            effect: Box::new("cold".into()),
+        };
+        let original = items.as_ptr();
+        assert!(!wide.is_pure());
+        assert_eq!(wide.is_pure(), legacy_purity(&wide));
+        let TextIr::Strings { items } = &mut wide else {
+            unreachable!()
+        };
+        assert_eq!(items.as_ptr(), original);
+        items[position] = integer(position as u64);
+        assert!(wide.is_pure());
+    }
+    for position in 0..257 {
+        let mut items: Vec<_> = (0..257).map(integer).collect();
+        items[position] = TextIr::Call {
+            operation: "unknown".into(),
+            arguments: vec![],
+        };
+        let node = TextIr::Strings { items };
+        assert!(!node.is_pure());
+        assert_eq!(node.is_pure(), legacy_purity(&node));
+    }
+    for leaf in [
+        integer(1),
+        TextIr::Host {
+            effect: Box::new("opaque".into()),
+        },
+    ] {
+        let expected = leaf.is_pure();
+        let mut deep = leaf;
+        for _ in 0..4096 {
+            deep = TextIr::Unary {
+                operator: UnaryOperator::Not,
+                value: Box::new(deep),
+            };
+        }
+        assert_eq!(deep.is_pure(), expected);
+        assert_eq!(deep.is_pure(), legacy_purity(&deep));
+        // Tear down iteratively: the inspection contract is not recursive Drop safety.
+        while let TextIr::Unary { value, .. } = deep {
+            deep = *value;
+        }
+    }
+}
+
+#[test]
+fn cursor_purity_borrows_opaque_nonclone_slots_without_native_observation_or_consumption() {
+    struct Native(Rc<Cell<usize>>);
+    impl Drop for Native {
+        fn drop(&mut self) {
+            self.0.set(self.0.get() + 1);
+        }
+    }
+    type NativeIr = Computation<Native, Native, Native, Native>;
+    let drops = Rc::new(Cell::new(0));
+    let mut node = NativeIr::Field {
+        field: Native(drops.clone()),
+        value: Box::new(NativeIr::Strings {
+            items: (0..257)
+                .map(|_| NativeIr::Member {
+                    group: "unknown".into(),
+                    name: "unknown".into(),
+                    operation: Native(drops.clone()),
+                })
+                .collect(),
+        }),
+    };
+    assert!(node.is_pure());
+    assert_eq!(node.is_pure(), legacy_purity(&node));
+    assert_eq!(drops.get(), 0);
+    let NativeIr::Field { value, .. } = &mut node else {
+        unreachable!()
+    };
+    let NativeIr::Strings { items } = value.as_mut() else {
+        unreachable!()
+    };
+    items[128] = NativeIr::Host {
+        effect: Box::new(Native(drops.clone())),
+    };
+    let original = items.as_ptr();
+    assert_eq!(drops.get(), 1);
+    assert!(!node.is_pure());
+    assert_eq!(node.is_pure(), legacy_purity(&node));
+    assert_eq!(drops.get(), 1);
+    let NativeIr::Field { value, .. } = &node else {
+        unreachable!()
+    };
+    let NativeIr::Strings { items } = value.as_ref() else {
+        unreachable!()
+    };
+    assert_eq!(items.as_ptr(), original);
+    drop(node);
+    assert_eq!(drops.get(), 259);
+}
+
+#[test]
+fn cursor_scalar_argument_bridge_keeps_borrowed_literals_and_untrusted_type_hints() {
+    let node = integer(7);
+    let argument = node.scalar_argument_type(Some(ScalarType::Boolean));
+    assert!(argument.is_pure);
+    assert_eq!(argument.scalar_type, Some(ScalarType::Boolean));
+    let TextIr::Literal { value } = &node else {
+        unreachable!()
+    };
+    assert!(std::ptr::eq(argument.literal.unwrap(), value));
+    let nested = TextIr::Choose {
+        when: Box::new(TextIr::Literal {
+            value: ScalarValue::Boolean(true),
+        }),
+        then: Box::new(node),
+        otherwise: Box::new(TextIr::Group {
+            group_kind: GroupKind::Sequence,
+            branches: vec![],
+        }),
+    };
+    let argument = nested.scalar_argument_type(None);
+    assert!(!argument.is_pure);
+    assert_eq!(argument.scalar_type, None);
+    assert!(argument.literal.is_none());
+    assert!(
+        !nested
+            .scalar_argument_type(Some(ScalarType::Integer))
+            .is_pure
+    );
 }

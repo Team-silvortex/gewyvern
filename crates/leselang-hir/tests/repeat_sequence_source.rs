@@ -1033,6 +1033,7 @@ fn late_native_cost_error_or_unwind_never_admits_partial_instances() {
 }
 
 #[test]
+#[cfg(feature = "leserpent-profile")]
 fn reference_nested_repeat_names_wire_authority_and_expansion_diagnostics_remain_compatible() {
     for body in [
         "repeat(times: 3, body: seq(one: ui.focus(node_id: node), two: runtime.list()))",

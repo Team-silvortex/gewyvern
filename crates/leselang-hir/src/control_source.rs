@@ -28,6 +28,9 @@ pub struct ControlSourceScope<'scope, 'names, Type> {
     bindings: &'scope [(&'names str, &'scope Type)],
 }
 impl<'scope, 'names, Type> ControlSourceScope<'scope, 'names, Type> {
+    pub(crate) fn new(bindings: &'scope [(&'names str, &'scope Type)]) -> Self {
+        Self { bindings }
+    }
     pub fn get(&self, name: &str) -> Option<&'scope Type> {
         self.bindings
             .iter()
@@ -285,6 +288,15 @@ pub fn lower_control_source<'source, Field, Operation, HostEffect, IrResult, Ada
 where
     Adapter: ControlSourceAdapter<'source, Field, Operation, HostEffect, IrResult>,
 {
+    preflight_control_source::<_, Adapter::Error>(expression, prefix, limits)?;
+    lower_preflighted_control_source(expression, prefix, limits, adapter)
+}
+
+pub(crate) fn preflight_control_source<'source, Type, Error>(
+    expression: &'source Expression,
+    prefix: &[(&'source str, &Type)],
+    limits: ControlSourceLimits,
+) -> Result<(), ControlSourceError<Error>> {
     if !valid_limits(limits.source) || limits.max_bindings > MAX_TYPE_INFERENCE_BINDINGS {
         return Err(ControlSourceError::Source(SourceCallError::InvalidLimits));
     }
@@ -313,6 +325,44 @@ where
         limits.max_bindings,
     )
     .map_err(ControlSourceError::Lexical)?;
+    Ok(())
+}
+
+pub(crate) fn preflight_closed_control_source<'source, Type, Error>(
+    expression: &'source Expression,
+    prefix: &[(&'source str, &Type)],
+    limits: ControlSourceLimits,
+) -> Result<(), ControlSourceError<Error>> {
+    preflight_control_source(expression, prefix, limits)?;
+    let mut names = prefix
+        .iter()
+        .map(|(name, _)| (*name, ScalarType::None))
+        .collect();
+    crate::scalar_source::preflight_closed_bindings(
+        expression,
+        &mut ScopeFrame::new(&mut names),
+        limits.max_bindings,
+    )
+    .map_err(ControlSourceError::Lexical)
+}
+
+// Callers complete cold physical/lexical checks before entering this builder.
+pub(crate) fn lower_preflighted_control_source<
+    'source,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Adapter,
+>(
+    expression: &'source Expression,
+    prefix: &[(&'source str, &Adapter::Type)],
+    limits: ControlSourceLimits,
+    adapter: &mut Adapter,
+) -> ControlSourceResult<Node<Field, Operation, HostEffect, IrResult>, Adapter::Type, Adapter::Error>
+where
+    Adapter: ControlSourceAdapter<'source, Field, Operation, HostEffect, IrResult>,
+{
     let (value, ty) = Builder {
         adapter,
         limits,
