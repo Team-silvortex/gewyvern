@@ -4,9 +4,10 @@ use leselang_hir::call_evaluation::{CallEvaluationError, CallEvaluationLimits};
 use leselang_hir::call_typing::{CallTypeError, MAX_CALL_ARGUMENTS};
 use leselang_hir::computation::{Computation, GroupKind, ScalarValue};
 use leselang_hir::effect_evaluation::{
-    EffectEvaluationEnvironment, EffectEvaluationFault, EffectEvaluationLimits,
-    EffectEvaluationOutcome, evaluate_effects_in_scope,
+    EffectEvaluationEnvironment, EffectEvaluationFailure, EffectEvaluationFault,
+    EffectEvaluationLimits, EffectEvaluationOutcome, evaluate_effects_in_scope,
 };
+use leselang_hir::effect_reentry::{CapturedEffectHooks, resume_captured_effects_in_scope};
 use leselang_hir::host_call::HostOperation;
 use leselang_hir::pure_evaluation::{
     PureEvaluationEnvironment, PureEvaluationFailure, PureEvaluationFault, PureEvaluationLimits,
@@ -17,9 +18,9 @@ use leselang_hir::pure_typing::{
 };
 use leselang_hir::{Effect, HirBranch};
 use leselang_runtime_core::{
-    CalculationFailure, CaptureScopeError, CaptureScopeHooks, CaptureSnapshotError,
-    CaptureSnapshotHooks, CaptureSnapshotLimits, CapturedValue, FoldError, Fuel, LoopError,
-    ScalarError, ScopeFrame, snapshot_captured_scope_state, with_captured_scope_state,
+    CalculationFailure, CaptureScopeError, CaptureSnapshotError, CaptureSnapshotHooks,
+    CaptureSnapshotLimits, CapturedValue, FoldError, Fuel, LoopError, ScalarError, ScopeFrame,
+    snapshot_captured_scope_state,
 };
 
 use crate::result_binding::{ProjectedGroup, ProjectedResult, ReferenceProjectedGroup};
@@ -211,11 +212,13 @@ fn resume_captured_outcome<'a>(
     let mut bindings =
         Vec::with_capacity(binding.locals.len() + binding.results.len() + binding.groups.len() + 1);
     let mut scope = ScopeFrame::new(&mut bindings);
-    with_captured_scope_state(
+    resume_captured_effects_in_scope(
         binding,
         &mut scope,
+        &ResultEnvironment(std::marker::PhantomData),
         fuel,
-        CaptureScopeHooks {
+        execution_limits(),
+        CapturedEffectHooks {
             scalar: |value: &ScalarValue, fuel: &mut Fuel| {
                 charge(fuel, 1 + string_cost(value))?;
                 Ok(LocalValue::Scalar(value.clone()))
@@ -223,27 +226,25 @@ fn resume_captured_outcome<'a>(
             result: |result: &'a ProjectedResult, fuel: &mut Fuel| {
                 // GroupResultBinding rejects saved result/group rows before re-entry.
                 if !restore_saved_results {
-                    return Err(invalid());
+                    return Err(invalid().into());
                 }
                 charge_projection(fuel, result)?;
                 Ok(LocalValue::Result(ResultView::Projected(result)))
             },
             group: |group: &'a ProjectedGroup, fuel: &mut Fuel| {
                 if !restore_saved_results {
-                    return Err(invalid());
+                    return Err(invalid().into());
                 }
                 charge_group_projection(fuel, group)?;
                 Ok(LocalValue::Result(ResultView::ProjectedGroup(group)))
             },
             pending: |_: &mut Fuel| Ok(LocalValue::Result(pending)),
-            body: |body, scope: &mut ScopeFrame<'_, 'a, LocalValue<'a>>, fuel: &mut Fuel| {
-                evaluate_inner(body, fuel, scope).map_err(calculation_fault)
-            },
         },
     )
+    .map(|outcome| effect_outcome(outcome.into_legacy()))
     .map_err(|error| match error {
         CaptureScopeError::Duplicate { .. } => invalid(),
-        CaptureScopeError::Native { error, .. } => error,
+        CaptureScopeError::Native { error, .. } => calculation_fault(effect_failure(error)),
     })
 }
 
@@ -415,17 +416,28 @@ fn evaluate_inner<'a>(
         scope,
         &ResultEnvironment(std::marker::PhantomData),
         fuel,
-        EffectEvaluationLimits {
-            pure: PureEvaluationLimits {
-                max_nodes: MAX_TYPE_INFERENCE_NODES,
-                max_depth: MAX_TYPE_INFERENCE_DEPTH,
-                max_bindings: MAX_TYPE_INFERENCE_BINDINGS,
-            },
-            max_arguments: MAX_CALL_ARGUMENTS,
-            max_branches: leselang_hir::MAX_ALL_BRANCHES,
-        },
+        execution_limits(),
     )
-    .map(|outcome| match outcome {
+    .map(effect_outcome)
+    .map_err(effect_failure)
+}
+
+fn execution_limits() -> EffectEvaluationLimits {
+    EffectEvaluationLimits {
+        pure: PureEvaluationLimits {
+            max_nodes: MAX_TYPE_INFERENCE_NODES,
+            max_depth: MAX_TYPE_INFERENCE_DEPTH,
+            max_bindings: MAX_TYPE_INFERENCE_BINDINGS,
+        },
+        max_arguments: MAX_CALL_ARGUMENTS,
+        max_branches: leselang_hir::MAX_ALL_BRANCHES,
+    }
+}
+
+fn effect_outcome<'a>(
+    outcome: EffectEvaluationOutcome<ResultView<'a>, Cow<'a, Effect>, Box<ResultBinding>>,
+) -> Outcome<'a> {
+    match outcome {
         EffectEvaluationOutcome::Value(PureValue::Scalar(value)) => Outcome::Scalar(value),
         EffectEvaluationOutcome::Value(PureValue::Result(_)) => Outcome::Result,
         EffectEvaluationOutcome::Request(effect) => Outcome::Host(effect),
@@ -433,8 +445,11 @@ fn evaluate_inner<'a>(
             effect: request,
             binding: capture,
         },
-    })
-    .map_err(|failure| match failure {
+    }
+}
+
+fn effect_failure(failure: EffectEvaluationFailure<Fault>) -> EvaluationFailure {
+    match failure {
         CalculationFailure::Scalar(error) => CalculationFailure::Scalar(error),
         CalculationFailure::External(EffectEvaluationFault::Pure(failure)) => {
             pure_failure(CalculationFailure::External(failure))
@@ -443,7 +458,7 @@ fn evaluate_inner<'a>(
             CalculationFailure::External(fault)
         }
         CalculationFailure::External(_) => invalid().into(),
-    })
+    }
 }
 
 fn pure_failure(failure: PureEvaluationFailure<Fault>) -> EvaluationFailure {

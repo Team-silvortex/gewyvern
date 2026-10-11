@@ -492,6 +492,30 @@ fn prepare(root: &Path) -> Result<(Plan, String), String> {
             "crates/leselang-runtime-core/tests/checkpoint.rs",
         ),
         (
+            "continuation_frame",
+            "crates/leselang-runtime-core/tests/continuation.rs",
+        ),
+        (
+            "group_graph",
+            "crates/leselang-runtime-core/tests/group_graph.rs",
+        ),
+        (
+            "recovery_fences",
+            "crates/leselang-runtime-core/tests/recovery_fence.rs",
+        ),
+        (
+            "successor_chain",
+            "crates/leselang-runtime-core/tests/successor_chain.rs",
+        ),
+        (
+            "durable_control",
+            "crates/leselang-hir/tests/durable_control.rs",
+        ),
+        (
+            "captured_reentry",
+            "crates/leselang-hir/tests/captured_reentry.rs",
+        ),
+        (
             "owned_scope",
             "crates/leselang-runtime-core/tests/owned_scope.rs",
         ),
@@ -828,7 +852,7 @@ fn verify(directory: &Path, target: &Path) -> Result<(), String> {
     )
 }
 
-const README: &str = "# Leselang Native Source Checkpoint\n\nThis self-contained MIT source workspace contains the production syntax, runtime\nfoundation and host-defined HIR/in-memory sessions, plus their unchanged native\ntests. Production Rust files are copied byte-for-byte, not independently reimplemented.\nCrate manifests own explicit metadata and pin the original locked registry closure.\nNo Gewyvern/Leserpent product crate, account service, generated asset or SQLite is\nrequired. The reference profile is not an enableable Cargo feature here; all-features\nbuilds stay native. Product-only tests and reference implementation files stay in\nthe original repository. Mixed tests retain their original unreachable cfg guards.\n\nUse Rust 1.98.0 with Clippy. From this directory run:\n\n```text\ncargo test --workspace --all-features --locked --offline --profile lean\ncargo clippy --workspace --all-features --all-targets --locked --offline --profile lean -- -D warnings\ncargo test --manifest-path consumer/Cargo.toml --locked --offline --profile lean\ncargo clippy --manifest-path consumer/Cargo.toml --all-targets --locked --offline --profile lean -- -D warnings\n```\n\nOffline builds require the locked registry dependencies to be cached first. The\nstandalone CI fetches that closure, then uses locked/offline verification. The\nconsumer is a separate workspace and exercises owned cleanup, accepted reply\nsessions, nested returns and a headless GUI adapter without monorepo source paths.\nThese are protocol tests, not actual GUI windows or native callback sandboxing.\n\n`export-manifest.json` records relative paths, exact SHA-256 and source provenance.\n`verified` is true only after isolated workspace/consumer tests and strict lints\npass and original inventory bytes remain unchanged. It is not a signature.\n\nThis is a source checkpoint, NOT the complete independent durable VM or full\nrepository extraction gate. Durable recovery, reference-adapter/wire/auth/GUI parity\nand release publication remain separate gates in the original repository. Packages\nare deliberately marked publish=false. FFI and an OS shell remain deferred.\n";
+const README: &str = "# Leselang Native Source Checkpoint\n\nThis self-contained MIT source workspace contains the production syntax, runtime\nfoundation and host-defined HIR/in-memory sessions, plus their unchanged native\ntests. Production Rust files are copied byte-for-byte, not independently reimplemented.\nCrate manifests own explicit metadata and pin the original locked registry closure.\nNo Gewyvern/Leserpent product crate, account service, generated asset or SQLite is\nrequired. The reference profile is not an enableable Cargo feature here; all-features\nbuilds stay native. Product-only tests and reference implementation files stay in\nthe original repository. Mixed tests retain their original unreachable cfg guards.\n\nUse Rust 1.98.0 with Clippy. From this directory run:\n\n```text\ncargo test --workspace --all-features --locked --offline --profile lean\ncargo clippy --workspace --all-features --all-targets --locked --offline --profile lean -- -D warnings\ncargo test --manifest-path consumer/Cargo.toml --locked --offline --profile lean\ncargo clippy --manifest-path consumer/Cargo.toml --all-targets --locked --offline --profile lean -- -D warnings\n```\n\nOffline builds require the locked registry dependencies to be cached first. The\nstandalone CI fetches that closure, then uses locked/offline verification. The\nconsumer is a separate workspace and exercises owned cleanup, accepted reply\nsessions, nested returns and a headless GUI adapter without monorepo source paths.\nSaved-frame and parsed durable-control consumer models recover original budgets,\ncheckpoint watermarks and settled success/refusal receipts through the native\ncompiler and walker. The shared saved-body HIR entry also drives real reference\nVM reentry; restoration hooks cannot replace its saved body or evaluator.\nThe shared flat-group kernel also checks complete original member order and\nidentities before native checkpoint commit; real VM admission and SQLite recovery\nuse it while native authority, reservations and dispatch/terminal state stay host-owned.\nShared recovery fences reject duplicate numeric reservations, check the original\nallocation watermark before imported-identity repair, and gate completion receipts\nbefore native admission. Exact numeric and GUI-local proofs run unchanged in the\nconsumer; real SQLite recovery uses the same fences before watermark repair/commit.\nShared adjacent-chain inspection retains original row order and move-only frames,\nbounded before hooks and released before handoff. SQLite keeps native pair policy\nand frozen result-decode-before-next-request fault order; no saved body is evaluated.\nReceipt authenticity, raw-result correspondence, settlement and replay remain native.\nThey do not provide a production storage backend, crash-atomic\nexternal-effect transaction or generic saved-graph interpreter.\nThese are protocol tests, not actual GUI windows or native callback sandboxing.\n\n`export-manifest.json` records relative paths, exact SHA-256 and source provenance.\n`verified` is true only after isolated workspace/consumer tests and strict lints\npass and original inventory bytes remain unchanged. It is not a signature.\n\nThis is a source checkpoint, NOT the complete independent durable VM or full\nrepository extraction gate. Durable recovery, reference-adapter/wire/auth/GUI parity\nand release publication remain separate gates in the original repository. Packages\nare deliberately marked publish=false. FFI and an OS shell remain deferred.\n";
 
 const CI: &str = "name: Leselang Native Source\non: [push, pull_request, workflow_dispatch]\npermissions:\n  contents: read\njobs:\n  native:\n    runs-on: ubuntu-latest\n    timeout-minutes: 15\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n      - run: rustup toolchain install 1.98.0 --profile minimal --component clippy,rustfmt\n      - run: cargo +1.98.0 fetch --locked\n      - run: cargo +1.98.0 fetch --manifest-path consumer/Cargo.toml --locked\n      - run: cargo +1.98.0 fmt --all -- --check\n      - run: cargo +1.98.0 test --workspace --all-features --locked --offline --profile lean\n      - run: cargo +1.98.0 clippy --workspace --all-features --all-targets --locked --offline --profile lean -- -D warnings\n      - run: cargo +1.98.0 test --manifest-path consumer/Cargo.toml --locked --offline --profile lean\n      - run: cargo +1.98.0 clippy --manifest-path consumer/Cargo.toml --all-targets --locked --offline --profile lean -- -D warnings\n";
 
@@ -1009,7 +1033,17 @@ mod tests {
             "crates/leselang-hir/src/effect_session.rs",
             "crates/leselang-runtime-core/src/owned_scope.rs",
             "crates/leselang-runtime-core/src/checkpoint.rs",
+            "crates/leselang-runtime-core/src/continuation.rs",
+            "crates/leselang-runtime-core/src/group_graph.rs",
+            "crates/leselang-runtime-core/src/recovery_fence.rs",
+            "crates/leselang-runtime-core/src/successor_chain.rs",
             "consumer/tests/checkpoint_recovery.rs",
+            "consumer/tests/continuation_frame.rs",
+            "consumer/tests/group_graph.rs",
+            "consumer/tests/recovery_fences.rs",
+            "consumer/tests/successor_chain.rs",
+            "consumer/tests/durable_control.rs",
+            "consumer/tests/captured_reentry.rs",
             "consumer/tests/prepared_gui_host.rs",
         ] {
             let entry = &plan.entries[Path::new(path)];

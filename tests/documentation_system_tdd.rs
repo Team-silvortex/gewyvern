@@ -3194,6 +3194,39 @@ fn stateful_capture_docs_separate_original_context_accounting_cleanup_and_execut
 }
 
 #[test]
+fn saved_body_execution_docs_keep_admission_authority_and_durable_recovery_separate() {
+    let text = include_str!("../docs/leselang-embedding.md")
+        .split("### Shared Saved-Body Execution")
+        .nth(1)
+        .unwrap()
+        .split("### Native Source Checkpoint")
+        .next()
+        .unwrap();
+    let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    for boundary in [
+        "resume_captured_effects_in_scope()",
+        "real reference VM's atomic/group captures",
+        "no longer supplies a body-evaluation callback",
+        "original caller-owned Fuel",
+        "preparation-before-duplicate debit precedence",
+        "then body physical/scope and all cold effect checks",
+        "there is no extra early pass",
+        "before outputs/errors escape",
+        "not admission or reply acceptance",
+        "authentic replies and durable state",
+        "borrowed accepted-session admission order is unchanged",
+        "saved group/graph journal recovery",
+        "not a complete independent durable VM",
+    ] {
+        assert!(
+            text.to_ascii_lowercase()
+                .contains(&boundary.to_ascii_lowercase()),
+            "saved-body docs lost {boundary}"
+        );
+    }
+}
+
+#[test]
 fn capture_snapshot_docs_keep_native_preparation_accounting_and_authority_explicit() {
     let embedding = include_str!("../docs/leselang-embedding.md");
     let section = embedding
@@ -3343,6 +3376,152 @@ fn committed_checkpoint_docs_keep_storage_proof_distinct_from_durable_execution_
                 normalized.contains(boundary),
                 "checkpoint recovery docs lost {boundary}"
             );
+        }
+    }
+}
+
+#[test]
+fn shared_group_graph_docs_do_not_promote_structural_inspection_to_durable_authority() {
+    let embedding = include_str!("../docs/leselang-embedding.md");
+    let section = embedding
+        .split("### Shared Flat Group Graph Inspection")
+        .nth(1)
+        .unwrap()
+        .split("### Native Source Checkpoint")
+        .next()
+        .unwrap();
+    for source in [
+        section,
+        include_str!("../crates/leselang-runtime-core/README.md"),
+    ] {
+        let normalized = source.split_whitespace().collect::<Vec<_>>().join(" ");
+        for boundary in [
+            "validate_group_graph()",
+            "original rows",
+            "owner exclusion",
+            "duplicate",
+            "before result/error handoff",
+            "watermark repair",
+            "original immediate transaction",
+            "transient structural observation",
+            "execution grant",
+            "cross-group ownership",
+            "sequence reservations",
+            "dispatch/terminal state",
+            "same storage snapshot/transaction",
+            "complete independent durable graph recovery remains open",
+        ] {
+            assert!(
+                normalized
+                    .to_ascii_lowercase()
+                    .contains(&boundary.to_ascii_lowercase()),
+                "group graph docs lost {boundary}"
+            );
+        }
+    }
+}
+
+#[test]
+fn successor_chain_docs_distinguish_ordered_inspection_from_native_recovery_authority() {
+    for source in [
+        include_str!("../docs/leselang-embedding.md"),
+        include_str!("../crates/leselang-runtime-core/README.md"),
+    ] {
+        let text = source
+            .split("Shared Successor Chain Inspection")
+            .nth(1)
+            .unwrap()
+            .split("Shared Recovery Fences")
+            .next()
+            .unwrap()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        for boundary in [
+            "inspect_successor_chain()",
+            "original adjacent rows in declaration order",
+            "ceiling 64",
+            "precede every native hook",
+            "before result/error handoff",
+            "unpublished-next-frame cleanup",
+            "bounded parent-result decode precedes next-request observation",
+            "Frozen SQLite fault-order tests",
+            "final row's terminal is not decoded",
+            "transient inspection, not a receipt, graph certificate or execution grant",
+            "commit-before-publish",
+            "No saved body execution",
+            "not the complete VM or extraction gate",
+        ] {
+            assert!(text.contains(boundary), "chain docs lost {boundary}");
+        }
+    }
+}
+
+#[test]
+fn recovery_fence_docs_keep_original_watermark_and_native_receipt_authority_separate() {
+    let section = include_str!("../docs/leselang-embedding.md")
+        .split("### Shared Recovery Fences")
+        .nth(1)
+        .unwrap()
+        .split("### Native Source Checkpoint")
+        .next()
+        .unwrap();
+    for source in [
+        section,
+        include_str!("../crates/leselang-runtime-core/README.md"),
+    ] {
+        let source = source
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_ascii_lowercase();
+        for boundary in [
+            "sequencereservations",
+            "refusal closes the pass",
+            "original allocation watermark",
+            "expected record presence",
+            "owner-namespace exclusion",
+            "imported high identities",
+            "complete-member/state/receipt consistency",
+            "before result/error handoff",
+            "original immediate transaction",
+            "frozen state/decode fault precedence",
+            "transient structural observations",
+            "not authentic receipts or execution grants",
+            "settlement",
+            "storage atomicity",
+            "no source or saved body is executed during recovery",
+            "complete independent durable graph recovery remains open",
+        ] {
+            assert!(source.contains(boundary), "recovery docs lost {boundary}");
+        }
+    }
+}
+
+#[test]
+fn receipt_correspondence_docs_distinguish_data_merge_from_execution_or_authenticity() {
+    for source in [
+        include_str!("../docs/leselang-embedding.md"),
+        include_str!("../crates/leselang-runtime-core/README.md"),
+    ] {
+        let text = source.split_whitespace().collect::<Vec<_>>().join(" ");
+        for boundary in [
+            "reference native receipt hook",
+            "bounded data-only remerge of original branch terminals",
+            "declared field order/names/values",
+            "cancellation/failure metadata",
+            "sequential early stops and parallel output faults",
+            "same native merge policy as commit",
+            "blocks watermark repair, dispatch mutation and snapshot handoff",
+            "original terminal values and budgets",
+            "State/decode/terminal admission precedes this once-only hook",
+            "never runs DSL or a saved body",
+            "same-snapshot correspondence, not receipt authenticity",
+            "attacker rewriting all records",
+            "Bound expressions retain their separate native checks",
+            "no generic comparison, signature or complete independent durable VM",
+        ] {
+            assert!(text.contains(boundary), "receipt docs lost {boundary}");
         }
     }
 }

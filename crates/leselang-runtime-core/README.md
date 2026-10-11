@@ -393,8 +393,137 @@ not a complete native durable evaluator or automatic restart authority.
 Recovered maps are mutable data, not authenticated receipts or execution grants.
 The adapter must hold the same storage snapshot/transaction across loading and
 finalization, admit aggregate bytes/graphs, verify original frames and current
-authority, and own dispatch/replay/migration. Product-coupled saved execution
-frames and complete reference-adapter compatibility remain extraction blockers.
+authority, and own dispatch/replay/migration. Complete native saved-graph execution
+policy and reference-adapter compatibility remain extraction blockers.
+
+## Shared Flat Group Graph Inspection
+
+`validate_group_graph()` borrows complete original rows against an ordered
+declaration. Explicit inclusive counts (up to 64) precede allocation and hooks;
+zero admits only empty input. Language arity and declaration-name policy are
+separate. Each native row hook runs once before position, name, owner exclusion
+and duplicate-identity checks. No sorting, truncation, missing-position repair,
+payload conversion or later-row retry occurs. Borrowed keys need only Eq/Hash;
+rows and native errors need no Clone/Debug/serde/Default/Send/Sync bounds.
+Native errors move unchanged with payload-free diagnostics. Hook owners clean up
+before result/error handoff; native comparison/hash/observation/cleanup unwind
+stops the pass, and a second cleanup panic may abort.
+
+The real reference VM delegates both new group-request admission and SQLite
+group recovery to this kernel. Frozen request-validation/error precedence stays
+compatible. A malformed late group prevents snapshot handoff and watermark
+repair inside the original immediate transaction. Native tests cover numeric
+counter and GUI-local opaque identity schemas, bounded ordered inspection and
+a complete graph gate before checkpoint commit, not a production durable VM.
+
+Success is a transient structural observation, not an authenticated receipt or
+execution grant. Current native schema, authority, exact owner metadata, values,
+cross-group ownership, sequence reservations, dispatch/terminal state and the
+same storage snapshot/transaction remain host-owned. This does not execute a
+saved body, reconstruct fuel, dispatch effects or grant replay authority;
+complete independent durable graph recovery remains open.
+
+## Shared Successor Chain Inspection
+
+`inspect_successor_chain()` borrows original adjacent rows in declaration order.
+Inclusive bounds (2..=max_members, ceiling 64) precede every native hook. The first
+row runs once; each following link receives the original previous frame and rows
+once. No sorting, renumbering, payload conversion or later-link retry occurs.
+Rows, frames and errors require no Clone/Debug/Eq/serde/Default/Send/Sync bounds.
+Previous frames release before the next link; final frames and callback owners
+release before result/error handoff. Refusal or unwind stops inspection, including
+unpublished-next-frame cleanup when releasing the previous frame panics.
+Native side effects cannot be rolled back; a second cleanup panic may abort.
+
+Real SQLite chain recovery delegates to this kernel while retaining native pair
+policy: bounded parent-result decode precedes next-request observation, then
+original schema, authority, budgets and captured-result checks run unchanged.
+Frozen SQLite fault-order tests and unchanged numeric/GUI-local consumer tests
+exercise the same production core. The final row's terminal is not decoded by
+this pair inspector; separate native record and receipt validation still apply.
+
+Success is transient inspection, not a receipt, graph certificate or execution
+grant. The same storage snapshot, native policy and commit-before-publish remain
+adapter-owned. No saved body execution, reconstructed fuel, allocation repair,
+dispatch, replay or storage commit occurs here. Complete independent durable
+graph recovery remains open; this is not the complete VM or extraction gate.
+
+## Shared Recovery Fences
+
+`SequenceReservations` owns a bounded numeric index across one recovery pass.
+Explicit inclusive count/sequence limits precede duplicate checks; zero and
+unrepresentable successors are refused. Gaps stay valid. Refusal closes the pass
+and discards its partial index; only successful `finish()` returns count/highest
+observations. This is not a durable allocator or identity authority.
+
+`validate_reservation_proof()` compares a slot with the original allocation
+watermark, exact expected record presence and owner-namespace exclusion, in that
+order. Hosts must supply same-snapshot observations and independently admit
+schema/owner/cross-group identity. Imported high identities cannot justify repairing
+the watermark before cold reservations are validated. No repair or writes occur.
+
+`validate_group_receipt()` checks complete-member/state/receipt consistency before
+the once-only native receipt hook: pending needs incomplete members/no receipt;
+completed needs every member complete/one receipt. The exact native receipt or
+error moves without Clone/Debug/serde/Default/Send/Sync bounds. Diagnostics do not
+format native errors. Rejected inputs and uncalled hook owners clean up before
+result/error handoff; cleanup unwind stops handoff, and a second panic may abort.
+
+The actual SQLite recovery uses all three fences in its original immediate
+transaction. Frozen state/decode fault precedence and wire formats stay unchanged.
+Real duplicate/cold-slot tests retain the original watermark despite larger
+imported identities; fixing the invalid data then permits normal recovery/repair.
+Independent numeric/GUI-local tests gate checkpoint commit without product storage.
+These are transient structural observations, not authentic receipts or execution
+grants. Native value/raw-result correspondence, policy, settlement, storage
+atomicity, dispatch and replay remain host-owned. No source or saved body is
+executed during recovery. Complete independent durable graph recovery remains open.
+
+The reference native receipt hook now checks unbound parallel/sequential and
+result-chain/dataflow receipts against a bounded data-only remerge of original
+branch terminals. Exact declared field order/names/values, cancellation/failure
+metadata, sequential early stops and parallel output faults use the same native
+merge policy as commit. Correspondence refusal blocks watermark repair, dispatch
+mutation and snapshot handoff inside the original transaction; correcting only
+the bad receipt allows recovery with the original terminal values and budgets.
+State/decode/terminal admission precedes this once-only hook. It never runs DSL
+or a saved body. This is same-snapshot correspondence, not receipt authenticity
+or cryptographic integrity against an attacker rewriting all records. Bound
+expressions retain their separate native checks; no generic comparison, signature
+or complete independent durable VM is introduced.
+
+## Shared Saved Frames And Budgets
+
+`ContinuationFrame<Token, Revision, ResultType, Effect, Binding>` owns the saved
+effect envelope without product types. `ResourceBudget` holds its original fuel,
+relative/absolute deadline and output observations. The reference VM's released
+`ContinuationImage` is an exact specialization and its budget an exact re-export;
+legacy JSON field order, omission/defaults, schema selection and fault precedence
+are unchanged. Native construction requires no Clone/Debug/serde/Default/Send/Sync
+bounds; derived traits remain conditional. Native Debug/codecs are not redacted.
+
+`resource_budget()` copies observations, not authority. `validate()` applies
+explicit inclusive `ResourceBudgetLimits` in fuel/deadline/absolute-deadline/output
+order, with no allocation, native callbacks, normalization or saturation. Fuel and
+output may be zero; relative and present absolute deadlines must be nonzero.
+Neither API constructs/refills a meter, checks the current clock or authenticates
+a program, original grant, captured body, reply or durable receipt. These mutable
+containers remain unchecked even after metadata validation; hosts bound decoding
+and aggregate storage and verify original frame, schema and live policy first.
+
+The exported `durable_control` consumer model compiles parsed counter and text-panel
+sources with native HIR, saves owned captures as consumer-owned bytes, recovers
+checkpoint partitions/watermarks and restores lexical state using the original
+saved fuel. Successor budgets inherit the original policy. Completed outcomes and
+accepted-reentry refusals replay journal data without repeating preparation or
+external invocation; forged frames, stale identities, wrong domains, revoked
+capabilities and expired deadlines refuse before entry. Native HIR supplies the
+shared `resume_captured_effects_in_scope()` execution entry used by this consumer
+and the reference VM; its hooks map saved values/replies but cannot replace the
+saved body or evaluator. This is a byte-codec/journal
+model, not a production durable backend, crash-atomic external-effect transaction,
+generic saved-graph evaluator or complete independent VM/extraction gate. Dispatch,
+storage authentication, admission and exactly-once guarantees remain host-owned.
 
 ## Owned Capture Data
 

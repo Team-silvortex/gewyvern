@@ -55,6 +55,6 @@ sharing hygiene/quotas; prepared atomic helpers join scoped Seq/All replies acro
 Effect dispatch, grants, native schema/work limits, authentic receipts, durable
 capture and replay remain adapter-owned; no implicit coercion or authority is added.
 The reference VM can now disable its default `sqlite-journal` backend; memory execution keeps the existing evaluator, but still uses product DTOs and is not the independent VM.
-Owned capture/scope and committed-checkpoint staging live in runtime-core; shared HIR walks cold projections. SQLite recovery now gates complete state behind graph validation/commit; original meter, wire, receipts and durable frame/authority policy stay native.
+Owned capture/scope, saved-frame/budget data, checkpoint staging, flat-group and adjacent-chain inspection, and reservation/receipt recovery fences live in runtime-core; shared HIR executes saved bodies with original fuel. SQLite shares the kernels before native validation/commit and original-watermark repair. Chain inspection preserves parent-result-before-next-request fault order without evaluating saved bodies. Wire, authentic receipts, policy and complete independent graph-journal recovery stay adapter-owned.
 See the embedding architecture for individual contracts and extraction gaps,
 including nested native graph policy, product migration and durable suspension.

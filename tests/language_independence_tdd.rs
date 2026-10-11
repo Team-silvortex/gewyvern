@@ -391,13 +391,13 @@ fn real_execution_reentry_uses_shared_original_state_without_a_second_meter_or_p
     for retained in [
         "resume_captured_outcome(binding, ResultView::Group",
         "resume_captured_outcome(binding, ResultView::Raw",
-        "with_captured_scope_state(",
-        "CaptureScopeHooks {",
+        "resume_captured_effects_in_scope(",
+        "CapturedEffectHooks {",
         "charge_projection(fuel, result)?",
         "charge_group_projection(fuel, group)?",
-        "evaluate_inner(body, fuel, scope)",
+        "effect_outcome(outcome.into_legacy())",
         "if !restore_saved_results",
-        "CaptureScopeError::Native { error, .. } => error",
+        "CaptureScopeError::Native { error, .. } => calculation_fault(effect_failure(error))",
     ] {
         assert!(
             production.contains(retained),
@@ -406,6 +406,28 @@ fn real_execution_reentry_uses_shared_original_state_without_a_second_meter_or_p
     }
     assert!(!production.contains("for local in &binding.locals"));
     assert!(!production.contains("Fuel::new"));
+    let reentry =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_reentry.rs")).unwrap();
+    let saved = reentry
+        .split("pub fn resume_captured_effects_in_scope")
+        .nth(1)
+        .unwrap()
+        .split("pub type EffectControlResult")
+        .next()
+        .unwrap();
+    for retained in [
+        "with_captured_scope_state(",
+        "CaptureScopeHooks {",
+        "scalar(value, fuel).map_err(native_failure)",
+        "result(value, fuel).map_err(native_failure)",
+        "group(value, fuel).map_err(native_failure)",
+        "pending(fuel).map_err(native_failure)",
+        "evaluate_resumable_effects_in_scope(body, scope, environment, fuel, limits)",
+    ] {
+        assert!(saved.contains(retained), "shared execution lost {retained}");
+    }
+    assert!(!saved.contains("Fuel::new"));
+    assert!(!saved.contains(".clone()"));
     let group =
         std::fs::read_to_string(root.join("crates/leselang-vm/src/group_binding.rs")).unwrap();
     assert!(group.contains("!self.binding.results.is_empty()"));

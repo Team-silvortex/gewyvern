@@ -1,5 +1,7 @@
 use super::*;
 use crate::group_binding::invalid;
+#[cfg(feature = "sqlite-journal")]
+use leselang_runtime_core::{ReservationObservation, validate_reservation_proof};
 
 pub(super) fn needs_successor(plan: &MergePlan) -> bool {
     plan.order.has_group_successor()
@@ -379,13 +381,16 @@ pub(super) fn validate_records(
                         error,
                     )
                 })?;
-            if next_sequence <= 0
-                || sequence >= next_sequence as u64
-                || exists != (index < plan.branches.len() - binding.branches()?.len())
-                || aliases_group
-            {
-                return Err(invalid());
-            }
+            validate_reservation_proof(
+                sequence,
+                index < plan.branches.len() - binding.branches()?.len(),
+                ReservationObservation {
+                    allocation_watermark: u64::try_from(next_sequence).ok(),
+                    record_exists: exists,
+                    aliases_owner: aliases_group,
+                },
+            )
+            .map_err(|_| invalid())?;
         }
     }
     if let Some(terminal) = terminal {

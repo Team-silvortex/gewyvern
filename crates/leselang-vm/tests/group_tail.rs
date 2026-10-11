@@ -576,6 +576,154 @@ fn reservations_are_unique_and_cannot_alias_unrelated_effects_or_groups() {
     }
 }
 
+fn import_high_standalone_identity(vm: &mut Vm, connection: &Connection) {
+    let mut request = effect(start(vm, r#"fn main() = ui.focus(node_id: "unrelated")"#));
+    let original = request.continuation.token.as_str().to_owned();
+    let mut bytes = serde_json::to_value(&request).unwrap();
+    bytes["continuation"]["token"] = "continuation-10000".into();
+    bytes["effect_id"] = "effect-10000".into();
+    request = serde_json::from_value(bytes).unwrap();
+    let transaction = connection.unchecked_transaction().unwrap();
+    transaction
+        .execute_batch("PRAGMA defer_foreign_keys = ON;")
+        .unwrap();
+    transaction
+        .execute(
+            "UPDATE vm_effects SET token = ?2, image = ?3 WHERE token = ?1",
+            params![
+                original,
+                request.continuation.token.as_str(),
+                serde_json::to_vec(&request.continuation).unwrap()
+            ],
+        )
+        .unwrap();
+    transaction
+        .execute(
+            "UPDATE vm_dispatches SET token = ?2, request = ?3 WHERE token = ?1",
+            params![
+                original,
+                request.continuation.token.as_str(),
+                serde_json::to_vec(&request).unwrap()
+            ],
+        )
+        .unwrap();
+    transaction.commit().unwrap();
+}
+
+#[test]
+fn cross_group_reservation_refusal_blocks_snapshot_and_imported_watermark_repair() {
+    let path = JournalPath::new();
+    let mut vm = Vm::open_journal(&path.0, 500).unwrap();
+    let first = effect(start(&mut vm, ONE));
+    let second = effect(start(&mut vm, ONE));
+    let connection = Connection::open(&path.0).unwrap();
+    import_high_standalone_identity(&mut vm, &connection);
+    drop(vm);
+    let owner = |request: &EffectRequest| {
+        request
+            .continuation
+            .group_result
+            .as_ref()
+            .unwrap()
+            .as_str()
+            .to_owned()
+    };
+    let read_plan = |owner: &str| {
+        connection
+            .query_row(
+                "SELECT plan FROM vm_merge_groups WHERE token = ?1",
+                [owner],
+                |row| row.get::<_, Vec<u8>>(0),
+            )
+            .unwrap()
+    };
+    let original = read_plan(&owner(&second));
+    let mut changed: serde_json::Value = serde_json::from_slice(&original).unwrap();
+    let first_plan: serde_json::Value = serde_json::from_slice(&read_plan(&owner(&first))).unwrap();
+    changed["result_binding"]["successor_sequence"] =
+        first_plan["result_binding"]["successor_sequence"].clone();
+    connection
+        .execute(
+            "UPDATE vm_merge_groups SET plan = ?2 WHERE token = ?1",
+            params![owner(&second), serde_json::to_vec(&changed).unwrap()],
+        )
+        .unwrap();
+    let watermark: i64 = connection
+        .query_row("SELECT next_sequence FROM vm_metadata", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    let error = Vm::open_journal(&path.0, 1).err().unwrap();
+    assert_eq!(error.code, "LSV1409");
+    assert_eq!(
+        connection
+            .query_row("SELECT next_sequence FROM vm_metadata", [], |row| row
+                .get::<_, i64>(0))
+            .unwrap(),
+        watermark
+    );
+    assert_eq!(count(&connection, "vm_effects"), 3);
+    assert_eq!(count(&connection, "vm_dispatches"), 3);
+    connection
+        .execute(
+            "UPDATE vm_merge_groups SET plan = ?2 WHERE token = ?1",
+            params![owner(&second), original],
+        )
+        .unwrap();
+    Vm::open_journal(&path.0, 1).unwrap();
+    assert_eq!(
+        connection
+            .query_row("SELECT next_sequence FROM vm_metadata", [], |row| row
+                .get::<_, i64>(0))
+            .unwrap(),
+        10001
+    );
+}
+
+#[test]
+fn cold_slot_allocation_proof_uses_original_watermark_before_high_identity_repair() {
+    let path = JournalPath::new();
+    let mut vm = Vm::open_journal(&path.0, 500).unwrap();
+    effect(start(&mut vm, ONE));
+    let connection = Connection::open(&path.0).unwrap();
+    import_high_standalone_identity(&mut vm, &connection);
+    drop(vm);
+    let original: i64 = connection
+        .query_row("SELECT next_sequence FROM vm_metadata", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    let reserved = plan(&connection)["result_binding"]["successor_sequence"]
+        .as_u64()
+        .unwrap();
+    connection
+        .execute(
+            "UPDATE vm_metadata SET next_sequence = ?1",
+            [i64::try_from(reserved).unwrap()],
+        )
+        .unwrap();
+    let error = Vm::open_journal(&path.0, 1).err().unwrap();
+    assert_eq!(error.code, "LSV1409");
+    assert_eq!(
+        connection
+            .query_row("SELECT next_sequence FROM vm_metadata", [], |row| row
+                .get::<_, i64>(0))
+            .unwrap(),
+        i64::try_from(reserved).unwrap()
+    );
+    connection
+        .execute("UPDATE vm_metadata SET next_sequence = ?1", [original])
+        .unwrap();
+    Vm::open_journal(&path.0, 1).unwrap();
+    assert_eq!(
+        connection
+            .query_row("SELECT next_sequence FROM vm_metadata", [], |row| row
+                .get::<_, i64>(0))
+            .unwrap(),
+        10001
+    );
+}
+
 #[test]
 fn repeat_computed_members_and_successor_name_collisions_stay_bounded() {
     for (group, member, size) in [

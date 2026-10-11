@@ -563,18 +563,22 @@ pub(super) fn validate_chain(
         .map_err(|error| journal_error("LSV4034", "failed to load result chain", error))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| journal_error("LSV4034", "invalid result-chain record", error))?;
-    if records.len() < 2 || records.len() > crate::MAX_MERGE_BRANCHES {
-        return Err(invalid());
-    }
-    let mut parent = request_for(connection, &records[0].0)?;
-    for pair in records.windows(2) {
-        let result: Step = decode_bounded(
-            pair[0].1.as_deref().ok_or_else(invalid)?,
-            MAX_JOURNAL_ENTRY_BYTES,
-        )?;
-        let next = request_for(connection, &pair[1].0)?;
-        validate_pair(&parent, &result, &next)?;
-        parent = next;
-    }
-    Ok(())
+    leselang_runtime_core::inspect_successor_chain(
+        &records,
+        crate::MAX_MERGE_BRANCHES,
+        |row| request_for(connection, &row.0),
+        |_, parent, previous, following| {
+            let result: Step = decode_bounded(
+                previous.1.as_deref().ok_or_else(invalid)?,
+                MAX_JOURNAL_ENTRY_BYTES,
+            )?;
+            let next = request_for(connection, &following.0)?;
+            validate_pair(parent, &result, &next)?;
+            Ok(next)
+        },
+    )
+    .map_err(|error| match error {
+        leselang_runtime_core::SuccessorChainError::Native { error, .. } => error,
+        _ => invalid(),
+    })
 }

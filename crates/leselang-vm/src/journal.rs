@@ -1,13 +1,16 @@
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 #[cfg(feature = "sqlite-journal")]
 use std::{fs, path::Path, time::Duration};
 
 #[cfg(feature = "sqlite-journal")]
 use crate::validate_image;
-use leselang_runtime_core::checked_clock_add;
 #[cfg(feature = "sqlite-journal")]
 use leselang_runtime_core::{
-    CheckpointCommitError, CheckpointError, CheckpointRecovery, RecoveryPayload, RecoveryRecord,
+    CheckpointCommitError, CheckpointError, CheckpointRecovery, GroupReceiptError, RecoveryPayload,
+    RecoveryRecord, SequenceReservations, StoredGroupState, validate_group_receipt,
+};
+use leselang_runtime_core::{
+    GroupGraphError, GroupGraphMember, checked_clock_add, validate_group_graph,
 };
 #[cfg(feature = "sqlite-journal")]
 use rusqlite::{
@@ -3489,25 +3492,27 @@ fn validate_merge_graph_input(
     if !valid_continuation_token(group_token) {
         return Err(journal_fault("LSV4032", "merge group token is invalid"));
     }
-    if branches.len() != plan.branches.len() {
-        return Err(journal_fault(
+    validate_group_graph(
+        group_token.as_str(),
+        &plan.branches,
+        branches,
+        crate::MAX_MERGE_BRANCHES,
+        |position, (name, request)| {
+            validate_effect_request(request)?;
+            Ok(GroupGraphMember {
+                name,
+                position: Some(position),
+                identity: request.continuation.token.as_str(),
+            })
+        },
+    )
+    .map_err(|error| match error {
+        GroupGraphError::Native { error, .. } => error,
+        _ => journal_fault(
             "LSV4032",
             "merge branch requests do not match the declared plan",
-        ));
-    }
-    let mut tokens = HashSet::with_capacity(branches.len());
-    for (position, (name, request)) in branches.iter().enumerate() {
-        validate_effect_request(request)?;
-        if *name != plan.branches[position]
-            || request.continuation.token == *group_token
-            || !tokens.insert(request.continuation.token.as_str())
-        {
-            return Err(journal_fault(
-                "LSV4032",
-                "merge branch requests do not match the declared plan",
-            ));
-        }
-    }
+        ),
+    })?;
     if let Some(binding) = &plan.result_binding {
         binding.validate_requests(group_token, plan, branches)?;
     } else if branches
@@ -3518,6 +3523,9 @@ fn validate_merge_graph_input(
     }
     Ok(())
 }
+
+#[cfg(feature = "sqlite-journal")]
+type RecoveredMergeBranch = (String, i64, String, Option<Vec<u8>>, String);
 
 #[cfg(feature = "sqlite-journal")]
 fn validate_merge_graph_records(connection: &Connection) -> Result<u64, Fault> {
@@ -3546,7 +3554,10 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<u64, Fault> {
             .map_err(|error| journal_error("LSV4005", "failed to read merge graph", error))?
     };
 
-    let mut successor_reservations = BTreeSet::new();
+    let mut successor_reservations = SequenceReservations::new(
+        MAX_JOURNAL_RECORDS * crate::MAX_MERGE_BRANCHES,
+        crate::MAX_EFFECT_SEQUENCE,
+    );
     let mut highest_sequence = 0;
     for (token, plan_bytes, state, terminal_bytes, order) in groups {
         let token = ContinuationToken(token);
@@ -3574,9 +3585,9 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<u64, Fault> {
         highest_sequence = highest_sequence.max(merge_reserved_sequence(&token, &plan));
         if let Some(binding) = &plan.result_binding {
             for sequence in binding.reserved_sequences() {
-                if !successor_reservations.insert(sequence) {
-                    return Err(crate::group_binding::invalid());
-                }
+                successor_reservations
+                    .insert(sequence)
+                    .map_err(|_| crate::group_binding::invalid())?;
             }
         }
         if execution_order_label(plan.order) != order {
@@ -3585,10 +3596,10 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<u64, Fault> {
                 "execution order conflicts with group plan",
             ));
         }
-        let branches = {
+        let branches: Vec<RecoveredMergeBranch> = {
             let mut statement = connection
                 .prepare(
-                    "SELECT b.branch_name, b.position, e.state, e.terminal_step
+                    "SELECT b.branch_name, b.position, e.state, e.terminal_step, b.branch_token
                      FROM vm_merge_branches b
                      JOIN vm_effects e ON e.token = b.branch_token
                      WHERE b.group_token = ?1
@@ -3604,23 +3615,27 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<u64, Fault> {
                         row.get::<_, i64>(1)?,
                         row.get::<_, String>(2)?,
                         row.get::<_, Option<Vec<u8>>>(3)?,
+                        row.get::<_, String>(4)?,
                     ))
                 })
                 .map_err(|error| journal_error("LSV4005", "failed to load merge branches", error))?
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|error| journal_error("LSV4005", "failed to read merge branches", error))?
         };
-        if branches.len() != plan.branches.len()
-            || branches.iter().enumerate().any(|(position, branch)| {
-                branch.0 != plan.branches[position]
-                    || usize::try_from(branch.1).ok() != Some(position)
-            })
-        {
-            return Err(journal_fault(
-                "LSV4007",
-                "merge branches do not match their declared plan",
-            ));
-        }
+        validate_group_graph(
+            token.as_str(),
+            &plan.branches,
+            &branches,
+            crate::MAX_MERGE_BRANCHES,
+            |_, branch| {
+                Ok::<_, std::convert::Infallible>(GroupGraphMember {
+                    name: &branch.0,
+                    position: usize::try_from(branch.1).ok(),
+                    identity: branch.4.as_str(),
+                })
+            },
+        )
+        .map_err(|_| journal_fault("LSV4007", "merge branches do not match their declared plan"))?;
         let all_completed = branches.iter().all(|branch| branch.2 == "completed");
         if matches!(
             plan.order,
@@ -3672,25 +3687,102 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<u64, Fault> {
                 ));
             }
         }
-        let terminal = match (state.as_str(), terminal_bytes) {
-            ("pending", None) if !all_completed => None,
-            ("completed", Some(bytes)) if all_completed => {
-                let terminal: Step = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
-                validate_terminal_step(&terminal)?;
-                Some(terminal)
-            }
-            _ => {
-                return Err(journal_fault(
-                    "LSV4007",
-                    "merge group state conflicts with its branch graph",
-                ));
-            }
-        };
+        let terminal = recover_group_receipt(&state, all_completed, terminal_bytes, |terminal| {
+            validate_unbound_group_receipt(&plan, &branches, terminal)
+        })?;
         // Cold reservations require allocation proof from the original watermark;
         // imported identities must not launder an unallocated reservation.
         group_binding::validate_records(connection, &token, &plan, terminal.as_ref())?;
     }
-    Ok(highest_sequence)
+    let reservations = successor_reservations
+        .finish()
+        .map_err(|_| crate::group_binding::invalid())?;
+    Ok(highest_sequence.max(reservations.highest_sequence))
+}
+
+#[cfg(feature = "sqlite-journal")]
+fn recover_group_receipt(
+    state: &str,
+    all_completed: bool,
+    terminal_bytes: Option<Vec<u8>>,
+    admit: impl FnOnce(&Step) -> Result<(), Fault>,
+) -> Result<Option<Step>, Fault> {
+    let invalid_state = || {
+        journal_fault(
+            "LSV4007",
+            "merge group state conflicts with its branch graph",
+        )
+    };
+    let state = match state {
+        "pending" => StoredGroupState::Pending,
+        "completed" => StoredGroupState::Completed,
+        _ => return Err(invalid_state()),
+    };
+    validate_group_receipt(state, all_completed, terminal_bytes, |bytes| {
+        let terminal: Step = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
+        validate_terminal_step(&terminal)?;
+        admit(&terminal)?;
+        Ok(terminal)
+    })
+    .map_err(|error| match error {
+        GroupReceiptError::Native(error) => error,
+        GroupReceiptError::State => invalid_state(),
+    })
+}
+
+#[cfg(feature = "sqlite-journal")]
+fn validate_unbound_group_receipt(
+    plan: &MergePlan,
+    branches: &[RecoveredMergeBranch],
+    terminal: &Step,
+) -> Result<(), Fault> {
+    if plan.result_binding.is_some() {
+        return Ok(());
+    }
+    let invalid = || {
+        journal_fault(
+            "LSV4007",
+            "merge group receipt does not match original branch results",
+        )
+    };
+    if branches.len() != plan.branches.len() || branches.len() > crate::MAX_MERGE_BRANCHES {
+        return Err(invalid());
+    }
+    let steps = branches
+        .iter()
+        .map(|branch| {
+            decode_bounded::<Step>(
+                branch.3.as_deref().ok_or_else(invalid)?,
+                MAX_JOURNAL_ENTRY_BYTES,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    // Reproduce the original data-only merge, including sequential early stops.
+    // Bound expressions are validated separately; no DSL or saved body runs here.
+    let stop = if plan.order.is_sequential() {
+        sequence_stop(steps.iter())?
+    } else {
+        None
+    };
+    let expected = if let Some(stop) = stop {
+        stop
+    } else {
+        let completions = branches
+            .iter()
+            .zip(steps)
+            .map(|(branch, step)| {
+                Ok(BranchCompletion {
+                    branch: branch.0.clone(),
+                    outcome: terminal_step_outcome(step)?,
+                })
+            })
+            .collect::<Result<Vec<_>, Fault>>()?;
+        group_binding::finish(plan, completions)?
+    };
+    if &expected != terminal {
+        return Err(invalid());
+    }
+    Ok(())
 }
 
 #[cfg(feature = "sqlite-journal")]
@@ -3975,6 +4067,400 @@ mod scheduling_tests {
             panic!()
         };
         *batch
+    }
+
+    #[test]
+    fn successor_chain_inspection_preserves_frozen_sqlite_fault_order() {
+        fn frozen(connection: &Connection, group: &ContinuationToken) -> Result<(), Fault> {
+            let mut statement = connection
+                .prepare(
+                    "SELECT b.branch_token, e.terminal_step FROM vm_merge_branches b
+                 JOIN vm_effects e ON e.token = b.branch_token
+                 WHERE b.group_token = ?1 ORDER BY b.position",
+                )
+                .map_err(|error| {
+                    journal_error("LSV4034", "failed to inspect result chain", error)
+                })?;
+            let records = statement
+                .query_map([group.as_str()], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, Option<Vec<u8>>>(1)?))
+                })
+                .map_err(|error| journal_error("LSV4034", "failed to load result chain", error))?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| journal_error("LSV4034", "invalid result-chain record", error))?;
+            if records.len() < 2 || records.len() > crate::MAX_MERGE_BRANCHES {
+                return Err(crate::successor::invalid());
+            }
+            let mut parent = successor::request_for(connection, &records[0].0)?;
+            for pair in records.windows(2) {
+                let result: Step = decode_bounded(
+                    pair[0].1.as_deref().ok_or_else(crate::successor::invalid)?,
+                    MAX_JOURNAL_ENTRY_BYTES,
+                )?;
+                let next = successor::request_for(connection, &pair[1].0)?;
+                crate::successor::validate_pair(&parent, &result, &next)?;
+                parent = next;
+            }
+            Ok(())
+        }
+
+        let root = TempRoot::new();
+        let path = root.0.join("chain.sqlite3");
+        let program = leselang_hir::lower(&leselang_syntax::parse(
+            r#"fn main() = bind(first: ui.focus(node_id: "a"), body:
+                bind(second: ui.focus(node_id: field(value: first, name: "node_id")), body:
+                    ui.focus(node_id: field(value: second, name: "node_id"))))"#,
+        ))
+        .unwrap();
+        let mut vm = crate::Vm::open_journal(&path, 500).unwrap();
+        let Step::Effect(first) = vm.start(
+            &program,
+            crate::Principal::new("operator").unwrap(),
+            crate::CapabilitySet::new(["ui.presentation"]),
+            Some(crate::Revision(7)),
+        ) else {
+            panic!()
+        };
+        let reply = || {
+            crate::EffectResult::Presentation(crate::PresentationResult::Focus {
+                node_id: "a".into(),
+            })
+        };
+        let Step::Effect(second) = vm.resume(&first.continuation, reply()) else {
+            panic!()
+        };
+        let Step::Effect(third) = vm.resume(&second.continuation, reply()) else {
+            panic!()
+        };
+        drop(vm);
+        let mut connection = Connection::open(&path).unwrap();
+        let group = ContinuationToken(
+            connection
+                .query_row("SELECT token FROM vm_merge_groups", [], |row| row.get(0))
+                .unwrap(),
+        );
+        let tokens = [
+            &first.continuation.token,
+            &second.continuation.token,
+            &third.continuation.token,
+        ];
+        assert_eq!(frozen(&connection, &group), Ok(()));
+        for case in 0..11 {
+            let transaction = connection.transaction().unwrap();
+            match case {
+                0 => {}
+                1 => {
+                    transaction
+                        .execute(
+                            "DELETE FROM vm_merge_branches WHERE group_token = ?1",
+                            [group.as_str()],
+                        )
+                        .unwrap();
+                }
+                2 => {
+                    transaction
+                        .execute(
+                            "DELETE FROM vm_merge_branches WHERE group_token = ?1 AND position > 0",
+                            [group.as_str()],
+                        )
+                        .unwrap();
+                }
+                3 => {
+                    transaction
+                        .execute(
+                            "UPDATE vm_dispatches SET request = X'00' WHERE token = ?1",
+                            [tokens[0].as_str()],
+                        )
+                        .unwrap();
+                }
+                4 => {
+                    transaction
+                        .execute(
+                            "UPDATE vm_effects SET state = 'pending', terminal_step = NULL WHERE token = ?1",
+                            [tokens[0].as_str()],
+                        )
+                        .unwrap();
+                }
+                5 => {
+                    transaction
+                        .execute(
+                            "UPDATE vm_effects SET terminal_step = X'00' WHERE token = ?1",
+                            [tokens[0].as_str()],
+                        )
+                        .unwrap();
+                    transaction
+                        .execute(
+                            "UPDATE vm_dispatches SET request = X'00' WHERE token = ?1",
+                            [tokens[1].as_str()],
+                        )
+                        .unwrap();
+                }
+                6 => {
+                    transaction
+                        .execute(
+                            "UPDATE vm_dispatches SET request = X'00' WHERE token = ?1",
+                            [tokens[1].as_str()],
+                        )
+                        .unwrap();
+                }
+                7 => {
+                    transaction
+                        .execute(
+                            "UPDATE vm_effects SET terminal_step = X'00' WHERE token = ?1",
+                            [tokens[1].as_str()],
+                        )
+                        .unwrap();
+                }
+                8 => {
+                    transaction
+                        .execute(
+                            "UPDATE vm_effects SET state = 'completed', terminal_step = X'00' WHERE token = ?1",
+                            [tokens[2].as_str()],
+                        )
+                        .unwrap();
+                }
+                9 | 10 => {
+                    let value = if case == 9 {
+                        crate::Value::UiFocus {
+                            node_id: "different-original-result".into(),
+                        }
+                    } else {
+                        crate::Value::Scalar {
+                            value: crate::ScalarValue::Boolean(true),
+                        }
+                    };
+                    let bytes = serde_json::to_vec(&Step::Done(value)).unwrap();
+                    transaction
+                        .execute(
+                            "UPDATE vm_effects SET terminal_step = ?2 WHERE token = ?1",
+                            params![tokens[0].as_str(), bytes],
+                        )
+                        .unwrap();
+                }
+                _ => unreachable!(),
+            }
+            let expected = frozen(&transaction, &group);
+            assert_eq!(
+                successor::validate_chain(&transaction, &group),
+                expected,
+                "case {case}"
+            );
+            assert_eq!(expected.is_ok(), matches!(case, 0 | 8), "case {case}");
+            transaction.rollback().unwrap();
+        }
+    }
+
+    #[test]
+    fn group_receipt_native_admission_runs_once_after_state_decode_and_terminal_validation() {
+        use std::cell::Cell;
+
+        let valid = serde_json::to_vec(&Step::Done(crate::Value::Scalar {
+            value: crate::ScalarValue::Integer(7),
+        }))
+        .unwrap();
+        let nonterminal = serde_json::to_vec(&Step::Waiting(crate::MergeWait {
+            merge_token: ContinuationToken("merge-private".into()),
+            completed_branches: 1,
+            total_branches: 2,
+        }))
+        .unwrap();
+        for (state, complete, bytes, expected_calls) in [
+            ("pending", false, None, 0),
+            ("invalid", true, Some(valid.clone()), 0),
+            ("completed", false, Some(valid.clone()), 0),
+            ("pending", false, Some(valid.clone()), 0),
+            ("completed", true, Some(b"invalid-wire".to_vec()), 0),
+            ("completed", true, Some(nonterminal), 0),
+            ("completed", true, Some(valid), 1),
+        ] {
+            let calls = Cell::new(0);
+            let native = journal_fault("LSV4700", "private native refusal");
+            let result = recover_group_receipt(state, complete, bytes, |_| {
+                calls.set(calls.get() + 1);
+                Err(native.clone())
+            });
+            assert_eq!(calls.get(), expected_calls);
+            if expected_calls == 1 {
+                assert_eq!(result, Err(native));
+            } else if state == "pending" && !complete && result.is_ok() {
+                assert_eq!(result, Ok(None));
+            } else {
+                assert!(result.is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn group_receipt_recovery_preserves_frozen_state_and_decode_fault_precedence() {
+        fn original(
+            state: &str,
+            all_completed: bool,
+            bytes: Option<Vec<u8>>,
+        ) -> Result<Option<Step>, Fault> {
+            match (state, bytes) {
+                ("pending", None) if !all_completed => Ok(None),
+                ("completed", Some(bytes)) if all_completed => {
+                    let step: Step = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
+                    validate_terminal_step(&step)?;
+                    Ok(Some(step))
+                }
+                _ => Err(journal_fault(
+                    "LSV4007",
+                    "merge group state conflicts with its branch graph",
+                )),
+            }
+        }
+        let valid = serde_json::to_vec(&Step::Done(crate::Value::Scalar {
+            value: crate::ScalarValue::Integer(7),
+        }))
+        .unwrap();
+        for state in ["pending", "completed", "invalid"] {
+            for completed in [false, true] {
+                for bytes in [
+                    None,
+                    Some(valid.clone()),
+                    Some(b"private-invalid-wire".to_vec()),
+                ] {
+                    assert_eq!(
+                        recover_group_receipt(state, completed, bytes.clone(), |_| Ok(())),
+                        original(state, completed, bytes)
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn group_graph_admission_preserves_frozen_fault_precedence() {
+        fn original(
+            owner: &ContinuationToken,
+            plan: &MergePlan,
+            branches: &[(&str, &EffectRequest)],
+        ) -> Result<(), Fault> {
+            validate_merge_plan(plan)?;
+            if !valid_continuation_token(owner) {
+                return Err(journal_fault("LSV4032", "merge group token is invalid"));
+            }
+            let mismatch = || {
+                journal_fault(
+                    "LSV4032",
+                    "merge branch requests do not match the declared plan",
+                )
+            };
+            if branches.len() != plan.branches.len() {
+                return Err(mismatch());
+            }
+            let mut tokens = std::collections::HashSet::with_capacity(branches.len());
+            for (position, (name, request)) in branches.iter().enumerate() {
+                validate_effect_request(request)?;
+                if *name != plan.branches[position]
+                    || request.continuation.token == *owner
+                    || !tokens.insert(request.continuation.token.as_str())
+                {
+                    return Err(mismatch());
+                }
+            }
+            if let Some(binding) = &plan.result_binding {
+                binding.validate_requests(owner, plan, branches)?;
+            } else if branches
+                .iter()
+                .any(|(_, request)| request.continuation.group_result.is_some())
+            {
+                return Err(crate::group_binding::invalid());
+            }
+            Ok(())
+        }
+        let batch = simple_batch();
+        let plan = MergePlan::new(["left", "right"]).unwrap();
+        let left = &batch.branches[0].request;
+        let right = &batch.branches[1].request;
+        let mut invalid = right.clone();
+        invalid.continuation.deadline_ms = 0;
+        for (owner, graph) in [
+            (
+                batch.merge_token.clone(),
+                vec![("left", left), ("right", right)],
+            ),
+            (batch.merge_token.clone(), vec![("left", &invalid)]),
+            (
+                batch.merge_token.clone(),
+                vec![("left", left), ("right", left)],
+            ),
+            (
+                left.continuation.token.clone(),
+                vec![("left", left), ("right", right)],
+            ),
+            (
+                batch.merge_token.clone(),
+                vec![("right", right), ("left", left)],
+            ),
+            (
+                batch.merge_token.clone(),
+                vec![("left", left), ("wrong", &invalid)],
+            ),
+            (ContinuationToken(String::new()), vec![("left", &invalid)]),
+        ] {
+            assert_eq!(
+                validate_merge_graph_input(&owner, &plan, &graph),
+                original(&owner, &plan, &graph),
+            );
+        }
+    }
+
+    #[test]
+    fn late_group_graph_refusal_rolls_back_recovery_without_repairing_watermark() {
+        let batch = simple_batch();
+        let plan = MergePlan::new(["left", "right"]).unwrap();
+        let graph = batch
+            .branches
+            .iter()
+            .map(|branch| (branch.branch.as_str(), &branch.request))
+            .collect::<Vec<_>>();
+        let root = TempRoot::new();
+        let mut journal = SqliteJournal::open(&root.0.join("group-recovery.sqlite3")).unwrap();
+        journal
+            .record_merge_graph(
+                &batch.merge_token,
+                &plan,
+                &graph,
+                SchedulerLimits::default(),
+            )
+            .unwrap();
+        journal
+            .connection
+            .execute("UPDATE vm_metadata SET next_sequence = 1", [])
+            .unwrap();
+        journal
+            .connection
+            .execute(
+                "UPDATE vm_merge_branches SET position = 63 WHERE branch_name = 'left'",
+                [],
+            )
+            .unwrap();
+        let error = journal.load().err().unwrap();
+        assert_eq!(
+            error,
+            journal_fault("LSV4007", "merge branches do not match their declared plan")
+        );
+        assert_eq!(
+            journal
+                .connection
+                .query_row("SELECT next_sequence FROM vm_metadata", [], |row| row
+                    .get::<_, i64>(0),)
+                .unwrap(),
+            1
+        );
+        journal
+            .connection
+            .execute(
+                "UPDATE vm_merge_branches SET position = 0 WHERE branch_name = 'left'",
+                [],
+            )
+            .unwrap();
+        let snapshot = journal.load().unwrap();
+        assert_eq!(snapshot.pending.len(), 2);
+        assert!(snapshot.completed.is_empty());
+        assert_eq!(snapshot.next_sequence, 4);
     }
 
     fn recovery_fixture(root: &TempRoot) -> (SqliteJournal, EffectRequest, EffectRequest, Step) {

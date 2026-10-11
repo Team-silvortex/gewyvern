@@ -1,17 +1,102 @@
 use leselang_hir::{
-    MAX_BRANCH_NAME_BYTES, MAX_EFFECT_NESTING_DEPTH, computation::Computation,
+    Effect, MAX_BRANCH_NAME_BYTES, MAX_EFFECT_NESTING_DEPTH, Type, computation::Computation,
     host_call::HostOperation, lower, result_field::ResultField,
 };
-use leselang_host_contract::{CapabilitySet, Principal};
+use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_runtime_core::CapturedBindings;
 use leselang_syntax::parse;
 use leselang_vm::{
-    EffectRequest, EffectResult, PresentationResult, ProjectedBinding, ProjectedField,
-    ProjectedGroup, ProjectedGroupBinding, ProjectedResult, ResultBinding, ScalarBinding,
-    ScalarValue, Step, Value, Vm, decode_continuation, encode_continuation,
+    ContinuationImage, ContinuationToken, EffectRequest, EffectResult, PresentationResult,
+    ProjectedBinding, ProjectedField, ProjectedGroup, ProjectedGroupBinding, ProjectedResult,
+    ResultBinding, ScalarBinding, ScalarValue, Step, Value, Vm, decode_continuation,
+    encode_continuation,
 };
 
 type SharedFrame = CapturedBindings<Computation, ProjectedResult, ProjectedGroup>;
+type SavedFrame = leselang_runtime_core::ContinuationFrame<
+    ContinuationToken,
+    Revision,
+    Type,
+    Effect,
+    ResultBinding,
+>;
+
+// Frozen pre-extraction serde layout, independently of the shared specialization.
+#[derive(serde::Serialize)]
+struct LegacyImage<'a> {
+    schema_version: u32,
+    token: &'a ContinuationToken,
+    program_counter: u32,
+    expected_revision: Option<Revision>,
+    result_type: &'a Type,
+    pending_effect: &'a Effect,
+    fuel_remaining: u64,
+    deadline_ms: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    deadline_at_ms: Option<u64>,
+    max_output_items: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    result_binding: Option<&'a ResultBinding>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    group_result: Option<&'a ContinuationToken>,
+}
+
+#[test]
+fn real_saved_frame_and_budget_are_exact_shared_types_with_legacy_wire_order() {
+    let mut vm = Vm::new(300);
+    let request = start(
+        &mut vm,
+        "fn main() = bind(a: ui.focus(node_id: \"a\"), body: field(value: a, name: \"node_id\"))",
+    );
+    let saved: SavedFrame = request.continuation;
+    let returned: ContinuationImage = saved;
+    let budget: leselang_runtime_core::ResourceBudget = request.budget;
+    assert_eq!(budget, returned.resource_budget());
+    for binding in [None, returned.result_binding.clone()] {
+        let mut frame = returned.clone();
+        frame.result_binding = binding;
+        for deadline in [None, Some(42)] {
+            frame.deadline_at_ms = deadline;
+            let legacy = LegacyImage {
+                schema_version: frame.schema_version,
+                token: &frame.token,
+                program_counter: frame.program_counter,
+                expected_revision: frame.expected_revision,
+                result_type: &frame.result_type,
+                pending_effect: &frame.pending_effect,
+                fuel_remaining: frame.fuel_remaining,
+                deadline_ms: frame.deadline_ms,
+                deadline_at_ms: frame.deadline_at_ms,
+                max_output_items: frame.max_output_items,
+                result_binding: frame.result_binding.as_deref(),
+                group_result: frame.group_result.as_ref(),
+            };
+            assert_eq!(
+                serde_json::to_vec(&frame).unwrap(),
+                serde_json::to_vec(&legacy).unwrap()
+            );
+        }
+    }
+}
+
+#[test]
+fn shared_budget_keeps_reference_error_codes_and_rejection_precedence() {
+    let mut vm = Vm::new(300);
+    let mut frame = start(&mut vm, "fn main() = ui.focus(node_id: \"a\")").continuation;
+    frame.fuel_remaining = leselang_vm::MAX_EXECUTION_FUEL + 1;
+    frame.deadline_ms = 0;
+    frame.deadline_at_ms = Some(0);
+    frame.max_output_items = leselang_vm::DEFAULT_MAX_OUTPUT_ITEMS + 1;
+    assert_eq!(encode_continuation(&frame).unwrap_err().code, "LSV2007");
+    frame.fuel_remaining = 0;
+    assert_eq!(encode_continuation(&frame).unwrap_err().code, "LSV2008");
+    frame.deadline_ms = 1;
+    assert_eq!(encode_continuation(&frame).unwrap_err().code, "LSV2011");
+    frame.deadline_at_ms = None;
+    assert_eq!(encode_continuation(&frame).unwrap_err().code, "LSV2009");
+    frame.max_output_items = 0;
+    assert!(encode_continuation(&frame).is_ok());
+}
 
 fn start(vm: &mut Vm, source: &str) -> EffectRequest {
     let Step::Effect(request) = vm.start(

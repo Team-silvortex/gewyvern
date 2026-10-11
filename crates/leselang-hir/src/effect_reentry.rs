@@ -3,12 +3,14 @@
 use std::fmt;
 
 use leselang_runtime_core::{
-    AcceptedReply, CalculationFailure, Fuel, ScopeFrame, with_owned_scope_state,
+    AcceptedReply, CalculationFailure, CaptureScopeError, CaptureScopeHooks, CapturedBindings,
+    Fuel, ScalarValue, ScopeFrame, with_captured_scope_state, with_owned_scope_state,
 };
 
 use crate::effect_evaluation::{
     ControlOutcome, EffectEvaluationEnvironment, EffectEvaluationFailure, EffectEvaluationFault,
-    EffectEvaluationLimits, EffectEvaluationOutcome, evaluate, native_failure, preflight,
+    EffectEvaluationLimits, EffectEvaluationOutcome, evaluate, evaluate_resumable_effects_in_scope,
+    native_failure, preflight,
 };
 use crate::ir::Computation;
 use crate::pure_evaluation::{
@@ -130,6 +132,154 @@ pub type ResumableEffectResult<'expression, Node, ResultTag, Request, Capture, N
 >;
 pub type RestoredEffectBindings<'expression, ResultTag> =
     Vec<(&'expression str, PureValue<ResultTag>)>;
+
+/// Native saved-value restoration and reply projection, never body selection.
+/// Each hook receives the same original meter; no accounting policy is implicit.
+///
+/// A restoration adapter cannot replace the shared body evaluator:
+///
+/// ```compile_fail
+/// use leselang_hir::effect_reentry::CapturedEffectHooks;
+/// let replacement = CapturedEffectHooks {
+///     scalar: (), result: (), group: (), pending: (), body: (),
+/// };
+/// ```
+pub struct CapturedEffectHooks<Scalar, ResultHook, Group, Pending> {
+    pub scalar: Scalar,
+    pub result: ResultHook,
+    pub group: Group,
+    pub pending: Pending,
+}
+
+pub type CapturedEffectResult<'expression, Node, Value, Request, Capture, Native> = Result<
+    ResumableEffectOutcome<'expression, Node, Value, Request, Capture>,
+    CaptureScopeError<EffectEvaluationFailure<Native>>,
+>;
+pub type CapturedEffectControlResult<
+    'expression,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Environment,
+> = CapturedEffectResult<
+    'expression,
+    Computation<Field, Operation, HostEffect, IrResult>,
+    <Environment as PureEvaluationEnvironment<Field, Operation>>::Result,
+    <Environment as EffectEvaluationEnvironment<
+        'expression,
+        Field,
+        Operation,
+        HostEffect,
+        IrResult,
+    >>::Request,
+    <Environment as EffectEvaluationEnvironment<
+        'expression,
+        Field,
+        Operation,
+        HostEffect,
+        IrResult,
+    >>::Capture,
+    <Environment as PureEvaluationEnvironment<Field, Operation>>::Error,
+>;
+
+/// Re-enter a borrowed saved body through the shared effect walker.
+///
+/// Restore scalar/result/group rows and the reply in original wire order, then
+/// evaluate the exact saved body with the assembled scope and original Fuel.
+/// Native restoration precedes each duplicate check, retaining legacy debit and
+/// refusal precedence. Body physical/scope and all cold effect preflight occur
+/// after restoration and before body execution; there is no extra early pass or
+/// native hook retry. Hooks cannot supply a replacement body or custom evaluator.
+/// Scalar calculation failures retain their typed channel; native failures stay
+/// external even when their diagnostics resemble recoverable language faults.
+///
+/// Scope suffix and remaining hook captures finish cleanup before output/error
+/// handoff. Saved data and the existing prefix remain caller-owned. Names/body
+/// are borrowed; native saved rows, requests and captures need no Clone/Debug/
+/// serde/Default/Send/Sync bounds. Result views retain the evaluator's existing
+/// Clone contract. Drop/callback unwind propagates; a second cleanup panic may
+/// abort. Charges and native mutations are not rolled back or refunded.
+///
+/// This is execution, not saved-frame admission or reply acceptance. Before entry
+/// the host must bound codecs/aggregate storage and validate the original program,
+/// complete capture structure/schema, reply provenance, current policy and durable
+/// state. It must supply the authentic existing meter and bound native hook work.
+/// This function creates no fuel grant, executable certificate, receipt, journal,
+/// dispatch or replay fence. Repeating a call is not globally deduplicated.
+pub fn resume_captured_effects_in_scope<
+    'expression,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    SavedResult,
+    SavedGroup,
+    Environment,
+    Scalar,
+    ResultHook,
+    Group,
+    Pending,
+>(
+    capture: &'expression CapturedBindings<
+        Computation<Field, Operation, HostEffect, IrResult>,
+        SavedResult,
+        SavedGroup,
+    >,
+    parent: &mut ScopeFrame<'_, 'expression, PureValue<Environment::Result>>,
+    environment: &Environment,
+    fuel: &mut Fuel,
+    limits: EffectEvaluationLimits,
+    hooks: CapturedEffectHooks<Scalar, ResultHook, Group, Pending>,
+) -> CapturedEffectControlResult<'expression, Field, Operation, HostEffect, IrResult, Environment>
+where
+    Environment: EffectEvaluationEnvironment<'expression, Field, Operation, HostEffect, IrResult>,
+    Scalar: FnMut(
+        &'expression ScalarValue,
+        &mut Fuel,
+    )
+        -> Result<PureValue<Environment::Result>, CalculationFailure<Environment::Error>>,
+    ResultHook:
+        FnMut(
+            &'expression SavedResult,
+            &mut Fuel,
+        )
+            -> Result<PureValue<Environment::Result>, CalculationFailure<Environment::Error>>,
+    Group: FnMut(
+        &'expression SavedGroup,
+        &mut Fuel,
+    )
+        -> Result<PureValue<Environment::Result>, CalculationFailure<Environment::Error>>,
+    Pending:
+        FnOnce(
+            &mut Fuel,
+        )
+            -> Result<PureValue<Environment::Result>, CalculationFailure<Environment::Error>>,
+{
+    let CapturedEffectHooks {
+        mut scalar,
+        mut result,
+        mut group,
+        pending,
+    } = hooks;
+    with_captured_scope_state(
+        capture,
+        parent,
+        fuel,
+        CaptureScopeHooks {
+            scalar: move |value, fuel: &mut Fuel| scalar(value, fuel).map_err(native_failure),
+            result: move |value, fuel: &mut Fuel| result(value, fuel).map_err(native_failure),
+            group: move |value, fuel: &mut Fuel| group(value, fuel).map_err(native_failure),
+            pending: move |fuel: &mut Fuel| pending(fuel).map_err(native_failure),
+            body: |body,
+                   scope: &mut ScopeFrame<'_, 'expression, PureValue<Environment::Result>>,
+                   fuel: &mut Fuel| {
+                evaluate_resumable_effects_in_scope(body, scope, environment, fuel, limits)
+            },
+        },
+    )
+}
+
 pub type EffectControlResult<'expression, Field, Operation, HostEffect, IrResult, Environment> =
     ResumableEffectResult<
         'expression,

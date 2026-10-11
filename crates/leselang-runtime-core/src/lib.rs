@@ -19,19 +19,23 @@ mod catalog;
 mod checkpoint;
 mod clock;
 mod collection;
+mod continuation;
 mod control;
 mod fold;
 mod fuel;
+mod group_graph;
 mod host_result;
 mod owned_scope;
 mod projection;
 mod recovery;
+mod recovery_fence;
 mod reply;
 mod scalar_contract;
 mod scalar_ops;
 mod scope;
 mod signature;
 mod structure;
+mod successor_chain;
 mod value;
 
 pub use argument_typing::{
@@ -63,15 +67,27 @@ pub use checkpoint::{
 };
 pub use clock::{ClockError, MAX_CLOCK_MS, checked_clock_add};
 pub use collection::StringListBuilder;
+pub use continuation::{
+    ContinuationFrame, ResourceBudget, ResourceBudgetError, ResourceBudgetLimits,
+};
 pub use control::{
     BinarySelection, LoopBudget, LoopError, LoopStep, MAX_LOOP_ITERATIONS, select_binary_left,
 };
 pub use fold::{FoldCursor, FoldError};
 pub use fuel::{Fuel, FuelExhausted};
+pub use group_graph::{
+    GroupGraphError, GroupGraphMember, GroupGraphMismatch, MAX_GROUP_GRAPH_MEMBERS,
+    validate_group_graph,
+};
 pub use host_result::{HostResultDomain, HostResultError, validate_host_result};
 pub use owned_scope::with_owned_scope_state;
 pub use projection::{ProjectionError, ScalarProjectionField, validate_scalar_projection};
 pub use recovery::CalculationFailure;
+pub use recovery_fence::{
+    GroupReceiptError, ReservationError, ReservationObservation, ReservationProofError,
+    ReservationSummary, SequenceReservations, StoredGroupState, validate_group_receipt,
+    validate_reservation_proof,
+};
 pub use reply::{
     AcceptedReply, PendingReply, RejectedReply, ReplyAcceptanceError, ReplyAcceptanceResult,
     ReplyAuthority, ReplyEnd, ReplyStatus,
@@ -84,6 +100,7 @@ pub use signature::{
     validate_named_arguments,
 };
 pub use structure::{StructureBudget, StructureError};
+pub use successor_chain::{SuccessorChainError, SuccessorChainSite, inspect_successor_chain};
 pub use value::{
     MAX_SCALAR_STRING_BYTES, MAX_STRING_LIST_ITEMS, OptionalStringValue, ScalarType, ScalarValue,
     StringListValue,

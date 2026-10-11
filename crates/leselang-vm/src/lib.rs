@@ -28,7 +28,9 @@ use leselang_host_contract::{
     CAPABILITY_RUNTIME_REFRESH, CapabilitySet, CommandOrigin, Confirmation, Principal, Revision,
     RuntimeId, validate_debugger_session_id,
 };
-use leselang_runtime_core::{Fuel, capped_exponential_delay, checked_clock_add};
+use leselang_runtime_core::{
+    Fuel, ResourceBudgetError, ResourceBudgetLimits, capped_exponential_delay, checked_clock_add,
+};
 use leserpent_domain::{
     Command, CommandEnvelope, CommandId, CommandResult, CommandStatus, DOMAIN_SCHEMA_VERSION,
     IdempotencyKey, MAX_RUNTIME_LOG_QUERY_ENTRIES, Query, QueryEnvelope, QueryResult,
@@ -53,6 +55,7 @@ pub use admission::{
 pub use group_binding::GroupResultBinding;
 pub use leselang_hir::computation::ScalarValue;
 pub use leselang_runtime_core::Fault;
+pub use leselang_runtime_core::ResourceBudget;
 pub use result_binding::{
     ProjectedBinding, ProjectedField, ProjectedGroup, ProjectedGroupBinding, ProjectedResult,
     ResultBinding, ScalarBinding,
@@ -103,35 +106,14 @@ const MAX_EFFECT_SEQUENCE: u64 = i64::MAX as u64 - 1;
 #[serde(transparent)]
 pub struct ContinuationToken(String);
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ContinuationImage {
-    pub schema_version: u32,
-    pub token: ContinuationToken,
-    pub program_counter: u32,
-    pub expected_revision: Option<Revision>,
-    pub result_type: Type,
-    pub pending_effect: Effect,
-    pub fuel_remaining: u64,
-    pub deadline_ms: u64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub deadline_at_ms: Option<u64>,
-    pub max_output_items: usize,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub result_binding: Option<Box<ResultBinding>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub group_result: Option<ContinuationToken>,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ResourceBudget {
-    pub fuel_remaining: u64,
-    pub deadline_ms: u64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub deadline_at_ms: Option<u64>,
-    pub max_output_items: usize,
-}
+/// Exact legacy specialization; native saved-frame ownership belongs to runtime-core.
+pub type ContinuationImage = leselang_runtime_core::ContinuationFrame<
+    ContinuationToken,
+    Revision,
+    Type,
+    Effect,
+    ResultBinding,
+>;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct EffectRequest {
@@ -3411,33 +3393,33 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
     if let Some(binding) = &image.result_binding {
         binding.validate(&image.pending_effect)?;
     }
-    if image.fuel_remaining > MAX_EXECUTION_FUEL {
-        return Err(Fault {
-            code: "LSV2007".to_string(),
-            message: "continuation fuel exceeds runtime limit".to_string(),
-        });
-    }
-    if image.deadline_ms == 0 || image.deadline_ms > MAX_EFFECT_DEADLINE_MS {
-        return Err(Fault {
-            code: "LSV2008".to_string(),
-            message: "continuation deadline exceeds runtime limit".to_string(),
-        });
-    }
-    if image
-        .deadline_at_ms
-        .is_some_and(|deadline| deadline == 0 || deadline > i64::MAX as u64)
-    {
-        return Err(Fault {
-            code: "LSV2011".to_string(),
-            message: "continuation absolute deadline is out of range".to_string(),
-        });
-    }
-    if image.max_output_items > DEFAULT_MAX_OUTPUT_ITEMS {
-        return Err(Fault {
-            code: "LSV2009".to_string(),
-            message: "continuation output limit exceeds runtime maximum".to_string(),
-        });
-    }
+    image
+        .resource_budget()
+        .validate(ResourceBudgetLimits {
+            max_fuel: MAX_EXECUTION_FUEL,
+            max_deadline_ms: MAX_EFFECT_DEADLINE_MS,
+            max_deadline_at_ms: i64::MAX as u64,
+            max_output_items: DEFAULT_MAX_OUTPUT_ITEMS,
+        })
+        .map_err(|error| {
+            let (code, message) = match error {
+                ResourceBudgetError::Fuel => ("LSV2007", "continuation fuel exceeds runtime limit"),
+                ResourceBudgetError::Deadline => {
+                    ("LSV2008", "continuation deadline exceeds runtime limit")
+                }
+                ResourceBudgetError::AbsoluteDeadline => {
+                    ("LSV2011", "continuation absolute deadline is out of range")
+                }
+                ResourceBudgetError::Output => (
+                    "LSV2009",
+                    "continuation output limit exceeds runtime maximum",
+                ),
+            };
+            Fault {
+                code: code.to_string(),
+                message: message.to_string(),
+            }
+        })?;
     Ok(())
 }
 
@@ -4964,12 +4946,7 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
         }
         _ => false,
     };
-    if !operation_valid
-        || request.budget.fuel_remaining != request.continuation.fuel_remaining
-        || request.budget.deadline_ms != request.continuation.deadline_ms
-        || request.budget.deadline_at_ms != request.continuation.deadline_at_ms
-        || request.budget.max_output_items != request.continuation.max_output_items
-    {
+    if !operation_valid || request.budget != request.continuation.resource_budget() {
         return Err(Fault {
             code: "LSV2013".to_string(),
             message: "effect request does not match its continuation".to_string(),

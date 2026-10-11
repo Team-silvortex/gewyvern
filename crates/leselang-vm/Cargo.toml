@@ -101,6 +101,10 @@ name = "group_tail"
 required-features = ["sqlite-journal"]
 
 [[test]]
+name = "group_receipts"
+required-features = ["sqlite-journal"]
+
+[[test]]
 name = "iteration"
 required-features = ["sqlite-journal"]
 
