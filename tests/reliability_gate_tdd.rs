@@ -10,7 +10,10 @@ fn production_source(path: impl AsRef<Path>) -> String {
     source
         .split_once("\n#[cfg(test)]\n")
         .map_or(source.as_str(), |(production, _)| production)
-        .to_string()
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[test]
@@ -38,6 +41,8 @@ fn critical_runtime_sources_do_not_use_panic_shortcuts_in_production() {
         "crates/leselang-hir/src/parallel_evaluation.rs",
         "crates/leselang-hir/src/group_reply.rs",
         "crates/leselang-hir/src/catalog_group_source.rs",
+        "crates/leselang-hir/src/catalog_atomic_source.rs",
+        "crates/leselang-hir/src/prepared_typing.rs",
         "crates/leselang-hir/src/effect_stack.rs",
         "crates/leselang-hir/src/effect_stack_session.rs",
         "crates/leselang-hir/src/native_group_preparation.rs",

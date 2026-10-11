@@ -139,3 +139,18 @@ fn restored_scalar_result_and_pending_names_cannot_collide() {
         rejected(&request);
     }
 }
+
+#[test]
+fn shared_cold_access_walk_keeps_legacy_fields_closed_in_recovery_calls_and_aliases() {
+    for source in [
+        r#"recover(value: "safe", fallback: field(value: seed, name: "expected"))"#,
+        r#"ui.focus(node_id: field(value: seed, name: "expected"))"#,
+        r#"strings(a: "safe", b: field(value: seed, name: "expected"))"#,
+        r#"field(value: bind(alias: seed, body: alias), name: "expected")"#,
+        r#"not(value: eq(left: field(value: seed, name: "expected"), right: "ready"))"#,
+    ] {
+        let mut request = legacy_request();
+        request.continuation.result_binding.as_mut().unwrap().body = body(source);
+        rejected(&request);
+    }
+}

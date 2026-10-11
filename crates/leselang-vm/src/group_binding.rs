@@ -3,6 +3,7 @@ use leselang_hir::{Effect, HirBranch, Type};
 use leselang_runtime_core::Fuel;
 use serde::{Deserialize, Serialize};
 
+use crate::result_binding::{ReferenceProjectedGroup, ReferenceResultBinding};
 use crate::{
     ContinuationToken, EffectRequest, ExecutionOrder, Fault, MergePlan, ResultBinding, Step, Value,
 };

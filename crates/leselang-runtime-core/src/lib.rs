@@ -11,13 +11,19 @@ use serde::{Deserialize, Serialize};
 
 mod argument_typing;
 mod backoff;
+mod capture_scope;
+mod capture_snapshot;
+mod capture_validation;
+mod captured_bindings;
 mod catalog;
+mod checkpoint;
 mod clock;
 mod collection;
 mod control;
 mod fold;
 mod fuel;
 mod host_result;
+mod owned_scope;
 mod projection;
 mod recovery;
 mod reply;
@@ -33,8 +39,27 @@ pub use argument_typing::{
     check_argument_type,
 };
 pub use backoff::capped_exponential_delay;
+pub use capture_scope::{
+    CaptureScopeError, CaptureScopeHooks, CaptureScopeSite, with_captured_scope,
+    with_captured_scope_state,
+};
+pub use capture_snapshot::{
+    CaptureSnapshotError, CaptureSnapshotHooks, CaptureSnapshotLimits, CaptureSnapshotSite,
+    CapturedValue, snapshot_captured_scope_state,
+};
+pub use capture_validation::{
+    CaptureStructureError, CaptureValidationLimits, CaptureValidationSite, GroupCaptureLimits,
+    validate_captured_bindings, validate_projected_group,
+};
+pub use captured_bindings::{
+    CapturedBindings, ProjectedBinding, ProjectedGroup, ProjectedGroupBinding, ScalarBinding,
+};
 pub use catalog::{
     OperationCatalog, OperationCatalogError, OperationCatalogLimits, OperationSchema,
+};
+pub use checkpoint::{
+    CheckpointCommitError, CheckpointCommitResult, CheckpointError, CheckpointRecovery,
+    RecoveredCheckpoint, RecoveryPayload, RecoveryRecord,
 };
 pub use clock::{ClockError, MAX_CLOCK_MS, checked_clock_add};
 pub use collection::StringListBuilder;
@@ -44,6 +69,7 @@ pub use control::{
 pub use fold::{FoldCursor, FoldError};
 pub use fuel::{Fuel, FuelExhausted};
 pub use host_result::{HostResultDomain, HostResultError, validate_host_result};
+pub use owned_scope::with_owned_scope_state;
 pub use projection::{ProjectionError, ScalarProjectionField, validate_scalar_projection};
 pub use recovery::CalculationFailure;
 pub use reply::{

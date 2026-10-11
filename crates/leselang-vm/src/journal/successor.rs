@@ -1,4 +1,6 @@
 use super::*;
+#[cfg(feature = "sqlite-journal")]
+use crate::result_binding::ReferenceResultBinding;
 use crate::successor::{CompletionLease, invalid, validate_pair};
 
 impl Journal {
@@ -32,6 +34,7 @@ impl Journal {
                     }
                 }
             }
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => {
                 let mut statement = journal.connection.prepare(
                     "SELECT e.terminal_step FROM vm_merge_branches own
@@ -70,6 +73,7 @@ impl Journal {
                 .get(token)
                 .map(|dispatch| dispatch.request.clone())
                 .ok_or_else(invalid),
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => request_for(&journal.connection, token.as_str()),
         }
     }
@@ -211,6 +215,7 @@ impl Journal {
                 );
                 Ok(step.clone())
             }
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => {
                 journal.record_successor(parent, step, next, lease, &group, &plan)
             }
@@ -232,6 +237,7 @@ fn accumulate_output(items: &mut usize, step: &Step) -> Result<(), Fault> {
     Ok(())
 }
 
+#[cfg(feature = "sqlite-journal")]
 impl SqliteJournal {
     fn record_successor(
         &mut self,
@@ -429,6 +435,7 @@ fn append_plan(plan: &MergePlan, position: usize) -> Result<MergePlan, Fault> {
     Ok(plan)
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn completed_prefix(
     connection: &Connection,
     group: &str,
@@ -449,6 +456,7 @@ fn completed_prefix(
         .collect()
 }
 
+#[cfg(feature = "sqlite-journal")]
 pub(super) fn request_for(connection: &Connection, token: &str) -> Result<EffectRequest, Fault> {
     let dispatch = load_dispatch(connection, token)?.ok_or_else(invalid)?;
     let request = decode_bounded(&dispatch.request, MAX_JOURNAL_ENTRY_BYTES)?;
@@ -456,6 +464,7 @@ pub(super) fn request_for(connection: &Connection, token: &str) -> Result<Effect
     Ok(request)
 }
 
+#[cfg(feature = "sqlite-journal")]
 pub(super) fn validate_record(
     connection: &Connection,
     image: &ContinuationImage,
@@ -535,6 +544,7 @@ pub(super) fn validate_record(
     }
 }
 
+#[cfg(feature = "sqlite-journal")]
 pub(super) fn validate_chain(
     connection: &Connection,
     group: &ContinuationToken,

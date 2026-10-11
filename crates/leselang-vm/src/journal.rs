@@ -1,11 +1,18 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::fs;
-use std::path::Path;
-use std::time::Duration;
+#[cfg(feature = "sqlite-journal")]
+use std::{fs, path::Path, time::Duration};
 
+#[cfg(feature = "sqlite-journal")]
+use crate::validate_image;
 use leselang_runtime_core::checked_clock_add;
-use rusqlite::limits::Limit;
-use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, params};
+#[cfg(feature = "sqlite-journal")]
+use leselang_runtime_core::{
+    CheckpointCommitError, CheckpointError, CheckpointRecovery, RecoveryPayload, RecoveryRecord,
+};
+#[cfg(feature = "sqlite-journal")]
+use rusqlite::{
+    Connection, OpenFlags, OptionalExtension, TransactionBehavior, limits::Limit, params,
+};
 
 use crate::{
     BranchCompletion, BranchOutcome, Cancellation, CancellationReason, ContinuationImage,
@@ -15,7 +22,7 @@ use crate::{
     MergePlan, RetentionPolicy, RetryDisposition, SchedulerLimits, SchedulerPressure, Step,
     continuation_age_order, encode_json_capped, valid_continuation_token,
     validate_continuation_encoding_size, validate_effect_error, validate_effect_request,
-    validate_image, validate_merge_plan, validate_value,
+    validate_merge_plan, validate_value,
 };
 
 mod group_binding;
@@ -25,7 +32,9 @@ pub const JOURNAL_SCHEMA_VERSION: u32 = 10;
 pub const MAX_JOURNAL_RECORDS: usize = 10_000;
 pub const MAX_JOURNAL_ENTRY_BYTES: usize = 8 * 1024 * 1024;
 pub const MAX_JOURNAL_TOTAL_BYTES: usize = 64 * 1024 * 1024;
+#[cfg(feature = "sqlite-journal")]
 const JOURNAL_BUSY_TIMEOUT: Duration = Duration::from_secs(5);
+#[cfg(feature = "sqlite-journal")]
 const CLAIM_DISPATCH_SQL: &str =
     "SELECT d.token, d.request, d.attempt, d.retry_count, e.image
      FROM vm_dispatches d INDEXED BY vm_dispatch_attempt_order_idx
@@ -45,6 +54,7 @@ const CLAIM_DISPATCH_SQL: &str =
      ORDER BY d.attempt ASC, length(d.token) ASC, d.token ASC
      LIMIT 1";
 
+#[cfg(feature = "sqlite-journal")]
 pub(crate) struct JournalSnapshot {
     pub pending: BTreeMap<ContinuationToken, ContinuationImage>,
     pub completed: BTreeMap<ContinuationToken, Step>,
@@ -78,6 +88,7 @@ pub(crate) enum MergeProgress {
 
 pub(crate) enum Journal {
     Ephemeral(EphemeralJournal),
+    #[cfg(feature = "sqlite-journal")]
     Sqlite(SqliteJournal),
 }
 
@@ -129,16 +140,19 @@ impl EphemeralCompactionUnit {
     }
 }
 
+#[cfg(feature = "sqlite-journal")]
 pub(crate) struct SqliteJournal {
     connection: Connection,
 }
 
+#[cfg(feature = "sqlite-journal")]
 struct JournalRecord {
     state: String,
     image: Vec<u8>,
     terminal_step: Option<Vec<u8>>,
 }
 
+#[cfg(feature = "sqlite-journal")]
 struct DispatchRecord {
     request: Vec<u8>,
     state: String,
@@ -148,6 +162,7 @@ struct DispatchRecord {
     retry_count: u32,
 }
 
+#[cfg(feature = "sqlite-journal")]
 type RawDispatchRow = (Vec<u8>, String, i64, Option<i64>, i64, i64, Option<Vec<u8>>);
 
 impl Journal {
@@ -155,6 +170,7 @@ impl Journal {
         Self::Ephemeral(EphemeralJournal::default())
     }
 
+    #[cfg(feature = "sqlite-journal")]
     pub fn open(path: &Path) -> Result<(Self, JournalSnapshot), Fault> {
         let mut journal = SqliteJournal::open(path)?;
         let snapshot = journal.load()?;
@@ -164,23 +180,26 @@ impl Journal {
     pub fn allocate_sequence(&mut self, local_next: u64) -> Result<u64, Fault> {
         match self {
             Self::Ephemeral(_) => Ok(local_next),
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => journal.allocate_sequence(local_next),
         }
     }
 
     pub fn record_pending(
         &mut self,
-        image: &ContinuationImage,
+        _image: &ContinuationImage,
         request: Option<&EffectRequest>,
         limits: SchedulerLimits,
     ) -> Result<(), Fault> {
         match self {
             Self::Ephemeral(journal) => journal.record_pending(request, limits),
-            Self::Sqlite(journal) => journal.record_pending(image, request, limits),
+            #[cfg(feature = "sqlite-journal")]
+            Self::Sqlite(journal) => journal.record_pending(_image, request, limits),
         }
     }
 
     #[cfg_attr(not(test), allow(dead_code))]
+    #[cfg(feature = "sqlite-journal")]
     pub fn record_merge_graph(
         &mut self,
         group_token: &ContinuationToken,
@@ -202,6 +221,7 @@ impl Journal {
             Self::Ephemeral(journal) => {
                 journal.record_merge_graph(group_token, plan, branches, limits)
             }
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => {
                 journal.record_merge_graph(group_token, plan, branches, limits)
             }
@@ -216,6 +236,7 @@ impl Journal {
         validate_dispatch_clock(now_ms)?;
         match self {
             Self::Ephemeral(journal) => Ok(journal.scheduler_pressure(now_ms, limits)),
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => sql_scheduler_pressure(&journal.connection, now_ms, limits),
         }
     }
@@ -236,6 +257,7 @@ impl Journal {
         validate_lease_clock(now_ms, lease_ms)?;
         match self {
             Self::Ephemeral(journal) => journal.claim_dispatch(now_ms, lease_ms, limits),
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => journal.claim_dispatch(now_ms, lease_ms, limits),
         }
     }
@@ -247,6 +269,7 @@ impl Journal {
     ) -> Result<Step, Fault> {
         match self {
             Self::Ephemeral(journal) => journal.record_completed(image, step),
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => journal.record_completed(image, step),
         }
     }
@@ -260,6 +283,7 @@ impl Journal {
         validate_dispatch_clock(now_ms)?;
         match self {
             Self::Ephemeral(journal) => journal.acknowledge_dispatch(lease, now_ms, step),
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => journal.acknowledge_dispatch(lease, now_ms, step),
         }
     }
@@ -267,6 +291,7 @@ impl Journal {
     pub fn cancel(&mut self, image: &ContinuationImage, step: &Step) -> Result<Step, Fault> {
         match self {
             Self::Ephemeral(journal) => journal.cancel(image, step),
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => journal.cancel(image, step),
         }
     }
@@ -280,6 +305,7 @@ impl Journal {
     ) -> Result<(Step, DebuggerAuditRecord), Fault> {
         match self {
             Self::Ephemeral(journal) => journal.cancel_audited(image, step, audit, now_ms),
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => journal.cancel_audited(image, step, audit, now_ms),
         }
     }
@@ -290,6 +316,7 @@ impl Journal {
                 .debugger_audits
                 .get(command_id)
                 .map(|entry| entry.record.clone())),
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => journal.debugger_audit(command_id),
         }
     }
@@ -297,6 +324,7 @@ impl Journal {
     pub fn expire_due(&mut self, now_ms: u64) -> Result<Vec<(ContinuationImage, Step)>, Fault> {
         match self {
             Self::Ephemeral(journal) => journal.expire_due(now_ms),
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => journal.expire_due(now_ms),
         }
     }
@@ -309,6 +337,7 @@ impl Journal {
     ) -> Result<RetryDisposition, Fault> {
         match self {
             Self::Ephemeral(journal) => journal.report_error(lease, now_ms, disposition),
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => journal.report_error(lease, now_ms, disposition),
         }
     }
@@ -320,14 +349,16 @@ impl Journal {
     ) -> Result<JournalCompaction, Fault> {
         match self {
             Self::Ephemeral(journal) => journal.compact_completed(local_completed, policy),
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => journal.compact_completed(local_completed, policy),
         }
     }
 
-    pub fn completed_exists(&self, token: &ContinuationToken) -> Result<bool, Fault> {
+    pub fn completed_exists(&self, _token: &ContinuationToken) -> Result<bool, Fault> {
         match self {
             Self::Ephemeral(_) => Ok(true),
-            Self::Sqlite(journal) => journal.completed_exists(token),
+            #[cfg(feature = "sqlite-journal")]
+            Self::Sqlite(journal) => journal.completed_exists(_token),
         }
     }
 
@@ -337,6 +368,7 @@ impl Journal {
                 .dispatches
                 .get(token)
                 .and_then(|dispatch| dispatch.terminal_step.clone())),
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => {
                 let bytes: Option<Vec<u8>> = journal.connection.query_row(
                     "SELECT terminal_step FROM vm_effects WHERE token = ?1 AND state = 'completed'",
@@ -357,6 +389,7 @@ impl Journal {
     pub fn merge_result(&self, group_token: &ContinuationToken) -> Result<Option<Step>, Fault> {
         match self {
             Self::Ephemeral(journal) => Ok(journal.merge_result(group_token)),
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => journal.merge_result(group_token),
         }
     }
@@ -364,6 +397,7 @@ impl Journal {
     pub fn merge_progress(&self, branch_token: &ContinuationToken) -> Result<MergeProgress, Fault> {
         match self {
             Self::Ephemeral(journal) => Ok(journal.merge_progress(branch_token)),
+            #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => journal.merge_progress(branch_token),
         }
     }
@@ -983,6 +1017,7 @@ fn validate_retry_lease(
     Ok(())
 }
 
+#[cfg(feature = "sqlite-journal")]
 impl SqliteJournal {
     fn open(path: &Path) -> Result<Self, Fault> {
         if path.as_os_str().is_empty() {
@@ -1301,9 +1336,7 @@ impl SqliteJournal {
         let mut rows = statement
             .query([])
             .map_err(|error| journal_error("LSV4005", "failed to load journal", error))?;
-        let mut pending = BTreeMap::new();
-        let mut completed = BTreeMap::new();
-        let mut highest_sequence = 0;
+        let mut recovery = CheckpointRecovery::new(MAX_JOURNAL_RECORDS, crate::MAX_EFFECT_SEQUENCE);
 
         while let Some(row) = rows
             .next()
@@ -1320,11 +1353,10 @@ impl SqliteJournal {
                 .map_err(|error| journal_error("LSV4005", "invalid journal image", error))?;
             let image: ContinuationImage = decode_bounded(&image_bytes, MAX_CONTINUATION_BYTES)?;
             validate_image(&image)?;
-            highest_sequence = highest_sequence.max(
+            let sequence =
                 crate::canonical_continuation_sequence(&image.token).ok_or_else(|| {
                     journal_fault("LSV4007", "journal continuation sequence is invalid")
-                })?,
-            );
+                })?;
             if image.token.as_str() != token {
                 return Err(journal_fault(
                     "LSV4007",
@@ -1348,10 +1380,10 @@ impl SqliteJournal {
             }
             group_binding::validate_owner(&transaction, &image)?;
 
-            match state.as_str() {
+            let (key, payload) = match state.as_str() {
                 "pending" => {
                     successor::validate_record(&transaction, &image, None)?;
-                    pending.insert(image.token.clone(), image);
+                    (image.token.clone(), RecoveryPayload::Pending(image))
                 }
                 "completed" => {
                     let step_bytes: Vec<u8> = row.get(4).map_err(|error| {
@@ -1360,21 +1392,45 @@ impl SqliteJournal {
                     let step: Step = decode_bounded(&step_bytes, MAX_JOURNAL_ENTRY_BYTES)?;
                     validate_terminal_step(&step)?;
                     successor::validate_record(&transaction, &image, Some(&step))?;
-                    completed.insert(image.token, step);
+                    (image.token, RecoveryPayload::Completed(step))
                 }
                 _ => return Err(journal_fault("LSV4007", "invalid journal record state")),
-            }
+            };
+            recovery
+                .push(RecoveryRecord {
+                    key,
+                    sequence,
+                    payload,
+                })
+                .map_err(checkpoint_fault)?;
         }
 
         drop(rows);
         drop(statement);
-        validate_dispatch_records(&transaction)?;
-        highest_sequence = highest_sequence.max(validate_merge_graph_records(&transaction)?);
-        validate_debugger_audit_records(&transaction)?;
-        let next_sequence = advance_sequence_watermark(&transaction, highest_sequence)?;
-        transaction
-            .commit()
-            .map_err(|error| journal_error("LSV4005", "failed to commit journal load", error))?;
+        let (snapshot, next_sequence) = recovery
+            .finish(Some(transaction), |transaction, snapshot| {
+                let connection = transaction.as_ref().ok_or_else(|| {
+                    journal_fault("LSV4005", "journal load transaction is closed")
+                })?;
+                validate_dispatch_records(connection)?;
+                let highest_sequence = snapshot
+                    .highest_sequence()
+                    .max(validate_merge_graph_records(connection)?);
+                validate_debugger_audit_records(connection)?;
+                let next_sequence = advance_sequence_watermark(connection, highest_sequence)?;
+                let transaction = transaction.take().ok_or_else(|| {
+                    journal_fault("LSV4005", "journal load transaction is closed")
+                })?;
+                transaction.commit().map_err(|error| {
+                    journal_error("LSV4005", "failed to commit journal load", error)
+                })?;
+                Ok(next_sequence)
+            })
+            .map_err(|error| match error {
+                CheckpointCommitError::Host(error) => error,
+                CheckpointCommitError::Closed => checkpoint_fault(CheckpointError::Closed),
+            })?;
+        let (pending, completed) = snapshot.into_parts();
         Ok(JournalSnapshot {
             pending,
             completed,
@@ -2527,6 +2583,23 @@ impl SqliteJournal {
     }
 }
 
+#[cfg(feature = "sqlite-journal")]
+fn checkpoint_fault(error: CheckpointError) -> Fault {
+    match error {
+        CheckpointError::RecordLimit => {
+            journal_fault("LSV4006", "journal recovery record limit exceeded")
+        }
+        CheckpointError::InvalidSequence => {
+            journal_fault("LSV4007", "journal continuation sequence is invalid")
+        }
+        CheckpointError::DuplicateKey => {
+            journal_fault("LSV4007", "duplicate journal continuation token")
+        }
+        CheckpointError::Closed => journal_fault("LSV4007", "journal recovery pass is closed"),
+    }
+}
+
+#[cfg(feature = "sqlite-journal")]
 fn completed_effect_logical_bytes(connection: &Connection, token: &str) -> Result<usize, Fault> {
     let bytes: i64 = connection
         .query_row(
@@ -2546,6 +2619,7 @@ fn completed_effect_logical_bytes(connection: &Connection, token: &str) -> Resul
         .map_err(|_| journal_fault("LSV4007", "journal compaction size is invalid"))
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn delete_completed_merge_group(
     transaction: &rusqlite::Transaction<'_>,
     group_token: &str,
@@ -2641,6 +2715,7 @@ fn delete_completed_merge_group(
     Ok(reclaimed)
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn stale_local_completed(
     connection: &Connection,
     local_completed: &[(ContinuationToken, Step)],
@@ -2678,6 +2753,7 @@ fn stale_local_completed(
         .collect())
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn complete_terminal_record(
     transaction: &rusqlite::Transaction<'_>,
     token: &str,
@@ -2719,6 +2795,7 @@ fn audit_matches_record(audit: &DebuggerAuditContext, record: &DebuggerAuditReco
         && record.expected_revision == audit.expected_revision
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn command_origin_label(origin: crate::CommandOrigin) -> &'static str {
     match origin {
         crate::CommandOrigin::Gui => "gui",
@@ -2729,6 +2806,7 @@ fn command_origin_label(origin: crate::CommandOrigin) -> &'static str {
     }
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn parse_command_origin(value: &str) -> rusqlite::Result<crate::CommandOrigin> {
     match value {
         "gui" => Ok(crate::CommandOrigin::Gui),
@@ -2740,6 +2818,7 @@ fn parse_command_origin(value: &str) -> rusqlite::Result<crate::CommandOrigin> {
     }
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn decode_debugger_audit_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DebuggerAuditRecord> {
     let command_id = crate::CommandId::new(row.get::<_, String>(0)?)
         .map_err(|_| rusqlite::Error::InvalidQuery)?;
@@ -2760,6 +2839,7 @@ fn decode_debugger_audit_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Debugg
     })
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn load_debugger_audit(
     transaction: &rusqlite::Transaction<'_>,
     audit: &DebuggerAuditContext,
@@ -2805,6 +2885,7 @@ fn load_debugger_audit(
         })
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn finalize_merge_group(
     transaction: &rusqlite::Transaction<'_>,
     branch_token: &str,
@@ -2961,6 +3042,7 @@ fn finalize_merge_group(
     Ok(())
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn execution_order_label(order: ExecutionOrder) -> &'static str {
     match order {
         ExecutionOrder::Parallel
@@ -2998,6 +3080,7 @@ fn sequence_stop<'a>(steps: impl IntoIterator<Item = &'a Step>) -> Result<Option
     Ok(None)
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn ensure_sequence_ready(connection: &Connection, token: &str) -> Result<(), Fault> {
     let blocked: bool = connection.query_row(
         "SELECT EXISTS (
@@ -3030,6 +3113,7 @@ fn terminal_step_outcome(step: Step) -> Result<BranchOutcome, Fault> {
     }
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn journal_payload_bytes(connection: &Connection) -> Result<usize, Fault> {
     let bytes: i64 = connection
         .query_row(
@@ -3047,6 +3131,7 @@ fn journal_payload_bytes(connection: &Connection) -> Result<usize, Fault> {
     usize::try_from(bytes).map_err(|_| journal_fault("LSV4007", "journal payload size is invalid"))
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn journal_record_count(connection: &Connection) -> Result<usize, Fault> {
     let count: i64 = connection
         .query_row(
@@ -3060,6 +3145,7 @@ fn journal_record_count(connection: &Connection) -> Result<usize, Fault> {
     usize::try_from(count).map_err(|_| journal_fault("LSV4007", "journal record count is invalid"))
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn ensure_growth(transaction: &rusqlite::Transaction<'_>, additional: usize) -> Result<(), Fault> {
     let current = journal_payload_bytes(transaction)?;
     if current.saturating_add(additional) > MAX_JOURNAL_TOTAL_BYTES {
@@ -3071,6 +3157,7 @@ fn ensure_growth(transaction: &rusqlite::Transaction<'_>, additional: usize) -> 
     Ok(())
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn load_record(
     transaction: &rusqlite::Transaction<'_>,
     token: &str,
@@ -3091,6 +3178,7 @@ fn load_record(
         .map_err(|error| journal_error("LSV4005", "failed to read journal record", error))
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn load_dispatch(transaction: &Connection, token: &str) -> Result<Option<DispatchRecord>, Fault> {
     transaction
         .query_row(
@@ -3152,6 +3240,7 @@ fn load_dispatch(transaction: &Connection, token: &str) -> Result<Option<Dispatc
         .transpose()
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn ensure_dispatch_matches(
     transaction: &rusqlite::Transaction<'_>,
     token: &str,
@@ -3174,6 +3263,7 @@ fn ensure_dispatch_matches(
     Ok(())
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn validate_dispatch_records(connection: &Connection) -> Result<(), Fault> {
     let mut statement = connection
         .prepare(
@@ -3262,6 +3352,7 @@ fn validate_dispatch_records(connection: &Connection) -> Result<(), Fault> {
     Ok(())
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn validate_debugger_audit_records(connection: &Connection) -> Result<(), Fault> {
     let index_count: u32 = connection
         .query_row(
@@ -3428,6 +3519,7 @@ fn validate_merge_graph_input(
     Ok(())
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn validate_merge_graph_records(connection: &Connection) -> Result<u64, Fault> {
     type RawMergeGroup = (String, Vec<u8>, String, Option<Vec<u8>>, String);
     let groups = {
@@ -3601,6 +3693,7 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<u64, Fault> {
     Ok(highest_sequence)
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn merge_reserved_sequence(token: &ContinuationToken, plan: &MergePlan) -> u64 {
     // Opaque legacy group IDs remain valid; only canonical IDs reserve a sequence.
     let group_sequence = token.as_str().strip_prefix("merge-").and_then(|suffix| {
@@ -3619,6 +3712,7 @@ fn merge_reserved_sequence(token: &ContinuationToken, plan: &MergePlan) -> u64 {
         )
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn advance_sequence_watermark(connection: &Connection, used_sequence: u64) -> Result<u64, Fault> {
     let required = used_sequence
         .checked_add(1)
@@ -3683,6 +3777,7 @@ fn next_attempt(current: u32) -> Result<u32, Fault> {
     Ok(next)
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn decode_bounded<T: serde::de::DeserializeOwned>(bytes: &[u8], limit: usize) -> Result<T, Fault> {
     if bytes.len() > limit {
         return Err(journal_fault(
@@ -3744,6 +3839,7 @@ fn deadline_cancellation(image: &ContinuationImage, observed_at_ms: u64) -> Step
 }
 
 #[cfg(unix)]
+#[cfg(feature = "sqlite-journal")]
 fn tighten_permissions(path: &Path) -> Result<(), Fault> {
     use std::os::unix::fs::PermissionsExt;
 
@@ -3752,6 +3848,7 @@ fn tighten_permissions(path: &Path) -> Result<(), Fault> {
 }
 
 #[cfg(unix)]
+#[cfg(feature = "sqlite-journal")]
 fn create_private_journal(path: &Path) -> Result<(), Fault> {
     use std::os::unix::fs::OpenOptionsExt;
 
@@ -3765,6 +3862,7 @@ fn create_private_journal(path: &Path) -> Result<(), Fault> {
 }
 
 #[cfg(not(unix))]
+#[cfg(feature = "sqlite-journal")]
 fn create_private_journal(path: &Path) -> Result<(), Fault> {
     fs::OpenOptions::new()
         .write(true)
@@ -3775,10 +3873,12 @@ fn create_private_journal(path: &Path) -> Result<(), Fault> {
 }
 
 #[cfg(not(unix))]
+#[cfg(feature = "sqlite-journal")]
 fn tighten_permissions(_path: &Path) -> Result<(), Fault> {
     Ok(())
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn sql_lease_capacity_exhausted(
     connection: &Connection,
     now: i64,
@@ -3799,6 +3899,7 @@ fn sql_lease_capacity_exhausted(
         .map_err(|error| journal_error("LSV4040", "failed to read active lease capacity", error))
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn sql_scheduler_pressure(
     connection: &Connection,
     now_ms: u64,
@@ -3822,6 +3923,7 @@ fn sql_scheduler_pressure(
     })
 }
 
+#[cfg(feature = "sqlite-journal")]
 fn journal_error(code: &str, context: &str, error: impl std::fmt::Display) -> Fault {
     journal_fault(code, format!("{context}: {error}"))
 }
@@ -3834,6 +3936,7 @@ fn journal_fault(code: &str, message: impl Into<String>) -> Fault {
 }
 
 #[cfg(test)]
+#[cfg(feature = "sqlite-journal")]
 mod scheduling_tests {
     use super::*;
 
@@ -3872,6 +3975,156 @@ mod scheduling_tests {
             panic!()
         };
         *batch
+    }
+
+    fn recovery_fixture(root: &TempRoot) -> (SqliteJournal, EffectRequest, EffectRequest, Step) {
+        let program = leselang_hir::lower(&leselang_syntax::parse(
+            r#"fn main() = ui.focus(node_id: "original")"#,
+        ))
+        .unwrap();
+        let mut vm = crate::Vm::new(100);
+        let mut start = || {
+            let Step::Effect(request) = vm.start(
+                &program,
+                crate::Principal::new("operator").unwrap(),
+                crate::CapabilitySet::new(["ui.presentation"]),
+                Some(crate::Revision(7)),
+            ) else {
+                panic!()
+            };
+            *request
+        };
+        let first = start();
+        let second = start();
+        let terminal = vm.resume(
+            &first.continuation,
+            crate::EffectResult::Presentation(crate::PresentationResult::Focus {
+                node_id: "original".into(),
+            }),
+        );
+        let mut journal = SqliteJournal::open(&root.0.join("recovery.sqlite3")).unwrap();
+        for request in [&first, &second] {
+            journal
+                .record_pending(
+                    &request.continuation,
+                    Some(request),
+                    SchedulerLimits::default(),
+                )
+                .unwrap();
+        }
+        assert_eq!(
+            journal
+                .record_completed(&first.continuation, &terminal)
+                .unwrap(),
+            terminal
+        );
+        (journal, first, second, terminal)
+    }
+
+    #[test]
+    fn recovery_commit_failure_releases_staging_and_rolls_back_the_watermark() {
+        let root = TempRoot::new();
+        let (mut journal, first, second, terminal) = recovery_fixture(&root);
+        journal
+            .connection
+            .execute_batch(
+                "UPDATE vm_metadata SET next_sequence = 1;
+             CREATE TRIGGER reject_recovery_commit BEFORE UPDATE ON vm_metadata
+             BEGIN SELECT RAISE(ABORT, 'injected recovery failure'); END;",
+            )
+            .unwrap();
+        let original: Vec<(String, Vec<u8>, Option<Vec<u8>>)> = journal
+            .connection
+            .prepare("SELECT token, image, terminal_step FROM vm_effects ORDER BY token ASC")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert!(matches!(journal.load(), Err(error) if error.code == "LSV4008"));
+        assert_eq!(
+            journal
+                .connection
+                .query_row("SELECT next_sequence FROM vm_metadata", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        journal
+            .connection
+            .execute_batch("DROP TRIGGER reject_recovery_commit;")
+            .unwrap();
+        let snapshot = journal.load().unwrap();
+        assert_eq!(snapshot.next_sequence, 3);
+        assert_eq!(
+            snapshot.pending[&second.continuation.token],
+            second.continuation
+        );
+        assert_eq!(snapshot.completed[&first.continuation.token], terminal);
+        let recovered: Vec<(String, Vec<u8>, Option<Vec<u8>>)> = journal
+            .connection
+            .prepare("SELECT token, image, terminal_step FROM vm_effects ORDER BY token ASC")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(original, recovered);
+        drop(journal);
+        let mut vm = crate::Vm::open_journal(root.0.join("recovery.sqlite3"), 100).unwrap();
+        assert_eq!(
+            vm.resume(
+                &first.continuation,
+                crate::EffectResult::Presentation(crate::PresentationResult::Focus {
+                    node_id: "late-forged-reply".into(),
+                })
+            ),
+            terminal
+        );
+        assert_eq!(vm.pending_count(), 1);
+        assert_eq!(vm.claim_effect(1, 20).unwrap().unwrap().request, second);
+    }
+
+    #[test]
+    fn recovery_rejects_a_late_invalid_row_without_exposing_the_valid_prefix() {
+        let root = TempRoot::new();
+        let (mut journal, first, second, terminal) = recovery_fixture(&root);
+        journal
+            .connection
+            .execute_batch("UPDATE vm_metadata SET next_sequence = 1;")
+            .unwrap();
+        journal
+            .connection
+            .execute(
+                "UPDATE vm_effects SET deadline_at_ms = 7 WHERE token = ?1",
+                [second.continuation.token.as_str()],
+            )
+            .unwrap();
+        assert!(
+            matches!(journal.load(), Err(error) if error.code == "LSV4007" && error.message == "journal deadline does not match continuation image")
+        );
+        assert_eq!(
+            journal
+                .connection
+                .query_row("SELECT next_sequence FROM vm_metadata", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        journal
+            .connection
+            .execute(
+                "UPDATE vm_effects SET deadline_at_ms = NULL WHERE token = ?1",
+                [second.continuation.token.as_str()],
+            )
+            .unwrap();
+        let snapshot = journal.load().unwrap();
+        assert_eq!(snapshot.completed[&first.continuation.token], terminal);
+        assert_eq!(
+            snapshot.pending[&second.continuation.token],
+            second.continuation
+        );
+        assert_eq!(snapshot.next_sequence, 3);
     }
 
     #[test]

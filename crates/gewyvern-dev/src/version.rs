@@ -191,7 +191,7 @@ pub(crate) fn execute(root: &Path, action: VersionAction) -> Result<(), String> 
     }
 }
 
-fn root_version(root: &Path) -> Result<ProductVersion, String> {
+pub(crate) fn root_version(root: &Path) -> Result<ProductVersion, String> {
     let manifest = read_regular_file(&root.join("Cargo.toml"))?;
     let workspace = section(&manifest, "workspace.package")?;
     let raw = quoted_assignment(workspace, "version")?;

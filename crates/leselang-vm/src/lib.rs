@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::io::{self, Write};
+#[cfg(feature = "sqlite-journal")]
 use std::path::Path;
 
 use leselang_command::{LoweringContext, PlannedOperation, lower_effect};
@@ -63,6 +64,7 @@ pub use journal::{
     JOURNAL_SCHEMA_VERSION, MAX_JOURNAL_ENTRY_BYTES, MAX_JOURNAL_RECORDS, MAX_JOURNAL_TOTAL_BYTES,
 };
 use journal::{Journal, MergeProgress};
+use result_binding::ReferenceResultBinding;
 
 pub const CONTINUATION_SCHEMA_VERSION: u32 = 1;
 pub const RESULT_BINDING_CONTINUATION_SCHEMA_VERSION: u32 = 2;
@@ -1329,6 +1331,17 @@ impl Default for Vm {
 }
 
 impl Vm {
+    /// Creates an in-memory reference VM without opening or restoring a journal.
+    #[cfg_attr(
+        not(feature = "sqlite-journal"),
+        doc = r#"
+The durable API is absent when `sqlite-journal` is disabled:
+```compile_fail
+use leselang_vm::Vm;
+let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
+```
+"#
+    )]
     pub fn new(fuel_limit: u64) -> Self {
         Self {
             next_effect_id: 1,
@@ -1340,6 +1353,9 @@ impl Vm {
         }
     }
 
+    /// Opens the durable SQLite backend; available with the default `sqlite-journal` feature.
+    /// Disabling the feature removes this API rather than silently falling back to memory.
+    #[cfg(feature = "sqlite-journal")]
     pub fn open_journal(path: impl AsRef<Path>, fuel_limit: u64) -> Result<Self, Fault> {
         Self::open_journal_with_limits(path, fuel_limit, SchedulerLimits::default())
     }
@@ -1352,6 +1368,7 @@ impl Vm {
     }
 
     /// The host must reapply the same policy to all trusted workers after restart.
+    #[cfg(feature = "sqlite-journal")]
     pub fn open_journal_with_limits(
         path: impl AsRef<Path>,
         fuel_limit: u64,
@@ -7809,6 +7826,7 @@ fn fault(code: &str, message: impl Into<String>) -> Step {
 }
 
 #[cfg(test)]
+#[cfg(feature = "sqlite-journal")]
 mod tests {
     #[test]
     fn string_list_value_validation_counts_entries_and_fences_in_memory_payloads() {

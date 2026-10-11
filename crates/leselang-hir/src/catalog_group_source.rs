@@ -25,6 +25,7 @@ use crate::flow_typing::{
 use crate::group_exports::MAX_GROUP_EXPORT_MEMBERS;
 use crate::group_source::{GroupSourceError, GroupSourceLimits, header, lower_flat_group_source};
 use crate::ir::Computation;
+use crate::prepared_typing::{PreparedCallTypeError, infer_prepared_call_observation};
 use crate::pure_typing::{MAX_TYPE_INFERENCE_NODES, PureType, TypeInferenceLimits};
 use crate::scalar_source::primitive_name;
 use crate::source_call::{SourceCallHost, span};
@@ -88,6 +89,11 @@ pub enum CatalogGroupSourceError<Native> {
         index: usize,
         span: Span,
     },
+    PreparedMember {
+        index: usize,
+        span: Span,
+        error: PreparedCallTypeError,
+    },
     BranchMapping {
         span: Span,
         error: Native,
@@ -115,6 +121,9 @@ impl<Native> fmt::Display for CatalogGroupSourceError<Native> {
                 "catalog group profile does not permit nested group members"
             }
             Self::NonAtomic { .. } => "catalog group member must be a direct registered call",
+            Self::PreparedMember { .. } => {
+                "catalog group member must prepare one uniform original call"
+            }
             Self::BranchMapping { .. } => "catalog group native branch declaration mapping failed",
             Self::Catalog { .. } => "catalog group current original catalog admission failed",
             Self::BranchType { .. } => {
@@ -141,12 +150,13 @@ fn cold_groups<Native>(
     source: &Expression,
     limits: CatalogGroupSourceLimits,
 ) -> Result<(), CatalogGroupSourceError<Native>> {
-    cold_groups_with(source, limits, |_| false).map(|_| ())
+    cold_groups_with(source, limits, false, |_| false).map(|_| ())
 }
 
 pub(crate) fn cold_groups_with<Native>(
     source: &Expression,
     limits: CatalogGroupSourceLimits,
+    prepared_members: bool,
     is_helper: impl Fn(&Expression) -> bool,
 ) -> Result<usize, CatalogGroupSourceError<Native>> {
     let mut pending = vec![(source, false)];
@@ -170,9 +180,10 @@ pub(crate) fn cold_groups_with<Native>(
             let (_, members) = header(node, limits.max_branches)
                 .map_err(|e| CatalogGroupSourceError::Group(Box::new(e)))?;
             for (index, member) in members.iter().enumerate() {
-                if is_helper(&member.value)
-                    || !matches!(&member.value, Expression::Call { callee, .. }
-                    if !primitive_name(callee) && !matches!(callee.as_str(), "bind" | "choose" | "field" | "member" | "seq" | "all" | "repeat" | "loop" | "fold"))
+                if !prepared_members
+                    && (is_helper(&member.value)
+                        || !matches!(&member.value, Expression::Call { callee, .. }
+                    if !primitive_name(callee) && !matches!(callee.as_str(), "bind" | "choose" | "field" | "member" | "seq" | "all" | "repeat" | "loop" | "fold")))
                 {
                     return Err(CatalogGroupSourceError::NonAtomic {
                         index,
@@ -196,6 +207,7 @@ struct Groups<'a, Inner, Host, Environment> {
     host: &'a Host,
     environment: &'a Environment,
     limits: CatalogGroupSourceLimits,
+    prepared_members: bool,
 }
 fn flow_limits(limits: CatalogSourceLimits) -> CallFlowTypeLimits {
     CallFlowTypeLimits {
@@ -280,15 +292,43 @@ where
                 max_branches: self.limits.max_branches,
             },
             |index, original| {
-                let (node, inferred) = self
-                    .inner
-                    .lower_leaf(&original.value, ControlSourceScope::new(scope.bindings()))
-                    .map_err(|e| Self::Error::Source(Box::new(e)))?;
-                let Node::Call { operation, .. } = &node else {
-                    return Err(Self::Error::NonAtomic {
+                let (node, inferred) = if self.prepared_members {
+                    lower_preflighted_control_source(
+                        &original.value,
+                        scope.bindings(),
+                        self.limits.expression.control,
+                        &mut self.inner,
+                    )
+                    .map_err(|error| {
+                        Self::Error::Source(Box::new(CatalogSourceError::Control(Box::new(error))))
+                    })?
+                } else {
+                    self.inner
+                        .lower_leaf(&original.value, ControlSourceScope::new(scope.bindings()))
+                        .map_err(|e| Self::Error::Source(Box::new(e)))?
+                };
+                let (operation, original_result) = if self.prepared_members {
+                    let (operation, result) = infer_prepared_call_observation(
+                        &node,
+                        &prefix,
+                        environment,
+                        &type_host,
+                        flow.call,
+                    )
+                    .map_err(|error| Self::Error::PreparedMember {
                         index,
                         span: original.span,
-                    });
+                        error,
+                    })?;
+                    (operation, Some(result))
+                } else {
+                    let Node::Call { operation, .. } = &node else {
+                        return Err(Self::Error::NonAtomic {
+                            index,
+                            span: original.span,
+                        });
+                    };
+                    (operation, None)
                 };
                 let schema = host
                     .catalog
@@ -297,6 +337,13 @@ where
                         span: original.span,
                         error,
                     })?;
+                if original_result.is_some_and(|result| !std::ptr::eq(result, &schema.result)) {
+                    return Err(Self::Error::PreparedMember {
+                        index,
+                        span: original.span,
+                        error: PreparedCallTypeError::InconsistentOperation,
+                    });
+                }
                 let declaration = environment
                     .source_group_branch(original, operation, &schema.result, &inferred)
                     .map_err(|error| Self::Error::BranchMapping {
@@ -476,6 +523,7 @@ where
             Environment::Error,
         >,
 {
+    let prepared_members = locals.prepared_members();
     lower_preflighted_control_source(
         source,
         prefix,
@@ -487,6 +535,7 @@ where
             host,
             environment,
             limits,
+            prepared_members,
         },
     )
     .map_err(|e| CatalogGroupSourceError::Control(Box::new(e)))
@@ -551,6 +600,7 @@ where
         Some(CatalogProgramGroupProfile {
             limits: groups,
             helper_groups: false,
+            prepared_members: false,
         }),
         |program, source, prefix| {
             program.with_expansion(|| {
@@ -574,6 +624,7 @@ struct HelperGroups<'a, 'source, Host, Environment> {
     host: &'a Host,
     environment: &'a Environment,
     limits: CatalogGroupSourceLimits,
+    prepared_members: bool,
 }
 impl<'source, 'schema, Operation, Domain, Declaration, Capability, Environment>
     HelperGroups<
@@ -644,6 +695,9 @@ where
     Environment:
         CatalogGroupSourceEnvironment<'source, 'schema, Field, Operation, Declaration, IrResult>,
 {
+    fn prepared_members(&self) -> bool {
+        self.prepared_members
+    }
     fn contains(&self, source: &Expression) -> bool {
         self.program.is_helper(source)
     }
@@ -703,6 +757,82 @@ where
     Environment:
         CatalogGroupSourceEnvironment<'source, 'schema, Field, Operation, Declaration, IrResult>,
 {
+    compile_group_helpers(declarations, entry, limits, host, environment, false)
+}
+
+/// Opt in to pure Bind/Choose and acyclic atomic helper calls as flat group members.
+/// All closed declarations, helper edges, named/catalog policy and native-free
+/// member shape facts pass before compilation hooks, including unused helpers.
+/// Expanded members then require whole uniform original-schema inference before
+/// branch mapping; equal result tags never admit different operations. Shared
+/// helper recompilation, hygiene, work/depth quotas and whole group/output gates
+/// remain mandatory. No host payload copying, new grammar, evaluator, scheduling,
+/// dispatch, native-work bound or durable execution authority is introduced.
+/// Existing source/entry/group-helper APIs remain direct-member-only. Hosts use
+/// prepare_atomic_call_in_scope with live scope/fuel, then explicitly own fresh
+/// publication authority, actual invocation, reply validation and cancellation.
+pub fn compile_catalog_prepared_group_helper_program<
+    'source,
+    'schema,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Domain,
+    Declaration,
+    Capability,
+    Environment,
+>(
+    declarations: &[&'source Function],
+    entry: &str,
+    limits: CatalogGroupProgramLimits,
+    host: &SourceCallHost<'_, 'schema, Operation, Domain, Declaration, Capability>,
+    environment: &Environment,
+) -> CatalogSourceResult<
+    Node<Field, Operation, HostEffect, IrResult>,
+    Environment::Result,
+    Environment::Error,
+>
+where
+    Operation: Borrow<str> + PartialEq,
+    Domain: ScalarArgumentDomain,
+    Capability: PartialEq,
+    Environment:
+        CatalogGroupSourceEnvironment<'source, 'schema, Field, Operation, Declaration, IrResult>,
+{
+    compile_group_helpers(declarations, entry, limits, host, environment, true)
+}
+
+fn compile_group_helpers<
+    'source,
+    'schema,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Domain,
+    Declaration,
+    Capability,
+    Environment,
+>(
+    declarations: &[&'source Function],
+    entry: &str,
+    limits: CatalogGroupProgramLimits,
+    host: &SourceCallHost<'_, 'schema, Operation, Domain, Declaration, Capability>,
+    environment: &Environment,
+    prepared_members: bool,
+) -> CatalogSourceResult<
+    Node<Field, Operation, HostEffect, IrResult>,
+    Environment::Result,
+    Environment::Error,
+>
+where
+    Operation: Borrow<str> + PartialEq,
+    Domain: ScalarArgumentDomain,
+    Capability: PartialEq,
+    Environment:
+        CatalogGroupSourceEnvironment<'source, 'schema, Field, Operation, Declaration, IrResult>,
+{
     if limits.max_groups > MAX_TYPE_INFERENCE_NODES
         || limits.max_branches > MAX_GROUP_EXPORT_MEMBERS
     {
@@ -724,6 +854,7 @@ where
         Some(CatalogProgramGroupProfile {
             limits: groups,
             helper_groups: true,
+            prepared_members,
         }),
         |program, source, prefix| {
             HelperGroups {
@@ -731,6 +862,7 @@ where
                 host,
                 environment,
                 limits: groups,
+                prepared_members,
             }
             .compile(source, prefix)
         },

@@ -1,5 +1,7 @@
 use leselang_hir::{
-    call_evaluation::{CallEvaluationLimits, PreparedCall, evaluate_call_arguments_in_scope},
+    call_evaluation::{
+        CallEvaluationHost, CallEvaluationLimits, PreparedCall, evaluate_call_arguments_in_scope,
+    },
     catalog_group_source::*,
     catalog_program::{CatalogProgramLimits, compile_catalog_program},
     catalog_source::{
@@ -24,6 +26,9 @@ use leselang_hir::{
     parallel_evaluation::{
         ParallelAccepted, ParallelEnd, ParallelEvaluationLimits, ParallelPoll, ParallelRequest,
         PreparedParallelMember,
+    },
+    prepared_call_evaluation::{
+        PreparedGroupEvaluationLimits, prepare_atomic_call_in_scope, prepare_atomic_group_in_scope,
     },
     prepared_parallel::PreparedParallelSession,
     prepared_sequence::{PreparedSequenceError, PreparedSequenceSession},
@@ -1061,6 +1066,220 @@ fn compile_group_helpers<'s>(
     compile_catalog_group_helper_program(&declarations, "main", limits, host, env)
 }
 
+fn compile_prepared_helpers<'s>(
+    tree: &SyntaxTree,
+    limits: CatalogGroupProgramLimits,
+    host: &Host<'_, 's>,
+    env: &Environment<'s>,
+) -> CatalogSourceResult<Node<'s>, Meta<'s>, Private> {
+    let declarations: Vec<_> = tree.function.iter().chain(&tree.helpers).collect();
+    compile_catalog_prepared_group_helper_program(&declarations, "main", limits, host, env)
+}
+
+fn atomic_member_tree(kind: &str) -> SyntaxTree {
+    program_tree(&format!(
+        "fn main() = bind(seed: 2, body: bind(answer: collect(n: 40), body: add(left: answer, right: seed)))\n\
+         fn collect(n: integer) = bind(batch: {kind}(left: prepare_left(n: n), right: prepare_right(n: n)),\
+             body: bind(selected: member(value: batch, name: \"left\"),\
+                 body: add(left: n, right: field(value: selected, name: \"count\"))))\n\
+         fn prepare_left(n: integer) = relay_left(n: inc(n: n))\n\
+         fn relay_left(n: integer) = bind(delta: n, body: choose(otherwise: counter.left(n: add(left: delta, right: 1)), then: counter.left(n: delta), when: true))\n\
+         fn prepare_right(n: integer) = bind(delta: n, body: choose(when: false, then: counter.right(n: 0), otherwise: counter.right(n: delta)))\n\
+         fn inc(n: integer) = add(left: n, right: 1)"
+    ))
+}
+
+#[test]
+fn prepared_member_profile_is_explicit_and_preserves_legacy_direct_member_rejection() {
+    for kind in ["seq", "all"] {
+        fixture(|host, env| {
+            let tree = atomic_member_tree(kind);
+            let before = format!("{tree:?}");
+            assert!(compile_group_helpers(&tree, PROGRAM, host, env).is_err());
+            assert!(compile_program(&tree, "main", PROGRAM, host, env).is_err());
+            let declarations: Vec<_> = tree.function.iter().chain(&tree.helpers).collect();
+            let old: CatalogSourceResult<Node<'_>, Meta<'_>, Private> =
+                compile_catalog_program(&declarations, "main", PROGRAM.program, host, env);
+            assert!(old.is_err());
+            assert_eq!(env.owner.maps.get(), 0);
+            let (node, ty) = compile_prepared_helpers(&tree, PROGRAM, host, env).unwrap();
+            assert!(matches!(ty, PureType::Scalar(ScalarType::Integer)));
+            assert_eq!(format!("{tree:?}"), before);
+            let Node::Group { branches, .. } = only_group(&node) else {
+                panic!()
+            };
+            assert!(
+                branches
+                    .iter()
+                    .all(|branch| matches!(branch.value, Node::Bind { .. }))
+            );
+            let mappings = env.owner.maps.get();
+            assert!(mappings > 0);
+            drop(node);
+            // The unused helper proof and expanded caller each map one projection key.
+            assert_eq!(env.owner.keys_dropped.get(), mappings + 2);
+            assert_eq!(
+                env.owner.declarations_dropped.get(),
+                env.owner.branches.get()
+            );
+        });
+    }
+}
+
+#[test]
+fn prepared_members_reject_hidden_effect_shapes_in_unused_helpers_before_native_mapping() {
+    for (member, helper) in [
+        ("pure()", "fn pure() = add(left: 1, right: 2)"),
+        ("nested()", "fn nested() = seq(one: counter.left(n: 1))"),
+        (
+            "twice()",
+            "fn twice() = bind(first: counter.left(n: 1), body: counter.left(n: 2))",
+        ),
+        (
+            "mixed()",
+            "fn mixed() = choose(when: true, then: counter.left(n: 1), otherwise: counter.right(n: 2))",
+        ),
+        (
+            "mixed()",
+            "fn mixed() = choose(when: true, then: counter.left(n: 1), otherwise: 0)",
+        ),
+        (
+            "sink(n: value())",
+            "fn sink(n: integer) = counter.left(n: n)\nfn value() = bind(record: counter.left(n: 1), body: field(value: record, name: \"count\"))",
+        ),
+        (
+            "sink(n: counter.left(n: 1))",
+            "fn sink(n: integer) = counter.left(n: n)",
+        ),
+        ("recursive()", "fn recursive() = recursive()"),
+    ] {
+        fixture(|host, env| {
+            let tree = program_tree(&format!(
+                "fn main() = counter.left(n: 1)\nfn unused() = seq(item: {member})\n{helper}"
+            ));
+            assert!(compile_prepared_helpers(&tree, PROGRAM, host, env).is_err());
+            assert_eq!(env.owner.maps.get(), 0);
+            assert_eq!(env.owner.branches.get(), 0);
+            assert_eq!(env.owner.groups.get(), 0);
+        });
+    }
+}
+
+#[test]
+fn prepared_member_named_catalog_dependency_and_closed_reference_policy_remain_cold() {
+    for helper in [
+        "fn effect(n: integer) = counter.left(n: missing)",
+        "fn effect(n: integer) = counter.unknown(n: n)",
+        "fn effect(n: integer) = main()",
+        "fn effect(n: integer) = counter.left(other: n)",
+    ] {
+        fixture(|host, env| {
+            let tree = program_tree(&format!("fn main() = seq(one: effect(n: 1))\n{helper}"));
+            assert!(compile_prepared_helpers(&tree, PROGRAM, host, env).is_err());
+            assert_eq!(env.owner.maps.get(), 0);
+            assert_eq!(env.owner.branches.get(), 0);
+        });
+    }
+    fixture(|host, env| {
+        let tree = atomic_member_tree("all");
+        for host in [
+            Host {
+                version: 8,
+                ..*host
+            },
+            Host {
+                granted: &[31],
+                ..*host
+            },
+        ] {
+            assert!(compile_prepared_helpers(&tree, PROGRAM, &host, env).is_err());
+            assert_eq!(env.owner.maps.get(), 0);
+        }
+    });
+}
+
+#[test]
+fn prepared_member_inline_bind_choose_and_forward_aliases_use_original_uniform_rows() {
+    fixture(|host, env| {
+        let tree = program_tree(
+            "fn main() = bind(n: 40, body: all(left: bind(amount: inc(n: n), body: choose(when: true, then: left(n: amount), otherwise: relay(n: amount))), right: counter.right(n: n)))\n\
+             fn relay(n: integer) = left(n: n)\n\
+             fn left(n: integer) = counter.left(n: n)\n\
+             fn inc(n: integer) = add(left: n, right: 1)",
+        );
+        let (node, ty) = compile_prepared_helpers(&tree, PROGRAM, host, env).unwrap();
+        let PureType::Result(Meta::Group(signature)) = ty else {
+            panic!()
+        };
+        assert_eq!(signature.members[0].key, "counter.left");
+        assert_eq!(signature.members[1].key, "counter.right");
+        let Node::Group { branches, .. } = only_group(&node) else {
+            panic!()
+        };
+        assert!(std::ptr::eq(
+            branches[0].result_type.original,
+            signature.members[0].domain
+        ));
+        assert!(std::ptr::eq(
+            branches[1].result_type.original,
+            signature.members[1].domain
+        ));
+        drop(node);
+        assert_eq!(env.owner.keys_dropped.get(), env.owner.maps.get());
+    });
+}
+
+#[test]
+fn prepared_member_expansion_keeps_shared_work_depth_group_and_shifted_output_limits() {
+    for case in 0..6 {
+        fixture(|host, env| {
+            let tree = atomic_member_tree("all");
+            let mut limits = PROGRAM;
+            match case {
+                0 => limits.program.max_compilation_nodes = 1,
+                1 => limits.program.max_expansion_depth = 1,
+                2 => limits.program.expression.control.source.max_lowered_nodes = 16,
+                3 => limits.program.expression.control.source.max_lowered_depth = 2,
+                4 => limits.max_groups = 0,
+                _ => limits.max_branches = 1,
+            }
+            assert!(compile_prepared_helpers(&tree, limits, host, env).is_err());
+            assert_eq!(env.owner.keys_dropped.get(), env.owner.maps.get());
+            assert_eq!(
+                env.owner.declarations_dropped.get(),
+                env.owner.branches.get()
+            );
+        });
+    }
+}
+
+#[test]
+fn prepared_member_native_failure_and_unwind_release_moved_output_without_retries() {
+    for mode in [
+        Mode::WrongOperation,
+        Mode::WrongDeclaration,
+        Mode::BranchError,
+        Mode::GroupNone,
+        Mode::BranchUnwind,
+    ] {
+        fixture(|host, env| {
+            env.owner.mode.set(mode);
+            let tree = atomic_member_tree("all");
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                compile_prepared_helpers(&tree, PROGRAM, host, env)
+            }));
+            if mode == Mode::BranchUnwind {
+                assert!(result.is_err());
+            } else {
+                assert!(result.unwrap().is_err());
+            }
+            assert_eq!(env.owner.keys_dropped.get(), env.owner.maps.get());
+            // Refused branch mappings need not construct a declaration to drop.
+            assert!(env.owner.declarations_dropped.get() <= env.owner.branches.get());
+        });
+    }
+}
+
 #[test]
 fn group_returning_forward_helpers_move_original_slots_through_shared_hygiene() {
     fixture(|host, env| {
@@ -1272,21 +1491,37 @@ impl<'s> ParamDomain<'_, '_, 's> {
         if !self.live.get() {
             return Err(Private("revoked native policy"));
         }
-        let Node::Call { operation, .. } = &branch.value else {
-            return Err(Private("non-atomic member"));
-        };
-        let schema = self
-            .source
-            .catalog
-            .authorize(operation.label, self.source.version, self.source.granted)
-            .map_err(|_| Private("native policy"))?;
-        if operation != &schema.key
-            || !std::ptr::eq(branch.result_type.original, &schema.result)
-            || !Rc::ptr_eq(&branch.result_type.owner, &schema.result.owner)
-        {
-            return Err(Private("foreign native domain"));
+        // This test host owns immutable, already typed/bounded compiled IR.
+        // Fresh policy checks all original cold call rows, not just the selected arm.
+        let mut pending = vec![&branch.value];
+        let mut common: Option<&ParamSchema<'s>> = None;
+        let mut visited = 0;
+        while let Some(node) = pending.pop() {
+            visited += 1;
+            if visited > 256 {
+                return Err(Private("native member bound"));
+            }
+            match node {
+                Node::Call { operation, .. } => {
+                    let schema = self
+                        .source
+                        .catalog
+                        .authorize(operation.label, self.source.version, self.source.granted)
+                        .map_err(|_| Private("native policy"))?;
+                    if operation != &schema.key
+                        || !std::ptr::eq(branch.result_type.original, &schema.result)
+                        || !Rc::ptr_eq(&branch.result_type.owner, &schema.result.owner)
+                        || common.is_some_and(|original| !std::ptr::eq(original, schema))
+                    {
+                        return Err(Private("foreign native domain"));
+                    }
+                    common = Some(schema);
+                }
+                Node::Host { .. } | Node::Group { .. } => return Err(Private("non-atomic member")),
+                _ => pending.extend(node.children()),
+            }
         }
-        Ok(schema)
+        common.ok_or(Private("non-atomic member"))
     }
     fn record(&self, record: &ParamRecord<'s>) -> Result<(), Private> {
         if !self.live.get() || record.count > 200 {
@@ -1343,6 +1578,7 @@ struct ParamRuntime<'d, 'ir, 'h, 's> {
     captured_sizes: std::cell::RefCell<Vec<usize>>,
     amounts: std::cell::RefCell<Vec<u64>>,
     fail_prepare: Cell<bool>,
+    prepared_groups: bool,
 }
 impl<'d, 'ir, 'h, 's> ParamRuntime<'d, 'ir, 'h, 's> {
     fn new(domain: &'d ParamDomain<'ir, 'h, 's>) -> Self {
@@ -1355,6 +1591,13 @@ impl<'d, 'ir, 'h, 's> ParamRuntime<'d, 'ir, 'h, 's> {
             captured_sizes: Default::default(),
             amounts: Default::default(),
             fail_prepare: Cell::new(false),
+            prepared_groups: false,
+        }
+    }
+    fn with_prepared_groups(domain: &'d ParamDomain<'ir, 'h, 's>) -> Self {
+        Self {
+            prepared_groups: true,
+            ..Self::new(domain)
         }
     }
     fn invoke(&self, request: ParamRequest<'ir, 's>) -> ParamReply<'ir, 's> {
@@ -1408,14 +1651,7 @@ impl<'ir, 's> PureEvaluationEnvironment<Field, Key> for ParamRuntime<'_, 'ir, '_
             .iter()
             .find(|(b, _)| b.name == name)
             .ok_or(Private("missing member"))?;
-        let Node::Call {
-            operation: expected,
-            ..
-        } = &original.value
-        else {
-            return Err(Private("not a call"));
-        };
-        if operation != expected {
+        if operation != &self.domain.schema(original)?.key {
             return Err(Private("member operation identity"));
         }
         Ok(ParamView::Record(record.clone()))
@@ -1441,7 +1677,21 @@ impl<'ir, 's> EffectEvaluationEnvironment<'ir, Field, Key, Opaque, Declaration<'
         };
         let branch = branches
             .iter()
-            .find(|b| std::ptr::eq(&b.value, node))
+            .find(|branch| {
+                let mut pending = vec![&branch.value];
+                let mut visited = 0;
+                while let Some(part) = pending.pop() {
+                    visited += 1;
+                    if visited > 256 {
+                        return false;
+                    }
+                    if std::ptr::eq(part, node) {
+                        return true;
+                    }
+                    pending.extend(part.children());
+                }
+                false
+            })
             .ok_or(Private("foreign leaf"))?;
         self.domain.schema(branch).map(|_| ())
     }
@@ -1461,6 +1711,40 @@ impl<'ir, 's> EffectEvaluationEnvironment<'ir, Field, Key, Opaque, Declaration<'
         else {
             return Err(Private("not a group").into());
         };
+        if self.prepared_groups {
+            let prepared = prepare_atomic_group_in_scope(
+                node,
+                scope,
+                &CallEvaluationHost {
+                    catalog: self.domain.source.catalog,
+                    version: self.domain.source.version,
+                    granted: self.domain.source.granted,
+                    environment: self,
+                },
+                fuel,
+                PreparedGroupEvaluationLimits {
+                    call: CallEvaluationLimits {
+                        pure: PARAM_STACK.effects.pure,
+                        max_arguments: 64,
+                    },
+                    max_branches: 64,
+                },
+                |index, branch, schema| {
+                    if index == 1 && self.fail_prepare.get() {
+                        return Err(Private("complete prepared admission refusal"));
+                    }
+                    if !std::ptr::eq(schema, self.domain.schema(branch)?) {
+                        return Err(Private("original prepared member schema"));
+                    }
+                    Ok(())
+                },
+            )
+            .map_err(|_| Private("complete atomic group preparation rejected"))?;
+            return Ok(ParamRequest {
+                group: node,
+                prepared,
+            });
+        }
         let prepared = prepare_native_group_members(
             *group_kind,
             branches,
@@ -1474,7 +1758,30 @@ impl<'ir, 's> EffectEvaluationEnvironment<'ir, Field, Key, Opaque, Declaration<'
                 }
                 let schema = self.domain.schema(branch)?;
                 let Node::Call { arguments, .. } = &branch.value else {
-                    return Err(Private("not a call"));
+                    let prepared = prepare_atomic_call_in_scope(
+                        &branch.value,
+                        scope,
+                        &CallEvaluationHost {
+                            catalog: self.domain.source.catalog,
+                            version: self.domain.source.version,
+                            granted: self.domain.source.granted,
+                            environment: self,
+                        },
+                        fuel,
+                        CallEvaluationLimits {
+                            pure: PureEvaluationLimits {
+                                max_nodes: 256,
+                                max_depth: 32,
+                                max_bindings: 8,
+                            },
+                            max_arguments: 64,
+                        },
+                    )
+                    .map_err(|_| Private("atomic member preparation"))?;
+                    if !std::ptr::eq(prepared.schema(), schema) {
+                        return Err(Private("prepared schema"));
+                    }
+                    return Ok(prepared);
                 };
                 evaluate_call_arguments_in_scope(
                     arguments,
@@ -2450,6 +2757,272 @@ fn parsed_prepared_seq_cancel_or_fresh_revocation_never_invokes_the_second_membe
                 EffectSessionPoll::Terminal(_)
             ));
         });
+    }
+}
+
+#[test]
+fn parsed_atomic_helper_members_use_seq_all_original_replies_and_one_enclosing_meter() {
+    for kind in ["seq", "all"] {
+        fixture(|host, env| {
+            let (node, _) =
+                compile_prepared_helpers(&atomic_member_tree(kind), PROGRAM, host, env).unwrap();
+            let domain = ParamDomain {
+                group: only_group(&node),
+                source: host,
+                live: Cell::new(true),
+            };
+            let inner = ParamRuntime::with_prepared_groups(&domain);
+            let runtime = ParamBarrierRuntime {
+                inner: &inner,
+                refuse_correlation: Cell::new(false),
+            };
+            let mut session =
+                StackedEffectSession::new(&node, Vec::new(), Fuel::new(300), PARAM_STACK);
+            let EffectSessionPoll::Request(dispatch) = session.poll(&runtime).unwrap() else {
+                panic!()
+            };
+            assert_eq!(session.fuel_remaining(), 260);
+            assert_eq!(inner.calls.get(), 0);
+            assert_eq!(*inner.captured_sizes.borrow(), [2, 1]);
+            assert!(matches!(
+                session.poll(&runtime).unwrap(),
+                EffectSessionPoll::Awaiting
+            ));
+            let rows = match dispatch {
+                ParamDispatch::Parallel {
+                    mut barrier,
+                    requests,
+                } => {
+                    for request in requests.into_iter().rev() {
+                        let index = request.index;
+                        let input = runtime.invoke_member(request);
+                        let pointer = (&*input.buffer as *const u8) as usize;
+                        let rejected = barrier
+                            .try_accept(index, &(74, index), input, &runtime)
+                            .unwrap_err();
+                        assert_eq!((&*rejected.reply.buffer as *const u8) as usize, pointer);
+                        barrier
+                            .try_accept(index, &(73, index), rejected.reply, &runtime)
+                            .unwrap();
+                        assert_eq!(session.fuel_remaining(), 260);
+                    }
+                    let ParallelPoll::Results(rows) = barrier.poll().unwrap() else {
+                        panic!()
+                    };
+                    assert!(matches!(
+                        barrier.poll().unwrap(),
+                        ParallelPoll::Terminal(ParallelEnd::Completed)
+                    ));
+                    rows
+                }
+                ParamDispatch::Sequence(mut sequence) => {
+                    let mut rows = Vec::new();
+                    for index in 0..2 {
+                        let SequencePoll::Request {
+                            index: published,
+                            request,
+                        } = runtime.publish_sequence(&mut sequence).unwrap()
+                        else {
+                            panic!()
+                        };
+                        assert_eq!(published, index);
+                        assert!(
+                            matches!(runtime.publish_sequence(&mut sequence).unwrap(), SequencePoll::Awaiting { index: awaiting } if awaiting == index)
+                        );
+                        let input = runtime.invoke_member(ParallelRequest { index, request });
+                        let pointer = (&*input.buffer as *const u8) as usize;
+                        let rejected = sequence
+                            .try_accept(&(74, index), input, &runtime)
+                            .unwrap_err();
+                        assert_eq!((&*rejected.reply.buffer as *const u8) as usize, pointer);
+                        rows.push(
+                            sequence
+                                .try_accept(&(73, index), rejected.reply, &runtime)
+                                .unwrap(),
+                        );
+                        assert_eq!(session.fuel_remaining(), 260);
+                    }
+                    assert_eq!(
+                        sequence.status(),
+                        SequenceStatus::Terminal(SequenceEnd::Completed)
+                    );
+                    rows
+                }
+            };
+            let reply = ParamCollected {
+                group: domain.group,
+                rows,
+                buffer: Box::new(9),
+            };
+            let pointer = (&*reply.buffer as *const u8) as usize;
+            let rejected = session.try_accept(&74, reply, &runtime).unwrap_err();
+            assert_eq!((&*rejected.reply.buffer as *const u8) as usize, pointer);
+            session.try_accept(&73, rejected.reply, &runtime).unwrap();
+            assert_eq!(inner.restores.get(), 0);
+            assert_eq!(inner.projections.get(), 0);
+            assert_eq!(session.fuel_remaining(), 260);
+            assert!(matches!(
+                session.poll(&runtime).unwrap(),
+                EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::Integer(83)))
+            ));
+            assert_eq!(
+                *inner.amounts.borrow(),
+                if kind == "seq" { [41, 40] } else { [40, 41] }
+            );
+            assert_eq!(inner.calls.get(), 2);
+            assert_eq!(inner.restores.get(), 2);
+            assert_eq!(inner.projections.get(), 1);
+            assert_eq!(session.fuel_remaining(), 244);
+            assert!(matches!(
+                session.poll(&runtime).unwrap(),
+                EffectSessionPoll::Terminal(EffectSessionEnd::Completed)
+            ));
+            assert_eq!(session.fuel_remaining(), 244);
+        });
+    }
+}
+
+#[test]
+fn parsed_atomic_helper_members_preparation_refusal_or_fuel_exhaustion_never_dispatches() {
+    for kind in ["seq", "all"] {
+        for phase in 0..4 {
+            fixture(|host, env| {
+                let (node, _) =
+                    compile_prepared_helpers(&atomic_member_tree(kind), PROGRAM, host, env)
+                        .unwrap();
+                let domain = ParamDomain {
+                    group: only_group(&node),
+                    source: host,
+                    live: Cell::new(phase != 0),
+                };
+                let inner = ParamRuntime::with_prepared_groups(&domain);
+                inner.fail_prepare.set(phase == 1);
+                let runtime = ParamBarrierRuntime {
+                    inner: &inner,
+                    refuse_correlation: Cell::new(phase == 2),
+                };
+                let mut session = StackedEffectSession::new(
+                    &node,
+                    Vec::new(),
+                    Fuel::new(if phase == 3 { 39 } else { 300 }),
+                    PARAM_STACK,
+                );
+                assert!(session.poll(&runtime).is_err());
+                assert_eq!(
+                    session.status(),
+                    EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+                );
+                let remaining = session.fuel_remaining();
+                assert!(matches!(
+                    session.poll(&runtime).unwrap(),
+                    EffectSessionPoll::Terminal(EffectSessionEnd::Failed)
+                ));
+                assert_eq!(session.fuel_remaining(), remaining);
+                assert_eq!(inner.calls.get(), 0);
+                assert_eq!(inner.restores.get(), 0);
+                assert_eq!(inner.projections.get(), 0);
+            });
+        }
+    }
+}
+
+#[test]
+fn parsed_atomic_helper_members_cancel_or_revocation_stops_next_publication_and_caller() {
+    for kind in ["seq", "all"] {
+        for revoke in [false, true] {
+            fixture(|host, env| {
+                let (node, _) =
+                    compile_prepared_helpers(&atomic_member_tree(kind), PROGRAM, host, env)
+                        .unwrap();
+                let domain = ParamDomain {
+                    group: only_group(&node),
+                    source: host,
+                    live: Cell::new(true),
+                };
+                let inner = ParamRuntime::with_prepared_groups(&domain);
+                let runtime = ParamBarrierRuntime {
+                    inner: &inner,
+                    refuse_correlation: Cell::new(false),
+                };
+                let mut session =
+                    StackedEffectSession::new(&node, Vec::new(), Fuel::new(300), PARAM_STACK);
+                let EffectSessionPoll::Request(dispatch) = session.poll(&runtime).unwrap() else {
+                    panic!()
+                };
+                match dispatch {
+                    ParamDispatch::Sequence(mut sequence) => {
+                        let SequencePoll::Request { index, request } =
+                            runtime.publish_sequence(&mut sequence).unwrap()
+                        else {
+                            panic!()
+                        };
+                        let input = runtime.invoke_member(ParallelRequest { index, request });
+                        drop(sequence.try_accept(&(73, index), input, &runtime).unwrap());
+                        if revoke {
+                            domain.live.set(false);
+                            assert!(runtime.publish_sequence(&mut sequence).is_err());
+                            assert_eq!(
+                                sequence.status(),
+                                SequenceStatus::Terminal(SequenceEnd::Failed)
+                            );
+                        } else {
+                            assert!(sequence.cancel());
+                        }
+                        assert!(matches!(
+                            runtime.publish_sequence(&mut sequence).unwrap(),
+                            SequencePoll::Terminal(_)
+                        ));
+                        assert_eq!(inner.calls.get(), 1);
+                    }
+                    ParamDispatch::Parallel {
+                        mut barrier,
+                        requests,
+                    } => {
+                        if revoke {
+                            for request in requests {
+                                let index = request.index;
+                                barrier
+                                    .try_accept(
+                                        index,
+                                        &(73, index),
+                                        runtime.invoke_member(request),
+                                        &runtime,
+                                    )
+                                    .unwrap();
+                            }
+                            let ParallelPoll::Results(rows) = barrier.poll().unwrap() else {
+                                panic!()
+                            };
+                            let reply = ParamCollected {
+                                group: domain.group,
+                                rows,
+                                buffer: Box::new(9),
+                            };
+                            let pointer = (&*reply.buffer as *const u8) as usize;
+                            domain.live.set(false);
+                            let rejected = session.try_accept(&73, reply, &runtime).unwrap_err();
+                            assert_eq!((&*rejected.reply.buffer as *const u8) as usize, pointer);
+                        } else {
+                            drop(requests);
+                            assert!(barrier.cancel());
+                            assert!(matches!(
+                                barrier.poll().unwrap(),
+                                ParallelPoll::Terminal(ParallelEnd::Cancelled)
+                            ));
+                            assert_eq!(inner.calls.get(), 0);
+                        }
+                    }
+                }
+                assert!(session.cancel());
+                assert_eq!(session.fuel_remaining(), 260);
+                assert_eq!(inner.restores.get(), 0);
+                assert_eq!(inner.projections.get(), 0);
+                assert!(matches!(
+                    session.poll(&runtime).unwrap(),
+                    EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+                ));
+            });
+        }
     }
 }
 

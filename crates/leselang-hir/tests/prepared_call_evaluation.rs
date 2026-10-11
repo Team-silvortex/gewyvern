@@ -11,7 +11,7 @@ use leselang_hir::{
     },
     call_typing::{CallTypeHost, CallTypeLimits},
     ir::{Computation, ComputedArgument, ComputedBranch, GroupKind},
-    native_group_preparation::prepare_native_group_members,
+    native_group_preparation::{NativeGroupPreparationError, prepare_native_group_members},
     parallel_evaluation::{ParallelPoll, PreparedParallelMember},
     prepared_call_evaluation::*,
     prepared_parallel::PreparedParallelSession,
@@ -31,6 +31,7 @@ struct Model {
     events: RefCell<Vec<&'static str>>,
     project_failure: Cell<bool>,
     unwind: Cell<Option<&'static str>>,
+    late_domain_unwind: Cell<bool>,
     live: Cell<bool>,
 }
 struct Operation(&'static str, Rc<Model>);
@@ -58,6 +59,9 @@ impl PureEvaluationEnvironment<Field, Operation> for Environment {
         assert!(Rc::ptr_eq(&view.0, &self.0));
         self.0.events.borrow_mut().push(field.0);
         assert_ne!(self.0.unwind.get(), Some("projection"));
+        if field.0 == "late" && self.0.late_domain_unwind.get() {
+            self.0.unwind.set(Some("domain"));
+        }
         if self.0.project_failure.get() {
             Err(Private("private adapter details".into()))
         } else {
@@ -751,4 +755,444 @@ fn prepared_bind_choose_members_reach_both_original_reply_protocols_without_a_se
             assert_eq!(model.effects.get(), 2);
         }
     });
+}
+
+const PREPARED_GROUP: PreparedGroupEvaluationLimits = PreparedGroupEvaluationLimits {
+    call: LIMITS,
+    max_branches: 64,
+};
+fn atomic_group(model: &Rc<Model>, kind: GroupKind) -> Node {
+    Node::Group {
+        group_kind: kind,
+        branches: vec![
+            ComputedBranch {
+                name: "left".into(),
+                value: flow(model, true),
+                result_type: 0,
+            },
+            ComputedBranch {
+                name: "right".into(),
+                value: bind(
+                    "amount",
+                    field("n"),
+                    choose(
+                        boolean(false),
+                        call(model, "counter.other", local("amount")),
+                        call(model, "counter.other", integer(2)),
+                    ),
+                ),
+                result_type: 1,
+            },
+        ],
+    }
+}
+fn dimensions(node: &Node) -> (usize, usize) {
+    let mut pending = vec![(node, 0)];
+    let mut nodes = 0;
+    let mut max_depth = 0;
+    while let Some((node, depth)) = pending.pop() {
+        nodes += 1;
+        max_depth = max_depth.max(depth);
+        pending.extend(node.children().map(|child| (child, depth + 1)));
+    }
+    (nodes, max_depth)
+}
+
+#[test]
+fn complete_atomic_group_bridge_preserves_original_rows_scope_once_order_and_one_meter() {
+    fixture(|host, schemas, model| {
+        for kind in [GroupKind::Sequence, GroupKind::Parallel] {
+            model.events.borrow_mut().clear();
+            model.clones.set(0);
+            let node = atomic_group(model, kind);
+            let Node::Group { branches, .. } = &node else {
+                panic!()
+            };
+            let mut prefix = bindings(model);
+            let mut scope = ScopeFrame::new(&mut prefix);
+            let mut fuel = Fuel::new(100);
+            let prepared = prepare_atomic_group_in_scope(
+                &node,
+                &mut scope,
+                host,
+                &mut fuel,
+                PREPARED_GROUP,
+                |index, branch, schema| {
+                    assert!(std::ptr::eq(branch, &branches[index]));
+                    assert!(std::ptr::eq(schema, &schemas[branch.result_type]));
+                    model.events.borrow_mut().push(if index == 0 {
+                        "admit-left"
+                    } else {
+                        "admit-right"
+                    });
+                    Ok(())
+                },
+            )
+            .unwrap();
+            assert_eq!(prepared.metadata().kind(), kind);
+            assert_eq!(prepared.metadata().name(1), Some("right"));
+            for (index, row) in prepared.members().iter().enumerate() {
+                assert_eq!(row.index(), index);
+                assert!(std::ptr::eq(row.original(), &branches[index]));
+                assert!(std::ptr::eq(row.prepared().schema(), &schemas[index]));
+                assert_eq!(
+                    row.prepared().arguments()[0].value,
+                    ScalarValue::Integer([41, 2][index])
+                );
+                assert_eq!(row.prepared().arguments()[1].parameter_index, 2);
+                assert_eq!(row.prepared().arguments()[1].argument_index, 0);
+            }
+            assert_eq!(
+                *model.events.borrow(),
+                [
+                    "admit-left",
+                    "admit-right",
+                    "n",
+                    "n-domain",
+                    "tag-domain",
+                    "n",
+                    "n-domain",
+                    "tag-domain"
+                ]
+            );
+            assert_eq!(fuel.remaining(), 79);
+            assert_eq!(model.clones.get(), 2);
+            assert_eq!(model.effects.get(), 0);
+            assert_eq!(scope.len(), 2);
+            assert!(scope.get("amount").is_none());
+        }
+    });
+}
+
+#[test]
+fn aggregate_shifted_atomic_group_physical_and_scope_denials_precede_catalog_or_native_hooks() {
+    for case in 0..11 {
+        fixture(|host, _, model| {
+            let mut node = atomic_group(model, GroupKind::Parallel);
+            let (nodes, depth) = dimensions(&node);
+            let mut limits = PREPARED_GROUP;
+            match case {
+                0 => limits.call.pure.max_nodes = nodes - 1,
+                1 => limits.call.pure.max_depth = depth - 1,
+                2 => limits.call.pure.max_nodes = 0,
+                3 => limits.call.pure.max_bindings = 1,
+                4 => limits.call.max_arguments = 65,
+                _ => {
+                    let Node::Group { branches, .. } = &mut node else {
+                        panic!()
+                    };
+                    match case {
+                        5 => branches[1].name = "left".into(),
+                        6 => branches[1].name = "bad member".into(),
+                        7 => {
+                            branches.pop();
+                        }
+                        8 => branches[1].value = integer(0),
+                        9 => branches[1].value = atomic_group(model, GroupKind::Sequence),
+                        _ => {
+                            branches[1].value = bind(
+                                "effect",
+                                call(model, "counter.bump", integer(1)),
+                                call(model, "counter.bump", integer(2)),
+                            )
+                        }
+                    }
+                }
+            }
+            let admissions = Cell::new(0);
+            let mut prefix = bindings(model);
+            let mut scope = ScopeFrame::new(&mut prefix);
+            let mut fuel = Fuel::new(100);
+            model.comparisons.set(0);
+            assert!(
+                prepare_atomic_group_in_scope(
+                    &node,
+                    &mut scope,
+                    host,
+                    &mut fuel,
+                    limits,
+                    |_, _, _| {
+                        admissions.set(admissions.get() + 1);
+                        Ok(())
+                    }
+                )
+                .is_err()
+            );
+            assert_eq!(model.comparisons.get(), 0);
+            assert_eq!(admissions.get(), 0);
+            assert_eq!(model.clones.get(), 0);
+            assert!(model.events.borrow().is_empty());
+            assert_eq!(fuel.remaining(), 100);
+            assert_eq!(scope.len(), 2);
+        });
+    }
+}
+
+#[test]
+fn every_cold_atomic_group_catalog_signature_and_uniform_row_precedes_any_value_preparation() {
+    for case in 0..6 {
+        fixture(|host, _, model| {
+            let mut node = atomic_group(model, GroupKind::Parallel);
+            let Node::Group { branches, .. } = &mut node else {
+                panic!()
+            };
+            match case {
+                0 => branches[1].value = call(model, "counter.unknown", integer(2)),
+                1 => {
+                    branches[1].value = choose(
+                        boolean(true),
+                        call(model, "counter.bump", integer(1)),
+                        call(model, "counter.other", integer(2)),
+                    )
+                }
+                2 => {
+                    branches[1].value = choose(
+                        boolean(true),
+                        call(model, "counter.other", integer(1)),
+                        call(model, "counter.unknown", integer(2)),
+                    )
+                }
+                3 => {
+                    let mut call = call(model, "counter.other", integer(2));
+                    let Node::Call { arguments, .. } = &mut call else {
+                        panic!()
+                    };
+                    arguments[0].name = "n".into();
+                    branches[1].value = call;
+                }
+                _ => {}
+            }
+            let other = Host {
+                version: if case == 4 { 8 } else { 7 },
+                granted: if case == 5 { &[] } else { &[3] },
+                ..*host
+            };
+            let admissions = Cell::new(0);
+            let mut prefix = bindings(model);
+            let mut scope = ScopeFrame::new(&mut prefix);
+            let mut fuel = Fuel::new(100);
+            let error = prepare_atomic_group_in_scope(
+                &node,
+                &mut scope,
+                &other,
+                &mut fuel,
+                PREPARED_GROUP,
+                |_, _, _| {
+                    admissions.set(admissions.get() + 1);
+                    Ok(())
+                },
+            )
+            .unwrap_err();
+            assert!(
+                matches!(error, PreparedGroupEvaluationError::Member { index: 1, .. }) || case >= 4
+            );
+            assert_eq!(admissions.get(), 0);
+            assert_eq!(model.clones.get(), 0);
+            assert!(model.events.borrow().is_empty());
+            assert_eq!(model.effects.get(), 0);
+            assert_eq!(fuel.remaining(), 100);
+            assert_eq!(scope.len(), 2);
+        });
+    }
+}
+
+#[test]
+fn inclusive_atomic_group_forest_and_sixty_four_member_limits_do_not_reset_per_member() {
+    fixture(|host, schemas, model| {
+        for kind in [GroupKind::Sequence, GroupKind::Parallel] {
+            let node = Node::Group {
+                group_kind: kind,
+                branches: (0..64)
+                    .map(|index| ComputedBranch {
+                        name: format!("m{index}"),
+                        value: call(model, "counter.bump", integer(1)),
+                        result_type: 0,
+                    })
+                    .collect(),
+            };
+            let (nodes, depth) = dimensions(&node);
+            assert_eq!((nodes, depth), (193, 2));
+            let mut limits = PREPARED_GROUP;
+            limits.call.pure.max_nodes = nodes;
+            limits.call.pure.max_depth = depth;
+            let mut prefix = Vec::new();
+            let mut scope = ScopeFrame::new(&mut prefix);
+            for denied in [false, true] {
+                let mut current = limits;
+                if denied {
+                    current.call.pure.max_nodes -= 1;
+                }
+                let admissions = Cell::new(0);
+                let mut fuel = Fuel::new(400);
+                model.comparisons.set(0);
+                let result = prepare_atomic_group_in_scope(
+                    &node,
+                    &mut scope,
+                    host,
+                    &mut fuel,
+                    current,
+                    |_, _, schema| {
+                        assert!(std::ptr::eq(schema, &schemas[0]));
+                        admissions.set(admissions.get() + 1);
+                        Ok(())
+                    },
+                );
+                if denied {
+                    assert!(result.is_err());
+                    assert_eq!(admissions.get(), 0);
+                    assert_eq!(model.comparisons.get(), 0);
+                    assert_eq!(fuel.remaining(), 400);
+                } else {
+                    let prepared = result.unwrap();
+                    assert_eq!(prepared.members().len(), 64);
+                    assert_eq!(prepared.metadata().name(63), Some("m63"));
+                    assert_eq!(admissions.get(), 64);
+                    assert_eq!(fuel.remaining(), 143);
+                }
+                assert_eq!(model.effects.get(), 0);
+            }
+        }
+    });
+}
+
+#[test]
+fn complete_atomic_group_native_admission_failure_or_unwind_precedes_fuel_and_projections() {
+    for unwind in [false, true] {
+        fixture(|host, _, model| {
+            let node = atomic_group(model, GroupKind::Parallel);
+            let mut prefix = bindings(model);
+            let mut scope = ScopeFrame::new(&mut prefix);
+            let mut fuel = Fuel::new(100);
+            let admissions = Cell::new(0);
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                prepare_atomic_group_in_scope(
+                    &node,
+                    &mut scope,
+                    host,
+                    &mut fuel,
+                    PREPARED_GROUP,
+                    |index, _, _| {
+                        admissions.set(admissions.get() + 1);
+                        if index == 1 {
+                            assert!(!unwind, "private native admission unwind");
+                            return Err(Private("private late admission".into()));
+                        }
+                        Ok(())
+                    },
+                )
+            }));
+            if unwind {
+                assert!(result.is_err());
+            } else {
+                let error = result.unwrap().unwrap_err();
+                assert!(!format!("{error} {error:?}").contains("private"));
+                assert!(std::error::Error::source(&error).is_none());
+                let PreparedGroupEvaluationError::Preparation(
+                    NativeGroupPreparationError::Admission(
+                        leselang_hir::native_group::NativeGroupMemberError::Native {
+                            member_index: 1,
+                            error: PreparedGroupMemberError::Admission(Private(message)),
+                            ..
+                        },
+                    ),
+                ) = error
+                else {
+                    panic!()
+                };
+                assert_eq!(message, "private late admission");
+            }
+            assert_eq!(admissions.get(), 2);
+            assert_eq!(model.clones.get(), 0);
+            assert!(model.events.borrow().is_empty());
+            assert_eq!(model.effects.get(), 0);
+            assert_eq!(fuel.remaining(), 100);
+            assert_eq!(scope.len(), 2);
+        });
+    }
+}
+
+#[test]
+fn atomic_group_execution_exhaustion_returns_no_partial_batch_or_scope_leak_or_refund() {
+    fixture(|host, _, model| {
+        let node = atomic_group(model, GroupKind::Sequence);
+        for start in 0..=21 {
+            model.events.borrow_mut().clear();
+            let mut prefix = bindings(model);
+            let mut scope = ScopeFrame::new(&mut prefix);
+            let mut fuel = Fuel::new(start);
+            let admissions = Cell::new(0);
+            let result = prepare_atomic_group_in_scope(
+                &node,
+                &mut scope,
+                host,
+                &mut fuel,
+                PREPARED_GROUP,
+                |_, _, _| {
+                    admissions.set(admissions.get() + 1);
+                    Ok(())
+                },
+            );
+            if start == 21 {
+                assert_eq!(result.unwrap().members().len(), 2);
+            } else {
+                assert!(result.is_err());
+            }
+            assert_eq!(fuel.remaining(), 0);
+            assert_eq!(admissions.get(), 2);
+            assert_eq!(scope.len(), 2);
+            assert!(scope.get("amount").is_none());
+            assert_eq!(model.effects.get(), 0);
+        }
+    });
+}
+
+#[test]
+fn late_atomic_group_domain_failure_or_unwind_cleans_prepared_prefix_and_temporary_views() {
+    for unwind in [false, true] {
+        fixture(|host, _, model| {
+            let mut node = atomic_group(model, GroupKind::Parallel);
+            let Node::Group { branches, .. } = &mut node else {
+                panic!()
+            };
+            branches[1].value = call(
+                model,
+                "counter.other",
+                if unwind { field("late") } else { integer(101) },
+            );
+            model.late_domain_unwind.set(unwind);
+            let mut prefix = bindings(model);
+            let mut scope = ScopeFrame::new(&mut prefix);
+            let mut fuel = Fuel::new(100);
+            let references = Rc::strong_count(model);
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                prepare_atomic_group_in_scope(
+                    &node,
+                    &mut scope,
+                    host,
+                    &mut fuel,
+                    PREPARED_GROUP,
+                    |_, _, _| Ok(()),
+                )
+            }));
+            if unwind {
+                assert!(result.is_err());
+            } else {
+                assert!(result.unwrap().is_err());
+            }
+            assert_eq!(Rc::strong_count(model), references);
+            assert_eq!(fuel.remaining(), if unwind { 83 } else { 84 });
+            assert_eq!(scope.len(), 2);
+            assert!(scope.get("amount").is_none());
+            assert_eq!(
+                model
+                    .events
+                    .borrow()
+                    .iter()
+                    .filter(|event| **event == "n-domain")
+                    .count(),
+                2
+            );
+            assert_eq!(model.effects.get(), 0);
+        });
+    }
 }

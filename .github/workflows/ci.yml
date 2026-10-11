@@ -21,7 +21,7 @@ jobs:
   leselang-core:
     name: Standalone Leselang runtime foundation
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -40,6 +40,17 @@ jobs:
 
       - name: Lint native-only HIR and its tests
         run: cargo +1.98.0 clippy -p leselang-hir --locked --no-default-features --all-targets -- -D warnings
+
+      - name: Verify native source and separate consumer outside the monorepo
+        run: >-
+          cargo +1.98.0 run --locked -p gewyvern-dev --
+          package leselang --output "$RUNNER_TEMP/leselang-native-source" --verify
+
+      - name: Test reference VM with the SQLite backend disabled
+        run: cargo +1.98.0 test -p leselang-vm --locked --no-default-features
+
+      - name: Lint database-free reference VM and its tests
+        run: cargo +1.98.0 clippy -p leselang-vm --locked --no-default-features --all-targets -- -D warnings
 
   rust:
     name: Rust quality gates

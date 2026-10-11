@@ -32,7 +32,7 @@ Leselang and GewyLang are separate languages. GewyLang defines protocol
 behavior; Leselang controls explicitly adapted hosts, including Leserpent
 orchestration and UI functions today. Full runtime independence remains a
 tracked target, not a completed property of every Leselang crate.
-2.3.0 targets repository extraction only after complete unrelated-host and compatibility gates.
+2.3.0 targets extraction after complete host/compatibility gates; the native source checkpoint exports unchanged production code with independent metadata, tests and CI, not a complete durable VM.
 `leselang-hir` defaults to the compatible `leserpent-profile`; independent hosts
 can use `default-features = false` to omit product DTOs, fixed operations and the
 host-contract/identity dependency while keeping generic compilation and sessions.
@@ -51,8 +51,10 @@ behind one complete ordered barrier. Complete original-group assembly and borrow
 member lookup connect to authenticated enclosing-control re-entry with the same
 owned fuel. Flat-group catalog compilation now owns the complete source expression.
 Explicit program profiles cover entry-only groups and flat-group helper returns,
-sharing hygiene/quotas; uniform atomic Bind/Choose IR joins scoped Seq/All replies with one meter; source members remain direct calls.
+sharing hygiene/quotas; prepared atomic helpers join scoped Seq/All replies across counter and headless GUI schemas with heterogeneous acknowledgements; legacy members remain direct calls.
 Effect dispatch, grants, native schema/work limits, authentic receipts, durable
 capture and replay remain adapter-owned; no implicit coercion or authority is added.
+The reference VM can now disable its default `sqlite-journal` backend; memory execution keeps the existing evaluator, but still uses product DTOs and is not the independent VM.
+Owned capture/scope and committed-checkpoint staging live in runtime-core; shared HIR walks cold projections. SQLite recovery now gates complete state behind graph validation/commit; original meter, wire, receipts and durable frame/authority policy stay native.
 See the embedding architecture for individual contracts and extraction gaps,
 including nested native graph policy, product migration and durable suspension.

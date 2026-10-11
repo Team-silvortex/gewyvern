@@ -555,17 +555,12 @@ impl<
             let outcome = match old {
                 State::Initial {
                     expression,
-                    mut bindings,
-                } => {
-                    let outcome = begin(
-                        expression,
-                        &mut ScopeFrame::new(&mut bindings),
-                        &mut self.fuel,
-                    );
-                    // Native prefix drops must finish before request/value handoff.
-                    drop(bindings);
-                    outcome?
-                }
+                    bindings,
+                } => leselang_runtime_core::with_owned_scope_state(
+                    bindings,
+                    &mut self.fuel,
+                    |scope, fuel| begin(expression, scope, fuel),
+                )?,
                 State::AcceptedBinding(accepted) => resume(accepted, &mut self.fuel)?,
                 State::AcceptedFinal(accepted) => {
                     let (identity, (), declaration, reply) = accepted.into_parts();
@@ -609,7 +604,15 @@ impl<
                     let correlated = environment
                         .correlate_request(request, &mut self.fuel)
                         .map_err(native_failure)
-                        .map_err(&map_failure)?;
+                        .map_err(&map_failure);
+                    let correlated = match correlated {
+                        Ok(correlated) => correlated,
+                        Err(error) => {
+                            let output = Err(error);
+                            drop(continuation);
+                            return output;
+                        }
+                    };
                     self.state = State::AwaitingBinding(PendingReply::new(
                         correlated.identity,
                         continuation,

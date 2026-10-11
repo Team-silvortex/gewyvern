@@ -54,6 +54,61 @@ fn native_profile_has_only_language_workspace_dependencies_and_no_product_contra
 }
 
 #[test]
+fn native_source_export_is_a_rust_workflow_with_unchanged_code_and_isolated_consumer_proofs() {
+    let workflow = fs::read_to_string(root().join("crates/gewyvern-dev/src/main.rs")).unwrap();
+    assert!(workflow.contains("cargo dev package leselang [--output DIR] [--verify] [--dry-run]"));
+    assert!(workflow.contains("leselang::export(&root, &options)?"));
+    let source = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    for retained in [
+        "fn module_names(",
+        "fn crate_manifest(",
+        "fn registry_lock(",
+        "fn check_inventory(",
+        "fn publish(",
+        "read_regular(root, source)?",
+        "publish = false",
+        "source symlink refused",
+        "export destination already exists",
+        "--all-features",
+        "--all-targets",
+        "--locked",
+        "--offline",
+        "--no-deps",
+        "source export",
+        "leselang-native-source-consumer",
+        "complete_vm\": false",
+        "full_extraction_gate\": false",
+        "dry_run_plans_real_sources_without_files_or_verifier_calls",
+        "failed_isolated_verification_leaves_no_published_directory_or_private_stage",
+        "changed_production_bytes_after_verification_are_not_sealed_or_published",
+        "unplanned_verifier_files_cannot_enter_a_verified_source_inventory",
+        "publication_serializes_exporters_and_never_replaces_preexisting_destination",
+    ] {
+        assert!(
+            source.contains(retained),
+            "native source export lost {retained}"
+        );
+    }
+    for forbidden in [
+        "Command::new(\"python",
+        "Command::new(\"node",
+        "Command::new(\"sh",
+        "Command::new(\"bash",
+        "cargo clean",
+        "git commit",
+        "git push",
+    ] {
+        assert!(!source.contains(forbidden));
+    }
+    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(
+        ci.contains("package leselang --output \"$RUNNER_TEMP/leselang-native-source\" --verify")
+    );
+    assert!(ci.contains("cargo test --workspace --all-features --locked"));
+    assert!(ci.contains("cargo +1.98.0 test -p leselang-vm --locked --no-default-features"));
+}
+
+#[test]
 fn default_and_explicit_profiles_retain_the_existing_host_contract() {
     for flags in [
         &[][..],
@@ -91,6 +146,7 @@ fn reference_implementation_is_optional_without_changing_released_root_paths() {
         "parallel_evaluation",
         "group_reply",
         "ir",
+        "projection_access",
     ] {
         assert!(modules.contains(&format!("pub mod {module};")));
     }
@@ -147,6 +203,7 @@ fn ci_and_docs_keep_native_verticals_separate_from_reference_compatibility() {
         "prepared_sequence",
         "prepared_call_evaluation",
         "sequence_evaluation",
+        "prepared_gui_host",
     ] {
         let source =
             fs::read_to_string(root().join(format!("crates/leselang-hir/tests/{name}.rs")))

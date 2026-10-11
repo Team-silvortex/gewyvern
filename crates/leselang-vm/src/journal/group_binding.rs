@@ -119,6 +119,7 @@ pub(super) fn admit_ephemeral(
     Ok(None)
 }
 
+#[cfg(feature = "sqlite-journal")]
 pub(super) fn admit_successor(
     transaction: &rusqlite::Transaction<'_>,
     owner: &ContinuationToken,
@@ -221,6 +222,7 @@ pub(super) fn admit_successor(
     Ok(None)
 }
 
+#[cfg(feature = "sqlite-journal")]
 pub(super) fn validate_owner(
     connection: &Connection,
     image: &ContinuationImage,
@@ -245,6 +247,7 @@ pub(super) fn validate_owner(
     Ok(())
 }
 
+#[cfg(feature = "sqlite-journal")]
 pub(super) fn validate_records(
     connection: &Connection,
     token: &ContinuationToken,

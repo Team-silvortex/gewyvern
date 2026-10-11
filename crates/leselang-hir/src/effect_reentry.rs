@@ -2,7 +2,9 @@
 
 use std::fmt;
 
-use leselang_runtime_core::{AcceptedReply, CalculationFailure, Fuel, ScopeFrame};
+use leselang_runtime_core::{
+    AcceptedReply, CalculationFailure, Fuel, ScopeFrame, with_owned_scope_state,
+};
 
 use crate::effect_evaluation::{
     ControlOutcome, EffectEvaluationEnvironment, EffectEvaluationFailure, EffectEvaluationFault,
@@ -211,6 +213,8 @@ pub trait EffectReentryEnvironment<
 /// before projection. Mapped scalar bounds are checked before body preparation;
 /// native result-view type compatibility remains explicit adapter policy.
 /// Owned restored values and the reply binding are dropped on every exit/unwind.
+/// Outputs/errors stay local until framework-owned prefix, unused input and
+/// identity cleanup finish; callback-internal cleanup remains native responsibility.
 /// Consumption never rearms the accepted handle or refunds/retries native work.
 /// Acceptance is an in-memory observation: hosts still own provenance, mutation,
 /// live dispatch, group/opaque typing and durable cancellation/replay semantics.
@@ -256,34 +260,43 @@ where
 {
     let (identity, continuation, declaration, reply) = accepted.into_parts();
     let (name, body, capture) = continuation.into_parts();
-    let mut empty: RestoredEffectBindings<'expression, Environment::Result> = Vec::new();
-    let effects = preflight(body, &ScopeFrame::new(&mut empty), limits)?;
-    if limits.pure.max_bindings == 0 {
-        return Err(EffectEvaluationFault::Pure(PureEvaluationFault::BindingLimit).into());
-    }
-    for effect in effects {
-        environment
-            .preflight_effect(effect)
-            .map_err(EffectEvaluationFault::Native)?;
-    }
-    let mut bindings = restore_effect_scope(
-        name,
-        |fuel| environment.restore_capture(&identity, declaration, capture, fuel, limits),
-        fuel,
-        limits,
-    )?;
-    let value = environment
-        .bind_reply(&identity, declaration, reply, fuel)
-        .map_err(native_failure)?;
-    let mut scope = ScopeFrame::new(&mut bindings);
-    bind_effect_value(name, value, &mut scope, limits)?;
-    evaluate(
-        body,
-        &mut scope,
-        environment,
-        fuel,
-        limits.pure.max_bindings,
-    )
+    let mut capture = Some(capture);
+    let mut reply = Some(reply);
+    // Borrow pending native ownership so every error/output remains local during
+    // unused capture/reply and identity cleanup, including cold refusal.
+    let output = (|| {
+        let mut empty: RestoredEffectBindings<'expression, Environment::Result> = Vec::new();
+        let effects = preflight(body, &ScopeFrame::new(&mut empty), limits)?;
+        if limits.pure.max_bindings == 0 {
+            return Err(EffectEvaluationFault::Pure(PureEvaluationFault::BindingLimit).into());
+        }
+        for effect in effects {
+            environment
+                .preflight_effect(effect)
+                .map_err(EffectEvaluationFault::Native)?;
+        }
+        let saved = capture.take().ok_or(EffectEvaluationFault::Pure(
+            PureEvaluationFault::InvalidContract,
+        ))?;
+        let bindings = restore_effect_scope(
+            name,
+            |fuel| environment.restore_capture(&identity, declaration, saved, fuel, limits),
+            fuel,
+            limits,
+        )?;
+        with_owned_scope_state(bindings, fuel, |scope, fuel| {
+            let incoming = reply.take().ok_or(EffectEvaluationFault::Pure(
+                PureEvaluationFault::InvalidContract,
+            ))?;
+            let value = environment
+                .bind_reply(&identity, declaration, incoming, fuel)
+                .map_err(native_failure)?;
+            bind_effect_value(name, value, scope, limits)?;
+            evaluate(body, scope, environment, fuel, limits.pure.max_bindings)
+        })
+    })();
+    drop((capture, reply, identity));
+    output
 }
 
 // The caller preflights every original pending body before native restoration.
@@ -302,18 +315,27 @@ pub(crate) fn restore_effect_scope<'expression, Value, Native>(
         return Err(EffectEvaluationFault::Pure(PureEvaluationFault::BindingLimit).into());
     }
     let mut bindings = restore(fuel).map_err(native_failure)?;
-    let scope = ScopeFrame::new(&mut bindings);
-    if scope.len() >= limits.pure.max_bindings {
-        return Err(EffectEvaluationFault::Pure(PureEvaluationFault::BindingLimit).into());
+    let checked = (|| {
+        let scope = ScopeFrame::new(&mut bindings);
+        if scope.len() >= limits.pure.max_bindings {
+            return Err(EffectEvaluationFault::Pure(PureEvaluationFault::BindingLimit).into());
+        }
+        fuel.charge(scope.len() as u64)
+            .map_err(|_| EffectEvaluationFault::Pure(PureEvaluationFault::FuelExhausted))?;
+        preflight_value_scope(&scope, limits.pure).map_err(EffectEvaluationFault::Pure)?;
+        if scope.get(name).is_some() {
+            return Err(EffectEvaluationFault::Pure(PureEvaluationFault::InvalidContract).into());
+        }
+        Ok(())
+    })();
+    match checked {
+        Ok(()) => Ok(bindings),
+        Err(error) => {
+            let output = Err(error);
+            drop(bindings);
+            output
+        }
     }
-    fuel.charge(scope.len() as u64)
-        .map_err(|_| EffectEvaluationFault::Pure(PureEvaluationFault::FuelExhausted))?;
-    preflight_value_scope(&scope, limits.pure).map_err(EffectEvaluationFault::Pure)?;
-    if scope.get(name).is_some() {
-        return Err(EffectEvaluationFault::Pure(PureEvaluationFault::InvalidContract).into());
-    }
-    drop(scope);
-    Ok(bindings)
 }
 
 pub(crate) fn bind_effect_value<'expression, Value, Native>(

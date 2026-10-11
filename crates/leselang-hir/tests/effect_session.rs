@@ -27,6 +27,14 @@ const LIMITS: EffectEvaluationLimits = EffectEvaluationLimits {
     max_branches: 4,
 };
 struct PrivateError(&'static str);
+thread_local! {
+    static PRIVATE_ERROR_DROPS: Cell<usize> = const { Cell::new(0) };
+}
+impl Drop for PrivateError {
+    fn drop(&mut self) {
+        PRIVATE_ERROR_DROPS.with(|drops| drops.set(drops.get() + 1));
+    }
+}
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum Stage {
     Preflight,
@@ -892,6 +900,274 @@ fn owned_initial_prefix_cleanup_unwind_cannot_install_a_waiting_request() {
 }
 
 #[test]
+fn owned_reentry_identity_cleanup_releases_prepared_successor_before_handoff() {
+    for stacked in [false, true] {
+        host!(hooks, domains, host);
+        let expression = bind("result", call(1, integer(1)), call(2, local("result")));
+        macro_rules! check {
+            ($session:expr) => {{
+                let mut session = $session;
+                drop(request(session.poll(&host).unwrap()));
+                session
+                    .try_accept(
+                        &host.identity(1, 1),
+                        host.reply(ScalarValue::Integer(42)),
+                        &host,
+                    )
+                    .unwrap();
+                hooks.key_drop_panic.set(true);
+                let before = session.fuel_remaining();
+                assert!(catch_unwind(AssertUnwindSafe(|| session.poll(&host))).is_err());
+                assert_eq!(
+                    session.status(),
+                    EffectSessionStatus::Terminal(EffectSessionEnd::HostUncertain)
+                );
+                assert!(session.fuel_remaining() < before);
+                assert_eq!(hooks.request_drops.get(), 2, "stacked {stacked}");
+                assert_eq!(host.serial.get(), 1);
+                assert!(!session.cancel());
+            }};
+        }
+        if stacked {
+            check!(StackedEffectSession::new(
+                &expression,
+                Vec::new(),
+                Fuel::new(100),
+                EffectStackLimits {
+                    effects: LIMITS,
+                    max_frames: 4
+                }
+            ));
+        } else {
+            check!(EffectSession::new(
+                &expression,
+                Vec::new(),
+                Fuel::new(100),
+                LIMITS
+            ));
+        }
+    }
+}
+
+#[test]
+fn owned_reentry_prefix_cleanup_releases_prepared_successor_and_preserves_meter() {
+    for stacked in [false, true] {
+        host!(hooks, domains, host);
+        let expression = bind("result", call(1, integer(1)), call(2, local("result")));
+        let panic = Rc::new(Cell::new(false));
+        let drops = Rc::new(Cell::new(0));
+        let value = Rc::new(View {
+            panic: panic.clone(),
+            drops: drops.clone(),
+        });
+        let weak = Rc::downgrade(&value);
+        macro_rules! check {
+            ($session:expr) => {{
+                let mut session = $session;
+                drop(request(session.poll(&host).unwrap()));
+                session
+                    .try_accept(
+                        &host.identity(1, 1),
+                        host.reply(ScalarValue::Integer(42)),
+                        &host,
+                    )
+                    .unwrap();
+                panic.set(true);
+                let before = session.fuel_remaining();
+                assert!(catch_unwind(AssertUnwindSafe(|| session.poll(&host))).is_err());
+                assert_eq!(
+                    session.status(),
+                    EffectSessionStatus::Terminal(EffectSessionEnd::HostUncertain)
+                );
+                assert!(session.fuel_remaining() < before);
+                assert_eq!(hooks.request_drops.get(), 2, "stacked {stacked}");
+                assert_eq!(drops.get(), 1);
+                assert!(weak.upgrade().is_none());
+                assert_eq!(host.serial.get(), 1);
+            }};
+        }
+        if stacked {
+            check!(StackedEffectSession::new(
+                &expression,
+                vec![("unused", PureValue::Result(value))],
+                Fuel::new(100),
+                EffectStackLimits {
+                    effects: LIMITS,
+                    max_frames: 4
+                }
+            ));
+        } else {
+            check!(EffectSession::new(
+                &expression,
+                vec![("unused", PureValue::Result(value))],
+                Fuel::new(100),
+                LIMITS
+            ));
+        }
+    }
+}
+
+#[test]
+fn owned_reentry_prefix_cleanup_releases_opaque_projection_error_without_refund() {
+    for stacked in [false, true] {
+        host!(hooks, domains, host);
+        let expression = bind("result", call(1, integer(1)), local("result"));
+        let panic = Rc::new(Cell::new(false));
+        let drops = Rc::new(Cell::new(0));
+        let value = Rc::new(View {
+            panic: panic.clone(),
+            drops: drops.clone(),
+        });
+        macro_rules! check {
+            ($session:expr) => {{
+                let mut session = $session;
+                drop(request(session.poll(&host).unwrap()));
+                session
+                    .try_accept(
+                        &host.identity(1, 1),
+                        host.reply(ScalarValue::Integer(42)),
+                        &host,
+                    )
+                    .unwrap();
+                panic.set(true);
+                hooks.fault.set((Stage::Project, Mode::Reject));
+                let before = session.fuel_remaining();
+                let before_drops = PRIVATE_ERROR_DROPS.with(Cell::get);
+                assert!(catch_unwind(AssertUnwindSafe(|| session.poll(&host))).is_err());
+                assert_eq!(
+                    PRIVATE_ERROR_DROPS.with(Cell::get),
+                    before_drops + 1,
+                    "stacked {stacked}"
+                );
+                assert_eq!(session.fuel_remaining(), before - 1);
+                assert_eq!(
+                    session.status(),
+                    EffectSessionStatus::Terminal(EffectSessionEnd::HostUncertain)
+                );
+                assert_eq!(drops.get(), 1);
+                assert_eq!(hooks.request_drops.get(), 1);
+            }};
+        }
+        if stacked {
+            check!(StackedEffectSession::new(
+                &expression,
+                vec![("unused", PureValue::Result(value))],
+                Fuel::new(100),
+                EffectStackLimits {
+                    effects: LIMITS,
+                    max_frames: 4
+                }
+            ));
+        } else {
+            check!(EffectSession::new(
+                &expression,
+                vec![("unused", PureValue::Result(value))],
+                Fuel::new(100),
+                LIMITS
+            ));
+        }
+    }
+}
+
+#[test]
+fn owned_reentry_cold_refusal_cleanup_releases_opaque_error_and_uncalled_capture() {
+    for stacked in [false, true] {
+        host!(hooks, domains, host);
+        let expression = bind("result", call(1, integer(1)), call(2, local("result")));
+        macro_rules! check {
+            ($session:expr) => {{
+                let mut session = $session;
+                drop(request(session.poll(&host).unwrap()));
+                session
+                    .try_accept(
+                        &host.identity(1, 1),
+                        host.reply(ScalarValue::Integer(42)),
+                        &host,
+                    )
+                    .unwrap();
+                hooks.fault.set((Stage::Preflight, Mode::Reject));
+                hooks.capture_drop_panic.set(true);
+                let before = session.fuel_remaining();
+                let before_drops = PRIVATE_ERROR_DROPS.with(Cell::get);
+                assert!(catch_unwind(AssertUnwindSafe(|| session.poll(&host))).is_err());
+                assert_eq!(
+                    PRIVATE_ERROR_DROPS.with(Cell::get),
+                    before_drops + 1,
+                    "stacked {stacked}"
+                );
+                assert_eq!(session.fuel_remaining(), before);
+                assert_eq!(
+                    session.status(),
+                    EffectSessionStatus::Terminal(EffectSessionEnd::HostUncertain)
+                );
+                assert_eq!(hooks.capture_drops.get(), 1);
+                assert_eq!(hooks.reply_drops.get(), 1);
+                assert!(!hooks.events.borrow().contains(&Stage::Restore));
+            }};
+        }
+        if stacked {
+            check!(StackedEffectSession::new(
+                &expression,
+                Vec::new(),
+                Fuel::new(100),
+                EffectStackLimits {
+                    effects: LIMITS,
+                    max_frames: 4
+                }
+            ));
+        } else {
+            check!(EffectSession::new(
+                &expression,
+                Vec::new(),
+                Fuel::new(100),
+                LIMITS
+            ));
+        }
+    }
+}
+
+#[test]
+fn owned_reentry_nested_unused_frames_cleanup_releases_opaque_cold_error_once() {
+    host!(hooks, domains, host);
+    let expression = bind(
+        "outer",
+        bind("inner", call(1, integer(1)), local("inner")),
+        call(2, local("outer")),
+    );
+    let mut session = StackedEffectSession::new(
+        &expression,
+        Vec::new(),
+        Fuel::new(100),
+        EffectStackLimits {
+            effects: LIMITS,
+            max_frames: 4,
+        },
+    );
+    drop(request(session.poll(&host).unwrap()));
+    session
+        .try_accept(
+            &host.identity(1, 1),
+            host.reply(ScalarValue::Integer(42)),
+            &host,
+        )
+        .unwrap();
+    hooks.fault.set((Stage::Preflight, Mode::Reject));
+    hooks.capture_drop_panic.set(true);
+    let before = session.fuel_remaining();
+    let before_drops = PRIVATE_ERROR_DROPS.with(Cell::get);
+    assert!(catch_unwind(AssertUnwindSafe(|| session.poll(&host))).is_err());
+    assert_eq!(PRIVATE_ERROR_DROPS.with(Cell::get), before_drops + 1);
+    assert_eq!(hooks.capture_drops.get(), 2);
+    assert_eq!(hooks.reply_drops.get(), 1);
+    assert_eq!(session.fuel_remaining(), before);
+    assert_eq!(
+        session.status(),
+        EffectSessionStatus::Terminal(EffectSessionEnd::HostUncertain)
+    );
+    assert!(!session.cancel());
+}
+
+#[test]
 fn cancellation_cleanup_unwind_retains_cancelled_reason_and_drops_once() {
     for after_acceptance in [false, true] {
         for key in [false, true] {
@@ -1001,7 +1277,9 @@ fn correlation_error_followed_by_capture_cleanup_unwind_stays_host_uncertain() {
     let mut session = EffectSession::new(&expression, Vec::new(), Fuel::new(100), LIMITS);
     hooks.fault.set((Stage::Correlate, Mode::Reject));
     hooks.capture_drop_panic.set(true);
+    let before_drops = PRIVATE_ERROR_DROPS.with(Cell::get);
     assert!(catch_unwind(AssertUnwindSafe(|| session.poll(&host))).is_err());
+    assert_eq!(PRIVATE_ERROR_DROPS.with(Cell::get), before_drops + 1);
     assert_eq!(
         session.status(),
         EffectSessionStatus::Terminal(EffectSessionEnd::HostUncertain)

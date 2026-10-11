@@ -1350,7 +1350,8 @@ fn leselang_embedding_separates_language_hosts_and_future_shell() {
         "VM fuel cannot preempt arbitrary",
         "never host stack frames or native object pointers",
         "not full semantic independence",
-        "current VM still links SQLite and product types",
+        "reference VM can disable its default SQLite backend",
+        "full host-neutral runtime/recovery separation remains work",
         "Two independent host schemas",
         "leselang/language-vm/host-neutral-embedding",
         "leselang-runtime-core",
@@ -2832,6 +2833,115 @@ fn atomic_call_execution_docs_keep_uniform_ir_separate_from_source_profile_and_r
     }
 }
 
+#[test]
+fn prepared_source_member_docs_preserve_explicit_policy_and_host_owned_execution_boundaries() {
+    let docs = fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();
+    let text = docs
+        .split("### Prepared Atomic Group-Helper Program")
+        .nth(1)
+        .unwrap()
+        .split("### Shared Native Source Call Bridge")
+        .next()
+        .unwrap()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    for boundary in [
+        "compile_catalog_prepared_group_helper_program",
+        "legacy source, entry-only and group-helper entries",
+        "including unused helpers",
+        "before native compilation hooks",
+        "without AST substitution",
+        "same original schema row",
+        "equal result tags are insufficient",
+        "uniform prepared-call inference before branch mapping",
+        "shared hygiene, recompilation, nonrefunding work/depth quotas",
+        "no Clone/Debug/serde/Send requirements on native slots",
+        "300 -> 260 -> 244",
+        "Correlation is distinct from fresh publication authority",
+        "not result-dependent Seq operands",
+        "not rolled back",
+        "non-preemptible",
+        "does not promote product VM migration or independent VM/repository extraction",
+    ] {
+        assert!(
+            text.contains(boundary),
+            "prepared member docs lost {boundary}"
+        );
+    }
+}
+
+#[test]
+fn complete_group_preparation_docs_separate_cold_admission_execution_and_native_authority() {
+    let docs = fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();
+    let text = docs
+        .split("### Complete Atomic Group Preparation")
+        .nth(1)
+        .unwrap()
+        .split("### Shared Native Source Call Bridge")
+        .next()
+        .unwrap()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    for boundary in [
+        "prepare_atomic_group_in_scope",
+        "one aggregate physical IR budget",
+        "every cold member subtree is shifted by one depth",
+        "All member physical gates precede all native catalog selection",
+        "one uniform original schema row per member",
+        "Different members may use different original operations",
+        "All once-ordered native member admissions precede fuel, projection or value cloning",
+        "not reusable dispatch grants",
+        "no argument replay, prefix copying, helper-local capture",
+        "charged once",
+        "no native Clone/Debug/serde/Send requirement",
+        "without partial output, retries, refunds or rollback",
+        "193 physical nodes at depth 2",
+        "400 -> 143",
+        "300 -> 260 -> 244",
+        "Legacy single-call preparation and legacy direct-member host costs remain unchanged",
+        "trusted and non-preemptible",
+        "does not add result-dependent Seq operands, durable recovery, product VM migration or complete independent VM/repository extraction",
+    ] {
+        assert!(
+            text.contains(boundary),
+            "whole preparation docs lost {boundary}"
+        );
+    }
+}
+
+#[test]
+fn headless_gui_host_docs_keep_second_schema_proof_distinct_from_real_framework_or_vm_support() {
+    let docs = fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();
+    let text = docs
+        .split("### Headless GUI Host Vertical")
+        .nth(1)
+        .unwrap()
+        .split("### Shared Native Source Call Bridge")
+        .next()
+        .unwrap()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    for boundary in [
+        "prepared_gui_host.rs",
+        "headless GUI protocol model, not an Avalonia/native-window adapter",
+        "string acknowledgement",
+        "boolean acknowledgement",
+        "prepare_atomic_group_in_scope",
+        "without a second evaluator or product operation DTO",
+        "1000 -> 948 -> 925",
+        "current widget generation and capability leases",
+        "preserve the original rejected input buffer",
+        "not rolled back",
+        "non-preemptible",
+        "not product VM migration, durable recovery or complete independent VM/repository extraction",
+    ] {
+        assert!(text.contains(boundary), "GUI host docs lost {boundary}");
+    }
+}
+
 fn collect_markdown(directory: &Path, output: &mut Vec<PathBuf>) {
     for entry in fs::read_dir(directory).expect("documentation directory must be readable") {
         let path = entry.expect("documentation entry must be readable").path();
@@ -2839,6 +2949,400 @@ fn collect_markdown(directory: &Path, output: &mut Vec<PathBuf>) {
             collect_markdown(&path, output);
         } else if path.extension().and_then(|ext| ext.to_str()) == Some("md") {
             output.push(path);
+        }
+    }
+}
+
+#[test]
+fn shared_capture_docs_distinguish_owned_data_from_validated_durable_execution() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let core =
+        std::fs::read_to_string(root.join("crates/leselang-runtime-core/README.md")).unwrap();
+    let section = core
+        .split("## Owned Capture Data")
+        .nth(1)
+        .unwrap()
+        .split("## Typed Calculation Recovery")
+        .next()
+        .unwrap();
+    for boundary in [
+        "CapturedBindings<Body, Result, Group>",
+        "not a validated continuation or recovery protocol",
+        "Derived traits and thread ownership remain conditional",
+        "`locals` and `body`",
+        "without conversion wrappers or parallel DTOs",
+        "not product-free execution or host-neutral",
+    ] {
+        assert!(
+            section.contains(boundary),
+            "capture core docs lost {boundary}"
+        );
+    }
+    let embedding = std::fs::read_to_string(root.join("docs/leselang-embedding.md")).unwrap();
+    let section = embedding
+        .split("### Shared Owned Capture Data")
+        .nth(1)
+        .unwrap()
+        .split("### Remaining Product Boundaries")
+        .next()
+        .unwrap();
+    for boundary in [
+        "exact five legacy capture types",
+        "unchecked mutable data, not executable continuations",
+        "live authority before re-entry",
+        "effect-specific recovery semantics remain reference-owned",
+        "not the independent VM acceptance gate",
+    ] {
+        assert!(
+            section.contains(boundary),
+            "capture embedding docs lost {boundary}"
+        );
+    }
+}
+
+#[test]
+fn structural_capture_docs_keep_callback_order_native_ownership_and_authority_boundaries_explicit()
+{
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    for (path, header, end) in [
+        (
+            "crates/leselang-runtime-core/README.md",
+            "## Borrowed Capture Validation",
+            "## Typed Calculation Recovery",
+        ),
+        (
+            "docs/leselang-embedding.md",
+            "### Shared Structural Capture Validation",
+            "### Remaining Product Boundaries",
+        ),
+    ] {
+        let text = std::fs::read_to_string(root.join(path)).unwrap();
+        let section = text
+            .split(header)
+            .nth(1)
+            .unwrap()
+            .split(end)
+            .next()
+            .unwrap();
+        for boundary in [
+            "validate_captured_bindings()",
+            "validate_projected_group()",
+            "limits are not repaired",
+            "inverted",
+            "all scalar",
+            "body",
+            "once",
+            "uniqueness",
+            "duplicate detection at that row",
+            "CaptureStructureError<External>",
+            "native errors unchanged",
+            "native formatters",
+            "Clone/Debug/serde/Default/Send/Sync",
+            "instant data check, not a lasting certificate or execution grant",
+            "unwind",
+            "original",
+            "durable replay",
+        ] {
+            assert!(section.contains(boundary), "{path} lost {boundary}");
+        }
+    }
+}
+
+#[test]
+fn captured_scope_docs_distinguish_temporary_entry_from_saved_authority_and_keep_cleanup_handoff_explicit()
+ {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    for (path, header, end) in [
+        (
+            "crates/leselang-runtime-core/README.md",
+            "## Captured Scope Entry",
+            "## Typed Calculation Recovery",
+        ),
+        (
+            "docs/leselang-embedding.md",
+            "### Shared Captured Scope Entry",
+            "### Remaining Product Boundaries",
+        ),
+    ] {
+        let source = std::fs::read_to_string(root.join(path)).unwrap();
+        let section = source
+            .split(header)
+            .nth(1)
+            .unwrap()
+            .split(end)
+            .next()
+            .unwrap();
+        let normalized = section
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase();
+        for boundary in [
+            "with_captured_scope()",
+            "original stack",
+            "before",
+            "duplicate check",
+            "once",
+            "prefix",
+            "original suffix boundary",
+            "native errors",
+            "cleanup finishes",
+            "rather than leak",
+            "native formatters",
+            "native interior mutations",
+            "saved execution frame",
+            "execution grant",
+            "authentic receipts",
+            "durable",
+            "Scalar names occupy slots without granting fields",
+            "canonical type checker",
+        ] {
+            assert!(
+                normalized.contains(&boundary.to_lowercase()),
+                "{path} lost {boundary}"
+            );
+        }
+    }
+}
+
+#[test]
+fn shared_projection_access_docs_keep_preflight_native_policy_and_authority_boundaries_explicit() {
+    let text = include_str!("../docs/leselang-embedding.md");
+    let section = text
+        .split("### Shared Projection Access Walk")
+        .nth(1)
+        .unwrap()
+        .split("### Remaining Product Boundaries")
+        .next()
+        .unwrap();
+    let normalized = section
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_ascii_lowercase();
+    for boundary in [
+        "real vm's restored-field checks",
+        "preflight includes cold branches",
+        "before any native hook",
+        "does not evaluate conditions or dispatch work",
+        "temporary suffixes are restored",
+        "outputs/errors stay local until suffix cleanup finishes",
+        "no callback preemption or rollback",
+        "field intersection",
+        "canonical type checker remains required",
+        "not a cached certificate or execution grant",
+        "once-only successor replay remain unchanged",
+        "not the complete independent vm",
+    ] {
+        assert!(
+            normalized.contains(boundary),
+            "projection access docs lost {boundary}"
+        );
+    }
+}
+
+#[test]
+fn stateful_capture_docs_separate_original_context_accounting_cleanup_and_execution_authority() {
+    let core = include_str!("../crates/leselang-runtime-core/README.md");
+    let embedding = include_str!("../docs/leselang-embedding.md");
+    let section = embedding
+        .split("### Shared Stateful Capture Re-entry")
+        .nth(1)
+        .unwrap()
+        .split("### Remaining Product Boundaries")
+        .next()
+        .unwrap();
+    for text in [core, section] {
+        let normalized = text
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_ascii_lowercase();
+        for boundary in [
+            "with_captured_scope_state()",
+            "capturescopehooks",
+            "unit state",
+            "original fuel",
+            "unsized",
+            "uncalled once hooks",
+            "remaining mutable hook captures",
+            "callback-internal cleanup",
+            "not a complete independent vm",
+        ] {
+            assert!(
+                normalized.contains(boundary),
+                "stateful capture docs lost {boundary}"
+            );
+        }
+    }
+    let normalized = section
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_ascii_lowercase();
+    for boundary in [
+        "context clone/reset",
+        "earlier successful charges are not refunded",
+        "does not roll back native context mutations",
+        "authentic receipts and durable authority before entry",
+        "continues to reject saved result/group rows",
+        "once-only terminal replay",
+        "syntax, frozen wire, error codes and replay authority are unchanged",
+    ] {
+        assert!(normalized.contains(boundary));
+    }
+}
+
+#[test]
+fn capture_snapshot_docs_keep_native_preparation_accounting_and_authority_explicit() {
+    let embedding = include_str!("../docs/leselang-embedding.md");
+    let section = embedding
+        .split("### Shared Stateful Capture Snapshot")
+        .nth(1)
+        .unwrap()
+        .split("### Remaining Product Boundaries")
+        .next()
+        .unwrap();
+    for text in [
+        include_str!("../crates/leselang-runtime-core/README.md"),
+        section,
+    ] {
+        let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
+        for boundary in [
+            "snapshot_captured_scope_state()",
+            "CaptureSnapshotLimits",
+            "CaptureSnapshotHooks",
+            "before allocation or native hooks",
+            "original lexical order",
+            "each array preserves its original order",
+            "Names are explicitly copied",
+            "original mutable context and Fuel",
+            "exact charge order",
+            "Successful charges are not refunded",
+            "outputs/errors stay local",
+            "Callback-internal cleanup",
+            "no dispatch, rollback or serialization",
+            "authentic receipts and durable authority remain adapter-owned",
+            "not a complete independent VM or repository extraction gate",
+        ] {
+            assert!(
+                normalized.contains(boundary),
+                "snapshot docs lost {boundary}"
+            );
+        }
+    }
+}
+
+#[test]
+fn owned_prefix_cleanup_docs_preserve_native_callback_and_terminal_authority_boundaries() {
+    let embedding = include_str!("../docs/leselang-embedding.md");
+    let section = embedding
+        .split("### Shared Owned Prefix Cleanup")
+        .nth(1)
+        .unwrap()
+        .split("### Remaining Product Boundaries")
+        .next()
+        .unwrap();
+    for text in [
+        include_str!("../crates/leselang-runtime-core/README.md"),
+        section,
+    ] {
+        let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
+        for boundary in [
+            "with_owned_scope_state()",
+            "Keys remain borrowed and values are moved",
+            "Outputs/errors stay local",
+            "suffix and then prefix cleanup finish",
+            "single/stacked accepted re-entry",
+            "framework-owned cleanup before output/error handoff",
+            "HostUncertain sealed",
+            "not refunded or rolled back",
+            "callback-internal cleanup",
+            "not callback preemption",
+            "wire/journal/replay rules are unchanged",
+            "not a complete independent VM or repository extraction gate",
+        ] {
+            assert!(
+                normalized.contains(boundary),
+                "owned cleanup docs lost {boundary}"
+            );
+        }
+    }
+}
+
+#[test]
+fn native_source_checkpoint_docs_distinguish_portability_from_full_vm_extraction() {
+    let embedding = include_str!("../docs/leselang-embedding.md");
+    let section = embedding
+        .split("### Native Source Checkpoint")
+        .nth(1)
+        .unwrap()
+        .split("### Remaining Product Boundaries")
+        .next()
+        .unwrap();
+    let normalized = section.split_whitespace().collect::<Vec<_>>().join(" ");
+    for boundary in [
+        "cargo dev package leselang",
+        "--verify",
+        "--dry-run",
+        "destination must be fresh",
+        "Production Rust files and native/mixed tests are copied byte-for-byte",
+        "Explicit crate metadata replaces monorepo inheritance",
+        "not an enableable Cargo feature",
+        "publish = false",
+        "separate `consumer/` workspace",
+        "exact SHA-256 and provenance",
+        "exact inventory revalidation",
+        "not a sandbox against hostile concurrent filesystem mutation",
+        "not the complete independent VM or repository extraction gate",
+        "wire/auth/GUI compatibility remain separate",
+    ] {
+        assert!(
+            normalized.contains(boundary),
+            "source checkpoint docs lost {boundary}"
+        );
+    }
+    assert!(
+        include_str!("../docs/development.md")
+            .contains("cargo dev package leselang --output target/leselang-native-source --verify")
+    );
+    assert!(include_str!("../docs/modules/leselang.md").contains("native source checkpoint"));
+}
+
+#[test]
+fn committed_checkpoint_docs_keep_storage_proof_distinct_from_durable_execution_authority() {
+    let embedding = include_str!("../docs/leselang-embedding.md");
+    let section = embedding
+        .split("### Shared Committed Checkpoint Recovery")
+        .nth(1)
+        .unwrap()
+        .split("### Native Source Checkpoint")
+        .next()
+        .unwrap();
+    for source in [
+        section,
+        include_str!("../crates/leselang-runtime-core/README.md"),
+    ] {
+        let normalized = source.split_whitespace().collect::<Vec<_>>().join(" ");
+        for boundary in [
+            "without exposing partial maps",
+            "duplicates across pending/completed partitions",
+            "Refusal or comparison unwind closes the pass",
+            "Sequence values are not global execution identities",
+            "Failed commit discards staged maps",
+            "successful commit followed by unwind is uncertain",
+            "real reference SQLite loader",
+            "original immediate transaction",
+            "Two unrelated consumer-owned byte formats",
+            "not a complete native durable evaluator",
+            "mutable data, not authenticated receipts or execution grants",
+            "same storage snapshot/transaction",
+            "remain extraction blockers",
+        ] {
+            assert!(
+                normalized.contains(boundary),
+                "checkpoint recovery docs lost {boundary}"
+            );
         }
     }
 }

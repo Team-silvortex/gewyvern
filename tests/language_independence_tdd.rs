@@ -1,6 +1,588 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::process::Command;
 
+#[test]
+fn owned_capture_data_lives_in_the_product_free_core_and_reference_types_are_exact_aliases() {
+    assert_workspace_closure("leselang-runtime-core", &[]);
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let shared =
+        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/captured_bindings.rs"))
+            .unwrap();
+    for declaration in [
+        "pub struct ScalarBinding",
+        "pub struct ProjectedBinding<Result>",
+        "pub struct ProjectedGroupBinding<Group>",
+        "pub struct ProjectedGroup<Result>",
+        "pub struct CapturedBindings<Body, Result, Group>",
+    ] {
+        assert!(shared.contains(declaration));
+    }
+    for absent in [
+        "leselang_hir",
+        "leserpent_domain",
+        "rusqlite",
+        "Revision",
+        "HostOperation",
+    ] {
+        assert!(!shared.contains(absent));
+    }
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+    for alias in [
+        "pub use leselang_runtime_core::ScalarBinding;",
+        "leselang_runtime_core::CapturedBindings<Computation, ProjectedResult, ProjectedGroup>",
+        "pub type ProjectedBinding = leselang_runtime_core::ProjectedBinding<ProjectedResult>;",
+        "pub type ProjectedGroupBinding = leselang_runtime_core::ProjectedGroupBinding<ProjectedGroup>;",
+        "pub type ProjectedGroup = leselang_runtime_core::ProjectedGroup<ProjectedResult>;",
+    ] {
+        assert!(reference.contains(alias));
+    }
+    for absent in [
+        "pub struct ScalarBinding",
+        "pub struct ResultBinding",
+        "pub struct ProjectedBinding",
+        "pub struct ProjectedGroupBinding",
+        "pub struct ProjectedGroup {",
+    ] {
+        assert!(!reference.contains(absent));
+    }
+    assert!(reference.contains("impl ReferenceResultBinding for ResultBinding"));
+    assert!(reference.contains("impl ReferenceProjectedGroup for ProjectedGroup"));
+    assert!(reference.contains("validate_projected_accesses(body, scope).map(|_| ())"));
+    assert!(reference.contains("validate_scalar_projection(&self.fields, expected)"));
+    assert!(reference.contains("pub struct ProjectedResult"));
+}
+
+#[test]
+fn capture_data_extraction_keeps_native_ownership_and_real_memory_durable_compatibility_proofs() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    for (path, proofs) in [
+        (
+            "crates/leselang-runtime-core/tests/captured_bindings.rs",
+            &[
+                "empty_optional_arrays_keep_legacy_wire_without_native_default_bounds",
+                "second_unrelated_schema_uses_opaque_body_result_and_group_without_core_interpretation",
+                "move_only_thread_local_native_payloads_and_text_buffers_keep_original_ownership",
+                "direct_and_plain_text_decoded_data_are_not_validation_or_authority_certificates",
+            ][..],
+        ),
+        (
+            "crates/leselang-vm/tests/capture_contract.rs",
+            &[
+                "all_five_legacy_capture_paths_are_exact_shared_types_without_conversion",
+                "legacy_empty_and_populated_capture_bytes_keep_field_order_and_projection_version_rules",
+                "real_successor_capture_uses_shared_frames_and_reenters_once_with_original_fuel",
+                "shared_data_never_bypasses_product_frame_validation_or_live_original_image_fences",
+            ][..],
+        ),
+        (
+            "crates/leselang-vm/tests/dataflow.rs",
+            &[
+                "shared_owned_capture_frames_keep_exact_journal_bytes_and_restart_successor_authority",
+            ][..],
+        ),
+    ] {
+        let code = std::fs::read_to_string(root.join(path)).unwrap();
+        for proof in proofs {
+            assert!(code.contains(proof), "capture extraction lost {proof}");
+        }
+    }
+}
+
+#[test]
+fn real_reference_capture_validation_uses_product_free_helpers_without_moving_authority_policy() {
+    assert_workspace_closure("leselang-runtime-core", &[]);
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let shared = std::fs::read_to_string(
+        root.join("crates/leselang-runtime-core/src/capture_validation.rs"),
+    )
+    .unwrap();
+    for api in [
+        "pub fn validate_captured_bindings",
+        "pub fn validate_projected_group",
+        "pub enum CaptureStructureError",
+        "HashSet::new()",
+        "checked_add",
+    ] {
+        assert!(shared.contains(api));
+    }
+    for absent in [
+        "leselang_hir",
+        "leserpent_domain",
+        "rusqlite",
+        "HostOperation",
+        "CapabilitySet",
+        "Principal",
+        "projection_version",
+        "Serialize",
+        "Deserialize",
+    ] {
+        assert!(!shared.contains(absent));
+    }
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+    for retained in [
+        "validate_captured_bindings(",
+        "validate_projected_group(",
+        "max_saved_bindings: MAX_EFFECT_NESTING_DEPTH",
+        "max_name_bytes: MAX_BRANCH_NAME_BYTES",
+        "max_members: crate::MAX_MERGE_BRANCHES - 1",
+        "crate::valid_merge_branch_name",
+        "CaptureStructureError::Native { error, .. } => error",
+        "_ => invalid()",
+        "body.is_result_flow()",
+        "validate_projected_accesses(body, scope).map(|_| ())",
+    ] {
+        assert!(
+            reference.contains(retained),
+            "capture adapter lost {retained}"
+        );
+    }
+}
+
+#[test]
+fn capture_validation_has_native_order_ownership_and_actual_reference_rejection_proofs() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let core = std::fs::read_to_string(
+        root.join("crates/leselang-runtime-core/tests/capture_validation.rs"),
+    )
+    .unwrap();
+    for proof in [
+        "count_pending_and_scalar_refusals_call_no_native_hook_in_legacy_order",
+        "result_and_group_names_interleave_with_once_only_native_calls_and_body_runs_last",
+        "invalid_group_names_precede_same_row_duplicates_and_never_run_result_hooks",
+        "opaque_move_only_thread_local_payloads_keep_buffers_and_error_ownership_without_trait_bounds",
+        "diagnostics_never_invoke_native_formatters_or_expose_original_payloads",
+        "callback_unwind_propagates_without_replay_rollback_or_core_field_mutation",
+        "unrelated_native_body_and_group_schemas_remain_opaque_and_not_execution_certificates",
+    ] {
+        assert!(core.contains(proof), "capture validator lost {proof}");
+    }
+    let vm =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/capture_contract.rs")).unwrap();
+    assert!(vm.contains(
+        "shared_structure_refusals_keep_lsv1405_and_never_consume_original_pending_authority"
+    ));
+    assert!(vm.contains("MAX_EFFECT_NESTING_DEPTH + 1"));
+    assert!(vm.contains("MAX_BRANCH_NAME_BYTES + 1"));
+}
+
+#[test]
+fn reference_capture_scope_assembly_uses_shared_nested_entry_but_retains_native_field_and_type_policy()
+ {
+    assert_workspace_closure("leselang-runtime-core", &[]);
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let shared =
+        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/capture_scope.rs"))
+            .unwrap();
+    let code = shared
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for absent in [
+        "leselang_hir",
+        "leserpent",
+        "rusqlite",
+        "serde::",
+        ".clone()",
+        "unwrap(",
+        "expect(",
+        "panic!",
+        "Fuel::new",
+        "HostOperation",
+        "ResultField",
+    ] {
+        assert!(!code.contains(absent), "capture scope gained {absent}");
+    }
+    for required in [
+        "pub fn with_captured_scope",
+        "pub enum CaptureScopeError",
+        "parent.nested()",
+        "let output = (||",
+        "drop(scope)",
+    ] {
+        assert!(code.contains(required));
+    }
+    assert!(code.find("let output =").unwrap() < code.find("drop(scope)").unwrap());
+    assert!(code.find("drop(scope)").unwrap() < code.rfind("output\n}").unwrap());
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+    for required in [
+        "with_captured_scope(",
+        "validate_projected_accesses(body, scope).map(|_| ())",
+        "CaptureScopeError::Duplicate { .. } => invalid()",
+        "CaptureScopeError::Native { error, .. } => error",
+        "available_fields(pending).map(AvailableProjection::Fields)",
+        "field_bit(field.field)",
+        "left & right",
+        "validate_in_group_scope(&scope, &groups)",
+        "validate_in_scope(&[])",
+    ] {
+        assert!(
+            reference.contains(required),
+            "reference capture scope lost {required}"
+        );
+    }
+}
+
+#[test]
+fn shared_capture_scope_has_native_nested_cleanup_and_real_group_successor_compatibility_proofs() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let proofs =
+        std::fs::read_to_string(root.join("crates/leselang-runtime-core/tests/capture_scope.rs"))
+            .unwrap();
+    for proof in [
+        "original_scalar_result_group_pending_order_and_once_only_body_share_the_parent_stack",
+        "every_saved_namespace_and_pending_collision_prepares_once_then_restores_original_prefix",
+        "native_refusal_precedes_same_row_collision_and_preserves_interleaved_error_position",
+        "borrowed_move_only_gui_local_payloads_names_and_outputs_need_no_native_traits",
+        "nested_capture_entry_keeps_outer_names_live_and_reuses_closed_inner_names",
+        "second_unrelated_native_schema_maps_data_explicitly_without_inferred_projection_or_authority",
+        "destructor_unwind_detaches_the_whole_local_suffix_and_preserves_parent_and_once_only_body",
+        "early_native_error_is_released_if_previously_prepared_scope_cleanup_unwinds",
+    ] {
+        assert!(proofs.contains(proof));
+    }
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/capture_contract.rs")).unwrap();
+    assert!(reference.contains(
+        "real_shared_scope_keeps_all_capture_names_distinct_and_group_successor_authority_unchanged"
+    ));
+    let legacy =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/projection_scope.rs")).unwrap();
+    assert!(
+        legacy.contains("missing_legacy_fields_remain_rejected_in_cold_bind_loop_and_fold_scopes")
+    );
+}
+
+#[test]
+fn restored_projection_access_walk_is_shared_bounded_and_uses_explicit_native_policy() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let shared =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/projection_access.rs")).unwrap();
+    let production = shared
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for absent in [
+        "leserpent",
+        "rusqlite",
+        "serde::",
+        "HostOperation",
+        "ResultField",
+        ".clone()",
+        "unwrap(",
+        "expect(",
+        "panic!",
+        "Fuel::new",
+    ] {
+        assert!(
+            !production.contains(absent),
+            "shared projection walk gained {absent}"
+        );
+    }
+    for retained in [
+        "pub trait ProjectionAccessPolicy",
+        "pub fn observe_projection_accesses",
+        "limits.max_nodes > MAX_TYPE_INFERENCE_NODES",
+        "limits.max_depth > MAX_TYPE_INFERENCE_DEPTH",
+        "StructureBudget::new",
+        "check_pending(pending.len(), 1)",
+        "scope.nested()",
+        "let output =",
+        "drop(local)",
+        "drop(value)",
+        "policy.member(",
+        "policy.join(",
+    ] {
+        assert!(
+            shared.contains(retained),
+            "shared projection walk lost {retained}"
+        );
+    }
+    assert!(
+        shared.find("while let Some((node, depth))").unwrap()
+            < shared.find("walk(expression, scope, policy)").unwrap()
+    );
+    let reference =
+        std::fs::read_to_string(root.join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+    for retained in [
+        "observe_projection_accesses(",
+        "impl<'a> ProjectionAccessPolicy<'a, ResultField, HostOperation, Effect>",
+        "ProjectionAccessError::Native { error, .. } => error",
+        "field_bit(*field)",
+        "left & right",
+        "self.call(operation)",
+        "member.result.operation == *operation",
+        "validate_in_group_scope(&scope, &groups)",
+    ] {
+        assert!(
+            reference.contains(retained),
+            "reference projection policy lost {retained}"
+        );
+    }
+    assert!(!reference.contains("validate_projected_accesses(value, scope)?"));
+    let proofs =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/projection_access.rs"))
+            .unwrap();
+    for proof in [
+        "all_control_nodes_follow_original_order_and_cold_scopes_without_evaluation",
+        "physical_cold_preflight_rejects_before_all_native_hooks_at_inclusive_boundaries",
+        "native_refusals_keep_original_error_identity_phase_and_stop_later_hooks",
+        "scope_destructor_unwind_releases_owned_output_and_native_error_before_handoff",
+        "field_temporary_destructor_unwind_keeps_native_refusal_locally_owned",
+        "conditional_refusal_cleanup_releases_error_if_left_native_destructor_unwinds",
+        "independent_borrowed_schema_requires_no_native_traits_or_product_field_masks",
+    ] {
+        assert!(proofs.contains(proof));
+    }
+    let vm =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/projection_scope.rs")).unwrap();
+    assert!(vm.contains(
+        "shared_cold_access_walk_keeps_legacy_fields_closed_in_recovery_calls_and_aliases"
+    ));
+}
+
+#[test]
+fn real_execution_reentry_uses_shared_original_state_without_a_second_meter_or_product_core() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let shared =
+        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/capture_scope.rs"))
+            .unwrap();
+    let production = shared
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for absent in [
+        "leselang_hir",
+        "leserpent",
+        "rusqlite",
+        "serde::",
+        ".clone()",
+        "Fuel::new",
+        "RefCell",
+        "Mutex",
+        "unwrap(",
+        "expect(",
+        "panic!",
+    ] {
+        assert!(
+            !production.contains(absent),
+            "shared state entry gained {absent}"
+        );
+    }
+    for retained in [
+        "pub struct CaptureScopeHooks",
+        "pub fn with_captured_scope_state",
+        "State: ?Sized",
+        "&mut ()",
+        "drop(hooks.pending)",
+        "drop(hooks.body)",
+        "drop((hooks.scalar, hooks.result, hooks.group))",
+        "drop((scalar, result, group))",
+    ] {
+        assert!(shared.contains(retained));
+    }
+    let vm = std::fs::read_to_string(root.join("crates/leselang-vm/src/computation.rs")).unwrap();
+    let production = vm.split("\n#[cfg(test)]\n").next().unwrap();
+    for retained in [
+        "resume_captured_outcome(binding, ResultView::Group",
+        "resume_captured_outcome(binding, ResultView::Raw",
+        "with_captured_scope_state(",
+        "CaptureScopeHooks {",
+        "charge_projection(fuel, result)?",
+        "charge_group_projection(fuel, group)?",
+        "evaluate_inner(body, fuel, scope)",
+        "if !restore_saved_results",
+        "CaptureScopeError::Native { error, .. } => error",
+    ] {
+        assert!(
+            production.contains(retained),
+            "reference stateful re-entry lost {retained}"
+        );
+    }
+    assert!(!production.contains("for local in &binding.locals"));
+    assert!(!production.contains("Fuel::new"));
+    let group =
+        std::fs::read_to_string(root.join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+    assert!(group.contains("!self.binding.results.is_empty()"));
+    assert!(group.contains("!self.binding.groups.is_empty()"));
+    let shared_proofs = std::fs::read_to_string(
+        root.join("crates/leselang-runtime-core/tests/capture_scope_state.rs"),
+    )
+    .unwrap();
+    for proof in [
+        "every_hook_and_body_share_original_move_only_gui_local_context_and_meter",
+        "every_exhaustion_boundary_stops_before_later_hooks_without_refund_or_fresh_meter",
+        "nested_entry_reborrows_the_same_context_and_original_meter_without_aliasing_or_reset",
+        "uncalled_once_hook_destructor_unwind_releases_early_native_error_before_handoff",
+        "remaining_mutable_hook_destructor_unwind_releases_output_or_error_after_scope_cleanup",
+        "unsized_context_uses_explicit_mutable_reborrows_without_default_or_owned_state",
+    ] {
+        assert!(shared_proofs.contains(proof));
+    }
+    for proof in [
+        "shared_atomic_and_group_reentry_match_frozen_results_and_every_original_fuel_boundary",
+        "shared_duplicate_refusals_preserve_charge_before_insertion_and_original_faults",
+        "body_fault_tail_and_successor_capture_keep_original_meter_and_owned_capture",
+        "group_reentry_cannot_admit_saved_projection_rows_rejected_by_its_native_contract",
+    ] {
+        assert!(vm.contains(proof));
+    }
+    let memory =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/capture_contract.rs")).unwrap();
+    assert!(memory.contains(
+        "stateful_reentry_keeps_saved_budget_and_once_only_terminal_replay_across_memory_restore"
+    ));
+}
+
+#[test]
+fn real_capture_construction_uses_shared_bounded_snapshot_with_native_charge_policy() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/capture_snapshot.rs"))
+            .unwrap();
+    let production = source
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for absent in [
+        "leselang_hir",
+        "leserpent",
+        "rusqlite",
+        "serde::",
+        ".clone()",
+        "Fuel::new",
+        "RefCell",
+        "Mutex",
+        "unwrap(",
+        "expect(",
+        "panic!",
+    ] {
+        assert!(
+            !production.contains(absent),
+            "shared snapshot gained {absent}"
+        );
+    }
+    for required in [
+        "pub fn snapshot_captured_scope_state",
+        "State: ?Sized",
+        "Source: ?Sized",
+        "scope.len() > limits.max_bindings",
+        "name.len() > limits.max_name_bytes",
+        "scope.bindings().iter().enumerate()",
+        "drop(hooks.row)",
+    ] {
+        assert!(source.contains(required), "shared snapshot lost {required}");
+    }
+    let vm = std::fs::read_to_string(root.join("crates/leselang-vm/src/computation.rs")).unwrap();
+    let production = vm.split("\n#[cfg(test)]\n").next().unwrap();
+    for required in [
+        "snapshot_captured_scope_state(",
+        "CaptureSnapshotHooks {",
+        "value.snapshot_group()?",
+        "value.snapshot()?",
+        "charge_group_projection(fuel, &group)?",
+        "charge_projection(fuel, &result)?",
+        "CaptureSnapshotError::Native { error, .. } => error",
+    ] {
+        assert!(
+            production.contains(required),
+            "reference capture lost {required}"
+        );
+    }
+    assert!(!production.contains("for (name, value) in scope.bindings()"));
+    assert!(!production.contains("Fuel::new"));
+    for proof in [
+        "shared_snapshot_matches_frozen_mixed_scope_bytes_and_every_original_fuel_boundary",
+        "shared_snapshot_native_projection_refusal_keeps_original_charge_precedence",
+        "snapshot_storage_preflight_rejects_untyped_oversize_before_preparation_without_dispatch",
+    ] {
+        assert!(vm.contains(proof));
+    }
+    let tests = std::fs::read_to_string(
+        root.join("crates/leselang-runtime-core/tests/capture_snapshot.rs"),
+    )
+    .unwrap();
+    for proof in [
+        "ordered_native_preparation_uses_original_gui_local_context_and_moves_category_rows",
+        "complete_count_and_utf8_name_preflight_precedes_every_native_hook",
+        "uncalled_body_cleanup_unwind_releases_already_owned_row_error",
+        "partial_row_cleanup_unwind_releases_later_row_and_body_errors",
+        "remaining_row_hook_cleanup_unwind_releases_successful_capture_or_body_error",
+        "native_snapshot_and_reentry_round_trip_share_original_meter_without_fresh_grant",
+    ] {
+        assert!(tests.contains(proof));
+    }
+    let memory =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/capture_contract.rs")).unwrap();
+    assert!(memory.contains(
+        "mixed_snapshot_keeps_group_restore_fence_saved_fuel_wire_and_once_only_successors"
+    ));
+}
+
+#[test]
+fn real_shared_control_entries_retain_owned_outputs_through_prefix_and_native_owner_cleanup() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let core =
+        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/owned_scope.rs"))
+            .unwrap();
+    let production = core
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for absent in [
+        "leselang_hir",
+        "leserpent",
+        "rusqlite",
+        "serde::",
+        ".clone()",
+        "Fuel::new",
+        "RefCell",
+        "Mutex",
+        "unwrap(",
+        "expect(",
+        "panic!",
+    ] {
+        assert!(!production.contains(absent), "owned scope gained {absent}");
+    }
+    assert!(core.contains("State: ?Sized"));
+    let output = core.find("let output = body(").unwrap();
+    assert!(output < core.find("drop(scope)").unwrap());
+    assert!(core.find("drop(scope)").unwrap() < core.find("drop(bindings)").unwrap());
+    let single =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_reentry.rs")).unwrap();
+    let stacked =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_stack.rs")).unwrap();
+    let session =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_session.rs")).unwrap();
+    for source in [&single, &stacked, &session] {
+        assert!(source.contains("with_owned_scope_state("));
+    }
+    assert!(single.contains("drop((capture, reply, identity))"));
+    assert!(stacked.contains("drop((current, frames, reply, returned, identity))"));
+    assert!(stacked.contains("frames.by_ref()"));
+    assert!(session.contains("drop(continuation)"));
+    let tests =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/effect_session.rs")).unwrap();
+    for proof in [
+        "owned_reentry_identity_cleanup_releases_prepared_successor_before_handoff",
+        "owned_reentry_prefix_cleanup_releases_prepared_successor_and_preserves_meter",
+        "owned_reentry_prefix_cleanup_releases_opaque_projection_error_without_refund",
+        "owned_reentry_cold_refusal_cleanup_releases_opaque_error_and_uncalled_capture",
+        "owned_reentry_nested_unused_frames_cleanup_releases_opaque_cold_error_once",
+        "PRIVATE_ERROR_DROPS",
+        "before_drops + 1",
+    ] {
+        assert!(tests.contains(proof));
+    }
+}
+
 fn workspace_metadata() -> serde_json::Value {
     let output = Command::new(env!("CARGO"))
         .args(["metadata", "--format-version", "1", "--no-deps"])
@@ -933,16 +1515,16 @@ fn atomic_call_execution_reuses_original_schema_control_and_argument_engines_wit
     let entry = normalized
         .split("pub fn prepare_atomic_call_in_scope")
         .nth(1)
+        .unwrap()
+        .split("fn select_atomic<")
+        .next()
         .unwrap();
     let mut previous = 0;
     for gate in [
         "preflight_value_scope(scope, limits.pure)",
         "preflight_call_leaves_with_budget(expression, 0, &mut budget, limits.max_arguments)",
-        ".authorize(operation, host.version, host.granted)",
-        "preflight_signature(&names, schema, limits.max_arguments)",
-        "std::ptr::eq(row, schema)",
-        "let adapter = Atomic",
-        "evaluate(expression, scope, &adapter, fuel, limits.pure.max_bindings)",
+        "let adapter = select_atomic(leaves, host, limits)?",
+        "execute_atomic(expression, scope, &adapter, fuel)",
     ] {
         let position = entry
             .find(gate)
@@ -950,6 +1532,30 @@ fn atomic_call_execution_reuses_original_schema_control_and_argument_engines_wit
         assert!(position > previous, "atomic gate order changed for {gate}");
         previous = position;
     }
+    let selection = normalized
+        .split("fn select_atomic<")
+        .nth(1)
+        .unwrap()
+        .split("fn execute_atomic<")
+        .next()
+        .unwrap();
+    let mut previous = 0;
+    for gate in [
+        ".authorize(operation, host.version, host.granted)",
+        "preflight_signature(&names, schema, limits.max_arguments)",
+        "std::ptr::eq(row, schema)",
+        "Ok(Atomic {",
+    ] {
+        let position = selection.find(gate).unwrap();
+        assert!(position > previous);
+        previous = position;
+    }
+    assert!(
+        source
+            .split_whitespace()
+            .collect::<String>()
+            .contains("evaluate(expression,scope,adapter,fuel,adapter.limits.pure.max_bindings,)")
+    );
     for excluded in [
         "Fuel::new",
         "fuel.charge",
@@ -1036,6 +1642,85 @@ fn shared_call_preparation_connects_native_catalogs_and_values_to_the_reference_
         vm.contains("CallEvaluationError::Evaluation { failure, .. } => pure_failure(failure)")
     );
     assert!(vm.contains("operation.resolve(&values)"));
+}
+
+#[test]
+fn atomic_group_preparation_shares_whole_cold_admission_and_original_execution_without_a_new_walker()
+ {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/prepared_call_evaluation.rs"))
+            .unwrap();
+    let text = source.split_whitespace().collect::<Vec<_>>().join(" ");
+    let group = text
+        .split("pub fn prepare_atomic_group_in_scope")
+        .nth(1)
+        .unwrap();
+    let mut previous = 0;
+    for gate in [
+        "preflight_value_scope(scope, limits.call.pure)",
+        "preflight_native_group_members(",
+        "budget .visit(0, 0, 0)",
+        "preflight_call_leaves_with_budget( &branch.value, 1, &mut budget",
+        "select_atomic(leaves, host, limits.call)",
+        "prepare_native_group_members(",
+        "admit(index, branch, adapter.schema)",
+        "execute_atomic(&branch.value, scope, adapter, fuel)",
+    ] {
+        let position = group
+            .find(gate)
+            .unwrap_or_else(|| panic!("missing whole-group gate {gate}"));
+        assert!(position > previous, "group gate order changed for {gate}");
+        previous = position;
+    }
+    for forbidden in [
+        "Fuel::new",
+        "fuel.charge",
+        "bindings.to_vec",
+        "Operation: Clone",
+        "IrResult: Clone",
+        "ResultTag: Clone",
+        "enum State",
+        "leselang_vm",
+        "rusqlite",
+        "serde::",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "whole preparation gained {forbidden}"
+        );
+    }
+    assert_eq!(
+        text.matches("let schema = host .catalog .authorize(")
+            .count(),
+        1
+    );
+    assert_eq!(text.matches("match evaluate(").count(), 1);
+    let cases =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/prepared_call_evaluation.rs"))
+            .unwrap();
+    for proof in [
+        "complete_atomic_group_bridge_preserves_original_rows_scope_once_order_and_one_meter",
+        "aggregate_shifted_atomic_group_physical_and_scope_denials_precede_catalog_or_native_hooks",
+        "every_cold_atomic_group_catalog_signature_and_uniform_row_precedes_any_value_preparation",
+        "inclusive_atomic_group_forest_and_sixty_four_member_limits_do_not_reset_per_member",
+        "complete_atomic_group_native_admission_failure_or_unwind_precedes_fuel_and_projections",
+        "atomic_group_execution_exhaustion_returns_no_partial_batch_or_scope_leak_or_refund",
+        "late_atomic_group_domain_failure_or_unwind_cleans_prepared_prefix_and_temporary_views",
+    ] {
+        assert!(cases.contains(proof));
+    }
+    let vertical =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/catalog_group_source.rs"))
+            .unwrap();
+    assert_eq!(
+        vertical
+            .matches("ParamRuntime::with_prepared_groups(&domain)")
+            .count(),
+        3
+    );
+    assert!(vertical.contains("let prepared = prepare_atomic_group_in_scope("));
+    assert!(vertical.contains("assert_eq!(session.fuel_remaining(), 244)"));
 }
 
 #[test]
@@ -2327,14 +3012,14 @@ fn borrowed_control_session_keeps_reply_ready_and_owned_fuel_without_product_sta
     let poll = source.split_once("pub(crate) fn poll_with<").unwrap().1;
     let close = poll.find("std::mem::replace").unwrap();
     assert!(poll.find("EffectSessionPoll::Awaiting").unwrap() < close);
-    assert!(close < poll.find("let outcome = begin(").unwrap());
+    assert!(close < poll.find("with_owned_scope_state(").unwrap());
     assert!(close < poll.find("resume(accepted,").unwrap());
     let legacy = source.split_once("pub fn poll<Environment>").unwrap().1;
     assert!(legacy.contains("self.core.poll_with("));
     assert!(legacy.contains("evaluate_resumable_effects_in_scope("));
     assert!(legacy.contains("resume_accepted_effects("));
     assert!(
-        poll.find("drop(bindings)").unwrap()
+        poll.find("with_owned_scope_state(").unwrap()
             < poll.find("self.state = State::AwaitingFinal").unwrap()
     );
     assert!(
@@ -7062,6 +7747,102 @@ fn group_helper_program_keeps_language_owned_lowering_and_original_native_reentr
 }
 
 #[test]
+fn prepared_source_member_profile_reuses_cold_helper_facts_and_original_uniform_inference() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let group =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/catalog_group_source.rs"))
+            .unwrap();
+    let old = group
+        .split_once("pub fn compile_catalog_group_helper_program")
+        .unwrap()
+        .1
+        .split("/// Opt in to pure Bind/Choose")
+        .next()
+        .unwrap();
+    assert!(old.contains("environment, false)"));
+    let new = group
+        .split_once("pub fn compile_catalog_prepared_group_helper_program")
+        .unwrap()
+        .1
+        .split("fn compile_group_helpers<")
+        .next()
+        .unwrap();
+    assert!(new.contains("environment, true)"));
+    assert_eq!(group.matches("fn compile_group_helpers<").count(), 1);
+    assert!(group.contains("let prepared_members = locals.prepared_members()"));
+    assert!(group.contains("lower_preflighted_control_source("));
+    assert!(
+        group
+            .find("let (operation, result) = infer_prepared_call_observation(")
+            .unwrap()
+            < group.find(".source_group_branch(original,").unwrap()
+    );
+    assert!(group.contains("!std::ptr::eq(result, &schema.result)"));
+    let program =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/catalog_program.rs")).unwrap();
+    assert!(
+        program
+            .find("cold_prepared_members(declarations, &order)")
+            .unwrap()
+            < program.find("for function in order {").unwrap()
+    );
+    let facts =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/catalog_atomic_source.rs"))
+            .unwrap();
+    for required in [
+        "binding_source::<()>",
+        "operands::<()>",
+        "for helper in ordered_helpers",
+        "for function in declarations",
+        "Shape::Atomic(_)",
+    ] {
+        assert!(facts.contains(required));
+    }
+    for forbidden in [
+        "leserpent",
+        "leselang_vm",
+        "rusqlite",
+        "serde::",
+        "evaluate_",
+        "Fuel::new",
+        ".clone()",
+        ".unwrap(",
+        ".expect(",
+        "panic!",
+        "unsafe ",
+    ] {
+        assert!(
+            !facts.contains(forbidden),
+            "cold shape facts gained {forbidden}"
+        );
+    }
+    let typing =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/prepared_typing.rs")).unwrap();
+    assert!(typing.contains(
+        "infer_prepared_call_observation(expression, bindings, environment, schemas, limits)"
+    ));
+    assert!(typing.contains("Ok((original_operation, result))"));
+    let proofs =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/catalog_group_source.rs"))
+            .unwrap();
+    for proof in [
+        "prepared_member_profile_is_explicit_and_preserves_legacy_direct_member_rejection",
+        "prepared_members_reject_hidden_effect_shapes_in_unused_helpers_before_native_mapping",
+        "prepared_member_named_catalog_dependency_and_closed_reference_policy_remain_cold",
+        "prepared_member_inline_bind_choose_and_forward_aliases_use_original_uniform_rows",
+        "prepared_member_expansion_keeps_shared_work_depth_group_and_shifted_output_limits",
+        "prepared_member_native_failure_and_unwind_release_moved_output_without_retries",
+        "parsed_atomic_helper_members_use_seq_all_original_replies_and_one_enclosing_meter",
+        "parsed_atomic_helper_members_preparation_refusal_or_fuel_exhaustion_never_dispatches",
+        "parsed_atomic_helper_members_cancel_or_revocation_stops_next_publication_and_caller",
+        "assert_eq!(session.fuel_remaining(), 260)",
+        "assert_eq!(session.fuel_remaining(), 244)",
+    ] {
+        assert!(proofs.contains(proof), "prepared source proof lost {proof}");
+    }
+}
+
+#[test]
 fn nested_return_frames_reuse_one_walker_and_original_reply_protocol_without_a_second_runtime() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
@@ -7096,7 +7877,7 @@ fn nested_return_frames_reuse_one_walker_and_original_reply_protocol_without_a_s
         "preflight_into(",
         "restore_effect_scope(",
         "bind_effect_value(",
-        "continuation.frames.extend(frames)",
+        "continuation.frames.extend(frames.by_ref())",
         ".checked_sub(frames.len())",
         "EffectStackFault::ReturnLimit",
     ] {
@@ -7554,5 +8335,61 @@ fn prepared_parallel_sessions_reuse_original_reply_core_without_argument_replay_
         "assert_eq!(session.fuel_remaining(), 62)",
     ] {
         assert!(group.contains(proof));
+    }
+}
+
+#[test]
+fn unrelated_gui_prepared_source_uses_shared_compiler_sessions_and_original_native_authority() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/prepared_gui_host.rs"))
+            .unwrap();
+    for forbidden in [
+        "leselang_vm",
+        "leserpent_protocol",
+        "rusqlite",
+        "serde_json::",
+        "unsafe ",
+    ] {
+        assert!(!source.contains(forbidden), "GUI host gained {forbidden}");
+    }
+    for required in [
+        "compile_catalog_prepared_group_helper_program(",
+        "prepare_atomic_group_in_scope(",
+        "StackedEffectSession::new(",
+        "Sequence::start(",
+        "Parallel::start(",
+        "assemble_group_reply(",
+        "impl<'s> HostResultDomain<Ack<'s>> for Schema<'s>",
+        "impl ReplyAuthority<(u64, usize)>",
+        "Rc::ptr_eq(&schema.result.owner, &self.widget)",
+        "std::ptr::eq(branch.result_type.0, &schema.result)",
+        "assert_eq!(prepared_fuel, 948)",
+        "assert_eq!(final_fuel, 925)",
+        "for fuel in 52..=75",
+        "parsed_gui_helpers_return_heterogeneous_acks_through_seq_all_and_one_enclosing_meter",
+        "gui_member_reply_rejections_preserve_original_payload_and_pending_sequence",
+        "gui_generation_revocation_or_cancel_blocks_next_publication_without_undoing_first_mutation",
+        "gui_accepted_group_cancel_or_stale_generation_never_projects_or_returns_to_caller",
+        "gui_cold_types_missing_grants_preparation_refusal_and_exhaustion_never_invoke",
+        "gui_prepared_parallel_data_is_not_a_grant_to_invoke_after_revocation",
+        "gui_exhaustion_at_every_enclosing_reentry_debit_seals_without_replaying_mutations",
+    ] {
+        assert!(source.contains(required), "GUI host lost {required}");
+    }
+    let invocation = source
+        .split("    fn invoke(")
+        .nth(1)
+        .unwrap()
+        .split("impl<'ir, 's> HostResultDomain")
+        .next()
+        .unwrap();
+    assert!(
+        invocation.find("self.admit_prepared(").unwrap()
+            < invocation.find("self.widget.text.replace(").unwrap()
+    );
+    for native in ["Key", "Field", "Domain", "Declaration", "Input"] {
+        assert!(!source.contains(&format!("impl Clone for {native}")));
+        assert!(!source.contains(&format!("impl std::fmt::Debug for {native}")));
     }
 }

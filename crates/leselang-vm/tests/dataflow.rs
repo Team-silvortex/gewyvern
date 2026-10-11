@@ -639,3 +639,55 @@ fn journal_eight_migration_preserves_legacy_two_effect_chains() {
         })
     );
 }
+
+#[test]
+fn shared_owned_capture_frames_keep_exact_journal_bytes_and_restart_successor_authority() {
+    type SharedFrame = leselang_runtime_core::CapturedBindings<
+        leselang_hir::computation::Computation,
+        leselang_vm::ProjectedResult,
+        leselang_vm::ProjectedGroup,
+    >;
+    let path = JournalPath::new();
+    let mut vm = Vm::open_journal(&path.0, 500).unwrap();
+    let first = effect(start(&mut vm, FLOW));
+    let second = effect(vm.resume(&first.continuation, navigate("b")));
+    let shared: &SharedFrame = second.continuation.result_binding.as_ref().unwrap();
+    assert_eq!(shared.locals[0].value.text(), Some("target-"));
+    assert!(!shared.results.is_empty());
+    let wire = encode_continuation(&second.continuation).unwrap();
+    let connection = Connection::open(&path.0).unwrap();
+    let stored: Vec<u8> = connection
+        .query_row(
+            "SELECT image FROM vm_effects WHERE token = ?1",
+            [second.continuation.token.as_str()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(stored, wire);
+    drop(vm);
+    let mut vm = Vm::open_journal(&path.0, 1).unwrap();
+    assert_eq!(
+        vm.pending_continuations()
+            .into_iter()
+            .find(|image| image.token == second.continuation.token)
+            .unwrap(),
+        decode_continuation(&wire).unwrap(),
+    );
+    assert_eq!(
+        effect(vm.resume(&first.continuation, navigate("changed"))),
+        second
+    );
+    let third = effect(vm.resume(&second.continuation, focus("b")));
+    assert!(third.budget.fuel_remaining < second.budget.fuel_remaining);
+    assert_eq!(vm.resume(&third.continuation, focus("target-b")), done());
+    drop(vm);
+    let mut vm = Vm::open_journal(&path.0, 1).unwrap();
+    for image in [
+        &first.continuation,
+        &second.continuation,
+        &third.continuation,
+    ] {
+        assert_eq!(vm.resume(image, focus("ignored")), done());
+    }
+    assert!(vm.claim_effect(1, 10).unwrap().is_none());
+}

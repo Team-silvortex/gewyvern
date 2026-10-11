@@ -357,7 +357,40 @@ where
     Schemas: PreparedCallSchemas<'schema, Operation>,
     Environment: PureTypeEnvironment<Field, Operation>,
 {
+    infer_prepared_call_observation(expression, bindings, environment, schemas, limits)
+        .map(|(_, result)| result)
+}
+
+// Borrow the original first terminal operation only after whole uniform inference.
+// Callers may map a native group slot without cloning a key or inventing a row.
+pub(crate) fn infer_prepared_call_observation<
+    'expression,
+    'schema,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Schemas,
+    Environment,
+>(
+    expression: &'expression Node<Field, Operation, HostEffect, IrResult>,
+    bindings: &[(&'expression str, PureType<Environment::Result>)],
+    environment: &Environment,
+    schemas: &Schemas,
+    limits: CallTypeLimits,
+) -> Result<(&'expression Operation, &'schema Schemas::Result), PreparedCallTypeError>
+where
+    Schemas: PreparedCallSchemas<'schema, Operation>,
+    Environment: PureTypeEnvironment<Field, Operation>,
+{
     let calls = preflight(expression, bindings, limits)?;
+    let Some(Computation::Call {
+        operation: original_operation,
+        ..
+    }) = calls.first().copied()
+    else {
+        return Err(PreparedCallTypeError::InvalidFlow);
+    };
     let mut selected = Vec::with_capacity(calls.len());
     let mut common = None;
     for (call_index, call) in calls.iter().enumerate() {
@@ -396,5 +429,5 @@ where
     if selections.next != selections.calls.len() {
         return Err(PreparedCallTypeError::InvalidFlow);
     }
-    Ok(result)
+    Ok((original_operation, result))
 }

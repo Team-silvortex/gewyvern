@@ -231,6 +231,9 @@ pub(crate) trait CatalogLocalSource<
     Error,
 >
 {
+    fn prepared_members(&self) -> bool {
+        false
+    }
     fn contains(&self, source: &Expression) -> bool;
     fn lower(
         &self,

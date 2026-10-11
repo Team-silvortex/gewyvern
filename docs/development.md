@@ -79,6 +79,19 @@ cargo dev doctor
 cargo dev version check
 ```
 
+Prepare a fresh, independently buildable Leselang native-source checkpoint:
+
+```bash
+cargo dev package leselang --output target/leselang-native-source --verify
+```
+
+`--dry-run` plans the exact source inventory without writing or running the
+isolated verifier. The output parent must already exist, and an existing output
+is never replaced. Verification reuses the compiler cache, not product source
+paths. The exported workspace and its separate consumer own explicit metadata,
+locked registry dependencies, MIT license and native CI. This is not the full
+durable VM extraction or publication gate; see [embedding boundaries](leselang-embedding.md).
+
 Before cutting a release, use `cargo dev version check` to verify that Cargo,
 .NET, lockfiles, public docs, and the status checkpoint still agree on one
 product version. Preview a deliberate version change before applying it:

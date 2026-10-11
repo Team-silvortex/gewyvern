@@ -2,7 +2,9 @@
 
 use std::fmt;
 
-use leselang_runtime_core::{AcceptedReply, CalculationFailure, Fuel, ScopeFrame, StructureBudget};
+use leselang_runtime_core::{
+    AcceptedReply, CalculationFailure, Fuel, ScopeFrame, StructureBudget, with_owned_scope_state,
+};
 
 use crate::effect_evaluation::{
     ControlOutcome, EffectEvaluationEnvironment, EffectEvaluationFailure, EffectEvaluationFault,
@@ -276,6 +278,8 @@ where
 /// Newly suspended frames and still pending outer frames share one inclusive quota.
 /// Final requests acquire the next original return site without replaying old source.
 /// Every error/unwind consumes owned frames; cancellation uses the same PendingReply.
+/// Outputs/errors stay local through owned prefix, remaining frame/input and
+/// identity cleanup; callback-internal cleanup remains native responsibility.
 /// Authentication, current capture integrity, aggregate native costs and dispatch
 /// remain host-owned. This is in-memory binding composition, not nested group-member
 /// scheduling, a durable VM, external exactly-once execution or product migration.
@@ -319,106 +323,116 @@ where
             Reply,
         >,
 {
-    limits(policy)?;
     let (identity, continuation, declaration, reply) = accepted.into_parts();
-    if continuation.frames.is_empty() || continuation.frame_count() > policy.max_frames {
-        return Err(EffectStackFault::ReturnLimit.into());
-    }
-    let mut empty = Vec::<(&str, PureValue<Environment::Result>)>::new();
-    preflight_scope(&ScopeFrame::new(&mut empty), policy.effects).map_err(stack_failure)?;
-    let mut budget =
-        StructureBudget::new(policy.effects.pure.max_nodes, policy.effects.pure.max_depth);
-    let mut effects = Vec::new();
-    for frame in &continuation.frames {
-        preflight_into(frame.body(), policy.effects, &mut budget, &mut effects)
-            .map_err(stack_failure)?;
-    }
-    if policy.effects.pure.max_bindings == 0 {
-        return Err(EffectStackFault::Control(EffectEvaluationFault::Pure(
-            crate::pure_evaluation::PureEvaluationFault::BindingLimit,
-        ))
-        .into());
-    }
-    for effect in effects {
-        environment
-            .preflight_effect(effect)
-            .map_err(|error| EffectStackFault::Control(EffectEvaluationFault::Native(error)))?;
-    }
     let mut frames = continuation.frames.into_iter();
-    let Some(first) = frames.next() else {
-        return Err(EffectStackFault::ReturnLimit.into());
-    };
-    let mut current = first;
+    let mut current = None;
     let mut reply = Some(reply);
     let mut returned = None;
-    loop {
-        let (name, body, capture) = current.into_parts();
-        let mut bindings = restore_effect_scope(
-            name,
-            |fuel| {
-                environment.restore_capture(&identity, declaration, capture, fuel, policy.effects)
-            },
-            fuel,
-            policy.effects,
-        )
-        .map_err(stack_failure)?;
-        let value = if let Some(reply) = reply.take() {
-            environment
-                .bind_reply(&identity, declaration, reply, fuel)
-                .map_err(crate::effect_evaluation::native_failure)
-                .map_err(stack_failure)?
-        } else if let Some(value) = returned.take() {
-            value
-        } else {
+    let output = (|| {
+        limits(policy)?;
+        if frames.len() == 0 || frames.len() > policy.max_frames {
             return Err(EffectStackFault::ReturnLimit.into());
-        };
-        let mut scope = ScopeFrame::new(&mut bindings);
-        bind_effect_value(name, value, &mut scope, policy.effects).map_err(stack_failure)?;
-        let outcome = evaluate_with_profile::<_, _, _, _, _, ReturnFrames>(
-            body,
-            &mut scope,
-            environment,
-            fuel,
-            policy.effects.pure.max_bindings,
-            policy
-                .max_frames
-                .checked_sub(frames.len())
-                .ok_or(EffectStackFault::ReturnLimit)?,
-        )
-        .map_err(stack_failure)?;
-        // Prefix cleanup completes before publishing any new request/value.
-        drop(scope);
-        drop(bindings);
-        match outcome {
-            ControlOutcome::Value(value) => {
-                if let Some(next) = frames.next() {
-                    current = next;
-                    returned = Some(value);
+        }
+        let mut empty = Vec::<(&str, PureValue<Environment::Result>)>::new();
+        preflight_scope(&ScopeFrame::new(&mut empty), policy.effects).map_err(stack_failure)?;
+        let mut budget =
+            StructureBudget::new(policy.effects.pure.max_nodes, policy.effects.pure.max_depth);
+        let mut effects = Vec::new();
+        for frame in frames.as_slice() {
+            preflight_into(frame.body(), policy.effects, &mut budget, &mut effects)
+                .map_err(stack_failure)?;
+        }
+        if policy.effects.pure.max_bindings == 0 {
+            return Err(EffectStackFault::Control(EffectEvaluationFault::Pure(
+                crate::pure_evaluation::PureEvaluationFault::BindingLimit,
+            ))
+            .into());
+        }
+        for effect in effects {
+            environment
+                .preflight_effect(effect)
+                .map_err(|error| EffectStackFault::Control(EffectEvaluationFault::Native(error)))?;
+        }
+        current = frames.next();
+        loop {
+            let Some(frame) = current.take() else {
+                return Err(EffectStackFault::ReturnLimit.into());
+            };
+            let (name, body, capture) = frame.into_parts();
+            let bindings = restore_effect_scope(
+                name,
+                |fuel| {
+                    environment.restore_capture(
+                        &identity,
+                        declaration,
+                        capture,
+                        fuel,
+                        policy.effects,
+                    )
+                },
+                fuel,
+                policy.effects,
+            )
+            .map_err(stack_failure)?;
+            let outcome = with_owned_scope_state(bindings, fuel, |scope, fuel| {
+                let value = if let Some(reply) = reply.take() {
+                    environment
+                        .bind_reply(&identity, declaration, reply, fuel)
+                        .map_err(crate::effect_evaluation::native_failure)
+                        .map_err(stack_failure)?
+                } else if let Some(value) = returned.take() {
+                    value
                 } else {
-                    return Ok(StackedEffectOutcome::Value(value));
+                    return Err(EffectStackFault::ReturnLimit.into());
+                };
+                bind_effect_value(name, value, scope, policy.effects).map_err(stack_failure)?;
+                evaluate_with_profile::<_, _, _, _, _, ReturnFrames>(
+                    body,
+                    scope,
+                    environment,
+                    fuel,
+                    policy.effects.pure.max_bindings,
+                    policy
+                        .max_frames
+                        .checked_sub(frames.len())
+                        .ok_or(EffectStackFault::ReturnLimit)?,
+                )
+                .map_err(stack_failure)
+            })?;
+            match outcome {
+                ControlOutcome::Value(value) => {
+                    if let Some(next) = frames.next() {
+                        current = Some(next);
+                        returned = Some(value);
+                    } else {
+                        return Ok(StackedEffectOutcome::Value(value));
+                    }
                 }
-            }
-            ControlOutcome::Request(request) => {
-                if frames.len() == 0 {
-                    return Ok(StackedEffectOutcome::Request(request));
+                ControlOutcome::Request(request) => {
+                    if frames.len() == 0 {
+                        return Ok(StackedEffectOutcome::Request(request));
+                    }
+                    return Ok(StackedEffectOutcome::Suspended {
+                        request,
+                        continuation: EffectReturnStack {
+                            frames: frames.by_ref().collect(),
+                        },
+                    });
                 }
-                return Ok(StackedEffectOutcome::Suspended {
+                ControlOutcome::Suspended {
                     request,
-                    continuation: EffectReturnStack {
-                        frames: frames.collect(),
-                    },
-                });
-            }
-            ControlOutcome::Suspended {
-                request,
-                mut continuation,
-            } => {
-                continuation.frames.extend(frames);
-                return Ok(StackedEffectOutcome::Suspended {
-                    request,
-                    continuation,
-                });
+                    mut continuation,
+                } => {
+                    continuation.frames.extend(frames.by_ref());
+                    return Ok(StackedEffectOutcome::Suspended {
+                        request,
+                        continuation,
+                    });
+                }
             }
         }
-    }
+    })();
+    // Original native owners stay outside the fallible closure's return place.
+    drop((current, frames, reply, returned, identity));
+    output
 }

@@ -132,6 +132,7 @@ pub(crate) struct CatalogProgramContext<'source> {
 pub(crate) struct CatalogProgramGroupProfile {
     pub limits: CatalogGroupSourceLimits,
     pub helper_groups: bool,
+    pub prepared_members: bool,
 }
 struct Depth<'a>(&'a Cell<usize>, usize);
 impl Drop for Depth<'_> {
@@ -606,9 +607,12 @@ where
         let groups = entry_groups
             .filter(|profile| profile.helper_groups || std::ptr::eq(*function, accepted.entry()));
         if let Some(profile) = groups {
-            let count = cold_groups_with(&function.body, profile.limits, |node| {
-                program.is_helper(node)
-            })
+            let count = cold_groups_with(
+                &function.body,
+                profile.limits,
+                profile.prepared_members,
+                |node| program.is_helper(node),
+            )
             .map_err(|e| CatalogSourceError::Group(Box::new(e)))?;
             cold_groups = cold_groups
                 .checked_add(count)
@@ -677,6 +681,10 @@ where
         } else {
             entry_nodes = nodes;
         }
+    }
+    if entry_groups.is_some_and(|profile| profile.prepared_members) {
+        crate::catalog_atomic_source::cold_prepared_members(declarations, &order)
+            .map_err(|error| CatalogSourceError::Group(Box::new(error)))?;
     }
     // Unused helpers are checked too. Recompilation deliberately avoids copying native slots.
     for function in order {

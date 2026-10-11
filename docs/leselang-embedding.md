@@ -155,7 +155,8 @@ rebinding to a new object with a reused identifier.
 The target core does not require SQLite, a network connection, or a daemon for
 an in-memory embedding. Durable journaling is a selectable integration with
 explicit recovery guarantees, not a guarantee implied by all embeddings. The
-current VM still links SQLite and product types; this separation remains work.
+reference VM can disable its default SQLite backend, but still uses product
+types; full host-neutral runtime/recovery separation remains work.
 Replay consumes recorded effect results rather than silently repeating external
 work. Recovery must retain fencing and idempotency rules; a language engine
 alone cannot guarantee exactly-once effects for arbitrary hosts.
@@ -1487,11 +1488,130 @@ reply protocols. Seq publishes one request per accepted reply; All accepts rever
 reply order and returns original ordered rows. The same borrowed meter runs
 `100 -> 79 -> 74`, without an additional meter or effect before explicit invocation.
 
-This is **uniform atomic IR preparation, not a new source group-helper profile**.
-Existing catalog group program entries still require direct registered member
-calls; helper expansion inside members remains a subsequent explicit opt-in
-compiler gate. No product VM migration, native scheduling, durable recovery or
-complete independent VM/repository extraction is claimed.
+This entry itself is **uniform atomic IR preparation, not a new source group-helper profile**.
+Legacy catalog group program entries still require direct registered member calls.
+The separate opt-in compiler gate below admits prepared source members; it does
+not change this runtime entry. No product VM migration, native scheduling, durable
+recovery or complete independent VM/repository extraction is claimed.
+
+### Prepared Atomic Group-Helper Program
+
+`catalog_group_source::compile_catalog_prepared_group_helper_program` explicitly
+extends the group-helper program profile with atomic helper members and pure
+Bind/Choose preparation. Every path must end in exactly one registered call to the
+same original operation. The legacy source, entry-only and group-helper entries
+retain their direct-member policy; there is no implicit upgrade or new grammar.
+
+```lese
+fn main() = all(left: prepare(n: 40), right: counter.right(n: 40))
+fn prepare(n: integer) = bind(amount: add(left: n, right: 1),
+    body: choose(when: true, then: counter.left(n: amount),
+        otherwise: counter.left(n: n)))
+```
+
+The shared physical, closed-reference, helper dependency, named/catalog and group
+header gates run across all declarations first. A native-free source-shape pass
+then classifies helper bodies once in dependency order, without AST substitution.
+Every member occurrence, including unused helpers, must have atomic shape before
+native compilation hooks. Pure-only members, nested groups, effectful operands,
+multi-effect bindings, scalar tails and mixed operations are rejected. These
+bounded facts are admission policy, not types or execution authority.
+
+Expanded IR reuses shared uniform prepared-call inference before branch mapping.
+It requires the same original schema row across all cold terminal calls; equal
+result tags are insufficient. The borrowed original operation and result row feed
+the existing group declaration mapping and whole group flow typing. Helpers keep
+shared hygiene, recompilation, nonrefunding work/depth quotas and shifted aggregate
+output limits, with no Clone/Debug/serde/Send requirements on native slots.
+
+Hosts prepare complete groups with `prepare_atomic_group_in_scope` while the lexical scope
+is live, then use the existing prepared Seq/All reply protocols. Preparation does
+not dispatch or capture helper-local values. Correlation is distinct from fresh
+publication authority; actual invocation, authentic replies and cancellation
+remain explicit host responsibilities. This is not result-dependent Seq operands,
+atomic external dispatch, a scheduler or durable execution authority.
+
+Parsed numeric-host tests cover forward aliases, helper arguments, pure Bind/Choose,
+original rows, wrong identities, reverse All replies, one outstanding Seq request,
+enclosing scope restoration and return value 83 with one meter `300 -> 260 -> 244`.
+Cold unused-member denials precede mapping; preparation refusal, fuel exhaustion,
+cancellation and fresh revocation do not dispatch successors or re-enter the caller.
+Already invoked effects are not rolled back. Native callbacks, cloning of host
+result views and Drop remain trusted, host-bounded and non-preemptible. This source
+profile does not promote product VM migration or independent VM/repository extraction.
+
+### Complete Atomic Group Preparation
+
+`prepared_call_evaluation::prepare_atomic_group_in_scope` joins the original flat
+Seq/All IR to complete prepared native members, without a host-owned preparation
+loop. `PreparedGroupEvaluationLimits` supplies one aggregate physical IR budget:
+the group root counts once, and every cold member subtree is shifted by one depth.
+The borrowed value prefix has separate bounded admission under the same pure
+limits, not a snapshot. Shared closed-name/arity checks run before native lookup.
+
+All member physical gates precede all native catalog selection. Every cold call
+then passes exact version, grants and named signatures, with one uniform original
+schema row per member. Different members may use different original operations;
+equal result tags do not join different rows within one member. All once-ordered
+native member admissions precede fuel, projection or value cloning. The mandatory
+host callback corroborates each original branch/declaration and current policy
+against its original schema; it must also bound its own work and native payloads.
+These are observations, not reusable dispatch grants or a replacement for whole
+cold type inference, which remains a compiler/host responsibility.
+
+Private atomic observations reuse the same catalog selector and synchronous
+executor as `prepare_atomic_call_in_scope`. One separate native group reservation
+and one member reservation precede selected execution; each actual call root is
+charged once. The original `Fuel` and still-live `ScopeFrame` are borrowed through
+all preparation. There is no argument replay, prefix copying, helper-local capture,
+or second evaluator. There is no native Clone/Debug/serde/Send requirement. Only one complete
+move-only `PreparedNativeGroup` escapes; failures/unwind release prepared prefixes
+and temporary locals without partial output, retries, refunds or rollback.
+
+Tests cover two distinct original rows, native admissions before projection,
+unknown cold operations and mixed-row branches, native refusal/unwind, inclusive
+whole-forest limits and all fuel exhaustion positions. The 64-member direct-call
+forest needs exactly 193 physical nodes at depth 2 and consumes `400 -> 143`.
+Parsed helper programs use this bridge through both original Seq/All protocols,
+authentic reply re-entry and enclosing return 83 on `300 -> 260 -> 244`.
+Legacy single-call preparation and legacy direct-member host costs remain unchanged.
+Preparation does not invoke effects: fresh publication/invocation authority,
+authentic replies, scheduling and cancellation delivery stay host-owned. Native
+callbacks, result-view cloning and Drop remain trusted and non-preemptible. This
+does not add result-dependent Seq operands, durable recovery, product VM migration
+or complete independent VM/repository extraction.
+
+### Headless GUI Host Vertical
+
+`crates/leselang-hir/tests/prepared_gui_host.rs` is a second, unrelated host schema
+for the prepared-helper pipeline. This is a headless GUI protocol model, not an
+Avalonia/native-window adapter or an automatic framework binding. Its native
+keys, fields, declarations and input envelopes need no Clone/Debug/serde/Send.
+Only host-owned result views and type observations opt into cloning.
+
+`label.set_text(target, text)` returns a string acknowledgement;
+`widget.set_visible(target, visible)` returns a boolean acknowledgement. Parsed
+forward helpers prepare these heterogeneous operations through the existing
+compiler and `prepare_atomic_group_in_scope`, without a second evaluator or
+product operation DTO. Seq publishes one outstanding member; All accepts replies
+out of order and returns the original declaration order. Authenticated group
+assembly then restores both enclosing scopes and returns `"ready.!"`, using one
+meter with exact `1000 -> 948 -> 925` accounting. Preparing, waiting and accepting
+replies do not invoke effects, project fields or execute the caller.
+
+The adapter rechecks current widget generation and capability leases at
+preparation, publication, actual invocation, acceptance and re-entry. Wrong
+identity, foreign schema, wrong scalar type, stale generation and oversized
+text preserve the original rejected input buffer. Reordered enclosing rows cannot
+enter the caller. Cancellation or revocation stops the next Seq publication;
+revoked already-prepared All data cannot authorize an invocation. Every fuel
+exhaustion position before dispatch and during enclosing re-entry is terminal,
+releases native acknowledgement views and never retries a mutation. Already
+applied widget changes are not rolled back. Native callbacks, captures, field
+copying and cleanup remain trusted, bounded by the adapter and non-preemptible.
+
+This closes a second-schema in-memory prepared-group acceptance proof, not product
+VM migration, durable recovery or complete independent VM/repository extraction.
 
 ### Shared Native Source Call Bridge
 
@@ -4806,6 +4926,305 @@ graphs or native multi-presentation batch protocol are added by this contract.
 
 ## Current Boundary And Next Proof
 
+### Optional Reference VM Storage
+
+`leselang-vm` now has an optional VM SQLite backend. The `sqlite-journal` feature
+is enabled by default, preserving the existing durable APIs, journal schema,
+restart/migration checks and all database-backed compatibility tests. An embedded
+consumer that needs only the reference VM's in-memory path can use:
+
+```toml
+leselang-vm = { path = "../leselang-vm", default-features = false }
+```
+
+`Vm::new` and `Vm::new_with_limits` reuse the existing ephemeral journal and
+evaluator. Disabling the feature removes `rusqlite` and `libsqlite3-sys` from the
+normal/build dependency closure, including the bundled native SQLite build.
+`Vm::open_journal` and `Vm::open_journal_with_limits` are unavailable in this
+configuration: there is no silent memory fallback or fake durable success.
+Cargo features are additive; another dependency enabling `sqlite-journal` restores
+the backend. This is a build/storage choice, not a capability or security boundary.
+
+Database-dependent mixed/durable suites explicitly require `sqlite-journal`;
+existing memory-only suites and `tests/ephemeral_profile.rs` run in both modes.
+CI separately tests/lints the database-free reference VM and the default/all-feature
+workspace. The new vertical covers typed helper/scalar wire compatibility,
+reply-gated Seq with one saved budget, out-of-order All followed by captured
+successor re-entry, forged images and terminal malformed replies, independent
+local roots, cancellation/deadlines, retry authority, backpressure and compaction.
+Memory state does not survive VM destruction, and serialized continuation data
+alone does not restore a completed outbox. Hosts still own cross-VM routing and
+current dispatch authority; equal local token text is not global execution identity.
+
+This removes mandatory VM SQLite linkage, not product DTO coupling. The reference
+VM still depends on Leserpent command/result contracts and recovery frames.
+It is not the complete product-free independent VM, optional host-neutral durable
+backend or repository extraction gate.
+
+### Shared Owned Capture Data
+
+The reference VM now uses runtime-core's `CapturedBindings<Body, Result, Group>`,
+`ScalarBinding`, `ProjectedBinding<Result>`, `ProjectedGroupBinding<Group>` and
+`ProjectedGroup<Result>` as its exact five legacy capture types, without conversion
+wrappers or a second saved-data model. The body and result/group schemas are
+explicit native parameters; two unrelated schemas and move-only thread-local
+payloads work without adding Clone/Debug/serde/Default/Send/Sync bounds at construction.
+Derived traits and thread ownership are conditional, not universally promised.
+
+These containers are unchecked mutable data, not executable continuations,
+authentic receipts, authority grants or a host-neutral durable recovery protocol.
+Their closed serde containers preserve optional-array omission/defaults and all
+required fields, but the host still bounds ingress and validates names, counts,
+types, schema/version, original image and live authority before re-entry. Native
+Debug/serde/Drop remain host code; payload diagnostics are not redacted. The private
+reference adapter retains its original lexical/projection/group checks and schema
+selection. Frozen capture JSON, original buffer ownership, actual successor
+re-entry, forged-frame rejection and exact journal bytes across restart are tested
+with unchanged fuel and terminal receipt replay. Product `Computation`,
+`ProjectedResult` and effect-specific recovery semantics remain reference-owned.
+This closes capture DTO ownership, not the independent VM acceptance gate.
+
+### Shared Structural Capture Validation
+
+The real reference VM delegates its saved-frame and projected-group structural
+paths to runtime-core's `validate_captured_bindings()` and
+`validate_projected_group()`. Explicit inclusive policies keep name byte limits,
+saved-count limits and native group syntax outside automatic DTO construction.
+Zero limits are not repaired; an inverted group interval rejects every group.
+Frame order is count, pending name, all scalar rows, result rows, group rows, body.
+Each result/group row keeps name-before-native interleaving; body runs last once.
+Group order is count, all original names and exact uniqueness, then ordered
+member result hooks. Invalid name syntax precedes duplicate detection at that row.
+Count/pending/scalar refusal runs no native hook; early group count/name refusal
+runs no member result hook. Nothing normalizes, copies or reorders saved data.
+
+`CaptureStructureError<External>` keeps native errors unchanged with their original
+positions; its payload-free Debug/Display never invoke native formatters. Native
+data/errors need no Clone/Debug/serde/Default/Send/Sync bounds. Trusted callbacks
+can mutate interior state or unwind; no callback preemption or rollback is promised.
+Success is an instant data check, not a lasting certificate or execution grant.
+These explicit validators do not authenticate receipts, original images or schema
+identity, enforce complete lexical masks or define native operation domains.
+The adapter retains those checks, original fault mapping, result-flow checks,
+saved fuel and durable replay ownership. Frozen wire, malformed/forged frames and
+exact journal bytes across restart remain covered in both reference build profiles
+where applicable. This is not product-free execution or repository extraction.
+
+### Shared Captured Scope Entry
+
+The real reference VM now delegates restored-projection scope assembly to
+`with_captured_scope()`. This borrows original saved names on a nested `ScopeFrame`
+of the caller's original stack and moves explicit native scope values in scalar,
+result, group, pending-name order before one body hook. Each native value hook
+runs once before its row's duplicate check, preserving preparation/insertion
+interleaving without an extra preflight pass. All names share one namespace;
+collisions with the visible parent prefix and earlier capture rows stop later
+hooks. Nested capture entry keeps outer names live and restores its own suffix.
+
+Normal return, refusal and unwind restore the original suffix boundary, not
+native interior mutations. Native data, scope values, outputs and errors need no
+Clone/Debug/serde/Default/Send/Sync bounds. `CaptureScopeError<External>` reports
+original positions and retains native errors unchanged; payload-free Debug/Display
+never invoke native formatters. Drop is trusted and destructor unwind propagates;
+a second cleanup panic can abort. This is not callback preemption or rollback.
+Outputs and native errors remain locally owned until scope cleanup finishes;
+destructor unwind releases them rather than leaking a prematurely moved return.
+
+This helper does not validate existing prefix uniqueness, capture bounds, native
+schemas, authentic receipts or durable authority. Hosts admit input and callback
+work first, validate names/types, charge their original meter and own execution.
+Scalar names occupy slots without granting fields in the reference adapter;
+operation masks, version-closed projections, cold-branch field policy and the full canonical
+type checker remain product policy. No syntax, continuation/journal bytes,
+`LSV1405`, saved fuel or once-only terminal replay behavior changes. Scope entry
+is not a saved execution frame or an automatic execution grant, and is not the
+complete independent VM/repository extraction gate.
+
+### Shared Projection Access Walk
+
+`leselang_hir::projection_access::observe_projection_accesses()` is available
+without the reference profile and now drives the real VM's restored-field checks.
+It walks the shared host-parameterized IR, preserving ordered argument/group
+children, both conditional branches, recovery fallbacks and zero-iteration
+loop/fold bodies. An iterative physical node/depth preflight includes cold
+branches and completes before any native hook; inclusive host limits cannot
+exceed the HIR safety ceilings. It does not evaluate conditions or dispatch work.
+
+`ProjectionAccessPolicy` explicitly owns local observations, field admission,
+opaque host/call/member metadata and conditional joins. Observation, native IR
+slots and errors need no Clone/Debug/serde/Default/Send/Sync bounds. Original names
+are borrowed on the caller's scope; temporary suffixes are restored on success,
+refusal and unwind. Owned outputs/errors stay local until suffix cleanup finishes.
+Native hooks, interior mutations and destructors remain trusted; no callback
+preemption or rollback is provided. Redacted diagnostics retain original native
+errors and their phase without invoking native formatters.
+
+The reference adapter still owns version-closed field masks, field intersection,
+group member operation matching and member fallback. The complete canonical type
+checker remains required: unknown/scalar-only locals, native payloads, name grammar,
+scalar bounds, schemas and execution authority are not validated by this observer.
+Success is an instant observation, not a cached certificate or execution grant.
+Legacy `LSV1405`, frozen wire, saved fuel, receipts, journal restart and once-only
+successor replay remain unchanged. This is not the complete independent VM or
+repository extraction gate. Native-only and separate-workspace consumers exercise
+unrelated borrowed and move-only schemas without product field masks or SQLite.
+
+### Shared Stateful Capture Re-entry
+
+`with_captured_scope_state()` supplies `CaptureScopeHooks` with sequential reborrows
+of one original caller-owned mutable context. Scalar, result, group, pending and
+body hooks share it without a context clone/reset, new meter, internal mutable
+wrapper or serialization. The existing closure-only API delegates with unit state.
+Native contexts may be unsized, move-only or GUI-thread-local; no extra
+Clone/Debug/serde/Default/Send/Sync bounds are required. Stable capture data can be
+borrowed into outputs; temporary context reborrows and scope-owned values cannot.
+
+The real reference VM now routes atomic and group execution re-entry through this
+shared entry. Scalar/projection preparation and body evaluation charge the original
+Fuel with unchanged costs, including preparation before duplicate-name refusal.
+Failed charges are atomic, earlier successful charges are not refunded, and scope
+cleanup does not roll back native context mutations. Native errors keep their
+original ownership and positions. Uncalled once hooks and remaining mutable hook
+captures are released while outputs/errors are still locally owned; destructor
+unwind propagates. Native callback-internal cleanup remains the callback's
+responsibility, and a second cleanup panic may abort. There is no preemption.
+
+The adapter must still admit capture bounds, native schemas, canonical types,
+authentic receipts and durable authority before entry. The native group contract
+continues to reject saved result/group rows rather than granting new group scope.
+Supplying a mutable context is not a saved execution frame or execution grant.
+Frozen pre-refactor comparisons cover every original fuel boundary, duplicates,
+body faults, effect tails and successor capture; real memory restore with a fresh
+VM retains saved fuel and once-only terminal replay. Existing journal/restart
+proofs remain required. Syntax, frozen wire, error codes and replay authority are
+unchanged. This is not a complete independent VM or repository extraction gate.
+
+### Shared Stateful Capture Snapshot
+
+`snapshot_captured_scope_state()` prepares the complete visible lexical prefix,
+including parent bindings, without mutating it. Explicit inclusive
+`CaptureSnapshotLimits` preflight the count, pending name and every saved name's
+UTF-8 byte length before allocation or native hooks. Native name grammar,
+uniqueness, scalar bounds, payload limits, schemas and execution authority are
+not implied by these storage ceilings.
+
+`CaptureSnapshotHooks` prepares each row once in original lexical order, then
+materializes the body once after all rows. `CapturedValue` moves native payloads
+into the scalar/result/group arrays; each array preserves its original order.
+Names are explicitly copied for owned capture data. The original mutable context
+and Fuel may be unsized or GUI-local, with no extra native trait bounds, new meter
+or implicit accounting. Adapters own scalar copying, projection snapshots, body
+materialization and exact charge order. Successful charges are not refunded and
+native mutations are not rolled back after refusal/unwind.
+
+Partial rows, uncalled body and remaining row-hook captures are released while
+outputs/errors stay local. Callback-internal cleanup and destructors remain
+trusted; unwind propagates and a second cleanup panic may abort. The real reference
+VM now delegates capture construction and re-entry to the shared core. Frozen
+comparisons cover every fuel boundary, mixed lexical/category order, exact capture
+bytes and native projection refusal precedence. Existing saved-fuel memory and
+journal/restart/once-only replay proofs remain required. Single-request restore
+cannot recreate reference group ownership: `LSV1409` still requires the complete
+group journal, even when captured data are present. Native schemas, canonical
+types, authentic receipts and durable authority remain adapter-owned. A successful
+snapshot is mutable data, not an execution grant or durable handle; no dispatch,
+rollback or serialization occurs. This is not a complete independent VM or
+repository extraction gate.
+
+### Shared Owned Prefix Cleanup
+
+`with_owned_scope_state()` consumes one complete lexical prefix and reborrows
+the original caller context. Keys remain borrowed and values are moved; the context
+may be unsized or GUI-local without extra native traits or an internal mutable
+wrapper. The body may add nested/suffix values. Outputs/errors stay local until
+suffix and then prefix cleanup finish, including on refusal or destructor unwind.
+Charges and native mutations are not refunded or rolled back. Name/type/bounds
+and authority admission remain adapter-owned; owned bindings are not a grant.
+
+The shared HIR uses this entry for initial execution and single/stacked accepted
+re-entry. Remaining captures, replies, return frames and original identities also
+finish framework-owned cleanup before output/error handoff. Opaque cold refusals,
+projection errors and prepared successors stay owned during that cleanup. Session
+correlation refusal likewise releases its unused continuation while the error is
+still local. A cleanup unwind keeps HostUncertain sealed: no completion, new
+publication, refund, rearm or automatic retry is permitted.
+
+Native callbacks, callback-internal cleanup and destructors remain trusted;
+unwind propagates and a second cleanup panic may abort. This is framework-owned
+cleanup ordering, not callback preemption or a transaction around native effects.
+The original cold admission, fuel debit order, canonical types, reply authority,
+frame quotas and wire/journal/replay rules are unchanged. Regression proofs check
+exact destructor counts for leaked native errors and unpublished successors,
+multiple unused return frames, owned prefixes and GUI-local original meters.
+This is not a complete independent VM or repository extraction gate.
+
+### Shared Committed Checkpoint Recovery
+
+`CheckpointRecovery<Key, Pending, Completed>` stages already-decoded native rows
+without exposing partial maps. Inclusive record and sequence ceilings precede
+native key comparison; duplicates across pending/completed partitions reject the
+whole pass instead of overwriting a row. Refusal or comparison unwind closes the
+pass before cleanup. No Clone/Debug/serde/Send/Sync bounds are imposed on native
+data; keys alone require Ord. Sequence values are not global execution identities.
+
+`finish()` borrows the complete `RecoveredCheckpoint` for one final host-owned
+graph validation and storage commit. Owned host state and uncalled callback
+captures finish cleanup before the snapshot, original commit metadata or native
+error is handed off. Failed commit discards staged maps. Cleanup unwind cannot
+publish the snapshot; a successful commit followed by unwind is uncertain, not
+permission to replay effects. Native comparison, callbacks, callback-internal
+cleanup and Drop remain trusted; no preemption or automatic rollback is supplied.
+
+The real reference SQLite loader uses this boundary inside its original immediate
+transaction, retaining bounded decoding, row/schema/deadline checks, dispatch,
+merge and audit validation, watermark repair, fault codes and frozen wire.
+Two unrelated consumer-owned byte formats prove saved budgets and completed-row
+partitioning without product crates or SQLite. Consumer serialization/version and
+live authority remain explicit host policy. These are storage protocol proofs,
+not a complete native durable evaluator or automatic restart authority.
+
+Recovered maps are mutable data, not authenticated receipts or execution grants.
+The adapter must hold the same storage snapshot/transaction across loading and
+finalization, admit aggregate bytes/graphs, verify original frames and current
+authority, and own dispatch/replay/migration. Product-coupled saved execution
+frames and complete reference-adapter compatibility remain extraction blockers.
+
+### Native Source Checkpoint
+
+`cargo dev package leselang --output target/leselang-native-source --verify`
+exports syntax, runtime-core and native HIR/session source as a self-contained
+MIT workspace. The output parent must exist and the destination must be fresh.
+`--dry-run` performs bounded source planning without writes or verifier calls.
+The Rust workflow refuses source symlinks, unsafe/protected paths, duplicate or
+oversized inventory and existing destinations. Failed verification or changed/
+unplanned export files leave no published checkpoint. A sibling reservation
+serializes cooperating publishers; this is a trusted local-filesystem workflow,
+not a sandbox against hostile concurrent filesystem mutation.
+
+Production Rust files and native/mixed tests are copied byte-for-byte from the
+same implementation. Product-only modules/tests and the optional product
+dependency stay behind. Explicit crate metadata replaces monorepo inheritance;
+registry versions/checksums come from the original locked transitive closure.
+The reference cfg name is recognized only for unchanged unreachable guards,
+not an enableable Cargo feature, so exported all-features builds remain native.
+Packages are `publish = false` until a separate publication decision.
+
+The export has its own locked/offline CI and a separate `consumer/` workspace
+whose relative dependencies point only into the exported source. `--verify`
+checks local dependency paths, runs all native tests and strict lints, then runs
+the consumer's checkpoint/owned-scope/control-session/return-stack/headless-GUI tests and
+strict lints. Reusing a target cache does not provide source or product metadata.
+`export-manifest.json` records relative file paths, exact SHA-256 and provenance;
+`verified` becomes true only after those checks and exact inventory revalidation.
+It is not a signature or a durable execution/authority certificate.
+
+This closes the native source portability proof, **not the complete independent
+VM or repository extraction gate**. Product-coupled durable recovery and reference
+wire/auth/GUI compatibility remain separate; FFI and an OS shell are deferred.
+The repository CI runs this export in its temporary directory outside the monorepo.
+
+### Remaining Product Boundaries
+
 `leselang-syntax`, `leselang-host-contract`, and `leselang-hir` have no Gewyvern
 or Leserpent product crates in their dependency closures. That is a dependency
 proof, not full semantic independence: the default `leserpent-profile` HIR still
@@ -4820,7 +5239,7 @@ adapter and should remain outside the standalone core.
 The first extracted runtime component is `leselang-runtime-core`: admission
 ownership, finite backoff, fuel accounting, portable clock/deadline and retry-delay arithmetic
 plus shared closed scalar data/operation, bounded control decisions, owned fold
-traversal, incremental list construction and borrowed lexical bookkeeping with
+traversal, incremental list construction, owned capture data and borrowed lexical bookkeeping with
 the `Fault` DTO.
 Its only normal dependency is `serde`, with `serde_json` used only in tests; its
 normal, build and test dependencies contain no other workspace crate. The reference
@@ -4916,10 +5335,16 @@ another GUI framework. Prioritize complete vertical proofs over more isolated he
 Catalog-only tests prove registration/selection/binding and generic node reuse.
 Additional parsed source/session verticals now prove native typed calls, scoped
 helper/group operands, out-of-order member replies, bounded returns and cancellation
-without the product profile or SQLite. These shared in-memory profiles are not the
+without the product profile or SQLite. The prepared-helper profile also covers an
+unrelated headless GUI schema with heterogeneous string/boolean acknowledgements,
+current widget-generation leases and terminal enclosing-return exhaustion.
+These shared in-memory profiles are not the
 complete independent VM or durable extraction gate. Remaining blockers include
 reference adapter migration/compatibility, product-coupled recovery frames and
-mandatory VM SQLite linkage in the existing backend, plus independent source metadata/CI.
+host-neutral durable recovery. Native source metadata/CI now have the checkpoint
+proof above; complete runtime publication remains separate. Mandatory
+VM SQLite linkage has been removed by the optional backend above; product
+contracts remain in the reference VM's database-free dependency closure.
 If any acceptance proof remains missing at 2.3.0, retain the shared implementation
 in this repository and record the blocker instead of shipping a misleading split.
 Physical extraction follows acceptance, not directory relocation alone. FFI

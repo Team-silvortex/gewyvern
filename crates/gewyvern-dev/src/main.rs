@@ -10,6 +10,7 @@ use std::time::{Instant, SystemTime};
 
 use ring::digest::{Context, SHA256, digest};
 
+mod leselang;
 mod version;
 
 const CONTROL_BUNDLE_RID: &str = "linux-x64";
@@ -33,6 +34,7 @@ const USAGE: &str = r#"Usage:
   cargo dev build [--scope core|control|desktop|all] [--release] [--restore] [--dry-run]
   cargo dev package linux [--format layout|deb|rpm|all] [--skip-build] [--out-dir PATH] [--dry-run]
   cargo dev package control [--output DIR] [--dry-run]
+  cargo dev package leselang [--output DIR] [--verify] [--dry-run]
   cargo dev package desktop [--output APP] [--silvortex-issuer URL] [--identity ID --notary-profile PROFILE] [--dry-run]
   cargo dev deploy control [--output DIR] [--reuse] [--no-start] [--keep-releases N] [--dry-run]
   cargo dev deploy desktop [--output APP] [--silvortex-issuer URL] [--identity ID --notary-profile PROFILE] [--launch] [--dry-run]
@@ -175,6 +177,7 @@ enum Workflow {
     Check(BuildOptions),
     Build(BuildOptions),
     PackageLinux(LinuxPackageOptions),
+    PackageLeselang(leselang::Options),
     Control(ControlOptions),
     Desktop(DesktopOptions),
 }
@@ -192,11 +195,12 @@ impl Workflow {
             Some("build") => parse_build(arguments).map(Self::Build),
             Some("package") => match arguments.next().as_deref() {
                 Some("linux") => parse_linux_package(arguments).map(Self::PackageLinux),
+                Some("leselang") => leselang::Options::parse(arguments).map(Self::PackageLeselang),
                 Some("control") => parse_control(arguments, false).map(Self::Control),
                 Some("desktop") => parse_desktop(arguments, false).map(Self::Desktop),
                 Some(value) => Err(format!("unknown package target `{value}`\n{USAGE}")),
                 None => Err(format!(
-                    "package requires linux, control, or desktop\n{USAGE}"
+                    "package requires linux, control, desktop, or leselang\n{USAGE}"
                 )),
             },
             Some("deploy") => match arguments.next().as_deref() {
@@ -464,6 +468,13 @@ fn execute(workflow: Workflow, root: PathBuf) -> Result<WorkflowOutcome, String>
             let artifact = package_linux(&root, &options)?;
             Ok(WorkflowOutcome {
                 action: "package-linux",
+                artifact: Some(artifact),
+            })
+        }
+        Workflow::PackageLeselang(options) => {
+            let artifact = leselang::export(&root, &options)?;
+            Ok(WorkflowOutcome {
+                action: "package-leselang-native-source",
                 artifact: Some(artifact),
             })
         }
