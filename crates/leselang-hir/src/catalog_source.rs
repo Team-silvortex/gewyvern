@@ -152,6 +152,21 @@ pub(crate) fn cold_catalog_profile<Operation, Domain, Declaration, Capability, E
     host: &SourceCallHost<'_, '_, Operation, Domain, Declaration, Capability>,
     limits: CatalogSourceLimits,
     groups: bool,
+    local_call: impl FnMut(&Expression) -> Result<bool, CatalogSourceError<Error>>,
+) -> Result<usize, CatalogSourceError<Error>>
+where
+    Operation: Borrow<str> + PartialEq,
+    Capability: PartialEq,
+{
+    cold_catalog_with_repeat(source, host, limits, groups, false, local_call)
+}
+
+pub(crate) fn cold_catalog_with_repeat<Operation, Domain, Declaration, Capability, Error>(
+    source: &Expression,
+    host: &SourceCallHost<'_, '_, Operation, Domain, Declaration, Capability>,
+    limits: CatalogSourceLimits,
+    groups: bool,
+    repeat: bool,
     mut local_call: impl FnMut(&Expression) -> Result<bool, CatalogSourceError<Error>>,
 ) -> Result<usize, CatalogSourceError<Error>>
 where
@@ -166,10 +181,15 @@ where
         } = node
         {
             let at = span(node);
-            if callee == "repeat" || (!groups && matches!(callee.as_str(), "seq" | "all")) {
+            if (!repeat && callee == "repeat")
+                || (!groups && matches!(callee.as_str(), "seq" | "all"))
+            {
                 return Err(CatalogSourceError::UnsupportedSource { span: at });
             }
-            if !matches!(callee.as_str(), "seq" | "all") && !intrinsic(node) && !local_call(node)? {
+            if !matches!(callee.as_str(), "seq" | "all" | "repeat")
+                && !intrinsic(node)
+                && !local_call(node)?
+            {
                 if calls >= limits.max_calls {
                     return Err(CatalogSourceError::Type(CallFlowTypeError::CallLimit));
                 }

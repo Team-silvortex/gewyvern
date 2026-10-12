@@ -28,6 +28,7 @@ mod fold;
 mod fuel;
 mod group_graph;
 mod host_result;
+mod local_execution;
 mod outcome_summary;
 mod owned_scope;
 mod projection;
@@ -97,6 +98,7 @@ pub use group_graph::{
     validate_group_graph,
 };
 pub use host_result::{HostResultDomain, HostResultError, validate_host_result};
+pub use local_execution::{LocalExecutionLease, LocalExecutionScope, ScopedLocalExecution};
 pub use outcome_summary::{
     OrderedOutcomeSummary, OutcomeOrder, OutcomeSummary, OutcomeSummaryError,
 };

@@ -7,23 +7,33 @@ license.workspace = true
 
 [features]
 default = ["sqlite-journal"]
-sqlite-journal = ["dep:rusqlite"]
+leserpent-profile = [
+    "dep:leselang-command",
+    "dep:leselang-host-contract",
+    "dep:leserpent-domain",
+    "dep:serde",
+    "dep:serde_json",
+    "leselang-hir/leserpent-profile",
+]
+sqlite-journal = ["leserpent-profile", "dep:rusqlite"]
 
 [dependencies]
-leselang-command = { path = "../leselang-command" }
-leselang-hir = { path = "../leselang-hir" }
-leselang-host-contract = { path = "../leselang-host-contract" }
+leselang-command = { path = "../leselang-command", optional = true }
+leselang-hir = { path = "../leselang-hir", default-features = false }
+leselang-host-contract = { path = "../leselang-host-contract", optional = true }
 leselang-runtime-core = { path = "../leselang-runtime-core" }
-leserpent-domain = { path = "../leserpent-domain" }
-rusqlite = { workspace = true, optional = true }
-serde.workspace = true
-serde_json.workspace = true
-
-[dev-dependencies]
 leselang-syntax = { path = "../leselang-syntax" }
+leserpent-domain = { path = "../leserpent-domain", optional = true }
+rusqlite = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
+[[example]]
+name = "language_benchmark"
+required-features = ["leserpent-profile"]
 
 # These suites exercise durable recovery or compare both backends.
-# Memory-only integration suites remain available without default features.
+# Memory reference suites use the explicit leserpent-profile without SQLite.
 [[test]]
 name = "admission"
 required-features = ["sqlite-journal"]
@@ -167,3 +177,64 @@ required-features = ["sqlite-journal"]
 [[test]]
 name = "text_projections"
 required-features = ["sqlite-journal"]
+
+# The released memory evaluator is still an explicit product specialization.
+[[test]]
+name = "argument_binding"
+required-features = ["leserpent-profile"]
+
+[[test]]
+name = "capture_contract"
+required-features = ["leserpent-profile"]
+
+[[test]]
+name = "control_boundaries"
+required-features = ["leserpent-profile"]
+
+[[test]]
+name = "fold_boundaries"
+required-features = ["leserpent-profile"]
+
+[[test]]
+name = "generic_ir"
+required-features = ["leserpent-profile"]
+
+[[test]]
+name = "ephemeral_profile"
+required-features = ["leserpent-profile"]
+
+[[test]]
+name = "projection_contract"
+required-features = ["leserpent-profile"]
+
+[[test]]
+name = "list_construction"
+required-features = ["leserpent-profile"]
+
+[[test]]
+name = "named_signature"
+required-features = ["leserpent-profile"]
+
+[[test]]
+name = "scalar_operations"
+required-features = ["leserpent-profile"]
+
+[[test]]
+name = "recovery_boundaries"
+required-features = ["leserpent-profile"]
+
+[[test]]
+name = "projection_scope"
+required-features = ["leserpent-profile"]
+
+[[test]]
+name = "value_contract"
+required-features = ["leserpent-profile"]
+
+[[test]]
+name = "scalar_contract"
+required-features = ["leserpent-profile"]
+
+[[test]]
+name = "scope_boundaries"
+required-features = ["leserpent-profile"]

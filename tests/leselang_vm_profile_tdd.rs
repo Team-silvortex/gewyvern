@@ -50,7 +50,8 @@ fn shared_watermark_planning_keeps_native_validation_reads_and_commit_before_pub
     assert!(allocation.find("SELECT next_sequence").unwrap() < numeric);
     assert!(numeric < allocation.find("UPDATE vm_metadata").unwrap());
     assert!(allocation.find(".commit()").unwrap() < allocation.find("Ok(sequence)").unwrap());
-    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/lib.rs")).unwrap();
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
     let restore = vm
         .split("fn restore_inner(")
         .nth(1)
@@ -830,7 +831,8 @@ fn actual_atomic_and_group_saved_bodies_use_the_shared_hir_entry_without_body_re
 
 #[test]
 fn saved_frame_is_shared_data_while_reference_restore_and_authority_remain_native() {
-    let code = fs::read_to_string(root().join("crates/leselang-vm/src/lib.rs")).unwrap();
+    let code =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
     for boundary in [
         "pub type ContinuationImage = leselang_runtime_core::ContinuationFrame<",
         "pub use leselang_runtime_core::ResourceBudget;",
@@ -954,7 +956,7 @@ fn tree(features: &[&str]) -> String {
 
 #[test]
 fn memory_vm_dependency_closure_omits_native_sqlite_without_claiming_product_independence() {
-    let dependencies = tree(&["--no-default-features"]);
+    let dependencies = tree(&["--no-default-features", "--features", "leserpent-profile"]);
     for absent in ["rusqlite", "libsqlite3-sys"] {
         assert!(
             !dependencies.lines().any(|l| l.starts_with(absent)),
@@ -976,6 +978,55 @@ fn memory_vm_dependency_closure_omits_native_sqlite_without_claiming_product_ind
 }
 
 #[test]
+fn native_vm_facade_dependency_closure_omits_all_product_storage_and_gui_contracts() {
+    let dependencies = tree(&["--no-default-features"]);
+    for required in [
+        "leselang-vm",
+        "leselang-hir",
+        "leselang-runtime-core",
+        "leselang-syntax",
+    ] {
+        assert!(dependencies.lines().any(|line| line.starts_with(required)));
+    }
+    for forbidden in [
+        "leselang-command",
+        "leselang-host-contract",
+        "leserpent",
+        "silvortex",
+        "rusqlite",
+        "libsqlite3-sys",
+        "tokio",
+        "gewyvern",
+        "serde_json",
+    ] {
+        assert!(
+            !dependencies.lines().any(|line| line.starts_with(forbidden)),
+            "native VM retained {forbidden}"
+        );
+    }
+    let root_source = fs::read_to_string(root().join("crates/leselang-vm/src/lib.rs")).unwrap();
+    assert!(
+        root_source.contains(
+            "#[cfg(feature = \"leserpent-profile\")]\ninclude!(\"leserpent_profile.rs\");"
+        )
+    );
+    let native = fs::read_to_string(root().join("crates/leselang-vm/src/native.rs")).unwrap();
+    assert!(
+        native.contains("pub use leselang_hir::effect_stack_session::StackedControlSession as Vm;")
+    );
+    assert!(!native.contains("fn poll"));
+    assert!(!native.contains("include!(\"leserpent_profile"));
+    let workflow = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(
+        workflow.contains("cargo +1.98.0 test -p leselang-vm --locked --no-default-features\n")
+    );
+    assert!(workflow.contains("cargo +1.98.0 clippy -p leselang-vm --locked --no-default-features --all-targets -- -D warnings"));
+    assert!(workflow.contains(
+        "rustfmt +1.98.0 --edition 2024 --check crates/leselang-vm/src/leserpent_profile.rs"
+    ));
+}
+
+#[test]
 fn default_and_explicit_sqlite_features_keep_the_durable_backend_and_released_api() {
     for flags in [
         &[][..],
@@ -987,9 +1038,10 @@ fn default_and_explicit_sqlite_features_keep_the_durable_backend_and_released_ap
     }
     let manifest = fs::read_to_string(root().join("crates/leselang-vm/Cargo.toml")).unwrap();
     assert!(manifest.contains("default = [\"sqlite-journal\"]"));
-    assert!(manifest.contains("sqlite-journal = [\"dep:rusqlite\"]"));
+    assert!(manifest.contains("sqlite-journal = [\"leserpent-profile\", \"dep:rusqlite\"]"));
     assert!(manifest.contains("rusqlite = { workspace = true, optional = true }"));
-    let code = fs::read_to_string(root().join("crates/leselang-vm/src/lib.rs")).unwrap();
+    let code =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
     assert!(code.contains("journal: Journal::ephemeral()"));
     for method in ["open_journal(", "open_journal_with_limits("] {
         assert!(code.contains(&format!(
@@ -1024,6 +1076,7 @@ fn only_database_dependent_integration_suites_require_sqlite_and_memory_vertical
         .unwrap();
     let mut durable = 0;
     let mut memory = 0;
+    let mut native = 0;
     for target in vm["targets"].as_array().unwrap() {
         if target["kind"] != serde_json::json!(["test"]) {
             continue;
@@ -1035,16 +1088,25 @@ fn only_database_dependent_integration_suites_require_sqlite_and_memory_vertical
                 serde_json::json!(["sqlite-journal"])
             );
             durable += 1;
-        } else {
+        } else if target["name"] == "native_embedding" {
             assert!(
                 target["required-features"].is_null()
                     || target["required-features"] == serde_json::json!([])
+            );
+            assert!(source.contains("leselang_vm::native"));
+            assert!(!source.contains("leserpent_domain"));
+            native += 1;
+        } else {
+            assert_eq!(
+                target["required-features"],
+                serde_json::json!(["leserpent-profile"])
             );
             memory += 1;
         }
     }
     assert_eq!(durable, 36);
     assert_eq!(memory, 15);
+    assert_eq!(native, 1);
     let proof =
         fs::read_to_string(root().join("crates/leselang-vm/tests/ephemeral_profile.rs")).unwrap();
     assert!(!proof.contains("#[cfg("));
@@ -1064,8 +1126,8 @@ fn only_database_dependent_integration_suites_require_sqlite_and_memory_vertical
 #[test]
 fn ci_and_documentation_distinguish_database_free_reference_vm_from_independent_language_vm() {
     let workflow = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
-    assert!(workflow.contains("cargo +1.98.0 test -p leselang-vm --locked --no-default-features"));
-    assert!(workflow.contains("cargo +1.98.0 clippy -p leselang-vm --locked --no-default-features --all-targets -- -D warnings"));
+    assert!(workflow.contains("cargo +1.98.0 test -p leselang-vm --locked --no-default-features --features leserpent-profile"));
+    assert!(workflow.contains("cargo +1.98.0 clippy -p leselang-vm --locked --no-default-features --features leserpent-profile --all-targets -- -D warnings"));
     assert!(workflow.contains("cargo test --workspace --all-features --locked"));
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     let section = docs

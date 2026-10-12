@@ -1409,7 +1409,8 @@ fn actual_result_validation_is_product_free_and_shared_by_reference_raw_value_bi
         )
     );
     assert!(reference.contains("crate::group_binding::value_type(reply)"));
-    let vm = std::fs::read_to_string(root.join("crates/leselang-vm/src/lib.rs")).unwrap();
+    let vm =
+        std::fs::read_to_string(root.join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
     assert!(vm.contains("use host_result::{accept_bound_value, validate_bound_value};"));
     assert!(vm.contains("match accept_bound_value(image, &value)"));
     assert!(!vm.contains("fn validate_bound_value("));
@@ -1735,11 +1736,11 @@ fn atomic_group_preparation_shares_whole_cold_admission_and_original_execution_w
     let vertical =
         std::fs::read_to_string(root.join("crates/leselang-hir/tests/catalog_group_source.rs"))
             .unwrap();
-    assert_eq!(
+    assert!(
         vertical
             .matches("ParamRuntime::with_prepared_groups(&domain)")
-            .count(),
-        3
+            .count()
+            >= 3
     );
     assert!(vertical.contains("let prepared = prepare_atomic_group_in_scope("));
     assert!(vertical.contains("assert_eq!(session.fuel_remaining(), 244)"));
@@ -2288,7 +2289,7 @@ fn shared_owned_sequence_source_moves_native_children_without_effect_round_trips
         "cold_headers(expression, limits.max_branches)",
         "lower(index, argument)",
         "members.is_empty()",
-        "MAX_LOCAL_NAME_BYTES",
+        "joined_member_name_fits(&argument.name, &branch.name)",
         "physical(&branch.value, 1, &mut budget)",
         "atomic_candidate(&branch.value)",
         "admit(index, member, argument, branch)",
@@ -2386,7 +2387,7 @@ fn shared_repeat_sequence_source_reserves_whole_forests_before_native_factories_
         ".lower_sequence(body)",
         "let expanded_width = width",
         "expected.nodes - 1",
-        "MAX_LOCAL_NAME_BYTES",
+        "joined_member_name_fits(&prefix, &branch.name)",
         "let cost = measure_source_cost",
         "cost.nodes - 1",
         "Vec::with_capacity(count)",
@@ -7803,9 +7804,7 @@ fn prepared_source_member_profile_reuses_cold_helper_facts_and_original_uniform_
     let program =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/catalog_program.rs")).unwrap();
     assert!(
-        program
-            .find("cold_prepared_members(declarations, &order)")
-            .unwrap()
+        program.find("cold_prepared_members(").unwrap()
             < program.find("for function in order {").unwrap()
     );
     let facts =
@@ -7817,8 +7816,36 @@ fn prepared_source_member_profile_reuses_cold_helper_facts_and_original_uniform_
         "for helper in ordered_helpers",
         "for function in declarations",
         "Shape::Atomic(_)",
+        "sequential_exports(node, max_branches)?",
+        "joined_member_name_fits(&longest, name)",
+        "joined_member_name_fits(&argument.name, &name)",
     ] {
         assert!(facts.contains(required));
+    }
+    assert!(
+        facts.find(".checked_mul(count)").unwrap()
+            < facts.find("Vec::with_capacity(width)").unwrap()
+    );
+    let exports =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/group_exports.rs")).unwrap();
+    let join = exports
+        .split_once("fn joined_member_name_fits")
+        .unwrap()
+        .1
+        .split_once("#[derive")
+        .unwrap()
+        .0;
+    for required in [
+        "valid_argument_name(prefix)",
+        "valid_argument_name(member)",
+        "checked_add(2)",
+        "checked_add(member.len())",
+        "length <= MAX_LOCAL_NAME_BYTES",
+    ] {
+        assert!(
+            join.contains(required),
+            "shared export name bound lost {required}"
+        );
     }
     for forbidden in [
         "leserpent",
@@ -7854,6 +7881,9 @@ fn prepared_source_member_profile_reuses_cold_helper_facts_and_original_uniform_
         "prepared_member_inline_bind_choose_and_forward_aliases_use_original_uniform_rows",
         "prepared_member_expansion_keeps_shared_work_depth_group_and_shifted_output_limits",
         "prepared_member_native_failure_and_unwind_release_moved_output_without_retries",
+        "composed_export_faults_in_any_declaration_precede_all_native_hooks",
+        "cold_composed_export_limits_match_materialized_width_order_and_exact_name_boundaries",
+        "cold_composed_export_diagnostics_preserve_source_positions_without_native_payloads",
         "parsed_atomic_helper_members_use_seq_all_original_replies_and_one_enclosing_meter",
         "parsed_atomic_helper_members_preparation_refusal_or_fuel_exhaustion_never_dispatches",
         "parsed_atomic_helper_members_cancel_or_revocation_stops_next_publication_and_caller",
@@ -8361,6 +8391,63 @@ fn prepared_parallel_sessions_reuse_original_reply_core_without_argument_replay_
 }
 
 #[test]
+fn prepared_host_expression_entry_reuses_program_gates_without_synthetic_helpers() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/catalog_group_source.rs"))
+            .unwrap();
+    let entry = source
+        .split_once("pub fn compile_catalog_prepared_group_source")
+        .unwrap()
+        .1
+        .split_once("fn lower_group_catalog_expression")
+        .unwrap()
+        .0;
+    for pair in [
+        "preflight_closed_control_source(source, prefix,",
+        "cold_groups_with(source, limits, true,",
+        "cold_catalog_with_repeat(source, host,",
+        "cold_prepared_source(source, limits.max_branches)",
+        "lower_group_catalog_expression(",
+    ]
+    .windows(2)
+    {
+        assert!(entry.find(pair[0]).unwrap() < entry.find(pair[1]).unwrap());
+    }
+    for forbidden in [
+        "compile_catalog_program",
+        "Function {",
+        "parse(",
+        "Fuel::new",
+        "evaluate_",
+        "serde",
+        "unsafe ",
+    ] {
+        assert!(
+            !entry.contains(forbidden),
+            "expression entry gained {forbidden}"
+        );
+    }
+    assert!(entry.contains("PreparedExpression"));
+    let cold =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/catalog_atomic_source.rs"))
+            .unwrap();
+    assert!(cold.contains("cold_members(&function.body, ordered_helpers, &facts, max_branches)"));
+    assert!(cold.contains("cold_members(source, &[], &[], max_branches)"));
+    let proofs =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/catalog_group_source.rs"))
+            .unwrap();
+    for proof in [
+        "prepared_expression_uses_borrowed_prefix_without_helpers_or_legacy_profile_widening",
+        "prepared_expression_rejects_invalid_prefix_catalog_and_member_exports_before_mapping",
+        "prepared_expression_preserves_original_native_result_prefix_types",
+        "prepared_expression_preserves_output_bounds_and_move_only_cleanup_on_native_refusal",
+    ] {
+        assert!(proofs.contains(proof), "missing expression proof {proof}");
+    }
+}
+
+#[test]
 fn unrelated_gui_prepared_source_uses_shared_compiler_sessions_and_original_native_authority() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
@@ -8377,13 +8464,14 @@ fn unrelated_gui_prepared_source_uses_shared_compiler_sessions_and_original_nati
     }
     for required in [
         "compile_catalog_prepared_group_helper_program(",
+        "compile_catalog_prepared_group_source(",
         "prepare_atomic_group_in_scope(",
         "StackedEffectSession::new(",
         "Sequence::start(",
         "Parallel::start(",
         "assemble_group_reply(",
         "impl<'s> HostResultDomain<Ack<'s>> for Schema<'s>",
-        "impl ReplyAuthority<(u64, usize)>",
+        "impl ReplyAuthority<MemberIdentity>",
         "Rc::ptr_eq(&schema.result.owner, &self.widget)",
         "std::ptr::eq(branch.result_type.0, &schema.result)",
         "assert_eq!(prepared_fuel, 948)",
@@ -8396,6 +8484,9 @@ fn unrelated_gui_prepared_source_uses_shared_compiler_sessions_and_original_nati
         "gui_cold_types_missing_grants_preparation_refusal_and_exhaustion_never_invoke",
         "gui_prepared_parallel_data_is_not_a_grant_to_invoke_after_revocation",
         "gui_exhaustion_at_every_enclosing_reentry_debit_seals_without_replaying_mutations",
+        "scoped_gui_expression_reuses_one_compiled_tree_with_fresh_inputs_and_original_reply_sessions",
+        "scoped_gui_expression_runtime_inputs_are_not_authorized_by_compile_time_types",
+        "scoped_gui_expression_cancellation_and_revocation_fence_captured_external_inputs",
     ] {
         assert!(source.contains(required), "GUI host lost {required}");
     }
@@ -8414,4 +8505,153 @@ fn unrelated_gui_prepared_source_uses_shared_compiler_sessions_and_original_nati
         assert!(!source.contains(&format!("impl Clone for {native}")));
         assert!(!source.contains(&format!("impl std::fmt::Debug for {native}")));
     }
+}
+
+#[test]
+fn shared_gui_ir_proof_owns_execution_domains_instead_of_generation_only_receipts() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/prepared_gui_host.rs"))
+            .unwrap();
+    for required in [
+        "struct ExecutionIdentity(LocalExecutionLease)",
+        "self.0.same_scope(&other.0)",
+        "struct MemberIdentity",
+        "struct MemberDomain",
+        "HostResultDomain<Ack<'s>> for MemberDomain",
+        "self.identity != ack.identity",
+        "HostResultDomain<Collected<'ir, 's>> for Execution",
+        "self.identity != reply.identity",
+        "self.execution.correlated.replace(true)",
+        "self.authorize(&request.request.identity)?",
+        "left_scope.close()",
+        "shared_gui_ir_interleaves_scoped_executions_without_cross_accepting_receipts",
+        "shared_gui_parallel_barriers_reject_foreign_receipts_before_consuming_pending_members",
+        "gui_execution_cancellation_fences_late_dispatch_without_revoking_other_sessions",
+        "gui_execution_domains_are_single_use_and_foreign_dispatch_cannot_invoke",
+    ] {
+        assert!(
+            source.contains(required),
+            "missing execution isolation proof {required}"
+        );
+    }
+    assert!(!source.contains("identity: (GENERATION, index)"));
+    assert!(!source.contains("type Identity = u64"));
+    for native in ["ExecutionIdentity", "MemberIdentity", "Invocation"] {
+        assert!(!source.contains(&format!("impl Clone for {native}")));
+    }
+    let docs = std::fs::read_to_string(root.join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Shared IR Execution Isolation"));
+    assert!(docs.contains("not a cross-thread scheduler or a wire authentication protocol"));
+}
+
+#[test]
+fn local_execution_ownership_is_shared_by_the_native_gui_without_a_second_session() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let core =
+        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/local_execution.rs"))
+            .unwrap();
+    for required in [
+        "pub struct LocalExecutionScope",
+        "pub struct LocalExecutionLease",
+        "pub struct ScopedLocalExecution<Value>",
+        "Weak<Cell<bool>>",
+        "Weak::ptr_eq",
+        "impl Drop for LocalExecutionScope",
+        "drop(scope)",
+    ] {
+        assert!(
+            core.contains(required),
+            "missing native ownership primitive {required}"
+        );
+    }
+    for forbidden in [
+        "leselang_hir",
+        "leselang_vm",
+        "leserpent",
+        "unsafe ",
+        "Mutex",
+        "Atomic",
+        "serde",
+        "tokio",
+    ] {
+        assert!(!core.contains(forbidden), "local fence gained {forbidden}");
+    }
+    let native = std::fs::read_to_string(root.join("crates/leselang-vm/src/native.rs")).unwrap();
+    assert!(native.contains("pub use leselang_runtime_core as core"));
+    let proof =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/prepared_gui_host.rs"))
+            .unwrap();
+    for required in [
+        "LocalExecutionScope::new()",
+        "scope.bind(StackedEffectSession::new(",
+        "guarded_gui_owner_drop_or_unwind_revokes_escaped_work_without_poisoning_reuse",
+        "guarded_gui_owner_drop_rejects_late_receipt_without_consuming_pending_member",
+        "guarded_gui_explicit_close_fences_accepted_reentry_without_resetting_core_state",
+    ] {
+        assert!(
+            proof.contains(required),
+            "GUI adapter lost shared lifetime proof {required}"
+        );
+    }
+    assert!(!proof.contains("live: Cell<bool>"));
+    let docs = std::fs::read_to_string(root.join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Guarded Native Execution Lifetime"));
+    assert!(docs.contains("Full host parity, durable recovery and extraction stay open"));
+}
+
+#[test]
+fn local_vm_terminal_liveness_delegates_to_the_original_session_without_error_inference() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let local =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/local_effect_session.rs"))
+            .unwrap();
+    for required in [
+        "LocalExecutionScope",
+        "StackedControlSession::new(",
+        "session.poll(environment)",
+        "session.try_accept(identity, reply, authority)",
+        "matches!(self.session.status(), EffectSessionStatus::Terminal(_))",
+        "impl Drop for CallFence",
+        "self.scope.close()",
+        "fence.finish()",
+    ] {
+        assert!(local.contains(required), "local entry lost {required}");
+    }
+    for forbidden in [
+        "enum State",
+        "SessionCore::new",
+        "evaluate_stacked_effects",
+        "Fuel::new",
+        "catch_unwind",
+        "error.code",
+        "unsafe ",
+        "leserpent",
+        "tokio",
+    ] {
+        assert!(!local.contains(forbidden), "local entry added {forbidden}");
+    }
+    let native = std::fs::read_to_string(root.join("crates/leselang-vm/src/native.rs")).unwrap();
+    assert!(native.contains(
+        "pub use leselang_hir::local_effect_session::LocalStackedControlSession as LocalVm;"
+    ));
+    let gui = std::fs::read_to_string(root.join("crates/leselang-hir/tests/prepared_gui_host.rs"))
+        .unwrap();
+    for proof in [
+        "local_gui_session_closes_on_completion_but_preserves_recoverable_reply_rejection",
+        "local_gui_session_normal_failure_and_preclosed_scope_never_leave_live_authority",
+        "local_gui_session_caught_poll_and_accept_unwind_revoke_a_retained_owner",
+        "local_gui_session_cancel_and_drop_fence_already_published_native_requests",
+    ] {
+        assert!(gui.contains(proof), "missing local session proof {proof}");
+    }
+    let facade =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/native_embedding.rs")).unwrap();
+    assert!(facade.contains(
+        "native_local_vm_revokes_before_initial_value_cleanup_and_keeps_cancel_sticky_on_unwind"
+    ));
+    assert!(facade.contains("opt_in_local_vm_does_not_remove_send_from_the_original_generic_vm"));
+    let docs = std::fs::read_to_string(root.join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Local Session Entry"));
+    assert!(docs.contains("callback-local\nor consumed-frame cleanup"));
 }

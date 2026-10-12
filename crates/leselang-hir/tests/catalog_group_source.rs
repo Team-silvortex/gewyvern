@@ -1089,6 +1089,695 @@ fn atomic_member_tree(kind: &str) -> SyntaxTree {
     ))
 }
 
+fn repeated_member_tree() -> SyntaxTree {
+    repeated_member_tree_with("repeat(times: 3, body: prepare(n: n))")
+}
+
+fn repeated_member_tree_with(group: &str) -> SyntaxTree {
+    repeated_member_tree_select(group, "iteration_3")
+}
+
+fn repeated_member_tree_select(group: &str, selected: &str) -> SyntaxTree {
+    program_tree(&format!(
+        "fn main() = bind(seed: 2, body: bind(answer: collect(n: 40), body: add(left: answer, right: seed)))\n\
+         fn collect(n: integer) = bind(batch: {group},\
+             body: bind(selected: member(value: batch, name: \"{selected}\"),\
+                 body: add(left: n, right: field(value: selected, name: \"count\"))))\n\
+         fn prepare(n: integer) = bind(delta: add(left: n, right: 1),\
+             body: choose(when: true, then: counter.left(n: delta), otherwise: counter.left(n: 0)))",
+    ))
+}
+
+#[test]
+fn prepared_repeat_rejects_cold_invalid_counts_nested_effects_and_unused_policy_before_mapping() {
+    for body in [
+        "repeat(times: 0, body: counter.left(n: 1))",
+        "repeat(times: 65, body: counter.left(n: 1))",
+        "repeat(times: add(left: 1, right: 1), body: counter.left(n: 1))",
+        "repeat(times: 2, wrong: counter.left(n: 1))",
+        "repeat(times: 2, body: counter.unknown(n: 1))",
+        "repeat(times: 2, body: counter.left(n: missing))",
+        "repeat(times: 2, body: all(one: counter.left(n: 1), two: counter.left(n: 2)))",
+        "all(one: repeat(times: 2, body: counter.left(n: 1)))",
+        "seq(one: bind(n: 1, body: seq(two: counter.left(n: n))))",
+        "repeat(times: 2, body: add(left: 1, right: 2))",
+        "repeat(times: 2, body: bind(first: counter.left(n: 1), body: counter.left(n: 2)))",
+        "repeat(times: 2, body: choose(when: true, then: counter.left(n: 1), otherwise: counter.right(n: 2)))",
+        "repeat(times: 2, body: nested())",
+    ] {
+        fixture(|host, env| {
+            let tree = program_tree(&format!(
+                "fn main() = counter.left(n: 1)\nfn unused() = {body}\nfn nested() = repeat(times: 2, body: counter.left(n: 1))"
+            ));
+            assert!(
+                compile_prepared_helpers(&tree, PROGRAM, host, env).is_err(),
+                "{body}"
+            );
+            assert_eq!(env.owner.maps.get(), 0, "{body}");
+            assert_eq!(env.owner.branches.get(), 0);
+        });
+    }
+    fixture(|host, env| {
+        let tree = repeated_member_tree();
+        assert!(compile_group_helpers(&tree, PROGRAM, host, env).is_err());
+        assert!(compile_program(&tree, "main", PROGRAM, host, env).is_err());
+        for source in [
+            Host {
+                version: 8,
+                ..*host
+            },
+            Host {
+                granted: &[],
+                ..*host
+            },
+        ] {
+            assert!(compile_prepared_helpers(&tree, PROGRAM, &source, env).is_err());
+        }
+        assert_eq!(env.owner.maps.get(), 0);
+    });
+}
+
+#[test]
+fn prepared_repeat_preserves_expansion_limits_and_releases_native_slots_on_refusal() {
+    for case in 0..6 {
+        fixture(|host, env| {
+            let mut limits = PROGRAM;
+            match case {
+                0 => limits.max_branches = 2,
+                1 => limits.max_groups = 0,
+                2 => limits.program.expression.control.source.max_lowered_nodes = 16,
+                3 => limits.program.expression.control.source.max_lowered_depth = 2,
+                4 => limits.program.max_compilation_nodes = 32,
+                _ => limits.program.expression.max_calls = 2,
+            }
+            assert!(compile_prepared_helpers(&repeated_member_tree(), limits, host, env).is_err());
+            assert_eq!(env.owner.keys_dropped.get(), env.owner.maps.get());
+            assert_eq!(
+                env.owner.declarations_dropped.get(),
+                env.owner.branches.get()
+            );
+        });
+    }
+    for mode in [
+        Mode::WrongOperation,
+        Mode::WrongDeclaration,
+        Mode::BranchError,
+        Mode::BranchUnwind,
+    ] {
+        fixture(|host, env| {
+            env.owner.mode.set(mode);
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                compile_prepared_helpers(&repeated_member_tree(), PROGRAM, host, env)
+            }));
+            if mode == Mode::BranchUnwind {
+                assert!(result.is_err());
+            } else {
+                assert!(result.unwrap().is_err());
+            }
+            assert_eq!(env.owner.keys_dropped.get(), env.owner.maps.get());
+            assert!(env.owner.declarations_dropped.get() <= env.owner.branches.get());
+        });
+    }
+}
+
+#[test]
+fn prepared_repeat_reserves_all_instances_before_later_native_mappings() {
+    for (nodes, mappings, accepted) in [(3, 0, false), (6, 1, false), (7, 3, true)] {
+        fixture(|host, env| {
+            let tree = program_tree("fn main() = repeat(times: 3, body: counter.left(n: 1))");
+            let mut limits = PROGRAM;
+            limits.max_branches = 3;
+            limits.program.expression.control.source.max_lowered_nodes = nodes;
+            let result = compile_prepared_helpers(&tree, limits, host, env);
+            assert_eq!(result.is_ok(), accepted);
+            assert_eq!(env.owner.maps.get(), mappings);
+            if let Ok((Node::Group { branches, .. }, _)) = &result {
+                assert_eq!(
+                    branches.iter().map(|b| b.name.as_str()).collect::<Vec<_>>(),
+                    ["iteration_1", "iteration_2", "iteration_3"]
+                );
+            }
+            drop(result);
+            assert_eq!(env.owner.keys_dropped.get(), mappings);
+            assert_eq!(
+                env.owner.declarations_dropped.get(),
+                env.owner.branches.get()
+            );
+        });
+    }
+}
+
+#[test]
+fn composed_sequence_refuses_parallel_hidden_groups_and_unused_cold_policy_before_mapping() {
+    for body in [
+        "seq(one: all(a: counter.left(n: 1), b: counter.right(n: 2)))",
+        "all(one: seq(a: counter.left(n: 1)), two: counter.right(n: 2))",
+        "seq(one: repeat(times: 0, body: counter.left(n: 1)))",
+        "repeat(times: 2, body: seq(one: counter.unknown(n: 1)))",
+        "seq(one: repeat(times: 2, body: counter.left(wrong: 1)))",
+        "seq(one: seq(two: counter.left(n: missing)))",
+        "seq(one: choose(when: true, then: seq(a: counter.left(n: 1)), otherwise: seq(a: counter.left(n: 2))))",
+        "repeat(times: 2, body: seq(one: nested()))",
+    ] {
+        fixture(|host, env| {
+            let tree = program_tree(&format!(
+                "fn main() = 0\nfn unused() = {body}\nfn nested() = seq(a: counter.left(n: 1))"
+            ));
+            assert!(
+                compile_prepared_helpers(&tree, PROGRAM, host, env).is_err(),
+                "{body}"
+            );
+            assert_eq!(env.owner.maps.get(), 0, "{body}");
+            assert_eq!(env.owner.branches.get(), 0);
+        });
+    }
+}
+
+#[test]
+fn composed_sequence_bounds_labels_width_and_releases_every_moved_native_slot() {
+    for (body, width, accepted) in [
+        (
+            "repeat(times: 2, body: seq(a: counter.left(n: 1), b: counter.right(n: 2)))".to_owned(),
+            4,
+            true,
+        ),
+        (
+            "repeat(times: 2, body: seq(a: counter.left(n: 1), b: counter.right(n: 2)))".to_owned(),
+            3,
+            false,
+        ),
+        (
+            "seq(a: repeat(times: 2, body: counter.left(n: 1)), b: counter.right(n: 2))".to_owned(),
+            3,
+            true,
+        ),
+        (
+            "seq(a: repeat(times: 2, body: counter.left(n: 1)), b: counter.right(n: 2))".to_owned(),
+            2,
+            false,
+        ),
+        (
+            "seq(a: seq(b: counter.left(n: 1)), a__b: counter.right(n: 2))".to_owned(),
+            4,
+            false,
+        ),
+        (
+            format!("seq({}: seq(b: counter.left(n: 1)))", "x".repeat(62)),
+            4,
+            false,
+        ),
+        (
+            format!(
+                "repeat(times: 2, body: seq({}: counter.left(n: 1)))",
+                "x".repeat(52)
+            ),
+            4,
+            false,
+        ),
+    ] {
+        fixture(|host, env| {
+            let mut limits = PROGRAM;
+            limits.max_branches = width;
+            let tree = program_tree(&format!("fn main() = {body}"));
+            let result = compile_prepared_helpers(&tree, limits, host, env);
+            assert_eq!(result.is_ok(), accepted, "{body}");
+            drop(result);
+            assert_eq!(env.owner.keys_dropped.get(), env.owner.maps.get());
+            assert_eq!(
+                env.owner.declarations_dropped.get(),
+                env.owner.branches.get()
+            );
+        });
+    }
+    for mode in [
+        Mode::WrongDeclaration,
+        Mode::BranchError,
+        Mode::BranchUnwind,
+        Mode::GroupNone,
+    ] {
+        fixture(|host, env| {
+            env.owner.mode.set(mode);
+            let tree = program_tree(
+                "fn main() = repeat(times: 2, body: seq(a: counter.left(n: 1), b: counter.right(n: 2)))",
+            );
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                compile_prepared_helpers(&tree, PROGRAM, host, env)
+            }));
+            if mode == Mode::BranchUnwind {
+                assert!(result.is_err());
+            } else {
+                assert!(result.unwrap().is_err());
+            }
+            assert_eq!(env.owner.keys_dropped.get(), env.owner.maps.get());
+            assert!(env.owner.declarations_dropped.get() <= env.owner.branches.get());
+        });
+    }
+}
+
+#[test]
+fn composed_sequence_source_depth_and_cold_group_quota_precede_native_mapping() {
+    for case in 0..3 {
+        fixture(|host, env| {
+            let tree = program_tree(
+                "fn main() = seq(a: repeat(times: 2, body: seq(b: counter.left(n: 1))))",
+            );
+            let mut limits = PROGRAM;
+            match case {
+                0 => limits.max_groups = 2,
+                1 => limits.program.expression.control.source.max_source_depth = 3,
+                _ => limits.max_groups = 3,
+            }
+            let result = compile_prepared_helpers(&tree, limits, host, env);
+            assert_eq!(result.is_ok(), case == 2);
+            if case != 2 {
+                assert_eq!(env.owner.maps.get(), 0);
+            }
+            drop(result);
+            assert_eq!(env.owner.keys_dropped.get(), env.owner.maps.get());
+        });
+    }
+}
+
+#[test]
+fn composed_export_faults_in_any_declaration_precede_all_native_hooks() {
+    let invalid = [
+        "repeat(times: 8, body: repeat(times: 8, body: repeat(times: 8, body: counter.left(n: 1))))".to_owned(),
+        "seq(prefix: repeat(times: 8, body: repeat(times: 8, body: counter.left(n: 1))), last: counter.right(n: 2))".to_owned(),
+        "seq(a: seq(b: counter.left(n: 1)), a__b: counter.right(n: 2))".to_owned(),
+        "seq(a__b: counter.right(n: 2), a: seq(b: counter.left(n: 1)))".to_owned(),
+        "choose(when: true, then: counter.left(n: 1), otherwise: seq(a: seq(b: counter.left(n: 1)), a__b: counter.right(n: 2)))".to_owned(),
+        format!("seq({}: seq(b: counter.left(n: 1)))", "x".repeat(62)),
+        format!("repeat(times: 10, body: seq({}: counter.left(n: 1)))", "x".repeat(51)),
+    ];
+    for body in invalid {
+        for unused in [false, true] {
+            fixture(|host, env| {
+                let text = if unused {
+                    format!(
+                        "fn main() = counter.left(n: 1)\nfn first() = counter.left(n: 1)\nfn unused() = {body}"
+                    )
+                } else {
+                    format!("fn main() = {body}\nfn first() = counter.left(n: 1)")
+                };
+                let tree = program_tree(&text);
+                let mut limits = PROGRAM;
+                limits.max_branches = 64;
+                assert!(
+                    compile_prepared_helpers(&tree, limits, host, env).is_err(),
+                    "{body}"
+                );
+                assert_eq!(env.owner.maps.get(), 0, "unused={unused}: {body}");
+                assert_eq!(env.owner.branches.get(), 0);
+                assert_eq!(env.owner.groups.get(), 0);
+            });
+        }
+    }
+}
+
+#[test]
+fn cold_composed_export_limits_match_materialized_width_order_and_exact_name_boundaries() {
+    for outer in [1, 2, 8] {
+        for inner in [1, 3, 8] {
+            let expected: Vec<_> = (1..=outer)
+                .flat_map(|i| (1..=inner).map(move |j| format!("iteration_{i}__iteration_{j}")))
+                .collect();
+            for maximum in [expected.len() - 1, expected.len()] {
+                fixture(|host, env| {
+                    let tree = program_tree(&format!(
+                        "fn main() = repeat(times: {outer}, body: repeat(times: {inner}, body: counter.left(n: 1)))"
+                    ));
+                    let mut limits = PROGRAM;
+                    limits.max_branches = maximum;
+                    limits.program.expression.max_calls = 64;
+                    let result = compile_prepared_helpers(&tree, limits, host, env);
+                    if maximum < expected.len() {
+                        assert!(result.is_err());
+                        assert_eq!(env.owner.maps.get(), 0);
+                    } else {
+                        let (Node::Group { branches, .. }, _) = result.unwrap() else {
+                            panic!("expected one flat sequence");
+                        };
+                        assert_eq!(
+                            branches.iter().map(|b| &b.name).collect::<Vec<_>>(),
+                            expected.iter().collect::<Vec<_>>()
+                        );
+                        assert_eq!(env.owner.maps.get(), expected.len());
+                        drop(branches);
+                    }
+                    assert_eq!(env.owner.keys_dropped.get(), env.owner.maps.get());
+                    assert_eq!(
+                        env.owner.declarations_dropped.get(),
+                        env.owner.branches.get()
+                    );
+                });
+            }
+        }
+    }
+    for (body, accepted, width) in [
+        (
+            format!("seq({}: seq(b: counter.left(n: 1)))", "x".repeat(61)),
+            true,
+            1,
+        ),
+        (
+            format!("seq({}: seq(b: counter.left(n: 1)))", "x".repeat(62)),
+            false,
+            1,
+        ),
+        (
+            format!(
+                "repeat(times: 9, body: seq({}: counter.left(n: 1)))",
+                "x".repeat(51)
+            ),
+            true,
+            9,
+        ),
+        (
+            format!(
+                "repeat(times: 10, body: seq({}: counter.left(n: 1)))",
+                "x".repeat(51)
+            ),
+            false,
+            10,
+        ),
+    ] {
+        fixture(|host, env| {
+            let tree = program_tree(&format!("fn main() = {body}"));
+            let result = compile_prepared_helpers(&tree, PROGRAM, host, env);
+            assert_eq!(result.is_ok(), accepted, "{body}");
+            if let Ok((Node::Group { branches, .. }, _)) = &result {
+                assert_eq!(branches.len(), width);
+                assert!(branches.iter().all(|branch| branch.name.len() == 64));
+            } else {
+                assert_eq!(env.owner.maps.get(), 0);
+            }
+            drop(result);
+            assert_eq!(env.owner.keys_dropped.get(), env.owner.maps.get());
+        });
+    }
+}
+
+#[test]
+fn cold_composed_export_diagnostics_preserve_source_positions_without_native_payloads() {
+    use leselang_hir::{
+        catalog_source::CatalogSourceError, repeat_sequence_source::RepeatSequenceSourceError,
+        sequence_source::SequenceSourceError,
+    };
+    let cases = [
+        (
+            "seq(a: repeat(times: 2, body: counter.left(n: 1)), b: counter.right(n: 2))".to_owned(),
+            2,
+            1,
+        ),
+        (
+            format!("seq({}: seq(b: counter.left(n: 1)))", "x".repeat(62)),
+            64,
+            0,
+        ),
+        (
+            "seq(a: seq(b: counter.left(n: 1)), a__b: counter.right(n: 2))".to_owned(),
+            64,
+            1,
+        ),
+        (
+            "repeat(times: 2, body: seq(a: counter.left(n: 1), b: counter.right(n: 2)))".to_owned(),
+            3,
+            1,
+        ),
+        (
+            format!(
+                "repeat(times: 10, body: seq({}: counter.left(n: 1)))",
+                "x".repeat(51)
+            ),
+            64,
+            1,
+        ),
+    ];
+    for (case, (body, width, argument)) in cases.into_iter().enumerate() {
+        fixture(|host, env| {
+            let tree = program_tree(&format!("fn main() = {body}"));
+            let Expression::Call { arguments, .. } = &tree.function.as_ref().unwrap().body else {
+                panic!("expected source call");
+            };
+            let expected = arguments[argument].span;
+            let mut limits = PROGRAM;
+            limits.max_branches = width;
+            let error = compile_prepared_helpers(&tree, limits, host, env)
+                .err()
+                .unwrap();
+            assert!(!format!("{error:?}").contains(&body));
+            let CatalogSourceError::Group(error) = error else {
+                panic!("expected cold group error");
+            };
+            let actual = match *error {
+                CatalogGroupSourceError::Sequence(error) => match (case, *error) {
+                    (0, SequenceSourceError::Width { index: 1, span })
+                    | (
+                        1,
+                        SequenceSourceError::Name {
+                            index: 0,
+                            member: 0,
+                            span,
+                        },
+                    )
+                    | (
+                        2,
+                        SequenceSourceError::Collision {
+                            index: 1,
+                            member: 0,
+                            span,
+                        },
+                    ) => span,
+                    _ => panic!("unexpected sequential diagnostic"),
+                },
+                CatalogGroupSourceError::RepeatSequence(error) => match (case, *error) {
+                    (3, RepeatSequenceSourceError::Width { iteration: 0, span })
+                    | (
+                        4,
+                        RepeatSequenceSourceError::Name {
+                            iteration: 0,
+                            member: 0,
+                            span,
+                        },
+                    ) => span,
+                    _ => panic!("unexpected repeat diagnostic"),
+                },
+                _ => panic!("unexpected cold diagnostic"),
+            };
+            assert_eq!(actual, expected);
+            assert_eq!(env.owner.maps.get(), 0);
+            assert_eq!(env.owner.branches.get(), 0);
+            assert_eq!(env.owner.groups.get(), 0);
+        });
+    }
+}
+
+#[test]
+fn prepared_expression_uses_borrowed_prefix_without_helpers_or_legacy_profile_widening() {
+    let prepared = "bind(value: add(left: seed, right: 1), body: choose(when: enabled, then: counter.left(n: value), otherwise: counter.left(n: seed)))";
+    for (body, expected) in [
+        (
+            format!("seq(first: {prepared}, rest: repeat(times: 2, body: counter.right(n: seed)))"),
+            vec!["first", "rest__iteration_1", "rest__iteration_2"],
+        ),
+        (
+            format!("all(first: {prepared}, second: counter.right(n: seed))"),
+            vec!["first", "second"],
+        ),
+    ] {
+        fixture(|host, env| {
+            let source = expression(&body);
+            let before = format!("{source:?}");
+            let integer = PureType::Scalar(ScalarType::Integer);
+            let boolean = PureType::Scalar(ScalarType::Boolean);
+            let prefix = [("seed", &integer), ("enabled", &boolean)];
+            let old: CatalogGroupSourceResult<Node<'_>, Meta<'_>, Private> =
+                compile_catalog_group_source(&source, &prefix, LIMITS, host, env);
+            assert!(old.is_err());
+            assert_eq!(env.owner.maps.get(), 0);
+            let (node, ty): (Node<'_>, _) =
+                compile_catalog_prepared_group_source(&source, &prefix, LIMITS, host, env).unwrap();
+            let Node::Group { branches, .. } = &node else {
+                panic!("expected group");
+            };
+            assert_eq!(
+                branches
+                    .iter()
+                    .map(|branch| branch.name.as_str())
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            assert!(matches!(ty, PureType::Result(Meta::Group(_))));
+            assert_eq!(format!("{source:?}"), before);
+            drop(node);
+            assert_eq!(env.owner.keys_dropped.get(), env.owner.maps.get());
+            assert_eq!(
+                env.owner.declarations_dropped.get(),
+                env.owner.branches.get()
+            );
+        });
+    }
+    fixture(|host, env| {
+        let integer = PureType::Scalar(ScalarType::Integer);
+        let mut limits = LIMITS;
+        limits.max_groups = 0;
+        limits.max_branches = 0;
+        let (node, ty): (Node<'_>, _) = compile_catalog_prepared_group_source(
+            &expression("add(left: seed, right: 1)"),
+            &[("seed", &integer)],
+            limits,
+            host,
+            env,
+        )
+        .unwrap();
+        assert!(node.is_pure());
+        assert!(matches!(ty, PureType::Scalar(ScalarType::Integer)));
+        assert_eq!(env.owner.maps.get(), 0);
+    });
+}
+
+#[test]
+fn prepared_expression_rejects_invalid_prefix_catalog_and_member_exports_before_mapping() {
+    for body in [
+        "repeat(times: 0, body: counter.left(n: seed))".to_owned(),
+        "repeat(times: 8, body: repeat(times: 8, body: repeat(times: 2, body: counter.left(n: seed))))".to_owned(),
+        "seq(a: seq(b: counter.left(n: seed)), a__b: counter.right(n: seed))".to_owned(),
+        format!("seq({}: seq(b: counter.left(n: seed)))", "x".repeat(62)),
+        "seq(one: helper(n: seed))".to_owned(),
+        "seq(one: counter.left(n: missing))".to_owned(),
+        "seq(one: counter.left(wrong: seed))".to_owned(),
+        "all(one: seq(nested: counter.left(n: seed)))".to_owned(),
+        "seq(one: choose(when: true, then: counter.left(n: seed), otherwise: counter.right(n: seed)))".to_owned(),
+        "seq(one: bind(previous: counter.left(n: seed), body: counter.left(n: seed)))".to_owned(),
+    ] {
+        fixture(|host, env| {
+            let integer = PureType::Scalar(ScalarType::Integer);
+            let result: CatalogGroupSourceResult<Node<'_>, Meta<'_>, Private> = compile_catalog_prepared_group_source(
+                &expression(&body), &[("seed", &integer)], LIMITS, host, env,
+            );
+            assert!(result.is_err(), "{body}");
+            assert_eq!(env.owner.maps.get(), 0, "{body}");
+            assert_eq!(env.owner.branches.get(), 0);
+            assert_eq!(env.owner.groups.get(), 0);
+        });
+    }
+    for case in 0..6 {
+        fixture(|host, env| {
+            let integer = PureType::Scalar(ScalarType::Integer);
+            let mut prefix = vec![("seed", &integer)];
+            let mut limits = LIMITS;
+            let mut host = Host {
+                catalog: host.catalog,
+                version: host.version,
+                granted: host.granted,
+            };
+            match case {
+                0 => prefix.clear(),
+                1 => prefix.push(("seed", &integer)),
+                2 => limits.expression.control.max_bindings = 0,
+                3 => host.version += 1,
+                4 => host.granted = &[],
+                _ => limits.max_groups = 0,
+            }
+            let result: CatalogGroupSourceResult<Node<'_>, Meta<'_>, Private> =
+                compile_catalog_prepared_group_source(
+                    &expression("repeat(times: 2, body: counter.left(n: seed))"),
+                    &prefix,
+                    limits,
+                    &host,
+                    env,
+                );
+            assert!(result.is_err(), "case {case}");
+            assert_eq!(env.owner.maps.get(), 0);
+            assert_eq!(env.owner.branches.get(), 0);
+        });
+    }
+}
+
+#[test]
+fn prepared_expression_preserves_original_native_result_prefix_types() {
+    fixture(|host, env| {
+        let domain = &host
+            .catalog
+            .authorize("counter.left", host.version, host.granted)
+            .unwrap()
+            .result;
+        let previous = PureType::Result(Meta::Record(domain));
+        let source = expression(
+            "repeat(times: 2, body: counter.left(n: field(value: previous, name: \"count\")))",
+        );
+        let (node, _): (Node<'_>, _) = compile_catalog_prepared_group_source(
+            &source,
+            &[("previous", &previous)],
+            LIMITS,
+            host,
+            env,
+        )
+        .unwrap();
+        let Node::Group { branches, .. } = &node else {
+            panic!("expected group");
+        };
+        assert!(
+            branches
+                .iter()
+                .all(|branch| std::ptr::eq(branch.result_type.original, domain))
+        );
+        drop(node);
+        assert_eq!(env.owner.keys_dropped.get(), env.owner.maps.get());
+        assert_eq!(
+            env.owner.declarations_dropped.get(),
+            env.owner.branches.get()
+        );
+        let foreign = PureType::Result(Meta::Record(env.foreign));
+        let result: CatalogGroupSourceResult<Node<'_>, Meta<'_>, Private> =
+            compile_catalog_prepared_group_source(
+                &source,
+                &[("previous", &foreign)],
+                LIMITS,
+                host,
+                env,
+            );
+        assert!(result.is_err());
+        assert_eq!(env.owner.keys_dropped.get(), env.owner.maps.get());
+    });
+}
+
+#[test]
+fn prepared_expression_preserves_output_bounds_and_move_only_cleanup_on_native_refusal() {
+    for case in 0..5 {
+        fixture(|host, env| {
+            let mut limits = LIMITS;
+            match case {
+                0 => limits.expression.control.source.max_lowered_nodes = 6,
+                1 => limits.expression.max_calls = 2,
+                2 => env.owner.mode.set(Mode::WrongDeclaration),
+                3 => env.owner.mode.set(Mode::BranchError),
+                _ => env.owner.mode.set(Mode::BranchUnwind),
+            }
+            let integer = PureType::Scalar(ScalarType::Integer);
+            let source = expression("repeat(times: 3, body: counter.left(n: seed))");
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                let result: CatalogGroupSourceResult<Node<'_>, Meta<'_>, Private> =
+                    compile_catalog_prepared_group_source(
+                        &source,
+                        &[("seed", &integer)],
+                        limits,
+                        host,
+                        env,
+                    );
+                result
+            }));
+            if case == 4 {
+                assert!(result.is_err());
+            } else {
+                assert!(result.unwrap().is_err());
+            }
+            assert_eq!(env.owner.keys_dropped.get(), env.owner.maps.get());
+            assert!(env.owner.declarations_dropped.get() <= env.owner.branches.get());
+        });
+    }
+}
+
 #[test]
 fn prepared_member_profile_is_explicit_and_preserves_legacy_direct_member_rejection() {
     for kind in ["seq", "all"] {
@@ -2506,6 +3195,135 @@ fn parsed_parameterized_helper_uses_prepared_original_member_barrier_and_one_enc
         ));
         assert_eq!(session.fuel_remaining(), 62);
     });
+}
+
+#[test]
+fn parsed_repeat_helpers_share_sequence_receipts_captures_and_exact_fuel_with_explicit_members() {
+    let mut budgets = Vec::new();
+    for (group, names) in [
+        (
+            "repeat(times: 3, body: prepare(n: n))",
+            ["iteration_1", "iteration_2", "iteration_3"],
+        ),
+        (
+            "seq(iteration_1: prepare(n: n), iteration_2: prepare(n: n), iteration_3: prepare(n: n))",
+            ["iteration_1", "iteration_2", "iteration_3"],
+        ),
+        (
+            "seq(first: prepare(n: n), tail: repeat(times: 2, body: prepare(n: n)))",
+            ["first", "tail__iteration_1", "tail__iteration_2"],
+        ),
+        (
+            "repeat(times: 1, body: seq(first: prepare(n: n), tail: repeat(times: 2, body: prepare(n: n))))",
+            [
+                "iteration_1__first",
+                "iteration_1__tail__iteration_1",
+                "iteration_1__tail__iteration_2",
+            ],
+        ),
+        (
+            "repeat(times: 3, body: repeat(times: 1, body: prepare(n: n)))",
+            [
+                "iteration_1__iteration_1",
+                "iteration_2__iteration_1",
+                "iteration_3__iteration_1",
+            ],
+        ),
+        (
+            "seq(first: seq(a: prepare(n: n), b: prepare(n: n)), last: prepare(n: n))",
+            ["first__a", "first__b", "last"],
+        ),
+    ] {
+        fixture(|host, env| {
+            let tree = repeated_member_tree_select(group, names[2]);
+            let (node, ty) = compile_prepared_helpers(&tree, PROGRAM, host, env).unwrap();
+            assert!(matches!(ty, PureType::Scalar(ScalarType::Integer)));
+            let Node::Group { branches, .. } = only_group(&node) else {
+                panic!()
+            };
+            assert_eq!(
+                branches.iter().map(|b| b.name.as_str()).collect::<Vec<_>>(),
+                names
+            );
+            let domain = ParamDomain {
+                group: only_group(&node),
+                source: host,
+                live: Cell::new(true),
+            };
+            let inner = ParamRuntime::with_prepared_groups(&domain);
+            let runtime = ParamBarrierRuntime {
+                inner: &inner,
+                refuse_correlation: Cell::new(false),
+            };
+            let mut session =
+                StackedEffectSession::new(&node, Vec::new(), Fuel::new(300), PARAM_STACK);
+            let EffectSessionPoll::Request(ParamDispatch::Sequence(mut sequence)) =
+                session.poll(&runtime).unwrap()
+            else {
+                panic!()
+            };
+            let prepared = session.fuel_remaining();
+            assert_eq!(inner.calls.get(), 0);
+            let mut rows = Vec::new();
+            for index in 0..3 {
+                let SequencePoll::Request {
+                    index: published,
+                    request,
+                } = runtime.publish_sequence(&mut sequence).unwrap()
+                else {
+                    panic!()
+                };
+                assert_eq!(published, index);
+                assert!(
+                    matches!(runtime.publish_sequence(&mut sequence).unwrap(), SequencePoll::Awaiting { index: pending } if pending == index)
+                );
+                let input = runtime.invoke_member(ParallelRequest { index, request });
+                let pointer = &*input.buffer as *const u8;
+                let refused = sequence
+                    .try_accept(&(73, (index + 1) % 3), input, &runtime)
+                    .unwrap_err();
+                assert_eq!(&*refused.reply.buffer as *const u8, pointer);
+                rows.push(
+                    sequence
+                        .try_accept(&(73, index), refused.reply, &runtime)
+                        .unwrap(),
+                );
+                assert_eq!(session.fuel_remaining(), prepared);
+                assert_eq!(inner.restores.get(), 0);
+            }
+            assert_eq!(
+                sequence.status(),
+                SequenceStatus::Terminal(SequenceEnd::Completed)
+            );
+            session
+                .try_accept(
+                    &73,
+                    ParamCollected {
+                        group: domain.group,
+                        rows,
+                        buffer: Box::new(9),
+                    },
+                    &runtime,
+                )
+                .unwrap();
+            assert_eq!(inner.projections.get(), 0);
+            assert!(matches!(
+                session.poll(&runtime).unwrap(),
+                EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::Integer(83)))
+            ));
+            assert_eq!(*inner.amounts.borrow(), [41, 41, 41]);
+            assert_eq!(inner.restores.get(), 2);
+            assert_eq!(inner.projections.get(), 1);
+            budgets.push((prepared, session.fuel_remaining()));
+            assert!(matches!(
+                session.poll(&runtime).unwrap(),
+                EffectSessionPoll::Terminal(EffectSessionEnd::Completed)
+            ));
+            assert_eq!(inner.calls.get(), 3);
+        });
+    }
+    assert!(budgets.iter().all(|budget| *budget == budgets[0]));
+    assert!(budgets[0].1 < budgets[0].0 && budgets[0].0 < 300);
 }
 
 #[test]

@@ -56,7 +56,7 @@ All envelope entries currently share the same broad staging model:
 The current success-oriented models distinguish the envelope stages by the SMTP
 reply family they terminate on:
 
-- `mail` stops at sender acceptance (`250 2.1.x`)
+- `mail` stops at sender acceptance (`250 2.3.x`)
 - `rcpt` stops at recipient acceptance (`250 2.1.5`)
 - `rcpt-denied` stops at recipient denial (`550`)
 

@@ -8,7 +8,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
 
-const CRATES: &[&str] = &["leselang-syntax", "leselang-runtime-core", "leselang-hir"];
+const CRATES: &[&str] = &[
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir",
+    "leselang-vm",
+];
+const REFERENCE_CFG: &str = "\n[lints.rust]\nunexpected_cfgs = { level = \"deny\", check-cfg = ['cfg(feature, values(\"leserpent-profile\"))'] }\n";
 const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_TOTAL_BYTES: usize = 32 * 1024 * 1024;
 const MAX_FILES: usize = 1024;
@@ -116,6 +122,7 @@ impl Plan {
             "kind": "leselang-native-source-checkpoint",
             "version": version,
             "verified": verified,
+            "native_vm_facade": true,
             "complete_vm": false,
             "full_extraction_gate": false,
             "files": files,
@@ -256,7 +263,12 @@ fn module_names(source: &str) -> Result<Vec<&str>, String> {
     Ok(names.into_iter().collect())
 }
 
-fn copy_crate(root: &Path, name: &str, plan: &mut Plan) -> Result<(), String> {
+fn copy_crate(
+    root: &Path,
+    name: &str,
+    reference_tests: &BTreeSet<String>,
+    plan: &mut Plan,
+) -> Result<(), String> {
     let base = PathBuf::from(format!("crates/{name}"));
     let library = base.join("src/lib.rs");
     let source = read_text(root, &library)?;
@@ -282,6 +294,13 @@ fn copy_crate(root: &Path, name: &str, plan: &mut Plan) -> Result<(), String> {
         // retain their original cfg guards and all native tests unchanged.
         if name == "leselang-hir" && text.starts_with("#![cfg(feature = \"leserpent-profile\")]\n")
         {
+            continue;
+        }
+        let test_name = test
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .ok_or("native test name is not UTF-8")?;
+        if reference_tests.contains(test_name) {
             continue;
         }
         plan.copy(root, &test, &test)?;
@@ -419,20 +438,144 @@ fn crate_manifest(
         }
         // Recognize the original unreachable reference guards without creating
         // an enableable Cargo feature or rewriting shared production/test code.
-        output.push_str("\n[lints.rust]\nunexpected_cfgs = { level = \"deny\", check-cfg = ['cfg(feature, values(\"leserpent-profile\"))'] }\n");
+        output.push_str(REFERENCE_CFG);
     }
     Ok(output)
+}
+
+// Closed manifest projection: an unreviewed feature, dependency or target cannot
+// silently become native merely because its reference source was omitted.
+fn native_vm_manifest(source: &str) -> Result<(String, BTreeSet<String>), String> {
+    const PACKAGE: &[&str] = &[
+        "name = \"leselang-vm\"",
+        "version.workspace = true",
+        "edition.workspace = true",
+        "description = \"Stackless Leselang evaluator with versioned effect continuations\"",
+        "license.workspace = true",
+    ];
+    const FEATURES: &str = "default = [\"sqlite-journal\"]\nleserpent-profile = [\n    \"dep:leselang-command\",\n    \"dep:leselang-host-contract\",\n    \"dep:leserpent-domain\",\n    \"dep:serde\",\n    \"dep:serde_json\",\n    \"leselang-hir/leserpent-profile\",\n]\nsqlite-journal = [\"leserpent-profile\", \"dep:rusqlite\"]";
+    const REFERENCE: &[&str] = &[
+        "leselang-command = { path = \"../leselang-command\", optional = true }",
+        "leselang-host-contract = { path = \"../leselang-host-contract\", optional = true }",
+        "leserpent-domain = { path = \"../leserpent-domain\", optional = true }",
+        "rusqlite = { workspace = true, optional = true }",
+        "serde = { workspace = true, optional = true }",
+        "serde_json = { workspace = true, optional = true }",
+    ];
+    const NATIVE: &[&str] = &[
+        "leselang-hir = { path = \"../leselang-hir\", default-features = false }",
+        "leselang-runtime-core = { path = \"../leselang-runtime-core\" }",
+        "leselang-syntax = { path = \"../leselang-syntax\" }",
+    ];
+    let mut sections: Vec<Vec<&str>> = Vec::new();
+    for line in source.lines() {
+        if line.starts_with('[') {
+            if sections.len() >= MAX_FILES {
+                return Err("VM manifest exceeds its section bound".into());
+            }
+            sections.push(Vec::new());
+        }
+        sections
+            .last_mut()
+            .ok_or("VM manifest must begin with a reviewed section")?
+            .push(line);
+    }
+    let mut output = String::new();
+    let mut features = false;
+    let mut package = false;
+    let mut dependency_section = false;
+    let mut dependencies = BTreeSet::new();
+    let mut reference_tests = BTreeSet::new();
+    let mut targets = BTreeSet::new();
+    for section in sections {
+        match section[0] {
+            "[package]" => {
+                let fields: Vec<_> = section[1..]
+                    .iter()
+                    .copied()
+                    .filter(|line| !line.is_empty() && !line.trim_start().starts_with('#'))
+                    .collect();
+                if package || fields != PACKAGE {
+                    return Err(
+                        "reference VM package metadata changed; review source export".into(),
+                    );
+                }
+                package = true;
+                output.push_str(&section.join("\n"));
+                output.push('\n');
+            }
+            "[features]" => {
+                if features || section[1..].join("\n").trim() != FEATURES {
+                    return Err(
+                        "reference VM feature boundary changed; review source export".into(),
+                    );
+                }
+                features = true;
+            }
+            "[dependencies]" => {
+                if dependency_section {
+                    return Err("duplicate reference VM dependency section".into());
+                }
+                dependency_section = true;
+                output.push_str("[dependencies]\n");
+                for line in &section[1..] {
+                    if line.is_empty() || line.trim_start().starts_with('#') {
+                        continue;
+                    }
+                    if (!REFERENCE.contains(line) && !NATIVE.contains(line))
+                        || !dependencies.insert(*line)
+                    {
+                        return Err(
+                            "reference VM dependency boundary changed; review source export".into(),
+                        );
+                    }
+                    if NATIVE.contains(line) {
+                        output.push_str(line);
+                        output.push('\n');
+                    }
+                }
+            }
+            "[[test]]" | "[[example]]" => {
+                let fields: Vec<_> = section[1..]
+                    .iter()
+                    .copied()
+                    .filter(|line| !line.is_empty() && !line.trim_start().starts_with('#'))
+                    .collect();
+                let name = assignment(&fields.join("\n"), "name")?;
+                if fields.len() != 2
+                    || !fields.iter().any(|line| {
+                        *line == "required-features = [\"leserpent-profile\"]"
+                            || *line == "required-features = [\"sqlite-journal\"]"
+                    })
+                    || name.is_empty()
+                    || !name.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
+                    || targets.len() >= MAX_FILES
+                    || !targets.insert((section[0], name.clone()))
+                {
+                    return Err("reference VM target boundary changed; review source export".into());
+                }
+                if section[0] == "[[test]]" {
+                    reference_tests.insert(name);
+                }
+            }
+            _ => return Err("unreviewed reference VM manifest section".into()),
+        }
+    }
+    if !package || !features || dependencies.len() != REFERENCE.len() + NATIVE.len() {
+        return Err("reference VM manifest boundary is incomplete".into());
+    }
+    Ok((output, reference_tests))
 }
 
 fn lock_text(registry: &RegistryLock, version: &str, consumer: bool) -> String {
     let mut blocks = registry.blocks.clone();
     for name in CRATES {
-        let mut names = if *name == "leselang-hir" {
-            vec!["leselang-runtime-core", "leselang-syntax", "serde"]
-        } else {
-            vec!["serde"]
+        let mut names = match *name {
+            "leselang-hir" => vec!["leselang-runtime-core", "leselang-syntax", "serde"],
+            "leselang-vm" => vec!["leselang-hir", "leselang-runtime-core", "leselang-syntax"],
+            _ => vec!["serde"],
         };
-        if !consumer {
+        if !consumer && *name != "leselang-vm" {
             names.push("serde_json");
         }
         let dependencies = names
@@ -445,7 +588,7 @@ fn lock_text(registry: &RegistryLock, version: &str, consumer: bool) -> String {
         );
     }
     if consumer {
-        blocks.insert(CONSUMER.into(), format!("name = {CONSUMER:?}\nversion = {version:?}\ndependencies = [\n \"leselang-hir\",\n \"leselang-runtime-core\",\n \"leselang-syntax\",\n \"serde\",\n \"serde_json\",\n]"));
+        blocks.insert(CONSUMER.into(), format!("name = {CONSUMER:?}\nversion = {version:?}\ndependencies = [\n \"leselang-hir\",\n \"leselang-runtime-core\",\n \"leselang-syntax\",\n \"leselang-vm\",\n \"serde\",\n \"serde_json\",\n]"));
     }
     let mut output = "# This file is generated from the source repository's locked registry closure.\nversion = 4\n".to_string();
     for block in blocks.values() {
@@ -471,18 +614,29 @@ fn prepare(root: &Path) -> Result<(Plan, String), String> {
     let mut plan = Plan::default();
     plan.copy(root, Path::new("LICENSE"), Path::new("LICENSE"))?;
     for name in CRATES {
-        copy_crate(root, name, &mut plan)?;
         let path = format!("crates/{name}/Cargo.toml");
         let source = read_text(root, Path::new(&path))?;
-        plan.generated(
-            &path,
-            crate_manifest(&source, *name == "leselang-hir", &version, &registry)?,
-        )?;
+        let (source, reference_tests) = if *name == "leselang-vm" {
+            native_vm_manifest(&source)?
+        } else {
+            (source, BTreeSet::new())
+        };
+        copy_crate(root, name, &reference_tests, &mut plan)?;
+        let mut manifest = crate_manifest(&source, *name == "leselang-hir", &version, &registry)?;
+        if *name == "leselang-vm" {
+            manifest.push_str(REFERENCE_CFG);
+        }
+        plan.generated(&path, manifest)?;
     }
-    plan.generated("Cargo.toml", "[workspace]\nmembers = [\"crates/leselang-syntax\", \"crates/leselang-runtime-core\", \"crates/leselang-hir\"]\nexclude = [\"consumer\"]\nresolver = \"3\"\n\n[profile.lean]\ninherits = \"dev\"\ndebug = 0\nincremental = false\n".into())?;
+    let members = CRATES
+        .iter()
+        .map(|name| format!("\"crates/{name}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+    plan.generated("Cargo.toml", format!("[workspace]\nmembers = [{members}]\nexclude = [\"consumer\"]\nresolver = \"3\"\n\n[profile.lean]\ninherits = \"dev\"\ndebug = 0\nincremental = false\n"))?;
     plan.generated("Cargo.lock", lock_text(&registry, &version, false))?;
     let consumer_manifest = format!(
-        "[workspace]\n\n[package]\nname = {CONSUMER:?}\nversion = {version:?}\nedition = \"2024\"\nlicense = \"MIT\"\npublish = false\nautotests = false\n\n[dependencies]\nleselang-hir = {{ path = \"../crates/leselang-hir\" }}\nleselang-runtime-core = {{ path = \"../crates/leselang-runtime-core\" }}\nleselang-syntax = {{ path = \"../crates/leselang-syntax\" }}\nserde = {{ version = \"={}\", features = [\"derive\"] }}\nserde_json = \"={}\"\n\n[profile.lean]\ninherits = \"dev\"\ndebug = 0\nincremental = false\n",
+        "[workspace]\n\n[package]\nname = {CONSUMER:?}\nversion = {version:?}\nedition = \"2024\"\nlicense = \"MIT\"\npublish = false\nautotests = false\n\n[dependencies]\nleselang-hir = {{ path = \"../crates/leselang-hir\" }}\nleselang-runtime-core = {{ path = \"../crates/leselang-runtime-core\" }}\nleselang-syntax = {{ path = \"../crates/leselang-syntax\" }}\nleselang-vm = {{ path = \"../crates/leselang-vm\", default-features = false }}\nserde = {{ version = \"={}\", features = [\"derive\"] }}\nserde_json = \"={}\"\n\n[profile.lean]\ninherits = \"dev\"\ndebug = 0\nincremental = false\n",
         registry.serde, registry.serde_json
     );
     let mut consumer_manifest = consumer_manifest;
@@ -549,8 +703,16 @@ fn prepare(root: &Path) -> Result<(Plan, String), String> {
         ),
         ("return_stack", "crates/leselang-hir/tests/effect_stack.rs"),
         (
+            "prepared_counter_host",
+            "crates/leselang-hir/tests/catalog_group_source.rs",
+        ),
+        (
             "prepared_gui_host",
             "crates/leselang-hir/tests/prepared_gui_host.rs",
+        ),
+        (
+            "native_vm_embedding",
+            "crates/leselang-vm/tests/native_embedding.rs",
         ),
     ] {
         consumer_manifest.push_str(&format!(
@@ -876,7 +1038,7 @@ fn verify(directory: &Path, target: &Path) -> Result<(), String> {
     )
 }
 
-const README: &str = "# Leselang Native Source Checkpoint\n\nThis self-contained MIT source workspace contains the production syntax, runtime\nfoundation and host-defined HIR/in-memory sessions, plus their unchanged native\ntests. Production Rust files are copied byte-for-byte, not independently reimplemented.\nCrate manifests own explicit metadata and pin the original locked registry closure.\nNo Gewyvern/Leserpent product crate, account service, generated asset or SQLite is\nrequired. The reference profile is not an enableable Cargo feature here; all-features\nbuilds stay native. Product-only tests and reference implementation files stay in\nthe original repository. Mixed tests retain their original unreachable cfg guards.\n\nUse Rust 1.98.0 with Clippy. From this directory run:\n\n```text\ncargo test --workspace --all-features --locked --offline --profile lean\ncargo clippy --workspace --all-features --all-targets --locked --offline --profile lean -- -D warnings\ncargo test --manifest-path consumer/Cargo.toml --locked --offline --profile lean\ncargo clippy --manifest-path consumer/Cargo.toml --all-targets --locked --offline --profile lean -- -D warnings\n```\n\nOffline builds require the locked registry dependencies to be cached first. The\nstandalone CI fetches that closure, then uses locked/offline verification. The\nconsumer is a separate workspace and exercises owned cleanup, accepted reply\nsessions, nested returns and a headless GUI adapter without monorepo source paths.\nSaved-frame and parsed durable-control consumer models recover original budgets,\ncheckpoint watermarks and settled success/refusal receipts through the native\ncompiler and walker. The shared saved-body HIR entry also drives real reference\nVM reentry; restoration hooks cannot replace its saved body or evaluator.\nThe shared flat-group kernel also checks complete original member order and\nidentities before native checkpoint commit; real VM admission and SQLite recovery\nuse it while native authority, reservations and dispatch/terminal state stay host-owned.\nShared recovery fences reject duplicate numeric reservations, check the original\nallocation watermark before imported-identity repair, and gate completion receipts\nbefore native admission. Exact numeric and GUI-local proofs run unchanged in the\nconsumer; real SQLite recovery uses the same fences before watermark repair/commit.\nShared numeric watermark requirements preserve inclusive ceilings, existing gaps\nand exact write decisions. Live allocation/restore and SQLite allocation/repair\nkeep native identities, original reservation proof and commit-before-publish.\nShared inherited context agreement keeps native authority/revision observations\nand exact deadline/output equality. Atomic successor, group-prefix and tail paths\nretain their original fuel/schema/token checks around this phase.\nShared borrowed capture extension retains original named bindings and the current\nresult while allowing data aliases. Live successor admission and SQLite recovery\nkeep native authority, schema/budget succession and original projection policy.\nShared borrowed capture correspondence keeps group-first, capture-major original\nscans, including late native errors after an earlier true match. Live capture\nadvancement and SQLite recovery keep original projection and authority policy.\nShared ordered outcome summaries keep native first-stop and aggregate-output\nprecedence, with fail-closed ownership and no settlement or receipt authority.\nLive sequence inspection and SQLite bound recovery use the same production core.\nShared sequential-frontier inspection checks contiguous completion before native\nprefix admission and blocked-dispatch evidence, excluding the active pending row.\nReal SQLite preserves original phase/fault order and refuses without storage repair.\nShared adjacent-chain inspection retains original row order and move-only frames,\nbounded before hooks and released before handoff. SQLite keeps native pair policy\nand frozen result-decode-before-next-request fault order; no saved body is evaluated.\nReceipt authenticity, raw-result correspondence, settlement and replay remain native.\nThey do not provide a production storage backend, crash-atomic\nexternal-effect transaction or generic saved-graph interpreter.\nThese are protocol tests, not actual GUI windows or native callback sandboxing.\n\n`export-manifest.json` records relative paths, exact SHA-256 and source provenance.\n`verified` is true only after isolated workspace/consumer tests and strict lints\npass and original inventory bytes remain unchanged. It is not a signature.\n\nThis is a source checkpoint, NOT the complete independent durable VM or full\nrepository extraction gate. Durable recovery, reference-adapter/wire/auth/GUI parity\nand release publication remain separate gates in the original repository. Packages\nare deliberately marked publish=false. FFI and an OS shell remain deferred.\n";
+const README: &str = "# Leselang Native Source Checkpoint\n\nThis self-contained MIT source workspace contains the production syntax, runtime\nfoundation, host-defined HIR/in-memory sessions and native VM facade, plus their\nunchanged native tests. Production Rust files are copied byte-for-byte, not independently reimplemented.\nCrate manifests own explicit metadata and pin the original locked registry closure.\nNo Gewyvern/Leserpent product crate, account service, generated asset or SQLite is\nrequired. The reference profile is not an enableable Cargo feature here; all-features\nbuilds stay native. Product-only tests and reference implementation files stay in\nthe original repository. Mixed tests retain their original unreachable cfg guards.\n\nThe exported leselang-vm package exposes native::{syntax, hir, core, Vm}; Vm is\nthe exact shared StackedControlSession. Default and all-features builds here stay\nnative. Upstream product-profile documentation describes the omitted reference\nspecialization, not an enableable feature of this checkpoint. The independent\nconsumer runs its original two-host source/capture/reply/cancel/fuel tests unchanged.\n\nUse Rust 1.98.0 with Clippy. From this directory run:\n\n```text\ncargo test --workspace --all-features --locked --offline --profile lean\ncargo clippy --workspace --all-features --all-targets --locked --offline --profile lean -- -D warnings\ncargo test --manifest-path consumer/Cargo.toml --locked --offline --profile lean\ncargo clippy --manifest-path consumer/Cargo.toml --all-targets --locked --offline --profile lean -- -D warnings\n```\n\nOffline builds require the locked registry dependencies to be cached first. The\nstandalone CI fetches that closure, then uses locked/offline verification. The\nconsumer is a separate workspace and exercises owned cleanup, accepted reply\nsessions, nested returns and a headless GUI adapter without monorepo source paths.\nCounter and GUI prepared-repeat programs run unchanged in this separate consumer,\nincluding explicit-Seq fuel parity, original reply ownership and revocation fences.\nSaved-frame and parsed durable-control consumer models recover original budgets,\ncheckpoint watermarks and settled success/refusal receipts through the native\ncompiler and walker. The shared saved-body HIR entry also drives real reference\nVM reentry; restoration hooks cannot replace its saved body or evaluator.\nThe shared flat-group kernel also checks complete original member order and\nidentities before native checkpoint commit; real VM admission and SQLite recovery\nuse it while native authority, reservations and dispatch/terminal state stay host-owned.\nShared recovery fences reject duplicate numeric reservations, check the original\nallocation watermark before imported-identity repair, and gate completion receipts\nbefore native admission. Exact numeric and GUI-local proofs run unchanged in the\nconsumer; real SQLite recovery uses the same fences before watermark repair/commit.\nShared numeric watermark requirements preserve inclusive ceilings, existing gaps\nand exact write decisions. Live allocation/restore and SQLite allocation/repair\nkeep native identities, original reservation proof and commit-before-publish.\nShared inherited context agreement keeps native authority/revision observations\nand exact deadline/output equality. Atomic successor, group-prefix and tail paths\nretain their original fuel/schema/token checks around this phase.\nShared borrowed capture extension retains original named bindings and the current\nresult while allowing data aliases. Live successor admission and SQLite recovery\nkeep native authority, schema/budget succession and original projection policy.\nShared borrowed capture correspondence keeps group-first, capture-major original\nscans, including late native errors after an earlier true match. Live capture\nadvancement and SQLite recovery keep original projection and authority policy.\nShared ordered outcome summaries keep native first-stop and aggregate-output\nprecedence, with fail-closed ownership and no settlement or receipt authority.\nLive sequence inspection and SQLite bound recovery use the same production core.\nShared sequential-frontier inspection checks contiguous completion before native\nprefix admission and blocked-dispatch evidence, excluding the active pending row.\nReal SQLite preserves original phase/fault order and refuses without storage repair.\nShared adjacent-chain inspection retains original row order and move-only frames,\nbounded before hooks and released before handoff. SQLite keeps native pair policy\nand frozen result-decode-before-next-request fault order; no saved body is evaluated.\nReceipt authenticity, raw-result correspondence, settlement and replay remain native.\nThey do not provide a production storage backend, crash-atomic\nexternal-effect transaction or generic saved-graph interpreter.\nThese are protocol tests, not actual GUI windows or native callback sandboxing.\n\n`export-manifest.json` records relative paths, exact SHA-256 and source provenance.\n`verified` is true only after isolated workspace/consumer tests and strict lints\npass and original inventory bytes remain unchanged. It is not a signature.\n\nThis is a source checkpoint, NOT the complete independent durable VM or full\nrepository extraction gate. Durable recovery, reference-adapter/wire/auth/GUI parity\nand release publication remain separate gates in the original repository. Packages\nare deliberately marked publish=false. FFI and an OS shell remain deferred.\n";
 
 const CI: &str = "name: Leselang Native Source\non: [push, pull_request, workflow_dispatch]\npermissions:\n  contents: read\njobs:\n  native:\n    runs-on: ubuntu-latest\n    timeout-minutes: 15\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n      - run: rustup toolchain install 1.98.0 --profile minimal --component clippy,rustfmt\n      - run: cargo +1.98.0 fetch --locked\n      - run: cargo +1.98.0 fetch --manifest-path consumer/Cargo.toml --locked\n      - run: cargo +1.98.0 fmt --all -- --check\n      - run: cargo +1.98.0 test --workspace --all-features --locked --offline --profile lean\n      - run: cargo +1.98.0 clippy --workspace --all-features --all-targets --locked --offline --profile lean -- -D warnings\n      - run: cargo +1.98.0 test --manifest-path consumer/Cargo.toml --locked --offline --profile lean\n      - run: cargo +1.98.0 clippy --manifest-path consumer/Cargo.toml --all-targets --locked --offline --profile lean -- -D warnings\n";
 
@@ -1017,6 +1179,66 @@ mod tests {
     }
 
     #[test]
+    fn vm_manifest_projection_preserves_native_dependencies_and_omits_every_reference_target() {
+        let root = source_root();
+        let source = read_text(root, Path::new("crates/leselang-vm/Cargo.toml")).unwrap();
+        let (native, tests) = native_vm_manifest(&source).unwrap();
+        assert_eq!(tests.len(), 51);
+        assert!(tests.contains("ephemeral_profile"));
+        assert!(tests.contains("restore_allocator"));
+        assert!(!tests.contains("native_embedding"));
+        for absent in [
+            "[features]",
+            "[[test]]",
+            "[[example]]",
+            "leserpent",
+            "rusqlite",
+            "serde",
+        ] {
+            assert!(
+                !native.contains(absent),
+                "native manifest retained {absent}"
+            );
+        }
+        for required in [
+            "leselang-hir",
+            "leselang-runtime-core",
+            "leselang-syntax",
+            "default-features = false",
+        ] {
+            assert!(native.contains(required));
+        }
+        let registry = registry_lock(&read_text(root, Path::new("Cargo.lock")).unwrap()).unwrap();
+        let native = crate_manifest(&native, false, "9.8.7", &registry).unwrap();
+        assert!(!native.contains(".workspace"));
+        assert!(native.contains("publish = false"));
+    }
+
+    #[test]
+    fn vm_manifest_projection_refuses_unreviewed_features_dependencies_sections_and_targets() {
+        let source = read_text(source_root(), Path::new("crates/leselang-vm/Cargo.toml")).unwrap();
+        for changed in [
+            source.replace("[features]", "[features]\nunknown = []"),
+            source.replace("[package]", "[package]\nbuild = \"outside.rs\""),
+            source.replace("[dependencies]", "[dependencies]\nunreviewed = \"1\""),
+            source.replace("[[test]]", "[[test]]\npath = \"outside.rs\""),
+            source.replace(
+                "required-features = [\"sqlite-journal\"]",
+                "required-features = []",
+            ),
+            source.replace("serde = { workspace = true, optional = true }", ""),
+            format!("{source}\n[build-dependencies]\n"),
+            format!("{source}\n[dependencies]\n"),
+            format!("{source}\n[package]\n"),
+            format!(
+                "{source}\n[[test]]\nname = \"ephemeral_profile\"\nrequired-features = [\"leserpent-profile\"]\n"
+            ),
+        ] {
+            assert!(native_vm_manifest(&changed).is_err());
+        }
+    }
+
+    #[test]
     fn output_preflight_never_replaces_existing_files_or_directories_and_protects_sources() {
         let temp = Temp::new();
         fs::write(temp.0.join("existing"), "keep").unwrap();
@@ -1055,6 +1277,9 @@ mod tests {
         let (plan, version) = prepare(root).unwrap();
         for path in [
             "crates/leselang-hir/src/effect_session.rs",
+            "crates/leselang-vm/src/lib.rs",
+            "crates/leselang-vm/src/native.rs",
+            "crates/leselang-vm/tests/native_embedding.rs",
             "crates/leselang-runtime-core/src/owned_scope.rs",
             "crates/leselang-runtime-core/src/checkpoint.rs",
             "crates/leselang-runtime-core/src/continuation.rs",
@@ -1080,7 +1305,9 @@ mod tests {
             "consumer/tests/capture_extension.rs",
             "consumer/tests/durable_control.rs",
             "consumer/tests/captured_reentry.rs",
+            "consumer/tests/prepared_counter_host.rs",
             "consumer/tests/prepared_gui_host.rs",
+            "consumer/tests/native_vm_embedding.rs",
         ] {
             let entry = &plan.entries[Path::new(path)];
             assert_eq!(
@@ -1092,6 +1319,10 @@ mod tests {
             "crates/leselang-hir/src/leserpent_profile.rs",
             "crates/leselang-hir/src/host_call.rs",
             "crates/leselang-hir/tests/control_flow.rs",
+            "crates/leselang-vm/src/leserpent_profile.rs",
+            "crates/leselang-vm/src/journal.rs",
+            "crates/leselang-vm/tests/ephemeral_profile.rs",
+            "crates/leselang-vm/tests/restore_allocator.rs",
         ] {
             assert!(!plan.entries.contains_key(Path::new(path)));
         }
@@ -1099,6 +1330,7 @@ mod tests {
         assert_eq!(inventory["verified"], false);
         assert_eq!(inventory["full_extraction_gate"], false);
         assert_eq!(inventory["complete_vm"], false);
+        assert_eq!(inventory["native_vm_facade"], true);
         assert!(!inventory.to_string().contains(root.to_str().unwrap()));
     }
 

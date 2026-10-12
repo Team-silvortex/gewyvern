@@ -649,7 +649,16 @@ where
             })?;
             Ok(true)
         };
-        let calls = if groups.is_some() {
+        let calls = if groups.is_some_and(|profile| profile.prepared_members) {
+            crate::catalog_source::cold_catalog_with_repeat(
+                &function.body,
+                host,
+                limits.expression,
+                true,
+                true,
+                local_call,
+            )?
+        } else if groups.is_some() {
             crate::catalog_source::cold_catalog_profile(
                 &function.body,
                 host,
@@ -682,9 +691,13 @@ where
             entry_nodes = nodes;
         }
     }
-    if entry_groups.is_some_and(|profile| profile.prepared_members) {
-        crate::catalog_atomic_source::cold_prepared_members(declarations, &order)
-            .map_err(|error| CatalogSourceError::Group(Box::new(error)))?;
+    if let Some(profile) = entry_groups.filter(|profile| profile.prepared_members) {
+        crate::catalog_atomic_source::cold_prepared_members(
+            declarations,
+            &order,
+            profile.limits.max_branches,
+        )
+        .map_err(|error| CatalogSourceError::Group(Box::new(error)))?;
     }
     // Unused helpers are checked too. Recompilation deliberately avoids copying native slots.
     for function in order {

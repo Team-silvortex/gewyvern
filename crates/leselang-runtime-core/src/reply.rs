@@ -209,6 +209,11 @@ impl<'schema, Identity, Frame, Declaration: ?Sized>
     /// rejection the caller receives the exact original reply; there is no retry,
     /// coercion, scalar recovery, value copy or execution. Successful handoff makes
     /// this handle terminal before its frame/reply can be used by the caller.
+    /// The supplied identity and reply are independent arguments: equality does
+    /// not authenticate the payload. Hosts must preserve their binding at ingress
+    /// or use an original per-execution/member domain that validates provenance
+    /// carried by the reply. A shared schema and generation alone cannot isolate
+    /// concurrent executions of the same operation or compiled tree.
     pub fn try_accept<Reply, View: ?Sized, Authority>(
         &mut self,
         actual_identity: &Identity,

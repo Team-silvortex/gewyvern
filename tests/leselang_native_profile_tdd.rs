@@ -121,6 +121,45 @@ fn default_and_explicit_profiles_retain_the_existing_host_contract() {
 }
 
 #[test]
+fn native_vm_source_checkpoint_keeps_direct_consumer_proof_and_closed_reference_projection() {
+    let source = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    for required in [
+        "fn native_vm_manifest(",
+        "reference_tests.contains(test_name)",
+        "native_vm_facade\": true",
+        "consumer/tests/native_vm_embedding.rs",
+        "vm_manifest_projection_preserves_native_dependencies_and_omits_every_reference_target",
+        "vm_manifest_projection_refuses_unreviewed_features_dependencies_sections_and_targets",
+        "crates/leselang-vm/src/leserpent_profile.rs",
+        "crates/leselang-vm/src/journal.rs",
+    ] {
+        assert!(source.contains(required), "VM export lost {required}");
+    }
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split("### Native Source Checkpoint")
+        .nth(1)
+        .unwrap()
+        .split("### Remaining Product Boundaries")
+        .next()
+        .unwrap()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    for required in [
+        "native VM facade source",
+        "closed reviewed shape",
+        "no enableable reference or SQLite feature",
+        "native_vm_facade = true",
+        "complete_vm = false",
+        "full_extraction_gate = false",
+        "separate consumer's direct VM dependency",
+    ] {
+        assert!(section.contains(required), "VM export docs lost {required}");
+    }
+}
+
+#[test]
 fn reference_implementation_is_optional_without_changing_released_root_paths() {
     let manifest = fs::read_to_string(root().join("crates/leselang-hir/Cargo.toml")).unwrap();
     assert!(manifest.contains("default = [\"leserpent-profile\"]"));

@@ -167,6 +167,11 @@ fn docs_describe_the_active_minor_line_without_component_versions() {
     assert!(readme.contains(&format!("project version: `{active_line}`")));
     assert!(readme.contains(&format!("current release line: `v{active_line}`")));
 
+    let maintenance_path = format!("docs/history/v{active_line}.md");
+    assert!(readme.contains(&format!("[Current maintenance notes]({maintenance_path})")));
+    let maintenance = read_repo_file(&maintenance_path);
+    assert!(maintenance.starts_with(&format!("# v{active_line} Maintenance Line\n")));
+
     assert!(readme.contains("follows the root `gewyvern` version"));
     assert!(monorepo.contains("one shared mainline version"));
     assert!(monorepo.contains("longer carry independent release numbers"));

@@ -7,12 +7,11 @@ use leselang_syntax::{Expression, NamedArgument, Span};
 
 use crate::binding_source::physical;
 use crate::call_typing::valid_argument_name;
-use crate::group_exports::{MAX_GROUP_EXPORT_MEMBERS, atomic_candidate};
+use crate::group_exports::{MAX_GROUP_EXPORT_MEMBERS, atomic_candidate, joined_member_name_fits};
 use crate::group_source::{
     GroupSourceError, GroupSourceLimits, GroupSourcePhase, cold_headers, header,
 };
 use crate::ir::{Computation, ComputedBranch, GroupKind};
-use crate::pure_typing::MAX_LOCAL_NAME_BYTES;
 use crate::source_call::{preflight, span, valid_limits};
 
 /// A child compiler explicitly distinguishes one atomic result from an already
@@ -223,7 +222,7 @@ pub fn lower_sequence_source<'source, Field, Operation, HostEffect, IrResult, Er
         for (member, mut branch) in members.into_iter().enumerate() {
             let at = argument.span;
             if !valid_argument_name(&branch.name)
-                || (nested && argument.name.len() + 2 + branch.name.len() > MAX_LOCAL_NAME_BYTES)
+                || (nested && !joined_member_name_fits(&argument.name, &branch.name))
             {
                 return Err(SequenceSourceError::Name {
                     index,

@@ -7,13 +7,17 @@ defines the invariant destination; this page defines ordered delivery gates.
 The delivery sequence was capability-gated, not date-gated. Its completed gates
 remain the maintenance baseline for the released system.
 
-Current implementation checkpoint: shared release `v2.1.9`. The
+Current implementation checkpoint: shared release `v2.3.0`. The
 [project status tensor](project-status-system.md) remains authoritative for
 per-feature maturity, evidence, dependencies, and next gates.
 
-The post-release [Leselang 2.3.0 extraction target](leselang-embedding.md#230-repository-extraction-target)
-is a separate acceptance-gated refactoring track, not a claim of current full VM
-independence or a rewrite of the completed 2.0 delivery record.
+The post-release [Leselang extraction readiness track](leselang-embedding.md#repository-extraction-readiness)
+continues in the 2.3.0-and-later development phase. Physical extraction is
+deferred with no replacement version/date; complete host verticals, durable
+recovery and reference-adapter parity decide when it can move. This remains an
+acceptance-gated refactoring track, not a claim of current full VM independence
+or a rewrite of the completed 2.0 delivery record. The development phase does
+not change the package version inherited from root release metadata.
 
 `v2.0.0` completes the frozen core delivery described here. The ordered
 `1.20.0` through `1.20.9` slots below are retained as release evidence rather

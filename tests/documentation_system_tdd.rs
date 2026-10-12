@@ -1876,7 +1876,7 @@ fn leselang_embedding_separates_language_hosts_and_future_shell() {
         "TypeMismatch versus InvalidValue(original_error)",
         "revalidates bound raw results before projection or successor\nmaterialization",
         "static-call/received-value proofs, not complete\nindependent source-to-effect or suspension pipelines",
-        "## 2.3.0 Repository Extraction Target",
+        "## Repository Extraction Readiness",
         "not an automatic version-triggered move",
         "Physical extraction follows acceptance",
         "mandatory VM SQLite linkage",
@@ -3419,6 +3419,99 @@ fn shared_group_graph_docs_do_not_promote_structural_inspection_to_durable_autho
             );
         }
     }
+}
+
+#[test]
+fn native_vm_build_profiles_are_explicit_without_claiming_complete_extraction() {
+    let document = include_str!("../docs/leselang-embedding.md");
+    let section = document
+        .split("### Native VM Build Profile")
+        .nth(1)
+        .unwrap()
+        .split("### Shared Owned Capture Data")
+        .next()
+        .unwrap()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    for boundary in [
+        "existing `StackedControlSession`, not a second evaluator",
+        "no Leserpent command/domain/host contract",
+        "two scalar-host profiles, not complete",
+        "only the product-free native facade is compiled",
+        "features = [\"leserpent-profile\"]",
+        "Cargo features are additive",
+        "not a capability or security boundary",
+        "acceptance proof remains planned and absent",
+        "source checkpoint now exports this native VM facade unchanged",
+    ] {
+        assert!(
+            section.contains(boundary),
+            "native profile docs lost {boundary}"
+        );
+    }
+}
+
+#[test]
+fn leselang_extraction_readiness_is_acceptance_gated_without_a_replacement_release_deadline() {
+    let embedding = include_str!("../docs/leselang-embedding.md");
+    assert!(embedding.contains("<a id=\"230-repository-extraction-target\"></a>"));
+    let readiness = embedding
+        .split("## Repository Extraction Readiness")
+        .nth(1)
+        .unwrap()
+        .split("## Control Flow And The Future Shell")
+        .next()
+        .unwrap()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    for boundary in [
+        "current 2.3.0-and-later phase",
+        "physical extraction is deferred",
+        "No replacement extraction version or date is assigned",
+        "Prioritize complete vertical proofs over more isolated helpers",
+        "not increasing the number of public helpers as a progress proxy",
+        "two unrelated hosts",
+        "native VM operation/result ownership from Leserpent product DTOs",
+        "host-neutral durable graph recovery",
+        "wire/authority/GUI/CLI and journal migration parity",
+        "complete_vm",
+        "full_extraction_gate",
+        "flags remain false",
+        "host_embedding.rs",
+        "must not be treated as passed evidence",
+        "not a second progress table",
+        "Physical extraction follows acceptance",
+    ] {
+        assert!(
+            readiness.contains(boundary),
+            "extraction readiness lost {boundary}"
+        );
+    }
+    assert!(!embedding.contains("2.3.0 is the desired extraction checkpoint"));
+    assert!(!embedding.contains("If any acceptance proof remains missing at 2.3.0"));
+    for source in [
+        include_str!("../crates/leselang-runtime-core/README.md"),
+        include_str!("../docs/leserpent-2-roadmap.md"),
+    ] {
+        assert!(source.contains("#repository-extraction-readiness"));
+        let text = source.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(
+            text.contains("physical extraction is deferred")
+                || text.contains("Physical extraction is deferred")
+        );
+        assert!(
+            text.contains("replacement version or date")
+                || text.contains("replacement version/date")
+        );
+    }
+    let module = include_str!("../docs/modules/leselang.md")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(module.contains("2.3.0-and-later phase"));
+    assert!(module.contains("physical repository extraction is deferred"));
 }
 
 #[test]

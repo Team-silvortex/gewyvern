@@ -4,13 +4,10 @@ use std::fmt;
 
 use leselang_syntax::{Expression, NamedArgument, Span};
 
-use crate::call_typing::valid_argument_name;
-use crate::group_exports::{MAX_GROUP_EXPORT_MEMBERS, atomic_candidate};
+use crate::group_exports::{MAX_GROUP_EXPORT_MEMBERS, atomic_candidate, joined_member_name_fits};
 use crate::group_source::{GroupSourceError, cold_headers as group_headers};
 use crate::ir::{Computation, ComputedBranch, GroupKind};
-use crate::pure_typing::{
-    MAX_LOCAL_NAME_BYTES, MAX_TYPE_INFERENCE_DEPTH, MAX_TYPE_INFERENCE_NODES,
-};
+use crate::pure_typing::{MAX_TYPE_INFERENCE_DEPTH, MAX_TYPE_INFERENCE_NODES};
 use crate::repeat_source::{
     RepeatSourceError, RepeatSourceLimits, RepeatSourcePhase, cold_headers, header, reserve, shape,
 };
@@ -238,8 +235,7 @@ where
     };
     let prefix = format!("iteration_{count}");
     for (member, branch) in branches.iter().enumerate() {
-        if !valid_argument_name(&branch.name)
-            || prefix.len() + 2 + branch.name.len() > MAX_LOCAL_NAME_BYTES
+        if !joined_member_name_fits(&prefix, &branch.name)
             || branches[..member]
                 .iter()
                 .any(|previous| previous.name == branch.name)

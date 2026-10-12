@@ -10,10 +10,21 @@ use crate::call_typing::{MAX_CALL_ARGUMENTS, valid_argument_name};
 use crate::ir::{Computation, ComputedBranch, GroupKind};
 use crate::native_group::preflight_native_group_members;
 use crate::pure_typing::{
-    MAX_TYPE_INFERENCE_DEPTH, MAX_TYPE_INFERENCE_NODES, valid_local_name, valid_member_name,
+    MAX_LOCAL_NAME_BYTES, MAX_TYPE_INFERENCE_DEPTH, MAX_TYPE_INFERENCE_NODES, valid_local_name,
+    valid_member_name,
 };
 
 pub const MAX_GROUP_EXPORT_MEMBERS: usize = 64;
+
+pub(crate) fn joined_member_name_fits(prefix: &str, member: &str) -> bool {
+    valid_argument_name(prefix)
+        && valid_argument_name(member)
+        && prefix
+            .len()
+            .checked_add(2)
+            .and_then(|length| length.checked_add(member.len()))
+            .is_some_and(|length| length <= MAX_LOCAL_NAME_BYTES)
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GroupExportLimits {

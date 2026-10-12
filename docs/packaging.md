@@ -114,7 +114,7 @@ artifact. It records:
 
 The current policy values are intentionally conservative:
 
-- `release_line` matches the configured active minor line (`v2.1.x`)
+- `release_line` matches the configured active minor line (`v2.3.x`)
 - `layout_version = 1`
 - `config_schema_version = 1`
 - `upgrade_policy = "copy-forward-without-overwrite"`

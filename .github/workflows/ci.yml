@@ -47,9 +47,15 @@ jobs:
           package leselang --output "$RUNNER_TEMP/leselang-native-source" --verify
 
       - name: Test reference VM with the SQLite backend disabled
-        run: cargo +1.98.0 test -p leselang-vm --locked --no-default-features
+        run: cargo +1.98.0 test -p leselang-vm --locked --no-default-features --features leserpent-profile
 
       - name: Lint database-free reference VM and its tests
+        run: cargo +1.98.0 clippy -p leselang-vm --locked --no-default-features --features leserpent-profile --all-targets -- -D warnings
+
+      - name: Test native VM facade without product or storage features
+        run: cargo +1.98.0 test -p leselang-vm --locked --no-default-features
+
+      - name: Lint native VM facade and its host adapters
         run: cargo +1.98.0 clippy -p leselang-vm --locked --no-default-features --all-targets -- -D warnings
 
   rust:
@@ -76,6 +82,7 @@ jobs:
         run: |
           cargo fmt --all -- --check
           rustfmt +1.98.0 --edition 2024 --check crates/leselang-hir/src/leserpent_profile.rs
+          rustfmt +1.98.0 --edition 2024 --check crates/leselang-vm/src/leserpent_profile.rs
 
       - name: Run Clippy
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings

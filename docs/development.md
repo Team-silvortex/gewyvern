@@ -90,14 +90,17 @@ isolated verifier. The output parent must already exist, and an existing output
 is never replaced. Verification reuses the compiler cache, not product source
 paths. The exported workspace and its separate consumer own explicit metadata,
 locked registry dependencies, MIT license and native CI. This is not the full
-durable VM extraction or publication gate; see [embedding boundaries](leselang-embedding.md).
+durable VM extraction or publication gate. The four exported crates now include
+the native VM facade and its unchanged direct-consumer host tests; neither
+product/reference nor SQLite features are enableable in the checkpoint.
+See [embedding boundaries](leselang-embedding.md).
 
 Before cutting a release, use `cargo dev version check` to verify that Cargo,
 .NET, lockfiles, public docs, and the status checkpoint still agree on one
 product version. Preview a deliberate version change before applying it:
 
 ```bash
-cargo dev version set 2.1.9 --dry-run
+cargo dev version set 2.3.0 --dry-run
 ```
 
 Removing `--dry-run` applies the update transactionally. It does not create a

@@ -1153,7 +1153,7 @@ Two unrelated native schemas, metadata-clone counters and an isolated five-crate
 workspace verify this call-only typing layer. They are **not complete independent
 source-to-effect or suspension pipelines**. Opaque-host adaptation, generic source
 lowering, opaque-host flow typing, host-result acceptance, execution and optional
-persistence remain separate 2.3.0 extraction gates.
+persistence remain separate acceptance gates before physical extraction.
 
 ### Shared Call-Result Dataflow Typing
 
@@ -1540,6 +1540,121 @@ Already invoked effects are not rolled back. Native callbacks, cloning of host
 result views and Drop remain trusted, host-bounded and non-preemptible. This source
 profile does not promote product VM migration or independent VM/repository extraction.
 
+### Prepared Host Expressions
+
+`catalog_group_source::compile_catalog_prepared_group_source` accepts one expression
+and an explicit borrowed type prefix. Independent hosts can compile prepared
+Seq/All members, pure Bind/Choose preparation, Repeat and direct sequential
+composition against existing host variables without synthesizing a parameterless
+entry or helper declarations. The earlier `compile_catalog_group_source` keeps
+its direct-member-only behavior; multi-function callers keep the prepared program
+entry and its separate nonrefunding helper-expansion budget.
+
+This entry uses the same closed lexical/source gate, full catalog admission,
+atomic-member facts, source-only export preflight, owned group kernels and final
+whole-output inference. Missing/duplicate prefix names, unsupported nested groups,
+mixed terminal operations, invalid grants or export bounds cannot bypass those
+gates. An expression has no helper namespace or ambient fallback. Native result
+metadata in a prefix still belongs to its original host/schema; equal field names
+do not authorize a foreign result.
+
+The prefix supplies types, not runtime values or credentials. The host separately
+provides bounded matching initial bindings to its original reply session. Values
+are not interpolated into source or baked into IR: the same admitted tree can run
+with fresh inputs in separate sessions against the same original schema/context.
+Current grants, native provenance, authentic receipts, capture ownership and
+cancellation must still be checked at use time. Compile-time types neither validate
+untrusted input values nor authorize dispatch; there is no automatic session or
+cross-host cache policy.
+
+The headless GUI proof compiles one repeated label/visibility expression using
+external `target`, `prefix`, `suffix` and `enabled` bindings. Two executions return
+`alpha.!` and `bravo.?` through original member receipts and one restored capture,
+with equal fuel for equal-size inputs; a third changes `enabled` to false and takes
+the other prepared branch without recompilation. Missing/wrong runtime inputs, exhausted
+fuel and revoked grants fail before invocation. Cancellation or stale authority
+after group acceptance prevents captured-input restoration and final projection;
+settled effects are not replayed or rolled back. These tests run unchanged in the
+standalone consumer, not in a real GUI toolkit. Helper-returning group members,
+result-dependent group operands and generic durable recovery remain separate gates.
+
+### Prepared Repeat Programs
+
+The same `compile_catalog_prepared_group_helper_program` entry accepts
+`repeat(times: 3, body: prepare(n: 40))` in the entry or an acyclic helper.
+It compiles to the existing sequential group with `iteration_1` through
+`iteration_3` exports. A caller can read an original reply with
+`member(value: batch, name: "iteration_3")` and then project its declared fields.
+No additional parser, evaluator, scheduler or native compiler callback is needed.
+
+`times` is a positive integer literal bounded by `max_branches`. All declarations,
+including unused helpers and cold branches, pass repeat headers, closed names,
+catalog policy and uniform atomic-member shape checks before native mapping.
+Pure Bind/Choose and atomic helper bodies work. Direct sequential composition is
+described below; effectful operands, mixed terminal operations and result-dependent
+sequence operands remain outside this profile. Older compiler entries retain their limits.
+
+The existing repeat kernel reserves the full shifted physical and folded source
+cost before creating later instances. Each instance is recompiled through the
+original hygienic helper path and nonrefunding program work budget, without copying
+native slots. Full group type inference and aggregate call/output limits still apply.
+Generated names use the existing repeat convention; no additional execution fuel
+meter is created. Native metadata hooks remain trusted and must bound their work.
+
+Counter and headless GUI programs compare three repetitions with three explicit
+Seq members: identical runtime fuel, one outstanding reply at a time, original
+receipt checks, enclosing capture restoration and the same final projected value.
+Cancellation, revoked capability or stale widget generation stops remaining
+publication without replay or rollback of settled effects. These proofs also run
+in the standalone source consumer. This closes prepared-repeat compilation,
+not generic durable recovery or complete VM extraction.
+
+### Composed Sequential Programs
+
+The prepared program entry also accepts direct `seq` and `repeat` children of
+`seq`, and a direct `seq` or `repeat` body of `repeat`. For example:
+
+```lese
+fn main() = repeat(times: 2, body: seq(
+    label: label.set_text(target: "status", text: "ready"),
+    visible: widget.set_visible(target: "status", visible: true)))
+```
+
+The original owned sequence/repeated-sequence kernels flatten this into one Seq.
+Names preserve source order as `iteration_1__label`, `iteration_1__visible`,
+`iteration_2__label`, `iteration_2__visible`; nested Seq names use `parent__child`.
+The enclosing program can project these exact names through the existing member
+and field operations. Native declaration/payload ownership moves unchanged.
+
+All cold headers, grants and helper facts precede native mapping. Before lowering
+any declaration, source-only sequential export analysis also checks total expanded
+width, 64-byte joined labels and collisions, including unused helpers and untaken
+choice arms. It visits each direct repeat body once and checks the width product
+before generating at most 64 bounded names; it does not expand helpers or touch
+native slots. The shared join predicate covers both this check and the owned
+assembly kernels. Repeat name checks use the longest iteration label, so crossing
+from iteration 9 to 10 cannot silently exceed the byte limit. Cold repeat errors
+use iteration 0, with the original span and member index where applicable.
+
+Source depth and group-site limits still bound recursive compilation. The existing
+owned kernels independently check final width, names, collisions and shifted
+physical/folded source costs; repeated forests are reserved before later factories.
+Source export facts are not type/schema authority or cached permission to dispatch.
+Each helper instance keeps its original hygienic, nonrefunding compilation budget.
+Complete final group inference remains mandatory. Intermediate source groups do
+not become runtime frames or add execution fuel: six counter spellings and three
+heterogeneous GUI spellings match their explicit flat sequence's runtime budget.
+
+One original reply session releases one step at a time. Wrong member receipts,
+cancellation, stale widget generations and revoked grants cannot publish a later
+step or re-enter the caller; settled mutations are neither replayed nor rolled back.
+Both host proofs also run unchanged in the independent source consumer.
+
+Only direct source composition is enabled. Nested `all`, Seq/Repeat inside an All,
+group-returning helper aliases or Bind/Choose wrappers used as members, and operands
+depending on earlier replies remain separate gates. No nested parallel scheduler,
+durable group recovery, automatic GUI binding or complete runtime extraction is claimed.
+
 ### Complete Atomic Group Preparation
 
 `prepared_call_evaluation::prepare_atomic_group_in_scope` joins the original flat
@@ -1612,6 +1727,120 @@ copying and cleanup remain trusted, bounded by the adapter and non-preemptible.
 
 This closes a second-schema in-memory prepared-group acceptance proof, not product
 VM migration, durable recovery or complete independent VM/repository extraction.
+
+### Shared IR Execution Isolation
+
+The headless GUI adapter reuses one compiled tree, catalog and widget across
+multiple **interleaved executions**. Each execution has a fresh local identity
+from a `LocalExecutionScope` lease and stable borrowed member/aggregate reply
+domains. Generation is still
+checked as live widget authority, but generation and member index alone are not
+an execution identity. The fixture admits its single prepared group only once
+per execution context, even after completion or failed correlation. A new run
+needs a new context, not a new compilation. Context allocation and the number of
+simultaneous contexts are host-owned resource limits, outside the language meter.
+
+Dispatch retains the original execution/member identity; acknowledgements retain
+the same provenance. Member domains check it along with the original result
+schema. Aggregate domains check the execution, original group, row order and
+original member-domain addresses. Thus a correct outer delivery label cannot
+turn a foreign acknowledgement or mixed aggregate into a local result. Rejection
+returns the original input buffer and leaves the pending slot available for its
+real reply. Repeat members using the same schema cannot replay an earlier
+iteration's receipt. Neither rejection nor acceptance resumes the caller.
+
+The proofs interleave two scoped Seq executions with different inputs, exercise
+two All barriers with reverse-order replies, cross-deliver both member and whole
+group replies, and attempt to reuse an execution context. Each caller retains
+its own captures, fuel and output. Cancellation is delivered explicitly to the
+core session, native collection state and execution scope; already-issued
+native work rechecks its lease before mutation. Cancelling one execution does
+not revoke the shared widget's grants or cancel its neighbour. Already applied
+changes remain applied, and sharing a widget does not make mutations serializable
+or transactional.
+
+These are single-threaded host-adapter proofs using the unchanged shared kernels,
+not a cross-thread scheduler or a wire authentication protocol. The weak `Rc` identity
+is process-local, intentionally non-serializable and not a durable receipt.
+External delivery authentication, aggregate quotas, native callback cost and
+actual GUI-thread routing remain adapter responsibilities. This does not certify
+the Avalonia adapter, concurrent GUI access, durable recovery or full VM extraction.
+
+### Guarded Native Execution Lifetime
+
+`leselang-runtime-core::{LocalExecutionScope, LocalExecutionLease, ScopedLocalExecution}`
+adds an opt-in local ownership fence, also available through `leselang_vm::native::core`.
+The owner is unique; leases may be cloned but are weak and cannot extend owner
+liveness. `close()` is idempotent and irreversible. Distinct scopes remain distinct
+even while old closed leases survive; there is no global ID allocator.
+
+The GUI adapter now uses the shared lease for its execution identity, original
+reply domains, publication/invocation and re-entry checks. Bind the existing
+session into `scope.bind(session)` after constructing the host's lease-based
+context. Poll/accept/cancel continue through `value_mut()` on the **same** session.
+Wrapper Drop first closes the scope and then drops the native value, including
+on unwind. Thus escaped requests do not stay authorized because an error path
+forgot a manual boolean update. Merely declaring an owner beside a session does
+not guarantee that cleanup order; binding owns both in the required order.
+
+Close explicitly on terminal completion/failure or before cancellation cleanup;
+the generic wrapper deliberately does not infer another type's terminal state.
+If an unwind is caught while retaining the wrapper, close it explicitly after
+the uncertain outcome; only actual wrapper destruction performs automatic closure.
+An external collector still needs explicit cancellation and disposal. Late member
+replies are rejected with their original buffer intact; already accepted replies
+cannot restore captures or project fields after closure. `into_inner()` closes
+before returning the still-owned value. Mutable access does not guard arbitrary
+payload replacement: close first if such host cleanup requires revocation.
+
+Core tests exercise borrowed move-only values, cleanup ordering, normal and
+cleanup unwind, original-buffer extraction and independent owners. The GUI proof
+exercises Seq/All owner abandonment, unwind, escaped dispatch, late receipts and
+accepted re-entry, then runs the same compiled tree in a fresh scope with unchanged
+fuel. These are cooperative local checks: no thread safety, scheduling, callback
+preemption, rollback, cryptographic authority or durable cancellation is implied.
+Aggregate owner/lease quotas remain host-owned. Forgetting the owner or process
+abort bypasses Drop. Full host parity, durable recovery and extraction stay open.
+
+### Local Session Entry
+
+`leselang_vm::native::LocalVm` is exactly shared HIR's
+`local_effect_session::LocalStackedControlSession`; its computation-oriented alias
+is `LocalStackedEffectSession`. This is an opt-in ownership wrapper around the
+original `StackedControlSession`, not another evaluator or reply state machine.
+The unwrapped `native::Vm` stays unchanged, including its conditional Send behavior.
+
+Create a `LocalExecutionScope`, install its lease in the host's request identities,
+live policy and original result domains, and move the owner into
+`LocalVm::new(scope, &ir, bindings, fuel, limits)`. Use the usual `poll`, `try_accept`,
+`cancel`, `status` and `fuel_remaining`; `lease()` returns a non-owning observer.
+There is no mutable raw-session escape or automatic native dispatch.
+
+The wrapper mirrors **actual session status**, not an error-code string or every
+`Err`: normal identity, authority and result-domain rejections leave the pending
+scope open and return the original reply. Acceptance alone does not resume or
+close it. Completion and normal execution failure close before the call returns.
+Escaping poll/accept unwinds close at the call boundary even if an outer catcher
+retains the wrapper; the original core remains `HostUncertain`. Repeated polls
+and cancellation preserve the original terminal reason and budget. Construction
+with a closed owner is inert; the first poll/accept cancels without running IR.
+
+Explicit cancel and owner Drop revoke before retained-session cleanup, including
+cleanup unwind. The call-boundary unwind fence cannot run before callback-local
+or consumed-frame cleanup deeper inside the original evaluator: that native code
+remains trusted and non-preemptible. There is no rollback, exactly-once dispatch,
+wire authentication, automatic framework adaptation or external queue cancellation.
+Hosts still check leases before effects and dispose of external collectors.
+Returned values remain owned data, not a still-live execution grant.
+
+The GUI vertical tests Seq/All completion, recoverable rejection, cold failure,
+fuel exhaustion, preclosed owners, caught poll/accept unwind while retaining the
+session, and escaped requests after cancel/Drop. The native facade additionally
+proves borrowed move-only initial-value cleanup ordering, sticky cancellation
+after cleanup unwind, and the original Vm's Send capability. Existing GUI meter
+accounting stays `1000 -> 948 -> 925`. Local ownership is deliberately !Send/!Sync;
+no global lock, scheduler, new quota or product dependency is added. Complete
+host parity, durable recovery and repository extraction remain separate gates.
 
 ### Shared Native Source Call Bridge
 
@@ -4926,6 +5155,40 @@ graphs or native multi-presentation batch protocol are added by this contract.
 
 ## Current Boundary And Next Proof
 
+### Native VM Build Profile
+
+`leselang-vm` now separates its host-neutral in-memory entry points from the
+released Leserpent specialization. The product-free configuration is:
+
+```toml
+leselang-vm = { path = "../leselang-vm", default-features = false }
+```
+
+`leselang_vm::native` exposes the exact shared `syntax`, `hir` and `core` crates.
+Its `Vm` is the existing `StackedControlSession`, not a second evaluator or
+conversion wrapper. Catalog compilation and synchronous reply-gated sessions use
+the same native implementation as the HIR profiles. Native adapters still own
+catalog versions, live grants, authentic receipt identities, dispatch, aggregate
+capture/ingress bounds, thread affinity and accepted-work cancellation delivery.
+The session borrows original IR and keeps one fuel meter across all re-entry.
+No timer, worker, global lock, implicit async syntax or journal is installed.
+
+The native normal/build dependency closure contains only the language crates and
+registry libraries: no Leserpent command/domain/host contract, account service,
+SQLite, async runtime or GUI toolkit. Cargo features are additive; another
+dependency may enable `leserpent-profile` or `sqlite-journal`. Feature selection
+is not a capability or security boundary. CI tests/lints each profile separately.
+
+The new `tests/native_embedding.rs` exercises counter/integer and panel/string
+schemas through helper compilation, nested captures, two reply-gated effects,
+owned invalid/stale receipt rejection, independent owners and out-of-order roots
+on one host, live policy re-entry, cancellation and terminal fuel exhaustion.
+These are two scalar-host profiles, not complete
+reference-language/group coverage, a real GUI adapter or durable recovery.
+The full `tests/host_embedding.rs` acceptance proof remains planned and absent;
+the four-crate source checkpoint now exports this native VM facade unchanged.
+Complete independent VM and repository extraction gates remain open.
+
 ### Optional Reference VM Storage
 
 `leselang-vm` now has an optional VM SQLite backend. The `sqlite-journal` feature
@@ -4934,8 +5197,13 @@ restart/migration checks and all database-backed compatibility tests. An embedde
 consumer that needs only the reference VM's in-memory path can use:
 
 ```toml
-leselang-vm = { path = "../leselang-vm", default-features = false }
+leselang-vm = { path = "../leselang-vm", default-features = false, features = ["leserpent-profile"] }
 ```
+
+Consumers of the previous database-free reference API must now explicitly enable
+`leserpent-profile`; without it, only the product-free native facade is compiled.
+The default feature set is unchanged: `sqlite-journal` implies the reference
+profile, preserving all released root API paths and wire/journal behavior.
 
 `Vm::new` and `Vm::new_with_limits` reuse the existing ephemeral journal and
 evaluator. Disabling the feature removes `rusqlite` and `libsqlite3-sys` from the
@@ -4957,7 +5225,9 @@ alone does not restore a completed outbox. Hosts still own cross-VM routing and
 current dispatch authority; equal local token text is not global execution identity.
 
 This removes mandatory VM SQLite linkage, not product DTO coupling. The reference
-VM still depends on Leserpent command/result contracts and recovery frames.
+VM still depends on Leserpent command/result contracts and recovery frames when
+`leserpent-profile` is enabled. Native facade isolation does not migrate those
+reference ownership/recovery models into host-neutral execution.
 It is not the complete product-free independent VM, optional host-neutral durable
 backend or repository extraction gate.
 
@@ -5563,7 +5833,7 @@ or complete independent durable VM is introduced.
 ### Native Source Checkpoint
 
 `cargo dev package leselang --output target/leselang-native-source --verify`
-exports syntax, runtime-core and native HIR/session source as a self-contained
+exports syntax, runtime-core, native HIR/session and native VM facade source as a self-contained
 MIT workspace. The output parent must exist and the destination must be fresh.
 `--dry-run` performs bounded source planning without writes or verifier calls.
 The Rust workflow refuses source symlinks, unsafe/protected paths, duplicate or
@@ -5580,14 +5850,31 @@ The reference cfg name is recognized only for unchanged unreachable guards,
 not an enableable Cargo feature, so exported all-features builds remain native.
 Packages are `publish = false` until a separate publication decision.
 
+The VM manifest projection removes its optional product/storage dependencies and
+their explicit reference test/example targets. Its package metadata, features,
+dependencies and gated targets have a closed reviewed shape: added build hooks,
+unknown dependencies/features, custom target paths, duplicate or incomplete
+sections fail source planning, rather than silently changing the exported profile.
+The exported VM package has no enableable reference or SQLite feature; its
+`native::Vm` remains the exact shared `StackedControlSession`. Upstream source
+documentation for the omitted product profile does not grant that feature here.
+
 The export has its own locked/offline CI and a separate `consumer/` workspace
 whose relative dependencies point only into the exported source. `--verify`
 checks local dependency paths, runs all native tests and strict lints, then runs
-the consumer's checkpoint/saved-frame/group-graph/recovery-fence/captured-reentry/durable-control/scope/session/stack/GUI tests and
+the consumer's checkpoint/saved-frame/group-graph/recovery-fence/captured-reentry/durable-control/scope/session/stack/GUI/native-VM tests and
 strict lints. Reusing a target cache does not provide source or product metadata.
 `export-manifest.json` records relative file paths, exact SHA-256 and provenance;
 `verified` becomes true only after those checks and exact inventory revalidation.
 It is not a signature or a durable execution/authority certificate.
+The manifest separately reports `native_vm_facade = true` while retaining
+`complete_vm = false` and `full_extraction_gate = false`. The copied native VM
+host proof runs both as a workspace integration test and through the separate
+consumer's direct VM dependency, without root product metadata or assets.
+The retained [macOS arm64 export proof](fixtures/leselang_native_vm_source_export_macos_arm64_20261012.json)
+records the four-crate inventory, exact facade/consumer provenance and successful
+workspace/consumer tests and strict lints. It is local source-portability evidence,
+not a claim of fresh Linux validation or the remaining complete-runtime gates.
 
 This closes the native source portability proof, **not the complete independent
 VM or repository extraction gate**. Product-coupled durable recovery and reference
@@ -5603,8 +5890,9 @@ names concrete runtime and UI effects, though its computation nodes specialize
 shared host-parameterized IR. Disabling that optional profile removes its product
 DTOs/lowerer and host-contract dependency from the native build. The reference
 lowerer/type rules and host contract still contain runtime selectors and deployment
-validation when enabled. `leselang-vm`, `leselang-ui`, and `leselang-observe` still consume
-Leserpent command/result types. `leselang-command` is intentionally the product
+validation when enabled. The `leselang-vm` reference profile, `leselang-ui`, and
+`leselang-observe` still consume Leserpent command/result types; the native VM
+facade and its source export omit that profile. `leselang-command` is intentionally the product
 adapter and should remain outside the standalone core.
 
 The first extracted runtime component is `leselang-runtime-core`: admission
@@ -5690,9 +5978,15 @@ as developing, separately from mature released Leserpent integration. Keeping co
 monorepo temporarily does not relax these boundaries or require an immediate
 repository move.
 
-## 2.3.0 Repository Extraction Target
+<a id="230-repository-extraction-target"></a>
 
-**2.3.0 is the desired extraction checkpoint, not an automatic version-triggered move.**
+## Repository Extraction Readiness
+
+**The current 2.3.0-and-later phase closes acceptance gates; physical extraction is deferred.**
+It is not an automatic version-triggered move. No replacement extraction version
+or date is assigned. Continue the shared implementation in this monorepo until
+complete vertical and compatibility proofs pass; do not trade reliability for a
+release label or duplicate the runtime to manufacture apparent independence.
 The existing language and free Leserpent capability set remain the compatibility
 baseline; this track removes product coupling rather than adding an OS shell or
 another GUI framework. Prioritize complete vertical proofs over more isolated helpers.
@@ -5700,7 +5994,7 @@ another GUI framework. Prioritize complete vertical proofs over more isolated he
 | Stage | Required Exit Proof |
 | --- | --- |
 | 2.2.0 foundation | Host-defined catalogs feed generic typed IR, evaluation, values and suspension frames; one unrelated host compiles, runs, yields, resumes and cancels without product DTOs or mandatory SQLite |
-| 2.3.0 extraction gate | Two unrelated host schemas pass the same complete language pipeline; exact versions, unknown operations, wrong typed replies and denied capabilities fail before unsafe dispatch; optional durable storage proves restart, stale-reply rejection and no duplicate settled effects |
+| 2.3.0 and later convergence | Two unrelated host schemas pass the same complete language pipeline; exact versions, unknown operations, wrong typed replies and denied capabilities fail before unsafe dispatch; optional durable storage proves restart, stale-reply rejection and no duplicate settled effects |
 | Repository move | Existing Leserpent wire/auth/GUI parity remains green; the complete core has product-free dependency closure, its own source manifests, CI, docs, MIT license and publish boundaries; a clean external consumer builds without monorepo metadata/assets |
 
 Catalog-only tests prove registration/selection/binding and generic node reuse.
@@ -5716,8 +6010,29 @@ host-neutral durable recovery. Native source metadata/CI now have the checkpoint
 proof above; complete runtime publication remains separate. Mandatory
 VM SQLite linkage has been removed by the optional backend above; product
 contracts remain in the reference VM's database-free dependency closure.
-If any acceptance proof remains missing at 2.3.0, retain the shared implementation
-in this repository and record the blocker instead of shipping a misleading split.
+The next work is complete pipeline convergence, not increasing the number of
+public helpers as a progress proxy:
+
+1. Run the existing language capability set through one complete in-memory
+   source-to-effect/reply/capture/cancel pipeline for two unrelated hosts, rather
+   than accepting only restricted prepared-expression profiles.
+2. Separate native VM operation/result ownership from Leserpent product DTOs.
+   Disabling `sqlite-journal` removes storage linkage, not those product types.
+3. Close host-neutral durable graph recovery and saved-frame compatibility,
+   including stale receipts, settled-effect deduplication and original budgets.
+4. Re-run full reference-adapter wire/authority/GUI/CLI and journal migration
+   parity before moving the complete core and its consumer/CI into a new repository.
+
+`leselang/language-vm/host-neutral-embedding` remains developing. The isolated
+source checkpoint contains syntax, runtime foundations, native HIR and the native
+VM facade, not the
+complete reference VM; its `complete_vm` and `full_extraction_gate` flags remain
+false. The planned `crates/leselang-vm/tests/host_embedding.rs` proof is not yet
+present and must not be treated as passed evidence. The status tensor remains the
+single source of truth; this section defines exit proofs, not a second progress table.
+Retain the shared implementation and record missing evidence instead of shipping
+a misleading split. Reassess after complete host verticals or recovery/parity
+gates close, not whenever a version number changes.
 Physical extraction follows acceptance, not directory relocation alone. FFI
 packaging and the nuis OS / sirius kernel shell remain deferred.
 

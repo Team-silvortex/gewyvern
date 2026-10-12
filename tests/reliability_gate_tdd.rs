@@ -54,6 +54,8 @@ fn critical_runtime_sources_do_not_use_panic_shortcuts_in_production() {
         "crates/leselang-observe/src/lib.rs",
         "crates/leselang-ui/src/lib.rs",
         "crates/leselang-vm/src/lib.rs",
+        "crates/leselang-vm/src/native.rs",
+        "crates/leselang-vm/src/leserpent_profile.rs",
         "crates/leselang-vm/src/journal.rs",
         "crates/leserpent-runtime/src/lib.rs",
         "crates/leserpent-cli/src/lib.rs",

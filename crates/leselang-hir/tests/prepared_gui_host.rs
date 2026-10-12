@@ -2,8 +2,8 @@
 use leselang_hir::{
     call_evaluation::{CallEvaluationHost, CallEvaluationLimits, PreparedCall},
     catalog_group_source::{
-        CatalogGroupProgramLimits, CatalogGroupSourceEnvironment,
-        compile_catalog_prepared_group_helper_program,
+        CatalogGroupProgramLimits, CatalogGroupSourceEnvironment, CatalogGroupSourceLimits,
+        compile_catalog_prepared_group_helper_program, compile_catalog_prepared_group_source,
     },
     catalog_program::CatalogProgramLimits,
     catalog_source::{CatalogSourceEnvironment, CatalogSourceLimits},
@@ -19,6 +19,7 @@ use leselang_hir::{
     flow_typing::{CallFlowEnvironment, GroupFlowEnvironment, GroupMemberType},
     group_reply::assemble_group_reply,
     ir::{Computation, ComputedBranch, GroupKind},
+    local_effect_session::LocalStackedEffectSession,
     native_group_preparation::PreparedNativeGroup,
     parallel_evaluation::{
         ParallelAccepted, ParallelEvaluationLimits, ParallelPoll, ParallelRequest,
@@ -317,6 +318,22 @@ fn tree(kind: &str) -> SyntaxTree {
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
     parsed
 }
+
+fn repeat_tree(group: &str) -> SyntaxTree {
+    sequential_tree(group, "iteration_3")
+}
+
+fn sequential_tree(group: &str, selected: &str) -> SyntaxTree {
+    let tree = parse(&format!(
+        "fn main() = bind(suffix: \"!\", body: bind(answer: render(prefix: \"ready\"), body: concat(left: answer, right: suffix)))\n\
+         fn render(prefix: string) = bind(batch: {group},\
+             body: bind(ack: member(value: batch, name: \"{selected}\"), body: field(value: ack, name: \"text\")))\n\
+         fn prepare_text(prefix: string) = bind(message: concat(left: prefix, right: \".\"), body: label.set_text(target: \"status\", text: message))\n\
+         fn prepare_visible() = widget.set_visible(target: \"status\", visible: true)"
+    ));
+    assert!(tree.diagnostics.is_empty());
+    tree
+}
 fn compile<'s>(tree: &SyntaxTree, source: &Source<'_, 's>, types: &Types<'s>) -> Node<'s> {
     let functions: Vec<_> = tree.function.iter().chain(&tree.helpers).collect();
     let (node, ty) =
@@ -324,6 +341,61 @@ fn compile<'s>(tree: &SyntaxTree, source: &Source<'_, 's>, types: &Types<'s>) ->
             .unwrap();
     assert!(matches!(ty, PureType::Scalar(ScalarType::String)));
     node
+}
+
+fn scoped_node<'s>(source: &Source<'_, 's>, types: &Types<'s>) -> Node<'s> {
+    let parsed = parse(
+        "fn main() = bind(batch: repeat(times: 2, body: seq(\
+        label: bind(message: concat(left: prefix, right: \".\"), body: choose(when: enabled,\
+            then: label.set_text(target: target, text: message), otherwise: label.set_text(target: target, text: \"\"))),\
+        visible: widget.set_visible(target: target, visible: enabled))),\
+        body: bind(ack: member(value: batch, name: \"iteration_2__label\"),\
+            body: concat(left: field(value: ack, name: \"text\"), right: suffix)))",
+    );
+    assert!(parsed.diagnostics.is_empty());
+    let text = PureType::Scalar(ScalarType::String);
+    let boolean = PureType::Scalar(ScalarType::Boolean);
+    let prefix = [
+        ("target", &text),
+        ("prefix", &text),
+        ("suffix", &text),
+        ("enabled", &boolean),
+    ];
+    let (node, result) = compile_catalog_prepared_group_source(
+        &parsed.function.unwrap().body,
+        &prefix,
+        CatalogGroupSourceLimits {
+            expression: COMPILE.program.expression,
+            max_groups: COMPILE.max_groups,
+            max_branches: COMPILE.max_branches,
+        },
+        source,
+        types,
+    )
+    .unwrap();
+    assert!(matches!(result, PureType::Scalar(ScalarType::String)));
+    node
+}
+
+fn scoped_bindings<'ir, 's>(
+    prefix: &str,
+    suffix: &str,
+) -> RestoredEffectBindings<'ir, View<'ir, 's>> {
+    vec![
+        (
+            "target",
+            PureValue::Scalar(ScalarValue::String("status".to_owned())),
+        ),
+        (
+            "prefix",
+            PureValue::Scalar(ScalarValue::String(prefix.to_owned())),
+        ),
+        (
+            "suffix",
+            PureValue::Scalar(ScalarValue::String(suffix.to_owned())),
+        ),
+        ("enabled", PureValue::Scalar(ScalarValue::Boolean(true))),
+    ]
 }
 fn group<'ir, 's>(node: &'ir Node<'s>) -> &'ir Node<'s> {
     let mut pending = vec![node];
@@ -410,6 +482,7 @@ fn fixture(test: impl for<'h, 's> FnOnce(&Source<'h, 's>, &Types<'s>, &'s Schema
 struct Ack<'s> {
     schema: &'s Schema<'s>,
     generation: u64,
+    identity: MemberIdentity,
     value: ScalarValue,
 }
 struct Input<'s> {
@@ -438,18 +511,118 @@ impl<'s> HostResultDomain<Ack<'s>> for Schema<'s> {
         }
     }
 }
-type Accepted<'ir, 's> =
-    ParallelAccepted<'ir, Node<'s>, Declaration<'s>, (u64, usize), Schema<'s>, Input<'s>>;
-type Parallel<'ir, 's> =
-    PreparedParallelSession<'ir, Node<'s>, Declaration<'s>, (u64, usize), Schema<'s>, Input<'s>>;
-type Sequence<'ir, 's> =
-    PreparedSequenceSession<'ir, Node<'s>, Declaration<'s>, (u64, usize), Schema<'s>, Prepared<'s>>;
+// Local receipt provenance, not a serializable token or an authentication protocol.
+struct ExecutionIdentity(LocalExecutionLease);
+impl PartialEq for ExecutionIdentity {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.same_scope(&other.0)
+    }
+}
+struct MemberIdentity {
+    execution: ExecutionIdentity,
+    index: usize,
+}
+impl PartialEq for MemberIdentity {
+    fn eq(&self, other: &Self) -> bool {
+        self.execution == other.execution && self.index == other.index
+    }
+}
+struct MemberDomain<'ir, 's> {
+    identity: MemberIdentity,
+    original: &'ir Branch<'s>,
+}
+impl<'s> HostResultDomain<Ack<'s>> for MemberDomain<'_, 's> {
+    type Error = Refusal;
+    fn matches_type(&self, ack: &Ack<'s>) -> bool {
+        std::ptr::eq(self.original.result_type.0, &ack.schema.result)
+            && ack.schema.matches_type(ack)
+    }
+    fn validate_value(&self, ack: &Ack<'s>) -> Result<(), Refusal> {
+        if !self.identity.execution.0.is_open()
+            || !self.matches_type(ack)
+            || self.identity != ack.identity
+        {
+            return Err(Refusal);
+        }
+        ack.schema.validate_value(ack)
+    }
+}
+struct Execution<'ir, 's> {
+    identity: ExecutionIdentity,
+    group: &'ir Node<'s>,
+    members: Vec<MemberDomain<'ir, 's>>,
+    correlated: Cell<bool>,
+}
+impl<'ir, 's> Execution<'ir, 's> {
+    fn new(node: &'ir Node<'s>, lease: LocalExecutionLease) -> Self {
+        let group = group(node);
+        let Node::Group { branches, .. } = group else {
+            unreachable!()
+        };
+        assert!(branches.len() <= COMPILE.max_branches);
+        Self {
+            identity: ExecutionIdentity(lease.clone()),
+            group,
+            members: branches
+                .iter()
+                .enumerate()
+                .map(|(index, original)| MemberDomain {
+                    identity: MemberIdentity {
+                        execution: ExecutionIdentity(lease.clone()),
+                        index,
+                    },
+                    original,
+                })
+                .collect(),
+            correlated: Cell::new(false),
+        }
+    }
+    fn identity(&self) -> ExecutionIdentity {
+        ExecutionIdentity(self.identity.0.clone())
+    }
+    fn member(&self, index: usize) -> MemberIdentity {
+        MemberIdentity {
+            execution: self.identity(),
+            index,
+        }
+    }
+}
+struct Invocation<'s> {
+    identity: MemberIdentity,
+    prepared: Prepared<'s>,
+}
+type Accepted<'ir, 's> = ParallelAccepted<
+    'ir,
+    Node<'s>,
+    Declaration<'s>,
+    MemberIdentity,
+    MemberDomain<'ir, 's>,
+    Input<'s>,
+>;
+type Parallel<'ir, 's> = PreparedParallelSession<
+    'ir,
+    Node<'s>,
+    Declaration<'s>,
+    MemberIdentity,
+    MemberDomain<'ir, 's>,
+    Input<'s>,
+>;
+type Sequence<'ir, 's> = PreparedSequenceSession<
+    'ir,
+    Node<'s>,
+    Declaration<'s>,
+    MemberIdentity,
+    MemberDomain<'ir, 's>,
+    Invocation<'s>,
+>;
 struct Collected<'ir, 's> {
+    identity: ExecutionIdentity,
     group: &'ir Node<'s>,
     rows: Vec<Accepted<'ir, 's>>,
     buffer: Box<[u8]>,
 }
 struct GroupView<'ir, 's> {
+    identity: ExecutionIdentity,
     group: &'ir Node<'s>,
     rows: Vec<(&'ir Branch<'s>, Rc<Ack<'s>>)>,
 }
@@ -466,24 +639,32 @@ enum Dispatch<'ir, 's> {
     Sequence(Sequence<'ir, 's>),
     Parallel {
         barrier: Parallel<'ir, 's>,
-        requests: Vec<ParallelRequest<Prepared<'s>>>,
+        requests: Vec<ParallelRequest<Invocation<'s>>>,
     },
 }
 struct Runtime<'ir, 'h, 's> {
+    execution: &'ir Execution<'ir, 's>,
     group: &'ir Node<'s>,
     source: &'h Source<'h, 's>,
     widget: Rc<Widget>,
     fail_admission: Cell<bool>,
+    panic_admission: Cell<bool>,
     restores: Cell<usize>,
     projections: Cell<usize>,
 }
 impl<'ir, 'h, 's> Runtime<'ir, 'h, 's> {
-    fn new(node: &'ir Node<'s>, source: &'h Source<'h, 's>, widget: Rc<Widget>) -> Self {
+    fn new(
+        execution: &'ir Execution<'ir, 's>,
+        source: &'h Source<'h, 's>,
+        widget: Rc<Widget>,
+    ) -> Self {
         Self {
-            group: group(node),
+            execution,
+            group: execution.group,
             source,
             widget,
             fail_admission: Cell::new(false),
+            panic_admission: Cell::new(false),
             restores: Cell::new(0),
             projections: Cell::new(0),
         }
@@ -540,32 +721,45 @@ impl<'ir, 'h, 's> Runtime<'ir, 'h, 's> {
         original: &'ir Branch<'s>,
         prepared: Prepared<'s>,
         fuel: &mut Fuel,
-    ) -> Result<PreparedParallelMember<'ir, (u64, usize), Schema<'s>, Prepared<'s>>, Refusal> {
+    ) -> Result<
+        PreparedParallelMember<'ir, MemberIdentity, MemberDomain<'ir, 's>, Invocation<'s>>,
+        Refusal,
+    > {
         self.admit_prepared(original, &prepared)?;
         fuel.charge(1).map_err(|_| Refusal)?;
         Ok(PreparedParallelMember {
-            identity: (GENERATION, index),
-            declaration: self.schema(original)?,
-            request: prepared,
+            identity: self.execution.member(index),
+            declaration: self.execution.members.get(index).ok_or(Refusal)?,
+            request: Invocation {
+                identity: self.execution.member(index),
+                prepared,
+            },
         })
     }
     fn publish(
         &self,
         sequence: &mut Sequence<'ir, 's>,
-    ) -> Result<SequencePoll<Prepared<'s>>, PreparedSequenceError<Refusal>> {
+    ) -> Result<SequencePoll<Invocation<'s>>, PreparedSequenceError<Refusal>> {
         sequence.poll(|index, original, identity, domain, prepared| {
             self.authorize(identity)?;
-            self.admit_prepared(original, prepared)?;
-            if *identity != (GENERATION, index) || !std::ptr::eq(domain, self.schema(original)?) {
+            self.admit_prepared(original, &prepared.prepared)?;
+            if *identity != self.execution.member(index)
+                || *identity != prepared.identity
+                || !std::ptr::eq(domain, &self.execution.members[index])
+            {
                 return Err(Refusal);
             }
             Ok(())
         })
     }
-    fn invoke(&self, request: ParallelRequest<Prepared<'s>>) -> Result<Input<'s>, Refusal> {
+    fn invoke(&self, request: ParallelRequest<Invocation<'s>>) -> Result<Input<'s>, Refusal> {
+        self.authorize(&request.request.identity)?;
+        if request.request.identity.index != request.index {
+            return Err(Refusal);
+        }
         let branch = self.branches().get(request.index).ok_or(Refusal)?;
-        self.admit_prepared(branch, &request.request)?;
-        let (schema, args) = request.request.into_parts();
+        self.admit_prepared(branch, &request.request.prepared)?;
+        let (schema, args) = request.request.prepared.into_parts();
         if args.len() != 2 || args[0].value != ScalarValue::String("status".into()) {
             return Err(Refusal);
         }
@@ -585,34 +779,39 @@ impl<'ir, 'h, 's> Runtime<'ir, 'h, 's> {
             ack: Rc::new(Ack {
                 schema,
                 generation: GENERATION,
+                identity: request.request.identity,
                 value,
             }),
             buffer: vec![17; 9].into_boxed_slice(),
         })
     }
 }
-impl<'ir, 's> HostResultDomain<Collected<'ir, 's>> for Node<'s> {
+impl<'ir, 's> HostResultDomain<Collected<'ir, 's>> for Execution<'ir, 's> {
     type Error = Refusal;
     fn matches_type(&self, reply: &Collected<'ir, 's>) -> bool {
-        std::ptr::eq(self, reply.group)
+        std::ptr::eq(self.group, reply.group)
     }
     fn validate_value(&self, reply: &Collected<'ir, 's>) -> Result<(), Refusal> {
-        let Node::Group { branches, .. } = self else {
+        let Node::Group { branches, .. } = self.group else {
             return Err(Refusal);
         };
-        if !self.matches_type(reply) || reply.rows.len() != branches.len() {
+        if !self.identity.0.is_open()
+            || !self.matches_type(reply)
+            || self.identity != reply.identity
+            || reply.rows.len() != branches.len()
+        {
             return Err(Refusal);
         }
         for (i, row) in reply.rows.iter().enumerate() {
-            let (index, original, identity, schema, input) = row.as_parts();
+            let (index, original, identity, domain, input) = row.as_parts();
             if index != i
-                || *identity != (GENERATION, i)
+                || *identity != self.member(i)
                 || !std::ptr::eq(original, &branches[i])
-                || !std::ptr::eq(&schema.result, original.result_type.0)
+                || !std::ptr::eq(domain, &self.members[i])
             {
                 return Err(Refusal);
             }
-            schema.validate_value(&input.ack)?;
+            domain.validate_value(&input.ack)?;
         }
         Ok(())
     }
@@ -625,6 +824,7 @@ impl<'ir, 's> PureEvaluationEnvironment<Field, Key> for Runtime<'ir, '_, 's> {
             return Err(Refusal);
         };
         ack.schema.validate_value(ack.as_ref())?;
+        self.authorize(&ack.identity)?;
         if !Rc::ptr_eq(&ack.schema.result.owner, &self.widget) || field.0 != ack.schema.result.kind
         {
             return Err(Refusal);
@@ -641,7 +841,7 @@ impl<'ir, 's> PureEvaluationEnvironment<Field, Key> for Runtime<'ir, '_, 's> {
         let View::Group(group) = value else {
             return Err(Refusal);
         };
-        self.authorize(&GENERATION)?;
+        self.authorize(&group.identity)?;
         if !std::ptr::eq(group.group, self.group) {
             return Err(Refusal);
         }
@@ -654,6 +854,7 @@ impl<'ir, 's> PureEvaluationEnvironment<Field, Key> for Runtime<'ir, '_, 's> {
             return Err(Refusal);
         }
         ack.schema.validate_value(ack.as_ref())?;
+        self.authorize(&ack.identity)?;
         Ok(View::Ack(ack.clone()))
     }
 }
@@ -709,6 +910,10 @@ impl<'ir, 's> EffectEvaluationEnvironment<'ir, Field, Key, Opaque, Declaration<'
                 max_branches: 4,
             },
             |index, original, schema| {
+                assert!(
+                    index != 1 || !self.panic_admission.get(),
+                    "fixture admission unwind"
+                );
                 if (index == 1 && self.fail_admission.get())
                     || !std::ptr::eq(schema, self.schema(original)?)
                 {
@@ -742,10 +947,10 @@ impl<'ir, 's> EffectEvaluationEnvironment<'ir, Field, Key, Opaque, Declaration<'
         Ok(saved)
     }
 }
-impl ReplyAuthority<u64> for Runtime<'_, '_, '_> {
+impl ReplyAuthority<ExecutionIdentity> for Runtime<'_, '_, '_> {
     type Error = Refusal;
-    fn authorize(&self, identity: &u64) -> Result<(), Refusal> {
-        if *identity != GENERATION {
+    fn authorize(&self, identity: &ExecutionIdentity) -> Result<(), Refusal> {
+        if !self.execution.identity.0.is_open() || *identity != self.execution.identity {
             return Err(Refusal);
         }
         for branch in self.branches() {
@@ -754,13 +959,13 @@ impl ReplyAuthority<u64> for Runtime<'_, '_, '_> {
         Ok(())
     }
 }
-impl ReplyAuthority<(u64, usize)> for Runtime<'_, '_, '_> {
+impl ReplyAuthority<MemberIdentity> for Runtime<'_, '_, '_> {
     type Error = Refusal;
-    fn authorize(&self, identity: &(u64, usize)) -> Result<(), Refusal> {
-        if identity.0 != GENERATION {
+    fn authorize(&self, identity: &MemberIdentity) -> Result<(), Refusal> {
+        if !self.execution.identity.0.is_open() || identity.execution != self.execution.identity {
             return Err(Refusal);
         }
-        self.schema(self.branches().get(identity.1).ok_or(Refusal)?)
+        self.schema(self.branches().get(identity.index).ok_or(Refusal)?)
             .map(|_| ())
     }
 }
@@ -771,21 +976,21 @@ impl<'ir, 's>
         Key,
         Opaque,
         Declaration<'s>,
-        u64,
-        Node<'s>,
+        ExecutionIdentity,
+        Execution<'ir, 's>,
         Collected<'ir, 's>,
     > for Runtime<'ir, '_, 's>
 {
     fn restore_capture(
         &self,
-        identity: &u64,
-        declaration: &Node<'s>,
+        identity: &ExecutionIdentity,
+        declaration: &Execution<'ir, 's>,
         saved: Self::Capture,
         _: &mut Fuel,
         _: EffectEvaluationLimits,
     ) -> Result<Self::Capture, CalculationFailure<Refusal>> {
         self.authorize(identity)?;
-        if !std::ptr::eq(self.group, declaration) {
+        if !std::ptr::eq(self.execution, declaration) {
             return Err(Refusal.into());
         }
         self.restores.set(self.restores.get() + 1);
@@ -793,27 +998,27 @@ impl<'ir, 's>
     }
     fn bind_reply(
         &self,
-        identity: &u64,
-        declaration: &Node<'s>,
+        identity: &ExecutionIdentity,
+        declaration: &Execution<'ir, 's>,
         reply: Collected<'ir, 's>,
         fuel: &mut Fuel,
     ) -> Result<PureValue<Self::Result>, CalculationFailure<Refusal>> {
         self.authorize(identity)?;
-        if !std::ptr::eq(self.group, declaration) {
+        if !std::ptr::eq(self.execution, declaration) {
             return Err(Refusal.into());
         }
         declaration.validate_value(&reply)?;
         let rows = assemble_group_reply(reply.group, reply.rows, BATCH, fuel, |whole, _| {
             for (i, row) in whole.members().iter().enumerate() {
-                let (index, original, identity, schema, input) = row.as_parts();
+                let (index, original, identity, domain, input) = row.as_parts();
                 if index != i
-                    || *identity != (GENERATION, i)
+                    || *identity != self.execution.member(i)
                     || !std::ptr::eq(original, &self.branches()[i])
-                    || !std::ptr::eq(schema, self.schema(original)?)
+                    || !std::ptr::eq(domain, &self.execution.members[i])
                 {
                     return Err(Refusal);
                 }
-                schema.validate_value(&input.ack)?;
+                domain.validate_value(&input.ack)?;
             }
             Ok(())
         })
@@ -828,6 +1033,7 @@ impl<'ir, 's>
             })
             .collect();
         Ok(PureValue::Result(View::Group(Rc::new(GroupView {
+            identity: reply.identity,
             group,
             rows,
         }))))
@@ -836,15 +1042,19 @@ impl<'ir, 's>
 impl<'d, 'ir: 'd, 's> EffectSessionEnvironment<'ir, 'd, Field, Key, Opaque, Declaration<'s>>
     for Runtime<'ir, '_, 's>
 {
-    type Identity = u64;
-    type Declaration = Node<'s>;
+    type Identity = ExecutionIdentity;
+    type Declaration = Execution<'ir, 's>;
     type Reply = Collected<'ir, 's>;
     type Dispatch = Dispatch<'ir, 's>;
     fn correlate_request(
         &self,
         request: Self::Request,
         fuel: &mut Fuel,
-    ) -> EffectCorrelation<'d, u64, Node<'s>, Self::Dispatch, Refusal> {
+    ) -> EffectCorrelation<'d, ExecutionIdentity, Execution<'ir, 's>, Self::Dispatch, Refusal> {
+        if self.execution.correlated.replace(true) {
+            return Err(Refusal.into());
+        }
+        self.authorize(&self.execution.identity)?;
         let Node::Group { group_kind, .. } = request.group else {
             return Err(Refusal.into());
         };
@@ -874,8 +1084,8 @@ impl<'d, 'ir: 'd, 's> EffectSessionEnvironment<'ir, 'd, Field, Key, Opaque, Decl
             }
         };
         Ok(CorrelatedEffectRequest {
-            identity: GENERATION,
-            declaration: self.group,
+            identity: self.execution.identity(),
+            declaration: self.execution,
             dispatch,
         })
     }
@@ -888,7 +1098,7 @@ fn collect<'ir, 's>(
     let rows = match dispatch {
         Dispatch::Sequence(mut sequence) => {
             let mut rows = Vec::new();
-            for expected in 0..2 {
+            for expected in 0..runtime.branches().len() {
                 let SequencePoll::Request { index, request } =
                     runtime.publish(&mut sequence).unwrap()
                 else {
@@ -901,7 +1111,7 @@ fn collect<'ir, 's>(
                 let input = runtime.invoke(ParallelRequest { index, request }).unwrap();
                 rows.push(
                     sequence
-                        .try_accept(&(GENERATION, index), input, runtime)
+                        .try_accept(&runtime.execution.member(index), input, runtime)
                         .unwrap(),
                 );
             }
@@ -919,7 +1129,7 @@ fn collect<'ir, 's>(
                 let index = request.index;
                 let input = runtime.invoke(request).unwrap();
                 barrier
-                    .try_accept(index, &(GENERATION, index), input, runtime)
+                    .try_accept(index, &runtime.execution.member(index), input, runtime)
                     .unwrap();
                 if index == 1 {
                     assert!(matches!(
@@ -935,9 +1145,864 @@ fn collect<'ir, 's>(
         }
     };
     Collected {
+        identity: runtime.execution.identity(),
         group: runtime.group,
         rows,
         buffer: vec![23; 11].into_boxed_slice(),
+    }
+}
+
+#[test]
+fn local_gui_session_closes_on_completion_but_preserves_recoverable_reply_rejection() {
+    for kind in ["seq", "all"] {
+        fixture(|source, types, _| {
+            let node = compile(&tree(kind), source, types);
+            let scope = LocalExecutionScope::new();
+            let execution = Execution::new(&node, scope.lease());
+            let runtime = Runtime::new(&execution, source, types.owner.clone());
+            let mut session =
+                LocalStackedEffectSession::new(scope, &node, Vec::new(), Fuel::new(1000), STACK);
+            let lease = session.lease();
+            let EffectSessionPoll::Request(dispatch) = session.poll(&runtime).unwrap() else {
+                panic!()
+            };
+            assert_eq!(session.fuel_remaining(), 948);
+            assert!(lease.is_open());
+            assert!(matches!(
+                session.poll(&runtime).unwrap(),
+                EffectSessionPoll::Awaiting
+            ));
+            let reply = collect(&runtime, dispatch);
+            let pointer = reply.buffer.as_ptr();
+            let foreign = ExecutionIdentity(LocalExecutionScope::new().lease());
+            let reply = session
+                .try_accept(&foreign, reply, &runtime)
+                .unwrap_err()
+                .reply;
+            assert_eq!(reply.buffer.as_ptr(), pointer);
+            assert!(lease.is_open());
+            assert_eq!(session.status(), EffectSessionStatus::Awaiting);
+            let mut reply = reply;
+            reply.rows.swap(0, 1);
+            let mut reply = session
+                .try_accept(&execution.identity, reply, &runtime)
+                .unwrap_err()
+                .reply;
+            assert!(lease.is_open());
+            assert_eq!(reply.buffer.as_ptr(), pointer);
+            reply.rows.swap(0, 1);
+            runtime.widget.grants.set(0);
+            let reply = session
+                .try_accept(&execution.identity, reply, &runtime)
+                .unwrap_err()
+                .reply;
+            assert!(lease.is_open());
+            assert_eq!(reply.buffer.as_ptr(), pointer);
+            runtime.widget.grants.set(3);
+            session
+                .try_accept(&execution.identity, reply, &runtime)
+                .unwrap();
+            assert!(lease.is_open());
+            assert_eq!(session.fuel_remaining(), 948);
+            assert_eq!(runtime.projections.get(), 0);
+            assert!(
+                matches!(session.poll(&runtime).unwrap(), EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::String(value))) if value == "ready.!")
+            );
+            assert!(!lease.is_open());
+            assert_eq!(session.fuel_remaining(), 925);
+            assert!(!session.cancel());
+            assert!(matches!(
+                session.poll(&runtime).unwrap(),
+                EffectSessionPoll::Terminal(EffectSessionEnd::Completed)
+            ));
+            assert_eq!(types.owner.invocations.borrow().len(), 2);
+        });
+    }
+}
+
+#[test]
+fn local_gui_session_normal_failure_and_preclosed_scope_never_leave_live_authority() {
+    for phase in 0..3 {
+        fixture(|source, types, _| {
+            let node = compile(&tree("seq"), source, types);
+            let scope = LocalExecutionScope::new();
+            let execution = Execution::new(&node, scope.lease());
+            let runtime = Runtime::new(&execution, source, types.owner.clone());
+            if phase == 0 {
+                runtime.fail_admission.set(true);
+            }
+            if phase == 2 {
+                assert!(scope.close());
+                runtime.panic_admission.set(true);
+            }
+            let budget = if phase == 1 { 0 } else { 1000 };
+            let mut session =
+                LocalStackedEffectSession::new(scope, &node, Vec::new(), Fuel::new(budget), STACK);
+            if phase == 2 {
+                let reply = Collected {
+                    identity: execution.identity(),
+                    group: runtime.group,
+                    rows: Vec::new(),
+                    buffer: vec![29; 3].into_boxed_slice(),
+                };
+                let pointer = reply.buffer.as_ptr();
+                let rejected = session
+                    .try_accept(&execution.identity, reply, &runtime)
+                    .unwrap_err();
+                assert_eq!(rejected.reply.buffer.as_ptr(), pointer);
+                assert!(matches!(
+                    session.poll(&runtime).unwrap(),
+                    EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+                ));
+                assert_eq!(session.fuel_remaining(), budget);
+            } else {
+                assert!(session.poll(&runtime).is_err());
+                assert_eq!(
+                    session.status(),
+                    EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+                );
+            }
+            assert!(!session.lease().is_open());
+            let terminal = session.status();
+            let remaining = session.fuel_remaining();
+            assert!(!session.cancel());
+            assert!(matches!(
+                session.poll(&runtime).unwrap(),
+                EffectSessionPoll::Terminal(_)
+            ));
+            assert_eq!(session.status(), terminal);
+            assert_eq!(session.fuel_remaining(), remaining);
+            assert!(types.owner.invocations.borrow().is_empty());
+        });
+    }
+}
+
+#[test]
+fn local_gui_session_caught_poll_and_accept_unwind_revoke_a_retained_owner() {
+    struct PanickingAuthority;
+    impl ReplyAuthority<ExecutionIdentity> for PanickingAuthority {
+        type Error = Refusal;
+        fn authorize(&self, _: &ExecutionIdentity) -> Result<(), Refusal> {
+            panic!("fixture authority unwind");
+        }
+    }
+    for acceptance in [false, true] {
+        fixture(|source, types, _| {
+            let node = compile(&tree("all"), source, types);
+            let scope = LocalExecutionScope::new();
+            let execution = Execution::new(&node, scope.lease());
+            let runtime = Runtime::new(&execution, source, types.owner.clone());
+            let mut session =
+                LocalStackedEffectSession::new(scope, &node, Vec::new(), Fuel::new(1000), STACK);
+            if acceptance {
+                let EffectSessionPoll::Request(dispatch) = session.poll(&runtime).unwrap() else {
+                    panic!()
+                };
+                let reply = collect(&runtime, dispatch);
+                let weak = Rc::downgrade(&reply.rows[0].as_parts().4.ack);
+                assert!(
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        session.try_accept(&execution.identity, reply, &PanickingAuthority)
+                    }))
+                    .is_err()
+                );
+                assert_eq!(weak.strong_count(), 0);
+                assert_eq!(types.owner.invocations.borrow().len(), 2);
+            } else {
+                runtime.panic_admission.set(true);
+                assert!(
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+                        || session.poll(&runtime)
+                    ))
+                    .is_err()
+                );
+                assert!(types.owner.invocations.borrow().is_empty());
+            }
+            assert!(!session.lease().is_open());
+            assert_eq!(
+                session.status(),
+                EffectSessionStatus::Terminal(EffectSessionEnd::HostUncertain)
+            );
+            let remaining = session.fuel_remaining();
+            assert!(matches!(
+                session.poll(&runtime).unwrap(),
+                EffectSessionPoll::Terminal(EffectSessionEnd::HostUncertain)
+            ));
+            assert!(!session.cancel());
+            assert_eq!(session.fuel_remaining(), remaining);
+            assert_eq!(runtime.restores.get(), 0);
+            assert_eq!(runtime.projections.get(), 0);
+        });
+    }
+}
+
+#[test]
+fn local_gui_session_cancel_and_drop_fence_already_published_native_requests() {
+    for cancel in [false, true] {
+        fixture(|source, types, _| {
+            let node = compile(&tree("all"), source, types);
+            let scope = LocalExecutionScope::new();
+            let execution = Execution::new(&node, scope.lease());
+            let runtime = Runtime::new(&execution, source, types.owner.clone());
+            let mut session =
+                LocalStackedEffectSession::new(scope, &node, Vec::new(), Fuel::new(1000), STACK);
+            let EffectSessionPoll::Request(Dispatch::Parallel {
+                mut barrier,
+                requests,
+            }) = session.poll(&runtime).unwrap()
+            else {
+                panic!()
+            };
+            if cancel {
+                assert!(session.cancel());
+                assert!(!session.cancel());
+                assert!(matches!(
+                    session.poll(&runtime).unwrap(),
+                    EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+                ));
+            } else {
+                drop(session);
+            }
+            assert!(!execution.identity.0.is_open());
+            for request in requests {
+                assert!(runtime.invoke(request).is_err());
+            }
+            assert!(barrier.cancel());
+            assert!(types.owner.invocations.borrow().is_empty());
+        });
+    }
+}
+
+#[test]
+fn guarded_gui_owner_drop_or_unwind_revokes_escaped_work_without_poisoning_reuse() {
+    for kind in ["seq", "all"] {
+        for unwind in [false, true] {
+            fixture(|source, types, _| {
+                let node = compile(&tree(kind), source, types);
+                let scope = LocalExecutionScope::new();
+                let execution = Execution::new(&node, scope.lease());
+                let runtime = Runtime::new(&execution, source, types.owner.clone());
+                let mut guarded = scope.bind(StackedEffectSession::new(
+                    &node,
+                    Vec::new(),
+                    Fuel::new(1000),
+                    STACK,
+                ));
+                let EffectSessionPoll::Request(dispatch) =
+                    guarded.value_mut().poll(&runtime).unwrap()
+                else {
+                    panic!()
+                };
+                let escaped = match dispatch {
+                    Dispatch::Sequence(mut sequence) => {
+                        let SequencePoll::Request { index, request } =
+                            runtime.publish(&mut sequence).unwrap()
+                        else {
+                            panic!()
+                        };
+                        vec![ParallelRequest { index, request }]
+                    }
+                    Dispatch::Parallel { requests, .. } => requests,
+                };
+                if unwind {
+                    let result =
+                        std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+                            let _owned = guarded;
+                            panic!("native host boundary failed");
+                        }));
+                    assert!(result.is_err());
+                } else {
+                    drop(guarded);
+                }
+                assert!(!execution.identity.0.is_open());
+                for request in escaped {
+                    assert!(runtime.invoke(request).is_err());
+                }
+                assert!(types.owner.invocations.borrow().is_empty());
+                let fresh_scope = LocalExecutionScope::new();
+                let fresh_execution = Execution::new(&node, fresh_scope.lease());
+                assert!(execution.identity != fresh_execution.identity);
+                let fresh_runtime = Runtime::new(&fresh_execution, source, types.owner.clone());
+                let mut fresh = fresh_scope.bind(StackedEffectSession::new(
+                    &node,
+                    Vec::new(),
+                    Fuel::new(1000),
+                    STACK,
+                ));
+                let EffectSessionPoll::Request(dispatch) =
+                    fresh.value_mut().poll(&fresh_runtime).unwrap()
+                else {
+                    panic!()
+                };
+                let reply = collect(&fresh_runtime, dispatch);
+                fresh
+                    .value_mut()
+                    .try_accept(&fresh_execution.identity, reply, &fresh_runtime)
+                    .unwrap();
+                assert!(
+                    matches!(fresh.value_mut().poll(&fresh_runtime).unwrap(), EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::String(value))) if value == "ready.!")
+                );
+                assert_eq!(fresh.value().fuel_remaining(), 925);
+                assert!(fresh.close());
+                assert_eq!(types.owner.invocations.borrow().len(), 2);
+            });
+        }
+    }
+}
+
+#[test]
+fn guarded_gui_owner_drop_rejects_late_receipt_without_consuming_pending_member() {
+    fixture(|source, types, _| {
+        let node = compile(&tree("seq"), source, types);
+        let scope = LocalExecutionScope::new();
+        let execution = Execution::new(&node, scope.lease());
+        let runtime = Runtime::new(&execution, source, types.owner.clone());
+        let mut guarded = scope.bind(StackedEffectSession::new(
+            &node,
+            Vec::new(),
+            Fuel::new(1000),
+            STACK,
+        ));
+        let EffectSessionPoll::Request(Dispatch::Sequence(mut sequence)) =
+            guarded.value_mut().poll(&runtime).unwrap()
+        else {
+            panic!()
+        };
+        let SequencePoll::Request { index, request } = runtime.publish(&mut sequence).unwrap()
+        else {
+            panic!()
+        };
+        let input = runtime.invoke(ParallelRequest { index, request }).unwrap();
+        let pointer = input.buffer.as_ptr();
+        let weak = Rc::downgrade(&input.ack);
+        drop(guarded);
+        assert!(
+            execution.members[index]
+                .validate_value(input.ack.as_ref())
+                .is_err()
+        );
+        let refused = sequence
+            .try_accept(&execution.member(index), input, &runtime)
+            .unwrap_err();
+        assert_eq!(refused.reply.buffer.as_ptr(), pointer);
+        assert_eq!(weak.strong_count(), 1);
+        assert!(
+            matches!(runtime.publish(&mut sequence).unwrap(), SequencePoll::Awaiting { index: i } if i == index)
+        );
+        assert!(sequence.cancel());
+        drop(refused);
+        assert_eq!(weak.strong_count(), 0);
+        assert_eq!(runtime.restores.get(), 0);
+        assert_eq!(runtime.projections.get(), 0);
+        assert_eq!(types.owner.invocations.borrow().len(), 1);
+        assert_eq!(&*types.owner.text.borrow(), "ready.");
+    });
+}
+
+#[test]
+fn guarded_gui_explicit_close_fences_accepted_reentry_without_resetting_core_state() {
+    for kind in ["seq", "all"] {
+        fixture(|source, types, _| {
+            let node = compile(&tree(kind), source, types);
+            let scope = LocalExecutionScope::new();
+            let execution = Execution::new(&node, scope.lease());
+            let runtime = Runtime::new(&execution, source, types.owner.clone());
+            let mut guarded = scope.bind(StackedEffectSession::new(
+                &node,
+                Vec::new(),
+                Fuel::new(1000),
+                STACK,
+            ));
+            let EffectSessionPoll::Request(dispatch) = guarded.value_mut().poll(&runtime).unwrap()
+            else {
+                panic!()
+            };
+            let reply = collect(&runtime, dispatch);
+            let weak = Rc::downgrade(&reply.rows[0].as_parts().4.ack);
+            guarded
+                .value_mut()
+                .try_accept(&execution.identity, reply, &runtime)
+                .unwrap();
+            let fuel = guarded.value().fuel_remaining();
+            assert!(guarded.close());
+            assert!(!guarded.close());
+            assert!(guarded.value_mut().poll(&runtime).is_err());
+            assert_eq!(
+                guarded.value().status(),
+                EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+            );
+            assert_eq!(guarded.value().fuel_remaining(), fuel);
+            assert_eq!(weak.strong_count(), 0);
+            assert_eq!(runtime.restores.get(), 0);
+            assert_eq!(runtime.projections.get(), 0);
+            assert_eq!(types.owner.invocations.borrow().len(), 2);
+        });
+    }
+}
+
+#[test]
+fn shared_gui_ir_interleaves_scoped_executions_without_cross_accepting_receipts() {
+    fixture(|source, types, _| {
+        let node = scoped_node(source, types);
+        let left_scope = LocalExecutionScope::new();
+        let left = Execution::new(&node, left_scope.lease());
+        let right_scope = LocalExecutionScope::new();
+        let right = Execution::new(&node, right_scope.lease());
+        let a = Runtime::new(&left, source, types.owner.clone());
+        let b = Runtime::new(&right, source, types.owner.clone());
+        assert!(std::ptr::eq(a.group, b.group));
+        assert!(left.identity != right.identity);
+        let mut first =
+            StackedEffectSession::new(&node, scoped_bindings("alpha", "!"), Fuel::new(1000), STACK);
+        let mut second =
+            StackedEffectSession::new(&node, scoped_bindings("bravo", "?"), Fuel::new(1000), STACK);
+        let EffectSessionPoll::Request(Dispatch::Sequence(mut one)) = first.poll(&a).unwrap()
+        else {
+            panic!()
+        };
+        let EffectSessionPoll::Request(Dispatch::Sequence(mut two)) = second.poll(&b).unwrap()
+        else {
+            panic!()
+        };
+        let prepared = (first.fuel_remaining(), second.fuel_remaining());
+        let mut rows_a = Vec::new();
+        let mut rows_b = Vec::new();
+        let mut earlier_ack = None;
+        for index in 0..4 {
+            let SequencePoll::Request { index: i, request } = a.publish(&mut one).unwrap() else {
+                panic!()
+            };
+            assert_eq!(i, index);
+            let input_a = a.invoke(ParallelRequest { index, request }).unwrap();
+            let SequencePoll::Request { index: i, request } = b.publish(&mut two).unwrap() else {
+                panic!()
+            };
+            assert_eq!(i, index);
+            let input_b = b.invoke(ParallelRequest { index, request }).unwrap();
+            let pointer = input_a.buffer.as_ptr();
+            let foreign = two
+                .try_accept(&left.member(index), input_a, &b)
+                .unwrap_err()
+                .reply;
+            assert_eq!(foreign.buffer.as_ptr(), pointer);
+            // A correct outer label cannot launder a foreign native receipt.
+            let foreign = two
+                .try_accept(&right.member(index), foreign, &b)
+                .unwrap_err()
+                .reply;
+            assert_eq!(foreign.buffer.as_ptr(), pointer);
+            assert!(
+                matches!(b.publish(&mut two).unwrap(), SequencePoll::Awaiting { index: i } if i == index)
+            );
+            if index == 0 {
+                earlier_ack = Some(foreign.ack.clone());
+            }
+            if index == 2 {
+                let replay = Input {
+                    ack: earlier_ack.take().unwrap(),
+                    buffer: vec![31; 3].into_boxed_slice(),
+                };
+                let pointer = replay.buffer.as_ptr();
+                let replay = one
+                    .try_accept(&left.member(index), replay, &a)
+                    .unwrap_err()
+                    .reply;
+                assert_eq!(replay.buffer.as_ptr(), pointer);
+            }
+            rows_b.push(two.try_accept(&right.member(index), input_b, &b).unwrap());
+            rows_a.push(one.try_accept(&left.member(index), foreign, &a).unwrap());
+        }
+        let mut reply_a = Collected {
+            identity: left.identity(),
+            group: a.group,
+            rows: rows_a,
+            buffer: vec![41; 5].into_boxed_slice(),
+        };
+        let mut reply_b = Collected {
+            identity: right.identity(),
+            group: b.group,
+            rows: rows_b,
+            buffer: vec![43; 5].into_boxed_slice(),
+        };
+        let pointer = reply_a.buffer.as_ptr();
+        let weak_a = Rc::downgrade(&reply_a.rows[0].as_parts().4.ack);
+        let weak_b = Rc::downgrade(&reply_b.rows[0].as_parts().4.ack);
+        reply_a = second
+            .try_accept(&left.identity, reply_a, &b)
+            .unwrap_err()
+            .reply;
+        reply_a = second
+            .try_accept(&right.identity, reply_a, &b)
+            .unwrap_err()
+            .reply;
+        assert_eq!(reply_a.buffer.as_ptr(), pointer);
+        std::mem::swap(&mut reply_a.rows[0], &mut reply_b.rows[0]);
+        reply_b = second
+            .try_accept(&right.identity, reply_b, &b)
+            .unwrap_err()
+            .reply;
+        std::mem::swap(&mut reply_a.rows[0], &mut reply_b.rows[0]);
+        assert_eq!((first.fuel_remaining(), second.fuel_remaining()), prepared);
+        assert_eq!((a.restores.get(), b.restores.get()), (0, 0));
+        first.try_accept(&left.identity, reply_a, &a).unwrap();
+        second.try_accept(&right.identity, reply_b, &b).unwrap();
+        assert!(
+            matches!(second.poll(&b).unwrap(), EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::String(value))) if value == "bravo.?")
+        );
+        assert!(
+            matches!(first.poll(&a).unwrap(), EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::String(value))) if value == "alpha.!")
+        );
+        assert_eq!(first.fuel_remaining(), second.fuel_remaining());
+        assert_eq!((a.restores.get(), b.restores.get()), (1, 1));
+        assert_eq!((a.projections.get(), b.projections.get()), (1, 1));
+        assert_eq!((weak_a.strong_count(), weak_b.strong_count()), (0, 0));
+        assert_eq!(types.owner.invocations.borrow().len(), 8);
+        // The actual widget is shared; receipt isolation does not serialize GUI mutations.
+        assert_eq!(&*types.owner.text.borrow(), "bravo.");
+    });
+}
+
+#[test]
+fn shared_gui_parallel_barriers_reject_foreign_receipts_before_consuming_pending_members() {
+    fixture(|source, types, _| {
+        let node = compile(&tree("all"), source, types);
+        let left_scope = LocalExecutionScope::new();
+        let left = Execution::new(&node, left_scope.lease());
+        let right_scope = LocalExecutionScope::new();
+        let right = Execution::new(&node, right_scope.lease());
+        let a = Runtime::new(&left, source, types.owner.clone());
+        let b = Runtime::new(&right, source, types.owner.clone());
+        let mut first = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
+        let mut second = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
+        let EffectSessionPoll::Request(Dispatch::Parallel {
+            barrier: mut one,
+            requests: requests_a,
+        }) = first.poll(&a).unwrap()
+        else {
+            panic!()
+        };
+        let EffectSessionPoll::Request(Dispatch::Parallel {
+            barrier: mut two,
+            requests: requests_b,
+        }) = second.poll(&b).unwrap()
+        else {
+            panic!()
+        };
+        for (request_a, request_b) in requests_a.into_iter().zip(requests_b).rev() {
+            let index = request_a.index;
+            let input_a = a.invoke(request_a).unwrap();
+            let input_b = b.invoke(request_b).unwrap();
+            let pointer = input_a.buffer.as_ptr();
+            let rejected = two
+                .try_accept(index, &left.member(index), input_a, &b)
+                .unwrap_err()
+                .reply;
+            let rejected = two
+                .try_accept(index, &right.member(index), rejected, &b)
+                .unwrap_err()
+                .reply;
+            assert_eq!(rejected.buffer.as_ptr(), pointer);
+            one.try_accept(index, &left.member(index), rejected, &a)
+                .unwrap();
+            two.try_accept(index, &right.member(index), input_b, &b)
+                .unwrap();
+            if index == 1 {
+                assert!(matches!(
+                    two.poll().unwrap(),
+                    ParallelPoll::Awaiting { remaining: 1 }
+                ));
+            }
+        }
+        let ParallelPoll::Results(rows_a) = one.poll().unwrap() else {
+            panic!()
+        };
+        let ParallelPoll::Results(rows_b) = two.poll().unwrap() else {
+            panic!()
+        };
+        let reply_a = Collected {
+            identity: left.identity(),
+            group: a.group,
+            rows: rows_a,
+            buffer: Box::new([]),
+        };
+        let reply_b = Collected {
+            identity: right.identity(),
+            group: b.group,
+            rows: rows_b,
+            buffer: Box::new([]),
+        };
+        let reply_a = second
+            .try_accept(&right.identity, reply_a, &b)
+            .unwrap_err()
+            .reply;
+        first.try_accept(&left.identity, reply_a, &a).unwrap();
+        second.try_accept(&right.identity, reply_b, &b).unwrap();
+        assert!(
+            matches!(first.poll(&a).unwrap(), EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::String(value))) if value == "ready.!")
+        );
+        assert!(
+            matches!(second.poll(&b).unwrap(), EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::String(value))) if value == "ready.!")
+        );
+        assert_eq!(
+            (first.fuel_remaining(), second.fuel_remaining()),
+            (925, 925)
+        );
+        assert_eq!(types.owner.invocations.borrow().len(), 4);
+    });
+}
+
+#[test]
+fn gui_execution_cancellation_fences_late_dispatch_without_revoking_other_sessions() {
+    for kind in ["seq", "all"] {
+        fixture(|source, types, _| {
+            let node = compile(&tree(kind), source, types);
+            let left_scope = LocalExecutionScope::new();
+            let left = Execution::new(&node, left_scope.lease());
+            let right_scope = LocalExecutionScope::new();
+            let right = Execution::new(&node, right_scope.lease());
+            let a = Runtime::new(&left, source, types.owner.clone());
+            let b = Runtime::new(&right, source, types.owner.clone());
+            let mut first = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
+            let mut second = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
+            let EffectSessionPoll::Request(dispatch_a) = first.poll(&a).unwrap() else {
+                panic!()
+            };
+            let EffectSessionPoll::Request(dispatch_b) = second.poll(&b).unwrap() else {
+                panic!()
+            };
+            let late = match dispatch_a {
+                Dispatch::Sequence(mut sequence) => {
+                    let SequencePoll::Request { index, request } =
+                        a.publish(&mut sequence).unwrap()
+                    else {
+                        panic!()
+                    };
+                    assert!(sequence.cancel());
+                    vec![ParallelRequest { index, request }]
+                }
+                Dispatch::Parallel {
+                    mut barrier,
+                    requests,
+                } => {
+                    assert!(barrier.cancel());
+                    requests
+                }
+            };
+            // The host must deliver cancellation to native work as well as the core session.
+            assert!(left_scope.close());
+            assert!(first.cancel());
+            for request in late {
+                assert!(a.invoke(request).is_err());
+            }
+            assert!(types.owner.invocations.borrow().is_empty());
+            let reply = collect(&b, dispatch_b);
+            second.try_accept(&right.identity, reply, &b).unwrap();
+            assert!(
+                matches!(second.poll(&b).unwrap(), EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::String(value))) if value == "ready.!")
+            );
+            assert!(matches!(
+                first.poll(&a).unwrap(),
+                EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+            ));
+            assert_eq!((a.restores.get(), a.projections.get()), (0, 0));
+            assert_eq!(types.owner.invocations.borrow().len(), 2);
+            assert_eq!(types.owner.grants.get(), 3);
+        });
+    }
+}
+
+#[test]
+fn gui_execution_domains_are_single_use_and_foreign_dispatch_cannot_invoke() {
+    fixture(|source, types, _| {
+        let node = compile(&tree("all"), source, types);
+        let left_scope = LocalExecutionScope::new();
+        let left = Execution::new(&node, left_scope.lease());
+        let right_scope = LocalExecutionScope::new();
+        let right = Execution::new(&node, right_scope.lease());
+        let a = Runtime::new(&left, source, types.owner.clone());
+        let b = Runtime::new(&right, source, types.owner.clone());
+        let mut first = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
+        let EffectSessionPoll::Request(dispatch) = first.poll(&a).unwrap() else {
+            panic!()
+        };
+        let mut alias = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
+        assert!(alias.poll(&a).is_err());
+        assert!(types.owner.invocations.borrow().is_empty());
+        let reply = collect(&a, dispatch);
+        first.try_accept(&left.identity, reply, &a).unwrap();
+        assert!(matches!(
+            first.poll(&a).unwrap(),
+            EffectSessionPoll::Value(_)
+        ));
+        let mut replay = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
+        assert!(replay.poll(&a).is_err());
+        let mut fresh = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
+        let EffectSessionPoll::Request(Dispatch::Parallel {
+            mut barrier,
+            requests,
+        }) = fresh.poll(&b).unwrap()
+        else {
+            panic!()
+        };
+        for request in requests {
+            assert!(a.invoke(request).is_err());
+        }
+        assert!(barrier.cancel());
+        assert!(fresh.cancel());
+        assert_eq!(types.owner.invocations.borrow().len(), 2);
+    });
+}
+
+#[test]
+fn scoped_gui_expression_reuses_one_compiled_tree_with_fresh_inputs_and_original_reply_sessions() {
+    fixture(|source, types, _| {
+        let node = scoped_node(source, types);
+        let mut budgets = Vec::new();
+        for (prefix, suffix, enabled) in [
+            ("alpha", "!", true),
+            ("bravo", "?", true),
+            ("delta", ".", false),
+        ] {
+            types.owner.invocations.borrow_mut().clear();
+            let execution_scope = LocalExecutionScope::new();
+            let execution = Execution::new(&node, execution_scope.lease());
+            let runtime = Runtime::new(&execution, source, types.owner.clone());
+            let mut bindings = scoped_bindings(prefix, suffix);
+            bindings[3].1 = PureValue::Scalar(ScalarValue::Boolean(enabled));
+            let mut session = StackedEffectSession::new(&node, bindings, Fuel::new(1000), STACK);
+            let EffectSessionPoll::Request(dispatch) = session.poll(&runtime).unwrap() else {
+                panic!();
+            };
+            let prepared = session.fuel_remaining();
+            assert!(runtime.widget.invocations.borrow().is_empty());
+            assert!(matches!(
+                session.poll(&runtime).unwrap(),
+                EffectSessionPoll::Awaiting
+            ));
+            assert_eq!(session.fuel_remaining(), prepared);
+            let reply = collect(&runtime, dispatch);
+            let pointer = reply.buffer.as_ptr();
+            let reply = session
+                .try_accept(
+                    &ExecutionIdentity(LocalExecutionScope::new().lease()),
+                    reply,
+                    &runtime,
+                )
+                .unwrap_err()
+                .reply;
+            assert_eq!(reply.buffer.as_ptr(), pointer);
+            let weak = Rc::downgrade(&reply.rows[2].as_parts().4.ack);
+            session
+                .try_accept(&runtime.execution.identity, reply, &runtime)
+                .unwrap();
+            assert_eq!(runtime.restores.get(), 0);
+            assert_eq!(runtime.projections.get(), 0);
+            assert_eq!(session.fuel_remaining(), prepared);
+            let expected_text = if enabled {
+                format!("{prefix}.")
+            } else {
+                String::new()
+            };
+            assert!(
+                matches!(session.poll(&runtime).unwrap(), EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::String(value))) if value == format!("{expected_text}{suffix}"))
+            );
+            assert_eq!(&*runtime.widget.text.borrow(), &expected_text);
+            assert_eq!(runtime.widget.visible.get(), enabled);
+            assert_eq!(
+                *runtime.widget.invocations.borrow(),
+                [
+                    "label.set_text",
+                    "widget.set_visible",
+                    "label.set_text",
+                    "widget.set_visible"
+                ]
+            );
+            assert_eq!(runtime.restores.get(), 1);
+            assert_eq!(runtime.projections.get(), 1);
+            assert_eq!(weak.strong_count(), 0);
+            budgets.push((prepared, session.fuel_remaining()));
+            assert!(matches!(
+                session.poll(&runtime).unwrap(),
+                EffectSessionPoll::Terminal(EffectSessionEnd::Completed)
+            ));
+        }
+        assert_eq!(budgets[0], budgets[1]);
+    });
+}
+
+#[test]
+fn scoped_gui_expression_runtime_inputs_are_not_authorized_by_compile_time_types() {
+    for case in 0..5 {
+        fixture(|source, types, _| {
+            let node = scoped_node(source, types);
+            let mut bindings = scoped_bindings("alpha", "!");
+            let execution_scope = LocalExecutionScope::new();
+            let execution = Execution::new(&node, execution_scope.lease());
+            let runtime = Runtime::new(&execution, source, types.owner.clone());
+            let mut budget = 1000;
+            match case {
+                0 => {
+                    bindings.remove(1);
+                }
+                1 => bindings[1].1 = PureValue::Scalar(ScalarValue::Integer(9)),
+                2 => bindings[3].1 = PureValue::Scalar(ScalarValue::String("true".to_owned())),
+                3 => runtime.widget.grants.set(0),
+                _ => budget = 0,
+            }
+            let mut session = StackedEffectSession::new(&node, bindings, Fuel::new(budget), STACK);
+            assert!(session.poll(&runtime).is_err(), "case {case}");
+            assert_eq!(
+                session.status(),
+                EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+            );
+            assert!(runtime.widget.invocations.borrow().is_empty());
+            assert_eq!(runtime.restores.get(), 0);
+            assert_eq!(runtime.projections.get(), 0);
+        });
+    }
+}
+
+#[test]
+fn scoped_gui_expression_cancellation_and_revocation_fence_captured_external_inputs() {
+    for case in 0..3 {
+        fixture(|source, types, _| {
+            let node = scoped_node(source, types);
+            let execution_scope = LocalExecutionScope::new();
+            let execution = Execution::new(&node, execution_scope.lease());
+            let runtime = Runtime::new(&execution, source, types.owner.clone());
+            let mut session = StackedEffectSession::new(
+                &node,
+                scoped_bindings("alpha", "!"),
+                Fuel::new(1000),
+                STACK,
+            );
+            let EffectSessionPoll::Request(dispatch) = session.poll(&runtime).unwrap() else {
+                panic!();
+            };
+            let reply = collect(&runtime, dispatch);
+            let weak = Rc::downgrade(&reply.rows[0].as_parts().4.ack);
+            session
+                .try_accept(&runtime.execution.identity, reply, &runtime)
+                .unwrap();
+            if case == 0 {
+                assert!(session.cancel());
+                assert!(matches!(
+                    session.poll(&runtime).unwrap(),
+                    EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+                ));
+            } else {
+                if case == 1 {
+                    runtime.widget.generation.set(GENERATION + 1);
+                } else {
+                    runtime.widget.grants.set(0);
+                }
+                assert!(session.poll(&runtime).is_err());
+            }
+            assert_eq!(runtime.restores.get(), 0);
+            assert_eq!(runtime.projections.get(), 0);
+            assert_eq!(runtime.widget.invocations.borrow().len(), 4);
+            assert_eq!(weak.strong_count(), 0);
+        });
     }
 }
 
@@ -946,7 +2011,9 @@ fn parsed_gui_helpers_return_heterogeneous_acks_through_seq_all_and_one_enclosin
     for kind in ["seq", "all"] {
         fixture(|source, types, _| {
             let node = compile(&tree(kind), source, types);
-            let runtime = Runtime::new(&node, source, types.owner.clone());
+            let execution_scope = LocalExecutionScope::new();
+            let execution = Execution::new(&node, execution_scope.lease());
+            let runtime = Runtime::new(&execution, source, types.owner.clone());
             let mut session = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
             let EffectSessionPoll::Request(dispatch) = session.poll(&runtime).unwrap() else {
                 panic!()
@@ -965,19 +2032,25 @@ fn parsed_gui_helpers_return_heterogeneous_acks_through_seq_all_and_one_enclosin
             assert_eq!(session.fuel_remaining(), prepared_fuel);
             let pointer = reply.buffer.as_ptr();
             let mut reply = session
-                .try_accept(&(GENERATION + 1), reply, &runtime)
+                .try_accept(
+                    &ExecutionIdentity(LocalExecutionScope::new().lease()),
+                    reply,
+                    &runtime,
+                )
                 .unwrap_err()
                 .reply;
             assert_eq!(reply.buffer.as_ptr(), pointer);
             reply.rows.swap(0, 1);
             let mut reply = session
-                .try_accept(&GENERATION, reply, &runtime)
+                .try_accept(&runtime.execution.identity, reply, &runtime)
                 .unwrap_err()
                 .reply;
             assert_eq!(reply.buffer.as_ptr(), pointer);
             reply.rows.swap(0, 1);
             let weak = Rc::downgrade(&reply.rows[0].as_parts().4.ack);
-            session.try_accept(&GENERATION, reply, &runtime).unwrap();
+            session
+                .try_accept(&runtime.execution.identity, reply, &runtime)
+                .unwrap();
             assert_eq!(runtime.restores.get(), 0);
             assert_eq!(runtime.projections.get(), 0);
             assert_eq!(session.fuel_remaining(), prepared_fuel);
@@ -1009,10 +2082,238 @@ fn parsed_gui_helpers_return_heterogeneous_acks_through_seq_all_and_one_enclosin
 }
 
 #[test]
+fn parsed_gui_repeat_returns_original_ack_with_explicit_sequence_fuel_parity() {
+    let mut budgets = Vec::new();
+    for group in [
+        "repeat(times: 3, body: prepare_text(prefix: prefix))",
+        "seq(iteration_1: prepare_text(prefix: prefix), iteration_2: prepare_text(prefix: prefix), iteration_3: prepare_text(prefix: prefix))",
+    ] {
+        fixture(|source, types, _| {
+            let node = compile(&repeat_tree(group), source, types);
+            let execution_scope = LocalExecutionScope::new();
+            let execution = Execution::new(&node, execution_scope.lease());
+            let runtime = Runtime::new(&execution, source, types.owner.clone());
+            let mut session = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
+            let EffectSessionPoll::Request(dispatch) = session.poll(&runtime).unwrap() else {
+                panic!()
+            };
+            let prepared = session.fuel_remaining();
+            assert!(runtime.widget.invocations.borrow().is_empty());
+            let reply = collect(&runtime, dispatch);
+            let weak = Rc::downgrade(&reply.rows[2].as_parts().4.ack);
+            session
+                .try_accept(&runtime.execution.identity, reply, &runtime)
+                .unwrap();
+            assert_eq!(session.fuel_remaining(), prepared);
+            assert_eq!(runtime.projections.get(), 0);
+            assert!(
+                matches!(session.poll(&runtime).unwrap(), EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::String(value))) if value == "ready.!")
+            );
+            assert_eq!(*runtime.widget.invocations.borrow(), ["label.set_text"; 3]);
+            assert_eq!(&*runtime.widget.text.borrow(), "ready.");
+            assert_eq!(weak.strong_count(), 0);
+            assert_eq!(runtime.restores.get(), 2);
+            assert_eq!(runtime.projections.get(), 1);
+            budgets.push((prepared, session.fuel_remaining()));
+        });
+    }
+    assert_eq!(budgets[0], budgets[1]);
+    assert!(budgets[0].1 < budgets[0].0 && budgets[0].0 < 1000);
+}
+
+#[test]
+fn gui_repeat_cancel_generation_or_grant_revocation_fences_remaining_iterations() {
+    for phase in 0..3 {
+        fixture(|source, types, _| {
+            let node = compile(
+                &repeat_tree("repeat(times: 3, body: prepare_text(prefix: prefix))"),
+                source,
+                types,
+            );
+            let execution_scope = LocalExecutionScope::new();
+            let execution = Execution::new(&node, execution_scope.lease());
+            let runtime = Runtime::new(&execution, source, types.owner.clone());
+            let mut session = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
+            let EffectSessionPoll::Request(Dispatch::Sequence(mut sequence)) =
+                session.poll(&runtime).unwrap()
+            else {
+                panic!()
+            };
+            let SequencePoll::Request { index, request } = runtime.publish(&mut sequence).unwrap()
+            else {
+                panic!()
+            };
+            let input = runtime.invoke(ParallelRequest { index, request }).unwrap();
+            drop(
+                sequence
+                    .try_accept(&runtime.execution.member(index), input, &runtime)
+                    .unwrap(),
+            );
+            let fuel = session.fuel_remaining();
+            match phase {
+                0 => {
+                    assert!(sequence.cancel());
+                }
+                1 => {
+                    runtime.widget.generation.set(GENERATION + 1);
+                    assert!(runtime.publish(&mut sequence).is_err());
+                }
+                _ => {
+                    runtime.widget.grants.set(0);
+                    assert!(runtime.publish(&mut sequence).is_err());
+                }
+            }
+            assert!(session.cancel());
+            assert!(matches!(
+                runtime.publish(&mut sequence).unwrap(),
+                SequencePoll::Terminal(_)
+            ));
+            assert!(matches!(
+                session.poll(&runtime).unwrap(),
+                EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+            ));
+            assert_eq!(*runtime.widget.invocations.borrow(), ["label.set_text"]);
+            assert_eq!(runtime.restores.get(), 0);
+            assert_eq!(runtime.projections.get(), 0);
+            assert_eq!(session.fuel_remaining(), fuel);
+        });
+    }
+}
+
+const COMPOSED_GUI: &str =
+    "repeat(times: 2, body: seq(label: prepare_text(prefix: prefix), visible: prepare_visible()))";
+
+#[test]
+fn composed_gui_sequences_preserve_heterogeneous_order_projected_reply_and_flat_fuel() {
+    let mut budgets = Vec::new();
+    for (group, selected) in [
+        (COMPOSED_GUI, "iteration_2__label"),
+        (
+            "seq(first: seq(label: prepare_text(prefix: prefix), visible: prepare_visible()), second: seq(label: prepare_text(prefix: prefix), visible: prepare_visible()))",
+            "second__label",
+        ),
+        (
+            "seq(a: prepare_text(prefix: prefix), b: prepare_visible(), c: prepare_text(prefix: prefix), d: prepare_visible())",
+            "c",
+        ),
+    ] {
+        fixture(|source, types, _| {
+            let node = compile(&sequential_tree(group, selected), source, types);
+            let execution_scope = LocalExecutionScope::new();
+            let execution = Execution::new(&node, execution_scope.lease());
+            let runtime = Runtime::new(&execution, source, types.owner.clone());
+            let mut session = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
+            let EffectSessionPoll::Request(dispatch) = session.poll(&runtime).unwrap() else {
+                panic!()
+            };
+            let prepared = session.fuel_remaining();
+            let reply = collect(&runtime, dispatch);
+            let weak = Rc::downgrade(&reply.rows[2].as_parts().4.ack);
+            session
+                .try_accept(&runtime.execution.identity, reply, &runtime)
+                .unwrap();
+            assert_eq!(session.fuel_remaining(), prepared);
+            assert!(
+                matches!(session.poll(&runtime).unwrap(), EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::String(value))) if value == "ready.!")
+            );
+            assert_eq!(
+                *runtime.widget.invocations.borrow(),
+                [
+                    "label.set_text",
+                    "widget.set_visible",
+                    "label.set_text",
+                    "widget.set_visible"
+                ]
+            );
+            assert!(runtime.widget.visible.get());
+            assert_eq!(weak.strong_count(), 0);
+            assert_eq!(runtime.restores.get(), 2);
+            assert_eq!(runtime.projections.get(), 1);
+            budgets.push((prepared, session.fuel_remaining()));
+        });
+    }
+    assert!(budgets.iter().all(|budget| *budget == budgets[0]));
+    assert!(budgets[0].1 < budgets[0].0 && budgets[0].0 < 1000);
+}
+
+#[test]
+fn composed_gui_cross_iteration_cancel_or_revocation_never_publishes_remaining_member() {
+    for phase in 0..3 {
+        fixture(|source, types, _| {
+            let node = compile(
+                &sequential_tree(COMPOSED_GUI, "iteration_2__label"),
+                source,
+                types,
+            );
+            let execution_scope = LocalExecutionScope::new();
+            let execution = Execution::new(&node, execution_scope.lease());
+            let runtime = Runtime::new(&execution, source, types.owner.clone());
+            let mut session = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
+            let EffectSessionPoll::Request(Dispatch::Sequence(mut sequence)) =
+                session.poll(&runtime).unwrap()
+            else {
+                panic!()
+            };
+            for expected in 0..3 {
+                let SequencePoll::Request { index, request } =
+                    runtime.publish(&mut sequence).unwrap()
+                else {
+                    panic!()
+                };
+                assert_eq!(index, expected);
+                let input = runtime.invoke(ParallelRequest { index, request }).unwrap();
+                let pointer = input.buffer.as_ptr();
+                let refused = sequence
+                    .try_accept(&runtime.execution.member((index + 1) % 4), input, &runtime)
+                    .unwrap_err();
+                assert_eq!(refused.reply.buffer.as_ptr(), pointer);
+                drop(
+                    sequence
+                        .try_accept(&runtime.execution.member(index), refused.reply, &runtime)
+                        .unwrap(),
+                );
+            }
+            let fuel = session.fuel_remaining();
+            match phase {
+                0 => {
+                    assert!(sequence.cancel());
+                }
+                1 => {
+                    runtime.widget.generation.set(GENERATION + 1);
+                    assert!(runtime.publish(&mut sequence).is_err());
+                }
+                _ => {
+                    runtime.widget.grants.set(0);
+                    assert!(runtime.publish(&mut sequence).is_err());
+                }
+            }
+            assert!(session.cancel());
+            assert!(matches!(
+                runtime.publish(&mut sequence).unwrap(),
+                SequencePoll::Terminal(_)
+            ));
+            assert!(matches!(
+                session.poll(&runtime).unwrap(),
+                EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+            ));
+            assert_eq!(
+                *runtime.widget.invocations.borrow(),
+                ["label.set_text", "widget.set_visible", "label.set_text"]
+            );
+            assert_eq!(runtime.restores.get(), 0);
+            assert_eq!(runtime.projections.get(), 0);
+            assert_eq!(session.fuel_remaining(), fuel);
+        });
+    }
+}
+
+#[test]
 fn gui_member_reply_rejections_preserve_original_payload_and_pending_sequence() {
     fixture(|source, types, foreign| {
         let node = compile(&tree("seq"), source, types);
-        let runtime = Runtime::new(&node, source, types.owner.clone());
+        let execution_scope = LocalExecutionScope::new();
+        let execution = Execution::new(&node, execution_scope.lease());
+        let runtime = Runtime::new(&execution, source, types.owner.clone());
         let mut session = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
         let EffectSessionPoll::Request(Dispatch::Sequence(mut sequence)) =
             session.poll(&runtime).unwrap()
@@ -1039,6 +2340,7 @@ fn gui_member_reply_rejections_preserve_original_payload_and_pending_sequence() 
                 ack: Rc::new(Ack {
                     schema,
                     generation,
+                    identity: runtime.execution.member(index),
                     value,
                 }),
                 buffer: vec![19; 7].into_boxed_slice(),
@@ -1046,7 +2348,7 @@ fn gui_member_reply_rejections_preserve_original_payload_and_pending_sequence() 
             let pointer = input.buffer.as_ptr();
             let weak = Rc::downgrade(&input.ack);
             let rejected = sequence
-                .try_accept(&(GENERATION, index), input, &runtime)
+                .try_accept(&runtime.execution.member(index), input, &runtime)
                 .unwrap_err();
             assert_eq!(rejected.reply.buffer.as_ptr(), pointer);
             assert_eq!(weak.strong_count(), 1);
@@ -1058,12 +2360,19 @@ fn gui_member_reply_rejections_preserve_original_payload_and_pending_sequence() 
         }
         let pointer = valid.buffer.as_ptr();
         let rejected = sequence
-            .try_accept(&(GENERATION + 1, index), valid, &runtime)
+            .try_accept(
+                &MemberIdentity {
+                    execution: ExecutionIdentity(LocalExecutionScope::new().lease()),
+                    index,
+                },
+                valid,
+                &runtime,
+            )
             .unwrap_err();
         assert_eq!(rejected.reply.buffer.as_ptr(), pointer);
         drop(
             sequence
-                .try_accept(&(GENERATION, index), rejected.reply, &runtime)
+                .try_accept(&runtime.execution.member(index), rejected.reply, &runtime)
                 .unwrap(),
         );
         assert_eq!(runtime.widget.invocations.borrow().len(), 1);
@@ -1078,7 +2387,9 @@ fn gui_generation_revocation_or_cancel_blocks_next_publication_without_undoing_f
     for phase in 0..3 {
         fixture(|source, types, _| {
             let node = compile(&tree("seq"), source, types);
-            let runtime = Runtime::new(&node, source, types.owner.clone());
+            let execution_scope = LocalExecutionScope::new();
+            let execution = Execution::new(&node, execution_scope.lease());
+            let runtime = Runtime::new(&execution, source, types.owner.clone());
             let mut session = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
             let EffectSessionPoll::Request(Dispatch::Sequence(mut sequence)) =
                 session.poll(&runtime).unwrap()
@@ -1092,7 +2403,7 @@ fn gui_generation_revocation_or_cancel_blocks_next_publication_without_undoing_f
             drop(
                 sequence
                     .try_accept(
-                        &(GENERATION, index),
+                        &runtime.execution.member(index),
                         runtime.invoke(ParallelRequest { index, request }).unwrap(),
                         &runtime,
                     )
@@ -1136,14 +2447,18 @@ fn gui_accepted_group_cancel_or_stale_generation_never_projects_or_returns_to_ca
     for cancel in [false, true] {
         fixture(|source, types, _| {
             let node = compile(&tree("all"), source, types);
-            let runtime = Runtime::new(&node, source, types.owner.clone());
+            let execution_scope = LocalExecutionScope::new();
+            let execution = Execution::new(&node, execution_scope.lease());
+            let runtime = Runtime::new(&execution, source, types.owner.clone());
             let mut session = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
             let EffectSessionPoll::Request(dispatch) = session.poll(&runtime).unwrap() else {
                 panic!()
             };
             let reply = collect(&runtime, dispatch);
             let weak = Rc::downgrade(&reply.rows[0].as_parts().4.ack);
-            session.try_accept(&GENERATION, reply, &runtime).unwrap();
+            session
+                .try_accept(&runtime.execution.identity, reply, &runtime)
+                .unwrap();
             let fuel = session.fuel_remaining();
             if cancel {
                 assert!(session.cancel());
@@ -1196,7 +2511,9 @@ fn gui_cold_types_missing_grants_preparation_refusal_and_exhaustion_never_invoke
                 assert!(result.is_err());
             }
             let node = compile(&valid, source, types);
-            let runtime = Runtime::new(&node, source, types.owner.clone());
+            let execution_scope = LocalExecutionScope::new();
+            let execution = Execution::new(&node, execution_scope.lease());
+            let runtime = Runtime::new(&execution, source, types.owner.clone());
             runtime.fail_admission.set(true);
             let mut session = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
             assert!(session.poll(&runtime).is_err());
@@ -1214,6 +2531,9 @@ fn gui_cold_types_missing_grants_preparation_refusal_and_exhaustion_never_invoke
             let required = 1000 - reference.fuel_remaining();
             assert_eq!(required, 52);
             for fuel in 0..required {
+                let execution_scope = LocalExecutionScope::new();
+                let execution = Execution::new(&node, execution_scope.lease());
+                let runtime = Runtime::new(&execution, source, types.owner.clone());
                 let mut session =
                     StackedEffectSession::new(&node, Vec::new(), Fuel::new(fuel), STACK);
                 assert!(session.poll(&runtime).is_err());
@@ -1235,7 +2555,9 @@ fn gui_cold_types_missing_grants_preparation_refusal_and_exhaustion_never_invoke
 fn gui_prepared_parallel_data_is_not_a_grant_to_invoke_after_revocation() {
     fixture(|source, types, _| {
         let node = compile(&tree("all"), source, types);
-        let runtime = Runtime::new(&node, source, types.owner.clone());
+        let execution_scope = LocalExecutionScope::new();
+        let execution = Execution::new(&node, execution_scope.lease());
+        let runtime = Runtime::new(&execution, source, types.owner.clone());
         let mut session = StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
         let EffectSessionPoll::Request(Dispatch::Parallel {
             mut barrier,
@@ -1262,7 +2584,9 @@ fn gui_exhaustion_at_every_enclosing_reentry_debit_seals_without_replaying_mutat
         for fuel in 52..=75 {
             fixture(|source, types, _| {
                 let node = compile(&tree(kind), source, types);
-                let runtime = Runtime::new(&node, source, types.owner.clone());
+                let execution_scope = LocalExecutionScope::new();
+                let execution = Execution::new(&node, execution_scope.lease());
+                let runtime = Runtime::new(&execution, source, types.owner.clone());
                 let mut session =
                     StackedEffectSession::new(&node, Vec::new(), Fuel::new(fuel), STACK);
                 let EffectSessionPoll::Request(dispatch) = session.poll(&runtime).unwrap() else {
@@ -1270,7 +2594,9 @@ fn gui_exhaustion_at_every_enclosing_reentry_debit_seals_without_replaying_mutat
                 };
                 let reply = collect(&runtime, dispatch);
                 let weak = Rc::downgrade(&reply.rows[0].as_parts().4.ack);
-                session.try_accept(&GENERATION, reply, &runtime).unwrap();
+                session
+                    .try_accept(&runtime.execution.identity, reply, &runtime)
+                    .unwrap();
                 let end = if fuel == 75 {
                     assert!(
                         matches!(session.poll(&runtime).unwrap(), EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::String(value))) if value == "ready.!")

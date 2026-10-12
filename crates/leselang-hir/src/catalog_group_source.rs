@@ -1,4 +1,4 @@
-//! Opt-in flat call-group compilation through the existing source/type machinery.
+//! Opt-in call groups and sequential composition through shared source/type machinery.
 
 use std::{borrow::Borrow, fmt};
 
@@ -12,7 +12,7 @@ use crate::catalog_program::{
 };
 use crate::catalog_source::{
     CatalogLocalSource, CatalogSourceEnvironment, CatalogSourceError, CatalogSourceLimits,
-    CatalogSourceResult, Compiler, cold_catalog_profile,
+    CatalogSourceResult, Compiler, cold_catalog_profile, cold_catalog_with_repeat,
 };
 use crate::control_source::{
     ControlSourceAdapter, ControlSourceError, ControlSourceScope, lower_preflighted_control_source,
@@ -24,11 +24,20 @@ use crate::flow_typing::{
 };
 use crate::group_exports::MAX_GROUP_EXPORT_MEMBERS;
 use crate::group_source::{GroupSourceError, GroupSourceLimits, header, lower_flat_group_source};
-use crate::ir::Computation;
+use crate::ir::{Computation, ComputedBranch, GroupKind};
 use crate::prepared_typing::{PreparedCallTypeError, infer_prepared_call_observation};
 use crate::pure_typing::{MAX_TYPE_INFERENCE_NODES, PureType, TypeInferenceLimits};
+use crate::repeat_sequence_source::{
+    RepeatSequenceSourceAdapter, RepeatSequenceSourceError, RepeatSequenceSourceLimits,
+    lower_repeat_sequence_source,
+};
+use crate::repeat_source::{
+    RepeatSourceAdapter, RepeatSourceError, RepeatSourceLimits, lower_flat_repeat_source,
+};
 use crate::scalar_source::primitive_name;
+use crate::sequence_source::{SequenceSourceError, SequenceSourceMember, lower_sequence_source};
 use crate::source_call::{SourceCallHost, span};
+use crate::source_cost::{SourceCostExtra, SourceCostLimits};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CatalogGroupSourceLimits {
@@ -52,6 +61,9 @@ pub struct CatalogGroupProgramLimits {
 /// Group metadata must precisely preserve mode, ordered names, original operation
 /// identity and member types. It must not borrow the generated temporary IR: the
 /// higher-ranked group environment permits moving IR without copying native slots.
+/// Atomic repeats map the original `body` argument; composed sequences map their
+/// original leaf arguments. The language owns joined/iteration export names and
+/// observes them in final group typing.
 /// Schema/owner references may still borrow the original catalog. Metadata alone
 /// may Clone/PartialEq; branch declarations, fields/effects and payloads need not.
 pub trait CatalogGroupSourceEnvironment<'source, 'schema, Field, Operation, Declaration, IrResult>:
@@ -79,6 +91,9 @@ pub enum CatalogGroupSourceError<Native> {
     Source(Box<CatalogSourceError<Native>>),
     Control(Box<ControlSourceError<Self>>),
     Group(Box<GroupSourceError<Self>>),
+    Repeat(Box<RepeatSourceError<Self>>),
+    Sequence(Box<SequenceSourceError<Self>>),
+    RepeatSequence(Box<RepeatSequenceSourceError<Self>>),
     GroupLimit {
         span: Span,
     },
@@ -116,6 +131,9 @@ impl<Native> fmt::Display for CatalogGroupSourceError<Native> {
             Self::Source(_) => "catalog group cold source or leaf compilation rejected",
             Self::Control(_) => "catalog group control source rejected",
             Self::Group(_) => "catalog group shape or native branch admission rejected",
+            Self::Repeat(_) => "catalog repeat expansion or native branch admission rejected",
+            Self::Sequence(_) => "catalog sequential composition rejected",
+            Self::RepeatSequence(_) => "catalog repeated sequential composition rejected",
             Self::GroupLimit { .. } => "catalog group site limit exceeded",
             Self::NestedGroup { .. } => {
                 "catalog group profile does not permit nested group members"
@@ -159,26 +177,34 @@ pub(crate) fn cold_groups_with<Native>(
     prepared_members: bool,
     is_helper: impl Fn(&Expression) -> bool,
 ) -> Result<usize, CatalogGroupSourceError<Native>> {
-    let mut pending = vec![(source, false)];
+    let mut pending = vec![(source, false, false)];
     let mut groups = 0;
-    while let Some((node, inside_group)) = pending.pop() {
+    while let Some((node, inside_group, sequential_child)) = pending.pop() {
         let Expression::Call {
             callee, arguments, ..
         } = node
         else {
             continue;
         };
-        let group = matches!(callee.as_str(), "seq" | "all");
+        let repeat = prepared_members && callee == "repeat";
+        let group = repeat || matches!(callee.as_str(), "seq" | "all");
         if group {
-            if inside_group {
+            if inside_group && !(prepared_members && sequential_child && callee != "all") {
                 return Err(CatalogGroupSourceError::NestedGroup { span: span(node) });
             }
             if groups >= limits.max_groups {
                 return Err(CatalogGroupSourceError::GroupLimit { span: span(node) });
             }
             groups += 1;
-            let (_, members) = header(node, limits.max_branches)
-                .map_err(|e| CatalogGroupSourceError::Group(Box::new(e)))?;
+            let members = if repeat {
+                let (_, body) = crate::repeat_source::header(node, limits.max_branches)
+                    .map_err(|e| CatalogGroupSourceError::Repeat(Box::new(e)))?;
+                std::slice::from_ref(body)
+            } else {
+                header(node, limits.max_branches)
+                    .map_err(|e| CatalogGroupSourceError::Group(Box::new(e)))?
+                    .1
+            };
             for (index, member) in members.iter().enumerate() {
                 if !prepared_members
                     && (is_helper(&member.value)
@@ -192,12 +218,13 @@ pub(crate) fn cold_groups_with<Native>(
                 }
             }
         }
-        pending.extend(
-            arguments
-                .iter()
-                .rev()
-                .map(|argument| (&argument.value, inside_group || group)),
-        );
+        pending.extend(arguments.iter().rev().map(|argument| {
+            (
+                &argument.value,
+                inside_group || group,
+                prepared_members && (callee == "seq" || (repeat && argument.name == "body")),
+            )
+        }));
     }
     Ok(groups)
 }
@@ -209,6 +236,128 @@ struct Groups<'a, Inner, Host, Environment> {
     limits: CatalogGroupSourceLimits,
     prepared_members: bool,
 }
+
+struct RepeatMembers<Lower, Admit> {
+    lower: Lower,
+    admit: Admit,
+    span: Span,
+}
+
+impl<'source, Field, Operation, HostEffect, IrResult, Native, Lower, Admit>
+    RepeatSequenceSourceAdapter<'source, Field, Operation, HostEffect, IrResult>
+    for RepeatMembers<Lower, Admit>
+where
+    Lower: FnMut(
+        &'source NamedArgument,
+    ) -> Result<
+        Vec<ComputedBranch<Node<Field, Operation, HostEffect, IrResult>, IrResult>>,
+        CatalogGroupSourceError<Native>,
+    >,
+    Admit: FnMut(
+        usize,
+        &'source NamedArgument,
+        &ComputedBranch<Node<Field, Operation, HostEffect, IrResult>, IrResult>,
+    ) -> Result<(), CatalogGroupSourceError<Native>>,
+{
+    type Error = CatalogGroupSourceError<Native>;
+
+    fn lower_sequence(
+        &mut self,
+        body: &'source NamedArgument,
+    ) -> Result<
+        Vec<ComputedBranch<Node<Field, Operation, HostEffect, IrResult>, IrResult>>,
+        Self::Error,
+    > {
+        (self.lower)(body)
+    }
+
+    fn host_cost(&mut self, _: &HostEffect) -> Result<SourceCostExtra, Self::Error> {
+        Err(CatalogGroupSourceError::NonAtomic {
+            index: 0,
+            span: self.span,
+        })
+    }
+
+    fn materialize_sequence(
+        &mut self,
+        _: usize,
+        body: &'source NamedArgument,
+        _: &[ComputedBranch<Node<Field, Operation, HostEffect, IrResult>, IrResult>],
+    ) -> Result<
+        Vec<ComputedBranch<Node<Field, Operation, HostEffect, IrResult>, IrResult>>,
+        Self::Error,
+    > {
+        (self.lower)(body)
+    }
+
+    fn admit_member(
+        &mut self,
+        _: usize,
+        member: usize,
+        body: &'source NamedArgument,
+        _: &ComputedBranch<Node<Field, Operation, HostEffect, IrResult>, IrResult>,
+        candidate: &ComputedBranch<Node<Field, Operation, HostEffect, IrResult>, IrResult>,
+    ) -> Result<(), Self::Error> {
+        (self.admit)(member, body, candidate)
+    }
+}
+
+fn sequential_source(source: &Expression) -> bool {
+    matches!(source, Expression::Call { callee, .. } if matches!(callee.as_str(), "seq" | "repeat"))
+}
+impl<'source, Field, Operation, HostEffect, IrResult, Native, Lower, Admit>
+    RepeatSourceAdapter<'source, Field, Operation, HostEffect, IrResult>
+    for RepeatMembers<Lower, Admit>
+where
+    Lower: FnMut(
+        usize,
+        &'source NamedArgument,
+    ) -> Result<
+        (Node<Field, Operation, HostEffect, IrResult>, IrResult),
+        CatalogGroupSourceError<Native>,
+    >,
+    Admit: FnMut(
+        usize,
+        &'source NamedArgument,
+        &ComputedBranch<Node<Field, Operation, HostEffect, IrResult>, IrResult>,
+    ) -> Result<(), CatalogGroupSourceError<Native>>,
+{
+    type Error = CatalogGroupSourceError<Native>;
+
+    fn lower_body(
+        &mut self,
+        body: &'source NamedArgument,
+    ) -> Result<(Node<Field, Operation, HostEffect, IrResult>, IrResult), Self::Error> {
+        (self.lower)(0, body)
+    }
+
+    fn host_cost(&mut self, _: &HostEffect) -> Result<SourceCostExtra, Self::Error> {
+        Err(CatalogGroupSourceError::NonAtomic {
+            index: 0,
+            span: self.span,
+        })
+    }
+
+    fn materialize(
+        &mut self,
+        iteration: usize,
+        body: &'source NamedArgument,
+        _: &ComputedBranch<Node<Field, Operation, HostEffect, IrResult>, IrResult>,
+    ) -> Result<(Node<Field, Operation, HostEffect, IrResult>, IrResult), Self::Error> {
+        (self.lower)(iteration - 1, body)
+    }
+
+    fn admit(
+        &mut self,
+        iteration: usize,
+        body: &'source NamedArgument,
+        _: &ComputedBranch<Node<Field, Operation, HostEffect, IrResult>, IrResult>,
+        candidate: &ComputedBranch<Node<Field, Operation, HostEffect, IrResult>, IrResult>,
+    ) -> Result<(), Self::Error> {
+        (self.admit)(iteration - 1, body, candidate)
+    }
+}
+
 fn flow_limits(limits: CatalogSourceLimits) -> CallFlowTypeLimits {
     CallFlowTypeLimits {
         call: CallTypeLimits {
@@ -264,7 +413,15 @@ where
         source: &'source Expression,
         scope: ControlSourceScope<'_, 'source, Self::Type>,
     ) -> Result<(Node<Field, Operation, HostEffect, IrResult>, Self::Type), Self::Error> {
-        if !matches!(source, Expression::Call { callee, .. } if matches!(callee.as_str(), "seq" | "all"))
+        let repeat = self.prepared_members
+            && matches!(source, Expression::Call { callee, .. } if callee == "repeat");
+        let sequence = self.prepared_members
+            && matches!(source, Expression::Call { callee, arguments, .. }
+                if callee == "seq" && arguments.iter().any(|argument| sequential_source(&argument.value)));
+        let repeated_sequence = repeat
+            && matches!(source, Expression::Call { arguments, .. } if arguments.iter().any(|argument| argument.name == "body" && sequential_source(&argument.value)));
+        if !repeat
+            && !matches!(source, Expression::Call { callee, .. } if matches!(callee.as_str(), "seq" | "all"))
         {
             return self
                 .inner
@@ -284,88 +441,163 @@ where
             granted: host.granted,
             environment,
         };
-        let flow = flow_limits(self.limits.expression);
-        let group = lower_flat_group_source(
-            source,
-            GroupSourceLimits {
-                source: self.limits.expression.control.source,
-                max_branches: self.limits.max_branches,
-            },
-            |index, original| {
-                let (node, inferred) = if self.prepared_members {
-                    lower_preflighted_control_source(
-                        &original.value,
-                        scope.bindings(),
-                        self.limits.expression.control,
-                        &mut self.inner,
-                    )
-                    .map_err(|error| {
-                        Self::Error::Source(Box::new(CatalogSourceError::Control(Box::new(error))))
-                    })?
-                } else {
-                    self.inner
-                        .lower_leaf(&original.value, ControlSourceScope::new(scope.bindings()))
-                        .map_err(|e| Self::Error::Source(Box::new(e)))?
+        let limits = self.limits;
+        let flow = flow_limits(limits.expression);
+        let mut lower = |index, original: &'source NamedArgument| {
+            if self.prepared_members && sequential_source(&original.value) {
+                let (node, _) =
+                    self.lower_leaf(&original.value, ControlSourceScope::new(scope.bindings()))?;
+                let Node::Group {
+                    group_kind: GroupKind::Sequence,
+                    branches,
+                } = node
+                else {
+                    return Err(Self::Error::NestedGroup {
+                        span: original.span,
+                    });
                 };
-                let (operation, original_result) = if self.prepared_members {
-                    let (operation, result) = infer_prepared_call_observation(
-                        &node,
-                        &prefix,
-                        environment,
-                        &type_host,
-                        flow.call,
-                    )
-                    .map_err(|error| Self::Error::PreparedMember {
+                return Ok(SequenceSourceMember::Sequence { branches });
+            }
+            let (node, inferred) = if self.prepared_members {
+                lower_preflighted_control_source(
+                    &original.value,
+                    scope.bindings(),
+                    self.limits.expression.control,
+                    &mut self.inner,
+                )
+                .map_err(|error| {
+                    Self::Error::Source(Box::new(CatalogSourceError::Control(Box::new(error))))
+                })?
+            } else {
+                self.inner
+                    .lower_leaf(&original.value, ControlSourceScope::new(scope.bindings()))
+                    .map_err(|e| Self::Error::Source(Box::new(e)))?
+            };
+            let (operation, original_result) = if self.prepared_members {
+                let (operation, result) = infer_prepared_call_observation(
+                    &node,
+                    &prefix,
+                    environment,
+                    &type_host,
+                    flow.call,
+                )
+                .map_err(|error| Self::Error::PreparedMember {
+                    index,
+                    span: original.span,
+                    error,
+                })?;
+                (operation, Some(result))
+            } else {
+                let Node::Call { operation, .. } = &node else {
+                    return Err(Self::Error::NonAtomic {
                         index,
                         span: original.span,
-                        error,
-                    })?;
-                    (operation, Some(result))
-                } else {
-                    let Node::Call { operation, .. } = &node else {
-                        return Err(Self::Error::NonAtomic {
-                            index,
+                    });
+                };
+                (operation, None)
+            };
+            let schema = host
+                .catalog
+                .authorize(operation.borrow(), host.version, host.granted)
+                .map_err(|error| Self::Error::Catalog {
+                    span: original.span,
+                    error,
+                })?;
+            if original_result.is_some_and(|result| !std::ptr::eq(result, &schema.result)) {
+                return Err(Self::Error::PreparedMember {
+                    index,
+                    span: original.span,
+                    error: PreparedCallTypeError::InconsistentOperation,
+                });
+            }
+            let declaration = environment
+                .source_group_branch(original, operation, &schema.result, &inferred)
+                .map_err(|error| Self::Error::BranchMapping {
+                    span: original.span,
+                    error,
+                })?;
+            Ok(SequenceSourceMember::Atomic {
+                value: node,
+                result_type: declaration,
+            })
+        };
+        let admit = |index,
+                     original: &'source NamedArgument,
+                     branch: &ComputedBranch<
+            Node<Field, Operation, HostEffect, IrResult>,
+            IrResult,
+        >| {
+            let inferred =
+                infer_call_flow_type(&branch.value, &prefix, environment, &type_host, flow)
+                    .map_err(Self::Error::Type)?;
+            if !environment.group_branch_type_matches(&branch.result_type, &inferred) {
+                return Err(Self::Error::BranchType {
+                    index,
+                    span: original.span,
+                });
+            }
+            Ok(())
+        };
+        let physical = limits.expression.control.source;
+        let group_limits = GroupSourceLimits {
+            source: physical,
+            max_branches: limits.max_branches,
+        };
+        let repeat_limits = RepeatSourceLimits {
+            source: physical,
+            expanded: SourceCostLimits {
+                max_nodes: physical.max_lowered_nodes,
+                max_depth: physical.max_lowered_depth,
+            },
+            max_repetitions: limits.max_branches,
+        };
+        let group = if repeated_sequence {
+            lower_repeat_sequence_source(
+                source,
+                RepeatSequenceSourceLimits {
+                    repeat: repeat_limits,
+                    max_branches: limits.max_branches,
+                },
+                &mut RepeatMembers {
+                    lower: |original: &'source NamedArgument| match lower(0, original)? {
+                        SequenceSourceMember::Sequence { branches } => Ok(branches),
+                        _ => Err(Self::Error::NestedGroup {
                             span: original.span,
-                        });
-                    };
-                    (operation, None)
-                };
-                let schema = host
-                    .catalog
-                    .authorize(operation.borrow(), host.version, host.granted)
-                    .map_err(|error| Self::Error::Catalog {
-                        span: original.span,
-                        error,
-                    })?;
-                if original_result.is_some_and(|result| !std::ptr::eq(result, &schema.result)) {
-                    return Err(Self::Error::PreparedMember {
-                        index,
-                        span: original.span,
-                        error: PreparedCallTypeError::InconsistentOperation,
-                    });
-                }
-                let declaration = environment
-                    .source_group_branch(original, operation, &schema.result, &inferred)
-                    .map_err(|error| Self::Error::BranchMapping {
-                        span: original.span,
-                        error,
-                    })?;
-                Ok((node, declaration))
-            },
-            |index, original, branch| {
-                let inferred =
-                    infer_call_flow_type(&branch.value, &prefix, environment, &type_host, flow)
-                        .map_err(Self::Error::Type)?;
-                if !environment.group_branch_type_matches(&branch.result_type, &inferred) {
-                    return Err(Self::Error::BranchType {
-                        index,
-                        span: original.span,
-                    });
-                }
-                Ok(())
-            },
-        )
-        .map_err(|e| Self::Error::Group(Box::new(e)))?;
+                        }),
+                    },
+                    admit,
+                    span: span(source),
+                },
+            )
+            .map_err(|e| Self::Error::RepeatSequence(Box::new(e)))?
+        } else if sequence {
+            lower_sequence_source(source, group_limits, lower, |index, _, original, branch| {
+                admit(index, original, branch)
+            })
+            .map_err(|e| Self::Error::Sequence(Box::new(e)))?
+        } else {
+            let atomic = |index, original: &'source NamedArgument| match lower(index, original)? {
+                SequenceSourceMember::Atomic { value, result_type } => Ok((value, result_type)),
+                _ => Err(Self::Error::NestedGroup {
+                    span: original.span,
+                }),
+            };
+            if repeat {
+                lower_flat_repeat_source(
+                    source,
+                    repeat_limits,
+                    &mut RepeatMembers {
+                        lower: atomic,
+                        admit,
+                        span: span(source),
+                    },
+                )
+                .map_err(|e| Self::Error::Repeat(Box::new(e)))?
+            } else {
+                lower_flat_group_source(source, group_limits, atomic, admit)
+                    .map_err(|e| Self::Error::Group(Box::new(e)))?
+            }
+        };
         let ty = infer_group_flow_type(
             &group,
             &prefix,
@@ -480,6 +712,92 @@ where
     cold_catalog_profile(source, host, limits.expression, true, |_| Ok(false))
         .map_err(|e| CatalogGroupSourceError::Source(Box::new(e)))?;
     lower_group_catalog_expression(source, prefix, limits, host, environment, None, ())
+}
+
+struct PreparedExpression;
+impl<'source, Field, Operation, HostEffect, IrResult, ResultType, Error>
+    CatalogLocalSource<'source, Field, Operation, HostEffect, IrResult, ResultType, Error>
+    for PreparedExpression
+{
+    fn prepared_members(&self) -> bool {
+        true
+    }
+    fn contains(&self, _: &Expression) -> bool {
+        false
+    }
+    fn lower(
+        &self,
+        _: &'source Expression,
+        _: &[(&'source str, &PureType<ResultType>)],
+    ) -> Option<CatalogSourceResult<Node<Field, Operation, HostEffect, IrResult>, ResultType, Error>>
+    {
+        None
+    }
+}
+
+/// Compile a prepared group expression against an explicit borrowed type prefix.
+/// Shares the prepared program's pure Bind/Choose members, bounded Repeat and
+/// direct sequential composition, with no synthetic main/helper declarations or
+/// lookup outside the current original catalog. The entire closed expression,
+/// catalog policy, uniform atomic shape and source-known exports pass before
+/// native mapping. Existing direct-member source APIs remain unchanged.
+///
+/// Prefix types are compilation facts, not values, captures or authority. At run
+/// time the host supplies matching bounded initial bindings, one session meter,
+/// fresh grants, authentic replies and cancellation. Prefix data is not baked into
+/// IR; the same admitted tree can be used by separate in-memory sessions. Whole
+/// output inference and physical/call/group bounds still apply. No helper expansion,
+/// opaque Host graph, nested parallel scheduling or durable recovery is enabled.
+pub fn compile_catalog_prepared_group_source<
+    'source,
+    'schema,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Domain,
+    Declaration,
+    Capability,
+    Environment,
+>(
+    source: &'source Expression,
+    prefix: &[(&'source str, &PureType<Environment::Result>)],
+    limits: CatalogGroupSourceLimits,
+    host: &SourceCallHost<'_, 'schema, Operation, Domain, Declaration, Capability>,
+    environment: &Environment,
+) -> CatalogGroupSourceResult<
+    Node<Field, Operation, HostEffect, IrResult>,
+    Environment::Result,
+    Environment::Error,
+>
+where
+    Operation: Borrow<str> + PartialEq,
+    Domain: ScalarArgumentDomain,
+    Capability: PartialEq,
+    Environment:
+        CatalogGroupSourceEnvironment<'source, 'schema, Field, Operation, Declaration, IrResult>,
+{
+    if limits.max_groups > MAX_TYPE_INFERENCE_NODES
+        || limits.max_branches > MAX_GROUP_EXPORT_MEMBERS
+        || limits.expression.max_calls > MAX_TYPE_INFERENCE_NODES
+    {
+        return Err(CatalogGroupSourceError::InvalidLimits);
+    }
+    preflight_closed_control_source(source, prefix, limits.expression.control)
+        .map_err(|e| CatalogGroupSourceError::Control(Box::new(e)))?;
+    cold_groups_with(source, limits, true, |_| false)?;
+    cold_catalog_with_repeat(source, host, limits.expression, true, true, |_| Ok(false))
+        .map_err(|e| CatalogGroupSourceError::Source(Box::new(e)))?;
+    crate::catalog_atomic_source::cold_prepared_source(source, limits.max_branches)?;
+    lower_group_catalog_expression(
+        source,
+        prefix,
+        limits,
+        host,
+        environment,
+        None,
+        PreparedExpression,
+    )
 }
 
 fn lower_group_catalog_expression<
@@ -761,8 +1079,17 @@ where
 }
 
 /// Opt in to pure Bind/Choose and acyclic atomic helper calls as flat group members.
+/// Bounded positive-literal repeat expands the same prepared member into an ordered
+/// Seq with iteration_1..iteration_N exports. Shared repeat reservations precede
+/// repeated body compilation; each instance retains fresh hygienic slots and pays
+/// the original program work budget. Direct Seq/Repeat children compose through
+/// shared owned sequence kernels into one flat Seq with bounded joined labels.
+/// Parallel children, hidden group-returning members and result-dependent operands
+/// remain rejected; no nested runtime scheduler or additional fuel meter is created.
 /// All closed declarations, helper edges, named/catalog policy and native-free
 /// member shape facts pass before compilation hooks, including unused helpers.
+/// Direct sequential export widths, joined names and collisions are source-checked
+/// before lowering any declaration; repeated bodies are observed once, not expanded.
 /// Expanded members then require whole uniform original-schema inference before
 /// branch mapping; equal result tags never admit different operations. Shared
 /// helper recompilation, hygiene, work/depth quotas and whole group/output gates

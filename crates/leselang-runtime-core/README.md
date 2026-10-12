@@ -102,6 +102,38 @@ cancellation. Opaque inputs can contain interior mutability: hosts must keep the
 meaning and authority immutable across attempts. This crate is not a security
 sandbox or an exactly-once submission protocol.
 
+## Local Execution Ownership
+
+`LocalExecutionScope` is an optional, unique thread-local owner for native work.
+Its cloneable `LocalExecutionLease` is a weak observation: receipts and issued
+requests cannot keep the execution open merely by retaining their leases.
+Explicit `close()` and owner Drop revoke permanently. `same_scope()` gives local
+correlation without exposing addresses or reusable integer IDs; it is not
+authentication or dispatch authority. There is one small allocation per owner,
+no global lock, timer, callback, scheduler or implicit fuel consumption. Hosts
+bound total owners and leases, and retain normal grant/schema/generation checks.
+
+`scope.bind(value)` moves the owner and a native value into `ScopedLocalExecution`.
+On wrapper destruction the owner is dropped **before** the value, so native
+cleanup observes revocation even while unwinding. The value can be borrowed,
+non-Clone, non-Debug and non-Send. `close()` retains it for reconciliation;
+`into_inner()` revokes before returning the original value without cloning it.
+`value_mut()` does not revoke automatically: the host must close first if it
+explicitly replaces or drops native state through that mutable access.
+
+This wrapper does not inspect session status or replace the HIR/VM lifecycle.
+Hosts close it on completion/failure and still deliver cancellation to external
+collectors and queues. Native work rechecks the lease before acting; a snapshot
+cannot preempt a callback or survive arbitrary re-entrant host code as a grant.
+The types intentionally remain !Send/!Sync and non-serializable. Forgotten owners
+or process abort do not run Drop, and a second panic during native cleanup may
+abort. This is cooperative local lifetime fencing, not durable recovery.
+
+The headless GUI vertical uses these exact types for per-execution identities,
+receipt-domain checks and escaped-work rejection after guarded owner Drop or
+unwind. It reuses the original compiler, sessions and meter; it does not add a
+second VM or claim that a GUI framework has been automatically adapted.
+
 ## Language Values
 
 `ScalarType`, `ScalarValue`, `OptionalStringValue`, `StringListValue` and their
@@ -1285,9 +1317,11 @@ optional journal backends and language-wide unrelated-host proofs remain to be
 separated. The existing VM, UI and observation crates still use product command
 and result types. FFI and the future operating-system shell are not implemented
 by this crate. The embedding status target remains developing, not released.
-The [2.3.0 extraction target](../../docs/leselang-embedding.md#230-repository-extraction-target)
-requires complete unrelated-host vertical proofs, optional persistence and preserved
-Leserpent compatibility before moving source into an independently buildable repository.
+The [extraction readiness track](../../docs/leselang-embedding.md#repository-extraction-readiness)
+continues after entering the 2.3.0 phase; physical extraction is deferred with no
+replacement version or date. Complete unrelated-host vertical proofs, optional
+durable recovery and preserved Leserpent compatibility precede the move. A source
+checkpoint or a collection of shared helpers does not close the complete VM gate.
 HIR's [shared pure executor](../../docs/leselang-embedding.md#shared-bounded-pure-execution)
 already reuses these scalar/control/scope/fuel primitives for both unrelated native
 hosts and the reference VM; it is not implemented in this dependency-free crate.

@@ -63,6 +63,7 @@ pub mod helper_source;
 pub mod helper_templates;
 pub mod host_source;
 pub mod ir;
+pub mod local_effect_session;
 pub mod native_graph;
 pub mod native_group;
 pub mod native_group_exports;

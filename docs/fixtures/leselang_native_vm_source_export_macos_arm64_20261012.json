@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-vm-source-export",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-12",
+  "platform": "macos-arm64",
+  "source_outside_product_workspace": true,
+  "source_crates": ["leselang-syntax", "leselang-runtime-core", "leselang-hir", "leselang-vm"],
+  "verified": true,
+  "native_vm_facade": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "files": 242,
+  "copied_files": 232,
+  "bytes": 4230415,
+  "reference_test_targets_omitted": 51,
+  "reference_example_targets_omitted": 1,
+  "reference_features_enableable": false,
+  "vm_normal_dependencies": ["leselang-hir", "leselang-runtime-core", "leselang-syntax"],
+  "workspace_all_features_tests": "passed",
+  "workspace_strict_clippy": "passed",
+  "independent_consumer_tests": "passed",
+  "independent_consumer_strict_clippy": "passed",
+  "native_vm_workspace_host_tests": 9,
+  "native_vm_product_api_absence_doctests": 1,
+  "independent_consumer_native_vm_host_tests": 9,
+  "consumer_native_vm_proof_unchanged": true,
+  "production_source_byte_for_byte": true,
+  "export_manifest_sha256": "526d5ac87869a39bc64f19d7595751073f44210d750cafb9a26cde76ecb73f7b",
+  "provenance": [
+    {
+      "path": "crates/leselang-vm/src/lib.rs",
+      "source": "crates/leselang-vm/src/lib.rs",
+      "sha256": "12a72b03a8c6542b7b626c304ef985e9dd8ed4446231183be91f0505a51fbfa4"
+    },
+    {
+      "path": "crates/leselang-vm/src/native.rs",
+      "source": "crates/leselang-vm/src/native.rs",
+      "sha256": "7c0b9240134341c4489a231cdd6bce7c9d02b03e636aa7807d902bfdb4373a61"
+    },
+    {
+      "path": "crates/leselang-vm/tests/native_embedding.rs",
+      "source": "crates/leselang-vm/tests/native_embedding.rs",
+      "sha256": "1c7bbda93c07aadaa519d82835e5df1a6728c6b4429b11dba35e5528c0ea2577"
+    },
+    {
+      "path": "consumer/tests/native_vm_embedding.rs",
+      "source": "crates/leselang-vm/tests/native_embedding.rs",
+      "sha256": "1c7bbda93c07aadaa519d82835e5df1a6728c6b4429b11dba35e5528c0ea2577"
+    }
+  ],
+  "remaining_gates": [
+    "complete two-host source/effect/reply/capture/cancel language coverage",
+    "host-neutral durable graph recovery",
+    "complete reference adapter wire/auth/GUI/CLI/journal parity",
+    "release publication and physical repository extraction"
+  ]
+}
