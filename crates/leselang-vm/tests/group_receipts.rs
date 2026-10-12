@@ -223,6 +223,134 @@ fn durable_snapshot(connection: &Connection) -> Vec<Vec<Vec<rusqlite::types::Val
 }
 
 #[test]
+fn bound_output_precedence_receipts_cannot_replace_aggregate_or_first_stop() {
+    for (parallel, fail_first) in [(true, true), (false, false), (false, true)] {
+        let path = JournalPath::new();
+        let group = if parallel { "all" } else { "seq" };
+        let source = format!(
+            "fn main() = bind(g: {group}(first: runtime.list(), second: runtime.list(), third: runtime.list()), body: true)"
+        );
+        let mut vm = Vm::open_journal(&path.0, 500).unwrap();
+        let started = vm.start(
+            &lower(&parse(&source)).unwrap(),
+            Principal::new("operator").unwrap(),
+            CapabilitySet::new(["runtime.read"]),
+            Some(leselang_host_contract::Revision(7)),
+        );
+        assert!(matches!(started, Step::Effect(_) | Step::Effects(_)));
+        let mut control = leserpent_domain::InMemoryControlPlane::default();
+        let runtime = control.register_runtime(
+            leselang_host_contract::RuntimeId::new("runtime-a").unwrap(),
+            "runtime",
+            "http://runtime.local",
+        );
+        let mut now = 1;
+        while let Some(lease) = vm.claim_effect(now, 100).unwrap() {
+            if now == 1 && fail_first {
+                vm.report_effect_error(
+                    &lease,
+                    now + 1,
+                    EffectError {
+                        class: EffectErrorClass::Permanent,
+                        code: "original_failure".into(),
+                        message: "original first failure".into(),
+                    },
+                    &RetryPolicy::default(),
+                )
+                .unwrap();
+            } else {
+                let runtimes = (0..6000)
+                    .map(|index| {
+                        let mut item = runtime.clone();
+                        item.id =
+                            leselang_host_contract::RuntimeId::new(format!("runtime-{index}"))
+                                .unwrap();
+                        item
+                    })
+                    .collect();
+                vm.acknowledge_effect(
+                    &lease,
+                    now + 1,
+                    EffectResult::Query(leserpent_domain::QueryResult::RuntimeList {
+                        revision: leselang_host_contract::Revision(7),
+                        runtimes,
+                    }),
+                );
+            }
+            now += 2;
+            assert!(now < 10);
+        }
+        assert_eq!(vm.pending_count(), 0);
+        drop(vm);
+        let connection = Connection::open(&path.0).unwrap();
+        let (plan, bytes): (Vec<u8>, Vec<u8>) = connection
+            .query_row(
+                "SELECT plan, terminal_step FROM vm_merge_groups",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert!(
+            !serde_json::from_slice::<serde_json::Value>(&plan).unwrap()["result_binding"]
+                .is_null()
+        );
+        let original: Step = serde_json::from_slice(&bytes).unwrap();
+        let forged = if parallel {
+            assert!(matches!(&original, Step::Fault(fault) if fault.code == "LSV2404"));
+            let failed: Vec<u8> = connection.query_row("SELECT terminal_step FROM vm_effects WHERE token = (SELECT branch_token FROM vm_merge_branches WHERE position = 0)", [], |row| row.get(0)).unwrap();
+            serde_json::from_slice::<Step>(&failed).unwrap()
+        } else if fail_first {
+            assert!(matches!(original, Step::Failed(_)));
+            Step::Fault(leselang_vm::Fault {
+                code: "LSV2404".into(),
+                message: "sequential output exceeds runtime bounds".into(),
+            })
+        } else {
+            assert!(matches!(&original, Step::Fault(fault) if fault.code == "LSV2404"));
+            Step::Done(Value::Scalar {
+                value: ScalarValue::Boolean(true),
+            })
+        };
+        let watermark: i64 = connection
+            .query_row("SELECT next_sequence FROM vm_metadata", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        connection
+            .execute("UPDATE vm_metadata SET next_sequence = 1", [])
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE vm_merge_groups SET terminal_step = ?1",
+                [serde_json::to_vec(&forged).unwrap()],
+            )
+            .unwrap();
+        let before = durable_snapshot(&connection);
+        assert_eq!(Vm::open_journal(&path.0, 1).err().unwrap().code, "LSV1409");
+        assert_eq!(durable_snapshot(&connection), before);
+        connection
+            .execute("UPDATE vm_merge_groups SET terminal_step = ?1", [&bytes])
+            .unwrap();
+        let mut recovered = Vm::open_journal(&path.0, 1).unwrap();
+        assert_eq!(recovered.pending_count(), 0);
+        assert!(recovered.claim_effect(100, 100).unwrap().is_none());
+        assert_eq!(
+            connection
+                .query_row("SELECT next_sequence FROM vm_metadata", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            watermark
+        );
+        let repaired: Vec<u8> = connection
+            .query_row("SELECT terminal_step FROM vm_merge_groups", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(repaired, bytes);
+    }
+}
+
+#[test]
 fn unbound_completed_receipt_must_match_original_members_before_watermark_repair() {
     for source in [ALL, SEQ, CHAIN, DATAFLOW] {
         let path = JournalPath::new();

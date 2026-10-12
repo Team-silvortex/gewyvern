@@ -436,6 +436,232 @@ fn schema_seven_migrates_without_rewriting_old_continuations() {
 }
 
 #[test]
+fn inherited_context_refusal_preserves_journal_and_imported_watermark_for_every_succession_kind() {
+    fn focus(id: &str) -> EffectResult {
+        EffectResult::Presentation(PresentationResult::Focus { node_id: id.into() })
+    }
+    fn snapshot(connection: &Connection) -> Vec<Vec<Vec<rusqlite::types::Value>>> {
+        [
+            ("vm_metadata", "singleton"),
+            ("vm_effects", "token"),
+            ("vm_dispatches", "token"),
+            ("vm_merge_groups", "token"),
+            ("vm_merge_branches", "group_token, position"),
+        ]
+        .into_iter()
+        .map(|(table, order)| {
+            let mut statement = connection
+                .prepare(&format!("SELECT * FROM {table} ORDER BY {order}"))
+                .unwrap();
+            let columns = statement.column_count();
+            statement
+                .query_map([], |row| {
+                    (0..columns)
+                        .map(|column| row.get(column))
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        })
+        .collect()
+    }
+    for kind in ["atomic", "sequence", "parallel", "tail"] {
+        for mutation in 0..6 {
+            let path = JournalPath::new();
+            let mut vm = Vm::open_journal(&path.0, 500).unwrap();
+            let mut prefix = vec![];
+            let target = match kind {
+                "atomic" => {
+                    let first = effect(start(&mut vm, FLOW));
+                    let next = effect(vm.resume(&first.continuation, navigate("b")));
+                    prefix.push(first);
+                    next
+                }
+                "sequence" | "parallel" => {
+                    let group = if kind == "sequence" { "seq" } else { "all" };
+                    let source = format!(
+                        r#"fn main() = bind(g: {group}(a: ui.focus(node_id: "a"), b: ui.focus(node_id: "b")), body: eq(left: field(value: member(value: g, name: "a"), name: "node_id"), right: "a"))"#
+                    );
+                    let step = start(&mut vm, &source);
+                    if let Step::Effects(batch) = step {
+                        prefix.extend(batch.branches.iter().map(|branch| branch.request.clone()));
+                    } else {
+                        prefix.push(effect(step));
+                        let connection = Connection::open(&path.0).unwrap();
+                        let request: Vec<u8> = connection
+                            .query_row(
+                                "SELECT request FROM vm_dispatches ORDER BY token DESC LIMIT 1",
+                                [],
+                                |row| row.get(0),
+                            )
+                            .unwrap();
+                        prefix.push(serde_json::from_slice(&request).unwrap());
+                    }
+                    prefix[1].clone()
+                }
+                "tail" => {
+                    let first = effect(start(
+                        &mut vm,
+                        r#"fn main() = bind(g: seq(a: ui.focus(node_id: "a"), b: ui.focus(node_id: "b")), body: ui.focus(node_id: "c"))"#,
+                    ));
+                    let second = effect(vm.resume(&first.continuation, focus("a")));
+                    let tail = effect(vm.resume(&second.continuation, focus("b")));
+                    prefix.extend([first, second]);
+                    tail
+                }
+                _ => unreachable!(),
+            };
+            let connection = Connection::open(&path.0).unwrap();
+            let watermark: i64 = connection
+                .query_row("SELECT next_sequence FROM vm_metadata", [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            let imported = effect(start(
+                &mut Vm::new(500),
+                r#"fn main() = ui.focus(node_id: "unrelated")"#,
+            ));
+            let mut wire = serde_json::to_value(imported).unwrap();
+            wire["effect_id"] = "effect-9000".into();
+            wire["continuation"]["token"] = "continuation-9000".into();
+            let imported: EffectRequest = serde_json::from_value(wire).unwrap();
+            vm.restore_request(imported.clone()).unwrap();
+            let pending = vm.pending_continuations();
+            drop(vm);
+            let token = target.continuation.token.as_str();
+            let original_image: Vec<u8> = connection
+                .query_row(
+                    "SELECT image FROM vm_effects WHERE token = ?1",
+                    [token],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            let original_request: Vec<u8> = connection
+                .query_row(
+                    "SELECT request FROM vm_dispatches WHERE token = ?1",
+                    [token],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            let mut forged = target.clone();
+            match mutation {
+                0 | 1 => {
+                    let EffectOperation::Presentation(envelope) = &mut forged.operation else {
+                        panic!("presentation expected")
+                    };
+                    if mutation == 0 {
+                        envelope.principal = Principal::new("other").unwrap();
+                    } else {
+                        envelope.capabilities =
+                            CapabilitySet::new(["ui.presentation", "runtime.read", "extra.read"]);
+                    }
+                }
+                2 => forged.continuation.expected_revision = None,
+                3 => forged.continuation.deadline_ms -= 1,
+                4 => forged.continuation.deadline_at_ms = Some(90_000),
+                5 => forged.continuation.max_output_items -= 1,
+                _ => unreachable!(),
+            }
+            forged.budget = forged.continuation.resource_budget();
+            leselang_vm::validate_effect_request(&forged).unwrap();
+            connection
+                .execute(
+                    "UPDATE vm_effects SET image = ?2, deadline_at_ms = ?3 WHERE token = ?1",
+                    params![
+                        token,
+                        serde_json::to_vec(&forged.continuation).unwrap(),
+                        forged
+                            .continuation
+                            .deadline_at_ms
+                            .map(|d| i64::try_from(d).unwrap())
+                    ],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "UPDATE vm_dispatches SET request = ?2 WHERE token = ?1",
+                    params![token, serde_json::to_vec(&forged).unwrap()],
+                )
+                .unwrap();
+            // The original watermark still proves all pre-existing reserved slots.
+            connection
+                .execute("UPDATE vm_metadata SET next_sequence = ?1", [watermark])
+                .unwrap();
+            let before = snapshot(&connection);
+            assert_eq!(
+                Vm::open_journal(&path.0, 1).err().unwrap().code,
+                if kind == "atomic" {
+                    "LSV1407"
+                } else {
+                    "LSV1409"
+                },
+                "{kind}/{mutation}"
+            );
+            assert_eq!(snapshot(&connection), before);
+            connection
+                .execute(
+                    "UPDATE vm_effects SET image = ?2, deadline_at_ms = ?3 WHERE token = ?1",
+                    params![
+                        token,
+                        original_image,
+                        target
+                            .continuation
+                            .deadline_at_ms
+                            .map(|d| i64::try_from(d).unwrap())
+                    ],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "UPDATE vm_dispatches SET request = ?2 WHERE token = ?1",
+                    params![token, original_request],
+                )
+                .unwrap();
+            let mut recovered = Vm::open_journal(&path.0, 1).unwrap();
+            assert_eq!(recovered.pending_continuations(), pending);
+            assert_eq!(
+                connection
+                    .query_row("SELECT next_sequence FROM vm_metadata", [], |row| row
+                        .get::<_, i64>(0))
+                    .unwrap(),
+                9001
+            );
+            let terminal = match kind {
+                "atomic" => {
+                    assert_eq!(
+                        effect(recovered.resume(&prefix[0].continuation, navigate("ignored"))),
+                        target
+                    );
+                    recovered.resume(&target.continuation, focus("target-b"))
+                }
+                "sequence" | "parallel" => {
+                    recovered.resume(&prefix[0].continuation, focus("a"));
+                    recovered.resume(&target.continuation, focus("b"))
+                }
+                "tail" => recovered.resume(&target.continuation, focus("c")),
+                _ => unreachable!(),
+            };
+            let expected = if matches!(kind, "sequence" | "parallel") {
+                Value::Scalar {
+                    value: leselang_vm::ScalarValue::Boolean(true),
+                }
+            } else {
+                Value::UiFocus {
+                    node_id: if kind == "atomic" { "target-b" } else { "c" }.into(),
+                }
+            };
+            assert_eq!(terminal, Step::Done(expected), "{kind}/{mutation}");
+            assert!(
+                recovered
+                    .pending_continuations()
+                    .contains(&imported.continuation)
+            );
+        }
+    }
+}
+
+#[test]
 fn recovery_rejects_orphaned_and_authority_changed_result_chains() {
     for corruption in [
         "orphan",

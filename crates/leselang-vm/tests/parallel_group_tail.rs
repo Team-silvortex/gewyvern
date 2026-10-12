@@ -704,6 +704,145 @@ fn unbound_parallel_journal_groups_also_commit_item_and_byte_faults() {
 }
 
 #[test]
+fn false_group_alias_and_result_capture_correspondence_blocks_recovery_without_mutation() {
+    fn snapshot(connection: &Connection) -> Vec<Vec<Vec<rusqlite::types::Value>>> {
+        [
+            ("vm_metadata", "singleton"),
+            ("vm_effects", "token"),
+            ("vm_dispatches", "token"),
+            ("vm_merge_groups", "token"),
+            ("vm_merge_branches", "group_token, position"),
+        ]
+        .into_iter()
+        .map(|(table, order)| {
+            let mut statement = connection
+                .prepare(&format!("SELECT * FROM {table} ORDER BY {order}"))
+                .unwrap();
+            let columns = statement.column_count();
+            statement
+                .query_map([], |row| {
+                    (0..columns)
+                        .map(|column| row.get(column))
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        })
+        .collect()
+    }
+    for parallel in [false, true] {
+        for group_alias in [false, true] {
+            let path = JournalPath::new();
+            let mut vm = Vm::open_journal(&path.0, 500).unwrap();
+            let group = if parallel { "all" } else { "seq" };
+            let source = format!(
+                r#"fn main() = bind(g: {group}(a: ui.focus(node_id: "a"), b: ui.focus(node_id: "b")),
+            body: bind(alias: g, body: bind(state: member(value: alias, name: "a"),
+                body: bind(r: ui.focus(node_id: "a"), body: eq(left: field(value: state, name: "node_id"), right: field(value: r, name: "node_id"))))))"#
+            );
+            let tail = if parallel {
+                let prefix = batch(start(&mut vm, &source));
+                vm.resume(&prefix[1].continuation, focus("b"));
+                effect(vm.resume(&prefix[0].continuation, focus("a")))
+            } else {
+                let first = effect(start(&mut vm, &source));
+                let second = effect(vm.resume(&first.continuation, focus("a")));
+                effect(vm.resume(&second.continuation, focus("b")))
+            };
+            drop(vm);
+            let connection = Connection::open(&path.0).unwrap();
+            let token = tail.continuation.token.as_str();
+            let original_image: Vec<u8> = connection
+                .query_row(
+                    "SELECT image FROM vm_effects WHERE token = ?1",
+                    [token],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            let original_request: Vec<u8> = connection
+                .query_row(
+                    "SELECT request FROM vm_dispatches WHERE token = ?1",
+                    [token],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            let watermark: i64 = connection
+                .query_row("SELECT next_sequence FROM vm_metadata", [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            let imported = effect(start(
+                &mut Vm::new(500),
+                r#"fn main() = ui.focus(node_id: "unrelated")"#,
+            ));
+            let mut wire = serde_json::to_value(&imported).unwrap();
+            wire["effect_id"] = "effect-20000".into();
+            wire["continuation"]["token"] = "continuation-20000".into();
+            let imported: EffectRequest = serde_json::from_value(wire).unwrap();
+            let mut importer = Vm::open_journal(&path.0, 500).unwrap();
+            importer.restore_request(imported.clone()).unwrap();
+            drop(importer);
+            let mut forged = tail.clone();
+            let saved = forged.continuation.result_binding.as_mut().unwrap();
+            if group_alias {
+                saved.groups[1].group.members[0].result.fields[0].value =
+                    ScalarValue::String("unmatched-alias".into());
+            } else {
+                saved.results[0].result.fields[0].value =
+                    ScalarValue::String("unmatched-result".into());
+            }
+            connection
+                .execute(
+                    "UPDATE vm_effects SET image = ?2 WHERE token = ?1",
+                    params![token, serde_json::to_vec(&forged.continuation).unwrap()],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "UPDATE vm_dispatches SET request = ?2 WHERE token = ?1",
+                    params![token, serde_json::to_vec(&forged).unwrap()],
+                )
+                .unwrap();
+            connection
+                .execute("UPDATE vm_metadata SET next_sequence = ?1", [watermark])
+                .unwrap();
+            let before = snapshot(&connection);
+            assert_eq!(Vm::open_journal(&path.0, 1).err().unwrap().code, "LSV1409");
+            assert_eq!(snapshot(&connection), before);
+            connection
+                .execute(
+                    "UPDATE vm_effects SET image = ?2 WHERE token = ?1",
+                    params![token, original_image],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "UPDATE vm_dispatches SET request = ?2 WHERE token = ?1",
+                    params![token, original_request],
+                )
+                .unwrap();
+            let mut recovered = Vm::open_journal(&path.0, 1).unwrap();
+            let pending = recovered.pending_continuations();
+            assert_eq!(pending.len(), 2);
+            assert!(pending.contains(&tail.continuation));
+            assert!(pending.contains(&imported.continuation));
+            assert_eq!(
+                connection
+                    .query_row("SELECT next_sequence FROM vm_metadata", [], |row| row
+                        .get::<_, i64>(0))
+                    .unwrap(),
+                20001
+            );
+            assert_eq!(
+                recovered.resume(&tail.continuation, focus("a")),
+                scalar(ScalarValue::Boolean(true))
+            );
+        }
+    }
+}
+
+#[test]
 fn capture_frames_preserve_boolean_member_aliases_and_reject_prefix_or_schema_corruption() {
     let source = r#"fn main() = bind(g: all(a: ui.focus(node_id: "a"), b: ui.assert_selection(node_id: "toggle", state: "selected")), body: bind(alias: g, body: bind(state: member(value: alias, name: "b"), body: bind(r: ui.focus(node_id: "a"), body: and(left: field(value: state, name: "selected"), right: field(value: member(value: alias, name: "b"), name: "selected"))))))"#;
     for mutation in 0..8 {

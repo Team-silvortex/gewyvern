@@ -3422,6 +3422,238 @@ fn shared_group_graph_docs_do_not_promote_structural_inspection_to_durable_autho
 }
 
 #[test]
+fn watermark_planning_docs_distinguish_requirements_from_allocation_and_commit_authority() {
+    for source in [
+        include_str!("../docs/leselang-embedding.md"),
+        include_str!("../crates/leselang-runtime-core/README.md"),
+    ] {
+        let text = source
+            .split("Shared Sequence Watermark Planning")
+            .nth(1)
+            .unwrap()
+            .split("Shared Inherited Continuation Context")
+            .next()
+            .unwrap()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        for boundary in [
+            "SequenceWatermarkRequirement::after_observation()",
+            "explicit inclusive watermark ceiling",
+            "not a valid identity or an allocation permission",
+            "refusal precedes native metadata reads",
+            "preserves existing gaps",
+            "Equal/higher stored values require no write",
+            "Public updates are mutable data",
+            "allocation-free arithmetic",
+            "signed-metadata read and conversion",
+            "72 combinations",
+            "all five journal tables and original pending frames/budgets intact",
+            "cold tails and stale-worker allocation",
+            "independent consumer",
+            "prospective numeric planning",
+            "Original allocation watermark proof",
+            "same-snapshot commit-before-publish",
+            "VM or extraction gate",
+        ] {
+            assert!(text.contains(boundary), "watermark docs lost {boundary}");
+        }
+    }
+}
+
+#[test]
+fn inherited_context_docs_separate_agreement_from_authenticity_and_fuel_policy() {
+    for source in [
+        include_str!("../docs/leselang-embedding.md"),
+        include_str!("../crates/leselang-runtime-core/README.md"),
+    ] {
+        let text = source
+            .split("Shared Inherited Continuation Context")
+            .nth(1)
+            .unwrap()
+            .split("Shared Capture Extension")
+            .next()
+            .unwrap()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        for boundary in [
+            "validate_inherited_context()",
+            "each hook at most once",
+            "exact optional absolute deadline",
+            "No allocation, payload copying",
+            "owners release before result/error handoff",
+            "Fuel is deliberately ignored",
+            "atomic successor consumption and token order follow it",
+            "Matching zero/maximum metadata is not valid-budget admission",
+            "original fault codes or guard order",
+            "Twenty-four real SQLite cases",
+            "all five journal tables unchanged",
+            "before imported watermark repair",
+            "original pending frames/budgets",
+            "independent consumer",
+            "transient context agreement",
+            "commit-before-publish",
+            "VM or extraction gate",
+        ] {
+            assert!(text.contains(boundary), "context docs lost {boundary}");
+        }
+    }
+}
+
+#[test]
+fn capture_extension_docs_keep_aliases_separate_from_binding_retention_or_authority() {
+    for source in [
+        include_str!("../docs/leselang-embedding.md"),
+        include_str!("../crates/leselang-runtime-core/README.md"),
+    ] {
+        let text = source
+            .split("Shared Capture Extension")
+            .nth(1)
+            .unwrap()
+            .split("Shared Capture Correspondence")
+            .next()
+            .unwrap()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        for boundary in [
+            "validate_capture_extension()",
+            "ceiling 64",
+            "without allocation or payload copies",
+            "membership comparisons stop on the first match",
+            "cannot replace original named bindings",
+            "A current match never skips later native errors",
+            "owner releases before result/error handoff",
+            "schema succession, original authority/revision/deadlines/output limits",
+            "saved-body typing still precede",
+            "all five journal tables unchanged",
+            "original pending frames and budgets",
+            "independent consumer",
+            "transient retention, not provenance",
+            "commit-before-publish",
+            "VM or extraction gate",
+        ] {
+            assert!(text.contains(boundary), "extension docs lost {boundary}");
+        }
+    }
+}
+
+#[test]
+fn capture_correspondence_docs_preserve_native_policy_and_late_error_observation() {
+    for source in [
+        include_str!("../docs/leselang-embedding.md"),
+        include_str!("../crates/leselang-runtime-core/README.md"),
+    ] {
+        let text = source
+            .split("Shared Capture Correspondence")
+            .nth(1)
+            .unwrap()
+            .split("Shared Ordered Outcome Summaries")
+            .next()
+            .unwrap()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        for boundary in [
+            "validate_capture_correspondence()",
+            "each ceiling 64",
+            "without allocation",
+            "complete capture-major original-row scans",
+            "A true match does not skip later rows",
+            "before result/error handoff",
+            "missing-binding checks still precede correspondence",
+            "projection versions and raw-result matching remain unchanged",
+            "late errors after a successful earlier match",
+            "leaving all stored records intact",
+            "original pending frames and budgets",
+            "independent consumer",
+            "transient correspondence, not receipt authenticity",
+            "commit-before-publish",
+            "VM or extraction gate",
+        ] {
+            assert!(text.contains(boundary), "capture docs lost {boundary}");
+        }
+    }
+}
+
+#[test]
+fn ordered_outcome_docs_keep_observations_separate_from_settlement_or_execution() {
+    for source in [
+        include_str!("../docs/leselang-embedding.md"),
+        include_str!("../crates/leselang-runtime-core/README.md"),
+    ] {
+        let text = source
+            .split("Shared Ordered Outcome Summaries")
+            .nth(1)
+            .unwrap()
+            .split("Shared Sequential Frontier Inspection")
+            .next()
+            .unwrap()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        for boundary in [
+            "OrderedOutcomeSummary",
+            "ceiling 64",
+            "Counts saturate rather than wrap",
+            "no earlier stop exists",
+            "parallel overflow is deferred",
+            "declared observation order",
+            "not proof of group completeness",
+            "release before handoff",
+            "closes the whole pass",
+            "Early sequence stops still avoid observing later terminals",
+            "admits later rows before final receipt comparison",
+            "without modifying stored records or repairing the watermark",
+            "unchanged in the independent consumer",
+            "mutable observations, not authentic receipts, settlement or execution grants",
+            "commit-before-publish",
+            "not the complete VM or extraction gate",
+        ] {
+            assert!(text.contains(boundary), "outcome docs lost {boundary}");
+        }
+    }
+}
+
+#[test]
+fn sequential_frontier_docs_keep_native_dispatch_and_recovery_authority_separate() {
+    for source in [
+        include_str!("../docs/leselang-embedding.md"),
+        include_str!("../crates/leselang-runtime-core/README.md"),
+    ] {
+        let text = source
+            .split("Shared Sequential Frontier Inspection")
+            .nth(1)
+            .unwrap()
+            .split("Shared Successor Chain Inspection")
+            .next()
+            .unwrap()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        for boundary in [
+            "inspect_sequential_frontier()",
+            "ceiling 64",
+            "contiguous prefix",
+            "before prefix decoding or blocked-dispatch observation",
+            "active frontier, excluded from the blocked suffix",
+            "both hooks still run",
+            "attempt/retry query",
+            "stored records remain unchanged",
+            "original values and budgets",
+            "independent consumer",
+            "before result/error handoff",
+            "transient inspection, not a dispatch lease, receipt or execution grant",
+            "commit-before-publish",
+            "not the complete VM or extraction gate",
+        ] {
+            assert!(text.contains(boundary), "frontier docs lost {boundary}");
+        }
+    }
+}
+
+#[test]
 fn successor_chain_docs_distinguish_ordered_inspection_from_native_recovery_authority() {
     for source in [
         include_str!("../docs/leselang-embedding.md"),

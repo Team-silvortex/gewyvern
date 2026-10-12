@@ -89,6 +89,112 @@ fn group_with_cold_tail() -> &'static str {
 }
 
 #[test]
+fn watermark_planning_preserves_every_table_on_import_recovery_and_exhaustion_refusal() {
+    fn snapshot(connection: &Connection) -> Vec<Vec<Vec<rusqlite::types::Value>>> {
+        [
+            ("vm_metadata", "singleton"),
+            ("vm_effects", "token"),
+            ("vm_dispatches", "token"),
+            ("vm_merge_groups", "token"),
+            ("vm_merge_branches", "group_token, position"),
+        ]
+        .into_iter()
+        .map(|(table, order)| {
+            let mut statement = connection
+                .prepare(&format!("SELECT * FROM {table} ORDER BY {order}"))
+                .unwrap();
+            let columns = statement.column_count();
+            statement
+                .query_map([], |row| {
+                    (0..columns)
+                        .map(|column| row.get(column))
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        })
+        .collect()
+    }
+    for mode in ["import", "recovery", "exhaustion"] {
+        let path = JournalPath::new();
+        let mut original = path.vm();
+        let mut stale = path.vm();
+        let first = effect(start(&mut original, group_with_cold_tail()));
+        let group = first.continuation.group_result.as_ref().unwrap();
+        let imported = request_at(if mode == "exhaustion" {
+            i64::MAX as u64 - 1
+        } else {
+            20
+        });
+        if mode != "import" {
+            original.restore_request(imported.clone()).unwrap();
+        }
+        if mode == "recovery" {
+            path.set_next_sequence(6);
+        }
+        let connection = path.connection();
+        if mode != "exhaustion" {
+            connection.execute_batch("CREATE TRIGGER reject_watermark BEFORE UPDATE ON vm_metadata BEGIN SELECT RAISE(ABORT, 'injected watermark failure'); END;").unwrap();
+        }
+        let before = snapshot(&connection);
+        let pending = original.pending_continuations();
+        match mode {
+            "import" => assert_eq!(
+                original.restore_request(imported.clone()).unwrap_err().code,
+                "LSV4008"
+            ),
+            "recovery" => assert_eq!(
+                Vm::open_journal(&path.0, 10000).err().unwrap().code,
+                "LSV4008"
+            ),
+            "exhaustion" => {
+                assert!(matches!(focus(&mut stale), Step::Fault(ref f) if f.code == "LSV4009"))
+            }
+            _ => unreachable!(),
+        }
+        assert_eq!(snapshot(&connection), before, "{mode}");
+        assert_eq!(original.pending_continuations(), pending);
+        if mode == "exhaustion" {
+            assert_eq!(path.vm().pending_continuations(), pending);
+            assert_eq!(path.next_sequence(), i64::MAX);
+            continue;
+        }
+        if mode == "import" {
+            // A write-rejecting trigger must not affect an already-correct watermark.
+            assert_eq!(path.vm().pending_continuations(), pending);
+            assert_eq!(snapshot(&connection), before);
+        }
+        connection
+            .execute_batch("DROP TRIGGER reject_watermark;")
+            .unwrap();
+        if mode == "import" {
+            original.restore_request(imported.clone()).unwrap();
+        }
+        let expected = original.pending_continuations();
+        let mut recovered = path.vm();
+        assert_eq!(recovered.pending_continuations(), expected);
+        assert_eq!(path.next_sequence(), 21);
+        assert!(matches!(
+            recovered.cancel_effect(&imported.continuation, 101),
+            Step::Cancelled(_)
+        ));
+        for position in 0..4 {
+            let now = 102 + position * 2;
+            let lease = recovered.claim_effect(now, 50).unwrap().unwrap();
+            assert_eq!(lease.request.effect_id, format!("effect-{}", 2 + position));
+            let step = recovered.acknowledge_effect(&lease, now + 1, receipt(&lease.request));
+            assert!(!matches!(step, Step::Fault(_)), "{mode}: {step:?}");
+        }
+        assert!(matches!(
+            original.merge_result(group).unwrap(),
+            Some(Step::Done(_))
+        ));
+        assert_eq!(effect(focus(&mut stale)).effect_id, "effect-21");
+    }
+}
+
+#[test]
 fn imported_requests_advance_the_shared_allocator_for_already_open_workers() {
     let path = JournalPath::new();
     let mut importer = path.vm();

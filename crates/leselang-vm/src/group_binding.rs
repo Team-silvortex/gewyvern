@@ -1,6 +1,9 @@
 use leselang_hir::host_call::HostOperation;
 use leselang_hir::{Effect, HirBranch, Type};
-use leselang_runtime_core::Fuel;
+use leselang_runtime_core::{
+    CaptureCorrespondenceError, CaptureCorrespondenceLimits, CaptureCorrespondenceSite, Fuel,
+    validate_capture_correspondence,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::result_binding::{ReferenceProjectedGroup, ReferenceResultBinding};
@@ -216,12 +219,7 @@ impl GroupResultBinding {
                 || image.result_binding.is_some()
                 || image.schema_version != self.continuation_schema()
                 || Some(image.fuel_remaining) != expected_fuel
-                || crate::successor::authority(&request.operation)
-                    != crate::successor::authority(&first.operation)
-                || image.expected_revision != first.continuation.expected_revision
-                || image.deadline_ms != first.continuation.deadline_ms
-                || image.deadline_at_ms != first.continuation.deadline_at_ms
-                || image.max_output_items != first.continuation.max_output_items
+                || !crate::successor::same_inherited_context(first, request)
             {
                 return Err(invalid());
             }
@@ -260,12 +258,7 @@ impl GroupResultBinding {
                     image.result_binding.is_some() || image.result_type != final_type
                 }
                 || image.fuel_remaining >= previous_fuel
-                || crate::successor::authority(&request.operation)
-                    != crate::successor::authority(&first.operation)
-                || image.expected_revision != first.continuation.expected_revision
-                || image.deadline_ms != first.continuation.deadline_ms
-                || image.deadline_at_ms != first.continuation.deadline_at_ms
-                || image.max_output_items != first.continuation.max_output_items
+                || !crate::successor::same_inherited_context(first, request)
             {
                 return Err(invalid());
             }
@@ -457,24 +450,225 @@ impl GroupResultBinding {
             .result_binding
             .as_ref()
             .ok_or_else(invalid)?;
-        for group in &binding.groups {
-            if !group
-                .group
-                .matches_members(branches, &fields[..branches.len()])?
-            {
+        validate_capture_correspondence(
+            &binding.groups,
+            &binding.results,
+            fields,
+            CaptureCorrespondenceLimits {
+                max_saved_bindings: leselang_hir::MAX_EFFECT_NESTING_DEPTH,
+                max_original_rows: crate::MAX_MERGE_BRANCHES,
+            },
+            |_, group| {
+                group
+                    .group
+                    .matches_members(branches, &fields[..branches.len()])
+            },
+            |site, result, field| {
+                let CaptureCorrespondenceSite::Result { original, .. } = site else {
+                    return Err(invalid());
+                };
+                result
+                    .result
+                    .matches_capture(operations[original], &field.value)
+            },
+        )
+        .map_err(|error| match error {
+            CaptureCorrespondenceError::Native { error, .. } => error,
+            _ => invalid(),
+        })
+    }
+}
+
+#[cfg(all(test, feature = "sqlite-journal"))]
+mod correspondence_tests {
+    use super::*;
+
+    struct TempRoot(std::path::PathBuf);
+    impl Drop for TempRoot {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn saved_capture_correspondence_preserves_frozen_native_fault_order() {
+        fn frozen(
+            binding: &GroupResultBinding,
+            request: &EffectRequest,
+            fields: &[crate::StructuredField],
+            operations: &[HostOperation],
+        ) -> Result<(), Fault> {
+            let branches = binding.branches()?;
+            if fields.len() < branches.len() || fields.len() != operations.len() {
                 return Err(invalid());
             }
-        }
-        for result in &binding.results {
-            let mut matched = false;
-            for (operation, field) in operations.iter().zip(fields) {
-                matched |= result.result.matches_capture(*operation, &field.value)?;
+            let saved = request
+                .continuation
+                .result_binding
+                .as_ref()
+                .ok_or_else(invalid)?;
+            for group in &saved.groups {
+                if !group
+                    .group
+                    .matches_members(branches, &fields[..branches.len()])?
+                {
+                    return Err(invalid());
+                }
             }
-            if !matched {
-                return Err(invalid());
+            for result in &saved.results {
+                let mut matched = false;
+                for (operation, field) in operations.iter().zip(fields) {
+                    matched |= result.result.matches_capture(*operation, &field.value)?;
+                }
+                if !matched {
+                    return Err(invalid());
+                }
+            }
+            Ok(())
+        }
+        let directory = std::env::temp_dir().join(format!(
+            "leselang-capture-correspondence-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let root = TempRoot(directory);
+        let path = root.0.join("capture.sqlite3");
+        let program = leselang_hir::lower(&leselang_syntax::parse(
+            r#"fn main() = bind(g: seq(a: ui.focus(node_id: "a"), b: ui.focus(node_id: "b")),
+                body: bind(alias: g, body: bind(state: member(value: alias, name: "a"),
+                    body: bind(r: ui.focus(node_id: "a"), body:
+                        eq(left: field(value: state, name: "node_id"), right: field(value: r, name: "node_id"))))))"#,
+        )).unwrap();
+        let mut vm = crate::Vm::open_journal(&path, 500).unwrap();
+        let Step::Effect(first) = vm.start(
+            &program,
+            crate::Principal::new("operator").unwrap(),
+            crate::CapabilitySet::new(["ui.presentation"]),
+            None,
+        ) else {
+            panic!()
+        };
+        let focus = |node: &str| {
+            crate::EffectResult::Presentation(crate::PresentationResult::Focus {
+                node_id: node.into(),
+            })
+        };
+        let Step::Effect(second) = vm.resume(&first.continuation, focus("a")) else {
+            panic!()
+        };
+        let Step::Effect(tail) = vm.resume(&second.continuation, focus("b")) else {
+            panic!()
+        };
+        drop(vm);
+        let connection = rusqlite::Connection::open(&path).unwrap();
+        let bytes: Vec<u8> = connection
+            .query_row("SELECT plan FROM vm_merge_groups", [], |row| row.get(0))
+            .unwrap();
+        let plan: MergePlan = serde_json::from_slice(&bytes).unwrap();
+        let binding = plan.result_binding.unwrap();
+        let fields = [
+            crate::StructuredField {
+                name: "a".into(),
+                value: Box::new(Value::UiFocus {
+                    node_id: "a".into(),
+                }),
+            },
+            crate::StructuredField {
+                name: "b".into(),
+                value: Box::new(Value::UiFocus {
+                    node_id: "b".into(),
+                }),
+            },
+        ];
+        let operations = [HostOperation::UiFocus, HostOperation::UiFocus];
+        assert_eq!(
+            tail.continuation
+                .result_binding
+                .as_ref()
+                .unwrap()
+                .groups
+                .len(),
+            2
+        );
+        assert_eq!(
+            tail.continuation
+                .result_binding
+                .as_ref()
+                .unwrap()
+                .results
+                .len(),
+            1
+        );
+        for case in 0..10 {
+            let mut request = (*tail).clone();
+            let mut rows = fields.to_vec();
+            let mut ops = operations.to_vec();
+            match case {
+                0 => {}
+                1 => {
+                    rows.pop();
+                    ops.pop();
+                }
+                2 => {
+                    ops.pop();
+                }
+                3 => request.continuation.result_binding = None,
+                4 => {
+                    request.continuation.result_binding.as_mut().unwrap().groups[1]
+                        .group
+                        .members[0]
+                        .name = "changed".into()
+                }
+                5 => {
+                    request
+                        .continuation
+                        .result_binding
+                        .as_mut()
+                        .unwrap()
+                        .results[0]
+                        .result
+                        .fields[0]
+                        .value = crate::ScalarValue::String("unmatched".into())
+                }
+                6 => rows[1].name = "changed".into(),
+                7 => ops[1] = HostOperation::UiNavigateFocus,
+                8 => {
+                    rows.push(crate::StructuredField {
+                        name: "later".into(),
+                        value: Box::new(Value::Scalar {
+                            value: crate::ScalarValue::Boolean(true),
+                        }),
+                    });
+                    ops.push(HostOperation::UiFocus);
+                }
+                9 => {
+                    request
+                        .continuation
+                        .result_binding
+                        .as_mut()
+                        .unwrap()
+                        .results[0]
+                        .result
+                        .projection_version = 99
+                }
+                _ => unreachable!(),
+            }
+            let expected = frozen(&binding, &request, &rows, &ops);
+            assert_eq!(
+                binding.validate_saved_capture(&request, &rows, &ops),
+                expected,
+                "case {case}"
+            );
+            assert_eq!(expected.is_ok(), matches!(case, 0 | 7));
+            if case == 8 {
+                assert_eq!(expected.unwrap_err().code, "LSV1405");
             }
         }
-        Ok(())
+        drop(connection);
     }
 }
 

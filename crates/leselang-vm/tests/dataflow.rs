@@ -447,6 +447,122 @@ fn recovery_rejects_projection_rebinding_and_truncated_committed_chains() {
     }
 }
 
+#[test]
+fn successor_capture_extension_refusal_preserves_every_journal_table_and_original_budget() {
+    fn snapshot(connection: &Connection) -> Vec<Vec<Vec<rusqlite::types::Value>>> {
+        [
+            ("vm_metadata", "singleton"),
+            ("vm_effects", "token"),
+            ("vm_dispatches", "token"),
+            ("vm_merge_groups", "token"),
+            ("vm_merge_branches", "group_token, position"),
+        ]
+        .into_iter()
+        .map(|(table, order)| {
+            let mut statement = connection
+                .prepare(&format!("SELECT * FROM {table} ORDER BY {order}"))
+                .unwrap();
+            let columns = statement.column_count();
+            statement
+                .query_map([], |row| {
+                    (0..columns)
+                        .map(|column| row.get(column))
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        })
+        .collect()
+    }
+    let source = r#"fn main() = bind(first: ui.navigate_focus(node_id: "a", direction: "next"), body:
+        bind(alias: first, body: bind(second: ui.focus(node_id: field(value: first, name: "focused_node_id")), body:
+            bind(third: ui.focus(node_id: field(value: second, name: "node_id")), body: eq(left: field(value: third, name: "node_id"), right: "b")))))"#;
+    for mutation in 0..4 {
+        let path = JournalPath::new();
+        let mut vm = Vm::open_journal(&path.0, 500).unwrap();
+        let first = effect(start(&mut vm, source));
+        let second = effect(vm.resume(&first.continuation, navigate("b")));
+        let third = effect(vm.resume(&second.continuation, focus("b")));
+        drop(vm);
+        let mut forged = third.clone();
+        let saved = &mut forged.continuation.result_binding.as_mut().unwrap().results;
+        assert_eq!(
+            saved.iter().map(|b| b.name.as_str()).collect::<Vec<_>>(),
+            ["first", "alias", "second"]
+        );
+        match mutation {
+            0 => saved[1].name = "replacement".into(),
+            1 => {
+                saved.remove(1);
+            }
+            2 => saved[2].name = "not_second".into(),
+            3 => saved[1].result = saved[2].result.clone(),
+            _ => unreachable!(),
+        }
+        // The forged frame is structurally valid; original chain retention rejects it.
+        encode_continuation(&forged.continuation).unwrap();
+        let connection = Connection::open(&path.0).unwrap();
+        let token = third.continuation.token.as_str();
+        let original_image: Vec<u8> = connection
+            .query_row(
+                "SELECT image FROM vm_effects WHERE token = ?1",
+                [token],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let original_request: Vec<u8> = connection
+            .query_row(
+                "SELECT request FROM vm_dispatches WHERE token = ?1",
+                [token],
+                |row| row.get(0),
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE vm_effects SET image = ?2 WHERE token = ?1",
+                params![token, serde_json::to_vec(&forged.continuation).unwrap()],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE vm_dispatches SET request = ?2 WHERE token = ?1",
+                params![token, serde_json::to_vec(&forged).unwrap()],
+            )
+            .unwrap();
+        let before = snapshot(&connection);
+        assert_eq!(
+            Vm::open_journal(&path.0, 1).err().unwrap().code,
+            "LSV1407",
+            "mutation {mutation}"
+        );
+        assert_eq!(snapshot(&connection), before);
+        connection
+            .execute(
+                "UPDATE vm_effects SET image = ?2 WHERE token = ?1",
+                params![token, original_image],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE vm_dispatches SET request = ?2 WHERE token = ?1",
+                params![token, original_request],
+            )
+            .unwrap();
+        let mut recovered = Vm::open_journal(&path.0, 1).unwrap();
+        assert_eq!(
+            recovered.pending_continuations(),
+            std::slice::from_ref(&third.continuation)
+        );
+        assert_eq!(
+            effect(recovered.resume(&first.continuation, navigate("ignored"))),
+            third
+        );
+        assert!(third.budget.fuel_remaining < second.budget.fuel_remaining);
+        assert_eq!(recovered.resume(&third.continuation, focus("b")), done());
+    }
+}
+
 fn inventory(size: usize) -> EffectResult {
     let mut control = leserpent_domain::InMemoryControlPlane::default();
     let runtime = control.register_runtime(

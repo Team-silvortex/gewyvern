@@ -5276,6 +5276,218 @@ body execution, meter reconstruction, effect dispatch or replay is added.
 Complete independent durable graph recovery remains open; reference migration
 is also a separate gate. This is not the complete independent VM or repository extraction gate.
 
+### Shared Sequence Watermark Planning
+
+`SequenceWatermarkRequirement::after_observation()` computes the required numeric
+successor under an explicit inclusive watermark ceiling. Zero represents an empty
+highest-sequence observation and requires one; it is not a valid identity or an
+allocation permission. Overflow/ceiling refusal precedes native metadata reads.
+The watermark ceiling is distinct from the native effect-sequence ceiling.
+
+`reconcile()` rejects zero/out-of-ceiling stored watermarks, preserves existing
+gaps and reports exact `next_sequence`/`write_required` observations. Equal/higher
+stored values require no write. No shrinking, gap filling, clamping, wrapping,
+identity parsing, normalization or implicit defaults are added. Requirements keep
+private ceiling fields, but remain copyable stateless numeric observations, not
+one-shot storage handles. Public updates are mutable data; construction/inspection
+cannot authenticate them. Everything is allocation-free arithmetic without native
+hooks, codecs, reads/writes, meter construction or evaluation.
+
+Real SQLite allocation and `advance_sequence_watermark()` use the shared
+requirement; reconciliation stays after the original signed-metadata read and
+conversion. Native error codes, immediate transactions and commit order remain
+unchanged. Live allocation and restore use the same checked successor requirement,
+with native canonical-token/sequence checks and durable insertion before local
+watermark publication. Frozen SQLite tests cover 72 combinations of empty/large/
+exhausted observations, invalid/missing metadata and rejected writes, preserving
+exact native fault order and resulting watermarks. Real import/recovery/exhaustion
+refusals leave all five journal tables and original pending frames/budgets intact.
+A write-rejecting trigger cannot break recovery at an already-correct watermark;
+repair/retry preserves cold tails and stale-worker allocation without ID reuse.
+Numeric and opaque GUI-local checkpoint models run unchanged in the independent
+consumer; these models are not a storage implementation.
+
+Success is prospective numeric planning, not a durable allocator, reservation,
+receipt authenticity, execution grant or commit certificate. Original allocation
+watermark proof still precedes imported-ID repair. Native identities, reservations,
+authority/receipt/complete graph admission and same-snapshot commit-before-publish
+remain host-owned. Planning never makes a failed write/commit safe or grants replay.
+Complete independent durable graph recovery remains open; this is not the complete
+VM or extraction gate.
+
+### Shared Inherited Continuation Context
+
+`validate_inherited_context()` borrows original and saved accounting observations.
+Native authority agreement precedes native revision agreement, each hook at most
+once, followed by relative deadline, exact optional absolute deadline and output
+limit equality. No allocation, payload copying, identity parsing, normalization,
+default deadline or automatic limit narrowing is added. Native opaque identities,
+revisions and errors need no Clone/Debug/Eq/serde/Default/Send/Sync bounds. Both hook
+owners release before result/error handoff; native errors move unchanged with
+redacted diagnostics and no error source. Refusal or unwind stops later hooks
+without retry. Native side effects/cleanup cannot be rolled back or sandboxed;
+a second cleanup panic may abort.
+
+Fuel is deliberately ignored here: native group allocation/decreasing-fuel checks
+precede context, whereas atomic successor consumption and token order follow it.
+Matching zero/maximum metadata is not valid-budget admission. Ingress validation,
+original/current authority, revision semantics, schema/body/result admission,
+absolute time checks, fuel progression and sequence reservations remain host-owned.
+
+Real `successor::same_inherited_context()` delegates this exact phase for atomic
+successors, group prefixes and group tails. It uses native principal/capability
+and optional-revision comparisons without changing original fault codes or guard
+order. Frozen query/presentation-domain tests preserve the old predicate, including
+ignored fuel/schema fields. Twenty-four real SQLite cases mutate principal,
+capabilities, revision, relative/absolute deadlines or output limits across atomic,
+sequential, parallel and tail succession. Each forged request passes standalone
+native admission, but recovery refuses with all five journal tables unchanged,
+before imported watermark repair. Restoring original frame/request/deadline bytes
+recovers original pending frames/budgets and only then repairs the imported identity
+watermark. Opaque GUI-local proofs run unchanged in the independent consumer.
+
+Success is transient context agreement, not receipt authenticity, current
+authorization or a budget/execution grant. Original identities/bodies, complete
+graph recovery and same-snapshot commit-before-publish remain host-owned. No meter
+construction, refill, evaluation, dispatch, replay or storage writes occur here.
+Complete independent durable graph recovery remains open; this is not the complete
+VM or extraction gate.
+
+### Shared Capture Extension
+
+`validate_capture_extension()` borrows original and successor groups/results.
+An explicit inclusive aggregate binding limit (ceiling 64) applies independently
+to both frames before hooks, without allocation or payload copies. Native names,
+duplicates, schemas and arity remain host policy. Group data membership precedes
+exact named-group retention, then one native `begin_results()` call. Each saved
+result is projected before original-data membership; membership comparisons stop
+on the first match. Aliases of original or current data are allowed, but cannot
+replace original named bindings or the pending current binding. A current match
+never skips later native errors. Missing current binding precedes named-result
+retention. Nothing is normalized, reordered, copied or retried.
+
+Opaque data/errors need no Clone/Debug/Eq/serde/Default/Send/Sync bounds. The domain
+owner releases before result/error handoff. Native errors move unchanged with
+redacted diagnostics and no error source; refusal or unwind stops later hooks.
+Native side effects/cleanup cannot be rolled back or sandboxed; a second cleanup
+panic may abort. Borrowed originals remain untouched.
+
+Real `successor::validate_pair()` delegates only this capture extension phase in
+live successor admission and SQLite recovery. Native request/result admission,
+schema succession, original authority/revision/deadlines/output limits, decreasing
+fuel and token order, and saved-body typing still precede the shared kernel.
+Frozen native alias/retention tests preserve exact faults, including late invalid
+projections. Structurally valid alias renaming, deletion, current-name replacement
+and rebinding refuse recovery with all five journal tables unchanged; repairing
+only the stored frame/request restores original pending frames and budgets.
+Opaque GUI-local proofs run unchanged in the independent consumer.
+
+Success is transient retention, not provenance, receipt authenticity or an
+execution grant. Original bodies/current authority, complete graph recovery and
+same-snapshot commit-before-publish remain host-owned. No body execution, fuel
+construction, dispatch, replay or storage writes occur here. Complete independent
+durable graph recovery remains open; this is not the complete VM or extraction gate.
+
+### Shared Capture Correspondence
+
+`validate_capture_correspondence()` borrows original saved groups/results and
+the original successful result prefix. Inclusive aggregate saved/original counts
+(each ceiling 64) precede hooks, bounding work to groups + results * originals
+without allocation. Native policy still owns language arity and required captures.
+Groups admit once in their original order, followed by complete capture-major
+original-row scans. A true match does not skip later rows: their native errors
+must still be observed. Unmatched captures stop before the next capture; nothing
+is sorted, normalized, copied or retried.
+
+Opaque groups/results/rows and errors need no Clone/Debug/Eq/serde/Default/Send/
+Sync bounds. Native errors move unchanged with payload-free diagnostics. Both
+hook owners release before result/error handoff; refusal or unwind stops later
+hooks. Native side effects/cleanup cannot be rolled back or sandboxed; a second
+cleanup panic may abort. Original borrowed data is never consumed.
+
+Real `GroupResultBinding::validate_saved_capture()` uses this kernel during live
+capture advancement and SQLite bound-group recovery. Native cold prefix/operation
+shape and missing-binding checks still precede correspondence. Native group member
+names, signatures, operation domains, projection versions and raw-result matching
+remain unchanged. Frozen native fault-order tests preserve late errors after a
+successful earlier match. Real sequential/parallel alias/result mutations refuse
+before checkpoint handoff or watermark repair, leaving all stored records intact;
+fixing only invalid capture bytes restores original pending frames and budgets.
+Numeric and opaque GUI-local proofs run unchanged in the independent consumer.
+
+Success is transient correspondence, not receipt authenticity, a graph certificate
+or execution grant. Original identity/captures/current authority, complete graph
+validation and same-snapshot commit-before-publish remain adapter-owned. No body
+execution, fuel reconstruction, dispatch, replay or storage writes occur here.
+Complete independent durable graph recovery remains open; this is not the complete
+VM or extraction gate.
+
+### Shared Ordered Outcome Summaries
+
+`OrderedOutcomeSummary` owns bounded observations of already-admitted original
+terminal outcomes, not success payloads. Explicit member limits (ceiling 64)
+precede observation; output limits remain native policy. Counts saturate rather
+than wrap. Sequential output overflow becomes a stop only if no earlier stop
+exists; parallel overflow is deferred until `finish()` and overrides earlier
+stops. Otherwise the first stop in declared observation order wins. Pending rows
+are not observations, and an observation limit is not proof of group completeness.
+
+Stops move without Clone/Debug/Eq/serde/Default/Send/Sync bounds. Ignored stops and
+uncalled native fault factories release before handoff. Refusal or callback/cleanup
+unwind closes the whole pass and releases partial state; it cannot be resumed,
+finished or implicitly refilled afterward. Replaced parallel stops and unpublished
+summaries also release on cleanup unwind. Native side effects are trusted work,
+not rolled back or sandboxed; a second cleanup panic may abort.
+
+Real live sequential-stop inspection and SQLite bound-group recovery share this
+core while keeping original value validation, native fault codes and capture/
+reservation checks. Early sequence stops still avoid observing later terminals.
+Bound recovery still admits later rows before final receipt comparison. Real
+forged-receipt tests refuse substitutions of parallel aggregate-output faults,
+sequential overflow or original first failures without modifying stored records
+or repairing the watermark. Correcting only the receipt restores original recovery
+and budgets. Numeric and opaque GUI-local tests run unchanged in the independent
+consumer, using the same production core.
+
+Summary fields are mutable observations, not authentic receipts, settlement or
+execution grants. Hosts own original schema/identity/capture/authority, outcome
+validation, complete graph admission and same-snapshot commit-before-publish.
+No source/saved body execution, fuel construction, dispatch, replay or storage
+writes occur here. Complete independent durable graph recovery remains open;
+this is not the complete VM or extraction gate.
+
+### Shared Sequential Frontier Inspection
+
+`inspect_sequential_frontier()` borrows one complete original sequential group.
+Explicit inclusive limits (ceiling 64) precede hooks; empty input is structurally
+valid and language arity remains native policy. Classify rows once in order:
+completed members must form a contiguous prefix. A later completion refuses
+before prefix decoding or blocked-dispatch observation. Then admit the completed
+prefix once, followed by the blocked suffix once. The first pending member is
+the active frontier, excluded from the blocked suffix. With all members complete,
+the frontier is the member count; both hooks still run on their original slices,
+including empty slices. No sorting, copying, normalization or allocation occurs.
+
+Real SQLite pending-sequence recovery delegates phase ordering to this kernel.
+Bounded terminal decoding and native failure/output checks precede the original
+attempt/retry query. Existing faults and wire formats remain unchanged. Frozen
+SQLite phase/fault parity and real late-completion, blocked-attempt/retry and
+failed-prefix tests refuse before watermark repair or snapshot handoff; all
+stored records remain unchanged. Repairing only invalid observations permits
+normal recovery with original values and budgets. Numeric checkpoint and opaque
+GUI-local proofs run unchanged in the independent consumer.
+
+Rows and native faults need no Clone/Debug/Eq/serde/Default/Send/Sync bounds.
+Uncalled hook owners release before result/error handoff; refusal or unwind stops
+without retry or later hooks. Native faults move unchanged with payload-free
+diagnostics. Native side effects cannot be rolled back; a second cleanup panic
+may abort. Success is transient inspection, not a dispatch lease, receipt or
+execution grant. Original schema/identity, terminal policy, attempt/retry evidence,
+current authority, same-snapshot graph/receipt checks and commit-before-publish
+remain adapter-owned. No saved body, fuel reconstruction, dispatch, storage repair,
+replay or storage commit occurs here. Complete independent durable graph recovery
+remains open; this is not the complete VM or extraction gate.
+
 ### Shared Successor Chain Inspection
 
 `inspect_successor_chain()` borrows original adjacent rows in declaration order.

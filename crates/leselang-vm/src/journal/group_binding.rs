@@ -1,6 +1,8 @@
 use super::*;
 use crate::group_binding::invalid;
 #[cfg(feature = "sqlite-journal")]
+use leselang_runtime_core::{OrderedOutcomeSummary, OutcomeOrder};
+#[cfg(feature = "sqlite-journal")]
 use leselang_runtime_core::{ReservationObservation, validate_reservation_proof};
 
 pub(super) fn needs_successor(plan: &MergePlan) -> bool {
@@ -278,9 +280,17 @@ pub(super) fn validate_records(
         })
         .map_err(|error| journal_error("LSV4007", "failed to read bound group requests", error))?;
     let mut requests: Vec<(String, EffectRequest)> = Vec::with_capacity(plan.branches.len());
-    let mut first_failure = None;
+    let mut outcomes = OrderedOutcomeSummary::new(
+        if plan.order.is_sequential() {
+            OutcomeOrder::Sequential
+        } else {
+            OutcomeOrder::Parallel
+        },
+        crate::MAX_MERGE_BRANCHES,
+        DEFAULT_MAX_OUTPUT_ITEMS,
+    )
+    .map_err(|_| invalid())?;
     let mut last_step = None;
-    let mut output_items = 0usize;
     let mut prefix_fields = Vec::new();
     let mut prefix_operations = Vec::new();
     let mut previous_step = None;
@@ -312,16 +322,14 @@ pub(super) fn validate_records(
                 if requests.len() < binding.branches()?.len() {
                     successful_prefix += 1;
                 }
-                output_items = output_items.saturating_add(validate_value(&value, 0)?);
-                if plan.order.is_sequential()
-                    && output_items > DEFAULT_MAX_OUTPUT_ITEMS
-                    && first_failure.is_none()
-                {
-                    first_failure = Some(Step::Fault(journal_fault(
-                        "LSV2404",
-                        "sequential output exceeds runtime bounds",
-                    )));
-                }
+                outcomes
+                    .observe_success(validate_value(&value, 0)?, |_, _| {
+                        Step::Fault(journal_fault(
+                            "LSV2404",
+                            "sequential output exceeds runtime bounds",
+                        ))
+                    })
+                    .map_err(|_| invalid())?;
                 if binding.captures_successor() && binding.has_successor(plan) {
                     prefix_operations.push(
                         leselang_hir::host_call::HostOperation::for_effect(
@@ -334,8 +342,8 @@ pub(super) fn validate_records(
                         value: Box::new(value),
                     });
                 }
-            } else if first_failure.is_none() {
-                first_failure = Some(step);
+            } else {
+                outcomes.observe_stop(step).map_err(|_| invalid())?;
             }
         }
         requests.push((name, request));
@@ -394,13 +402,10 @@ pub(super) fn validate_records(
         }
     }
     if let Some(terminal) = terminal {
-        if plan.order.is_parallel() && output_items > DEFAULT_MAX_OUTPUT_ITEMS {
-            first_failure = Some(Step::Fault(crate::merge_output_fault(
-                output_items,
-                DEFAULT_MAX_OUTPUT_ITEMS,
-            )));
-        }
-        if let Some(failure) = first_failure {
+        let summary = outcomes
+            .finish(|items, limit| Step::Fault(crate::merge_output_fault(items, limit)))
+            .map_err(|_| invalid())?;
+        if let Some(failure) = summary.first_stop {
             if *terminal != failure {
                 return Err(invalid());
             }

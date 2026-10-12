@@ -1636,9 +1636,12 @@ impl SqliteJournal {
         let stored = u64::try_from(stored)
             .map_err(|_| journal_fault("LSV4007", "journal sequence is invalid"))?;
         let sequence = stored.max(local_next);
-        let next = sequence.checked_add(1).ok_or_else(|| {
-            journal_fault("LSV4009", "journal continuation sequence is exhausted")
-        })?;
+        let next = leselang_runtime_core::SequenceWatermarkRequirement::after_observation(
+            sequence,
+            i64::MAX as u64,
+        )
+        .map_err(|_| journal_fault("LSV4009", "journal continuation sequence is exhausted"))?
+        .required_watermark();
         let next = i64::try_from(next)
             .map_err(|_| journal_fault("LSV4009", "journal continuation sequence is exhausted"))?;
         transaction
@@ -3066,21 +3069,39 @@ fn execution_order_label(order: ExecutionOrder) -> &'static str {
 }
 
 fn sequence_stop<'a>(steps: impl IntoIterator<Item = &'a Step>) -> Result<Option<Step>, Fault> {
-    let mut items = 0usize;
+    use leselang_runtime_core::{OrderedOutcomeSummary, OutcomeOrder};
+    let invalid = || {
+        journal_fault(
+            "LSV4007",
+            "sequential result observations exceed runtime bounds",
+        )
+    };
+    let overflow = |_, _| {
+        Step::Fault(journal_fault(
+            "LSV2404",
+            "sequential output exceeds runtime bounds",
+        ))
+    };
+    let mut outcomes = OrderedOutcomeSummary::new(
+        OutcomeOrder::Sequential,
+        crate::MAX_MERGE_BRANCHES,
+        DEFAULT_MAX_OUTPUT_ITEMS,
+    )
+    .map_err(|_| invalid())?;
     for step in steps {
         validate_terminal_step(step)?;
-        let Step::Done(value) = step else {
-            return Ok(Some(step.clone()));
-        };
-        items = items.saturating_add(validate_value(value, 0)?);
-        if items > DEFAULT_MAX_OUTPUT_ITEMS {
-            return Ok(Some(Step::Fault(journal_fault(
-                "LSV2404",
-                "sequential output exceeds runtime bounds",
-            ))));
+        if let Step::Done(value) = step {
+            outcomes
+                .observe_success(validate_value(value, 0)?, overflow)
+                .map_err(|_| invalid())?;
+        } else {
+            outcomes.observe_stop(step.clone()).map_err(|_| invalid())?;
+        }
+        if outcomes.has_stop().map_err(|_| invalid())? {
+            return Ok(outcomes.finish(overflow).map_err(|_| invalid())?.first_stop);
         }
     }
-    Ok(None)
+    Ok(outcomes.finish(overflow).map_err(|_| invalid())?.first_stop)
 }
 
 #[cfg(feature = "sqlite-journal")]
@@ -3644,48 +3665,7 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<u64, Fault> {
             successor::validate_chain(connection, &token)?;
         }
         if plan.order.is_sequential() && state == "pending" {
-            let first_pending = branches
-                .iter()
-                .position(|branch| branch.2 == "pending")
-                .unwrap_or(branches.len());
-            if branches[first_pending..]
-                .iter()
-                .any(|branch| branch.2 != "pending")
-            {
-                return Err(journal_fault(
-                    "LSV4007",
-                    "sequence completion is out of order",
-                ));
-            }
-            let terminal_steps = branches[..first_pending]
-                .iter()
-                .map(|branch| {
-                    decode_bounded::<Step>(
-                        branch.3.as_deref().ok_or_else(|| {
-                            journal_fault("LSV4007", "completed sequence step has no result")
-                        })?,
-                        MAX_JOURNAL_ENTRY_BYTES,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            if sequence_stop(terminal_steps.iter())?.is_some() {
-                return Err(journal_fault(
-                    "LSV4007",
-                    "failed sequence still has pending successors",
-                ));
-            }
-            let advanced: bool = connection.query_row(
-                "SELECT EXISTS (
-                   SELECT 1 FROM vm_merge_branches b JOIN vm_dispatches d ON d.token = b.branch_token
-                   WHERE b.group_token = ?1 AND b.position > ?2 AND (d.attempt != 0 OR d.retry_count != 0)
-                 )", params![token.as_str(), first_pending as i64], |row| row.get(0)
-            ).map_err(|error| journal_error("LSV4007", "failed to validate sequential dispatches", error))?;
-            if advanced {
-                return Err(journal_fault(
-                    "LSV4007",
-                    "sequence dispatched a blocked step",
-                ));
-            }
+            validate_pending_sequence(connection, &token, &branches)?;
         }
         let terminal = recover_group_receipt(&state, all_completed, terminal_bytes, |terminal| {
             validate_unbound_group_receipt(&plan, &branches, terminal)
@@ -3698,6 +3678,57 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<u64, Fault> {
         .finish()
         .map_err(|_| crate::group_binding::invalid())?;
     Ok(highest_sequence.max(reservations.highest_sequence))
+}
+
+#[cfg(feature = "sqlite-journal")]
+fn validate_pending_sequence(
+    connection: &Connection,
+    token: &ContinuationToken,
+    branches: &[RecoveredMergeBranch],
+) -> Result<(), Fault> {
+    use leselang_runtime_core::{
+        SequenceFrontierError, SequentialMemberState, inspect_sequential_frontier,
+    };
+
+    inspect_sequential_frontier(
+        branches,
+        crate::MAX_MERGE_BRANCHES,
+        |_, branch| Ok(if branch.2 == "pending" {
+            SequentialMemberState::Pending
+        } else {
+            SequentialMemberState::Completed
+        }),
+        |prefix| {
+            let terminal_steps = prefix.iter().map(|branch| {
+                decode_bounded::<Step>(
+                    branch.3.as_deref().ok_or_else(|| {
+                        journal_fault("LSV4007", "completed sequence step has no result")
+                    })?,
+                    MAX_JOURNAL_ENTRY_BYTES,
+                )
+            }).collect::<Result<Vec<_>, _>>()?;
+            if sequence_stop(terminal_steps.iter())?.is_some() {
+                return Err(journal_fault("LSV4007", "failed sequence still has pending successors"));
+            }
+            Ok(())
+        },
+        |first_pending, _| {
+            let advanced: bool = connection.query_row(
+                "SELECT EXISTS (
+                   SELECT 1 FROM vm_merge_branches b JOIN vm_dispatches d ON d.token = b.branch_token
+                   WHERE b.group_token = ?1 AND b.position > ?2 AND (d.attempt != 0 OR d.retry_count != 0)
+                 )", params![token.as_str(), first_pending as i64], |row| row.get(0)
+            ).map_err(|error| journal_error("LSV4007", "failed to validate sequential dispatches", error))?;
+            if advanced {
+                return Err(journal_fault("LSV4007", "sequence dispatched a blocked step"));
+            }
+            Ok(())
+        },
+    ).map_err(|error| match error {
+        SequenceFrontierError::Native { error, .. } => error,
+        SequenceFrontierError::OutOfOrder { .. } => journal_fault("LSV4007", "sequence completion is out of order"),
+        _ => journal_fault("LSV4007", "merge branches do not match their declared plan"),
+    })
 }
 
 #[cfg(feature = "sqlite-journal")]
@@ -3806,10 +3837,11 @@ fn merge_reserved_sequence(token: &ContinuationToken, plan: &MergePlan) -> u64 {
 
 #[cfg(feature = "sqlite-journal")]
 fn advance_sequence_watermark(connection: &Connection, used_sequence: u64) -> Result<u64, Fault> {
-    let required = used_sequence
-        .checked_add(1)
-        .and_then(|value| i64::try_from(value).ok())
-        .ok_or_else(|| journal_fault("LSV4009", "journal continuation sequence is exhausted"))?;
+    let required = leselang_runtime_core::SequenceWatermarkRequirement::after_observation(
+        used_sequence,
+        i64::MAX as u64,
+    )
+    .map_err(|_| journal_fault("LSV4009", "journal continuation sequence is exhausted"))?;
     let stored: i64 = connection
         .query_row(
             "SELECT next_sequence FROM vm_metadata WHERE singleton = 1",
@@ -3817,20 +3849,24 @@ fn advance_sequence_watermark(connection: &Connection, used_sequence: u64) -> Re
             |row| row.get(0),
         )
         .map_err(|error| journal_error("LSV4008", "failed to load sequence watermark", error))?;
-    if stored < 1 {
-        return Err(journal_fault("LSV4007", "journal sequence is invalid"));
-    }
-    if required > stored {
+    let stored = u64::try_from(stored)
+        .map_err(|_| journal_fault("LSV4007", "journal sequence is invalid"))?;
+    let update = required
+        .reconcile(stored)
+        .map_err(|_| journal_fault("LSV4007", "journal sequence is invalid"))?;
+    if update.write_required {
+        let next = i64::try_from(update.next_sequence)
+            .map_err(|_| journal_fault("LSV4009", "journal continuation sequence is exhausted"))?;
         connection
             .execute(
                 "UPDATE vm_metadata SET next_sequence = ?1 WHERE singleton = 1",
-                [required],
+                [next],
             )
             .map_err(|error| {
                 journal_error("LSV4008", "failed to store sequence watermark", error)
             })?;
     }
-    Ok(stored.max(required) as u64)
+    Ok(update.next_sequence)
 }
 
 pub(super) fn validate_lease_clock(now_ms: u64, lease_ms: u64) -> Result<(), Fault> {
@@ -4028,9 +4064,157 @@ fn journal_fault(code: &str, message: impl Into<String>) -> Fault {
 }
 
 #[cfg(test)]
+mod outcome_tests {
+    use super::*;
+
+    #[test]
+    fn sequence_stop_preserves_frozen_early_exit_and_native_fault_precedence() {
+        fn frozen<'a>(steps: impl IntoIterator<Item = &'a Step>) -> Result<Option<Step>, Fault> {
+            let mut items = 0usize;
+            for step in steps {
+                validate_terminal_step(step)?;
+                let Step::Done(value) = step else {
+                    return Ok(Some(step.clone()));
+                };
+                items = items.saturating_add(validate_value(value, 0)?);
+                if items > DEFAULT_MAX_OUTPUT_ITEMS {
+                    return Ok(Some(Step::Fault(journal_fault(
+                        "LSV2404",
+                        "sequential output exceeds runtime bounds",
+                    ))));
+                }
+            }
+            Ok(None)
+        }
+        let mut control = leserpent_domain::InMemoryControlPlane::default();
+        let runtime = control.register_runtime(
+            crate::RuntimeId::new("runtime-a").unwrap(),
+            "runtime",
+            "http://runtime.local",
+        );
+        let large = Step::Done(crate::Value::RuntimeList {
+            revision: crate::Revision(7),
+            runtimes: vec![runtime; 6000],
+        });
+        let focus = Step::Done(crate::Value::UiFocus {
+            node_id: "a".into(),
+        });
+        let invalid = Step::Done(crate::Value::UiFocus {
+            node_id: String::new(),
+        });
+        let failure = Step::Fault(journal_fault("ORIGINAL", "original first failure"));
+        let cancelled = Step::Cancelled(Cancellation {
+            continuation: ContinuationToken("continuation-1".into()),
+            reason: CancellationReason::Requested,
+            observed_at_ms: 1,
+        });
+        let cases: &[&[&Step]] = &[
+            &[],
+            &[&focus],
+            &[&large, &focus],
+            &[&large, &large],
+            &[&invalid],
+            &[&focus, &invalid, &failure],
+            &[&failure, &invalid],
+            &[&large, &failure, &invalid],
+            &[&large, &large, &invalid],
+            &[&cancelled, &large, &large],
+            &[&focus, &cancelled, &invalid],
+            &[&large, &large, &cancelled],
+        ];
+        for steps in cases {
+            assert_eq!(
+                sequence_stop(steps.iter().copied()),
+                frozen(steps.iter().copied())
+            );
+        }
+        let panic_after_stop = std::iter::once(&failure).chain(std::iter::from_fn(|| {
+            panic!("later terminal must not be observed")
+        }));
+        assert_eq!(sequence_stop(panic_after_stop).unwrap(), Some(failure));
+    }
+}
+
+#[cfg(test)]
 #[cfg(feature = "sqlite-journal")]
 mod scheduling_tests {
     use super::*;
+
+    #[test]
+    fn watermark_planning_preserves_frozen_sqlite_fault_order_and_writes() {
+        fn frozen(connection: &Connection, used_sequence: u64) -> Result<u64, Fault> {
+            let required = used_sequence
+                .checked_add(1)
+                .and_then(|v| i64::try_from(v).ok())
+                .ok_or_else(|| {
+                    journal_fault("LSV4009", "journal continuation sequence is exhausted")
+                })?;
+            let stored: i64 = connection
+                .query_row(
+                    "SELECT next_sequence FROM vm_metadata WHERE singleton = 1",
+                    [],
+                    |row| row.get(0),
+                )
+                .map_err(|e| journal_error("LSV4008", "failed to load sequence watermark", e))?;
+            if stored < 1 {
+                return Err(journal_fault("LSV4007", "journal sequence is invalid"));
+            }
+            if required > stored {
+                connection
+                    .execute(
+                        "UPDATE vm_metadata SET next_sequence = ?1 WHERE singleton = 1",
+                        [required],
+                    )
+                    .map_err(|e| {
+                        journal_error("LSV4008", "failed to store sequence watermark", e)
+                    })?;
+            }
+            Ok(stored.max(required) as u64)
+        }
+        fn connection(stored: Option<i64>, reject_write: bool) -> Connection {
+            let connection = Connection::open_in_memory().unwrap();
+            if let Some(stored) = stored {
+                connection.execute_batch("CREATE TABLE vm_metadata(singleton INTEGER PRIMARY KEY, next_sequence INTEGER NOT NULL);").unwrap();
+                connection
+                    .execute("INSERT INTO vm_metadata VALUES(1, ?1)", [stored])
+                    .unwrap();
+                if reject_write {
+                    connection.execute_batch("CREATE TRIGGER reject_watermark BEFORE UPDATE ON vm_metadata BEGIN SELECT RAISE(ABORT, 'injected watermark failure'); END;").unwrap();
+                }
+            }
+            connection
+        }
+        for used in [
+            0,
+            1,
+            9,
+            crate::MAX_EFFECT_SEQUENCE,
+            i64::MAX as u64,
+            u64::MAX,
+        ] {
+            for stored in [None, Some(-1), Some(0), Some(1), Some(10), Some(i64::MAX)] {
+                for reject_write in [false, true] {
+                    let original = connection(stored, reject_write);
+                    let shared = connection(stored, reject_write);
+                    assert_eq!(
+                        advance_sequence_watermark(&shared, used),
+                        frozen(&original, used),
+                        "used={used}, stored={stored:?}, reject={reject_write}"
+                    );
+                    if stored.is_some() {
+                        let read = |connection: &Connection| {
+                            connection
+                                .query_row("SELECT next_sequence FROM vm_metadata", [], |row| {
+                                    row.get::<_, i64>(0)
+                                })
+                                .unwrap()
+                        };
+                        assert_eq!(read(&shared), read(&original));
+                    }
+                }
+            }
+        }
+    }
 
     struct TempRoot(std::path::PathBuf);
     impl TempRoot {
@@ -4067,6 +4251,328 @@ mod scheduling_tests {
             panic!()
         };
         *batch
+    }
+
+    fn pending_sequence_fixture(root: &TempRoot) -> (SqliteJournal, crate::StructuredEffectBatch) {
+        let path = root.0.join("sequence.sqlite3");
+        let program = leselang_hir::lower(&leselang_syntax::parse(
+            r#"fn main() = seq(first: ui.focus(node_id: "first"),
+                second: ui.focus(node_id: "second"), third: ui.focus(node_id: "third"))"#,
+        ))
+        .unwrap();
+        let mut vm = crate::Vm::open_journal(&path, 500).unwrap();
+        let started = vm.start(
+            &program,
+            crate::Principal::new("operator").unwrap(),
+            crate::CapabilitySet::new(["ui.presentation"]),
+            None,
+        );
+        let Step::Effect(first) = started else {
+            panic!("expected first sequence effect: {started:?}")
+        };
+        assert!(matches!(
+            vm.resume(
+                &first.continuation,
+                crate::EffectResult::Presentation(crate::PresentationResult::Focus {
+                    node_id: "first".into()
+                })
+            ),
+            Step::Effect(_)
+        ));
+        drop(vm);
+        let journal = SqliteJournal::open(&path).unwrap();
+        let merge_token = ContinuationToken(
+            journal
+                .connection
+                .query_row("SELECT token FROM vm_merge_groups", [], |row| row.get(0))
+                .unwrap(),
+        );
+        let branches = journal
+            .connection
+            .prepare(
+                "SELECT b.branch_name, d.request FROM vm_merge_branches b
+             JOIN vm_dispatches d ON d.token = b.branch_token
+             WHERE b.group_token = ?1 ORDER BY b.position ASC",
+            )
+            .unwrap()
+            .query_map([merge_token.as_str()], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
+            })
+            .unwrap()
+            .map(|row| {
+                let (branch, bytes) = row.unwrap();
+                crate::NamedEffectRequest {
+                    branch,
+                    request: serde_json::from_slice(&bytes).unwrap(),
+                }
+            })
+            .collect();
+        (
+            journal,
+            crate::StructuredEffectBatch {
+                merge_token,
+                branches,
+            },
+        )
+    }
+
+    fn sequence_rows(
+        connection: &Connection,
+        token: &ContinuationToken,
+    ) -> Vec<RecoveredMergeBranch> {
+        connection
+            .prepare(
+                "SELECT b.branch_name, b.position, e.state, e.terminal_step, b.branch_token
+             FROM vm_merge_branches b JOIN vm_effects e ON e.token = b.branch_token
+             WHERE b.group_token = ?1 ORDER BY b.position ASC",
+            )
+            .unwrap()
+            .query_map([token.as_str()], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+    }
+
+    #[test]
+    fn sequence_frontier_preserves_frozen_sqlite_phase_and_fault_order() {
+        fn frozen(
+            connection: &Connection,
+            token: &ContinuationToken,
+            branches: &[RecoveredMergeBranch],
+        ) -> Result<(), Fault> {
+            let first_pending = branches
+                .iter()
+                .position(|branch| branch.2 == "pending")
+                .unwrap_or(branches.len());
+            if branches[first_pending..]
+                .iter()
+                .any(|branch| branch.2 != "pending")
+            {
+                return Err(journal_fault(
+                    "LSV4007",
+                    "sequence completion is out of order",
+                ));
+            }
+            let terminal_steps = branches[..first_pending]
+                .iter()
+                .map(|branch| {
+                    decode_bounded::<Step>(
+                        branch.3.as_deref().ok_or_else(|| {
+                            journal_fault("LSV4007", "completed sequence step has no result")
+                        })?,
+                        MAX_JOURNAL_ENTRY_BYTES,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            if sequence_stop(terminal_steps.iter())?.is_some() {
+                return Err(journal_fault(
+                    "LSV4007",
+                    "failed sequence still has pending successors",
+                ));
+            }
+            let advanced: bool = connection.query_row(
+                "SELECT EXISTS (
+                   SELECT 1 FROM vm_merge_branches b JOIN vm_dispatches d ON d.token = b.branch_token
+                   WHERE b.group_token = ?1 AND b.position > ?2 AND (d.attempt != 0 OR d.retry_count != 0)
+                 )", params![token.as_str(), first_pending as i64], |row| row.get(0)
+            ).map_err(|error| journal_error("LSV4007", "failed to validate sequential dispatches", error))?;
+            if advanced {
+                return Err(journal_fault(
+                    "LSV4007",
+                    "sequence dispatched a blocked step",
+                ));
+            }
+            Ok(())
+        }
+        let root = TempRoot::new();
+        let (mut journal, batch) = pending_sequence_fixture(&root);
+        let original = sequence_rows(&journal.connection, &batch.merge_token);
+        for case in 0..12 {
+            let transaction = journal.connection.transaction().unwrap();
+            let mut rows = original.clone();
+            match case {
+                0 => {}
+                1 => rows.clear(),
+                2 => {
+                    rows[0].2 = "pending".into();
+                    rows[0].3 = None;
+                }
+                3 => {
+                    for row in &mut rows {
+                        row.2 = "completed".into();
+                        row.3 = original[0].3.clone();
+                    }
+                }
+                4 => {
+                    rows[2].2 = "completed".into();
+                    rows[0].3 = Some(vec![0]);
+                }
+                5 => rows[0].3 = None,
+                6 => rows[0].3 = Some(vec![0]),
+                7 | 8 => {
+                    rows[0].3 = Some(
+                        serde_json::to_vec(&Step::Fault(journal_fault("LSV1001", "original stop")))
+                            .unwrap(),
+                    )
+                }
+                9..=11 => {}
+                _ => unreachable!(),
+            }
+            if matches!(case, 8 | 9) {
+                transaction
+                    .execute(
+                        "UPDATE vm_dispatches SET attempt = 1 WHERE token = ?1",
+                        [&rows[2].4],
+                    )
+                    .unwrap();
+            } else if case == 10 {
+                transaction
+                    .execute(
+                        "UPDATE vm_dispatches SET attempt = 1 WHERE token = ?1",
+                        [&rows[1].4],
+                    )
+                    .unwrap();
+            } else if case == 11 {
+                transaction
+                    .execute(
+                        "UPDATE vm_dispatches SET retry_count = 1 WHERE token = ?1",
+                        [&rows[2].4],
+                    )
+                    .unwrap();
+            }
+            let expected = frozen(&transaction, &batch.merge_token, &rows);
+            assert_eq!(
+                validate_pending_sequence(&transaction, &batch.merge_token, &rows),
+                expected,
+                "case {case}"
+            );
+            assert_eq!(expected.is_ok(), matches!(case, 0..=3 | 10), "case {case}");
+            transaction.rollback().unwrap();
+        }
+    }
+
+    #[test]
+    fn invalid_sequence_frontier_blocks_snapshot_and_watermark_repair_without_mutation() {
+        fn snapshot(connection: &Connection) -> Vec<Vec<Vec<rusqlite::types::Value>>> {
+            [
+                ("vm_metadata", "singleton"),
+                ("vm_effects", "token"),
+                ("vm_dispatches", "token"),
+                ("vm_merge_groups", "token"),
+                ("vm_merge_branches", "group_token, position"),
+            ]
+            .into_iter()
+            .map(|(table, order)| {
+                let mut statement = connection
+                    .prepare(&format!("SELECT * FROM {table} ORDER BY {order}"))
+                    .unwrap();
+                let columns = statement.column_count();
+                statement
+                    .query_map([], |row| {
+                        (0..columns)
+                            .map(|column| row.get(column))
+                            .collect::<Result<Vec<_>, _>>()
+                    })
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap()
+            })
+            .collect()
+        }
+        for case in 0..4 {
+            let root = TempRoot::new();
+            let (mut journal, batch) = pending_sequence_fixture(&root);
+            let original = sequence_rows(&journal.connection, &batch.merge_token);
+            let watermark: i64 = journal
+                .connection
+                .query_row("SELECT next_sequence FROM vm_metadata", [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            let third = &batch.branches[2].request.continuation.token;
+            let expected = match case {
+                0 => {
+                    let bytes = serde_json::to_vec(&Step::Done(crate::Value::UiFocus {
+                        node_id: "third".into(),
+                    }))
+                    .unwrap();
+                    journal.connection.execute("UPDATE vm_effects SET state = 'completed', terminal_step = ?2 WHERE token = ?1", params![third.as_str(), bytes]).unwrap();
+                    journal
+                        .connection
+                        .execute(
+                            "UPDATE vm_dispatches SET state = 'acknowledged' WHERE token = ?1",
+                            [third.as_str()],
+                        )
+                        .unwrap();
+                    "sequence completion is out of order"
+                }
+                1 => {
+                    journal
+                        .connection
+                        .execute(
+                            "UPDATE vm_dispatches SET attempt = 1 WHERE token = ?1",
+                            [third.as_str()],
+                        )
+                        .unwrap();
+                    "sequence dispatched a blocked step"
+                }
+                2 => {
+                    let bytes =
+                        serde_json::to_vec(&Step::Fault(journal_fault("LSV1001", "original stop")))
+                            .unwrap();
+                    journal
+                        .connection
+                        .execute(
+                            "UPDATE vm_effects SET terminal_step = ?2 WHERE token = ?1",
+                            params![&original[0].4, bytes],
+                        )
+                        .unwrap();
+                    "failed sequence still has pending successors"
+                }
+                3 => {
+                    let bytes = serde_json::to_vec(&EffectError {
+                        class: crate::EffectErrorClass::Transient,
+                        code: "original_retry".into(),
+                        message: "original retry".into(),
+                    })
+                    .unwrap();
+                    journal.connection.execute("UPDATE vm_dispatches SET retry_count = 1, last_error = ?2 WHERE token = ?1", params![third.as_str(), bytes]).unwrap();
+                    "sequence dispatched a blocked step"
+                }
+                _ => unreachable!(),
+            };
+            journal
+                .connection
+                .execute("UPDATE vm_metadata SET next_sequence = 1", [])
+                .unwrap();
+            let before = snapshot(&journal.connection);
+            assert_eq!(
+                journal.load().err().unwrap(),
+                journal_fault("LSV4007", expected)
+            );
+            assert_eq!(snapshot(&journal.connection), before);
+            journal.connection.execute("UPDATE vm_effects SET state = 'pending', terminal_step = NULL WHERE token = ?1", [third.as_str()]).unwrap();
+            journal.connection.execute("UPDATE vm_dispatches SET state = 'ready', attempt = 0, retry_count = 0, last_error = NULL WHERE token = ?1", [third.as_str()]).unwrap();
+            journal
+                .connection
+                .execute(
+                    "UPDATE vm_effects SET terminal_step = ?2 WHERE token = ?1",
+                    params![&original[0].4, &original[0].3],
+                )
+                .unwrap();
+            let recovered = journal.load().unwrap();
+            assert_eq!(recovered.pending.len(), 2);
+            assert_eq!(recovered.completed.len(), 1);
+            assert_eq!(recovered.next_sequence, u64::try_from(watermark).unwrap());
+        }
     }
 
     #[test]

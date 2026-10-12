@@ -5,6 +5,497 @@ fn root() -> &'static Path {
 }
 
 #[test]
+fn shared_watermark_planning_keeps_native_validation_reads_and_commit_before_publish() {
+    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let advance = journal
+        .split("fn advance_sequence_watermark(")
+        .nth(1)
+        .unwrap()
+        .split("pub(super) fn validate_lease_clock")
+        .next()
+        .unwrap();
+    let requirement = advance
+        .find("SequenceWatermarkRequirement::after_observation(")
+        .unwrap();
+    let read = advance
+        .find("SELECT next_sequence FROM vm_metadata")
+        .unwrap();
+    let signed = advance.find("u64::try_from(stored)").unwrap();
+    let reconcile = advance.find(".reconcile(stored)").unwrap();
+    let write = advance
+        .find("UPDATE vm_metadata SET next_sequence")
+        .unwrap();
+    assert!(requirement < read && read < signed && signed < reconcile && reconcile < write);
+    for required in [
+        "i64::MAX as u64",
+        "if update.write_required",
+        "Ok(update.next_sequence)",
+        "LSV4009",
+        "LSV4007",
+        "LSV4008",
+    ] {
+        assert!(advance.contains(required));
+    }
+    let allocation = journal
+        .rsplit("fn allocate_sequence(&mut self, local_next:")
+        .next()
+        .unwrap()
+        .split("fn record_pending(")
+        .next()
+        .unwrap();
+    let numeric = allocation
+        .find("SequenceWatermarkRequirement::after_observation(")
+        .unwrap();
+    assert!(allocation.find("TransactionBehavior::Immediate").unwrap() < numeric);
+    assert!(allocation.find("SELECT next_sequence").unwrap() < numeric);
+    assert!(numeric < allocation.find("UPDATE vm_metadata").unwrap());
+    assert!(allocation.find(".commit()").unwrap() < allocation.find("Ok(sequence)").unwrap());
+    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/lib.rs")).unwrap();
+    let restore = vm
+        .split("fn restore_inner(")
+        .nth(1)
+        .unwrap()
+        .split("pub fn resume(")
+        .next()
+        .unwrap();
+    let next = restore
+        .find("SequenceWatermarkRequirement::after_observation(")
+        .unwrap();
+    assert!(
+        restore
+            .find("canonical_continuation_sequence(&image.token)")
+            .unwrap()
+            < next
+    );
+    assert!(next < restore.rfind(".record_pending(").unwrap());
+    assert!(
+        restore.rfind(".record_pending(").unwrap() < restore.find("self.next_effect_id =").unwrap()
+    );
+    assert!(journal.contains("watermark_planning_preserves_frozen_sqlite_fault_order_and_writes"));
+    assert!(
+        fs::read_to_string(root().join("crates/leselang-vm/tests/restore_allocator.rs"))
+            .unwrap()
+            .contains(
+                "watermark_planning_preserves_every_table_on_import_recovery_and_exhaustion_refusal"
+            )
+    );
+    let core =
+        fs::read_to_string(root().join("crates/leselang-runtime-core/src/sequence_watermark.rs"))
+            .unwrap();
+    for absent in [
+        "rusqlite",
+        "leserpent",
+        "Fuel::new",
+        "Serialize",
+        "Deserialize",
+        "expect(",
+        "unwrap(",
+        "UPDATE",
+        "INSERT",
+    ] {
+        assert!(!core.contains(absent), "shared watermark imported {absent}");
+    }
+    assert!(core.contains("stored_watermark.max(self.required)"));
+    assert!(core.contains("write_required: self.required > stored_watermark"));
+    assert!(
+        fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs"))
+            .unwrap()
+            .contains("consumer/tests/sequence_watermark.rs")
+    );
+}
+
+#[test]
+fn continuation_context_kernel_preserves_native_phase_order_in_every_succession_path() {
+    let source = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let helper = source
+        .split("pub(super) fn same_inherited_context(")
+        .nth(1)
+        .unwrap()
+        .split("pub(super) fn validate_pair(")
+        .next()
+        .unwrap()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    for required in [
+        "validate_inherited_context(",
+        "original.continuation.resource_budget()",
+        "saved.continuation.resource_budget()",
+        "authority(&original.operation) == authority(&saved.operation)",
+        "original.continuation.expected_revision == saved.continuation.expected_revision",
+    ] {
+        assert!(helper.contains(required), "context adapter lost {required}");
+    }
+    assert!(!helper.contains("Fuel::new"));
+    let pair = source
+        .split("pub(super) fn validate_pair(")
+        .nth(1)
+        .unwrap()
+        .split("enum PreparedResult")
+        .next()
+        .unwrap();
+    let context = pair.find("same_inherited_context(parent, next)").unwrap();
+    assert!(pair.find("!schema_valid").unwrap() < context);
+    assert!(pair.find("validate_bound_value(first, value)?").unwrap() < context);
+    assert!(
+        context
+            < pair
+                .find("first.fuel_remaining <= second.fuel_remaining")
+                .unwrap()
+    );
+    assert!(context < pair.find("canonical_continuation_sequence").unwrap());
+    let groups =
+        fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+    let admission = groups
+        .split("pub(super) fn validate_requests(")
+        .nth(1)
+        .unwrap()
+        .split("pub(super) fn validate_member(")
+        .next()
+        .unwrap();
+    assert_eq!(
+        admission
+            .matches("same_inherited_context(first, request)")
+            .count(),
+        2
+    );
+    let (prefix, tail) = admission.split_once("let mut previous_fuel").unwrap();
+    assert!(
+        prefix
+            .find("Some(image.fuel_remaining) != expected_fuel")
+            .unwrap()
+            < prefix.find("same_inherited_context").unwrap()
+    );
+    assert!(
+        tail.find("image.fuel_remaining >= previous_fuel").unwrap()
+            < tail.find("same_inherited_context").unwrap()
+    );
+    let core =
+        fs::read_to_string(root().join("crates/leselang-runtime-core/src/continuation_context.rs"))
+            .unwrap();
+    for absent in [
+        "rusqlite",
+        "leserpent",
+        "Fuel::new",
+        "Serialize",
+        "Deserialize",
+        "expect(",
+        "unwrap(",
+        "fuel_remaining",
+    ] {
+        assert!(!core.contains(absent), "shared context imported {absent}");
+    }
+    for required in [
+        "drop(same_authority)",
+        "drop(same_revision)",
+        "original.deadline_at_ms != saved.deadline_at_ms",
+    ] {
+        assert!(core.contains(required));
+    }
+    assert!(
+        source.contains("inherited_context_keeps_frozen_native_agreement_across_operation_domains")
+    );
+    assert!(fs::read_to_string(root().join("crates/leselang-vm/tests/successor.rs")).unwrap()
+        .contains("inherited_context_refusal_preserves_journal_and_imported_watermark_for_every_succession_kind"));
+    assert!(
+        fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs"))
+            .unwrap()
+            .contains("consumer/tests/continuation_context.rs")
+    );
+}
+
+#[test]
+fn successor_capture_extension_shares_retention_without_authority_or_saved_body_execution() {
+    let source = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let pair = source
+        .split("pub(super) fn validate_pair(")
+        .nth(1)
+        .unwrap()
+        .split("enum PreparedResult")
+        .next()
+        .unwrap();
+    let shared = pair.find("validate_extension(prior, binding,").unwrap();
+    for guard in [
+        "validate_effect_request(parent)?",
+        "validate_effect_request(next)?",
+        "validate_bound_value(first, value)?",
+        "same_inherited_context(parent, next)",
+        "first.fuel_remaining <= second.fuel_remaining",
+        "canonical_continuation_sequence",
+        "prior.validate(&first.pending_effect)?",
+    ] {
+        assert!(
+            pair.find(guard).unwrap() < shared,
+            "extension displaced {guard}"
+        );
+    }
+    for adapter in [
+        "validate_capture_extension(",
+        "leselang_hir::MAX_EFFECT_NESTING_DEPTH",
+        "old.group == saved.group",
+        "old.result == saved.result",
+        "saved.name == self.prior.name",
+        "CaptureExtensionError::Native { error, .. } => error",
+        "capture_extension_preserves_frozen_native_alias_retention_and_late_fault_order",
+    ] {
+        assert!(source.contains(adapter), "extension adapter lost {adapter}");
+    }
+    assert!(!pair.contains("Fuel::new"));
+    let journal =
+        fs::read_to_string(root().join("crates/leselang-vm/src/journal/successor.rs")).unwrap();
+    assert!(journal.contains("validate_pair(parent, step, next)?"));
+    assert!(journal.contains("validate_pair(parent, &result, &next)?"));
+    assert!(fs::read_to_string(root().join("crates/leselang-vm/tests/dataflow.rs")).unwrap()
+        .contains("successor_capture_extension_refusal_preserves_every_journal_table_and_original_budget"));
+    let core =
+        fs::read_to_string(root().join("crates/leselang-runtime-core/src/capture_extension.rs"))
+            .unwrap();
+    for absent in [
+        "rusqlite",
+        "leserpent",
+        "Fuel::new",
+        "Serialize",
+        "Deserialize",
+        "expect(",
+        "unwrap(",
+    ] {
+        assert!(!core.contains(absent));
+    }
+    assert!(core.contains("drop(domain)"));
+    assert!(
+        fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs"))
+            .unwrap()
+            .contains("consumer/tests/capture_extension.rs")
+    );
+}
+
+#[test]
+fn live_and_recovered_capture_correspondence_delegates_traversal_without_projection_or_authority_policy()
+ {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+    let gate = source
+        .split("pub(super) fn validate_saved_capture(")
+        .nth(1)
+        .unwrap()
+        .split("mod correspondence_tests")
+        .next()
+        .unwrap();
+    for required in [
+        "fields.len() < branches.len()",
+        "fields.len() != operations.len()",
+        "max_saved_bindings: leselang_hir::MAX_EFFECT_NESTING_DEPTH",
+        "max_original_rows: crate::MAX_MERGE_BRANCHES",
+        "validate_capture_correspondence(",
+        "matches_members(branches, &fields[..branches.len()])",
+        "matches_capture(operations[original], &field.value)",
+        "CaptureCorrespondenceError::Native { error, .. } => error",
+    ] {
+        assert!(gate.contains(required), "native capture lost {required}");
+    }
+    assert!(
+        gate.find(".ok_or_else(invalid)?").unwrap()
+            < gate.find("validate_capture_correspondence(").unwrap()
+    );
+    assert!(
+        source
+            .split("pub(super) fn advance_capture(")
+            .nth(1)
+            .unwrap()
+            .contains("self.validate_saved_capture(request, prefix, &operations)?")
+    );
+    assert!(
+        fs::read_to_string(root().join("crates/leselang-vm/src/journal/group_binding.rs"))
+            .unwrap()
+            .contains(
+                "binding.validate_saved_capture(&request, &prefix_fields, &prefix_operations)?"
+            )
+    );
+    assert!(source.contains("saved_capture_correspondence_preserves_frozen_native_fault_order"));
+    assert!(fs::read_to_string(root().join("crates/leselang-vm/tests/parallel_group_tail.rs")).unwrap().contains("false_group_alias_and_result_capture_correspondence_blocks_recovery_without_mutation"));
+    let core = fs::read_to_string(
+        root().join("crates/leselang-runtime-core/src/capture_correspondence.rs"),
+    )
+    .unwrap();
+    for absent in [
+        "rusqlite",
+        "leserpent",
+        "Fuel::new",
+        "Serialize",
+        "Deserialize",
+        "expect(",
+        "unwrap(",
+    ] {
+        assert!(!core.contains(absent));
+    }
+    assert!(core.contains("matched |= match_result("));
+    assert!(
+        fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs"))
+            .unwrap()
+            .contains("consumer/tests/capture_correspondence.rs")
+    );
+}
+
+#[test]
+fn live_sequence_and_bound_recovery_share_stop_precedence_without_replay_or_settlement() {
+    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let sequence = journal
+        .split("fn sequence_stop<'a>(")
+        .nth(1)
+        .unwrap()
+        .split("fn ensure_sequence_ready(")
+        .next()
+        .unwrap();
+    for required in [
+        "OrderedOutcomeSummary::new(",
+        "OutcomeOrder::Sequential",
+        "validate_terminal_step(step)?",
+        "observe_success(validate_value(value, 0)?",
+        "observe_stop(step.clone())",
+        "if outcomes.has_stop()",
+        "outcomes.finish(overflow)",
+    ] {
+        assert!(sequence.contains(required), "sequence lost {required}");
+    }
+    let bound =
+        fs::read_to_string(root().join("crates/leselang-vm/src/journal/group_binding.rs")).unwrap();
+    let recovery = bound
+        .split("pub(super) fn validate_records(")
+        .nth(1)
+        .unwrap();
+    for required in [
+        "OrderedOutcomeSummary::new(",
+        "OutcomeOrder::Sequential",
+        "OutcomeOrder::Parallel",
+        "observe_success(validate_value(&value, 0)?",
+        "outcomes.observe_stop(step)",
+        ".finish(|items, limit|",
+        "if let Some(failure) = summary.first_stop",
+        "validate_saved_capture(",
+        "validate_reservation_proof(",
+    ] {
+        assert!(
+            recovery.contains(required),
+            "bound recovery lost {required}"
+        );
+    }
+    assert!(
+        recovery.find("if let Some(terminal) = terminal").unwrap()
+            < recovery.find(".finish(|items, limit|").unwrap()
+    );
+    for source in [sequence, recovery] {
+        for absent in ["Fuel::new", "resume_group(", "commit()"] {
+            assert!(!source.contains(absent));
+        }
+    }
+    assert!(
+        journal.contains("sequence_stop_preserves_frozen_early_exit_and_native_fault_precedence")
+    );
+    assert!(
+        fs::read_to_string(root().join("crates/leselang-vm/tests/group_receipts.rs"))
+            .unwrap()
+            .contains("bound_output_precedence_receipts_cannot_replace_aggregate_or_first_stop")
+    );
+    let core =
+        fs::read_to_string(root().join("crates/leselang-runtime-core/src/outcome_summary.rs"))
+            .unwrap();
+    for absent in [
+        "rusqlite",
+        "leserpent",
+        "Fuel::new",
+        "Serialize",
+        "Deserialize",
+        "expect(",
+        "unwrap(",
+    ] {
+        assert!(!core.contains(absent));
+    }
+    assert!(
+        fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs"))
+            .unwrap()
+            .contains("consumer/tests/outcome_summary.rs")
+    );
+}
+
+#[test]
+fn pending_sequence_recovery_delegates_frontier_phases_without_dispatch_or_evaluation() {
+    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let graph = journal
+        .split("fn validate_merge_graph_records(")
+        .nth(1)
+        .unwrap()
+        .split("fn validate_pending_sequence(")
+        .next()
+        .unwrap();
+    assert!(graph.contains("if plan.order.is_sequential() && state == \"pending\""));
+    assert!(
+        graph
+            .find("validate_pending_sequence(connection, &token, &branches)?")
+            .unwrap()
+            < graph.find("let terminal = recover_group_receipt(").unwrap()
+    );
+    let frontier = journal
+        .split("fn validate_pending_sequence(")
+        .nth(1)
+        .unwrap()
+        .split("fn recover_group_receipt(")
+        .next()
+        .unwrap();
+    for required in [
+        "inspect_sequential_frontier(",
+        "crate::MAX_MERGE_BRANCHES",
+        "MAX_JOURNAL_ENTRY_BYTES",
+        "sequence_stop(terminal_steps.iter())?",
+        "b.position > ?2",
+        "d.attempt != 0 OR d.retry_count != 0",
+        "SequenceFrontierError::Native { error, .. } => error",
+        "SequenceFrontierError::OutOfOrder",
+    ] {
+        assert!(
+            frontier.contains(required),
+            "native frontier lost {required}"
+        );
+    }
+    assert!(
+        frontier.find("decode_bounded::<Step>(").unwrap()
+            < frontier.find("connection.query_row(").unwrap()
+    );
+    for absent in [
+        "Fuel::new",
+        "resume(",
+        "commit()",
+        "advance_sequence_watermark(",
+    ] {
+        assert!(!frontier.contains(absent));
+    }
+    for proof in [
+        "sequence_frontier_preserves_frozen_sqlite_phase_and_fault_order",
+        "invalid_sequence_frontier_blocks_snapshot_and_watermark_repair_without_mutation",
+    ] {
+        assert!(journal.contains(proof));
+    }
+    let core =
+        fs::read_to_string(root().join("crates/leselang-runtime-core/src/sequence_frontier.rs"))
+            .unwrap();
+    for absent in [
+        "rusqlite",
+        "leserpent",
+        "Fuel::new",
+        "Serialize",
+        "Deserialize",
+        "expect(",
+        "unwrap(",
+    ] {
+        assert!(
+            !core.contains(absent),
+            "frontier core grew policy: {absent}"
+        );
+    }
+    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(exporter.contains("consumer/tests/sequence_frontier.rs"));
+}
+
+#[test]
 fn native_chain_recovery_delegates_order_not_policy_or_execution() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let code =

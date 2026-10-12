@@ -29,7 +29,8 @@ use leselang_host_contract::{
     RuntimeId, validate_debugger_session_id,
 };
 use leselang_runtime_core::{
-    Fuel, ResourceBudgetError, ResourceBudgetLimits, capped_exponential_delay, checked_clock_add,
+    Fuel, ResourceBudgetError, ResourceBudgetLimits, SequenceWatermarkRequirement,
+    capped_exponential_delay, checked_clock_add,
 };
 use leserpent_domain::{
     Command, CommandEnvelope, CommandId, CommandResult, CommandStatus, DOMAIN_SCHEMA_VERSION,
@@ -2714,9 +2715,9 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
         }
         let sequence = canonical_continuation_sequence(&image.token)
             .ok_or_else(invalid_continuation_sequence_fault)?;
-        let next_sequence = sequence
-            .checked_add(1)
-            .ok_or_else(effect_sequence_exhausted_fault)?;
+        let next_sequence = SequenceWatermarkRequirement::after_observation(sequence, u64::MAX)
+            .map_err(|_| effect_sequence_exhausted_fault())?
+            .required_watermark();
         self.journal
             .record_pending(&image, request, self.scheduler_limits)?;
         self.next_effect_id = self.next_effect_id.max(next_sequence);
@@ -3096,9 +3097,10 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
             if sequence == 0 || sequence > MAX_EFFECT_SEQUENCE {
                 return Err(effect_sequence_exhausted_fault());
             }
-            self.next_effect_id = sequence
-                .checked_add(1)
-                .ok_or_else(effect_sequence_exhausted_fault)?;
+            self.next_effect_id =
+                SequenceWatermarkRequirement::after_observation(sequence, u64::MAX)
+                    .map_err(|_| effect_sequence_exhausted_fault())?
+                    .required_watermark();
             let token = ContinuationToken(format!("continuation-{sequence}"));
             if !self.pending.contains_key(&token) && !self.completed.contains_key(&token) {
                 return Ok(sequence);

@@ -1,4 +1,86 @@
 use super::*;
+use leselang_hir::host_call::HostOperation;
+use leselang_runtime_core::{
+    CaptureExtensionBindings, CaptureExtensionDomain, CaptureExtensionError, CurrentCapture,
+    validate_capture_extension,
+};
+
+struct NativeCaptureExtension<'a> {
+    prior: &'a ResultBinding,
+    effect: &'a Effect,
+    value: &'a Value,
+    operation: Option<HostOperation>,
+}
+
+impl CaptureExtensionDomain<ProjectedGroupBinding, ProjectedBinding>
+    for NativeCaptureExtension<'_>
+{
+    type Error = Fault;
+
+    fn same_group_data(
+        &mut self,
+        old: &ProjectedGroupBinding,
+        saved: &ProjectedGroupBinding,
+    ) -> bool {
+        old.group == saved.group
+    }
+    fn same_group_binding(
+        &mut self,
+        old: &ProjectedGroupBinding,
+        saved: &ProjectedGroupBinding,
+    ) -> bool {
+        old == saved
+    }
+    fn begin_results(&mut self) -> Result<(), Fault> {
+        self.operation = Some(HostOperation::for_effect(self.effect).ok_or_else(invalid)?);
+        Ok(())
+    }
+    fn current_result(&mut self, saved: &ProjectedBinding) -> Result<CurrentCapture, Fault> {
+        // Keep exact legacy projections: replay must not synthesize absent fields.
+        let matches_result = saved
+            .result
+            .matches_capture(self.operation.ok_or_else(invalid)?, self.value)?;
+        Ok(CurrentCapture {
+            matches_result,
+            matches_binding: saved.name == self.prior.name,
+        })
+    }
+    fn same_result_data(&mut self, old: &ProjectedBinding, saved: &ProjectedBinding) -> bool {
+        old.result == saved.result
+    }
+    fn same_result_binding(&mut self, old: &ProjectedBinding, saved: &ProjectedBinding) -> bool {
+        old == saved
+    }
+}
+
+fn validate_extension(
+    prior: &ResultBinding,
+    binding: &ResultBinding,
+    effect: &Effect,
+    value: &Value,
+) -> Result<(), Fault> {
+    validate_capture_extension(
+        CaptureExtensionBindings {
+            groups: &prior.groups,
+            results: &prior.results,
+        },
+        CaptureExtensionBindings {
+            groups: &binding.groups,
+            results: &binding.results,
+        },
+        leselang_hir::MAX_EFFECT_NESTING_DEPTH,
+        NativeCaptureExtension {
+            prior,
+            effect,
+            value,
+            operation: None,
+        },
+    )
+    .map_err(|error| match error {
+        CaptureExtensionError::Native { error, .. } => error,
+        _ => invalid(),
+    })
+}
 
 pub(super) type CompletionLease<'a> = Option<(&'a DispatchLease, u64)>;
 
@@ -15,6 +97,20 @@ pub(super) fn authority(operation: &EffectOperation) -> (&Principal, &Capability
         EffectOperation::Command(envelope) => (&envelope.principal, &envelope.capabilities),
         EffectOperation::Presentation(envelope) => (&envelope.principal, &envelope.capabilities),
     }
+}
+
+pub(super) fn same_inherited_context(original: &EffectRequest, saved: &EffectRequest) -> bool {
+    leselang_runtime_core::validate_inherited_context(
+        &original.continuation.resource_budget(),
+        &saved.continuation.resource_budget(),
+        || {
+            Ok::<_, std::convert::Infallible>(
+                authority(&original.operation) == authority(&saved.operation),
+            )
+        },
+        || Ok(original.continuation.expected_revision == saved.continuation.expected_revision),
+    )
+    .is_ok()
 }
 
 pub(super) fn validate_pair(
@@ -60,11 +156,7 @@ pub(super) fn validate_pair(
             .result_binding
             .as_ref()
             .is_none_or(|binding| binding.body.is_pure())
-        || authority(&parent.operation) != authority(&next.operation)
-        || first.expected_revision != second.expected_revision
-        || first.deadline_ms != second.deadline_ms
-        || first.deadline_at_ms != second.deadline_at_ms
-        || first.max_output_items != second.max_output_items
+        || !same_inherited_context(parent, next)
         || first.fuel_remaining <= second.fuel_remaining
         || canonical_continuation_sequence(&first.token)
             >= canonical_continuation_sequence(&second.token)
@@ -80,33 +172,7 @@ pub(super) fn validate_pair(
         return Err(invalid());
     }
     if let Some(binding) = &second.result_binding {
-        if binding
-            .groups
-            .iter()
-            .any(|group| !prior.groups.iter().any(|old| old.group == group.group))
-            || prior.groups.iter().any(|old| !binding.groups.contains(old))
-        {
-            return Err(invalid());
-        }
-        let operation = leselang_hir::host_call::HostOperation::for_effect(&first.pending_effect)
-            .ok_or_else(invalid)?;
-        let mut contains_current = false;
-        for saved in &binding.results {
-            // Old chains keep their exact v1 frame; do not synthesize absent fields on replay.
-            let current = saved.result.matches_capture(operation, value)?;
-            contains_current |= saved.name == prior.name && current;
-            if !current && !prior.results.iter().any(|old| old.result == saved.result) {
-                return Err(invalid());
-            }
-        }
-        if !contains_current
-            || prior
-                .results
-                .iter()
-                .any(|saved| !binding.results.contains(saved))
-        {
-            return Err(invalid());
-        }
+        validate_extension(prior, binding, &first.pending_effect, value)?;
     }
     Ok(())
 }
@@ -273,5 +339,225 @@ impl Vm {
         self.completed
             .insert(image.token.clone(), authoritative.clone());
         self.visible_step(&image.token, authoritative)
+    }
+}
+
+#[cfg(test)]
+mod extension_tests {
+    use super::*;
+
+    #[test]
+    fn inherited_context_keeps_frozen_native_agreement_across_operation_domains() {
+        fn frozen(original: &EffectRequest, saved: &EffectRequest) -> bool {
+            authority(&original.operation) == authority(&saved.operation)
+                && original.continuation.expected_revision == saved.continuation.expected_revision
+                && original.continuation.deadline_ms == saved.continuation.deadline_ms
+                && original.continuation.deadline_at_ms == saved.continuation.deadline_at_ms
+                && original.continuation.max_output_items == saved.continuation.max_output_items
+        }
+        let mut vm = Vm::new(500);
+        let requests = [
+            r#"fn main() = ui.focus(node_id: "a")"#,
+            "fn main() = runtime.list()",
+        ]
+        .map(|source| {
+            let Step::Effect(request) = vm.start(
+                &leselang_hir::lower(&leselang_syntax::parse(source)).unwrap(),
+                Principal::new("operator").unwrap(),
+                CapabilitySet::new(["ui.presentation", "runtime.read"]),
+                Some(Revision(7)),
+            ) else {
+                panic!("effect expected")
+            };
+            *request
+        });
+        for original in &requests {
+            for template in &requests {
+                for mutation in 0..9 {
+                    let mut saved = template.clone();
+                    match mutation {
+                        0 => {}
+                        1 | 2 => {
+                            let (principal, capabilities) = match &mut saved.operation {
+                                EffectOperation::Presentation(e) => {
+                                    (&mut e.principal, &mut e.capabilities)
+                                }
+                                EffectOperation::Query(e) => {
+                                    (&mut e.principal, &mut e.capabilities)
+                                }
+                                EffectOperation::Command(e) => {
+                                    (&mut e.principal, &mut e.capabilities)
+                                }
+                            };
+                            if mutation == 1 {
+                                *principal = Principal::new("other").unwrap();
+                            } else {
+                                *capabilities = CapabilitySet::new([
+                                    "ui.presentation",
+                                    "runtime.read",
+                                    "extra.read",
+                                ]);
+                            }
+                        }
+                        3 => saved.continuation.expected_revision = None,
+                        4 => saved.continuation.deadline_ms = 1,
+                        5 => saved.continuation.deadline_at_ms = Some(1),
+                        6 => saved.continuation.max_output_items = 0,
+                        7 => saved.continuation.fuel_remaining = 0,
+                        8 => saved.continuation.schema_version = u32::MAX,
+                        _ => unreachable!(),
+                    }
+                    saved.budget = saved.continuation.resource_budget();
+                    assert_eq!(
+                        same_inherited_context(original, &saved),
+                        frozen(original, &saved),
+                        "mutation {mutation}"
+                    );
+                }
+            }
+        }
+    }
+
+    // Frozen pre-extraction algorithm, including its native error precedence.
+    fn frozen(
+        prior: &ResultBinding,
+        binding: &ResultBinding,
+        effect: &Effect,
+        value: &Value,
+    ) -> Result<(), Fault> {
+        if binding
+            .groups
+            .iter()
+            .any(|group| !prior.groups.iter().any(|old| old.group == group.group))
+            || prior.groups.iter().any(|old| !binding.groups.contains(old))
+        {
+            return Err(invalid());
+        }
+        let operation = HostOperation::for_effect(effect).ok_or_else(invalid)?;
+        let mut contains_current = false;
+        for saved in &binding.results {
+            let current = saved.result.matches_capture(operation, value)?;
+            contains_current |= saved.name == prior.name && current;
+            if !current && !prior.results.iter().any(|old| old.result == saved.result) {
+                return Err(invalid());
+            }
+        }
+        if !contains_current
+            || prior
+                .results
+                .iter()
+                .any(|saved| !binding.results.contains(saved))
+        {
+            return Err(invalid());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn capture_extension_preserves_frozen_native_alias_retention_and_late_fault_order() {
+        fn effect(step: Step) -> EffectRequest {
+            let Step::Effect(request) = step else {
+                panic!("effect expected")
+            };
+            *request
+        }
+        let source = r#"fn main() = bind(first: ui.navigate_focus(node_id: "a", direction: "next"), body:
+            bind(alias: first, body: bind(second: ui.focus(node_id: field(value: first, name: "focused_node_id")), body:
+                bind(third: ui.focus(node_id: field(value: second, name: "node_id")), body: field(value: third, name: "node_id")))))"#;
+        let mut vm = Vm::new(500);
+        let first = effect(vm.start(
+            &leselang_hir::lower(&leselang_syntax::parse(source)).unwrap(),
+            Principal::new("operator").unwrap(),
+            CapabilitySet::new(["ui.presentation"]),
+            Some(Revision(7)),
+        ));
+        let second = effect(vm.resume(
+            &first.continuation,
+            EffectResult::Presentation(PresentationResult::NavigateFocus {
+                node_id: "a".into(),
+                direction: UiFocusNavigationDirection::Next,
+                focused_node_id: "b".into(),
+            }),
+        ));
+        let third = effect(vm.resume(
+            &second.continuation,
+            EffectResult::Presentation(PresentationResult::Focus {
+                node_id: "b".into(),
+            }),
+        ));
+        let value = Value::UiFocus {
+            node_id: "b".into(),
+        };
+        validate_pair(&second, &Step::Done(value.clone()), &third).unwrap();
+        let prior = second.continuation.result_binding.as_ref().unwrap();
+        let saved = third.continuation.result_binding.as_ref().unwrap();
+        for mutation in 0..10 {
+            let mut original = (**prior).clone();
+            let mut next = (**saved).clone();
+            let group = ProjectedGroupBinding {
+                name: "g".into(),
+                group: ProjectedGroup {
+                    members: vec![original.results[0].clone()],
+                },
+            };
+            original.groups.push(group.clone());
+            next.groups.push(group);
+            match mutation {
+                0 => {}
+                1 => {
+                    let mut alias = next.results[0].clone();
+                    alias.name = "extra".into();
+                    next.results.push(alias);
+                }
+                2 => {
+                    next.results[1].name = "replacement".into();
+                }
+                3 => {
+                    next.results.remove(1);
+                }
+                4 => {
+                    next.results[2].name = "not_second".into();
+                }
+                5 => {
+                    next.results[0].result.fields[0].value = ScalarValue::String("invented".into());
+                }
+                6 => {
+                    let mut bad = next.results[2].clone();
+                    bad.name = "bad".into();
+                    bad.result.projection_version = u32::MAX;
+                    next.results.push(bad);
+                }
+                7 => {
+                    next.groups[0].name = "group_alias".into();
+                }
+                8 => {
+                    next.groups.clear();
+                }
+                9 => {
+                    next.groups[0].group.members[0].result.fields[0].value =
+                        ScalarValue::String("invented".into());
+                }
+                _ => unreachable!(),
+            }
+            let expected = frozen(
+                &original,
+                &next,
+                &second.continuation.pending_effect,
+                &value,
+            );
+            assert_eq!(
+                validate_extension(
+                    &original,
+                    &next,
+                    &second.continuation.pending_effect,
+                    &value
+                ),
+                expected,
+                "mutation {mutation}"
+            );
+            if mutation == 6 {
+                assert_eq!(expected.unwrap_err().code, "LSV1405");
+            }
+        }
     }
 }
