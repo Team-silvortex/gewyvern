@@ -6085,7 +6085,7 @@ programs through the existing `evaluate_effects_in_scope`,
 `snapshot_captured_scope_state` and `resume_captured_effects_in_scope` entries.
 `ResultView` handles raw/saved projections; the normal command-adapter validators
 check complete bindings and successor/group correspondence. There is no fixture
-expression interpreter, new public runtime entry or VM/storage dependency,
+expression interpreter, new complete runtime entry or VM/storage dependency,
 including dev-dependencies. The language CI job runs this proof explicitly.
 
 Two flat first-group spellings (`seq` and `all`) join a scalar prefix, group and
@@ -6105,11 +6105,111 @@ Normal completion also proves that the restored temporary scope is cleared.
 
 The fixture supplies bounded headless presentation replies, explicit admission
 and native copy accounting. It does not implement authenticated identities,
-dispatch deduplication, a parallel scheduler, arbitrary computed/nested groups,
+dispatch deduplication, a parallel scheduler, arbitrary nested groups,
 crash-atomic storage or a production embedding API. Wire restoration here is an
 in-memory codec round-trip, not process restart or durable authority. This closes
 a reference-adapter execution proof after the data lifecycle, not the two-host
 complete-language, durable recovery or repository-extraction acceptance gates.
+
+### Adapter-Owned Request Preparation
+
+`leselang_command::prepare_preflighted_effect_in_scope` now owns the reference
+profile's raw/call/group request construction. Both the production VM and the
+adapter-only proof use it. A raw `Host` borrows its exact effect; a computed call
+uses existing HIR argument evaluation and operation resolution; each computed
+group member uses `evaluate_effects_in_scope` with the original scope, environment
+and fuel. Members prepare in declaration order, including `all`, and their
+resolved operation/result type must match the prepared signature. There is no
+second expression interpreter or parallel dispatch in this function.
+
+This is an explicitly **preflighted hook**, not an untrusted-input entry point.
+Whole-expression structure, types, cold signatures, opaque payload policy and
+authority remain required caller gates. Raw effects are not revalidated; group
+counts/names are assumed admitted. Explicit limits bound nested shared execution
+and call preparation, not opaque payloads or the enclosing group. The outer
+executor pays the root charge. A later failure neither refunds fuel nor rolls
+back native hook work, and hooks must not dispatch. Live dispatch policy remains
+host-owned; returned request data grants no authority or durable-replay right.
+
+`EffectPreparationError` retains nested typed calculation/native failures, call
+failures and operation-resolution diagnostic codes. Its Display/Debug output
+contains no payload and requires no native Clone/Debug/serde traits. The VM alone
+maps these errors to its existing fault codes without turning native failures
+into recoverable scalar errors. Frozen before/after tests compare direct hooks
+and full evaluation at 160 fuel grants per case, including malformed HIR, late
+member failures and scope cleanup. The adapter-only parsed proof now covers
+computed flat groups, capture/re-entry, two successors and every fuel cutoff,
+plus zero-work cold refusals and non-rollback late failures. This does not add a
+production embedding driver, arbitrary nesting, authentic receipts or storage.
+
+### Adapter-Owned Capture Scope Bridge
+
+The command adapter now owns product row conversion in
+`snapshot_preflighted_result_scope` and
+`resume_preflighted_result_binding_in_scope`. These are thin specializations of
+`snapshot_captured_scope_state` and `resume_captured_effects_in_scope`, not new
+scope walkers or body evaluators. The production VM and adapter-only execution
+proof both use them. `ResultCaptureLimits` carries explicit snapshot/group bounds;
+`ResultCaptureHost` supplies scalar/result/group accounting, projection-error
+mapping and the row-level saved-projection restriction. There are no default
+costs, VM fault codes, new fuel grants or native Clone/Debug/serde requirements.
+
+Snapshot count/name-byte checks precede native hooks. Scalars charge before
+copying; result/group snapshots materialize before their original host charge;
+the body copies last. Raw groups alone use the supplied member/name policy;
+saved groups clone unchanged without vocabulary widening or implicit admission.
+Each category keeps original row order and failures expose no partial snapshot.
+
+Restoration charges and copies scalars first, then admits and charges each saved
+result/group before borrowing its exact original projection. The pending view
+adds no new charge or copy. The VM's group-result profile can still reject saved
+projection rows at their original position, after earlier scalar accounting.
+Insertion, duplicate refusal, body evaluation and temporary-suffix cleanup stay
+in the shared kernels. Host errors remain native, not scalar-recoverable; earlier
+charges and callback work survive later refusal or unwind without refund/retry.
+Parent rows and caller-owned wire data remain unchanged.
+
+Focused VM-free tests verify mixed snapshots, exact original result/member
+addresses, alternative explicit accounting, zero-work structural refusal,
+projection-before-charge failure, profile denial, duplicates, move-only opaque
+errors and unwind cleanup. Frozen VM tests retain original scalar/result/group
+fuel cutoffs, snapshot bytes and fault precedence. The complete adapter proof
+retains five saved vocabularies and computed group/successor re-entry.
+
+These preflighted entries are **not untrusted-frame ingress**. Callers must bound
+body/payload/aggregate storage, validate full schemas/types/names, correlate raw
+replies, retain the authentic meter and check current authority/journal state
+before entry. Callback work remains trusted and cannot be preempted; a second
+cleanup panic may abort. No codec, cancellation driver, authenticated receipt,
+deduplication, transaction or independent durable-graph recovery is introduced.
+
+### Shared Product Execution Environment
+
+`leselang_command::PreflightedResultEnvironment` composes the preceding view,
+preparation and snapshot APIs for both the reference VM and VM-free proof. It
+implements the shared HIR pure/effect environment traits, not another evaluator.
+Computed groups recurse through the same environment and borrowed host. Explicit
+`ResultExecutionLimits` carries effect/capture limits; pass `limits().effects` to
+the outer evaluator and retain the original caller-owned fuel throughout.
+
+`ResultExecutionHost` extends `ResultCaptureHost`. Required hooks own cold effect
+preflight, selected preparation checks, prepared-data observation/refusal,
+selected-field policy, group-name policy and typed preparation/capture failure
+mapping. There are no implicit grants or costs. The host can be unsized and its
+errors need no Clone/Debug/serde/Send/Sync traits. Environment Debug is payload-free
+and runs no hooks. Native errors must remain native, while recoverable scalar
+errors retain their typed provenance. A prepared-data hook is not dispatch or a
+receipt; it must not invoke effects, refill the meter or retry prior work.
+
+Construction does not perform admission. Full input/HIR/frame/reply validation,
+current authority, opaque work bounds, dispatch and journal gates stay with the
+host. Trusted hook mutation or unwind does not roll back earlier work. Shared
+cleanup restores the parent scope and never refunds fuel. Tests exercise one
+dynamic host across computed seq/all members, every fuel cutoff, native payload
+identity, cold/late refusal, non-recoverable field policy and unwind cleanup.
+Frozen VM comparisons retain original costs, faults, captures and wire bytes.
+This is product-adapter reuse, not a generic embedding driver, durable recovery,
+real GUI execution or completion of the independent-repository gate.
 
 ### Shared Capture Correspondence
 
@@ -6490,13 +6590,33 @@ product ceiling; empty queries return zero and empty scalar lists one. `None`
 means an invalid leaf or a structure requiring caller traversal, never an empty
 result. This is deliberately not complete domain-record validation, pending
 reply correspondence or a new authority gate. Saved same-node navigation and
-max-length values retain their previous acceptance rules. The VM still owns the
-depth-first structured walk, field-name and duplicate checks, aggregate counts,
-execution limits and encoded bytes. Before/after tests freeze `LSV2403` messages
-and ordering; the existing bound-result gate still checks type, value, execution
-items and encoded size in that order. The closed 62-GUI matrix also covers leaf
-identifier/text/count limits and byte-based scalar limits without requiring the
-VM or SQLite. Admission, continuation and complete durable extraction remain open.
+max-length values retain their previous acceptance rules. The closed 62-GUI matrix
+also covers identifier/text/count limits and byte-based scalar limits without
+requiring the VM or SQLite.
+
+`validate_value_items` now owns structured traversal in the adapter as well. An
+explicit stack borrows values/names without recursive Rust calls or payload copies.
+`ValueValidationLimits` supplies inclusive depth, per-structure field and query
+ceilings; the caller supplies the name predicate and starting depth offset. Depth
+overflow is rejected after the field-name check rather than clamped; total item
+counts retain saturating arithmetic. Empty structures
+remain invalid even when all their hypothetical leaves would count zero. Names
+are validated in declaration order, duplicates are local to each structure, and
+the first child's failure precedes a later sibling's name failure. Error categories
+contain no private data; host callback work is trusted and is not rolled back on
+unwind. Scratch storage follows active depth and visited sibling names, not copies
+of the input tree.
+
+The VM supplies its original limits and maps `ValueBoundsError` to unchanged
+`LSV2403` messages. Type admission still precedes value checks, with per-execution
+output limits and encoded size afterward. This walker does not cap aggregate
+input work/bytes or authenticate domain records, receipts, schemas or authority;
+a saturating count alone cannot certify exact overflow-free accounting. Frozen
+before/after tests preserve counts, bytes and refusal precedence at every original
+starting-depth boundary. The VM-free capture/re-entry proof uses it at native
+ingress; direct tests cover all 77 types, explicit ceilings, borrowed name addresses,
+hook unwind and 4096-level values. Admission, durable recovery and complete
+independent extraction remain open; no new wire/schema version is introduced.
 
 `PresentationOperation::matches_effect` now owns all 62 request payload predicates
 as a borrowed, exhaustive product-effect match. No cloning, serialization, fuel
@@ -6535,8 +6655,8 @@ acceptance and do not inspect a supplied operation; mutations require the saved
 command envelope. That envelope must be admitted and delivery authenticated by
 the caller. A generic command reply has no operation tag, so matching must never
 be used to infer authorization from the reply itself. The matcher does not check
-query revisions, item limits, complete domain records or replay state. The VM
-uses the original HIR signature to fence the saved type, then matches before
+query revisions, item limits, complete domain records or replay state. The composed
+adapter entry uses the original HIR signature to fence the saved type, then matches before
 query revision/output checks and owned conversion. No new payload copies or
 serialization are introduced. Frozen cross-type, identity/status/time, fault-order
 and dispatch matrices pass before and after migration; SQLite restart retains
@@ -6549,13 +6669,38 @@ Generic command replies do not identify which operation was authorized; callers
 must check original identity, correspondence, type and context before conversion.
 A category/type mismatch consumes the reply and returns None; GUI replies retain
 their separate conversion. Conversion alone does not validate status, timestamps,
-domain fields, revisions, budgets or authority. The VM now uses one borrowed query
+domain fields, revisions, budgets or authority. The shared reply entry uses one borrowed query
 revision/item gate before calling the converter, keeping revision-before-count
 fault order, empty-list counts, inspect's non-list behavior and the fixed log
 ceiling. No buffer clones or serialization are introduced; inspect's existing box
 allocation still occurs only after those gates. All 77 declared type shapes,
 released value wire, original buffer/box identity, query-policy boundaries and
 memory/SQLite replay remain covered. No scheduler, schema or extraction gate changes.
+
+`EffectResult::into_effect_value` composes these existing matchers/converters for
+all 70 atomic operations. Its explicit `EffectValueContext` borrows the original
+effect, declared type and optional saved operation, alongside expected revision
+and query item limit. None of these values may be inferred from the received
+reply. The context is ordinary data, not an authenticated pending handle; Debug
+does not print its payload. Queries/GUI keep legacy matching when the operation
+is absent, while mutations still require original saved command IDs.
+
+GUI correspondence precedes its owned conversion and saved-type check.
+Control-plane signature/correspondence precedes query revision, item limits and
+conversion. Inspect retains its non-list policy, logs retain the fixed product
+ceiling, and empty list/history replies may pass a zero ceiling. GUI/command
+replies gain no new revision/item gate at this stage. `EffectValueError` carries
+typed mismatch, revision-conflict or output-limit metadata; the VM alone maps it
+to its existing fault codes/messages. The reply is consumed on either outcome,
+with no clones, serialization, new budget, dispatch, retry or replay authority.
+
+The reference VM and VM-free capture/successor proof use this shared entry.
+Frozen cross-category/native/wire comparisons, a 70-operation declaration matrix,
+query policy boundaries and buffer-identity tests preserve compatibility. Separate
+tests deliberately show that conversion does not authenticate malformed envelopes.
+Complete source/frame/domain/value/byte admission, live permissions, deadline,
+lease, revision provenance and journal transactions remain host gates. This is
+product reply composition, not a complete independent VM or durable recovery API.
 
 `Value::project_scalar` also keeps product-specific scalar extraction in
 `leselang-command`, instead of teaching the reference VM every result variant.

@@ -4,31 +4,34 @@
 use std::{borrow::Cow, cell::Cell, marker::PhantomData};
 
 use leselang_command::{
+    EffectPreparationError, EffectResult, EffectValueContext, PreflightedResultEnvironment,
     PresentationResult, ProjectedGroup, ProjectedResult, ResultBinding, ResultBindingLimits,
-    ResultView, StructuredField, Value, validate_group_capture_correspondence,
-    validate_result_binding, validate_result_binding_extension,
+    ResultCaptureHost, ResultCaptureLimits, ResultExecutionHost, ResultExecutionLimits, ResultView,
+    ResultViewError, StructuredField, Value, ValueValidationLimits,
+    prepare_preflighted_effect_in_scope, resume_preflighted_result_binding_in_scope,
+    validate_group_capture_correspondence, validate_result_binding,
+    validate_result_binding_extension, validate_value_items,
 };
 use leselang_hir::{
-    Effect, Type,
-    call_evaluation::{CallEvaluationError, CallEvaluationLimits},
+    Effect,
+    call_evaluation::CallEvaluationError,
     computation::Computation,
     effect_evaluation::{
-        EffectEvaluationEnvironment, EffectEvaluationFailure, EffectEvaluationFault,
-        EffectEvaluationLimits, EffectEvaluationOutcome, evaluate_effects_in_scope,
+        EffectEvaluationFailure, EffectEvaluationFault, EffectEvaluationLimits,
+        EffectEvaluationOutcome, evaluate_effects_in_scope,
     },
-    effect_reentry::{CapturedEffectHooks, resume_captured_effects_in_scope},
     host_call::HostOperation,
     projection_access::ProjectionAccessLimits,
     pure_evaluation::{
-        PureEvaluationEnvironment, PureEvaluationFailure, PureEvaluationFault,
-        PureEvaluationLimits, PureValue, scalar_copy_cost,
+        PureEvaluationFailure, PureEvaluationFault, PureEvaluationLimits, PureValue,
+        scalar_copy_cost,
     },
     result_field::ResultField,
 };
 use leselang_runtime_core::{
     CalculationFailure, CaptureCorrespondenceLimits, CaptureScopeError, CaptureSnapshotError,
-    CaptureSnapshotHooks, CaptureSnapshotLimits, CaptureValidationLimits, CapturedValue, Fuel,
-    GroupCaptureLimits, ScalarValue, ScopeFrame, snapshot_captured_scope_state,
+    CaptureSnapshotLimits, CaptureValidationLimits, Fuel, GroupCaptureLimits, ScalarValue,
+    ScopeFrame,
 };
 
 const LIMITS: EffectEvaluationLimits = EffectEvaluationLimits {
@@ -63,7 +66,6 @@ enum Refusal {
     Admission,
 }
 type Failure = CalculationFailure<Refusal>;
-type Local<'a> = PureValue<ResultView<'a>>;
 type Evaluated<'a> = EffectEvaluationOutcome<ResultView<'a>, Cow<'a, Effect>, Box<ResultBinding>>;
 
 fn debit(fuel: &mut Fuel, amount: u64) -> Result<(), Refusal> {
@@ -109,6 +111,19 @@ fn effect_failure(error: EffectEvaluationFailure<Refusal>) -> Failure {
     }
 }
 
+fn preparation_failure(error: EffectPreparationError<Refusal>) -> Failure {
+    match error {
+        EffectPreparationError::Evaluation(error) => effect_failure(error),
+        EffectPreparationError::Call { failure, .. } => match failure {
+            CallEvaluationError::Evaluation { failure, .. } => pure_failure(failure),
+            CallEvaluationError::Scope(error) => pure_failure(CalculationFailure::External(error)),
+            CallEvaluationError::FuelExhausted => Refusal::Fuel.into(),
+            _ => Refusal::Contract.into(),
+        },
+        _ => Refusal::Contract.into(),
+    }
+}
+
 struct Adapter<'a, 'p> {
     allowed: &'p Cell<bool>,
     prepared: &'p Cell<usize>,
@@ -116,136 +131,86 @@ struct Adapter<'a, 'p> {
     marker: PhantomData<&'a Value>,
 }
 
-impl<'a> PureEvaluationEnvironment<ResultField, HostOperation> for Adapter<'a, '_> {
-    type Result = ResultView<'a>;
+impl ResultCaptureHost for Adapter<'_, '_> {
     type Error = Refusal;
 
-    fn field(&self, result: &Self::Result, field: &ResultField) -> Result<ScalarValue, Refusal> {
-        if self.fail_projection {
-            return Err(Refusal::Projection);
-        }
-        result
-            .project_scalar(*field)
-            .map_err(|_| Refusal::Projection)
+    fn charge_scalar(&self, value: &ScalarValue, fuel: &mut Fuel) -> Result<(), Refusal> {
+        debit(fuel, 1 + scalar_copy_cost(value))
     }
 
-    fn member(
-        &self,
-        group: &Self::Result,
-        name: &str,
-        operation: &HostOperation,
-    ) -> Result<Self::Result, Refusal> {
-        group
-            .select_member(name, *operation)
-            .map_err(|_| Refusal::Projection)
+    fn charge_result(&self, result: &ProjectedResult, fuel: &mut Fuel) -> Result<(), Refusal> {
+        debit_result(fuel, result)
+    }
+
+    fn charge_group(&self, group: &ProjectedGroup, fuel: &mut Fuel) -> Result<(), Refusal> {
+        debit_group(fuel, group)
+    }
+
+    fn projection_error(&self, _: ResultViewError) -> Refusal {
+        Refusal::Projection
+    }
+
+    fn allow_saved_projection(&self) -> Result<(), Refusal> {
+        Ok(())
     }
 }
 
-impl<'a> EffectEvaluationEnvironment<'a, ResultField, HostOperation, Effect, Type>
-    for Adapter<'a, '_>
-{
-    type Request = Cow<'a, Effect>;
-    type Capture = Box<ResultBinding>;
+impl<'a> Adapter<'a, '_> {
+    fn environment(&self) -> PreflightedResultEnvironment<'a, '_, Self> {
+        PreflightedResultEnvironment::new(
+            self,
+            ResultExecutionLimits {
+                effects: LIMITS,
+                captures: ResultCaptureLimits {
+                    snapshot: CaptureSnapshotLimits {
+                        max_bindings: CAPTURES.captures.max_saved_bindings,
+                        max_name_bytes: CAPTURES.captures.max_name_bytes,
+                    },
+                    groups: CAPTURES.groups,
+                },
+            },
+        )
+    }
+}
 
-    fn preflight_effect(&self, _: &'a Computation) -> Result<(), Refusal> {
+impl ResultExecutionHost for Adapter<'_, '_> {
+    fn preflight_effect(&self, _: &Computation) -> Result<(), Refusal> {
         if self.allowed.get() {
             Ok(())
         } else {
             Err(Refusal::Admission)
         }
     }
-
-    fn prepare_effect(
-        &self,
-        expression: &'a Computation,
-        scope: &mut ScopeFrame<'_, 'a, Local<'a>>,
-        fuel: &mut Fuel,
-    ) -> Result<Self::Request, Failure> {
+    fn before_prepare_effect(&self, expression: &Computation) -> Result<(), Refusal> {
         self.preflight_effect(expression)?;
-        let effect = match expression {
-            Computation::Host { effect } if !matches!(**effect, Effect::Compute { .. }) => {
-                Cow::Borrowed(effect.as_ref())
-            }
-            Computation::Call {
-                operation,
-                arguments,
-            } => {
-                let arguments = operation
-                    .evaluate_computed_arguments(
-                        arguments,
-                        scope,
-                        self,
-                        fuel,
-                        CallEvaluationLimits {
-                            pure: LIMITS.pure,
-                            max_arguments: LIMITS.max_arguments,
-                        },
-                    )
-                    .map_err(|error| match error {
-                        CallEvaluationError::Evaluation { failure, .. } => pure_failure(failure),
-                        CallEvaluationError::Scope(error) => {
-                            pure_failure(CalculationFailure::External(error))
-                        }
-                        CallEvaluationError::FuelExhausted => Refusal::Fuel.into(),
-                        _ => Refusal::Contract.into(),
-                    })?;
-                Cow::Owned(
-                    operation
-                        .resolve(&arguments)
-                        .map_err(|_| Refusal::Contract)?,
-                )
-            }
-            _ => return Err(Refusal::Contract.into()),
-        };
-        self.prepared.set(self.prepared.get() + 1);
-        Ok(effect)
+        if matches!(expression, Computation::Host { effect } if matches!(**effect, Effect::Compute { .. }))
+        {
+            return Err(Refusal::Contract);
+        }
+        Ok(())
     }
-
-    fn capture(
-        &self,
-        name: &'a str,
-        body: &'a Computation,
-        scope: &ScopeFrame<'_, 'a, Local<'a>>,
-        fuel: &mut Fuel,
-    ) -> Result<Self::Capture, Refusal> {
-        snapshot_captured_scope_state(
-            name,
-            body,
-            scope,
-            fuel,
-            CaptureSnapshotLimits {
-                max_bindings: CAPTURES.captures.max_saved_bindings,
-                max_name_bytes: CAPTURES.captures.max_name_bytes,
-            },
-            CaptureSnapshotHooks {
-                row: |_: &str, value: &Local<'a>, fuel: &mut Fuel| match value {
-                    PureValue::Scalar(value) => {
-                        debit(fuel, 1 + scalar_copy_cost(value))?;
-                        Ok(CapturedValue::Scalar(value.clone()))
-                    }
-                    PureValue::Result(
-                        view @ (ResultView::Group { .. } | ResultView::ProjectedGroup(_)),
-                    ) => {
-                        let group = view
-                            .capture_group(CAPTURES.groups, valid_name)
-                            .map_err(|_| Refusal::Projection)?;
-                        debit_group(fuel, &group)?;
-                        Ok(CapturedValue::Group(group))
-                    }
-                    PureValue::Result(view) => {
-                        let result = view.capture_result().map_err(|_| Refusal::Projection)?;
-                        debit_result(fuel, &result)?;
-                        Ok(CapturedValue::Result(result))
-                    }
-                },
-                body: |body: &Computation, _: &mut Fuel| Ok(body.clone()),
-            },
-        )
-        .map(Box::new)
-        .map_err(|error| match error {
+    fn prepared_effect(&self, _: &Effect) -> Result<(), Refusal> {
+        self.prepared.set(self.prepared.get() + 1);
+        Ok(())
+    }
+    fn before_projection(&self, _: ResultField) -> Result<(), Refusal> {
+        if self.fail_projection {
+            Err(Refusal::Projection)
+        } else {
+            Ok(())
+        }
+    }
+    fn valid_group_name(&self, name: &str) -> bool {
+        valid_name(name)
+    }
+    fn preparation_failure(&self, error: EffectPreparationError<Refusal>) -> Failure {
+        preparation_failure(error)
+    }
+    fn capture_failure(&self, error: CaptureSnapshotError<Refusal>) -> Refusal {
+        match error {
             CaptureSnapshotError::Native { error, .. } => error,
             _ => Refusal::Contract,
-        })
+        }
     }
 }
 
@@ -292,7 +257,7 @@ fn begin(
     evaluate_effects_in_scope(
         expression,
         &mut ScopeFrame::new(&mut Vec::new()),
-        adapter,
+        &adapter.environment(),
         fuel,
         LIMITS,
     )
@@ -327,6 +292,17 @@ fn resume<'a>(
     }
     validate_result_binding(binding, effect, CAPTURES, valid_name)
         .map_err(|_| Refusal::Admission)?;
+    validate_value_items(
+        value,
+        0,
+        ValueValidationLimits {
+            max_depth: 16,
+            max_fields: 4,
+            max_query_items: 4,
+        },
+        valid_name,
+    )
+    .map_err(|_| Refusal::Admission)?;
     let pending = match effect {
         Effect::Sequence { steps } | Effect::All { branches: steps } => {
             let Value::Structured { fields } = value else {
@@ -336,7 +312,6 @@ fn resume<'a>(
                 || fields.iter().zip(steps).any(|(field, branch)| {
                     field.name != branch.name
                         || field.value.result_type() != branch.result_type
-                        || field.value.bounded_leaf_items(4).is_none()
                         || !matches_reply(&branch.effect, &field.value)
                 })
             {
@@ -349,37 +324,21 @@ fn resume<'a>(
         }
         _ => {
             let operation = HostOperation::for_effect(effect).ok_or(Refusal::Admission)?;
-            if value.result_type() != operation.result_type()
-                || value.bounded_leaf_items(4).is_none()
-                || !matches_reply(effect, value)
-            {
+            if value.result_type() != operation.result_type() || !matches_reply(effect, value) {
                 return Err(Refusal::Admission.into());
             }
             ResultView::Raw { value, operation }
         }
     };
     let mut locals = Vec::new();
-    let outcome = resume_captured_effects_in_scope(
+    let outcome = resume_preflighted_result_binding_in_scope(
         binding,
         &mut ScopeFrame::new(&mut locals),
-        adapter,
+        &adapter.environment(),
         fuel,
         LIMITS,
-        CapturedEffectHooks {
-            scalar: |value: &ScalarValue, fuel: &mut Fuel| {
-                debit(fuel, 1 + scalar_copy_cost(value))?;
-                Ok(PureValue::Scalar(value.clone()))
-            },
-            result: |value: &'a ProjectedResult, fuel: &mut Fuel| {
-                debit_result(fuel, value)?;
-                Ok(PureValue::Result(ResultView::Projected(value)))
-            },
-            group: |value: &'a ProjectedGroup, fuel: &mut Fuel| {
-                debit_group(fuel, value)?;
-                Ok(PureValue::Result(ResultView::ProjectedGroup(value)))
-            },
-            pending: |_: &mut Fuel| Ok(PureValue::Result(pending)),
-        },
+        pending,
+        adapter,
     )
     .map_err(|error| match error {
         CaptureScopeError::Native { error, .. } => effect_failure(error),
@@ -415,8 +374,15 @@ fn reply(effect: &Effect) -> Value {
         },
         _ => panic!("fixture received unsupported effect: {effect:?}"),
     };
-    assert!(result.matches_effect(effect, None));
-    Value::from(result)
+    EffectResult::Presentation(result)
+        .into_effect_value(EffectValueContext {
+            effect,
+            result_type: HostOperation::for_effect(effect).unwrap().result_type(),
+            operation: None,
+            expected_revision: None,
+            max_output_items: 4,
+        })
+        .unwrap()
 }
 
 fn source(group: &str) -> String {
@@ -436,6 +402,7 @@ struct Trace {
     spent: u64,
     frames: Vec<Vec<u8>>,
     effects: Vec<Effect>,
+    preparations: usize,
 }
 
 fn run(expression: &Computation, grant: u64, wire: bool) -> Result<Trace, Failure> {
@@ -456,12 +423,12 @@ fn run(expression: &Computation, grant: u64, wire: bool) -> Result<Trace, Failur
             let Step::Done(value) = step else {
                 unreachable!()
             };
-            assert_eq!(prepared.get(), effects.len());
             return Ok(Trace {
                 value,
                 spent: grant - fuel.remaining(),
                 frames,
                 effects,
+                preparations: prepared.get(),
             });
         };
         let bytes = serde_json::to_vec(&binding).unwrap();
@@ -528,6 +495,7 @@ fn adapter_executes_group_aliases_captured_successors_and_scalar_tail_without_vm
         assert_eq!(direct.frames, restored.frames);
         assert_eq!(direct.effects, restored.effects);
         assert_eq!(restored.effects.len(), 3);
+        assert_eq!(restored.preparations, 3);
         let captured: ResultBinding = serde_json::from_slice(&restored.frames[1]).unwrap();
         assert_eq!(captured.groups.len(), 2);
         assert_eq!(captured.results.len(), 1);
@@ -823,4 +791,228 @@ fn malformed_group_receipts_are_rejected_before_scope_restore_with_retryable_ori
         ));
         assert_eq!(prepared.get(), 1);
     }
+}
+
+#[test]
+fn computed_groups_share_product_preparation_through_wire_reentry_and_every_fuel_cutoff() {
+    for mode in ["seq", "all"] {
+        let source = source(mode)
+            .replace(
+                "node_id: \"a\"",
+                "node_id: concat(left: \"\", right: \"a\")",
+            )
+            .replace(
+                "node_id: \"b\"",
+                "node_id: concat(left: prefix, right: \"b\")",
+            );
+        let expression = compile(&source);
+        let direct = run(&expression, 1000, false).unwrap();
+        let restored = run(&expression, 1000, true).unwrap();
+        assert_eq!(direct.value, ScalarValue::String("ap-a".into()));
+        assert_eq!(direct.value, restored.value);
+        assert_eq!(direct.spent, restored.spent);
+        assert_eq!(direct.frames, restored.frames);
+        assert_eq!(direct.effects, restored.effects);
+        assert_eq!(restored.preparations, 5); // Two members, group, two successors; no dispatch.
+        let (Effect::Sequence { steps } | Effect::All { branches: steps }) = &restored.effects[0]
+        else {
+            panic!()
+        };
+        assert_eq!(
+            steps
+                .iter()
+                .map(|step| step.name.as_str())
+                .collect::<Vec<_>>(),
+            ["a", "b"]
+        );
+        assert_eq!(
+            steps[1].effect,
+            Effect::UiFocus {
+                node_id: "p-b".into()
+            }
+        );
+        for grant in 0..restored.spent {
+            assert!(
+                matches!(
+                    run(&expression, grant, true),
+                    Err(CalculationFailure::External(Refusal::Fuel))
+                ),
+                "{mode}: grant {grant}"
+            );
+        }
+        let exact = run(&expression, restored.spent, true).unwrap();
+        assert_eq!(exact.value, restored.value);
+        assert_eq!(exact.frames, restored.frames);
+        assert_eq!(exact.spent, restored.spent);
+    }
+}
+
+#[test]
+fn computed_group_failures_keep_cold_preflight_and_late_failure_boundaries() {
+    for mode in ["seq", "all"] {
+        let expression = compile(&format!(
+            "fn main() = {mode}(a: ui.focus(node_id: concat(left: \"\", right: \"a\")), b: ui.focus(node_id: concat(left: \"\", right: \"b\")))",
+        ));
+        let allowed = Cell::new(true);
+        let prepared = Cell::new(0);
+        let adapter = Adapter {
+            allowed: &allowed,
+            prepared: &prepared,
+            fail_projection: false,
+            marker: PhantomData,
+        };
+        for case in 0..3 {
+            let mut forged = expression.clone();
+            let Computation::Group { branches, .. } = &mut forged else {
+                panic!()
+            };
+            match case {
+                0 => branches[1].name = branches[0].name.clone(),
+                1 => {
+                    let original = branches[0].clone();
+                    while branches.len() <= LIMITS.max_branches {
+                        let mut row = original.clone();
+                        row.name = format!("member{}", branches.len());
+                        branches.push(row);
+                    }
+                }
+                2 => allowed.set(false),
+                _ => unreachable!(),
+            }
+            let original = serde_json::to_vec(&forged).unwrap();
+            let mut fuel = Fuel::new(1000);
+            assert!(begin(&forged, &adapter, &mut fuel).is_err());
+            assert_eq!(fuel.remaining(), 1000);
+            assert_eq!(prepared.get(), 0);
+            assert_eq!(serde_json::to_vec(&forged).unwrap(), original);
+            allowed.set(true);
+        }
+        for (tail, recoverable) in [
+            (
+                "ui.focus(node_id: concat(left: \"bad\", right: \" node\"))",
+                false,
+            ),
+            (
+                "bind(n: parse_integer(value: \"bad\"), body: ui.focus(node_id: \"b\"))",
+                true,
+            ),
+        ] {
+            let expression = compile(&format!(
+                "fn main() = {mode}(a: ui.focus(node_id: concat(left: \"\", right: \"a\")), b: {tail})",
+            ));
+            prepared.set(0);
+            let mut fuel = Fuel::new(1000);
+            let failure = begin(&expression, &adapter, &mut fuel).unwrap_err();
+            assert_eq!(failure.is_recoverable(), recoverable);
+            assert!(fuel.remaining() < 1000);
+            assert_eq!(
+                prepared.get(),
+                1,
+                "first member prepared, but no whole group returned"
+            );
+        }
+    }
+}
+
+#[test]
+fn preparation_borrows_admitted_host_payloads_and_redacts_non_debug_native_errors() {
+    let allowed = Cell::new(true);
+    let prepared = Cell::new(0);
+    let adapter = Adapter {
+        allowed: &allowed,
+        prepared: &prepared,
+        fail_projection: false,
+        marker: PhantomData,
+    };
+    let expression = Computation::Host {
+        effect: Box::new(Effect::UiFocus {
+            node_id: "node".into(),
+        }),
+    };
+    let mut fuel = Fuel::new(100);
+    let effect = prepare_preflighted_effect_in_scope(
+        &expression,
+        &mut ScopeFrame::new(&mut Vec::new()),
+        &adapter.environment(),
+        &mut fuel,
+        LIMITS,
+    )
+    .unwrap();
+    let (Cow::Borrowed(actual), Computation::Host { effect: original }) = (effect, &expression)
+    else {
+        panic!()
+    };
+    assert!(std::ptr::eq(actual, original.as_ref()));
+    assert_eq!(
+        fuel.remaining(),
+        100,
+        "shared outer executor owns the root charge"
+    );
+    assert_eq!(
+        prepared.get(),
+        0,
+        "helper does not dispatch or call the raw root hook"
+    );
+
+    struct Opaque(String); // Deliberately no Debug, Clone, Display or serialization.
+    let payload = Opaque("private-host-payload".into());
+    let pointer = payload.0.as_ptr();
+    let error = EffectPreparationError::Evaluation(CalculationFailure::External(
+        EffectEvaluationFault::Native(payload),
+    ));
+    assert_eq!(format!("{error:?}"), "group member preparation failed");
+    assert_eq!(error.to_string(), "group member preparation failed");
+    let EffectPreparationError::Evaluation(CalculationFailure::External(
+        EffectEvaluationFault::Native(payload),
+    )) = error
+    else {
+        panic!()
+    };
+    assert_eq!(payload.0.as_ptr(), pointer);
+    let forged = EffectPreparationError::<Opaque>::Resolution {
+        operation: HostOperation::UiFocus,
+        diagnostic_code: "private-host-payload".into(),
+    };
+    assert_eq!(format!("{forged:?}"), "computed call resolution rejected");
+}
+
+#[test]
+fn computed_argument_projection_refusal_stays_native_inside_scalar_recovery() {
+    let expression = compile(
+        r#"fn main() = bind(first: ui.focus(node_id: "source"), body:
+          bind(next: ui.focus(node_id: recover(value: field(value: first, name: "node_id"), fallback: "fallback")),
+            body: 1))"#,
+    );
+    let allowed = Cell::new(true);
+    let prepared = Cell::new(0);
+    let adapter = Adapter {
+        allowed: &allowed,
+        prepared: &prepared,
+        fail_projection: false,
+        marker: PhantomData,
+    };
+    let Step::Pending { effect, binding } =
+        begin(&expression, &adapter, &mut Fuel::new(1000)).unwrap()
+    else {
+        panic!()
+    };
+    let value = reply(&effect);
+    let bytes = serde_json::to_vec(&binding).unwrap();
+    let adapter = Adapter {
+        fail_projection: true,
+        ..adapter
+    };
+    prepared.set(0);
+    let mut fuel = Fuel::new(1000);
+    assert!(matches!(
+        resume(&effect, &binding, &value, &adapter, &mut fuel),
+        Err(CalculationFailure::External(Refusal::Projection))
+    ));
+    assert!(fuel.remaining() < 1000);
+    assert_eq!(
+        prepared.get(),
+        0,
+        "native projection refusal must not prepare the fallback"
+    );
+    assert_eq!(serde_json::to_vec(&binding).unwrap(), bytes);
 }

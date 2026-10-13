@@ -60,9 +60,9 @@ or provide replay protection. Non-language registration commands still fail clos
 correspondence rules in the adapter. Queries keep runtime/history/log identity
 checks and legacy image-only matching; mutations require the original saved
 command ID, applied status where applicable, and the debugger timestamp bound.
-The VM checks its saved result type before this borrowed matcher, then keeps the
-original query revision and output-limit checks before moving the reply into a
-value. The matcher does not authenticate the saved envelope, enforce revisions
+The composed adapter entry checks the VM-supplied saved result type before this
+borrowed matcher, then retains the original query revision and output-limit
+checks before moving the reply into a value. The matcher alone does not authenticate the saved envelope, enforce revisions
 or budgets, validate domain records, or grant replay authority. Before/after
 cross-type, refusal-order, dispatch and SQLite-restart tests preserve the original
 `LSV2101`/`LSV2102`/`LSV2103` results and first-terminal replay.
@@ -71,11 +71,23 @@ cross-type, refusal-order, dispatch and SQLite-restart tests preserve the origin
 reply-to-value conversions. It takes the original declared result type, not
 authority inferred from a received generic command result. Wrong categories and
 types return None; successful conversion alone certifies neither correspondence
-nor validity. The VM's single query revision/item gate runs before conversion,
+nor validity. The shared atomic reply entry's query revision/item gate runs before conversion,
 retaining the log ceiling and inspect's legacy non-list policy. Vectors, strings
 and command boxes move unchanged; inspect keeps its original boxing only after
 the checks pass. The 77-type refusal/wire matrix and before/after buffer-identity,
 query-policy, dispatch and journal tests preserve the released representation.
+
+`EffectResult::into_effect_value` now composes GUI/control-plane correspondence,
+declared types, query revision/item limits and owned conversion outside the VM.
+`EffectValueContext` borrows original execution data; it has no implicit defaults
+and is not an authority certificate. The VM supplies its saved effect, type,
+operation, revision and limit, mapping `EffectValueError` back to unchanged
+`LSV2101`/`LSV2102`/`LSV2103` faults. Legacy image-only query/GUI matching, mutation
+command IDs, inspect's non-list behavior and the fixed log ceiling are unchanged.
+The reply is consumed on success or refusal; no buffer clones, codec, meter,
+dispatch or retries are added. Full value/byte/identity/authority/lease/journal
+gates remain host-owned. Frozen before/after comparisons and a VM-free 70-operation
+matrix retain native/wire results, fault precedence and original buffer owners.
 
 `Value::project_scalar` now owns the product field-to-scalar mapping in the
 adapter. It copies only the requested exported scalar, without serializing or
@@ -166,6 +178,45 @@ native accounting; HIR owns expression execution and scope restoration. This is
 not a second evaluator, real GUI dispatch, authentic receipts, graph-journal
 recovery or a complete reference/native-VM parity claim. CI runs it separately.
 
+Product request preparation now also lives in the command adapter:
+`prepare_preflighted_effect_in_scope` borrows admitted raw effects, resolves
+computed arguments and assembles computed `seq`/`all` members on the same HIR
+executor, scope and fuel. The VM supplies its original limits and maps typed
+`EffectPreparationError` variants to unchanged fault/recovery channels. No new
+interpreter, fresh meter, dispatch or authorization is introduced. This low-level
+hook assumes whole-expression admission; it does not validate opaque raw payloads
+or enclosing group counts/names. Native hooks must not dispatch. Preparation is
+declaration-ordered even for `all`; failure does not refund previous work.
+Frozen before/after tests preserve requests, borrow/own behavior, fuel, scope and
+fault order. The adapter-only proof now also runs computed group parameters
+through wire re-entry and all fuel cutoffs, with cold refusal and late failure
+checks. Authenticated dispatch and durable graph recovery remain separate gates.
+
+The product snapshot/re-entry bridge is also shared with the command adapter.
+`snapshot_preflighted_result_scope` and
+`resume_preflighted_result_binding_in_scope` supply product views to the existing
+core/HIR kernels; `ResultCaptureHost` supplies explicit scalar/result/group
+accounting, projection-error mapping and saved-projection refusal policy. The VM
+retains its original costs and group restrictions, without owning another set of
+row-conversion closures. Scalars charge before copying, snapshots project before
+charging, and restored saved projections remain exact borrows. Shared insertion
+order and scope cleanup are unchanged, including native refusal and unwind.
+Both the full adapter-only execution proof and focused policy tests use this
+production bridge. It assumes prior complete admission, adds no default meter or
+authority, and is not a journal codec, dispatch driver or durable recovery API.
+
+`PreflightedResultEnvironment` now connects those shared product mechanisms for
+both the VM and its VM-free proof: field/member access, recursive preparation and
+snapshot construction no longer need duplicated environment implementations.
+`ResultExecutionHost` extends capture policy with explicit cold/selected request
+checks, prepared-data observation, selected-field policy and typed failure maps.
+The host is borrowed, may be unsized, and stays the same through computed groups.
+`ResultExecutionLimits` is explicit; the outer HIR evaluator uses its effect limits
+and the original meter. Construction does not admit input or grant dispatch.
+The VM preserves its prior admission gates, costs, faults and saved-row policy.
+Focused tests cover native ownership, cold/late refusal, every fuel cutoff and
+unwind cleanup; no public VM, wire, schema or durable-recovery contract changes.
+
 Continuation result-type validation now reuses the HIR host signature catalog,
 instead of maintaining a second 70-operation type table in the VM. Frame/schema,
 token syntax and program counter still precede signature lookup; binding and
@@ -180,7 +231,7 @@ reference policy, not product types or the remaining host-neutral recovery gate.
 `PresentationResult::matches_effect` checks all 62 reply payloads in the adapter
 using borrowed data, including original operation correspondence, fixed wait
 timeouts, optional-text distinctions, child-count bounds and focus navigation.
-The VM calls it before the adapter's `Value::from(reply)` moves the owned reply
+The shared reply entry calls it before `Value::from(reply)` moves the owned reply
 into its original result shape, then checks `Value::result_type()` against the
 saved result type. Strings are moved rather than copied. Legacy image-only resume still permits a
 missing operation, while saved-request resume checks the original envelope.
@@ -196,10 +247,20 @@ Type tags and reply conversion are data operations, not payload validation.
 adapter without copying strings or traversing structures. Empty queries count
 as zero and empty scalar lists as one; list/history ceilings are caller-supplied
 while logs retain their fixed product limit. This is not full domain-record
-validation, correspondence or admission. The VM still owns nesting, field-name
-uniqueness, aggregate/per-execution item budgets and encoded size, preserving
-the original `LSV2403`/`LSV2102` faults and their order. Saved navigation and
-max-length values retain their legacy rules. The native value model is unchanged.
+validation, correspondence or admission. `validate_value_items` now composes those
+leaves with adapter-owned structured traversal using an explicit borrowed stack.
+Callers supply depth/field/query ceilings and the name predicate; duplicate names
+remain local to each structure, with each child checked before the next sibling.
+The VM retains original limits, `LSV2403` messages, per-execution budgets and
+encoded-size gates (`LSV2102` ordering unchanged). Saved navigation and max-length
+values retain their legacy rules. The native value model is unchanged.
+
+The traversal copies no payloads and uses no recursive Rust calls. Its saturating
+item count is not an exact-overflow certificate or an aggregate-work/byte limit;
+those remain caller gates. Frozen VM comparisons preserve all starting-depth and
+field/child refusal boundaries. The VM-free capture proof uses the same validator;
+the 77-type matrix, explicit policy, deep-value and hook-unwind tests cover the
+adapter directly. No receipt authority, schema, journal or product version changes.
 
 The adapter's closed matrix covers all 62 presentation operations and replies,
 including strict field decoding, optional text and focus-navigation asymmetry.

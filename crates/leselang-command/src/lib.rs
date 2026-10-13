@@ -1,9 +1,13 @@
 #![forbid(unsafe_code)]
 
 mod capture_replay;
+mod capture_scope;
 mod control_plane_reply;
 mod control_plane_request;
 mod control_plane_value;
+mod effect_preparation;
+mod effect_value;
+mod execution_environment;
 mod host_protocol;
 mod presentation;
 mod presentation_reply;
@@ -15,12 +19,22 @@ mod projection_access;
 mod result_binding;
 mod result_view;
 mod scalar_projection;
+mod structured_value;
 mod value;
 mod value_validation;
 pub use capture_replay::{
     CaptureReplayError, validate_group_capture_correspondence, validate_result_binding_extension,
 };
+pub use capture_scope::{
+    ResultCaptureHost, ResultCaptureLimits, resume_preflighted_result_binding_in_scope,
+    snapshot_preflighted_result_scope,
+};
 pub use control_plane_request::{command_matches_effect, query_matches_effect};
+pub use effect_preparation::{EffectPreparationError, prepare_preflighted_effect_in_scope};
+pub use effect_value::{EffectValueContext, EffectValueError};
+pub use execution_environment::{
+    PreflightedResultEnvironment, ResultExecutionHost, ResultExecutionLimits,
+};
 pub use host_protocol::{
     DebuggerCancelResult, EffectOperation, EffectResult, PresentationEnvelope,
     PresentationOperation, PresentationResult,
@@ -34,6 +48,7 @@ pub use result_binding::{
     ResultBinding, ResultBindingLimits, validate_result_binding, validate_result_binding_structure,
 };
 pub use result_view::{ResultView, ResultViewError};
+pub use structured_value::{ValueBoundsError, ValueValidationLimits, validate_value_items};
 pub use value::{StructuredField, Value};
 
 use std::io::{self, Write};

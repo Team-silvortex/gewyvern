@@ -45,7 +45,7 @@ its durable backend. Cargo feature unification is not an authority boundary.
 Shared HIR owns compilation, evaluation and reply-gated sessions. Hosts retain
 live authority, authentic replies, native work bounds and external cancellation.
 
-The command adapter owns product request/reply data, captured views and validation;
+The command adapter owns product data, captures and the shared execution environment;
 the reference VM retains execution grants, schema/identity gates and journal policy.
 Adapter-only tests now execute captured successors through the shared HIR without
 VM/SQLite linkage. In-memory wire round-trips do not prove durable recovery.

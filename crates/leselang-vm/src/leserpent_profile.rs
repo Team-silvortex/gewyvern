@@ -19,10 +19,7 @@ use leselang_runtime_core::{
     Fuel, ResourceBudgetError, ResourceBudgetLimits, SequenceWatermarkRequirement,
     capped_exponential_delay, checked_clock_add,
 };
-use leserpent_domain::{
-    CommandId, DOMAIN_SCHEMA_VERSION, IdempotencyKey, MAX_RUNTIME_LOG_QUERY_ENTRIES, QueryEnvelope,
-    QueryResult,
-};
+use leserpent_domain::{CommandId, DOMAIN_SCHEMA_VERSION, IdempotencyKey, QueryEnvelope};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -42,6 +39,8 @@ mod presentation_request_tests;
 mod result_binding;
 mod scheduling;
 mod successor;
+#[cfg(test)]
+mod value_validation_tests;
 
 pub use admission::{
     AdmissionEnd, AdmissionPolicy, AdmissionPoll, AdmissionStatus, AdmissionWait,
@@ -2161,35 +2160,27 @@ fn effect_sequence_exhausted_fault() -> Fault {
 }
 
 pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault> {
-    if depth > MAX_STRUCTURED_VALUE_DEPTH {
-        return Err(Fault {
-            code: "LSV2403".to_string(),
-            message: "structured value nesting exceeds runtime bounds".to_string(),
-        });
-    }
-    match value {
-        Value::Structured { fields } if (1..=MAX_MERGE_BRANCHES).contains(&fields.len()) => {
-            let mut names = BTreeSet::new();
-            let mut output_items = 0usize;
-            for field in fields {
-                if !valid_merge_branch_name(&field.name) || !names.insert(field.name.as_str()) {
-                    return Err(Fault {
-                        code: "LSV2403".to_string(),
-                        message: "structured value fields are invalid".to_string(),
-                    });
-                }
-                output_items = output_items
-                    .saturating_add(validate_value(&field.value, depth.saturating_add(1))?);
+    leselang_command::validate_value_items(
+        value,
+        depth,
+        leselang_command::ValueValidationLimits {
+            max_depth: MAX_STRUCTURED_VALUE_DEPTH,
+            max_fields: MAX_MERGE_BRANCHES,
+            max_query_items: DEFAULT_MAX_OUTPUT_ITEMS,
+        },
+        valid_merge_branch_name,
+    )
+    .map_err(|error| Fault {
+        code: "LSV2403".into(),
+        message: match error {
+            leselang_command::ValueBoundsError::Nesting => {
+                "structured value nesting exceeds runtime bounds"
             }
-            Ok(output_items)
+            leselang_command::ValueBoundsError::Fields => "structured value fields are invalid",
+            leselang_command::ValueBoundsError::Value => "structured value exceeds runtime bounds",
         }
-        _ => value
-            .bounded_leaf_items(DEFAULT_MAX_OUTPUT_ITEMS)
-            .ok_or_else(|| Fault {
-                code: "LSV2403".to_string(),
-                message: "structured value exceeds runtime bounds".to_string(),
-            }),
-    }
+        .into(),
+    })
 }
 
 fn validate_retention_policy(policy: &RetentionPolicy) -> Result<(), Fault> {
@@ -2285,70 +2276,28 @@ fn atomic_step_from_effect_result(
     operation: Option<&EffectOperation>,
     result: EffectResult,
 ) -> Step {
-    if let EffectResult::Presentation(reply) = result {
-        if !reply.matches_effect(&image.pending_effect, operation) {
-            return fault("LSV2103", "effect result does not match pending effect");
+    match result.into_effect_value(leselang_command::EffectValueContext {
+        effect: &image.pending_effect,
+        result_type: image.result_type,
+        operation,
+        expected_revision: image.expected_revision,
+        max_output_items: image.max_output_items,
+    }) {
+        Ok(value) => Step::Done(value),
+        Err(leselang_command::EffectValueError::Mismatch) => {
+            fault("LSV2103", "effect result does not match pending effect")
         }
-        let value = Value::from(reply);
-        if value.result_type() != image.result_type {
-            return fault("LSV2103", "effect result does not match pending effect");
-        }
-        return Step::Done(value);
-    }
-    if leselang_hir::host_call::HostOperation::for_effect(&image.pending_effect)
-        .map(|operation| operation.result_type())
-        != Some(image.result_type)
-        || !result.matches_control_plane_effect(&image.pending_effect, operation)
-    {
-        return fault("LSV2103", "effect result does not match pending effect");
-    }
-    let query_bounds = match &result {
-        EffectResult::Query(QueryResult::RuntimeList { revision, runtimes }) => {
-            Some((*revision, Some((runtimes.len(), image.max_output_items))))
-        }
-        EffectResult::Query(QueryResult::RuntimeInspect { revision, .. }) => {
-            Some((*revision, None))
-        }
-        EffectResult::Query(QueryResult::RuntimeHistory { revision, entries }) => {
-            Some((*revision, Some((entries.len(), image.max_output_items))))
-        }
-        EffectResult::Query(QueryResult::RuntimeLogs {
-            revision, entries, ..
-        }) => Some((
-            *revision,
-            Some((
-                entries.len(),
-                image
-                    .max_output_items
-                    .min(usize::from(MAX_RUNTIME_LOG_QUERY_ENTRIES)),
-            )),
-        )),
-        _ => None,
-    };
-    if let Some((revision, output)) = query_bounds {
-        if let Some(expected) = image.expected_revision
-            && expected != revision
-        {
-            return fault(
-                "LSV2101",
-                format!(
-                    "effect revision conflict: expected {}, actual {}",
-                    expected.0, revision.0
-                ),
-            );
-        }
-        if let Some((count, limit)) = output
-            && count > limit
-        {
-            return fault(
-                "LSV2102",
-                format!("effect returned {count} items, limit is {limit}"),
-            );
-        }
-    }
-    match result.into_control_plane_value(image.result_type) {
-        Some(value) => Step::Done(value),
-        None => fault("LSV2103", "effect result does not match pending effect"),
+        Err(leselang_command::EffectValueError::RevisionConflict { expected, actual }) => fault(
+            "LSV2101",
+            format!(
+                "effect revision conflict: expected {}, actual {}",
+                expected.0, actual.0
+            ),
+        ),
+        Err(leselang_command::EffectValueError::OutputLimit { count, limit }) => fault(
+            "LSV2102",
+            format!("effect returned {count} items, limit is {limit}"),
+        ),
     }
 }
 
@@ -2444,7 +2393,10 @@ mod tests {
         UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection, UiFormInputKind,
         UiFormRequirementState, UiSelectionState, UiSemanticActionKind, UiSemanticNodeKind,
     };
-    use leserpent_domain::{Command, CommandResult, CommandStatus, Query, RuntimeLogRecord};
+    use leserpent_domain::{
+        Command, CommandResult, CommandStatus, MAX_RUNTIME_LOG_QUERY_ENTRIES, Query, QueryResult,
+        RuntimeLogRecord,
+    };
     #[test]
     fn string_list_value_validation_counts_entries_and_fences_in_memory_payloads() {
         use super::{ScalarValue, Value, validate_value};

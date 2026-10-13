@@ -440,12 +440,12 @@ fn real_execution_reentry_uses_shared_original_state_without_a_second_meter_or_p
     for retained in [
         "resume_captured_outcome(binding, ResultView::Group",
         "resume_captured_outcome(binding, ResultView::Raw",
-        "resume_captured_effects_in_scope(",
-        "CapturedEffectHooks {",
-        "charge_projection(fuel, result)?",
-        "charge_group_projection(fuel, group)?",
+        "leselang_command::resume_preflighted_result_binding_in_scope(",
+        "impl leselang_command::ResultCaptureHost for ReferenceCaptureHost",
+        "charge_projection(fuel, result)",
+        "charge_group_projection(fuel, group)",
         "effect_outcome(outcome.into_legacy())",
-        "if !restore_saved_results",
+        "if self.restore_saved_results",
         "CaptureScopeError::Native { error, .. } => calculation_fault(effect_failure(error))",
     ] {
         assert!(
@@ -455,6 +455,20 @@ fn real_execution_reentry_uses_shared_original_state_without_a_second_meter_or_p
     }
     assert!(!production.contains("for local in &binding.locals"));
     assert!(!production.contains("Fuel::new"));
+    let adapter =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/capture_scope.rs")).unwrap();
+    for required in [
+        "resume_captured_effects_in_scope(",
+        "CapturedEffectHooks {",
+        "host.allow_saved_projection()?",
+        "host.charge_result(result, fuel)?",
+        "host.charge_group(group, fuel)?",
+    ] {
+        assert!(
+            adapter.contains(required),
+            "adapter reentry lost {required}"
+        );
+    }
     let reentry =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_reentry.rs")).unwrap();
     let saved = reentry
@@ -553,12 +567,10 @@ fn real_capture_construction_uses_shared_bounded_snapshot_with_native_charge_pol
     let vm = std::fs::read_to_string(root.join("crates/leselang-vm/src/computation.rs")).unwrap();
     let production = vm.split("\n#[cfg(test)]\n").next().unwrap();
     for required in [
-        "snapshot_captured_scope_state(",
-        "CaptureSnapshotHooks {",
-        "value.snapshot_group()?",
-        "value.snapshot()?",
-        "charge_group_projection(fuel, &group)?",
-        "charge_projection(fuel, &result)?",
+        "leselang_command::PreflightedResultEnvironment::new(",
+        "leselang_command::ResultCaptureLimits {",
+        "groups: group_capture_limits()",
+        "crate::valid_merge_branch_name",
         "CaptureSnapshotError::Native { error, .. } => error",
     ] {
         assert!(
@@ -568,6 +580,21 @@ fn real_capture_construction_uses_shared_bounded_snapshot_with_native_charge_pol
     }
     assert!(!production.contains("for (name, value) in scope.bindings()"));
     assert!(!production.contains("Fuel::new"));
+    let adapter =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/capture_scope.rs")).unwrap();
+    for required in [
+        "snapshot_captured_scope_state(",
+        "CaptureSnapshotHooks {",
+        "host.charge_scalar(value, fuel)?",
+        "host.charge_result(&result, fuel)?",
+        "host.charge_group(&group, fuel)?",
+        "Ok(body.clone())",
+    ] {
+        assert!(
+            adapter.contains(required),
+            "adapter snapshot lost {required}"
+        );
+    }
     for proof in [
         "shared_snapshot_matches_frozen_mixed_scope_bytes_and_every_original_fuel_boundary",
         "shared_snapshot_native_projection_refusal_keeps_original_charge_precedence",
@@ -1706,12 +1733,16 @@ fn shared_call_preparation_connects_native_catalogs_and_values_to_the_reference_
     assert!(reference.contains("pub fn evaluate_computed_arguments"));
     assert!(reference.contains("crate::call_evaluation::evaluate_call_arguments_in_scope("));
     let vm = std::fs::read_to_string(root.join("crates/leselang-vm/src/computation.rs")).unwrap();
-    assert!(vm.contains(".evaluate_computed_arguments("));
+    assert!(vm.contains("leselang_command::PreflightedResultEnvironment::new("));
     assert!(!vm.contains("for argument in arguments"));
     assert!(
         vm.contains("CallEvaluationError::Evaluation { failure, .. } => pure_failure(failure)")
     );
-    assert!(vm.contains("operation.resolve(&values)"));
+    let adapter =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/effect_preparation.rs"))
+            .unwrap();
+    assert!(adapter.contains(".evaluate_computed_arguments("));
+    assert!(adapter.contains("operation.resolve(&values)"));
 }
 
 #[test]
@@ -1833,8 +1864,13 @@ fn shared_effect_control_drives_reference_vm_with_explicit_non_dispatching_captu
     assert!(!source.contains("bindings.to_vec()"));
     let vm = std::fs::read_to_string(root.join("crates/leselang-vm/src/computation.rs")).unwrap();
     assert!(vm.contains("evaluate_effects_in_scope("));
-    assert!(vm.contains("type Capture = Box<ResultBinding>;"));
-    assert!(vm.contains("charge_group_projection(fuel, &group)?"));
+    assert!(vm.contains("leselang_command::PreflightedResultEnvironment::new("));
+    let environment =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/execution_environment.rs"))
+            .unwrap();
+    assert!(environment.contains("type Capture = Box<ResultBinding>;"));
+    assert!(environment.contains("snapshot_preflighted_result_scope("));
+    assert!(vm.contains("charge_group_projection(fuel, group)"));
     assert!(!vm.contains("Computation::Bind { name, value, body } =>"));
     assert!(!vm.contains("Err(failure) if failure.is_recoverable()"));
 }

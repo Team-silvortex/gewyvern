@@ -1,26 +1,24 @@
 use std::borrow::Cow;
 
-use leselang_hir::call_evaluation::{CallEvaluationError, CallEvaluationLimits};
+use leselang_hir::call_evaluation::CallEvaluationError;
 use leselang_hir::call_typing::{CallTypeError, MAX_CALL_ARGUMENTS};
-use leselang_hir::computation::{Computation, GroupKind, ScalarValue};
+use leselang_hir::computation::{Computation, ScalarValue};
 use leselang_hir::effect_evaluation::{
-    EffectEvaluationEnvironment, EffectEvaluationFailure, EffectEvaluationFault,
-    EffectEvaluationLimits, EffectEvaluationOutcome, evaluate_effects_in_scope,
+    EffectEvaluationFailure, EffectEvaluationFault, EffectEvaluationLimits,
+    EffectEvaluationOutcome, evaluate_effects_in_scope,
 };
-use leselang_hir::effect_reentry::{CapturedEffectHooks, resume_captured_effects_in_scope};
 use leselang_hir::host_call::HostOperation;
 use leselang_hir::pure_evaluation::{
-    PureEvaluationEnvironment, PureEvaluationFailure, PureEvaluationFault, PureEvaluationLimits,
-    PureValue, scalar_copy_cost as string_cost,
+    PureEvaluationFailure, PureEvaluationFault, PureEvaluationLimits, PureValue,
+    scalar_copy_cost as string_cost,
 };
 use leselang_hir::pure_typing::{
     MAX_TYPE_INFERENCE_BINDINGS, MAX_TYPE_INFERENCE_DEPTH, MAX_TYPE_INFERENCE_NODES,
 };
 use leselang_hir::{Effect, HirBranch};
 use leselang_runtime_core::{
-    CalculationFailure, CaptureScopeError, CaptureSnapshotError, CaptureSnapshotHooks,
-    CaptureSnapshotLimits, CapturedValue, FoldError, Fuel, LoopError, ScalarError, ScopeFrame,
-    snapshot_captured_scope_state,
+    CalculationFailure, CaptureScopeError, CaptureSnapshotError, CaptureSnapshotLimits, FoldError,
+    Fuel, LoopError, ScalarError, ScopeFrame,
 };
 
 use crate::result_binding::{ProjectedGroup, ProjectedResult, group_capture_limits};
@@ -35,51 +33,23 @@ fn view_fault(error: leselang_command::ResultViewError) -> Fault {
     }
 }
 
-trait ReferenceResultView {
-    fn field(self, field: leselang_hir::result_field::ResultField) -> Result<ScalarValue, Fault>;
-    fn snapshot(self) -> Result<ProjectedResult, Fault>;
-    fn snapshot_group(self) -> Result<ProjectedGroup, Fault>;
-}
-
-impl ReferenceResultView for ResultView<'_> {
-    fn field(self, field: leselang_hir::result_field::ResultField) -> Result<ScalarValue, Fault> {
-        self.project_scalar(field).map_err(view_fault)
-    }
-
-    fn snapshot(self) -> Result<ProjectedResult, Fault> {
-        self.capture_result().map_err(view_fault)
-    }
-
-    fn snapshot_group(self) -> Result<ProjectedGroup, Fault> {
-        self.capture_group(group_capture_limits(), crate::valid_merge_branch_name)
-            .map_err(view_fault)
-    }
-}
-
-struct ResultEnvironment<'a>(std::marker::PhantomData<&'a Value>);
-
-impl<'a> PureEvaluationEnvironment<leselang_hir::result_field::ResultField, HostOperation>
-    for ResultEnvironment<'a>
-{
-    type Result = ResultView<'a>;
-    type Error = Fault;
-
-    fn field(
-        &self,
-        result: &Self::Result,
-        field: &leselang_hir::result_field::ResultField,
-    ) -> Result<ScalarValue, Fault> {
-        result.field(*field)
-    }
-
-    fn member(
-        &self,
-        group: &Self::Result,
-        name: &str,
-        operation: &HostOperation,
-    ) -> Result<Self::Result, Fault> {
-        group.select_member(name, *operation).map_err(view_fault)
-    }
+fn result_environment<'a>()
+-> leselang_command::PreflightedResultEnvironment<'a, 'static, ReferenceCaptureHost> {
+    leselang_command::PreflightedResultEnvironment::new(
+        &ReferenceCaptureHost {
+            restore_saved_results: true,
+        },
+        leselang_command::ResultExecutionLimits {
+            effects: execution_limits(),
+            captures: leselang_command::ResultCaptureLimits {
+                snapshot: CaptureSnapshotLimits {
+                    max_bindings: MAX_TYPE_INFERENCE_BINDINGS,
+                    max_name_bytes: leselang_hir::pure_typing::MAX_LOCAL_NAME_BYTES,
+                },
+                groups: group_capture_limits(),
+            },
+        },
+    )
 }
 
 pub(super) enum Outcome<'a> {
@@ -173,33 +143,15 @@ fn resume_captured_outcome<'a>(
     let mut bindings =
         Vec::with_capacity(binding.locals.len() + binding.results.len() + binding.groups.len() + 1);
     let mut scope = ScopeFrame::new(&mut bindings);
-    resume_captured_effects_in_scope(
+    leselang_command::resume_preflighted_result_binding_in_scope(
         binding,
         &mut scope,
-        &ResultEnvironment(std::marker::PhantomData),
+        &result_environment(),
         fuel,
         execution_limits(),
-        CapturedEffectHooks {
-            scalar: |value: &ScalarValue, fuel: &mut Fuel| {
-                charge(fuel, 1 + string_cost(value))?;
-                Ok(LocalValue::Scalar(value.clone()))
-            },
-            result: |result: &'a ProjectedResult, fuel: &mut Fuel| {
-                // GroupResultBinding rejects saved result/group rows before re-entry.
-                if !restore_saved_results {
-                    return Err(invalid().into());
-                }
-                charge_projection(fuel, result)?;
-                Ok(LocalValue::Result(ResultView::Projected(result)))
-            },
-            group: |group: &'a ProjectedGroup, fuel: &mut Fuel| {
-                if !restore_saved_results {
-                    return Err(invalid().into());
-                }
-                charge_group_projection(fuel, group)?;
-                Ok(LocalValue::Result(ResultView::ProjectedGroup(group)))
-            },
-            pending: |_: &mut Fuel| Ok(LocalValue::Result(pending)),
+        pending,
+        &ReferenceCaptureHost {
+            restore_saved_results,
         },
     )
     .map(|outcome| effect_outcome(outcome.into_legacy()))
@@ -228,142 +180,67 @@ fn charge_group_projection(fuel: &mut Fuel, group: &ProjectedGroup) -> Result<()
     Ok(())
 }
 
-impl<'a>
-    EffectEvaluationEnvironment<
-        'a,
-        leselang_hir::result_field::ResultField,
-        HostOperation,
-        Effect,
-        leselang_hir::Type,
-    > for ResultEnvironment<'a>
-{
-    type Request = Cow<'a, Effect>;
-    type Capture = Box<ResultBinding>;
+struct ReferenceCaptureHost {
+    restore_saved_results: bool,
+}
 
-    fn preflight_effect(&self, _: &'a Computation) -> Result<(), Fault> {
-        // The reference VM enters only after canonical HIR/type/authority gates.
-        // Opaque effect graphs and cold signatures retain those product validators.
-        Ok(())
+impl leselang_command::ResultCaptureHost for ReferenceCaptureHost {
+    type Error = Fault;
+
+    fn charge_scalar(&self, value: &ScalarValue, fuel: &mut Fuel) -> Result<(), Fault> {
+        charge(fuel, 1 + string_cost(value))
     }
 
-    fn prepare_effect(
-        &self,
-        expression: &'a Computation,
-        scope: &mut ScopeFrame<'_, 'a, LocalValue<'a>>,
-        fuel: &mut Fuel,
-    ) -> Result<Self::Request, EvaluationFailure> {
-        match expression {
-            Computation::Host { effect } => Ok(Cow::Borrowed(effect)),
-            Computation::Group {
-                group_kind,
-                branches,
-            } => {
-                let mut resolved = Vec::with_capacity(branches.len());
-                for branch in branches {
-                    let operation = branch
-                        .value
-                        .prepared_atomic_operation()
-                        .ok_or_else(invalid)?;
-                    let Outcome::Host(effect) = evaluate_inner(&branch.value, fuel, scope)? else {
-                        return Err(invalid().into());
-                    };
-                    if HostOperation::for_effect(&effect) != Some(operation)
-                        || branch.result_type != operation.result_type()
-                    {
-                        return Err(invalid().into());
-                    }
-                    resolved.push(HirBranch {
-                        name: branch.name.clone(),
-                        effect: effect.into_owned(),
-                        result_type: branch.result_type,
-                    });
-                }
-                Ok(Cow::Owned(match group_kind {
-                    GroupKind::Sequence => Effect::Sequence { steps: resolved },
-                    GroupKind::Parallel => Effect::All { branches: resolved },
-                }))
-            }
-            Computation::Call {
-                operation,
-                arguments,
-            } => {
-                let values = operation
-                    .evaluate_computed_arguments(
-                        arguments,
-                        scope,
-                        self,
-                        fuel,
-                        CallEvaluationLimits {
-                            pure: PureEvaluationLimits {
-                                max_nodes: MAX_TYPE_INFERENCE_NODES,
-                                max_depth: MAX_TYPE_INFERENCE_DEPTH,
-                                max_bindings: MAX_TYPE_INFERENCE_BINDINGS,
-                            },
-                            max_arguments: MAX_CALL_ARGUMENTS,
-                        },
-                    )
-                    .map_err(|failure| call_failure(failure, *operation))?;
-                let effect = operation.resolve(&values).map_err(|diagnostics| {
-                    let code = diagnostics
-                        .first()
-                        .map_or("LSH1407", |diagnostic| diagnostic.code.as_str());
-                    error(
-                        "LSV1404",
-                        &format!(
-                            "computed arguments rejected by {} ({code})",
-                            operation.name()
-                        ),
-                    )
-                })?;
-                Ok(Cow::Owned(effect))
-            }
-            _ => Err(invalid().into()),
+    fn charge_result(&self, result: &ProjectedResult, fuel: &mut Fuel) -> Result<(), Fault> {
+        charge_projection(fuel, result)
+    }
+
+    fn charge_group(&self, group: &ProjectedGroup, fuel: &mut Fuel) -> Result<(), Fault> {
+        charge_group_projection(fuel, group)
+    }
+
+    fn projection_error(&self, error: leselang_command::ResultViewError) -> Fault {
+        view_fault(error)
+    }
+
+    fn allow_saved_projection(&self) -> Result<(), Fault> {
+        // GroupResultBinding rejects saved result/group rows before re-entry.
+        if self.restore_saved_results {
+            Ok(())
+        } else {
+            Err(invalid())
         }
     }
+}
 
-    fn capture(
+impl leselang_command::ResultExecutionHost for ReferenceCaptureHost {
+    fn preflight_effect(&self, _: &Computation) -> Result<(), Fault> {
+        // Canonical HIR/type/authority gates already admitted the reference execution.
+        Ok(())
+    }
+    fn before_prepare_effect(&self, _: &Computation) -> Result<(), Fault> {
+        Ok(())
+    }
+    fn prepared_effect(&self, _: &Effect) -> Result<(), Fault> {
+        Ok(())
+    }
+    fn before_projection(&self, _: leselang_hir::result_field::ResultField) -> Result<(), Fault> {
+        Ok(())
+    }
+    fn valid_group_name(&self, name: &str) -> bool {
+        crate::valid_merge_branch_name(name)
+    }
+    fn preparation_failure(
         &self,
-        name: &'a str,
-        body: &'a Computation,
-        scope: &ScopeFrame<'_, 'a, LocalValue<'a>>,
-        fuel: &mut Fuel,
-    ) -> Result<Self::Capture, Fault> {
-        snapshot_captured_scope_state(
-            name,
-            body,
-            scope,
-            fuel,
-            CaptureSnapshotLimits {
-                max_bindings: MAX_TYPE_INFERENCE_BINDINGS,
-                max_name_bytes: leselang_hir::pure_typing::MAX_LOCAL_NAME_BYTES,
-            },
-            CaptureSnapshotHooks {
-                row: |_: &str, value: &LocalValue<'a>, fuel: &mut Fuel| match value {
-                    LocalValue::Scalar(value) => {
-                        charge(fuel, 1 + string_cost(value))?;
-                        Ok(CapturedValue::Scalar(value.clone()))
-                    }
-                    LocalValue::Result(
-                        value @ (ResultView::Group { .. } | ResultView::ProjectedGroup(_)),
-                    ) => {
-                        let group = value.snapshot_group()?;
-                        charge_group_projection(fuel, &group)?;
-                        Ok(CapturedValue::Group(group))
-                    }
-                    LocalValue::Result(value) => {
-                        let result = value.snapshot()?;
-                        charge_projection(fuel, &result)?;
-                        Ok(CapturedValue::Result(result))
-                    }
-                },
-                body: |body: &Computation, _: &mut Fuel| Ok(body.clone()),
-            },
-        )
-        .map(Box::new)
-        .map_err(|error| match error {
+        failure: leselang_command::EffectPreparationError<Fault>,
+    ) -> EvaluationFailure {
+        preparation_failure(failure)
+    }
+    fn capture_failure(&self, failure: CaptureSnapshotError<Fault>) -> Fault {
+        match failure {
             CaptureSnapshotError::Native { error, .. } => error,
             _ => invalid(),
-        })
+        }
     }
 }
 
@@ -375,7 +252,7 @@ fn evaluate_inner<'a>(
     evaluate_effects_in_scope(
         expression,
         scope,
-        &ResultEnvironment(std::marker::PhantomData),
+        &result_environment(),
         fuel,
         execution_limits(),
     )
@@ -435,6 +312,28 @@ fn pure_failure(failure: PureEvaluationFailure<Fault>) -> EvaluationFailure {
     }
 }
 
+fn preparation_failure(
+    failure: leselang_command::EffectPreparationError<Fault>,
+) -> EvaluationFailure {
+    use leselang_command::EffectPreparationError;
+    match failure {
+        EffectPreparationError::InvalidComputation => invalid().into(),
+        EffectPreparationError::Evaluation(failure) => effect_failure(failure),
+        EffectPreparationError::Call { operation, failure } => call_failure(failure, operation),
+        EffectPreparationError::Resolution {
+            operation,
+            diagnostic_code,
+        } => error(
+            "LSV1404",
+            &format!(
+                "computed arguments rejected by {} ({diagnostic_code})",
+                operation.name()
+            ),
+        )
+        .into(),
+    }
+}
+
 fn call_failure(
     failure: CallEvaluationError<Fault>,
     operation: HostOperation,
@@ -489,6 +388,38 @@ fn fold_fault(failure: FoldError) -> Fault {
         _ => invalid(),
     }
 }
+
+#[cfg(test)]
+use leselang_hir::{
+    effect_evaluation::EffectEvaluationEnvironment, pure_evaluation::PureEvaluationEnvironment,
+};
+
+#[cfg(test)]
+trait ReferenceResultView {
+    fn field(self, field: leselang_hir::result_field::ResultField) -> Result<ScalarValue, Fault>;
+    fn snapshot(self) -> Result<ProjectedResult, Fault>;
+    fn snapshot_group(self) -> Result<ProjectedGroup, Fault>;
+}
+
+#[cfg(test)]
+impl ReferenceResultView for ResultView<'_> {
+    fn field(self, field: leselang_hir::result_field::ResultField) -> Result<ScalarValue, Fault> {
+        self.project_scalar(field).map_err(view_fault)
+    }
+
+    fn snapshot(self) -> Result<ProjectedResult, Fault> {
+        self.capture_result().map_err(view_fault)
+    }
+
+    fn snapshot_group(self) -> Result<ProjectedGroup, Fault> {
+        self.capture_group(group_capture_limits(), crate::valid_merge_branch_name)
+            .map_err(view_fault)
+    }
+}
+
+#[cfg(test)]
+#[path = "effect_preparation_tests.rs"]
+mod effect_preparation_tests;
 
 #[cfg(test)]
 #[path = "result_view_tests.rs"]
@@ -1020,12 +951,7 @@ mod captured_reentry_tests {
             let mut old_fuel = Fuel::new(grant);
             let mut new_fuel = Fuel::new(grant);
             let old = legacy_snapshot("pending", &saved.body, &scope, &mut old_fuel);
-            let new = ResultEnvironment(std::marker::PhantomData).capture(
-                "pending",
-                &saved.body,
-                &scope,
-                &mut new_fuel,
-            );
+            let new = result_environment().capture("pending", &saved.body, &scope, &mut new_fuel);
             assert_eq!(new, old, "grant {grant}");
             assert_eq!(new_fuel.remaining(), old_fuel.remaining(), "grant {grant}");
             if let Ok(frame) = new {
@@ -1096,12 +1022,7 @@ mod captured_reentry_tests {
                 let mut old_fuel = Fuel::new(grant);
                 let mut new_fuel = Fuel::new(grant);
                 assert_eq!(
-                    ResultEnvironment(std::marker::PhantomData).capture(
-                        "pending",
-                        &saved.body,
-                        &scope,
-                        &mut new_fuel
-                    ),
+                    result_environment().capture("pending", &saved.body, &scope, &mut new_fuel),
                     legacy_snapshot("pending", &saved.body, &scope, &mut old_fuel),
                 );
                 assert_eq!(new_fuel.remaining(), old_fuel.remaining());
@@ -1122,7 +1043,7 @@ mod captured_reentry_tests {
         ];
         let scope = ScopeFrame::new(&mut rows);
         let mut fuel = Fuel::new(100);
-        let error = ResultEnvironment(std::marker::PhantomData)
+        let error = result_environment()
             .capture("pending", &body, &scope, &mut fuel)
             .unwrap_err();
         assert_eq!(error, invalid());
@@ -1131,7 +1052,7 @@ mod captured_reentry_tests {
             .map(|_| ("n", LocalValue::Scalar(ScalarValue::None)))
             .collect();
         let scope = ScopeFrame::new(&mut rows);
-        let error = ResultEnvironment(std::marker::PhantomData)
+        let error = result_environment()
             .capture("pending", &body, &scope, &mut fuel)
             .unwrap_err();
         assert_eq!(error, invalid());

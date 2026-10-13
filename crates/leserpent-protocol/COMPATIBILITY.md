@@ -23,12 +23,18 @@ dispatch, revision checks and pending-operation/reply validation are still requi
 The adapter also owns the released language `Value` and `StructuredField`
 representations, with exact VM re-exports. These internal language results are
 not wire-v1 envelopes: their legacy unknown-field policy remains unchanged.
-The pure presentation-reply conversion drops wait metadata only after the VM's
+The pure presentation-reply conversion drops wait metadata only after the shared
 correspondence check. Type lookup/conversion do not replace bounded value
 validation, saved-result-type checks or authenticated dispatch.
 The adapter's borrowed leaf bounds preserve existing product rules; they do not
 validate recursive structures, enforce an execution budget or certify wire-v1
-input. Those contextual checks remain with the VM and authenticated host.
+input. The adapter's separate `validate_value_items` now traverses structures with
+explicit caller depth/field/query ceilings and name policy. It retains local
+duplicate checks, declaration-order child refusal and saturating item counts;
+the VM maps its payload-free errors to the same `LSV2403` faults. Type/identity,
+per-execution budgets, aggregate work/bytes and wire-v1 admission remain host gates.
+Traversal borrows payloads with an explicit stack; serialized representations,
+journal versions and saved-value acceptance rules are unchanged.
 Borrowed presentation-request correspondence also belongs to the adapter, but
 does not replace category, principal/capability, continuation or budget checks.
 The same applies to the adapter's query/command correspondence predicates. Their
@@ -40,8 +46,14 @@ replace saved result-type, query revision/output-limit or authenticated delivery
 checks. Reply DTOs, first-terminal replay and wire-v1 schemas are unchanged.
 Owned control-plane reply conversion also belongs to the adapter. The original
 declared type selects the value shape, especially for untagged command results;
-conversion is not reply acceptance. The VM retains revision and item-limit
-checks before moving payloads, with unchanged result wire and buffer ownership.
+conversion is not reply acceptance. The composed adapter entry retains revision
+and item-limit checks before moving payloads, with unchanged result wire and buffer ownership.
+`EffectResult::into_effect_value` now combines GUI/control-plane checks using an
+explicit original `EffectValueContext`. It preserves legacy image-only matching,
+saved mutation IDs, query refusal precedence and fault metadata; the VM retains
+its existing fault codes/messages and external admission gates. Conversion consumes
+the reply without cloning or authenticating its context. No public VM, wire,
+continuation or journal schema changes follow.
 Product scalar field projection is likewise adapter-owned. It preserves owned
 scalar copies and optional-text states, not acceptance, bounds or budget checks.
 Product capture DTOs and all five field vocabularies now also belong to the
@@ -75,6 +87,23 @@ member borrows, selected-scalar copies and legacy saved bytes stay unchanged.
 Payload-free access/projection errors retain VM `LSV1402`/`LSV1405` mappings.
 Reads and saved copies do not perform full admission, widen a legacy vocabulary
 or grant execution authority; original VM validation and fuel order remain intact.
+Computed call/group request preparation is now command-adapter-owned over the
+same shared HIR executor. `EffectPreparationError` preserves typed scalar/native
+provenance for unchanged VM fault mapping. Raw borrows, computed requests, member
+order, fuel and continuation bytes are unchanged. The preflighted hook is not an
+ingress/dispatch API: whole-expression admission and live authority remain host
+gates. No daemon wire, journal or continuation schema version changes follow.
+Product snapshot/re-entry row conversion now also resides in the command adapter,
+with explicit host copy costs, projection-fault mapping and saved-row restrictions.
+It still delegates scope ordering, cleanup and execution to the shared kernels.
+Original saved bytes/borrows, scalar recovery provenance, fuel cutoffs and
+duplicate/refusal order remain unchanged. Preflighted conversion does not admit
+untrusted frames or grant replay; no wire/journal schema change is introduced.
+The shared product execution environment now composes those adapter mechanisms
+for the VM and VM-free proof. Explicit borrowed host hooks retain policy and typed
+fault mapping across recursive groups; outer execution keeps the original meter.
+No environment is serialized, and admission/dispatch authority is not inferred
+from construction. Public VM signatures and wire/journal versions stay unchanged.
 
 ## Draft Bootstrap Boundary
 

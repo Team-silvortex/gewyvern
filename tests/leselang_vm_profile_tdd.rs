@@ -13,15 +13,16 @@ fn adapter_captured_execution_proof_reuses_shared_hir_without_vm_or_storage() {
     for required in [
         "leselang_hir::lower(&leselang_syntax::parse(source))",
         "evaluate_effects_in_scope(",
-        "resume_captured_effects_in_scope(",
-        "snapshot_captured_scope_state(",
+        "resume_preflighted_result_binding_in_scope(",
+        "PreflightedResultEnvironment::new(",
+        "impl ResultExecutionHost for Adapter",
         "validate_result_binding(",
         "validate_group_capture_correspondence(",
         "validate_result_binding_extension(",
-        "result.project_scalar(*field)",
-        "group.select_member(name, *operation)",
-        ".evaluate_computed_arguments(",
-        "operation.resolve(&arguments)",
+        "validate_value_items(",
+        "into_effect_value(EffectValueContext",
+        "prepare_preflighted_effect_in_scope(",
+        "preparation_failure(error)",
         "scalar_copy_cost",
         "0..complete.spent",
         "locals.is_empty()",
@@ -31,6 +32,9 @@ fn adapter_captured_execution_proof_reuses_shared_hir_without_vm_or_storage() {
         "invalid_frames_cold_fields_replies_and_revoked_admission_never_spend_or_prepare",
         "scalar_recovery_and_conditional_successors_do_not_catch_native_projection_or_fuel_failures",
         "malformed_group_receipts_are_rejected_before_scope_restore_with_retryable_original_data",
+        "computed_groups_share_product_preparation_through_wire_reentry_and_every_fuel_cutoff",
+        "computed_group_failures_keep_cold_preflight_and_late_failure_boundaries",
+        "preparation_borrows_admitted_host_payloads_and_redacts_non_debug_native_errors",
     ] {
         assert!(
             compact.contains(&required.split_whitespace().collect::<String>()),
@@ -92,6 +96,216 @@ fn adapter_captured_execution_proof_reuses_shared_hir_without_vm_or_storage() {
 }
 
 #[test]
+fn product_execution_environment_shares_policy_and_mechanics_without_a_new_interpreter() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-command/src/execution_environment.rs"))
+            .unwrap();
+    let compact = source.split_whitespace().collect::<String>();
+    for required in [
+        "pub trait ResultExecutionHost: ResultCaptureHost",
+        "pub struct ResultExecutionLimits",
+        "host: &'host Host",
+        "Host: ResultExecutionHost + ?Sized",
+        "PureEvaluationEnvironment<ResultField, HostOperation>",
+        "EffectEvaluationEnvironment<'value, ResultField, HostOperation, Effect, Type>",
+        "self.host.preflight_effect(expression)",
+        "self.host.before_prepare_effect(expression)?",
+        "self.host.prepared_effect(&effect)?",
+        "self.host.before_projection(*field)?",
+        "result.project_scalar(*field)",
+        "group.select_member(name, *operation)",
+        "prepare_preflighted_effect_in_scope(expression, scope, self, fuel, self.limits.effects)",
+        "snapshot_preflighted_result_scope(",
+        "self.host.valid_group_name(name)",
+        "self.host.preparation_failure(failure)",
+        "self.host.capture_failure(failure)",
+    ] {
+        assert!(
+            compact.contains(&required.split_whitespace().collect::<String>()),
+            "shared environment lost {required}"
+        );
+    }
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "LSV",
+        "Fuel::new",
+        "impl Default",
+        "fuel.charge",
+        "apply_binary(",
+        "match expression",
+        "evaluate_effects_in_scope(",
+    ] {
+        assert!(
+            !source.contains(absent),
+            "environment gained policy or interpreter {absent}"
+        );
+    }
+    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/computation.rs")).unwrap();
+    let production = vm.split_once("#[cfg(test)]").unwrap().0;
+    assert!(production.contains("leselang_command::PreflightedResultEnvironment::new("));
+    assert!(
+        production.contains("impl leselang_command::ResultExecutionHost for ReferenceCaptureHost")
+    );
+    for absent in [
+        "struct ResultEnvironment",
+        "impl PureEvaluationEnvironment",
+        "EffectEvaluationEnvironment<'a",
+        "prepare_preflighted_effect_in_scope(",
+        "snapshot_preflighted_result_scope(",
+    ] {
+        assert!(
+            !production.contains(absent),
+            "VM still duplicates environment {absent}"
+        );
+    }
+    let proof =
+        fs::read_to_string(root().join("crates/leselang-command/tests/capture_scope.rs")).unwrap();
+    for required in [
+        "shared_environment_borrows_one_unsized_host_for_recursive_group_preparation",
+        "shared_environment_refusals_preserve_native_ownership_and_completed_work",
+        "shared_environment_projection_policy_is_not_scalar_recovery",
+        "shared_environment_unwind_keeps_the_original_meter_and_cleans_local_prefix",
+        "dyn ResultExecutionHost<Error = Native>",
+    ] {
+        assert!(proof.contains(required));
+    }
+}
+
+#[test]
+fn capture_scope_bridge_is_adapter_owned_with_explicit_host_policy() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/capture_scope.rs")).unwrap();
+    for required in [
+        "pub trait ResultCaptureHost",
+        "pub struct ResultCaptureLimits",
+        "pub fn snapshot_preflighted_result_scope",
+        "pub fn resume_preflighted_result_binding_in_scope",
+        "snapshot_captured_scope_state(",
+        "resume_captured_effects_in_scope(",
+        "host.charge_scalar(value, fuel)?",
+        "host.charge_result(&result, fuel)?",
+        "host.charge_group(&group, fuel)?",
+        "host.allow_saved_projection()?",
+        "drop(validate_group_name)",
+        "ResultView::Projected(result)",
+        "ResultView::ProjectedGroup(group)",
+    ] {
+        assert!(adapter.contains(required), "capture bridge lost {required}");
+    }
+    for absent in [
+        "leselang_vm",
+        "LSV",
+        "Journal",
+        "Fuel::new",
+        "impl Default",
+        "Principal",
+        "scalar_copy_cost",
+        "fuel.charge",
+        "apply_binary(",
+    ] {
+        assert!(
+            !adapter.contains(absent),
+            "capture bridge acquired host policy {absent}"
+        );
+    }
+    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/computation.rs")).unwrap();
+    let production = vm.split_once("#[cfg(test)]").unwrap().0;
+    for absent in [
+        "CaptureSnapshotHooks",
+        "CapturedEffectHooks",
+        "snapshot_captured_scope_state(",
+        "resume_captured_effects_in_scope(",
+        "CapturedValue::",
+    ] {
+        assert!(
+            !production.contains(absent),
+            "VM duplicated capture bridge {absent}"
+        );
+    }
+    for required in [
+        "impl leselang_command::ResultCaptureHost",
+        "charge(fuel, 1 + string_cost(value))",
+        "if self.restore_saved_results",
+        "view_fault(error)",
+    ] {
+        assert!(
+            production.contains(required),
+            "VM lost native policy {required}"
+        );
+    }
+    let proof =
+        fs::read_to_string(root().join("crates/leselang-command/tests/capture_scope.rs")).unwrap();
+    for required in [
+        "snapshot_joins_mixed_views_with_explicit_accounting_and_closed_saved_bytes",
+        "snapshot_preflight_and_projection_refusal_preserve_native_charge_order",
+        "reentry_borrows_original_projections_and_preserves_parent_scope_and_wire",
+        "reentry_refusals_keep_row_order_native_payloads_and_duplicate_cleanup",
+        "native_unwind_never_refills_retries_or_leaks_restored_rows",
+        "predicate_cleanup_unwind_drops_the_locally_owned_native_error_before_handoff",
+    ] {
+        assert!(proof.contains(required));
+    }
+    let workflow = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(workflow.contains("--test captured_execution --test capture_scope"));
+}
+
+#[test]
+fn product_request_preparation_is_adapter_owned_over_one_hir_executor() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/effect_preparation.rs"))
+            .unwrap();
+    for required in [
+        "pub enum EffectPreparationError<Native>",
+        "pub fn prepare_preflighted_effect_in_scope",
+        "limits: EffectEvaluationLimits",
+        "evaluate_effects_in_scope(",
+        ".evaluate_computed_arguments(",
+        "operation.resolve(&values)",
+        "Cow::Borrowed(effect)",
+        "branch.result_type != operation.result_type()",
+    ] {
+        assert!(adapter.contains(required), "adapter lost {required}");
+    }
+    for absent in [
+        "leselang_vm",
+        "LSV",
+        "Journal",
+        "serde",
+        "Fuel::new",
+        "impl Default",
+        "apply_binary(",
+        "apply_unary(",
+    ] {
+        assert!(!adapter.contains(absent), "preparation acquired {absent}");
+    }
+    let source = fs::read_to_string(root().join("crates/leselang-vm/src/computation.rs")).unwrap();
+    let production = source.split_once("#[cfg(test)]").unwrap().0;
+    assert!(production.contains("leselang_command::PreflightedResultEnvironment::new("));
+    assert!(
+        production
+            .contains("EffectPreparationError::Evaluation(failure) => effect_failure(failure)")
+    );
+    assert!(production.contains("call_failure(failure, operation)"));
+    assert!(production.contains("diagnostic_code"));
+    for absent in [
+        ".evaluate_computed_arguments(",
+        "operation.resolve(&values)",
+        "resolved.push(HirBranch",
+    ] {
+        assert!(!production.contains(absent), "VM still owns {absent}");
+    }
+    let baseline =
+        fs::read_to_string(root().join("crates/leselang-vm/src/effect_preparation_tests.rs"))
+            .unwrap();
+    assert!(
+        baseline
+            .contains("effect_preparation_preserves_frozen_requests_fuel_fault_order_and_scope")
+    );
+    assert!(baseline.contains("for grant in 0..160"));
+}
+
+#[test]
 fn product_result_views_are_adapter_owned_with_vm_budget_and_fault_mapping() {
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/result_view.rs")).unwrap();
@@ -126,17 +340,14 @@ fn product_result_views_are_adapter_owned_with_vm_budget_and_fault_mapping() {
     let production = source.split_once("#[cfg(test)]").unwrap().0;
     for required in [
         "pub(super) use leselang_command::ResultView;",
-        "self.project_scalar(field).map_err(view_fault)",
-        "self.capture_result().map_err(view_fault)",
-        "self.capture_group(group_capture_limits(), crate::valid_merge_branch_name)",
-        "group.select_member(name, *operation).map_err(view_fault)",
+        "leselang_command::PreflightedResultEnvironment::new(",
         "ResultViewError::InvalidAccess => invalid()",
         "ResultViewError::InvalidProjection => crate::result_binding::invalid()",
         "error(\"LSV1402\"",
-        "resume_captured_effects_in_scope(",
-        "snapshot_captured_scope_state(",
-        "charge_projection(fuel, &result)?",
-        "charge_group_projection(fuel, &group)?",
+        "resume_preflighted_result_binding_in_scope(",
+        "impl leselang_command::ResultCaptureHost",
+        "charge_projection(fuel, result)",
+        "charge_group_projection(fuel, group)",
     ] {
         assert!(production.contains(required), "VM lost {required}");
     }
@@ -694,18 +905,21 @@ fn control_plane_reply_identity_rules_are_adapter_owned_but_context_fences_stay_
             "VM retained reply product predicate {absent}"
         );
     }
+    assert!(projection.contains("result.into_effect_value(leselang_command::EffectValueContext"));
+    let projection =
+        fs::read_to_string(root().join("crates/leselang-command/src/effect_value.rs")).unwrap();
     assert_eq!(
         projection
-            .matches("result.matches_control_plane_effect(&image.pending_effect, operation)")
+            .matches("self.matches_control_plane_effect(context.effect, context.operation)")
             .count(),
         1
     );
     let signature = projection.find("HostOperation::for_effect(").unwrap();
     let correspondence = projection
-        .find("result.matches_control_plane_effect(")
+        .find("self.matches_control_plane_effect(")
         .unwrap();
     let conversion = projection
-        .find("result.into_control_plane_value(image.result_type)")
+        .find("self.into_control_plane_value(context.result_type)")
         .unwrap();
     let revision = projection.find("expected != revision").unwrap();
     let items = projection.find("count > limit").unwrap();
@@ -753,25 +967,18 @@ fn presentation_reply_correspondence_is_borrowed_and_adapter_owned() {
             "borrowed product checker acquired {absent}"
         );
     }
-    let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
-    let projection = vm
-        .split_once("fn atomic_step_from_effect_result(")
-        .unwrap()
-        .1
-        .split_once("struct CappedWriter")
-        .unwrap()
-        .0;
+    let projection =
+        fs::read_to_string(root().join("crates/leselang-command/src/effect_value.rs")).unwrap();
     assert_eq!(
         projection
-            .matches("reply.matches_effect(&image.pending_effect, operation)")
+            .matches("reply.matches_effect(context.effect, context.operation)")
             .count(),
         1
     );
     assert!(
         projection.find("reply.matches_effect(").unwrap()
             < projection
-                .find("result.into_control_plane_value(image.result_type)")
+                .find("self.into_control_plane_value(context.result_type)")
                 .unwrap()
     );
     assert!(!projection.contains("operation.is_none_or"));
@@ -781,9 +988,9 @@ fn presentation_reply_correspondence_is_borrowed_and_adapter_owned() {
     let correspondence = projection.find("reply.matches_effect(").unwrap();
     let conversion = projection.find("Value::from(reply)").unwrap();
     let type_gate = projection
-        .find("value.result_type() != image.result_type")
+        .find("value.result_type() != context.result_type")
         .unwrap();
-    let done = projection.find("return Step::Done(value)").unwrap();
+    let done = projection.find("return Ok(value)").unwrap();
     assert!(correspondence < conversion && conversion < type_gate && type_gate < done);
     let cases =
         fs::read_to_string(root().join("crates/leselang-vm/src/presentation_request_tests.rs"))
@@ -886,6 +1093,8 @@ fn control_plane_value_conversion_follows_vm_gates_without_owning_execution_poli
             "VM retained product conversion {absent}"
         );
     }
+    let projection =
+        fs::read_to_string(root().join("crates/leselang-command/src/effect_value.rs")).unwrap();
     assert_eq!(projection.matches("expected != revision").count(), 1);
     assert_eq!(projection.matches("count > limit").count(), 1);
     assert_eq!(projection.matches("into_control_plane_value(").count(), 1);
@@ -905,6 +1114,94 @@ fn control_plane_value_conversion_follows_vm_gates_without_owning_execution_poli
         proof.contains(
             "control_plane_projection_moves_original_collections_strings_and_command_boxes"
         )
+    );
+}
+
+#[test]
+fn complete_effect_value_conversion_is_adapter_owned_with_explicit_original_context() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/effect_value.rs")).unwrap();
+    for required in [
+        "pub struct EffectValueContext<'a>",
+        "pub enum EffectValueError",
+        "pub fn into_effect_value(",
+        "RevisionConflict",
+        "OutputLimit",
+        "MAX_RUNTIME_LOG_QUERY_ENTRIES",
+        "formatter.write_str(\"EffectValueContext\")",
+    ] {
+        assert!(
+            adapter.contains(required),
+            "effect value boundary lost {required}"
+        );
+    }
+    for absent in [
+        "leselang_vm",
+        "ContinuationImage",
+        "Fuel",
+        "Journal",
+        "serde",
+        ".clone()",
+        "impl Default",
+        "LSV",
+    ] {
+        assert!(
+            !adapter.contains(absent),
+            "effect value boundary acquired {absent}"
+        );
+    }
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    let boundary = vm
+        .split_once("fn atomic_step_from_effect_result(")
+        .unwrap()
+        .1
+        .split_once("struct CappedWriter")
+        .unwrap()
+        .0;
+    for required in [
+        "effect: &image.pending_effect",
+        "result_type: image.result_type",
+        "expected_revision: image.expected_revision",
+        "max_output_items: image.max_output_items",
+        "EffectValueError::Mismatch",
+        "EffectValueError::RevisionConflict",
+        "EffectValueError::OutputLimit",
+        "LSV2101",
+        "LSV2102",
+        "LSV2103",
+    ] {
+        assert!(
+            boundary.contains(required),
+            "reference mapping lost {required}"
+        );
+    }
+    for absent in [
+        "matches_control_plane_effect",
+        "matches_effect(",
+        "query_bounds",
+        "into_control_plane_value",
+        "Value::from(",
+        "HostOperation",
+        "QueryResult",
+    ] {
+        assert!(!boundary.contains(absent), "VM still composes {absent}");
+    }
+    let proof =
+        fs::read_to_string(root().join("crates/leselang-command/tests/host_protocol.rs")).unwrap();
+    for required in [
+        "composed_effect_values_cover_seventy_operations_types_and_legacy_context",
+        "composed_effect_values_preserve_query_revision_count_and_mismatch_precedence",
+        "composed_effect_values_move_payloads_without_granting_admission",
+    ] {
+        assert!(proof.contains(required));
+    }
+    let frozen =
+        fs::read_to_string(root().join("crates/leselang-vm/src/control_plane_reply_tests.rs"))
+            .unwrap();
+    assert!(frozen.contains("fn legacy_atomic_step_from_effect_result("));
+    assert!(
+        frozen.contains("composed_reply_conversion_matches_frozen_native_wire_and_refusal_order")
     );
 }
 
@@ -1086,7 +1383,7 @@ fn presentation_request_payload_checks_are_adapter_owned_without_reordering_vm_a
 }
 
 #[test]
-fn product_leaf_bounds_are_adapter_owned_but_recursive_and_execution_gates_stay_in_vm() {
+fn product_value_bounds_are_adapter_owned_but_execution_gates_stay_in_vm() {
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/value_validation.rs")).unwrap();
     assert!(
@@ -1120,24 +1417,61 @@ fn product_leaf_bounds_are_adapter_owned_but_recursive_and_execution_gates_stay_
         .0;
     assert!(!traversal.contains("Value::Ui"));
     assert!(!traversal.contains("Value::Runtime"));
-    let depth = traversal
-        .find("depth > MAX_STRUCTURED_VALUE_DEPTH")
-        .unwrap();
-    let fields = traversal
-        .find("(1..=MAX_MERGE_BRANCHES).contains(&fields.len())")
-        .unwrap();
-    let names = traversal
-        .find("!valid_merge_branch_name(&field.name) || !names.insert(field.name.as_str())")
-        .unwrap();
-    let children = traversal
-        .find(".saturating_add(validate_value(&field.value, depth.saturating_add(1))?)")
-        .unwrap();
-    assert!(depth < fields && fields < names && names < children);
+    for required in [
+        "leselang_command::validate_value_items(",
+        "max_depth: MAX_STRUCTURED_VALUE_DEPTH",
+        "max_fields: MAX_MERGE_BRANCHES",
+        "max_query_items: DEFAULT_MAX_OUTPUT_ITEMS",
+        "ValueBoundsError::Nesting",
+        "ValueBoundsError::Fields",
+        "ValueBoundsError::Value",
+    ] {
+        assert!(
+            traversal.contains(required),
+            "VM lost value policy {required}"
+        );
+    }
+    assert!(!traversal.contains("for field in fields"));
+    assert!(!traversal.contains("BTreeSet"));
+    let tree =
+        fs::read_to_string(root().join("crates/leselang-command/src/structured_value.rs")).unwrap();
+    for absent in [
+        "leselang_vm",
+        "LSV",
+        "ContinuationImage",
+        "Journal",
+        "serde_json",
+        ".clone()",
+        "Fuel",
+        "impl Default",
+        "MAX_STRUCTURED_VALUE_DEPTH",
+        "MAX_MERGE_BRANCHES",
+        "DEFAULT_MAX_OUTPUT_ITEMS",
+    ] {
+        assert!(
+            !tree.contains(absent),
+            "value traversal acquired host policy {absent}"
+        );
+    }
+    for required in [
+        "pub struct ValueValidationLimits",
+        "pub enum ValueBoundsError",
+        "parents: Vec<Fields<'_>>",
+        "depth > limits.max_depth",
+        "fields.is_empty() || fields.len() > limits.max_fields",
+        "!validate_name(&field.name) || !parent.names.insert(field.name.as_str())",
+        "depth.checked_add(1)",
+        ".bounded_leaf_items(limits.max_query_items)",
+    ] {
+        assert!(
+            tree.contains(required),
+            "shared value traversal lost {required}"
+        );
+    }
     assert_eq!(
-        traversal
-            .matches(".bounded_leaf_items(DEFAULT_MAX_OUTPUT_ITEMS)")
-            .count(),
-        1
+        tree.matches("validate_value_items(").count(),
+        1,
+        "no recursive value traversal"
     );
     let bound = fs::read_to_string(root().join("crates/leselang-vm/src/host_result.rs")).unwrap();
     let leaf = bound
@@ -1159,6 +1493,25 @@ fn product_leaf_bounds_are_adapter_owned_but_recursive_and_execution_gates_stay_
     ] {
         assert!(cases.contains(proof));
     }
+    let frozen =
+        fs::read_to_string(root().join("crates/leselang-vm/src/value_validation_tests.rs"))
+            .unwrap();
+    assert!(
+        frozen
+            .contains("value_traversal_matches_frozen_counts_fault_precedence_and_unchanged_bytes")
+    );
+    let tests =
+        fs::read_to_string(root().join("crates/leselang-command/tests/structured_value.rs"))
+            .unwrap();
+    for required in [
+        "declaration_order_and_local_duplicate_scopes_preserve_refusal_precedence",
+        "borrowed_names_payloads_and_native_unwind_do_not_mutate_input_or_retry_hooks",
+        "deep_explicit_policy_uses_no_recursive_rust_stack",
+    ] {
+        assert!(tests.contains(required));
+    }
+    let workflow = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(workflow.contains("--test capture_scope --test structured_value"));
 }
 
 #[test]
@@ -2086,12 +2439,9 @@ fn actual_atomic_and_group_saved_bodies_use_the_shared_hir_entry_without_body_re
         .next()
         .unwrap();
     for boundary in [
-        "resume_captured_effects_in_scope(",
-        "CapturedEffectHooks {",
-        "charge(fuel, 1 + string_cost(value))?",
-        "charge_projection(fuel, result)?",
-        "charge_group_projection(fuel, group)?",
-        "if !restore_saved_results",
+        "leselang_command::resume_preflighted_result_binding_in_scope(",
+        "ReferenceCaptureHost",
+        "restore_saved_results",
         "effect_outcome(outcome.into_legacy())",
         "calculation_fault(effect_failure(error))",
     ] {
@@ -2102,6 +2452,26 @@ fn actual_atomic_and_group_saved_bodies_use_the_shared_hir_entry_without_body_re
     }
     assert!(!reentry.contains("body:"));
     assert!(!reentry.contains("evaluate_inner("));
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/capture_scope.rs")).unwrap();
+    let reentry = adapter
+        .split("pub fn resume_preflighted_result_binding_in_scope")
+        .nth(1)
+        .unwrap();
+    for boundary in [
+        "resume_captured_effects_in_scope(",
+        "CapturedEffectHooks {",
+        "host.charge_scalar(value, fuel)?",
+        "host.charge_result(result, fuel)?",
+        "host.charge_group(group, fuel)?",
+        "host.allow_saved_projection()?",
+    ] {
+        assert!(
+            reentry.contains(boundary),
+            "adapter reentry lost {boundary}"
+        );
+    }
+    assert!(!reentry.contains("body:"));
     let shared =
         fs::read_to_string(root().join("crates/leselang-hir/src/effect_reentry.rs")).unwrap();
     for boundary in [

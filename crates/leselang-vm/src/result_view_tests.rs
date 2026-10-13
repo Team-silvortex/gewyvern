@@ -127,7 +127,7 @@ fn result_views_preserve_frozen_projection_selection_copy_and_fault_boundaries()
         ],
     };
     let empty = ProjectedGroup { members: vec![] };
-    let environment = ResultEnvironment(std::marker::PhantomData);
+    let environment = result_environment();
     let before =
         serde_json::to_vec(&(&raw, &scalar, &saved, &malformed, &branches, &rows, &group)).unwrap();
     for view in [

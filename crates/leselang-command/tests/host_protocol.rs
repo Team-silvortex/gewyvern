@@ -1082,6 +1082,233 @@ fn control_plane_reply_cases() -> Vec<(Effect, EffectOperation, leselang_command
 }
 
 #[test]
+fn composed_effect_values_cover_seventy_operations_types_and_legacy_context() {
+    use leselang_command::{
+        EffectResult, EffectValueContext, EffectValueError, Value as ProductValue,
+    };
+    use leselang_hir::{Type, host_call::HostOperation};
+    use leselang_host_contract::Revision;
+
+    let mut cases = control_plane_reply_cases();
+    cases.extend(reply_cases().into_iter().map(|case| {
+        (
+            effect_from_wire(&case.operation_wire),
+            envelope(case.operation),
+            EffectResult::Presentation(case.reply),
+        )
+    }));
+    assert_eq!(cases.len(), 70);
+    let mut types = cases
+        .iter()
+        .map(|(effect, _, _)| HostOperation::for_effect(effect).unwrap().result_type())
+        .collect::<Vec<_>>();
+    types.push(Type::Structured);
+    for (index, (effect, operation, reply)) in cases.iter().enumerate() {
+        let ty = HostOperation::for_effect(effect).unwrap().result_type();
+        let expected = match reply {
+            EffectResult::Presentation(reply) => ProductValue::from(reply.clone()),
+            reply => reply.clone().into_control_plane_value(ty).unwrap(),
+        };
+        let before = serde_json::to_vec(&(effect, operation)).unwrap();
+        for saved in [None, Some(operation)] {
+            for declared in &types {
+                let context = EffectValueContext {
+                    effect,
+                    result_type: *declared,
+                    operation: saved,
+                    expected_revision: Some(Revision(7)),
+                    max_output_items: 1000,
+                };
+                let actual = reply.clone().into_effect_value(context);
+                if *declared == ty && !(saved.is_none() && (4..8).contains(&index)) {
+                    assert_eq!(actual, Ok(expected.clone()));
+                    let restored: EffectResult =
+                        serde_json::from_slice(&serde_json::to_vec(reply).unwrap()).unwrap();
+                    assert_eq!(restored.into_effect_value(context), actual);
+                } else {
+                    assert_eq!(actual, Err(EffectValueError::Mismatch));
+                }
+            }
+        }
+        assert_eq!(serde_json::to_vec(&(effect, operation)).unwrap(), before);
+    }
+}
+
+#[test]
+fn composed_effect_values_preserve_query_revision_count_and_mismatch_precedence() {
+    use leselang_command::{EffectResult, EffectValueContext, EffectValueError};
+    use leselang_hir::{Type, host_call::HostOperation};
+    use leselang_host_contract::Revision;
+    use leserpent_domain::{QueryResult, RuntimeLogLevel, RuntimeLogRecord};
+
+    for (index, (effect, operation, reply)) in
+        control_plane_reply_cases().into_iter().take(4).enumerate()
+    {
+        for expected in [None, Some(Revision(7))] {
+            for revision in [Revision(7), Revision(8)] {
+                for limit in [0, 1, 1000] {
+                    for count in [0, 1, 256, 257] {
+                        let mut reply = reply.clone();
+                        match &mut reply {
+                            EffectResult::Query(QueryResult::RuntimeList {
+                                revision: actual,
+                                runtimes,
+                            }) => {
+                                *actual = revision;
+                                runtimes.resize(count, runtimes[0].clone());
+                            }
+                            EffectResult::Query(QueryResult::RuntimeInspect {
+                                revision: actual,
+                                ..
+                            }) => *actual = revision,
+                            EffectResult::Query(QueryResult::RuntimeHistory {
+                                revision: actual,
+                                entries,
+                            }) => {
+                                *actual = revision;
+                                entries.resize(count, entries[0].clone());
+                            }
+                            EffectResult::Query(QueryResult::RuntimeLogs {
+                                revision: actual,
+                                entries,
+                                ..
+                            }) => {
+                                *actual = revision;
+                                entries.resize(
+                                    count,
+                                    RuntimeLogRecord {
+                                        sequence: 1,
+                                        level: RuntimeLogLevel::Info,
+                                        message: "private-payload".into(),
+                                    },
+                                );
+                            }
+                            _ => panic!(),
+                        }
+                        let context = EffectValueContext {
+                            effect: &effect,
+                            result_type: HostOperation::for_effect(&effect).unwrap().result_type(),
+                            operation: Some(&operation),
+                            expected_revision: expected,
+                            max_output_items: limit,
+                        };
+                        assert_eq!(
+                            reply.clone().into_effect_value(EffectValueContext {
+                                result_type: Type::Structured,
+                                ..context
+                            }),
+                            Err(EffectValueError::Mismatch)
+                        );
+                        let actual = reply.into_effect_value(context);
+                        let effective_limit = if index == 3 { limit.min(256) } else { limit };
+                        if expected.is_some_and(|expected| expected != revision) {
+                            assert_eq!(
+                                actual,
+                                Err(EffectValueError::RevisionConflict {
+                                    expected: expected.unwrap(),
+                                    actual: revision
+                                })
+                            );
+                        } else if index != 1 && count > effective_limit {
+                            assert_eq!(
+                                actual,
+                                Err(EffectValueError::OutputLimit {
+                                    count,
+                                    limit: effective_limit
+                                })
+                            );
+                        } else {
+                            assert_eq!(actual.unwrap().result_type(), context.result_type);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn composed_effect_values_move_payloads_without_granting_admission() {
+    use leselang_command::{EffectResult, EffectValueContext, Value as ProductValue};
+    use leselang_hir::{Type, host_call::HostOperation};
+    use leselang_host_contract::Revision;
+    use leserpent_domain::QueryResult;
+
+    for (effect, operation, reply) in control_plane_reply_cases() {
+        let pointer = match &reply {
+            EffectResult::Query(QueryResult::RuntimeList { runtimes, .. }) => {
+                runtimes.as_ptr().cast::<()>()
+            }
+            EffectResult::Query(QueryResult::RuntimeInspect { runtime, .. }) => {
+                runtime.name.as_ptr().cast::<()>()
+            }
+            EffectResult::Query(QueryResult::RuntimeHistory { entries, .. }) => {
+                entries.as_ptr().cast::<()>()
+            }
+            EffectResult::Query(QueryResult::RuntimeLogs { runtime_name, .. }) => {
+                runtime_name.as_ptr().cast::<()>()
+            }
+            EffectResult::Command(result) => std::ptr::from_ref(result.as_ref()).cast::<()>(),
+            EffectResult::DebuggerCancel(result) => result.session_id.as_ptr().cast::<()>(),
+            _ => panic!(),
+        };
+        let value = reply
+            .into_effect_value(EffectValueContext {
+                effect: &effect,
+                result_type: HostOperation::for_effect(&effect).unwrap().result_type(),
+                operation: Some(&operation),
+                expected_revision: Some(Revision(7)),
+                max_output_items: 1000,
+            })
+            .unwrap();
+        let after = match &value {
+            ProductValue::RuntimeList { runtimes, .. } => runtimes.as_ptr().cast::<()>(),
+            ProductValue::RuntimeInspect { runtime, .. } => runtime.name.as_ptr().cast::<()>(),
+            ProductValue::RuntimeHistory { entries, .. } => entries.as_ptr().cast::<()>(),
+            ProductValue::RuntimeLogs { runtime_name, .. } => runtime_name.as_ptr().cast::<()>(),
+            ProductValue::RuntimeRefresh { result }
+            | ProductValue::RuntimeCapabilitiesRefresh { result }
+            | ProductValue::RuntimeDeploy { result } => {
+                std::ptr::from_ref(result.as_ref()).cast::<()>()
+            }
+            ProductValue::DebuggerCancel { result } => result.session_id.as_ptr().cast::<()>(),
+            _ => panic!(),
+        };
+        assert_eq!(pointer, after);
+    }
+    let effect = Effect::UiFocus {
+        node_id: "private-node".into(),
+    };
+    let mut operation = envelope(PresentationOperation::Focus {
+        node_id: "private-node".into(),
+    });
+    let EffectOperation::Presentation(saved) = &mut operation else {
+        panic!()
+    };
+    saved.schema_version = 999;
+    saved.principal.id = "invalid principal".into();
+    saved.capabilities = CapabilitySet::new([] as [&str; 0]);
+    let node_id = String::from("private-node");
+    let pointer = node_id.as_ptr();
+    let context = EffectValueContext {
+        effect: &effect,
+        result_type: Type::UiFocus,
+        operation: Some(&operation),
+        expected_revision: Some(Revision(99)),
+        max_output_items: 0,
+    };
+    assert_eq!(format!("{context:?}"), "EffectValueContext");
+    // Neither this conversion nor legacy GUI correspondence authenticates the envelope.
+    let value = EffectResult::Presentation(PresentationResult::Focus { node_id })
+        .into_effect_value(context)
+        .unwrap();
+    let ProductValue::UiFocus { node_id } = value else {
+        panic!()
+    };
+    assert_eq!(pointer, node_id.as_ptr());
+}
+
+#[test]
 fn control_plane_replies_match_original_ids_without_copying_or_consuming_payloads() {
     let cases = control_plane_reply_cases();
     for (index, (effect, operation, reply)) in cases.iter().enumerate() {
@@ -2189,6 +2416,72 @@ fn product_capture_shape_never_certifies_raw_identity_or_trusted_restore_version
     let decoded: ProjectedResult =
         serde_json::from_value(serde_json::to_value(&frame).unwrap()).unwrap();
     assert!(decoded.validate().is_err());
+}
+
+#[test]
+fn structured_validation_reuses_all_seventy_seven_value_types_without_vm_policy() {
+    use leselang_command::{
+        StructuredField, Value as ProductValue, ValueBoundsError, ValueValidationLimits,
+        validate_value_items,
+    };
+    use leselang_hir::computation::{OptionalStringValue, ScalarValue, StringListValue};
+
+    let mut values: Vec<ProductValue> = reply_cases()
+        .into_iter()
+        .map(|case| ProductValue::from(case.reply))
+        .collect();
+    for ((_, _, reply), (ty, _)) in control_plane_reply_cases()
+        .into_iter()
+        .zip(control_plane_value_types())
+    {
+        values.push(reply.into_control_plane_value(ty).unwrap());
+    }
+    values.extend(
+        [
+            ScalarValue::Integer(u64::MAX),
+            ScalarValue::Boolean(false),
+            ScalarValue::String("scalar".into()),
+            ScalarValue::None,
+            ScalarValue::OptionalString(OptionalStringValue(None)),
+            ScalarValue::StringList(StringListValue(vec![])),
+        ]
+        .into_iter()
+        .map(|value| ProductValue::Scalar { value }),
+    );
+    values.push(ProductValue::Structured { fields: vec![] });
+    assert_eq!(values.len(), 77);
+    for value in values {
+        let before = serde_json::to_vec(&value).unwrap();
+        for max_query_items in [0, 1, 4] {
+            let limits = ValueValidationLimits {
+                max_depth: 2,
+                max_fields: 1,
+                max_query_items,
+            };
+            let expected = value
+                .bounded_leaf_items(max_query_items)
+                .ok_or(ValueBoundsError::Value);
+            assert_eq!(
+                validate_value_items(&value, 0, limits, |_| panic!("leaf has no fields")),
+                expected
+            );
+            let nested = ProductValue::Structured {
+                fields: vec![StructuredField {
+                    name: "a".into(),
+                    value: Box::new(value.clone()),
+                }],
+            };
+            assert_eq!(
+                validate_value_items(&nested, 1, limits, |name| name == "a"),
+                expected
+            );
+            assert_eq!(
+                validate_value_items(&nested, 2, limits, |name| name == "a"),
+                Err(ValueBoundsError::Nesting)
+            );
+        }
+        assert_eq!(serde_json::to_vec(&value).unwrap(), before);
+    }
 }
 
 #[test]

@@ -3,8 +3,8 @@ use leselang_hir::lower;
 use leselang_host_contract::RuntimeId;
 use leselang_syntax::parse;
 use leserpent_domain::{
-    CommandResult, CommandStatus, RefreshStatus, RuntimeLogLevel, RuntimeLogRecord,
-    RuntimeProjection,
+    CommandResult, CommandStatus, MAX_RUNTIME_LOG_QUERY_ENTRIES, QueryResult, RefreshStatus,
+    RuntimeLogLevel, RuntimeLogRecord, RuntimeProjection,
 };
 
 struct Case {
@@ -163,6 +163,79 @@ fn cases() -> Vec<Case> {
     .collect()
 }
 
+// Frozen pre-composition projection, including legacy query/GUI policy.
+fn legacy_atomic_step_from_effect_result(
+    image: &ContinuationImage,
+    operation: Option<&EffectOperation>,
+    result: EffectResult,
+) -> Step {
+    if let EffectResult::Presentation(reply) = result {
+        if !reply.matches_effect(&image.pending_effect, operation) {
+            return fault("LSV2103", "effect result does not match pending effect");
+        }
+        let value = Value::from(reply);
+        if value.result_type() != image.result_type {
+            return fault("LSV2103", "effect result does not match pending effect");
+        }
+        return Step::Done(value);
+    }
+    if leselang_hir::host_call::HostOperation::for_effect(&image.pending_effect)
+        .map(|operation| operation.result_type())
+        != Some(image.result_type)
+        || !result.matches_control_plane_effect(&image.pending_effect, operation)
+    {
+        return fault("LSV2103", "effect result does not match pending effect");
+    }
+    let query_bounds = match &result {
+        EffectResult::Query(QueryResult::RuntimeList { revision, runtimes }) => {
+            Some((*revision, Some((runtimes.len(), image.max_output_items))))
+        }
+        EffectResult::Query(QueryResult::RuntimeInspect { revision, .. }) => {
+            Some((*revision, None))
+        }
+        EffectResult::Query(QueryResult::RuntimeHistory { revision, entries }) => {
+            Some((*revision, Some((entries.len(), image.max_output_items))))
+        }
+        EffectResult::Query(QueryResult::RuntimeLogs {
+            revision, entries, ..
+        }) => Some((
+            *revision,
+            Some((
+                entries.len(),
+                image
+                    .max_output_items
+                    .min(usize::from(MAX_RUNTIME_LOG_QUERY_ENTRIES)),
+            )),
+        )),
+        _ => None,
+    };
+    if let Some((revision, output)) = query_bounds {
+        if let Some(expected) = image.expected_revision
+            && expected != revision
+        {
+            return fault(
+                "LSV2101",
+                format!(
+                    "effect revision conflict: expected {}, actual {}",
+                    expected.0, revision.0
+                ),
+            );
+        }
+        if let Some((count, limit)) = output
+            && count > limit
+        {
+            return fault(
+                "LSV2102",
+                format!("effect returned {count} items, limit is {limit}"),
+            );
+        }
+    }
+    match result.into_control_plane_value(image.result_type) {
+        Some(value) => Step::Done(value),
+        None => fault("LSV2103", "effect result does not match pending effect"),
+    }
+}
+
 fn mismatch() -> Step {
     fault("LSV2103", "effect result does not match pending effect")
 }
@@ -173,6 +246,95 @@ fn project(case: &Case, reply: EffectResult) -> Step {
         Some(&case.request.operation),
         reply,
     )
+}
+
+#[test]
+fn composed_reply_conversion_matches_frozen_native_wire_and_refusal_order() {
+    let mut cases = cases();
+    for (source, reply) in [
+        (
+            r#"ui.focus(node_id: "a")"#,
+            PresentationResult::Focus {
+                node_id: "a".into(),
+            },
+        ),
+        (
+            r#"ui.wait_text(node_id: "a", expected: "ready")"#,
+            PresentationResult::WaitText {
+                node_id: "a".into(),
+                expected: "ready".into(),
+                timeout_ms: leselang_hir::UI_WAIT_TEXT_TIMEOUT_MS,
+            },
+        ),
+        (
+            r#"ui.navigate_focus(node_id: "a", direction: "next")"#,
+            PresentationResult::NavigateFocus {
+                node_id: "a".into(),
+                focused_node_id: "b".into(),
+                direction: leselang_hir::UiFocusNavigationDirection::Next,
+            },
+        ),
+    ] {
+        let program = lower(&parse(&format!("fn main() = {source}"))).unwrap();
+        let request = Vm::build_effect_request(
+            &program.function.effect,
+            program.function.result_type,
+            99,
+            Principal::new("operator").unwrap(),
+            CapabilitySet::new(["ui.presentation"]),
+            Some(Revision(7)),
+            30_000,
+            None,
+            21,
+        )
+        .unwrap();
+        cases.push(Case {
+            request,
+            value: Value::from(reply.clone()),
+            reply: EffectResult::Presentation(reply),
+        });
+    }
+    for case in &cases {
+        for candidate in &cases {
+            for saved in [
+                None,
+                Some(&case.request.operation),
+                Some(&candidate.request.operation),
+            ] {
+                for expected in [None, Some(Revision(7)), Some(Revision(8))] {
+                    for limit in [0, 1, usize::MAX] {
+                        for result_type in [
+                            case.request.continuation.result_type,
+                            Type::Structured,
+                            Type::UiFocus,
+                        ] {
+                            let mut image = case.request.continuation.clone();
+                            image.expected_revision = expected;
+                            image.max_output_items = limit;
+                            image.result_type = result_type;
+                            let before = serde_json::to_vec(&image).unwrap();
+                            let original = legacy_atomic_step_from_effect_result(
+                                &image,
+                                saved,
+                                candidate.reply.clone(),
+                            );
+                            let current = atomic_step_from_effect_result(
+                                &image,
+                                saved,
+                                candidate.reply.clone(),
+                            );
+                            assert_eq!(current, original);
+                            assert_eq!(
+                                serde_json::to_vec(&current).unwrap(),
+                                serde_json::to_vec(&original).unwrap()
+                            );
+                            assert_eq!(serde_json::to_vec(&image).unwrap(), before);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[test]
