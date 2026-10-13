@@ -9,6 +9,55 @@ use leselang_vm::{
     decode_continuation, encode_continuation,
 };
 
+#[test]
+fn released_host_protocol_paths_are_exact_product_adapter_types() {
+    use std::any::TypeId;
+
+    macro_rules! same_type {
+        ($($name:ident),+ $(,)?) => {
+            $(assert_eq!(TypeId::of::<leselang_vm::$name>(), TypeId::of::<leselang_command::$name>());)+
+        };
+    }
+    same_type!(
+        EffectOperation,
+        EffectResult,
+        PresentationEnvelope,
+        PresentationOperation,
+        PresentationResult,
+        DebuggerCancelResult,
+        Value,
+        StructuredField,
+    );
+
+    let mut vm = Vm::new(1000);
+    let first = effect(start(
+        &mut vm,
+        r#"fn main() = bind(r: ui.focus(node_id: "a"),
+        body: ui.focus(node_id: field(value: r, name: "node_id")))"#,
+    ));
+    let wire = serde_json::to_vec(&first.operation).unwrap();
+    let from_adapter: leselang_command::EffectOperation = serde_json::from_slice(&wire).unwrap();
+    assert_eq!(from_adapter, first.operation);
+    assert_eq!(serde_json::to_vec(&from_adapter).unwrap(), wire);
+    let reply = || {
+        leselang_command::EffectResult::Presentation(leselang_command::PresentationResult::Focus {
+            node_id: "a".into(),
+        })
+    };
+    let second = effect(vm.resume(&first.continuation, reply()));
+    assert_eq!(second.operation, first.operation);
+    assert!(second.budget.fuel_remaining < first.budget.fuel_remaining);
+    let done = vm.resume(&second.continuation, reply());
+    assert_eq!(
+        done,
+        Step::Done(Value::UiFocus {
+            node_id: "a".into()
+        })
+    );
+    assert_eq!(vm.resume(&first.continuation, reply()), done);
+    assert_eq!(vm.pending_count(), 0);
+}
+
 fn start(vm: &mut Vm, source: &str) -> Step {
     vm.start(
         &lower(&parse(source)).unwrap(),

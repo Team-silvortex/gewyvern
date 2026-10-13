@@ -4,7 +4,8 @@ use std::fmt;
 
 use leselang_runtime_core::{
     AcceptedReply, CalculationFailure, CaptureScopeError, CaptureScopeHooks, CapturedBindings,
-    Fuel, ScalarValue, ScopeFrame, with_captured_scope_state, with_owned_scope_state,
+    Fuel, LocalExecutionScope, ScalarValue, ScopeFrame, with_captured_scope_state,
+    with_owned_scope_state,
 };
 
 use crate::effect_evaluation::{
@@ -13,6 +14,7 @@ use crate::effect_evaluation::{
     native_failure, preflight,
 };
 use crate::ir::Computation;
+use crate::local_scope::CallFence;
 use crate::pure_evaluation::{
     PureEvaluationEnvironment, PureEvaluationFault, PureValue, preflight_value_scope,
 };
@@ -461,11 +463,26 @@ pub(crate) fn restore_effect_scope<'expression, Value, Native>(
     fuel: &mut Fuel,
     limits: EffectEvaluationLimits,
 ) -> Result<RestoredEffectBindings<'expression, Value>, EffectEvaluationFailure<Native>> {
+    restore_effect_scope_with_liveness(name, restore, fuel, limits, None)
+}
+
+pub(crate) fn restore_effect_scope_with_liveness<'expression, Value, Native>(
+    name: &'expression str,
+    restore: impl FnOnce(
+        &mut Fuel,
+    ) -> Result<
+        RestoredEffectBindings<'expression, Value>,
+        CalculationFailure<Native>,
+    >,
+    fuel: &mut Fuel,
+    limits: EffectEvaluationLimits,
+    execution_scope: Option<&LocalExecutionScope>,
+) -> Result<RestoredEffectBindings<'expression, Value>, EffectEvaluationFailure<Native>> {
     if limits.pure.max_bindings == 0 {
         return Err(EffectEvaluationFault::Pure(PureEvaluationFault::BindingLimit).into());
     }
     let mut bindings = restore(fuel).map_err(native_failure)?;
-    let checked = (|| {
+    let checked = CallFence::run(execution_scope, || {
         let scope = ScopeFrame::new(&mut bindings);
         if scope.len() >= limits.pure.max_bindings {
             return Err(EffectEvaluationFault::Pure(PureEvaluationFault::BindingLimit).into());
@@ -477,7 +494,7 @@ pub(crate) fn restore_effect_scope<'expression, Value, Native>(
             return Err(EffectEvaluationFault::Pure(PureEvaluationFault::InvalidContract).into());
         }
         Ok(())
-    })();
+    });
     match checked {
         Ok(()) => Ok(bindings),
         Err(error) => {

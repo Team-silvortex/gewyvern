@@ -1,5 +1,9 @@
 //! Two scalar host schemas through the native facade, not complete VM extraction.
-use std::{borrow::Borrow, cell::Cell, rc::Rc};
+use std::{
+    borrow::Borrow,
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 use call_evaluation::{CallEvaluationLimits, PreparedCall, evaluate_call_arguments_in_scope};
 use catalog_program::{CatalogProgramLimits, compile_catalog_program};
@@ -14,7 +18,7 @@ use effect_session::{
 use effect_stack::EffectStackLimits;
 use flow_typing::CallFlowEnvironment;
 use ir::Computation;
-use leselang_vm::native::{LocalVm, Vm, core::*, hir::*, syntax::parse};
+use leselang_vm::native::{HostWorkOutcome, LocalVm, Vm, core::*, hir::*, syntax::parse};
 use pure_evaluation::{
     PureEvaluationEnvironment, PureEvaluationLimits, PureValue, scalar_copy_cost,
 };
@@ -118,6 +122,21 @@ impl Borrow<ScalarValue> for Reply {
 struct Identity {
     owner: Rc<()>,
     serial: u64,
+    cleanup: Option<CleanupProbe>,
+}
+#[derive(Clone)]
+struct CleanupProbe {
+    lease: LocalExecutionLease,
+    closed: Rc<Cell<Option<bool>>>,
+    unwind: bool,
+}
+impl Drop for Identity {
+    fn drop(&mut self) {
+        if let Some(probe) = &self.cleanup {
+            probe.closed.set(Some(!probe.lease.is_open()));
+            assert!(!probe.unwind, "native identity cleanup unwind");
+        }
+    }
 }
 impl PartialEq for Identity {
     fn eq(&self, other: &Self) -> bool {
@@ -131,6 +150,9 @@ struct Host<'h, 's> {
     granted: Cell<bool>,
     serial: Cell<u64>,
     invoked: Cell<usize>,
+    cleanup: RefCell<Option<CleanupProbe>>,
+    restore_failure: Cell<u8>,
+    projection_failure: Cell<u8>,
 }
 impl<'h, 's> Host<'h, 's> {
     fn new(catalog: &'h Catalog<'s>) -> Self {
@@ -141,6 +163,9 @@ impl<'h, 's> Host<'h, 's> {
             granted: Cell::new(true),
             serial: Cell::new(0),
             invoked: Cell::new(0),
+            cleanup: RefCell::new(None),
+            restore_failure: Cell::new(0),
+            projection_failure: Cell::new(0),
         }
     }
     fn source(&self) -> SourceCallHost<'_, 's, String, ScalarTypeSet, Domain, u8> {
@@ -154,6 +179,7 @@ impl<'h, 's> Host<'h, 's> {
         Identity {
             owner: self.owner.clone(),
             serial: self.serial.get(),
+            cleanup: self.cleanup.borrow().clone(),
         }
     }
     fn invoke(&self, request: Request<'_>) -> Reply {
@@ -353,6 +379,10 @@ impl<'ir, 's> EffectReentryEnvironment<'ir, Field, String, Opaque, Tag, Identity
         _: &mut Fuel,
         _: EffectEvaluationLimits,
     ) -> Result<Self::Capture, CalculationFailure<Refusal>> {
+        assert_ne!(self.restore_failure.get(), 2, "native restoration unwind");
+        if self.restore_failure.get() == 1 {
+            return Err(Refusal.into());
+        }
         self.authorize(identity)?;
         Ok(capture)
     }
@@ -363,6 +393,15 @@ impl<'ir, 's> EffectReentryEnvironment<'ir, Field, String, Opaque, Tag, Identity
         reply: Reply,
         _: &mut Fuel,
     ) -> Result<PureValue<()>, CalculationFailure<Refusal>> {
+        assert_ne!(self.projection_failure.get(), 2, "native projection unwind");
+        if self.projection_failure.get() == 1 {
+            return Err(Refusal.into());
+        }
+        if self.projection_failure.get() == 3 {
+            return Ok(PureValue::Scalar(ScalarValue::String(
+                "x".repeat(MAX_SCALAR_STRING_BYTES + 1),
+            )));
+        }
         self.authorize(identity)?;
         declaration.validate_value(&reply.value)?;
         Ok(PureValue::Scalar(reply.value))
@@ -479,6 +518,432 @@ fn native_facade_two_scalar_hosts_compile_helpers_yield_capture_and_reenter_one_
 }
 
 #[test]
+fn native_local_host_work_unwind_revokes_before_pending_identity_cleanup() {
+    for text in [
+        "fn main() = counter.add(n: 1)",
+        "fn main() = bind(receipt: counter.add(n: 1), body: add(left: receipt, right: 1))",
+    ] {
+        with_host(ScalarType::Integer, "counter.add", |host| {
+            let node = compile(text, host).unwrap();
+            let scope = LocalExecutionScope::new();
+            let lease = scope.lease();
+            let closed = Rc::new(Cell::new(None));
+            host.cleanup.replace(Some(CleanupProbe {
+                lease: lease.clone(),
+                closed: closed.clone(),
+                unwind: false,
+            }));
+            let mut session = LocalVm::new(scope, &node, Vec::new(), Fuel::new(1000), STACK);
+            let EffectSessionPoll::Request(request) = session.poll(host).unwrap() else {
+                panic!()
+            };
+            let remaining = session.fuel_remaining();
+            assert_eq!(closed.get(), None);
+            let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                session.with_host_work::<_, ()>(request, |request| {
+                    let reply = host.invoke(request);
+                    assert!(lease.is_open());
+                    drop(reply);
+                    panic!("native dispatch outcome unknown");
+                })
+            }));
+            assert!(caught.is_err());
+            assert_eq!(closed.get(), Some(true));
+            assert!(!lease.is_open());
+            assert_eq!(
+                session.status(),
+                EffectSessionStatus::Terminal(EffectSessionEnd::HostUncertain)
+            );
+            assert!(!session.cancel());
+            assert!(matches!(
+                session.poll(host).unwrap(),
+                EffectSessionPoll::Terminal(EffectSessionEnd::HostUncertain)
+            ));
+            assert_eq!(session.fuel_remaining(), remaining);
+            assert_eq!(host.invoked.get(), 1);
+        });
+    }
+}
+
+#[test]
+fn native_local_acceptance_revokes_before_pending_cleanup_but_not_normal_rejection() {
+    struct PanickingAuthority(Cell<usize>);
+    impl ReplyAuthority<Identity> for PanickingAuthority {
+        type Error = Refusal;
+        fn authorize(&self, _: &Identity) -> Result<(), Refusal> {
+            self.0.set(self.0.get() + 1);
+            panic!("native acceptance policy unwind");
+        }
+    }
+    for text in [
+        "fn main() = counter.add(n: 1)",
+        "fn main() = bind(receipt: counter.add(n: 1), body: add(left: receipt, right: 1))",
+    ] {
+        with_host(ScalarType::Integer, "counter.add", |host| {
+            let node = compile(text, host).unwrap();
+            let scope = LocalExecutionScope::new();
+            let lease = scope.lease();
+            let closed = Rc::new(Cell::new(None));
+            host.cleanup.replace(Some(CleanupProbe {
+                lease: lease.clone(),
+                closed: closed.clone(),
+                unwind: false,
+            }));
+            let mut session = LocalVm::new(scope, &node, Vec::new(), Fuel::new(1000), STACK);
+            let EffectSessionPoll::Request(request) = session.poll(host).unwrap() else {
+                panic!()
+            };
+            host.cleanup.borrow_mut().take();
+            let identity = host.identity();
+            let reply = host.invoke(request);
+            let pointer = &*reply.buffer as *const u8;
+            let remaining = session.fuel_remaining();
+            host.granted.set(false);
+            let rejected = session.try_accept(&identity, reply, host).unwrap_err();
+            assert_eq!(&*rejected.reply.buffer as *const u8, pointer);
+            assert_eq!(session.status(), EffectSessionStatus::Awaiting);
+            assert!(lease.is_open());
+            assert_eq!(closed.get(), None);
+            host.granted.set(true);
+            let authority = PanickingAuthority(Cell::new(0));
+            let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                session.try_accept(&identity, rejected.reply, &authority)
+            }));
+            assert!(caught.is_err());
+            assert_eq!(authority.0.get(), 1);
+            assert_eq!(closed.get(), Some(true));
+            assert!(!lease.is_open());
+            assert_eq!(
+                session.status(),
+                EffectSessionStatus::Terminal(EffectSessionEnd::HostUncertain)
+            );
+            let late = Reply {
+                value: ScalarValue::Integer(1),
+                buffer: Box::new(3),
+            };
+            let pointer = &*late.buffer as *const u8;
+            let rejected = session.try_accept(&identity, late, &authority).unwrap_err();
+            assert_eq!(&*rejected.reply.buffer as *const u8, pointer);
+            assert_eq!(authority.0.get(), 1);
+            assert!(!session.cancel());
+            assert!(matches!(
+                session.poll(host).unwrap(),
+                EffectSessionPoll::Terminal(EffectSessionEnd::HostUncertain)
+            ));
+            assert_eq!(session.fuel_remaining(), remaining);
+            assert_eq!(host.invoked.get(), 1);
+        });
+    }
+}
+
+#[test]
+fn native_local_reentry_failure_revokes_before_retained_identity_cleanup() {
+    for (text, restores) in [
+        ("fn main() = counter.add(n: 1)", false),
+        (
+            "fn main() = bind(receipt: counter.add(n: 1), body: add(left: receipt, right: 1))",
+            true,
+        ),
+    ] {
+        for restore in [false, true] {
+            if restore && !restores {
+                continue;
+            }
+            for mode in [1, 2, 3] {
+                if restore && mode == 3 {
+                    continue;
+                }
+                with_host(ScalarType::Integer, "counter.add", |host| {
+                    let node = compile(text, host).unwrap();
+                    let owner = LocalExecutionScope::new();
+                    let lease = owner.lease();
+                    let closed = Rc::new(Cell::new(None));
+                    host.cleanup.replace(Some(CleanupProbe {
+                        lease: lease.clone(),
+                        closed: closed.clone(),
+                        unwind: false,
+                    }));
+                    let mut session =
+                        LocalVm::new(owner, &node, Vec::new(), Fuel::new(1000), STACK);
+                    let EffectSessionPoll::Request(request) = session.poll(host).unwrap() else {
+                        panic!()
+                    };
+                    host.cleanup.borrow_mut().take();
+                    session
+                        .try_accept(&host.identity(), host.invoke(request), host)
+                        .unwrap();
+                    assert!(lease.is_open());
+                    if restore {
+                        host.restore_failure.set(mode);
+                    } else {
+                        host.projection_failure.set(mode);
+                    }
+                    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        session.poll(host)
+                    }));
+                    let reason = if mode == 2 {
+                        assert!(outcome.is_err());
+                        EffectSessionEnd::HostUncertain
+                    } else {
+                        assert!(outcome.unwrap().is_err());
+                        EffectSessionEnd::Failed
+                    };
+                    assert_eq!(closed.get(), Some(true));
+                    assert!(!lease.is_open());
+                    assert_eq!(session.status(), EffectSessionStatus::Terminal(reason));
+                    let remaining = session.fuel_remaining();
+                    assert!(!session.cancel());
+                    assert!(matches!(
+                        session.poll(host).unwrap(),
+                        EffectSessionPoll::Terminal(_)
+                    ));
+                    assert_eq!(session.fuel_remaining(), remaining);
+                    assert_eq!(host.invoked.get(), 1);
+                });
+            }
+        }
+    }
+}
+
+#[test]
+fn native_local_recovered_calculation_keeps_successor_live_and_exact_unscoped_fuel() {
+    with_host(ScalarType::Integer, "counter.add", |host| {
+        let node = compile("fn main() = bind(first: counter.add(n: 1), body: bind(second: counter.add(n: recover(value: div(left: 1, right: 0), fallback: first)), body: add(left: second, right: 1)))", host).unwrap();
+        macro_rules! drive {
+            ($session:expr, $lease:expr) => {{
+                let mut session = $session;
+                let lease: Option<&LocalExecutionLease> = $lease;
+                let mut fuel = Vec::new();
+                for _ in 0..2 {
+                    let EffectSessionPoll::Request(request) = session.poll(host).unwrap() else {
+                        panic!()
+                    };
+                    if let Some(lease) = lease {
+                        assert!(lease.is_open());
+                    }
+                    fuel.push(session.fuel_remaining());
+                    session
+                        .try_accept(&host.identity(), host.invoke(request), host)
+                        .unwrap();
+                    assert_eq!(session.fuel_remaining(), *fuel.last().unwrap());
+                }
+                assert!(matches!(
+                    session.poll(host).unwrap(),
+                    EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::Integer(2)))
+                ));
+                fuel.push(session.fuel_remaining());
+                assert_eq!(
+                    session.status(),
+                    EffectSessionStatus::Terminal(EffectSessionEnd::Completed)
+                );
+                fuel
+            }};
+        }
+        let original = drive!(Vm::new(&node, Vec::new(), Fuel::new(1000), STACK), None);
+        let owner = LocalExecutionScope::new();
+        let lease = owner.lease();
+        let local = drive!(
+            LocalVm::new(owner, &node, Vec::new(), Fuel::new(1000), STACK),
+            Some(&lease)
+        );
+        assert_eq!(local, original);
+        assert!(!lease.is_open());
+        assert_eq!(host.invoked.get(), 4);
+    });
+}
+
+#[test]
+fn native_local_host_work_preserves_refused_move_only_input_and_borrowed_outputs() {
+    struct Input {
+        buffer: Box<[u8]>,
+    }
+    let root = ();
+    for preclosed in [false, true] {
+        let scope = LocalExecutionScope::new();
+        if preclosed {
+            scope.close();
+        }
+        let mut session: LocalVm<'_, '_, (), (), (), u8, (), ()> =
+            LocalVm::new(scope, &root, Vec::new(), Fuel::new(10), STACK);
+        let input = Input {
+            buffer: vec![7; 5].into_boxed_slice(),
+        };
+        let pointer = input.buffer.as_ptr();
+        let Err(input) = session.with_host_work::<_, ()>(input, |_| panic!("not awaiting")) else {
+            panic!()
+        };
+        assert_eq!(input.buffer.as_ptr(), pointer);
+        assert_eq!(session.fuel_remaining(), 10);
+        assert_eq!(
+            session.status(),
+            if preclosed {
+                EffectSessionStatus::Terminal(EffectSessionEnd::Cancelled)
+            } else {
+                EffectSessionStatus::Ready
+            }
+        );
+    }
+    with_host(ScalarType::String, "panel.echo", |host| {
+        let node = compile("fn main() = panel.echo(n: \"ready\")", host).unwrap();
+        let scope = LocalExecutionScope::new();
+        let mut session = LocalVm::new(scope, &node, Vec::new(), Fuel::new(1000), STACK);
+        let EffectSessionPoll::Request(request) = session.poll(host).unwrap() else {
+            panic!()
+        };
+        let remaining = session.fuel_remaining();
+        let borrowed = Rc::new(Cell::new(17));
+        let Ok(Err(original)) = session.with_host_outcome(&borrowed, |input| {
+            HostWorkOutcome::Pending(Err::<(), _>(input))
+        }) else {
+            panic!()
+        };
+        assert!(std::ptr::eq(original, &borrowed));
+        assert!(session.lease().is_open());
+        assert_eq!(session.status(), EffectSessionStatus::Awaiting);
+        let Ok(reply) = session.with_host_work(request, |request| host.invoke(request)) else {
+            panic!()
+        };
+        assert_eq!(session.fuel_remaining(), remaining);
+        assert!(session.lease().is_open());
+        session.try_accept(&host.identity(), reply, host).unwrap();
+        assert!(
+            matches!(session.poll(host).unwrap(), EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::String(value))) if value == "ready")
+        );
+        assert!(!session.lease().is_open());
+        assert_eq!(host.invoked.get(), 1);
+    });
+}
+
+#[test]
+fn native_classified_host_failure_retains_output_and_terminal_reason_through_cleanup_unwind() {
+    struct Report<'a> {
+        buffer: Box<[u8]>,
+        note: &'a str,
+        lease: LocalExecutionLease,
+        drops: &'a Cell<usize>,
+        closed_at_drop: &'a Cell<Option<bool>>,
+    }
+    impl Drop for Report<'_> {
+        fn drop(&mut self) {
+            self.drops.set(self.drops.get() + 1);
+            self.closed_at_drop.set(Some(!self.lease.is_open()));
+        }
+    }
+    for text in [
+        "fn main() = counter.add(n: 1)",
+        "fn main() = bind(receipt: counter.add(n: 1), body: add(left: receipt, right: 1))",
+    ] {
+        for end in [
+            EffectSessionEnd::Cancelled,
+            EffectSessionEnd::Failed,
+            EffectSessionEnd::HostUncertain,
+        ] {
+            for cleanup_unwind in [false, true] {
+                with_host(ScalarType::Integer, "counter.add", |host| {
+                    let node = compile(text, host).unwrap();
+                    let scope = LocalExecutionScope::new();
+                    let lease = scope.lease();
+                    let identity_closed = Rc::new(Cell::new(None));
+                    host.cleanup.replace(Some(CleanupProbe {
+                        lease: lease.clone(),
+                        closed: identity_closed.clone(),
+                        unwind: cleanup_unwind,
+                    }));
+                    let mut session =
+                        LocalVm::new(scope, &node, Vec::new(), Fuel::new(1000), STACK);
+                    let EffectSessionPoll::Request(request) = session.poll(host).unwrap() else {
+                        panic!()
+                    };
+                    let fuel = session.fuel_remaining();
+                    let note = String::from("opaque native failure");
+                    let drops = Cell::new(0);
+                    let output_closed = Cell::new(None);
+                    let report = Report {
+                        buffer: vec![37; 11].into_boxed_slice(),
+                        note: &note,
+                        lease: lease.clone(),
+                        drops: &drops,
+                        closed_at_drop: &output_closed,
+                    };
+                    let pointer = report.buffer.as_ptr();
+                    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        session.with_host_outcome(request, |request| {
+                            drop(host.invoke(request));
+                            match end {
+                                EffectSessionEnd::Cancelled => HostWorkOutcome::Cancelled(report),
+                                EffectSessionEnd::Failed => HostWorkOutcome::Failed(report),
+                                EffectSessionEnd::HostUncertain => {
+                                    HostWorkOutcome::Uncertain(report)
+                                }
+                                EffectSessionEnd::Completed => unreachable!(),
+                            }
+                        })
+                    }));
+                    if cleanup_unwind {
+                        assert!(result.is_err());
+                    } else {
+                        let Ok(Ok(report)) = result else { panic!() };
+                        assert_eq!(report.buffer.as_ptr(), pointer);
+                        assert!(std::ptr::eq(report.note.as_ptr(), note.as_ptr()));
+                        assert_eq!(drops.get(), 0);
+                        drop(report);
+                    }
+                    assert_eq!(identity_closed.get(), Some(true));
+                    assert_eq!(drops.get(), 1);
+                    assert_eq!(output_closed.get(), Some(true));
+                    assert!(!lease.is_open());
+                    assert_eq!(session.status(), EffectSessionStatus::Terminal(end));
+                    assert!(!session.cancel());
+                    assert!(
+                        matches!(session.poll(host).unwrap(), EffectSessionPoll::Terminal(actual) if actual == end)
+                    );
+                    let Err(original) =
+                        session.with_host_outcome::<_, ()>(23, |_| panic!("terminal work"))
+                    else {
+                        panic!()
+                    };
+                    assert_eq!(original, 23);
+                    assert_eq!(session.fuel_remaining(), fuel);
+                    assert_eq!(host.invoked.get(), 1);
+                    host.cleanup.borrow_mut().take();
+                    let late = Reply {
+                        value: ScalarValue::Integer(1),
+                        buffer: Box::new(43),
+                    };
+                    let pointer = late.buffer.as_ref() as *const u8;
+                    let rejected = session
+                        .try_accept(&host.identity(), late, host)
+                        .err()
+                        .unwrap();
+                    assert_eq!(rejected.reply.buffer.as_ref() as *const u8, pointer);
+                });
+            }
+        }
+    }
+}
+
+#[test]
+fn native_host_outcome_debug_never_observes_or_requires_native_payload_formatting() {
+    struct Private<'a>(&'a Cell<usize>);
+    impl Drop for Private<'_> {
+        fn drop(&mut self) {
+            self.0.set(self.0.get() + 1);
+        }
+    }
+    let drops = Cell::new(0);
+    for (outcome, tag) in [
+        (HostWorkOutcome::Pending(Private(&drops)), "Pending"),
+        (HostWorkOutcome::Cancelled(Private(&drops)), "Cancelled"),
+        (HostWorkOutcome::Failed(Private(&drops)), "Failed"),
+        (HostWorkOutcome::Uncertain(Private(&drops)), "Uncertain"),
+    ] {
+        assert_eq!(format!("{outcome:?}"), tag);
+        drop(outcome);
+    }
+    assert_eq!(drops.get(), 4);
+}
+
+#[test]
 fn native_facade_cold_unknown_calls_wrong_domains_versions_and_denied_capabilities_never_dispatch()
 {
     with_host(ScalarType::Integer, "counter.add", |host| {
@@ -524,6 +989,7 @@ fn native_facade_rejected_receipts_retain_owned_buffers_and_original_pending_req
         let stale = Identity {
             owner: host.owner.clone(),
             serial: 0,
+            cleanup: None,
         };
         let reply = host.invoke(request);
         let pointer = reply.buffer.as_ref() as *const u8;

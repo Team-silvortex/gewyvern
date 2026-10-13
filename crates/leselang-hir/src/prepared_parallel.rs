@@ -2,7 +2,7 @@
 
 use std::{borrow::Borrow, convert::Infallible, fmt};
 
-use leselang_runtime_core::{Fuel, HostResultDomain, ReplyAuthority};
+use leselang_runtime_core::{Fuel, HostResultDomain, LocalExecutionScope, ReplyAuthority};
 
 use crate::ir::{Computation, ComputedBranch, GroupKind};
 use crate::native_group_preparation::PreparedNativeGroup;
@@ -181,17 +181,21 @@ impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration:
         let mut rows = rows.into_iter();
         let mut core = ParallelReplyCore::new(branches);
         let outcome = core
-            .publish_with(fuel, |index, branch, fuel| {
-                let row = rows.next().ok_or(ParallelEvaluationError::InternalState)?;
-                let (_, _, value) = row.into_parts();
-                correlate(index, branch, value, fuel).map_err(|error| {
-                    ParallelEvaluationError::Native {
-                        index,
-                        phase: ParallelPhase::Prepare,
-                        error,
-                    }
-                })
-            })
+            .publish_with(
+                fuel,
+                |index, branch, fuel| {
+                    let row = rows.next().ok_or(ParallelEvaluationError::InternalState)?;
+                    let (_, _, value) = row.into_parts();
+                    correlate(index, branch, value, fuel).map_err(|error| {
+                        ParallelEvaluationError::Native {
+                            index,
+                            phase: ParallelPhase::Prepare,
+                            error,
+                        }
+                    })
+                },
+                None,
+            )
             .map_err(PreparedParallelError::Parallel)?;
         let ParallelPoll::Requests(requests) = outcome else {
             return Err(PreparedParallelError::Parallel(
@@ -221,7 +225,26 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
         Infallible,
     > {
         self.core
-            .poll_results()?
+            .poll_results(None)?
+            .ok_or(ParallelEvaluationError::InternalState)
+    }
+    /// Cancel before handing off retained results when the explicit scope is
+    /// closed. Requests returned by start and parent cancellation stay host-owned.
+    pub fn poll_in_scope(
+        &mut self,
+        scope: &LocalExecutionScope,
+    ) -> ParallelEvaluationPoll<
+        'expression,
+        Node,
+        IrResult,
+        Identity,
+        Declaration,
+        Reply,
+        Infallible,
+        Infallible,
+    > {
+        self.core
+            .poll_results(Some(scope))?
             .ok_or(ParallelEvaluationError::InternalState)
     }
     pub fn try_accept<View: ?Sized, Authority>(
@@ -238,6 +261,25 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
         Authority: ReplyAuthority<Identity>,
     {
         self.core.try_accept(index, identity, reply, authority)
+    }
+    /// Reuse the shared scoped barrier; cancellation discards unpublished results.
+    /// The host still owns dispatched requests and enclosing execution policy.
+    pub fn try_accept_in_scope<View: ?Sized, Authority>(
+        &mut self,
+        index: usize,
+        identity: &Identity,
+        reply: Reply,
+        authority: &Authority,
+        scope: &LocalExecutionScope,
+    ) -> ParallelAcceptance<Reply, Authority::Error, Declaration::Error>
+    where
+        Identity: PartialEq,
+        Reply: Borrow<View>,
+        Declaration: HostResultDomain<View>,
+        Authority: ReplyAuthority<Identity>,
+    {
+        self.core
+            .try_accept_with_scope(index, identity, reply, authority, Some(scope))
     }
     pub fn cancel(&mut self) -> bool {
         self.core.cancel()

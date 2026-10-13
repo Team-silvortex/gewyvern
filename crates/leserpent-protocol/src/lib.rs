@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 
+use leselang_command::PresentationOperation;
 use leselang_ui::{DebuggerProjection, UiDocument};
-use leselang_vm::PresentationOperation;
 use leserpent_domain::bootstrap::{BootstrapId, DeploymentBootstrapSnapshot};
 use leserpent_domain::{
     CapabilitySet, CommandEnvelope, CommandId, CommandResult, DOMAIN_SCHEMA_VERSION, DomainError,

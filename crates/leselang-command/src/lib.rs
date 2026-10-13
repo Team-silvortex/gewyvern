@@ -1,5 +1,23 @@
 #![forbid(unsafe_code)]
 
+mod control_plane_reply;
+mod control_plane_request;
+mod control_plane_value;
+mod host_protocol;
+mod presentation;
+mod presentation_reply;
+mod presentation_request;
+mod presentation_value;
+mod scalar_projection;
+mod value;
+mod value_validation;
+pub use control_plane_request::{command_matches_effect, query_matches_effect};
+pub use host_protocol::{
+    DebuggerCancelResult, EffectOperation, EffectResult, PresentationEnvelope,
+    PresentationOperation, PresentationResult,
+};
+pub use value::{StructuredField, Value};
+
 use std::io::{self, Write};
 
 use leselang_hir::Effect;

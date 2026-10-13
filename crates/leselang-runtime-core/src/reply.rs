@@ -1,7 +1,43 @@
 use std::borrow::Borrow;
 use std::fmt;
 
-use crate::{HostResultDomain, HostResultError, validate_host_result};
+use crate::{HostResultDomain, HostResultError, LocalExecutionScope, validate_host_result};
+
+struct AcceptanceFence<'scope>(Option<&'scope LocalExecutionScope>);
+
+impl AcceptanceFence<'_> {
+    fn is_closed(&self) -> bool {
+        self.0.is_some_and(|scope| !scope.is_open())
+    }
+}
+
+impl Drop for AcceptanceFence<'_> {
+    fn drop(&mut self) {
+        if let Some(scope) = self.0 {
+            scope.close();
+        }
+    }
+}
+
+// Preserve the shared type-before-value validator, but a synchronous revocation
+// inside matches_type must not enter validate_value or replace the original domain.
+struct LiveResultDomain<'a, Domain: ?Sized> {
+    domain: &'a Domain,
+    scope: Option<&'a LocalExecutionScope>,
+}
+impl<View: ?Sized, Domain: HostResultDomain<View> + ?Sized> HostResultDomain<View>
+    for LiveResultDomain<'_, Domain>
+{
+    type Error = Domain::Error;
+
+    fn matches_type(&self, view: &View) -> bool {
+        self.domain.matches_type(view) && self.scope.is_none_or(LocalExecutionScope::is_open)
+    }
+
+    fn validate_value(&self, view: &View) -> Result<(), Self::Error> {
+        self.domain.validate_value(view)
+    }
+}
 
 /// Trusted live policy for the exact pending identity, not script-supplied grants.
 /// Correlation equality runs first; this callback runs before reply projection,
@@ -234,6 +270,73 @@ impl<'schema, Identity, Frame, Declaration: ?Sized>
         Declaration: HostResultDomain<View>,
         Authority: ReplyAuthority<Identity>,
     {
+        self.try_accept_with_scope(actual_identity, reply, authority, None)
+    }
+
+    /// The same acceptance with an opt-in local unwind boundary. An already
+    /// closed scope cancels pending state before querying native callbacks. An
+    /// escaping equality/authority/Borrow/type/value unwind closes the scope
+    /// before this handle's owned identity, frame and reply are dropped. Native
+    /// callback-local cleanup still precedes this boundary; a second panic can abort.
+    ///
+    /// Recheck after each normal native callback. Synchronous scope closure stops
+    /// later checks and seals Cancelled before retained cleanup, returning the
+    /// original rejected input. Cancellation wins over the same callback's refusal;
+    /// its superseded error is disposed only after sealing the terminal reason.
+    /// Native cleanup can unwind and prevent input handoff, but cannot rearm it.
+    /// Normal acceptance/rejection with an open scope leaves liveness unchanged.
+    /// This does not
+    /// bind the scope to an identity, authenticate a reply, or replace live host
+    /// policy. The host must supply the owning execution's scope and still check
+    /// provenance and current leases. Accepted-data disposal is outside this call.
+    pub fn try_accept_in_scope<Reply, View: ?Sized, Authority>(
+        &mut self,
+        actual_identity: &Identity,
+        reply: Reply,
+        authority: &Authority,
+        scope: &LocalExecutionScope,
+    ) -> ReplyAcceptanceResult<
+        'schema,
+        Identity,
+        Frame,
+        Declaration,
+        Reply,
+        Authority::Error,
+        Declaration::Error,
+    >
+    where
+        Identity: PartialEq,
+        Reply: Borrow<View>,
+        Declaration: HostResultDomain<View>,
+        Authority: ReplyAuthority<Identity>,
+    {
+        if !scope.is_open() {
+            self.cancel();
+        }
+        self.try_accept_with_scope(actual_identity, reply, authority, Some(scope))
+    }
+
+    fn try_accept_with_scope<Reply, View: ?Sized, Authority>(
+        &mut self,
+        actual_identity: &Identity,
+        reply: Reply,
+        authority: &Authority,
+        scope: Option<&LocalExecutionScope>,
+    ) -> ReplyAcceptanceResult<
+        'schema,
+        Identity,
+        Frame,
+        Declaration,
+        Reply,
+        Authority::Error,
+        Declaration::Error,
+    >
+    where
+        Identity: PartialEq,
+        Reply: Borrow<View>,
+        Declaration: HostResultDomain<View>,
+        Authority: ReplyAuthority<Identity>,
+    {
         // Close first: native equality/Borrow/validators may unwind after changing
         // their own state. An interrupted attempt must not retain a retryable frame.
         let waiting =
@@ -247,15 +350,47 @@ impl<'schema, Identity, Frame, Declaration: ?Sized>
                     });
                 }
             };
-        let error = if &waiting.identity != actual_identity {
-            Some(ReplyAcceptanceError::IdentityMismatch)
-        } else if let Err(error) = authority.authorize(&waiting.identity) {
-            Some(ReplyAcceptanceError::Authority(error))
-        } else {
-            validate_host_result(waiting.declaration, reply.borrow())
-                .err()
-                .map(ReplyAcceptanceError::Result)
-        };
+        // Declared after waiting so revocation precedes owned native cleanup.
+        let mut fence = AcceptanceFence(scope);
+        let error = (|| {
+            let identity_mismatch = &waiting.identity != actual_identity;
+            if fence.is_closed() {
+                return None;
+            }
+            if identity_mismatch {
+                return Some(ReplyAcceptanceError::IdentityMismatch);
+            }
+            if let Err(error) = authority.authorize(&waiting.identity) {
+                return Some(ReplyAcceptanceError::Authority(error));
+            }
+            if fence.is_closed() {
+                return None;
+            }
+            let view = reply.borrow();
+            if fence.is_closed() {
+                return None;
+            }
+            validate_host_result(
+                &LiveResultDomain {
+                    domain: waiting.declaration,
+                    scope,
+                },
+                view,
+            )
+            .err()
+            .map(ReplyAcceptanceError::Result)
+        })();
+        if fence.is_closed() {
+            self.state = State::Terminal(ReplyEnd::Cancelled);
+            drop(error);
+            drop(waiting);
+            fence.0 = None;
+            return Err(RejectedReply {
+                reply,
+                error: ReplyAcceptanceError::Closed(ReplyEnd::Cancelled),
+            });
+        }
+        fence.0 = None;
         if let Some(error) = error {
             self.state = State::Waiting(waiting);
             return Err(RejectedReply { reply, error });

@@ -1196,6 +1196,20 @@ Hosts own correlation meaning, live policy, provenance, bounds and restoration.
 The reference VM uses a borrowed observation checkpoint, without replacing its
 journal's authority or persistent frame ownership.
 
+`try_accept_in_scope(identity, reply, authority, &scope)` opts into the same
+checks with local lifetime fencing. An escaping validation panic revokes the
+scope before owned identity/frame/reply cleanup. With an open scope, normal
+rejection and acceptance leave liveness unchanged; a preclosed scope cancels
+pending state without native queries. Closure inside any normal native callback
+stops later checks and seals Cancelled before dropping retained owners or a
+superseded native error. The original input returns unchanged unless cleanup
+unwinds; the handle stays Cancelled in either case. The original `try_accept`
+does not infer this policy from unrelated scopes; its behavior and conditional
+Send capability are unchanged.
+The host supplies the owning scope and still authenticates identity/provenance;
+this entry cannot preempt callback-local cleanup or fence accepted-data disposal
+after handoff. It adds no retry, rollback, external cancellation or durable receipt.
+
 See [Shared Pending Reply Ownership](../../docs/leselang-embedding.md#shared-pending-reply-ownership)
 for the protocol and native headless/GUI-local flow proofs.
 

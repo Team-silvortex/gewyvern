@@ -160,6 +160,55 @@ fn native_vm_source_checkpoint_keeps_direct_consumer_proof_and_closed_reference_
 }
 
 #[test]
+fn continuous_host_pipeline_is_exported_without_promoting_the_complete_vm_gate() {
+    let proof = "crates/leselang-vm/tests/native_host_pipeline.rs";
+    let code = fs::read_to_string(root().join(proof)).unwrap();
+    assert!(code.contains("use leselang_vm::native::{"));
+    assert!(code.contains("compile_catalog_program("));
+    assert!(code.contains("LocalVm::new("));
+    for required in [
+        "impl Profile for Counter",
+        "impl Profile for Panel",
+        "pipeline_matrix_covers_atomic_control_nodes_without_claiming_group_or_opaque_host_coverage",
+        "both_hosts_preserve_one_budget_at_every_pipeline_debit_without_hidden_refills",
+        "both_hosts_share_one_compiled_ir_without_cross_acceptance_or_sibling_cancellation",
+        "both_hosts_recheck_authority_at_dispatch_acceptance_and_captured_reentry",
+        "two_hosts_mix_atomic_seq_all_repeat_and_captured_successors_through_one_vm",
+        "mixed_group_wrong_site_order_count_and_stale_root_receipts_preserve_retryable_ownership",
+        "mixed_partial_and_complete_groups_cannot_escape_parent_cancellation_or_start_a_tail",
+        "mixed_accepted_group_reentry_rechecks_grants_and_revision_before_the_atomic_successor",
+        "mixed_preparation_correlation_assembly_and_successors_share_exactly_one_fuel_budget",
+        "mixed_shared_ir_rejects_foreign_group_members_even_with_a_matching_root_label",
+        "mixed_invalid_late_group_and_cold_policy_are_rejected_before_the_initial_effect",
+        "compile_catalog_prepared_group_helper_program(",
+        "prepare_atomic_group_in_scope(",
+        "assemble_group_reply(",
+    ] {
+        assert!(code.contains(required), "pipeline proof lost {required}");
+    }
+    for forbidden in ["leserpent_domain", "leselang_command", "rusqlite", "#[cfg("] {
+        assert!(!code.contains(forbidden));
+    }
+    let export = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(export.contains(proof));
+    assert!(export.contains("consumer/tests/native_host_pipeline.rs"));
+    assert!(export.contains("\"complete_vm\": false"));
+    assert!(export.contains("\"full_extraction_gate\": false"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split("### Native Host Pipeline Matrix")
+        .nth(1)
+        .unwrap()
+        .split("### Optional Reference VM Storage")
+        .next()
+        .unwrap();
+    assert!(section.contains("not the full language gate"));
+    assert!(section.contains("mixed multi-group/atomic programs"));
+    assert!(section.contains("twelve"));
+    assert!(section.contains("not a new generic scheduler"));
+}
+
+#[test]
 fn reference_implementation_is_optional_without_changing_released_root_paths() {
     let manifest = fs::read_to_string(root().join("crates/leselang-hir/Cargo.toml")).unwrap();
     assert!(manifest.contains("default = [\"leserpent-profile\"]"));

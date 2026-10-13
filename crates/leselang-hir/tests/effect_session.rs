@@ -9,6 +9,7 @@ use leselang_hir::effect_session::*;
 use leselang_hir::effect_stack::{EffectStackFault, EffectStackLimits, MAX_EFFECT_RETURN_FRAMES};
 use leselang_hir::effect_stack_session::*;
 use leselang_hir::ir::{Computation, ComputedArgument};
+use leselang_hir::local_effect_session::LocalStackedEffectSession;
 use leselang_hir::pure_evaluation::*;
 use leselang_runtime_core::*;
 
@@ -55,6 +56,7 @@ enum Mode {
     Reject,
     Unwind,
     Unbounded,
+    Owned,
 }
 struct Hooks {
     fault: Cell<(Stage, Mode)>,
@@ -65,6 +67,9 @@ struct Hooks {
     key_drops: Cell<usize>,
     capture_drop_panic: Cell<bool>,
     key_drop_panic: Cell<bool>,
+    lease: RefCell<Option<LocalExecutionLease>>,
+    cleanup_liveness: RefCell<Vec<(&'static str, bool)>>,
+    correlation_cleanup_panic: Cell<bool>,
 }
 impl Hooks {
     fn new() -> Rc<Self> {
@@ -77,6 +82,9 @@ impl Hooks {
             key_drops: Cell::new(0),
             capture_drop_panic: Cell::new(false),
             key_drop_panic: Cell::new(false),
+            lease: RefCell::new(None),
+            cleanup_liveness: RefCell::new(Vec::new()),
+            correlation_cleanup_panic: Cell::new(false),
         })
     }
     fn hit(&self, stage: Stage) -> Result<(), PrivateError> {
@@ -89,6 +97,13 @@ impl Hooks {
             }
         }
         Ok(())
+    }
+    fn observe_cleanup(&self, role: &'static str) {
+        if let Some(lease) = self.lease.borrow().as_ref() {
+            self.cleanup_liveness
+                .borrow_mut()
+                .push((role, !lease.is_open()));
+        }
     }
 }
 struct Identity {
@@ -108,6 +123,7 @@ impl PartialEq for Identity {
 impl Drop for Identity {
     fn drop(&mut self) {
         if self.tracked {
+            self.hooks.observe_cleanup("identity");
             self.hooks.key_drops.set(self.hooks.key_drops.get() + 1);
             assert!(!self.hooks.key_drop_panic.get(), "native key drop unwind");
         }
@@ -128,6 +144,7 @@ impl Borrow<ScalarValue> for Reply {
 }
 impl Drop for Reply {
     fn drop(&mut self) {
+        self.hooks.observe_cleanup("reply");
         self.hooks.reply_drops.set(self.hooks.reply_drops.get() + 1);
     }
 }
@@ -152,9 +169,13 @@ type NativeDomain<'schema> = dyn HostResultDomain<ScalarValue, Error = PrivateEr
 struct View {
     panic: Rc<Cell<bool>>,
     drops: Rc<Cell<usize>>,
+    hooks: Option<Rc<Hooks>>,
 }
 impl Drop for View {
     fn drop(&mut self) {
+        if let Some(hooks) = &self.hooks {
+            hooks.observe_cleanup("value");
+        }
         self.drops.set(self.drops.get() + 1);
         assert!(!self.panic.get(), "native initial prefix drop unwind");
     }
@@ -165,6 +186,7 @@ struct Capture<'expression> {
 }
 impl Drop for Capture<'_> {
     fn drop(&mut self) {
+        self.hooks.observe_cleanup("capture");
         self.hooks
             .capture_drops
             .set(self.hooks.capture_drops.get() + 1);
@@ -182,6 +204,7 @@ struct Request<'expression> {
 }
 impl Drop for Request<'_> {
     fn drop(&mut self) {
+        self.hooks.observe_cleanup("request");
         self.hooks
             .request_drops
             .set(self.hooks.request_drops.get() + 1);
@@ -352,6 +375,16 @@ impl<'expression, 'schema>
     ) -> Result<RestoredEffectBindings<'expression, Rc<View>>, CalculationFailure<PrivateError>>
     {
         self.hooks.hit(Stage::Restore)?;
+        if self.hooks.fault.get() == (Stage::Restore, Mode::Unbounded) {
+            return Ok(vec![(
+                "invalid name",
+                PureValue::Result(Rc::new(View {
+                    panic: Rc::new(Cell::new(false)),
+                    drops: Rc::new(Cell::new(0)),
+                    hooks: Some(self.hooks.clone()),
+                })),
+            )]);
+        }
         Ok(std::mem::take(&mut capture.values))
     }
     fn bind_reply(
@@ -369,6 +402,13 @@ impl<'expression, 'schema>
             return Ok(PureValue::Scalar(ScalarValue::String(
                 "x".repeat(MAX_SCALAR_STRING_BYTES + 1),
             )));
+        }
+        if self.hooks.fault.get() == (Stage::Project, Mode::Owned) {
+            return Ok(PureValue::Result(Rc::new(View {
+                panic: Rc::new(Cell::new(false)),
+                drops: Rc::new(Cell::new(0)),
+                hooks: Some(self.hooks.clone()),
+            })));
         }
         Ok(PureValue::Scalar(std::mem::replace(
             &mut reply.value,
@@ -389,6 +429,9 @@ impl<'expression, 'schema>
         request: Request<'expression>,
         _: &mut Fuel,
     ) -> EffectCorrelation<'schema, Identity, Self::Declaration, Self::Dispatch, PrivateError> {
+        if self.hooks.correlation_cleanup_panic.replace(false) {
+            self.hooks.capture_drop_panic.set(true);
+        }
         self.hooks.hit(Stage::Correlate)?;
         let declaration = self.policy(request.operation.0)?;
         let serial = self.serial.get() + 1;
@@ -879,6 +922,7 @@ fn owned_initial_prefix_cleanup_unwind_cannot_install_a_waiting_request() {
     let value = Rc::new(View {
         panic: Rc::new(Cell::new(true)),
         drops: drops.clone(),
+        hooks: None,
     });
     let weak = Rc::downgrade(&value);
     let mut session = EffectSession::new(
@@ -959,6 +1003,7 @@ fn owned_reentry_prefix_cleanup_releases_prepared_successor_and_preserves_meter(
         let value = Rc::new(View {
             panic: panic.clone(),
             drops: drops.clone(),
+            hooks: None,
         });
         let weak = Rc::downgrade(&value);
         macro_rules! check {
@@ -1017,6 +1062,7 @@ fn owned_reentry_prefix_cleanup_releases_opaque_projection_error_without_refund(
         let value = Rc::new(View {
             panic: panic.clone(),
             drops: drops.clone(),
+            hooks: None,
         });
         macro_rules! check {
             ($session:expr) => {{
@@ -1351,6 +1397,299 @@ fn nested_identity_program() -> Node {
         bind("inner", call(1, integer(0)), local("inner")),
         local("outer"),
     )
+}
+
+#[test]
+fn local_reentry_revokes_retained_owners_before_failure_cleanup() {
+    for stage in [Stage::Preflight, Stage::Restore, Stage::Project] {
+        for mode in [Mode::Reject, Mode::Unwind] {
+            host!(hooks, domains, host);
+            let expression = nested_program();
+            let owner = LocalExecutionScope::new();
+            let lease = owner.lease();
+            let sibling = LocalExecutionScope::new();
+            hooks.lease.replace(Some(lease.clone()));
+            let mut session = LocalStackedEffectSession::new(
+                owner,
+                &expression,
+                Vec::new(),
+                Fuel::new(100),
+                STACK_LIMITS,
+            );
+            drop(request(session.poll(&host).unwrap()));
+            session
+                .try_accept(
+                    &host.identity(1, 1),
+                    host.reply(ScalarValue::Integer(42)),
+                    &host,
+                )
+                .unwrap();
+            hooks.cleanup_liveness.borrow_mut().clear();
+            hooks.fault.set((stage, mode));
+            let result = catch_unwind(AssertUnwindSafe(|| session.poll(&host)));
+            let end = if mode == Mode::Unwind {
+                assert!(result.is_err());
+                EffectSessionEnd::HostUncertain
+            } else {
+                assert!(result.unwrap().is_err());
+                EffectSessionEnd::Failed
+            };
+            assert_eq!(session.status(), EffectSessionStatus::Terminal(end));
+            assert!(!lease.is_open());
+            assert!(sibling.is_open());
+            let events = hooks.cleanup_liveness.borrow();
+            assert!(events.contains(&("identity", true)));
+            assert_eq!(
+                events.iter().filter(|(role, _)| *role == "capture").count(),
+                2
+            );
+            assert_eq!(
+                events.iter().rev().find(|(role, _)| *role == "capture"),
+                Some(&("capture", true))
+            );
+            // A reply already consumed by the native projection callback is outside the fence.
+            assert!(events.contains(&("reply", stage != Stage::Project)));
+            drop(events);
+            assert!(!session.cancel());
+            let calls = hooks.events.borrow().len();
+            let remaining = session.fuel_remaining();
+            assert!(matches!(
+                session.poll(&host).unwrap(),
+                EffectSessionPoll::Terminal(_)
+            ));
+            assert_eq!(hooks.events.borrow().len(), calls);
+            assert_eq!(session.fuel_remaining(), remaining);
+            assert_eq!(host.serial.get(), 1);
+        }
+    }
+}
+
+#[test]
+fn local_correlation_failure_closes_retained_successor_frames_before_cleanup() {
+    for reentry in [false, true] {
+        for mode in [Mode::Reject, Mode::Unwind] {
+            for cleanup_panics in [false, true] {
+                if cleanup_panics && mode == Mode::Unwind {
+                    continue;
+                }
+                host!(hooks, domains, host);
+                let expression = nested_program();
+                let owner = LocalExecutionScope::new();
+                let lease = owner.lease();
+                hooks.lease.replace(Some(lease.clone()));
+                let mut session = LocalStackedEffectSession::new(
+                    owner,
+                    &expression,
+                    Vec::new(),
+                    Fuel::new(100),
+                    STACK_LIMITS,
+                );
+                if reentry {
+                    drop(request(session.poll(&host).unwrap()));
+                    session
+                        .try_accept(
+                            &host.identity(1, 1),
+                            host.reply(ScalarValue::Integer(42)),
+                            &host,
+                        )
+                        .unwrap();
+                }
+                hooks.cleanup_liveness.borrow_mut().clear();
+                hooks.fault.set((Stage::Correlate, mode));
+                // Only arm cleanup panic once correlation has actually failed.
+                hooks.correlation_cleanup_panic.set(cleanup_panics);
+                let result = catch_unwind(AssertUnwindSafe(|| session.poll(&host)));
+                let uncertain = mode == Mode::Unwind || cleanup_panics;
+                if uncertain {
+                    assert!(result.is_err());
+                } else {
+                    assert!(result.unwrap().is_err());
+                }
+                assert!(!lease.is_open());
+                let events = hooks.cleanup_liveness.borrow();
+                let captures: Vec<_> = events
+                    .iter()
+                    .filter(|(role, _)| *role == "capture")
+                    .collect();
+                assert!(captures.len() >= 2);
+                assert!(captures.iter().rev().take(2).all(|(_, closed)| *closed));
+                assert!(events.contains(&("request", false)));
+                drop(events);
+                assert_eq!(host.serial.get(), usize::from(reentry));
+                assert_eq!(
+                    session.status(),
+                    EffectSessionStatus::Terminal(if uncertain {
+                        EffectSessionEnd::HostUncertain
+                    } else {
+                        EffectSessionEnd::Failed
+                    })
+                );
+                assert!(!session.cancel());
+            }
+        }
+    }
+}
+
+#[test]
+fn local_identity_cleanup_unwind_revokes_before_computed_output_disposal() {
+    for binding in [false, true] {
+        host!(hooks, domains, host);
+        let expression = if binding {
+            bind("result", call(1, integer(1)), local("result"))
+        } else {
+            call(1, integer(1))
+        };
+        let owner = LocalExecutionScope::new();
+        let lease = owner.lease();
+        hooks.lease.replace(Some(lease.clone()));
+        let mut session = LocalStackedEffectSession::new(
+            owner,
+            &expression,
+            Vec::new(),
+            Fuel::new(100),
+            STACK_LIMITS,
+        );
+        drop(request(session.poll(&host).unwrap()));
+        session
+            .try_accept(
+                &host.identity(1, 1),
+                host.reply(ScalarValue::Integer(42)),
+                &host,
+            )
+            .unwrap();
+        hooks.cleanup_liveness.borrow_mut().clear();
+        hooks.fault.set((Stage::Project, Mode::Owned));
+        hooks.key_drop_panic.set(true);
+        assert!(catch_unwind(AssertUnwindSafe(|| session.poll(&host))).is_err());
+        assert!(!lease.is_open());
+        assert_eq!(
+            session.status(),
+            EffectSessionStatus::Terminal(EffectSessionEnd::HostUncertain)
+        );
+        let events = hooks.cleanup_liveness.borrow();
+        assert!(events.contains(&("identity", false)));
+        assert!(events.contains(&("value", true)));
+        assert_eq!(
+            events.iter().filter(|(role, _)| *role == "value").count(),
+            1
+        );
+        drop(events);
+        assert!(!session.cancel());
+    }
+}
+
+#[test]
+fn local_owned_prefix_cleanup_follows_terminal_slice_liveness() {
+    for reentry in [false, true] {
+        for mode in [Mode::Reject, Mode::Unwind] {
+            for cleanup_panics in [false, true] {
+                if cleanup_panics && mode == Mode::Unwind {
+                    continue;
+                }
+                host!(hooks, domains, host);
+                let expression = if reentry {
+                    bind("result", call(1, integer(1)), local("result"))
+                } else {
+                    call(1, integer(1))
+                };
+                let owner = LocalExecutionScope::new();
+                let lease = owner.lease();
+                hooks.lease.replace(Some(lease.clone()));
+                let panic = Rc::new(Cell::new(false));
+                let drops = Rc::new(Cell::new(0));
+                let value = Rc::new(View {
+                    panic: panic.clone(),
+                    drops: drops.clone(),
+                    hooks: Some(hooks.clone()),
+                });
+                let mut session = LocalStackedEffectSession::new(
+                    owner,
+                    &expression,
+                    vec![("native", PureValue::Result(value))],
+                    Fuel::new(100),
+                    STACK_LIMITS,
+                );
+                if reentry {
+                    drop(request(session.poll(&host).unwrap()));
+                    session
+                        .try_accept(
+                            &host.identity(1, 1),
+                            host.reply(ScalarValue::Integer(42)),
+                            &host,
+                        )
+                        .unwrap();
+                }
+                panic.set(cleanup_panics);
+                hooks.fault.set((
+                    if reentry {
+                        Stage::Project
+                    } else {
+                        Stage::Preflight
+                    },
+                    mode,
+                ));
+                let result = catch_unwind(AssertUnwindSafe(|| session.poll(&host)));
+                let uncertain = cleanup_panics || mode == Mode::Unwind;
+                if uncertain {
+                    assert!(result.is_err());
+                } else {
+                    assert!(result.unwrap().is_err());
+                }
+                assert_eq!(drops.get(), 1);
+                assert!(hooks.cleanup_liveness.borrow().contains(&("value", true)));
+                assert!(!lease.is_open());
+                assert_eq!(
+                    session.status(),
+                    EffectSessionStatus::Terminal(if uncertain {
+                        EffectSessionEnd::HostUncertain
+                    } else {
+                        EffectSessionEnd::Failed
+                    })
+                );
+                assert!(!session.cancel());
+            }
+        }
+    }
+}
+
+#[test]
+fn local_invalid_restored_prefix_revokes_before_owned_value_disposal() {
+    host!(hooks, domains, host);
+    let expression = nested_identity_program();
+    let owner = LocalExecutionScope::new();
+    let lease = owner.lease();
+    hooks.lease.replace(Some(lease.clone()));
+    let mut session = LocalStackedEffectSession::new(
+        owner,
+        &expression,
+        Vec::new(),
+        Fuel::new(100),
+        STACK_LIMITS,
+    );
+    drop(request(session.poll(&host).unwrap()));
+    session
+        .try_accept(
+            &host.identity(1, 1),
+            host.reply(ScalarValue::Integer(42)),
+            &host,
+        )
+        .unwrap();
+    hooks.cleanup_liveness.borrow_mut().clear();
+    hooks.fault.set((Stage::Restore, Mode::Unbounded));
+    assert!(session.poll(&host).is_err());
+    assert_eq!(
+        session.status(),
+        EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+    );
+    assert!(hooks.cleanup_liveness.borrow().contains(&("value", true)));
+    assert!(hooks.cleanup_liveness.borrow().contains(&("reply", true)));
+    assert!(
+        hooks
+            .cleanup_liveness
+            .borrow()
+            .contains(&("identity", true))
+    );
+    assert!(!hooks.events.borrow().contains(&Stage::Project));
 }
 
 #[test]

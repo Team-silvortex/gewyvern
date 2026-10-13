@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies]
 gewyvern-install-contract = { path = "../gewyvern-install-contract" }
 leselang-ui = { path = "../leselang-ui" }
-leselang-vm = { path = "../leselang-vm" }
+leselang-command = { path = "../leselang-command" }
 leserpent-domain = { path = "../leserpent-domain" }
 ring = "0.17"
 serde.workspace = true

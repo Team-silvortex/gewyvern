@@ -1451,9 +1451,7 @@ fn pending_reply_ownership_is_product_free_and_closes_before_native_callbacks() 
     let authority = attempt
         .find("authority.authorize(&waiting.identity)")
         .unwrap();
-    let value = attempt
-        .find("validate_host_result(waiting.declaration, reply.borrow())")
-        .unwrap();
+    let value = attempt.find("validate_host_result(").unwrap();
     assert!(close < identity && identity < authority && authority < value);
     assert!(attempt.contains("self.state = State::Waiting(waiting)"));
     assert!(
@@ -2989,6 +2987,9 @@ fn borrowed_control_session_keeps_reply_ready_and_owned_fuel_without_product_sta
     let source =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_session.rs")).unwrap();
     let production = source
+        .split("\n#[cfg(test)]\n")
+        .next()
+        .unwrap()
         .lines()
         .filter(|line| !line.trim_start().starts_with("//"))
         .collect::<Vec<_>>()
@@ -7927,7 +7928,7 @@ fn nested_return_frames_reuse_one_walker_and_original_reply_protocol_without_a_s
         "Declaration: ?Sized",
         "evaluate_with_profile::<",
         "preflight_into(",
-        "restore_effect_scope(",
+        "restore_effect_scope_with_liveness(",
         "bind_effect_value(",
         "continuation.frames.extend(frames.by_ref())",
         ".checked_sub(frames.len())",
@@ -7944,7 +7945,7 @@ fn nested_return_frames_reuse_one_walker_and_original_reply_protocol_without_a_s
     );
     assert!(
         resume.find(".preflight_effect(effect)").unwrap()
-            < resume.find("restore_effect_scope(").unwrap()
+            < resume.find("restore_effect_scope_with_liveness(").unwrap()
     );
     assert_eq!(resume.matches(".bind_reply(").count(), 1);
     let walker =
@@ -8035,7 +8036,7 @@ fn prepared_sequence_reuses_original_reply_core_with_complete_correlation_and_fr
     assert!(shared.contains("core: SequenceReplyCore<"));
     for boundary in [
         ".publish_with(",
-        "self.core.try_accept(identity,reply,authority)",
+        "self.core.try_accept_with_scope(identity,reply,authority,scope)",
         "self.core.cancel()",
         "std::mem::take(&mutself.prepared)",
     ] {
@@ -8154,7 +8155,7 @@ fn stacked_control_sessions_delegate_owned_fuel_and_all_lifecycle_transitions_to
         "self.core.try_accept(identity, reply, authority)",
         "self.core.poll_with(",
         "evaluate_stacked_effects_in_scope(",
-        "resume_accepted_stacked_effects(",
+        "resume_accepted_stacked_effects_with_scope(",
         "stack_failure",
     ] {
         assert!(source.contains(required), "stacked session lost {required}");
@@ -8327,9 +8328,9 @@ fn prepared_parallel_sessions_reuse_original_reply_core_without_argument_replay_
         "admit(index, row.original(), row.prepared())",
         "fuel: &mut Fuel",
         "ParallelReplyCore::new(branches)",
-        ".publish_with(fuel,",
+        ".publish_with(",
         "row.into_parts()",
-        ".poll_results()",
+        ".poll_results(None)",
         "self.core.try_accept(index, identity, reply, authority)",
         "self.core.cancel()",
         "Declaration: ?Sized",
@@ -8345,6 +8346,12 @@ fn prepared_parallel_sessions_reuse_original_reply_core_without_argument_replay_
     );
     assert!(source.find("admit(index,").unwrap() < source.find("fuel.charge(1)").unwrap());
     assert!(source.find("fuel.charge(1)").unwrap() < source.find("correlate(index,").unwrap());
+    assert!(
+        source
+            .split_whitespace()
+            .collect::<String>()
+            .contains(".publish_with(fuel,")
+    );
     let shared =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/parallel_evaluation.rs"))
             .unwrap();
@@ -8609,10 +8616,10 @@ fn local_vm_terminal_liveness_delegates_to_the_original_session_without_error_in
     for required in [
         "LocalExecutionScope",
         "StackedControlSession::new(",
-        "session.poll(environment)",
-        "session.try_accept(identity, reply, authority)",
+        "session.poll_with_scope(environment, Some(scope))",
+        "session.try_accept_in_scope(identity, reply, authority, scope)",
         "matches!(self.session.status(), EffectSessionStatus::Terminal(_))",
-        "impl Drop for CallFence",
+        "local_scope::CallFence",
         "self.scope.close()",
         "fence.finish()",
     ] {
@@ -8654,4 +8661,386 @@ fn local_vm_terminal_liveness_delegates_to_the_original_session_without_error_in
     let docs = std::fs::read_to_string(root.join("docs/leselang-embedding.md")).unwrap();
     assert!(docs.contains("### Local Session Entry"));
     assert!(docs.contains("callback-local\nor consumed-frame cleanup"));
+}
+
+#[test]
+fn fenced_host_work_reuses_pending_state_and_exports_the_same_native_proofs() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let core =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_session.rs")).unwrap();
+    let start = core
+        .find("pub(crate) fn with_host_work<Input, Output>")
+        .unwrap();
+    let body = &core[start..core[start..].find("/// Shared identity").unwrap() + start];
+    for required in [
+        "self.status() != EffectSessionStatus::Awaiting",
+        "return Err(input)",
+        "State::Terminal(EffectSessionEnd::HostUncertain)",
+        "let output = work(input)",
+        "self.state = pending",
+    ] {
+        assert!(body.contains(required), "host boundary lost {required}");
+    }
+    for forbidden in [
+        "fuel.charge",
+        "Fuel::new",
+        "catch_unwind",
+        ".clone()",
+        "error.code",
+    ] {
+        assert!(!body.contains(forbidden), "host boundary added {forbidden}");
+    }
+    let local =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/local_effect_session.rs"))
+            .unwrap();
+    assert!(local.contains("pub fn with_host_work<Input, Output>"));
+    assert!(local.contains("session.with_host_work(input, |input|"));
+    assert!(
+        local.contains(
+            "self.with_host_outcome(input, |input| HostWorkOutcome::Pending(work(input)))"
+        )
+    );
+    let gui = std::fs::read_to_string(root.join("crates/leselang-hir/tests/prepared_gui_host.rs"))
+        .unwrap();
+    assert!(
+        gui.contains(
+            "local_gui_host_work_unwind_seals_retained_session_and_blocks_escaped_siblings"
+        )
+    );
+    assert!(gui.contains(
+        "local_gui_host_work_cannot_run_before_dispatch_after_acceptance_or_after_completion"
+    ));
+    let native =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/native_embedding.rs")).unwrap();
+    assert!(
+        native.contains("native_local_host_work_unwind_revokes_before_pending_identity_cleanup")
+    );
+    assert!(
+        native.contains(
+            "native_local_host_work_preserves_refused_move_only_input_and_borrowed_outputs"
+        )
+    );
+    let docs = std::fs::read_to_string(root.join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Fenced Native Host Work"));
+    assert!(docs.contains("same SessionCore pending"));
+    assert!(docs.contains("full extraction gate"));
+}
+
+#[test]
+fn local_poll_fences_retained_owners_through_shared_execution_without_catching_language_faults() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let fence =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/local_scope.rs")).unwrap();
+    for required in [
+        "Option<&'scope LocalExecutionScope>",
+        "impl Drop for CallFence",
+        "if output.is_err()",
+        "fence.finish()",
+    ] {
+        assert!(fence.contains(required));
+    }
+    for forbidden in [
+        "catch_unwind",
+        "enum State",
+        "Fuel",
+        "unsafe ",
+        "pub fn",
+        "serde",
+    ] {
+        assert!(
+            !fence.contains(forbidden),
+            "private fence gained {forbidden}"
+        );
+    }
+    let stack =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_stack.rs")).unwrap();
+    assert!(stack.contains(
+        "resume_accepted_stacked_effects_with_scope(accepted, environment, fuel, policy, None)"
+    ));
+    let body = stack
+        .split_once("pub(crate) fn resume_accepted_stacked_effects_with_scope")
+        .unwrap()
+        .1;
+    let output = body.find("let output =").unwrap();
+    let cleanup = body.find("let cleanup_fence = fence;").unwrap();
+    let revoke = body.find("cleanup_fence.close()").unwrap();
+    let dispose = body
+        .find("drop((current, frames, reply, returned, identity))")
+        .unwrap();
+    assert!(output < cleanup && cleanup < revoke && revoke < dispose);
+    assert!(body.contains("CallFence::run(execution_scope"));
+    let tests =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/effect_session.rs")).unwrap();
+    for proof in [
+        "local_reentry_revokes_retained_owners_before_failure_cleanup",
+        "local_correlation_failure_closes_retained_successor_frames_before_cleanup",
+        "local_invalid_restored_prefix_revokes_before_owned_value_disposal",
+        "local_owned_prefix_cleanup_follows_terminal_slice_liveness",
+        "local_identity_cleanup_unwind_revokes_before_computed_output_disposal",
+    ] {
+        assert!(tests.contains(proof));
+    }
+    let native =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/native_embedding.rs")).unwrap();
+    assert!(
+        native.contains("native_local_reentry_failure_revokes_before_retained_identity_cleanup")
+    );
+    assert!(native.contains(
+        "native_local_recovered_calculation_keeps_successor_live_and_exact_unscoped_fuel"
+    ));
+    let docs = std::fs::read_to_string(root.join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Fenced Reentry Cleanup"));
+    assert!(docs.contains("Complete\nhost/recovery/extraction gates remain open"));
+}
+
+#[test]
+fn local_acceptance_fences_shared_native_cleanup_without_replacing_validation() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let reply =
+        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/reply.rs")).unwrap();
+    assert!(reply.contains("pub fn try_accept_in_scope<Reply, View: ?Sized, Authority>"));
+    assert!(reply.contains("self.try_accept_with_scope(actual_identity, reply, authority, None)"));
+    let body = reply.split_once("fn try_accept_with_scope").unwrap().1;
+    let own = body.find("State::Waiting(waiting) => waiting").unwrap();
+    let fence = body.find("let mut fence = AcceptanceFence(scope)").unwrap();
+    let check = body.find("&waiting.identity != actual_identity").unwrap();
+    let disarm = body.find("fence.0 = None").unwrap();
+    let restore = body.find("self.state = State::Waiting(waiting)").unwrap();
+    assert!(own < fence && fence < check && check < disarm && disarm < restore);
+    for forbidden in [
+        "catch_unwind",
+        "unsafe ",
+        "use serde",
+        "Fuel::new",
+        "leserpent",
+    ] {
+        assert!(!reply.contains(forbidden), "acceptance added {forbidden}");
+    }
+    let session =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_session.rs")).unwrap();
+    assert_eq!(
+        session
+            .matches("pending.try_accept_in_scope(identity, reply, authority, scope)")
+            .count(),
+        2
+    );
+    let native =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/native_embedding.rs")).unwrap();
+    assert!(native.contains(
+        "native_local_acceptance_revokes_before_pending_cleanup_but_not_normal_rejection"
+    ));
+    let tests =
+        std::fs::read_to_string(root.join("crates/leselang-runtime-core/tests/reply.rs")).unwrap();
+    for proof in [
+        "scoped_acceptance_unwind_revokes_before_owned_identity_frame_and_reply_cleanup",
+        "scoped_normal_rejection_preserves_original_input_domain_and_live_retry",
+        "preclosed_acceptance_scope_cancels_before_cleanup_without_entering_callbacks",
+        "scoped_native_callback_revocation_stops_before_the_next_phase_and_returns_input",
+        "scoped_revocation_seals_cancelled_before_frame_or_native_error_cleanup_unwind",
+        "unscoped_acceptance_does_not_infer_an_unrelated_scope_policy",
+        "scoped_and_unscoped_entries_preserve_the_original_native_inequality_hook",
+    ] {
+        assert!(tests.contains(proof));
+    }
+    let docs = std::fs::read_to_string(root.join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Fenced Reply Acceptance"));
+    assert!(docs.contains("#### Synchronous Revocation During Acceptance"));
+    assert!(docs.contains("full host/recovery/extraction gates remain open"));
+}
+
+#[test]
+fn scoped_reply_revocation_reuses_original_domain_validation_and_cannot_rearm_sessions() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let reply =
+        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/reply.rs")).unwrap();
+    assert!(reply.contains("struct LiveResultDomain<'a, Domain: ?Sized>"));
+    assert!(reply.contains(
+        "self.domain.matches_type(view) && self.scope.is_none_or(LocalExecutionScope::is_open)"
+    ));
+    assert!(reply.contains("self.domain.validate_value(view)"));
+    let body = reply.split_once("fn try_accept_with_scope").unwrap().1;
+    let close = body
+        .find("self.state = State::Terminal(ReplyEnd::Cancelled)")
+        .unwrap();
+    assert!(close < body.find("drop(error)").unwrap());
+    assert!(close < body.find("drop(waiting)").unwrap());
+    assert_eq!(body.matches("validate_host_result(").count(), 1);
+    let core =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_session.rs")).unwrap();
+    let acceptance = core
+        .split_once("pub(crate) fn try_accept_with_scope")
+        .unwrap()
+        .1
+        .split_once("impl<Node:")
+        .unwrap()
+        .0;
+    assert_eq!(
+        acceptance
+            .matches("ReplyAcceptanceError::Closed(ReplyEnd::Cancelled)")
+            .count(),
+        2
+    );
+    assert_eq!(
+        acceptance
+            .matches("State::Terminal(EffectSessionEnd::Cancelled)")
+            .count(),
+        2
+    );
+    assert!(
+        core.contains("scoped_cancelled_rejection_never_rearms_binding_or_final_pending_state")
+    );
+}
+
+#[test]
+fn scoped_group_entries_reuse_original_reply_cores_without_storing_scope_or_refilling_fuel() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    for file in [
+        "sequence_evaluation",
+        "parallel_evaluation",
+        "prepared_sequence",
+        "prepared_parallel",
+    ] {
+        let source =
+            std::fs::read_to_string(root.join(format!("crates/leselang-hir/src/{file}.rs")))
+                .unwrap();
+        assert!(source.contains("pub fn try_accept_in_scope<"));
+        assert!(source.contains("pub fn poll_in_scope"));
+        assert!(source.contains("scope: &LocalExecutionScope"));
+        assert!(source.contains("try_accept_with_scope("));
+        for forbidden in [
+            "scope: LocalExecutionScope",
+            "scope: Option<LocalExecutionScope>",
+            "catch_unwind",
+            "Fuel::new",
+        ] {
+            assert!(!source.contains(forbidden), "{file} gained {forbidden}");
+        }
+        if !file.starts_with("prepared_") {
+            assert_eq!(source.matches("enum State<").count(), 1);
+            let acceptance = source
+                .split_once("pub(crate) fn try_accept_with_scope")
+                .unwrap()
+                .1
+                .split_once("pub(crate) fn cancel")
+                .unwrap()
+                .0;
+            assert!(
+                acceptance
+                    .contains("pending.try_accept_in_scope(identity, reply, authority, scope)")
+            );
+            assert!(acceptance.contains("ReplyAcceptanceError::Closed(ReplyEnd::Cancelled)"));
+            assert!(
+                acceptance.find("self.cancel()").unwrap()
+                    < acceptance.find("let status = self.status()").unwrap()
+            );
+            assert!(!acceptance.contains("fuel.charge"));
+            let publish = source
+                .split_once("pub(crate) fn publish_with<")
+                .unwrap()
+                .1
+                .split_once("pub(crate) fn try_accept<")
+                .unwrap()
+                .0;
+            assert!(publish.contains("scope: Option<&LocalExecutionScope>"));
+            assert!(publish.contains("CallFence::new(scope)"));
+            assert!(
+                publish.find("self.cancel()").unwrap() < publish.find("HostUncertain").unwrap()
+            );
+            assert!(publish.contains("scope.is_some_and(|scope| !scope.is_open())"));
+        }
+    }
+    let tests =
+        std::fs::read_to_string(root.join("crates/leselang-hir/tests/scoped_group_acceptance.rs"))
+            .unwrap();
+    for proof in [
+        "all_four_entries_cancel_at_each_native_phase_without_rearming_or_refilling",
+        "scoped_refusal_preserves_original_input_domain_rows_prefix_and_ordered_completion",
+        "preclosed_scope_cancels_even_invalid_member_or_ready_results_without_native_hooks",
+        "scoped_callback_unwind_revokes_before_pending_suffix_and_accepted_sibling_cleanup",
+        "scoped_cancellation_seal_survives_retained_owner_cleanup_unwind",
+        "unscoped_collectors_do_not_infer_an_unrelated_scope_policy",
+        "scoped_poll_preclosed_ready_waiting_prefix_and_ready_results_never_publish_or_charge",
+        "scoped_publication_revocation_stops_after_original_callback_without_partial_batch_or_refund",
+        "scoped_poll_failure_and_unwind_revoke_before_retained_prefix_or_suffix_cleanup",
+        "scoped_poll_cleanup_unwind_preserves_cancelled_or_conservative_uncertain_reason",
+        "scoped_prepared_poll_seals_before_superseded_error_cleanup_and_preserves_normal_error",
+        "scoped_and_unscoped_successful_polling_keep_original_rows_requests_and_exact_fuel",
+        "unscoped_polling_does_not_adopt_an_unrelated_closed_scope",
+        "scoped_poll_exhaustion_closes_without_preparation_or_refund",
+    ] {
+        assert!(tests.contains(proof));
+    }
+    let gui = std::fs::read_to_string(root.join("crates/leselang-hir/tests/prepared_gui_host.rs"))
+        .unwrap();
+    assert!(gui.contains(
+        "scoped_gui_collector_revocation_stops_group_delivery_without_cancelling_a_sibling"
+    ));
+    assert!(gui.contains(
+        "scoped_gui_poll_cancellation_blocks_next_publication_and_completed_barrier_handoff"
+    ));
+    let docs = std::fs::read_to_string(root.join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("#### Scoped Group Acceptance"));
+    assert!(docs.contains("#### Scoped Group Polling"));
+    assert!(docs.contains("LocalVm still owns its scope\nprivately"));
+}
+
+#[test]
+fn classified_native_outcomes_reuse_core_terminal_states_without_error_string_inference() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let core =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_session.rs")).unwrap();
+    for required in [
+        "pub enum HostWorkOutcome<Output>",
+        "HostWorkOutcome::Pending(output)",
+        "HostWorkOutcome::Cancelled(output)",
+        "HostWorkOutcome::Failed(output)",
+        "HostWorkOutcome::Uncertain(output)",
+        "self.state = State::Terminal(EffectSessionEnd::Failed)",
+        "self.state = State::Terminal(EffectSessionEnd::Cancelled)",
+    ] {
+        assert!(
+            core.contains(required),
+            "missing native outcome boundary {required}"
+        );
+    }
+    let local =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/local_effect_session.rs"))
+            .unwrap();
+    assert!(local.contains("pub fn with_host_outcome<Input, Output>"));
+    assert!(local.contains("if !matches!(&output, HostWorkOutcome::Pending(_))"));
+    for forbidden in [
+        "enum State",
+        "error.code",
+        "catch_unwind",
+        "Fuel::new",
+        "unsafe ",
+    ] {
+        assert!(
+            !local.contains(forbidden),
+            "local outcome added {forbidden}"
+        );
+    }
+    let facade = std::fs::read_to_string(root.join("crates/leselang-vm/src/native.rs")).unwrap();
+    assert!(facade.contains("pub use leselang_hir::effect_session::HostWorkOutcome;"));
+    let native =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/native_embedding.rs")).unwrap();
+    assert!(native.contains(
+        "native_classified_host_failure_retains_output_and_terminal_reason_through_cleanup_unwind"
+    ));
+    assert!(native.contains(
+        "native_host_outcome_debug_never_observes_or_requires_native_payload_formatting"
+    ));
+    let gui = std::fs::read_to_string(root.join("crates/leselang-hir/tests/prepared_gui_host.rs"))
+        .unwrap();
+    assert!(gui.contains(
+        "classified_gui_failure_and_uncertainty_close_without_rollback_or_sibling_revocation"
+    ));
+    assert!(
+        gui.contains("classified_gui_cancellation_hands_back_partial_collectors_after_revocation")
+    );
+    let docs = std::fs::read_to_string(root.join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Classified Native Outcomes"));
+    assert!(docs.contains("#### Cancellation Handoff"));
+    assert!(docs.contains("not operation success"));
+    assert!(docs.contains("host/recovery/extraction gates\nremain open"));
 }

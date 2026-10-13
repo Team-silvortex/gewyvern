@@ -12,7 +12,7 @@ use leselang_hir::{
     effect_reentry::{EffectReentryEnvironment, RestoredEffectBindings},
     effect_session::{
         CorrelatedEffectRequest, EffectCorrelation, EffectSessionEnd, EffectSessionEnvironment,
-        EffectSessionPoll, EffectSessionStatus,
+        EffectSessionPoll, EffectSessionStatus, HostWorkOutcome,
     },
     effect_stack::EffectStackLimits,
     effect_stack_session::StackedEffectSession,
@@ -22,8 +22,8 @@ use leselang_hir::{
     local_effect_session::LocalStackedEffectSession,
     native_group_preparation::PreparedNativeGroup,
     parallel_evaluation::{
-        ParallelAccepted, ParallelEvaluationLimits, ParallelPoll, ParallelRequest,
-        PreparedParallelMember,
+        ParallelAccepted, ParallelEnd, ParallelEvaluationLimits, ParallelPoll, ParallelRequest,
+        ParallelStatus, PreparedParallelMember,
     },
     prepared_call_evaluation::{PreparedGroupEvaluationLimits, prepare_atomic_group_in_scope},
     prepared_parallel::PreparedParallelSession,
@@ -741,16 +741,38 @@ impl<'ir, 'h, 's> Runtime<'ir, 'h, 's> {
         sequence: &mut Sequence<'ir, 's>,
     ) -> Result<SequencePoll<Invocation<'s>>, PreparedSequenceError<Refusal>> {
         sequence.poll(|index, original, identity, domain, prepared| {
-            self.authorize(identity)?;
-            self.admit_prepared(original, &prepared.prepared)?;
-            if *identity != self.execution.member(index)
-                || *identity != prepared.identity
-                || !std::ptr::eq(domain, &self.execution.members[index])
-            {
-                return Err(Refusal);
-            }
-            Ok(())
+            self.admit_publication(index, original, identity, domain, prepared)
         })
+    }
+    fn publish_in_scope(
+        &self,
+        sequence: &mut Sequence<'ir, 's>,
+        scope: &LocalExecutionScope,
+    ) -> Result<SequencePoll<Invocation<'s>>, PreparedSequenceError<Refusal>> {
+        sequence.poll_in_scope(
+            |index, original, identity, domain, prepared| {
+                self.admit_publication(index, original, identity, domain, prepared)
+            },
+            scope,
+        )
+    }
+    fn admit_publication(
+        &self,
+        index: usize,
+        original: &'ir Branch<'s>,
+        identity: &MemberIdentity,
+        domain: &'ir MemberDomain<'ir, 's>,
+        prepared: &Invocation<'s>,
+    ) -> Result<(), Refusal> {
+        self.authorize(identity)?;
+        self.admit_prepared(original, &prepared.prepared)?;
+        if *identity != self.execution.member(index)
+            || *identity != prepared.identity
+            || !std::ptr::eq(domain, &self.execution.members[index])
+        {
+            return Err(Refusal);
+        }
+        Ok(())
     }
     fn invoke(&self, request: ParallelRequest<Invocation<'s>>) -> Result<Input<'s>, Refusal> {
         self.authorize(&request.request.identity)?;
@@ -1172,7 +1194,17 @@ fn local_gui_session_closes_on_completion_but_preserves_recoverable_reply_reject
                 session.poll(&runtime).unwrap(),
                 EffectSessionPoll::Awaiting
             ));
-            let reply = collect(&runtime, dispatch);
+            let Ok(Err(dispatch)) = session.with_host_work(dispatch, Err::<(), _>) else {
+                panic!("native refusal must stay a normal host output")
+            };
+            assert!(lease.is_open());
+            assert_eq!(session.status(), EffectSessionStatus::Awaiting);
+            assert_eq!(session.fuel_remaining(), 948);
+            let Ok(reply) =
+                session.with_host_work(dispatch, |dispatch| collect(&runtime, dispatch))
+            else {
+                panic!("awaiting host work must be admitted")
+            };
             let pointer = reply.buffer.as_ptr();
             let foreign = ExecutionIdentity(LocalExecutionScope::new().lease());
             let reply = session
@@ -1265,6 +1297,11 @@ fn local_gui_session_normal_failure_and_preclosed_scope_never_leave_live_authori
             assert!(!session.lease().is_open());
             let terminal = session.status();
             let remaining = session.fuel_remaining();
+            let Err(original) = session.with_host_work::<_, ()>(17, |_| panic!("terminal work"))
+            else {
+                panic!()
+            };
+            assert_eq!(original, 17);
             assert!(!session.cancel());
             assert!(matches!(
                 session.poll(&runtime).unwrap(),
@@ -1370,6 +1407,490 @@ fn local_gui_session_cancel_and_drop_fence_already_published_native_requests() {
             assert!(barrier.cancel());
             assert!(types.owner.invocations.borrow().is_empty());
         });
+    }
+}
+
+#[test]
+fn local_gui_host_work_unwind_seals_retained_session_and_blocks_escaped_siblings() {
+    for kind in ["seq", "all"] {
+        for apply_first in [false, true] {
+            fixture(|source, types, _| {
+                let node = compile(&tree(kind), source, types);
+                let scope = LocalExecutionScope::new();
+                let execution = Execution::new(&node, scope.lease());
+                let runtime = Runtime::new(&execution, source, types.owner.clone());
+                let mut session = LocalStackedEffectSession::new(
+                    scope,
+                    &node,
+                    Vec::new(),
+                    Fuel::new(1000),
+                    STACK,
+                );
+                let EffectSessionPoll::Request(dispatch) = session.poll(&runtime).unwrap() else {
+                    panic!()
+                };
+                let neighbour_scope = LocalExecutionScope::new();
+                let neighbour_execution = Execution::new(&node, neighbour_scope.lease());
+                let neighbour_runtime =
+                    Runtime::new(&neighbour_execution, source, types.owner.clone());
+                let mut neighbour = LocalStackedEffectSession::new(
+                    neighbour_scope,
+                    &node,
+                    Vec::new(),
+                    Fuel::new(1000),
+                    STACK,
+                );
+                let EffectSessionPoll::Request(neighbour_dispatch) =
+                    neighbour.poll(&neighbour_runtime).unwrap()
+                else {
+                    panic!()
+                };
+                let mut escaped = Vec::new();
+                let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    session.with_host_work::<_, ()>(dispatch, |dispatch| {
+                        match dispatch {
+                            Dispatch::Sequence(mut sequence) => {
+                                let SequencePoll::Request { index, request } =
+                                    runtime.publish(&mut sequence).unwrap()
+                                else {
+                                    panic!()
+                                };
+                                escaped.push(ParallelRequest { index, request });
+                            }
+                            Dispatch::Parallel { requests, .. } => escaped = requests,
+                        }
+                        if apply_first {
+                            let input = runtime.invoke(escaped.remove(0)).unwrap();
+                            drop(input);
+                        }
+                        panic!("uncertain native GUI work");
+                    })
+                }));
+                assert!(caught.is_err());
+                assert!(!session.lease().is_open());
+                assert_eq!(
+                    session.status(),
+                    EffectSessionStatus::Terminal(EffectSessionEnd::HostUncertain)
+                );
+                assert_eq!(session.fuel_remaining(), 948);
+                assert!(!session.cancel());
+                assert!(matches!(
+                    session.poll(&runtime).unwrap(),
+                    EffectSessionPoll::Terminal(EffectSessionEnd::HostUncertain)
+                ));
+                for request in escaped {
+                    assert!(runtime.invoke(request).is_err());
+                }
+                assert_eq!(
+                    types.owner.invocations.borrow().len(),
+                    usize::from(apply_first)
+                );
+                assert_eq!(runtime.restores.get(), 0);
+                assert_eq!(runtime.projections.get(), 0);
+                let late = Collected {
+                    identity: execution.identity(),
+                    group: runtime.group,
+                    rows: Vec::new(),
+                    buffer: vec![31; 7].into_boxed_slice(),
+                };
+                let pointer = late.buffer.as_ptr();
+                let rejected = session
+                    .try_accept(&execution.identity, late, &runtime)
+                    .unwrap_err();
+                assert_eq!(rejected.reply.buffer.as_ptr(), pointer);
+                let token = Box::new(13);
+                let pointer = &*token as *const i32;
+                let Err(token) =
+                    session.with_host_work::<_, ()>(token, |_| panic!("must not replay"))
+                else {
+                    panic!()
+                };
+                assert_eq!(&*token as *const i32, pointer);
+                assert!(neighbour.lease().is_open());
+                assert_eq!(neighbour.fuel_remaining(), 948);
+                let Ok(reply) = neighbour.with_host_work(neighbour_dispatch, |dispatch| {
+                    collect(&neighbour_runtime, dispatch)
+                }) else {
+                    panic!()
+                };
+                neighbour
+                    .try_accept(&neighbour_execution.identity, reply, &neighbour_runtime)
+                    .unwrap();
+                assert!(matches!(
+                    neighbour.poll(&neighbour_runtime).unwrap(),
+                    EffectSessionPoll::Value(_)
+                ));
+                assert_eq!(neighbour.fuel_remaining(), 925);
+                assert_eq!(
+                    types.owner.invocations.borrow().len(),
+                    usize::from(apply_first) + 2
+                );
+            });
+        }
+    }
+}
+
+#[test]
+fn local_gui_host_work_cannot_run_before_dispatch_after_acceptance_or_after_completion() {
+    fixture(|source, types, _| {
+        let node = compile(&tree("all"), source, types);
+        let scope = LocalExecutionScope::new();
+        let execution = Execution::new(&node, scope.lease());
+        let runtime = Runtime::new(&execution, source, types.owner.clone());
+        let mut session =
+            LocalStackedEffectSession::new(scope, &node, Vec::new(), Fuel::new(1000), STACK);
+        let token = vec![41; 17].into_boxed_slice();
+        let pointer = token.as_ptr();
+        let Err(token) =
+            session.with_host_work::<_, ()>(token, |_| panic!("initial state is not admitted"))
+        else {
+            panic!()
+        };
+        assert_eq!(token.as_ptr(), pointer);
+        assert_eq!(session.fuel_remaining(), 1000);
+        assert!(session.lease().is_open());
+        let EffectSessionPoll::Request(dispatch) = session.poll(&runtime).unwrap() else {
+            panic!()
+        };
+        let Ok(reply) = session.with_host_work(dispatch, |dispatch| collect(&runtime, dispatch))
+        else {
+            panic!()
+        };
+        session
+            .try_accept(&execution.identity, reply, &runtime)
+            .unwrap();
+        let Err(token) =
+            session.with_host_work::<_, ()>(token, |_| panic!("accepted state is not awaiting"))
+        else {
+            panic!()
+        };
+        assert_eq!(token.as_ptr(), pointer);
+        assert!(session.lease().is_open());
+        assert_eq!(session.fuel_remaining(), 948);
+        assert!(matches!(
+            session.poll(&runtime).unwrap(),
+            EffectSessionPoll::Value(_)
+        ));
+        let Err(token) =
+            session.with_host_work::<_, ()>(token, |_| panic!("completed state is sealed"))
+        else {
+            panic!()
+        };
+        assert_eq!(token.as_ptr(), pointer);
+        assert_eq!(session.fuel_remaining(), 925);
+        assert_eq!(
+            session.status(),
+            EffectSessionStatus::Terminal(EffectSessionEnd::Completed)
+        );
+        assert_eq!(types.owner.invocations.borrow().len(), 2);
+    });
+}
+
+#[test]
+fn classified_gui_failure_and_uncertainty_close_without_rollback_or_sibling_revocation() {
+    for kind in ["seq", "all"] {
+        for uncertain in [false, true] {
+            for apply_first in [false, true] {
+                fixture(|source, types, _| {
+                    let node = compile(&tree(kind), source, types);
+                    let scope = LocalExecutionScope::new();
+                    let execution = Execution::new(&node, scope.lease());
+                    let runtime = Runtime::new(&execution, source, types.owner.clone());
+                    let mut session = LocalStackedEffectSession::new(
+                        scope,
+                        &node,
+                        Vec::new(),
+                        Fuel::new(1000),
+                        STACK,
+                    );
+                    let EffectSessionPoll::Request(dispatch) = session.poll(&runtime).unwrap()
+                    else {
+                        panic!()
+                    };
+                    let other_scope = LocalExecutionScope::new();
+                    let other_execution = Execution::new(&node, other_scope.lease());
+                    let other_runtime = Runtime::new(&other_execution, source, types.owner.clone());
+                    let mut other = LocalStackedEffectSession::new(
+                        other_scope,
+                        &node,
+                        Vec::new(),
+                        Fuel::new(1000),
+                        STACK,
+                    );
+                    let EffectSessionPoll::Request(other_dispatch) =
+                        other.poll(&other_runtime).unwrap()
+                    else {
+                        panic!()
+                    };
+                    let mut escaped = Vec::new();
+                    let failure = vec![47; 13].into_boxed_slice();
+                    let pointer = failure.as_ptr();
+                    let Ok(failure) = session.with_host_outcome(dispatch, |dispatch| {
+                        match dispatch {
+                            Dispatch::Sequence(mut sequence) => {
+                                let SequencePoll::Request { index, request } =
+                                    runtime.publish(&mut sequence).unwrap()
+                                else {
+                                    panic!()
+                                };
+                                escaped.push(ParallelRequest { index, request });
+                            }
+                            Dispatch::Parallel { requests, .. } => escaped = requests,
+                        }
+                        if apply_first {
+                            drop(runtime.invoke(escaped.remove(0)).unwrap());
+                        }
+                        if uncertain {
+                            HostWorkOutcome::Uncertain(failure)
+                        } else {
+                            HostWorkOutcome::Failed(failure)
+                        }
+                    }) else {
+                        panic!()
+                    };
+                    assert_eq!(failure.as_ptr(), pointer);
+                    assert!(!session.lease().is_open());
+                    let end = if uncertain {
+                        EffectSessionEnd::HostUncertain
+                    } else {
+                        EffectSessionEnd::Failed
+                    };
+                    assert_eq!(session.status(), EffectSessionStatus::Terminal(end));
+                    assert_eq!(session.fuel_remaining(), 948);
+                    assert!(!session.cancel());
+                    assert!(
+                        matches!(session.poll(&runtime).unwrap(), EffectSessionPoll::Terminal(actual) if actual == end)
+                    );
+                    let Err(original) =
+                        session.with_host_work::<_, ()>(failure, |_| panic!("terminal dispatch"))
+                    else {
+                        panic!()
+                    };
+                    assert_eq!(original.as_ptr(), pointer);
+                    for request in escaped {
+                        assert!(runtime.invoke(request).is_err());
+                    }
+                    assert_eq!(
+                        types.owner.invocations.borrow().len(),
+                        usize::from(apply_first)
+                    );
+                    assert_eq!(runtime.restores.get(), 0);
+                    assert_eq!(runtime.projections.get(), 0);
+                    assert_eq!(
+                        &*types.owner.text.borrow(),
+                        if apply_first { "ready." } else { "" }
+                    );
+                    assert!(other.lease().is_open());
+                    let Ok(reply) = other.with_host_work(other_dispatch, |dispatch| {
+                        collect(&other_runtime, dispatch)
+                    }) else {
+                        panic!()
+                    };
+                    other
+                        .try_accept(&other_execution.identity, reply, &other_runtime)
+                        .unwrap();
+                    assert!(matches!(
+                        other.poll(&other_runtime).unwrap(),
+                        EffectSessionPoll::Value(_)
+                    ));
+                    assert_eq!(other.fuel_remaining(), 925);
+                    assert_eq!(
+                        types.owner.invocations.borrow().len(),
+                        usize::from(apply_first) + 2
+                    );
+                });
+            }
+        }
+    }
+}
+
+#[test]
+fn classified_gui_cancellation_hands_back_partial_collectors_after_revocation() {
+    for kind in ["seq", "all"] {
+        for completed in 0..=2 {
+            fixture(|source, types, _| {
+                let node = compile(&tree(kind), source, types);
+                let scope = LocalExecutionScope::new();
+                let execution = Execution::new(&node, scope.lease());
+                let runtime = Runtime::new(&execution, source, types.owner.clone());
+                let mut session = LocalStackedEffectSession::new(
+                    scope,
+                    &node,
+                    Vec::new(),
+                    Fuel::new(1000),
+                    STACK,
+                );
+                let EffectSessionPoll::Request(dispatch) = session.poll(&runtime).unwrap() else {
+                    panic!()
+                };
+                let other_scope = LocalExecutionScope::new();
+                let other_execution = Execution::new(&node, other_scope.lease());
+                let other_runtime = Runtime::new(&other_execution, source, types.owner.clone());
+                let mut other = LocalStackedEffectSession::new(
+                    other_scope,
+                    &node,
+                    Vec::new(),
+                    Fuel::new(1000),
+                    STACK,
+                );
+                let EffectSessionPoll::Request(other_dispatch) =
+                    other.poll(&other_runtime).unwrap()
+                else {
+                    panic!()
+                };
+                let mut receipts = Vec::new();
+                let Ok((mut dispatch, rows, escaped)) =
+                    session.with_host_outcome(dispatch, |mut dispatch| {
+                        let mut rows = Vec::new();
+                        let mut escaped = Vec::new();
+                        match &mut dispatch {
+                            Dispatch::Sequence(sequence) => {
+                                for index in 0..2 {
+                                    let SequencePoll::Request {
+                                        index: actual,
+                                        request,
+                                    } = runtime.publish(sequence).unwrap()
+                                    else {
+                                        panic!()
+                                    };
+                                    assert_eq!(index, actual);
+                                    let request = ParallelRequest { index, request };
+                                    if index == completed {
+                                        escaped.push(request);
+                                        break;
+                                    }
+                                    let input = runtime.invoke(request).unwrap();
+                                    receipts.push(Rc::downgrade(&input.ack));
+                                    rows.push(
+                                        sequence
+                                            .try_accept(&execution.member(index), input, &runtime)
+                                            .unwrap(),
+                                    );
+                                }
+                            }
+                            Dispatch::Parallel { barrier, requests } => {
+                                for _ in 0..completed {
+                                    let request = requests.remove(0);
+                                    let index = request.index;
+                                    let input = runtime.invoke(request).unwrap();
+                                    receipts.push(Rc::downgrade(&input.ack));
+                                    barrier
+                                        .try_accept(
+                                            index,
+                                            &execution.member(index),
+                                            input,
+                                            &runtime,
+                                        )
+                                        .unwrap();
+                                }
+                                escaped = std::mem::take(requests);
+                            }
+                        }
+                        // Keep collectors/results owned until the VM revokes its lease.
+                        HostWorkOutcome::Cancelled((dispatch, rows, escaped))
+                    })
+                else {
+                    panic!()
+                };
+                assert_eq!(
+                    session.status(),
+                    EffectSessionStatus::Terminal(EffectSessionEnd::Cancelled)
+                );
+                assert!(!execution.identity.0.is_open());
+                assert!(other.lease().is_open());
+                assert_eq!(session.fuel_remaining(), 948);
+                assert_eq!(runtime.restores.get(), 0);
+                assert_eq!(runtime.projections.get(), 0);
+                assert_eq!(receipts.len(), completed);
+                assert!(receipts.iter().all(|receipt| receipt.strong_count() == 1));
+                assert_eq!(types.owner.invocations.borrow().len(), completed);
+                assert_eq!(
+                    &*types.owner.text.borrow(),
+                    if completed == 0 { "" } else { "ready." }
+                );
+
+                // Terminal classification did not silently cancel a host-owned collector.
+                match &mut dispatch {
+                    Dispatch::Sequence(sequence) => {
+                        assert_eq!(rows.len(), completed);
+                        if completed == 2 {
+                            assert_eq!(
+                                sequence.status(),
+                                SequenceStatus::Terminal(SequenceEnd::Completed)
+                            );
+                            assert!(!sequence.cancel());
+                        } else {
+                            assert_eq!(
+                                sequence.status(),
+                                SequenceStatus::Awaiting { index: completed }
+                            );
+                            assert!(sequence.cancel());
+                            assert!(matches!(
+                                runtime.publish(sequence).unwrap(),
+                                SequencePoll::Terminal(SequenceEnd::Cancelled)
+                            ));
+                        }
+                    }
+                    Dispatch::Parallel { barrier, .. } => {
+                        assert!(rows.is_empty());
+                        assert_eq!(
+                            barrier.status(),
+                            if completed == 2 {
+                                ParallelStatus::ReadyResults
+                            } else {
+                                ParallelStatus::Awaiting {
+                                    remaining: 2 - completed,
+                                }
+                            }
+                        );
+                        assert!(barrier.cancel());
+                        assert!(matches!(
+                            barrier.poll().unwrap(),
+                            ParallelPoll::Terminal(ParallelEnd::Cancelled)
+                        ));
+                        assert!(receipts.iter().all(|receipt| receipt.upgrade().is_none()));
+                    }
+                }
+                drop((dispatch, rows));
+                assert!(receipts.iter().all(|receipt| receipt.upgrade().is_none()));
+                for request in escaped {
+                    assert!(runtime.invoke(request).is_err());
+                }
+                let late = Collected {
+                    identity: execution.identity(),
+                    group: runtime.group,
+                    rows: Vec::new(),
+                    buffer: vec![53; 17].into_boxed_slice(),
+                };
+                let pointer = late.buffer.as_ptr();
+                let rejected = session
+                    .try_accept(&execution.identity, late, &runtime)
+                    .unwrap_err();
+                assert_eq!(rejected.reply.buffer.as_ptr(), pointer);
+                assert!(!session.cancel());
+                assert!(matches!(
+                    session.poll(&runtime).unwrap(),
+                    EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+                ));
+                assert_eq!(session.fuel_remaining(), 948);
+                assert_eq!(types.owner.invocations.borrow().len(), completed);
+
+                let Ok(reply) = other
+                    .with_host_work(other_dispatch, |dispatch| collect(&other_runtime, dispatch))
+                else {
+                    panic!()
+                };
+                other
+                    .try_accept(&other_execution.identity, reply, &other_runtime)
+                    .unwrap();
+                assert!(matches!(
+                    other.poll(&other_runtime).unwrap(),
+                    EffectSessionPoll::Value(_)
+                ));
+                assert_eq!(other.fuel_remaining(), 925);
+                assert_eq!(types.owner.invocations.borrow().len(), completed + 2);
+            });
+        }
     }
 }
 
@@ -1537,6 +2058,298 @@ fn guarded_gui_explicit_close_fences_accepted_reentry_without_resetting_core_sta
             assert_eq!(runtime.projections.get(), 0);
             assert_eq!(types.owner.invocations.borrow().len(), 2);
         });
+    }
+}
+
+#[test]
+fn scoped_gui_poll_cancellation_blocks_next_publication_and_completed_barrier_handoff() {
+    for kind in ["seq", "all"] {
+        for completed in 0..=2 {
+            fixture(|source, types, _| {
+                let node = compile(&tree(kind), source, types);
+                let scope = LocalExecutionScope::new();
+                let execution = Execution::new(&node, scope.lease());
+                let runtime = Runtime::new(&execution, source, types.owner.clone());
+                let mut session =
+                    StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
+                let EffectSessionPoll::Request(dispatch) = session.poll(&runtime).unwrap() else {
+                    panic!()
+                };
+                let other_scope = LocalExecutionScope::new();
+                let other_execution = Execution::new(&node, other_scope.lease());
+                let other_runtime = Runtime::new(&other_execution, source, types.owner.clone());
+                let mut other =
+                    StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
+                let EffectSessionPoll::Request(other_dispatch) =
+                    other.poll(&other_runtime).unwrap()
+                else {
+                    panic!()
+                };
+                let mut rows = Vec::new();
+                let mut receipts = Vec::new();
+                match dispatch {
+                    Dispatch::Sequence(mut sequence) => {
+                        for index in 0..completed {
+                            let SequencePoll::Request { request, .. } =
+                                runtime.publish_in_scope(&mut sequence, &scope).unwrap()
+                            else {
+                                panic!()
+                            };
+                            let input = runtime.invoke(ParallelRequest { index, request }).unwrap();
+                            receipts.push(Rc::downgrade(&input.ack));
+                            rows.push(
+                                sequence
+                                    .try_accept_in_scope(
+                                        &execution.member(index),
+                                        input,
+                                        &runtime,
+                                        &scope,
+                                    )
+                                    .unwrap(),
+                            );
+                        }
+                        scope.close();
+                        let expected = if completed == 2 {
+                            SequenceEnd::Completed
+                        } else {
+                            SequenceEnd::Cancelled
+                        };
+                        assert!(
+                            matches!(runtime.publish_in_scope(&mut sequence, &scope).unwrap(), SequencePoll::Terminal(end) if end == expected)
+                        );
+                        assert!(receipts.iter().all(|ack| ack.strong_count() == 1));
+                    }
+                    Dispatch::Parallel {
+                        mut barrier,
+                        mut requests,
+                    } => {
+                        for index in 0..completed {
+                            let input = runtime.invoke(requests.remove(0)).unwrap();
+                            receipts.push(Rc::downgrade(&input.ack));
+                            barrier
+                                .try_accept_in_scope(
+                                    index,
+                                    &execution.member(index),
+                                    input,
+                                    &runtime,
+                                    &scope,
+                                )
+                                .unwrap();
+                        }
+                        if completed == 2 {
+                            assert_eq!(barrier.status(), ParallelStatus::ReadyResults);
+                        }
+                        scope.close();
+                        assert!(matches!(
+                            barrier.poll_in_scope(&scope).unwrap(),
+                            ParallelPoll::Terminal(ParallelEnd::Cancelled)
+                        ));
+                        assert!(receipts.iter().all(|ack| ack.strong_count() == 0));
+                        for request in requests {
+                            assert!(runtime.invoke(request).is_err());
+                        }
+                    }
+                }
+                assert_eq!(session.status(), EffectSessionStatus::Awaiting);
+                assert!(session.cancel());
+                assert!(matches!(
+                    session.poll(&runtime).unwrap(),
+                    EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+                ));
+                assert_eq!(session.fuel_remaining(), 948);
+                assert_eq!((runtime.restores.get(), runtime.projections.get()), (0, 0));
+                assert_eq!(types.owner.invocations.borrow().len(), completed);
+                drop(rows);
+                assert!(receipts.iter().all(|ack| ack.strong_count() == 0));
+                assert!(other_scope.is_open());
+                other
+                    .try_accept(
+                        &other_execution.identity,
+                        collect(&other_runtime, other_dispatch),
+                        &other_runtime,
+                    )
+                    .unwrap();
+                assert!(
+                    matches!(other.poll(&other_runtime).unwrap(), EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::String(value))) if value == "ready.!")
+                );
+                assert_eq!(other.fuel_remaining(), 925);
+                assert_eq!(types.owner.invocations.borrow().len(), completed + 2);
+            });
+        }
+    }
+}
+
+#[test]
+fn scoped_gui_collector_revocation_stops_group_delivery_without_cancelling_a_sibling() {
+    struct Revoking<'a, Authority> {
+        scope: &'a LocalExecutionScope,
+        authority: &'a Authority,
+    }
+    impl<Authority: ReplyAuthority<MemberIdentity>> ReplyAuthority<MemberIdentity>
+        for Revoking<'_, Authority>
+    {
+        type Error = Authority::Error;
+        fn authorize(&self, identity: &MemberIdentity) -> Result<(), Self::Error> {
+            self.scope.close();
+            self.authority.authorize(identity)
+        }
+    }
+    for kind in ["seq", "all"] {
+        for completed in 0..2 {
+            fixture(|source, types, _| {
+                let node = compile(&tree(kind), source, types);
+                let scope = LocalExecutionScope::new();
+                let execution = Execution::new(&node, scope.lease());
+                let runtime = Runtime::new(&execution, source, types.owner.clone());
+                let mut session =
+                    StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
+                let EffectSessionPoll::Request(dispatch) = session.poll(&runtime).unwrap() else {
+                    panic!()
+                };
+                let other_scope = LocalExecutionScope::new();
+                let other_execution = Execution::new(&node, other_scope.lease());
+                let other_runtime = Runtime::new(&other_execution, source, types.owner.clone());
+                let mut other =
+                    StackedEffectSession::new(&node, Vec::new(), Fuel::new(1000), STACK);
+                let EffectSessionPoll::Request(other_dispatch) =
+                    other.poll(&other_runtime).unwrap()
+                else {
+                    panic!()
+                };
+                let authority = Revoking {
+                    scope: &scope,
+                    authority: &runtime,
+                };
+                let mut handed_off = Vec::new();
+                let mut retained = Vec::new();
+                match dispatch {
+                    Dispatch::Sequence(mut sequence) => {
+                        for index in 0..=completed {
+                            let SequencePoll::Request { request, .. } =
+                                runtime.publish(&mut sequence).unwrap()
+                            else {
+                                panic!()
+                            };
+                            let input = runtime.invoke(ParallelRequest { index, request }).unwrap();
+                            retained.push(Rc::downgrade(&input.ack));
+                            if index < completed {
+                                handed_off.push(
+                                    sequence
+                                        .try_accept_in_scope(
+                                            &execution.member(index),
+                                            input,
+                                            &runtime,
+                                            &scope,
+                                        )
+                                        .unwrap(),
+                                );
+                            } else {
+                                let pointer = input.buffer.as_ptr();
+                                let rejected = sequence
+                                    .try_accept_in_scope(
+                                        &execution.member(index),
+                                        input,
+                                        &authority,
+                                        &scope,
+                                    )
+                                    .unwrap_err();
+                                assert!(matches!(
+                                    rejected.error,
+                                    leselang_hir::sequence_evaluation::SequenceReplyError::Reply(
+                                        ReplyAcceptanceError::Closed(ReplyEnd::Cancelled)
+                                    )
+                                ));
+                                assert_eq!(rejected.reply.buffer.as_ptr(), pointer);
+                            }
+                        }
+                        assert_eq!(
+                            sequence.status(),
+                            SequenceStatus::Terminal(SequenceEnd::Cancelled)
+                        );
+                        assert!(matches!(
+                            runtime.publish(&mut sequence).unwrap(),
+                            SequencePoll::Terminal(SequenceEnd::Cancelled)
+                        ));
+                        if completed == 1 {
+                            assert_eq!(retained[0].strong_count(), 1);
+                        }
+                    }
+                    Dispatch::Parallel {
+                        mut barrier,
+                        mut requests,
+                    } => {
+                        for index in 0..=completed {
+                            let input = runtime.invoke(requests.remove(0)).unwrap();
+                            retained.push(Rc::downgrade(&input.ack));
+                            if index < completed {
+                                barrier
+                                    .try_accept_in_scope(
+                                        index,
+                                        &execution.member(index),
+                                        input,
+                                        &runtime,
+                                        &scope,
+                                    )
+                                    .unwrap();
+                            } else {
+                                let pointer = input.buffer.as_ptr();
+                                let rejected = barrier
+                                    .try_accept_in_scope(
+                                        index,
+                                        &execution.member(index),
+                                        input,
+                                        &authority,
+                                        &scope,
+                                    )
+                                    .unwrap_err();
+                                assert!(matches!(
+                                    rejected.error,
+                                    leselang_hir::parallel_evaluation::ParallelReplyError::Reply(
+                                        ReplyAcceptanceError::Closed(ReplyEnd::Cancelled)
+                                    )
+                                ));
+                                assert_eq!(rejected.reply.buffer.as_ptr(), pointer);
+                            }
+                        }
+                        assert_eq!(
+                            barrier.status(),
+                            ParallelStatus::Terminal(ParallelEnd::Cancelled)
+                        );
+                        assert!(matches!(
+                            barrier.poll().unwrap(),
+                            ParallelPoll::Terminal(ParallelEnd::Cancelled)
+                        ));
+                        assert!(retained.iter().all(|ack| ack.strong_count() == 0));
+                        for request in requests {
+                            assert!(runtime.invoke(request).is_err());
+                        }
+                    }
+                }
+                assert!(!scope.is_open());
+                assert_eq!(session.fuel_remaining(), 948);
+                assert_eq!((runtime.restores.get(), runtime.projections.get()), (0, 0));
+                // A collector cannot mutate the unwrapped enclosing session.
+                assert!(session.cancel());
+                assert!(matches!(
+                    session.poll(&runtime).unwrap(),
+                    EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+                ));
+                assert_eq!(types.owner.invocations.borrow().len(), completed + 1);
+                assert_eq!(&*types.owner.text.borrow(), "ready.");
+                drop(handed_off);
+                assert!(retained.iter().all(|ack| ack.strong_count() == 0));
+                assert!(other_scope.is_open());
+                let collected = collect(&other_runtime, other_dispatch);
+                other
+                    .try_accept(&other_execution.identity, collected, &other_runtime)
+                    .unwrap();
+                assert!(
+                    matches!(other.poll(&other_runtime).unwrap(), EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::String(value))) if value == "ready.!")
+                );
+                assert_eq!(other.fuel_remaining(), 925);
+                assert_eq!(types.owner.invocations.borrow().len(), completed + 3);
+            });
+        }
     }
 }
 

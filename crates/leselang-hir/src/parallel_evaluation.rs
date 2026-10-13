@@ -3,13 +3,15 @@
 use std::{borrow::Borrow, convert::Infallible, fmt};
 
 use leselang_runtime_core::{
-    AcceptedReply, Fuel, HostResultDomain, PendingReply, ReplyAcceptanceError, ReplyAuthority,
+    AcceptedReply, Fuel, HostResultDomain, LocalExecutionScope, PendingReply, ReplyAcceptanceError,
+    ReplyAuthority, ReplyEnd,
 };
 
 use crate::group_exports::{
     GroupExportError, GroupExportLimits, MAX_GROUP_EXPORT_MEMBERS, atomic_candidate, physical,
 };
 use crate::ir::{Computation, ComputedBranch, GroupKind};
+use crate::local_scope::CallFence;
 use crate::pure_typing::{MAX_TYPE_INFERENCE_DEPTH, MAX_TYPE_INFERENCE_NODES};
 
 type Node<Field, Operation, HostEffect, IrResult> =
@@ -358,11 +360,80 @@ impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration:
                 Declaration = Declaration,
             >,
     {
-        if let Some(outcome) = self.core.poll_results()? {
+        self.poll_with_scope(environment, None)
+    }
+
+    /// Borrow local liveness for both complete-batch publication and ordered
+    /// result handoff. This neither stores a scope nor cancels external dispatch.
+    #[expect(
+        clippy::type_complexity,
+        reason = "original native result and request ownership"
+    )]
+    pub fn poll_in_scope<Environment>(
+        &mut self,
+        environment: &Environment,
+        scope: &LocalExecutionScope,
+    ) -> ParallelEvaluationPoll<
+        'expression,
+        Node<Field, Operation, HostEffect, IrResult>,
+        IrResult,
+        Identity,
+        Declaration,
+        Reply,
+        Environment::Request,
+        Environment::Error,
+    >
+    where
+        Identity: PartialEq,
+        Environment: ParallelEvaluationEnvironment<
+                'expression,
+                Field,
+                Operation,
+                HostEffect,
+                IrResult,
+                Identity = Identity,
+                Declaration = Declaration,
+            >,
+    {
+        self.poll_with_scope(environment, Some(scope))
+    }
+
+    #[expect(
+        clippy::type_complexity,
+        reason = "original native result and request ownership"
+    )]
+    fn poll_with_scope<Environment>(
+        &mut self,
+        environment: &Environment,
+        scope: Option<&LocalExecutionScope>,
+    ) -> ParallelEvaluationPoll<
+        'expression,
+        Node<Field, Operation, HostEffect, IrResult>,
+        IrResult,
+        Identity,
+        Declaration,
+        Reply,
+        Environment::Request,
+        Environment::Error,
+    >
+    where
+        Identity: PartialEq,
+        Environment: ParallelEvaluationEnvironment<
+                'expression,
+                Field,
+                Operation,
+                HostEffect,
+                IrResult,
+                Identity = Identity,
+                Declaration = Declaration,
+            >,
+    {
+        if let Some(outcome) = self.core.poll_results(scope)? {
             return Ok(outcome);
         }
-        self.core
-            .publish_with(&mut self.fuel, |index, branch, fuel| {
+        self.core.publish_with(
+            &mut self.fuel,
+            |index, branch, fuel| {
                 environment
                     .prepare_member(index, branch, fuel)
                     .map_err(|error| ParallelEvaluationError::Native {
@@ -370,7 +441,9 @@ impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration:
                         phase: ParallelPhase::Prepare,
                         error,
                     })
-            })
+            },
+            scope,
+        )
     }
 }
 
@@ -409,6 +482,26 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
     {
         self.core.try_accept(index, identity, reply, authority)
     }
+    /// Explicit local liveness without storing a scope or changing unscoped use.
+    /// Revocation cancels the barrier and drops accepted-but-unpublished results.
+    /// External dispatch and enclosing execution cancellation remain host-owned.
+    pub fn try_accept_in_scope<View: ?Sized, Authority>(
+        &mut self,
+        index: usize,
+        identity: &Identity,
+        reply: Reply,
+        authority: &Authority,
+        scope: &LocalExecutionScope,
+    ) -> ParallelAcceptance<Reply, Authority::Error, Declaration::Error>
+    where
+        Identity: PartialEq,
+        Reply: Borrow<View>,
+        Declaration: HostResultDomain<View>,
+        Authority: ReplyAuthority<Identity>,
+    {
+        self.core
+            .try_accept_with_scope(index, identity, reply, authority, Some(scope))
+    }
     pub fn cancel(&mut self) -> bool {
         self.core.cancel()
     }
@@ -445,6 +538,7 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
     )]
     pub(crate) fn poll_results<Request, Error>(
         &mut self,
+        scope: Option<&LocalExecutionScope>,
     ) -> Result<
         Option<
             ParallelPoll<
@@ -454,6 +548,9 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
         >,
         ParallelEvaluationError<Error>,
     > {
+        if scope.is_some_and(|scope| !scope.is_open()) {
+            self.cancel();
+        }
         match self.status() {
             ParallelStatus::Awaiting { remaining } => {
                 Ok(Some(ParallelPoll::Awaiting { remaining }))
@@ -494,6 +591,7 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
             PreparedParallelMember<'expression, Identity, Declaration, Request>,
             ParallelEvaluationError<Error>,
         >,
+        scope: Option<&LocalExecutionScope>,
     ) -> ParallelEvaluationPoll<
         'expression,
         Node,
@@ -507,6 +605,12 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
     where
         Identity: PartialEq,
     {
+        if scope.is_some_and(|scope| !scope.is_open()) {
+            self.cancel();
+            return self
+                .poll_results(scope)?
+                .ok_or(ParallelEvaluationError::InternalState);
+        }
         if !matches!(self.state, State::Ready) {
             return Err(ParallelEvaluationError::InternalState);
         }
@@ -515,16 +619,47 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
         // cannot publish a subset or leave the session ready to replay preparation.
         let batch = (|| {
             let mut prepared = Vec::with_capacity(self.branches.len());
-            for (index, branch) in self.branches.iter().enumerate() {
-                fuel.charge(1).map_err(|_| ParallelEvaluationError::Fuel)?;
-                let member = prepare(index, branch, fuel)?;
-                prepared.push(member);
-            }
-            for (index, member) in prepared.iter().enumerate() {
-                for (previous, other) in prepared[..index].iter().enumerate() {
-                    if member.identity == other.identity {
-                        return Err(ParallelEvaluationError::DuplicateIdentity { index, previous });
+            // Revocation must precede retained prefix cleanup on callback unwind.
+            let fence = CallFence::new(scope);
+            let admission = (|| {
+                for (index, branch) in self.branches.iter().enumerate() {
+                    fuel.charge(1).map_err(|_| ParallelEvaluationError::Fuel)?;
+                    let member = prepare(index, branch, fuel);
+                    if scope.is_some_and(|scope| !scope.is_open()) {
+                        self.state = State::Terminal(ParallelEnd::Cancelled);
+                        drop(member);
+                        return Ok(false);
                     }
+                    prepared.push(member?);
+                }
+                for (index, member) in prepared.iter().enumerate() {
+                    for (previous, other) in prepared[..index].iter().enumerate() {
+                        let duplicate = member.identity == other.identity;
+                        if scope.is_some_and(|scope| !scope.is_open()) {
+                            self.state = State::Terminal(ParallelEnd::Cancelled);
+                            return Ok(false);
+                        }
+                        if duplicate {
+                            return Err(ParallelEvaluationError::DuplicateIdentity {
+                                index,
+                                previous,
+                            });
+                        }
+                    }
+                }
+                Ok(true)
+            })();
+            match admission {
+                Ok(true) => {}
+                Ok(false) => {
+                    drop(prepared);
+                    fence.finish();
+                    return Ok(None);
+                }
+                Err(error) => {
+                    fence.close();
+                    fence.finish();
+                    return Err(error);
                 }
             }
             let mut members = Vec::with_capacity(prepared.len());
@@ -540,16 +675,18 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
                     request: member.request,
                 });
             }
-            Ok((members, requests))
+            fence.finish();
+            Ok(Some((members, requests)))
         })();
         match batch {
-            Ok((members, requests)) => {
+            Ok(Some((members, requests))) => {
                 self.state = State::Awaiting {
                     remaining: members.len(),
                     members,
                 };
                 Ok(ParallelPoll::Requests(requests))
             }
+            Ok(None) => Ok(ParallelPoll::Terminal(ParallelEnd::Cancelled)),
             Err(error) => {
                 self.state = State::Terminal(ParallelEnd::Failed);
                 Err(error)
@@ -580,6 +717,26 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
         Declaration: HostResultDomain<View>,
         Authority: ReplyAuthority<Identity>,
     {
+        self.try_accept_with_scope(index, identity, reply, authority, None)
+    }
+
+    pub(crate) fn try_accept_with_scope<View: ?Sized, Authority>(
+        &mut self,
+        index: usize,
+        identity: &Identity,
+        reply: Reply,
+        authority: &Authority,
+        scope: Option<&LocalExecutionScope>,
+    ) -> ParallelAcceptance<Reply, Authority::Error, Declaration::Error>
+    where
+        Identity: PartialEq,
+        Reply: Borrow<View>,
+        Declaration: HostResultDomain<View>,
+        Authority: ReplyAuthority<Identity>,
+    {
+        if scope.is_some_and(|scope| !scope.is_open()) {
+            self.cancel();
+        }
         let status = self.status();
         let State::Awaiting { members, .. } = &self.state else {
             return Err(ParallelRejected {
@@ -610,7 +767,13 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
                 error: ParallelReplyError::MemberNotAwaiting { index },
             });
         };
-        match pending.try_accept(identity, reply, authority) {
+        // Revoke before disposing retained siblings on native callback unwind.
+        let fence = CallFence::new(scope);
+        let outcome = match scope {
+            Some(scope) => pending.try_accept_in_scope(identity, reply, authority, scope),
+            None => pending.try_accept(identity, reply, authority),
+        };
+        let outcome = match outcome {
             Ok(accepted) => {
                 members[index] = Member::Accepted(accepted);
                 self.state = if remaining == 1 {
@@ -624,14 +787,24 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
                 Ok(())
             }
             Err(rejected) => {
-                members[index] = Member::Pending(pending);
-                self.state = State::Awaiting { members, remaining };
+                if matches!(
+                    rejected.error,
+                    ReplyAcceptanceError::Closed(ReplyEnd::Cancelled)
+                ) {
+                    self.state = State::Terminal(ParallelEnd::Cancelled);
+                    drop(members);
+                } else {
+                    members[index] = Member::Pending(pending);
+                    self.state = State::Awaiting { members, remaining };
+                }
                 Err(ParallelRejected {
                     reply: rejected.reply,
                     error: ParallelReplyError::Reply(rejected.error),
                 })
             }
-        }
+        };
+        fence.finish();
+        outcome
     }
 
     pub(crate) fn cancel(&mut self) -> bool {

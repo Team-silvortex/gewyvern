@@ -2,17 +2,17 @@
 
 use std::{borrow::Borrow, fmt};
 
-use leselang_runtime_core::{Fuel, HostResultDomain, ReplyAuthority};
+use leselang_runtime_core::{Fuel, HostResultDomain, LocalExecutionScope, ReplyAuthority};
 
 use crate::effect_evaluation::ControlOutcome;
 use crate::effect_reentry::RestoredEffectBindings;
 use crate::effect_session::{
     EffectSessionAcceptance, EffectSessionEnvironment, EffectSessionPoll, EffectSessionStatus,
-    SessionCore,
+    HostWorkOutcome, SessionCore,
 };
 use crate::effect_stack::{
     EffectReturnStack, EffectStackFailure, EffectStackLimits, evaluate_stacked_effects_in_scope,
-    resume_accepted_stacked_effects, stack_failure,
+    resume_accepted_stacked_effects_with_scope, stack_failure,
 };
 use crate::ir::Computation;
 
@@ -119,6 +119,14 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
         self.core.cancel()
     }
 
+    pub(crate) fn with_host_work<Input, Output>(
+        &mut self,
+        input: Input,
+        work: impl FnOnce(Input) -> HostWorkOutcome<Output>,
+    ) -> Result<Output, Input> {
+        self.core.with_host_work(input, work)
+    }
+
     /// Shared original acceptance; success retains every frame until explicit poll.
     pub fn try_accept<View: ?Sized, Authority>(
         &mut self,
@@ -133,6 +141,23 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
         Authority: ReplyAuthority<Identity>,
     {
         self.core.try_accept(identity, reply, authority)
+    }
+
+    pub(crate) fn try_accept_in_scope<View: ?Sized, Authority>(
+        &mut self,
+        identity: &Identity,
+        reply: Reply,
+        authority: &Authority,
+        scope: &LocalExecutionScope,
+    ) -> EffectSessionAcceptance<Reply, Authority::Error, Declaration::Error>
+    where
+        Identity: PartialEq,
+        Reply: Borrow<View>,
+        Declaration: HostResultDomain<View>,
+        Authority: ReplyAuthority<Identity>,
+    {
+        self.core
+            .try_accept_with_scope(identity, reply, authority, Some(scope))
     }
 }
 impl<Node: ?Sized, Value, Capture, Identity, Declaration: ?Sized, Reply> fmt::Debug
@@ -193,6 +218,29 @@ impl<
                 Reply = Reply,
             >,
     {
+        self.poll_with_scope(environment, None)
+    }
+
+    pub(crate) fn poll_with_scope<Environment>(
+        &mut self,
+        environment: &Environment,
+        execution_scope: Option<&LocalExecutionScope>,
+    ) -> StackedEffectSessionPollResult<Value, Environment::Dispatch, Environment::Error>
+    where
+        Environment: EffectSessionEnvironment<
+                'expression,
+                'schema,
+                Field,
+                Operation,
+                HostEffect,
+                IrResult,
+                Result = Value,
+                Capture = Capture,
+                Identity = Identity,
+                Declaration = Declaration,
+                Reply = Reply,
+            >,
+    {
         let limits = self.limits;
         self.core.poll_with(
             environment,
@@ -201,10 +249,17 @@ impl<
                     .map(ControlOutcome::from)
             },
             |accepted, fuel| {
-                resume_accepted_stacked_effects(accepted, environment, fuel, limits)
-                    .map(ControlOutcome::from)
+                resume_accepted_stacked_effects_with_scope(
+                    accepted,
+                    environment,
+                    fuel,
+                    limits,
+                    execution_scope,
+                )
+                .map(ControlOutcome::from)
             },
             stack_failure,
+            execution_scope,
         )
     }
 }

@@ -2,6 +2,8 @@
 
 use std::{borrow::Borrow, fmt};
 
+pub use crate::effect_session::HostWorkOutcome;
+
 use leselang_runtime_core::{
     Fuel, HostResultDomain, LocalExecutionLease, LocalExecutionScope, ReplyAuthority,
 };
@@ -12,24 +14,8 @@ use crate::{
     effect_stack::EffectStackLimits,
     effect_stack_session::{StackedControlSession, StackedEffectSessionPollResult},
     ir::Computation,
+    local_scope::CallFence,
 };
-
-struct CallFence<'scope> {
-    scope: &'scope LocalExecutionScope,
-    returned: bool,
-}
-impl CallFence<'_> {
-    fn finish(mut self) {
-        self.returned = true;
-    }
-}
-impl Drop for CallFence<'_> {
-    fn drop(&mut self) {
-        if !self.returned {
-            self.scope.close();
-        }
-    }
-}
 
 /// One local lifetime owner and the unchanged stacked session, not a second VM.
 ///
@@ -39,6 +25,8 @@ impl Drop for CallFence<'_> {
 /// a pending scope open. Completion/failure close it before returning; cancel and
 /// owner Drop close before retained session cleanup. An escaping native unwind
 /// closes even when the caller catches it and retains this wrapper.
+/// Poll also fences retained re-entry owners, restored prefix rejection and
+/// successor correlation failure; it does not revoke language-recovered faults.
 ///
 /// This fence acts at the call boundary: callback-local or consumed-frame cleanup
 /// inside the original evaluator can run before an unwind reaches it. It neither
@@ -160,16 +148,14 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
                 Declaration,
                 Reply,
             >,
+            &LocalExecutionScope,
         ) -> Output,
     ) -> Output {
         if !self.scope.is_open() {
             self.session.cancel();
         }
-        let fence = CallFence {
-            scope: &self.scope,
-            returned: false,
-        };
-        let output = step(&mut self.session);
+        let fence = CallFence::new(Some(&self.scope));
+        let output = step(&mut self.session, &self.scope);
         if matches!(self.session.status(), EffectSessionStatus::Terminal(_)) {
             self.scope.close();
         }
@@ -177,8 +163,66 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
         output
     }
 
+    /// Explicitly fence a host-owned operation while awaiting an external reply.
+    /// A non-awaiting session returns the original input without calling `work`;
+    /// inspect `status()` for the reason. A normal output (including a native Err)
+    /// stays verbatim, pending and unmetered: no reply is accepted or code resumed.
+    ///
+    /// Once entered, escaping unwind seals the original core HostUncertain and
+    /// closes this scope before retained pending-state cleanup, even when a catcher
+    /// keeps this VM alive. Rejected work is never entered; its unused closure
+    /// captures still have ordinary trusted Rust destruction semantics.
+    /// Callback-local cleanup still precedes this fence. Hosts bound native work
+    /// and check input identity/schema/grants/lease at the actual effect boundary.
+    /// This does not bind an arbitrary input to a request, prevent repeated calls,
+    /// cancel an external collector, or roll back already-applied effects. Keep
+    /// fallible output handling/disposal inside `work` if it needs this fence too.
+    pub fn with_host_work<Input, Output>(
+        &mut self,
+        input: Input,
+        work: impl FnOnce(Input) -> Output,
+    ) -> Result<Output, Input> {
+        self.with_host_outcome(input, |input| HostWorkOutcome::Pending(work(input)))
+    }
+
+    /// Like `with_host_work`, but the adapter explicitly classifies a normal
+    /// return. Pending retains the original session. Cancelled/Failed/Uncertain
+    /// revoke before retained cleanup and seal Cancelled/Failed/HostUncertain.
+    /// The original output is returned without cloning, formatting or accepting
+    /// it as a reply. A cleanup unwind preserves the selected terminal reason.
+    ///
+    /// The outer Result only indicates whether work was entered. A terminal
+    /// outcome still returns Ok(output); inspect status or your native output.
+    /// Classification is trusted host policy, not proof of effect delivery or
+    /// absence. It does not roll back work or cancel external collectors. The
+    /// same callback, output-handoff and native cleanup boundaries apply.
+    /// Return collectors/queues in Cancelled(output) to hand them back only after
+    /// revocation, then explicitly cancel/dispose them. Dropping them inside the
+    /// callback is still native-owned cleanup before this boundary.
+    pub fn with_host_outcome<Input, Output>(
+        &mut self,
+        input: Input,
+        work: impl FnOnce(Input) -> HostWorkOutcome<Output>,
+    ) -> Result<Output, Input> {
+        self.call(|session, scope| {
+            session.with_host_work(input, |input| {
+                // Revoke before the core's locally owned pending frames unwind.
+                let fence = CallFence::new(Some(scope));
+                let output = work(input);
+                if !matches!(&output, HostWorkOutcome::Pending(_)) {
+                    scope.close();
+                }
+                fence.finish();
+                output
+            })
+        })
+    }
+
     /// Exact original acceptance: a normal rejection returns the original input
     /// and does not revoke a still-pending execution. No continuation runs here.
+    /// Validation unwind revokes before core-owned pending identity/frame/reply
+    /// cleanup, not just at the outer call boundary. Callback-local cleanup is
+    /// still native-owned and cannot be preempted.
     pub fn try_accept<View: ?Sized, Authority>(
         &mut self,
         identity: &Identity,
@@ -191,7 +235,7 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
         Declaration: HostResultDomain<View>,
         Authority: ReplyAuthority<Identity>,
     {
-        self.call(|session| session.try_accept(identity, reply, authority))
+        self.call(|session, scope| session.try_accept_in_scope(identity, reply, authority, scope))
     }
 }
 
@@ -235,6 +279,8 @@ impl<
     >
 {
     /// Delegate one slice with the same meter, then mirror only terminal liveness.
+    /// Terminal failures revoke before retained re-entry/prefix cleanup at shared
+    /// boundaries. Values already consumed by callbacks remain native-owned.
     pub fn poll<Environment>(
         &mut self,
         environment: &Environment,
@@ -254,6 +300,6 @@ impl<
                 Reply = Reply,
             >,
     {
-        self.call(|session| session.poll(environment))
+        self.call(|session, scope| session.poll_with_scope(environment, Some(scope)))
     }
 }

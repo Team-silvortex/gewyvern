@@ -1842,6 +1842,293 @@ accounting stays `1000 -> 948 -> 925`. Local ownership is deliberately !Send/!Sy
 no global lock, scheduler, new quota or product dependency is added. Complete
 host parity, durable recovery and repository extraction remain separate gates.
 
+### Fenced Reply Acceptance
+
+`LocalVm::try_accept` now passes its original scope through the existing
+SessionCore to `PendingReply::try_accept_in_scope(identity, reply, authority,
+&scope)`. The standalone runtime-core entry is also available to hosts owning
+their own pending handles. Both paths reuse the original acceptance algorithm:
+identity equality, live authority, borrowed view, type and value validation each
+run at most once, in that order, against the original declaration.
+
+The local fence is armed **after taking ownership of the pending frame** and
+before invoking native validators. If any validator unwinds, the scope closes
+before core-owned identity, frame and reply cleanup, even when a catcher keeps
+the VM alive. The reply handle and session retain HostUncertain; late input is
+returned unchanged without rerunning policy or spending fuel. No continuation
+runs during acceptance. Unrelated owners stay open, and the unscoped API keeps
+its existing behavior and conditional Send capability.
+
+A normal refusal with an open scope disarms the fence, returns the exact original reply, and keeps
+the original pending frame and open scope for an explicit corrected attempt.
+Success likewise does not close the scope: a later poll still owns re-entry.
+The core entry cancels a pending handle if its supplied scope is already closed,
+before any native queries, preserving existing terminal reasons on cleanup panic.
+Scope/identity association is host policy, not established by this argument;
+live authentication, provenance and effect-boundary checks remain necessary.
+
+Callback-local cleanup happens before an unwind reaches this fence. Handling or
+disposing accepted data after handoff is outside it. There is no callback sandbox,
+rollback, external cancellation, global deduplication or durable receipt. The
+five-stage cleanup-order matrix and final/captured native facade tests run in
+the source checkpoint; full host/recovery/extraction gates remain open.
+
+#### Synchronous Revocation During Acceptance
+
+A standalone host that retains its scope owner can close it synchronously inside
+identity comparison, live authority, Borrow, type matching or value validation.
+The scoped reply entry rechecks liveness after each normal callback and does not
+enter later checks once closed. Even an otherwise valid reply must not transfer
+an accepted continuation after that revocation. The shared type-before-value
+validator still calls the original native domain; the private observation wrapper
+only prevents value validation after a type callback closes the scope.
+Identity comparison retains the original native inequality hook, including a
+host-defined `PartialEq::ne`, rather than silently substituting `eq`.
+
+Closure wins over an ordinary refusal returned by the same callback. The pending
+handle seals Cancelled before releasing its retained identity/frame or disposing
+the now-superseded native error. It returns `Closed(Cancelled)` and the original
+input without formatting, cloning, refunding fuel or running the continuation.
+If that cleanup unwinds, the handle remains Cancelled but cannot return the input.
+A callback that itself unwinds instead of returning retains the existing
+HostUncertain path. These checks do not preempt callback-local work or cleanup.
+
+When the shared SessionCore receives a normal `Closed(Cancelled)` rejection, both
+final and captured requests become Terminal Cancelled, not Awaiting with a dead
+pending handle. A cleanup unwind that prevents that normal handoff still leaves
+the enclosing session conservatively HostUncertain; its scope is already closed.
+The matrix covers all five phases, refusal precedence, original input ownership,
+cleanup unwind, preclosed owners, unchanged budgets and unrelated scope liveness.
+Unscoped acceptance does not adopt this opt-in policy, and LocalVm still owns its
+scope uniquely rather than exposing a revocation-capable shared lease.
+
+#### Scoped Group Acceptance
+
+`SequenceSession`, `ParallelSession`, `PreparedSequenceSession` and
+`PreparedParallelSession` expose `try_accept_in_scope(..., &scope)` for hosts
+that retain an explicit `LocalExecutionScope`. Both legacy and prepared entries
+reuse their original private reply cores and shared PendingReply validation.
+The scope is borrowed for that call, never stored in the collector or inferred
+from a native identity. Unscoped acceptance and conditional Send bounds are
+unchanged; no additional meter, scheduler or evaluator is introduced.
+
+A preclosed scope cancels before index/status validation or any acceptance callback,
+including a parallel barrier already in ReadyResults. Existing terminal reasons
+remain unchanged. Synchronous revocation during a callback stops later checks,
+returns the original input with `Closed(Cancelled)` on normal cleanup, and seals
+the collector instead of restoring Awaiting. Ordinary rejection with an open
+scope preserves the pending member, accepted prefix, original domains and fuel.
+
+Cancellation drops a prepared sequence's unpublished suffix and a parallel
+barrier's accepted-but-unpublished results. Sequence results and requests already
+handed out remain host-owned. A callback unwind revokes before retained sibling
+or suffix cleanup and conservatively leaves the collector HostUncertain. Cleanup
+after the collector's Cancelled seal preserves that reason; cleanup inside the
+pending handle that interrupts its return still leaves the collector HostUncertain.
+
+These entries do not cancel an enclosing VM or external dispatch, authenticate a
+scope/identity relationship, or undo native effects. LocalVm still owns its scope
+privately; this is not automatic propagation from its adapter callback. A host
+using an externally owned scope with an unwrapped session must explicitly cancel
+that enclosing session. The headless GUI proof covers this handoff, late dispatch
+refusal and an independent execution finishing with unchanged fuel. It is not an
+Avalonia-window test or completion of the durable-VM extraction gate.
+
+#### Scoped Group Polling
+
+All four collectors also expose `poll_in_scope(..., &scope)`. Use the same explicit
+scope for publication, reply acceptance and result handoff; neither method stores
+or authenticates a scope/identity relationship. A preclosed owner cancels Ready,
+Awaiting and ReadyResults without native preparation/admission, extra fuel or
+output. Already terminal reasons remain sticky. In particular, an All batch whose
+replies have arrived but have not been handed off is still cancellable.
+
+Sequence publication rechecks after original native preparation or prepared-row
+admission. All publication rechecks after each preparation and each original
+identity comparison. Synchronous revocation stops later callbacks and prevents
+any partial batch handoff. The collector seals Cancelled before disposing the
+newly returned member, superseded error or retained prefix/suffix. No request is
+returned, and work already charged is not refunded.
+
+An ordinary preparation/admission refusal or exhausted meter remains Failed,
+preserves the original returned native error and revokes before retained cleanup.
+Escaping native callback unwind remains HostUncertain. A cleanup unwind before
+the parallel failure handoff also retains its conservative HostUncertain reason;
+cleanup after a Cancelled seal cannot change that reason. Callback-local data
+consumed before returning to the library remains outside these fences.
+
+Successful scoped and unscoped polling have exact fuel parity, original borrowed
+rows/domains and declaration-ordered All results. No additional state machine or
+meter is introduced. Start/preparation/correlation before these calls remain
+host-owned: PreparedParallelSession::start already returns requests, and a later
+scoped poll cannot undo that publication. Recheck native liveness at dispatch and
+explicitly cancel an enclosing unwrapped session. The headless GUI proof covers
+zero/partial/full replies, no successor or completed-barrier delivery after close,
+once-only retained cleanup, and an unaffected sibling finishing at the same fuel.
+
+### Fenced Reentry Cleanup
+
+`LocalVm::poll` carries its existing owner into the original SessionCore and
+stacked re-entry implementation. A private optional fence is shared with the
+local call boundary; there is no additional public evaluator, session state,
+native error interpretation or fuel meter. The unscoped APIs pass no owner and
+retain their existing behavior and conditional Send capability.
+
+On terminal evaluation/refusal or escaping unwind, initial/restored binding
+prefixes and still-retained return frames, unused replies and identities observe
+revocation before their cleanup at these boundaries. Invalid restored prefixes
+close before their values are disposed. Final projection failure, including an
+unbounded scalar result, closes before retained identity cleanup. A failed
+request-correlation hook closes before dropping the prepared successor's retained
+continuation, both on the initial request and after accepted re-entry.
+
+Successful re-entry and successor publication keep the lease live. A scalar
+fault handled by the language's `recover` is not a terminal slice failure and
+does not revoke the execution. Native facade tests compare each suspension and
+final fuel against the unscoped VM on the same recovered-computation program.
+No already-settled operation is repeated and no budget is refunded. As before,
+a failed poll becomes Failed only when its cleanup returns normally; cleanup
+unwind keeps HostUncertain rather than inventing a completed handoff.
+If retained identity cleanup panics after producing a value, the fence closes
+before that value's disposal instead of publishing it to the caller.
+
+The fence covers owners still held at these boundaries, not values already
+consumed by native callbacks or temporaries cleaned inside the evaluator. A
+successful native destructor that subsequently panics cannot be preempted;
+callback/Drop-local cleanup remains trusted and a second panic can abort. Native
+effects are not rolled back, external collectors are not automatically cancelled,
+and returned data is not a durable receipt. The independent source tests include
+nested cold/restore/projection failures, invalid prefixes, initial/successor
+correlation refusal, cleanup panic and normal recovery/fuel parity. Complete
+host/recovery/extraction gates remain open.
+
+### Fenced Native Host Work
+
+`LocalVm::with_host_work(input, work)` protects the adapter-owned interval between
+dispatch publication and reply acceptance. It uses the **same SessionCore pending
+state**, not a new queue, scheduler, dispatcher or interpreter. Only Awaiting
+enters `work(input)`. Initial/accepted Ready and every terminal state return the
+original move-only input as `Err(input)`, without calling work, spending fuel or
+changing the existing terminal reason. A preclosed owner is cancelled first.
+The host can inspect `status()` after refusal; this is not a retry hint.
+Use this entry for normal outputs that should retain the pending session. If a
+normal native error must terminate it, use classified outcomes below instead of
+simply propagating that error while leaving a retained VM live.
+
+```rust,ignore
+let reply = match vm.with_host_work(request, |request| host.invoke(request)) {
+    Ok(result) => result?, // Normal native errors are not inferred to be terminal.
+    Err(original) => return host.dispose_unstarted(original, vm.status()),
+};
+vm.try_accept(&identity, reply, &host)?;
+// A later explicit poll performs re-entry with the original meter.
+```
+
+The outer Result says whether the callback ran, not whether its operation
+succeeded. All normal outputs, including borrowed values and native `Err`, stay
+verbatim; the original pending state is restored without accepting a reply,
+executing a continuation or resetting fuel. Repeated host calls are permitted
+while Awaiting: hosts authenticate request/execution association and prevent
+duplicate mutation themselves. Merely passing an arbitrary input is not proof
+that it belongs to this execution or was ever published by this VM.
+
+Before entry, the original core seals HostUncertain and retains its pending state
+locally. A normal return restores that state. An escaping callback unwind closes
+the local lease **before retained pending identities/frames are cleaned up**;
+the core stays HostUncertain even if an outer catcher retains the VM. Further
+host work, acceptance or polling cannot retry that uncertain operation. Applied
+effects remain applied; native escaped requests still check their original lease.
+An unrelated live execution is not revoked.
+
+This is an explicit synchronous call boundary, not a native sandbox. The callback
+must check live identity/schema/grants/lease and bound native work. Callback-local
+cleanup still precedes the unwind fence; unused rejected closure captures also
+have ordinary Rust destruction semantics. Put fallible output processing or
+disposal inside the callback if it must be fenced: the boundary cannot observe
+later failures after output handoff, or a panic caught entirely inside native
+code. No callback preemption, external collector cancellation, rollback, crash
+recovery or exactly-once effect guarantee is added. Drop panic during unwind may
+abort, and process abort/forget bypass Rust lifetime cleanup.
+
+Native facade tests cover final and captured pending identity cleanup ordering,
+borrowed/move-only inputs and outputs, and preclosed owners. Seq/All GUI tests
+cover ordinary refusal, successful re-entry with unchanged `1000 -> 948 -> 925`
+fuel, panic before/after mutation, revoked escaped work and non-awaiting refusal.
+These same tests run unchanged in the independent source consumer; they are
+headless adapter proofs, not an Avalonia integration or full extraction gate.
+
+### Classified Native Outcomes
+
+`LocalVm::with_host_outcome(input, work)` shares the existing host-work lifecycle
+but requires the adapter to return `HostWorkOutcome<Output>`. The enum is available
+from `leselang_vm::native`, shared HIR's `effect_session`, and the local entry
+module. It adds no product DTO, scheduler, interpreter or wire format.
+
+| Explicit Outcome | Original Session State | Native Output |
+| --- | --- | --- |
+| `Pending(output)` | Remains Awaiting with its original frames and budget | Returned unchanged |
+| `Cancelled(output)` | Terminal Cancelled; local lease revoked before retained cleanup | Returned unchanged |
+| `Failed(output)` | Terminal Failed; local lease revoked before retained cleanup | Returned unchanged |
+| `Uncertain(output)` | Terminal HostUncertain; local lease revoked before retained cleanup | Returned unchanged |
+
+The host chooses the classification from its actual adapter protocol. A normal
+error can mean a recoverable refusal, an unrecoverable failure, or an uncertain
+publication/result: neither an error code nor Rust `Err` determines the choice.
+`Failed` does not certify that no effect occurred. `Uncertain` does not require
+raising a Rust panic. `Cancelled` records a host stop decision, not proof that
+native effects stopped or were rolled back. No terminal variant can accept a late reply, run the
+tail or perform another host call through this execution; cancellation and
+repeated polling preserve the selected reason. If pending native cleanup unwinds,
+that reason is already sealed and the lease already closed.
+
+The outer `Result<Output, Input>` still records entry, **not operation success**:
+terminal outcomes return `Ok(output)` too. The callback is never entered outside
+Awaiting; the original input is returned instead. There is no native Clone,
+Debug, Send, serde or 'static bound. Even enum Debug prints only its variant tag,
+not the payload. Normal returns preserve borrowed data and original buffer
+ownership. Cleanup panic can prevent output delivery, in which case ordinary
+Rust cleanup drops the output while the execution remains closed.
+
+`with_host_work` remains compatible by wrapping every normal return as Pending;
+both entries use the same original SessionCore transition and meter. Only the
+interpreter can complete the language computation after reply acceptance. The
+adapter must still authenticate requests/results, bound native work, prevent
+duplicate dispatch and explicitly cancel external collectors. This classification
+is local policy, not a durable receipt, transaction rollback or exactly-once proof.
+
+Final/captured native tests exercise returned error identity, borrowed move-only
+payloads and retained-session cleanup panic for all three terminal classes. Seq/All
+GUI tests exercise errors before and after mutation, escaped-request revocation,
+unchanged budgets and an independent sibling that still completes normally.
+
+#### Cancellation Handoff
+
+A GUI adapter may observe cancellation while it owns a group collector inside
+the host-work callback. Return `HostWorkOutcome::Cancelled(collector)` rather
+than misclassifying the stop as Failed, or returning Pending and relying on a
+later VM cancellation. The original VM seals Cancelled and revokes its lease
+before returning that original collector. The callback cannot borrow the same
+VM again to cancel it while host work is active.
+
+The host must then explicitly cancel/drain its collector and dispose queued work
+and any already accepted rows. Passing collectors through the output avoids
+their normal disposal inside the callback, which occurs before this boundary.
+Callback-local unwind remains outside that guarantee. A partial Seq prefix or
+an All barrier with accepted members is not an external rollback transaction;
+an All ReadyResults barrier has not published a result just because every native
+operation has finished. Accepted rows handed off by Seq are separately host-owned.
+An already-completed collector keeps its own Completed reason when cancelled;
+the enclosing computation can still be Cancelled without evaluating its tail.
+
+The headless GUI proof cancels Seq/All after zero, one and two native completions.
+It checks collector ownership until explicit cleanup, releases retained receipts,
+rejects escaped work and late group replies, preserves the enclosing budget and
+leaves a sibling execution live. Neither classification nor cleanup replays or
+undoes the completed native prefix. This remains a cooperative local adapter
+protocol, not automatic queue cancellation or an actual Avalonia integration.
+The same proofs run in the outside consumer; full host/recovery/extraction gates
+remain open.
+
 ### Shared Native Source Call Bridge
 
 `leselang-hir::source_call::lower_source_call` connects the original parsed
@@ -5189,6 +5476,61 @@ The full `tests/host_embedding.rs` acceptance proof remains planned and absent;
 the four-crate source checkpoint now exports this native VM facade unchanged.
 Complete independent VM and repository extraction gates remain open.
 
+### Native Host Pipeline Matrix
+
+`crates/leselang-vm/tests/native_host_pipeline.rs` supplies continuous atomic and
+mixed-group program matrices through the public native facade. A stateful integer counter and
+a headless panel model have different operation signatures and Rust reply types:
+the counter returns a scalar; the panel returns a structured text/visibility
+acknowledgement projected by the language. The atomic matrix uses
+`compile_catalog_program`; the mixed matrix uses
+`compile_catalog_prepared_group_helper_program`. Both reuse the production
+compiler and `native::LocalVm`, not a fixture interpreter or hand-built IR.
+
+The programs join bounded loops/folds, string lists, helper parameters/returns,
+bindings and two effects whose successor arguments depend on the first receipt.
+Counter calculation recovery and panel conditional field projections run through
+the same evaluator. The acceptance matrix checks cold operation/signature/type/
+version/grant refusal, retryable owned-reply rejection, predecessor receipt
+rejection, policy changes at dispatch/acceptance/re-entry, four cancellation
+boundaries and two isolated executions sharing one compiled IR. Every initial
+fuel budget below observed completion is tested; the exact completion budget
+ends at zero and one extra unit remains one. Idle polls and reply acceptance
+do not refill or spend the original execution meter, and settled effects are
+not replayed by these in-memory paths.
+
+The mixed matrix executes atomic call -> first group -> captured atomic successor
+-> second group -> final projection for both hosts. The first group is `seq`,
+`all` or bounded flat `repeat`; the second is `seq` or `all`, giving twelve
+host/program combinations. Runtime preparation, member collection and group
+assembly use the existing `prepare_atomic_group_in_scope`,
+`PreparedSequenceSession`, `PreparedParallelSession` and `assemble_group_reply`.
+Native dispatch is deliberately explicit. Parallel replies arrive in reverse
+order while result projection retains original declaration order. One parent
+fuel meter covers preparation, correlation, capture, assembly and re-entry;
+every smaller budget fails without refill or replay, and the exact budget succeeds.
+
+Negative cases cover wrong group sites, reordered/missing members and stale root
+receipts with unchanged rejected-input ownership; zero/partial/complete group
+receipts and accepted-group cancellation; grant/revision revocation before an
+atomic successor; and an invalid late group before the initial effect. Independent
+execution domains can share the same compiled IR without accepting foreign member
+receipts, even when the incoming envelope falsely claims the pending root label.
+The unchanged sibling still completes after the other execution is cancelled.
+These are bounded flat prepared-member profiles with per-execution fixture
+correlation domains, not a new generic scheduler, nested parallel execution or
+automatic dispatch deduplication.
+
+The unchanged matrix is included in the isolated source workspace and external
+consumer. Its fixture adapters own live leases, revisions, domains and dispatch;
+native code is trusted, not sandboxed. These are protocol-model tests, not actual
+GUI windows, cryptographic receipt authentication or durable exactly-once proof.
+This closes the continuous two-host atomic slice and bounded mixed multi-group/atomic programs,
+not the full language gate: complete reference-language parity, host-neutral
+durable graph recovery and reference-adapter compatibility still require acceptance.
+`host_embedding.rs` remains the planned
+full proof, and `complete_vm` / `full_extraction_gate` remain false.
+
 ### Optional Reference VM Storage
 
 `leselang-vm` now has an optional VM SQLite backend. The `sqlite-journal` feature
@@ -5977,6 +6319,154 @@ The status cell `leselang/language-vm/host-neutral-embedding` tracks this target
 as developing, separately from mature released Leserpent integration. Keeping code in this
 monorepo temporarily does not relax these boundaries or require an immediate
 repository move.
+
+The first product-ownership migration moves `EffectOperation`, `EffectResult`,
+`PresentationEnvelope`, `PresentationOperation`, `PresentationResult` and
+`DebuggerCancelResult` into the existing `leselang-command` adapter. Released VM
+paths are exact re-exports, so downstream callers retain type identity and wire
+bytes. The network protocol now imports the adapter directly, removing its
+normal dependency on the VM and the VM's default SQLite backend. A closed
+62-operation/reply wire matrix, strict decoding tests, exact type identity and
+reference captured-successor/replay tests guard this boundary.
+`PresentationOperation::from_effect` now also owns all 62 GUI payload mappings
+and the fixed wait-timeout policy in the adapter. It performs only data copying,
+returns None for query/command/structured/computation effects, and is not an
+authorization or validation certificate. The VM charges the same single unit,
+constructs one authority envelope and validates the original request as before;
+non-GUI lowering, identity and confirmation remain unchanged. Pre-migration
+frozen-byte, budget, refusal-order and reply-correspondence tests also run in the
+database-free reference profile. This is not a real-window GUI test or complete
+adapter parity: authority envelope construction, result admission, continuation
+ownership, authorization and journal recovery still use the reference VM and
+host validators. No native runtime API is added.
+
+The next product slice moves the borrowed reply/pending-effect/envelope
+correspondence predicate into `PresentationResult::matches_effect`. Its closed
+62-operation matrix rejects cross-operation and per-field mismatches, preserves
+fixed timeouts and none/empty/present text, and retains navigation/count limits.
+It does not allocate, copy payload strings, authenticate the principal or consume
+an execution budget. `None` preserves legacy image-only restoration; a saved
+request still passes its original operation. The VM invokes this check before
+the released typed-value projection and retains the same `LSV2103` mismatch
+fault and terminal replay. Before/after tests cover legacy restore, type faults
+and moving owned strings; authority and full durable extraction remain separate
+gates, not properties certified by the product correspondence predicate.
+
+Product `Value` and `StructuredField` now also live in the adapter with exact
+released VM re-exports. Their Serde declarations, recursive field ordering,
+legacy unknown-field handling and shared scalar payload are unchanged.
+`Value::result_type` owns the product type-tag map; `From<PresentationResult>`
+exhaustively moves all 62 GUI reply shapes into those values without copying
+strings. Correspondence is checked before conversion discards wait metadata,
+and the reference VM still compares the result tag against the saved type.
+Conversion and type lookup do not validate payloads or grant authority; depth,
+output-count, encoded-size, revision and journal gates remain reference-owned.
+Closed projection/type/wire tests and before/after nested-value characterization
+cover the migration without adding a native runtime API or a second evaluator.
+
+`Value::bounded_leaf_items` also moves the released leaf checks into the product
+adapter. It borrows values without allocation, traversal, serialization or fuel
+consumption. List/history use the supplied query ceiling, logs their fixed
+product ceiling; empty queries return zero and empty scalar lists one. `None`
+means an invalid leaf or a structure requiring caller traversal, never an empty
+result. This is deliberately not complete domain-record validation, pending
+reply correspondence or a new authority gate. Saved same-node navigation and
+max-length values retain their previous acceptance rules. The VM still owns the
+depth-first structured walk, field-name and duplicate checks, aggregate counts,
+execution limits and encoded bytes. Before/after tests freeze `LSV2403` messages
+and ordering; the existing bound-result gate still checks type, value, execution
+items and encoded size in that order. The closed 62-GUI matrix also covers leaf
+identifier/text/count limits and byte-based scalar limits without requiring the
+VM or SQLite. Admission, continuation and complete durable extraction remain open.
+
+`PresentationOperation::matches_effect` now owns all 62 request payload predicates
+as a borrowed, exhaustive product-effect match. No cloning, serialization, fuel
+debit or authority decision occurs there; non-GUI effects return false. The VM
+uses the existing host signature catalog to select one GUI admission branch,
+keeping image/successor/token/effect-ID checks before capability/envelope checks,
+then payload matching and finally budget equality. Cross-category operations
+still return `LSV2013` without inspecting an unrelated envelope. Native and wire
+entry paths retain their distinct existing refusal order, including principal
+decoding before wire admission. Closed cross-operation, torn-field, bound, wait
+and optional-text matrices plus before/after refusal/restore tests guard this
+slice. Canonical restoration, authenticated identity, dispatch, continuation and
+durable recovery remain reference responsibilities; no independent-core gate is
+closed by this product predicate alone.
+
+`query_matches_effect` and `command_matches_effect` move the four query and four
+command correspondence rules into the adapter as borrowed predicates. Log queries
+retain no cursor and the fixed product limit; filters, runtime/session IDs,
+deployment pipeline/target, command ID, idempotency key, revision, Leselang origin,
+dry-run rejection and explicit confirmation keep their original behavior. The VM
+still derives identity expectations from the canonical continuation token and
+uses its saved revision; callers must never derive expectations from the received
+envelope. Operation category and capability/schema/principal checks still precede
+matching, while budget checks follow it. Before/after native, wire and restore
+tests preserve fault precedence, cross-category refusals and unmodified pending
+state on rejection. Adapter matrices reject torn fields and unrelated registration
+commands, and explicitly demonstrate that matching is neither full canonical
+validation nor authority. Dispatch, continuation ownership and durable recovery
+remain reference responsibilities; no new runtime API or evaluator is introduced.
+
+`EffectResult::matches_control_plane_effect` now owns the four query and four
+command reply correspondence rules as a borrowed adapter predicate. It retains
+runtime identity, all-history-entry identity, saved command IDs, applied status
+and the debugger observation-time ceiling. Queries preserve legacy image-only
+acceptance and do not inspect a supplied operation; mutations require the saved
+command envelope. That envelope must be admitted and delivery authenticated by
+the caller. A generic command reply has no operation tag, so matching must never
+be used to infer authorization from the reply itself. The matcher does not check
+query revisions, item limits, complete domain records or replay state. The VM
+uses the original HIR signature to fence the saved type, then matches before
+query revision/output checks and owned conversion. No new payload copies or
+serialization are introduced. Frozen cross-type, identity/status/time, fault-order
+and dispatch matrices pass before and after migration; SQLite restart retains
+the first terminal result even for a changed later receipt. Wire, budgets and
+authority remain unchanged, and complete durable extraction remains open.
+
+`EffectResult::into_control_plane_value` moves the eight control-plane reply
+shapes into their released values using the original declared result type.
+Generic command replies do not identify which operation was authorized; callers
+must check original identity, correspondence, type and context before conversion.
+A category/type mismatch consumes the reply and returns None; GUI replies retain
+their separate conversion. Conversion alone does not validate status, timestamps,
+domain fields, revisions, budgets or authority. The VM now uses one borrowed query
+revision/item gate before calling the converter, keeping revision-before-count
+fault order, empty-list counts, inspect's non-list behavior and the fixed log
+ceiling. No buffer clones or serialization are introduced; inspect's existing box
+allocation still occurs only after those gates. All 77 declared type shapes,
+released value wire, original buffer/box identity, query-policy boundaries and
+memory/SQLite replay remain covered. No scheduler, schema or extraction gate changes.
+
+`Value::project_scalar` also keeps product-specific scalar extraction in
+`leselang-command`, instead of teaching the reference VM every result variant.
+It borrows a value and returns the requested owned scalar, or None for an
+unsupported field. Strings/optional strings retain the original field-only
+copies; collections and full replies are not cloned or serialized. It is not a
+validator or a metered execution API: callers must retain input bounds, reply
+acceptance and budget checks. The VM maps refusal to the same `LSV1405`, retains
+capture versions 1-5 and their exact ordered field vocabularies, validates kind
+tokens/optional text, and fences access to fields absent from legacy captures.
+The 77-type/12-field matrix checks the HIR catalog against released wire values;
+frozen capture bytes, malformed-frame refusals and existing memory/SQLite
+dataflow tests preserve the old recovery contract. No schema or product-free
+durable recovery milestone changes with this adapter move.
+
+Reference continuation validation now obtains the expected result type from
+`HostOperation::for_effect(...).result_type()` via the same HIR signature catalog
+used by execution and binding, rather than a second 70-arm VM mapping. Lookup
+does not evaluate, clone payloads, charge fuel or grant authority. Existing frame,
+token syntax and program-counter checks still precede it; semantic binding and
+resource checks follow it. Structured/compute frames keep `LSV2015` and a mismatched
+saved result tag keeps `LSV2016`. Canonical token/source checks remain independent
+restore gates, not part of the signature classifier. A frozen 70-operation fixture
+tests native/request wire round trips, every cross-operation and six scalar plus
+structured result tags, unchanged pending state and identity watermarks, and
+SQLite reopening with each operation's saved result type corrupted in turn.
+The rejected journal payload remains untouched. Before/after checks preserve
+continuation schemas 1-11, journal 10, fault precedence and existing grants.
+The reference catalog still uses product types; complete host-neutral durable
+recovery and repository extraction remain open.
 
 <a id="230-repository-extraction-target"></a>
 

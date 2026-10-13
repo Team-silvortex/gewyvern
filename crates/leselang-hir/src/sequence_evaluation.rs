@@ -3,13 +3,15 @@
 use std::{borrow::Borrow, convert::Infallible, fmt};
 
 use leselang_runtime_core::{
-    AcceptedReply, Fuel, HostResultDomain, PendingReply, ReplyAcceptanceError, ReplyAuthority,
+    AcceptedReply, Fuel, HostResultDomain, LocalExecutionScope, PendingReply, ReplyAcceptanceError,
+    ReplyAuthority, ReplyEnd,
 };
 
 use crate::group_exports::{
     GroupExportError, GroupExportLimits, MAX_GROUP_EXPORT_MEMBERS, atomic_candidate, physical,
 };
 use crate::ir::{Computation, ComputedBranch, GroupKind};
+use crate::local_scope::CallFence;
 use crate::pure_typing::{MAX_TYPE_INFERENCE_DEPTH, MAX_TYPE_INFERENCE_NODES};
 
 type Node<Field, Operation, HostEffect, IrResult> =
@@ -400,18 +402,61 @@ impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration:
                 Declaration = Declaration,
             >,
     {
-        self.core.publish_with(|index, branch| {
-            self.fuel
-                .charge(1)
-                .map_err(|_| SequenceEvaluationError::Fuel)?;
-            environment
-                .prepare_member(index, branch, &mut self.fuel)
-                .map_err(|error| SequenceEvaluationError::Native {
-                    index,
-                    phase: SequencePhase::Prepare,
-                    error,
-                })
-        })
+        self.poll_with_scope(environment, None)
+    }
+
+    /// Recheck explicit local liveness before publication and after native
+    /// preparation. Cancellation publishes no request; spent fuel is retained.
+    pub fn poll_in_scope<Environment>(
+        &mut self,
+        environment: &Environment,
+        scope: &LocalExecutionScope,
+    ) -> Result<SequencePoll<Environment::Request>, SequenceEvaluationError<Environment::Error>>
+    where
+        Environment: SequenceEvaluationEnvironment<
+                'expression,
+                Field,
+                Operation,
+                HostEffect,
+                IrResult,
+                Identity = Identity,
+                Declaration = Declaration,
+            >,
+    {
+        self.poll_with_scope(environment, Some(scope))
+    }
+
+    fn poll_with_scope<Environment>(
+        &mut self,
+        environment: &Environment,
+        scope: Option<&LocalExecutionScope>,
+    ) -> Result<SequencePoll<Environment::Request>, SequenceEvaluationError<Environment::Error>>
+    where
+        Environment: SequenceEvaluationEnvironment<
+                'expression,
+                Field,
+                Operation,
+                HostEffect,
+                IrResult,
+                Identity = Identity,
+                Declaration = Declaration,
+            >,
+    {
+        self.core.publish_with(
+            |index, branch| {
+                self.fuel
+                    .charge(1)
+                    .map_err(|_| SequenceEvaluationError::Fuel)?;
+                environment
+                    .prepare_member(index, branch, &mut self.fuel)
+                    .map_err(|error| SequenceEvaluationError::Native {
+                        index,
+                        phase: SequencePhase::Prepare,
+                        error,
+                    })
+            },
+            scope,
+        )
     }
 }
 
@@ -464,6 +509,35 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
         self.core.try_accept(identity, reply, authority)
     }
 
+    /// Explicit local liveness for this acceptance, not stored scope ownership.
+    /// Revocation cancels the collector; ordinary rejection remains retryable.
+    /// Already handed-off requests/results and enclosing execution are host-owned.
+    pub fn try_accept_in_scope<Reply, View: ?Sized, Authority>(
+        &mut self,
+        identity: &Identity,
+        reply: Reply,
+        authority: &Authority,
+        scope: &LocalExecutionScope,
+    ) -> SequenceAcceptance<
+        'expression,
+        Node,
+        IrResult,
+        Identity,
+        Declaration,
+        Reply,
+        Authority::Error,
+        Declaration::Error,
+    >
+    where
+        Identity: PartialEq,
+        Reply: Borrow<View>,
+        Declaration: HostResultDomain<View>,
+        Authority: ReplyAuthority<Identity>,
+    {
+        self.core
+            .try_accept_with_scope(identity, reply, authority, Some(scope))
+    }
+
     /// Close before dropping pending native identity. Existing terminal reasons
     /// are preserved, including after a destructor panic or repeated cancellation.
     pub fn cancel(&mut self) -> bool {
@@ -505,17 +579,31 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
             PreparedSequenceMember<'expression, Identity, Declaration, Request>,
             Error,
         >,
+        scope: Option<&LocalExecutionScope>,
     ) -> Result<SequencePoll<Request>, Error> {
+        if scope.is_some_and(|scope| !scope.is_open()) {
+            self.cancel();
+        }
         match self.status() {
             SequenceStatus::Awaiting { index } => return Ok(SequencePoll::Awaiting { index }),
             SequenceStatus::Terminal(end) => return Ok(SequencePoll::Terminal(end)),
             SequenceStatus::Ready { .. } => {}
         }
         self.state = State::Terminal(SequenceEnd::HostUncertain);
-        let prepared = match prepare(self.next, &self.branches[self.next]) {
+        let fence = CallFence::new(scope);
+        let outcome = prepare(self.next, &self.branches[self.next]);
+        if scope.is_some_and(|scope| !scope.is_open()) {
+            self.state = State::Terminal(SequenceEnd::Cancelled);
+            drop(outcome);
+            fence.finish();
+            return Ok(SequencePoll::Terminal(SequenceEnd::Cancelled));
+        }
+        let prepared = match outcome {
             Ok(prepared) => prepared,
             Err(error) => {
                 self.state = State::Terminal(SequenceEnd::Failed);
+                fence.close();
+                fence.finish();
                 return Err(error);
             }
         };
@@ -524,6 +612,7 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
             (),
             prepared.declaration,
         ));
+        fence.finish();
         Ok(SequencePoll::Request {
             index: self.next,
             request: prepared.request,
@@ -550,6 +639,34 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
         Declaration: HostResultDomain<View>,
         Authority: ReplyAuthority<Identity>,
     {
+        self.try_accept_with_scope(identity, reply, authority, None)
+    }
+
+    pub(crate) fn try_accept_with_scope<Reply, View: ?Sized, Authority>(
+        &mut self,
+        identity: &Identity,
+        reply: Reply,
+        authority: &Authority,
+        scope: Option<&LocalExecutionScope>,
+    ) -> SequenceAcceptance<
+        'expression,
+        Node,
+        IrResult,
+        Identity,
+        Declaration,
+        Reply,
+        Authority::Error,
+        Declaration::Error,
+    >
+    where
+        Identity: PartialEq,
+        Reply: Borrow<View>,
+        Declaration: HostResultDomain<View>,
+        Authority: ReplyAuthority<Identity>,
+    {
+        if scope.is_some_and(|scope| !scope.is_open()) {
+            self.cancel();
+        }
         let status = self.status();
         if !matches!(status, SequenceStatus::Awaiting { .. }) {
             return Err(SequenceRejected {
@@ -565,7 +682,11 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
                 error: SequenceReplyError::NotAwaiting(status),
             });
         };
-        match pending.try_accept(identity, reply, authority) {
+        let outcome = match scope {
+            Some(scope) => pending.try_accept_in_scope(identity, reply, authority, scope),
+            None => pending.try_accept(identity, reply, authority),
+        };
+        match outcome {
             Ok(accepted) => {
                 let index = self.next;
                 self.next += 1;
@@ -581,7 +702,14 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
                 ))
             }
             Err(rejected) => {
-                self.state = State::Awaiting(pending);
+                self.state = if matches!(
+                    rejected.error,
+                    ReplyAcceptanceError::Closed(ReplyEnd::Cancelled)
+                ) {
+                    State::Terminal(SequenceEnd::Cancelled)
+                } else {
+                    State::Awaiting(pending)
+                };
                 Err(SequenceRejected {
                     reply: rejected.reply,
                     error: SequenceReplyError::Reply(rejected.error),

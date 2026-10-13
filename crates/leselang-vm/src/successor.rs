@@ -345,6 +345,7 @@ impl Vm {
 #[cfg(test)]
 mod extension_tests {
     use super::*;
+    use leselang_hir::UiFocusNavigationDirection;
 
     #[test]
     fn inherited_context_keeps_frozen_native_agreement_across_operation_domains() {

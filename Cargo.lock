@@ -1095,6 +1095,7 @@ dependencies = [
  "leselang-host-contract",
  "leselang-syntax",
  "leserpent-domain",
+ "serde",
  "serde_json",
 ]
 
@@ -1244,8 +1245,8 @@ name = "leserpent-protocol"
 version = "2.3.0"
 dependencies = [
  "gewyvern-install-contract",
+ "leselang-command",
  "leselang-ui",
- "leselang-vm",
  "leserpent-domain",
  "ring",
  "serde",

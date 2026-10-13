@@ -2,13 +2,14 @@
 name = "leselang-command"
 version.workspace = true
 edition.workspace = true
-description = "Pure lowering from authorized Leselang effects into Leserpent command plans"
+description = "Leserpent host protocol payloads and pure lowering from authorized Leselang effects"
 license.workspace = true
 
 [dependencies]
 leselang-hir = { path = "../leselang-hir" }
 leselang-host-contract = { path = "../leselang-host-contract" }
 leserpent-domain = { path = "../leserpent-domain" }
+serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]

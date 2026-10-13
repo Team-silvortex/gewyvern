@@ -538,187 +538,140 @@ fn validate_projected_accesses<'a>(
 }
 
 pub(super) fn project(value: &Value, field: ResultField) -> Result<ScalarValue, Fault> {
-    use ResultField::{
-        Count, Expected, Field, FocusedNodeId, Kind, MaxLength, NodeId, Required, Revision,
-        Selected,
-    };
-    match (field, value) {
-        (
-            ResultField::OptionalExpected,
-            Value::UiAssertFormFieldPlaceholder { expected, .. }
-            | Value::UiWaitFormFieldPlaceholder { expected, .. }
-            | Value::UiAssertActionUnavailableReason { expected, .. }
-            | Value::UiWaitActionUnavailableReason { expected, .. },
-        ) => Ok(ScalarValue::OptionalString(
-            leselang_hir::computation::OptionalStringValue(expected.clone()),
-        )),
-        (
-            Kind,
-            Value::UiAssertNodeKind { expected_kind, .. }
-            | Value::UiWaitNodeKind { expected_kind, .. },
-        ) => Ok(ScalarValue::String(expected_kind.as_str().into())),
-        (
-            Kind,
-            Value::UiAssertActionKind { expected_kind, .. }
-            | Value::UiWaitActionKind { expected_kind, .. },
-        ) => Ok(ScalarValue::String(expected_kind.as_str().into())),
-        (
-            Kind,
-            Value::UiAssertFormFieldInputKind { input_kind, .. }
-            | Value::UiWaitFormFieldInputKind { input_kind, .. },
-        ) => Ok(ScalarValue::String(input_kind.as_str().into())),
-        (
-            Expected,
-            Value::UiAssertText { expected, .. }
-            | Value::UiWaitText { expected, .. }
-            | Value::UiAssertAutomationId { expected, .. }
-            | Value::UiWaitAutomationId { expected, .. }
-            | Value::UiAssertActionLabel { expected, .. }
-            | Value::UiWaitActionLabel { expected, .. }
-            | Value::UiAssertFormValue { expected, .. }
-            | Value::UiWaitFormValue { expected, .. }
-            | Value::UiAssertFormField { expected, .. }
-            | Value::UiWaitFormField { expected, .. }
-            | Value::UiAssertAccessibleName { expected, .. }
-            | Value::UiWaitAccessibleName { expected, .. }
-            | Value::UiAssertAccessibleDescription { expected, .. }
-            | Value::UiWaitAccessibleDescription { expected, .. },
-        ) => Ok(ScalarValue::String(expected.clone())),
-        (
-            Field,
-            Value::UiSetFormValue { field, .. }
-            | Value::UiAssertFormValue { field, .. }
-            | Value::UiWaitFormValue { field, .. }
-            | Value::UiAssertFormField { field, .. }
-            | Value::UiWaitFormField { field, .. }
-            | Value::UiAssertFormFieldInputKind { field, .. }
-            | Value::UiWaitFormFieldInputKind { field, .. }
-            | Value::UiAssertFormFieldRequired { field, .. }
-            | Value::UiWaitFormFieldRequired { field, .. }
-            | Value::UiAssertFormFieldMaxLength { field, .. }
-            | Value::UiWaitFormFieldMaxLength { field, .. }
-            | Value::UiAssertFormFieldPlaceholder { field, .. }
-            | Value::UiWaitFormFieldPlaceholder { field, .. },
-        ) => Ok(ScalarValue::String(field.clone())),
-        (ResultField::Value, Value::UiSetFormValue { value, .. }) => {
-            Ok(ScalarValue::String(value.clone()))
-        }
-        (
-            Selected,
-            Value::UiSetSelection { state, .. }
-            | Value::UiAssertSelection { state, .. }
-            | Value::UiWaitSelection { state, .. },
-        ) => Ok(ScalarValue::Boolean(
-            *state == leselang_hir::UiSelectionState::Selected,
-        )),
-        (
-            Required,
-            Value::UiAssertFormFieldRequired { state, .. }
-            | Value::UiWaitFormFieldRequired { state, .. },
-        ) => Ok(ScalarValue::Boolean(
-            *state == leselang_hir::UiFormRequirementState::Required,
-        )),
-        (
-            Revision,
-            Value::RuntimeList { revision, .. }
-            | Value::RuntimeInspect { revision, .. }
-            | Value::RuntimeHistory { revision, .. }
-            | Value::RuntimeLogs { revision, .. },
-        ) => Ok(ScalarValue::Integer(revision.0)),
-        (Count, Value::RuntimeList { runtimes, .. }) => count(runtimes.len()),
-        (Count, Value::RuntimeHistory { entries, .. }) => count(entries.len()),
-        (Count, Value::RuntimeLogs { entries, .. }) => count(entries.len()),
-        (
-            Count,
-            Value::UiAssertChildCount { count: value, .. }
-            | Value::UiWaitChildCount { count: value, .. },
-        )
-        | (
-            MaxLength,
-            Value::UiAssertFormFieldMaxLength {
-                max_length: value, ..
-            }
-            | Value::UiWaitFormFieldMaxLength {
-                max_length: value, ..
-            },
-        ) => count(*value),
-        (
-            FocusedNodeId,
-            Value::UiNavigateFocus {
-                focused_node_id, ..
-            },
-        ) => Ok(ScalarValue::String(focused_node_id.clone())),
-        (
-            NodeId,
-            Value::UiActivate { node_id }
-            | Value::UiFocus { node_id }
-            | Value::UiNavigateFocus { node_id, .. }
-            | Value::UiScrollIntoView { node_id }
-            | Value::UiAssertVisible { node_id }
-            | Value::UiAssertHidden { node_id }
-            | Value::UiWaitHidden { node_id }
-            | Value::UiAssertRealized { node_id }
-            | Value::UiWaitRealized { node_id }
-            | Value::UiWaitVisible { node_id }
-            | Value::UiWaitEnabled { node_id }
-            | Value::UiWaitDisabled { node_id }
-            | Value::UiOpenWindow { node_id }
-            | Value::UiCloseWindow { node_id }
-            | Value::UiAssertWindowOpen { node_id }
-            | Value::UiWaitWindowOpen { node_id }
-            | Value::UiAssertWindowClosed { node_id }
-            | Value::UiWaitWindowClosed { node_id }
-            | Value::UiWaitFocused { node_id }
-            | Value::UiAssertFocused { node_id }
-            | Value::UiWaitUnfocused { node_id }
-            | Value::UiAssertUnfocused { node_id }
-            | Value::UiAssertEnabled { node_id }
-            | Value::UiAssertDisabled { node_id }
-            | Value::UiAssertChildCount { node_id, .. }
-            | Value::UiWaitChildCount { node_id, .. }
-            | Value::UiSetSelection { node_id, .. }
-            | Value::UiAssertSelection { node_id, .. }
-            | Value::UiWaitSelection { node_id, .. }
-            | Value::UiAssertText { node_id, .. }
-            | Value::UiWaitText { node_id, .. }
-            | Value::UiAssertAutomationId { node_id, .. }
-            | Value::UiWaitAutomationId { node_id, .. }
-            | Value::UiAssertNodeKind { node_id, .. }
-            | Value::UiWaitNodeKind { node_id, .. }
-            | Value::UiAssertActionKind { node_id, .. }
-            | Value::UiWaitActionKind { node_id, .. }
-            | Value::UiAssertActionLabel { node_id, .. }
-            | Value::UiWaitActionLabel { node_id, .. }
-            | Value::UiAssertActionAvailable { node_id }
-            | Value::UiWaitActionAvailable { node_id }
-            | Value::UiAssertActionUnavailableReason { node_id, .. }
-            | Value::UiWaitActionUnavailableReason { node_id, .. }
-            | Value::UiSubmitForm { node_id }
-            | Value::UiCancelForm { node_id }
-            | Value::UiSetFormValue { node_id, .. }
-            | Value::UiAssertFormValue { node_id, .. }
-            | Value::UiWaitFormValue { node_id, .. }
-            | Value::UiAssertFormField { node_id, .. }
-            | Value::UiWaitFormField { node_id, .. }
-            | Value::UiAssertFormFieldInputKind { node_id, .. }
-            | Value::UiWaitFormFieldInputKind { node_id, .. }
-            | Value::UiAssertFormFieldRequired { node_id, .. }
-            | Value::UiWaitFormFieldRequired { node_id, .. }
-            | Value::UiAssertFormFieldMaxLength { node_id, .. }
-            | Value::UiWaitFormFieldMaxLength { node_id, .. }
-            | Value::UiAssertFormFieldPlaceholder { node_id, .. }
-            | Value::UiWaitFormFieldPlaceholder { node_id, .. }
-            | Value::UiAssertAccessibleName { node_id, .. }
-            | Value::UiWaitAccessibleName { node_id, .. }
-            | Value::UiAssertAccessibleDescription { node_id, .. }
-            | Value::UiWaitAccessibleDescription { node_id, .. },
-        ) => Ok(ScalarValue::String(node_id.clone())),
-        _ => Err(invalid()),
-    }
+    value.project_scalar(field).ok_or_else(invalid)
 }
 
-fn count(value: usize) -> Result<ScalarValue, Fault> {
-    u64::try_from(value)
-        .map(ScalarValue::Integer)
-        .map_err(|_| invalid())
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use leselang_hir::{UiFormInputKind, UiSelectionState};
+    use serde_json::json;
+
+    fn frames() -> Vec<(HostOperation, Value, u32, serde_json::Value)> {
+        vec![
+            (
+                HostOperation::UiFocus,
+                Value::UiFocus {
+                    node_id: "a".into(),
+                },
+                1,
+                json!([{"field":"node_id","value":{"kind":"string","value":"a"}}]),
+            ),
+            (
+                HostOperation::UiSetSelection,
+                Value::UiSetSelection {
+                    node_id: "a".into(),
+                    state: UiSelectionState::Unselected,
+                },
+                2,
+                json!([
+                    {"field":"node_id","value":{"kind":"string","value":"a"}},
+                    {"field":"selected","value":{"kind":"boolean","value":false}}
+                ]),
+            ),
+            (
+                HostOperation::UiSetFormValue,
+                Value::UiSetFormValue {
+                    node_id: "a".into(),
+                    field: "name".into(),
+                    value: "ready".into(),
+                },
+                3,
+                json!([
+                    {"field":"node_id","value":{"kind":"string","value":"a"}},
+                    {"field":"field","value":{"kind":"string","value":"name"}},
+                    {"field":"value","value":{"kind":"string","value":"ready"}}
+                ]),
+            ),
+            (
+                HostOperation::UiAssertFormFieldInputKind,
+                Value::UiAssertFormFieldInputKind {
+                    node_id: "a".into(),
+                    field: "name".into(),
+                    input_kind: UiFormInputKind::TrimmedText,
+                },
+                4,
+                json!([
+                    {"field":"node_id","value":{"kind":"string","value":"a"}},
+                    {"field":"field","value":{"kind":"string","value":"name"}},
+                    {"field":"kind","value":{"kind":"string","value":"trimmed_text"}}
+                ]),
+            ),
+            (
+                HostOperation::UiAssertFormFieldPlaceholder,
+                Value::UiAssertFormFieldPlaceholder {
+                    node_id: "a".into(),
+                    field: "name".into(),
+                    expected: None,
+                },
+                5,
+                json!([
+                    {"field":"node_id","value":{"kind":"string","value":"a"}},
+                    {"field":"field","value":{"kind":"string","value":"name"}},
+                    {"field":"optional_expected","value":{"kind":"optional_string","value":null}}
+                ]),
+            ),
+        ]
+    }
+
+    #[test]
+    fn scalar_projection_keeps_five_capture_versions_and_frozen_field_wire() {
+        for (operation, value, version, fields) in frames() {
+            let current = ProjectedResult::capture(operation, &value).unwrap();
+            assert_eq!(current.projection_version, version);
+            assert_eq!(serde_json::to_value(&current.fields).unwrap(), fields);
+            for saved_version in 1..=5 {
+                let frame =
+                    ProjectedResult::capture_version(operation, &value, saved_version).unwrap();
+                let wire = serde_json::to_value(&frame).unwrap();
+                assert_eq!(
+                    wire.get("projection_version"),
+                    (saved_version != 1).then_some(&json!(saved_version))
+                );
+                let restored: ProjectedResult = serde_json::from_value(wire.clone()).unwrap();
+                assert_eq!(serde_json::to_value(&restored).unwrap(), wire);
+                assert!(restored.matches_capture(operation, &value).unwrap());
+                assert!(
+                    !restored
+                        .matches_capture(HostOperation::RuntimeList, &value)
+                        .unwrap()
+                );
+                for field in ResultField::ALL {
+                    let expected = projection_fields(saved_version).unwrap().contains(&field)
+                        && field.result_type(operation.result_type()).is_some();
+                    assert_eq!(restored.field(field).is_ok(), expected);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn scalar_projection_keeps_invalid_frame_fault_and_capture_correspondence() {
+        for (operation, value, _, _) in frames() {
+            let frame = ProjectedResult::capture(operation, &value).unwrap();
+            for mutation in 0..4 {
+                let mut changed = frame.clone();
+                match mutation {
+                    0 => changed.projection_version = 6,
+                    1 => {
+                        changed.fields.remove(0);
+                    }
+                    2 => changed.fields.push(changed.fields[0].clone()),
+                    3 => changed.fields[0].value = ScalarValue::Integer(7),
+                    _ => unreachable!(),
+                }
+                assert_eq!(changed.validate(), Err(invalid()));
+                assert_eq!(changed.matches_capture(operation, &value), Err(invalid()));
+            }
+            let mut changed = frame.clone();
+            changed.fields[0].value = ScalarValue::String("another-node".into());
+            assert!(changed.validate().is_ok());
+            assert!(!changed.matches_capture(operation, &value).unwrap());
+            assert_eq!(project(&value, ResultField::Revision), Err(invalid()));
+            assert_eq!(
+                ProjectedResult::capture_version(operation, &value, 0),
+                Err(invalid())
+            );
+        }
+    }
 }

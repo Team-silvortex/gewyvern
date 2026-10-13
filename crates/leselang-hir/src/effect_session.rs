@@ -3,8 +3,8 @@
 use std::{borrow::Borrow, fmt};
 
 use leselang_runtime_core::{
-    AcceptedReply, CalculationFailure, Fuel, HostResultDomain, PendingReply, ReplyAcceptanceError,
-    ReplyAuthority, ScopeFrame,
+    AcceptedReply, CalculationFailure, Fuel, HostResultDomain, LocalExecutionScope, PendingReply,
+    ReplyAcceptanceError, ReplyAuthority, ReplyEnd, ScopeFrame,
 };
 
 use crate::effect_evaluation::{
@@ -15,6 +15,7 @@ use crate::effect_reentry::{
     EffectContinuation, EffectReentryEnvironment, RestoredEffectBindings, resume_accepted_effects,
 };
 use crate::ir::Computation;
+use crate::local_scope::CallFence;
 use crate::pure_evaluation::{PureEvaluationFault, PureValue};
 
 /// Exact native correlation and original result domain, not receipt authority.
@@ -70,6 +71,32 @@ pub enum EffectSessionStatus {
     Ready,
     Awaiting,
     Terminal(EffectSessionEnd),
+}
+
+/// Explicit native policy, not inference from an error code or a Rust Result.
+/// All variants hand the original output back; none accepts a reply or completes
+/// the language computation. Failure/cancellation does not prove that no effect
+/// occurred or that external work has stopped.
+#[must_use = "return the outcome through the local host-work boundary"]
+pub enum HostWorkOutcome<Output> {
+    /// Preserve the pending session, including for recoverable native refusals.
+    Pending(Output),
+    /// End this execution at the host's request, without claiming external rollback.
+    Cancelled(Output),
+    /// End this execution with a known, non-recoverable native failure.
+    Failed(Output),
+    /// End this execution because native publication/completion is uncertain.
+    Uncertain(Output),
+}
+impl<Output> fmt::Debug for HostWorkOutcome<Output> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Pending(_) => "Pending",
+            Self::Cancelled(_) => "Cancelled",
+            Self::Failed(_) => "Failed",
+            Self::Uncertain(_) => "Uncertain",
+        })
+    }
 }
 
 #[must_use = "consume the request/value or observe waiting/terminal state"]
@@ -340,6 +367,45 @@ impl<'expression, 'schema, Node: ?Sized, Value, Continuation, Identity, Declarat
         }
     }
 
+    /// Temporarily own the original pending state while the adapter does native
+    /// work. Only an explicit pending outcome restores it; unwind or a terminal
+    /// native outcome cannot make it replayable.
+    pub(crate) fn with_host_work<Input, Output>(
+        &mut self,
+        input: Input,
+        work: impl FnOnce(Input) -> HostWorkOutcome<Output>,
+    ) -> Result<Output, Input> {
+        if self.status() != EffectSessionStatus::Awaiting {
+            return Err(input);
+        }
+        let pending = std::mem::replace(
+            &mut self.state,
+            State::Terminal(EffectSessionEnd::HostUncertain),
+        );
+        let output = work(input);
+        let output = match output {
+            HostWorkOutcome::Pending(output) => {
+                self.state = pending;
+                output
+            }
+            HostWorkOutcome::Cancelled(output) => {
+                self.state = State::Terminal(EffectSessionEnd::Cancelled);
+                drop(pending);
+                output
+            }
+            HostWorkOutcome::Failed(output) => {
+                self.state = State::Terminal(EffectSessionEnd::Failed);
+                drop(pending);
+                output
+            }
+            HostWorkOutcome::Uncertain(output) => {
+                drop(pending);
+                output
+            }
+        };
+        Ok(output)
+    }
+
     /// Shared identity -> live authority -> borrowed type/value checks only.
     /// Success stores the moved accepted frame/input without restoring or running.
     /// Ordinary rejection returns the exact input and retains the pending state.
@@ -348,6 +414,22 @@ impl<'expression, 'schema, Node: ?Sized, Value, Continuation, Identity, Declarat
         identity: &Identity,
         reply: Reply,
         authority: &Authority,
+    ) -> EffectSessionAcceptance<Reply, Authority::Error, Declaration::Error>
+    where
+        Identity: PartialEq,
+        Reply: Borrow<View>,
+        Declaration: HostResultDomain<View>,
+        Authority: ReplyAuthority<Identity>,
+    {
+        self.try_accept_with_scope(identity, reply, authority, None)
+    }
+
+    pub(crate) fn try_accept_with_scope<View: ?Sized, Authority>(
+        &mut self,
+        identity: &Identity,
+        reply: Reply,
+        authority: &Authority,
+        scope: Option<&LocalExecutionScope>,
     ) -> EffectSessionAcceptance<Reply, Authority::Error, Declaration::Error>
     where
         Identity: PartialEq,
@@ -367,13 +449,24 @@ impl<'expression, 'schema, Node: ?Sized, Value, Continuation, Identity, Declarat
         );
         match old {
             State::AwaitingBinding(mut pending) => {
-                match pending.try_accept(identity, reply, authority) {
+                let accepted = match scope {
+                    Some(scope) => pending.try_accept_in_scope(identity, reply, authority, scope),
+                    None => pending.try_accept(identity, reply, authority),
+                };
+                match accepted {
                     Ok(accepted) => {
                         self.state = State::AcceptedBinding(accepted);
                         Ok(())
                     }
                     Err(rejected) => {
-                        self.state = State::AwaitingBinding(pending);
+                        self.state = if matches!(
+                            &rejected.error,
+                            ReplyAcceptanceError::Closed(ReplyEnd::Cancelled)
+                        ) {
+                            State::Terminal(EffectSessionEnd::Cancelled)
+                        } else {
+                            State::AwaitingBinding(pending)
+                        };
                         Err(EffectSessionRejected {
                             reply: rejected.reply,
                             error: EffectSessionReplyError::Reply(rejected.error),
@@ -382,13 +475,24 @@ impl<'expression, 'schema, Node: ?Sized, Value, Continuation, Identity, Declarat
                 }
             }
             State::AwaitingFinal(mut pending) => {
-                match pending.try_accept(identity, reply, authority) {
+                let accepted = match scope {
+                    Some(scope) => pending.try_accept_in_scope(identity, reply, authority, scope),
+                    None => pending.try_accept(identity, reply, authority),
+                };
+                match accepted {
                     Ok(accepted) => {
                         self.state = State::AcceptedFinal(accepted);
                         Ok(())
                     }
                     Err(rejected) => {
-                        self.state = State::AwaitingFinal(pending);
+                        self.state = if matches!(
+                            &rejected.error,
+                            ReplyAcceptanceError::Closed(ReplyEnd::Cancelled)
+                        ) {
+                            State::Terminal(EffectSessionEnd::Cancelled)
+                        } else {
+                            State::AwaitingFinal(pending)
+                        };
                         Err(EffectSessionRejected {
                             reply: rejected.reply,
                             error: EffectSessionReplyError::Reply(rejected.error),
@@ -480,6 +584,7 @@ impl<
                     .map(ControlOutcome::from)
             },
             |error| error,
+            None,
         )
     }
 }
@@ -514,6 +619,7 @@ impl<
         begin: Begin,
         resume: Resume,
         map_failure: MapFailure,
+        execution_scope: Option<&LocalExecutionScope>,
     ) -> Result<EffectSessionPoll<Value, Environment::Dispatch>, Failure>
     where
         Environment: EffectSessionEnvironment<
@@ -559,14 +665,22 @@ impl<
                 } => leselang_runtime_core::with_owned_scope_state(
                     bindings,
                     &mut self.fuel,
-                    |scope, fuel| begin(expression, scope, fuel),
+                    |scope, fuel| {
+                        CallFence::run(execution_scope, || begin(expression, scope, fuel))
+                    },
                 )?,
                 State::AcceptedBinding(accepted) => resume(accepted, &mut self.fuel)?,
                 State::AcceptedFinal(accepted) => {
                     let (identity, (), declaration, reply) = accepted.into_parts();
-                    let value =
-                        environment.bind_reply(&identity, declaration, reply, &mut self.fuel);
+                    let value = CallFence::run(execution_scope, || {
+                        environment.bind_reply(&identity, declaration, reply, &mut self.fuel)
+                    });
+                    let fence = CallFence::new(execution_scope);
+                    if matches!(&value, Ok(PureValue::Scalar(value)) if !value.is_bounded()) {
+                        fence.close();
+                    }
                     drop(identity);
+                    fence.finish();
                     ControlOutcome::Value(value.map_err(native_failure).map_err(&map_failure)?)
                 }
                 _ => {
@@ -586,10 +700,11 @@ impl<
                     Ok(EffectSessionPoll::Value(value))
                 }
                 ControlOutcome::Request(request) => {
-                    let correlated = environment
-                        .correlate_request(request, &mut self.fuel)
-                        .map_err(native_failure)
-                        .map_err(&map_failure)?;
+                    let correlated = CallFence::run(execution_scope, || {
+                        environment.correlate_request(request, &mut self.fuel)
+                    })
+                    .map_err(native_failure)
+                    .map_err(&map_failure)?;
                     self.state = State::AwaitingFinal(PendingReply::new(
                         correlated.identity,
                         (),
@@ -601,10 +716,11 @@ impl<
                     request,
                     continuation,
                 } => {
-                    let correlated = environment
-                        .correlate_request(request, &mut self.fuel)
-                        .map_err(native_failure)
-                        .map_err(&map_failure);
+                    let correlated = CallFence::run(execution_scope, || {
+                        environment.correlate_request(request, &mut self.fuel)
+                    })
+                    .map_err(native_failure)
+                    .map_err(&map_failure);
                     let correlated = match correlated {
                         Ok(correlated) => correlated,
                         Err(error) => {
@@ -626,5 +742,193 @@ impl<
             self.state = State::Terminal(EffectSessionEnd::Failed);
         }
         result
+    }
+}
+
+#[cfg(test)]
+mod scoped_reply_cancellation {
+    use super::*;
+    use leselang_runtime_core::{ScalarType, ScalarTypeSet, ScalarValue};
+    use std::cell::Cell;
+
+    struct Authority<'a> {
+        scope: &'a LocalExecutionScope,
+        calls: Cell<usize>,
+        refuse: bool,
+    }
+    impl ReplyAuthority<u8> for Authority<'_> {
+        type Error = &'static str;
+        fn authorize(&self, _: &u8) -> Result<(), Self::Error> {
+            self.calls.set(self.calls.get() + 1);
+            self.scope.close();
+            if self.refuse {
+                Err("native refusal")
+            } else {
+                Ok(())
+            }
+        }
+    }
+    struct Reply {
+        value: ScalarValue,
+        buffer: Box<[u8]>,
+    }
+    impl Borrow<ScalarValue> for Reply {
+        fn borrow(&self) -> &ScalarValue {
+            &self.value
+        }
+    }
+
+    struct FragileIdentity<'a> {
+        scope: &'a LocalExecutionScope,
+        cleanup_closed: &'a Cell<bool>,
+        unwind: bool,
+    }
+    impl PartialEq for FragileIdentity<'_> {
+        fn eq(&self, other: &Self) -> bool {
+            std::ptr::eq(self.scope, other.scope)
+        }
+    }
+    impl Drop for FragileIdentity<'_> {
+        fn drop(&mut self) {
+            if self.unwind {
+                self.cleanup_closed.set(!self.scope.is_open());
+                panic!("pending native identity cleanup unwind");
+            }
+        }
+    }
+    impl ReplyAuthority<FragileIdentity<'_>> for Authority<'_> {
+        type Error = &'static str;
+        fn authorize(&self, _: &FragileIdentity<'_>) -> Result<(), Self::Error> {
+            <Self as ReplyAuthority<u8>>::authorize(self, &7)
+        }
+    }
+
+    #[test]
+    fn scoped_cancellation_cleanup_unwind_keeps_enclosing_session_uncertain_and_closed() {
+        for binding in [false, true] {
+            for refuse in [false, true] {
+                let scope = LocalExecutionScope::new();
+                let cleanup_closed = Cell::new(false);
+                let authority = Authority {
+                    scope: &scope,
+                    calls: Cell::new(0),
+                    refuse,
+                };
+                let domain = ScalarTypeSet::only(ScalarType::Integer);
+                let actual = FragileIdentity {
+                    scope: &scope,
+                    cleanup_closed: &cleanup_closed,
+                    unwind: false,
+                };
+                let pending = PendingReply::new(
+                    FragileIdentity {
+                        unwind: true,
+                        ..actual
+                    },
+                    (),
+                    &domain,
+                );
+                let mut core: SessionCore<
+                    '_,
+                    '_,
+                    (),
+                    (),
+                    (),
+                    FragileIdentity<'_>,
+                    ScalarTypeSet,
+                    Reply,
+                > = SessionCore {
+                    state: if binding {
+                        State::AwaitingBinding(pending)
+                    } else {
+                        State::AwaitingFinal(pending)
+                    },
+                    fuel: Fuel::new(97),
+                };
+                let reply = Reply {
+                    value: ScalarValue::Integer(3),
+                    buffer: vec![11; 17].into_boxed_slice(),
+                };
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    core.try_accept_with_scope(&actual, reply, &authority, Some(&scope))
+                }));
+                let unwound = result.is_err();
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(result)));
+                assert!(unwound);
+                assert!(cleanup_closed.get());
+                assert!(!scope.is_open());
+                assert_eq!(
+                    core.status(),
+                    EffectSessionStatus::Terminal(EffectSessionEnd::HostUncertain)
+                );
+                assert!(!core.cancel());
+                assert_eq!(authority.calls.get(), 1);
+                assert_eq!(core.fuel.remaining(), 97);
+            }
+        }
+    }
+
+    #[test]
+    fn scoped_cancelled_rejection_never_rearms_binding_or_final_pending_state() {
+        for binding in [false, true] {
+            for preclosed in [false, true] {
+                for refuse in [false, true] {
+                    let scope = LocalExecutionScope::new();
+                    let domain = ScalarTypeSet::only(ScalarType::Integer);
+                    let authority = Authority {
+                        scope: &scope,
+                        calls: Cell::new(0),
+                        refuse,
+                    };
+                    let pending = PendingReply::new(7, (), &domain);
+                    let mut core: SessionCore<'_, '_, (), (), (), u8, ScalarTypeSet, Reply> =
+                        SessionCore {
+                            state: if binding {
+                                State::AwaitingBinding(pending)
+                            } else {
+                                State::AwaitingFinal(pending)
+                            },
+                            fuel: Fuel::new(97),
+                        };
+                    if preclosed {
+                        scope.close();
+                    }
+                    let reply = Reply {
+                        value: ScalarValue::Integer(3),
+                        buffer: vec![11; 17].into_boxed_slice(),
+                    };
+                    let pointer = reply.buffer.as_ptr();
+                    let rejected = core
+                        .try_accept_with_scope(&7, reply, &authority, Some(&scope))
+                        .unwrap_err();
+                    assert_eq!(rejected.reply.buffer.as_ptr(), pointer);
+                    assert!(matches!(
+                        rejected.error,
+                        EffectSessionReplyError::Reply(ReplyAcceptanceError::Closed(
+                            ReplyEnd::Cancelled
+                        ))
+                    ));
+                    assert_eq!(
+                        core.status(),
+                        EffectSessionStatus::Terminal(EffectSessionEnd::Cancelled)
+                    );
+                    assert_eq!(core.fuel.remaining(), 97);
+                    assert_eq!(authority.calls.get(), usize::from(!preclosed));
+                    assert!(!core.cancel());
+                    let late = core
+                        .try_accept_with_scope(&7, rejected.reply, &authority, Some(&scope))
+                        .unwrap_err();
+                    assert_eq!(late.reply.buffer.as_ptr(), pointer);
+                    assert!(matches!(
+                        late.error,
+                        EffectSessionReplyError::NotAwaiting(EffectSessionStatus::Terminal(
+                            EffectSessionEnd::Cancelled
+                        ))
+                    ));
+                    assert_eq!(authority.calls.get(), usize::from(!preclosed));
+                    assert_eq!(core.fuel.remaining(), 97);
+                }
+            }
+        }
     }
 }

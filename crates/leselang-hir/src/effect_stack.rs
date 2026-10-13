@@ -3,7 +3,8 @@
 use std::fmt;
 
 use leselang_runtime_core::{
-    AcceptedReply, CalculationFailure, Fuel, ScopeFrame, StructureBudget, with_owned_scope_state,
+    AcceptedReply, CalculationFailure, Fuel, LocalExecutionScope, ScopeFrame, StructureBudget,
+    with_owned_scope_state,
 };
 
 use crate::effect_evaluation::{
@@ -12,9 +13,11 @@ use crate::effect_evaluation::{
     preflight_scope,
 };
 use crate::effect_reentry::{
-    EffectContinuation, EffectReentryEnvironment, bind_effect_value, restore_effect_scope,
+    EffectContinuation, EffectReentryEnvironment, bind_effect_value,
+    restore_effect_scope_with_liveness,
 };
 use crate::ir::Computation;
+use crate::local_scope::CallFence;
 use crate::pure_evaluation::{PureEvaluationEnvironment, PureValue};
 use crate::pure_typing::MAX_TYPE_INFERENCE_DEPTH;
 
@@ -323,11 +326,56 @@ where
             Reply,
         >,
 {
+    resume_accepted_stacked_effects_with_scope(accepted, environment, fuel, policy, None)
+}
+
+pub(crate) fn resume_accepted_stacked_effects_with_scope<
+    'expression,
+    'schema,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Identity,
+    Declaration: ?Sized,
+    Reply,
+    Environment,
+>(
+    accepted: AcceptedEffectStackContinuation<
+        'schema,
+        'expression,
+        Identity,
+        Field,
+        Operation,
+        HostEffect,
+        IrResult,
+        Environment::Capture,
+        Declaration,
+        Reply,
+    >,
+    environment: &Environment,
+    fuel: &mut Fuel,
+    policy: EffectStackLimits,
+    execution_scope: Option<&LocalExecutionScope>,
+) -> StackedControlResult<'expression, Field, Operation, HostEffect, IrResult, Environment>
+where
+    Environment: EffectReentryEnvironment<
+            'expression,
+            Field,
+            Operation,
+            HostEffect,
+            IrResult,
+            Identity,
+            Declaration,
+            Reply,
+        >,
+{
     let (identity, continuation, declaration, reply) = accepted.into_parts();
     let mut frames = continuation.frames.into_iter();
     let mut current = None;
     let mut reply = Some(reply);
     let mut returned = None;
+    let fence = CallFence::new(execution_scope);
     let output = (|| {
         limits(policy)?;
         if frames.len() == 0 || frames.len() > policy.max_frames {
@@ -359,7 +407,7 @@ where
                 return Err(EffectStackFault::ReturnLimit.into());
             };
             let (name, body, capture) = frame.into_parts();
-            let bindings = restore_effect_scope(
+            let bindings = restore_effect_scope_with_liveness(
                 name,
                 |fuel| {
                     environment.restore_capture(
@@ -372,32 +420,35 @@ where
                 },
                 fuel,
                 policy.effects,
+                execution_scope,
             )
             .map_err(stack_failure)?;
             let outcome = with_owned_scope_state(bindings, fuel, |scope, fuel| {
-                let value = if let Some(reply) = reply.take() {
-                    environment
-                        .bind_reply(&identity, declaration, reply, fuel)
-                        .map_err(crate::effect_evaluation::native_failure)
-                        .map_err(stack_failure)?
-                } else if let Some(value) = returned.take() {
-                    value
-                } else {
-                    return Err(EffectStackFault::ReturnLimit.into());
-                };
-                bind_effect_value(name, value, scope, policy.effects).map_err(stack_failure)?;
-                evaluate_with_profile::<_, _, _, _, _, ReturnFrames>(
-                    body,
-                    scope,
-                    environment,
-                    fuel,
-                    policy.effects.pure.max_bindings,
-                    policy
-                        .max_frames
-                        .checked_sub(frames.len())
-                        .ok_or(EffectStackFault::ReturnLimit)?,
-                )
-                .map_err(stack_failure)
+                CallFence::run(execution_scope, || {
+                    let value = if let Some(reply) = reply.take() {
+                        environment
+                            .bind_reply(&identity, declaration, reply, fuel)
+                            .map_err(crate::effect_evaluation::native_failure)
+                            .map_err(stack_failure)?
+                    } else if let Some(value) = returned.take() {
+                        value
+                    } else {
+                        return Err(EffectStackFault::ReturnLimit.into());
+                    };
+                    bind_effect_value(name, value, scope, policy.effects).map_err(stack_failure)?;
+                    evaluate_with_profile::<_, _, _, _, _, ReturnFrames>(
+                        body,
+                        scope,
+                        environment,
+                        fuel,
+                        policy.effects.pure.max_bindings,
+                        policy
+                            .max_frames
+                            .checked_sub(frames.len())
+                            .ok_or(EffectStackFault::ReturnLimit)?,
+                    )
+                    .map_err(stack_failure)
+                })
             })?;
             match outcome {
                 ControlOutcome::Value(value) => {
@@ -432,7 +483,13 @@ where
             }
         }
     })();
+    // Place the fence after output so cleanup unwind revokes before output disposal.
+    let cleanup_fence = fence;
+    if output.is_err() {
+        cleanup_fence.close();
+    }
     // Original native owners stay outside the fallible closure's return place.
     drop((current, frames, reply, returned, identity));
+    cleanup_fence.finish();
     output
 }

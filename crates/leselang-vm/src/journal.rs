@@ -4088,7 +4088,7 @@ mod outcome_tests {
         }
         let mut control = leserpent_domain::InMemoryControlPlane::default();
         let runtime = control.register_runtime(
-            crate::RuntimeId::new("runtime-a").unwrap(),
+            leselang_host_contract::RuntimeId::new("runtime-a").unwrap(),
             "runtime",
             "http://runtime.local",
         );

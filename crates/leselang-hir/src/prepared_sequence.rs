@@ -2,9 +2,10 @@
 
 use std::{borrow::Borrow, collections::VecDeque, fmt};
 
-use leselang_runtime_core::{Fuel, HostResultDomain, ReplyAuthority};
+use leselang_runtime_core::{Fuel, HostResultDomain, LocalExecutionScope, ReplyAuthority};
 
 use crate::ir::{Computation, ComputedBranch, GroupKind};
+use crate::local_scope::CallFence;
 use crate::native_group_preparation::PreparedNativeGroup;
 use crate::sequence_evaluation::{
     PreparedSequenceMember, SequenceAcceptance, SequenceEvaluationError, SequenceEvaluationLimits,
@@ -208,33 +209,70 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Request>
             &Request,
         ) -> Result<(), Error>,
     ) -> Result<SequencePoll<Request>, PreparedSequenceError<Error>> {
+        self.poll_with_scope(admit, None)
+    }
+
+    /// Explicit liveness for publication, without storing a scope. Closure in
+    /// the admission hook discards this request and the unpublished suffix.
+    pub fn poll_in_scope<Error>(
+        &mut self,
+        admit: impl FnOnce(
+            usize,
+            &'expression ComputedBranch<Node, IrResult>,
+            &Identity,
+            &'expression Declaration,
+            &Request,
+        ) -> Result<(), Error>,
+        scope: &LocalExecutionScope,
+    ) -> Result<SequencePoll<Request>, PreparedSequenceError<Error>> {
+        self.poll_with_scope(admit, Some(scope))
+    }
+
+    fn poll_with_scope<Error>(
+        &mut self,
+        admit: impl FnOnce(
+            usize,
+            &'expression ComputedBranch<Node, IrResult>,
+            &Identity,
+            &'expression Declaration,
+            &Request,
+        ) -> Result<(), Error>,
+        scope: Option<&LocalExecutionScope>,
+    ) -> Result<SequencePoll<Request>, PreparedSequenceError<Error>> {
         // Local ownership releases the entire retained suffix on callback unwind.
         let mut prepared = std::mem::take(&mut self.prepared);
-        let outcome = self.core.publish_with(|index, original| {
-            let member = prepared
-                .front()
-                .ok_or(PreparedSequenceError::InternalState)?;
-            admit(
-                index,
-                original,
-                &member.identity,
-                member.declaration,
-                &member.request,
-            )
-            .map_err(|error| {
-                PreparedSequenceError::Sequence(SequenceEvaluationError::Native {
+        let fence = CallFence::new(scope);
+        let outcome = self.core.publish_with(
+            |index, original| {
+                let member = prepared
+                    .front()
+                    .ok_or(PreparedSequenceError::InternalState)?;
+                admit(
                     index,
-                    phase: SequencePhase::Preflight,
-                    error,
-                })
-            })?;
-            prepared
-                .pop_front()
-                .ok_or(PreparedSequenceError::InternalState)
-        });
+                    original,
+                    &member.identity,
+                    member.declaration,
+                    &member.request,
+                )
+                .map_err(|error| {
+                    PreparedSequenceError::Sequence(SequenceEvaluationError::Native {
+                        index,
+                        phase: SequencePhase::Preflight,
+                        error,
+                    })
+                })?;
+                prepared
+                    .pop_front()
+                    .ok_or(PreparedSequenceError::InternalState)
+            },
+            scope,
+        );
         if !matches!(self.status(), SequenceStatus::Terminal(_)) {
             self.prepared = prepared;
+        } else {
+            drop(prepared);
         }
+        fence.finish();
         outcome
     }
     /// Accept one original result, without running the next publication hook.
@@ -259,11 +297,69 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Request>
         Declaration: HostResultDomain<View>,
         Authority: ReplyAuthority<Identity>,
     {
+        self.try_accept_with_scope(identity, reply, authority, None)
+    }
+
+    /// Cancel this collector on explicit scope revocation, before releasing its
+    /// retained suffix. This does not cancel external dispatch or its parent VM.
+    pub fn try_accept_in_scope<Reply, View: ?Sized, Authority>(
+        &mut self,
+        identity: &Identity,
+        reply: Reply,
+        authority: &Authority,
+        scope: &LocalExecutionScope,
+    ) -> SequenceAcceptance<
+        'expression,
+        Node,
+        IrResult,
+        Identity,
+        Declaration,
+        Reply,
+        Authority::Error,
+        Declaration::Error,
+    >
+    where
+        Identity: PartialEq,
+        Reply: Borrow<View>,
+        Declaration: HostResultDomain<View>,
+        Authority: ReplyAuthority<Identity>,
+    {
+        self.try_accept_with_scope(identity, reply, authority, Some(scope))
+    }
+
+    fn try_accept_with_scope<Reply, View: ?Sized, Authority>(
+        &mut self,
+        identity: &Identity,
+        reply: Reply,
+        authority: &Authority,
+        scope: Option<&LocalExecutionScope>,
+    ) -> SequenceAcceptance<
+        'expression,
+        Node,
+        IrResult,
+        Identity,
+        Declaration,
+        Reply,
+        Authority::Error,
+        Declaration::Error,
+    >
+    where
+        Identity: PartialEq,
+        Reply: Borrow<View>,
+        Declaration: HostResultDomain<View>,
+        Authority: ReplyAuthority<Identity>,
+    {
         let prepared = std::mem::take(&mut self.prepared);
-        let outcome = self.core.try_accept(identity, reply, authority);
+        let fence = CallFence::new(scope);
+        let outcome = self
+            .core
+            .try_accept_with_scope(identity, reply, authority, scope);
         if !matches!(self.status(), SequenceStatus::Terminal(_)) {
             self.prepared = prepared;
+        } else {
+            drop(prepared);
         }
+        fence.finish();
         outcome
     }
     pub fn cancel(&mut self) -> bool {

@@ -10,6 +10,43 @@ This policy governs the migration bridge between the Leserpent 1.x ASP.NET API
 and the Rust domain/protocol kernel. The bridge translates representations; it
 does not own business rules.
 
+## Language Host Payload Ownership
+
+Pending presentation operations are owned by `leselang-command`, the Leserpent
+language adapter, rather than the language VM. Its operation, envelope and reply
+types retain their original Serde representations; the VM re-exports the exact
+same types for existing Rust consumers. This protocol crate no longer depends
+on `leselang-vm` or its SQLite backend. Wire v1 and its strict decode rules are
+unchanged. A decoded payload is not execution authority: authenticated host
+dispatch, revision checks and pending-operation/reply validation are still required.
+
+The adapter also owns the released language `Value` and `StructuredField`
+representations, with exact VM re-exports. These internal language results are
+not wire-v1 envelopes: their legacy unknown-field policy remains unchanged.
+The pure presentation-reply conversion drops wait metadata only after the VM's
+correspondence check. Type lookup/conversion do not replace bounded value
+validation, saved-result-type checks or authenticated dispatch.
+The adapter's borrowed leaf bounds preserve existing product rules; they do not
+validate recursive structures, enforce an execution budget or certify wire-v1
+input. Those contextual checks remain with the VM and authenticated host.
+Borrowed presentation-request correspondence also belongs to the adapter, but
+does not replace category, principal/capability, continuation or budget checks.
+The same applies to the adapter's query/command correspondence predicates. Their
+command identity/revision expectations must come from the original execution;
+matching a received envelope does not authenticate it or enforce replay policy.
+Control-plane reply correspondence is adapter-owned as well, retaining runtime,
+saved command identity, applied status and debugger timestamp rules. It does not
+replace saved result-type, query revision/output-limit or authenticated delivery
+checks. Reply DTOs, first-terminal replay and wire-v1 schemas are unchanged.
+Owned control-plane reply conversion also belongs to the adapter. The original
+declared type selects the value shape, especially for untagged command results;
+conversion is not reply acceptance. The VM retains revision and item-limit
+checks before moving payloads, with unchanged result wire and buffer ownership.
+Product scalar field projection is likewise adapter-owned. It preserves owned
+scalar copies and optional-text states, not acceptance, bounds or budget checks.
+The VM retains all five capture versions, ordered field validation, missing-field
+refusals and `LSV1405`; no wire-v1 or continuation schema changes are introduced.
+
 ## Draft Bootstrap Boundary
 
 Host bootstrap is intentionally separate from the authenticated daemon wire.
