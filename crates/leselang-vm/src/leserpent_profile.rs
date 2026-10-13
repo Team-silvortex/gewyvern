@@ -2163,14 +2163,22 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
     leselang_command::validate_value_items(
         value,
         depth,
-        leselang_command::ValueValidationLimits {
-            max_depth: MAX_STRUCTURED_VALUE_DEPTH,
-            max_fields: MAX_MERGE_BRANCHES,
-            max_query_items: DEFAULT_MAX_OUTPUT_ITEMS,
-        },
+        value_validation_limits(),
         valid_merge_branch_name,
     )
-    .map_err(|error| Fault {
+    .map_err(value_bounds_fault)
+}
+
+fn value_validation_limits() -> leselang_command::ValueValidationLimits {
+    leselang_command::ValueValidationLimits {
+        max_depth: MAX_STRUCTURED_VALUE_DEPTH,
+        max_fields: MAX_MERGE_BRANCHES,
+        max_query_items: DEFAULT_MAX_OUTPUT_ITEMS,
+    }
+}
+
+fn value_bounds_fault(error: leselang_command::ValueBoundsError) -> Fault {
+    Fault {
         code: "LSV2403".into(),
         message: match error {
             leselang_command::ValueBoundsError::Nesting => {
@@ -2180,7 +2188,7 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
             leselang_command::ValueBoundsError::Value => "structured value exceeds runtime bounds",
         }
         .into(),
-    })
+    }
 }
 
 fn validate_retention_policy(policy: &RetentionPolicy) -> Result<(), Fault> {

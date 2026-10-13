@@ -6,14 +6,14 @@ use std::{borrow::Cow, cell::Cell, marker::PhantomData};
 use leselang_command::{
     EffectPreparationError, EffectResult, EffectValueContext, PreflightedResultEnvironment,
     PresentationResult, ProjectedGroup, ProjectedResult, ResultBinding, ResultBindingLimits,
-    ResultCaptureHost, ResultCaptureLimits, ResultExecutionHost, ResultExecutionLimits, ResultView,
-    ResultViewError, StructuredField, Value, ValueValidationLimits,
-    prepare_preflighted_effect_in_scope, resume_preflighted_result_binding_in_scope,
-    validate_group_capture_correspondence, validate_result_binding,
-    validate_result_binding_extension, validate_value_items,
+    ResultCaptureHost, ResultCaptureLimits, ResultExecutionHost, ResultExecutionLimits,
+    ResultValueDomain, ResultValueHost, ResultView, ResultViewError, StructuredField, Value,
+    ValueValidationLimits, prepare_preflighted_effect_in_scope,
+    resume_preflighted_result_binding_in_scope, validate_group_capture_correspondence,
+    validate_result_binding, validate_result_binding_extension,
 };
 use leselang_hir::{
-    Effect,
+    Effect, Type,
     call_evaluation::CallEvaluationError,
     computation::Computation,
     effect_evaluation::{
@@ -31,7 +31,7 @@ use leselang_hir::{
 use leselang_runtime_core::{
     CalculationFailure, CaptureCorrespondenceLimits, CaptureScopeError, CaptureSnapshotError,
     CaptureSnapshotLimits, CaptureValidationLimits, Fuel, GroupCaptureLimits, ScalarValue,
-    ScopeFrame,
+    ScopeFrame, validate_host_result,
 };
 
 const LIMITS: EffectEvaluationLimits = EffectEvaluationLimits {
@@ -220,6 +220,23 @@ fn valid_name(name: &str) -> bool {
         && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
 }
 
+impl ResultValueHost for Adapter<'_, '_> {
+    type Error = Refusal;
+
+    fn valid_field_name(&self, name: &str) -> bool {
+        valid_name(name)
+    }
+
+    fn validate_encoded_value(&self, value: &Value) -> Result<(), Refusal> {
+        // The fixture's already bounded ingress chooses its own codec/byte policy.
+        let bytes = serde_json::to_vec(value).map_err(|_| Refusal::Admission)?;
+        if bytes.len() > 16 * 1024 {
+            return Err(Refusal::Admission);
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 enum Step {
     Done(ScalarValue),
@@ -292,15 +309,24 @@ fn resume<'a>(
     }
     validate_result_binding(binding, effect, CAPTURES, valid_name)
         .map_err(|_| Refusal::Admission)?;
-    validate_value_items(
-        value,
-        0,
-        ValueValidationLimits {
-            max_depth: 16,
-            max_fields: 4,
-            max_query_items: 4,
+    let result_type = match effect {
+        Effect::Sequence { .. } | Effect::All { .. } => Type::Structured,
+        _ => HostOperation::for_effect(effect)
+            .ok_or(Refusal::Admission)?
+            .result_type(),
+    };
+    validate_host_result(
+        &ResultValueDomain {
+            result_type,
+            value_limits: ValueValidationLimits {
+                max_depth: 16,
+                max_fields: 4,
+                max_query_items: 4,
+            },
+            max_output_items: 4,
+            host: adapter,
         },
-        valid_name,
+        value,
     )
     .map_err(|_| Refusal::Admission)?;
     let pending = match effect {

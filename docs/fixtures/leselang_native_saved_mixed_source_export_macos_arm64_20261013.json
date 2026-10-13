@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-saved-mixed-source-export",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-13T11:17:50.844Z",
+  "platform": "macos-arm64",
+  "source_outside_product_workspace": true,
+  "source_crates": [
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir",
+    "leselang-vm"
+  ],
+  "verified": true,
+  "native_vm_facade": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "portable_mixed_checkpoint": false,
+  "process_crash_acceptance": false,
+  "files": 254,
+  "copied_files": 244,
+  "bytes": 5329259,
+  "workspace_all_features_tests": "passed",
+  "workspace_strict_clippy": "passed",
+  "independent_consumer_tests": "passed",
+  "independent_consumer_strict_clippy": "passed",
+  "isolated_test_executions": 2175,
+  "workspace_native_pipeline_tests": 31,
+  "independent_consumer_native_pipeline_tests": 31,
+  "saved_mixed_tests_per_workspace": 4,
+  "native_payload_schemas": 2,
+  "two_host_frontier_combinations": 252,
+  "minimum_helper_return_frames": 3,
+  "original_dispatches_per_program": 6,
+  "original_identities_per_program": 8,
+  "consumer_proof_unchanged": true,
+  "copied_source_byte_for_byte": true,
+  "export_manifest_sha256": "b77be3005444eed0590848e2f19875ffe761fd7839aa584df885902aa31f82c5",
+  "verification_log_sha256": "1742bbbcfaed4a105b4b517581a9b86db6b7c94c742181aeb38865fd4ba4303c",
+  "provenance": [
+    {
+      "path": "crates/leselang-hir/src/effect_stack.rs",
+      "source": "crates/leselang-hir/src/effect_stack.rs",
+      "sha256": "5a4980b9ebcb697ea4c48e3462bf54552f9633e371fb8d1fd5c626954ae7c51d"
+    },
+    {
+      "path": "crates/leselang-hir/src/prepared_sequence.rs",
+      "source": "crates/leselang-hir/src/prepared_sequence.rs",
+      "sha256": "bb66d88e74a02dc8a260faa7d8f3e8d6c805dc9aa3a1d0775aca3f2d711b76a5"
+    },
+    {
+      "path": "crates/leselang-hir/src/prepared_parallel.rs",
+      "source": "crates/leselang-hir/src/prepared_parallel.rs",
+      "sha256": "f97dbbd98f7fded8f2a8f4abcb63f81cc4c2fe267e5fc2606b886a016d1b2e8d"
+    },
+    {
+      "path": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "source": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "83a0c694047ae9106bcb7e0cfe5861c6f616f4eb6d507a0365e18bea18d1622b"
+    },
+    {
+      "path": "consumer/tests/native_host_pipeline.rs",
+      "source": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "83a0c694047ae9106bcb7e0cfe5861c6f616f4eb6d507a0365e18bea18d1622b"
+    }
+  ],
+  "remaining_gates": [
+    "complete native reference-language coverage",
+    "portable mixed-group/helper snapshot codecs and authenticated graph recovery",
+    "production persistence/process-crash acceptance and durable settlement",
+    "complete reference adapter wire/auth/GUI/CLI/journal parity",
+    "release publication and physical repository extraction"
+  ]
+}

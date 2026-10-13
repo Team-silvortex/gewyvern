@@ -8,8 +8,8 @@ use crate::ir::{Computation, ComputedBranch, GroupKind};
 use crate::native_group_preparation::PreparedNativeGroup;
 use crate::parallel_evaluation::{
     ParallelAcceptance, ParallelEvaluationError, ParallelEvaluationLimits, ParallelEvaluationPoll,
-    ParallelPhase, ParallelPoll, ParallelReplyCore, ParallelRequest, ParallelStatus,
-    PreparedParallelMember, admit_parallel_shape,
+    ParallelPhase, ParallelPoll, ParallelReplyCore, ParallelRequest, ParallelRestoreError,
+    ParallelStatus, PreparedParallelMember, SavedParallelMember, admit_parallel_shape,
 };
 
 pub enum PreparedParallelError<Error> {
@@ -105,6 +105,38 @@ impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration:
         Reply,
     >
 {
+    /// Restore an already-published flat All barrier without preparation or fuel.
+    /// Whole shape, count and original row order precede native identity equality;
+    /// distinct identities precede mandatory complete-batch admission. No partial
+    /// barrier or request escapes refusal/unwind. Accepted rows stay accepted;
+    /// awaiting rows use the same reply core, ordered handoff and cancellation.
+    ///
+    /// The host must validate the same committed graph, exact original identities
+    /// and domains, authentic accepted payloads, current authority/deadline, saved
+    /// budget and nonterminal dispatch/settlement state. An AcceptedReply is not
+    /// fresh authority. This entry has no meter, codec, journal or retry path and
+    /// cannot distinguish a fabricated well-formed snapshot. It cannot safely
+    /// rearm cancelled/settled work; preventing that remains host-owned.
+    /// Native Eq/admission/Drop are bounded trusted work; cleanup may unwind and
+    /// a second panic may abort. Use the owning scope on later accept/poll calls.
+    pub fn restore<Error>(
+        group: &'expression Computation<Field, Operation, HostEffect, IrResult>,
+        rows: Vec<SavedParallelMember<'expression, Identity, Declaration, Reply>>,
+        limits: ParallelEvaluationLimits,
+        admit: impl FnOnce(
+            &[SavedParallelMember<'expression, Identity, Declaration, Reply>],
+        ) -> Result<(), Error>,
+    ) -> Result<Self, ParallelRestoreError<Error>>
+    where
+        Identity: PartialEq,
+    {
+        let branches =
+            admit_parallel_shape(group, limits).map_err(ParallelRestoreError::Parallel)?;
+        Ok(Self {
+            core: ParallelReplyCore::restore(branches, rows, admit)?,
+        })
+    }
+
     /// Consume all original prepared operands before returning any native request.
     /// Admission borrows every preparation; correlation consumes each once in order.
     #[expect(

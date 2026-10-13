@@ -4,6 +4,91 @@ One shared compiler/session implementation with an explicit optional Leserpent
 reference specialization. This crate remains in the product workspace while
 complete language, recovery and compatibility extraction gates are open.
 
+The native two-host pipeline tests also cover result-selected group helpers,
+group aliases and early versus captured returns under one fuel budget. Native
+catalog compilation supports a field directly over a bound member, including
+scalar call operands, without a second evaluator or new IR node. Cold alternatives
+remain typed, and early returns do not bypass current authority or cancellation.
+The same test source is included in the isolated native source consumer.
+
+Selected data-returning helpers also join atomic, sequential/parallel group and
+pure fallback paths before another captured effect: 72 combinations cover all
+six bounded data types. Empty/absent and maximum optional/list payloads, overflow
+before caller dispatch, cold typing, lazy arguments, revocation and exact fuel
+remain part of the same unchanged exported proof. This strengthens acceptance
+without changing language APIs or claiming complete independent recovery.
+
+Native saved return stacks can now be structurally admitted through HIR's
+`restore_effect_return_stack`, then use the existing pending-reply and stacked
+execution path. The two-host checkpoint model serializes three helper return
+frames and resumes with the original budget without recompiling or replaying
+settled work. Host-authenticated graph/capture provenance, codecs, persistence
+and dispatch remain external; this is not a complete durable VM backend.
+
+An already-published flat `all` group can also restore its partial reply barrier
+through `PreparedParallelSession::restore`. Accepted members remain accepted and
+the same core waits only for missing replies, without preparing/dispatching again
+or creating a meter. Native two-payload tests cover every three-member completion
+mask and serialized recovery; full mixed-graph and process-crash recovery are
+still separate gates, with provenance and settlement owned by the host.
+
+`PreparedSequenceSession::restore` now also derives a flat `seq` frontier from
+its accepted prefix, optional awaiting member and unpublished request suffix.
+It returns original accepted rows for aggregation and uses the same reply core
+for one-at-a-time fresh publication. Numeric/text saved models cover all seven
+valid three-member frontiers without repeating preparation or published work;
+all twenty invalid arrangements reject before native admission. Original fuel,
+host-owned provenance/settlement and complete mixed-continuation gates remain.
+
+The native mixed pipeline now composes those saved collectors with three or more
+helper return frames. Across two hosts, 252 frontier combinations traverse an
+atomic call, seq/all/repeat, a captured successor and a second group. Discarded
+controllers restore without new requests/identities or a fuel reset; exact fuel
+matches uninterrupted execution. Stale/revoked/closed hosts and redirected queued
+handles reject before tail work, and wrong root receipts retain retryable ownership.
+This is a bounded in-memory host-inventory proof, not a portable mixed checkpoint:
+the original IR, native captures, reply copies and request inventory stay host-owned.
+Production codecs, storage authentication and crash-safe settlement remain open.
+
+Queued native operands can now rebuild through `PreparedCall::restore`, without
+retaining an old schema or reevaluating argument expressions. Complete row/name/
+position/scalar bounds precede mandatory host admission and original domain checks.
+Values move and names rebind to the new schema. Two byte-codec consumer models
+drop every original request/schema/IR object, then restore all seven Seq frontiers
+using real PreparedCalls with the saved budget and no extra preparation/dispatch.
+This removes one native-inventory dependency, not the complete mixed-checkpoint
+or process-crash gate; publication, settlement and snapshot authenticity stay native.
+
+Already-assembled flat group values also have a native restore entry:
+`restore_group_reply` shares live assembly's cold shape/row checks, then requires
+fresh whole-group admission without paying the assembly charge twice. Two
+numeric/text byte-codec models restore Seq/All after dropping every original
+graph/schema/receipt/meter object, including a zero-fuel boundary. The host must
+authenticate committed assembly and saved budget; ordinary completed receipts
+still use charged assembly, and lookup rechecks live policy. This is not yet
+complete mixed checkpoints or production process-crash recovery.
+
+The saved-group consumer now also composes real captured re-entry from host-owned
+bytes: an initial scalar/result/group scope and its group alias suspend under two
+return frames, then resume after all original objects are dropped. Both numeric
+and text profiles and Seq/All groups retain uninterrupted-result/fuel parity at
+every continuation cutoff. The group view rebuilds once per restored execution;
+aliases share it, but every return and projection still checks current policy.
+Outer cold refusal prevents any capture materialization, and wrong pending
+receipts retain input for explicit retry. This is a bounded typed-IR fixture using
+existing APIs, not a new wire contract, arbitrary active-group recovery, a
+production persistence backend or process-crash acceptance.
+
+The same consumer now combines those captures with an unfinished three-member
+Seq and real prepared call operands. Every one of its seven frontiers runs for
+numeric/text hosts with a previously completed Seq/All capture. Arguments read
+that captured group before suspension; only the unpublished suffix is rebuilt
+from saved scalar operands, never reevaluated. Accepted rows and awaiting work
+are not dispatched again. Both return frames share the rebuilt captured group,
+while fresh group assembly and re-entry retain exact uninterrupted fuel costs.
+This adds a fixed typed-IR sequential composition, not source-compiled mixed
+recovery, partial All composition, durable settlement or extraction completion.
+
 ## Build Profiles
 
 | Profile | Cargo Features | Entry Points |
@@ -88,6 +173,16 @@ The reply is consumed on success or refusal; no buffer clones, codec, meter,
 dispatch or retries are added. Full value/byte/identity/authority/lease/journal
 gates remain host-owned. Frozen before/after comparisons and a VM-free 70-operation
 matrix retain native/wire results, fault precedence and original buffer owners.
+
+`ResultValueDomain` now composes received-value admission in the adapter using
+the core `HostResultDomain` contract: saved type, shared value bounds, output
+ceiling, then an explicit native encoding hook. The zero output ceiling rejects
+even empty queries here, unlike the earlier atomic conversion gate. The VM keeps
+its original limits/name grammar, capped JSON encoder and exact fault mapping;
+its `PendingReply` ownership and prior identity/authority gates are unchanged.
+Move-only native failures are preserved without Debug/Clone requirements. Frozen
+before/after tests, all 77 value types and VM-free retry/cancel/unwind tests prove
+the boundary without certifying receipt authenticity or independent recovery.
 
 `Value::project_scalar` now owns the product field-to-scalar mapping in the
 adapter. It copies only the requested exported scalar, without serializing or

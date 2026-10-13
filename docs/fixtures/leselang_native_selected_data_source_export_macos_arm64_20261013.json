@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-selected-data-source-export",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-13T09:27:43.553Z",
+  "platform": "macos-arm64",
+  "source_outside_product_workspace": true,
+  "source_crates": [
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir",
+    "leselang-vm"
+  ],
+  "verified": true,
+  "native_vm_facade": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "files": 250,
+  "copied_files": 240,
+  "bytes": 5082213,
+  "workspace_all_features_tests": "passed",
+  "workspace_strict_clippy": "passed",
+  "independent_consumer_tests": "passed",
+  "independent_consumer_strict_clippy": "passed",
+  "isolated_test_executions": 2117,
+  "workspace_pipeline_tests": 27,
+  "independent_consumer_pipeline_tests": 27,
+  "selected_data_host_program_type_paths": 72,
+  "empty_absent_maximum_payload_paths": 60,
+  "consumer_pipeline_proof_unchanged": true,
+  "copied_source_byte_for_byte": true,
+  "export_manifest_sha256": "c7a1333c70ee544d050955861854399beec32c03672efc5115bb14aa6f486c5e",
+  "verification_log_sha256": "ea0af66203f49a95bd33f6b5e06fcd69628385a6c714a67c3b8a0aad24bbf91b",
+  "provenance": [
+    {
+      "path": "crates/leselang-hir/src/effect_stack_session.rs",
+      "source": "crates/leselang-hir/src/effect_stack_session.rs",
+      "sha256": "915fbc1e01432a872395d0096f4747a0bf4fa58fe8aa51a8a83a3125c2e3503b"
+    },
+    {
+      "path": "crates/leselang-vm/src/native.rs",
+      "source": "crates/leselang-vm/src/native.rs",
+      "sha256": "fb822515f8e9f56a89dc097c2e7aea0c3373f0e48d51a679e0365d06f45efd96"
+    },
+    {
+      "path": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "source": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "ec3f6bcd6c94f061e37f0253b5845252cfdaa63e61777a7c10a6028c953a2185"
+    },
+    {
+      "path": "consumer/tests/native_host_pipeline.rs",
+      "source": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "ec3f6bcd6c94f061e37f0253b5845252cfdaa63e61777a7c10a6028c953a2185"
+    }
+  ],
+  "remaining_gates": [
+    "complete reference-language coverage across native hosts",
+    "host-neutral durable graph recovery",
+    "complete reference adapter wire/auth/GUI/CLI/journal parity",
+    "release publication and physical repository extraction"
+  ]
+}

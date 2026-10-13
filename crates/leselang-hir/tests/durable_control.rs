@@ -8,6 +8,7 @@ use std::{
 };
 
 use leselang_hir::{
+    catalog_program::{CatalogProgramLimits, compile_catalog_program},
     catalog_source::{CatalogSourceEnvironment, CatalogSourceLimits, compile_catalog_source},
     control_source::ControlSourceLimits,
     effect_evaluation::{
@@ -160,6 +161,8 @@ struct Host<K> {
     value: RefCell<ScalarValue>,
     invocations: RefCell<Vec<K>>,
     preparations: Cell<usize>,
+    restorations: Cell<usize>,
+    projections: Cell<usize>,
 }
 impl<K: Key> Host<K> {
     fn new() -> Self {
@@ -171,6 +174,8 @@ impl<K: Key> Host<K> {
             value: RefCell::new(K::initial()),
             invocations: RefCell::new(vec![]),
             preparations: Cell::new(0),
+            restorations: Cell::new(0),
+            projections: Cell::new(0),
         }
     }
     fn admit(&self, operation: &K) -> Result<(), &'static str> {
@@ -336,6 +341,9 @@ impl<'a, K: Key> EffectEvaluationEnvironment<'a, (), K, (), ()> for Host<K> {
 }
 
 fn compile<K: Key>(host: &Host<K>) -> Node<K> {
+    compile_text(host, K::source())
+}
+fn compile_text<K: Key>(host: &Host<K>, source: &str) -> Node<K> {
     let params = [NamedParameter::required(
         "value",
         ScalarTypeSet::only(K::scalar()),
@@ -368,17 +376,29 @@ fn compile<K: Key>(host: &Host<K>) -> Node<K> {
         version: 1,
         granted: &[1, 2],
     };
-    let tree = leselang_syntax::parse(K::source());
+    let tree = leselang_syntax::parse(source);
     assert!(tree.diagnostics.is_empty());
-    compile_catalog_source(
-        &tree.function.unwrap().body,
-        &[],
-        SOURCE,
-        &source_host,
-        host,
-    )
-    .unwrap_or_else(|error| panic!("native compilation: {error:?}"))
-    .0
+    let functions: Vec<_> = tree.function.iter().chain(&tree.helpers).collect();
+    let compiled = if functions.len() == 1 {
+        compile_catalog_source(&functions[0].body, &[], SOURCE, &source_host, host)
+    } else {
+        compile_catalog_program(
+            &functions,
+            "main",
+            CatalogProgramLimits {
+                expression: SOURCE,
+                max_functions: 8,
+                max_parameters: 2,
+                max_compilation_nodes: 2048,
+                max_expansion_depth: 16,
+            },
+            &source_host,
+            host,
+        )
+    };
+    compiled
+        .unwrap_or_else(|error| panic!("native compilation: {error:?}"))
+        .0
 }
 
 #[derive(Default)]
@@ -598,6 +618,509 @@ impl Store {
         result
     }
 }
+mod saved_stack {
+    use super::*;
+    use leselang_hir::{
+        effect_reentry::{EffectReentryEnvironment, RestoredEffectBindings},
+        effect_stack::*,
+    };
+
+    const LIMITS: EffectStackLimits = EffectStackLimits {
+        effects: EXEC,
+        max_frames: 8,
+    };
+    trait Program: Key {
+        fn program() -> &'static str;
+        fn expected() -> ScalarValue;
+    }
+    impl Program for Counter {
+        fn program() -> &'static str {
+            r#"
+fn load() = bind(read: counter.read(), body: add(left: read, right: 1))
+fn forward() = bind(data: load(), body: counter.write(value: data))
+fn main() = bind(first: forward(), body: bind(last: counter.write(value: add(left: first, right: 1)), body: add(left: first, right: last)))
+"#
+        }
+        fn expected() -> ScalarValue {
+            ScalarValue::Integer(85)
+        }
+    }
+    impl Program for Panel {
+        fn program() -> &'static str {
+            r#"
+fn load() = bind(read: panel.read_text(), body: concat(left: read, right: "!"))
+fn forward() = bind(data: load(), body: panel.set_text(value: data))
+fn main() = bind(first: forward(), body: bind(last: panel.set_text(value: concat(left: first, right: "?")), body: concat(left: first, right: concat(left: "/", right: last))))
+"#
+        }
+        fn expected() -> ScalarValue {
+            ScalarValue::String("ready!/ready!?".into())
+        }
+    }
+
+    enum Saved<'a> {
+        Owned(ScalarValue),
+        Borrowed(&'a ScalarValue),
+    }
+    type Snapshot<'a> = Vec<(&'a str, Saved<'a>)>;
+    struct Runtime<'h, K>(&'h Host<K>);
+    impl<K: Key> PureEvaluationEnvironment<(), K> for Runtime<'_, K> {
+        type Result = ();
+        type Error = &'static str;
+        fn field(&self, _: &(), _: &()) -> Result<ScalarValue, Self::Error> {
+            Err("field")
+        }
+        fn member(&self, _: &(), _: &str, _: &K) -> Result<(), Self::Error> {
+            Err("member")
+        }
+    }
+    impl<'a, K: Key> EffectEvaluationEnvironment<'a, (), K, (), ()> for Runtime<'_, K> {
+        type Request = Request<K>;
+        type Capture = Snapshot<'a>;
+        fn preflight_effect(&self, node: &'a Node<K>) -> Result<(), Self::Error> {
+            self.0.preflight_effect(node)
+        }
+        fn prepare_effect(
+            &self,
+            node: &'a Node<K>,
+            scope: &mut ScopeFrame<'_, 'a, PureValue<()>>,
+            fuel: &mut Fuel,
+        ) -> Result<Request<K>, CalculationFailure<Self::Error>> {
+            self.0.prepare_effect(node, scope, fuel)
+        }
+        fn capture(
+            &self,
+            _: &'a str,
+            _: &'a Node<K>,
+            scope: &ScopeFrame<'_, 'a, PureValue<()>>,
+            fuel: &mut Fuel,
+        ) -> Result<Snapshot<'a>, Self::Error> {
+            scope
+                .bindings()
+                .iter()
+                .map(|(name, value)| {
+                    let PureValue::Scalar(value) = value else {
+                        return Err("capture type");
+                    };
+                    fuel.charge(1 + scalar_copy_cost(value))
+                        .map_err(|_| "capture fuel")?;
+                    Ok((*name, Saved::Owned(value.clone())))
+                })
+                .collect()
+        }
+    }
+    impl<'a, K: Key> EffectReentryEnvironment<'a, (), K, (), (), u64, Domain, ScalarValue>
+        for Runtime<'_, K>
+    {
+        fn restore_capture(
+            &self,
+            identity: &u64,
+            _: &Domain,
+            capture: Snapshot<'a>,
+            fuel: &mut Fuel,
+            _: EffectEvaluationLimits,
+        ) -> Result<RestoredEffectBindings<'a, ()>, CalculationFailure<Self::Error>> {
+            self.0.authorize(identity)?;
+            self.0.restorations.set(self.0.restorations.get() + 1);
+            capture
+                .into_iter()
+                .map(|(name, saved)| {
+                    let value = match saved {
+                        Saved::Owned(value) => value,
+                        Saved::Borrowed(value) => {
+                            fuel.charge(scalar_copy_cost(value))
+                                .map_err(|_| "restore fuel")?;
+                            value.clone()
+                        }
+                    };
+                    Ok((name, PureValue::Scalar(value)))
+                })
+                .collect()
+        }
+        fn bind_reply(
+            &self,
+            identity: &u64,
+            domain: &Domain,
+            reply: ScalarValue,
+            fuel: &mut Fuel,
+        ) -> Result<PureValue<()>, CalculationFailure<Self::Error>> {
+            self.0.authorize(identity)?;
+            validate_host_result(domain, &reply).map_err(|_| "domain")?;
+            fuel.charge(1).map_err(|_| "projection fuel")?;
+            self.0.projections.set(self.0.projections.get() + 1);
+            Ok(PureValue::Scalar(reply))
+        }
+    }
+
+    type Image<K> = ContinuationFrame<u64, u64, ScalarType, Request<K>, Vec<Capture<K>>>;
+    #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+    #[serde(tag = "kind", content = "payload", deny_unknown_fields)]
+    enum Step<K> {
+        Effect(Box<Image<K>>),
+        Done { value: ScalarValue, remaining: u64 },
+    }
+    #[derive(Default)]
+    struct Journal(Store);
+    impl Journal {
+        fn restart(self) -> Self {
+            Self(self.0.restart())
+        }
+        fn record<K: Key>(
+            &mut self,
+            outcome: StackedEffectOutcome<'_, Node<K>, (), Request<K>, Snapshot<'_>>,
+            fuel: &Fuel,
+            budget: ResourceBudget,
+            revision: Option<u64>,
+        ) -> Step<K> {
+            let (request, frames) = match outcome {
+                StackedEffectOutcome::Value(PureValue::Scalar(value)) => {
+                    return Step::Done {
+                        value,
+                        remaining: fuel.remaining(),
+                    };
+                }
+                StackedEffectOutcome::Value(_) => panic!("scalar return required"),
+                StackedEffectOutcome::Request(request) => (request, Vec::new()),
+                StackedEffectOutcome::Suspended {
+                    request,
+                    continuation,
+                } => {
+                    let frames = continuation
+                        .into_frames()
+                        .into_iter()
+                        .map(|frame| {
+                            let (name, body, saved) = frame.into_parts();
+                            Capture {
+                                name: name.into(),
+                                body: body.clone(),
+                                results: vec![],
+                                groups: vec![],
+                                locals: saved
+                                    .into_iter()
+                                    .map(|(name, value)| ScalarBinding {
+                                        name: name.into(),
+                                        value: match value {
+                                            Saved::Owned(v) => v,
+                                            Saved::Borrowed(v) => v.clone(),
+                                        },
+                                    })
+                                    .collect(),
+                            }
+                        })
+                        .collect();
+                    (request, frames)
+                }
+            };
+            self.0.next += 1;
+            let image = ContinuationFrame {
+                schema_version: 1,
+                token: self.0.next,
+                program_counter: 1,
+                expected_revision: revision,
+                result_type: K::scalar(),
+                pending_effect: request,
+                fuel_remaining: fuel.remaining(),
+                deadline_ms: budget.deadline_ms,
+                deadline_at_ms: budget.deadline_at_ms,
+                max_output_items: budget.max_output_items,
+                result_binding: (!frames.is_empty()).then(|| Box::new(frames)),
+                group_result: None,
+            };
+            let bytes = serde_json::to_vec(&image).unwrap();
+            assert!(bytes.len() <= 64 * 1024);
+            self.0.pending.insert(image.token, bytes);
+            Step::Effect(Box::new(image))
+        }
+        fn start<K: Program>(
+            &mut self,
+            host: &Host<K>,
+            budget: u64,
+        ) -> Result<Step<K>, &'static str> {
+            let node = compile_text(host, K::program());
+            let runtime = Runtime(host);
+            let mut fuel = Fuel::new(budget);
+            let mut locals = Vec::new();
+            let outcome = evaluate_stacked_effects_in_scope(
+                &node,
+                &mut ScopeFrame::new(&mut locals),
+                &runtime,
+                &mut fuel,
+                LIMITS,
+            )
+            .map_err(|_| "start")?;
+            Ok(self.record(
+                outcome,
+                &fuel,
+                ResourceBudget {
+                    fuel_remaining: budget,
+                    deadline_ms: 1000,
+                    deadline_at_ms: Some(10_000),
+                    max_output_items: 16,
+                },
+                Some(host.generation.get()),
+            ))
+        }
+        fn resume<K: Program>(
+            &mut self,
+            host: &Host<K>,
+            candidate: Image<K>,
+            actual: u64,
+            reply: ScalarValue,
+        ) -> Result<Step<K>, &'static str> {
+            if let Some(bytes) = self.0.completed.get(&candidate.token) {
+                let settled: Result<Step<K>, String> =
+                    serde_json::from_slice(bytes).map_err(|_| "terminal")?;
+                return settled.map_err(|_| "reentry");
+            }
+            let original = self.0.pending.get(&candidate.token).ok_or("missing")?;
+            if original.len() > 64 * 1024
+                || serde_json::to_vec(&candidate).map_err(|_| "encode")? != *original
+            {
+                return Err("original");
+            }
+            if candidate.schema_version != 1
+                || candidate.program_counter != 1
+                || candidate.group_result.is_some()
+                || candidate.result_type != K::scalar()
+            {
+                return Err("schema");
+            }
+            candidate
+                .resource_budget()
+                .validate(BUDGET)
+                .map_err(|_| "budget")?;
+            if candidate.expected_revision != Some(host.generation.get())
+                || candidate
+                    .deadline_at_ms
+                    .is_some_and(|deadline| host.now.get() >= deadline)
+            {
+                return Err("live");
+            }
+            host.admit(&candidate.pending_effect.operation)?;
+            let token = candidate.token;
+            host.expected.set(token);
+            let domain = Domain(K::scalar());
+            let runtime = Runtime(host);
+            let mut fuel = Fuel::new(candidate.fuel_remaining);
+            let result = if let Some(saved) = &candidate.result_binding {
+                if saved.len() > LIMITS.max_frames {
+                    return Err("frames");
+                }
+                let mut frames = Vec::new();
+                for row in saved.iter() {
+                    validate_captured_bindings(
+                        row,
+                        CaptureValidationLimits {
+                            max_saved_bindings: 8,
+                            max_name_bytes: 64,
+                        },
+                        |_: &()| Err("result"),
+                        |_: &()| Err("group"),
+                        |_| Ok::<_, &'static str>(()),
+                    )
+                    .map_err(|_| "capture")?;
+                    frames.push(SavedEffectReturnFrame {
+                        name: &row.name,
+                        body: &row.body,
+                        capture: row
+                            .locals
+                            .iter()
+                            .map(|v| (v.name.as_str(), Saved::Borrowed(&v.value)))
+                            .collect(),
+                    });
+                }
+                let stack = restore_effect_return_stack(frames, LIMITS).map_err(|_| "frames")?;
+                let mut pending = PendingReply::new(token, stack, &domain);
+                let accepted = pending
+                    .try_accept(&actual, reply, host)
+                    .map_err(|_| "reply")?;
+                resume_accepted_stacked_effects(accepted, &runtime, &mut fuel, LIMITS)
+                    .map(|outcome| {
+                        self.record(
+                            outcome,
+                            &fuel,
+                            candidate.resource_budget(),
+                            candidate.expected_revision,
+                        )
+                    })
+                    .map_err(|_| "reentry")
+            } else {
+                let mut pending = PendingReply::new(token, (), &domain);
+                let accepted = pending
+                    .try_accept(&actual, reply, host)
+                    .map_err(|_| "reply")?;
+                Ok(Step::Done {
+                    value: accepted.into_parts().3,
+                    remaining: fuel.remaining(),
+                })
+            };
+            self.0.completed.insert(
+                token,
+                serde_json::to_vec(&result.as_ref().map_err(|error| error.to_string())).unwrap(),
+            );
+            self.0.pending.remove(&token);
+            result
+        }
+    }
+
+    fn run<K: Program>(budget: u64) -> Result<u64, &'static str> {
+        let host = Host::<K>::new();
+        let mut journal = Journal::default();
+        let mut step = journal.start(&host, budget)?;
+        let mut old = Vec::new();
+        for turn in 0..4 {
+            match step {
+                Step::Effect(image) => {
+                    assert!(turn < 3);
+                    if turn == 0 {
+                        assert_eq!(image.result_binding.as_ref().unwrap().len(), 3);
+                    }
+                    let reply = host.invoke(&image.pending_effect);
+                    journal = journal.restart();
+                    let restored: Image<K> =
+                        serde_json::from_slice(&journal.0.pending[&image.token]).unwrap();
+                    assert_eq!(restored, *image);
+                    let result = journal.resume(&host, restored, image.token, reply);
+                    let work = (
+                        host.preparations.get(),
+                        host.restorations.get(),
+                        host.projections.get(),
+                    );
+                    journal = journal.restart();
+                    assert_eq!(
+                        journal.resume(&host, *image.clone(), image.token, ScalarValue::None),
+                        result
+                    );
+                    assert_eq!(
+                        work,
+                        (
+                            host.preparations.get(),
+                            host.restorations.get(),
+                            host.projections.get()
+                        )
+                    );
+                    step = result?;
+                    if let Step::Effect(next) = &step {
+                        assert!(next.fuel_remaining < image.fuel_remaining);
+                        assert_eq!(next.expected_revision, image.expected_revision);
+                        assert_eq!(next.resource_budget().deadline_at_ms, image.deadline_at_ms);
+                        assert_eq!(next.max_output_items, image.max_output_items);
+                    }
+                    old.push(*image);
+                }
+                Step::Done { value, remaining } => {
+                    assert_eq!(turn, 3);
+                    assert_eq!(value, K::expected());
+                    assert_eq!(host.invocations.borrow().len(), 3);
+                    assert_eq!(host.preparations.get(), 3);
+                    assert_eq!(host.projections.get(), 3);
+                    assert!(host.restorations.get() > 3);
+                    assert!(journal.0.pending.is_empty());
+                    for previous in old {
+                        assert!(
+                            journal
+                                .resume(&host, previous.clone(), previous.token, ScalarValue::None)
+                                .is_ok()
+                        );
+                    }
+                    assert_eq!(host.preparations.get(), 3);
+                    return Ok(remaining);
+                }
+            }
+        }
+        panic!("saved return pipeline did not finish");
+    }
+
+    #[test]
+    fn two_native_hosts_restore_serialized_helper_return_stacks_without_recompilation_or_replay() {
+        assert!(run::<Counter>(1000).is_ok());
+        assert!(run::<Panel>(1000).is_ok());
+    }
+    #[test]
+    fn restored_nested_helpers_keep_one_budget_and_settle_every_accepted_fuel_refusal() {
+        fn check<K: Program>() {
+            let used = 1000 - run::<K>(1000).unwrap();
+            for budget in 0..used {
+                assert!(run::<K>(budget).is_err(), "{budget} < {used}");
+            }
+            assert_eq!(run::<K>(used), Ok(0));
+            assert_eq!(run::<K>(used + 1), Ok(1));
+        }
+        check::<Counter>();
+        check::<Panel>();
+    }
+    #[test]
+    fn saved_return_stacks_reject_forged_order_budget_reply_and_live_policy_before_restoration() {
+        fn check<K: Program>() {
+            for mode in 0..8 {
+                let host = Host::<K>::new();
+                let mut journal = Journal::default();
+                let Step::Effect(mut image) = journal.start(&host, 1000).unwrap() else {
+                    panic!()
+                };
+                let mut identity = image.token;
+                let mut reply = K::initial();
+                match mode {
+                    0 => image.fuel_remaining += 1,
+                    1 => image.result_binding.as_mut().unwrap().swap(0, 1),
+                    2 => identity += 1,
+                    3 => reply = ScalarValue::None,
+                    4 => host.grants.set(0),
+                    5 => host.generation.set(8),
+                    6 => host.now.set(10_000),
+                    7 => {
+                        image.result_binding.as_mut().unwrap()[2].body = Node::Literal {
+                            value: ScalarValue::None,
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+                journal = journal.restart();
+                let original = journal.0.pending.clone();
+                assert!(journal.resume(&host, *image, identity, reply).is_err());
+                assert_eq!(journal.0.pending, original);
+                assert!(journal.0.completed.is_empty());
+                assert_eq!(host.preparations.get(), 1);
+                assert_eq!(host.restorations.get(), 0);
+                assert_eq!(host.projections.get(), 0);
+                assert!(host.invocations.borrow().is_empty());
+            }
+        }
+        check::<Counter>();
+        check::<Panel>();
+    }
+    #[test]
+    fn revoked_outer_saved_body_is_settled_without_restoring_or_preparing_inner_work() {
+        fn check<K: Program>() {
+            let host = Host::<K>::new();
+            let mut journal = Journal::default();
+            let Step::Effect(image) = journal.start(&host, 1000).unwrap() else {
+                panic!()
+            };
+            let reply = host.invoke(&image.pending_effect);
+            host.grants.set(1);
+            journal = journal.restart();
+            assert_eq!(
+                journal.resume(&host, *image.clone(), image.token, reply),
+                Err("reentry")
+            );
+            assert_eq!(host.restorations.get(), 0);
+            assert_eq!(host.projections.get(), 0);
+            assert_eq!(host.preparations.get(), 1);
+            journal = journal.restart();
+            host.grants.set(3);
+            assert_eq!(
+                journal.resume(&host, *image.clone(), image.token, K::initial()),
+                Err("reentry")
+            );
+            assert_eq!(host.preparations.get(), 1);
+            assert_eq!(host.invocations.borrow().len(), 1);
+        }
+        check::<Counter>();
+        check::<Panel>();
+    }
+}
+
 fn image<K: Key>(step: Step<K>) -> Image<K> {
     let Step::Effect(image) = step else {
         panic!("effect expected")

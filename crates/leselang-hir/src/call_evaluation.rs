@@ -9,6 +9,7 @@ use leselang_runtime_core::{
 
 use crate::call_typing::{
     CallTypeError, MAX_CALL_ARGUMENTS, preflight_arguments_with_budget, preflight_signature,
+    valid_argument_name,
 };
 use crate::ir::{Computation, ComputedArgument};
 use crate::pure_evaluation::{
@@ -114,7 +115,145 @@ impl<'schema, Operation, Domain, ResultTag, Capability>
     ) {
         (self.schema, self.arguments)
     }
+
+    /// Restore host-decoded operands without reevaluating their expressions.
+    ///
+    /// Complete counts, names, declaration order, submission-index permutation
+    /// and scalar bounds precede every native callback. Named signature checking
+    /// uses the original submission order. Mandatory whole-call host admission
+    /// then precedes the existing native domain checks in declaration order.
+    /// Values move unchanged; names rebind to the selected original schema, so
+    /// the returned call does not borrow decoded names or the input snapshot.
+    ///
+    /// The host must authenticate the original committed operation/schema and
+    /// evaluated operands, resource budget and publication/settlement state.
+    /// Well-formed data is not provenance: do not rearm published, cancelled or
+    /// settled work. Live authorization is required again before dispatch.
+    /// This entry creates no meter, identity, evaluator, codec or durable authority.
+    /// Aggregate decode/storage limits and native callback work/unwind are owned
+    /// by the host. Refusal consumes the inputs without retry or rollback.
+    pub fn restore<Error>(
+        schema: &'schema OperationSchema<
+            'schema,
+            Operation,
+            &'schema str,
+            Domain,
+            ResultTag,
+            Capability,
+        >,
+        arguments: Vec<PreparedArgument<'_>>,
+        max_arguments: usize,
+        admit: impl FnOnce(
+            &OperationSchema<'schema, Operation, &'schema str, Domain, ResultTag, Capability>,
+            &[PreparedArgument<'_>],
+        ) -> Result<(), Error>,
+    ) -> Result<Self, PreparedCallRestoreError<Error>>
+    where
+        Domain: ScalarArgumentDomain,
+    {
+        if max_arguments > MAX_CALL_ARGUMENTS {
+            return Err(PreparedCallRestoreError::Preflight(
+                CallTypeError::InvalidLimits,
+            ));
+        }
+        if arguments.len() > max_arguments {
+            return Err(PreparedCallRestoreError::Preflight(
+                CallTypeError::ArgumentLimit,
+            ));
+        }
+        if schema.parameters.len() > max_arguments {
+            return Err(PreparedCallRestoreError::Preflight(
+                CallTypeError::ParameterLimit,
+            ));
+        }
+        let mut names = vec![""; arguments.len()];
+        let mut seen = [false; MAX_CALL_ARGUMENTS];
+        let mut previous = None;
+        for (index, row) in arguments.iter().enumerate() {
+            if !valid_argument_name(row.name) {
+                return Err(PreparedCallRestoreError::Preflight(
+                    CallTypeError::InvalidArgumentName {
+                        argument_index: row.argument_index,
+                    },
+                ));
+            }
+            let Some(parameter) = schema.parameters.get(row.parameter_index) else {
+                return Err(PreparedCallRestoreError::Row { index });
+            };
+            if row.argument_index >= arguments.len()
+                || seen[row.argument_index]
+                || previous.is_some_and(|previous| row.parameter_index <= previous)
+                || row.name != parameter.name
+            {
+                return Err(PreparedCallRestoreError::Row { index });
+            }
+            if !row.value.is_bounded() {
+                return Err(PreparedCallRestoreError::Argument {
+                    parameter_index: row.parameter_index,
+                    argument_index: row.argument_index,
+                    error: ArgumentTypeError::UnboundedLiteral,
+                });
+            }
+            names[row.argument_index] = row.name;
+            seen[row.argument_index] = true;
+            previous = Some(row.parameter_index);
+        }
+        preflight_signature(&names, schema, max_arguments)
+            .map_err(PreparedCallRestoreError::Preflight)?;
+        admit(schema, &arguments).map_err(PreparedCallRestoreError::Native)?;
+        for row in &arguments {
+            check_argument_type(
+                &schema.parameters[row.parameter_index].domain,
+                ScalarArgumentType::literal(&row.value),
+            )
+            .map_err(|error| PreparedCallRestoreError::Argument {
+                parameter_index: row.parameter_index,
+                argument_index: row.argument_index,
+                error,
+            })?;
+        }
+        Ok(Self {
+            schema,
+            arguments: arguments
+                .into_iter()
+                .map(|row| PreparedArgument {
+                    name: schema.parameters[row.parameter_index].name,
+                    ..row
+                })
+                .collect(),
+        })
+    }
 }
+
+/// Closed positions and verbatim native admission errors, never decoded payloads.
+pub enum PreparedCallRestoreError<Native> {
+    Preflight(CallTypeError),
+    Row {
+        index: usize,
+    },
+    Argument {
+        parameter_index: usize,
+        argument_index: usize,
+        error: ArgumentTypeError,
+    },
+    Native(Native),
+}
+impl<Native> fmt::Display for PreparedCallRestoreError<Native> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Preflight(_) => "saved call signature rejected",
+            Self::Row { .. } => "saved call operand correspondence rejected",
+            Self::Argument { .. } => "saved call operand value rejected",
+            Self::Native(_) => "saved call native admission rejected",
+        })
+    }
+}
+impl<Native> fmt::Debug for PreparedCallRestoreError<Native> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, formatter)
+    }
+}
+impl<Native> std::error::Error for PreparedCallRestoreError<Native> {}
 
 impl<Operation, Domain, ResultTag, Capability> fmt::Debug
     for PreparedCall<'_, Operation, Domain, ResultTag, Capability>

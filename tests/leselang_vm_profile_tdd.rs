@@ -19,7 +19,9 @@ fn adapter_captured_execution_proof_reuses_shared_hir_without_vm_or_storage() {
         "validate_result_binding(",
         "validate_group_capture_correspondence(",
         "validate_result_binding_extension(",
-        "validate_value_items(",
+        "validate_host_result(",
+        "impl ResultValueHost for Adapter",
+        "ResultValueDomain {",
         "into_effect_value(EffectValueContext",
         "prepare_preflighted_effect_in_scope(",
         "preparation_failure(error)",
@@ -1473,16 +1475,15 @@ fn product_value_bounds_are_adapter_owned_but_execution_gates_stay_in_vm() {
         1,
         "no recursive value traversal"
     );
-    let bound = fs::read_to_string(root().join("crates/leselang-vm/src/host_result.rs")).unwrap();
+    let bound =
+        fs::read_to_string(root().join("crates/leselang-command/src/result_domain.rs")).unwrap();
     let leaf = bound
-        .find("let items = crate::validate_value(reply, 0)?")
+        .find("let count = validate_value_items(reply, 0, self.value_limits")
         .unwrap();
     let budget = bound
-        .find("items > self.0.max_output_items || self.0.max_output_items == 0")
+        .find("count > self.max_output_items || self.max_output_items == 0")
         .unwrap();
-    let bytes = bound
-        .find("crate::validate_json_size_capped(reply, MAX_JOURNAL_ENTRY_BYTES")
-        .unwrap();
+    let bytes = bound.find(".validate_encoded_value(reply)").unwrap();
     assert!(leaf < budget && budget < bytes);
     let cases =
         fs::read_to_string(root().join("crates/leselang-vm/src/presentation_request_tests.rs"))
@@ -1512,6 +1513,85 @@ fn product_value_bounds_are_adapter_owned_but_execution_gates_stay_in_vm() {
     }
     let workflow = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
     assert!(workflow.contains("--test capture_scope --test structured_value"));
+}
+
+#[test]
+fn received_result_domain_is_adapter_owned_with_explicit_native_policy_and_pending_ownership() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/result_domain.rs")).unwrap();
+    for required in [
+        "pub trait ResultValueHost",
+        "pub struct ResultValueDomain<'host, Host: ?Sized>",
+        "pub enum ResultValueError<Native>",
+        "impl<Host: ResultValueHost + ?Sized> HostResultDomain<Value>",
+        "reply.result_type() == self.result_type",
+        "pub value_limits: ValueValidationLimits",
+        "pub max_output_items: usize",
+        "pub host: &'host Host",
+        "self.host.valid_field_name(name)",
+        ".map_err(ResultValueError::Encoding)",
+    ] {
+        assert!(
+            adapter.contains(required),
+            "result-domain adapter lost {required}"
+        );
+    }
+    for absent in [
+        "leselang_vm",
+        "ContinuationImage",
+        "Journal",
+        "serde_json",
+        ".clone()",
+        "Fuel",
+        "impl Default",
+        "LSV",
+        "fn authorize",
+        "PendingReply::new",
+    ] {
+        assert!(
+            !adapter.contains(absent),
+            "result-domain adapter acquired {absent}"
+        );
+    }
+    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/host_result.rs")).unwrap();
+    let production = vm.split_once("#[cfg(test)]").unwrap().0;
+    for required in [
+        "result_type: image.result_type",
+        "value_limits: crate::value_validation_limits()",
+        "max_output_items: image.max_output_items",
+        "host: &BoundResultHost",
+        "crate::valid_merge_branch_name(name)",
+        "crate::validate_json_size_capped(reply, MAX_JOURNAL_ENTRY_BYTES",
+        "ResultValueError::Bounds(error) => crate::value_bounds_fault(error)",
+        "ResultValueError::Encoding(error) => error",
+    ] {
+        assert!(
+            production.contains(required),
+            "reference policy lost {required}"
+        );
+    }
+    for absent in [
+        "impl HostResultDomain",
+        "crate::validate_value(reply",
+        "items >",
+        "reply.result_type()",
+    ] {
+        assert!(!production.contains(absent), "VM duplicated {absent}");
+    }
+    assert!(vm.contains("bound_value_domain_matches_frozen_fault_order_bytes_and_original_owners"));
+    let proof =
+        fs::read_to_string(root().join("crates/leselang-command/tests/result_domain.rs")).unwrap();
+    for required in [
+        "result_domain_preserves_type_tree_output_encoding_order_and_zero_limit",
+        "dynamic_host_keeps_native_error_ownership_without_debug_or_clone_bounds",
+        "pending_rejection_keeps_original_reply_and_frame_until_explicit_once_only_handoff",
+        "native_unwind_seals_pending_state_and_scope_before_frame_cleanup",
+        "scope_cancellation_wins_over_native_refusal_and_never_rearms",
+    ] {
+        assert!(proof.contains(required));
+    }
+    let workflow = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(workflow.contains("--test structured_value --test result_domain"));
 }
 
 #[test]

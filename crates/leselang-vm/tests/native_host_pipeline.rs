@@ -1058,7 +1058,38 @@ mod mixed {
             &Types(host),
         )
         .map(|(node, _)| node)
-        .map_err(|error| error.to_string())
+        .map_err(compile_diagnostic)
+    }
+
+    fn compile_diagnostic(error: catalog_source::CatalogSourceError<Refusal>) -> String {
+        match error {
+            catalog_source::CatalogSourceError::Group(error) => group_diagnostic(*error),
+            catalog_source::CatalogSourceError::Control(error) => match *error {
+                control_source::ControlSourceError::Native { span, phase, error } => {
+                    format!("{span:?}/{phase:?}: {}", compile_diagnostic(error))
+                }
+                error => error.to_string(),
+            },
+            error => error.to_string(),
+        }
+    }
+
+    fn group_diagnostic(error: catalog_group_source::CatalogGroupSourceError<Refusal>) -> String {
+        match error {
+            catalog_group_source::CatalogGroupSourceError::Source(error) => {
+                compile_diagnostic(*error)
+            }
+            catalog_group_source::CatalogGroupSourceError::Control(error) => match *error {
+                control_source::ControlSourceError::Native { span, phase, error } => {
+                    format!("{span:?}/{phase:?}: {}", group_diagnostic(error))
+                }
+                error => error.to_string(),
+            },
+            catalog_group_source::CatalogGroupSourceError::Type(error) => {
+                format!("group type: {error:?}")
+            }
+            error => error.to_string(),
+        }
     }
 
     type Branch = ComputedBranch<Node, ()>;
@@ -1595,6 +1626,594 @@ mod mixed {
         }
     }
 
+    mod saved_mixed {
+        use super::*;
+        use effect_stack::{
+            SavedEffectReturnFrame, StackedEffectOutcome, evaluate_stacked_effects_in_scope,
+            restore_effect_return_stack, resume_accepted_stacked_effects,
+        };
+        use parallel_evaluation::{SavedParallelMember, SavedParallelReply};
+        use sequence_evaluation::{SavedSequenceMember, SavedSequenceReply, SequenceEnd};
+
+        type Queued<'ir, P> = PreparedSequenceSession<'ir, Node, (), Identity, Domain<P>, usize>;
+        type MemberReceipt<'ir, P> =
+            AcceptedReply<'ir, Identity, (), Domain<P>, Reply<<P as Profile>::Value>>;
+
+        #[derive(Clone, Copy, Default)]
+        enum Fault {
+            #[default]
+            None,
+            Stale,
+            Revoked,
+            Closed,
+            QueuedHandle,
+        }
+
+        // This bounded host inventory survives controller replacement. Handles are
+        // not requests or authority; dispatch consumes each original operand once.
+        struct Inventory<'s, P> {
+            requests: Vec<Option<Dispatch<'s, P>>>,
+        }
+        impl<'s, P: Profile> Inventory<'s, P> {
+            fn correlate<'ir>(
+                &mut self,
+                runtime: &Runtime<'_, 'ir, '_, 's, P>,
+                plan: &Plan<'ir, P>,
+                index: usize,
+                request: Request<'s, P>,
+            ) -> Result<PreparedSequenceMember<'ir, Identity, Domain<P>, usize>, Refusal>
+            {
+                let row = runtime.correlate_member(plan, index, request)?;
+                assert_eq!(index, self.requests.len());
+                self.requests.push(Some(row.request));
+                Ok(PreparedSequenceMember {
+                    identity: row.identity,
+                    declaration: row.declaration,
+                    request: index,
+                })
+            }
+            fn admit(
+                &self,
+                runtime: &Runtime<'_, '_, '_, 's, P>,
+                index: usize,
+                identity: &Identity,
+                domain: &Domain<P>,
+                handle: usize,
+            ) -> Result<(), Refusal> {
+                runtime.authorize(identity)?;
+                let request = self
+                    .requests
+                    .get(handle)
+                    .and_then(Option::as_ref)
+                    .ok_or(Refusal)?;
+                if handle != index
+                    || request.identity != *identity
+                    || !std::ptr::eq(domain, &request.request.schema().result)
+                {
+                    return Err(Refusal);
+                }
+                runtime.admit(&request.request)
+            }
+            fn publish(
+                &self,
+                runtime: &Runtime<'_, '_, '_, 's, P>,
+                queue: &mut Queued<'_, P>,
+            ) -> Result<SequencePoll<usize>, Refusal> {
+                queue
+                    .poll(|index, _, identity, domain, handle| {
+                        self.admit(runtime, index, identity, domain, *handle)
+                    })
+                    .map_err(|_| Refusal)
+            }
+            fn invoke(
+                &mut self,
+                runtime: &Runtime<'_, '_, '_, 's, P>,
+                handle: usize,
+            ) -> Result<Reply<P::Value>, Refusal> {
+                runtime.host.dispatch(
+                    self.requests
+                        .get_mut(handle)
+                        .and_then(Option::take)
+                        .ok_or(Refusal)?,
+                )
+            }
+        }
+
+        fn invalidate<P: Profile>(
+            runtime: &Runtime<'_, '_, '_, '_, P>,
+            scope: &LocalExecutionScope,
+            fault: Fault,
+        ) {
+            match fault {
+                Fault::Stale => runtime.host.revision.set(runtime.host.revision.get() + 1),
+                Fault::Revoked => runtime.host.granted.set(false),
+                Fault::Closed => {
+                    scope.close();
+                }
+                Fault::None | Fault::QueuedHandle => (),
+            }
+        }
+
+        fn accept<'ir, P: Profile>(
+            runtime: &Runtime<'_, 'ir, '_, '_, P>,
+            plan: &Plan<'ir, P>,
+            index: usize,
+            reply: Reply<P::Value>,
+        ) -> Result<MemberReceipt<'ir, P>, Refusal> {
+            let identity = plan.members.borrow()[index].clone();
+            PendingReply::new(identity.clone(), (), plan.domain)
+                .try_accept(&identity, reply, runtime.host)
+                .map_err(|_| Refusal)
+        }
+
+        fn collect<'ir, 's, P: Profile>(
+            runtime: &Runtime<'_, 'ir, '_, 's, P>,
+            scope: &LocalExecutionScope,
+            request: Prepared<'ir, 's, P>,
+            fuel: &mut Fuel,
+            cut: usize,
+            fault: Fault,
+        ) -> Result<Receipt<'ir, P>, Refusal> {
+            let plan = runtime.plan(request.node)?;
+            let Preparation::Group(prepared) = request.preparation else {
+                return runtime.collect(
+                    runtime
+                        .correlate_request(request, fuel)
+                        .map_err(|_| Refusal)?
+                        .dispatch,
+                );
+            };
+            assert!(plan.identity.borrow().is_none());
+            plan.identity.replace(Some(runtime.identity()?));
+            let Node::Group {
+                group_kind,
+                branches,
+            } = plan.node
+            else {
+                return Err(Refusal);
+            };
+            assert_eq!(branches.len(), 2);
+            let mut inventory = Inventory {
+                requests: Vec::new(),
+            };
+            let rows = match group_kind {
+                GroupKind::Sequence => {
+                    assert!(cut <= 4);
+                    let mut queue = Queued::start(
+                        plan.node,
+                        *prepared,
+                        fuel,
+                        BATCH,
+                        |_, _, request| runtime.admit(request),
+                        |i, _, request, _| inventory.correlate(runtime, plan, i, request),
+                    )
+                    .map_err(|_| Refusal)?;
+                    let prefix = cut / 2;
+                    let mut saved = Vec::new();
+                    for (index, branch) in branches.iter().enumerate().take(prefix) {
+                        let SequencePoll::Request {
+                            index: actual,
+                            request,
+                        } = inventory.publish(runtime, &mut queue)?
+                        else {
+                            return Err(Refusal);
+                        };
+                        assert_eq!(actual, index);
+                        let reply = inventory.invoke(runtime, request)?;
+                        let identity = plan.members.borrow()[index].clone();
+                        let row = queue
+                            .try_accept(&identity, reply, runtime.host)
+                            .map_err(|_| Refusal)?;
+                        let (_, original, _, _, reply) = row.into_parts();
+                        assert!(std::ptr::eq(original, branch));
+                        saved.push(SavedSequenceMember {
+                            index,
+                            name: &branch.name,
+                            reply: SavedSequenceReply::Accepted(accept(
+                                runtime, plan, index, reply,
+                            )?),
+                        });
+                    }
+                    let mut flying = None;
+                    for (index, branch) in branches.iter().enumerate().skip(prefix) {
+                        let identity = plan.members.borrow()[index].clone();
+                        let reply = if index == prefix && cut % 2 == 1 {
+                            let SequencePoll::Request {
+                                index: actual,
+                                request,
+                            } = inventory.publish(runtime, &mut queue)?
+                            else {
+                                return Err(Refusal);
+                            };
+                            assert_eq!(actual, index);
+                            flying = Some(inventory.invoke(runtime, request)?);
+                            SavedSequenceReply::Awaiting {
+                                identity,
+                                declaration: plan.domain,
+                            }
+                        } else {
+                            SavedSequenceReply::Prepared(PreparedSequenceMember {
+                                identity,
+                                declaration: plan.domain,
+                                request: if matches!(fault, Fault::QueuedHandle) {
+                                    8
+                                } else {
+                                    index
+                                },
+                            })
+                        };
+                        saved.push(SavedSequenceMember {
+                            index,
+                            name: &branch.name,
+                            reply,
+                        });
+                    }
+                    drop(queue);
+                    let remaining = fuel.remaining();
+                    invalidate(runtime, scope, fault);
+                    let (mut queue, mut rows) =
+                        Queued::restore(plan.node, saved, BATCH, |snapshot| {
+                            runtime.authorize(&plan.id())?;
+                            for row in snapshot {
+                                if *row.reply.identity() != plan.members.borrow()[row.index] {
+                                    return Err(Refusal);
+                                }
+                                runtime.authorize(row.reply.identity())?;
+                                match &row.reply {
+                                    SavedSequenceReply::Prepared(p) => inventory.admit(
+                                        runtime,
+                                        row.index,
+                                        &p.identity,
+                                        p.declaration,
+                                        p.request,
+                                    )?,
+                                    SavedSequenceReply::Awaiting { declaration, .. } => {
+                                        if !std::ptr::eq(*declaration, plan.domain)
+                                            || flying.is_none()
+                                        {
+                                            return Err(Refusal);
+                                        }
+                                    }
+                                    SavedSequenceReply::Accepted(reply) => {
+                                        let (_, (), domain, reply) = reply.as_parts();
+                                        if !std::ptr::eq(domain, plan.domain) {
+                                            return Err(Refusal);
+                                        }
+                                        domain.validate_value(&reply.value)?;
+                                    }
+                                }
+                            }
+                            Ok(())
+                        })
+                        .map_err(|_| Refusal)?;
+                    assert_eq!(fuel.remaining(), remaining);
+                    for index in prefix..branches.len() {
+                        let reply = if let Some(reply) = flying.take() {
+                            assert!(
+                                matches!(inventory.publish(runtime, &mut queue)?, SequencePoll::Awaiting { index: i } if i == index)
+                            );
+                            reply
+                        } else {
+                            let SequencePoll::Request {
+                                index: actual,
+                                request,
+                            } = inventory.publish(runtime, &mut queue)?
+                            else {
+                                return Err(Refusal);
+                            };
+                            assert_eq!(actual, index);
+                            inventory.invoke(runtime, request)?
+                        };
+                        let identity = plan.members.borrow()[index].clone();
+                        rows.push(
+                            queue
+                                .try_accept(&identity, reply, runtime.host)
+                                .map_err(|_| Refusal)?,
+                        );
+                    }
+                    assert!(matches!(
+                        inventory.publish(runtime, &mut queue)?,
+                        SequencePoll::Terminal(SequenceEnd::Completed)
+                    ));
+                    rows
+                }
+                GroupKind::Parallel => {
+                    assert!(cut < 4);
+                    let (mut barrier, requests) = Parallel::start(
+                        plan.node,
+                        *prepared,
+                        fuel,
+                        BATCH,
+                        |_, _, request| runtime.admit(request),
+                        |i, _, request, _| inventory.correlate(runtime, plan, i, request),
+                    )
+                    .map_err(|_| Refusal)?;
+                    let mut replies = Vec::new();
+                    for request in requests {
+                        replies.push(Some(inventory.invoke(runtime, request.request)?));
+                    }
+                    let mut saved = Vec::new();
+                    for (index, branch) in branches.iter().enumerate() {
+                        let identity = plan.members.borrow()[index].clone();
+                        let reply = if cut & (1 << index) != 0 {
+                            let reply = replies[index].take().ok_or(Refusal)?;
+                            // Fixture-native snapshot copy, not a core Clone/codec requirement.
+                            let retained = Reply {
+                                value: reply.value.clone(),
+                                buffer: Box::new(*reply.buffer),
+                            };
+                            barrier
+                                .try_accept(index, &identity, reply, runtime.host)
+                                .map_err(|_| Refusal)?;
+                            SavedParallelReply::Accepted(accept(runtime, plan, index, retained)?)
+                        } else {
+                            SavedParallelReply::Awaiting {
+                                identity,
+                                declaration: plan.domain,
+                            }
+                        };
+                        saved.push(SavedParallelMember {
+                            index,
+                            name: &branch.name,
+                            reply,
+                        });
+                    }
+                    drop(barrier);
+                    let remaining = fuel.remaining();
+                    invalidate(runtime, scope, fault);
+                    let mut barrier = Parallel::restore(plan.node, saved, BATCH, |snapshot| {
+                        runtime.authorize(&plan.id())?;
+                        for row in snapshot {
+                            if *row.reply.identity() != plan.members.borrow()[row.index] {
+                                return Err(Refusal);
+                            }
+                            runtime.authorize(row.reply.identity())?;
+                            match &row.reply {
+                                SavedParallelReply::Awaiting { declaration, .. } => {
+                                    if !std::ptr::eq(*declaration, plan.domain)
+                                        || replies[row.index].is_none()
+                                    {
+                                        return Err(Refusal);
+                                    }
+                                }
+                                SavedParallelReply::Accepted(reply) => {
+                                    let (_, (), domain, reply) = reply.as_parts();
+                                    if !std::ptr::eq(domain, plan.domain) {
+                                        return Err(Refusal);
+                                    }
+                                    domain.validate_value(&reply.value)?;
+                                }
+                            }
+                        }
+                        Ok(())
+                    })
+                    .map_err(|_| Refusal)?;
+                    assert_eq!(fuel.remaining(), remaining);
+                    for (index, reply) in replies.into_iter().enumerate().rev() {
+                        if let Some(reply) = reply {
+                            assert!(matches!(
+                                barrier.poll().unwrap(),
+                                ParallelPoll::Awaiting { .. }
+                            ));
+                            barrier
+                                .try_accept(
+                                    index,
+                                    &plan.members.borrow()[index],
+                                    reply,
+                                    runtime.host,
+                                )
+                                .map_err(|_| Refusal)?;
+                        }
+                    }
+                    let ParallelPoll::Results(rows) = barrier.poll().map_err(|_| Refusal)? else {
+                        return Err(Refusal);
+                    };
+                    rows
+                }
+            };
+            assert!(inventory.requests.iter().all(Option::is_none));
+            Ok(Receipt {
+                node: plan.node,
+                identity: plan.id(),
+                response: Response::Group(rows),
+                buffer: Box::new(57),
+            })
+        }
+
+        fn program<P: MixedProfile>(first: &str, last: &str) -> String {
+            let mut source = P::program(first, last).replace("fn main()", "fn chain()");
+            source.push_str("\nfn forward() = bind(inner: chain(), body: inner)\nfn main() = bind(outer: forward(), body: outer)\n");
+            source
+        }
+
+        fn run<P: MixedProfile>(
+            first: &str,
+            last: &str,
+            cuts: Option<[usize; 2]>,
+            budget: u64,
+            fault: Fault,
+        ) -> Result<u64, ()> {
+            let result = Cell::new(Err(()));
+            fixture::<P>(|host, scope| {
+                let node = compile(&program::<P>(first, last), &host).unwrap();
+                let plans = plans(&node, &host);
+                let runtime = Runtime {
+                    host: &host,
+                    plans: &plans,
+                };
+                let mut fuel = Fuel::new(budget);
+                let mut locals = Vec::new();
+                let mut outcome = evaluate_stacked_effects_in_scope(
+                    &node,
+                    &mut ScopeFrame::new(&mut locals),
+                    &runtime,
+                    &mut fuel,
+                    STACK,
+                );
+                for phase in 0..=4 {
+                    let Ok(current) = outcome else {
+                        return;
+                    };
+                    match current {
+                        StackedEffectOutcome::Value(PureValue::Scalar(value)) => {
+                            assert_eq!(phase, 4);
+                            assert_eq!(value, P::result(first));
+                            assert_eq!(*host.invoked.borrow(), P::inputs(first));
+                            assert_eq!(host.serial.get(), 8);
+                            result.set(Ok(fuel.remaining()));
+                            return;
+                        }
+                        StackedEffectOutcome::Suspended {
+                            request,
+                            continuation,
+                        } => {
+                            assert!(phase < 4);
+                            assert!(continuation.frame_count() >= 3);
+                            let (live, saved) = if cuts.is_some() {
+                                let saved = continuation
+                                    .into_frames()
+                                    .into_iter()
+                                    .map(|frame| {
+                                        let (name, body, capture) = frame.into_parts();
+                                        SavedEffectReturnFrame {
+                                            name,
+                                            body,
+                                            capture,
+                                        }
+                                    })
+                                    .collect();
+                                (None, Some(saved))
+                            } else {
+                                (Some(continuation), None)
+                            };
+                            let plan = runtime.plan(request.node).unwrap();
+                            let reply = if let Some(cuts) = cuts {
+                                collect(
+                                    &runtime,
+                                    &scope,
+                                    request,
+                                    &mut fuel,
+                                    cuts[usize::from(phase >= 2)],
+                                    if phase == 1 { fault } else { Fault::None },
+                                )
+                            } else {
+                                runtime
+                                    .correlate_request(request, &mut fuel)
+                                    .map_err(|_| Refusal)
+                                    .and_then(|active| runtime.collect(active.dispatch))
+                            };
+                            let Ok(reply) = reply else {
+                                if !matches!(fault, Fault::None) && phase == 1 {
+                                    assert_eq!(
+                                        host.invoked.borrow().len(),
+                                        if first == "all" { 3 } else { 2 }
+                                    );
+                                    assert_eq!(host.serial.get(), 4);
+                                }
+                                return;
+                            };
+                            let stack = match saved {
+                                Some(saved) => restore_effect_return_stack(saved, STACK).unwrap(),
+                                None => live.unwrap(),
+                            };
+                            let mut pending = PendingReply::new(plan.id(), stack, plan);
+                            let remaining = fuel.remaining();
+                            // A wrong root identity cannot consume the saved stack or receipt.
+                            let original = &*reply.buffer as *const u8;
+                            let mut wrong = plan.id();
+                            wrong.serial += 100;
+                            let failed = pending.try_accept(&wrong, reply, &runtime).unwrap_err();
+                            let reply = failed.reply;
+                            assert!(std::ptr::eq(&*reply.buffer, original));
+                            assert_eq!(fuel.remaining(), remaining);
+                            let accepted = pending.try_accept(&plan.id(), reply, &runtime).unwrap();
+                            outcome = resume_accepted_stacked_effects(
+                                accepted, &runtime, &mut fuel, STACK,
+                            );
+                        }
+                        _ => panic!("mixed helper chain must retain its return frames"),
+                    }
+                }
+                panic!("saved mixed chain did not finish");
+            });
+            result.get()
+        }
+
+        fn cuts(kind: &str) -> std::ops::Range<usize> {
+            0..if kind == "all" { 4 } else { 5 }
+        }
+
+        #[test]
+        fn every_seq_all_frontier_composes_with_native_helper_return_stacks() {
+            fn check<P: MixedProfile>() {
+                for first in ["seq", "all", "repeat"] {
+                    for last in ["seq", "all"] {
+                        let live = run::<P>(first, last, None, 10_000, Fault::None).unwrap();
+                        for a in cuts(first) {
+                            for b in cuts(last) {
+                                assert_eq!(
+                                    run::<P>(first, last, Some([a, b]), 10_000, Fault::None),
+                                    Ok(live),
+                                    "{first}/{last}/{a}/{b}"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+
+        #[test]
+        fn restored_mixed_helpers_keep_exact_original_fuel_at_every_cutoff() {
+            fn check<P: MixedProfile>() {
+                for (first, last) in [("seq", "all"), ("all", "seq")] {
+                    let used = 10_000 - run::<P>(first, last, None, 10_000, Fault::None).unwrap();
+                    for budget in 0..used {
+                        assert_eq!(
+                            run::<P>(first, last, Some([1, 2]), budget, Fault::None),
+                            Err(())
+                        );
+                    }
+                    for budget in used..=used + 1 {
+                        assert_eq!(
+                            run::<P>(first, last, Some([1, 2]), budget, Fault::None),
+                            Ok(budget - used)
+                        );
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+
+        #[test]
+        fn mixed_snapshot_admission_rejects_stale_revoked_and_closed_hosts_before_tail_work() {
+            fn check<P: MixedProfile>() {
+                for kind in ["seq", "all"] {
+                    for fault in [Fault::Stale, Fault::Revoked, Fault::Closed] {
+                        assert_eq!(run::<P>(kind, "seq", Some([1, 0]), 10_000, fault), Err(()));
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+
+        #[test]
+        fn saved_sequence_handle_correspondence_cannot_redirect_unpublished_mixed_work() {
+            assert_eq!(
+                run::<Counter>("seq", "all", Some([1, 0]), 10_000, Fault::QueuedHandle),
+                Err(())
+            );
+            assert_eq!(
+                run::<Panel>("seq", "all", Some([1, 0]), 10_000, Fault::QueuedHandle),
+                Err(())
+            );
+        }
+    }
+
     trait MixedProfile: Profile {
         fn program(first: &str, last: &str) -> String;
         fn result(first: &str) -> ScalarValue;
@@ -2100,6 +2719,888 @@ fn main() = bind(initial: step(text: "seed"), body: bind(seed: field(value: init
             interleaved::<Counter>(first);
             interleaved::<Panel>(first);
         }
+    }
+
+    mod selected_data {
+        use super::*;
+
+        const TYPES: [ScalarType; 6] = [
+            ScalarType::Integer,
+            ScalarType::Boolean,
+            ScalarType::String,
+            ScalarType::None,
+            ScalarType::OptionalString,
+            ScalarType::StringList,
+        ];
+
+        struct Case {
+            source: String,
+            selected: usize,
+            output: ScalarValue,
+            inputs: Vec<ScalarValue>,
+            tail: String,
+        }
+
+        fn case<P: Profile>(kind: &str, selected: usize, ty: ScalarType) -> Case {
+            let (conversion, output, integer_tail, text_tail, integer, text) = match ty {
+                ScalarType::Integer => (
+                    "parse_integer(value: text)",
+                    ScalarValue::Integer(7),
+                    "answer",
+                    "to_string(value: answer)",
+                    7,
+                    "7",
+                ),
+                ScalarType::Boolean => (
+                    "eq(left: text, right: \"7\")",
+                    ScalarValue::Boolean(true),
+                    "choose(when: answer, then: 7, otherwise: 0)",
+                    "to_string(value: answer)",
+                    7,
+                    "true",
+                ),
+                ScalarType::String => (
+                    "concat(left: text, right: \"!\")",
+                    ScalarValue::String("7!".into()),
+                    "len(value: answer)",
+                    "answer",
+                    2,
+                    "7!",
+                ),
+                ScalarType::None => (
+                    "choose(when: eq(left: text, right: \"7\"), then: none, otherwise: none)",
+                    ScalarValue::None,
+                    "choose(when: eq(left: answer, right: none), then: 7, otherwise: 0)",
+                    "choose(when: eq(left: answer, right: none), then: \"none\", otherwise: \"wrong\")",
+                    7,
+                    "none",
+                ),
+                ScalarType::OptionalString => (
+                    "char_at(left: text, right: 0)",
+                    ScalarValue::OptionalString(OptionalStringValue(Some("7".into()))),
+                    "len(value: value_or(left: answer, right: \"missing\"))",
+                    "value_or(left: answer, right: \"missing\")",
+                    1,
+                    "7",
+                ),
+                ScalarType::StringList => (
+                    "strings(first: text, second: \"tail\")",
+                    ScalarValue::StringList(StringListValue(vec!["7".into(), "tail".into()])),
+                    "len(value: answer)",
+                    "join(left: answer, right: \"/\")",
+                    2,
+                    "7/tail",
+                ),
+            };
+            let counter = P::ARGUMENT == ScalarType::Integer;
+            let (single, group, projection, tail) = if counter {
+                (
+                    "counter.add(amount: 7)",
+                    format!("{kind}(left: counter.add(amount: 3), right: counter.add(amount: 4))"),
+                    "to_string(value: field(value: member(value: batch, name: \"right\"), name: \"value\"))",
+                    format!("counter.add(amount: {integer_tail})"),
+                )
+            } else {
+                (
+                    "panel.set_text(text: \"7\")",
+                    format!(
+                        "{kind}(left: panel.set_text(text: \"3\"), right: panel.set_text(text: \"7\"))"
+                    ),
+                    "field(value: member(value: batch, name: \"right\"), name: \"text\")",
+                    format!("panel.set_text(text: {text_tail})"),
+                )
+            };
+            let atomic_text = if counter {
+                "to_string(value: caller)"
+            } else {
+                "field(value: caller, name: \"text\")"
+            };
+            let source = format!(
+                r#"
+fn convert(text: string) = {conversion}
+fn single(unused: integer) = bind(caller: {single}, body: convert(text: {atomic_text}))
+fn gathered(unused: integer) = bind(batch: {group}, body: convert(text: {projection}))
+fn main() = bind(caller: "outer", body: bind(answer:
+ choose(when: eq(left: {selected}, right: 0), then: single(unused: 7),
+ otherwise: choose(when: eq(left: {selected}, right: 1), then: gathered(unused: 7),
+ otherwise: bind(local_text: "7", body: convert(text: local_text)))),
+ body: bind(ack: {tail}, body: choose(when: eq(left: caller, right: "outer"),
+ then: answer, otherwise: convert(text: "wrong")))))
+"#
+            );
+            let mut inputs = match (counter, selected) {
+                (true, 0) => vec![ScalarValue::Integer(7)],
+                (true, 1) => vec![ScalarValue::Integer(3), ScalarValue::Integer(4)],
+                (false, 0) => vec![ScalarValue::String("7".into())],
+                (false, 1) => vec![
+                    ScalarValue::String("3".into()),
+                    ScalarValue::String("7".into()),
+                ],
+                (_, 2) => Vec::new(),
+                _ => panic!("unknown selected data path"),
+            };
+            inputs.push(if counter {
+                ScalarValue::Integer(integer)
+            } else {
+                ScalarValue::String(text.into())
+            });
+            Case {
+                source,
+                selected,
+                output,
+                inputs,
+                tail,
+            }
+        }
+
+        fn payload_case<P: Profile>(
+            kind: &str,
+            selected: usize,
+            variant: usize,
+            overflow: bool,
+        ) -> Case {
+            let optional = variant < 3;
+            let mut case = case::<P>(
+                kind,
+                selected,
+                if optional {
+                    ScalarType::OptionalString
+                } else {
+                    ScalarType::StringList
+                },
+            );
+            let (conversion, value) = match variant {
+                0 => (
+                    "optional_string(value: none)".into(),
+                    ScalarValue::OptionalString(OptionalStringValue(None)),
+                ),
+                1 => (
+                    "optional_string(value: \"\")".into(),
+                    ScalarValue::OptionalString(OptionalStringValue(Some(String::new()))),
+                ),
+                2 => {
+                    let text = "x".repeat(MAX_SCALAR_STRING_BYTES);
+                    let conversion = if overflow {
+                        format!("optional_string(value: concat(left: \"{text}\", right: \"x\"))")
+                    } else {
+                        format!("optional_string(value: \"{text}\")")
+                    };
+                    (
+                        conversion,
+                        ScalarValue::OptionalString(OptionalStringValue(Some(text))),
+                    )
+                }
+                3 => (
+                    "strings()".into(),
+                    ScalarValue::StringList(StringListValue(Vec::new())),
+                ),
+                4 => {
+                    let text = "x".repeat(MAX_SCALAR_STRING_BYTES / MAX_STRING_LIST_ITEMS);
+                    let count = MAX_STRING_LIST_ITEMS + usize::from(overflow);
+                    (
+                        format!(
+                            "loop(parts: strings(), while: lt(left: len(value: parts), right: {count}), next: append(left: parts, right: \"{text}\"), limit: {count})"
+                        ),
+                        ScalarValue::StringList(StringListValue(vec![text; MAX_STRING_LIST_ITEMS])),
+                    )
+                }
+                _ => panic!("unknown data payload variant"),
+            };
+            let original = if optional {
+                "char_at(left: text, right: 0)"
+            } else {
+                "strings(first: text, second: \"tail\")"
+            };
+            assert_eq!(case.source.matches(original).count(), 1);
+            case.source = case.source.replace(original, &conversion);
+            let (tail, input) = if P::ARGUMENT == ScalarType::Integer {
+                ("counter.add(amount: 1)", ScalarValue::Integer(1))
+            } else {
+                (
+                    "panel.set_text(text: \"ok\")",
+                    ScalarValue::String("ok".into()),
+                )
+            };
+            case.source = case
+                .source
+                .replace(&format!("ack: {},", case.tail), &format!("ack: {tail},"));
+            *case.inputs.last_mut().unwrap() = input;
+            case.output = value;
+            case.tail = tail.into();
+            case
+        }
+
+        #[derive(Debug, PartialEq)]
+        struct Outcome {
+            complete: bool,
+            remaining: u64,
+            invoked: usize,
+        }
+
+        fn run<P: Profile>(case: &Case, budget: u64) -> Outcome {
+            let mut outcome = None;
+            fixture::<P>(|host, scope| {
+                let node = compile(&case.source, &host).unwrap();
+                let plans = plans(&node, &host);
+                let runtime = Runtime {
+                    host: &host,
+                    plans: &plans,
+                };
+                let mut vm = LocalVm::new(scope, &node, Vec::new(), Fuel::new(budget), STACK);
+                for phase in 0..3 {
+                    match vm.poll(&runtime) {
+                        Ok(EffectSessionPoll::Request(active)) => {
+                            assert_eq!(
+                                matches!(active.work, Work::Sequence(_) | Work::Parallel { .. }),
+                                phase == 0 && case.selected == 1,
+                            );
+                            let fuel = vm.fuel_remaining();
+                            assert!(matches!(
+                                vm.poll(&runtime).unwrap(),
+                                EffectSessionPoll::Awaiting
+                            ));
+                            let reply = runtime.collect(active).unwrap();
+                            let identity = reply.identity.clone();
+                            let mut foreign = identity.clone();
+                            foreign.serial += 100;
+                            let buffer = &*reply.buffer as *const u8;
+                            let reply = vm.try_accept(&foreign, reply, &runtime).unwrap_err().reply;
+                            assert_eq!(&*reply.buffer as *const u8, buffer);
+                            assert_eq!(vm.fuel_remaining(), fuel);
+                            assert!(vm.lease().is_open());
+                            vm.try_accept(&identity, reply, &runtime).unwrap();
+                            assert_eq!(vm.fuel_remaining(), fuel);
+                        }
+                        Ok(EffectSessionPoll::Value(PureValue::Scalar(value))) => {
+                            assert_eq!(value, case.output);
+                            assert_eq!(*host.invoked.borrow(), case.inputs);
+                            let active = plans
+                                .iter()
+                                .filter(|plan| plan.identity.borrow().is_some())
+                                .count();
+                            assert_eq!(active, if case.selected == 2 { 1 } else { 2 });
+                            assert!(
+                                plans
+                                    .iter()
+                                    .filter(|plan| plan.identity.borrow().is_none())
+                                    .all(|plan| plan.members.borrow().is_empty())
+                            );
+                            outcome = Some(Outcome {
+                                complete: true,
+                                remaining: vm.fuel_remaining(),
+                                invoked: case.inputs.len(),
+                            });
+                            assert!(matches!(
+                                vm.poll(&runtime).unwrap(),
+                                EffectSessionPoll::Terminal(EffectSessionEnd::Completed)
+                            ));
+                            break;
+                        }
+                        Err(_) => {
+                            assert_eq!(
+                                vm.status(),
+                                EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+                            );
+                            outcome = Some(Outcome {
+                                complete: false,
+                                remaining: vm.fuel_remaining(),
+                                invoked: host.invoked.borrow().len(),
+                            });
+                            assert!(matches!(
+                                vm.poll(&runtime).unwrap(),
+                                EffectSessionPoll::Terminal(EffectSessionEnd::Failed)
+                            ));
+                            break;
+                        }
+                        _ => panic!("unexpected selected data outcome"),
+                    }
+                }
+                assert!(!vm.lease().is_open());
+                assert_eq!(vm.fuel_remaining(), outcome.as_ref().unwrap().remaining);
+                assert_eq!(
+                    *host.invoked.borrow(),
+                    case.inputs[..host.invoked.borrow().len()]
+                );
+            });
+            outcome.unwrap()
+        }
+
+        #[test]
+        fn both_hosts_join_atomic_group_and_pure_returns_for_all_six_data_types() {
+            fn check<P: Profile>() {
+                for kind in ["seq", "all"] {
+                    for selected in 0..3 {
+                        for ty in TYPES {
+                            let case = case::<P>(kind, selected, ty);
+                            assert!(run::<P>(&case, 10_000).complete, "{kind}/{selected}/{ty:?}");
+                        }
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+
+        #[test]
+        fn selected_data_return_and_caller_capture_share_every_fuel_boundary() {
+            fn check<P: Profile>() {
+                for kind in ["seq", "all"] {
+                    for selected in 0..3 {
+                        for ty in TYPES {
+                            let case = case::<P>(kind, selected, ty);
+                            let used = 10_000 - run::<P>(&case, 10_000).remaining;
+                            for budget in 0..used {
+                                assert!(
+                                    !run::<P>(&case, budget).complete,
+                                    "{kind}/{selected}/{ty:?}: {budget} < {used}"
+                                );
+                            }
+                            for extra in 0..=1 {
+                                assert_eq!(
+                                    run::<P>(&case, used + extra),
+                                    Outcome {
+                                        complete: true,
+                                        remaining: extra,
+                                        invoked: case.inputs.len()
+                                    }
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+
+        #[test]
+        fn selected_data_arguments_remain_lazy_but_selected_unused_arguments_still_run() {
+            fn check<P: Profile>() {
+                for kind in ["seq", "all"] {
+                    for selected in 0..3 {
+                        for ty in TYPES {
+                            let mut case = case::<P>(kind, selected, ty);
+                            let original = run::<P>(&case, 10_000);
+                            case.source = case.source.replace(
+                                "single(unused: 7)",
+                                "single(unused: div(left: 1, right: 0))",
+                            );
+                            let result = run::<P>(&case, 10_000);
+                            if selected == 0 {
+                                assert!(!result.complete);
+                                assert_eq!(result.invoked, 0);
+                            } else {
+                                assert_eq!(result, original);
+                            }
+                        }
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+
+        #[test]
+        fn selected_data_captures_distinguish_absent_empty_and_maximum_bounded_payloads() {
+            fn check<P: Profile>() {
+                for kind in ["seq", "all"] {
+                    for selected in 0..3 {
+                        for variant in 0..5 {
+                            let case = payload_case::<P>(kind, selected, variant, false);
+                            let ample = run::<P>(&case, 1_000_000);
+                            assert!(ample.complete);
+                            let used = 1_000_000 - ample.remaining;
+                            assert!(!run::<P>(&case, used - 1).complete);
+                            assert_eq!(
+                                run::<P>(&case, used),
+                                Outcome {
+                                    complete: true,
+                                    remaining: 0,
+                                    invoked: case.inputs.len()
+                                }
+                            );
+                        }
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+
+        #[test]
+        fn selected_data_payload_overflow_cannot_dispatch_the_caller_tail() {
+            fn check<P: Profile>() {
+                for kind in ["seq", "all"] {
+                    for selected in 0..3 {
+                        for variant in [2, 4] {
+                            let case = payload_case::<P>(kind, selected, variant, true);
+                            let outcome = run::<P>(&case, 1_000_000);
+                            assert!(!outcome.complete);
+                            assert_eq!(outcome.invoked, case.inputs.len() - 1);
+                            assert!(outcome.remaining > 0, "overflow is not fuel exhaustion");
+                        }
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+
+        #[test]
+        fn cold_selected_data_types_names_and_pure_arguments_fail_before_dispatch() {
+            fn check<P: Profile>() {
+                for kind in ["seq", "all"] {
+                    for ty in TYPES {
+                        let case = case::<P>(kind, 2, ty);
+                        fixture::<P>(|host, _scope| {
+                            let wrong = if ty == ScalarType::Boolean {
+                                "0"
+                            } else {
+                                "false"
+                            };
+                            for (from, replacement) in [
+                                ("body: convert(text: local_text)", format!("body: {wrong}")),
+                                ("single(unused: 7)", "single(unused: false)".into()),
+                                ("single(unused: 7)", "single(extra: 7)".into()),
+                                (
+                                    "single(unused: 7)",
+                                    "single(unused: single(unused: 7))".into(),
+                                ),
+                                (P::OPERATION, "foreign.unknown".into()),
+                            ] {
+                                let invalid = case.source.replace(from, &replacement);
+                                assert_ne!(invalid, case.source);
+                                assert!(compile(&invalid, &host).is_err(), "{kind}/{ty:?}: {from}");
+                                assert!(host.invoked.borrow().is_empty());
+                                assert_eq!(host.serial.get(), 0);
+                            }
+                            // Cold effects still require the current host's authority.
+                            host.granted.set(false);
+                            assert!(compile(&case.source, &host).is_err());
+                            assert_eq!(host.serial.get(), 0);
+                        });
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+
+        #[test]
+        fn selected_data_receipt_reentry_cannot_cross_revocation_or_cancellation() {
+            fn check<P: Profile>() {
+                for kind in ["seq", "all"] {
+                    for selected in 0..2 {
+                        for ty in TYPES {
+                            for revoke in 0..4 {
+                                let case = case::<P>(kind, selected, ty);
+                                fixture::<P>(|host, scope| {
+                                    let node = compile(&case.source, &host).unwrap();
+                                    let plans = plans(&node, &host);
+                                    let runtime = Runtime {
+                                        host: &host,
+                                        plans: &plans,
+                                    };
+                                    let mut vm = LocalVm::new(
+                                        scope,
+                                        &node,
+                                        Vec::new(),
+                                        Fuel::new(10_000),
+                                        STACK,
+                                    );
+                                    let EffectSessionPoll::Request(active) =
+                                        vm.poll(&runtime).unwrap()
+                                    else {
+                                        panic!()
+                                    };
+                                    let reply = runtime.collect(active).unwrap();
+                                    let identity = reply.identity.clone();
+                                    vm.try_accept(&identity, reply, &runtime).unwrap();
+                                    match revoke {
+                                        0 => host.granted.set(false),
+                                        1 => host.revision.set(2),
+                                        2 => host.version.set(32),
+                                        3 => {
+                                            assert!(vm.cancel());
+                                        }
+                                        _ => unreachable!(),
+                                    }
+                                    if revoke == 3 {
+                                        assert!(matches!(
+                                            vm.poll(&runtime).unwrap(),
+                                            EffectSessionPoll::Terminal(
+                                                EffectSessionEnd::Cancelled
+                                            )
+                                        ));
+                                    } else {
+                                        assert!(vm.poll(&runtime).is_err());
+                                        assert_eq!(
+                                            vm.status(),
+                                            EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+                                        );
+                                    }
+                                    assert!(!vm.lease().is_open());
+                                    assert_eq!(
+                                        *host.invoked.borrow(),
+                                        case.inputs[..case.inputs.len() - 1]
+                                    );
+                                    assert_eq!(
+                                        plans
+                                            .iter()
+                                            .filter(|plan| plan.identity.borrow().is_some())
+                                            .count(),
+                                        1
+                                    );
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+    }
+
+    struct ConditionalCase {
+        source: String,
+        output: ScalarValue,
+        inputs: Vec<ScalarValue>,
+        cold_call: String,
+        invalid_call: String,
+        cold_fault_call: String,
+    }
+
+    fn conditional_case<P: Profile>(kind: &str, left: bool, early: bool) -> ConditionalCase {
+        match P::ARGUMENT {
+            ScalarType::Integer => {
+                let selected = if left { 4 } else { 8 };
+                let mut inputs = if left { vec![1, 1, 2] } else { vec![1, 3, 4] };
+                if !early {
+                    inputs.push(selected);
+                }
+                ConditionalCase {
+                    source: format!(
+                        r#"
+fn step(n: integer) = counter.add(amount: n)
+fn finish(n: integer, seed: integer) = bind(last: step(n: n), body: add(left: last, right: seed))
+fn batch(seed: integer, side: boolean) = choose(when: side,
+ then: {kind}(left: step(n: seed), right: step(n: add(left: seed, right: 1))),
+ otherwise: {kind}(left: step(n: add(left: seed, right: 2)), right: step(n: add(left: seed, right: 3))))
+fn main() = bind(seed: step(n: 1),
+ body: bind(group: batch(seed: seed, side: eq(left: seed, right: {select_guard})),
+ body: bind(alias: group,
+ body: bind(selected: field(value: member(value: alias, name: "right"), name: "value"),
+ body: choose(when: eq(left: seed, right: {early_guard}),
+ then: add(left: selected, right: seed), otherwise: finish(n: selected, seed: seed))))))
+"#,
+                        select_guard = if left { 1 } else { 2 },
+                        early_guard = if early { 1 } else { 2 }
+                    ),
+                    output: ScalarValue::Integer(if early {
+                        selected + 1
+                    } else {
+                        2 * selected + 1
+                    }),
+                    inputs: inputs.into_iter().map(ScalarValue::Integer).collect(),
+                    cold_call: "step(n: add(left: seed, right: 3))".into(),
+                    invalid_call: "step(n: false)".into(),
+                    cold_fault_call: "step(n: div(left: 1, right: 0))".into(),
+                }
+            }
+            ScalarType::String => {
+                let selected = if left { "seedR" } else { "seedY" };
+                let mut inputs = if left {
+                    vec!["seed", "seedL", "seedR"]
+                } else {
+                    vec!["seed", "seedX", "seedY"]
+                }
+                .into_iter()
+                .map(|value| ScalarValue::String(value.into()))
+                .collect::<Vec<_>>();
+                if !early {
+                    inputs.push(ScalarValue::String(format!("{selected}!")));
+                }
+                ConditionalCase {
+                    source: format!(
+                        r#"
+fn step(text: string) = panel.set_text(text: text)
+fn finish(text: string, seed: string) = bind(last: step(text: concat(left: text, right: "!")),
+ body: concat(left: seed, right: concat(left: "/", right: field(value: last, name: "text"))))
+fn batch(seed: string, side: boolean) = choose(when: side,
+ then: {kind}(left: step(text: concat(left: seed, right: "L")), right: step(text: concat(left: seed, right: "R"))),
+ otherwise: {kind}(left: step(text: concat(left: seed, right: "X")), right: step(text: concat(left: seed, right: "Y"))))
+fn main() = bind(initial: step(text: "seed"), body: bind(seed: field(value: initial, name: "text"),
+ body: bind(group: batch(seed: seed, side: eq(left: seed, right: "{select_guard}")),
+ body: bind(alias: group,
+ body: bind(selected: field(value: member(value: alias, name: "right"), name: "text"),
+ body: choose(when: eq(left: seed, right: "{early_guard}"),
+ then: concat(left: seed, right: concat(left: "/", right: selected)), otherwise: finish(text: selected, seed: seed)))))))
+"#,
+                        select_guard = if left { "seed" } else { "other" },
+                        early_guard = if early { "seed" } else { "other" }
+                    ),
+                    output: ScalarValue::String(format!(
+                        "seed/{selected}{}",
+                        if early { "" } else { "!" }
+                    )),
+                    inputs,
+                    cold_call: "step(text: concat(left: seed, right: \"Y\"))".into(),
+                    invalid_call: "step(text: false)".into(),
+                    cold_fault_call: "step(text: to_string(value: div(left: 1, right: 0)))".into(),
+                }
+            }
+            _ => panic!("unexpected fixture profile"),
+        }
+    }
+
+    fn run_conditional<P: Profile>(case: &ConditionalCase, budget: u64) -> Result<u64, ()> {
+        let result = Cell::new(Err(()));
+        fixture::<P>(|host, scope| {
+            let node = compile(&case.source, &host).unwrap();
+            let plans = plans(&node, &host);
+            assert_eq!(
+                plans
+                    .iter()
+                    .filter(|plan| matches!(plan.node, Node::Group { .. }))
+                    .count(),
+                2
+            );
+            let runtime = Runtime {
+                host: &host,
+                plans: &plans,
+            };
+            let mut vm = LocalVm::new(scope, &node, Vec::new(), Fuel::new(budget), STACK);
+            for phase in 0..=3 {
+                match vm.poll(&runtime) {
+                    Ok(EffectSessionPoll::Request(active)) => {
+                        assert!(matches!(
+                            (&active.work, phase),
+                            (Work::Atom(_), 0 | 2) | (Work::Sequence(_) | Work::Parallel { .. }, 1)
+                        ));
+                        let fuel = vm.fuel_remaining();
+                        assert!(matches!(
+                            vm.poll(&runtime).unwrap(),
+                            EffectSessionPoll::Awaiting
+                        ));
+                        assert_eq!(vm.fuel_remaining(), fuel);
+                        let mut reply = runtime.collect(active).unwrap();
+                        let identity = reply.identity.clone();
+                        if phase == 1 {
+                            let original = reply.node;
+                            let cold = plans
+                                .iter()
+                                .find(|plan| {
+                                    matches!(plan.node, Node::Group { .. })
+                                        && !std::ptr::eq(plan.node, original)
+                                })
+                                .unwrap();
+                            assert!(cold.identity.borrow().is_none());
+                            assert!(cold.members.borrow().is_empty());
+                            let pointer = &*reply.buffer as *const u8;
+                            reply.node = cold.node;
+                            reply = vm.try_accept(&identity, reply, &runtime).unwrap_err().reply;
+                            assert_eq!(&*reply.buffer as *const u8, pointer);
+                            assert_eq!(vm.fuel_remaining(), fuel);
+                            assert!(vm.lease().is_open());
+                            reply.node = original;
+                        }
+                        vm.try_accept(&identity, reply, &runtime).unwrap();
+                        assert_eq!(vm.fuel_remaining(), fuel);
+                        assert_eq!(
+                            *host.invoked.borrow(),
+                            case.inputs[..host.invoked.borrow().len()]
+                        );
+                    }
+                    Ok(EffectSessionPoll::Value(PureValue::Scalar(value))) => {
+                        assert_eq!(value, case.output);
+                        assert_eq!(*host.invoked.borrow(), case.inputs);
+                        assert_eq!(phase, if case.inputs.len() == 3 { 2 } else { 3 });
+                        assert_eq!(
+                            plans
+                                .iter()
+                                .filter(|plan| matches!(plan.node, Node::Group { .. })
+                                    && plan.identity.borrow().is_some())
+                                .count(),
+                            1
+                        );
+                        let fuel = vm.fuel_remaining();
+                        assert!(matches!(
+                            vm.poll(&runtime).unwrap(),
+                            EffectSessionPoll::Terminal(EffectSessionEnd::Completed)
+                        ));
+                        assert_eq!(vm.fuel_remaining(), fuel);
+                        assert!(!vm.lease().is_open());
+                        result.set(Ok(fuel));
+                        return;
+                    }
+                    Err(_) => {
+                        assert_eq!(
+                            vm.status(),
+                            EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+                        );
+                        assert!(!vm.lease().is_open());
+                        let fuel = vm.fuel_remaining();
+                        assert!(matches!(
+                            vm.poll(&runtime).unwrap(),
+                            EffectSessionPoll::Terminal(EffectSessionEnd::Failed)
+                        ));
+                        assert_eq!(vm.fuel_remaining(), fuel);
+                        assert_eq!(
+                            *host.invoked.borrow(),
+                            case.inputs[..host.invoked.borrow().len()]
+                        );
+                        return;
+                    }
+                    _ => panic!("unexpected conditional pipeline outcome"),
+                }
+            }
+            panic!("conditional pipeline did not terminate");
+        });
+        result.get()
+    }
+
+    #[test]
+    fn two_hosts_select_group_helpers_alias_results_and_take_early_or_captured_returns() {
+        fn check<P: Profile>() {
+            for kind in ["seq", "all"] {
+                for left in [false, true] {
+                    for early in [false, true] {
+                        let mut case = conditional_case::<P>(kind, left, early);
+                        assert!(run_conditional::<P>(&case, 10_000).is_ok());
+                        if !early {
+                            let field = if P::ARGUMENT == ScalarType::Integer {
+                                "value"
+                            } else {
+                                "text"
+                            };
+                            case.source = case.source.replace(
+                                ": selected, seed: seed)",
+                                &format!(": field(value: member(value: alias, name: \"right\"), name: \"{field}\"), seed: seed)"),
+                            );
+                            assert!(run_conditional::<P>(&case, 10_000).is_ok());
+                        }
+                    }
+                }
+            }
+        }
+        check::<Counter>();
+        check::<Panel>();
+    }
+
+    #[test]
+    fn selected_group_and_early_exit_keep_exact_fuel_at_every_pipeline_cutoff() {
+        fn check<P: Profile>() {
+            for kind in ["seq", "all"] {
+                for left in [false, true] {
+                    for early in [false, true] {
+                        let case = conditional_case::<P>(kind, left, early);
+                        let used = 10_000 - run_conditional::<P>(&case, 10_000).unwrap();
+                        for budget in 0..used {
+                            assert!(
+                                run_conditional::<P>(&case, budget).is_err(),
+                                "{kind}/{left}/{early}: {budget} < {used}"
+                            );
+                        }
+                        assert_eq!(run_conditional::<P>(&case, used), Ok(0));
+                        assert_eq!(run_conditional::<P>(&case, used + 1), Ok(1));
+                    }
+                }
+            }
+        }
+        check::<Counter>();
+        check::<Panel>();
+    }
+
+    #[test]
+    fn unselected_group_helpers_are_typed_but_never_evaluated_or_dispatched() {
+        fn check<P: Profile>() {
+            for kind in ["seq", "all"] {
+                let mut case = conditional_case::<P>(kind, true, false);
+                assert_eq!(case.source.matches(&case.cold_call).count(), 1);
+                fixture::<P>(|host, _scope| {
+                    for replacement in [&case.invalid_call, "foreign.unknown()"] {
+                        let invalid = case.source.replace(&case.cold_call, replacement);
+                        assert!(compile(&invalid, &host).is_err());
+                        assert!(host.invoked.borrow().is_empty());
+                        assert_eq!(host.serial.get(), 0);
+                    }
+                    // Even an unselected alternative must retain the exact group mode/export.
+                    let other = if kind == "seq" { "all" } else { "seq" };
+                    let invalid = case.source.replace(
+                        &format!("otherwise: {kind}("),
+                        &format!("otherwise: {other}("),
+                    );
+                    assert_ne!(invalid, case.source);
+                    assert!(compile(&invalid, &host).is_err());
+                });
+                let ordinary = run_conditional::<P>(&case, 10_000).unwrap();
+                case.source = case.source.replace(&case.cold_call, &case.cold_fault_call);
+                // Static typing accepts this expression; evaluating it would divide by zero.
+                assert_eq!(run_conditional::<P>(&case, 10_000), Ok(ordinary));
+            }
+        }
+        check::<Counter>();
+        check::<Panel>();
+    }
+
+    #[test]
+    fn selected_group_reentry_cannot_bypass_revocation_even_when_returning_early() {
+        fn check<P: Profile>() {
+            for kind in ["seq", "all"] {
+                for early in [false, true] {
+                    for revoke in 0..4 {
+                        let case = conditional_case::<P>(kind, false, early);
+                        fixture::<P>(|host, scope| {
+                            let node = compile(&case.source, &host).unwrap();
+                            let plans = plans(&node, &host);
+                            let runtime = Runtime {
+                                host: &host,
+                                plans: &plans,
+                            };
+                            let mut vm =
+                                LocalVm::new(scope, &node, Vec::new(), Fuel::new(10_000), STACK);
+                            for _ in 0..2 {
+                                let EffectSessionPoll::Request(active) = vm.poll(&runtime).unwrap()
+                                else {
+                                    panic!()
+                                };
+                                let reply = runtime.collect(active).unwrap();
+                                vm.try_accept(&reply.identity.clone(), reply, &runtime)
+                                    .unwrap();
+                            }
+                            let before = vm.fuel_remaining();
+                            match revoke {
+                                0 => host.granted.set(false),
+                                1 => host.revision.set(2),
+                                2 => host.version.set(32),
+                                _ => {
+                                    assert!(vm.cancel());
+                                }
+                            }
+                            let end = if revoke == 3 {
+                                assert_eq!(vm.fuel_remaining(), before);
+                                EffectSessionEnd::Cancelled
+                            } else {
+                                assert!(vm.poll(&runtime).is_err());
+                                EffectSessionEnd::Failed
+                            };
+                            assert_eq!(vm.status(), EffectSessionStatus::Terminal(end));
+                            let fuel = vm.fuel_remaining();
+                            assert!(fuel <= before);
+                            assert!(
+                                matches!(vm.poll(&runtime).unwrap(), EffectSessionPoll::Terminal(actual) if actual == end)
+                            );
+                            assert_eq!(vm.fuel_remaining(), fuel);
+                            assert!(!vm.lease().is_open());
+                            assert_eq!(*host.invoked.borrow(), case.inputs[..3]);
+                        });
+                    }
+                }
+            }
+        }
+        check::<Counter>();
+        check::<Panel>();
     }
 
     fn cold<P: MixedProfile>() {

@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-saved-capture-source-export",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-13T12:34:08.731Z",
+  "platform": "macos-arm64",
+  "source_outside_product_workspace": true,
+  "source_crates": [
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir",
+    "leselang-vm"
+  ],
+  "verified": true,
+  "native_vm_facade": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "portable_mixed_checkpoint": false,
+  "process_crash_acceptance": false,
+  "source_compiled_capture_checkpoint": false,
+  "completed_capture_byte_model": true,
+  "every_continuation_fuel_cutoff": true,
+  "files": 258,
+  "copied_files": 248,
+  "bytes": 5505330,
+  "workspace_all_features_tests": "passed",
+  "workspace_strict_clippy": "passed",
+  "independent_consumer_tests": "passed",
+  "independent_consumer_strict_clippy": "passed",
+  "isolated_test_executions": 2221,
+  "workspace_saved_group_tests": 14,
+  "independent_consumer_saved_group_tests": 14,
+  "capture_composition_tests_per_workspace": 6,
+  "native_payload_schemas": 2,
+  "restored_group_kinds": 2,
+  "return_frames": 2,
+  "original_preparations_per_program": 4,
+  "original_dispatches_per_program": 4,
+  "restored_preparations_per_program": 0,
+  "restored_dispatches_per_program": 0,
+  "shared_group_rebuilds_per_execution": 1,
+  "pending_projections_per_execution": 1,
+  "consumer_proof_unchanged": true,
+  "copied_source_byte_for_byte": true,
+  "export_manifest_sha256": "b40b9e0b7163f8cdb82e7b3b84bca276f7e2bde5e695283a854c60e35a2516bf",
+  "verification_log_sha256": "1177cbad4d3f70c3e88bbeccfd39b1d2068a68456d61cb2e619ca16f4b287797",
+  "provenance": [
+    {
+      "path": "crates/leselang-runtime-core/src/capture_snapshot.rs",
+      "source": "crates/leselang-runtime-core/src/capture_snapshot.rs",
+      "sha256": "685823b2043a625f77f4916762bf0d10efc5c020c0cbe6dd579c395138434841"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_reentry.rs",
+      "source": "crates/leselang-hir/src/effect_reentry.rs",
+      "sha256": "57d70b553e190490e2ab869aaeb660346676bb257edbeb343f835e403cd724ad"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_stack.rs",
+      "source": "crates/leselang-hir/src/effect_stack.rs",
+      "sha256": "5a4980b9ebcb697ea4c48e3462bf54552f9633e371fb8d1fd5c626954ae7c51d"
+    },
+    {
+      "path": "crates/leselang-hir/src/group_reply.rs",
+      "source": "crates/leselang-hir/src/group_reply.rs",
+      "sha256": "403d726d9b058d57aaa676834d37c9f4b88227283edc6b50a77faf493e28d646"
+    },
+    {
+      "path": "crates/leselang-hir/tests/saved_group.rs",
+      "source": "crates/leselang-hir/tests/saved_group.rs",
+      "sha256": "b85785ffffe89137eb235bb068ab5862340d6cfbe6eafb629ea795047325d547"
+    },
+    {
+      "path": "consumer/tests/saved_group.rs",
+      "source": "crates/leselang-hir/tests/saved_group.rs",
+      "sha256": "b85785ffffe89137eb235bb068ab5862340d6cfbe6eafb629ea795047325d547"
+    }
+  ],
+  "remaining_gates": [
+    "complete native reference-language coverage",
+    "source-compiled portable mixed snapshots combining partial groups, queued operands and multiple captured graphs",
+    "production persistence/process-crash acceptance and durable settlement",
+    "complete reference adapter wire/auth/GUI/CLI/journal parity",
+    "release publication and physical repository extraction"
+  ]
+}

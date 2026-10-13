@@ -501,6 +501,178 @@ fn nested_helpers_return_through_original_scopes_and_repeated_requests_without_f
 }
 
 #[test]
+fn saved_stack_admission_moves_native_captures_and_reuses_the_original_reply_walker() {
+    fixture(|host| {
+        let node = program();
+        let mut fuel = Fuel::new(100);
+        let (mut request, mut stack) = start(&node, host, &mut fuel, LIMITS);
+        for turn in 0..2 {
+            let before = fuel.remaining();
+            let frames = stack
+                .into_frames()
+                .into_iter()
+                .map(|frame| {
+                    let (name, body, capture) = frame.into_parts();
+                    SavedEffectReturnFrame {
+                        name,
+                        body,
+                        capture,
+                    }
+                })
+                .collect();
+            stack = restore_effect_return_stack(frames, LIMITS).unwrap();
+            assert_eq!(fuel.remaining(), before);
+            assert_eq!(host.trace.capture_drops.get(), turn);
+            match resume(request, stack, host, &mut fuel, LIMITS).unwrap() {
+                StackedEffectOutcome::Suspended {
+                    request: next,
+                    continuation,
+                } => {
+                    assert_eq!(turn, 0);
+                    request = next;
+                    stack = continuation;
+                }
+                StackedEffectOutcome::Value(PureValue::Scalar(ScalarValue::Integer(53))) => {
+                    assert_eq!(turn, 1);
+                    assert_eq!(fuel.remaining(), 69);
+                    assert_eq!(host.trace.calls.get(), 2);
+                    assert_eq!(host.trace.projections.get(), 2);
+                    assert_eq!(host.trace.capture_drops.get(), 3);
+                    return;
+                }
+                _ => panic!(),
+            }
+        }
+        panic!("saved stack did not finish");
+    });
+}
+
+#[test]
+fn saved_stack_refuses_empty_names_and_shared_forest_overflow_without_native_work() {
+    struct Owner<'a>(&'a Cell<usize>);
+    impl Drop for Owner<'_> {
+        fn drop(&mut self) {
+            self.0.set(self.0.get() + 1);
+        }
+    }
+    let leaf = integer(1);
+    let deep = add(integer(1), integer(2));
+    for mode in 0..7 {
+        let drops = Cell::new(0);
+        let mut limits = LIMITS;
+        let mut frames = vec![SavedEffectReturnFrame {
+            name: "x",
+            body: &leaf,
+            capture: Owner(&drops),
+        }];
+        let count = if mode == 0 {
+            frames.clear();
+            1
+        } else if mode == 3 {
+            frames.push(SavedEffectReturnFrame {
+                name: "x",
+                body: &leaf,
+                capture: Owner(&drops),
+            });
+            limits.effects.pure.max_nodes = 1;
+            2
+        } else {
+            1
+        };
+        match mode {
+            0 => {}
+            1 => limits.max_frames = 0,
+            2 => frames[0].name = "private-invalid-name",
+            3 => {}
+            4 => {
+                frames[0].body = &deep;
+                limits.effects.pure.max_depth = 0;
+            }
+            5 => limits.effects.pure.max_bindings = 0,
+            6 => limits.max_frames = MAX_EFFECT_RETURN_FRAMES + 1,
+            _ => unreachable!(),
+        }
+        let error = restore_effect_return_stack(frames, limits).unwrap_err();
+        assert!(!format!("{error:?}").contains("private-invalid-name"));
+        assert_eq!(drops.get(), count);
+    }
+    let drops = Cell::new(0);
+    let frames = (0..2)
+        .map(|_| SavedEffectReturnFrame {
+            name: "same",
+            body: &leaf,
+            capture: Owner(&drops),
+        })
+        .collect();
+    let stack = restore_effect_return_stack(
+        frames,
+        EffectStackLimits {
+            max_frames: 2,
+            effects: EffectEvaluationLimits {
+                pure: PureEvaluationLimits {
+                    max_nodes: 2,
+                    max_depth: 0,
+                    ..EFFECT.pure
+                },
+                ..EFFECT
+            },
+        },
+    )
+    .unwrap();
+    assert_eq!(stack.frame_count(), 2);
+    assert!(std::ptr::eq(stack.frames()[0].body(), &leaf));
+    assert_eq!(drops.get(), 0);
+    drop(stack);
+    assert_eq!(drops.get(), 2);
+}
+
+#[test]
+fn saved_stack_admission_neither_grants_live_authority_nor_rearms_cancelled_owners() {
+    for cancel in [false, true] {
+        fixture(|host| {
+            let node = program();
+            let mut fuel = Fuel::new(100);
+            let (request, stack) = start(&node, host, &mut fuel, LIMITS);
+            let frames = stack
+                .into_frames()
+                .into_iter()
+                .map(|frame| {
+                    let (name, body, capture) = frame.into_parts();
+                    SavedEffectReturnFrame {
+                        name,
+                        body,
+                        capture,
+                    }
+                })
+                .collect();
+            let stack = restore_effect_return_stack(frames, LIMITS).unwrap();
+            let before = fuel.remaining();
+            if cancel {
+                let domain: &NativeDomain<'_> = &host.domains[0];
+                let mut pending = PendingReply::new((73, 1), stack, domain);
+                assert!(pending.cancel());
+                let reply = host.reply(41);
+                let pointer = &*reply.buffer as *const u8;
+                let rejected = pending
+                    .try_accept::<_, ScalarValue, _>(&(73, 1), reply, host)
+                    .unwrap_err();
+                assert_eq!(&*rejected.reply.buffer as *const u8, pointer);
+                assert_eq!(pending.status(), ReplyStatus::Terminal(ReplyEnd::Cancelled));
+                drop(request);
+            } else {
+                host.trace.denied.set(2);
+                assert!(resume(request, stack, host, &mut fuel, LIMITS).is_err());
+            }
+            assert_eq!(fuel.remaining(), before);
+            assert_eq!(host.trace.restores.get(), 0);
+            assert_eq!(host.trace.projections.get(), 0);
+            assert_eq!(host.trace.prepared.get(), 1);
+            assert_eq!(host.trace.capture_drops.get(), 2);
+        });
+    }
+}
+
+#[test]
 fn request_tail_adopts_the_next_original_return_site_without_replaying_inner_effects() {
     fixture(|host| {
         let node = bind(

@@ -56,7 +56,7 @@ impl<Native> std::error::Error for GroupReplyError<Native> {}
 /// consuming this object. It is move-only data, not authentic/global authority.
 /// Original row pointer agreement does not prove identity generation, provenance,
 /// declaration authenticity, current native value/type or live grants. Mandatory
-/// assembly admission checks those facts; reads/projections must recheck relevant
+/// assembly/restore admission checks those facts; reads/projections must recheck relevant
 /// current policy, since interior native data can change after any observation.
 /// No native Clone/Debug/equality/serde/Send/Sync bound or implicit coercion exists.
 ///
@@ -197,6 +197,117 @@ pub fn assemble_group_reply<
     Reply,
     Error,
 > {
+    let kind = check_group_reply(group, &accepted, limits)?;
+    fuel.charge(1 + accepted.len() as u64)
+        .map_err(|_| GroupReplyError::Fuel)?;
+    let reply = GroupReply {
+        group,
+        kind,
+        members: accepted,
+    };
+    admit(&reply, fuel).map_err(GroupReplyError::Native)?;
+    Ok(reply)
+}
+
+/// Rebind an already-assembled saved group through the same complete cold checks
+/// as live assembly, without paying its assembly charge again. Accepted rows must
+/// already refer to this admitted graph, for example through the completed saved
+/// Seq/All collectors. No decoded row, accepted wrapper or pointer comparison is
+/// evidence that assembly was paid or that a captured value is still authorized.
+///
+/// Mandatory whole-group admission authenticates the committed original graph,
+/// exact domains, identities, values, assembly completion and saved budget, then
+/// rechecks live policy and aggregate bounds. The host must distinguish a saved
+/// assembled value from merely completed receipts; use assemble_group_reply for
+/// the latter. Reads/projections still require fresh selected-row admission.
+///
+/// This entry moves original owners without Clone/Debug/equality/serde bounds.
+/// It does not create/refill a meter, dispatch, evaluate, restore captures, settle
+/// work or install a codec. Native restore work/ingress must be bounded by the
+/// host, not treated as free execution. Refusal/unwind consumes inputs without
+/// retry/refund; callbacks and Drop are trusted, and double panic can abort.
+#[expect(
+    clippy::type_complexity,
+    reason = "saved group admission preserves original IR and native owned inputs"
+)]
+pub fn restore_group_reply<
+    'expression,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Identity,
+    Declaration: ?Sized,
+    Reply,
+    Error,
+>(
+    group: &'expression Node<Field, Operation, HostEffect, IrResult>,
+    accepted: Vec<
+        SequenceAccepted<
+            'expression,
+            Node<Field, Operation, HostEffect, IrResult>,
+            IrResult,
+            Identity,
+            Declaration,
+            Reply,
+        >,
+    >,
+    limits: SequenceEvaluationLimits,
+    admit: impl FnOnce(
+        &GroupReply<
+            'expression,
+            Node<Field, Operation, HostEffect, IrResult>,
+            IrResult,
+            Identity,
+            Declaration,
+            Reply,
+        >,
+    ) -> Result<(), Error>,
+) -> GroupReplyResult<
+    'expression,
+    Node<Field, Operation, HostEffect, IrResult>,
+    IrResult,
+    Identity,
+    Declaration,
+    Reply,
+    Error,
+> {
+    let kind = check_group_reply(group, &accepted, limits)?;
+    let reply = GroupReply {
+        group,
+        kind,
+        members: accepted,
+    };
+    admit(&reply).map_err(GroupReplyError::Native)?;
+    Ok(reply)
+}
+
+#[expect(
+    clippy::type_complexity,
+    reason = "live and restored assembly share exact native row and shape checks"
+)]
+fn check_group_reply<
+    'expression,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    Identity,
+    Declaration: ?Sized,
+    Reply,
+    Error,
+>(
+    group: &'expression Node<Field, Operation, HostEffect, IrResult>,
+    accepted: &[SequenceAccepted<
+        'expression,
+        Node<Field, Operation, HostEffect, IrResult>,
+        IrResult,
+        Identity,
+        Declaration,
+        Reply,
+    >],
+    limits: SequenceEvaluationLimits,
+) -> Result<GroupKind, GroupReplyError<Error>> {
     if limits.max_nodes > MAX_TYPE_INFERENCE_NODES
         || limits.max_depth > MAX_TYPE_INFERENCE_DEPTH
         || limits.max_branches > MAX_GROUP_EXPORT_MEMBERS
@@ -234,13 +345,5 @@ pub fn assemble_group_reply<
             return Err(GroupReplyError::Row { index });
         }
     }
-    fuel.charge(1 + accepted.len() as u64)
-        .map_err(|_| GroupReplyError::Fuel)?;
-    let reply = GroupReply {
-        group,
-        kind: *group_kind,
-        members: accepted,
-    };
-    admit(&reply, fuel).map_err(GroupReplyError::Native)?;
-    Ok(reply)
+    Ok(*group_kind)
 }

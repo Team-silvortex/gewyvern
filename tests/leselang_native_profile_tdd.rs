@@ -180,6 +180,17 @@ fn continuous_host_pipeline_is_exported_without_promoting_the_complete_vm_gate()
         "mixed_preparation_correlation_assembly_and_successors_share_exactly_one_fuel_budget",
         "mixed_shared_ir_rejects_foreign_group_members_even_with_a_matching_root_label",
         "mixed_invalid_late_group_and_cold_policy_are_rejected_before_the_initial_effect",
+        "two_hosts_select_group_helpers_alias_results_and_take_early_or_captured_returns",
+        "selected_group_and_early_exit_keep_exact_fuel_at_every_pipeline_cutoff",
+        "unselected_group_helpers_are_typed_but_never_evaluated_or_dispatched",
+        "selected_group_reentry_cannot_bypass_revocation_even_when_returning_early",
+        "both_hosts_join_atomic_group_and_pure_returns_for_all_six_data_types",
+        "selected_data_return_and_caller_capture_share_every_fuel_boundary",
+        "selected_data_arguments_remain_lazy_but_selected_unused_arguments_still_run",
+        "cold_selected_data_types_names_and_pure_arguments_fail_before_dispatch",
+        "selected_data_receipt_reentry_cannot_cross_revocation_or_cancellation",
+        "selected_data_captures_distinguish_absent_empty_and_maximum_bounded_payloads",
+        "selected_data_payload_overflow_cannot_dispatch_the_caller_tail",
         "compile_catalog_prepared_group_helper_program(",
         "prepare_atomic_group_in_scope(",
         "assemble_group_reply(",
@@ -206,6 +217,299 @@ fn continuous_host_pipeline_is_exported_without_promoting_the_complete_vm_gate()
     assert!(section.contains("mixed multi-group/atomic programs"));
     assert!(section.contains("twelve"));
     assert!(section.contains("not a new generic scheduler"));
+    assert!(section.contains("sixteen conditional host/program paths"));
+    assert!(section.contains("field(value: member("));
+    assert!(section.contains("72 host/program/data combinations"));
+    assert!(section.contains("Another 60"));
+    assert!(section.contains("not new\nlanguage syntax"));
+}
+
+#[test]
+fn saved_return_stack_consumer_reuses_native_reentry_without_promoting_durable_vm() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/durable_control.rs")).unwrap();
+    for required in [
+        "restore_effect_return_stack(",
+        "resume_accepted_stacked_effects(",
+        "two_native_hosts_restore_serialized_helper_return_stacks_without_recompilation_or_replay",
+        "restored_nested_helpers_keep_one_budget_and_settle_every_accepted_fuel_refusal",
+        "saved_return_stacks_reject_forged_order_budget_reply_and_live_policy_before_restoration",
+        "revoked_outer_saved_body_is_settled_without_restoring_or_preparing_inner_work",
+    ] {
+        assert!(
+            source.contains(required),
+            "saved return proof lost {required}"
+        );
+    }
+    let export = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(export.contains("crates/leselang-hir/tests/durable_control.rs"));
+    assert!(export.contains("crates/leselang-hir/tests/effect_stack.rs"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split("### Restored Native Return Stacks")
+        .nth(1)
+        .unwrap()
+        .split("### Shared Flat Group Graph Inspection")
+        .next()
+        .unwrap();
+    for required in [
+        "three pending return frames",
+        "without recompilation",
+        "not authenticate",
+        "not a production durable backend",
+    ] {
+        assert!(section.contains(required));
+    }
+}
+
+#[test]
+fn restored_parallel_consumer_uses_the_existing_barrier_without_promoting_durable_graphs() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir/src/prepared_parallel.rs")).unwrap();
+    assert!(source.contains("pub fn restore<Error>"));
+    assert!(source.contains("ParallelReplyCore::restore(branches, rows, admit)"));
+    let restore = source
+        .split("pub fn restore<Error>")
+        .nth(1)
+        .unwrap()
+        .split("/// Consume all")
+        .next()
+        .unwrap();
+    for forbidden in [
+        "Fuel::new",
+        "fuel.charge",
+        "prepare_effect",
+        "enum State",
+        "serde",
+        "dispatch(",
+    ] {
+        assert!(!restore.contains(forbidden));
+    }
+    let proof =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/saved_parallel.rs")).unwrap();
+    for required in [
+        "every_partial_mask_restores_the_original_barrier_and_order_without_a_new_meter",
+        "duplicate_saved_identity_including_accepted_rows_refuses_before_host_admission",
+        "whole_saved_admission_rechecks_accepted_authority_and_unwind_publishes_nothing",
+        "restored_cancel_scope_and_acceptance_unwind_keep_existing_terminal_fences",
+        "two_serialized_host_models_restore_every_partial_mask_without_repreparing_or_redispatching",
+        "serialized_graph_budget_receipt_and_live_refusals_leave_committed_rows_unchanged",
+    ] {
+        assert!(proof.contains(required));
+    }
+    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(exporter.contains("crates/leselang-hir/tests/saved_parallel.rs"));
+    assert!(exporter.contains("consumer/tests/saved_parallel.rs"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split("### Restored Parallel Reply Barriers")
+        .nth(1)
+        .unwrap()
+        .split("### Shared Flat Group Graph Inspection")
+        .next()
+        .unwrap();
+    for boundary in [
+        "same private `ParallelReplyCore`",
+        "all eight completion masks",
+        "not process-crash acceptance",
+        "cancelled or settled work must never be rearmed",
+        "Complete mixed-group continuation recovery",
+    ] {
+        assert!(section.contains(boundary));
+    }
+}
+
+#[test]
+fn saved_sequence_consumer_derives_frontiers_through_the_original_reply_core() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir/src/prepared_sequence.rs")).unwrap();
+    assert!(source.contains("SequenceReplyCore::restore(branches, rows, admit)"));
+    let restore = source
+        .split("pub fn restore<Reply, Error>")
+        .nth(1)
+        .unwrap()
+        .split("pub fn start<")
+        .next()
+        .unwrap();
+    for forbidden in [
+        "Fuel::new",
+        "fuel.charge",
+        "enum State",
+        "prepare_effect",
+        "dispatch(",
+        "serde",
+    ] {
+        assert!(!restore.contains(forbidden));
+    }
+    let core =
+        fs::read_to_string(root().join("crates/leselang-hir/src/sequence_evaluation.rs")).unwrap();
+    assert_eq!(core.matches("enum State<").count(), 1);
+    assert!(
+        core.contains(".take_while(|row| matches!(row.reply, SavedSequenceReply::Accepted(_)))")
+    );
+    assert!(core.contains("SequenceRestoreError::Frontier"));
+    let proof =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/saved_sequence.rs")).unwrap();
+    for name in [
+        "all_seven_saved_frontiers_resume_without_republishing_or_copying_the_prefix",
+        "all_twenty_noncontiguous_frontiers_refuse_before_identity_or_native_admission",
+        "duplicate_prefix_pending_and_queued_identities_never_reach_snapshot_admission",
+        "restored_publication_and_acceptance_reuse_live_policy_and_terminal_cleanup",
+        "two_serialized_models_resume_every_frontier_without_repreparation_or_duplicate_publication",
+    ] {
+        assert!(proof.contains(name));
+    }
+    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(exporter.contains("crates/leselang-hir/tests/saved_sequence.rs"));
+    assert!(exporter.contains("consumer/tests/saved_sequence.rs"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split("### Restored Sequential Frontiers")
+        .nth(1)
+        .unwrap()
+        .split("### Shared Flat Group Graph Inspection")
+        .next()
+        .unwrap();
+    for boundary in [
+        "derives the cursor",
+        "all seven valid",
+        "all twenty invalid",
+        "not process-crash acceptance",
+        "Complete mixed-group/helper",
+        "extraction\ncompletion claim",
+    ] {
+        assert!(section.contains(boundary));
+    }
+}
+
+#[test]
+fn saved_mixed_consumer_composes_existing_walkers_without_claiming_portable_recovery() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/native_host_pipeline.rs"))
+            .unwrap();
+    let saved = source
+        .split("mod saved_mixed {")
+        .nth(1)
+        .unwrap()
+        .split("trait MixedProfile:")
+        .next()
+        .unwrap();
+    for required in [
+        "Queued::restore(",
+        "Parallel::restore(",
+        "restore_effect_return_stack(",
+        "resume_accepted_stacked_effects(",
+        "drop(queue)",
+        "drop(barrier)",
+        "every_seq_all_frontier_composes_with_native_helper_return_stacks",
+        "restored_mixed_helpers_keep_exact_original_fuel_at_every_cutoff",
+        "mixed_snapshot_admission_rejects_stale_revoked_and_closed_hosts_before_tail_work",
+        "saved_sequence_handle_correspondence_cannot_redirect_unpublished_mixed_work",
+    ] {
+        assert!(
+            saved.contains(required),
+            "saved mixed proof lost {required}"
+        );
+    }
+    assert_eq!(saved.matches("Fuel::new(").count(), 1);
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split("### Composed Native Mixed Recovery")
+        .nth(1)
+        .unwrap()
+        .split("### Shared Flat Group Graph Inspection")
+        .next()
+        .unwrap();
+    for boundary in [
+        "252 two-host paths",
+        "at least three return frames",
+        "exactly six dispatches",
+        "eight original identities",
+        "in-memory composition proof",
+        "not serialized mixed-graph recovery",
+        "Full extraction remains open",
+    ] {
+        assert!(
+            section.contains(boundary),
+            "mixed recovery docs lost {boundary}"
+        );
+    }
+    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(exporter.contains("252 two-host frontier combinations"));
+}
+
+#[test]
+fn saved_call_operands_restore_without_an_evaluator_or_native_inventory_dependency() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir/src/call_evaluation.rs")).unwrap();
+    let restore = source
+        .split("pub fn restore<Error>")
+        .nth(1)
+        .unwrap()
+        .split("pub enum PreparedCallRestoreError")
+        .next()
+        .unwrap();
+    for required in [
+        "preflight_signature",
+        "valid_argument_name",
+        "row.value.is_bounded()",
+        "check_argument_type",
+        "admit(schema, &arguments)",
+    ] {
+        assert!(restore.contains(required));
+    }
+    assert!(
+        restore.find("row.value.is_bounded()").unwrap()
+            < restore.find("admit(schema, &arguments)").unwrap()
+    );
+    assert!(
+        restore.find("admit(schema, &arguments)").unwrap()
+            < restore.find("check_argument_type(").unwrap()
+    );
+    for forbidden in [
+        "Fuel::new",
+        "fuel.charge",
+        "evaluate_",
+        "prepare_",
+        "dispatch(",
+        "serde",
+        ".clone()",
+    ] {
+        assert!(
+            !restore.contains(forbidden),
+            "saved operands gained {forbidden}"
+        );
+    }
+    let proof = fs::read_to_string(root().join("crates/leselang-hir/tests/saved_call.rs")).unwrap();
+    for required in [
+        "restored_operands_move_buffers_and_rebind_names_after_decoded_storage_is_dropped",
+        "malformed_complete_rows_and_late_scalar_overflow_precede_all_native_callbacks",
+        "two_byte_codec_hosts_restore_real_prepared_calls_after_all_original_objects_are_dropped",
+        "decoded_calls_still_need_current_authority_at_restore_and_queued_publication",
+        "forged_saved_operands_and_fuel_do_not_enter_native_restoration_or_dispatch",
+    ] {
+        assert!(proof.contains(required));
+    }
+    let export = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(export.contains("consumer/tests/saved_call.rs"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split("### Restored Native Call Operands")
+        .nth(1)
+        .unwrap()
+        .split("### Shared Flat Group Graph Inspection")
+        .next()
+        .unwrap();
+    for boundary in [
+        "original submission positions",
+        "Names rebind",
+        "All seven three-member",
+        "exactly three calls",
+        "not a production durable backend",
+        "no runtime wire format",
+    ] {
+        assert!(section.contains(boundary));
+    }
 }
 
 #[test]
@@ -254,6 +558,121 @@ fn reference_implementation_is_optional_without_changing_released_root_paths() {
             "missing released path {released}"
         );
     }
+}
+
+#[test]
+fn assembled_group_restore_reuses_cold_checks_without_a_second_meter_or_execution_path() {
+    let source = fs::read_to_string(root().join("crates/leselang-hir/src/group_reply.rs")).unwrap();
+    assert_eq!(
+        source
+            .matches("check_group_reply(group, &accepted, limits)?")
+            .count(),
+        2
+    );
+    let restore = source
+        .split("pub fn restore_group_reply<")
+        .nth(1)
+        .unwrap()
+        .split("fn check_group_reply<")
+        .next()
+        .unwrap();
+    assert!(restore.contains("admit(&reply).map_err(GroupReplyError::Native)?"));
+    for forbidden in [
+        "Fuel::new",
+        "fuel.charge",
+        "evaluate_",
+        "dispatch(",
+        "Identity: PartialEq",
+    ] {
+        assert!(!restore.contains(forbidden));
+    }
+    let proof =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/saved_group.rs")).unwrap();
+    for case in [
+        "restored_groups_move_unsized_domain_rows_without_charging_assembly_again",
+        "complete_cold_membership_checks_precede_restore_admission",
+        "maximum_arity_and_all_shape_limits_match_live_assembly",
+        "accepted_receipts_are_not_saved_assembly_or_fresh_native_authority",
+        "restored_lookup_rechecks_live_policy_after_whole_group_admission",
+        "owned_native_error_and_callback_cleanup_survive_refusal_cold_failure_and_unwind",
+        "two_byte_codec_hosts_restore_assembled_seq_and_all_after_old_objects_are_dropped",
+        "forged_saved_assembly_graph_payload_or_fuel_never_reaches_rebinding",
+    ] {
+        assert!(proof.contains(case));
+    }
+    let export = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(export.contains("consumer/tests/saved_group.rs"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Restored Assembled Group Values"));
+    assert!(docs.contains("authenticate that assembly\nwas already committed"));
+}
+
+#[test]
+fn byte_capture_composition_uses_existing_snapshot_group_stack_and_reply_entries() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/saved_group.rs")).unwrap();
+    let composition = source.split("mod captured {").nth(1).unwrap();
+    for entry in [
+        "snapshot_captured_scope_state",
+        "validate_captured_bindings",
+        "restore_effect_return_stack",
+        "restore_group_reply",
+        "PendingReply::new",
+        "evaluate_stacked_effects_in_scope",
+        "resume_accepted_stacked_effects",
+        "Rc::ptr_eq",
+        "candidate != committed",
+    ] {
+        assert!(composition.contains(entry));
+    }
+    for case in [
+        "byte_captured_scalar_atom_group_alias_and_two_returns_use_the_original_walker",
+        "captured_byte_reentry_matches_every_original_fuel_cutoff_without_refill",
+        "denied_outer_cold_effect_blocks_all_decoded_capture_materialization",
+        "saved_capture_authority_and_cached_group_policy_are_rechecked_per_return",
+        "forged_capture_alias_scalar_frame_order_body_and_budget_fail_before_reentry",
+        "restored_pending_rejects_wrong_identity_without_losing_input_or_replaying_captures",
+    ] {
+        assert!(composition.contains(case));
+    }
+    for forbidden in ["leserpent_domain", "rusqlite", "leselang_vm::Vm"] {
+        assert!(!composition.contains(forbidden));
+    }
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Byte-Backed Captured Re-entry Composition"));
+    assert!(docs.contains("fixed typed-IR capture model"));
+    assert!(docs.contains(
+        "Full\nportable mixed-checkpoint, production process-crash and extraction gates stay open"
+    ));
+}
+
+#[test]
+fn captured_inflight_sequence_reuses_prepared_calls_and_the_original_reentry_kernel() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/saved_group.rs")).unwrap();
+    let model = source.split("mod inflight {").nth(1).unwrap();
+    for required in [
+        "prepare_native_group_members",
+        "evaluate_call_arguments_in_scope",
+        "PreparedCall::restore",
+        "Queue::restore",
+        "restore_effect_return_stack",
+        "resume_accepted_stacked_effects",
+        "candidate != committed",
+        "captured_seq_all_seven_frontiers_rebuild_operands_not_old_requests",
+        "captured_seq_assembly_and_return_fuel_match_every_cutoff_at_every_frontier",
+        "captured_seq_revocation_blocks_restore_or_publication_and_cold_returns",
+        "captured_seq_forged_operands_frontier_captures_graph_and_budget_are_not_committed",
+    ] {
+        assert!(model.contains(required), "missing {required}");
+    }
+    for forbidden in ["leselang_vm::Vm", "leserpent_domain", "rusqlite"] {
+        assert!(!model.contains(forbidden));
+    }
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Captured In-Flight Sequence Recovery"));
+    assert!(docs.contains("28 combinations"));
+    assert!(docs.contains("process-crash settlement and full extraction remain open"));
 }
 
 #[test]

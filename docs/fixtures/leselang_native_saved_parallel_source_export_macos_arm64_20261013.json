@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-saved-parallel-source-export",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-13T10:23:32.014Z",
+  "platform": "macos-arm64",
+  "source_outside_product_workspace": true,
+  "source_crates": [
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir",
+    "leselang-vm"
+  ],
+  "verified": true,
+  "native_vm_facade": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "files": 252,
+  "copied_files": 242,
+  "bytes": 5200854,
+  "workspace_all_features_tests": "passed",
+  "workspace_strict_clippy": "passed",
+  "independent_consumer_tests": "passed",
+  "independent_consumer_strict_clippy": "passed",
+  "isolated_test_executions": 2149,
+  "workspace_saved_parallel_tests": 9,
+  "independent_consumer_saved_parallel_tests": 9,
+  "native_payload_schemas": 2,
+  "completion_masks_per_schema": 8,
+  "maximum_group_members": 64,
+  "serialized_model_preparations": 3,
+  "serialized_model_dispatches": 3,
+  "serialized_model_fuel_remaining": 3,
+  "consumer_proof_unchanged": true,
+  "copied_source_byte_for_byte": true,
+  "export_manifest_sha256": "39089d4e695abf00dd09b407da2ed780a07abecc9b1725533c83283234bc9734",
+  "verification_log_sha256": "95db5731e4c86d1b8c3a8b679f7b6023b818d092fda5f4586efa21b667a1dc05",
+  "provenance": [
+    {
+      "path": "crates/leselang-hir/src/parallel_evaluation.rs",
+      "source": "crates/leselang-hir/src/parallel_evaluation.rs",
+      "sha256": "e4343332f074866c96f955db3fe5494a3d97d7440ec2aca686312dde115b1117"
+    },
+    {
+      "path": "crates/leselang-hir/src/prepared_parallel.rs",
+      "source": "crates/leselang-hir/src/prepared_parallel.rs",
+      "sha256": "f97dbbd98f7fded8f2a8f4abcb63f81cc4c2fe267e5fc2606b886a016d1b2e8d"
+    },
+    {
+      "path": "crates/leselang-hir/tests/saved_parallel.rs",
+      "source": "crates/leselang-hir/tests/saved_parallel.rs",
+      "sha256": "1fa16ca4fd271bd8750fe1dba8c68314258e2b41728f2fb6818f7702b594145c"
+    },
+    {
+      "path": "consumer/tests/saved_parallel.rs",
+      "source": "crates/leselang-hir/tests/saved_parallel.rs",
+      "sha256": "1fa16ca4fd271bd8750fe1dba8c68314258e2b41728f2fb6818f7702b594145c"
+    }
+  ],
+  "remaining_gates": [
+    "complete native reference-language coverage",
+    "saved Seq/mixed-group continuation recovery",
+    "production persistence/process-crash acceptance and durable settlement",
+    "complete reference adapter wire/auth/GUI/CLI/journal parity",
+    "release publication and physical repository extraction"
+  ]
+}

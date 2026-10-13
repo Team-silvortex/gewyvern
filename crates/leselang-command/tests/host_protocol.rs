@@ -2421,10 +2421,23 @@ fn product_capture_shape_never_certifies_raw_identity_or_trusted_restore_version
 #[test]
 fn structured_validation_reuses_all_seventy_seven_value_types_without_vm_policy() {
     use leselang_command::{
-        StructuredField, Value as ProductValue, ValueBoundsError, ValueValidationLimits,
-        validate_value_items,
+        ResultValueDomain, ResultValueError, ResultValueHost, StructuredField,
+        Value as ProductValue, ValueBoundsError, ValueValidationLimits, validate_value_items,
     };
     use leselang_hir::computation::{OptionalStringValue, ScalarValue, StringListValue};
+    use leselang_runtime_core::{HostResultError, validate_host_result};
+
+    struct EncodingVisits(std::cell::Cell<usize>);
+    impl ResultValueHost for EncodingVisits {
+        type Error = std::convert::Infallible;
+        fn valid_field_name(&self, _: &str) -> bool {
+            panic!("leaf has no fields")
+        }
+        fn validate_encoded_value(&self, _: &ProductValue) -> Result<(), Self::Error> {
+            self.0.set(self.0.get() + 1);
+            Ok(())
+        }
+    }
 
     let mut values: Vec<ProductValue> = reply_cases()
         .into_iter()
@@ -2461,6 +2474,36 @@ fn structured_validation_reuses_all_seventy_seven_value_types_without_vm_policy(
             let expected = value
                 .bounded_leaf_items(max_query_items)
                 .ok_or(ValueBoundsError::Value);
+            for result_type in [value.result_type(), leselang_hir::Type::UiFocus] {
+                for max_output_items in [0, 1, 4] {
+                    let host = EncodingVisits(std::cell::Cell::new(0));
+                    let domain = ResultValueDomain {
+                        result_type,
+                        value_limits: limits,
+                        max_output_items,
+                        host: &host,
+                    };
+                    let result = if result_type != value.result_type() {
+                        Err(HostResultError::TypeMismatch)
+                    } else {
+                        expected
+                            .map_err(ResultValueError::Bounds)
+                            .and_then(|count| {
+                                if count > max_output_items || max_output_items == 0 {
+                                    Err(ResultValueError::OutputLimit {
+                                        count,
+                                        limit: max_output_items,
+                                    })
+                                } else {
+                                    Ok(())
+                                }
+                            })
+                            .map_err(HostResultError::InvalidValue)
+                    };
+                    assert_eq!(validate_host_result(&domain, &value), result);
+                    assert_eq!(host.0.get(), usize::from(result.is_ok()));
+                }
+            }
             assert_eq!(
                 validate_value_items(&value, 0, limits, |_| panic!("leaf has no fields")),
                 expected

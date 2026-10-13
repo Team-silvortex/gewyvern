@@ -7,7 +7,7 @@ use leselang_syntax::{Expression, Span};
 
 use crate::bound_projection_source::{
     BoundProjectionSourceEnvironment, BoundProjectionSourceError, BoundProjectionSourceLimits,
-    lower_bound_projection_source,
+    lower_catalog_projection_source,
 };
 use crate::call_typing::{CallTypeHost, CallTypeLimits};
 use crate::catalog_program::{CatalogProgramContext, CatalogProgramError};
@@ -377,7 +377,7 @@ impl<'source, 'schema, Operation, Domain, Declaration, Capability, Environment, 
                 if matches!(child, Expression::Reference { .. }) {
                     return Err(CatalogSourceError::NonScalar { span: span(child) });
                 }
-                let (node, ty) = lower_bound_projection_source(
+                let (node, ty) = lower_catalog_projection_source(
                     child,
                     prefix,
                     BoundProjectionSourceLimits {
@@ -523,7 +523,7 @@ where
         }
         if matches!(source, Expression::Call { callee, .. } if matches!(callee.as_str(), "field" | "member"))
         {
-            return lower_bound_projection_source(
+            return lower_catalog_projection_source(
                 source,
                 scope.bindings(),
                 BoundProjectionSourceLimits {

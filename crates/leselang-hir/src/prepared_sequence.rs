@@ -8,8 +8,9 @@ use crate::ir::{Computation, ComputedBranch, GroupKind};
 use crate::local_scope::CallFence;
 use crate::native_group_preparation::PreparedNativeGroup;
 use crate::sequence_evaluation::{
-    PreparedSequenceMember, SequenceAcceptance, SequenceEvaluationError, SequenceEvaluationLimits,
-    SequencePhase, SequencePoll, SequenceReplyCore, SequenceStatus, admit_sequence_shape,
+    PreparedSequenceMember, SavedSequenceMember, SequenceAcceptance, SequenceAccepted,
+    SequenceEvaluationError, SequenceEvaluationLimits, SequencePhase, SequencePoll,
+    SequenceReplyCore, SequenceRestoreError, SequenceStatus, admit_sequence_shape,
 };
 
 pub enum PreparedSequenceError<Error> {
@@ -93,6 +94,24 @@ pub struct PreparedSequenceSession<
     core: SequenceReplyCore<'expression, Node, IrResult, Identity, Declaration>,
     prepared: VecDeque<PreparedSequenceMember<'expression, Identity, Declaration, Request>>,
 }
+
+pub type RestoredPreparedSequence<
+    'expression,
+    Node,
+    IrResult,
+    Identity,
+    Declaration,
+    Request,
+    Reply,
+    Error,
+> = Result<
+    (
+        PreparedSequenceSession<'expression, Node, IrResult, Identity, Declaration, Request>,
+        Vec<SequenceAccepted<'expression, Node, IrResult, Identity, Declaration, Reply>>,
+    ),
+    SequenceRestoreError<Error>,
+>;
+
 impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration: ?Sized, Request>
     PreparedSequenceSession<
         'expression,
@@ -103,6 +122,51 @@ impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration:
         Request,
     >
 {
+    /// Restore a complete saved Seq as a contiguous accepted prefix, at most one
+    /// awaiting member, then correlated unpublished requests. The cursor is
+    /// derived, never supplied. Whole shape/order/frontier checks precede native
+    /// equality; distinct identities precede mandatory complete-snapshot admission.
+    /// The original core resumes without preparing operands or creating fuel.
+    /// Awaiting work is not republished; each queued request still requires fresh
+    /// poll admission. The original accepted rows move back to host aggregation;
+    /// an all-accepted group returns a Completed session, never a Ready past-end.
+    ///
+    /// The host must authenticate original graph, domains, requests, receipts,
+    /// publication/settlement state, saved budget and current authority/deadline.
+    /// Accepted wrappers and well-formed saved data are not live/replay authority.
+    /// Do not rearm cancelled or settled work. No codec, journal, dispatch, meter,
+    /// retry or crash transaction is supplied. Native Eq/admission/Drop are trusted
+    /// bounded work; unwind consumes inputs and a second cleanup panic may abort.
+    #[expect(
+        clippy::type_complexity,
+        reason = "restored session and prefix preserve original IR, request and reply ownership"
+    )]
+    pub fn restore<Reply, Error>(
+        group: &'expression Computation<Field, Operation, HostEffect, IrResult>,
+        rows: Vec<SavedSequenceMember<'expression, Identity, Declaration, Request, Reply>>,
+        limits: SequenceEvaluationLimits,
+        admit: impl FnOnce(
+            &[SavedSequenceMember<'expression, Identity, Declaration, Request, Reply>],
+        ) -> Result<(), Error>,
+    ) -> RestoredPreparedSequence<
+        'expression,
+        Computation<Field, Operation, HostEffect, IrResult>,
+        IrResult,
+        Identity,
+        Declaration,
+        Request,
+        Reply,
+        Error,
+    >
+    where
+        Identity: PartialEq,
+    {
+        let branches =
+            admit_sequence_shape(group, limits).map_err(SequenceRestoreError::Sequence)?;
+        let (core, prepared, accepted) = SequenceReplyCore::restore(branches, rows, admit)?;
+        Ok((Self { core, prepared }, accepted))
+    }
+
     #[expect(
         clippy::type_complexity,
         reason = "native prepared operands and original reply domains retain their distinct lifetimes"

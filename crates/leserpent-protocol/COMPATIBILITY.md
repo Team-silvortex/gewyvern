@@ -54,6 +54,13 @@ saved mutation IDs, query refusal precedence and fault metadata; the VM retains
 its existing fault codes/messages and external admission gates. Conversion consumes
 the reply without cloning or authenticating its context. No public VM, wire,
 continuation or journal schema changes follow.
+Received-value validation is composed by the adapter's `ResultValueDomain` over
+the core result-domain contract. Original type, value bounds, nonzero output
+ceiling and host encoding checks retain their order; empty queries still fail
+a zero bound-result ceiling. Explicit host limits/name/codec policy and typed
+errors preserve all VM fault codes/messages, including capped JSON failures.
+Pending ownership, original identity/current authority and durable replay remain
+host responsibilities; this adds no wire envelope, schema or admission shortcut.
 Product scalar field projection is likewise adapter-owned. It preserves owned
 scalar copies and optional-text states, not acceptance, bounds or budget checks.
 Product capture DTOs and all five field vocabularies now also belong to the

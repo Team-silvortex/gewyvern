@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-saved-group-source-export",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-13T12:06:30.002Z",
+  "platform": "macos-arm64",
+  "source_outside_product_workspace": true,
+  "source_crates": [
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir",
+    "leselang-vm"
+  ],
+  "verified": true,
+  "native_vm_facade": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "portable_mixed_checkpoint": false,
+  "process_crash_acceptance": false,
+  "files": 258,
+  "copied_files": 248,
+  "bytes": 5445165,
+  "workspace_all_features_tests": "passed",
+  "workspace_strict_clippy": "passed",
+  "independent_consumer_tests": "passed",
+  "independent_consumer_strict_clippy": "passed",
+  "isolated_test_executions": 2209,
+  "workspace_saved_group_tests": 8,
+  "independent_consumer_saved_group_tests": 8,
+  "native_payload_schemas": 2,
+  "restored_group_kinds": 2,
+  "saved_budget_boundaries": 3,
+  "maximum_group_members": 64,
+  "original_preparations_per_program": 3,
+  "original_dispatches_per_program": 3,
+  "restored_preparations_per_program": 0,
+  "restored_dispatches_per_program": 0,
+  "restored_assembly_debit": 0,
+  "consumer_proof_unchanged": true,
+  "copied_source_byte_for_byte": true,
+  "export_manifest_sha256": "c497d262d0ee11cc6ef170460d7eb4fd7988c6b105a8ad856d0a09c1979b1806",
+  "verification_log_sha256": "034d7d015abf4e085d34b54e25abb070b7d7c6580cd579db7a8883bfe66522b5",
+  "provenance": [
+    {
+      "path": "crates/leselang-hir/src/group_reply.rs",
+      "source": "crates/leselang-hir/src/group_reply.rs",
+      "sha256": "403d726d9b058d57aaa676834d37c9f4b88227283edc6b50a77faf493e28d646"
+    },
+    {
+      "path": "crates/leselang-hir/tests/saved_group.rs",
+      "source": "crates/leselang-hir/tests/saved_group.rs",
+      "sha256": "3a9e835dda1d2d36e488dc6253772f0303bb0eb112b4332397dcc307d76b1d8a"
+    },
+    {
+      "path": "consumer/tests/saved_group.rs",
+      "source": "crates/leselang-hir/tests/saved_group.rs",
+      "sha256": "3a9e835dda1d2d36e488dc6253772f0303bb0eb112b4332397dcc307d76b1d8a"
+    }
+  ],
+  "remaining_gates": [
+    "complete native reference-language coverage",
+    "portable mixed-group/helper capture codecs and authenticated graph recovery",
+    "production persistence/process-crash acceptance and durable settlement",
+    "complete reference adapter wire/auth/GUI/CLI/journal parity",
+    "release publication and physical repository extraction"
+  ]
+}

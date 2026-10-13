@@ -20,8 +20,9 @@ use crate::pure_evaluation::{
 };
 
 /// Borrowed original bind site plus opaque native capture, never a wire checkpoint.
-/// Only the shared walker constructs this object. Native capture cannot select a
-/// different name/body during restoration. Extraction is data, not authority.
+/// Only shared walking or explicit saved-stack admission constructs this object.
+/// Native capture cannot select a different name/body during execution restoration.
+/// Extraction is data, not authority; saved-stack provenance is host-admitted.
 /// No Clone/serde/Debug/Send bounds are imposed on the borrowed IR or capture.
 ///
 /// ```compile_fail

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-saved-call-source-export",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-13T11:41:55.931Z",
+  "platform": "macos-arm64",
+  "source_outside_product_workspace": true,
+  "source_crates": [
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir",
+    "leselang-vm"
+  ],
+  "verified": true,
+  "native_vm_facade": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "portable_mixed_checkpoint": false,
+  "process_crash_acceptance": false,
+  "files": 256,
+  "copied_files": 246,
+  "bytes": 5394212,
+  "workspace_all_features_tests": "passed",
+  "workspace_strict_clippy": "passed",
+  "independent_consumer_tests": "passed",
+  "independent_consumer_strict_clippy": "passed",
+  "isolated_test_executions": 2193,
+  "workspace_saved_call_tests": 9,
+  "independent_consumer_saved_call_tests": 9,
+  "native_payload_schemas": 2,
+  "valid_three_member_frontiers": 7,
+  "maximum_call_operands": 64,
+  "original_preparations_per_program": 3,
+  "original_dispatches_per_program": 3,
+  "consumer_proof_unchanged": true,
+  "copied_source_byte_for_byte": true,
+  "export_manifest_sha256": "0ec3098535e41696011da3223ac626526c06f9ee61ec09c7c521f11d0d8cbfab",
+  "verification_log_sha256": "91a540b8237306809b2185679f34d95d1892fc51326adc6d23e177fc6f36b1ab",
+  "provenance": [
+    {
+      "path": "crates/leselang-hir/src/call_evaluation.rs",
+      "source": "crates/leselang-hir/src/call_evaluation.rs",
+      "sha256": "a621ab6000c8c5d1a6c8b1f3f36cea34840333e425f5ec6e1cd5dc56d62bdc38"
+    },
+    {
+      "path": "crates/leselang-hir/tests/saved_call.rs",
+      "source": "crates/leselang-hir/tests/saved_call.rs",
+      "sha256": "2ea493dfa28d52c5e7ee8197f5fc0f69934c3076f59956c5fab896e7f0baeeeb"
+    },
+    {
+      "path": "consumer/tests/saved_call.rs",
+      "source": "crates/leselang-hir/tests/saved_call.rs",
+      "sha256": "2ea493dfa28d52c5e7ee8197f5fc0f69934c3076f59956c5fab896e7f0baeeeb"
+    }
+  ],
+  "remaining_gates": [
+    "complete native reference-language coverage",
+    "portable mixed-group/helper capture codecs and authenticated graph recovery",
+    "production persistence/process-crash acceptance and durable settlement",
+    "complete reference adapter wire/auth/GUI/CLI/journal parity",
+    "release publication and physical repository extraction"
+  ]
+}

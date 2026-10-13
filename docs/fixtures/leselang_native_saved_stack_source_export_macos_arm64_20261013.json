@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-saved-stack-source-export",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-13T09:57:00.026Z",
+  "platform": "macos-arm64",
+  "source_outside_product_workspace": true,
+  "source_crates": [
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir",
+    "leselang-vm"
+  ],
+  "verified": true,
+  "native_vm_facade": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "files": 250,
+  "copied_files": 240,
+  "bytes": 5140830,
+  "workspace_all_features_tests": "passed",
+  "workspace_strict_clippy": "passed",
+  "independent_consumer_tests": "passed",
+  "independent_consumer_strict_clippy": "passed",
+  "isolated_test_executions": 2131,
+  "workspace_saved_control_tests": 9,
+  "independent_consumer_saved_control_tests": 9,
+  "workspace_return_stack_tests": 15,
+  "independent_consumer_return_stack_tests": 15,
+  "native_host_schemas": 2,
+  "saved_helper_return_frames": 3,
+  "effects_per_successful_run": 3,
+  "consumer_proofs_unchanged": true,
+  "copied_source_byte_for_byte": true,
+  "export_manifest_sha256": "56cadd58296999f1be811d8ae12f8ae894e79317b64299d991c2a580c10d95c9",
+  "verification_log_sha256": "9d94258eee1cfb8a7d77b044f1e43e25d1cafa42ed1a76b286f4cfb45b7d0a92",
+  "provenance": [
+    {
+      "path": "crates/leselang-hir/src/effect_stack.rs",
+      "source": "crates/leselang-hir/src/effect_stack.rs",
+      "sha256": "5a4980b9ebcb697ea4c48e3462bf54552f9633e371fb8d1fd5c626954ae7c51d"
+    },
+    {
+      "path": "crates/leselang-hir/tests/effect_stack.rs",
+      "source": "crates/leselang-hir/tests/effect_stack.rs",
+      "sha256": "ea74276c63db952d54ac39b3ea81ca4ba226dc89274e3ce015860b6909326328"
+    },
+    {
+      "path": "consumer/tests/return_stack.rs",
+      "source": "crates/leselang-hir/tests/effect_stack.rs",
+      "sha256": "ea74276c63db952d54ac39b3ea81ca4ba226dc89274e3ce015860b6909326328"
+    },
+    {
+      "path": "crates/leselang-hir/tests/durable_control.rs",
+      "source": "crates/leselang-hir/tests/durable_control.rs",
+      "sha256": "d496454415ec1e7f60a82e08a6db9327b4a23b328f19310b2789c1563a2b1553"
+    },
+    {
+      "path": "consumer/tests/durable_control.rs",
+      "source": "crates/leselang-hir/tests/durable_control.rs",
+      "sha256": "d496454415ec1e7f60a82e08a6db9327b4a23b328f19310b2789c1563a2b1553"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_reentry.rs",
+      "source": "crates/leselang-hir/src/effect_reentry.rs",
+      "sha256": "57d70b553e190490e2ab869aaeb660346676bb257edbeb343f835e403cd724ad"
+    }
+  ],
+  "remaining_gates": [
+    "complete reference-language coverage across native hosts",
+    "saved group graph recovery and production persistence/process-crash acceptance",
+    "complete reference adapter wire/auth/GUI/CLI/journal parity",
+    "release publication and physical repository extraction"
+  ]
+}

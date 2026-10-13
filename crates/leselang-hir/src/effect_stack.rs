@@ -1,6 +1,6 @@
 //! Opt-in bounded in-memory return frames over the shared synchronous walker.
 
-use std::fmt;
+use std::{convert::Infallible, fmt};
 
 use leselang_runtime_core::{
     AcceptedReply, CalculationFailure, Fuel, LocalExecutionScope, ScopeFrame, StructureBudget,
@@ -18,8 +18,8 @@ use crate::effect_reentry::{
 };
 use crate::ir::Computation;
 use crate::local_scope::CallFence;
-use crate::pure_evaluation::{PureEvaluationEnvironment, PureValue};
-use crate::pure_typing::MAX_TYPE_INFERENCE_DEPTH;
+use crate::pure_evaluation::{PureEvaluationEnvironment, PureEvaluationFault, PureValue};
+use crate::pure_typing::{MAX_TYPE_INFERENCE_DEPTH, valid_local_name};
 
 pub const MAX_EFFECT_RETURN_FRAMES: usize = MAX_TYPE_INFERENCE_DEPTH;
 
@@ -30,9 +30,10 @@ pub struct EffectStackLimits {
     pub max_frames: usize,
 }
 
-/// Core-owned original binding sites in innermost-to-outermost return order.
-/// Captures remain native, move-only and nonportable. Construction is private;
-/// inspection/extraction supplies neither reply authority nor durable provenance.
+/// Core-owned binding sites in innermost-to-outermost return order, captured live
+/// or restored from explicitly host-admitted saved data. Captures remain native,
+/// move-only and nonportable. Inspection/extraction supplies neither reply
+/// authority nor durable provenance.
 /// The host must bound snapshot work/bytes across all frames, not just each capture.
 ///
 /// ```compile_fail
@@ -67,6 +68,85 @@ impl<Node: ?Sized, Capture> fmt::Debug for EffectReturnStack<'_, Node, Capture> 
             .field("frames", &self.frame_count())
             .finish()
     }
+}
+
+/// Unchecked host-decoded return data, not a live frame, receipt or authority.
+/// Bodies/names borrow the admitted snapshot; captures move without cloning.
+/// Input order is innermost to outermost. The host must authenticate that order,
+/// each original site and capture, and bound decoding/aggregate native storage.
+pub struct SavedEffectReturnFrame<'expression, Node: ?Sized, Capture> {
+    pub name: &'expression str,
+    pub body: &'expression Node,
+    pub capture: Capture,
+}
+impl<Node: ?Sized, Capture> fmt::Debug for SavedEffectReturnFrame<'_, Node, Capture> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("SavedEffectReturnFrame")
+    }
+}
+
+pub type EffectStackRestoreResult<'expression, Node, Capture> =
+    Result<EffectReturnStack<'expression, Node, Capture>, EffectStackFailure<Infallible>>;
+
+/// Rebuild bounded return sites from host-admitted saved data without executing.
+/// Frame count, names and the complete body forest share the original structural
+/// limits. Each lexical frame is independent; equal names across frames are valid.
+/// No native callback, capture copy, effect preparation, fuel grant or reply is
+/// created. Rebuilt stacks still require PendingReply acceptance and the existing
+/// resume_accepted_stacked_effects entry, which rechecks all cold effects before
+/// restoring any prefix or projecting the accepted reply once.
+///
+/// This is structural admission only. The host must first validate the original
+/// stored graph/site correspondence, schema, captures and saved resource budget,
+/// then enforce live authority, authentic replies, settlement and cancellation.
+/// A caller can submit different well-formed data; success does not authenticate
+/// it. This supplies no codec, journal, migration, replay fence or automatic retry.
+/// Owned inputs are consumed on refusal; native Drop/unwind remains host-owned.
+pub fn restore_effect_return_stack<'expression, Field, Operation, HostEffect, IrResult, Capture>(
+    frames: Vec<
+        SavedEffectReturnFrame<
+            'expression,
+            Computation<Field, Operation, HostEffect, IrResult>,
+            Capture,
+        >,
+    >,
+    policy: EffectStackLimits,
+) -> EffectStackRestoreResult<
+    'expression,
+    Computation<Field, Operation, HostEffect, IrResult>,
+    Capture,
+> {
+    limits(policy)?;
+    if frames.is_empty() || frames.len() > policy.max_frames {
+        return Err(EffectStackFault::ReturnLimit.into());
+    }
+    let mut empty = Vec::<(&str, PureValue<()>)>::new();
+    preflight_scope(&ScopeFrame::new(&mut empty), policy.effects).map_err(stack_failure)?;
+    let mut budget =
+        StructureBudget::new(policy.effects.pure.max_nodes, policy.effects.pure.max_depth);
+    let mut effects = Vec::new();
+    for frame in &frames {
+        if !valid_local_name(frame.name) {
+            return Err(EffectStackFault::Control(EffectEvaluationFault::Pure(
+                PureEvaluationFault::InvalidScope,
+            ))
+            .into());
+        }
+        preflight_into(frame.body, policy.effects, &mut budget, &mut effects)
+            .map_err(stack_failure)?;
+    }
+    if policy.effects.pure.max_bindings == 0 {
+        return Err(EffectStackFault::Control(EffectEvaluationFault::Pure(
+            PureEvaluationFault::BindingLimit,
+        ))
+        .into());
+    }
+    Ok(EffectReturnStack {
+        frames: frames
+            .into_iter()
+            .map(|frame| EffectContinuation::new(frame.name, frame.body, frame.capture))
+            .collect(),
+    })
 }
 
 #[must_use = "route the value, prepared request or complete return-frame stack"]

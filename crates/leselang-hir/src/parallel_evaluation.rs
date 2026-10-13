@@ -153,6 +153,75 @@ impl<Reply, AuthorityError, ResultError> fmt::Debug
 pub type ParallelAcceptance<Reply, AuthorityError, ResultError> =
     Result<(), ParallelRejected<Reply, AuthorityError, ResultError>>;
 
+/// Host-admitted saved state for an already-published member. Neither variant
+/// proves durable provenance or permits dispatch. Accepted data must have passed
+/// the existing PendingReply protocol; current policy still needs a fresh check.
+pub enum SavedParallelReply<'schema, Identity, Declaration: ?Sized, Reply> {
+    Awaiting {
+        identity: Identity,
+        declaration: &'schema Declaration,
+    },
+    Accepted(AcceptedReply<'schema, Identity, (), Declaration, Reply>),
+}
+impl<Identity, Declaration: ?Sized, Reply> SavedParallelReply<'_, Identity, Declaration, Reply> {
+    pub fn identity(&self) -> &Identity {
+        match self {
+            Self::Awaiting { identity, .. } => identity,
+            Self::Accepted(accepted) => accepted.as_parts().0,
+        }
+    }
+}
+impl<Identity, Declaration: ?Sized, Reply> fmt::Debug
+    for SavedParallelReply<'_, Identity, Declaration, Reply>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Awaiting { .. } => "Awaiting",
+            Self::Accepted(_) => "Accepted",
+        })
+    }
+}
+
+/// Unchecked saved row in original declaration order, not a recovery certificate.
+pub struct SavedParallelMember<'schema, Identity, Declaration: ?Sized, Reply> {
+    pub index: usize,
+    pub name: &'schema str,
+    pub reply: SavedParallelReply<'schema, Identity, Declaration, Reply>,
+}
+impl<Identity, Declaration: ?Sized, Reply> fmt::Debug
+    for SavedParallelMember<'_, Identity, Declaration, Reply>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SavedParallelMember")
+            .field("index", &self.index)
+            .field("reply", &self.reply)
+            .finish()
+    }
+}
+
+pub enum ParallelRestoreError<Native> {
+    Parallel(ParallelEvaluationError<Native>),
+    Count,
+    Row { index: usize },
+    Native(Native),
+}
+impl<Native> fmt::Display for ParallelRestoreError<Native> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Parallel(_) => "saved parallel shape or identity rejected",
+            Self::Count => "saved parallel rows must cover the complete group",
+            Self::Row { .. } => "saved parallel row differs from original declaration order",
+            Self::Native(_) => "saved parallel whole-batch native admission rejected",
+        })
+    }
+}
+impl<Native> fmt::Debug for ParallelRestoreError<Native> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+impl<Native> std::error::Error for ParallelRestoreError<Native> {}
+
 enum Member<'schema, Identity, Declaration: ?Sized, Reply> {
     Pending(PendingReply<'schema, Identity, (), Declaration>),
     Accepted(AcceptedReply<'schema, Identity, (), Declaration, Reply>),
@@ -530,6 +599,58 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
     }
     pub(crate) fn member_count(&self) -> usize {
         self.branches.len()
+    }
+
+    pub(crate) fn restore<Error>(
+        branches: &'expression [ComputedBranch<Node, IrResult>],
+        rows: Vec<SavedParallelMember<'expression, Identity, Declaration, Reply>>,
+        admit: impl FnOnce(
+            &[SavedParallelMember<'expression, Identity, Declaration, Reply>],
+        ) -> Result<(), Error>,
+    ) -> Result<Self, ParallelRestoreError<Error>>
+    where
+        Identity: PartialEq,
+    {
+        if rows.len() != branches.len() {
+            return Err(ParallelRestoreError::Count);
+        }
+        for (index, row) in rows.iter().enumerate() {
+            if row.index != index || row.name != branches[index].name {
+                return Err(ParallelRestoreError::Row { index });
+            }
+        }
+        for (index, row) in rows.iter().enumerate() {
+            for (previous, other) in rows[..index].iter().enumerate() {
+                if row.reply.identity() == other.reply.identity() {
+                    return Err(ParallelRestoreError::Parallel(
+                        ParallelEvaluationError::DuplicateIdentity { index, previous },
+                    ));
+                }
+            }
+        }
+        admit(&rows).map_err(ParallelRestoreError::Native)?;
+        let mut remaining = 0;
+        let members = rows
+            .into_iter()
+            .map(|row| match row.reply {
+                SavedParallelReply::Awaiting {
+                    identity,
+                    declaration,
+                } => {
+                    remaining += 1;
+                    Member::Pending(PendingReply::new(identity, (), declaration))
+                }
+                SavedParallelReply::Accepted(accepted) => Member::Accepted(accepted),
+            })
+            .collect();
+        Ok(Self {
+            branches,
+            state: if remaining == 0 {
+                State::ReadyResults(members)
+            } else {
+                State::Awaiting { members, remaining }
+            },
+        })
     }
 
     #[expect(

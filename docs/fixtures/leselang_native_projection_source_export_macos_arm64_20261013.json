@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-projection-source-export",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-13",
+  "platform": "macos-arm64",
+  "source_outside_product_workspace": true,
+  "source_crates": ["leselang-syntax", "leselang-runtime-core", "leselang-hir", "leselang-vm"],
+  "verified": true,
+  "native_vm_facade": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "files": 250,
+  "copied_files": 240,
+  "bytes": 5033016,
+  "workspace_all_features_tests": "passed",
+  "workspace_strict_clippy": "passed",
+  "independent_consumer_tests": "passed",
+  "independent_consumer_strict_clippy": "passed",
+  "isolated_test_executions": 2103,
+  "workspace_pipeline_tests": 20,
+  "independent_consumer_pipeline_tests": 20,
+  "conditional_host_program_paths": 16,
+  "consumer_pipeline_proof_unchanged": true,
+  "copied_source_byte_for_byte": true,
+  "export_manifest_sha256": "2584d3f59ac1c91b3d2fb9af8581fa7cafce8609c44b42dda9379868b7cfdd2e",
+  "verification_log_sha256": "6d6d9af27e58d0b76cc4434c0d6c82ed63302ab2ab89cd9fb6d9450c88ca4b4e",
+  "provenance": [
+    {
+      "path": "crates/leselang-hir/src/bound_projection_source.rs",
+      "source": "crates/leselang-hir/src/bound_projection_source.rs",
+      "sha256": "47d38128c483a57022b39ee80fc819b0bad314ba96b9cdf4ebdcad78f3adf808"
+    },
+    {
+      "path": "crates/leselang-hir/src/catalog_source.rs",
+      "source": "crates/leselang-hir/src/catalog_source.rs",
+      "sha256": "1c4f9a997554290de953c0a0b187a1a91371eddba3a3129d4d8b3f5773975224"
+    },
+    {
+      "path": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "source": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "8bbf3eb733b9ed7eb57ed6daf74d6522eed9d98398460da1841a7b0ba1f123b8"
+    },
+    {
+      "path": "consumer/tests/native_host_pipeline.rs",
+      "source": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "8bbf3eb733b9ed7eb57ed6daf74d6522eed9d98398460da1841a7b0ba1f123b8"
+    }
+  ],
+  "remaining_gates": [
+    "complete reference-language coverage across native hosts",
+    "host-neutral durable graph recovery",
+    "complete reference adapter wire/auth/GUI/CLI/journal parity",
+    "release publication and physical repository extraction"
+  ]
+}

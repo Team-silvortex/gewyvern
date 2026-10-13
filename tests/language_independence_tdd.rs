@@ -1476,15 +1476,18 @@ fn actual_result_validation_is_product_free_and_shared_by_reference_raw_value_bi
     );
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-vm/src/host_result.rs")).unwrap();
-    assert!(reference.contains("impl HostResultDomain<Value> for BoundResultDomain"));
+    assert!(reference.contains("impl ResultValueHost for BoundResultHost"));
+    assert!(reference.contains("let declaration = ResultValueDomain {"));
     assert!(reference.contains("PendingReply::new(image.token.as_str(), image, &declaration)"));
     assert!(reference.contains(".try_accept(&image.token.as_str(), value, &ResultObservation)"));
-    assert!(
-        reference.contains(
-            "ReplyAcceptanceError::Result(HostResultError::InvalidValue(error)) => error"
-        )
-    );
-    assert!(reference.contains("crate::group_binding::value_type(reply)"));
+    assert!(reference.contains(
+        "ReplyAcceptanceError::Result(HostResultError::InvalidValue(error)) => match error"
+    ));
+    assert!(reference.contains("ResultValueError::Encoding(error) => error"));
+    let adapter =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/result_domain.rs")).unwrap();
+    assert!(adapter.contains("HostResultDomain<Value> for ResultValueDomain"));
+    assert!(adapter.contains("reply.result_type() == self.result_type"));
     let vm =
         std::fs::read_to_string(root.join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
     assert!(vm.contains("use host_result::{accept_bound_value, validate_bound_value};"));
@@ -2808,16 +2811,27 @@ fn complete_group_reply_assembly_is_native_free_and_keeps_cold_checks_before_own
     ] {
         assert!(source.contains(boundary), "group reply lost {boundary}");
     }
-    let assemble = source.split_once("pub fn assemble_group_reply").unwrap().1;
-    let physical = assemble.find("physical(").unwrap();
-    let candidate = assemble.find("atomic_candidate").unwrap();
-    let count = assemble.find("accepted.len() != branches.len()").unwrap();
-    let row = assemble.find("std::ptr::eq").unwrap();
+    let assemble = source
+        .split_once("pub fn assemble_group_reply")
+        .unwrap()
+        .1
+        .split_once("pub fn restore_group_reply")
+        .unwrap()
+        .0;
+    let cold = assemble
+        .find("check_group_reply(group, &accepted, limits)?")
+        .unwrap();
     let debit = assemble.find("fuel.charge(").unwrap();
     let native = assemble.find("admit(&reply, fuel)").unwrap();
-    assert!(
-        physical < candidate && candidate < count && count < row && row < debit && debit < native
-    );
+    assert!(cold < debit && debit < native);
+    let check = source.split_once("fn check_group_reply<").unwrap().1;
+    let physical = check.find("physical(").unwrap();
+    let candidate = check.find("atomic_candidate").unwrap();
+    let count = check.find("accepted.len() != branches.len()").unwrap();
+    let row = check.find("std::ptr::eq").unwrap();
+    assert!(physical < candidate && candidate < count && count < row);
+    assert!(!check.contains("fuel.charge("));
+    assert!(!check.contains("admit("));
     for path in ["sequence_evaluation", "parallel_evaluation"] {
         let session =
             std::fs::read_to_string(root.join(format!("crates/leselang-hir/src/{path}.rs")))
@@ -3294,6 +3308,9 @@ fn bound_native_projection_source_has_exact_borrowed_type_queries_without_produc
         std::fs::read_to_string(root.join("crates/leselang-hir/src/bound_projection_source.rs"))
             .unwrap();
     let production = source
+        .split("#[cfg(test)]")
+        .next()
+        .unwrap()
         .lines()
         .filter(|line| !line.trim_start().starts_with("//"))
         .collect::<Vec<_>>()
@@ -3365,6 +3382,16 @@ fn bound_native_projection_source_has_exact_borrowed_type_queries_without_produc
         "native_error_and_unwind_do_not_copy_drop_or_requery_borrowed_metadata",
     ] {
         assert!(tests.contains(proof), "bound projection lost {proof}");
+    }
+    assert!(source.contains("lower_projection(expression, prefix, limits, environment, false)"));
+    assert!(source.contains("lower_projection(expression, prefix, limits, environment, true)"));
+    assert!(source.contains("allow_member_field && callee == \"field\" && child == \"member\""));
+    for proof in [
+        "catalog_member_field_composition_keeps_direct_entry_closed_and_moves_native_slots",
+        "catalog_member_field_bounds_and_cold_metadata_precede_native_export_queries",
+        "catalog_member_field_refusal_and_unwind_stop_without_copying_native_errors",
+    ] {
+        assert!(source.contains(proof));
     }
     let parsed =
         std::fs::read_to_string(root.join("crates/leselang-hir/tests/bound_projection_session.rs"))
@@ -7526,7 +7553,7 @@ fn catalog_expression_pipeline_owns_source_orchestration_before_native_metadata_
         ".authorize(",
         ".bind_arguments(&names)",
         "lower_scalar_source_with_scope(",
-        "lower_bound_projection_source(",
+        "lower_catalog_projection_source(",
         "lower_source_call(",
         "operation != schema.key",
         "operation.borrow() != schema.key.borrow()",
@@ -8009,6 +8036,8 @@ fn nested_return_frames_reuse_one_walker_and_original_reply_protocol_without_a_s
     }
     for required in [
         "pub struct EffectReturnStack",
+        "pub struct SavedEffectReturnFrame",
+        "pub fn restore_effect_return_stack<",
         "pub struct EffectStackLimits",
         "Declaration: ?Sized",
         "evaluate_with_profile::<",
@@ -8045,6 +8074,9 @@ fn nested_return_frames_reuse_one_walker_and_original_reply_protocol_without_a_s
         std::fs::read_to_string(root.join("crates/leselang-hir/tests/effect_stack.rs")).unwrap();
     for proof in [
         "nested_helpers_return_through_original_scopes_and_repeated_requests_without_fuel_reset",
+        "saved_stack_admission_moves_native_captures_and_reuses_the_original_reply_walker",
+        "saved_stack_refuses_empty_names_and_shared_forest_overflow_without_native_work",
+        "saved_stack_admission_neither_grants_live_authority_nor_rearms_cancelled_owners",
         "request_tail_adopts_the_next_original_return_site_without_replaying_inner_effects",
         "legacy_single_frame_entry_still_rejects_nested_suspension_before_outer_capture",
         "return_quota_is_inclusive_shared_across_new_and_pending_frames_and_never_refunds",
@@ -8117,7 +8149,7 @@ fn prepared_sequence_reuses_original_reply_core_with_complete_correlation_and_fr
     assert!(!fields.contains("fuel:"));
     assert!(!fields.contains("state:"));
     assert_eq!(shared.matches("enum State<").count(), 1);
-    assert_eq!(shared.matches("PendingReply::new(").count(), 1);
+    assert_eq!(shared.matches("PendingReply::new(").count(), 2);
     assert!(shared.contains("core: SequenceReplyCore<"));
     for boundary in [
         ".publish_with(",
@@ -8442,7 +8474,7 @@ fn prepared_parallel_sessions_reuse_original_reply_core_without_argument_replay_
             .unwrap();
     assert_eq!(shared.matches("enum State<").count(), 1);
     assert_eq!(shared.matches("enum Member<").count(), 1);
-    assert_eq!(shared.matches("PendingReply::new(").count(), 1);
+    assert_eq!(shared.matches("PendingReply::new(").count(), 2);
     assert_eq!(shared.matches("pub(crate) fn try_accept<").count(), 1);
     assert!(
         shared

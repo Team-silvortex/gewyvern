@@ -17,6 +17,7 @@ mod projected_group;
 mod projected_result;
 mod projection_access;
 mod result_binding;
+mod result_domain;
 mod result_view;
 mod scalar_projection;
 mod structured_value;
@@ -47,6 +48,7 @@ pub use projection_access::validate_captured_projection_accesses;
 pub use result_binding::{
     ResultBinding, ResultBindingLimits, validate_result_binding, validate_result_binding_structure,
 };
+pub use result_domain::{ResultValueDomain, ResultValueError, ResultValueHost};
 pub use result_view::{ResultView, ResultViewError};
 pub use structured_value::{ValueBoundsError, ValueValidationLimits, validate_value_items};
 pub use value::{StructuredField, Value};

@@ -1,6 +1,6 @@
 //! Borrowed, in-memory sequential request/reply ownership, not durable dispatch.
 
-use std::{borrow::Borrow, convert::Infallible, fmt};
+use std::{borrow::Borrow, collections::VecDeque, convert::Infallible, fmt};
 
 use leselang_runtime_core::{
     AcceptedReply, Fuel, HostResultDomain, LocalExecutionScope, PendingReply, ReplyAcceptanceError,
@@ -231,6 +231,84 @@ impl<Node, IrResult, Identity, Declaration: ?Sized, Reply> fmt::Debug
         formatter.write_str("SequenceAccepted")
     }
 }
+
+/// Unchecked saved row state. Prepared means correlated but not yet published;
+/// Awaiting means already published, not permission to dispatch it again.
+/// Accepted data still requires current whole-snapshot host admission.
+pub enum SavedSequenceReply<'schema, Identity, Declaration: ?Sized, Request, Reply> {
+    Prepared(PreparedSequenceMember<'schema, Identity, Declaration, Request>),
+    Awaiting {
+        identity: Identity,
+        declaration: &'schema Declaration,
+    },
+    Accepted(AcceptedReply<'schema, Identity, (), Declaration, Reply>),
+}
+impl<Identity, Declaration: ?Sized, Request, Reply>
+    SavedSequenceReply<'_, Identity, Declaration, Request, Reply>
+{
+    pub fn identity(&self) -> &Identity {
+        match self {
+            Self::Prepared(member) => &member.identity,
+            Self::Awaiting { identity, .. } => identity,
+            Self::Accepted(accepted) => accepted.as_parts().0,
+        }
+    }
+}
+impl<Identity, Declaration: ?Sized, Request, Reply> fmt::Debug
+    for SavedSequenceReply<'_, Identity, Declaration, Request, Reply>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Prepared(_) => "Prepared",
+            Self::Awaiting { .. } => "Awaiting",
+            Self::Accepted(_) => "Accepted",
+        })
+    }
+}
+
+/// Original ordered saved data, not a receipt, graph certificate or replay grant.
+pub struct SavedSequenceMember<'schema, Identity, Declaration: ?Sized, Request, Reply> {
+    pub index: usize,
+    pub name: &'schema str,
+    pub reply: SavedSequenceReply<'schema, Identity, Declaration, Request, Reply>,
+}
+impl<Identity, Declaration: ?Sized, Request, Reply> fmt::Debug
+    for SavedSequenceMember<'_, Identity, Declaration, Request, Reply>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SavedSequenceMember")
+            .field("index", &self.index)
+            .field("reply", &self.reply)
+            .finish()
+    }
+}
+
+pub enum SequenceRestoreError<Native> {
+    Sequence(SequenceEvaluationError<Native>),
+    Count,
+    Row { index: usize },
+    Frontier { index: usize },
+    DuplicateIdentity { index: usize, previous: usize },
+    Native(Native),
+}
+impl<Native> fmt::Display for SequenceRestoreError<Native> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Sequence(_) => "saved sequence shape rejected",
+            Self::Count => "saved sequence rows must cover the complete group",
+            Self::Row { .. } => "saved sequence row differs from original declaration order",
+            Self::Frontier { .. } => "saved sequence completion or publication frontier differs",
+            Self::DuplicateIdentity { .. } => "saved sequence member identities are not distinct",
+            Self::Native(_) => "saved sequence whole-snapshot native admission rejected",
+        })
+    }
+}
+impl<Native> fmt::Debug for SequenceRestoreError<Native> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+impl<Native> std::error::Error for SequenceRestoreError<Native> {}
 
 enum State<'schema, Identity, Declaration: ?Sized> {
     Ready,
@@ -563,6 +641,87 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
     pub(crate) fn member_count(&self) -> usize {
         self.branches.len()
     }
+
+    #[expect(
+        clippy::type_complexity,
+        reason = "restore moves the original core, unpublished requests and accepted prefix separately"
+    )]
+    pub(crate) fn restore<Request, Reply, Error>(
+        branches: &'expression [ComputedBranch<Node, IrResult>],
+        rows: Vec<SavedSequenceMember<'expression, Identity, Declaration, Request, Reply>>,
+        admit: impl FnOnce(
+            &[SavedSequenceMember<'expression, Identity, Declaration, Request, Reply>],
+        ) -> Result<(), Error>,
+    ) -> Result<
+        (
+            Self,
+            VecDeque<PreparedSequenceMember<'expression, Identity, Declaration, Request>>,
+            Vec<SequenceAccepted<'expression, Node, IrResult, Identity, Declaration, Reply>>,
+        ),
+        SequenceRestoreError<Error>,
+    >
+    where
+        Identity: PartialEq,
+    {
+        if rows.len() != branches.len() {
+            return Err(SequenceRestoreError::Count);
+        }
+        for (index, row) in rows.iter().enumerate() {
+            if row.index != index || row.name != branches[index].name {
+                return Err(SequenceRestoreError::Row { index });
+            }
+        }
+        let next = rows
+            .iter()
+            .take_while(|row| matches!(row.reply, SavedSequenceReply::Accepted(_)))
+            .count();
+        for (index, row) in rows.iter().enumerate().skip(next) {
+            if matches!(row.reply, SavedSequenceReply::Accepted(_))
+                || (index != next && matches!(row.reply, SavedSequenceReply::Awaiting { .. }))
+            {
+                return Err(SequenceRestoreError::Frontier { index });
+            }
+        }
+        for (index, row) in rows.iter().enumerate() {
+            for (previous, earlier) in rows[..index].iter().enumerate() {
+                if row.reply.identity() == earlier.reply.identity() {
+                    return Err(SequenceRestoreError::DuplicateIdentity { index, previous });
+                }
+            }
+        }
+        admit(&rows).map_err(SequenceRestoreError::Native)?;
+        let mut prepared = VecDeque::new();
+        let mut accepted = Vec::with_capacity(next);
+        let mut state = if next == branches.len() {
+            State::Terminal(SequenceEnd::Completed)
+        } else {
+            State::Ready
+        };
+        for (index, row) in rows.into_iter().enumerate() {
+            match row.reply {
+                SavedSequenceReply::Prepared(member) => prepared.push_back(member),
+                SavedSequenceReply::Awaiting {
+                    identity,
+                    declaration,
+                } => {
+                    state = State::Awaiting(PendingReply::new(identity, (), declaration));
+                }
+                SavedSequenceReply::Accepted(reply) => {
+                    accepted.push(SequenceAccepted::new(index, &branches[index], reply));
+                }
+            }
+        }
+        Ok((
+            Self {
+                branches,
+                next,
+                state,
+            },
+            prepared,
+            accepted,
+        ))
+    }
+
     pub(crate) fn status(&self) -> SequenceStatus {
         match &self.state {
             State::Ready => SequenceStatus::Ready { index: self.next },
